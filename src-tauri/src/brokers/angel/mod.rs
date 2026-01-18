@@ -1,12 +1,13 @@
 //! Angel One broker adapter
 
+#![allow(non_snake_case)]
+
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 const BASE_URL: &str = "https://apiconnect.angelone.in";
 
@@ -116,6 +117,7 @@ impl Broker for AngelBroker {
         }
 
         #[derive(Deserialize)]
+        #[allow(dead_code)]
         struct LoginData {
             jwtToken: String,
             refreshToken: String,
@@ -221,9 +223,9 @@ impl Broker for AngelBroker {
 
     async fn modify_order(
         &self,
-        auth_token: &str,
+        _auth_token: &str,
         order_id: &str,
-        order: ModifyOrderRequest,
+        _order: ModifyOrderRequest,
     ) -> Result<OrderResponse> {
         // Implementation similar to place_order
         Ok(OrderResponse {
@@ -276,7 +278,7 @@ impl Broker for AngelBroker {
     }
 
     async fn get_order_book(&self, auth_token: &str) -> Result<Vec<Order>> {
-        let response = self
+        let _response = self
             .client
             .get(format!(
                 "{}/rest/secure/angelbroking/order/v1/getOrderBook",
@@ -292,7 +294,7 @@ impl Broker for AngelBroker {
     }
 
     async fn get_trade_book(&self, auth_token: &str) -> Result<Vec<Order>> {
-        let response = self
+        let _response = self
             .client
             .get(format!(
                 "{}/rest/secure/angelbroking/order/v1/getTradeBook",
@@ -306,7 +308,7 @@ impl Broker for AngelBroker {
     }
 
     async fn get_positions(&self, auth_token: &str) -> Result<Vec<Position>> {
-        let response = self
+        let _response = self
             .client
             .get(format!(
                 "{}/rest/secure/angelbroking/order/v1/getPosition",
@@ -320,7 +322,7 @@ impl Broker for AngelBroker {
     }
 
     async fn get_holdings(&self, auth_token: &str) -> Result<Vec<Holding>> {
-        let response = self
+        let _response = self
             .client
             .get(format!(
                 "{}/rest/secure/angelbroking/portfolio/v1/getHolding",
@@ -334,7 +336,7 @@ impl Broker for AngelBroker {
     }
 
     async fn get_funds(&self, auth_token: &str) -> Result<Funds> {
-        let response = self
+        let _response = self
             .client
             .get(format!(
                 "{}/rest/secure/angelbroking/user/v1/getRMS",
@@ -360,8 +362,8 @@ impl Broker for AngelBroker {
 
     async fn get_quote(
         &self,
-        auth_token: &str,
-        symbols: Vec<(String, String)>,
+        _auth_token: &str,
+        _symbols: Vec<(String, String)>,
     ) -> Result<Vec<Quote>> {
         // Angel uses LTP endpoint
         Ok(vec![])
@@ -369,7 +371,7 @@ impl Broker for AngelBroker {
 
     async fn get_market_depth(
         &self,
-        auth_token: &str,
+        _auth_token: &str,
         exchange: &str,
         symbol: &str,
     ) -> Result<MarketDepth> {
@@ -381,7 +383,7 @@ impl Broker for AngelBroker {
         })
     }
 
-    async fn download_master_contract(&self, auth_token: &str) -> Result<Vec<SymbolData>> {
+    async fn download_master_contract(&self, _auth_token: &str) -> Result<Vec<SymbolData>> {
         // Download from Angel's master contract URL
         // https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json
         Ok(vec![])

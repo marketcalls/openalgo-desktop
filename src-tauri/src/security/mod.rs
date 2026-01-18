@@ -4,7 +4,7 @@ mod keychain;
 mod encryption;
 mod hashing;
 
-use crate::error::{AppError, Result};
+use crate::error::Result;
 
 /// Security manager combining all security features
 pub struct SecurityManager {

@@ -11,7 +11,6 @@ use chrono::{NaiveTime, Timelike, Utc};
 use chrono_tz::Asia::Kolkata;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
-use tokio::time::interval;
 use tracing::{info, warn};
 
 /// Auto-logout scheduler that runs at 3:00 AM IST
@@ -48,12 +47,12 @@ impl AutoLogoutScheduler {
 
     /// Start the auto-logout scheduler
     ///
-    /// This spawns a background task that:
+    /// This spawns a background thread that:
     /// 1. Emits warning events before logout (30 min, 15 min, 5 min, 1 min)
     /// 2. Executes logout at 3:00 AM IST
     /// 3. Emits `auto_logout` event to frontend
     pub fn start(self) {
-        tokio::spawn(async move {
+        std::thread::spawn(move || {
             info!("Auto-logout scheduler started");
 
             loop {
@@ -65,16 +64,16 @@ impl AutoLogoutScheduler {
                 );
 
                 // Wait until 3:00 AM IST
-                tokio::time::sleep(duration).await;
+                std::thread::sleep(duration);
 
                 // Execute auto-logout
-                self.execute_auto_logout().await;
+                self.execute_auto_logout();
             }
         });
     }
 
     /// Execute the auto-logout
-    async fn execute_auto_logout(&self) {
+    fn execute_auto_logout(&self) {
         info!("Executing auto-logout at 3:00 AM IST");
 
         // Emit auto_logout event to frontend
@@ -92,7 +91,7 @@ impl AutoLogoutScheduler {
 
     /// Emit warning notification before logout
     #[allow(dead_code)]
-    async fn emit_warning(&self, minutes_remaining: u32) {
+    fn emit_warning(&self, minutes_remaining: u32) {
         let message = format!("Auto-logout in {} minutes", minutes_remaining);
         info!("{}", message);
 

@@ -4,6 +4,7 @@ use rusqlite::Connection;
 use std::path::Path;
 
 /// Create a new SQLite connection
+#[allow(dead_code)]
 pub fn create_connection(path: &Path) -> rusqlite::Result<Connection> {
     Connection::open(path)
 }

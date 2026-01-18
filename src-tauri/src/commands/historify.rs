@@ -49,7 +49,7 @@ pub async fn get_market_data(
 /// Download historical data from broker
 #[tauri::command]
 pub async fn download_historical_data(
-    state: State<'_, AppState>,
+    _state: State<'_, AppState>,
     request: DownloadRequest,
 ) -> Result<DownloadResponse> {
     tracing::info!(

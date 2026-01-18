@@ -10,7 +10,7 @@ mod strategy;
 mod settings;
 mod sandbox;
 
-use crate::error::{AppError, Result};
+use crate::error::Result;
 use crate::security::SecurityManager;
 use crate::state::SymbolInfo;
 use models::*;

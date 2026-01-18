@@ -5,7 +5,7 @@ use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 const BASE_URL: &str = "https://api.kite.trade";
@@ -212,7 +212,7 @@ impl Broker for ZerodhaBroker {
             params.push(("trigger_price", tp.to_string()));
         }
 
-        let response = self
+        let _response = self
             .client
             .put(format!("{}/orders/regular/{}", BASE_URL, order_id))
             .headers(self.get_headers("", Some(auth_token)))
@@ -259,7 +259,7 @@ impl Broker for ZerodhaBroker {
     }
 
     async fn get_order_book(&self, auth_token: &str) -> Result<Vec<Order>> {
-        let response = self
+        let _response = self
             .client
             .get(format!("{}/orders", BASE_URL))
             .headers(self.get_headers("", Some(auth_token)))
@@ -270,7 +270,7 @@ impl Broker for ZerodhaBroker {
     }
 
     async fn get_trade_book(&self, auth_token: &str) -> Result<Vec<Order>> {
-        let response = self
+        let _response = self
             .client
             .get(format!("{}/trades", BASE_URL))
             .headers(self.get_headers("", Some(auth_token)))
@@ -281,7 +281,7 @@ impl Broker for ZerodhaBroker {
     }
 
     async fn get_positions(&self, auth_token: &str) -> Result<Vec<Position>> {
-        let response = self
+        let _response = self
             .client
             .get(format!("{}/portfolio/positions", BASE_URL))
             .headers(self.get_headers("", Some(auth_token)))
@@ -292,7 +292,7 @@ impl Broker for ZerodhaBroker {
     }
 
     async fn get_holdings(&self, auth_token: &str) -> Result<Vec<Holding>> {
-        let response = self
+        let _response = self
             .client
             .get(format!("{}/portfolio/holdings", BASE_URL))
             .headers(self.get_headers("", Some(auth_token)))
@@ -303,7 +303,7 @@ impl Broker for ZerodhaBroker {
     }
 
     async fn get_funds(&self, auth_token: &str) -> Result<Funds> {
-        let response = self
+        let _response = self
             .client
             .get(format!("{}/user/margins", BASE_URL))
             .headers(self.get_headers("", Some(auth_token)))
@@ -325,11 +325,11 @@ impl Broker for ZerodhaBroker {
 
     async fn get_quote(
         &self,
-        auth_token: &str,
+        _auth_token: &str,
         symbols: Vec<(String, String)>,
     ) -> Result<Vec<Quote>> {
         // Build query params like i=NSE:RELIANCE&i=NSE:TCS
-        let instruments: Vec<String> = symbols
+        let _instruments: Vec<String> = symbols
             .iter()
             .map(|(ex, sym)| format!("{}:{}", ex, sym))
             .collect();
@@ -339,7 +339,7 @@ impl Broker for ZerodhaBroker {
 
     async fn get_market_depth(
         &self,
-        auth_token: &str,
+        _auth_token: &str,
         exchange: &str,
         symbol: &str,
     ) -> Result<MarketDepth> {
@@ -351,7 +351,7 @@ impl Broker for ZerodhaBroker {
         })
     }
 
-    async fn download_master_contract(&self, auth_token: &str) -> Result<Vec<SymbolData>> {
+    async fn download_master_contract(&self, _auth_token: &str) -> Result<Vec<SymbolData>> {
         // Zerodha instruments CSV: https://api.kite.trade/instruments
         Ok(vec![])
     }

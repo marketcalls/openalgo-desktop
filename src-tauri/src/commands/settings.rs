@@ -3,7 +3,7 @@
 use crate::db::sqlite::models::Settings;
 use crate::error::Result;
 use crate::state::AppState;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tauri::State;
 
 #[derive(Debug, Deserialize)]

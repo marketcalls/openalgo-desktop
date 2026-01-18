@@ -2,7 +2,7 @@
 
 use crate::error::{AppError, Result};
 use crate::state::{AppState, SymbolInfo};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::State;
 
 #[derive(Debug, Serialize)]

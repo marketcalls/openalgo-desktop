@@ -5,11 +5,24 @@ use duckdb::Connection;
 
 /// Run all DuckDB migrations
 pub fn run_migrations(conn: &Connection) -> Result<()> {
-    // Create migrations tracking table
+    // Check if migrations table exists with old schema (has 'id' column)
+    // If so, drop and recreate with new schema
+    let has_old_schema: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM information_schema.columns
+         WHERE table_name = 'migrations' AND column_name = 'id'",
+        [],
+        |row| row.get(0),
+    ).unwrap_or(false);
+
+    if has_old_schema {
+        tracing::info!("Migrating DuckDB migrations table to new schema");
+        conn.execute_batch("DROP TABLE migrations")?;
+    }
+
+    // Create migrations tracking table (name is the primary key since we don't need auto-increment)
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS migrations (
-            id INTEGER PRIMARY KEY,
-            name VARCHAR NOT NULL UNIQUE,
+            name VARCHAR PRIMARY KEY,
             applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )",
     )?;

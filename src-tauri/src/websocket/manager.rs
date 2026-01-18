@@ -4,7 +4,6 @@ use crate::error::{AppError, Result};
 use futures_util::{SinkExt, StreamExt};
 use parking_lot::RwLock;
 use std::collections::HashMap;
-use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -45,6 +44,7 @@ enum ConnectionState {
 pub struct WebSocketManager {
     app_handle: AppHandle,
     state: RwLock<ConnectionState>,
+    #[allow(dead_code)]
     subscriptions: RwLock<HashMap<String, SubscriptionMode>>,
     sender: RwLock<Option<mpsc::Sender<WebSocketCommand>>>,
 }
@@ -291,24 +291,24 @@ fn create_subscribe_message(
 
 /// Create unsubscribe message for broker
 fn create_unsubscribe_message(
-    broker: &str,
-    symbols: &[(String, String)],
+    _broker: &str,
+    _symbols: &[(String, String)],
 ) -> Option<Vec<u8>> {
     // Similar to subscribe but with unsubscribe action
     Some(vec![])
 }
 
-fn create_angel_subscribe(symbols: &[(String, String, SubscriptionMode)]) -> Vec<u8> {
+fn create_angel_subscribe(_symbols: &[(String, String, SubscriptionMode)]) -> Vec<u8> {
     // Angel SmartAPI subscribe format
     vec![]
 }
 
-fn create_zerodha_subscribe(symbols: &[(String, String, SubscriptionMode)]) -> Vec<u8> {
+fn create_zerodha_subscribe(_symbols: &[(String, String, SubscriptionMode)]) -> Vec<u8> {
     // Kite subscribe format
     vec![]
 }
 
-fn create_fyers_subscribe(symbols: &[(String, String, SubscriptionMode)]) -> Vec<u8> {
+fn create_fyers_subscribe(_symbols: &[(String, String, SubscriptionMode)]) -> Vec<u8> {
     // Fyers HSM subscribe format
     vec![]
 }

@@ -1,5 +1,7 @@
 //! Fyers broker adapter
 
+#![allow(non_snake_case)]
+
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
@@ -101,6 +103,7 @@ impl Broker for FyersBroker {
             .await?;
 
         #[derive(Deserialize)]
+        #[allow(dead_code)]
         struct ValidateResponse {
             s: String,
             code: i32,
@@ -182,6 +185,7 @@ impl Broker for FyersBroker {
             .await?;
 
         #[derive(Deserialize)]
+        #[allow(dead_code)]
         struct OrderResult {
             s: String,
             code: Option<i32>,
@@ -239,7 +243,7 @@ impl Broker for FyersBroker {
             stop_price: order.trigger_price,
         };
 
-        let response = self
+        let _response = self
             .client
             .patch(format!("{}/orders/sync", BASE_URL))
             .headers(self.get_headers(Some(auth_token)))
@@ -294,7 +298,7 @@ impl Broker for FyersBroker {
     }
 
     async fn get_order_book(&self, auth_token: &str) -> Result<Vec<Order>> {
-        let response = self
+        let _response = self
             .client
             .get(format!("{}/orders", BASE_URL))
             .headers(self.get_headers(Some(auth_token)))
@@ -305,7 +309,7 @@ impl Broker for FyersBroker {
     }
 
     async fn get_trade_book(&self, auth_token: &str) -> Result<Vec<Order>> {
-        let response = self
+        let _response = self
             .client
             .get(format!("{}/tradebook", BASE_URL))
             .headers(self.get_headers(Some(auth_token)))
@@ -316,7 +320,7 @@ impl Broker for FyersBroker {
     }
 
     async fn get_positions(&self, auth_token: &str) -> Result<Vec<Position>> {
-        let response = self
+        let _response = self
             .client
             .get(format!("{}/positions", BASE_URL))
             .headers(self.get_headers(Some(auth_token)))
@@ -327,7 +331,7 @@ impl Broker for FyersBroker {
     }
 
     async fn get_holdings(&self, auth_token: &str) -> Result<Vec<Holding>> {
-        let response = self
+        let _response = self
             .client
             .get(format!("{}/holdings", BASE_URL))
             .headers(self.get_headers(Some(auth_token)))
@@ -338,7 +342,7 @@ impl Broker for FyersBroker {
     }
 
     async fn get_funds(&self, auth_token: &str) -> Result<Funds> {
-        let response = self
+        let _response = self
             .client
             .get(format!("{}/funds", BASE_URL))
             .headers(self.get_headers(Some(auth_token)))
@@ -360,10 +364,10 @@ impl Broker for FyersBroker {
 
     async fn get_quote(
         &self,
-        auth_token: &str,
+        _auth_token: &str,
         symbols: Vec<(String, String)>,
     ) -> Result<Vec<Quote>> {
-        let symbols_str: Vec<String> = symbols
+        let _symbols_str: Vec<String> = symbols
             .iter()
             .map(|(ex, sym)| format!("{}:{}", ex, sym))
             .collect();
@@ -373,7 +377,7 @@ impl Broker for FyersBroker {
 
     async fn get_market_depth(
         &self,
-        auth_token: &str,
+        _auth_token: &str,
         exchange: &str,
         symbol: &str,
     ) -> Result<MarketDepth> {
@@ -385,7 +389,7 @@ impl Broker for FyersBroker {
         })
     }
 
-    async fn download_master_contract(&self, auth_token: &str) -> Result<Vec<SymbolData>> {
+    async fn download_master_contract(&self, _auth_token: &str) -> Result<Vec<SymbolData>> {
         // Fyers symbols CSV: https://public.fyers.in/sym_details/NSE_CM.csv
         Ok(vec![])
     }
