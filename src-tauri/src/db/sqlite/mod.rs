@@ -5,15 +5,20 @@ mod connection;
 mod migrations;
 mod auth;
 mod user;
+mod api_keys;
 mod symbol;
 mod strategy;
 mod settings;
 mod sandbox;
+mod order_logs;
+mod market;
 
 use crate::error::Result;
 use crate::security::SecurityManager;
 use crate::state::SymbolInfo;
-pub use models::{AutoLogoutConfig, WebhookConfig};
+pub use models::{AutoLogoutConfig, WebhookConfig, ApiKey, ApiKeyInfo, SandboxFunds, SandboxHolding};
+pub use order_logs::{OrderLog, LogStats};
+pub use market::{MarketHoliday, MarketTiming, CreateHolidayRequest, UpdateTimingRequest};
 use models::*;
 use parking_lot::Mutex;
 use rusqlite::Connection;
@@ -184,18 +189,57 @@ impl SqliteDb {
 
     // ========== API Key Methods ==========
 
-    /// Validate API key and return user_id if valid
-    pub fn validate_api_key(&self, apikey: &str) -> Result<String> {
-        let _conn = self.conn.lock();
-        // For now, use a simple validation
-        // TODO: Implement proper API key validation with hashing
-        // In production, this should query the api_keys table
-        if apikey.len() >= 32 {
-            // Return a placeholder user_id - in production this should lookup the key
-            Ok("user_1".to_string())
-        } else {
-            Err(crate::error::AppError::Auth("Invalid API key".to_string()))
-        }
+    /// Create a new API key
+    ///
+    /// Returns (id, plaintext_key) - the plaintext key is only shown once
+    pub fn create_api_key(
+        &self,
+        name: &str,
+        permissions: &str,
+        security: &SecurityManager,
+    ) -> Result<(i64, String)> {
+        let conn = self.conn.lock();
+        api_keys::create_api_key(&conn, name, permissions, security)
+    }
+
+    /// Validate API key and return the ApiKey if valid
+    pub fn validate_api_key(
+        &self,
+        apikey: &str,
+        security: &SecurityManager,
+    ) -> Result<ApiKey> {
+        let conn = self.conn.lock();
+        api_keys::validate_api_key(&conn, apikey, security)
+    }
+
+    /// List all API keys (with masked key values)
+    pub fn list_api_keys(&self, security: &SecurityManager) -> Result<Vec<ApiKeyInfo>> {
+        let conn = self.conn.lock();
+        api_keys::list_api_keys(&conn, security)
+    }
+
+    /// Get API key by name
+    pub fn get_api_key_by_name(&self, name: &str) -> Result<Option<ApiKey>> {
+        let conn = self.conn.lock();
+        api_keys::get_api_key_by_name(&conn, name)
+    }
+
+    /// Delete API key by name
+    pub fn delete_api_key(&self, name: &str) -> Result<bool> {
+        let conn = self.conn.lock();
+        api_keys::delete_api_key(&conn, name)
+    }
+
+    /// Delete API key by ID
+    pub fn delete_api_key_by_id(&self, id: i64) -> Result<bool> {
+        let conn = self.conn.lock();
+        api_keys::delete_api_key_by_id(&conn, id)
+    }
+
+    /// Count total API keys
+    pub fn count_api_keys(&self) -> Result<i64> {
+        let conn = self.conn.lock();
+        api_keys::count_api_keys(&conn)
     }
 
     // ========== Settings Methods ==========
@@ -298,5 +342,160 @@ impl SqliteDb {
     pub fn reset_sandbox(&self) -> Result<()> {
         let conn = self.conn.lock();
         sandbox::reset(&conn)
+    }
+
+    /// Get sandbox holdings
+    pub fn get_sandbox_holdings(&self) -> Result<Vec<SandboxHolding>> {
+        let conn = self.conn.lock();
+        sandbox::get_holdings(&conn)
+    }
+
+    /// Get sandbox funds
+    pub fn get_sandbox_funds(&self) -> Result<SandboxFunds> {
+        let conn = self.conn.lock();
+        sandbox::get_funds(&conn)
+    }
+
+    /// Update sandbox LTP and recalculate P&L
+    pub fn update_sandbox_ltp(&self, exchange: &str, symbol: &str, ltp: f64) -> Result<()> {
+        let conn = self.conn.lock();
+        sandbox::update_position_ltp(&conn, exchange, symbol, ltp)
+    }
+
+    /// Cancel sandbox order
+    pub fn cancel_sandbox_order(&self, order_id: &str) -> Result<bool> {
+        let conn = self.conn.lock();
+        sandbox::cancel_order(&conn, order_id)
+    }
+
+    // ========== Order Logs Methods ==========
+
+    /// Create an order log entry
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_order_log(
+        &self,
+        order_id: Option<&str>,
+        broker: &str,
+        symbol: &str,
+        exchange: &str,
+        side: &str,
+        quantity: i32,
+        price: Option<f64>,
+        order_type: &str,
+        product: &str,
+        status: &str,
+        message: Option<&str>,
+        source: Option<&str>,
+    ) -> Result<i64> {
+        let conn = self.conn.lock();
+        order_logs::create_log(
+            &conn, order_id, broker, symbol, exchange, side, quantity, price, order_type, product, status, message, source,
+        )
+    }
+
+    /// Get order logs with pagination and filters
+    pub fn get_order_logs(
+        &self,
+        limit: usize,
+        offset: usize,
+        broker: Option<&str>,
+        status: Option<&str>,
+    ) -> Result<Vec<OrderLog>> {
+        let conn = self.conn.lock();
+        order_logs::get_logs(&conn, limit, offset, broker, status)
+    }
+
+    /// Get logs for a specific order
+    pub fn get_order_logs_by_order_id(&self, order_id: &str) -> Result<Vec<OrderLog>> {
+        let conn = self.conn.lock();
+        order_logs::get_logs_by_order_id(&conn, order_id)
+    }
+
+    /// Get recent order logs
+    pub fn get_recent_order_logs(&self, limit: usize) -> Result<Vec<OrderLog>> {
+        let conn = self.conn.lock();
+        order_logs::get_recent_logs(&conn, limit)
+    }
+
+    /// Count order logs
+    pub fn count_order_logs(&self, broker: Option<&str>, status: Option<&str>) -> Result<i64> {
+        let conn = self.conn.lock();
+        order_logs::count_logs(&conn, broker, status)
+    }
+
+    /// Clear old order logs
+    pub fn clear_old_order_logs(&self, days: i32) -> Result<usize> {
+        let conn = self.conn.lock();
+        order_logs::clear_old_logs(&conn, days)
+    }
+
+    /// Get order log statistics
+    pub fn get_order_log_stats(&self) -> Result<LogStats> {
+        let conn = self.conn.lock();
+        order_logs::get_stats(&conn)
+    }
+
+    // ========== Market Holiday Methods ==========
+
+    /// Create a market holiday
+    pub fn create_market_holiday(&self, req: &CreateHolidayRequest) -> Result<MarketHoliday> {
+        let conn = self.conn.lock();
+        market::create_holiday(&conn, req)
+    }
+
+    /// Get holidays by year
+    pub fn get_market_holidays_by_year(&self, year: i32) -> Result<Vec<MarketHoliday>> {
+        let conn = self.conn.lock();
+        market::get_holidays_by_year(&conn, year)
+    }
+
+    /// Get holidays by exchange
+    pub fn get_market_holidays_by_exchange(&self, exchange: &str, year: Option<i32>) -> Result<Vec<MarketHoliday>> {
+        let conn = self.conn.lock();
+        market::get_holidays_by_exchange(&conn, exchange, year)
+    }
+
+    /// Check if a date is a holiday
+    pub fn is_market_holiday(&self, exchange: &str, date: &str) -> Result<bool> {
+        let conn = self.conn.lock();
+        market::is_holiday(&conn, exchange, date)
+    }
+
+    /// Delete a market holiday
+    pub fn delete_market_holiday(&self, id: i64) -> Result<bool> {
+        let conn = self.conn.lock();
+        market::delete_holiday(&conn, id)
+    }
+
+    // ========== Market Timing Methods ==========
+
+    /// Get all market timings
+    pub fn get_all_market_timings(&self) -> Result<Vec<MarketTiming>> {
+        let conn = self.conn.lock();
+        market::get_all_timings(&conn)
+    }
+
+    /// Get timing for an exchange
+    pub fn get_market_timing(&self, exchange: &str) -> Result<Option<MarketTiming>> {
+        let conn = self.conn.lock();
+        market::get_timing_by_exchange(&conn, exchange)
+    }
+
+    /// Update market timing
+    pub fn update_market_timing(&self, exchange: &str, req: &UpdateTimingRequest) -> Result<MarketTiming> {
+        let conn = self.conn.lock();
+        market::update_timing(&conn, exchange, req)
+    }
+
+    /// Create market timing
+    pub fn create_market_timing(&self, timing: &MarketTiming) -> Result<MarketTiming> {
+        let conn = self.conn.lock();
+        market::create_timing(&conn, timing)
+    }
+
+    /// Check if market is open
+    pub fn is_market_open(&self, exchange: &str) -> Result<bool> {
+        let conn = self.conn.lock();
+        market::is_market_open(&conn, exchange)
     }
 }

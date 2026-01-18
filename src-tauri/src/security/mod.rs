@@ -35,6 +35,26 @@ impl SecurityManager {
         })
     }
 
+    /// Create a security manager for testing (bypasses OS keychain)
+    ///
+    /// This creates a manager with randomly generated encryption key and pepper,
+    /// suitable for unit tests that don't need to interact with the OS keychain.
+    #[cfg(test)]
+    pub fn new_for_testing(_config_dir: std::path::PathBuf) -> Result<Self> {
+        let keychain = keychain::KeychainManager::new();
+        let master_key = encryption::EncryptionManager::generate_key();
+        let pepper = hashing::HashingManager::generate_pepper();
+
+        let encryption = encryption::EncryptionManager::new(&master_key)?;
+        let hashing = hashing::HashingManager::new(&pepper);
+
+        Ok(Self {
+            keychain,
+            encryption,
+            hashing,
+        })
+    }
+
     // ========== Encryption ==========
 
     /// Encrypt data

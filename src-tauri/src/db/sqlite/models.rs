@@ -95,13 +95,48 @@ pub struct SandboxPosition {
     pub updated_at: String,
 }
 
+/// Sandbox holding model (CNC holdings)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SandboxHolding {
+    pub id: i64,
+    pub symbol: String,
+    pub exchange: String,
+    pub quantity: i32,
+    pub average_price: f64,
+    pub ltp: f64,
+    pub pnl: f64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Sandbox funds model
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SandboxFunds {
+    pub available_cash: f64,
+    pub used_margin: f64,
+    pub total_value: f64,
+    pub updated_at: String,
+}
+
 /// API key model
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiKey {
     pub id: i64,
     pub name: String,
     pub key_hash: String,
     pub encrypted_key: String,
+    pub nonce: String,
+    pub permissions: String,
+    pub created_at: String,
+    pub last_used_at: Option<String>,
+}
+
+/// API key response (masked for security)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiKeyInfo {
+    pub id: i64,
+    pub name: String,
+    pub key_masked: String,
     pub permissions: String,
     pub created_at: String,
     pub last_used_at: Option<String>,

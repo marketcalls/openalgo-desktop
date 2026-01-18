@@ -30,11 +30,12 @@ impl WebhookState {
         self.app_handle.try_state::<AppState>()
     }
 
-    /// Validate API key and return user_id if valid
+    /// Validate API key and return the key name if valid
     fn validate_api_key(&self, apikey: &str) -> Result<String, String> {
         match self.get_app_state() {
             Some(state) => {
-                state.sqlite.validate_api_key(apikey)
+                state.sqlite.validate_api_key(apikey, &state.security)
+                    .map(|key| key.name)
                     .map_err(|e| format!("Invalid openalgo apikey: {}", e))
             }
             None => Err("Internal error: AppState not available".to_string())

@@ -58,34 +58,51 @@ pub async fn search_symbols(
     Ok(results)
 }
 
-/// Get detailed symbol info
+/// Get detailed symbol info (O(1) lookup)
 #[tauri::command]
 pub async fn get_symbol_info(
     state: State<'_, AppState>,
     exchange: String,
     symbol: String,
 ) -> Result<SymbolSearchResult> {
-    let key = format!("{}:{}", exchange, symbol);
-
+    // Use O(1) lookup via reverse cache
     state
-        .symbol_cache
-        .iter()
-        .find(|entry| {
-            let s = entry.value();
-            s.exchange.eq_ignore_ascii_case(&exchange) && s.symbol.eq_ignore_ascii_case(&symbol)
+        .get_symbol_by_name(&exchange, &symbol)
+        .map(|s| SymbolSearchResult {
+            symbol: s.symbol,
+            token: s.token,
+            exchange: s.exchange,
+            name: s.name,
+            instrument_type: s.instrument_type,
+            lot_size: s.lot_size,
         })
-        .map(|entry| {
-            let s = entry.value();
-            SymbolSearchResult {
-                symbol: s.symbol.clone(),
-                token: s.token.clone(),
-                exchange: s.exchange.clone(),
-                name: s.name.clone(),
-                instrument_type: s.instrument_type.clone(),
-                lot_size: s.lot_size,
-            }
+        .ok_or_else(|| AppError::NotFound(format!("Symbol not found: {}:{}", exchange, symbol)))
+}
+
+/// Get symbol info by token (O(1) lookup)
+#[tauri::command]
+pub async fn get_symbol_by_token(
+    state: State<'_, AppState>,
+    exchange: String,
+    token: String,
+) -> Result<SymbolSearchResult> {
+    state
+        .get_symbol_by_token(&exchange, &token)
+        .map(|s| SymbolSearchResult {
+            symbol: s.symbol,
+            token: s.token,
+            exchange: s.exchange,
+            name: s.name,
+            instrument_type: s.instrument_type,
+            lot_size: s.lot_size,
         })
-        .ok_or_else(|| AppError::NotFound(format!("Symbol not found: {}", key)))
+        .ok_or_else(|| AppError::NotFound(format!("Token not found: {}:{}", exchange, token)))
+}
+
+/// Get total symbol count in cache
+#[tauri::command]
+pub async fn get_symbol_count(state: State<'_, AppState>) -> Result<usize> {
+    Ok(state.symbol_count())
 }
 
 /// Refresh symbol master from broker

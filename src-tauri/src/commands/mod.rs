@@ -12,5 +12,8 @@ pub mod quotes;
 pub mod symbols;
 pub mod strategy;
 pub mod settings;
+pub mod api_keys;
 pub mod sandbox;
+pub mod order_logs;
+pub mod market;
 pub mod historify;

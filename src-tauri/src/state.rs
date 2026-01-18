@@ -142,14 +142,39 @@ impl AppState {
         *self.broker_session.write() = session;
     }
 
-    /// Get symbol info by token
-    pub fn get_symbol_by_token(&self, token: &str) -> Option<SymbolInfo> {
-        self.symbol_cache.get(token).map(|r| r.clone())
+    /// Get symbol info by exchange:token (O(1) lookup)
+    pub fn get_symbol_by_token(&self, exchange: &str, token: &str) -> Option<SymbolInfo> {
+        let key = format!("{}:{}", exchange, token);
+        self.symbol_cache.get(&key).map(|r| r.clone())
     }
 
-    /// Get token by symbol
-    pub fn get_token_by_symbol(&self, symbol: &str) -> Option<String> {
-        self.symbol_reverse_cache.get(symbol).map(|r| r.clone())
+    /// Get symbol info by exchange:symbol (O(1) lookup)
+    pub fn get_symbol_by_name(&self, exchange: &str, symbol: &str) -> Option<SymbolInfo> {
+        let reverse_key = format!("{}:{}", exchange, symbol);
+        self.symbol_reverse_cache
+            .get(&reverse_key)
+            .and_then(|token_ref| {
+                let token = token_ref.value();
+                let cache_key = format!("{}:{}", exchange, token);
+                self.symbol_cache.get(&cache_key).map(|r| r.clone())
+            })
+    }
+
+    /// Get token by exchange:symbol (O(1) lookup)
+    pub fn get_token_by_symbol(&self, exchange: &str, symbol: &str) -> Option<String> {
+        let key = format!("{}:{}", exchange, symbol);
+        self.symbol_reverse_cache.get(&key).map(|r| r.clone())
+    }
+
+    /// Check if symbol exists (O(1) lookup)
+    pub fn symbol_exists(&self, exchange: &str, symbol: &str) -> bool {
+        let key = format!("{}:{}", exchange, symbol);
+        self.symbol_reverse_cache.contains_key(&key)
+    }
+
+    /// Get total number of symbols in cache
+    pub fn symbol_count(&self) -> usize {
+        self.symbol_cache.len()
     }
 
     /// Load symbols into cache
@@ -158,14 +183,21 @@ impl AppState {
         self.symbol_reverse_cache.clear();
 
         for symbol in symbols {
-            let key = format!("{}:{}", symbol.exchange, symbol.token);
-            self.symbol_reverse_cache.insert(
-                format!("{}:{}", symbol.exchange, symbol.symbol.clone()),
-                symbol.token.clone(),
-            );
-            self.symbol_cache.insert(key, symbol);
+            let cache_key = format!("{}:{}", symbol.exchange, symbol.token);
+            let reverse_key = format!("{}:{}", symbol.exchange, symbol.symbol);
+            self.symbol_reverse_cache.insert(reverse_key, symbol.token.clone());
+            self.symbol_cache.insert(cache_key, symbol);
         }
 
         tracing::info!("Loaded {} symbols into cache", self.symbol_cache.len());
+    }
+
+    /// Get all symbols for a specific exchange
+    pub fn get_symbols_by_exchange(&self, exchange: &str) -> Vec<SymbolInfo> {
+        self.symbol_cache
+            .iter()
+            .filter(|entry| entry.value().exchange.eq_ignore_ascii_case(exchange))
+            .map(|entry| entry.value().clone())
+            .collect()
     }
 }

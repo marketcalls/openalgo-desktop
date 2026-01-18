@@ -1,8 +1,11 @@
 //! Sandbox (paper trading) management
+//!
+//! Provides paper trading functionality with simulated order execution,
+//! position tracking, holdings, and funds management.
 
-use crate::db::sqlite::models::{SandboxOrder, SandboxPosition};
+use crate::db::sqlite::models::{SandboxFunds, SandboxHolding, SandboxOrder, SandboxPosition};
 use crate::error::Result;
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
 use uuid::Uuid;
 
 /// Get sandbox positions
@@ -178,5 +181,116 @@ pub fn reset(conn: &Connection) -> Result<()> {
     conn.execute("DELETE FROM sandbox_holdings", [])?;
     conn.execute("UPDATE sandbox_funds SET available_cash = 1000000, used_margin = 0, total_value = 1000000", [])?;
     conn.execute("DELETE FROM sandbox_daily_pnl", [])?;
+    tracing::info!("Sandbox reset completed");
     Ok(())
+}
+
+/// Get sandbox holdings
+pub fn get_holdings(conn: &Connection) -> Result<Vec<SandboxHolding>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, symbol, exchange, quantity, average_price, ltp, pnl, created_at, updated_at
+         FROM sandbox_holdings WHERE quantity > 0 ORDER BY symbol",
+    )?;
+
+    let holdings = stmt
+        .query_map([], |row| {
+            Ok(SandboxHolding {
+                id: row.get(0)?,
+                symbol: row.get(1)?,
+                exchange: row.get(2)?,
+                quantity: row.get(3)?,
+                average_price: row.get(4)?,
+                ltp: row.get(5)?,
+                pnl: row.get(6)?,
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
+            })
+        })?
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+
+    Ok(holdings)
+}
+
+/// Get sandbox funds
+pub fn get_funds(conn: &Connection) -> Result<SandboxFunds> {
+    let funds = conn.query_row(
+        "SELECT available_cash, used_margin, total_value, updated_at FROM sandbox_funds WHERE id = 1",
+        [],
+        |row| {
+            Ok(SandboxFunds {
+                available_cash: row.get(0)?,
+                used_margin: row.get(1)?,
+                total_value: row.get(2)?,
+                updated_at: row.get(3)?,
+            })
+        },
+    )?;
+
+    Ok(funds)
+}
+
+/// Update LTP for a position and recalculate P&L
+pub fn update_position_ltp(
+    conn: &Connection,
+    exchange: &str,
+    symbol: &str,
+    ltp: f64,
+) -> Result<()> {
+    // Update position LTP and calculate P&L
+    conn.execute(
+        "UPDATE sandbox_positions
+         SET ltp = ?1, pnl = (quantity * (?1 - average_price)), updated_at = datetime('now')
+         WHERE exchange = ?2 AND symbol = ?3",
+        params![ltp, exchange, symbol],
+    )?;
+
+    // Update holdings LTP and calculate P&L
+    conn.execute(
+        "UPDATE sandbox_holdings
+         SET ltp = ?1, pnl = (quantity * (?1 - average_price)), updated_at = datetime('now')
+         WHERE exchange = ?2 AND symbol = ?3",
+        params![ltp, exchange, symbol],
+    )?;
+
+    Ok(())
+}
+
+/// Update funds (margin used, etc.)
+pub fn update_funds(
+    conn: &Connection,
+    available_cash: Option<f64>,
+    used_margin: Option<f64>,
+) -> Result<SandboxFunds> {
+    if let Some(cash) = available_cash {
+        conn.execute(
+            "UPDATE sandbox_funds SET available_cash = ?1, updated_at = datetime('now') WHERE id = 1",
+            params![cash],
+        )?;
+    }
+
+    if let Some(margin) = used_margin {
+        conn.execute(
+            "UPDATE sandbox_funds SET used_margin = ?1, updated_at = datetime('now') WHERE id = 1",
+            params![margin],
+        )?;
+    }
+
+    // Recalculate total value
+    conn.execute(
+        "UPDATE sandbox_funds SET total_value = available_cash + used_margin, updated_at = datetime('now') WHERE id = 1",
+        [],
+    )?;
+
+    get_funds(conn)
+}
+
+/// Cancel a sandbox order
+pub fn cancel_order(conn: &Connection, order_id: &str) -> Result<bool> {
+    let rows = conn.execute(
+        "UPDATE sandbox_orders SET status = 'cancelled', updated_at = datetime('now')
+         WHERE order_id = ?1 AND status = 'pending'",
+        params![order_id],
+    )?;
+
+    Ok(rows > 0)
 }

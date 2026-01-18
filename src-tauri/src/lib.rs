@@ -104,6 +104,8 @@ pub fn run() {
             // Symbol commands
             commands::symbols::search_symbols,
             commands::symbols::get_symbol_info,
+            commands::symbols::get_symbol_by_token,
+            commands::symbols::get_symbol_count,
             commands::symbols::refresh_symbol_master,
             // Strategy commands
             commands::strategy::get_strategies,
@@ -122,11 +124,36 @@ pub fn run() {
             commands::settings::update_webhook_config,
             commands::settings::get_broker_config,
             commands::settings::get_broker_credentials,
+            // API key commands
+            commands::api_keys::create_api_key,
+            commands::api_keys::list_api_keys,
+            commands::api_keys::delete_api_key,
+            commands::api_keys::delete_api_key_by_id,
             // Sandbox commands
             commands::sandbox::get_sandbox_positions,
             commands::sandbox::get_sandbox_orders,
             commands::sandbox::place_sandbox_order,
             commands::sandbox::reset_sandbox,
+            commands::sandbox::get_sandbox_holdings,
+            commands::sandbox::get_sandbox_funds,
+            commands::sandbox::update_sandbox_ltp,
+            commands::sandbox::cancel_sandbox_order,
+            // Order logs commands
+            commands::order_logs::get_order_logs,
+            commands::order_logs::get_order_logs_by_order_id,
+            commands::order_logs::get_recent_order_logs,
+            commands::order_logs::get_order_log_stats,
+            commands::order_logs::clear_old_order_logs,
+            // Market commands
+            commands::market::create_market_holiday,
+            commands::market::get_market_holidays_by_year,
+            commands::market::get_market_holidays_by_exchange,
+            commands::market::is_market_holiday,
+            commands::market::delete_market_holiday,
+            commands::market::get_all_market_timings,
+            commands::market::get_market_timing,
+            commands::market::update_market_timing,
+            commands::market::is_market_open,
             // Historify commands
             commands::historify::get_market_data,
             commands::historify::download_historical_data,
