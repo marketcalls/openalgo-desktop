@@ -8,6 +8,7 @@ use argon2::{
     Argon2, Params, Version,
 };
 
+#[allow(dead_code)]
 const PEPPER_SIZE: usize = 32;
 
 /// Hashing manager using Argon2id
@@ -23,7 +24,8 @@ impl HashingManager {
         }
     }
 
-    /// Generate a new random pepper
+    /// Generate a new random pepper (used in tests)
+    #[allow(dead_code)]
     pub fn generate_pepper() -> Vec<u8> {
         use rand::RngCore;
         let mut pepper = vec![0u8; PEPPER_SIZE];

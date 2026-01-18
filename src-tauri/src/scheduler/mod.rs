@@ -7,3 +7,4 @@
 mod auto_logout;
 
 pub use auto_logout::AutoLogoutScheduler;
+pub use auto_logout::{AutoLogoutEvent, WarningEvent};

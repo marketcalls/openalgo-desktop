@@ -13,6 +13,7 @@ mod sandbox;
 use crate::error::Result;
 use crate::security::SecurityManager;
 use crate::state::SymbolInfo;
+pub use models::{AutoLogoutConfig, WebhookConfig};
 use models::*;
 use parking_lot::Mutex;
 use rusqlite::Connection;
@@ -107,6 +108,12 @@ impl SqliteDb {
         auth::delete_auth_token(&conn, broker_id)
     }
 
+    /// Clear all auth tokens (used by auto-logout)
+    pub fn clear_all_auth_tokens(&self) -> Result<()> {
+        let conn = self.conn.lock();
+        auth::clear_all_auth_tokens(&conn)
+    }
+
     // ========== Symbol Methods ==========
 
     /// Store symbols in database
@@ -156,6 +163,41 @@ impl SqliteDb {
         strategy::delete_strategy(&conn, id)
     }
 
+    /// Get strategy by webhook_id (for webhook handler)
+    pub fn get_strategy_by_webhook_id(
+        &self,
+        webhook_id: &str,
+    ) -> Result<Option<crate::webhook::handlers::Strategy>> {
+        let conn = self.conn.lock();
+        strategy::get_strategy_by_webhook_id(&conn, webhook_id)
+    }
+
+    /// Get symbol mapping for a strategy (for webhook handler)
+    pub fn get_symbol_mapping(
+        &self,
+        strategy_id: &i64,
+        symbol: &str,
+    ) -> Result<Option<crate::webhook::handlers::SymbolMapping>> {
+        let conn = self.conn.lock();
+        strategy::get_symbol_mapping(&conn, *strategy_id, symbol)
+    }
+
+    // ========== API Key Methods ==========
+
+    /// Validate API key and return user_id if valid
+    pub fn validate_api_key(&self, apikey: &str) -> Result<String> {
+        let _conn = self.conn.lock();
+        // For now, use a simple validation
+        // TODO: Implement proper API key validation with hashing
+        // In production, this should query the api_keys table
+        if apikey.len() >= 32 {
+            // Return a placeholder user_id - in production this should lookup the key
+            Ok("user_1".to_string())
+        } else {
+            Err(crate::error::AppError::Auth("Invalid API key".to_string()))
+        }
+    }
+
     // ========== Settings Methods ==========
 
     /// Get settings
@@ -184,6 +226,43 @@ impl SqliteDb {
             order_confirm,
             sound_enabled,
         )
+    }
+
+    /// Get auto-logout configuration
+    pub fn get_auto_logout_config(&self) -> Result<AutoLogoutConfig> {
+        let conn = self.conn.lock();
+        settings::get_auto_logout_config(&conn)
+    }
+
+    /// Update auto-logout configuration
+    pub fn update_auto_logout_config(
+        &self,
+        enabled: Option<bool>,
+        hour: Option<u32>,
+        minute: Option<u32>,
+        warnings: Option<Vec<u32>>,
+    ) -> Result<AutoLogoutConfig> {
+        let conn = self.conn.lock();
+        settings::update_auto_logout_config(&conn, enabled, hour, minute, warnings)
+    }
+
+    /// Get webhook configuration
+    pub fn get_webhook_config(&self) -> Result<WebhookConfig> {
+        let conn = self.conn.lock();
+        settings::get_webhook_config(&conn)
+    }
+
+    /// Update webhook configuration
+    pub fn update_webhook_config(
+        &self,
+        enabled: Option<bool>,
+        port: Option<u16>,
+        host: Option<String>,
+        ngrok_url: Option<String>,
+        webhook_secret: Option<String>,
+    ) -> Result<WebhookConfig> {
+        let conn = self.conn.lock();
+        settings::update_webhook_config(&conn, enabled, port, host, ngrok_url, webhook_secret)
     }
 
     // ========== Sandbox Methods ==========

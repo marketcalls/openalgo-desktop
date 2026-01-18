@@ -35,6 +35,30 @@ pub struct Settings {
     pub default_product: String,
     pub order_confirm: bool,
     pub sound_enabled: bool,
+    // Auto-logout configuration
+    pub auto_logout_enabled: bool,
+    pub auto_logout_hour: u32,
+    pub auto_logout_minute: u32,
+    pub auto_logout_warnings: Vec<u32>,
+}
+
+/// Auto-logout configuration (subset of Settings)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoLogoutConfig {
+    pub enabled: bool,
+    pub hour: u32,
+    pub minute: u32,
+    pub warnings: Vec<u32>,
+}
+
+/// Webhook server configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebhookConfig {
+    pub enabled: bool,
+    pub port: u16,
+    pub host: String,
+    pub ngrok_url: Option<String>,
+    pub webhook_secret: Option<String>,
 }
 
 /// Sandbox order model

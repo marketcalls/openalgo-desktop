@@ -8,12 +8,14 @@ pub mod db;
 pub mod brokers;
 pub mod security;
 pub mod websocket;
+pub mod webhook;
 pub mod scheduler;
 pub mod error;
 pub mod state;
 
 use scheduler::AutoLogoutScheduler;
 use state::AppState;
+use webhook::WebhookServer;
 use tauri::Manager;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -36,18 +38,42 @@ pub fn run() {
         .setup(|app| {
             // Initialize application state
             let app_state = AppState::new(app.handle())?;
+
+            // Get webhook config before managing state
+            let webhook_config = app_state.sqlite.get_webhook_config().ok();
+
             app.manage(app_state);
 
-            // Start auto-logout scheduler (3:00 AM IST for broker compliance)
+            // Start auto-logout scheduler (configurable, default 3:00 AM IST)
             let scheduler = AutoLogoutScheduler::new(app.handle().clone());
             scheduler.start();
 
+            // Start webhook server if enabled
+            if let Some(config) = webhook_config {
+                if config.enabled {
+                    let app_handle = app.handle().clone();
+                    tokio::spawn(async move {
+                        let mut server = WebhookServer::new(app_handle.clone());
+                        if let Err(e) = server.start(config).await {
+                            tracing::error!("Failed to start webhook server: {}", e);
+                        }
+                        // Keep server running
+                        loop {
+                            tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+                        }
+                    });
+                    tracing::info!("Webhook server starting...");
+                }
+            }
+
             tracing::info!("Application state initialized");
-            tracing::info!("Auto-logout scheduler started (3:00 AM IST)");
+            tracing::info!("Auto-logout scheduler started");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             // Auth commands
+            commands::auth::check_setup,
+            commands::auth::setup,
             commands::auth::login,
             commands::auth::logout,
             commands::auth::check_session,
@@ -90,6 +116,12 @@ pub fn run() {
             commands::settings::update_settings,
             commands::settings::save_broker_credentials,
             commands::settings::delete_broker_credentials,
+            commands::settings::get_auto_logout_config,
+            commands::settings::update_auto_logout_config,
+            commands::settings::get_webhook_config,
+            commands::settings::update_webhook_config,
+            commands::settings::get_broker_config,
+            commands::settings::get_broker_credentials,
             // Sandbox commands
             commands::sandbox::get_sandbox_positions,
             commands::sandbox::get_sandbox_orders,

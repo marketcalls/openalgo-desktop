@@ -6,6 +6,13 @@ use serde::{Deserialize, Serialize};
 
 const SERVICE: &str = "openalgo-desktop";
 
+/// Combined secrets stored in a single keychain entry
+#[derive(Serialize, Deserialize)]
+struct AppSecrets {
+    master_key: String,  // base64 encoded
+    pepper: String,      // base64 encoded
+}
+
 /// Keychain manager for secure credential storage
 pub struct KeychainManager;
 
@@ -14,72 +21,60 @@ impl KeychainManager {
         Self
     }
 
-    /// Get master encryption key from keychain
-    pub fn get_master_key(&self) -> Result<Option<Vec<u8>>> {
-        let entry = Entry::new(SERVICE, "master-key")
+    /// Get or create app secrets (master key + pepper) from keychain
+    /// This uses a single keychain entry to minimize password prompts
+    pub fn get_or_create_secrets(&self) -> Result<(Vec<u8>, Vec<u8>)> {
+        let entry = Entry::new(SERVICE, "app-secrets")
             .map_err(|e| AppError::Keychain(e))?;
 
         match entry.get_password() {
-            Ok(key) => {
-                let bytes = base64::Engine::decode(
+            Ok(json) => {
+                // Secrets exist, decode them
+                let secrets: AppSecrets = serde_json::from_str(&json)
+                    .map_err(|e| AppError::Serialization(e))?;
+
+                let master_key = base64::Engine::decode(
                     &base64::engine::general_purpose::STANDARD,
-                    &key,
+                    &secrets.master_key,
                 ).map_err(|e| AppError::Encryption(e.to_string()))?;
-                Ok(Some(bytes))
+
+                let pepper = base64::Engine::decode(
+                    &base64::engine::general_purpose::STANDARD,
+                    &secrets.pepper,
+                ).map_err(|e| AppError::Encryption(e.to_string()))?;
+
+                Ok((master_key, pepper))
             }
-            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(keyring::Error::NoEntry) => {
+                // First run - generate and store new secrets
+                use rand::RngCore;
+
+                let mut master_key = vec![0u8; 32];
+                let mut pepper = vec![0u8; 32];
+                rand::rngs::OsRng.fill_bytes(&mut master_key);
+                rand::rngs::OsRng.fill_bytes(&mut pepper);
+
+                let secrets = AppSecrets {
+                    master_key: base64::Engine::encode(
+                        &base64::engine::general_purpose::STANDARD,
+                        &master_key,
+                    ),
+                    pepper: base64::Engine::encode(
+                        &base64::engine::general_purpose::STANDARD,
+                        &pepper,
+                    ),
+                };
+
+                let json = serde_json::to_string(&secrets)
+                    .map_err(|e| AppError::Serialization(e))?;
+
+                entry.set_password(&json)
+                    .map_err(|e| AppError::Keychain(e))?;
+
+                Ok((master_key, pepper))
+            }
             Err(e) => Err(AppError::Keychain(e)),
         }
-    }
-
-    /// Store master encryption key in keychain
-    pub fn store_master_key(&self, key: &[u8]) -> Result<()> {
-        let entry = Entry::new(SERVICE, "master-key")
-            .map_err(|e| AppError::Keychain(e))?;
-
-        let encoded = base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            key,
-        );
-
-        entry.set_password(&encoded)
-            .map_err(|e| AppError::Keychain(e))?;
-
-        Ok(())
-    }
-
-    /// Get password pepper from keychain
-    pub fn get_pepper(&self) -> Result<Option<Vec<u8>>> {
-        let entry = Entry::new(SERVICE, "pepper")
-            .map_err(|e| AppError::Keychain(e))?;
-
-        match entry.get_password() {
-            Ok(pepper) => {
-                let bytes = base64::Engine::decode(
-                    &base64::engine::general_purpose::STANDARD,
-                    &pepper,
-                ).map_err(|e| AppError::Encryption(e.to_string()))?;
-                Ok(Some(bytes))
-            }
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => Err(AppError::Keychain(e)),
-        }
-    }
-
-    /// Store password pepper in keychain
-    pub fn store_pepper(&self, pepper: &[u8]) -> Result<()> {
-        let entry = Entry::new(SERVICE, "pepper")
-            .map_err(|e| AppError::Keychain(e))?;
-
-        let encoded = base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            pepper,
-        );
-
-        entry.set_password(&encoded)
-            .map_err(|e| AppError::Keychain(e))?;
-
-        Ok(())
     }
 
     /// Store broker credentials

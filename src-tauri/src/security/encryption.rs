@@ -33,7 +33,8 @@ impl EncryptionManager {
         Ok(Self { cipher })
     }
 
-    /// Generate a new random encryption key
+    /// Generate a new random encryption key (used in tests)
+    #[allow(dead_code)]
     pub fn generate_key() -> Vec<u8> {
         let mut key = vec![0u8; KEY_SIZE];
         OsRng.fill_bytes(&mut key);

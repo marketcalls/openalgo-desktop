@@ -2,12 +2,24 @@ import { Eye, EyeOff, Github, Info, Loader2, LogIn, MessageCircle } from 'lucide
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { invoke } from '@tauri-apps/api/core'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuthStore } from '@/stores/authStore'
+
+interface SetupCheckResponse {
+  status: string
+  needs_setup: boolean
+}
+
+interface LoginResponse {
+  success: boolean
+  user_id: number
+  username: string
+}
 
 export default function Login() {
   const navigate = useNavigate()
@@ -23,40 +35,37 @@ export default function Login() {
   useEffect(() => {
     const checkSetup = async () => {
       try {
-        // First check if setup is needed
-        const setupResponse = await fetch('/auth/check-setup', {
-          credentials: 'include',
-        })
-        const setupData = await setupResponse.json()
+        // First check if setup is needed (no users exist)
+        const setupData = await invoke<SetupCheckResponse>('check_setup')
         if (setupData.needs_setup) {
           navigate('/setup', { replace: true })
           return
         }
 
-        // Check if already logged in
-        const sessionResponse = await fetch('/auth/session-status', {
-          credentials: 'include',
-        })
-
-        // Only process if response is successful (not 401 etc.)
-        if (sessionResponse.ok) {
-          const sessionData = await sessionResponse.json()
-
-          if (sessionData.status === 'success' && sessionData.logged_in && sessionData.broker) {
-            // Already fully logged in with broker, go to dashboard
-            navigate('/dashboard', { replace: true })
-            return
-          } else if (
-            sessionData.status === 'success' &&
-            sessionData.authenticated &&
-            !sessionData.logged_in
-          ) {
-            // Logged in but no broker, go to broker selection
-            navigate('/broker', { replace: true })
-            return
+        // Check if already logged in via Tauri command
+        const isLoggedIn = await invoke<boolean>('check_session')
+        if (isLoggedIn) {
+          // Get user info to see if broker is connected
+          const userInfo = await invoke<{ user_id: number; username: string } | null>(
+            'get_current_user'
+          )
+          if (userInfo) {
+            // Check broker status
+            const brokerStatus = await invoke<{ connected: boolean; broker_id: string | null }>(
+              'get_broker_status'
+            )
+            if (brokerStatus.connected && brokerStatus.broker_id) {
+              // Fully logged in with broker, go to dashboard
+              navigate('/dashboard', { replace: true })
+              return
+            } else {
+              // Logged in but no broker, go to broker selection
+              navigate('/broker', { replace: true })
+              return
+            }
           }
         }
-        // If session check fails (401, etc.), just stay on login page
+        // Not logged in, stay on login page
       } catch (err) {
         console.error('Failed to check setup status:', err)
       } finally {
@@ -72,66 +81,31 @@ export default function Login() {
     setError(null)
 
     try {
-      // First, fetch CSRF token
-      const csrfResponse = await fetch('/auth/csrf-token', {
-        credentials: 'include',
+      // Use Tauri command for login
+      const response = await invoke<LoginResponse>('login', {
+        request: {
+          username,
+          password,
+        },
       })
 
-      if (!csrfResponse.ok) {
-        console.error('CSRF fetch failed:', csrfResponse.status, csrfResponse.statusText)
-        setError('Failed to initialize login. Please refresh the page.')
-        setIsLoading(false)
-        return
-      }
-
-      const csrfData = await csrfResponse.json()
-
-      // Create form data with CSRF token (matches original Flask template approach)
-      const formData = new FormData()
-      formData.append('username', username)
-      formData.append('password', password)
-      formData.append('csrf_token', csrfData.csrf_token)
-
-      // Use native fetch like the original template
-      const response = await fetch('/auth/login', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      })
-
-      // Check content type before parsing
-      const contentType = response.headers.get('content-type')
-      if (!contentType || !contentType.includes('application/json')) {
-        console.error('Login response is not JSON:', contentType)
-        // If redirected to setup page, inform user
-        if (response.url.includes('/setup')) {
-          setError('Please complete initial setup first.')
-          navigate('/setup')
-        } else {
-          setError('Login failed. Please try again.')
-        }
-        setIsLoading(false)
-        return
-      }
-
-      const data = await response.json()
-
-      if (data.status === 'error') {
-        setError(data.message || 'Login failed. Please try again.')
-        // Handle redirect for setup
-        if (data.redirect) {
-          navigate(data.redirect)
-        }
-      } else {
+      if (response.success) {
         // Set login state (broker will be set after broker selection)
-        setLogin(username, '')
+        setLogin(response.username, '')
         toast.success('Login successful')
-        // Use redirect from response if provided, otherwise go to broker
-        navigate(data.redirect || '/broker')
+        // Go to broker selection
+        navigate('/broker')
+      } else {
+        setError('Login failed. Please try again.')
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Login error:', err)
-      setError('Login failed. Please try again.')
+      // Handle Tauri error format
+      const errorMessage =
+        err && typeof err === 'object' && 'message' in err
+          ? (err as { message: string }).message
+          : 'Invalid username or password'
+      setError(errorMessage)
     } finally {
       setIsLoading(false)
     }

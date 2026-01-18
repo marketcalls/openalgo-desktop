@@ -37,6 +37,9 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     run_migration(conn, "019_sandbox_holdings", CREATE_SANDBOX_HOLDINGS_TABLE)?;
     run_migration(conn, "020_sandbox_funds", CREATE_SANDBOX_FUNDS_TABLE)?;
     run_migration(conn, "021_sandbox_daily_pnl", CREATE_SANDBOX_DAILY_PNL_TABLE)?;
+    run_migration(conn, "022_auth_separate_nonces", ALTER_AUTH_SEPARATE_NONCES)?;
+    run_migration(conn, "023_auto_logout_settings", ADD_AUTO_LOGOUT_SETTINGS)?;
+    run_migration(conn, "024_webhook_settings", ADD_WEBHOOK_SETTINGS)?;
 
     tracing::info!("Database migrations completed");
     Ok(())
@@ -360,4 +363,44 @@ CREATE TABLE sandbox_daily_pnl (
     portfolio_value REAL NOT NULL DEFAULT 1000000,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+"#;
+
+/// Migration to add separate nonce column for feed_token
+/// This fixes the critical bug where auth_token and feed_token were encrypted
+/// with different nonces but only one was stored
+const ALTER_AUTH_SEPARATE_NONCES: &str = r#"
+-- Rename existing nonce column to auth_token_nonce
+ALTER TABLE auth RENAME COLUMN nonce TO auth_token_nonce;
+
+-- Add separate nonce column for feed_token
+ALTER TABLE auth ADD COLUMN feed_token_nonce TEXT;
+"#;
+
+/// Migration to add auto-logout configuration to settings
+/// Allows users to configure the daily auto-logout time (default: 3:00 AM IST)
+const ADD_AUTO_LOGOUT_SETTINGS: &str = r#"
+-- Add auto-logout time configuration (hour and minute in IST)
+ALTER TABLE settings ADD COLUMN auto_logout_hour INTEGER NOT NULL DEFAULT 3;
+ALTER TABLE settings ADD COLUMN auto_logout_minute INTEGER NOT NULL DEFAULT 0;
+
+-- Add warning intervals as JSON array (minutes before logout)
+ALTER TABLE settings ADD COLUMN auto_logout_warnings TEXT NOT NULL DEFAULT '[30, 15, 5, 1]';
+
+-- Add flag to enable/disable auto-logout
+ALTER TABLE settings ADD COLUMN auto_logout_enabled INTEGER NOT NULL DEFAULT 1;
+"#;
+
+/// Migration to add webhook server configuration
+/// For receiving TradingView, GoCharting, and Chartink alerts
+const ADD_WEBHOOK_SETTINGS: &str = r#"
+-- Webhook server configuration
+ALTER TABLE settings ADD COLUMN webhook_enabled INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE settings ADD COLUMN webhook_port INTEGER NOT NULL DEFAULT 5000;
+ALTER TABLE settings ADD COLUMN webhook_host TEXT NOT NULL DEFAULT '127.0.0.1';
+
+-- Ngrok/external URL for strategies to use
+ALTER TABLE settings ADD COLUMN ngrok_url TEXT;
+
+-- Optional webhook authentication secret
+ALTER TABLE settings ADD COLUMN webhook_secret TEXT;
 "#;

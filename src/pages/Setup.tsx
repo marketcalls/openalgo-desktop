@@ -2,6 +2,7 @@ import { Check, Info, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import { invoke } from '@tauri-apps/api/core'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -9,6 +10,16 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
+
+interface SetupResponse {
+  status: string
+  message: string
+}
+
+interface SetupCheckResponse {
+  status: string
+  needs_setup: boolean
+}
 
 interface PasswordRequirements {
   length: boolean
@@ -43,6 +54,7 @@ function checkPasswordRequirements(password: string): PasswordRequirements {
 export default function Setup() {
   const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
+  const [isCheckingSetup, setIsCheckingSetup] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     username: '',
@@ -58,6 +70,25 @@ export default function Setup() {
     special: false,
   })
   const [passwordStrength, setPasswordStrength] = useState(0)
+
+  // Check if setup is still needed (redirect to login if already complete)
+  useEffect(() => {
+    const checkSetupStatus = async () => {
+      try {
+        const data = await invoke<SetupCheckResponse>('check_setup')
+        if (!data.needs_setup) {
+          // Setup already complete, redirect to login
+          navigate('/login', { replace: true })
+          return
+        }
+      } catch (err) {
+        console.error('Failed to check setup status:', err)
+      } finally {
+        setIsCheckingSetup(false)
+      }
+    }
+    checkSetupStatus()
+  }, [navigate])
 
   useEffect(() => {
     const reqs = checkPasswordRequirements(formData.password)
@@ -92,47 +123,29 @@ export default function Setup() {
     setError(null)
 
     try {
-      // First, fetch CSRF token
-      const csrfResponse = await fetch('/auth/csrf-token', {
-        credentials: 'include',
-      })
-      const csrfData = await csrfResponse.json()
-
-      const form = new FormData()
-      form.append('username', formData.username)
-      form.append('email', formData.email)
-      form.append('password', formData.password)
-      form.append('confirm_password', formData.confirmPassword)
-      form.append('csrf_token', csrfData.csrf_token)
-
-      const response = await fetch('/setup', {
-        method: 'POST',
-        body: form,
-        credentials: 'include',
+      // Use Tauri command for setup
+      const response = await invoke<SetupResponse>('setup', {
+        request: {
+          username: formData.username,
+          email: formData.email,
+          password: formData.password,
+        },
       })
 
-      // Consume response body
-      await response.text()
-
-      // If setup was successful (response ok or redirected), go to login
-      if (response.ok || response.redirected) {
-        toast.success('Account created successfully')
-        // Clear any existing session by calling logout
-        try {
-          await fetch('/auth/logout', {
-            method: 'POST',
-            credentials: 'include',
-          })
-        } catch {
-          // Ignore logout errors
-        }
+      if (response.status === 'success') {
+        toast.success(response.message || 'Account created successfully')
         navigate('/login')
       } else {
-        setError('Setup failed. Please try again.')
+        setError(response.message || 'Setup failed. Please try again.')
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Setup error:', err)
-      setError('Setup failed. Please check your connection and try again.')
+      // Handle Tauri error format
+      const errorMessage =
+        err && typeof err === 'object' && 'message' in err
+          ? (err as { message: string }).message
+          : 'Setup failed. Please try again.'
+      setError(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -149,6 +162,15 @@ export default function Setup() {
       <span>{children}</span>
     </div>
   )
+
+  // Show loading while checking setup status
+  if (isCheckingSetup) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center py-12 px-4">

@@ -1,8 +1,12 @@
-import { BookOpen, ExternalLink, Loader2 } from 'lucide-react'
+import { BookOpen, ExternalLink, Key, Loader2, Settings } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
+import { invoke } from '@tauri-apps/api/core'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -11,45 +15,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { useAuthStore } from '@/stores/authStore'
 
-// All supported brokers with their display names and auth types
-const allBrokers = [
-  { id: 'fivepaisa', name: '5 Paisa', authType: 'totp' },
-  { id: 'fivepaisaxts', name: '5 Paisa (XTS)', authType: 'totp' },
-  { id: 'aliceblue', name: 'Alice Blue', authType: 'totp' },
-  { id: 'angel', name: 'Angel One', authType: 'totp' },
-  { id: 'compositedge', name: 'CompositEdge', authType: 'oauth' },
-  { id: 'dhan', name: 'Dhan', authType: 'oauth' },
-  { id: 'indmoney', name: 'IndMoney', authType: 'totp' },
-  { id: 'dhan_sandbox', name: 'Dhan (Sandbox)', authType: 'totp' },
-  { id: 'definedge', name: 'Definedge', authType: 'totp' },
-  { id: 'firstock', name: 'Firstock', authType: 'totp' },
-  { id: 'flattrade', name: 'Flattrade', authType: 'oauth' },
-  { id: 'motilal', name: 'Motilal Oswal', authType: 'totp' },
-  { id: 'fyers', name: 'Fyers', authType: 'oauth' },
-  { id: 'groww', name: 'Groww', authType: 'totp' },
-  { id: 'ibulls', name: 'Ibulls', authType: 'totp' },
-  { id: 'iifl', name: 'IIFL', authType: 'totp' },
-  { id: 'jainamxts', name: 'JainamXts', authType: 'totp' },
-  { id: 'kotak', name: 'Kotak Securities', authType: 'totp' },
-  { id: 'mstock', name: 'mStock by Mirae Asset', authType: 'totp' },
-  { id: 'nubra', name: 'Nubra', authType: 'totp' },
-  { id: 'paytm', name: 'Paytm Money', authType: 'oauth' },
-  { id: 'pocketful', name: 'Pocketful', authType: 'oauth' },
-  { id: 'samco', name: 'Samco', authType: 'totp' },
-  { id: 'shoonya', name: 'Shoonya', authType: 'totp' },
-  { id: 'tradejini', name: 'Tradejini', authType: 'totp' },
-  { id: 'upstox', name: 'Upstox', authType: 'oauth' },
-  { id: 'wisdom', name: 'Wisdom Capital', authType: 'totp' },
-  { id: 'zebu', name: 'Zebu', authType: 'totp' },
-  { id: 'zerodha', name: 'Zerodha', authType: 'oauth' },
-] as const
+interface BrokerInfo {
+  id: string
+  name: string
+  auth_type: string
+  has_credentials: boolean
+}
 
-interface BrokerConfig {
-  broker_name: string
-  broker_api_key: string
+interface BrokerConfigResponse {
+  status: string
+  broker_name: string | null
+  broker_api_key: string | null
   redirect_url: string
+  available_brokers: BrokerInfo[]
 }
 
 // Helper function to get Flattrade API key
@@ -71,40 +59,85 @@ function generateRandomState(): string {
 }
 
 export default function BrokerSelect() {
+  const navigate = useNavigate()
   const { user } = useAuthStore()
   const [selectedBroker, setSelectedBroker] = useState<string>('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSavingCredentials, setIsSavingCredentials] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [brokerConfig, setBrokerConfig] = useState<BrokerConfig | null>(null)
+  const [brokerConfig, setBrokerConfig] = useState<BrokerConfigResponse | null>(null)
+  const [showCredentialsDialog, setShowCredentialsDialog] = useState(false)
+  const [credentialsForm, setCredentialsForm] = useState({
+    apiKey: '',
+    apiSecret: '',
+    clientId: '',
+  })
+
+  const fetchBrokerConfig = async () => {
+    try {
+      setIsLoading(true)
+      const data = await invoke<BrokerConfigResponse>('get_broker_config')
+
+      if (data.status === 'success') {
+        setBrokerConfig(data)
+        // Auto-select the configured broker if any
+        if (data.broker_name) {
+          setSelectedBroker(data.broker_name)
+        }
+      } else {
+        setError('Failed to load broker configuration')
+      }
+    } catch (err) {
+      console.error('Failed to load broker config:', err)
+      setError('Failed to load broker configuration')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
-    // Fetch broker configuration
-    const fetchBrokerConfig = async () => {
-      try {
-        const response = await fetch('/auth/broker-config', {
-          credentials: 'include',
-        })
-        const data = await response.json()
-
-        if (data.status === 'success') {
-          setBrokerConfig(data)
-          // Auto-select the configured broker
-          setSelectedBroker(data.broker_name)
-        } else {
-          setError(data.message || 'Failed to load broker configuration')
-        }
-      } catch {
-        setError('Failed to load broker configuration')
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
     fetchBrokerConfig()
   }, [])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const selectedBrokerInfo = brokerConfig?.available_brokers.find(b => b.id === selectedBroker)
+
+  const handleSaveCredentials = async () => {
+    if (!selectedBroker || !credentialsForm.apiKey) {
+      setError('API Key is required')
+      return
+    }
+
+    setIsSavingCredentials(true)
+    try {
+      await invoke('save_broker_credentials', {
+        request: {
+          broker_id: selectedBroker,
+          api_key: credentialsForm.apiKey,
+          api_secret: credentialsForm.apiSecret || null,
+          client_id: credentialsForm.clientId || null,
+        },
+      })
+
+      toast.success('Broker credentials saved successfully')
+      setShowCredentialsDialog(false)
+      setCredentialsForm({ apiKey: '', apiSecret: '', clientId: '' })
+
+      // Refresh broker config to update has_credentials status
+      await fetchBrokerConfig()
+    } catch (err) {
+      console.error('Failed to save credentials:', err)
+      const errorMessage =
+        err && typeof err === 'object' && 'message' in err
+          ? (err as { message: string }).message
+          : 'Failed to save credentials'
+      setError(errorMessage)
+    } finally {
+      setIsSavingCredentials(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!selectedBroker) {
@@ -112,91 +145,40 @@ export default function BrokerSelect() {
       return
     }
 
-    if (!brokerConfig) {
-      setError('Broker configuration not loaded')
+    // Check if broker has credentials
+    const broker = brokerConfig?.available_brokers.find(b => b.id === selectedBroker)
+    if (!broker?.has_credentials) {
+      setShowCredentialsDialog(true)
       return
     }
 
     setIsSubmitting(true)
-    let loginUrl = ''
+    setError(null)
 
-    const { broker_api_key, redirect_url } = brokerConfig
+    try {
+      // Get actual API key for OAuth URL generation
+      const credsResponse = await invoke<{ broker_id: string; api_key_masked: string } | null>(
+        'get_broker_credentials',
+        { brokerId: selectedBroker }
+      )
 
-    // Build login URL based on broker type (matching original broker.html logic)
-    switch (selectedBroker) {
-      case 'fivepaisa':
-      case 'fivepaisaxts':
-      case 'aliceblue':
-      case 'angel':
-      case 'mstock':
-      case 'indmoney':
-      case 'jainamxts':
-      case 'dhan_sandbox':
-      case 'definedge':
-      case 'firstock':
-      case 'samco':
-      case 'motilal':
-      case 'nubra':
-      case 'groww':
-      case 'ibulls':
-      case 'iifl':
-      case 'kotak':
-      case 'shoonya':
-      case 'tradejini':
-      case 'wisdom':
-      case 'zebu':
-        // TOTP brokers - redirect to callback page which shows form
-        loginUrl = `/${selectedBroker}/callback`
-        break
-
-      case 'dhan':
-        loginUrl = '/dhan/initiate-oauth'
-        break
-
-      case 'compositedge':
-        loginUrl = `https://xts.compositedge.com/interactive/thirdparty?appKey=${broker_api_key}&returnURL=${redirect_url}`
-        break
-
-      case 'flattrade': {
-        const flattradeApiKey = getFlattradeApiKey(broker_api_key)
-        loginUrl = `https://auth.flattrade.in/?app_key=${flattradeApiKey}`
-        break
-      }
-
-      case 'fyers':
-        loginUrl = `https://api-t1.fyers.in/api/v3/generate-authcode?client_id=${broker_api_key}&redirect_uri=${redirect_url}&response_type=code&state=2e9b44629ebb28226224d09db3ffb47c`
-        break
-
-      case 'upstox':
-        loginUrl = `https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id=${broker_api_key}&redirect_uri=${redirect_url}`
-        break
-
-      case 'zerodha':
-        loginUrl = `https://kite.trade/connect/login?api_key=${broker_api_key}`
-        break
-
-      case 'paytm':
-        loginUrl = `https://login.paytmmoney.com/merchant-login?apiKey=${broker_api_key}&state={default}`
-        break
-
-      case 'pocketful': {
-        const state = generateRandomState()
-        localStorage.setItem('pocketful_oauth_state', state)
-        const scope = 'orders holdings'
-        loginUrl = `https://trade.pocketful.in/oauth2/auth?client_id=${broker_api_key}&redirect_uri=${redirect_url}&response_type=code&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}`
-        break
-      }
-
-      default:
-        setError('Please select a broker')
-        setIsSubmitting(false)
+      // For TOTP brokers, navigate to TOTP form
+      if (broker.auth_type === 'totp') {
+        navigate(`/broker/${selectedBroker}/totp`)
         return
-    }
+      }
 
-    // Use setTimeout to ensure state updates complete before navigation
-    setTimeout(() => {
-      window.location.href = loginUrl
-    }, 100)
+      // For OAuth brokers, we need the actual API key
+      // For now, redirect to credential entry since we can't get unmasked key
+      // TODO: Implement proper OAuth flow with secure key handling
+      setError('OAuth login requires entering credentials. Please configure your broker.')
+      setShowCredentialsDialog(true)
+    } catch (err) {
+      console.error('Broker login error:', err)
+      setError('Failed to initiate broker login')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (isLoading) {
@@ -232,7 +214,7 @@ export default function BrokerSelect() {
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
                   <Label htmlFor="broker-select" className="block text-center">
-                    Login with your Broker
+                    Select Your Broker
                   </Label>
                   <Select
                     value={selectedBroker}
@@ -243,16 +225,23 @@ export default function BrokerSelect() {
                       <SelectValue placeholder="Select a Broker" />
                     </SelectTrigger>
                     <SelectContent>
-                      {allBrokers.map((broker) => {
-                        const isEnabled = broker.id === brokerConfig?.broker_name
-                        return (
-                          <SelectItem key={broker.id} value={broker.id} disabled={!isEnabled}>
-                            {broker.name} {!isEnabled && '(Disabled)'}
-                          </SelectItem>
-                        )
-                      })}
+                      {brokerConfig?.available_brokers.map((broker) => (
+                        <SelectItem key={broker.id} value={broker.id}>
+                          <div className="flex items-center gap-2">
+                            <span>{broker.name}</span>
+                            {broker.has_credentials && (
+                              <Key className="h-3 w-3 text-green-500" />
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  {selectedBrokerInfo && !selectedBrokerInfo.has_credentials && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      No credentials configured. Click Connect to add them.
+                    </p>
+                  )}
                 </div>
 
                 <Button type="submit" className="w-full" disabled={!selectedBroker || isSubmitting}>
@@ -261,10 +250,15 @@ export default function BrokerSelect() {
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Connecting...
                     </>
-                  ) : (
+                  ) : selectedBrokerInfo?.has_credentials ? (
                     <>
                       <ExternalLink className="mr-2 h-4 w-4" />
                       Connect Account
+                    </>
+                  ) : (
+                    <>
+                      <Settings className="mr-2 h-4 w-4" />
+                      Configure Credentials
                     </>
                   )}
                 </Button>
@@ -283,9 +277,11 @@ export default function BrokerSelect() {
             </p>
 
             <Alert className="mb-6">
-              <BookOpen className="h-4 w-4" />
-              <AlertTitle>Need Help?</AlertTitle>
-              <AlertDescription>Check our documentation for broker setup guides.</AlertDescription>
+              <Key className="h-4 w-4" />
+              <AlertTitle>Secure Credentials</AlertTitle>
+              <AlertDescription>
+                Your API credentials are stored securely in your system's keychain, not in files.
+              </AlertDescription>
             </Alert>
 
             <div className="flex justify-center lg:justify-start gap-4">
@@ -299,6 +295,65 @@ export default function BrokerSelect() {
           </div>
         </div>
       </div>
+
+      {/* Credentials Entry Dialog */}
+      <Dialog open={showCredentialsDialog} onOpenChange={setShowCredentialsDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Configure {selectedBrokerInfo?.name} Credentials</DialogTitle>
+            <DialogDescription>
+              Enter your broker API credentials. These will be stored securely in your system's keychain.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="apiKey">API Key *</Label>
+              <Input
+                id="apiKey"
+                type="password"
+                placeholder="Enter your API key"
+                value={credentialsForm.apiKey}
+                onChange={(e) => setCredentialsForm({ ...credentialsForm, apiKey: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="apiSecret">API Secret</Label>
+              <Input
+                id="apiSecret"
+                type="password"
+                placeholder="Enter your API secret (if required)"
+                value={credentialsForm.apiSecret}
+                onChange={(e) => setCredentialsForm({ ...credentialsForm, apiSecret: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="clientId">Client ID</Label>
+              <Input
+                id="clientId"
+                type="text"
+                placeholder="Enter your client ID (if required)"
+                value={credentialsForm.clientId}
+                onChange={(e) => setCredentialsForm({ ...credentialsForm, clientId: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCredentialsDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveCredentials} disabled={isSavingCredentials || !credentialsForm.apiKey}>
+              {isSavingCredentials ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Credentials'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
