@@ -70,6 +70,7 @@ async-trait = "0.1"
 
 # URL parsing
 url = "2.5"
+urlencoding = "2.1"
 
 # UUID generation
 uuid = { version = "1.8", features = ["v4"] }
