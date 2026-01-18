@@ -1,0 +1,81 @@
+[package]
+name = "openalgo-desktop"
+version = "1.0.0"
+description = "OpenAlgo Desktop - Algorithmic Trading Platform"
+authors = ["OpenAlgo"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "openalgo_desktop_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Tauri framework
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+
+# Database
+rusqlite = { version = "0.31", features = ["bundled"] }
+duckdb = { version = "1.0", features = ["bundled"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.24"
+
+# Security
+keyring = "2.3"
+argon2 = "0.5"
+aes-gcm = "0.10"
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.8"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+futures-util = "0.3"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Concurrency
+parking_lot = "0.12"
+dashmap = "6.0"
+
+# Async trait
+async-trait = "0.1"
+
+# URL parsing
+url = "2.5"
+
+# UUID generation
+uuid = { version = "1.8", features = ["v4"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
