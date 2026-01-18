@@ -85,6 +85,12 @@ impl WebhookServer {
             .route("/api/v1/cancelorder", post(handlers::cancel_order))
             .route("/api/v1/cancelallorder", post(handlers::cancel_all_orders))
             .route("/api/v1/closeposition", post(handlers::close_position))
+            .route("/api/v1/basketorder", post(handlers::place_basket_order))
+            .route("/api/v1/splitorder", post(handlers::place_split_order))
+
+            // Order/Position status
+            .route("/api/v1/orderstatus", post(handlers::get_order_status))
+            .route("/api/v1/openposition", post(handlers::get_open_position))
 
             // Data retrieval
             .route("/api/v1/orderbook", post(handlers::get_orderbook))
@@ -93,6 +99,29 @@ impl WebhookServer {
             .route("/api/v1/holdings", post(handlers::get_holdings))
             .route("/api/v1/funds", post(handlers::get_funds))
             .route("/api/v1/quotes", post(handlers::get_quotes))
+
+            // Market data
+            .route("/api/v1/depth", post(handlers::get_depth))
+            .route("/api/v1/symbol", post(handlers::get_symbol))
+            .route("/api/v1/history", post(handlers::get_history))
+            .route("/api/v1/intervals", post(handlers::get_intervals))
+            .route("/api/v1/multiquotes", post(handlers::get_multiquotes))
+            .route("/api/v1/search", post(handlers::search_symbols))
+            .route("/api/v1/expiry", post(handlers::get_expiry))
+            .route("/api/v1/instruments", get(handlers::get_instruments))
+            .route("/api/v1/syntheticfuture", post(handlers::get_synthetic_future))
+
+            // Account/Analyzer
+            .route("/api/v1/analyzer", post(handlers::get_analyzer_status))
+            .route("/api/v1/analyzer/toggle", post(handlers::toggle_analyzer))
+            .route("/api/v1/margin", post(handlers::get_margin))
+
+            // Options API
+            .route("/api/v1/optionchain", post(handlers::get_option_chain))
+            .route("/api/v1/optiongreeks", post(handlers::get_option_greeks))
+            .route("/api/v1/optionsorder", post(handlers::place_options_order))
+            .route("/api/v1/optionsymbol", post(handlers::get_option_symbol))
+            .route("/api/v1/optionsmultiorder", post(handlers::place_options_multi_order))
 
             // ================================================================
             // Add state and middleware
@@ -136,18 +165,30 @@ impl WebhookServer {
         info!("  POST http://{}:{}/webhook/{{webhook_id}}", host, port);
         info!("");
         info!("REST API (OpenAlgo SDK compatible):");
-        info!("  POST http://{}:{}/api/v1/placeorder", host, port);
-        info!("  POST http://{}:{}/api/v1/placesmartorder", host, port);
-        info!("  POST http://{}:{}/api/v1/modifyorder", host, port);
-        info!("  POST http://{}:{}/api/v1/cancelorder", host, port);
-        info!("  POST http://{}:{}/api/v1/cancelallorder", host, port);
-        info!("  POST http://{}:{}/api/v1/closeposition", host, port);
-        info!("  POST http://{}:{}/api/v1/orderbook", host, port);
-        info!("  POST http://{}:{}/api/v1/tradebook", host, port);
-        info!("  POST http://{}:{}/api/v1/positionbook", host, port);
-        info!("  POST http://{}:{}/api/v1/holdings", host, port);
-        info!("  POST http://{}:{}/api/v1/funds", host, port);
-        info!("  POST http://{}:{}/api/v1/quotes", host, port);
+        info!("  Order Placement:");
+        info!("    POST http://{}:{}/api/v1/placeorder", host, port);
+        info!("    POST http://{}:{}/api/v1/placesmartorder", host, port);
+        info!("    POST http://{}:{}/api/v1/modifyorder", host, port);
+        info!("    POST http://{}:{}/api/v1/cancelorder", host, port);
+        info!("    POST http://{}:{}/api/v1/cancelallorder", host, port);
+        info!("    POST http://{}:{}/api/v1/closeposition", host, port);
+        info!("    POST http://{}:{}/api/v1/basketorder", host, port);
+        info!("    POST http://{}:{}/api/v1/splitorder", host, port);
+        info!("  Order/Position Status:");
+        info!("    POST http://{}:{}/api/v1/orderstatus", host, port);
+        info!("    POST http://{}:{}/api/v1/openposition", host, port);
+        info!("  Data Retrieval:");
+        info!("    POST http://{}:{}/api/v1/orderbook", host, port);
+        info!("    POST http://{}:{}/api/v1/tradebook", host, port);
+        info!("    POST http://{}:{}/api/v1/positionbook", host, port);
+        info!("    POST http://{}:{}/api/v1/holdings", host, port);
+        info!("    POST http://{}:{}/api/v1/funds", host, port);
+        info!("    POST http://{}:{}/api/v1/quotes", host, port);
+        info!("  Market Data:");
+        info!("    POST http://{}:{}/api/v1/depth", host, port);
+        info!("    POST http://{}:{}/api/v1/symbol", host, port);
+        info!("    POST http://{}:{}/api/v1/history", host, port);
+        info!("    POST http://{}:{}/api/v1/intervals", host, port);
 
         if let Some(ngrok_url) = config.ngrok_url {
             info!("");

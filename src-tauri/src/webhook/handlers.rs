@@ -593,23 +593,712 @@ pub async fn get_quotes(
 
     // TODO: Fetch from broker adapter
     let quote = QuoteData {
-        symbol: req.symbol,
-        exchange: req.exchange,
-        ltp: 0.0,
+        bid: 0.0,
+        ask: 0.0,
         open: 0.0,
         high: 0.0,
         low: 0.0,
-        close: 0.0,
+        ltp: 0.0,
+        prev_close: 0.0,
         volume: 0,
         oi: 0,
-        bid: 0.0,
-        ask: 0.0,
-        bid_size: 0,
-        ask_size: 0,
     };
     (
         StatusCode::OK,
         Json(ApiResponse::success_with_data(quote))
+    )
+}
+
+/// Place basket order - POST /api/v1/basketorder
+/// Places multiple orders in a single request
+pub async fn place_basket_order(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<BasketOrderRequest>,
+) -> impl IntoResponse {
+    info!("Basket order request: {} orders", req.orders.len());
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<Vec<BasketOrderResult>>::error(&e)));
+    }
+
+    if !state.is_broker_connected() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiResponse::<Vec<BasketOrderResult>>::error("Broker not connected"))
+        );
+    }
+
+    // Process each order in basket
+    let mut results: Vec<BasketOrderResult> = Vec::new();
+    for order in &req.orders {
+        // TODO: Execute via broker adapter
+        let order_id = format!("ORD{}", chrono::Utc::now().timestamp_millis());
+        results.push(BasketOrderResult {
+            symbol: order.symbol.clone(),
+            exchange: order.exchange.clone(),
+            orderid: Some(order_id),
+            status: "success".to_string(),
+            message: None,
+        });
+    }
+
+    state.emit("api_basket_order", &req);
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(results))
+    )
+}
+
+/// Place split order - POST /api/v1/splitorder
+/// Splits a large order into smaller chunks
+pub async fn place_split_order(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<SplitOrderRequest>,
+) -> impl IntoResponse {
+    info!("Split order request: {} qty, {} split size", req.quantity, req.splitsize);
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<SplitOrderResult>::error(&e)));
+    }
+
+    if !state.is_broker_connected() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiResponse::<SplitOrderResult>::error("Broker not connected"))
+        );
+    }
+
+    let split_size = if req.splitsize > 0 { req.splitsize } else { 100 };
+    let num_orders = (req.quantity + split_size - 1) / split_size;
+
+    // TODO: Execute via broker adapter
+    let mut orderids = Vec::new();
+    for _ in 0..num_orders {
+        orderids.push(format!("ORD{}", chrono::Utc::now().timestamp_millis()));
+    }
+
+    state.emit("api_split_order", &req);
+
+    let result = SplitOrderResult {
+        total_quantity: req.quantity,
+        split_size,
+        num_orders,
+        orderids,
+    };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(result))
+    )
+}
+
+/// Get order status - POST /api/v1/orderstatus
+pub async fn get_order_status(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<OrderStatusRequest>,
+) -> impl IntoResponse {
+    info!("Order status request: {}", req.orderid);
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<OrderStatusData>::error(&e)));
+    }
+
+    if !state.is_broker_connected() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiResponse::<OrderStatusData>::error("Broker not connected"))
+        );
+    }
+
+    // TODO: Fetch from broker adapter
+    let status = OrderStatusData {
+        orderid: req.orderid,
+        symbol: String::new(),
+        exchange: String::new(),
+        action: String::new(),
+        quantity: 0,
+        price: 0.0,
+        trigger_price: 0.0,
+        pricetype: String::new(),
+        product: String::new(),
+        order_status: "PENDING".to_string(),
+        filled_quantity: 0,
+        pending_quantity: 0,
+        average_price: 0.0,
+        timestamp: chrono::Utc::now().to_rfc3339(),
+    };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(status))
+    )
+}
+
+/// Get open position - POST /api/v1/openposition
+/// Get position for a specific symbol
+pub async fn get_open_position(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<OpenPositionRequest>,
+) -> impl IntoResponse {
+    info!("Open position request: {} {}", req.exchange, req.symbol);
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<OpenPositionData>::error(&e)));
+    }
+
+    if !state.is_broker_connected() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiResponse::<OpenPositionData>::error("Broker not connected"))
+        );
+    }
+
+    // TODO: Fetch from broker adapter
+    let position = OpenPositionData {
+        symbol: req.symbol,
+        exchange: req.exchange,
+        product: req.product,
+        quantity: 0,
+        average_price: 0.0,
+        ltp: 0.0,
+        pnl: 0.0,
+    };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(position))
+    )
+}
+
+/// Get market depth - POST /api/v1/depth
+pub async fn get_depth(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<DepthRequest>,
+) -> impl IntoResponse {
+    info!("Depth request: {} {}", req.exchange, req.symbol);
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<DepthData>::error(&e)));
+    }
+
+    if !state.is_broker_connected() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiResponse::<DepthData>::error("Broker not connected"))
+        );
+    }
+
+    // TODO: Fetch from broker adapter
+    let depth = DepthData {
+        symbol: req.symbol,
+        exchange: req.exchange,
+        buy: vec![],
+        sell: vec![],
+        ltp: 0.0,
+        ltq: 0,
+        volume: 0,
+        oi: 0,
+        totalbuyqty: 0,
+        totalsellqty: 0,
+    };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(depth))
+    )
+}
+
+/// Get symbol info - POST /api/v1/symbol
+pub async fn get_symbol(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<SymbolRequest>,
+) -> impl IntoResponse {
+    info!("Symbol request: {} {}", req.exchange, req.symbol);
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<SymbolData>::error(&e)));
+    }
+
+    // Get from symbol cache (doesn't require broker connection)
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<SymbolData>::error("Internal error"))
+            );
+        }
+    };
+
+    match app_state.get_symbol_by_name(&req.exchange, &req.symbol) {
+        Some(symbol_info) => {
+            let data = SymbolData {
+                symbol: symbol_info.symbol,
+                exchange: symbol_info.exchange,
+                token: symbol_info.token,
+                name: Some(symbol_info.name),
+                expiry: None,      // Not available in current SymbolInfo
+                strike: None,      // Not available in current SymbolInfo
+                option_type: None, // Not available in current SymbolInfo
+                lot_size: symbol_info.lot_size,
+                tick_size: symbol_info.tick_size,
+                instrument_type: symbol_info.instrument_type,
+            };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(data))
+            )
+        }
+        None => {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ApiResponse::<SymbolData>::error("Symbol not found"))
+            )
+        }
+    }
+}
+
+/// Get historical data - POST /api/v1/history
+pub async fn get_history(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<HistoryRequest>,
+) -> impl IntoResponse {
+    info!("History request: {} {} {}", req.exchange, req.symbol, req.interval);
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<HistoryData>::error(&e)));
+    }
+
+    if !state.is_broker_connected() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiResponse::<HistoryData>::error("Broker not connected"))
+        );
+    }
+
+    // TODO: Fetch from broker adapter or DuckDB cache
+    let history = HistoryData {
+        symbol: req.symbol,
+        exchange: req.exchange,
+        interval: req.interval,
+        candles: vec![],
+    };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(history))
+    )
+}
+
+/// Get supported intervals - POST /api/v1/intervals
+pub async fn get_intervals(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<IntervalsRequest>,
+) -> impl IntoResponse {
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<IntervalsData>::error(&e)));
+    }
+
+    // Standard intervals supported by most brokers
+    let intervals = IntervalsData {
+        intervals: vec![
+            "1m".to_string(),
+            "3m".to_string(),
+            "5m".to_string(),
+            "10m".to_string(),
+            "15m".to_string(),
+            "30m".to_string(),
+            "1h".to_string(),
+            "2h".to_string(),
+            "4h".to_string(),
+            "1d".to_string(),
+            "1w".to_string(),
+            "1M".to_string(),
+        ],
+    };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(intervals))
+    )
+}
+
+/// Get analyzer status - POST /api/v1/analyzer
+pub async fn get_analyzer_status(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<AnalyzerRequest>,
+) -> impl IntoResponse {
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<AnalyzerData>::error(&e)));
+    }
+
+    // TODO: Get actual analyzer status from state
+    let data = AnalyzerData {
+        analyze_mode: false,
+        mode: "live".to_string(),
+        total_logs: 0,
+    };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(data))
+    )
+}
+
+/// Toggle analyzer mode - POST /api/v1/analyzer/toggle
+pub async fn toggle_analyzer(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<AnalyzerToggleRequest>,
+) -> impl IntoResponse {
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<AnalyzerData>::error(&e)));
+    }
+
+    // TODO: Toggle actual analyzer mode in state
+    let mode = if req.mode { "analyze" } else { "live" };
+    let data = AnalyzerData {
+        analyze_mode: req.mode,
+        mode: mode.to_string(),
+        total_logs: 0,
+    };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(data))
+    )
+}
+
+/// Calculate margin - POST /api/v1/margin
+pub async fn get_margin(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<MarginRequest>,
+) -> impl IntoResponse {
+    info!("Margin request: {} positions", req.positions.len());
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<MarginData>::error(&e)));
+    }
+
+    if req.positions.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<MarginData>::error("Positions array cannot be empty"))
+        );
+    }
+
+    if req.positions.len() > 50 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse::<MarginData>::error("Maximum 50 positions allowed"))
+        );
+    }
+
+    if !state.is_broker_connected() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiResponse::<MarginData>::error("Broker not connected"))
+        );
+    }
+
+    // TODO: Calculate from broker adapter
+    let data = MarginData {
+        total_margin_required: 0.0,
+        span_margin: Some(0.0),
+        exposure_margin: Some(0.0),
+    };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(data))
+    )
+}
+
+/// Get multi-quotes - POST /api/v1/multiquotes
+pub async fn get_multiquotes(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<MultiQuotesRequest>,
+) -> impl IntoResponse {
+    info!("Multi-quotes request: {} symbols", req.symbols.len());
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<MultiQuotesData>::error(&e)));
+    }
+
+    if !state.is_broker_connected() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiResponse::<MultiQuotesData>::error("Broker not connected"))
+        );
+    }
+
+    // TODO: Fetch from broker adapter
+    let quotes: MultiQuotesData = vec![];
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(quotes))
+    )
+}
+
+/// Search symbols - POST /api/v1/search
+pub async fn search_symbols(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<SearchRequest>,
+) -> impl IntoResponse {
+    info!("Search request: {}", req.query);
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<Vec<SearchResultItem>>::error(&e)));
+    }
+
+    // TODO: Search from symbol cache
+    let results: Vec<SearchResultItem> = vec![];
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(results))
+    )
+}
+
+/// Get expiry dates - POST /api/v1/expiry
+pub async fn get_expiry(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<ExpiryRequest>,
+) -> impl IntoResponse {
+    info!("Expiry request: {} {} {}", req.symbol, req.exchange, req.instrumenttype);
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<ExpiryData>::error(&e)));
+    }
+
+    // TODO: Get from symbol cache
+    let data = ExpiryData {
+        expiry_dates: vec![],
+    };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(data))
+    )
+}
+
+/// Get instruments - GET /api/v1/instruments
+pub async fn get_instruments(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    axum::extract::Query(req): axum::extract::Query<InstrumentsRequest>,
+) -> impl IntoResponse {
+    info!("Instruments request: {:?}", req.exchange);
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<InstrumentsData>::error(&e)));
+    }
+
+    // TODO: Get from symbol cache
+    let data: InstrumentsData = vec![];
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(data))
+    )
+}
+
+/// Calculate synthetic future - POST /api/v1/syntheticfuture
+pub async fn get_synthetic_future(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<SyntheticFutureRequest>,
+) -> impl IntoResponse {
+    info!("Synthetic future request: {} {} {}", req.underlying, req.exchange, req.expiry_date);
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<SyntheticFutureData>::error(&e)));
+    }
+
+    if !state.is_broker_connected() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiResponse::<SyntheticFutureData>::error("Broker not connected"))
+        );
+    }
+
+    // TODO: Calculate from broker quotes
+    let data = SyntheticFutureData {
+        underlying: req.underlying,
+        underlying_ltp: 0.0,
+        expiry: req.expiry_date,
+        atm_strike: 0.0,
+        synthetic_future_price: 0.0,
+    };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(data))
+    )
+}
+
+/// Get option chain - POST /api/v1/optionchain
+pub async fn get_option_chain(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<OptionChainRequest>,
+) -> impl IntoResponse {
+    info!("Option chain request: {} {}", req.underlying, req.exchange);
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<OptionChainData>::error(&e)));
+    }
+
+    if !state.is_broker_connected() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiResponse::<OptionChainData>::error("Broker not connected"))
+        );
+    }
+
+    // TODO: Build option chain from broker quotes
+    let data = OptionChainData {
+        underlying: req.underlying,
+        underlying_ltp: 0.0,
+        expiry: req.expiry_date.unwrap_or_default(),
+        atm_strike: 0.0,
+        strikes: vec![],
+    };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(data))
+    )
+}
+
+/// Get option Greeks - POST /api/v1/optiongreeks
+pub async fn get_option_greeks(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<OptionGreeksRequest>,
+) -> impl IntoResponse {
+    info!("Option Greeks request: {} {}", req.symbol, req.exchange);
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<OptionGreeksData>::error(&e)));
+    }
+
+    if !state.is_broker_connected() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiResponse::<OptionGreeksData>::error("Broker not connected"))
+        );
+    }
+
+    // TODO: Calculate Greeks using Black-Scholes
+    let data = OptionGreeksData {
+        symbol: req.symbol,
+        ltp: 0.0,
+        iv: 0.0,
+        delta: 0.0,
+        gamma: 0.0,
+        theta: 0.0,
+        vega: 0.0,
+        rho: 0.0,
+    };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(data))
+    )
+}
+
+/// Place options order - POST /api/v1/optionsorder
+pub async fn place_options_order(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<OptionsOrderRequest>,
+) -> impl IntoResponse {
+    info!("Options order request: {} {} {} {}", req.underlying, req.exchange, req.option_type, req.action);
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<OptionsOrderResult>::error(&e)));
+    }
+
+    if !state.is_broker_connected() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiResponse::<OptionsOrderResult>::error("Broker not connected"))
+        );
+    }
+
+    // TODO: Resolve option symbol and place order via broker adapter
+    let order_id = format!("ORD{}", chrono::Utc::now().timestamp_millis());
+    let data = OptionsOrderResult {
+        symbol: format!("{}_{}", req.underlying, req.option_type),
+        orderid: order_id,
+    };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(data))
+    )
+}
+
+/// Get options symbol - POST /api/v1/optionsymbol
+pub async fn get_option_symbol(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<OptionSymbolRequest>,
+) -> impl IntoResponse {
+    info!("Option symbol request: {} {} {}", req.underlying, req.exchange, req.option_type);
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<OptionSymbolResult>::error(&e)));
+    }
+
+    // TODO: Resolve from symbol cache
+    let data = OptionSymbolResult {
+        symbol: format!("{}_{}", req.underlying, req.option_type),
+        token: "0".to_string(),
+        exchange: req.exchange,
+        strike: 0.0,
+        option_type: req.option_type,
+        expiry: req.expiry_date.unwrap_or_default(),
+    };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(data))
+    )
+}
+
+/// Place options multi-order - POST /api/v1/optionsmultiorder
+pub async fn place_options_multi_order(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Json(req): Json<OptionsMultiOrderRequest>,
+) -> impl IntoResponse {
+    info!("Options multi-order request: {} {} legs", req.underlying, req.legs.len());
+
+    if let Err(e) = state.validate_api_key(&req.apikey) {
+        return (StatusCode::FORBIDDEN, Json(ApiResponse::<OptionsMultiOrderResult>::error(&e)));
+    }
+
+    if !state.is_broker_connected() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ApiResponse::<OptionsMultiOrderResult>::error("Broker not connected"))
+        );
+    }
+
+    // TODO: Process each leg via broker adapter
+    let mut results = Vec::new();
+    for (i, leg) in req.legs.iter().enumerate() {
+        let order_id = format!("ORD{}", chrono::Utc::now().timestamp_millis());
+        results.push(OptionsOrderLegResult {
+            leg: (i + 1) as i32,
+            symbol: format!("{}_{}", req.underlying, leg.option_type),
+            orderid: Some(order_id),
+            status: "success".to_string(),
+            message: None,
+        });
+    }
+
+    let data = OptionsMultiOrderResult { results };
+
+    (
+        StatusCode::OK,
+        Json(ApiResponse::success_with_data(data))
     )
 }
 
