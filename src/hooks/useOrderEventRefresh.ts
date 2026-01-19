@@ -5,8 +5,8 @@
  * instead of Socket.IO. This hook provides a compatible interface.
  */
 
-import { useEffect, useRef } from 'react'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { useEffect, useRef } from 'react'
 
 /**
  * Supported event types for order-related updates
@@ -40,11 +40,7 @@ export function useOrderEventRefresh(
   refreshFn: () => void,
   options: UseOrderEventRefreshOptions = {}
 ): void {
-  const {
-    events = ['order_event', 'analyzer_update'],
-    delay = 500,
-    enabled = true,
-  } = options
+  const { events = ['order_event', 'analyzer_update'], delay = 500, enabled = true } = options
 
   const refreshFnRef = useRef(refreshFn)
 

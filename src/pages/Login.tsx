@@ -1,8 +1,8 @@
-import { Eye, EyeOff, Github, Info, Loader2, LogIn, MessageCircle } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { toast } from 'sonner'
 import { invoke } from '@tauri-apps/api/core'
+import { Clock, Eye, EyeOff, Github, Info, Loader2, LogIn, MessageCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,8 +21,13 @@ interface LoginResponse {
   username: string
 }
 
+interface LocationState {
+  reason?: 'auto_logout'
+}
+
 export default function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { login: setLogin } = useAuthStore()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -30,6 +35,10 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false)
   const [isCheckingSetup, setIsCheckingSetup] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Check if user was logged out due to auto-logout
+  const locationState = location.state as LocationState | null
+  const isAutoLogout = locationState?.reason === 'auto_logout'
 
   // Check if setup is required or already logged in on page load
   useEffect(() => {
@@ -135,6 +144,17 @@ export default function Login() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
+                {isAutoLogout && (
+                  <Alert>
+                    <Clock className="h-4 w-4" />
+                    <AlertTitle>Session Expired</AlertTitle>
+                    <AlertDescription>
+                      You were logged out at 3:00 AM IST as part of daily broker compliance. Please
+                      sign in again to continue trading.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="username">Username</Label>
                   <Input

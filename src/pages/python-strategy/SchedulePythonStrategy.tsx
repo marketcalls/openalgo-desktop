@@ -46,9 +46,7 @@ export default function SchedulePythonStrategy() {
   }, [strategyId])
 
   const handleDayToggle = (day: string) => {
-    setSelectedDays((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
-    )
+    setSelectedDays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -36,13 +36,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { JsonEditor } from '@/components/ui/json-editor'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { profileMenuItems } from '@/config/navigation'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
-import { JsonEditor } from '@/components/ui/json-editor'
 
 interface Endpoint {
   name: string
@@ -200,7 +200,6 @@ export default function Playground() {
 
   // Mobile sidebar
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
-
 
   useEffect(() => {
     loadApiKey()

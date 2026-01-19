@@ -446,7 +446,11 @@ export default function PythonStrategyIndex() {
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {formatScheduleDays(strategy.schedule_days?.length ? strategy.schedule_days : ['mon', 'tue', 'wed', 'thu', 'fri'])}
+                    {formatScheduleDays(
+                      strategy.schedule_days?.length
+                        ? strategy.schedule_days
+                        : ['mon', 'tue', 'wed', 'thu', 'fri']
+                    )}
                   </p>
                 </div>
 
@@ -497,7 +501,9 @@ export default function PythonStrategyIndex() {
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        {strategy.status === 'running' ? 'Stop running strategy' : 'Cancel scheduled auto-start'}
+                        {strategy.status === 'running'
+                          ? 'Stop running strategy'
+                          : 'Cancel scheduled auto-start'}
                       </TooltipContent>
                     </Tooltip>
                   ) : (

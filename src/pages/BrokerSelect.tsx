@@ -1,11 +1,19 @@
+import { invoke } from '@tauri-apps/api/core'
 import { BookOpen, ExternalLink, Key, Loader2, Settings } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { invoke } from '@tauri-apps/api/core'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -15,14 +23,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { useAuthStore } from '@/stores/authStore'
 
 interface BrokerInfo {
@@ -100,7 +100,7 @@ export default function BrokerSelect() {
     fetchBrokerConfig()
   }, [])
 
-  const selectedBrokerInfo = brokerConfig?.available_brokers.find(b => b.id === selectedBroker)
+  const selectedBrokerInfo = brokerConfig?.available_brokers.find((b) => b.id === selectedBroker)
 
   const handleSaveCredentials = async () => {
     if (!selectedBroker || !credentialsForm.apiKey) {
@@ -146,7 +146,7 @@ export default function BrokerSelect() {
     }
 
     // Check if broker has credentials
-    const broker = brokerConfig?.available_brokers.find(b => b.id === selectedBroker)
+    const broker = brokerConfig?.available_brokers.find((b) => b.id === selectedBroker)
     if (!broker?.has_credentials) {
       setShowCredentialsDialog(true)
       return
@@ -229,9 +229,7 @@ export default function BrokerSelect() {
                         <SelectItem key={broker.id} value={broker.id}>
                           <div className="flex items-center gap-2">
                             <span>{broker.name}</span>
-                            {broker.has_credentials && (
-                              <Key className="h-3 w-3 text-green-500" />
-                            )}
+                            {broker.has_credentials && <Key className="h-3 w-3 text-green-500" />}
                           </div>
                         </SelectItem>
                       ))}
@@ -302,7 +300,8 @@ export default function BrokerSelect() {
           <DialogHeader>
             <DialogTitle>Configure {selectedBrokerInfo?.name} Credentials</DialogTitle>
             <DialogDescription>
-              Enter your broker API credentials. These will be stored securely in your system's keychain.
+              Enter your broker API credentials. These will be stored securely in your system's
+              keychain.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -323,7 +322,9 @@ export default function BrokerSelect() {
                 type="password"
                 placeholder="Enter your API secret (if required)"
                 value={credentialsForm.apiSecret}
-                onChange={(e) => setCredentialsForm({ ...credentialsForm, apiSecret: e.target.value })}
+                onChange={(e) =>
+                  setCredentialsForm({ ...credentialsForm, apiSecret: e.target.value })
+                }
               />
             </div>
             <div className="space-y-2">
@@ -333,7 +334,9 @@ export default function BrokerSelect() {
                 type="text"
                 placeholder="Enter your client ID (if required)"
                 value={credentialsForm.clientId}
-                onChange={(e) => setCredentialsForm({ ...credentialsForm, clientId: e.target.value })}
+                onChange={(e) =>
+                  setCredentialsForm({ ...credentialsForm, clientId: e.target.value })
+                }
               />
             </div>
           </div>
@@ -341,7 +344,10 @@ export default function BrokerSelect() {
             <Button variant="outline" onClick={() => setShowCredentialsDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveCredentials} disabled={isSavingCredentials || !credentialsForm.apiKey}>
+            <Button
+              onClick={handleSaveCredentials}
+              disabled={isSavingCredentials || !credentialsForm.apiKey}
+            >
               {isSavingCredentials ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

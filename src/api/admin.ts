@@ -81,7 +81,10 @@ export const adminApi = {
     return { status: 'error', message: NOT_AVAILABLE }
   },
 
-  uploadFreezeCSV: async (_file: File, _exchange?: string): Promise<ApiResponse<{ count: number }>> => {
+  uploadFreezeCSV: async (
+    _file: File,
+    _exchange?: string
+  ): Promise<ApiResponse<{ count: number }>> => {
     return { status: 'error', message: NOT_AVAILABLE }
   },
 
@@ -95,7 +98,13 @@ export const adminApi = {
 
   getHolidays: async (_year?: number): Promise<HolidaysResponse> => {
     console.warn(NOT_AVAILABLE)
-    return { status: 'success', data: [], current_year: new Date().getFullYear(), years: [], exchanges: [] }
+    return {
+      status: 'success',
+      data: [],
+      current_year: new Date().getFullYear(),
+      years: [],
+      exchanges: [],
+    }
   },
 
   addHoliday: async (_data: AddHolidayRequest): Promise<ApiResponse<Holiday>> => {
@@ -112,7 +121,13 @@ export const adminApi = {
 
   getTimings: async (): Promise<TimingsResponse> => {
     console.warn(NOT_AVAILABLE)
-    return { status: 'success', data: [], today_timings: [], today: new Date().toISOString().split('T')[0], exchanges: [] }
+    return {
+      status: 'success',
+      data: [],
+      today_timings: [],
+      today: new Date().toISOString().split('T')[0],
+      exchanges: [],
+    }
   },
 
   updateTiming: async (_id: number, _data: UpdateTimingRequest): Promise<ApiResponse<void>> => {
@@ -129,7 +144,9 @@ export const adminApi = {
     return []
   },
 
-  checkTimings: async (_date?: string): Promise<{ status: string; timings: TodayTiming[]; message?: string }> => {
+  checkTimings: async (
+    _date?: string
+  ): Promise<{ status: string; timings: TodayTiming[]; message?: string }> => {
     console.warn(NOT_AVAILABLE)
     return { status: 'success', timings: [] }
   },

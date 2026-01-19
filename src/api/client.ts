@@ -7,19 +7,19 @@
 
 // Re-export Tauri client as the primary API interface
 export {
-  tauri,
   authCommands,
   brokerCommands,
+  fundsCommands,
+  historifyCommands,
+  holdingsCommands,
   orderCommands,
   positionCommands,
-  holdingsCommands,
-  fundsCommands,
   quoteCommands,
-  symbolCommands,
-  strategyCommands,
-  settingsCommands,
   sandboxCommands,
-  historifyCommands,
+  settingsCommands,
+  strategyCommands,
+  symbolCommands,
+  tauri,
 } from './tauri-client'
 
 // ============================================================================
@@ -33,19 +33,33 @@ export {
  * In desktop mode, all API calls go through Tauri IPC, not HTTP.
  */
 export const webClient = {
-  get: async <T = any>(_url: string, _config?: Record<string, unknown>): Promise<{ data: T | null }> => {
+  get: async <T = any>(
+    _url: string,
+    _config?: Record<string, unknown>
+  ): Promise<{ data: T | null }> => {
     console.warn('webClient.get is not available in desktop mode')
     return { data: null }
   },
-  post: async <T = any>(_url: string, _data?: unknown, _config?: Record<string, unknown>): Promise<{ data: T | null }> => {
+  post: async <T = any>(
+    _url: string,
+    _data?: unknown,
+    _config?: Record<string, unknown>
+  ): Promise<{ data: T | null }> => {
     console.warn('webClient.post is not available in desktop mode')
     return { data: null }
   },
-  put: async <T = any>(_url: string, _data?: unknown, _config?: Record<string, unknown>): Promise<{ data: T | null }> => {
+  put: async <T = any>(
+    _url: string,
+    _data?: unknown,
+    _config?: Record<string, unknown>
+  ): Promise<{ data: T | null }> => {
     console.warn('webClient.put is not available in desktop mode')
     return { data: null }
   },
-  delete: async <T = any>(_url: string, _config?: Record<string, unknown>): Promise<{ data: T | null }> => {
+  delete: async <T = any>(
+    _url: string,
+    _config?: Record<string, unknown>
+  ): Promise<{ data: T | null }> => {
     console.warn('webClient.delete is not available in desktop mode')
     return { data: null }
   },
@@ -61,40 +75,40 @@ export const fetchCSRFToken = async (): Promise<string> => {
 }
 
 export type {
-  TauriError,
-  LoginRequest,
-  LoginResponse,
-  UserInfo,
-  BrokerLoginRequest,
   BrokerCredentials,
+  BrokerInfo,
+  BrokerLoginRequest,
   BrokerLoginResponse,
   BrokerStatus,
-  BrokerInfo,
-  OrderRequest,
-  ModifyOrderRequest,
-  OrderResponse,
-  Order,
-  Position,
-  Holding,
-  Funds,
-  QuoteRequest,
-  Quote,
-  MarketDepth,
-  DepthLevel,
-  SymbolSearchResult,
-  Strategy,
-  CreateStrategyRequest,
-  UpdateStrategyRequest,
-  Settings,
-  UpdateSettingsRequest,
-  SaveBrokerCredentialsRequest,
-  SandboxOrder,
-  SandboxPosition,
-  SandboxOrderRequest,
-  MarketDataQuery,
-  MarketDataRow,
   ClosePositionRequest,
   ClosePositionResponse,
+  CreateStrategyRequest,
+  DepthLevel,
+  Funds,
+  Holding,
+  LoginRequest,
+  LoginResponse,
+  MarketDataQuery,
+  MarketDataRow,
+  MarketDepth,
+  ModifyOrderRequest,
+  Order,
+  OrderRequest,
+  OrderResponse,
+  Position,
+  Quote,
+  QuoteRequest,
+  SandboxOrder,
+  SandboxOrderRequest,
+  SandboxPosition,
+  SaveBrokerCredentialsRequest,
+  Settings,
+  Strategy,
+  SymbolSearchResult,
+  TauriError,
+  UpdateSettingsRequest,
+  UpdateStrategyRequest,
+  UserInfo,
 } from './tauri-client'
 
 // Default export

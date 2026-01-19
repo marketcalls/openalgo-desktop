@@ -5,7 +5,13 @@
  * This requires a server-side Python runtime environment.
  */
 
-import type { PythonStrategy, PythonStrategyContent, ScheduleConfig, LogContent, EnvironmentVariables } from '@/types/python-strategy'
+import type {
+  EnvironmentVariables,
+  LogContent,
+  PythonStrategy,
+  PythonStrategyContent,
+  ScheduleConfig,
+} from '@/types/python-strategy'
 
 interface ApiResponse<T = void> {
   status: string
@@ -35,10 +41,7 @@ export const pythonStrategyApi = {
     return { status: 'error', message: NOT_AVAILABLE }
   },
 
-  saveStrategy: async (
-    _strategyId: string,
-    _code: string
-  ): Promise<ApiResponse<void>> => {
+  saveStrategy: async (_strategyId: string, _code: string): Promise<ApiResponse<void>> => {
     return { status: 'error', message: NOT_AVAILABLE }
   },
 
@@ -69,7 +72,11 @@ export const pythonStrategyApi = {
     return { status: 'error', message: NOT_AVAILABLE }
   },
 
-  getMasterContractStatus: async (): Promise<{ ready: boolean; message: string; last_updated: string | null }> => {
+  getMasterContractStatus: async (): Promise<{
+    ready: boolean
+    message: string
+    last_updated: string | null
+  }> => {
     return { ready: true, message: 'Not available in desktop mode', last_updated: null }
   },
 
@@ -81,7 +88,9 @@ export const pythonStrategyApi = {
     return { status: 'error', message: NOT_AVAILABLE }
   },
 
-  getLogFiles: async (_strategyId: string): Promise<{ name: string; path: string; size_kb: number; last_modified: string }[]> => {
+  getLogFiles: async (
+    _strategyId: string
+  ): Promise<{ name: string; path: string; size_kb: number; last_modified: string }[]> => {
     return []
   },
 
@@ -96,7 +105,9 @@ export const pythonStrategyApi = {
     return { status: 'error', message: NOT_AVAILABLE }
   },
 
-  startStrategy: async (_strategyId: string): Promise<ApiResponse<{ process_id: number; started?: boolean }>> => {
+  startStrategy: async (
+    _strategyId: string
+  ): Promise<ApiResponse<{ process_id: number; started?: boolean }>> => {
     return { status: 'error', message: NOT_AVAILABLE }
   },
 

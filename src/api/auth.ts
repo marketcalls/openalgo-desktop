@@ -4,7 +4,6 @@
  * Uses Tauri IPC commands for authentication operations.
  */
 
-import { authCommands, brokerCommands, settingsCommands } from './client'
 import type {
   BrokerCredentials,
   BrokerInfo,
@@ -13,6 +12,7 @@ import type {
   LoginResponse,
   UserInfo,
 } from './client'
+import { authCommands, brokerCommands, settingsCommands } from './client'
 
 // Re-export types for compatibility
 export type { BrokerInfo, LoginResponse, UserInfo }

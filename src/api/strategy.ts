@@ -4,13 +4,13 @@
  * Uses Tauri IPC commands for strategy operations.
  */
 
-import { strategyCommands, symbolCommands } from './client'
 import type {
-  Strategy,
   CreateStrategyRequest,
-  UpdateStrategyRequest,
+  Strategy,
   SymbolSearchResult,
+  UpdateStrategyRequest,
 } from './client'
+import { strategyCommands, symbolCommands } from './client'
 
 // Re-export types
 export type { Strategy, SymbolSearchResult }
@@ -80,23 +80,21 @@ export const strategyApi = {
    * Create a new strategy
    * Accepts partial data from the frontend and fills in defaults for Tauri
    */
-  createStrategy: async (
-    data: {
-      name: string
-      platform?: string
-      strategy_type?: string
-      trading_mode?: string
-      start_time?: string
-      end_time?: string
-      squareoff_time?: string
-      webhook_id?: string
-      exchange?: string
-      symbol?: string
-      product?: string
-      quantity?: number
-      enabled?: boolean
-    }
-  ): Promise<ApiResponse<{ strategy_id: number }>> => {
+  createStrategy: async (data: {
+    name: string
+    platform?: string
+    strategy_type?: string
+    trading_mode?: string
+    start_time?: string
+    end_time?: string
+    squareoff_time?: string
+    webhook_id?: string
+    exchange?: string
+    symbol?: string
+    product?: string
+    quantity?: number
+    enabled?: boolean
+  }): Promise<ApiResponse<{ strategy_id: number }>> => {
     try {
       // Generate webhook ID if not provided
       const webhookId = data.webhook_id || crypto.randomUUID()
@@ -233,7 +231,8 @@ export const strategyApi = {
   ): Promise<ApiResponse<{ added: number; failed: number }>> => {
     return {
       status: 'error',
-      message: 'Bulk symbol import not supported in desktop version. Use single symbol per strategy.',
+      message:
+        'Bulk symbol import not supported in desktop version. Use single symbol per strategy.',
     }
   },
 

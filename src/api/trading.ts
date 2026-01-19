@@ -4,23 +4,23 @@
  * Uses Tauri IPC commands for trading operations.
  */
 
-import {
-  orderCommands,
-  positionCommands,
-  holdingsCommands,
-  fundsCommands,
-  quoteCommands,
-} from './client'
 import type {
+  Funds,
+  Holding,
+  MarketDepth,
+  ModifyOrderRequest,
   Order,
   OrderRequest,
   OrderResponse,
-  ModifyOrderRequest,
   Position,
-  Holding,
-  Funds,
   Quote,
-  MarketDepth,
+} from './client'
+import {
+  fundsCommands,
+  holdingsCommands,
+  orderCommands,
+  positionCommands,
+  quoteCommands,
 } from './client'
 
 // Re-export types
@@ -247,7 +247,8 @@ export const tradingApi = {
         total_buy_orders: orders.filter((o) => o.side === 'BUY' || o.action === 'BUY').length,
         total_sell_orders: orders.filter((o) => o.side === 'SELL' || o.action === 'SELL').length,
         total_completed_orders: orders.filter((o) => o.status === 'complete').length,
-        total_open_orders: orders.filter((o) => o.status === 'pending' || o.status === 'open').length,
+        total_open_orders: orders.filter((o) => o.status === 'pending' || o.status === 'open')
+          .length,
         total_rejected_orders: orders.filter((o) => o.status === 'rejected').length,
       }
 
@@ -271,18 +272,20 @@ export const tradingApi = {
       const trades = await orderCommands.getTradeBook()
       return {
         status: 'success',
-        data: trades.map((t): Trade => ({
-          symbol: t.symbol,
-          exchange: t.exchange,
-          action: t.action || (t.side === 'BUY' ? 'BUY' : 'SELL'),
-          quantity: t.quantity,
-          average_price: t.average_price,
-          trade_value: t.average_price * t.quantity,
-          product: t.product,
-          orderid: t.orderid || t.order_id,
-          timestamp: t.timestamp || t.order_timestamp,
-          trade_id: t.exchange_order_id || t.order_id,
-        })),
+        data: trades.map(
+          (t): Trade => ({
+            symbol: t.symbol,
+            exchange: t.exchange,
+            action: t.action || (t.side === 'BUY' ? 'BUY' : 'SELL'),
+            quantity: t.quantity,
+            average_price: t.average_price,
+            trade_value: t.average_price * t.quantity,
+            product: t.product,
+            orderid: t.orderid || t.order_id,
+            timestamp: t.timestamp || t.order_timestamp,
+            trade_id: t.exchange_order_id || t.order_id,
+          })
+        ),
       }
     } catch (error) {
       return {

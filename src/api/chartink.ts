@@ -6,10 +6,10 @@
  */
 
 import type {
+  AddChartinkSymbolRequest,
   ChartinkStrategy,
   ChartinkSymbolMapping,
   CreateChartinkStrategyRequest,
-  AddChartinkSymbolRequest,
 } from '@/types/chartink'
 import type { SymbolSearchResult } from '@/types/strategy'
 

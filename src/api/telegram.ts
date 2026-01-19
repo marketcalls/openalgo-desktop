@@ -6,10 +6,10 @@
  */
 
 import type {
-  TelegramConfig,
-  TelegramUser,
   TelegramAnalytics,
   TelegramBotStatus,
+  TelegramConfig,
+  TelegramUser,
 } from '@/types/telegram'
 
 interface ApiResponse<T = void> {
