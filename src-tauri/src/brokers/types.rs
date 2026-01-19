@@ -16,6 +16,14 @@ pub struct OrderRequest {
     pub trigger_price: Option<f64>,
     pub disclosed_quantity: Option<i32>,
     pub amo: bool,
+    /// Broker-specific symbol format (e.g., "NSE:RELIANCE-EQ" for Fyers)
+    /// Set by OrderService after looking up from symbol cache
+    #[serde(skip_deserializing)]
+    pub broker_symbol: Option<String>,
+    /// Exchange token (required for Angel One)
+    /// Set by OrderService after looking up from symbol cache
+    #[serde(skip_deserializing)]
+    pub symbol_token: Option<String>,
 }
 
 /// Modify order request

@@ -381,18 +381,21 @@ export default function BrokerTOTP() {
       })
 
       if (response.success) {
-        // Update auth store with broker info - use setState directly to ensure all fields are set
-        const brokerName_ = response.user_name || response.user_id || formData.userid || formData.mobile || ''
+        // broker = URL param (e.g., "angel", "fyers")
+        // brokerName = display name from brokerNames map (e.g., "Angel One", "Fyers")
+        // response.user_id = user's broker account ID (e.g., "MLOPGOWJ0F")
         const brokerId_ = response.broker_id || broker || ''
 
+        // Update auth store with broker info - preserve OpenAlgo username, set broker display name
         useAuthStore.setState({
           user: user ? {
             ...user,
-            broker: brokerName_,
+            broker: brokerName,  // Display name like "Angel One", not user's broker account ID
             brokerId: brokerId_,
           } : {
-            username: brokerName_,
-            broker: brokerName_,
+            // Fallback case (shouldn't happen - user should be logged in to OpenAlgo first)
+            username: 'user',  // Default fallback
+            broker: brokerName,
             brokerId: brokerId_,
             isLoggedIn: true,
             loginTime: new Date().toISOString(),
@@ -401,20 +404,20 @@ export default function BrokerTOTP() {
           brokerConnected: true,
         })
 
-        toast.success(`Connected to ${brokerName} successfully`)
+        // Show broker account info (user's broker ID) in the toast for confirmation
+        toast.success(`Connected to ${brokerName} (${response.user_name || response.user_id}). Loading symbols...`)
 
-        // Trigger master contract download in background (fire and forget)
-        toast.info('Downloading master contracts...')
+        // Navigate immediately, download master contracts in background
+        navigate('/dashboard')
+
+        // Trigger master contract download in background (fire and forget, silent)
         invoke<number>('refresh_symbol_master')
           .then((count) => {
-            toast.success(`Master contracts loaded: ${count} symbols`)
+            console.log(`Master contracts loaded: ${count} symbols`)
           })
           .catch((err) => {
             console.error('Failed to download master contracts:', err)
-            toast.error('Failed to download master contracts. Try refreshing from Dashboard.')
           })
-
-        navigate('/dashboard')
       } else {
         setError('Authentication failed. Please check your credentials and try again.')
       }

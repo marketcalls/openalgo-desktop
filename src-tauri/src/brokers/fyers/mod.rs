@@ -423,8 +423,14 @@ pub struct FyersBroker {
 impl FyersBroker {
     pub fn new() -> Self {
         Self {
+            // Create HTTP client with connection pooling (matching Flask httpx_client)
+            // - pool_idle_timeout: Keep idle connections for 120 seconds
+            // - pool_max_idle_per_host: Max 20 idle connections per host
+            // - timeout: 120 seconds for large historical data requests
             client: Client::builder()
-                .timeout(std::time::Duration::from_secs(30))
+                .timeout(std::time::Duration::from_secs(120))
+                .pool_idle_timeout(std::time::Duration::from_secs(120))
+                .pool_max_idle_per_host(20)
                 .build()
                 .expect("Failed to create HTTP client"),
         }
@@ -595,8 +601,20 @@ impl Broker for FyersBroker {
 
         let product_type = map_product_to_fyers(&order.product);
 
+        // Use broker_symbol if available (looked up from master contract)
+        // Otherwise fall back to constructing it (may not work for all symbols)
+        let symbol = order.broker_symbol.clone().unwrap_or_else(|| {
+            tracing::warn!(
+                "No broker_symbol provided for {}:{}, constructing manually",
+                order.exchange, order.symbol
+            );
+            format!("{}:{}", order.exchange, order.symbol)
+        });
+
+        tracing::info!("Fyers place_order symbol: {}", symbol);
+
         let request = FyersOrderRequest {
-            symbol: format!("{}:{}", order.exchange, order.symbol),
+            symbol,
             qty: order.quantity,
             order_type,
             side,

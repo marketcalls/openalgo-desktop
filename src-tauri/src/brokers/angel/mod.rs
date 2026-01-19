@@ -20,8 +20,11 @@ pub struct AngelBroker {
 impl AngelBroker {
     pub fn new() -> Self {
         Self {
+            // Create HTTP client with connection pooling (matching Flask httpx_client)
             client: Client::builder()
-                .timeout(std::time::Duration::from_secs(30))
+                .timeout(std::time::Duration::from_secs(120))
+                .pool_idle_timeout(std::time::Duration::from_secs(120))
+                .pool_max_idle_per_host(20)
                 .build()
                 .expect("Failed to create HTTP client"),
         }
@@ -431,19 +434,57 @@ impl Broker for AngelBroker {
             triggerprice: Option<String>,
         }
 
-        // TODO: Get symbol token from cache
-        let symbol_token = "0"; // Placeholder
+        // Get symbol token from the order (looked up from master contract)
+        let symbol_token = order.symbol_token.clone().unwrap_or_else(|| {
+            tracing::warn!(
+                "No symbol_token provided for {}:{}, using 0",
+                order.exchange, order.symbol
+            );
+            "0".to_string()
+        });
 
-        let variety = if order.amo { "AMO" } else { "NORMAL" };
+        // Get broker symbol (trading symbol)
+        let trading_symbol = order.broker_symbol.clone().unwrap_or_else(|| {
+            tracing::warn!(
+                "No broker_symbol provided for {}:{}, using original symbol",
+                order.exchange, order.symbol
+            );
+            order.symbol.clone()
+        });
+
+        tracing::info!("Angel place_order: tradingsymbol={}, symboltoken={}", trading_symbol, symbol_token);
+
+        // Map variety based on order type
+        let variety = match order.order_type.as_str() {
+            "SL" | "SL-M" => "STOPLOSS",
+            _ => if order.amo { "AMO" } else { "NORMAL" },
+        };
+
+        // Map order type to Angel format
+        let ordertype = match order.order_type.as_str() {
+            "MARKET" => "MARKET",
+            "LIMIT" => "LIMIT",
+            "SL" => "STOPLOSS_LIMIT",
+            "SL-M" => "STOPLOSS_MARKET",
+            _ => "MARKET",
+        };
+
+        // Map product type to Angel format
+        let producttype = match order.product.as_str() {
+            "CNC" => "DELIVERY",
+            "NRML" => "CARRYFORWARD",
+            "MIS" => "INTRADAY",
+            _ => "INTRADAY",
+        };
 
         let request = AngelOrderRequest {
             variety: variety.to_string(),
-            tradingsymbol: order.symbol.clone(),
-            symboltoken: symbol_token.to_string(),
+            tradingsymbol: trading_symbol,
+            symboltoken: symbol_token,
             transactiontype: order.side.clone(),
             exchange: order.exchange.clone(),
-            ordertype: order.order_type.clone(),
-            producttype: order.product.clone(),
+            ordertype: ordertype.to_string(),
+            producttype: producttype.to_string(),
             duration: order.validity.clone(),
             price: order.price.to_string(),
             squareoff: "0".to_string(),

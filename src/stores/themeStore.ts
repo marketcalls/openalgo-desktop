@@ -124,7 +124,7 @@ export const useThemeStore = create<ThemeStore>()(
         settingsCommands.updateSettings({ theme: newMode }).catch(console.error)
       },
 
-      // Toggle app mode via Tauri settings
+      // Toggle app mode via Tauri settings (persisted to SQLite)
       toggleAppMode: async (): Promise<{ success: boolean; message?: string }> => {
         if (get().isTogglingMode) return { success: false, message: 'Already toggling' }
 
@@ -141,6 +141,11 @@ export const useThemeStore = create<ThemeStore>()(
             newMode = 'live'
           }
 
+          // Update backend SQLite analyze_mode - this controls order routing
+          const result = await settingsCommands.setAnalyzeMode(newMode === 'analyzer')
+          console.log('Backend analyze mode updated:', result)
+
+          // Update frontend state
           get().setAppMode(newMode)
 
           const modeMessage =
@@ -157,12 +162,24 @@ export const useThemeStore = create<ThemeStore>()(
         }
       },
 
-      // Sync app mode from Tauri settings
+      // Sync app mode from Tauri settings (reads from SQLite backend)
       syncAppMode: async () => {
         try {
-          const settings = await settingsCommands.getSettings()
+          // Sync analyzer mode from backend - this is the source of truth
+          const analyzerStatus = await settingsCommands.getAnalyzeMode()
+          console.log('Backend analyzer mode status:', analyzerStatus)
+
+          const backendAppMode: AppMode = analyzerStatus.analyze_mode ? 'analyzer' : 'live'
+          const currentAppMode = get().appMode
+
+          // If backend and frontend disagree, sync frontend to backend
+          if (backendAppMode !== currentAppMode && currentAppMode !== 'sandbox') {
+            console.log(`Syncing app mode: frontend=${currentAppMode} -> backend=${backendAppMode}`)
+            get().setAppMode(backendAppMode)
+          }
 
           // Theme sync - apply saved theme from settings
+          const settings = await settingsCommands.getSettings()
           if (settings.theme) {
             const savedMode = settings.theme as ThemeMode
             if (savedMode === 'light' || savedMode === 'dark') {

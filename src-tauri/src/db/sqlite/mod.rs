@@ -254,6 +254,18 @@ impl SqliteDb {
         api_keys::count_api_keys(&conn)
     }
 
+    /// Get the user's API key (decrypted) - for single-user desktop app
+    pub fn get_user_api_key(&self, security: &SecurityManager) -> Result<Option<String>> {
+        let conn = self.conn.lock();
+        api_keys::get_first_api_key_decrypted(&conn, security)
+    }
+
+    /// Check if any API key exists
+    pub fn has_api_key(&self) -> Result<bool> {
+        let conn = self.conn.lock();
+        api_keys::has_api_key(&conn)
+    }
+
     // ========== Settings Methods ==========
 
     /// Get settings

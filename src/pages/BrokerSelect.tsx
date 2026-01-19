@@ -155,9 +155,7 @@ export default function BrokerSelect() {
       }
 
       try {
-        toast.info('Authenticating with broker...')
-
-        // Get broker credentials
+        // Get broker credentials (no toast - happens quickly)
         const creds = await invoke<{
           broker_id: string
           api_key: string
@@ -188,15 +186,19 @@ export default function BrokerSelect() {
 
         // Backend returns { success: boolean, broker_id, user_id, user_name }
         if (response.success) {
-          // Update auth store with broker info - use setState directly to ensure all fields are set
+          // Get the broker display name (e.g., "Fyers", "Zerodha") - not the user's broker account ID
+          const brokerDisplayName = brokerConfig?.available_brokers.find(b => b.id === response.broker_id)?.name || response.broker_id
+
+          // Update auth store with broker info - preserve OpenAlgo username, set broker display name
           useAuthStore.setState({
             user: user ? {
               ...user,
-              broker: response.user_name || response.user_id,
+              broker: brokerDisplayName,  // Display name like "Fyers", not user ID
               brokerId: response.broker_id,
             } : {
-              username: response.user_id,
-              broker: response.user_name || response.user_id,
+              // Fallback case (shouldn't happen - user should be logged in to OpenAlgo first)
+              username: 'user',  // Default fallback
+              broker: brokerDisplayName,
               brokerId: response.broker_id,
               isLoggedIn: true,
               loginTime: new Date().toISOString(),
@@ -205,20 +207,20 @@ export default function BrokerSelect() {
             brokerConnected: true,
           })
 
-          toast.success(`Connected to ${broker_id} as ${response.user_name || response.user_id}`)
+          // Show broker account info (user's broker ID) in the toast for confirmation
+          toast.success(`Connected to ${brokerDisplayName} (${response.user_name || response.user_id}). Loading symbols...`)
 
-          // Trigger master contract download in background (fire and forget)
-          toast.info('Downloading master contracts...')
+          // Navigate immediately, download master contracts in background
+          navigate('/dashboard')
+
+          // Trigger master contract download in background (fire and forget, silent)
           invoke<number>('refresh_symbol_master')
             .then((count) => {
-              toast.success(`Master contracts loaded: ${count} symbols`)
+              console.log(`Master contracts loaded: ${count} symbols`)
             })
             .catch((err) => {
               console.error('Failed to download master contracts:', err)
-              toast.error('Failed to download master contracts. Try refreshing from Dashboard.')
             })
-
-          navigate('/dashboard')
         } else {
           toast.error('Failed to connect to broker')
         }
@@ -431,13 +433,12 @@ export default function BrokerSelect() {
         }
 
         // Open browser with OAuth URL
-        toast.info('Opening browser for authentication...')
         console.log('Opening URL:', authUrl)
 
         try {
           await open(authUrl)
           // Keep submitting state true - will be reset when we receive callback
-          toast.info('Please complete authentication in your browser')
+          toast.info('Complete authentication in your browser')
         } catch (openErr) {
           console.error('Failed to open browser:', openErr)
           toast.error(`Failed to open browser: ${openErr}`)

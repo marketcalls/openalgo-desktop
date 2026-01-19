@@ -116,6 +116,8 @@ impl SmartOrderService {
             disclosed_quantity: None,
             validity: "DAY".to_string(),
             amo: false,
+            broker_symbol: None,  // Set by OrderService from symbol cache
+            symbol_token: None,   // Set by OrderService from symbol cache
         };
 
         let result = OrderService::place_order(state, order_request, api_key).await?;
@@ -164,6 +166,8 @@ impl SmartOrderService {
                 disclosed_quantity: None,
                 validity: "DAY".to_string(),
                 amo: false,
+                broker_symbol: None,  // Set by OrderService from symbol cache
+                symbol_token: None,   // Set by OrderService from symbol cache
             };
 
             match OrderService::place_order(state, order_request, api_key).await {

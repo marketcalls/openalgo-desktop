@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core'
 import {
   AlertCircle,
   ArrowRight,
@@ -28,12 +29,18 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuthStore } from '@/stores/authStore'
 
-async function fetchCSRFToken(): Promise<string> {
-  const response = await fetch('/auth/csrf-token', {
-    credentials: 'include',
-  })
-  const data = await response.json()
-  return data.csrf_token
+interface GetApiKeyResponse {
+  status: string
+  has_api_key: boolean
+  api_key: string | null
+}
+
+interface RegenerateApiKeyResponse {
+  status: string
+  id: number
+  name: string
+  api_key: string
+  message: string
 }
 
 export default function ApiKey() {
@@ -57,26 +64,11 @@ export default function ApiKey() {
   const fetchApiKeyData = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch('/apikey', {
-        credentials: 'include',
-        headers: {
-          Accept: 'application/json',
-        },
-      })
-
-      if (response.ok) {
-        const contentType = response.headers.get('content-type')
-        if (contentType?.includes('application/json')) {
-          const data = await response.json()
-          setApiKey(data.api_key || null)
-          setHasApiKey(!!data.api_key)
-          setOrderMode(data.order_mode || 'auto')
-        } else {
-          // Backend returned HTML - this shouldn't happen now
-          console.error('Backend returned HTML instead of JSON')
-          toast.error('Failed to load API key - please refresh')
-        }
-      }
+      const response = await invoke<GetApiKeyResponse>('get_user_api_key')
+      setApiKey(response.api_key)
+      setHasApiKey(response.has_api_key)
+      // Order mode is stored in settings, default to auto for now
+      setOrderMode('auto')
     } catch (error) {
       console.error('Error fetching API key:', error)
       toast.error('Failed to load API key')
@@ -101,30 +93,11 @@ export default function ApiKey() {
     setShowRegenerateDialog(false)
 
     try {
-      const csrfToken = await fetchCSRFToken()
-
-      const response = await fetch('/apikey', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrfToken,
-        },
-        body: JSON.stringify({
-          user_id: user?.username,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (data.api_key) {
-        setApiKey(data.api_key)
-        setHasApiKey(true)
-        setShowApiKey(true)
-        toast.success('API key generated successfully')
-      } else {
-        toast.error(data.error || 'Failed to generate API key')
-      }
+      const response = await invoke<RegenerateApiKeyResponse>('regenerate_api_key')
+      setApiKey(response.api_key)
+      setHasApiKey(true)
+      setShowApiKey(true)
+      toast.success('API key generated successfully')
     } catch (error) {
       console.error('Error regenerating API key:', error)
       toast.error('Failed to generate API key')
@@ -138,29 +111,10 @@ export default function ApiKey() {
     setIsTogglingMode(true)
 
     try {
-      const csrfToken = await fetchCSRFToken()
-
-      const response = await fetch('/apikey/mode', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrfToken,
-        },
-        body: JSON.stringify({
-          user_id: user?.username,
-          mode: newMode,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (data.mode) {
-        setOrderMode(data.mode)
-        toast.success(`Order mode updated to ${data.mode === 'semi_auto' ? 'Semi-Auto' : 'Auto'}`)
-      } else {
-        toast.error(data.error || 'Failed to update order mode')
-      }
+      // TODO: Implement order mode persistence via Tauri command
+      // For now, just update locally
+      setOrderMode(newMode)
+      toast.success(`Order mode updated to ${newMode === 'semi_auto' ? 'Semi-Auto' : 'Auto'}`)
     } catch (error) {
       console.error('Error toggling order mode:', error)
       toast.error('Failed to update order mode')

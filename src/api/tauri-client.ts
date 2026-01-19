@@ -277,6 +277,11 @@ export interface Settings {
   sound_enabled: boolean
 }
 
+export interface AnalyzerModeStatus {
+  analyze_mode: boolean
+  mode: string // "analyzer" or "live"
+}
+
 export interface UpdateSettingsRequest {
   theme?: string
   default_broker?: string
@@ -630,6 +635,11 @@ export const settingsCommands = {
 
   deleteBrokerCredentials: (brokerId: string) =>
     tauriInvoke<void>('delete_broker_credentials', { broker_id: brokerId }),
+
+  getAnalyzeMode: () => tauriInvoke<AnalyzerModeStatus>('get_analyze_mode'),
+
+  setAnalyzeMode: (enabled: boolean) =>
+    tauriInvoke<AnalyzerModeStatus>('set_analyze_mode', { enabled }),
 }
 
 // ============================================================================

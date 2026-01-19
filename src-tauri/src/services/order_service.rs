@@ -62,6 +62,20 @@ impl OrderService {
         // Get broker session - either from API key or current session
         let (auth_token, broker_id) = Self::get_auth(state, api_key)?;
 
+        // Look up broker-specific symbol and token from cache
+        let mut order = order;
+        if let Some(symbol_info) = state.get_symbol_by_name(&order.exchange, &order.symbol) {
+            if let Some(brsymbol) = symbol_info.brsymbol {
+                info!("Resolved broker symbol: {} -> {}", order.symbol, brsymbol);
+                order.broker_symbol = Some(brsymbol);
+            }
+            // Set the exchange token (needed for Angel One)
+            info!("Resolved symbol token: {} -> {}", order.symbol, symbol_info.token);
+            order.symbol_token = Some(symbol_info.token);
+        } else {
+            warn!("Symbol not found in cache: {}:{}", order.exchange, order.symbol);
+        }
+
         // Get broker adapter
         let broker = state
             .brokers

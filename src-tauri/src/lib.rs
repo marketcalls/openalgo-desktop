@@ -133,11 +133,15 @@ pub fn run() {
             commands::settings::get_raw_broker_credentials,
             commands::settings::has_broker_credentials,
             commands::settings::get_broker_credentials_for_edit,
+            commands::settings::get_analyze_mode,
+            commands::settings::set_analyze_mode,
             // API key commands
             commands::api_keys::create_api_key,
             commands::api_keys::list_api_keys,
             commands::api_keys::delete_api_key,
             commands::api_keys::delete_api_key_by_id,
+            commands::api_keys::get_user_api_key,
+            commands::api_keys::regenerate_api_key,
             // Sandbox commands
             commands::sandbox::get_sandbox_positions,
             commands::sandbox::get_sandbox_orders,

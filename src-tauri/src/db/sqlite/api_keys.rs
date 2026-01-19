@@ -236,6 +236,43 @@ pub fn count_api_keys(conn: &Connection) -> Result<i64> {
     Ok(count)
 }
 
+/// Get the first API key (decrypted) - for single-user desktop app
+/// Returns the full decrypted API key for display to the user
+pub fn get_first_api_key_decrypted(
+    conn: &Connection,
+    security: &SecurityManager,
+) -> Result<Option<String>> {
+    let result = conn.query_row(
+        r#"
+        SELECT encrypted_key, nonce
+        FROM api_keys
+        ORDER BY created_at ASC
+        LIMIT 1
+        "#,
+        [],
+        |row| {
+            let encrypted_key: String = row.get(0)?;
+            let nonce: String = row.get(1)?;
+            Ok((encrypted_key, nonce))
+        },
+    );
+
+    match result {
+        Ok((encrypted_key, nonce)) => {
+            let decrypted = security.decrypt(&encrypted_key, &nonce)?;
+            Ok(Some(decrypted))
+        }
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Check if any API keys exist
+pub fn has_api_key(conn: &Connection) -> Result<bool> {
+    let count = count_api_keys(conn)?;
+    Ok(count > 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -436,3 +436,36 @@ pub async fn get_broker_credentials_for_edit(
         }
     }
 }
+
+// ============================================================================
+// Analyzer Mode Commands
+// ============================================================================
+
+/// Analyzer mode status response
+#[derive(Debug, Serialize)]
+pub struct AnalyzerModeStatus {
+    pub analyze_mode: bool,
+    pub mode: String,
+}
+
+/// Get current analyzer mode status
+#[tauri::command]
+pub async fn get_analyze_mode(state: State<'_, AppState>) -> Result<AnalyzerModeStatus> {
+    tracing::info!("Getting analyzer mode status");
+    let analyze_mode = state.sqlite.get_analyze_mode().unwrap_or(false);
+    Ok(AnalyzerModeStatus {
+        analyze_mode,
+        mode: if analyze_mode { "analyzer".to_string() } else { "live".to_string() },
+    })
+}
+
+/// Set analyzer mode (toggle between live and analyzer)
+#[tauri::command]
+pub async fn set_analyze_mode(state: State<'_, AppState>, enabled: bool) -> Result<AnalyzerModeStatus> {
+    tracing::info!("Setting analyzer mode to: {}", enabled);
+    state.sqlite.set_analyze_mode(enabled)?;
+    Ok(AnalyzerModeStatus {
+        analyze_mode: enabled,
+        mode: if enabled { "analyzer".to_string() } else { "live".to_string() },
+    })
+}

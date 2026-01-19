@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core'
 import {
   BarChart3,
   BookOpen,
@@ -40,21 +41,14 @@ import { JsonEditor } from '@/components/ui/json-editor'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { profileMenuItems } from '@/config/navigation'
+import type { PlaygroundEndpoint, PlaygroundEndpointsByCategory } from '@/config/playgroundEndpoints'
+import { playgroundEndpoints } from '@/config/playgroundEndpoints'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
 
-interface Endpoint {
-  name: string
-  path: string
-  method: 'GET' | 'POST'
-  body?: Record<string, unknown>
-  params?: Record<string, unknown>
-}
-
-interface EndpointsByCategory {
-  [category: string]: Endpoint[]
-}
+type Endpoint = PlaygroundEndpoint
+type EndpointsByCategory = PlaygroundEndpointsByCategory
 
 interface OpenTab {
   id: string
@@ -63,12 +57,10 @@ interface OpenTab {
   modified: boolean
 }
 
-async function fetchCSRFToken(): Promise<string> {
-  const response = await fetch('/auth/csrf-token', {
-    credentials: 'include',
-  })
-  const data = await response.json()
-  return data.csrf_token
+interface GetApiKeyResponse {
+  status: string
+  has_api_key: boolean
+  api_key: string | null
 }
 
 interface SyntaxToken {
@@ -203,35 +195,19 @@ export default function Playground() {
 
   useEffect(() => {
     loadApiKey()
-    loadEndpoints()
+    // Load endpoints from static config
+    setEndpoints(playgroundEndpoints)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const loadApiKey = async () => {
     try {
-      const response = await fetch('/playground/api-key', {
-        credentials: 'include',
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setApiKey(data.api_key || '')
+      const response = await invoke<GetApiKeyResponse>('get_user_api_key')
+      if (response.api_key) {
+        setApiKey(response.api_key)
       }
     } catch {
       // Silently fail - API key may not exist yet
-    }
-  }
-
-  const loadEndpoints = async () => {
-    try {
-      const response = await fetch('/playground/endpoints', {
-        credentials: 'include',
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setEndpoints(data)
-      }
-    } catch {
-      toast.error('Failed to load endpoints')
     }
   }
 
@@ -380,19 +356,20 @@ export default function Playground() {
     try {
       const options: RequestInit = {
         method,
-        credentials: 'include',
         headers: {
           Accept: 'application/json',
         },
       }
 
-      let fetchUrl = url
+      // Use the webhook server base URL (default port 5000)
+      const baseUrl = 'http://127.0.0.1:5000'
+      let fetchUrl = `${baseUrl}${url}`
 
       if (method === 'GET') {
         if (requestBody.trim()) {
           try {
             const params = JSON.parse(requestBody)
-            const urlObj = new URL(url, window.location.origin)
+            const urlObj = new URL(fetchUrl)
             Object.entries(params).forEach(([key, value]) => {
               if (value !== null && value !== undefined && value !== '') {
                 urlObj.searchParams.append(key, String(value))
@@ -406,9 +383,7 @@ export default function Playground() {
           }
         }
       } else {
-        const csrfToken = await fetchCSRFToken()
         ;(options.headers as Record<string, string>)['Content-Type'] = 'application/json'
-        ;(options.headers as Record<string, string>)['X-CSRFToken'] = csrfToken
         if (requestBody.trim()) {
           options.body = requestBody
         }
@@ -484,12 +459,13 @@ export default function Playground() {
   const copyCurl = () => {
     if (!url) return
 
-    let curlUrl = url
+    const baseUrl = 'http://127.0.0.1:5000'
+    let curlUrl = `${baseUrl}${url}`
 
     if (method === 'GET' && requestBody.trim()) {
       try {
         const params = JSON.parse(requestBody)
-        const urlObj = new URL(url, window.location.origin)
+        const urlObj = new URL(curlUrl)
         Object.entries(params).forEach(([key, value]) => {
           if (value !== null && value !== undefined && value !== '') {
             urlObj.searchParams.append(key, String(value))
@@ -502,8 +478,7 @@ export default function Playground() {
       }
     }
 
-    const absoluteUrl = new URL(curlUrl, window.location.origin).href
-    let curl = `curl -X ${method} "${absoluteUrl}"`
+    let curl = `curl -X ${method} "${curlUrl}"`
     curl += ' \\\n  -H "Accept: application/json"'
 
     if (method !== 'GET' && requestBody.trim()) {

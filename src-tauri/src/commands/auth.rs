@@ -166,7 +166,7 @@ pub async fn reset_user_data(state: State<'_, AppState>) -> Result<SetupResponse
     })
 }
 
-/// Initial setup - create first admin user
+/// Initial setup - create first admin user and auto-generate API key
 #[tauri::command]
 pub async fn setup(state: State<'_, AppState>, request: SetupRequest) -> Result<SetupResponse> {
     tracing::info!("Setup request for user: {}", request.username);
@@ -199,6 +199,17 @@ pub async fn setup(state: State<'_, AppState>, request: SetupRequest) -> Result<
         .create_user(&request.username, &request.password, &state.security)?;
 
     tracing::info!("Admin user '{}' created successfully (id: {})", user.username, user.id);
+
+    // Auto-generate API key for the user
+    match state.sqlite.create_api_key("default", "read,write", &state.security) {
+        Ok((id, _api_key)) => {
+            tracing::info!("Auto-generated API key (id: {}) for user '{}'", id, user.username);
+        }
+        Err(e) => {
+            tracing::warn!("Failed to auto-generate API key: {}", e);
+            // Don't fail setup if API key generation fails
+        }
+    }
 
     Ok(SetupResponse {
         status: "success".to_string(),

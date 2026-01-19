@@ -19,8 +19,11 @@ pub struct ZerodhaBroker {
 impl ZerodhaBroker {
     pub fn new() -> Self {
         Self {
+            // Create HTTP client with connection pooling (matching Flask httpx_client)
             client: Client::builder()
-                .timeout(std::time::Duration::from_secs(30))
+                .timeout(std::time::Duration::from_secs(120))
+                .pool_idle_timeout(std::time::Duration::from_secs(120))
+                .pool_max_idle_per_host(20)
                 .build()
                 .expect("Failed to create HTTP client"),
         }
@@ -343,10 +346,21 @@ impl Broker for ZerodhaBroker {
     }
 
     async fn place_order(&self, auth_token: &str, order: OrderRequest) -> Result<OrderResponse> {
+        // Get broker symbol (trading symbol) - looked up from master contract
+        let trading_symbol = order.broker_symbol.clone().unwrap_or_else(|| {
+            tracing::warn!(
+                "No broker_symbol provided for {}:{}, using original symbol",
+                order.exchange, order.symbol
+            );
+            order.symbol.clone()
+        });
+
+        tracing::info!("Zerodha place_order: tradingsymbol={}", trading_symbol);
+
         let variety = if order.amo { "amo" } else { "regular" };
 
         let mut params = vec![
-            ("tradingsymbol", order.symbol.clone()),
+            ("tradingsymbol", trading_symbol),
             ("exchange", order.exchange.clone()),
             ("transaction_type", order.side.clone()),
             ("order_type", order.order_type.clone()),

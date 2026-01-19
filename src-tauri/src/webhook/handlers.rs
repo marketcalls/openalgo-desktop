@@ -321,6 +321,8 @@ pub async fn place_order(
         disclosed_quantity: if req.disclosed_quantity > 0 { Some(req.disclosed_quantity) } else { None },
         validity: "DAY".to_string(),
         amo: false,
+        broker_symbol: None,  // Set by OrderService from symbol cache
+        symbol_token: None,   // Set by OrderService from symbol cache
     };
 
     // Execute order via service
@@ -915,6 +917,8 @@ pub async fn place_basket_order(
         disclosed_quantity: None,
         validity: "DAY".to_string(),
         amo: false,
+        broker_symbol: None,  // Set by OrderService from symbol cache
+        symbol_token: None,   // Set by OrderService from symbol cache
     }).collect();
 
     match SmartOrderService::place_basket_order(&app_state, orders, Some(&req.apikey)).await {

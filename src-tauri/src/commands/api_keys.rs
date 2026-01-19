@@ -1,10 +1,17 @@
 //! API key management commands
 
-use crate::db::sqlite::{ApiKeyInfo};
+use crate::db::sqlite::ApiKeyInfo;
 use crate::error::Result;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use tauri::State;
+
+#[derive(Debug, Serialize)]
+pub struct GetApiKeyResponse {
+    pub status: String,
+    pub has_api_key: bool,
+    pub api_key: Option<String>,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct CreateApiKeyRequest {
@@ -113,5 +120,43 @@ pub async fn delete_api_key_by_id(
         } else {
             format!("API key with id {} not found", id)
         },
+    })
+}
+
+/// Get the user's API key (decrypted)
+/// For single-user desktop app - returns the user's API key for display
+#[tauri::command]
+pub async fn get_user_api_key(state: State<'_, AppState>) -> Result<GetApiKeyResponse> {
+    tracing::info!("Getting user API key");
+
+    let api_key = state.sqlite.get_user_api_key(&state.security)?;
+
+    Ok(GetApiKeyResponse {
+        status: "success".to_string(),
+        has_api_key: api_key.is_some(),
+        api_key,
+    })
+}
+
+/// Regenerate API key - deletes existing and creates new
+#[tauri::command]
+pub async fn regenerate_api_key(state: State<'_, AppState>) -> Result<CreateApiKeyResponse> {
+    tracing::info!("Regenerating API key");
+
+    // Delete existing API key if any
+    let _ = state.sqlite.delete_api_key("default");
+
+    // Create new API key
+    let (id, api_key) = state
+        .sqlite
+        .create_api_key("default", "read,write", &state.security)?;
+
+    Ok(CreateApiKeyResponse {
+        status: "success".to_string(),
+        id,
+        name: "default".to_string(),
+        api_key,
+        message: "API key regenerated successfully. Save this key - it won't be shown again!"
+            .to_string(),
     })
 }

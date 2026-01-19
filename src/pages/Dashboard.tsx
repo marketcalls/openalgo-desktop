@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { onModeChange } from '@/stores/themeStore'
+import { onModeChange, useThemeStore } from '@/stores/themeStore'
 
 interface FundsData {
   available_cash: number
@@ -31,6 +31,15 @@ interface MasterContractStatus {
   status: 'pending' | 'downloading' | 'success' | 'error'
   message?: string
   total_symbols?: number
+}
+
+interface SandboxFunds {
+  initial_capital: number
+  available_capital: number
+  used_margin: number
+  realized_pnl: number
+  unrealized_pnl: number
+  total_pnl: number
 }
 
 // Format number in Indian format with Cr/L suffixes
@@ -79,22 +88,38 @@ export default function Dashboard() {
     status: 'pending',
   })
   const [isAuthenticated, setIsAuthenticated] = useState(true) // Assume authenticated initially
+  const { appMode } = useThemeStore()
 
   // Fetch dashboard funds data using Tauri invoke
   const fetchFundsData = useCallback(async () => {
     try {
       setIsLoading(true)
-      const funds = await invoke<FundsData>('get_funds')
 
-      // Convert FundsData to MarginData format for compatibility
-      setMarginData({
-        availablecash: funds.available_cash.toString(),
-        collateral: funds.collateral.toString(),
-        m2munrealized: '0', // Not available from funds API
-        m2mrealized: '0', // Not available from funds API
-        utiliseddebits: funds.used_margin.toString(),
-      })
-      setError(null)
+      // In analyzer mode, fetch sandbox funds instead of live funds
+      if (appMode === 'analyzer' || appMode === 'sandbox') {
+        const sandboxFunds = await invoke<SandboxFunds>('get_sandbox_funds')
+        // Convert SandboxFunds to MarginData format for compatibility
+        setMarginData({
+          availablecash: sandboxFunds.available_capital.toString(),
+          collateral: '0', // Sandbox doesn't track collateral
+          m2munrealized: sandboxFunds.unrealized_pnl.toString(),
+          m2mrealized: sandboxFunds.realized_pnl.toString(),
+          utiliseddebits: sandboxFunds.used_margin.toString(),
+        })
+        setError(null)
+      } else {
+        // Live mode - fetch from broker
+        const funds = await invoke<FundsData>('get_funds')
+        // Convert FundsData to MarginData format for compatibility
+        setMarginData({
+          availablecash: funds.available_cash.toString(),
+          collateral: funds.collateral.toString(),
+          m2munrealized: '0', // Not available from funds API
+          m2mrealized: '0', // Not available from funds API
+          utiliseddebits: funds.used_margin.toString(),
+        })
+        setError(null)
+      }
     } catch (err) {
       console.error('Error fetching funds:', err)
       // Check if it's an auth error
@@ -107,7 +132,7 @@ export default function Dashboard() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [appMode])
 
   useEffect(() => {
     fetchFundsData()
