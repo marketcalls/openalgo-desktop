@@ -94,7 +94,7 @@ function generateRandomState(): string {
 
 export default function BrokerSelect() {
   const navigate = useNavigate()
-  const { user, setUser } = useAuthStore()
+  const { user } = useAuthStore()
   const [selectedBroker, setSelectedBroker] = useState<string>('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -188,17 +188,26 @@ export default function BrokerSelect() {
 
         // Backend returns { success: boolean, broker_id, user_id, user_name }
         if (response.success) {
-          // Update auth store with broker info so Layout doesn't redirect back
-          if (user) {
-            setUser({
+          // Update auth store with broker info - use setState directly to ensure all fields are set
+          useAuthStore.setState({
+            user: user ? {
               ...user,
               broker: response.user_name || response.user_id,
               brokerId: response.broker_id,
-            })
-          }
+            } : {
+              username: response.user_id,
+              broker: response.user_name || response.user_id,
+              brokerId: response.broker_id,
+              isLoggedIn: true,
+              loginTime: new Date().toISOString(),
+            },
+            isAuthenticated: true,
+            brokerConnected: true,
+          })
+
           toast.success(`Connected to ${broker_id} as ${response.user_name || response.user_id}`)
 
-          // Trigger master contract download in background
+          // Trigger master contract download in background (fire and forget)
           toast.info('Downloading master contracts...')
           invoke<number>('refresh_symbol_master')
             .then((count) => {

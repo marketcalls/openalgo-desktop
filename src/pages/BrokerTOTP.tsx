@@ -312,7 +312,7 @@ const brokerNames: Record<string, string> = {
 export default function BrokerTOTP() {
   const { broker } = useParams<{ broker: string }>()
   const navigate = useNavigate()
-  const { user, setUser } = useAuthStore()
+  const { user } = useAuthStore()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState<Record<string, string>>({})
@@ -381,17 +381,29 @@ export default function BrokerTOTP() {
       })
 
       if (response.success) {
-        // Update auth store with broker info so Layout doesn't redirect back
-        if (user) {
-          setUser({
+        // Update auth store with broker info - use setState directly to ensure all fields are set
+        const brokerName_ = response.user_name || response.user_id || formData.userid || formData.mobile || ''
+        const brokerId_ = response.broker_id || broker || ''
+
+        useAuthStore.setState({
+          user: user ? {
             ...user,
-            broker: response.user_name || response.user_id || formData.userid || formData.mobile || '',
-            brokerId: response.broker_id || broker || '',
-          })
-        }
+            broker: brokerName_,
+            brokerId: brokerId_,
+          } : {
+            username: brokerName_,
+            broker: brokerName_,
+            brokerId: brokerId_,
+            isLoggedIn: true,
+            loginTime: new Date().toISOString(),
+          },
+          isAuthenticated: true,
+          brokerConnected: true,
+        })
+
         toast.success(`Connected to ${brokerName} successfully`)
 
-        // Trigger master contract download in background
+        // Trigger master contract download in background (fire and forget)
         toast.info('Downloading master contracts...')
         invoke<number>('refresh_symbol_master')
           .then((count) => {
