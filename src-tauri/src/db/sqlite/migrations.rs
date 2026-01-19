@@ -51,6 +51,7 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     run_migration(conn, "033_configured_brokers", CREATE_CONFIGURED_BROKERS_TABLE)?;
     run_migration(conn, "034_broker_credentials", CREATE_BROKER_CREDENTIALS_TABLE)?;
     run_migration(conn, "035_rate_limit_settings", ADD_RATE_LIMIT_SETTINGS)?;
+    run_migration(conn, "036_enable_webhook_default", ENABLE_WEBHOOK_BY_DEFAULT)?;
 
     tracing::info!("Database migrations completed");
     Ok(())
@@ -582,4 +583,11 @@ ALTER TABLE settings ADD COLUMN api_rate_limit INTEGER NOT NULL DEFAULT 100;
 ALTER TABLE settings ADD COLUMN order_rate_limit INTEGER NOT NULL DEFAULT 10;
 ALTER TABLE settings ADD COLUMN smart_order_rate_limit INTEGER NOT NULL DEFAULT 2;
 ALTER TABLE settings ADD COLUMN smart_order_delay REAL NOT NULL DEFAULT 0.5;
+"#;
+
+/// Migration to enable webhook server by default (required for OAuth)
+const ENABLE_WEBHOOK_BY_DEFAULT: &str = r#"
+-- Enable webhook server by default so OAuth callbacks work
+-- This is required for Fyers, Zerodha, and other OAuth-based brokers
+UPDATE settings SET webhook_enabled = 1 WHERE id = 1;
 "#;
