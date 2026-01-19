@@ -53,14 +53,16 @@ pub fn run() {
             if let Some(config) = webhook_config {
                 if config.enabled {
                     let app_handle = app.handle().clone();
-                    tokio::spawn(async move {
+                    tauri::async_runtime::spawn(async move {
                         let mut server = WebhookServer::new(app_handle.clone());
                         if let Err(e) = server.start(config).await {
                             tracing::error!("Failed to start webhook server: {}", e);
                         }
                         // Keep server running
                         loop {
-                            tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+                            tauri::async_runtime::spawn(async {
+                                tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+                            }).await.ok();
                         }
                     });
                     tracing::info!("Webhook server starting...");
