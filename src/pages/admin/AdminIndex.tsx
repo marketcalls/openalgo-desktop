@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Calendar,
   Clock,
+  Server,
   Settings,
   Shield,
   Snowflake,
@@ -61,6 +62,14 @@ export default function AdminIndex() {
       count: 7,
       countLabel: 'exchanges',
       color: 'bg-purple-500',
+    },
+    {
+      title: 'Server Settings',
+      description: 'Configure webhook server, REST API, and OAuth redirect URLs',
+      icon: Server,
+      href: '/admin/server',
+      countLabel: 'config',
+      color: 'bg-indigo-500',
     },
     {
       title: 'Security Dashboard',

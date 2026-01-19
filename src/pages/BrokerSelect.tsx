@@ -1,4 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import { open } from '@tauri-apps/plugin-shell'
 import { BookOpen, Edit2, ExternalLink, Key, Loader2, Settings, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -50,6 +52,28 @@ interface BrokerConfigResponse {
   available_brokers: BrokerInfo[]
 }
 
+interface WebhookConfig {
+  enabled: boolean
+  host: string
+  port: number
+  ngrok_url: string | null
+  webhook_secret: string | null
+}
+
+interface OAuthCallbackPayload {
+  broker_id: string
+  code: string
+  state: string | null
+}
+
+interface BrokerLoginResponse {
+  status: string
+  broker_id: string
+  user_id: string
+  user_name?: string
+  message?: string
+}
+
 // Helper function to get Flattrade API key
 function getFlattradeApiKey(fullKey: string): string {
   if (!fullKey) return ''
@@ -86,6 +110,8 @@ export default function BrokerSelect() {
     apiSecret: '',
     clientId: '',
   })
+  const [webhookConfig, setWebhookConfig] = useState<WebhookConfig | null>(null)
+  const [oauthState, setOauthState] = useState<string | null>(null)
 
   const fetchBrokerConfig = async () => {
     try {
@@ -111,7 +137,77 @@ export default function BrokerSelect() {
 
   useEffect(() => {
     fetchBrokerConfig()
-  }, [])
+
+    // Fetch webhook config for redirect URL
+    invoke<WebhookConfig>('get_webhook_config')
+      .then(setWebhookConfig)
+      .catch((err) => console.error('Failed to load webhook config:', err))
+
+    // Listen for OAuth callback events
+    const unlistenPromise = listen<OAuthCallbackPayload>('oauth_callback', async (event) => {
+      const { broker_id, code, state } = event.payload
+      console.log('Received OAuth callback:', { broker_id, code, state })
+
+      // Verify state matches if we stored one
+      if (oauthState && state !== oauthState) {
+        toast.error('OAuth state mismatch. Please try again.')
+        setIsSubmitting(false)
+        return
+      }
+
+      try {
+        toast.info('Authenticating with broker...')
+
+        // Get broker credentials
+        const creds = await invoke<{
+          broker_id: string
+          api_key: string
+          api_secret: string | null
+          client_id: string | null
+        } | null>('get_broker_credentials_for_edit', { brokerId: broker_id })
+
+        if (!creds) {
+          toast.error('Broker credentials not found')
+          setIsSubmitting(false)
+          return
+        }
+
+        // Call broker login with auth code
+        const response = await invoke<BrokerLoginResponse>('broker_login', {
+          request: {
+            broker_id,
+            credentials: {
+              api_key: creds.api_key,
+              api_secret: creds.api_secret,
+              client_id: creds.client_id,
+              auth_code: code,
+            },
+          },
+        })
+
+        if (response.status === 'success') {
+          toast.success(`Connected to ${broker_id} as ${response.user_name || response.user_id}`)
+          navigate('/dashboard')
+        } else {
+          toast.error(response.message || 'Failed to connect to broker')
+        }
+      } catch (err) {
+        console.error('OAuth login error:', err)
+        const errorMessage =
+          err && typeof err === 'object' && 'message' in err
+            ? (err as { message: string }).message
+            : 'Failed to authenticate with broker'
+        toast.error(errorMessage)
+      } finally {
+        setIsSubmitting(false)
+        setOauthState(null)
+      }
+    })
+
+    return () => {
+      unlistenPromise.then((unlisten) => unlisten())
+    }
+  }, [oauthState, navigate])
 
   const selectedBrokerInfo = brokerConfig?.available_brokers.find((b) => b.id === selectedBroker)
 
@@ -232,13 +328,67 @@ export default function BrokerSelect() {
         return
       }
 
-      // For OAuth brokers, we need to initiate OAuth flow
-      // TODO: Implement proper OAuth flow - for now show info
-      toast.info('OAuth flow coming soon. For now, use TOTP brokers or configure credentials manually.')
+      // For OAuth brokers, initiate OAuth flow
+      if (broker.auth_type === 'oauth') {
+        // Get broker credentials for API key
+        const creds = await invoke<{
+          broker_id: string
+          api_key: string
+          api_secret: string | null
+          client_id: string | null
+        } | null>('get_broker_credentials_for_edit', { brokerId: selectedBroker })
+
+        if (!creds) {
+          setError('Broker credentials not found. Please configure credentials first.')
+          setIsSubmitting(false)
+          return
+        }
+
+        // Generate redirect URL from webhook config
+        let redirectUrl: string
+        if (webhookConfig?.ngrok_url) {
+          redirectUrl = `${webhookConfig.ngrok_url}/${selectedBroker}/callback`
+        } else if (webhookConfig) {
+          redirectUrl = `http://${webhookConfig.host}:${webhookConfig.port}/${selectedBroker}/callback`
+        } else {
+          redirectUrl = `http://127.0.0.1:5000/${selectedBroker}/callback`
+        }
+
+        // Generate state for security
+        const state = generateRandomState()
+        setOauthState(state)
+
+        // Build OAuth URL based on broker
+        let authUrl: string
+
+        if (selectedBroker === 'fyers') {
+          // Fyers OAuth URL format
+          // API key format: APP_ID-100 (e.g., XYZ123-100)
+          const appId = creds.api_key
+          authUrl = `https://api-t1.fyers.in/api/v3/generate-authcode?client_id=${encodeURIComponent(appId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&response_type=code&state=${state}`
+        } else if (selectedBroker === 'zerodha') {
+          // Zerodha OAuth URL format
+          authUrl = `https://kite.zerodha.com/connect/login?v=3&api_key=${encodeURIComponent(creds.api_key)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}`
+        } else {
+          toast.error(`OAuth not supported for ${broker.name}`)
+          setIsSubmitting(false)
+          return
+        }
+
+        // Open browser with OAuth URL
+        toast.info('Opening browser for authentication...')
+        await open(authUrl)
+
+        // Keep submitting state true - will be reset when we receive callback
+        toast.info('Please complete authentication in your browser')
+        return
+      }
+
+      // Unknown auth type
+      toast.error(`Unknown authentication type: ${broker.auth_type}`)
     } catch (err) {
       console.error('Broker login error:', err)
       setError('Failed to initiate broker login')
-    } finally {
       setIsSubmitting(false)
     }
   }
@@ -363,7 +513,7 @@ export default function BrokerSelect() {
               <Key className="h-4 w-4" />
               <AlertTitle>Secure Credentials</AlertTitle>
               <AlertDescription>
-                Your API credentials are stored securely in your system's keychain, not in files.
+                Your API credentials are stored securely with AES-256 encryption.
               </AlertDescription>
             </Alert>
 
@@ -393,7 +543,7 @@ export default function BrokerSelect() {
             <DialogDescription>
               {isEditMode
                 ? 'Enter your new broker API credentials. This will replace the existing credentials.'
-                : 'Enter your broker API credentials. These will be stored securely in your system\'s keychain.'}
+                : 'Enter your broker API credentials. These will be stored securely with AES-256 encryption.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
