@@ -23,9 +23,10 @@ pub fn store_symbols(conn: &mut Connection, symbols: &[SymbolInfo]) -> Result<()
     tracing::debug!("Cleared existing symbols");
 
     // Use prepared statement for fast inserts
+    // Use INSERT OR REPLACE to handle duplicate (exchange, symbol) combinations in source data
     {
         let mut stmt = tx.prepare(
-            "INSERT INTO symtoken (symbol, token, exchange, name, lot_size, tick_size, instrument_type, brsymbol, brexchange)
+            "INSERT OR REPLACE INTO symtoken (symbol, token, exchange, name, lot_size, tick_size, instrument_type, brsymbol, brexchange)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         )?;
 
