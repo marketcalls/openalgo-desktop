@@ -1,47 +1,46 @@
-//! Security module for encryption, hashing, and keychain access
+//! Security module for encryption, hashing, and file-based storage
+//!
+//! Uses file-based storage instead of OS keychain to avoid password prompts.
 
-mod keychain;
+mod file_storage;
 mod encryption;
 mod hashing;
 
 use crate::error::Result;
+use std::path::PathBuf;
+
+pub use encryption::EncryptionManager;
+pub use hashing::HashingManager;
 
 /// Security manager combining all security features
 pub struct SecurityManager {
-    keychain: keychain::KeychainManager,
     encryption: encryption::EncryptionManager,
     hashing: hashing::HashingManager,
 }
 
 impl SecurityManager {
-    /// Create new security manager
+    /// Create new security manager with file-based storage
     ///
-    /// Uses a single keychain entry for both master key and pepper
-    /// to minimize password prompts on macOS/Windows/Linux
-    pub fn new() -> Result<Self> {
-        let keychain = keychain::KeychainManager::new();
+    /// Uses a local file for secrets instead of OS keychain
+    /// to avoid password prompts on every app launch
+    pub fn new(config_dir: PathBuf) -> Result<Self> {
+        let storage = file_storage::FileStorage::new(config_dir);
 
-        // Get or create both secrets in a single keychain access
-        // This reduces password prompts from 3-4 to just 1
-        let (master_key, pepper) = keychain.get_or_create_secrets()?;
+        // Get or create secrets from local file
+        let (master_key, pepper) = storage.get_or_create_secrets()?;
 
         let encryption = encryption::EncryptionManager::new(&master_key)?;
         let hashing = hashing::HashingManager::new(&pepper);
 
         Ok(Self {
-            keychain,
             encryption,
             hashing,
         })
     }
 
-    /// Create a security manager for testing (bypasses OS keychain)
-    ///
-    /// This creates a manager with randomly generated encryption key and pepper,
-    /// suitable for unit tests that don't need to interact with the OS keychain.
+    /// Create a security manager for testing
     #[cfg(test)]
-    pub fn new_for_testing(_config_dir: std::path::PathBuf) -> Result<Self> {
-        let keychain = keychain::KeychainManager::new();
+    pub fn new_for_testing(_config_dir: PathBuf) -> Result<Self> {
         let master_key = encryption::EncryptionManager::generate_key();
         let pepper = hashing::HashingManager::generate_pepper();
 
@@ -49,7 +48,6 @@ impl SecurityManager {
         let hashing = hashing::HashingManager::new(&pepper);
 
         Ok(Self {
-            keychain,
             encryption,
             hashing,
         })
@@ -77,32 +75,6 @@ impl SecurityManager {
     /// Verify a password against a hash
     pub fn verify_password(&self, password: &str, hash: &str) -> Result<bool> {
         self.hashing.verify_password(password, hash)
-    }
-
-    // ========== Keychain (Broker Credentials) ==========
-
-    /// Store broker credentials in OS keychain
-    pub fn store_broker_credentials(
-        &self,
-        broker_id: &str,
-        api_key: &str,
-        api_secret: Option<&str>,
-        client_id: Option<&str>,
-    ) -> Result<()> {
-        self.keychain.store_broker_credentials(broker_id, api_key, api_secret, client_id)
-    }
-
-    /// Get broker credentials from OS keychain
-    pub fn get_broker_credentials(
-        &self,
-        broker_id: &str,
-    ) -> Result<Option<(String, Option<String>, Option<String>)>> {
-        self.keychain.get_broker_credentials(broker_id)
-    }
-
-    /// Delete broker credentials from OS keychain
-    pub fn delete_broker_credentials(&self, broker_id: &str) -> Result<()> {
-        self.keychain.delete_broker_credentials(broker_id)
     }
 }
 

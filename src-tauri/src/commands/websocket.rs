@@ -52,10 +52,11 @@ pub async fn websocket_connect(state: State<'_, AppState>) -> Result<bool> {
     let feed_token = tokens.1
         .ok_or_else(|| crate::error::AppError::Auth("No feed token found".to_string()))?;
 
-    // Get API key from keychain for WebSocket authentication
-    let creds = state.security.get_broker_credentials(&broker_id)?
+    // Get API key from SQLite for WebSocket authentication
+    let creds = state.sqlite.get_broker_credentials(&broker_id)?
         .ok_or_else(|| crate::error::AppError::Auth("No broker credentials found".to_string()))?;
-    let api_key = creds.0;
+    // creds = (api_key_enc, api_key_nonce, api_secret_enc, api_secret_nonce, client_id)
+    let api_key = state.security.decrypt(&creds.0, &creds.1)?;
 
     // Connect
     state

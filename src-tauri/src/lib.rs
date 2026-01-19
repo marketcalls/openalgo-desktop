@@ -127,6 +127,7 @@ pub fn run() {
             commands::settings::get_broker_credentials,
             commands::settings::get_raw_broker_credentials,
             commands::settings::has_broker_credentials,
+            commands::settings::get_broker_credentials_for_edit,
             // API key commands
             commands::api_keys::create_api_key,
             commands::api_keys::list_api_keys,

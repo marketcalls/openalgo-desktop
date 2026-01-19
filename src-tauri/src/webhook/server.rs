@@ -75,6 +75,12 @@ impl WebhookServer {
             .route("/strategy/webhook/:webhook_id", post(handlers::webhook_handler))
 
             // ================================================================
+            // OAuth Callback (for Fyers, Zerodha, etc.)
+            // GET /{broker}/callback?code=xxx&state=xxx
+            // ================================================================
+            .route("/:broker/callback", get(handlers::oauth_callback))
+
+            // ================================================================
             // REST API v1 (OpenAlgo SDK Compatible)
             // ================================================================
 

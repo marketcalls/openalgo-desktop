@@ -151,9 +151,35 @@ export default function BrokerSelect() {
     }
   }
 
-  const handleEditCredentials = () => {
+  const handleEditCredentials = async () => {
+    if (!selectedBroker) return
+
     setIsEditMode(true)
-    setCredentialsForm({ apiKey: '', apiSecret: '', clientId: '' })
+    setError(null)
+
+    try {
+      // Fetch existing credentials to pre-fill the form
+      const existingCreds = await invoke<{
+        broker_id: string
+        api_key: string
+        api_secret: string | null
+        client_id: string | null
+      } | null>('get_broker_credentials_for_edit', { brokerId: selectedBroker })
+
+      if (existingCreds) {
+        setCredentialsForm({
+          apiKey: existingCreds.api_key,
+          apiSecret: existingCreds.api_secret || '',
+          clientId: existingCreds.client_id || '',
+        })
+      } else {
+        setCredentialsForm({ apiKey: '', apiSecret: '', clientId: '' })
+      }
+    } catch (err) {
+      console.error('Failed to fetch credentials:', err)
+      setCredentialsForm({ apiKey: '', apiSecret: '', clientId: '' })
+    }
+
     setShowCredentialsDialog(true)
   }
 

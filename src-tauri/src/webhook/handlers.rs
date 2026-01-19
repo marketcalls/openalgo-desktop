@@ -2043,3 +2043,121 @@ fn validate_trading_mode(trading_mode: &str, action: &str) -> Result<(), String>
         _ => Err(format!("Invalid trading mode: {}", trading_mode))
     }
 }
+
+// ============================================================================
+// OAuth Callback Handler
+// ============================================================================
+
+use axum::extract::Query;
+use serde::Deserialize as SerdeDeserialize;
+
+/// OAuth callback query parameters
+#[derive(Debug, SerdeDeserialize)]
+pub struct OAuthCallbackParams {
+    pub code: Option<String>,
+    pub auth_code: Option<String>,
+    pub state: Option<String>,
+    pub s: Option<String>,
+    pub request_token: Option<String>,
+}
+
+/// OAuth callback result sent to frontend
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct OAuthCallbackResult {
+    pub broker_id: String,
+    pub success: bool,
+    pub auth_code: Option<String>,
+    pub message: String,
+}
+
+/// OAuth callback handler - GET /{broker}/callback
+///
+/// Handles OAuth redirects from brokers like Fyers, Zerodha, Upstox
+pub async fn oauth_callback(
+    AxumState(state): AxumState<Arc<WebhookState>>,
+    Path(broker_id): Path<String>,
+    Query(params): Query<OAuthCallbackParams>,
+) -> impl IntoResponse {
+    info!("OAuth callback received for broker: {}", broker_id);
+    info!("Params: code={:?}, auth_code={:?}, state={:?}", params.code, params.auth_code, params.state);
+
+    // Get auth_code from various possible parameter names
+    let auth_code = params.auth_code
+        .or(params.code)
+        .or(params.request_token);
+
+    let result = if let Some(code) = &auth_code {
+        // Emit event to frontend with the auth code
+        let callback_result = OAuthCallbackResult {
+            broker_id: broker_id.clone(),
+            success: true,
+            auth_code: Some(code.clone()),
+            message: "OAuth callback received successfully".to_string(),
+        };
+
+        state.emit("oauth_callback", &callback_result);
+
+        callback_result
+    } else {
+        // No auth code found
+        let callback_result = OAuthCallbackResult {
+            broker_id: broker_id.clone(),
+            success: false,
+            auth_code: None,
+            message: "No auth code received in callback".to_string(),
+        };
+
+        state.emit("oauth_callback", &callback_result);
+
+        callback_result
+    };
+
+    // Return HTML page that closes the window
+    let html = format!(r#"
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OpenAlgo - Authentication</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }}
+        .container {{
+            text-align: center;
+            padding: 40px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+        }}
+        h1 {{ margin-bottom: 16px; }}
+        p {{ opacity: 0.9; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{}</h1>
+        <p>{}</p>
+        <p>You can close this window and return to the app.</p>
+    </div>
+    <script>
+        // Try to close the window after a short delay
+        setTimeout(function() {{
+            window.close();
+        }}, 2000);
+    </script>
+</body>
+</html>
+"#,
+        if result.success { "Authentication Successful" } else { "Authentication Failed" },
+        result.message
+    );
+
+    axum::response::Html(html)
+}

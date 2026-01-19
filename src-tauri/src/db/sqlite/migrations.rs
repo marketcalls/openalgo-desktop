@@ -49,6 +49,7 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     run_migration(conn, "031_symtoken_broker_fields", ADD_SYMTOKEN_BROKER_FIELDS)?;
     run_migration(conn, "032_analyze_mode", ADD_ANALYZE_MODE)?;
     run_migration(conn, "033_configured_brokers", CREATE_CONFIGURED_BROKERS_TABLE)?;
+    run_migration(conn, "034_broker_credentials", CREATE_BROKER_CREDENTIALS_TABLE)?;
 
     tracing::info!("Database migrations completed");
     Ok(())
@@ -552,5 +553,19 @@ const CREATE_CONFIGURED_BROKERS_TABLE: &str = r#"
 CREATE TABLE configured_brokers (
     broker_id TEXT PRIMARY KEY,
     configured_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"#;
+
+/// Migration to store encrypted broker credentials in SQLite (replaces OS keychain)
+const CREATE_BROKER_CREDENTIALS_TABLE: &str = r#"
+CREATE TABLE broker_credentials (
+    broker_id TEXT PRIMARY KEY,
+    api_key_encrypted TEXT NOT NULL,
+    api_key_nonce TEXT NOT NULL,
+    api_secret_encrypted TEXT,
+    api_secret_nonce TEXT,
+    client_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 "#;

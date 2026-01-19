@@ -66,7 +66,7 @@ pub async fn update_settings(
     )
 }
 
-/// Save broker credentials to OS keychain
+/// Save broker credentials (encrypted in SQLite)
 #[tauri::command]
 pub async fn save_broker_credentials(
     state: State<'_, AppState>,
@@ -74,11 +74,24 @@ pub async fn save_broker_credentials(
 ) -> Result<()> {
     tracing::info!("Saving credentials for broker: {}", request.broker_id);
 
-    // Store in keychain
-    state.security.store_broker_credentials(
+    // Encrypt API key
+    let (api_key_encrypted, api_key_nonce) = state.security.encrypt(&request.api_key)?;
+
+    // Encrypt API secret if provided
+    let (api_secret_encrypted, api_secret_nonce) = if let Some(ref secret) = request.api_secret {
+        let (enc, nonce) = state.security.encrypt(secret)?;
+        (Some(enc), Some(nonce))
+    } else {
+        (None, None)
+    };
+
+    // Store in SQLite (encrypted)
+    state.sqlite.store_broker_credentials(
         &request.broker_id,
-        &request.api_key,
-        request.api_secret.as_deref(),
+        &api_key_encrypted,
+        &api_key_nonce,
+        api_secret_encrypted.as_deref(),
+        api_secret_nonce.as_deref(),
         request.client_id.as_deref(),
     )?;
 
@@ -88,7 +101,7 @@ pub async fn save_broker_credentials(
     Ok(())
 }
 
-/// Delete broker credentials from OS keychain
+/// Delete broker credentials
 #[tauri::command]
 pub async fn delete_broker_credentials(
     state: State<'_, AppState>,
@@ -96,8 +109,8 @@ pub async fn delete_broker_credentials(
 ) -> Result<()> {
     tracing::info!("Deleting credentials for broker: {}", broker_id);
 
-    // Delete from keychain
-    state.security.delete_broker_credentials(&broker_id)?;
+    // Delete from SQLite
+    state.sqlite.delete_broker_credentials(&broker_id)?;
 
     // Remove from SQLite tracking
     state.sqlite.unmark_broker_configured(&broker_id)?;
@@ -235,7 +248,7 @@ pub async fn get_broker_config(state: State<'_, AppState>) -> Result<BrokerConfi
     let settings = state.sqlite.get_settings()?;
     let default_broker = settings.default_broker;
 
-    // Get list of configured brokers from SQLite (avoids keychain prompts)
+    // Get list of configured brokers from SQLite
     let configured_broker_ids = state.sqlite.get_configured_brokers()?;
     let configured_set: std::collections::HashSet<_> = configured_broker_ids.into_iter().collect();
 
@@ -250,10 +263,12 @@ pub async fn get_broker_config(state: State<'_, AppState>) -> Result<BrokerConfi
         // If this broker has credentials and matches default, get the masked key
         if has_credentials {
             if configured_broker.is_none() || Some(id.to_string()) == default_broker {
-                // Only access keychain for the specific configured broker we need to display
-                if let Ok(Some((api_key, _, _))) = state.security.get_broker_credentials(id) {
-                    configured_broker = Some(id.to_string());
-                    configured_api_key = Some(mask_api_key(&api_key));
+                // Get encrypted credentials from SQLite
+                if let Ok(Some((api_key_enc, api_key_nonce, _, _, _))) = state.sqlite.get_broker_credentials(id) {
+                    if let Ok(api_key) = state.security.decrypt(&api_key_enc, &api_key_nonce) {
+                        configured_broker = Some(id.to_string());
+                        configured_api_key = Some(mask_api_key(&api_key));
+                    }
                 }
             }
         }
@@ -266,7 +281,7 @@ pub async fn get_broker_config(state: State<'_, AppState>) -> Result<BrokerConfi
         });
     }
 
-    // Default redirect URL for desktop app (webhook server)
+    // Redirect URL from webhook config
     let webhook_config = state.sqlite.get_webhook_config()?;
     let redirect_url = webhook_config.ngrok_url.unwrap_or_else(|| {
         format!("http://{}:{}", webhook_config.host, webhook_config.port)
@@ -289,12 +304,13 @@ pub async fn get_broker_credentials(
 ) -> Result<Option<BrokerCredentialsResponse>> {
     tracing::info!("Getting credentials for broker: {}", broker_id);
 
-    match state.security.get_broker_credentials(&broker_id) {
-        Ok(Some((api_key, api_secret, client_id))) => {
+    match state.sqlite.get_broker_credentials(&broker_id) {
+        Ok(Some((api_key_enc, api_key_nonce, api_secret_enc, _, client_id))) => {
+            let api_key = state.security.decrypt(&api_key_enc, &api_key_nonce)?;
             Ok(Some(BrokerCredentialsResponse {
                 broker_id,
                 api_key_masked: mask_api_key(&api_key),
-                has_api_secret: api_secret.is_some(),
+                has_api_secret: api_secret_enc.is_some(),
                 client_id,
             }))
         }
@@ -322,8 +338,13 @@ pub async fn get_raw_broker_credentials(
 ) -> Result<Option<RawBrokerCredentials>> {
     tracing::debug!("Getting raw credentials for broker login: {}", broker_id);
 
-    match state.security.get_broker_credentials(&broker_id) {
-        Ok(Some((api_key, api_secret, client_id))) => {
+    match state.sqlite.get_broker_credentials(&broker_id) {
+        Ok(Some((api_key_enc, api_key_nonce, api_secret_enc, api_secret_nonce, client_id))) => {
+            let api_key = state.security.decrypt(&api_key_enc, &api_key_nonce)?;
+            let api_secret = match (api_secret_enc, api_secret_nonce) {
+                (Some(enc), Some(nonce)) => Some(state.security.decrypt(&enc, &nonce)?),
+                _ => None,
+            };
             Ok(Some(RawBrokerCredentials {
                 api_key,
                 api_secret,
@@ -344,9 +365,44 @@ pub async fn has_broker_credentials(
     state: State<'_, AppState>,
     broker_id: String,
 ) -> Result<bool> {
-    match state.security.get_broker_credentials(&broker_id) {
-        Ok(Some(_)) => Ok(true),
-        Ok(None) => Ok(false),
-        Err(_) => Ok(false),
+    state.sqlite.is_broker_configured(&broker_id)
+}
+
+/// Full broker credentials for editing (shows actual values)
+#[derive(Debug, Serialize)]
+pub struct FullBrokerCredentials {
+    pub broker_id: String,
+    pub api_key: String,
+    pub api_secret: Option<String>,
+    pub client_id: Option<String>,
+}
+
+/// Get full credentials for editing (shows actual values, not masked)
+#[tauri::command]
+pub async fn get_broker_credentials_for_edit(
+    state: State<'_, AppState>,
+    broker_id: String,
+) -> Result<Option<FullBrokerCredentials>> {
+    tracing::info!("Getting full credentials for editing: {}", broker_id);
+
+    match state.sqlite.get_broker_credentials(&broker_id) {
+        Ok(Some((api_key_enc, api_key_nonce, api_secret_enc, api_secret_nonce, client_id))) => {
+            let api_key = state.security.decrypt(&api_key_enc, &api_key_nonce)?;
+            let api_secret = match (api_secret_enc, api_secret_nonce) {
+                (Some(enc), Some(nonce)) => Some(state.security.decrypt(&enc, &nonce)?),
+                _ => None,
+            };
+            Ok(Some(FullBrokerCredentials {
+                broker_id,
+                api_key,
+                api_secret,
+                client_id,
+            }))
+        }
+        Ok(None) => Ok(None),
+        Err(e) => {
+            tracing::warn!("Error getting credentials for edit: {}", e);
+            Ok(None)
+        }
     }
 }

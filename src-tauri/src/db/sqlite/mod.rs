@@ -831,4 +831,71 @@ impl SqliteDb {
         )?;
         Ok(exists)
     }
+
+    // ========== Broker Credentials Methods (Encrypted SQLite Storage) ==========
+
+    /// Store broker credentials (encrypted)
+    pub fn store_broker_credentials(
+        &self,
+        broker_id: &str,
+        api_key_encrypted: &str,
+        api_key_nonce: &str,
+        api_secret_encrypted: Option<&str>,
+        api_secret_nonce: Option<&str>,
+        client_id: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "INSERT OR REPLACE INTO broker_credentials
+             (broker_id, api_key_encrypted, api_key_nonce, api_secret_encrypted, api_secret_nonce, client_id, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now'))",
+            rusqlite::params![
+                broker_id,
+                api_key_encrypted,
+                api_key_nonce,
+                api_secret_encrypted,
+                api_secret_nonce,
+                client_id,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Get broker credentials (encrypted)
+    pub fn get_broker_credentials(
+        &self,
+        broker_id: &str,
+    ) -> Result<Option<(String, String, Option<String>, Option<String>, Option<String>)>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT api_key_encrypted, api_key_nonce, api_secret_encrypted, api_secret_nonce, client_id
+             FROM broker_credentials WHERE broker_id = ?1",
+        )?;
+
+        let result = stmt.query_row([broker_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, Option<String>>(3)?,
+                row.get::<_, Option<String>>(4)?,
+            ))
+        });
+
+        match result {
+            Ok(creds) => Ok(Some(creds)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// Delete broker credentials
+    pub fn delete_broker_credentials(&self, broker_id: &str) -> Result<()> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "DELETE FROM broker_credentials WHERE broker_id = ?1",
+            [broker_id],
+        )?;
+        Ok(())
+    }
 }

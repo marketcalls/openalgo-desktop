@@ -101,8 +101,8 @@ impl AppState {
         let duckdb_path = data_dir.join("historify.duckdb");
         let duckdb = Arc::new(DuckDb::new(&duckdb_path)?);
 
-        // Initialize security manager
-        let security = Arc::new(SecurityManager::new()?);
+        // Initialize security manager with file-based storage (no keychain prompts)
+        let security = Arc::new(SecurityManager::new(data_dir.clone())?);
 
         // Initialize broker registry
         let brokers = Arc::new(BrokerRegistry::new());
