@@ -312,7 +312,7 @@ const brokerNames: Record<string, string> = {
 export default function BrokerTOTP() {
   const { broker } = useParams<{ broker: string }>()
   const navigate = useNavigate()
-  const { login } = useAuthStore()
+  const { user, setUser } = useAuthStore()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState<Record<string, string>>({})
@@ -381,7 +381,14 @@ export default function BrokerTOTP() {
       })
 
       if (response.success) {
-        login(response.user_id || formData.userid || formData.mobile || '', broker || '')
+        // Update auth store with broker info so Layout doesn't redirect back
+        if (user) {
+          setUser({
+            ...user,
+            broker: response.user_name || response.user_id || formData.userid || formData.mobile || '',
+            brokerId: response.broker_id || broker || '',
+          })
+        }
         toast.success(`Connected to ${brokerName} successfully`)
         navigate('/dashboard')
       } else {
