@@ -40,6 +40,11 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     run_migration(conn, "022_auth_separate_nonces", ALTER_AUTH_SEPARATE_NONCES)?;
     run_migration(conn, "023_auto_logout_settings", ADD_AUTO_LOGOUT_SETTINGS)?;
     run_migration(conn, "024_webhook_settings", ADD_WEBHOOK_SETTINGS)?;
+    run_migration(conn, "025_analyzer_logs", CREATE_ANALYZER_LOGS_TABLE)?;
+    run_migration(conn, "026_latency_logs", CREATE_LATENCY_LOGS_TABLE)?;
+    run_migration(conn, "027_traffic_logs", CREATE_TRAFFIC_LOGS_TABLE)?;
+    run_migration(conn, "028_ip_bans", CREATE_IP_BANS_TABLE)?;
+    run_migration(conn, "029_error_trackers", CREATE_ERROR_TRACKERS_TABLES)?;
 
     tracing::info!("Database migrations completed");
     Ok(())
@@ -403,4 +408,99 @@ ALTER TABLE settings ADD COLUMN ngrok_url TEXT;
 
 -- Optional webhook authentication secret
 ALTER TABLE settings ADD COLUMN webhook_secret TEXT;
+"#;
+
+/// Migration to create analyzer_logs table for paper trading logs
+const CREATE_ANALYZER_LOGS_TABLE: &str = r#"
+CREATE TABLE analyzer_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    api_type TEXT NOT NULL,
+    request_data TEXT NOT NULL,
+    response_data TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_analyzer_logs_api_type ON analyzer_logs(api_type);
+CREATE INDEX idx_analyzer_logs_created_at ON analyzer_logs(created_at);
+"#;
+
+/// Migration to create latency_logs table for performance monitoring
+const CREATE_LATENCY_LOGS_TABLE: &str = r#"
+CREATE TABLE latency_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+    order_id TEXT NOT NULL,
+    broker TEXT,
+    symbol TEXT,
+    order_type TEXT,
+    rtt_ms REAL DEFAULT 0,
+    validation_ms REAL DEFAULT 0,
+    broker_response_ms REAL DEFAULT 0,
+    overhead_ms REAL DEFAULT 0,
+    total_ms REAL NOT NULL,
+    status TEXT NOT NULL,
+    error TEXT
+);
+CREATE INDEX idx_latency_logs_timestamp ON latency_logs(timestamp);
+CREATE INDEX idx_latency_logs_broker ON latency_logs(broker);
+CREATE INDEX idx_latency_logs_status ON latency_logs(status);
+"#;
+
+/// Migration to create traffic_logs table for HTTP request tracking
+const CREATE_TRAFFIC_LOGS_TABLE: &str = r#"
+CREATE TABLE traffic_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+    client_ip TEXT NOT NULL,
+    method TEXT NOT NULL,
+    path TEXT NOT NULL,
+    status_code INTEGER NOT NULL,
+    duration_ms REAL NOT NULL,
+    host TEXT,
+    error TEXT
+);
+CREATE INDEX idx_traffic_logs_timestamp ON traffic_logs(timestamp);
+CREATE INDEX idx_traffic_logs_client_ip ON traffic_logs(client_ip);
+CREATE INDEX idx_traffic_logs_status_code ON traffic_logs(status_code);
+"#;
+
+/// Migration to create ip_bans table for security
+const CREATE_IP_BANS_TABLE: &str = r#"
+CREATE TABLE ip_bans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip_address TEXT NOT NULL UNIQUE,
+    ban_reason TEXT,
+    ban_count INTEGER DEFAULT 1,
+    banned_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT,
+    is_permanent INTEGER DEFAULT 0,
+    created_by TEXT DEFAULT 'system'
+);
+CREATE INDEX idx_ip_bans_ip_address ON ip_bans(ip_address);
+"#;
+
+/// Migration to create error tracking tables
+const CREATE_ERROR_TRACKERS_TABLES: &str = r#"
+-- 404 error tracker
+CREATE TABLE error_404_tracker (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip_address TEXT NOT NULL,
+    error_count INTEGER DEFAULT 1,
+    first_error_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_error_at TEXT NOT NULL DEFAULT (datetime('now')),
+    paths_attempted TEXT
+);
+CREATE INDEX idx_404_tracker_ip ON error_404_tracker(ip_address);
+CREATE INDEX idx_404_tracker_count ON error_404_tracker(error_count);
+
+-- Invalid API key tracker
+CREATE TABLE invalid_api_key_tracker (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip_address TEXT NOT NULL,
+    attempt_count INTEGER DEFAULT 1,
+    first_attempt_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_attempt_at TEXT NOT NULL DEFAULT (datetime('now')),
+    api_keys_tried TEXT
+);
+CREATE INDEX idx_api_tracker_ip ON invalid_api_key_tracker(ip_address);
+CREATE INDEX idx_api_tracker_count ON invalid_api_key_tracker(attempt_count);
 "#;
