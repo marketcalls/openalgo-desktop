@@ -50,7 +50,7 @@ export default function ServerSettings() {
     try {
       setIsSaving(true)
       await invoke('update_webhook_config', {
-        config: {
+        request: {
           enabled: config.enabled,
           host: config.host,
           port: config.port,

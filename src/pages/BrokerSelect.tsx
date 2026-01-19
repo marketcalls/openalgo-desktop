@@ -332,6 +332,17 @@ export default function BrokerSelect() {
       if (broker.auth_type === 'oauth') {
         console.log('Starting OAuth flow for broker:', selectedBroker)
 
+        // Check if webhook server is enabled (required for OAuth callback)
+        if (!webhookConfig?.enabled) {
+          setError('The webhook server must be enabled to use OAuth login. Please go to Settings > Server Settings and enable the webhook server.')
+          toast.error('Webhook server is not enabled', {
+            description: 'Enable it in Settings > Server Settings to use OAuth login.',
+            duration: 5000,
+          })
+          setIsSubmitting(false)
+          return
+        }
+
         // Get broker credentials for API key
         let creds: {
           broker_id: string
@@ -636,6 +647,11 @@ export default function BrokerSelect() {
                 <p className="text-xs text-muted-foreground">
                   Copy this URL to your {selectedBroker === 'fyers' ? 'Fyers' : 'Zerodha'} API app's redirect URL setting
                 </p>
+                {!webhookConfig?.enabled && (
+                  <p className="text-xs text-destructive font-medium mt-2">
+                    ⚠️ Warning: Webhook server is disabled. Enable it in Settings {'>'} Server Settings before using OAuth login.
+                  </p>
+                )}
               </div>
             )}
           </div>
