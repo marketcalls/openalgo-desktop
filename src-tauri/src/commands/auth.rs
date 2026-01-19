@@ -146,6 +146,26 @@ fn validate_password_strength(password: &str) -> std::result::Result<(), String>
     Ok(())
 }
 
+/// Reset user data (for password recovery when pepper changes)
+#[tauri::command]
+pub async fn reset_user_data(state: State<'_, AppState>) -> Result<SetupResponse> {
+    tracing::info!("Resetting user data for password recovery");
+
+    // Clear any existing sessions
+    state.set_user_session(None);
+    state.set_broker_session(None);
+
+    // Delete all users
+    state.sqlite.delete_all_users()?;
+
+    tracing::info!("User data reset successfully");
+
+    Ok(SetupResponse {
+        status: "success".to_string(),
+        message: "User data reset. Please set up a new account.".to_string(),
+    })
+}
+
 /// Initial setup - create first admin user
 #[tauri::command]
 pub async fn setup(state: State<'_, AppState>, request: SetupRequest) -> Result<SetupResponse> {

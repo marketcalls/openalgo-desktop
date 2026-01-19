@@ -1,9 +1,19 @@
 import { invoke } from '@tauri-apps/api/core'
-import { Clock, Eye, EyeOff, Github, Info, Loader2, LogIn, MessageCircle } from 'lucide-react'
+import { Clock, Eye, EyeOff, Github, Info, Loader2, LogIn, MessageCircle, RefreshCcw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -35,6 +45,9 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false)
   const [isCheckingSetup, setIsCheckingSetup] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showResetDialog, setShowResetDialog] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
+  const [loginFailCount, setLoginFailCount] = useState(0)
 
   // Check if user was logged out due to auto-logout
   const locationState = location.state as LocationState | null
@@ -115,8 +128,28 @@ export default function Login() {
           ? (err as { message: string }).message
           : 'Invalid username or password'
       setError(errorMessage)
+      setLoginFailCount((prev) => prev + 1)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleResetAccount = async () => {
+    setIsResetting(true)
+    try {
+      await invoke('reset_user_data')
+      toast.success('Account reset. Please set up a new account.')
+      setShowResetDialog(false)
+      navigate('/setup', { replace: true })
+    } catch (err) {
+      console.error('Reset error:', err)
+      const errorMessage =
+        err && typeof err === 'object' && 'message' in err
+          ? (err as { message: string }).message
+          : 'Failed to reset account'
+      toast.error(errorMessage)
+    } finally {
+      setIsResetting(false)
     }
   }
 
@@ -214,6 +247,24 @@ export default function Login() {
                   </Alert>
                 )}
 
+                {loginFailCount >= 2 && (
+                  <Alert>
+                    <RefreshCcw className="h-4 w-4" />
+                    <AlertTitle>Can't sign in?</AlertTitle>
+                    <AlertDescription className="space-y-2">
+                      <p>If you forgot your password or the app was recently reinstalled, you can reset your account.</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowResetDialog(true)}
+                      >
+                        Reset Account
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? (
                     <>
@@ -276,6 +327,36 @@ export default function Login() {
           </div>
         </div>
       </div>
+
+      {/* Reset Account Confirmation Dialog */}
+      <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete your account and all stored credentials. You will need to set up a new account.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isResetting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleResetAccount}
+              disabled={isResetting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isResetting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Resetting...
+                </>
+              ) : (
+                'Reset Account'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

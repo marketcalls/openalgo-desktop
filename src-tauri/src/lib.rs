@@ -79,6 +79,7 @@ pub fn run() {
             commands::auth::logout,
             commands::auth::check_session,
             commands::auth::get_current_user,
+            commands::auth::reset_user_data,
             // Broker commands
             commands::broker::broker_login,
             commands::broker::broker_logout,

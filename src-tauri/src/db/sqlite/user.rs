@@ -70,3 +70,9 @@ pub fn has_user(conn: &Connection) -> Result<bool> {
     let count: i64 = conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))?;
     Ok(count > 0)
 }
+
+/// Delete all users (for password reset when pepper changes)
+pub fn delete_all_users(conn: &Connection) -> Result<()> {
+    conn.execute("DELETE FROM users", [])?;
+    Ok(())
+}

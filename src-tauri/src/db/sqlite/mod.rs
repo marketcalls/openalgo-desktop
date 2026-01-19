@@ -89,6 +89,12 @@ impl SqliteDb {
         user::has_user(&conn)
     }
 
+    /// Delete all users (for password reset)
+    pub fn delete_all_users(&self) -> Result<()> {
+        let conn = self.conn.lock();
+        user::delete_all_users(&conn)
+    }
+
     // ========== Auth Token Methods ==========
 
     /// Store encrypted auth token
