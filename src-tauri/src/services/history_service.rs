@@ -50,7 +50,7 @@ impl HistoryService {
         interval: &str,
         from_date: &str,
         to_date: &str,
-        api_key: Option<&str>,
+        _api_key: Option<&str>,
     ) -> Result<HistoryResult> {
         info!(
             "HistoryService::get_history - {} {} {} {} to {}",
@@ -121,7 +121,7 @@ impl HistoryService {
 
     /// Download and cache historical data
     pub async fn download_history(
-        state: &AppState,
+        _state: &AppState,
         symbol: &str,
         exchange: &str,
         interval: &str,

@@ -17,8 +17,8 @@ pub fn store_symbols(conn: &mut Connection, symbols: &[SymbolInfo]) -> Result<()
 
     // Insert new symbols using prepared statement for performance
     let mut stmt = tx.prepare(
-        "INSERT INTO symtoken (symbol, token, exchange, name, lot_size, tick_size, instrument_type)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO symtoken (symbol, token, exchange, name, lot_size, tick_size, instrument_type, brsymbol, brexchange)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
     )?;
 
     for symbol in symbols {
@@ -30,6 +30,8 @@ pub fn store_symbols(conn: &mut Connection, symbols: &[SymbolInfo]) -> Result<()
             symbol.lot_size,
             symbol.tick_size,
             symbol.instrument_type,
+            symbol.brsymbol,
+            symbol.brexchange,
         ])?;
     }
 
@@ -43,7 +45,7 @@ pub fn store_symbols(conn: &mut Connection, symbols: &[SymbolInfo]) -> Result<()
 /// Load all symbols from database (used to populate cache on startup)
 pub fn load_symbols(conn: &Connection) -> Result<Vec<SymbolInfo>> {
     let mut stmt = conn.prepare(
-        "SELECT symbol, token, exchange, name, lot_size, tick_size, instrument_type FROM symtoken",
+        "SELECT symbol, token, exchange, name, lot_size, tick_size, instrument_type, brsymbol, brexchange FROM symtoken",
     )?;
 
     let symbols = stmt
@@ -56,6 +58,8 @@ pub fn load_symbols(conn: &Connection) -> Result<Vec<SymbolInfo>> {
                 lot_size: row.get(4)?,
                 tick_size: row.get(5)?,
                 instrument_type: row.get(6)?,
+                brsymbol: row.get(7)?,
+                brexchange: row.get(8)?,
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -65,6 +69,7 @@ pub fn load_symbols(conn: &Connection) -> Result<Vec<SymbolInfo>> {
 }
 
 /// Get symbol count from database
+#[allow(dead_code)]
 pub fn count_symbols(conn: &Connection) -> Result<i64> {
     let count: i64 = conn.query_row(
         "SELECT COUNT(*) FROM symtoken",
@@ -75,9 +80,10 @@ pub fn count_symbols(conn: &Connection) -> Result<i64> {
 }
 
 /// Get symbols by exchange from database
+#[allow(dead_code)]
 pub fn get_symbols_by_exchange(conn: &Connection, exchange: &str) -> Result<Vec<SymbolInfo>> {
     let mut stmt = conn.prepare(
-        "SELECT symbol, token, exchange, name, lot_size, tick_size, instrument_type
+        "SELECT symbol, token, exchange, name, lot_size, tick_size, instrument_type, brsymbol, brexchange
          FROM symtoken
          WHERE exchange = ?1",
     )?;
@@ -92,6 +98,8 @@ pub fn get_symbols_by_exchange(conn: &Connection, exchange: &str) -> Result<Vec<
                 lot_size: row.get(4)?,
                 tick_size: row.get(5)?,
                 instrument_type: row.get(6)?,
+                brsymbol: row.get(7)?,
+                brexchange: row.get(8)?,
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -100,6 +108,7 @@ pub fn get_symbols_by_exchange(conn: &Connection, exchange: &str) -> Result<Vec<
 }
 
 /// Search symbols in database by name/symbol pattern
+#[allow(dead_code)]
 pub fn search_symbols(
     conn: &Connection,
     query: &str,
@@ -111,7 +120,7 @@ pub fn search_symbols(
 
     if let Some(exch) = exchange {
         let mut stmt = conn.prepare(
-            "SELECT symbol, token, exchange, name, lot_size, tick_size, instrument_type
+            "SELECT symbol, token, exchange, name, lot_size, tick_size, instrument_type, brsymbol, brexchange
              FROM symtoken
              WHERE (symbol LIKE ?1 OR name LIKE ?1) AND exchange = ?2
              LIMIT ?3",
@@ -125,13 +134,15 @@ pub fn search_symbols(
                 lot_size: row.get(4)?,
                 tick_size: row.get(5)?,
                 instrument_type: row.get(6)?,
+                brsymbol: row.get(7)?,
+                brexchange: row.get(8)?,
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(symbols)
     } else {
         let mut stmt = conn.prepare(
-            "SELECT symbol, token, exchange, name, lot_size, tick_size, instrument_type
+            "SELECT symbol, token, exchange, name, lot_size, tick_size, instrument_type, brsymbol, brexchange
              FROM symtoken
              WHERE symbol LIKE ?1 OR name LIKE ?1
              LIMIT ?2",
@@ -145,6 +156,8 @@ pub fn search_symbols(
                 lot_size: row.get(4)?,
                 tick_size: row.get(5)?,
                 instrument_type: row.get(6)?,
+                brsymbol: row.get(7)?,
+                brexchange: row.get(8)?,
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;

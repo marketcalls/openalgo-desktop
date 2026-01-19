@@ -48,7 +48,7 @@ pub async fn websocket_connect(state: State<'_, AppState>) -> Result<bool> {
         .get_auth_token(&broker_id, &state.security)?
         .ok_or_else(|| crate::error::AppError::Auth("No auth tokens found".to_string()))?;
 
-    let auth_token = tokens.0;
+    let _auth_token = tokens.0;
     let feed_token = tokens.1
         .ok_or_else(|| crate::error::AppError::Auth("No feed token found".to_string()))?;
 

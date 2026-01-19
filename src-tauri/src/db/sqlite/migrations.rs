@@ -46,6 +46,8 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     run_migration(conn, "028_ip_bans", CREATE_IP_BANS_TABLE)?;
     run_migration(conn, "029_error_trackers", CREATE_ERROR_TRACKERS_TABLES)?;
     run_migration(conn, "030_sandbox_config", CREATE_SANDBOX_CONFIG_TABLE)?;
+    run_migration(conn, "031_symtoken_broker_fields", ADD_SYMTOKEN_BROKER_FIELDS)?;
+    run_migration(conn, "032_analyze_mode", ADD_ANALYZE_MODE)?;
 
     tracing::info!("Database migrations completed");
     Ok(())
@@ -530,4 +532,16 @@ CREATE TABLE sandbox_config (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 INSERT OR IGNORE INTO sandbox_config (id) VALUES (1);
+"#;
+
+/// Migration to add brsymbol and brexchange columns to symtoken table
+const ADD_SYMTOKEN_BROKER_FIELDS: &str = r#"
+ALTER TABLE symtoken ADD COLUMN brsymbol TEXT;
+ALTER TABLE symtoken ADD COLUMN brexchange TEXT;
+CREATE INDEX IF NOT EXISTS idx_symtoken_brsymbol ON symtoken(brsymbol);
+"#;
+
+/// Migration to add analyze_mode column to settings table
+const ADD_ANALYZE_MODE: &str = r#"
+ALTER TABLE settings ADD COLUMN analyze_mode INTEGER NOT NULL DEFAULT 0;
 "#;

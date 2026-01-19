@@ -103,6 +103,7 @@ struct KiteOrderData {
 
 // Positions response
 #[derive(Deserialize, Default)]
+#[allow(dead_code)]
 struct KitePositionsResponse {
     #[serde(default)]
     net: Vec<KitePositionData>,
@@ -142,6 +143,7 @@ struct KitePositionData {
 
 // Holdings response
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct KiteHoldingData {
     tradingsymbol: String,
     exchange: String,
@@ -183,6 +185,7 @@ struct KiteMarginSegment {
 }
 
 #[derive(Deserialize, Default)]
+#[allow(dead_code)]
 struct KiteMarginAvailable {
     #[serde(default)]
     cash: f64,
@@ -193,6 +196,7 @@ struct KiteMarginAvailable {
 }
 
 #[derive(Deserialize, Default)]
+#[allow(dead_code)]
 struct KiteMarginUtilised {
     #[serde(default)]
     debits: f64,
@@ -210,6 +214,7 @@ struct KiteMarginUtilised {
 
 // Quote response
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct KiteQuoteData {
     #[serde(default)]
     last_price: f64,
@@ -887,28 +892,71 @@ impl Broker for ZerodhaBroker {
             if fields.len() >= 12 {
                 let instrument_token = fields[0].to_string();
                 let exchange_token = fields[1].to_string();
-                let tradingsymbol = fields[2].to_string();
+                let brsymbol = fields[2].to_string(); // Original broker symbol
                 let name = fields[3].to_string();
-                let exchange = fields[11].to_string();
+                let brexchange = fields[11].to_string(); // Original broker exchange
+                let mut exchange = fields[11].to_string();
                 let instrument_type = fields[9].to_string();
+                let segment = fields[10].to_string();
                 let lot_size: i32 = fields[5].parse().unwrap_or(1);
                 let tick_size: f64 = fields[6].parse().unwrap_or(0.05);
-                let expiry = if fields[4].is_empty() { None } else { Some(fields[4].to_string()) };
-                let strike: Option<f64> = fields[7].parse().ok();
+                let raw_expiry = fields[4].to_string();
+                let strike: f64 = fields[7].parse().unwrap_or(0.0);
 
-                let option_type = if tradingsymbol.ends_with("CE") {
+                // Exchange mapping for indices based on segment
+                if segment == "INDICES" {
+                    exchange = match exchange.as_str() {
+                        "NSE" => "NSE_INDEX".to_string(),
+                        "BSE" => "BSE_INDEX".to_string(),
+                        "MCX" => "MCX_INDEX".to_string(),
+                        "CDS" => "CDS_INDEX".to_string(),
+                        _ => exchange,
+                    };
+                }
+
+                // Format expiry date: 2024-03-28 -> 28-MAR-24
+                let expiry = if raw_expiry.is_empty() {
+                    None
+                } else {
+                    Some(Self::format_expiry_date(&raw_expiry))
+                };
+                let expiry_nodash = expiry.as_ref().map(|e| e.replace("-", "")).unwrap_or_default();
+
+                // Token format: instrument_token::::exchange_token
+                let token = format!("{}::::{}", instrument_token, exchange_token);
+
+                // Build proper symbol based on instrument type
+                let symbol = if instrument_type == "FUT" {
+                    // Futures: NAME + EXPIRY + FUT (e.g., NIFTY28MAR24FUT)
+                    format!("{}{}FUT", name, expiry_nodash)
+                } else if instrument_type == "CE" {
+                    // Call options: NAME + EXPIRY + STRIKE + CE
+                    let strike_str = Self::format_strike(strike);
+                    format!("{}{}{}{}", name, expiry_nodash, strike_str, instrument_type)
+                } else if instrument_type == "PE" {
+                    // Put options: NAME + EXPIRY + STRIKE + PE
+                    let strike_str = Self::format_strike(strike);
+                    format!("{}{}{}{}", name, expiry_nodash, strike_str, instrument_type)
+                } else {
+                    // For EQ and other types, use broker symbol as-is
+                    brsymbol.clone()
+                };
+
+                // Normalize index names
+                let symbol = Self::normalize_index_name(&symbol);
+
+                let option_type = if instrument_type == "CE" {
                     Some("CE".to_string())
-                } else if tradingsymbol.ends_with("PE") {
+                } else if instrument_type == "PE" {
                     Some("PE".to_string())
                 } else {
                     None
                 };
 
-                // Token format: instrument_token::::exchange_token
-                let token = format!("{}::::{}", instrument_token, exchange_token);
+                let strike_opt = if strike > 0.0 { Some(strike) } else { None };
 
                 symbols.push(SymbolData {
-                    symbol: tradingsymbol,
+                    symbol,
                     token,
                     exchange,
                     name,
@@ -916,12 +964,68 @@ impl Broker for ZerodhaBroker {
                     tick_size,
                     instrument_type,
                     expiry,
-                    strike,
+                    strike: strike_opt,
                     option_type,
+                    brsymbol: Some(brsymbol),
+                    brexchange: Some(brexchange),
                 });
             }
         }
 
         Ok(symbols)
+    }
+}
+
+impl ZerodhaBroker {
+    /// Format expiry date from 2024-03-28 to 28-MAR-24
+    fn format_expiry_date(date_str: &str) -> String {
+        // Try to parse YYYY-MM-DD format
+        if date_str.len() >= 10 && date_str.contains('-') {
+            let parts: Vec<&str> = date_str.split('-').collect();
+            if parts.len() >= 3 {
+                let year = &parts[0][2..4]; // Last 2 digits
+                let month = match parts[1] {
+                    "01" => "JAN",
+                    "02" => "FEB",
+                    "03" => "MAR",
+                    "04" => "APR",
+                    "05" => "MAY",
+                    "06" => "JUN",
+                    "07" => "JUL",
+                    "08" => "AUG",
+                    "09" => "SEP",
+                    "10" => "OCT",
+                    "11" => "NOV",
+                    "12" => "DEC",
+                    _ => parts[1],
+                };
+                let day = parts[2].split('T').next().unwrap_or(parts[2]); // Handle datetime format
+                return format!("{}-{}-{}", day, month, year);
+            }
+        }
+        date_str.to_uppercase()
+    }
+
+    /// Format strike price: remove trailing .0 if whole number
+    fn format_strike(strike: f64) -> String {
+        if strike.fract() == 0.0 {
+            format!("{}", strike as i64)
+        } else {
+            format!("{}", strike)
+        }
+    }
+
+    /// Normalize common index names to standard format
+    fn normalize_index_name(symbol: &str) -> String {
+        match symbol {
+            "NIFTY 50" => "NIFTY".to_string(),
+            "NIFTY NEXT 50" => "NIFTYNXT50".to_string(),
+            "NIFTY FIN SERVICE" => "FINNIFTY".to_string(),
+            "NIFTY BANK" => "BANKNIFTY".to_string(),
+            "NIFTY MID SELECT" => "MIDCPNIFTY".to_string(),
+            "INDIA VIX" => "INDIAVIX".to_string(),
+            "SNSX50" => "SENSEX50".to_string(),
+            _ => symbol.to_string(),
+        }
     }
 }

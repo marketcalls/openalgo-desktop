@@ -412,7 +412,7 @@ impl OptionsService {
         exchange: &str,
         expiry: &str,
         atm_strike: f64,
-        api_key: Option<&str>,
+        _api_key: Option<&str>,
     ) -> Result<Vec<OptionChainEntry>> {
         let strike_interval = Self::get_strike_interval(underlying);
 

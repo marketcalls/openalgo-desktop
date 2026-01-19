@@ -133,6 +133,7 @@ struct AngelPositionData {
 
 // Holdings response
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct AngelHoldingsResponse {
     holdings: Option<Vec<AngelHoldingData>>,
     #[serde(default)]
@@ -162,6 +163,7 @@ struct AngelHoldingData {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct AngelTotalHolding {
     #[serde(default)]
     totalholdingvalue: StringOrFloat,
@@ -169,6 +171,7 @@ struct AngelTotalHolding {
 
 // Funds/RMS response
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct AngelFundsData {
     #[serde(default)]
     availablecash: StringOrFloat,
@@ -197,6 +200,7 @@ struct AngelQuoteResponse {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct AngelQuoteData {
     #[serde(default)]
     tradingSymbol: String,
@@ -1057,32 +1061,178 @@ impl Broker for AngelBroker {
 
         Ok(symbols
             .into_iter()
-            .map(|s| {
-                let option_type = if s.symbol.ends_with("CE") {
-                    Some("CE".to_string())
-                } else if s.symbol.ends_with("PE") {
-                    Some("PE".to_string())
-                } else {
-                    None
-                };
-
-                let strike = s.strike.to_f64();
-                let strike_opt = if strike > 0.0 { Some(strike / 100.0) } else { None };
-
-                SymbolData {
-                    symbol: s.symbol,
-                    token: s.token,
-                    exchange: s.exch_seg,
-                    name: s.name,
-                    lot_size: s.lotsize.to_i32(),
-                    tick_size: s.tick_size.to_f64() / 100.0,
-                    instrument_type: s.instrumenttype,
-                    expiry: s.expiry,
-                    strike: strike_opt,
-                    option_type,
-                }
-            })
+            .map(|s| Self::process_angel_symbol(s))
             .collect())
+    }
+}
+
+impl AngelBroker {
+    /// Process Angel symbol data to match Flask OpenAlgo's symbol normalization
+    fn process_angel_symbol(s: AngelSymbolData) -> SymbolData {
+        let brexchange = s.exch_seg.clone(); // Original broker exchange
+        let mut exchange = s.exch_seg.clone();
+        let mut instrument_type = s.instrumenttype.clone();
+        let mut symbol = s.symbol.clone();
+        let brsymbol = s.symbol.clone(); // Original broker symbol
+
+        // Convert strike price - divide by 100, or 100000 for CDS options
+        let raw_strike = s.strike.to_f64();
+        let strike = if raw_strike > 0.0 {
+            if (instrument_type == "OPTCUR" || instrument_type == "OPTIRC") && exchange == "CDS" {
+                raw_strike / 100.0 / 1000.0 // CDS options have different strike format
+            } else {
+                raw_strike / 100.0
+            }
+        } else {
+            0.0
+        };
+        let strike_opt = if strike > 0.0 { Some(strike) } else { None };
+
+        // Convert tick_size
+        let tick_size = s.tick_size.to_f64() / 100.0;
+
+        // Convert expiry date format: 19MAR2024 -> 19-MAR-24
+        let expiry = s.expiry.as_ref().map(|exp| Self::convert_expiry_date(exp));
+        let expiry_nodash = expiry.as_ref().map(|e| e.replace("-", "")).unwrap_or_default();
+
+        // Exchange mapping for indices (AMXIDX instrument type)
+        if instrument_type == "AMXIDX" {
+            exchange = match exchange.as_str() {
+                "NSE" => "NSE_INDEX".to_string(),
+                "BSE" => "BSE_INDEX".to_string(),
+                "MCX" => "MCX_INDEX".to_string(),
+                _ => exchange,
+            };
+        }
+
+        // Clean symbol: remove -EQ, -BE, -MF, -SG suffixes
+        symbol = symbol
+            .replace("-EQ", "")
+            .replace("-BE", "")
+            .replace("-MF", "")
+            .replace("-SG", "");
+
+        // Build proper symbol for derivatives based on exchange and instrument type
+        let name = &s.name;
+
+        // CDS Futures
+        if (instrument_type == "FUTCUR" || instrument_type == "FUTIRC") && exchange == "CDS" {
+            symbol = format!("{}{}FUT", name, expiry_nodash);
+        }
+        // MCX Futures
+        else if instrument_type == "FUTCOM" && exchange == "MCX" {
+            symbol = format!("{}{}FUT", name, expiry_nodash);
+        }
+        // BFO Index Futures
+        else if instrument_type == "FUTIDX" && exchange == "BFO" {
+            symbol = format!("{}{}FUT", name, expiry_nodash);
+        }
+        // BFO Stock Futures
+        else if instrument_type == "FUTSTK" && exchange == "BFO" {
+            symbol = format!("{}{}FUT", name, expiry_nodash);
+        }
+        // CDS Options
+        else if (instrument_type == "OPTCUR" || instrument_type == "OPTIRC") && exchange == "CDS" {
+            let strike_str = Self::format_strike(strike);
+            let opt_type = if brsymbol.ends_with("CE") { "CE" } else { "PE" };
+            symbol = format!("{}{}{}{}", name, expiry_nodash, strike_str, opt_type);
+        }
+        // MCX Options
+        else if instrument_type == "OPTFUT" && exchange == "MCX" {
+            let strike_str = Self::format_strike(strike);
+            let opt_type = if brsymbol.ends_with("CE") { "CE" } else { "PE" };
+            symbol = format!("{}{}{}{}", name, expiry_nodash, strike_str, opt_type);
+        }
+        // BFO Index Options
+        else if instrument_type == "OPTIDX" && exchange == "BFO" {
+            let strike_str = Self::format_strike(strike);
+            let opt_type = if brsymbol.ends_with("CE") { "CE" } else { "PE" };
+            symbol = format!("{}{}{}{}", name, expiry_nodash, strike_str, opt_type);
+        }
+        // BFO Stock Options
+        else if instrument_type == "OPTSTK" && exchange == "BFO" {
+            let strike_str = Self::format_strike(strike);
+            let opt_type = if brsymbol.ends_with("CE") { "CE" } else { "PE" };
+            symbol = format!("{}{}{}{}", name, expiry_nodash, strike_str, opt_type);
+        }
+
+        // Normalize common index names
+        symbol = Self::normalize_index_name(&symbol);
+
+        // Determine option type from symbol ending
+        let option_type = if brsymbol.ends_with("CE") {
+            Some("CE".to_string())
+        } else if brsymbol.ends_with("PE") {
+            Some("PE".to_string())
+        } else {
+            None
+        };
+
+        // Convert instrument types to standard format
+        // OPTIDX, OPTSTK -> CE/PE
+        // OPTFUT, OPTCUR, OPTIRC -> CE/PE
+        // FUTIDX, FUTSTK, FUTCOM, FUTCUR, FUTIRC, FUTIRT -> FUT
+        instrument_type = match instrument_type.as_str() {
+            "OPTIDX" | "OPTSTK" | "OPTFUT" | "OPTCUR" | "OPTIRC" => {
+                if brsymbol.ends_with("CE") { "CE".to_string() }
+                else if brsymbol.ends_with("PE") { "PE".to_string() }
+                else { instrument_type }
+            }
+            "FUTIDX" | "FUTSTK" | "FUTCOM" | "FUTCUR" | "FUTIRC" | "FUTIRT" => "FUT".to_string(),
+            _ => instrument_type,
+        };
+
+        SymbolData {
+            symbol,
+            token: s.token,
+            exchange,
+            name: s.name,
+            lot_size: s.lotsize.to_i32(),
+            tick_size,
+            instrument_type,
+            expiry,
+            strike: strike_opt,
+            option_type,
+            brsymbol: Some(brsymbol),
+            brexchange: Some(brexchange),
+        }
+    }
+
+    /// Convert expiry date from 19MAR2024 to 19-MAR-24 format
+    fn convert_expiry_date(date_str: &str) -> String {
+        // Try to parse and reformat
+        if date_str.len() >= 9 {
+            // Format: DDMMMYYYY (e.g., 19MAR2024)
+            let day = &date_str[0..2];
+            let month = &date_str[2..5];
+            let year = if date_str.len() >= 9 { &date_str[7..9] } else { "00" };
+            format!("{}-{}-{}", day, month.to_uppercase(), year)
+        } else {
+            date_str.to_uppercase()
+        }
+    }
+
+    /// Format strike price: remove trailing .0 if whole number
+    fn format_strike(strike: f64) -> String {
+        if strike.fract() == 0.0 {
+            format!("{}", strike as i64)
+        } else {
+            format!("{}", strike)
+        }
+    }
+
+    /// Normalize common index names to standard format
+    fn normalize_index_name(symbol: &str) -> String {
+        match symbol {
+            "Nifty 50" | "NIFTY 50" => "NIFTY".to_string(),
+            "Nifty Next 50" | "NIFTY NEXT 50" => "NIFTYNXT50".to_string(),
+            "Nifty Fin Service" | "NIFTY FIN SERVICE" => "FINNIFTY".to_string(),
+            "Nifty Bank" | "NIFTY BANK" => "BANKNIFTY".to_string(),
+            "NIFTY MID SELECT" => "MIDCPNIFTY".to_string(),
+            "India VIX" | "INDIA VIX" => "INDIAVIX".to_string(),
+            "SNSX50" => "SENSEX50".to_string(),
+            _ => symbol.to_string(),
+        }
     }
 }
 

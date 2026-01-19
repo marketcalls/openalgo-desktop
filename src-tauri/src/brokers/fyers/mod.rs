@@ -108,6 +108,7 @@ where
 
 /// Generic Fyers API response wrapper
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct FyersResponse<T> {
     s: String,
     #[serde(default)]
@@ -263,6 +264,7 @@ struct QuotesResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct QuoteItem {
     s: Option<String>,
     n: Option<String>,
@@ -1152,99 +1154,300 @@ impl Broker for FyersBroker {
 
     async fn download_master_contract(&self, _auth_token: &str) -> Result<Vec<SymbolData>> {
         // Fyers provides separate CSV files per exchange/segment
-        // NSE_CM, NSE_FO, BSE_CM, BSE_FO, MCX_COM, CDS_FO
-        let exchanges = [
-            ("NSE_CM", "NSE"),
-            ("NSE_FO", "NFO"),
-            ("BSE_CM", "BSE"),
-            ("BSE_FO", "BFO"),
-            ("MCX_COM", "MCX"),
-            ("CDS_FO", "CDS"),
-        ];
-
+        // Each file has 21 columns and requires different processing
         let mut all_symbols = Vec::new();
 
-        for (fyers_exchange, exchange_name) in exchanges {
-            let url = format!("https://public.fyers.in/sym_details/{}.csv", fyers_exchange);
+        // Download and process each exchange CSV
+        let csv_urls = [
+            ("NSE_CM", "https://public.fyers.in/sym_details/NSE_CM.csv"),
+            ("NSE_FO", "https://public.fyers.in/sym_details/NSE_FO.csv"),
+            ("BSE_CM", "https://public.fyers.in/sym_details/BSE_CM.csv"),
+            ("BSE_FO", "https://public.fyers.in/sym_details/BSE_FO.csv"),
+            ("NSE_CD", "https://public.fyers.in/sym_details/NSE_CD.csv"),
+            ("MCX_COM", "https://public.fyers.in/sym_details/MCX_COM.csv"),
+        ];
 
-            match self.client.get(&url).send().await {
+        for (exchange_key, url) in csv_urls {
+            match self.client.get(url).send().await {
                 Ok(response) => {
                     if let Ok(csv_text) = response.text().await {
-                        let symbols = Self::parse_fyers_csv(&csv_text, exchange_name);
+                        let symbols = Self::process_fyers_csv(&csv_text, exchange_key);
+                        tracing::info!("Processed {} symbols from {}", symbols.len(), exchange_key);
                         all_symbols.extend(symbols);
                     }
                 }
                 Err(e) => {
-                    tracing::warn!(
-                        "Failed to download Fyers master for {}: {}",
-                        fyers_exchange,
-                        e
-                    );
+                    tracing::warn!("Failed to download Fyers master for {}: {}", exchange_key, e);
                 }
             }
         }
 
-        tracing::info!("Downloaded {} symbols from Fyers", all_symbols.len());
+        tracing::info!("Downloaded {} total symbols from Fyers", all_symbols.len());
         Ok(all_symbols)
     }
 }
 
 impl FyersBroker {
-    /// Parse Fyers CSV format into SymbolData
-    fn parse_fyers_csv(csv_text: &str, exchange: &str) -> Vec<SymbolData> {
+    /// Process Fyers CSV with proper 21-column parsing matching Flask implementation
+    /// CSV columns: Fytoken, Symbol Details, Exchange Instrument type, Minimum lot size,
+    /// Tick size, ISIN, Trading Session, Last update date, Expiry date, Symbol ticker,
+    /// Exchange, Segment, Scrip code, Underlying symbol, Underlying scrip code, Strike price,
+    /// Option type, Underlying FyToken, Reserved column1, Reserved column2, Reserved column3
+    fn process_fyers_csv(csv_text: &str, exchange_key: &str) -> Vec<SymbolData> {
         let mut symbols = Vec::new();
 
-        for line in csv_text.lines().skip(1) {
-            // Skip header
+        for line in csv_text.lines() {
             let fields: Vec<&str> = line.split(',').collect();
 
-            // Fyers CSV format varies, but typically:
-            // Column 0: Fytoken, 1: Symbol, 2: Name, etc.
-            if fields.len() >= 3 {
-                let fyers_symbol = fields.get(1).unwrap_or(&"").trim();
-                let name = fields.get(2).unwrap_or(&"").trim();
-                let token = fields.get(0).unwrap_or(&"0").trim();
+            // Fyers CSV has 21 columns
+            if fields.len() < 17 {
+                continue;
+            }
 
-                // Extract trading symbol from Fyers format (e.g., "NSE:RELIANCE-EQ" -> "RELIANCE-EQ")
-                let trading_symbol = if let Some(pos) = fyers_symbol.find(':') {
-                    &fyers_symbol[pos + 1..]
-                } else {
-                    fyers_symbol
-                };
+            // Parse the 21 columns
+            let fytoken = fields.get(0).unwrap_or(&"").trim();
+            let symbol_details = fields.get(1).unwrap_or(&"").trim();
+            let exchange_instrument_type: i32 = fields.get(2).unwrap_or(&"0").trim().parse().unwrap_or(0);
+            let lot_size: i32 = fields.get(3).unwrap_or(&"1").trim().parse().unwrap_or(1);
+            let tick_size: f64 = fields.get(4).unwrap_or(&"0.05").trim().parse().unwrap_or(0.05);
+            let expiry_timestamp: i64 = fields.get(8).unwrap_or(&"0").trim().parse().unwrap_or(0);
+            let symbol_ticker = fields.get(9).unwrap_or(&"").trim();
+            let underlying_symbol = fields.get(13).unwrap_or(&"").trim();
+            let strike_price: f64 = fields.get(15).unwrap_or(&"0.0").trim().parse().unwrap_or(0.0);
+            let option_type = fields.get(16).unwrap_or(&"").trim();
 
-                // Determine instrument type based on segment
-                let instrument_type = if exchange == "NFO" || exchange == "BFO" || exchange == "CDS" {
-                    if trading_symbol.contains("FUT") {
-                        "FUT".to_string()
-                    } else if trading_symbol.contains("CE") || trading_symbol.contains("PE") {
-                        "OPT".to_string()
-                    } else {
-                        "EQ".to_string()
-                    }
-                } else if exchange == "MCX" {
-                    "FUTCOM".to_string()
-                } else {
-                    "EQ".to_string()
-                };
+            // Skip invalid rows
+            if fytoken.is_empty() || symbol_ticker.is_empty() {
+                continue;
+            }
 
-                if !trading_symbol.is_empty() {
-                    symbols.push(SymbolData {
-                        exchange: exchange.to_string(),
-                        symbol: trading_symbol.to_string(),
-                        token: token.to_string(),
-                        name: name.to_string(),
-                        lot_size: 1,
-                        tick_size: 0.05,
-                        instrument_type,
-                        expiry: None,
-                        strike: None,
-                        option_type: None,
-                    });
-                }
+            // Process based on exchange key
+            let processed = match exchange_key {
+                "NSE_CM" => Self::process_nse_cm_row(
+                    fytoken, symbol_details, exchange_instrument_type, lot_size, tick_size,
+                    symbol_ticker, underlying_symbol,
+                ),
+                "BSE_CM" => Self::process_bse_cm_row(
+                    fytoken, symbol_details, exchange_instrument_type, lot_size, tick_size,
+                    symbol_ticker, underlying_symbol,
+                ),
+                "NSE_FO" => Self::process_fo_row(
+                    fytoken, symbol_details, lot_size, tick_size, expiry_timestamp,
+                    symbol_ticker, strike_price, option_type, "NFO",
+                ),
+                "BSE_FO" => Self::process_fo_row(
+                    fytoken, symbol_details, lot_size, tick_size, expiry_timestamp,
+                    symbol_ticker, strike_price, option_type, "BFO",
+                ),
+                "NSE_CD" => Self::process_fo_row(
+                    fytoken, symbol_details, lot_size, tick_size, expiry_timestamp,
+                    symbol_ticker, strike_price, option_type, "CDS",
+                ),
+                "MCX_COM" => Self::process_fo_row(
+                    fytoken, symbol_details, lot_size, tick_size, expiry_timestamp,
+                    symbol_ticker, strike_price, option_type, "MCX",
+                ),
+                _ => None,
+            };
+
+            if let Some(symbol_data) = processed {
+                symbols.push(symbol_data);
             }
         }
 
         symbols
+    }
+
+    /// Process NSE_CM (cash market) row
+    fn process_nse_cm_row(
+        fytoken: &str,
+        symbol_details: &str,
+        exchange_instrument_type: i32,
+        lot_size: i32,
+        tick_size: f64,
+        symbol_ticker: &str,
+        underlying_symbol: &str,
+    ) -> Option<SymbolData> {
+        // Exchange instrument type mapping for NSE_CM:
+        // 0, 9 -> EQ (equities)
+        // 10 -> INDEX
+        // 2 with -GB suffix -> GB (government bonds)
+        let (exchange, instrument_type) = match exchange_instrument_type {
+            0 | 9 => ("NSE", "EQ"),
+            10 => ("NSE_INDEX", "INDEX"),
+            2 if symbol_ticker.ends_with("-GB") => ("NSE", "GB"),
+            _ => return None, // Skip other instrument types
+        };
+
+        Some(SymbolData {
+            exchange: exchange.to_string(),
+            symbol: underlying_symbol.to_string(),
+            token: fytoken.to_string(),
+            name: symbol_details.to_string(),
+            lot_size,
+            tick_size,
+            instrument_type: instrument_type.to_string(),
+            expiry: None,
+            strike: None,
+            option_type: None,
+            brsymbol: Some(symbol_ticker.to_string()),
+            brexchange: Some("NSE".to_string()),
+        })
+    }
+
+    /// Process BSE_CM (cash market) row
+    fn process_bse_cm_row(
+        fytoken: &str,
+        symbol_details: &str,
+        exchange_instrument_type: i32,
+        lot_size: i32,
+        tick_size: f64,
+        symbol_ticker: &str,
+        underlying_symbol: &str,
+    ) -> Option<SymbolData> {
+        // Exchange instrument type mapping for BSE_CM:
+        // 0, 4, 50 -> EQ (equities)
+        // 10 -> INDEX
+        let (exchange, instrument_type) = match exchange_instrument_type {
+            0 | 4 | 50 => ("BSE", "EQ"),
+            10 => ("BSE_INDEX", "INDEX"),
+            _ => return None,
+        };
+
+        Some(SymbolData {
+            exchange: exchange.to_string(),
+            symbol: underlying_symbol.to_string(),
+            token: fytoken.to_string(),
+            name: symbol_details.to_string(),
+            lot_size,
+            tick_size,
+            instrument_type: instrument_type.to_string(),
+            expiry: None,
+            strike: None,
+            option_type: None,
+            brsymbol: Some(symbol_ticker.to_string()),
+            brexchange: Some("BSE".to_string()),
+        })
+    }
+
+    /// Process F&O row (NSE_FO, BSE_FO, NSE_CD, MCX_COM)
+    fn process_fo_row(
+        fytoken: &str,
+        symbol_details: &str,
+        lot_size: i32,
+        tick_size: f64,
+        expiry_timestamp: i64,
+        symbol_ticker: &str,
+        strike_price: f64,
+        option_type: &str,
+        exchange: &str,
+    ) -> Option<SymbolData> {
+        // Convert expiry from Unix timestamp to DD-MMM-YY format
+        let expiry = if expiry_timestamp > 0 {
+            Self::convert_unix_to_expiry(expiry_timestamp)
+        } else {
+            None
+        };
+
+        // Determine instrument type from option_type field
+        // XX -> FUT (futures)
+        // CE -> CE (call option)
+        // PE -> PE (put option)
+        let instrument_type = match option_type {
+            "XX" => "FUT",
+            "CE" => "CE",
+            "PE" => "PE",
+            "" => "FUT", // Default to FUT if empty
+            _ => option_type,
+        };
+
+        // Reformat symbol details to standard format
+        // "NIFTY 24 Apr 25 FUT" -> "NIFTY25APR24FUT"
+        let symbol = Self::reformat_symbol_detail(symbol_details, option_type);
+
+        Some(SymbolData {
+            exchange: exchange.to_string(),
+            symbol,
+            token: fytoken.to_string(),
+            name: symbol_details.to_string(),
+            lot_size,
+            tick_size,
+            instrument_type: instrument_type.to_string(),
+            expiry,
+            strike: if strike_price > 0.0 { Some(strike_price) } else { None },
+            option_type: match option_type {
+                "CE" => Some("CE".to_string()),
+                "PE" => Some("PE".to_string()),
+                _ => None,
+            },
+            brsymbol: Some(symbol_ticker.to_string()),
+            brexchange: Some(exchange.to_string()),
+        })
+    }
+
+    /// Convert Unix timestamp to DD-MMM-YY format (e.g., "24-APR-25")
+    fn convert_unix_to_expiry(timestamp: i64) -> Option<String> {
+        use chrono::{TimeZone, Utc};
+
+        if timestamp <= 0 {
+            return None;
+        }
+
+        match Utc.timestamp_opt(timestamp, 0) {
+            chrono::LocalResult::Single(dt) => {
+                Some(dt.format("%d-%b-%y").to_string().to_uppercase())
+            }
+            _ => None,
+        }
+    }
+
+    /// Reformat symbol details from Fyers format to standard format
+    /// Input: "NIFTY 24 Apr 25 FUT" or "NIFTY 24 Apr 25 25000"
+    /// Output: "NIFTY25APR24FUT" or "NIFTY25APR2425000CE"
+    fn reformat_symbol_detail(symbol_details: &str, option_type: &str) -> String {
+        let parts: Vec<&str> = symbol_details.split_whitespace().collect();
+
+        // Expected format: "NAME DD Mon YY SUFFIX"
+        // e.g., "NIFTY 24 Apr 25 FUT" or "NIFTY 24 Apr 25 25000"
+        if parts.len() >= 5 {
+            let name = parts[0];
+            let day = parts[1];
+            let month = parts[2].to_uppercase();
+            let year = parts[3];
+            let suffix = parts[4];
+
+            // Build the reformatted symbol: NAME + YY + MON + DD + SUFFIX
+            let base = format!("{}{}{}{}{}", name, year, month, day, suffix);
+
+            // Add option type suffix if it's an option
+            match option_type {
+                "CE" => format!("{}CE", base),
+                "PE" => format!("{}PE", base),
+                _ => base, // FUT or XX - no additional suffix
+            }
+        } else if parts.len() >= 4 {
+            // Handle shorter format without explicit suffix
+            let name = parts[0];
+            let day = parts[1];
+            let month = parts[2].to_uppercase();
+            let year = parts[3];
+
+            let base = format!("{}{}{}{}", name, year, month, day);
+
+            match option_type {
+                "CE" => format!("{}CE", base),
+                "PE" => format!("{}PE", base),
+                "XX" => format!("{}FUT", base),
+                _ => base,
+            }
+        } else {
+            // Fallback: return as-is with option suffix
+            match option_type {
+                "CE" => format!("{}CE", symbol_details.replace(' ', "")),
+                "PE" => format!("{}PE", symbol_details.replace(' ', "")),
+                _ => symbol_details.replace(' ', ""),
+            }
+        }
     }
 
     /// Pad depth levels to ensure we have the required count

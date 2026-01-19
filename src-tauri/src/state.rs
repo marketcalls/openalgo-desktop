@@ -40,6 +40,10 @@ pub struct SymbolInfo {
     pub lot_size: i32,
     pub tick_size: f64,
     pub instrument_type: String,
+    /// Broker's original symbol format (e.g., "NSE:RELIANCE-EQ" for Fyers)
+    pub brsymbol: Option<String>,
+    /// Broker's exchange code
+    pub brexchange: Option<String>,
 }
 
 /// Application state shared across all commands

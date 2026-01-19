@@ -158,4 +158,8 @@ pub struct SymbolData {
     pub expiry: Option<String>,
     pub strike: Option<f64>,
     pub option_type: Option<String>,
+    /// Broker's original symbol format (e.g., "NSE:RELIANCE-EQ" for Fyers, "RELIANCE" for Angel)
+    pub brsymbol: Option<String>,
+    /// Broker's exchange code (e.g., "NSE" for the broker's API)
+    pub brexchange: Option<String>,
 }

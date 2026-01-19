@@ -133,6 +133,8 @@ pub async fn refresh_symbol_master(state: State<'_, AppState>) -> Result<usize> 
             lot_size: s.lot_size,
             tick_size: s.tick_size,
             instrument_type: s.instrument_type,
+            brsymbol: s.brsymbol,
+            brexchange: s.brexchange,
         })
         .collect();
 

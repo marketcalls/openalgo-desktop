@@ -246,7 +246,7 @@ impl WebSocketManager {
                                 debug!("Received text message: {}", text);
                                 // Handle JSON responses (subscription confirmations, etc.)
                             }
-                            Some(Ok(Message::Ping(data))) => {
+                            Some(Ok(Message::Ping(_data))) => {
                                 debug!("Received ping, sending pong");
                                 // Pong is handled automatically by tungstenite
                             }
@@ -496,7 +496,7 @@ fn parse_angel_ticks(data: &[u8], token_map: &TokenMap) -> Vec<MarketTick> {
     if mode >= 2 && data.len() >= 123 {
         cursor.set_position(51);
         let _ltq = cursor.read_i64::<LittleEndian>().unwrap_or(0);
-        let avg_price = cursor.read_i64::<LittleEndian>().unwrap_or(0);
+        let _avg_price = cursor.read_i64::<LittleEndian>().unwrap_or(0);
         let volume = cursor.read_i64::<LittleEndian>().unwrap_or(0);
         let total_buy_qty = cursor.read_f64::<LittleEndian>().unwrap_or(0.0);
         let total_sell_qty = cursor.read_f64::<LittleEndian>().unwrap_or(0.0);
@@ -631,7 +631,7 @@ fn parse_zerodha_packet(packet: &[u8], token_map: &TokenMap) -> Option<MarketTic
     if packet.len() >= 44 {
         cursor.set_position(8);
         let _ltq = cursor.read_i32::<BigEndian>().unwrap_or(0);
-        let avg_price = cursor.read_i32::<BigEndian>().unwrap_or(0);
+        let _avg_price = cursor.read_i32::<BigEndian>().unwrap_or(0);
         let volume = cursor.read_i32::<BigEndian>().unwrap_or(0);
         let total_buy_qty = cursor.read_i32::<BigEndian>().unwrap_or(0);
         let total_sell_qty = cursor.read_i32::<BigEndian>().unwrap_or(0);
@@ -751,7 +751,7 @@ fn parse_fyers_ticks(data: &[u8], token_map: &TokenMap) -> Vec<MarketTick> {
 }
 
 /// Parse Fyers snapshot data
-fn parse_fyers_snapshot(data: &[u8], token_map: &TokenMap) -> Option<(MarketTick, usize)> {
+fn parse_fyers_snapshot(data: &[u8], _token_map: &TokenMap) -> Option<(MarketTick, usize)> {
     if data.len() < 10 {
         return None;
     }

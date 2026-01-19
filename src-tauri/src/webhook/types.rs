@@ -52,6 +52,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 fn deserialize_optional_i32<'de, D>(deserializer: D) -> Result<Option<i32>, D::Error>
 where
     D: Deserializer<'de>,
@@ -75,6 +76,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 fn deserialize_optional_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
 where
     D: Deserializer<'de>,
