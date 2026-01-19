@@ -36,7 +36,7 @@ pub struct OrderResponse {
 }
 
 /// Order from order book
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Order {
     pub order_id: String,
     pub exchange_order_id: Option<String>,
@@ -59,7 +59,7 @@ pub struct Order {
 }
 
 /// Position
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Position {
     pub symbol: String,
     pub exchange: String,
@@ -78,7 +78,7 @@ pub struct Position {
 }
 
 /// Holding
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Holding {
     pub symbol: String,
     pub exchange: String,
@@ -94,7 +94,7 @@ pub struct Holding {
 }
 
 /// Funds/Margin
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Funds {
     pub available_cash: f64,
     pub used_margin: f64,
@@ -108,7 +108,7 @@ pub struct Funds {
 }
 
 /// Quote
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Quote {
     pub symbol: String,
     pub exchange: String,
@@ -129,7 +129,7 @@ pub struct Quote {
 }
 
 /// Market depth
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarketDepth {
     pub symbol: String,
     pub exchange: String,
@@ -138,7 +138,7 @@ pub struct MarketDepth {
 }
 
 /// Depth level (bid/ask)
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DepthLevel {
     pub price: f64,
     pub quantity: i32,

@@ -498,4 +498,60 @@ impl SqliteDb {
         let conn = self.conn.lock();
         market::is_market_open(&conn, exchange)
     }
+
+    // ========== Analyze Mode Methods ==========
+
+    /// Get analyze mode (sandbox/paper trading mode)
+    pub fn get_analyze_mode(&self) -> Result<bool> {
+        let settings = self.get_settings()?;
+        Ok(settings.analyze_mode.unwrap_or(false))
+    }
+
+    /// Set analyze mode
+    pub fn set_analyze_mode(&self, enabled: bool) -> Result<()> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "UPDATE settings SET analyze_mode = ?1",
+            [enabled],
+        )?;
+        Ok(())
+    }
+
+    // ========== Order Logging Helper ==========
+
+    /// Log an order (convenience wrapper for order_logs::create_log)
+    #[allow(clippy::too_many_arguments)]
+    pub fn log_order(
+        &self,
+        order_id: &str,
+        action: &str,
+        symbol: &str,
+        exchange: &str,
+        side: &str,
+        quantity: i32,
+        price: Option<f64>,
+        order_type: &str,
+        product: &str,
+        status: &str,
+        message: Option<&str>,
+        api_key: Option<&str>,
+    ) -> Result<i64> {
+        // Get broker from current session (we'll use "api" as placeholder if from API)
+        let broker = api_key.map(|_| "api").unwrap_or("ui");
+
+        self.create_order_log(
+            Some(order_id),
+            broker,
+            symbol,
+            exchange,
+            side,
+            quantity,
+            price,
+            order_type,
+            product,
+            status,
+            message,
+            Some(action),
+        )
+    }
 }

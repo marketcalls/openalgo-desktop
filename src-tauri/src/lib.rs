@@ -12,6 +12,7 @@ pub mod webhook;
 pub mod scheduler;
 pub mod error;
 pub mod state;
+pub mod services;
 
 use scheduler::AutoLogoutScheduler;
 use state::AppState;

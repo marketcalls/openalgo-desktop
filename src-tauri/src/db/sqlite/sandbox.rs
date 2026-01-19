@@ -111,8 +111,8 @@ pub fn place_order(
         order_type: order_type.to_string(),
         product: product.to_string(),
         status: status.to_string(),
-        filled_quantity: filled_qty,
-        average_price: avg_price,
+        filled_quantity: Some(filled_qty),
+        average_price: Some(avg_price),
         created_at: chrono::Utc::now().to_rfc3339(),
         updated_at: chrono::Utc::now().to_rfc3339(),
     })

@@ -4,6 +4,12 @@
 //! - Dynamic strategy-based webhooks (/webhook/{webhook_id})
 //! - OpenAlgo SDK compatible REST API (/api/v1/*)
 
+use crate::brokers::types::{ModifyOrderRequest as BrokerModifyOrder, OrderRequest as BrokerOrderRequest};
+use crate::services::{
+    AnalyzerService, FundsService, HoldingsService, HistoryService, OptionsService,
+    OrderService, OrderbookService, PositionService, QuotesService, SmartOrderService,
+    SymbolService,
+};
 use crate::state::AppState;
 use crate::webhook::types::*;
 use axum::{
@@ -291,24 +297,62 @@ pub async fn place_order(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<Empty>::error(&e)));
     }
 
-    // Check broker connection
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<Empty>::error("Broker not connected"))
-        );
+    // Get AppState
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Empty>::error("Internal error: AppState not available"))
+            );
+        }
+    };
+
+    // Build broker order request
+    let order = BrokerOrderRequest {
+        symbol: req.symbol.clone(),
+        exchange: req.exchange.clone(),
+        side: req.action.clone(),
+        quantity: req.quantity,
+        price: req.price,
+        order_type: req.pricetype.clone(),
+        product: req.product.clone(),
+        trigger_price: if req.trigger_price > 0.0 { Some(req.trigger_price) } else { None },
+        disclosed_quantity: if req.disclosed_quantity > 0 { Some(req.disclosed_quantity) } else { None },
+        validity: "DAY".to_string(),
+        amo: false,
+    };
+
+    // Execute order via service
+    match OrderService::place_order(&app_state, order, Some(&req.apikey)).await {
+        Ok(result) => {
+            state.emit("api_order", &req);
+            if result.success {
+                (
+                    StatusCode::OK,
+                    Json(ApiResponse::<Empty> {
+                        status: "success".to_string(),
+                        message: Some(result.message),
+                        data: None,
+                        orderid: result.order_id,
+                        mode: Some(result.mode),
+                    })
+                )
+            } else {
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(ApiResponse::<Empty>::error(&result.message))
+                )
+            }
+        }
+        Err(e) => {
+            error!("Place order failed: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Empty>::error(&e.to_string()))
+            )
+        }
     }
-
-    // TODO: Execute order via broker adapter
-    // For now, emit event and return placeholder
-    state.emit("api_order", &req);
-
-    // Placeholder response
-    let order_id = format!("ORD{}", chrono::Utc::now().timestamp_millis());
-    (
-        StatusCode::OK,
-        Json(ApiResponse::<Empty>::success_with_orderid(&order_id))
-    )
 }
 
 /// Place smart order - POST /api/v1/placesmartorder
@@ -323,22 +367,56 @@ pub async fn place_smart_order(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<Empty>::error(&e)));
     }
 
-    // Check broker connection
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<Empty>::error("Broker not connected"))
-        );
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Empty>::error("Internal error: AppState not available"))
+            );
+        }
+    };
+
+    // Build smart order request
+    let smart_order_req = crate::services::smart_order_service::SmartOrderRequest {
+        symbol: req.symbol.clone(),
+        exchange: req.exchange.clone(),
+        action: req.action.clone(),
+        position_size: req.position_size,
+        product: req.product.clone(),
+        pricetype: Some(req.pricetype.clone()),
+        price: if req.price > 0.0 { Some(req.price) } else { None },
+    };
+
+    match SmartOrderService::place_smart_order(&app_state, smart_order_req, Some(&req.apikey)).await {
+        Ok(result) => {
+            state.emit("api_smart_order", &req);
+            if result.success {
+                (
+                    StatusCode::OK,
+                    Json(ApiResponse::<Empty> {
+                        status: "success".to_string(),
+                        message: Some(result.message),
+                        data: None,
+                        orderid: result.order_id,
+                        mode: None,
+                    })
+                )
+            } else {
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(ApiResponse::<Empty>::error(&result.message))
+                )
+            }
+        }
+        Err(e) => {
+            error!("Place smart order failed: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Empty>::error(&e.to_string()))
+            )
+        }
     }
-
-    // TODO: Execute smart order via broker adapter
-    state.emit("api_smart_order", &req);
-
-    let order_id = format!("ORD{}", chrono::Utc::now().timestamp_millis());
-    (
-        StatusCode::OK,
-        Json(ApiResponse::<Empty>::success_with_orderid(&order_id))
-    )
 }
 
 /// Modify order - POST /api/v1/modifyorder
@@ -352,20 +430,48 @@ pub async fn modify_order(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<Empty>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<Empty>::error("Broker not connected"))
-        );
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Empty>::error("Internal error"))
+            );
+        }
+    };
+
+    // Build broker modify order request
+    let modify_req = BrokerModifyOrder {
+        quantity: if req.quantity > 0 { Some(req.quantity) } else { None },
+        price: if req.price > 0.0 { Some(req.price) } else { None },
+        order_type: if !req.pricetype.is_empty() { Some(req.pricetype.clone()) } else { None },
+        trigger_price: if req.trigger_price > 0.0 { Some(req.trigger_price) } else { None },
+        validity: None,
+    };
+
+    match OrderService::modify_order(&app_state, &req.orderid, modify_req, Some(&req.apikey)).await {
+        Ok(result) => {
+            state.emit("api_modify_order", &req);
+            if result.success {
+                (
+                    StatusCode::OK,
+                    Json(ApiResponse::<Empty>::success_with_orderid(&result.order_id))
+                )
+            } else {
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(ApiResponse::<Empty>::error(&result.message))
+                )
+            }
+        }
+        Err(e) => {
+            error!("Modify order failed: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Empty>::error(&e.to_string()))
+            )
+        }
     }
-
-    // TODO: Execute modify via broker adapter
-    state.emit("api_modify_order", &req);
-
-    (
-        StatusCode::OK,
-        Json(ApiResponse::<Empty>::success_with_orderid(&req.orderid))
-    )
 }
 
 /// Cancel order - POST /api/v1/cancelorder
@@ -379,20 +485,39 @@ pub async fn cancel_order(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<Empty>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<Empty>::error("Broker not connected"))
-        );
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Empty>::error("Internal error"))
+            );
+        }
+    };
+
+    match OrderService::cancel_order(&app_state, &req.orderid, None, Some(&req.apikey)).await {
+        Ok(result) => {
+            state.emit("api_cancel_order", &req);
+            if result.success {
+                (
+                    StatusCode::OK,
+                    Json(ApiResponse::<Empty>::success_with_orderid(&result.order_id))
+                )
+            } else {
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(ApiResponse::<Empty>::error(&result.message))
+                )
+            }
+        }
+        Err(e) => {
+            error!("Cancel order failed: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Empty>::error(&e.to_string()))
+            )
+        }
     }
-
-    // TODO: Execute cancel via broker adapter
-    state.emit("api_cancel_order", &req);
-
-    (
-        StatusCode::OK,
-        Json(ApiResponse::<Empty>::success_with_orderid(&req.orderid))
-    )
 }
 
 /// Cancel all orders - POST /api/v1/cancelallorder
@@ -406,23 +531,43 @@ pub async fn cancel_all_orders(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<Empty>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<Empty>::error("Broker not connected"))
-        );
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Empty>::error("Internal error"))
+            );
+        }
+    };
+
+    match OrderService::cancel_all_orders(&app_state, Some(&req.apikey)).await {
+        Ok(results) => {
+            state.emit("api_cancel_all_orders", &req);
+            let cancelled_count = results.iter().filter(|r| r.success).count();
+            let failed_count = results.len() - cancelled_count;
+            let message = if failed_count == 0 {
+                format!("{} orders cancelled successfully", cancelled_count)
+            } else {
+                format!("{} cancelled, {} failed", cancelled_count, failed_count)
+            };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::<Empty>::success_with_message(&message))
+            )
+        }
+        Err(e) => {
+            error!("Cancel all orders failed: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Empty>::error(&e.to_string()))
+            )
+        }
     }
-
-    // TODO: Execute cancel all via broker adapter
-    state.emit("api_cancel_all_orders", &req);
-
-    (
-        StatusCode::OK,
-        Json(ApiResponse::<Empty>::success_with_message("All open orders cancelled"))
-    )
 }
 
 /// Close position - POST /api/v1/closeposition
+/// Note: This endpoint closes ALL positions (ClosePositionRequest only has apikey and strategy)
 pub async fn close_position(
     AxumState(state): AxumState<Arc<WebhookState>>,
     Json(req): Json<ClosePositionRequest>,
@@ -433,20 +578,34 @@ pub async fn close_position(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<Empty>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<Empty>::error("Broker not connected"))
-        );
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Empty>::error("Internal error"))
+            );
+        }
+    };
+
+    // Close all positions (ClosePositionRequest only has apikey and strategy)
+    match PositionService::close_all_positions(&app_state, Some(&req.apikey)).await {
+        Ok(results) => {
+            state.emit("api_close_position", &req);
+            let closed_count = results.iter().filter(|r| r.success).count();
+            (
+                StatusCode::OK,
+                Json(ApiResponse::<Empty>::success_with_message(&format!("{} positions closed", closed_count)))
+            )
+        }
+        Err(e) => {
+            error!("Close all positions failed: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Empty>::error(&e.to_string()))
+            )
+        }
     }
-
-    // TODO: Execute close position via broker adapter
-    state.emit("api_close_position", &req);
-
-    (
-        StatusCode::OK,
-        Json(ApiResponse::<Empty>::success_with_message("Position close order placed"))
-    )
 }
 
 /// Get order book - POST /api/v1/orderbook
@@ -458,19 +617,43 @@ pub async fn get_orderbook(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<Vec<OrderData>>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<Vec<OrderData>>::error("Broker not connected"))
-        );
-    }
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Vec<OrderData>>::error("Internal error"))
+            );
+        }
+    };
 
-    // TODO: Fetch from broker adapter
-    let orders: Vec<OrderData> = vec![];
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(orders))
-    )
+    match OrderbookService::get_orderbook(&app_state, Some(&req.apikey)).await {
+        Ok(result) => {
+            let orders: Vec<OrderData> = result.orders.into_iter().map(|o| OrderData {
+                orderid: o.order_id,
+                symbol: o.symbol,
+                exchange: o.exchange,
+                action: o.side,
+                quantity: o.quantity,
+                price: o.price,
+                trigger_price: o.trigger_price,
+                pricetype: o.order_type,
+                product: o.product,
+                order_status: o.status,
+                timestamp: o.order_timestamp,
+            }).collect();
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(orders))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Vec<OrderData>>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Get trade book - POST /api/v1/tradebook
@@ -482,19 +665,44 @@ pub async fn get_tradebook(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<Vec<TradeData>>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<Vec<TradeData>>::error("Broker not connected"))
-        );
-    }
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Vec<TradeData>>::error("Internal error"))
+            );
+        }
+    };
 
-    // TODO: Fetch from broker adapter
-    let trades: Vec<TradeData> = vec![];
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(trades))
-    )
+    match OrderbookService::get_tradebook(&app_state, Some(&req.apikey)).await {
+        Ok(result) => {
+            let trades: Vec<TradeData> = result.trades.into_iter().map(|t| {
+                let trade_value = t.filled_quantity as f64 * t.average_price;
+                TradeData {
+                    orderid: t.order_id,
+                    symbol: t.symbol,
+                    exchange: t.exchange,
+                    product: t.product,
+                    action: t.side,
+                    quantity: t.filled_quantity,
+                    average_price: t.average_price,
+                    trade_value,
+                    timestamp: t.order_timestamp,
+                }
+            }).collect();
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(trades))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Vec<TradeData>>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Get position book - POST /api/v1/positionbook
@@ -506,19 +714,39 @@ pub async fn get_positionbook(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<Vec<PositionData>>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<Vec<PositionData>>::error("Broker not connected"))
-        );
-    }
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Vec<PositionData>>::error("Internal error"))
+            );
+        }
+    };
 
-    // TODO: Fetch from broker adapter
-    let positions: Vec<PositionData> = vec![];
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(positions))
-    )
+    match PositionService::get_positions(&app_state, Some(&req.apikey)).await {
+        Ok(result) => {
+            let positions: Vec<PositionData> = result.positions.into_iter().map(|p| PositionData {
+                symbol: p.symbol,
+                exchange: p.exchange,
+                product: p.product,
+                quantity: p.quantity,
+                average_price: p.average_price,
+                ltp: p.ltp,
+                pnl: p.pnl,
+            }).collect();
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(positions))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Vec<PositionData>>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Get holdings - POST /api/v1/holdings
@@ -530,19 +758,38 @@ pub async fn get_holdings(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<Vec<HoldingData>>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<Vec<HoldingData>>::error("Broker not connected"))
-        );
-    }
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Vec<HoldingData>>::error("Internal error"))
+            );
+        }
+    };
 
-    // TODO: Fetch from broker adapter
-    let holdings: Vec<HoldingData> = vec![];
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(holdings))
-    )
+    match HoldingsService::get_holdings(&app_state, Some(&req.apikey)).await {
+        Ok(result) => {
+            let holdings: Vec<HoldingData> = result.holdings.into_iter().map(|h| HoldingData {
+                symbol: h.symbol,
+                exchange: h.exchange,
+                quantity: h.quantity,
+                product: "CNC".to_string(), // Holdings are typically CNC
+                pnl: h.pnl,
+                pnlpercent: h.pnl_percentage,
+            }).collect();
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(holdings))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Vec<HoldingData>>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Get funds - POST /api/v1/funds
@@ -554,25 +801,37 @@ pub async fn get_funds(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<FundsData>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<FundsData>::error("Broker not connected"))
-        );
-    }
-
-    // TODO: Fetch from broker adapter
-    let funds = FundsData {
-        availablecash: 0.0,
-        collateral: 0.0,
-        m2munrealized: 0.0,
-        m2mrealized: 0.0,
-        utiliseddebits: 0.0,
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<FundsData>::error("Internal error"))
+            );
+        }
     };
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(funds))
-    )
+
+    match FundsService::get_funds(&app_state, Some(&req.apikey)).await {
+        Ok(result) => {
+            let funds = FundsData {
+                availablecash: result.funds.available_cash,
+                collateral: result.funds.collateral,
+                m2munrealized: 0.0, // Not directly available in Funds struct
+                m2mrealized: 0.0,   // Not directly available in Funds struct
+                utiliseddebits: result.funds.used_margin,
+            };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(funds))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<FundsData>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Get quotes - POST /api/v1/quotes
@@ -584,29 +843,41 @@ pub async fn get_quotes(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<QuoteData>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<QuoteData>::error("Broker not connected"))
-        );
-    }
-
-    // TODO: Fetch from broker adapter
-    let quote = QuoteData {
-        bid: 0.0,
-        ask: 0.0,
-        open: 0.0,
-        high: 0.0,
-        low: 0.0,
-        ltp: 0.0,
-        prev_close: 0.0,
-        volume: 0,
-        oi: 0,
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<QuoteData>::error("Internal error"))
+            );
+        }
     };
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(quote))
-    )
+
+    match QuotesService::get_quote(&app_state, &req.exchange, &req.symbol, Some(&req.apikey)).await {
+        Ok(q) => {
+            let quote = QuoteData {
+                bid: q.bid,
+                ask: q.ask,
+                open: q.open,
+                high: q.high,
+                low: q.low,
+                ltp: q.ltp,
+                prev_close: q.close,
+                volume: q.volume,
+                oi: q.oi,
+            };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(quote))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<QuoteData>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Place basket order - POST /api/v1/basketorder
@@ -621,33 +892,56 @@ pub async fn place_basket_order(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<Vec<BasketOrderResult>>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<Vec<BasketOrderResult>>::error("Broker not connected"))
-        );
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Vec<BasketOrderResult>>::error("Internal error"))
+            );
+        }
+    };
+
+    // Convert to broker order requests
+    let orders: Vec<BrokerOrderRequest> = req.orders.iter().map(|o| BrokerOrderRequest {
+        symbol: o.symbol.clone(),
+        exchange: o.exchange.clone(),
+        side: o.action.clone(),
+        quantity: o.quantity,
+        price: o.price,
+        order_type: o.pricetype.clone(),
+        product: o.product.clone(),
+        trigger_price: if o.trigger_price > 0.0 { Some(o.trigger_price) } else { None },
+        disclosed_quantity: None,
+        validity: "DAY".to_string(),
+        amo: false,
+    }).collect();
+
+    match SmartOrderService::place_basket_order(&app_state, orders, Some(&req.apikey)).await {
+        Ok(order_results) => {
+            let results: Vec<BasketOrderResult> = order_results.into_iter()
+                .enumerate()
+                .map(|(i, r)| BasketOrderResult {
+                    symbol: req.orders.get(i).map(|o| o.symbol.clone()).unwrap_or_default(),
+                    exchange: req.orders.get(i).map(|o| o.exchange.clone()).unwrap_or_default(),
+                    orderid: r.order_id,
+                    status: if r.success { "success".to_string() } else { "error".to_string() },
+                    message: if r.success { None } else { Some(r.message) },
+                })
+                .collect();
+            state.emit("api_basket_order", &req);
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(results))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Vec<BasketOrderResult>>::error(&e.to_string()))
+            )
+        }
     }
-
-    // Process each order in basket
-    let mut results: Vec<BasketOrderResult> = Vec::new();
-    for order in &req.orders {
-        // TODO: Execute via broker adapter
-        let order_id = format!("ORD{}", chrono::Utc::now().timestamp_millis());
-        results.push(BasketOrderResult {
-            symbol: order.symbol.clone(),
-            exchange: order.exchange.clone(),
-            orderid: Some(order_id),
-            status: "success".to_string(),
-            message: None,
-        });
-    }
-
-    state.emit("api_basket_order", &req);
-
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(results))
-    )
 }
 
 /// Place split order - POST /api/v1/splitorder
@@ -662,35 +956,48 @@ pub async fn place_split_order(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<SplitOrderResult>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<SplitOrderResult>::error("Broker not connected"))
-        );
-    }
-
-    let split_size = if req.splitsize > 0 { req.splitsize } else { 100 };
-    let num_orders = (req.quantity + split_size - 1) / split_size;
-
-    // TODO: Execute via broker adapter
-    let mut orderids = Vec::new();
-    for _ in 0..num_orders {
-        orderids.push(format!("ORD{}", chrono::Utc::now().timestamp_millis()));
-    }
-
-    state.emit("api_split_order", &req);
-
-    let result = SplitOrderResult {
-        total_quantity: req.quantity,
-        split_size,
-        num_orders,
-        orderids,
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<SplitOrderResult>::error("Internal error"))
+            );
+        }
     };
 
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(result))
-    )
+    let split_req = crate::services::smart_order_service::SplitOrderRequest {
+        symbol: req.symbol.clone(),
+        exchange: req.exchange.clone(),
+        action: req.action.clone(),
+        quantity: req.quantity,
+        split_size: req.splitsize,
+        product: req.product.clone(),
+        pricetype: Some(req.pricetype.clone()),
+        price: if req.price > 0.0 { Some(req.price) } else { None },
+    };
+
+    match SmartOrderService::place_split_order(&app_state, split_req, Some(&req.apikey)).await {
+        Ok(result) => {
+            state.emit("api_split_order", &req);
+            let api_result = SplitOrderResult {
+                total_quantity: result.total_quantity,
+                split_size: result.split_size,
+                num_orders: result.num_orders,
+                orderids: result.order_ids,
+            };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(api_result))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<SplitOrderResult>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Get order status - POST /api/v1/orderstatus
@@ -704,35 +1011,56 @@ pub async fn get_order_status(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<OrderStatusData>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<OrderStatusData>::error("Broker not connected"))
-        );
-    }
-
-    // TODO: Fetch from broker adapter
-    let status = OrderStatusData {
-        orderid: req.orderid,
-        symbol: String::new(),
-        exchange: String::new(),
-        action: String::new(),
-        quantity: 0,
-        price: 0.0,
-        trigger_price: 0.0,
-        pricetype: String::new(),
-        product: String::new(),
-        order_status: "PENDING".to_string(),
-        filled_quantity: 0,
-        pending_quantity: 0,
-        average_price: 0.0,
-        timestamp: chrono::Utc::now().to_rfc3339(),
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<OrderStatusData>::error("Internal error"))
+            );
+        }
     };
 
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(status))
-    )
+    match OrderbookService::get_order_status(&app_state, &req.orderid, Some(&req.apikey)).await {
+        Ok(result) => {
+            match result.order {
+                Some(o) => {
+                    let status = OrderStatusData {
+                        orderid: o.order_id,
+                        symbol: o.symbol,
+                        exchange: o.exchange,
+                        action: o.side,
+                        quantity: o.quantity,
+                        price: o.price,
+                        trigger_price: o.trigger_price,
+                        pricetype: o.order_type,
+                        product: o.product,
+                        order_status: o.status,
+                        filled_quantity: o.filled_quantity,
+                        pending_quantity: o.pending_quantity,
+                        average_price: o.average_price,
+                        timestamp: o.order_timestamp,
+                    };
+                    (
+                        StatusCode::OK,
+                        Json(ApiResponse::success_with_data(status))
+                    )
+                }
+                None => {
+                    (
+                        StatusCode::NOT_FOUND,
+                        Json(ApiResponse::<OrderStatusData>::error("Order not found"))
+                    )
+                }
+            }
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<OrderStatusData>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Get open position - POST /api/v1/openposition
@@ -747,28 +1075,55 @@ pub async fn get_open_position(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<OpenPositionData>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<OpenPositionData>::error("Broker not connected"))
-        );
-    }
-
-    // TODO: Fetch from broker adapter
-    let position = OpenPositionData {
-        symbol: req.symbol,
-        exchange: req.exchange,
-        product: req.product,
-        quantity: 0,
-        average_price: 0.0,
-        ltp: 0.0,
-        pnl: 0.0,
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<OpenPositionData>::error("Internal error"))
+            );
+        }
     };
 
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(position))
-    )
+    match PositionService::get_open_position(&app_state, &req.exchange, &req.symbol, &req.product, Some(&req.apikey)).await {
+        Ok(Some(p)) => {
+            let position = OpenPositionData {
+                symbol: p.symbol,
+                exchange: p.exchange,
+                product: p.product,
+                quantity: p.quantity,
+                average_price: p.average_price,
+                ltp: p.ltp,
+                pnl: p.pnl,
+            };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(position))
+            )
+        }
+        Ok(None) => {
+            // No position found - return zero quantity
+            let position = OpenPositionData {
+                symbol: req.symbol,
+                exchange: req.exchange,
+                product: req.product,
+                quantity: 0,
+                average_price: 0.0,
+                ltp: 0.0,
+                pnl: 0.0,
+            };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(position))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<OpenPositionData>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Get market depth - POST /api/v1/depth
@@ -782,31 +1137,56 @@ pub async fn get_depth(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<DepthData>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<DepthData>::error("Broker not connected"))
-        );
-    }
-
-    // TODO: Fetch from broker adapter
-    let depth = DepthData {
-        symbol: req.symbol,
-        exchange: req.exchange,
-        buy: vec![],
-        sell: vec![],
-        ltp: 0.0,
-        ltq: 0,
-        volume: 0,
-        oi: 0,
-        totalbuyqty: 0,
-        totalsellqty: 0,
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<DepthData>::error("Internal error"))
+            );
+        }
     };
 
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(depth))
-    )
+    match QuotesService::get_market_depth(&app_state, &req.exchange, &req.symbol, Some(&req.apikey)).await {
+        Ok(result) => {
+            let depth_data = result.depth;
+            let buy: Vec<DepthLevel> = depth_data.bids.into_iter().map(|d| DepthLevel {
+                price: d.price,
+                quantity: d.quantity,
+                orders: d.orders,
+            }).collect();
+            let sell: Vec<DepthLevel> = depth_data.asks.into_iter().map(|d| DepthLevel {
+                price: d.price,
+                quantity: d.quantity,
+                orders: d.orders,
+            }).collect();
+            let totalbuyqty = buy.iter().map(|d| d.quantity as i64).sum();
+            let totalsellqty = sell.iter().map(|d| d.quantity as i64).sum();
+
+            let depth = DepthData {
+                symbol: depth_data.symbol,
+                exchange: depth_data.exchange,
+                buy,
+                sell,
+                ltp: 0.0, // Would need to fetch quote for this
+                ltq: 0,
+                volume: 0,
+                oi: 0,
+                totalbuyqty,
+                totalsellqty,
+            };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(depth))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<DepthData>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Get symbol info - POST /api/v1/symbol
@@ -870,25 +1250,56 @@ pub async fn get_history(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<HistoryData>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<HistoryData>::error("Broker not connected"))
-        );
-    }
-
-    // TODO: Fetch from broker adapter or DuckDB cache
-    let history = HistoryData {
-        symbol: req.symbol,
-        exchange: req.exchange,
-        interval: req.interval,
-        candles: vec![],
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<HistoryData>::error("Internal error"))
+            );
+        }
     };
 
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(history))
-    )
+    let start_date = req.start_date.as_deref().unwrap_or("");
+    let end_date = req.end_date.as_deref().unwrap_or("");
+
+    match HistoryService::get_history(
+        &app_state,
+        &req.symbol,
+        &req.exchange,
+        &req.interval,
+        start_date,
+        end_date,
+        Some(&req.apikey),
+    ).await {
+        Ok(result) => {
+            let candles: Vec<Candle> = result.candles.into_iter().map(|c| Candle {
+                timestamp: c.timestamp,
+                open: c.open,
+                high: c.high,
+                low: c.low,
+                close: c.close,
+                volume: c.volume,
+                oi: None,
+            }).collect();
+            let history = HistoryData {
+                symbol: result.symbol,
+                exchange: result.exchange,
+                interval: result.interval,
+                candles,
+            };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(history))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<HistoryData>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Get supported intervals - POST /api/v1/intervals
@@ -900,22 +1311,9 @@ pub async fn get_intervals(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<IntervalsData>::error(&e)));
     }
 
-    // Standard intervals supported by most brokers
+    let result = HistoryService::get_intervals();
     let intervals = IntervalsData {
-        intervals: vec![
-            "1m".to_string(),
-            "3m".to_string(),
-            "5m".to_string(),
-            "10m".to_string(),
-            "15m".to_string(),
-            "30m".to_string(),
-            "1h".to_string(),
-            "2h".to_string(),
-            "4h".to_string(),
-            "1d".to_string(),
-            "1w".to_string(),
-            "1M".to_string(),
-        ],
+        intervals: result.intervals,
     };
 
     (
@@ -933,17 +1331,35 @@ pub async fn get_analyzer_status(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<AnalyzerData>::error(&e)));
     }
 
-    // TODO: Get actual analyzer status from state
-    let data = AnalyzerData {
-        analyze_mode: false,
-        mode: "live".to_string(),
-        total_logs: 0,
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<AnalyzerData>::error("Internal error"))
+            );
+        }
     };
 
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(data))
-    )
+    match AnalyzerService::get_status(&app_state) {
+        Ok(status) => {
+            let data = AnalyzerData {
+                analyze_mode: status.analyze_mode,
+                mode: status.mode,
+                total_logs: status.total_logs,
+            };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(data))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<AnalyzerData>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Toggle analyzer mode - POST /api/v1/analyzer/toggle
@@ -955,18 +1371,35 @@ pub async fn toggle_analyzer(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<AnalyzerData>::error(&e)));
     }
 
-    // TODO: Toggle actual analyzer mode in state
-    let mode = if req.mode { "analyze" } else { "live" };
-    let data = AnalyzerData {
-        analyze_mode: req.mode,
-        mode: mode.to_string(),
-        total_logs: 0,
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<AnalyzerData>::error("Internal error"))
+            );
+        }
     };
 
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(data))
-    )
+    match AnalyzerService::toggle_mode(&app_state, req.mode) {
+        Ok(status) => {
+            let data = AnalyzerData {
+                analyze_mode: status.analyze_mode,
+                mode: status.mode,
+                total_logs: status.total_logs,
+            };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(data))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<AnalyzerData>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Calculate margin - POST /api/v1/margin
@@ -1025,20 +1458,47 @@ pub async fn get_multiquotes(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<MultiQuotesData>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<MultiQuotesData>::error("Broker not connected"))
-        );
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<MultiQuotesData>::error("Internal error"))
+            );
+        }
+    };
+
+    // Convert symbols to (exchange, symbol) pairs
+    let symbols: Vec<(String, String)> = req.symbols.iter()
+        .map(|s| (s.exchange.clone(), s.symbol.clone()))
+        .collect();
+
+    match QuotesService::get_multi_quotes(&app_state, symbols, Some(&req.apikey)).await {
+        Ok(result) => {
+            // MultiQuotesData is Vec<QuoteData>
+            let quotes: MultiQuotesData = result.quotes.into_iter().map(|q| QuoteData {
+                bid: q.bid,
+                ask: q.ask,
+                open: q.open,
+                high: q.high,
+                low: q.low,
+                ltp: q.ltp,
+                prev_close: q.close,
+                volume: q.volume,
+                oi: q.oi,
+            }).collect();
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(quotes))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<MultiQuotesData>::error(&e.to_string()))
+            )
+        }
     }
-
-    // TODO: Fetch from broker adapter
-    let quotes: MultiQuotesData = vec![];
-
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(quotes))
-    )
 }
 
 /// Search symbols - POST /api/v1/search
@@ -1052,13 +1512,40 @@ pub async fn search_symbols(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<Vec<SearchResultItem>>::error(&e)));
     }
 
-    // TODO: Search from symbol cache
-    let results: Vec<SearchResultItem> = vec![];
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Vec<SearchResultItem>>::error("Internal error"))
+            );
+        }
+    };
 
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(results))
-    )
+    match SymbolService::search_symbols(&app_state, &req.query, req.exchange.as_deref(), Some(50)) {
+        Ok(symbols) => {
+            let results: Vec<SearchResultItem> = symbols.into_iter().map(|s| SearchResultItem {
+                symbol: s.symbol,
+                name: s.name,
+                exchange: s.exchange,
+                token: s.token,
+                instrumenttype: s.instrument_type,
+                lotsize: s.lot_size,
+                strike: s.strike,
+                expiry: s.expiry,
+            }).collect();
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(results))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<Vec<SearchResultItem>>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Get expiry dates - POST /api/v1/expiry
@@ -1072,15 +1559,33 @@ pub async fn get_expiry(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<ExpiryData>::error(&e)));
     }
 
-    // TODO: Get from symbol cache
-    let data = ExpiryData {
-        expiry_dates: vec![],
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<ExpiryData>::error("Internal error"))
+            );
+        }
     };
 
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(data))
-    )
+    match SymbolService::get_expiry_dates(&app_state, &req.symbol, &req.exchange, &req.instrumenttype) {
+        Ok(result) => {
+            let data = ExpiryData {
+                expiry_dates: result.expiry_dates,
+            };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(data))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<ExpiryData>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Get instruments - GET /api/v1/instruments
@@ -1094,8 +1599,29 @@ pub async fn get_instruments(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<InstrumentsData>::error(&e)));
     }
 
-    // TODO: Get from symbol cache
-    let data: InstrumentsData = vec![];
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<InstrumentsData>::error("Internal error"))
+            );
+        }
+    };
+
+    let symbols = SymbolService::get_instruments(&app_state, req.exchange.as_deref());
+    let data: InstrumentsData = symbols.into_iter().map(|s| InstrumentItem {
+        symbol: s.symbol.clone(),
+        brsymbol: s.symbol, // broker symbol same as symbol
+        name: s.name,
+        exchange: s.exchange,
+        token: s.token,
+        expiry: s.expiry,
+        strike: s.strike,
+        lotsize: s.lot_size,
+        instrumenttype: s.instrument_type,
+        tick_size: s.tick_size,
+    }).collect();
 
     (
         StatusCode::OK,
@@ -1114,26 +1640,37 @@ pub async fn get_synthetic_future(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<SyntheticFutureData>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<SyntheticFutureData>::error("Broker not connected"))
-        );
-    }
-
-    // TODO: Calculate from broker quotes
-    let data = SyntheticFutureData {
-        underlying: req.underlying,
-        underlying_ltp: 0.0,
-        expiry: req.expiry_date,
-        atm_strike: 0.0,
-        synthetic_future_price: 0.0,
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<SyntheticFutureData>::error("Internal error"))
+            );
+        }
     };
 
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(data))
-    )
+    match OptionsService::get_synthetic_future(&app_state, &req.underlying, &req.exchange, &req.expiry_date, Some(&req.apikey)).await {
+        Ok(result) => {
+            let data = SyntheticFutureData {
+                underlying: result.underlying,
+                underlying_ltp: result.underlying_ltp,
+                expiry: result.expiry,
+                atm_strike: result.atm_strike,
+                synthetic_future_price: result.synthetic_future_price,
+            };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(data))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<SyntheticFutureData>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Get option chain - POST /api/v1/optionchain
@@ -1147,26 +1684,50 @@ pub async fn get_option_chain(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<OptionChainData>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<OptionChainData>::error("Broker not connected"))
-        );
-    }
-
-    // TODO: Build option chain from broker quotes
-    let data = OptionChainData {
-        underlying: req.underlying,
-        underlying_ltp: 0.0,
-        expiry: req.expiry_date.unwrap_or_default(),
-        atm_strike: 0.0,
-        strikes: vec![],
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<OptionChainData>::error("Internal error"))
+            );
+        }
     };
 
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(data))
-    )
+    match OptionsService::get_option_chain(&app_state, &req.underlying, &req.exchange, req.expiry_date.as_deref(), Some(&req.apikey)).await {
+        Ok(result) => {
+            let strikes: Vec<OptionStrike> = result.strikes.into_iter().map(|s| OptionStrike {
+                strike: s.strike,
+                ce_symbol: s.call_symbol.unwrap_or_default(),
+                ce_ltp: s.call_ltp.unwrap_or(0.0),
+                ce_oi: s.call_oi.unwrap_or(0),
+                ce_volume: s.call_volume.unwrap_or(0),
+                ce_iv: s.call_iv.unwrap_or(0.0),
+                pe_symbol: s.put_symbol.unwrap_or_default(),
+                pe_ltp: s.put_ltp.unwrap_or(0.0),
+                pe_oi: s.put_oi.unwrap_or(0),
+                pe_volume: s.put_volume.unwrap_or(0),
+                pe_iv: s.put_iv.unwrap_or(0.0),
+            }).collect();
+            let data = OptionChainData {
+                underlying: result.underlying,
+                underlying_ltp: result.underlying_ltp,
+                expiry: result.expiry,
+                atm_strike: result.atm_strike,
+                strikes,
+            };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(data))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<OptionChainData>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Get option Greeks - POST /api/v1/optiongreeks
@@ -1180,29 +1741,40 @@ pub async fn get_option_greeks(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<OptionGreeksData>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<OptionGreeksData>::error("Broker not connected"))
-        );
-    }
-
-    // TODO: Calculate Greeks using Black-Scholes
-    let data = OptionGreeksData {
-        symbol: req.symbol,
-        ltp: 0.0,
-        iv: 0.0,
-        delta: 0.0,
-        gamma: 0.0,
-        theta: 0.0,
-        vega: 0.0,
-        rho: 0.0,
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<OptionGreeksData>::error("Internal error"))
+            );
+        }
     };
 
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(data))
-    )
+    match OptionsService::get_option_greeks(&app_state, &req.symbol, &req.exchange, Some(&req.apikey)).await {
+        Ok(result) => {
+            let data = OptionGreeksData {
+                symbol: result.symbol,
+                ltp: result.ltp,
+                iv: result.iv,
+                delta: result.delta,
+                gamma: result.gamma,
+                theta: result.theta,
+                vega: result.vega,
+                rho: result.rho,
+            };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(data))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<OptionGreeksData>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Place options order - POST /api/v1/optionsorder
@@ -1216,24 +1788,56 @@ pub async fn place_options_order(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<OptionsOrderResult>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<OptionsOrderResult>::error("Broker not connected"))
-        );
-    }
-
-    // TODO: Resolve option symbol and place order via broker adapter
-    let order_id = format!("ORD{}", chrono::Utc::now().timestamp_millis());
-    let data = OptionsOrderResult {
-        symbol: format!("{}_{}", req.underlying, req.option_type),
-        orderid: order_id,
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<OptionsOrderResult>::error("Internal error"))
+            );
+        }
     };
 
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(data))
-    )
+    // Convert offset to strike_selection string
+    let strike_selection = offset_to_strike_selection(req.offset);
+
+    let options_req = crate::services::options_service::OptionsOrderRequest {
+        underlying: req.underlying.clone(),
+        exchange: req.exchange.clone(),
+        option_type: req.option_type.clone(),
+        strike_selection,
+        expiry_date: req.expiry_date.clone(),
+        action: req.action.clone(),
+        quantity: req.quantity,
+        product: req.product.clone(),
+        pricetype: Some(req.price_type.clone()),
+    };
+
+    match OptionsService::place_options_order(&app_state, options_req, Some(&req.apikey)).await {
+        Ok(result) => {
+            if result.success {
+                let data = OptionsOrderResult {
+                    symbol: result.order_id.clone().unwrap_or_default(),
+                    orderid: result.order_id.unwrap_or_default(),
+                };
+                (
+                    StatusCode::OK,
+                    Json(ApiResponse::success_with_data(data))
+                )
+            } else {
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(ApiResponse::<OptionsOrderResult>::error(&result.message))
+                )
+            }
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<OptionsOrderResult>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Get options symbol - POST /api/v1/optionsymbol
@@ -1247,20 +1851,47 @@ pub async fn get_option_symbol(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<OptionSymbolResult>::error(&e)));
     }
 
-    // TODO: Resolve from symbol cache
-    let data = OptionSymbolResult {
-        symbol: format!("{}_{}", req.underlying, req.option_type),
-        token: "0".to_string(),
-        exchange: req.exchange,
-        strike: 0.0,
-        option_type: req.option_type,
-        expiry: req.expiry_date.unwrap_or_default(),
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<OptionSymbolResult>::error("Internal error"))
+            );
+        }
     };
 
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(data))
-    )
+    // Get underlying LTP for strike calculation (default to 0 if unavailable)
+    let underlying_ltp = match QuotesService::get_quote(&app_state, &req.exchange, &req.underlying, Some(&req.apikey)).await {
+        Ok(q) => q.ltp,
+        Err(_) => 0.0,
+    };
+
+    // Convert offset to strike_selection string
+    let strike_selection = offset_to_strike_selection(req.offset);
+
+    match OptionsService::get_option_symbol(&app_state, &req.underlying, &req.exchange, &req.option_type, &strike_selection, req.expiry_date.as_deref(), underlying_ltp) {
+        Ok(result) => {
+            let data = OptionSymbolResult {
+                symbol: result.symbol,
+                token: result.token,
+                exchange: result.exchange,
+                strike: result.strike,
+                option_type: result.option_type,
+                expiry: result.expiry,
+            };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(data))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<OptionSymbolResult>::error(&e.to_string()))
+            )
+        }
+    }
 }
 
 /// Place options multi-order - POST /api/v1/optionsmultiorder
@@ -1274,32 +1905,52 @@ pub async fn place_options_multi_order(
         return (StatusCode::FORBIDDEN, Json(ApiResponse::<OptionsMultiOrderResult>::error(&e)));
     }
 
-    if !state.is_broker_connected() {
-        return (
-            StatusCode::SERVICE_UNAVAILABLE,
-            Json(ApiResponse::<OptionsMultiOrderResult>::error("Broker not connected"))
-        );
+    let app_state = match state.get_app_state() {
+        Some(s) => s,
+        None => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<OptionsMultiOrderResult>::error("Internal error"))
+            );
+        }
+    };
+
+    // Get product from first leg (or default to MIS)
+    let product = req.legs.first().map(|l| l.product.clone()).unwrap_or_else(|| "MIS".to_string());
+
+    let legs: Vec<crate::services::options_service::OptionsLeg> = req.legs.iter().map(|leg| {
+        crate::services::options_service::OptionsLeg {
+            option_type: leg.option_type.clone(),
+            strike_selection: offset_to_strike_selection(leg.offset),
+            action: leg.action.clone(),
+            quantity: leg.quantity,
+        }
+    }).collect();
+
+    match OptionsService::place_options_multi_order(&app_state, &req.underlying, &req.exchange, req.expiry_date.as_deref(), &product, legs, Some(&req.apikey)).await {
+        Ok(order_results) => {
+            let results: Vec<OptionsOrderLegResult> = order_results.into_iter().enumerate().map(|(i, r)| {
+                OptionsOrderLegResult {
+                    leg: (i + 1) as i32,
+                    symbol: r.order_id.clone().unwrap_or_default(),
+                    orderid: r.order_id,
+                    status: if r.success { "success".to_string() } else { "error".to_string() },
+                    message: if r.success { None } else { Some(r.message) },
+                }
+            }).collect();
+            let data = OptionsMultiOrderResult { results };
+            (
+                StatusCode::OK,
+                Json(ApiResponse::success_with_data(data))
+            )
+        }
+        Err(e) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiResponse::<OptionsMultiOrderResult>::error(&e.to_string()))
+            )
+        }
     }
-
-    // TODO: Process each leg via broker adapter
-    let mut results = Vec::new();
-    for (i, leg) in req.legs.iter().enumerate() {
-        let order_id = format!("ORD{}", chrono::Utc::now().timestamp_millis());
-        results.push(OptionsOrderLegResult {
-            leg: (i + 1) as i32,
-            symbol: format!("{}_{}", req.underlying, leg.option_type),
-            orderid: Some(order_id),
-            status: "success".to_string(),
-            message: None,
-        });
-    }
-
-    let data = OptionsMultiOrderResult { results };
-
-    (
-        StatusCode::OK,
-        Json(ApiResponse::success_with_data(data))
-    )
 }
 
 // ============================================================================
@@ -1361,6 +2012,16 @@ fn validate_trading_hours(strategy: &Strategy, payload: &WebhookPayload) -> Resu
     }
 
     Ok(())
+}
+
+/// Convert offset integer to strike_selection string
+/// Offset 0 = ATM, positive = OTM, negative = ITM
+fn offset_to_strike_selection(offset: i32) -> String {
+    match offset {
+        0 => "ATM".to_string(),
+        n if n > 0 => format!("OTM{}", n),
+        n => format!("ITM{}", n.abs()),
+    }
 }
 
 /// Validate action against strategy trading mode

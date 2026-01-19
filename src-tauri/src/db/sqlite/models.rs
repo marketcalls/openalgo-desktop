@@ -40,6 +40,8 @@ pub struct Settings {
     pub auto_logout_hour: u32,
     pub auto_logout_minute: u32,
     pub auto_logout_warnings: Vec<u32>,
+    // Analyze mode (sandbox/paper trading)
+    pub analyze_mode: Option<bool>,
 }
 
 /// Auto-logout configuration (subset of Settings)
@@ -74,8 +76,8 @@ pub struct SandboxOrder {
     pub order_type: String,
     pub product: String,
     pub status: String,
-    pub filled_quantity: i32,
-    pub average_price: f64,
+    pub filled_quantity: Option<i32>,
+    pub average_price: Option<f64>,
     pub created_at: String,
     pub updated_at: String,
 }
