@@ -74,12 +74,16 @@ pub async fn save_broker_credentials(
 ) -> Result<()> {
     tracing::info!("Saving credentials for broker: {}", request.broker_id);
 
+    // Store in keychain
     state.security.store_broker_credentials(
         &request.broker_id,
         &request.api_key,
         request.api_secret.as_deref(),
         request.client_id.as_deref(),
     )?;
+
+    // Track in SQLite (for efficient has_credentials lookups)
+    state.sqlite.mark_broker_configured(&request.broker_id)?;
 
     Ok(())
 }
@@ -92,7 +96,11 @@ pub async fn delete_broker_credentials(
 ) -> Result<()> {
     tracing::info!("Deleting credentials for broker: {}", broker_id);
 
+    // Delete from keychain
     state.security.delete_broker_credentials(&broker_id)?;
+
+    // Remove from SQLite tracking
+    state.sqlite.unmark_broker_configured(&broker_id)?;
 
     Ok(())
 }
@@ -227,22 +235,22 @@ pub async fn get_broker_config(state: State<'_, AppState>) -> Result<BrokerConfi
     let settings = state.sqlite.get_settings()?;
     let default_broker = settings.default_broker;
 
+    // Get list of configured brokers from SQLite (avoids keychain prompts)
+    let configured_broker_ids = state.sqlite.get_configured_brokers()?;
+    let configured_set: std::collections::HashSet<_> = configured_broker_ids.into_iter().collect();
+
     // Build list of available brokers with credential status
     let mut available_brokers = Vec::new();
     let mut configured_broker: Option<String> = None;
     let mut configured_api_key: Option<String> = None;
 
     for (id, name, auth_type) in get_all_brokers() {
-        let has_credentials = state
-            .security
-            .get_broker_credentials(id)
-            .ok()
-            .flatten()
-            .is_some();
+        let has_credentials = configured_set.contains(id);
 
-        // If this broker has credentials and matches default, use it
+        // If this broker has credentials and matches default, get the masked key
         if has_credentials {
             if configured_broker.is_none() || Some(id.to_string()) == default_broker {
+                // Only access keychain for the specific configured broker we need to display
                 if let Ok(Some((api_key, _, _))) = state.security.get_broker_credentials(id) {
                     configured_broker = Some(id.to_string());
                     configured_api_key = Some(mask_api_key(&api_key));
@@ -295,5 +303,50 @@ pub async fn get_broker_credentials(
             tracing::warn!("Error getting credentials: {}", e);
             Ok(None)
         }
+    }
+}
+
+/// Raw broker credentials for internal use (login)
+#[derive(Debug, Serialize)]
+pub struct RawBrokerCredentials {
+    pub api_key: String,
+    pub api_secret: Option<String>,
+    pub client_id: Option<String>,
+}
+
+/// Get raw credentials for broker login (internal use only)
+#[tauri::command]
+pub async fn get_raw_broker_credentials(
+    state: State<'_, AppState>,
+    broker_id: String,
+) -> Result<Option<RawBrokerCredentials>> {
+    tracing::debug!("Getting raw credentials for broker login: {}", broker_id);
+
+    match state.security.get_broker_credentials(&broker_id) {
+        Ok(Some((api_key, api_secret, client_id))) => {
+            Ok(Some(RawBrokerCredentials {
+                api_key,
+                api_secret,
+                client_id,
+            }))
+        }
+        Ok(None) => Ok(None),
+        Err(e) => {
+            tracing::warn!("Error getting raw credentials: {}", e);
+            Ok(None)
+        }
+    }
+}
+
+/// Check if broker has credentials configured (without retrieving them)
+#[tauri::command]
+pub async fn has_broker_credentials(
+    state: State<'_, AppState>,
+    broker_id: String,
+) -> Result<bool> {
+    match state.security.get_broker_credentials(&broker_id) {
+        Ok(Some(_)) => Ok(true),
+        Ok(None) => Ok(false),
+        Err(_) => Ok(false),
     }
 }

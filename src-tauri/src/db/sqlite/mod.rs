@@ -788,4 +788,47 @@ impl SqliteDb {
         let conn = self.conn.lock();
         Ok(traffic_logs::get_suspicious_api_users(&conn, min_attempts)?)
     }
+
+    // ========== Configured Brokers Methods (Keychain Optimization) ==========
+
+    /// Mark a broker as configured (called when credentials are saved)
+    pub fn mark_broker_configured(&self, broker_id: &str) -> Result<()> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "INSERT OR REPLACE INTO configured_brokers (broker_id) VALUES (?1)",
+            [broker_id],
+        )?;
+        Ok(())
+    }
+
+    /// Remove broker from configured list (called when credentials are deleted)
+    pub fn unmark_broker_configured(&self, broker_id: &str) -> Result<()> {
+        let conn = self.conn.lock();
+        conn.execute(
+            "DELETE FROM configured_brokers WHERE broker_id = ?1",
+            [broker_id],
+        )?;
+        Ok(())
+    }
+
+    /// Get list of configured broker IDs
+    pub fn get_configured_brokers(&self) -> Result<Vec<String>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare("SELECT broker_id FROM configured_brokers")?;
+        let brokers = stmt
+            .query_map([], |row| row.get(0))?
+            .collect::<std::result::Result<Vec<String>, _>>()?;
+        Ok(brokers)
+    }
+
+    /// Check if a broker is configured
+    pub fn is_broker_configured(&self, broker_id: &str) -> Result<bool> {
+        let conn = self.conn.lock();
+        let exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM configured_brokers WHERE broker_id = ?1)",
+            [broker_id],
+            |row| row.get(0),
+        )?;
+        Ok(exists)
+    }
 }

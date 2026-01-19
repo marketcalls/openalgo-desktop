@@ -48,6 +48,7 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     run_migration(conn, "030_sandbox_config", CREATE_SANDBOX_CONFIG_TABLE)?;
     run_migration(conn, "031_symtoken_broker_fields", ADD_SYMTOKEN_BROKER_FIELDS)?;
     run_migration(conn, "032_analyze_mode", ADD_ANALYZE_MODE)?;
+    run_migration(conn, "033_configured_brokers", CREATE_CONFIGURED_BROKERS_TABLE)?;
 
     tracing::info!("Database migrations completed");
     Ok(())
@@ -544,4 +545,12 @@ CREATE INDEX IF NOT EXISTS idx_symtoken_brsymbol ON symtoken(brsymbol);
 /// Migration to add analyze_mode column to settings table
 const ADD_ANALYZE_MODE: &str = r#"
 ALTER TABLE settings ADD COLUMN analyze_mode INTEGER NOT NULL DEFAULT 0;
+"#;
+
+/// Migration to track configured brokers (to avoid unnecessary keychain access)
+const CREATE_CONFIGURED_BROKERS_TABLE: &str = r#"
+CREATE TABLE configured_brokers (
+    broker_id TEXT PRIMARY KEY,
+    configured_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 "#;

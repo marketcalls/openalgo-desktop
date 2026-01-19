@@ -1,14 +1,27 @@
+import { invoke } from '@tauri-apps/api/core'
 import { AlertTriangle, ArrowLeft, ExternalLink, Loader2, Shield } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { fetchCSRFToken } from '@/api/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuthStore } from '@/stores/authStore'
+
+interface RawBrokerCredentials {
+  api_key: string
+  api_secret: string | null
+  client_id: string | null
+}
+
+interface BrokerLoginResponse {
+  success: boolean
+  broker_id: string
+  user_id: string
+  user_name: string | null
+}
 
 // Field configuration type
 interface FieldConfig {
@@ -336,49 +349,51 @@ export default function BrokerTOTP() {
     }
 
     try {
-      const csrfToken = await fetchCSRFToken()
-
-      const form = new FormData()
-
-      // Add form fields
-      Object.entries(formData).forEach(([key, value]) => {
-        // Special handling for Kotak mobile - add +91 prefix
-        if (normalizedBroker === 'kotak' && key === 'mobile') {
-          form.append(key, `+91${value.trim()}`)
-        } else {
-          form.append(key, value.trim())
-        }
+      // Get stored credentials from keychain
+      const storedCreds = await invoke<RawBrokerCredentials | null>('get_raw_broker_credentials', {
+        brokerId: broker,
       })
 
-      // Add hidden fields if any
-      if (config.hiddenFields) {
-        Object.entries(config.hiddenFields).forEach(([key, value]) => {
-          form.append(key, value)
-        })
+      if (!storedCreds) {
+        setError('No credentials found for this broker. Please configure credentials first.')
+        setIsLoading(false)
+        return
       }
 
-      form.append('csrf_token', csrfToken)
+      // Build credentials object for broker login
+      // Different brokers need different fields
+      const credentials: Record<string, string | null> = {
+        api_key: storedCreds.api_key,
+        api_secret: storedCreds.api_secret,
+        client_id: storedCreds.client_id || formData.userid || formData.mobile || null,
+        password: formData.password || formData.pin || formData.mpin || null,
+        totp: formData.totp || formData.twofa || formData.otp || null,
+        request_token: null,
+        auth_code: null,
+      }
 
-      // Use custom callback URL or default pattern
-      const callbackUrl = config.callbackUrl || `/${broker}/callback`
-
-      const response = await fetch(callbackUrl, {
-        method: 'POST',
-        body: form,
-        credentials: 'include',
+      // Call broker_login command
+      const response = await invoke<BrokerLoginResponse>('broker_login', {
+        request: {
+          broker_id: broker,
+          credentials,
+        },
       })
 
-      const data = await response.json()
-
-      if (data.status === 'success' || response.ok) {
-        login(formData.userid || formData.mobile || '', broker || '')
-        toast.success('Authentication successful')
+      if (response.success) {
+        login(response.user_id || formData.userid || formData.mobile || '', broker || '')
+        toast.success(`Connected to ${brokerName} successfully`)
         navigate('/dashboard')
       } else {
-        setError(data.message || 'Authentication failed. Please try again.')
+        setError('Authentication failed. Please check your credentials and try again.')
       }
-    } catch {
-      setError('Authentication failed. Please check your credentials and try again.')
+    } catch (err) {
+      console.error('Broker login error:', err)
+      const errorMessage =
+        err && typeof err === 'object' && 'message' in err
+          ? (err as { message: string }).message
+          : 'Authentication failed. Please check your credentials and try again.'
+      setError(errorMessage)
     } finally {
       setIsLoading(false)
     }

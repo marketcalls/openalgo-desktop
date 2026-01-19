@@ -1,9 +1,19 @@
 import { invoke } from '@tauri-apps/api/core'
-import { BookOpen, ExternalLink, Key, Loader2, Settings } from 'lucide-react'
+import { BookOpen, Edit2, ExternalLink, Key, Loader2, Settings, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -65,9 +75,12 @@ export default function BrokerSelect() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSavingCredentials, setIsSavingCredentials] = useState(false)
+  const [isDeletingCredentials, setIsDeletingCredentials] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [brokerConfig, setBrokerConfig] = useState<BrokerConfigResponse | null>(null)
   const [showCredentialsDialog, setShowCredentialsDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(false)
   const [credentialsForm, setCredentialsForm] = useState({
     apiKey: '',
     apiSecret: '',
@@ -119,9 +132,10 @@ export default function BrokerSelect() {
         },
       })
 
-      toast.success('Broker credentials saved successfully')
+      toast.success(isEditMode ? 'Broker credentials updated successfully' : 'Broker credentials saved successfully')
       setShowCredentialsDialog(false)
       setCredentialsForm({ apiKey: '', apiSecret: '', clientId: '' })
+      setIsEditMode(false)
 
       // Refresh broker config to update has_credentials status
       await fetchBrokerConfig()
@@ -137,6 +151,35 @@ export default function BrokerSelect() {
     }
   }
 
+  const handleEditCredentials = () => {
+    setIsEditMode(true)
+    setCredentialsForm({ apiKey: '', apiSecret: '', clientId: '' })
+    setShowCredentialsDialog(true)
+  }
+
+  const handleDeleteCredentials = async () => {
+    if (!selectedBroker) return
+
+    setIsDeletingCredentials(true)
+    try {
+      await invoke('delete_broker_credentials', { brokerId: selectedBroker })
+      toast.success('Broker credentials deleted successfully')
+      setShowDeleteDialog(false)
+
+      // Refresh broker config to update has_credentials status
+      await fetchBrokerConfig()
+    } catch (err) {
+      console.error('Failed to delete credentials:', err)
+      const errorMessage =
+        err && typeof err === 'object' && 'message' in err
+          ? (err as { message: string }).message
+          : 'Failed to delete credentials'
+      toast.error(errorMessage)
+    } finally {
+      setIsDeletingCredentials(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -148,6 +191,7 @@ export default function BrokerSelect() {
     // Check if broker has credentials
     const broker = brokerConfig?.available_brokers.find((b) => b.id === selectedBroker)
     if (!broker?.has_credentials) {
+      setIsEditMode(false)
       setShowCredentialsDialog(true)
       return
     }
@@ -156,23 +200,15 @@ export default function BrokerSelect() {
     setError(null)
 
     try {
-      // Get actual API key for OAuth URL generation
-      const credsResponse = await invoke<{ broker_id: string; api_key_masked: string } | null>(
-        'get_broker_credentials',
-        { brokerId: selectedBroker }
-      )
-
       // For TOTP brokers, navigate to TOTP form
       if (broker.auth_type === 'totp') {
         navigate(`/broker/${selectedBroker}/totp`)
         return
       }
 
-      // For OAuth brokers, we need the actual API key
-      // For now, redirect to credential entry since we can't get unmasked key
-      // TODO: Implement proper OAuth flow with secure key handling
-      setError('OAuth login requires entering credentials. Please configure your broker.')
-      setShowCredentialsDialog(true)
+      // For OAuth brokers, we need to initiate OAuth flow
+      // TODO: Implement proper OAuth flow - for now show info
+      toast.info('OAuth flow coming soon. For now, use TOTP brokers or configure credentials manually.')
     } catch (err) {
       console.error('Broker login error:', err)
       setError('Failed to initiate broker login')
@@ -240,6 +276,29 @@ export default function BrokerSelect() {
                       No credentials configured. Click Connect to add them.
                     </p>
                   )}
+                  {selectedBrokerInfo && selectedBrokerInfo.has_credentials && (
+                    <div className="flex items-center justify-center gap-2 mt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleEditCredentials}
+                      >
+                        <Edit2 className="h-3 w-3 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setShowDeleteDialog(true)}
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Delete
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <Button type="submit" className="w-full" disabled={!selectedBroker || isSubmitting}>
@@ -295,13 +354,20 @@ export default function BrokerSelect() {
       </div>
 
       {/* Credentials Entry Dialog */}
-      <Dialog open={showCredentialsDialog} onOpenChange={setShowCredentialsDialog}>
+      <Dialog open={showCredentialsDialog} onOpenChange={(open) => {
+        setShowCredentialsDialog(open)
+        if (!open) {
+          setIsEditMode(false)
+          setCredentialsForm({ apiKey: '', apiSecret: '', clientId: '' })
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Configure {selectedBrokerInfo?.name} Credentials</DialogTitle>
+            <DialogTitle>{isEditMode ? 'Update' : 'Configure'} {selectedBrokerInfo?.name} Credentials</DialogTitle>
             <DialogDescription>
-              Enter your broker API credentials. These will be stored securely in your system's
-              keychain.
+              {isEditMode
+                ? 'Enter your new broker API credentials. This will replace the existing credentials.'
+                : 'Enter your broker API credentials. These will be stored securely in your system\'s keychain.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -351,15 +417,45 @@ export default function BrokerSelect() {
               {isSavingCredentials ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
+                  {isEditMode ? 'Updating...' : 'Saving...'}
                 </>
               ) : (
-                'Save Credentials'
+                isEditMode ? 'Update Credentials' : 'Save Credentials'
               )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Broker Credentials?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the credentials for {selectedBrokerInfo?.name}?
+              This action cannot be undone. You will need to reconfigure the broker to connect again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingCredentials}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteCredentials}
+              disabled={isDeletingCredentials}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingCredentials ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

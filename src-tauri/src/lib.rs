@@ -125,6 +125,8 @@ pub fn run() {
             commands::settings::update_webhook_config,
             commands::settings::get_broker_config,
             commands::settings::get_broker_credentials,
+            commands::settings::get_raw_broker_credentials,
+            commands::settings::has_broker_credentials,
             // API key commands
             commands::api_keys::create_api_key,
             commands::api_keys::list_api_keys,
