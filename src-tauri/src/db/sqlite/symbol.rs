@@ -9,33 +9,65 @@ use crate::state::SymbolInfo;
 use rusqlite::{params, Connection};
 
 /// Store symbols in database (batch insert with transaction)
+/// Uses chunked inserts for performance with large datasets (100k+ symbols)
 pub fn store_symbols(conn: &mut Connection, symbols: &[SymbolInfo]) -> Result<()> {
+    tracing::info!("Storing {} symbols to database...", symbols.len());
+
     let tx = conn.transaction()?;
+
+    // Optimize for bulk insert
+    tx.execute_batch("PRAGMA synchronous = OFF; PRAGMA journal_mode = MEMORY;")?;
 
     // Clear existing symbols
     tx.execute("DELETE FROM symtoken", [])?;
 
-    // Insert new symbols using prepared statement for performance
-    let mut stmt = tx.prepare(
-        "INSERT INTO symtoken (symbol, token, exchange, name, lot_size, tick_size, instrument_type, brsymbol, brexchange)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-    )?;
+    // Use chunked batch inserts for better performance
+    // SQLite supports up to 999 variables per statement, we use 9 per row = 111 rows per batch
+    const CHUNK_SIZE: usize = 100;
 
-    for symbol in symbols {
-        stmt.execute(params![
-            symbol.symbol,
-            symbol.token,
-            symbol.exchange,
-            symbol.name,
-            symbol.lot_size,
-            symbol.tick_size,
-            symbol.instrument_type,
-            symbol.brsymbol,
-            symbol.brexchange,
-        ])?;
+    for (chunk_idx, chunk) in symbols.chunks(CHUNK_SIZE).enumerate() {
+        if chunk_idx > 0 && chunk_idx % 1000 == 0 {
+            tracing::debug!("Inserted {} symbols...", chunk_idx * CHUNK_SIZE);
+        }
+
+        // Build multi-row INSERT statement
+        let placeholders: Vec<String> = (0..chunk.len())
+            .map(|i| {
+                let base = i * 9;
+                format!(
+                    "(?{}, ?{}, ?{}, ?{}, ?{}, ?{}, ?{}, ?{}, ?{})",
+                    base + 1, base + 2, base + 3, base + 4, base + 5,
+                    base + 6, base + 7, base + 8, base + 9
+                )
+            })
+            .collect();
+
+        let sql = format!(
+            "INSERT INTO symtoken (symbol, token, exchange, name, lot_size, tick_size, instrument_type, brsymbol, brexchange) VALUES {}",
+            placeholders.join(", ")
+        );
+
+        // Collect all parameters for the chunk
+        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::with_capacity(chunk.len() * 9);
+        for s in chunk {
+            params_vec.push(Box::new(s.symbol.clone()));
+            params_vec.push(Box::new(s.token.clone()));
+            params_vec.push(Box::new(s.exchange.clone()));
+            params_vec.push(Box::new(s.name.clone()));
+            params_vec.push(Box::new(s.lot_size));
+            params_vec.push(Box::new(s.tick_size));
+            params_vec.push(Box::new(s.instrument_type.clone()));
+            params_vec.push(Box::new(s.brsymbol.clone()));
+            params_vec.push(Box::new(s.brexchange.clone()));
+        }
+
+        let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+        tx.execute(&sql, params_refs.as_slice())?;
     }
 
-    drop(stmt);
+    // Restore normal settings
+    tx.execute_batch("PRAGMA synchronous = NORMAL; PRAGMA journal_mode = WAL;")?;
+
     tx.commit()?;
 
     tracing::info!("Stored {} symbols in database", symbols.len());
