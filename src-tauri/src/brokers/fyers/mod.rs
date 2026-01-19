@@ -496,6 +496,9 @@ impl Broker for FyersBroker {
 
         let app_id_hash = Self::generate_app_id_hash(&credentials.api_key, &api_secret);
 
+        tracing::info!("Fyers auth: api_key={}, auth_code_len={}", credentials.api_key, auth_code.len());
+        tracing::debug!("Fyers appIdHash: {}", app_id_hash);
+
         #[derive(Serialize)]
         struct ValidateRequest {
             grant_type: String,
@@ -516,18 +519,28 @@ impl Broker for FyersBroker {
             .send()
             .await?;
 
+        // Get raw response text for debugging
+        let response_text = response.text().await?;
+        tracing::info!("Fyers validate-authcode response: {}", response_text);
+
         #[derive(Deserialize)]
         #[allow(dead_code)]
         struct ValidateResponse {
             s: String,
-            code: i32,
+            code: Option<i32>,
             message: Option<String>,
             access_token: Option<String>,
         }
 
-        let result: ValidateResponse = response.json().await?;
+        let result: ValidateResponse = serde_json::from_str(&response_text)
+            .map_err(|e| AppError::Auth(format!("Failed to parse Fyers response: {} - Raw: {}", e, response_text)))?;
 
         if result.s != "ok" {
+            let error_msg = format!(
+                "Fyers auth failed: status={}, code={:?}, message={:?}",
+                result.s, result.code, result.message
+            );
+            tracing::error!("{}", error_msg);
             return Err(AppError::Auth(
                 result.message.unwrap_or_else(|| "Authentication failed".to_string()),
             ));

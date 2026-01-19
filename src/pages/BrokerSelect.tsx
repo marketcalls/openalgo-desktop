@@ -68,11 +68,10 @@ interface OAuthCallbackPayload {
 }
 
 interface BrokerLoginResponse {
-  status: string
+  success: boolean
   broker_id: string
   user_id: string
   user_name?: string
-  message?: string
 }
 
 // Helper function to get Flattrade API key
@@ -185,11 +184,14 @@ export default function BrokerSelect() {
           },
         })
 
-        if (response.status === 'success') {
+        console.log('Broker login response:', response)
+
+        // Backend returns { success: boolean, broker_id, user_id, user_name }
+        if (response.success) {
           toast.success(`Connected to ${broker_id} as ${response.user_name || response.user_id}`)
           navigate('/dashboard')
         } else {
-          toast.error(response.message || 'Failed to connect to broker')
+          toast.error('Failed to connect to broker')
         }
       } catch (err) {
         console.error('OAuth login error:', err)
