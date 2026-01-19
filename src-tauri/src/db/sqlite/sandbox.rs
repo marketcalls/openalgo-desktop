@@ -294,3 +294,230 @@ pub fn cancel_order(conn: &Connection, order_id: &str) -> Result<bool> {
 
     Ok(rows > 0)
 }
+
+/// Sandbox configuration
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SandboxConfig {
+    pub starting_capital: f64,
+    pub reset_day: String,
+    pub reset_time: String,
+    pub order_check_interval: i32,
+    pub mtm_update_interval: i32,
+    pub nse_mis_leverage: f64,
+    pub nfo_mis_leverage: f64,
+    pub cds_mis_leverage: f64,
+    pub mcx_mis_leverage: f64,
+    pub nse_cnc_leverage: f64,
+    pub nfo_nrml_leverage: f64,
+    pub cds_nrml_leverage: f64,
+    pub mcx_nrml_leverage: f64,
+    pub nse_square_off_time: String,
+    pub nfo_square_off_time: String,
+    pub cds_square_off_time: String,
+    pub mcx_square_off_time: String,
+}
+
+/// Get sandbox configuration
+pub fn get_config(conn: &Connection) -> Result<SandboxConfig> {
+    let config = conn.query_row(
+        "SELECT starting_capital, reset_day, reset_time, order_check_interval, mtm_update_interval,
+                nse_mis_leverage, nfo_mis_leverage, cds_mis_leverage, mcx_mis_leverage,
+                nse_cnc_leverage, nfo_nrml_leverage, cds_nrml_leverage, mcx_nrml_leverage,
+                nse_square_off_time, nfo_square_off_time, cds_square_off_time, mcx_square_off_time
+         FROM sandbox_config WHERE id = 1",
+        [],
+        |row| {
+            Ok(SandboxConfig {
+                starting_capital: row.get(0)?,
+                reset_day: row.get(1)?,
+                reset_time: row.get(2)?,
+                order_check_interval: row.get(3)?,
+                mtm_update_interval: row.get(4)?,
+                nse_mis_leverage: row.get(5)?,
+                nfo_mis_leverage: row.get(6)?,
+                cds_mis_leverage: row.get(7)?,
+                mcx_mis_leverage: row.get(8)?,
+                nse_cnc_leverage: row.get(9)?,
+                nfo_nrml_leverage: row.get(10)?,
+                cds_nrml_leverage: row.get(11)?,
+                mcx_nrml_leverage: row.get(12)?,
+                nse_square_off_time: row.get(13)?,
+                nfo_square_off_time: row.get(14)?,
+                cds_square_off_time: row.get(15)?,
+                mcx_square_off_time: row.get(16)?,
+            })
+        },
+    )?;
+
+    Ok(config)
+}
+
+/// Update sandbox configuration
+pub fn update_config(conn: &Connection, key: &str, value: &str) -> Result<()> {
+    // Validate key is a valid column name
+    let valid_keys = [
+        "starting_capital", "reset_day", "reset_time", "order_check_interval", "mtm_update_interval",
+        "nse_mis_leverage", "nfo_mis_leverage", "cds_mis_leverage", "mcx_mis_leverage",
+        "nse_cnc_leverage", "nfo_nrml_leverage", "cds_nrml_leverage", "mcx_nrml_leverage",
+        "nse_square_off_time", "nfo_square_off_time", "cds_square_off_time", "mcx_square_off_time",
+    ];
+
+    if !valid_keys.contains(&key) {
+        return Err(crate::error::AppError::Validation(format!("Invalid config key: {}", key)));
+    }
+
+    // Update the config - use parameterized value but column name is validated above
+    let sql = format!(
+        "UPDATE sandbox_config SET {} = ?1, updated_at = datetime('now') WHERE id = 1",
+        key
+    );
+    conn.execute(&sql, params![value])?;
+
+    Ok(())
+}
+
+/// Sandbox trade record
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SandboxTrade {
+    pub id: i64,
+    pub order_id: String,
+    pub trade_id: String,
+    pub symbol: String,
+    pub exchange: String,
+    pub side: String,
+    pub quantity: i32,
+    pub price: f64,
+    pub created_at: String,
+}
+
+/// Get sandbox trades
+pub fn get_trades(conn: &Connection) -> Result<Vec<SandboxTrade>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, order_id, trade_id, symbol, exchange, side, quantity, price, created_at
+         FROM sandbox_trades ORDER BY created_at DESC LIMIT 100",
+    )?;
+
+    let trades = stmt
+        .query_map([], |row| {
+            Ok(SandboxTrade {
+                id: row.get(0)?,
+                order_id: row.get(1)?,
+                trade_id: row.get(2)?,
+                symbol: row.get(3)?,
+                exchange: row.get(4)?,
+                side: row.get(5)?,
+                quantity: row.get(6)?,
+                price: row.get(7)?,
+                created_at: row.get(8)?,
+            })
+        })?
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+
+    Ok(trades)
+}
+
+/// Daily P&L record
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SandboxDailyPnl {
+    pub id: i64,
+    pub date: String,
+    pub realized_pnl: f64,
+    pub unrealized_pnl: f64,
+    pub total_pnl: f64,
+    pub portfolio_value: f64,
+    pub created_at: String,
+}
+
+/// Get sandbox daily P&L history
+pub fn get_daily_pnl(conn: &Connection) -> Result<Vec<SandboxDailyPnl>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, date, realized_pnl, unrealized_pnl, total_pnl, portfolio_value, created_at
+         FROM sandbox_daily_pnl ORDER BY date DESC LIMIT 30",
+    )?;
+
+    let pnl = stmt
+        .query_map([], |row| {
+            Ok(SandboxDailyPnl {
+                id: row.get(0)?,
+                date: row.get(1)?,
+                realized_pnl: row.get(2)?,
+                unrealized_pnl: row.get(3)?,
+                total_pnl: row.get(4)?,
+                portfolio_value: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        })?
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+
+    Ok(pnl)
+}
+
+/// Consolidated P&L summary
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SandboxPnlSummary {
+    pub today_realized_pnl: f64,
+    pub positions_unrealized_pnl: f64,
+    pub holdings_unrealized_pnl: f64,
+    pub today_total_mtm: f64,
+    pub all_time_realized_pnl: f64,
+    pub portfolio_value: f64,
+}
+
+/// Consolidated P&L data
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SandboxPnlData {
+    pub summary: SandboxPnlSummary,
+    pub daily_pnl: Vec<SandboxDailyPnl>,
+    pub positions: Vec<SandboxPosition>,
+    pub holdings: Vec<SandboxHolding>,
+    pub trades: Vec<SandboxTrade>,
+}
+
+/// Get consolidated sandbox P&L data
+pub fn get_pnl_data(conn: &Connection) -> Result<SandboxPnlData> {
+    // Get positions, holdings, trades
+    let positions = get_positions(conn)?;
+    let holdings = get_holdings(conn)?;
+    let trades = get_trades(conn)?;
+    let daily_pnl = get_daily_pnl(conn)?;
+    let funds = get_funds(conn)?;
+
+    // Calculate unrealized P&L from positions
+    let positions_unrealized_pnl: f64 = positions.iter()
+        .map(|p| p.pnl)
+        .sum();
+
+    // Calculate unrealized P&L from holdings
+    let holdings_unrealized_pnl: f64 = holdings.iter()
+        .map(|h| h.pnl)
+        .sum();
+
+    // Calculate today's realized P&L from today's trades
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let today_realized_pnl = daily_pnl.iter()
+        .find(|p| p.date.starts_with(&today))
+        .map(|p| p.realized_pnl)
+        .unwrap_or(0.0);
+
+    // Calculate all-time realized P&L
+    let all_time_realized_pnl: f64 = daily_pnl.iter()
+        .map(|p| p.realized_pnl)
+        .sum();
+
+    let summary = SandboxPnlSummary {
+        today_realized_pnl,
+        positions_unrealized_pnl,
+        holdings_unrealized_pnl,
+        today_total_mtm: today_realized_pnl + positions_unrealized_pnl,
+        all_time_realized_pnl,
+        portfolio_value: funds.total_value,
+    };
+
+    Ok(SandboxPnlData {
+        summary,
+        daily_pnl,
+        positions,
+        holdings,
+        trades,
+    })
+}

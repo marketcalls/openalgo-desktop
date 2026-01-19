@@ -9,7 +9,7 @@ mod api_keys;
 mod symbol;
 mod strategy;
 mod settings;
-mod sandbox;
+pub mod sandbox;
 mod order_logs;
 mod market;
 mod analyzer_logs;
@@ -372,6 +372,36 @@ impl SqliteDb {
     pub fn cancel_sandbox_order(&self, order_id: &str) -> Result<bool> {
         let conn = self.conn.lock();
         sandbox::cancel_order(&conn, order_id)
+    }
+
+    /// Get sandbox configuration
+    pub fn get_sandbox_config(&self) -> Result<sandbox::SandboxConfig> {
+        let conn = self.conn.lock();
+        sandbox::get_config(&conn)
+    }
+
+    /// Update sandbox configuration
+    pub fn update_sandbox_config(&self, key: &str, value: &str) -> Result<()> {
+        let conn = self.conn.lock();
+        sandbox::update_config(&conn, key, value)
+    }
+
+    /// Get sandbox trades
+    pub fn get_sandbox_trades(&self) -> Result<Vec<sandbox::SandboxTrade>> {
+        let conn = self.conn.lock();
+        sandbox::get_trades(&conn)
+    }
+
+    /// Get sandbox daily P&L history
+    pub fn get_sandbox_daily_pnl(&self) -> Result<Vec<sandbox::SandboxDailyPnl>> {
+        let conn = self.conn.lock();
+        sandbox::get_daily_pnl(&conn)
+    }
+
+    /// Get consolidated sandbox P&L data
+    pub fn get_sandbox_pnl(&self) -> Result<sandbox::SandboxPnlData> {
+        let conn = self.conn.lock();
+        sandbox::get_pnl_data(&conn)
     }
 
     // ========== Order Logs Methods ==========

@@ -45,6 +45,7 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     run_migration(conn, "027_traffic_logs", CREATE_TRAFFIC_LOGS_TABLE)?;
     run_migration(conn, "028_ip_bans", CREATE_IP_BANS_TABLE)?;
     run_migration(conn, "029_error_trackers", CREATE_ERROR_TRACKERS_TABLES)?;
+    run_migration(conn, "030_sandbox_config", CREATE_SANDBOX_CONFIG_TABLE)?;
 
     tracing::info!("Database migrations completed");
     Ok(())
@@ -503,4 +504,30 @@ CREATE TABLE invalid_api_key_tracker (
 );
 CREATE INDEX idx_api_tracker_ip ON invalid_api_key_tracker(ip_address);
 CREATE INDEX idx_api_tracker_count ON invalid_api_key_tracker(attempt_count);
+"#;
+
+/// Migration to create sandbox_config table for paper trading settings
+const CREATE_SANDBOX_CONFIG_TABLE: &str = r#"
+CREATE TABLE sandbox_config (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    starting_capital REAL NOT NULL DEFAULT 10000000,
+    reset_day TEXT NOT NULL DEFAULT 'Never',
+    reset_time TEXT NOT NULL DEFAULT '00:00',
+    order_check_interval INTEGER NOT NULL DEFAULT 5,
+    mtm_update_interval INTEGER NOT NULL DEFAULT 1,
+    nse_mis_leverage REAL NOT NULL DEFAULT 5.0,
+    nfo_mis_leverage REAL NOT NULL DEFAULT 2.0,
+    cds_mis_leverage REAL NOT NULL DEFAULT 2.0,
+    mcx_mis_leverage REAL NOT NULL DEFAULT 2.0,
+    nse_cnc_leverage REAL NOT NULL DEFAULT 1.0,
+    nfo_nrml_leverage REAL NOT NULL DEFAULT 1.0,
+    cds_nrml_leverage REAL NOT NULL DEFAULT 1.0,
+    mcx_nrml_leverage REAL NOT NULL DEFAULT 1.0,
+    nse_square_off_time TEXT NOT NULL DEFAULT '15:15',
+    nfo_square_off_time TEXT NOT NULL DEFAULT '15:25',
+    cds_square_off_time TEXT NOT NULL DEFAULT '16:55',
+    mcx_square_off_time TEXT NOT NULL DEFAULT '23:25',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+INSERT OR IGNORE INTO sandbox_config (id) VALUES (1);
 "#;

@@ -139,6 +139,11 @@ pub fn run() {
             commands::sandbox::get_sandbox_funds,
             commands::sandbox::update_sandbox_ltp,
             commands::sandbox::cancel_sandbox_order,
+            commands::sandbox::get_sandbox_config,
+            commands::sandbox::update_sandbox_config,
+            commands::sandbox::get_sandbox_trades,
+            commands::sandbox::get_sandbox_daily_pnl,
+            commands::sandbox::get_sandbox_pnl,
             // Order logs commands
             commands::order_logs::get_order_logs,
             commands::order_logs::get_order_logs_by_order_id,

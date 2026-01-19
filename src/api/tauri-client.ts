@@ -333,6 +333,84 @@ export interface SandboxOrderRequest {
   product: string
 }
 
+export interface SandboxHolding {
+  id: number
+  symbol: string
+  exchange: string
+  quantity: number
+  average_price: number
+  ltp: number
+  pnl: number
+  created_at: string
+  updated_at: string
+}
+
+export interface SandboxFunds {
+  available_cash: number
+  used_margin: number
+  total_value: number
+  updated_at: string
+}
+
+export interface SandboxTrade {
+  id: number
+  order_id: string
+  trade_id: string
+  symbol: string
+  exchange: string
+  side: string
+  quantity: number
+  price: number
+  created_at: string
+}
+
+export interface SandboxDailyPnl {
+  id: number
+  date: string
+  realized_pnl: number
+  unrealized_pnl: number
+  total_pnl: number
+  portfolio_value: number
+  created_at: string
+}
+
+export interface SandboxPnlSummary {
+  today_realized_pnl: number
+  positions_unrealized_pnl: number
+  holdings_unrealized_pnl: number
+  today_total_mtm: number
+  all_time_realized_pnl: number
+  portfolio_value: number
+}
+
+export interface SandboxPnlData {
+  summary: SandboxPnlSummary
+  daily_pnl: SandboxDailyPnl[]
+  positions: SandboxPosition[]
+  holdings: SandboxHolding[]
+  trades: SandboxTrade[]
+}
+
+export interface SandboxConfig {
+  starting_capital: number
+  reset_day: string
+  reset_time: string
+  order_check_interval: number
+  mtm_update_interval: number
+  nse_mis_leverage: number
+  nfo_mis_leverage: number
+  cds_mis_leverage: number
+  mcx_mis_leverage: number
+  nse_cnc_leverage: number
+  nfo_nrml_leverage: number
+  cds_nrml_leverage: number
+  mcx_nrml_leverage: number
+  nse_square_off_time: string
+  nfo_square_off_time: string
+  cds_square_off_time: string
+  mcx_square_off_time: string
+}
+
 export interface MarketDataQuery {
   symbol: string
   exchange: string
@@ -362,6 +440,39 @@ export interface ClosePositionResponse {
   success: boolean
   order_id?: string
   message: string
+}
+
+export interface WebSocketStatus {
+  connected: boolean
+  broker: string | null
+  subscriptions: number
+}
+
+export interface WebSocketSubscribeRequest {
+  exchange: string
+  token: string
+  symbol?: string
+  mode?: string // 'ltp' | 'quote' | 'snapquote' | 'full' | 'depth'
+}
+
+export interface MarketTick {
+  symbol: string
+  exchange: string
+  token: string
+  ltp: number
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+  bid: number
+  ask: number
+  bid_qty: number
+  ask_qty: number
+  oi: number
+  timestamp: number
+  change: number
+  change_percent: number
 }
 
 // ============================================================================
@@ -534,6 +645,27 @@ export const sandboxCommands = {
     tauriInvoke<SandboxOrder>('place_sandbox_order', { order }),
 
   resetSandbox: () => tauriInvoke<void>('reset_sandbox'),
+
+  getSandboxHoldings: () => tauriInvoke<SandboxHolding[]>('get_sandbox_holdings'),
+
+  getSandboxFunds: () => tauriInvoke<SandboxFunds>('get_sandbox_funds'),
+
+  updateSandboxLtp: (exchange: string, symbol: string, ltp: number) =>
+    tauriInvoke<void>('update_sandbox_ltp', { request: { exchange, symbol, ltp } }),
+
+  cancelSandboxOrder: (orderId: string) =>
+    tauriInvoke<{ success: boolean; order_id: string }>('cancel_sandbox_order', { order_id: orderId }),
+
+  getSandboxConfig: () => tauriInvoke<SandboxConfig>('get_sandbox_config'),
+
+  updateSandboxConfig: (key: string, value: string) =>
+    tauriInvoke<void>('update_sandbox_config', { request: { key, value } }),
+
+  getSandboxTrades: () => tauriInvoke<SandboxTrade[]>('get_sandbox_trades'),
+
+  getSandboxDailyPnl: () => tauriInvoke<SandboxDailyPnl[]>('get_sandbox_daily_pnl'),
+
+  getSandboxPnl: () => tauriInvoke<SandboxPnlData>('get_sandbox_pnl'),
 }
 
 // ============================================================================
@@ -549,6 +681,27 @@ export const historifyCommands = {
       'download_historical_data',
       { request }
     ),
+}
+
+// ============================================================================
+// WebSocket Commands
+// ============================================================================
+
+export const websocketCommands = {
+  connect: () => tauriInvoke<boolean>('websocket_connect'),
+
+  disconnect: () => tauriInvoke<boolean>('websocket_disconnect'),
+
+  status: () => tauriInvoke<WebSocketStatus>('websocket_status'),
+
+  subscribe: (symbols: WebSocketSubscribeRequest[]) =>
+    tauriInvoke<boolean>('websocket_subscribe', { symbols }),
+
+  unsubscribe: (symbols: [string, string][]) =>
+    tauriInvoke<boolean>('websocket_unsubscribe', { symbols }),
+
+  registerSymbol: (token: string, symbol: string, exchange: string) =>
+    tauriInvoke<void>('websocket_register_symbol', { token, symbol, exchange }),
 }
 
 // ============================================================================
@@ -568,6 +721,7 @@ export const tauri = {
   settings: settingsCommands,
   sandbox: sandboxCommands,
   historify: historifyCommands,
+  websocket: websocketCommands,
 }
 
 export default tauri

@@ -2,6 +2,7 @@
 
 use crate::db::sqlite::{SandboxFunds, SandboxHolding};
 use crate::db::sqlite::models::{SandboxOrder, SandboxPosition};
+use crate::db::sqlite::sandbox::{SandboxConfig, SandboxDailyPnl, SandboxPnlData, SandboxTrade};
 use crate::error::Result;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
@@ -102,4 +103,44 @@ pub async fn cancel_sandbox_order(
         success,
         order_id,
     })
+}
+
+/// Get sandbox configuration
+#[tauri::command]
+pub async fn get_sandbox_config(state: State<'_, AppState>) -> Result<SandboxConfig> {
+    state.sqlite.get_sandbox_config()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateConfigRequest {
+    pub key: String,
+    pub value: String,
+}
+
+/// Update sandbox configuration
+#[tauri::command]
+pub async fn update_sandbox_config(
+    state: State<'_, AppState>,
+    request: UpdateConfigRequest,
+) -> Result<()> {
+    tracing::info!("Updating sandbox config: {} = {}", request.key, request.value);
+    state.sqlite.update_sandbox_config(&request.key, &request.value)
+}
+
+/// Get sandbox trades
+#[tauri::command]
+pub async fn get_sandbox_trades(state: State<'_, AppState>) -> Result<Vec<SandboxTrade>> {
+    state.sqlite.get_sandbox_trades()
+}
+
+/// Get sandbox daily P&L history
+#[tauri::command]
+pub async fn get_sandbox_daily_pnl(state: State<'_, AppState>) -> Result<Vec<SandboxDailyPnl>> {
+    state.sqlite.get_sandbox_daily_pnl()
+}
+
+/// Get consolidated sandbox P&L data
+#[tauri::command]
+pub async fn get_sandbox_pnl(state: State<'_, AppState>) -> Result<SandboxPnlData> {
+    state.sqlite.get_sandbox_pnl()
 }
