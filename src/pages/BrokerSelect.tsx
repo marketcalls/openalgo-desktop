@@ -62,8 +62,9 @@ interface WebhookConfig {
 
 interface OAuthCallbackPayload {
   broker_id: string
-  code: string
-  state: string | null
+  success: boolean
+  auth_code: string | null
+  message: string
 }
 
 interface BrokerLoginResponse {
@@ -145,12 +146,11 @@ export default function BrokerSelect() {
 
     // Listen for OAuth callback events
     const unlistenPromise = listen<OAuthCallbackPayload>('oauth_callback', async (event) => {
-      const { broker_id, code, state } = event.payload
-      console.log('Received OAuth callback:', { broker_id, code, state })
+      const { broker_id, success, auth_code, message } = event.payload
+      console.log('Received OAuth callback:', { broker_id, success, auth_code, message })
 
-      // Verify state matches if we stored one
-      if (oauthState && state !== oauthState) {
-        toast.error('OAuth state mismatch. Please try again.')
+      if (!success || !auth_code) {
+        toast.error(message || 'OAuth callback failed')
         setIsSubmitting(false)
         return
       }
@@ -180,7 +180,7 @@ export default function BrokerSelect() {
               api_key: creds.api_key,
               api_secret: creds.api_secret,
               client_id: creds.client_id,
-              auth_code: code,
+              auth_code: auth_code,
             },
           },
         })
@@ -547,40 +547,73 @@ export default function BrokerSelect() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* API Key - required for all brokers */}
             <div className="space-y-2">
-              <Label htmlFor="apiKey">API Key *</Label>
+              <Label htmlFor="apiKey">
+                {selectedBroker === 'fyers' ? 'App ID *' : 'API Key *'}
+              </Label>
               <Input
                 id="apiKey"
                 type="password"
-                placeholder="Enter your API key"
+                placeholder={selectedBroker === 'fyers' ? 'Enter your Fyers App ID (e.g., ABC123-100)' : 'Enter your API key'}
                 value={credentialsForm.apiKey}
                 onChange={(e) => setCredentialsForm({ ...credentialsForm, apiKey: e.target.value })}
               />
+              {selectedBroker === 'fyers' && (
+                <p className="text-xs text-muted-foreground">
+                  Your Fyers App ID from the API dashboard (format: XXXXX-100)
+                </p>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="apiSecret">API Secret</Label>
-              <Input
-                id="apiSecret"
-                type="password"
-                placeholder="Enter your API secret (if required)"
-                value={credentialsForm.apiSecret}
-                onChange={(e) =>
-                  setCredentialsForm({ ...credentialsForm, apiSecret: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="clientId">Client ID</Label>
-              <Input
-                id="clientId"
-                type="text"
-                placeholder="Enter your client ID (if required)"
-                value={credentialsForm.clientId}
-                onChange={(e) =>
-                  setCredentialsForm({ ...credentialsForm, clientId: e.target.value })
-                }
-              />
-            </div>
+
+            {/* API Secret - required for Fyers and Zerodha */}
+            {(selectedBroker === 'fyers' || selectedBroker === 'zerodha') && (
+              <div className="space-y-2">
+                <Label htmlFor="apiSecret">
+                  {selectedBroker === 'fyers' ? 'Secret Key *' : 'API Secret *'}
+                </Label>
+                <Input
+                  id="apiSecret"
+                  type="password"
+                  placeholder={selectedBroker === 'fyers' ? 'Enter your Fyers Secret Key' : 'Enter your API secret'}
+                  value={credentialsForm.apiSecret}
+                  onChange={(e) =>
+                    setCredentialsForm({ ...credentialsForm, apiSecret: e.target.value })
+                  }
+                />
+              </div>
+            )}
+
+            {/* Client ID - required for Angel (not for Fyers) */}
+            {selectedBroker === 'angel' && (
+              <div className="space-y-2">
+                <Label htmlFor="clientId">Client ID *</Label>
+                <Input
+                  id="clientId"
+                  type="text"
+                  placeholder="Enter your Angel One Client ID"
+                  value={credentialsForm.clientId}
+                  onChange={(e) =>
+                    setCredentialsForm({ ...credentialsForm, clientId: e.target.value })
+                  }
+                />
+              </div>
+            )}
+
+            {/* Redirect URL info for OAuth brokers */}
+            {(selectedBroker === 'fyers' || selectedBroker === 'zerodha') && (
+              <div className="space-y-2 p-3 bg-muted rounded-md">
+                <Label className="text-sm font-medium">Redirect URL (set this in your broker API dashboard)</Label>
+                <code className="block text-xs bg-background p-2 rounded border break-all">
+                  {webhookConfig?.ngrok_url
+                    ? `${webhookConfig.ngrok_url}/${selectedBroker}/callback`
+                    : `http://${webhookConfig?.host || '127.0.0.1'}:${webhookConfig?.port || 5000}/${selectedBroker}/callback`}
+                </code>
+                <p className="text-xs text-muted-foreground">
+                  Copy this URL to your {selectedBroker === 'fyers' ? 'Fyers' : 'Zerodha'} API app's redirect URL setting
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCredentialsDialog(false)}>

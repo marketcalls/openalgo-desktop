@@ -443,8 +443,9 @@ impl FyersBroker {
     }
 
     /// Generate appIdHash for Fyers auth
-    fn generate_app_id_hash(client_id: &str, secret: &str) -> String {
-        let input = format!("{}-100:{}", client_id, secret);
+    /// Hash is SHA256(api_key:api_secret)
+    fn generate_app_id_hash(api_key: &str, api_secret: &str) -> String {
+        let input = format!("{}:{}", api_key, api_secret);
         let mut hasher = Sha256::new();
         hasher.update(input.as_bytes());
         format!("{:x}", hasher.finalize())
