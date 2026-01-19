@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core'
 import { BarChart3, BookOpen, FileText, MessageCircle, Search, Zap } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -5,6 +6,18 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { onModeChange } from '@/stores/themeStore'
+
+interface FundsData {
+  available_cash: number
+  used_margin: number
+  total_margin: number
+  opening_balance: number
+  payin: number
+  payout: number
+  span: number
+  exposure: number
+  collateral: number
+}
 
 interface MarginData {
   availablecash: string
@@ -67,31 +80,30 @@ export default function Dashboard() {
   })
   const [isAuthenticated, setIsAuthenticated] = useState(true) // Assume authenticated initially
 
-  // Fetch dashboard funds data
+  // Fetch dashboard funds data using Tauri invoke
   const fetchFundsData = useCallback(async () => {
     try {
       setIsLoading(true)
-      const response = await fetch('/auth/dashboard-data', {
-        credentials: 'include',
+      const funds = await invoke<FundsData>('get_funds')
+
+      // Convert FundsData to MarginData format for compatibility
+      setMarginData({
+        availablecash: funds.available_cash.toString(),
+        collateral: funds.collateral.toString(),
+        m2munrealized: '0', // Not available from funds API
+        m2mrealized: '0', // Not available from funds API
+        utiliseddebits: funds.used_margin.toString(),
       })
-
-      if (response.status === 401) {
-        setIsAuthenticated(false)
-        setIsLoading(false)
-        return
-      }
-
-      const data = await response.json()
-
-      if (data.status === 'success' && data.data) {
-        setMarginData(data.data)
-        setError(null)
-      } else {
-        setError(data.message || 'Failed to fetch margin data')
-      }
+      setError(null)
     } catch (err) {
       console.error('Error fetching funds:', err)
-      setError('Failed to fetch margin data')
+      // Check if it's an auth error
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      if (errorMsg.includes('not authenticated') || errorMsg.includes('No broker session')) {
+        setIsAuthenticated(false)
+      } else {
+        setError('Failed to fetch margin data')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -113,20 +125,16 @@ export default function Dashboard() {
     return () => unsubscribe()
   }, [fetchFundsData])
 
-  // Check master contract status
+  // Check master contract status using Tauri invoke
   const checkMasterContractStatus = useCallback(async () => {
     try {
-      const response = await fetch('/api/master-contract/status', {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-      })
-
-      if (response.status === 401) {
-        return
+      // Get symbol count from the symbol cache
+      const count = await invoke<number>('get_symbol_count')
+      if (count > 0) {
+        setMasterContract({ status: 'success', total_symbols: count })
+      } else {
+        setMasterContract({ status: 'pending', message: 'No symbols loaded' })
       }
-
-      const data = await response.json()
-      setMasterContract(data)
     } catch (_err) {
       setMasterContract({ status: 'error', message: 'Failed to check status' })
     }
