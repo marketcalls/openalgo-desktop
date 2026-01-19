@@ -1,6 +1,6 @@
 //! Settings management commands
 
-use crate::db::sqlite::models::Settings;
+use crate::db::sqlite::models::{RateLimitConfig, Settings};
 use crate::db::sqlite::{AutoLogoutConfig, WebhookConfig};
 use crate::error::Result;
 use crate::state::AppState;
@@ -32,6 +32,14 @@ pub struct UpdateWebhookConfigRequest {
     pub host: Option<String>,
     pub ngrok_url: Option<String>,
     pub webhook_secret: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateRateLimitRequest {
+    pub api_rate_limit: Option<u32>,
+    pub order_rate_limit: Option<u32>,
+    pub smart_order_rate_limit: Option<u32>,
+    pub smart_order_delay: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -160,6 +168,28 @@ pub async fn update_webhook_config(
         request.host,
         request.ngrok_url,
         request.webhook_secret,
+    )
+}
+
+/// Get rate limit configuration
+#[tauri::command]
+pub async fn get_rate_limit_config(state: State<'_, AppState>) -> Result<RateLimitConfig> {
+    state.sqlite.get_rate_limit_config()
+}
+
+/// Update rate limit configuration
+#[tauri::command]
+pub async fn update_rate_limit_config(
+    state: State<'_, AppState>,
+    request: UpdateRateLimitRequest,
+) -> Result<RateLimitConfig> {
+    tracing::info!("Updating rate limit config: {:?}", request);
+
+    state.sqlite.update_rate_limit_config(
+        request.api_rate_limit,
+        request.order_rate_limit,
+        request.smart_order_rate_limit,
+        request.smart_order_delay,
     )
 }
 

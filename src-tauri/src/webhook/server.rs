@@ -3,16 +3,20 @@
 //! Provides:
 //! - Dynamic strategy-based webhooks (/webhook/{webhook_id})
 //! - OpenAlgo SDK compatible REST API (/api/v1/*)
+//! - Rate limiting to prevent hitting broker API limits
 
 use crate::db::sqlite::WebhookConfig;
+use crate::state::AppState;
 use crate::webhook::handlers::{self, WebhookState};
+use crate::webhook::rate_limiter::{rate_limit_middleware, RateLimiterState};
 use axum::{
+    middleware,
     routing::{get, post},
     Router,
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tokio::sync::oneshot;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
@@ -47,6 +51,34 @@ impl WebhookServer {
         let addr: SocketAddr = format!("{}:{}", host, port)
             .parse()
             .map_err(|e| format!("Invalid address: {}", e))?;
+
+        // Get rate limit config from database
+        let (api_rate, order_rate, smart_order_rate, smart_order_delay) = {
+            let app_state = self.app_handle.state::<AppState>();
+            match app_state.sqlite.get_rate_limit_config() {
+                Ok(config) => (
+                    config.api_rate_limit,
+                    config.order_rate_limit,
+                    config.smart_order_rate_limit,
+                    config.smart_order_delay,
+                ),
+                Err(e) => {
+                    error!("Failed to get rate limit config, using defaults: {}", e);
+                    (100, 10, 2, 0.5) // Default values
+                }
+            }
+        };
+
+        info!("Rate limits: API={}/s, Order={}/s, SmartOrder={}/s, Delay={}s",
+              api_rate, order_rate, smart_order_rate, smart_order_delay);
+
+        // Create rate limiter state
+        let rate_limiter = Arc::new(RateLimiterState::new(
+            api_rate,
+            order_rate,
+            smart_order_rate,
+            smart_order_delay,
+        ));
 
         // Create shared state
         let state = Arc::new(WebhookState::new(self.app_handle.clone()));
@@ -133,6 +165,8 @@ impl WebhookServer {
             // Add state and middleware
             // ================================================================
             .with_state(state)
+            // Rate limiting middleware (applied to all API routes)
+            .layer(middleware::from_fn_with_state(rate_limiter.clone(), rate_limit_middleware))
             .layer(cors)
             .layer(TraceLayer::new_for_http());
 

@@ -124,6 +124,8 @@ pub fn run() {
             commands::settings::update_auto_logout_config,
             commands::settings::get_webhook_config,
             commands::settings::update_webhook_config,
+            commands::settings::get_rate_limit_config,
+            commands::settings::update_rate_limit_config,
             commands::settings::get_broker_config,
             commands::settings::get_broker_credentials,
             commands::settings::get_raw_broker_credentials,

@@ -1,6 +1,6 @@
 //! Settings management
 
-use crate::db::sqlite::models::{AutoLogoutConfig, Settings, WebhookConfig};
+use crate::db::sqlite::models::{AutoLogoutConfig, RateLimitConfig, Settings, WebhookConfig};
 use crate::error::Result;
 use rusqlite::Connection;
 
@@ -231,4 +231,78 @@ pub fn update_webhook_config(
     }
 
     get_webhook_config(conn)
+}
+
+/// Get rate limit configuration
+pub fn get_rate_limit_config(conn: &Connection) -> Result<RateLimitConfig> {
+    let config = conn.query_row(
+        "SELECT api_rate_limit, order_rate_limit, smart_order_rate_limit, smart_order_delay
+         FROM settings WHERE id = 1",
+        [],
+        |row| {
+            Ok(RateLimitConfig {
+                api_rate_limit: row.get::<_, u32>(0)?,
+                order_rate_limit: row.get::<_, u32>(1)?,
+                smart_order_rate_limit: row.get::<_, u32>(2)?,
+                smart_order_delay: row.get::<_, f64>(3)?,
+            })
+        },
+    )?;
+
+    Ok(config)
+}
+
+/// Update rate limit configuration
+pub fn update_rate_limit_config(
+    conn: &Connection,
+    api_rate_limit: Option<u32>,
+    order_rate_limit: Option<u32>,
+    smart_order_rate_limit: Option<u32>,
+    smart_order_delay: Option<f64>,
+) -> Result<RateLimitConfig> {
+    let mut updates = Vec::new();
+    let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+
+    if let Some(limit) = api_rate_limit {
+        // Validate rate limit (1-1000 per second reasonable range)
+        if limit >= 1 && limit <= 1000 {
+            updates.push("api_rate_limit = ?");
+            params.push(Box::new(limit));
+        }
+    }
+    if let Some(limit) = order_rate_limit {
+        // Validate order rate limit (1-100 per second)
+        if limit >= 1 && limit <= 100 {
+            updates.push("order_rate_limit = ?");
+            params.push(Box::new(limit));
+        }
+    }
+    if let Some(limit) = smart_order_rate_limit {
+        // Validate smart order rate limit (1-20 per second)
+        if limit >= 1 && limit <= 20 {
+            updates.push("smart_order_rate_limit = ?");
+            params.push(Box::new(limit));
+        }
+    }
+    if let Some(delay) = smart_order_delay {
+        // Validate delay (0.1 to 5.0 seconds)
+        if delay >= 0.1 && delay <= 5.0 {
+            updates.push("smart_order_delay = ?");
+            params.push(Box::new(delay));
+        }
+    }
+
+    if !updates.is_empty() {
+        updates.push("updated_at = datetime('now')");
+
+        let sql = format!(
+            "UPDATE settings SET {} WHERE id = 1",
+            updates.join(", ")
+        );
+
+        let params_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+        conn.execute(&sql, params_refs.as_slice())?;
+    }
+
+    get_rate_limit_config(conn)
 }

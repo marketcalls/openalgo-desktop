@@ -50,6 +50,7 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     run_migration(conn, "032_analyze_mode", ADD_ANALYZE_MODE)?;
     run_migration(conn, "033_configured_brokers", CREATE_CONFIGURED_BROKERS_TABLE)?;
     run_migration(conn, "034_broker_credentials", CREATE_BROKER_CREDENTIALS_TABLE)?;
+    run_migration(conn, "035_rate_limit_settings", ADD_RATE_LIMIT_SETTINGS)?;
 
     tracing::info!("Database migrations completed");
     Ok(())
@@ -568,4 +569,17 @@ CREATE TABLE broker_credentials (
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+"#;
+
+/// Migration to add rate limit settings for broker API calls
+const ADD_RATE_LIMIT_SETTINGS: &str = r#"
+-- Rate limits to prevent hitting broker API limits
+-- api_rate_limit: general API calls per second (default 100)
+-- order_rate_limit: order placement calls per second (default 10)
+-- smart_order_rate_limit: smart order calls per second (default 2)
+-- smart_order_delay: delay in seconds between multi-legged orders (default 0.5)
+ALTER TABLE settings ADD COLUMN api_rate_limit INTEGER NOT NULL DEFAULT 100;
+ALTER TABLE settings ADD COLUMN order_rate_limit INTEGER NOT NULL DEFAULT 10;
+ALTER TABLE settings ADD COLUMN smart_order_rate_limit INTEGER NOT NULL DEFAULT 2;
+ALTER TABLE settings ADD COLUMN smart_order_delay REAL NOT NULL DEFAULT 0.5;
 "#;

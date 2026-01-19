@@ -321,6 +321,24 @@ impl SqliteDb {
         settings::update_webhook_config(&conn, enabled, port, host, ngrok_url, webhook_secret)
     }
 
+    /// Get rate limit configuration
+    pub fn get_rate_limit_config(&self) -> Result<models::RateLimitConfig> {
+        let conn = self.conn.lock();
+        settings::get_rate_limit_config(&conn)
+    }
+
+    /// Update rate limit configuration
+    pub fn update_rate_limit_config(
+        &self,
+        api_rate_limit: Option<u32>,
+        order_rate_limit: Option<u32>,
+        smart_order_rate_limit: Option<u32>,
+        smart_order_delay: Option<f64>,
+    ) -> Result<models::RateLimitConfig> {
+        let conn = self.conn.lock();
+        settings::update_rate_limit_config(&conn, api_rate_limit, order_rate_limit, smart_order_rate_limit, smart_order_delay)
+    }
+
     // ========== Sandbox Methods ==========
 
     /// Get sandbox positions

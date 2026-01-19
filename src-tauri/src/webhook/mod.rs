@@ -19,6 +19,7 @@
 mod server;
 pub mod handlers;
 mod types;
+pub mod rate_limiter;
 
 pub use server::WebhookServer;
 pub use types::{

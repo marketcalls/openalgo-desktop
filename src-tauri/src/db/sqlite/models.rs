@@ -143,3 +143,16 @@ pub struct ApiKeyInfo {
     pub created_at: String,
     pub last_used_at: Option<String>,
 }
+
+/// Rate limiting configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RateLimitConfig {
+    /// General API rate limit (requests per second)
+    pub api_rate_limit: u32,
+    /// Order placement rate limit (requests per second)
+    pub order_rate_limit: u32,
+    /// Smart order rate limit (requests per second)
+    pub smart_order_rate_limit: u32,
+    /// Delay between smart orders (seconds)
+    pub smart_order_delay: f64,
+}
