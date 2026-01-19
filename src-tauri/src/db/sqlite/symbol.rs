@@ -9,68 +9,53 @@ use crate::state::SymbolInfo;
 use rusqlite::{params, Connection};
 
 /// Store symbols in database (batch insert with transaction)
-/// Uses chunked inserts for performance with large datasets (100k+ symbols)
+/// Uses prepared statements within a transaction for performance
 pub fn store_symbols(conn: &mut Connection, symbols: &[SymbolInfo]) -> Result<()> {
     tracing::info!("Storing {} symbols to database...", symbols.len());
 
-    let tx = conn.transaction()?;
+    let start = std::time::Instant::now();
 
-    // Optimize for bulk insert
-    tx.execute_batch("PRAGMA synchronous = OFF; PRAGMA journal_mode = MEMORY;")?;
+    // Start transaction
+    let tx = conn.transaction()?;
 
     // Clear existing symbols
     tx.execute("DELETE FROM symtoken", [])?;
+    tracing::debug!("Cleared existing symbols");
 
-    // Use chunked batch inserts for better performance
-    // SQLite supports up to 999 variables per statement, we use 9 per row = 111 rows per batch
-    const CHUNK_SIZE: usize = 100;
+    // Use prepared statement for fast inserts
+    {
+        let mut stmt = tx.prepare(
+            "INSERT INTO symtoken (symbol, token, exchange, name, lot_size, tick_size, instrument_type, brsymbol, brexchange)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        )?;
 
-    for (chunk_idx, chunk) in symbols.chunks(CHUNK_SIZE).enumerate() {
-        if chunk_idx > 0 && chunk_idx % 1000 == 0 {
-            tracing::debug!("Inserted {} symbols...", chunk_idx * CHUNK_SIZE);
+        for (idx, symbol) in symbols.iter().enumerate() {
+            if idx > 0 && idx % 50000 == 0 {
+                tracing::info!("Inserted {} symbols...", idx);
+            }
+
+            if let Err(e) = stmt.execute(params![
+                &symbol.symbol,
+                &symbol.token,
+                &symbol.exchange,
+                &symbol.name,
+                symbol.lot_size,
+                symbol.tick_size,
+                &symbol.instrument_type,
+                &symbol.brsymbol,
+                &symbol.brexchange,
+            ]) {
+                tracing::error!("Failed to insert symbol {}: {:?} - Error: {}", idx, symbol.symbol, e);
+                return Err(e.into());
+            }
         }
-
-        // Build multi-row INSERT statement
-        let placeholders: Vec<String> = (0..chunk.len())
-            .map(|i| {
-                let base = i * 9;
-                format!(
-                    "(?{}, ?{}, ?{}, ?{}, ?{}, ?{}, ?{}, ?{}, ?{})",
-                    base + 1, base + 2, base + 3, base + 4, base + 5,
-                    base + 6, base + 7, base + 8, base + 9
-                )
-            })
-            .collect();
-
-        let sql = format!(
-            "INSERT INTO symtoken (symbol, token, exchange, name, lot_size, tick_size, instrument_type, brsymbol, brexchange) VALUES {}",
-            placeholders.join(", ")
-        );
-
-        // Collect all parameters for the chunk
-        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::with_capacity(chunk.len() * 9);
-        for s in chunk {
-            params_vec.push(Box::new(s.symbol.clone()));
-            params_vec.push(Box::new(s.token.clone()));
-            params_vec.push(Box::new(s.exchange.clone()));
-            params_vec.push(Box::new(s.name.clone()));
-            params_vec.push(Box::new(s.lot_size));
-            params_vec.push(Box::new(s.tick_size));
-            params_vec.push(Box::new(s.instrument_type.clone()));
-            params_vec.push(Box::new(s.brsymbol.clone()));
-            params_vec.push(Box::new(s.brexchange.clone()));
-        }
-
-        let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
-        tx.execute(&sql, params_refs.as_slice())?;
     }
 
-    // Restore normal settings
-    tx.execute_batch("PRAGMA synchronous = NORMAL; PRAGMA journal_mode = WAL;")?;
-
+    tracing::info!("Committing transaction...");
     tx.commit()?;
 
-    tracing::info!("Stored {} symbols in database", symbols.len());
+    let elapsed = start.elapsed();
+    tracing::info!("Stored {} symbols in database in {:.2}s", symbols.len(), elapsed.as_secs_f64());
     Ok(())
 }
 
