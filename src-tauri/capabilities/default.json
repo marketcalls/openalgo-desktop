@@ -1,0 +1,29 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default permissions for OpenAlgo Desktop",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:event:allow-listen",
+    "core:event:allow-emit",
+    "core:webview:default",
+    "core:webview:allow-internal-toggle-devtools",
+    "core:window:default",
+    "core:window:allow-close",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "core:window:allow-set-title",
+    "core:window:allow-set-focus",
+    "core:app:default",
+    "core:app:allow-version",
+    "shell:default",
+    "shell:allow-open"
+  ]
+}
