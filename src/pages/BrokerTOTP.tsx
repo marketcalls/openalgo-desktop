@@ -390,6 +390,18 @@ export default function BrokerTOTP() {
           })
         }
         toast.success(`Connected to ${brokerName} successfully`)
+
+        // Trigger master contract download in background
+        toast.info('Downloading master contracts...')
+        invoke<number>('refresh_symbol_master')
+          .then((count) => {
+            toast.success(`Master contracts loaded: ${count} symbols`)
+          })
+          .catch((err) => {
+            console.error('Failed to download master contracts:', err)
+            toast.error('Failed to download master contracts. Try refreshing from Dashboard.')
+          })
+
         navigate('/dashboard')
       } else {
         setError('Authentication failed. Please check your credentials and try again.')

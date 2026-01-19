@@ -197,6 +197,18 @@ export default function BrokerSelect() {
             })
           }
           toast.success(`Connected to ${broker_id} as ${response.user_name || response.user_id}`)
+
+          // Trigger master contract download in background
+          toast.info('Downloading master contracts...')
+          invoke<number>('refresh_symbol_master')
+            .then((count) => {
+              toast.success(`Master contracts loaded: ${count} symbols`)
+            })
+            .catch((err) => {
+              console.error('Failed to download master contracts:', err)
+              toast.error('Failed to download master contracts. Try refreshing from Dashboard.')
+            })
+
           navigate('/dashboard')
         } else {
           toast.error('Failed to connect to broker')
