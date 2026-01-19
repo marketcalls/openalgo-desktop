@@ -330,13 +330,25 @@ export default function BrokerSelect() {
 
       // For OAuth brokers, initiate OAuth flow
       if (broker.auth_type === 'oauth') {
+        console.log('Starting OAuth flow for broker:', selectedBroker)
+
         // Get broker credentials for API key
-        const creds = await invoke<{
+        let creds: {
           broker_id: string
           api_key: string
           api_secret: string | null
           client_id: string | null
-        } | null>('get_broker_credentials_for_edit', { brokerId: selectedBroker })
+        } | null = null
+
+        try {
+          creds = await invoke<typeof creds>('get_broker_credentials_for_edit', { brokerId: selectedBroker })
+          console.log('Got credentials:', creds ? 'yes' : 'no')
+        } catch (credErr) {
+          console.error('Failed to get credentials:', credErr)
+          setError(`Failed to get credentials: ${credErr}`)
+          setIsSubmitting(false)
+          return
+        }
 
         if (!creds) {
           setError('Broker credentials not found. Please configure credentials first.')
@@ -353,6 +365,7 @@ export default function BrokerSelect() {
         } else {
           redirectUrl = `http://127.0.0.1:5000/${selectedBroker}/callback`
         }
+        console.log('Redirect URL:', redirectUrl)
 
         // Generate state for security
         const state = generateRandomState()
@@ -377,10 +390,20 @@ export default function BrokerSelect() {
 
         // Open browser with OAuth URL
         toast.info('Opening browser for authentication...')
-        await open(authUrl)
+        console.log('Opening URL:', authUrl)
 
-        // Keep submitting state true - will be reset when we receive callback
-        toast.info('Please complete authentication in your browser')
+        try {
+          await open(authUrl)
+          // Keep submitting state true - will be reset when we receive callback
+          toast.info('Please complete authentication in your browser')
+        } catch (openErr) {
+          console.error('Failed to open browser:', openErr)
+          toast.error(`Failed to open browser: ${openErr}`)
+          // Fallback: show the URL for manual copy
+          toast.info('Copy this URL and open it manually in your browser')
+          navigator.clipboard.writeText(authUrl)
+          setError(`Could not open browser automatically. URL copied to clipboard.`)
+        }
         return
       }
 
@@ -388,7 +411,8 @@ export default function BrokerSelect() {
       toast.error(`Unknown authentication type: ${broker.auth_type}`)
     } catch (err) {
       console.error('Broker login error:', err)
-      setError('Failed to initiate broker login')
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      setError(`Failed to initiate broker login: ${errorMessage}`)
       setIsSubmitting(false)
     }
   }
