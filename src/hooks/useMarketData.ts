@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+/**
+ * Market Data Hook for OpenAlgo Desktop
+ *
+ * Uses Tauri IPC commands and events for real-time market data
+ * instead of browser WebSocket.
+ */
 
-// Fetch CSRF token for authenticated requests
-async function fetchCSRFToken(): Promise<string> {
-  const response = await fetch('/auth/csrf-token', { credentials: 'include' })
-  const data = await response.json()
-  return data.csrf_token
-}
+import { invoke } from '@tauri-apps/api/core'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 export interface MarketData {
   ltp?: number
@@ -17,6 +19,11 @@ export interface MarketData {
   change?: number
   change_percent?: number
   timestamp?: string
+  bid?: number
+  ask?: number
+  bid_qty?: number
+  ask_qty?: number
+  oi?: number
 }
 
 export interface SymbolData {
@@ -26,8 +33,28 @@ export interface SymbolData {
   lastUpdate?: number
 }
 
+interface MarketTick {
+  symbol: string
+  exchange: string
+  token: string
+  ltp: number
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+  bid: number
+  ask: number
+  bid_qty: number
+  ask_qty: number
+  oi: number
+  timestamp: number
+  change: number
+  change_percent: number
+}
+
 interface UseMarketDataOptions {
-  symbols: Array<{ symbol: string; exchange: string }>
+  symbols: Array<{ symbol: string; exchange: string; token?: string }>
   mode?: 'LTP' | 'Quote' | 'Depth'
   enabled?: boolean
   autoReconnect?: boolean
@@ -43,9 +70,23 @@ interface UseMarketDataReturn {
   disconnect: () => void
 }
 
+// Map mode names to Tauri mode strings
+function getModeString(mode: 'LTP' | 'Quote' | 'Depth'): string {
+  switch (mode) {
+    case 'LTP':
+      return 'ltp'
+    case 'Quote':
+      return 'quote'
+    case 'Depth':
+      return 'full'
+    default:
+      return 'quote'
+  }
+}
+
 export function useMarketData({
   symbols,
-  mode = 'LTP',
+  mode = 'Quote',
   enabled = true,
   autoReconnect = true,
 }: UseMarketDataOptions): UseMarketDataReturn {
@@ -55,25 +96,45 @@ export function useMarketData({
   const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const socketRef = useRef<WebSocket | null>(null)
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const unlistenersRef = useRef<UnlistenFn[]>([])
   const subscribedSymbolsRef = useRef<Set<string>>(new Set())
-  const pendingSubscriptionsRef = useRef<Array<{ symbol: string; exchange: string }>>([])
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const getCsrfToken = useCallback(async () => fetchCSRFToken(), [])
+  // Handle incoming market tick
+  const handleMarketTick = useCallback((tick: MarketTick) => {
+    const key = `${tick.exchange}:${tick.symbol}`
+
+    setMarketData((prev) => {
+      const updated = new Map(prev)
+      updated.set(key, {
+        symbol: tick.symbol,
+        exchange: tick.exchange,
+        data: {
+          ltp: tick.ltp,
+          open: tick.open,
+          high: tick.high,
+          low: tick.low,
+          close: tick.close,
+          volume: tick.volume,
+          change: tick.change,
+          change_percent: tick.change_percent,
+          bid: tick.bid,
+          ask: tick.ask,
+          bid_qty: tick.bid_qty,
+          ask_qty: tick.ask_qty,
+          oi: tick.oi,
+          timestamp: tick.timestamp ? new Date(tick.timestamp).toISOString() : undefined,
+        },
+        lastUpdate: Date.now(),
+      })
+      return updated
+    })
+  }, [])
 
   // Subscribe to symbols
   const subscribeToSymbols = useCallback(
-    (symbolsToSubscribe: Array<{ symbol: string; exchange: string }>) => {
-      if (
-        !socketRef.current ||
-        socketRef.current.readyState !== WebSocket.OPEN ||
-        !isAuthenticated
-      ) {
-        // Queue for later when connected and authenticated
-        pendingSubscriptionsRef.current = symbolsToSubscribe
-        return
-      }
+    async (symbolsToSubscribe: Array<{ symbol: string; exchange: string; token?: string }>) => {
+      if (!isConnected || symbolsToSubscribe.length === 0) return
 
       const newSymbols = symbolsToSubscribe.filter((s) => {
         const key = `${s.exchange}:${s.symbol}`
@@ -82,193 +143,134 @@ export function useMarketData({
 
       if (newSymbols.length === 0) return
 
-      socketRef.current.send(
-        JSON.stringify({
-          action: 'subscribe',
-          symbols: newSymbols,
-          mode,
-        })
-      )
-
-      // Track subscribed symbols
-      newSymbols.forEach((s) => {
-        const key = `${s.exchange}:${s.symbol}`
-        subscribedSymbolsRef.current.add(key)
-
-        // Initialize market data entry
-        setMarketData((prev) => {
-          const updated = new Map(prev)
-          if (!updated.has(key)) {
-            updated.set(key, { symbol: s.symbol, exchange: s.exchange, data: {} })
-          }
-          return updated
-        })
-      })
-    },
-    [isAuthenticated, mode]
-  )
-
-  // Handle incoming WebSocket messages
-  const handleMessage = useCallback(
-    (event: MessageEvent) => {
       try {
-        const data = JSON.parse(event.data)
-        const type = (data.type || data.status) as string
+        // Build subscription requests
+        const requests = newSymbols.map((s) => ({
+          exchange: s.exchange,
+          token: s.token || s.symbol, // Use token if provided, otherwise use symbol
+          symbol: s.symbol,
+          mode: getModeString(mode),
+        }))
 
-        switch (type) {
-          case 'auth':
-            if (data.status === 'success') {
-              setIsAuthenticated(true)
-              setError(null)
-              // Process any pending subscriptions
-              if (pendingSubscriptionsRef.current.length > 0) {
-                // Small delay to ensure auth is fully processed
-                setTimeout(() => {
-                  subscribeToSymbols(pendingSubscriptionsRef.current)
-                  pendingSubscriptionsRef.current = []
-                }, 100)
-              }
-            } else {
-              setError(`Authentication failed: ${data.message}`)
+        await invoke('websocket_subscribe', { symbols: requests })
+
+        // Track subscribed symbols
+        newSymbols.forEach((s) => {
+          const key = `${s.exchange}:${s.symbol}`
+          subscribedSymbolsRef.current.add(key)
+
+          // Initialize market data entry
+          setMarketData((prev) => {
+            const updated = new Map(prev)
+            if (!updated.has(key)) {
+              updated.set(key, { symbol: s.symbol, exchange: s.exchange, data: {} })
             }
-            break
-
-          case 'market_data': {
-            const symbol = (data.symbol as string).toUpperCase()
-            const exchange = data.exchange as string
-            const marketDataPayload = (data.data || {}) as MarketData
-            const key = `${exchange}:${symbol}`
-
-            setMarketData((prev) => {
-              const existing = prev.get(key)
-              if (!existing) return prev
-
-              const updated = new Map(prev)
-              const newData = { ...existing.data }
-
-              // Update with new market data
-              Object.assign(newData, {
-                ltp: marketDataPayload.ltp ?? newData.ltp,
-                open: marketDataPayload.open ?? newData.open,
-                high: marketDataPayload.high ?? newData.high,
-                low: marketDataPayload.low ?? newData.low,
-                close: marketDataPayload.close ?? newData.close,
-                volume: marketDataPayload.volume ?? newData.volume,
-                change: marketDataPayload.change ?? newData.change,
-                change_percent: marketDataPayload.change_percent ?? newData.change_percent,
-                timestamp: marketDataPayload.timestamp ?? newData.timestamp,
-              })
-
-              updated.set(key, { ...existing, data: newData, lastUpdate: Date.now() })
-              return updated
-            })
-            break
-          }
-
-          case 'subscribe':
-            // Subscription confirmed
-            break
-
-          case 'error':
-            setError(`WebSocket error: ${data.message}`)
-            break
-        }
-      } catch {
-        // Ignore parse errors for non-JSON messages
+            return updated
+          })
+        })
+      } catch (err) {
+        console.error('Failed to subscribe to symbols:', err)
+        setError(`Subscription failed: ${err}`)
       }
     },
-    [subscribeToSymbols]
+    [isConnected, mode]
   )
 
-  // Connect to WebSocket
+  // Connect to WebSocket via Tauri
   const connect = useCallback(async () => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      return
-    }
+    if (isConnected || isConnecting) return
 
     setIsConnecting(true)
     setError(null)
 
     try {
-      const csrfToken = await getCsrfToken()
+      // Connect via Tauri command
+      await invoke('websocket_connect')
 
-      // Get WebSocket config (URL from .env)
-      const configResponse = await fetch('/api/websocket/config', {
-        headers: { 'X-CSRFToken': csrfToken },
-        credentials: 'include',
-      })
-      const configData = await configResponse.json()
+      setIsConnected(true)
+      setIsAuthenticated(true) // Connection implies authentication in desktop mode
+      setIsConnecting(false)
+      setError(null)
 
-      if (configData.status !== 'success') {
-        throw new Error('Failed to get WebSocket configuration')
+      // Subscribe to pending symbols
+      if (symbols.length > 0) {
+        setTimeout(() => {
+          subscribeToSymbols(symbols)
+        }, 100)
       }
-
-      const wsUrl = configData.websocket_url
-
-      const socket = new WebSocket(wsUrl)
-
-      socket.onopen = async () => {
-        setIsConnected(true)
-        setIsConnecting(false)
-
-        try {
-          // Get API key for authentication
-          const authCsrfToken = await getCsrfToken()
-          const apiKeyResponse = await fetch('/api/websocket/apikey', {
-            headers: { 'X-CSRFToken': authCsrfToken },
-            credentials: 'include',
-          })
-          const apiKeyData = await apiKeyResponse.json()
-
-          if (apiKeyData.status === 'success' && apiKeyData.api_key) {
-            socket.send(JSON.stringify({ action: 'authenticate', api_key: apiKeyData.api_key }))
-          } else {
-            setError('No API key found - please generate one at /apikey')
-          }
-        } catch (err) {
-          setError(`Authentication error: ${err}`)
-        }
-      }
-
-      socket.onclose = (event) => {
-        setIsConnected(false)
-        setIsConnecting(false)
-        setIsAuthenticated(false)
-        subscribedSymbolsRef.current.clear()
-
-        if (autoReconnect && !event.wasClean && enabled) {
-          reconnectTimeoutRef.current = setTimeout(connect, 3000)
-        }
-      }
-
-      socket.onerror = () => {
-        setError('WebSocket connection error')
-        setIsConnecting(false)
-      }
-
-      socket.onmessage = handleMessage
-
-      socketRef.current = socket
     } catch (err) {
+      console.error('WebSocket connection failed:', err)
       setError(`Connection failed: ${err}`)
       setIsConnecting(false)
+
+      // Auto-reconnect
+      if (autoReconnect && enabled) {
+        reconnectTimeoutRef.current = setTimeout(connect, 3000)
+      }
     }
-  }, [getCsrfToken, handleMessage, autoReconnect, enabled])
+  }, [isConnected, isConnecting, symbols, subscribeToSymbols, autoReconnect, enabled])
 
   // Disconnect from WebSocket
-  const disconnect = useCallback(() => {
+  const disconnect = useCallback(async () => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current)
       reconnectTimeoutRef.current = null
     }
-    if (socketRef.current) {
-      socketRef.current.close(1000, 'User disconnect')
-      socketRef.current = null
+
+    try {
+      await invoke('websocket_disconnect')
+    } catch (err) {
+      console.error('WebSocket disconnect failed:', err)
     }
+
     setIsConnected(false)
     setIsAuthenticated(false)
     subscribedSymbolsRef.current.clear()
   }, [])
+
+  // Set up Tauri event listeners
+  useEffect(() => {
+    if (!enabled) return
+
+    // Listen to market tick events
+    listen<MarketTick>('market_tick', (event) => {
+      handleMarketTick(event.payload)
+    }).then((unlisten) => {
+      unlistenersRef.current.push(unlisten)
+    })
+
+    // Listen to connection status events
+    listen<string>('websocket_connected', () => {
+      setIsConnected(true)
+      setIsAuthenticated(true)
+    }).then((unlisten) => {
+      unlistenersRef.current.push(unlisten)
+    })
+
+    listen<string>('websocket_disconnected', () => {
+      setIsConnected(false)
+      setIsAuthenticated(false)
+      subscribedSymbolsRef.current.clear()
+
+      // Auto-reconnect
+      if (autoReconnect && enabled) {
+        reconnectTimeoutRef.current = setTimeout(connect, 3000)
+      }
+    }).then((unlisten) => {
+      unlistenersRef.current.push(unlisten)
+    })
+
+    listen<string>('websocket_error', (event) => {
+      setError(`WebSocket error: ${event.payload}`)
+    }).then((unlisten) => {
+      unlistenersRef.current.push(unlisten)
+    })
+
+    return () => {
+      unlistenersRef.current.forEach((unlisten) => unlisten())
+      unlistenersRef.current = []
+    }
+  }, [enabled, autoReconnect, connect, handleMarketTick])
 
   // Auto-connect when enabled and symbols provided
   useEffect(() => {
@@ -277,19 +279,18 @@ export function useMarketData({
     }
 
     return () => {
-      // Cleanup on unmount
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
       }
     }
   }, [enabled, symbols.length, isConnected, isConnecting, connect])
 
-  // Subscribe to new symbols when authenticated
+  // Subscribe to new symbols when connected
   useEffect(() => {
-    if (isAuthenticated && symbols.length > 0) {
+    if (isConnected && symbols.length > 0) {
       subscribeToSymbols(symbols)
     }
-  }, [isAuthenticated, symbols, subscribeToSymbols])
+  }, [isConnected, symbols, subscribeToSymbols])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -297,6 +298,27 @@ export function useMarketData({
       disconnect()
     }
   }, [disconnect])
+
+  // Check initial WebSocket status
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const status = (await invoke('websocket_status')) as {
+          connected: boolean
+          broker: string | null
+          subscriptions: number
+        }
+        setIsConnected(status.connected)
+        setIsAuthenticated(status.connected)
+      } catch {
+        // Ignore - websocket command may not be available yet
+      }
+    }
+
+    if (enabled) {
+      checkStatus()
+    }
+  }, [enabled])
 
   return {
     data: marketData,

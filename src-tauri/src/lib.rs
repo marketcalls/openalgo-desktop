@@ -158,6 +158,13 @@ pub fn run() {
             // Historify commands
             commands::historify::get_market_data,
             commands::historify::download_historical_data,
+            // WebSocket commands
+            commands::websocket::websocket_connect,
+            commands::websocket::websocket_disconnect,
+            commands::websocket::websocket_status,
+            commands::websocket::websocket_subscribe,
+            commands::websocket::websocket_unsubscribe,
+            commands::websocket::websocket_register_symbol,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

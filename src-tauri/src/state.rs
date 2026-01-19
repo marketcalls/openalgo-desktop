@@ -1,10 +1,11 @@
 //! Application state management
 
 use crate::brokers::BrokerRegistry;
-use crate::db::sqlite::SqliteDb;
 use crate::db::duckdb::DuckDb;
+use crate::db::sqlite::SqliteDb;
 use crate::error::{AppError, Result};
 use crate::security::SecurityManager;
+use crate::websocket::WebSocketManager;
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use std::path::PathBuf;
@@ -55,6 +56,9 @@ pub struct AppState {
     /// Broker registry
     pub brokers: Arc<BrokerRegistry>,
 
+    /// WebSocket manager for real-time market data
+    pub websocket: Arc<WebSocketManager>,
+
     /// Current user session
     pub user_session: RwLock<Option<UserSession>>,
 
@@ -99,11 +103,15 @@ impl AppState {
         // Initialize broker registry
         let brokers = Arc::new(BrokerRegistry::new());
 
+        // Initialize WebSocket manager
+        let websocket = Arc::new(WebSocketManager::new(app_handle.clone()));
+
         Ok(Self {
             sqlite,
             duckdb,
             security,
             brokers,
+            websocket,
             user_session: RwLock::new(None),
             broker_session: RwLock::new(None),
             symbol_cache: DashMap::new(),

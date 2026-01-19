@@ -17,3 +17,4 @@ pub mod sandbox;
 pub mod order_logs;
 pub mod market;
 pub mod historify;
+pub mod websocket;
