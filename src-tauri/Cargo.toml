@@ -28,7 +28,7 @@ r2d2_sqlite = "0.25"
 
 # Security
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust", "vendored"] }
-argon2 = "0.5"
+argon2 = "0.6"
 aes-gcm = "0.10"
 sha2 = "0.10"
 sha1 = "0.10"
