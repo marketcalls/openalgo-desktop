@@ -30,7 +30,7 @@ r2d2_sqlite = "0.25"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust", "vendored"] }
 argon2 = "0.5"
 aes-gcm = "0.10"
-sha2 = "0.10"
+sha2 = "0.11"
 sha1 = "0.10"
 hmac = "0.12"
 subtle = "2.6"
