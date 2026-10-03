@@ -114,7 +114,7 @@ jobs:
             os: macos-latest
             target: x86_64-apple-darwin
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - if: runner.os == 'Linux'
         uses: ./.github/actions/linux-tauri-deps
       - uses: dtolnay/rust-toolchain@stable
@@ -232,7 +232,7 @@ jobs:
         run: rm -f "${RUNNER_TEMP}"/AuthKey_*.p8
 
       - name: Upload bundles as workflow artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-${{ matrix.name }}
           path: |

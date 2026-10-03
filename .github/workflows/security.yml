@@ -65,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-audit
@@ -79,7 +79,7 @@ jobs:
           done < <(grep -vE '^[[:space:]]*#' .github/deny.toml | grep -oE 'RUSTSEC-[0-9]{4}-[0-9]{4}' | sort -u)
           echo "Advisories accepted in deny.toml: $(( ${#ignore_args[@]} / 2 ))"
           cargo audit --file src-tauri/Cargo.lock "${ignore_args[@]}"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: cargo-audit
@@ -95,7 +95,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@v2
         with:
@@ -126,7 +126,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: "22"
@@ -134,7 +134,7 @@ jobs:
         run: npm audit --omit=dev --json > npm-audit.json || true
       - name: Fail on high or critical
         run: npm audit --omit=dev --audit-level=high
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: npm-audit
@@ -150,7 +150,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: ./.github/actions/install-gitleaks
@@ -175,7 +175,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Trivy filesystem scan (lockfiles and secrets)
         # Pinned to a commit, not a tag: trivy-action tags were re-pointed
         # in a 2026 supply-chain incident. Dependabot keeps the pin current.
@@ -196,7 +196,7 @@ jobs:
         with:
           sarif_file: trivy.sarif
           category: trivy-fs
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: trivy
