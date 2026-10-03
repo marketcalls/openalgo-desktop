@@ -163,6 +163,29 @@ pub fn login_fields(broker: &str) -> &'static [LoginField] {
                 required: false,
             },
         ],
+        // 5paisa (web BrokerTOTP.tsx): login email, PIN and TOTP typed at
+        // each login; the stored API key is `api_key:::user_id:::client_id`
+        // and the secret the app's encryption key.
+        "fivepaisa" => &[
+            LoginField {
+                name: "userid",
+                label: "5paisa login email",
+                secret: false,
+                required: true,
+            },
+            LoginField {
+                name: "pin",
+                label: "PIN",
+                secret: true,
+                required: true,
+            },
+            LoginField {
+                name: "totp",
+                label: "TOTP from your authenticator app",
+                secret: true,
+                required: true,
+            },
+        ],
         // Groww: TOTP for a TOTP API key, or a pasted access token; with
         // neither, the stored API key and secret sign in (approval flow).
         "groww" => &[
@@ -337,6 +360,16 @@ mod tests {
         assert!(f[1].secret && !f[0].secret);
         let p = q(&[("code", "c1"), ("state", "s")]);
         assert_eq!(extract_code("shoonya", &p).as_deref(), Some("c1"));
+    }
+
+    #[test]
+    fn fivepaisa_login_fields_are_email_pin_totp() {
+        assert_eq!(auth_type("fivepaisa"), AuthType::Form);
+        let f = login_fields("fivepaisa");
+        let names: Vec<&str> = f.iter().map(|x| x.name).collect();
+        assert_eq!(names, ["userid", "pin", "totp"]);
+        assert!(f.iter().all(|x| x.required));
+        assert!(!f[0].secret && f[1].secret && f[2].secret);
     }
 
     #[test]
