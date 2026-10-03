@@ -14,7 +14,7 @@
 //! desktop always sends `ltt` in mode-1 data, which the web's Zerodha
 //! adapter omits on mode-1 copies derived from a richer tick.
 
-mod feed_support;
+use crate::feed_support;
 
 use feed_support::*;
 use openalgo_desktop_lib::feed::source::{DepthBook, DepthLevel, QuoteFields};

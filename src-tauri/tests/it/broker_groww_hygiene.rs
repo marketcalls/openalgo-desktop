@@ -2,8 +2,8 @@
 //! read"): a fake Groww accepts the NATS handshake and then drops every
 //! connection, so the manager reconnects through the loopback relay 150
 //! times (each with a fresh socket token and key pair). Descriptors and RSS
-//! must stay flat, and disconnecting must release the relay listener. One
-//! test per binary so the descriptor count is not disturbed.
+//! must stay flat, and disconnecting must release the relay listener. The
+//! test runs in its own process (`isolated!`) so the count is not disturbed.
 
 use axum::routing::post;
 use axum::{Json, Router};
@@ -43,6 +43,7 @@ fn rss_kb() -> u64 {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn relay_reconnects_do_not_leak() {
+    crate::isolated!(relay_reconnects_do_not_leak);
     let app = Router::new().route(
         "/token",
         post(|| async { Json(json!({"token": "jwt", "subscriptionId": "s"})) }),

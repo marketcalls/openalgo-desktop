@@ -2,7 +2,7 @@
 //! `test/test_gthread_sandbox_*.py`): every pair below must end in exactly
 //! one outcome, with funds and books agreeing.
 
-mod sandbox_support;
+use crate::sandbox_support;
 
 use openalgo_desktop_lib::clock::ManualClock;
 use openalgo_desktop_lib::events::EventBus;

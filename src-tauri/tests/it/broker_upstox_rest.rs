@@ -24,22 +24,22 @@ use std::sync::Arc;
 const TOKEN: &str = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.test.signature";
 
 fn books() -> Value {
-    serde_json::from_str(include_str!("fixtures/brokers/upstox/books.json")).unwrap()
+    serde_json::from_str(include_str!("../fixtures/brokers/upstox/books.json")).unwrap()
 }
 
 fn market() -> Value {
-    serde_json::from_str(include_str!("fixtures/brokers/upstox/market.json")).unwrap()
+    serde_json::from_str(include_str!("../fixtures/brokers/upstox/market.json")).unwrap()
 }
 
 fn orders_fixture() -> Value {
-    serde_json::from_str(include_str!("fixtures/brokers/upstox/orders.json")).unwrap()
+    serde_json::from_str(include_str!("../fixtures/brokers/upstox/orders.json")).unwrap()
 }
 
 fn master() -> SymbolResolver {
     let r = SymbolResolver::new();
     r.load(
         master_contract::parse_json(
-            include_str!("fixtures/brokers/upstox/instruments.json").as_bytes(),
+            include_str!("../fixtures/brokers/upstox/instruments.json").as_bytes(),
         )
         .unwrap(),
     );
@@ -71,7 +71,7 @@ async fn serve(app: Router) -> String {
 fn gz_master() -> Vec<u8> {
     use std::io::Write;
     let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
-    enc.write_all(include_str!("fixtures/brokers/upstox/instruments.json").as_bytes())
+    enc.write_all(include_str!("../fixtures/brokers/upstox/instruments.json").as_bytes())
         .unwrap();
     enc.finish().unwrap()
 }

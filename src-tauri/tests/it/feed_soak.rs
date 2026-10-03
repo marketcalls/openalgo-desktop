@@ -5,9 +5,9 @@
 //! gone.
 //!
 //! Ignored by default (it takes a while):
-//! `cargo test --test feed_soak -- --ignored --nocapture`
+//! `cargo test --test it feed_soak -- --ignored --nocapture`
 
-mod feed_support;
+use crate::feed_support;
 
 use feed_support::*;
 use openalgo_desktop_lib::feed::{FakeSource, InstrumentKey, MarketUpdate, Mode};
@@ -62,6 +62,7 @@ async fn wave(url: &str, h: &Harness, wave_no: usize) {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore]
 async fn soak_1000_clients_fd_and_rss_flat() {
+    crate::isolated!(soak_1000_clients_fd_and_rss_flat);
     let h = start_with(FakeSource::permissive(), |c| c.max_connections = WAVE + 8).await;
     let url = h.url.clone();
 

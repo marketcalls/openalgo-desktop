@@ -2,7 +2,7 @@
 //! across clients, bounded memory for slow consumers, order-update fan-out
 //! from the event bus, throttling, connection and message limits, shutdown.
 
-mod feed_support;
+use crate::feed_support;
 
 use feed_support::*;
 use futures_util::SinkExt;
@@ -156,6 +156,7 @@ async fn refcount_matches_union_of_live_clients() {
 /// frame per subscription; when it reads again it gets the latest prices.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn slow_consumer_memory_is_bounded_and_gets_latest() {
+    crate::isolated!(slow_consumer_memory_is_bounded_and_gets_latest);
     const SYMBOLS: usize = 50;
     let h = start_with(FakeSource::permissive(), |_| {}).await;
     let mut slow = Client::connect(&h.url).await;

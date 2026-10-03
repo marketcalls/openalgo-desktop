@@ -2,7 +2,7 @@
 //! ticks, the polling fallback runs only while the feed is stale, the
 //! schedule runs from the task's clock, and stopping releases everything.
 
-mod sandbox_support;
+use crate::sandbox_support;
 
 use openalgo_desktop_lib::sandbox::{BroadcastTicks, SandboxOptions, SymbolKey, Tick, TickSource};
 use sandbox_support::*;

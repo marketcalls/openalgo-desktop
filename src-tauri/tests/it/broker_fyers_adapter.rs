@@ -23,7 +23,7 @@ use std::time::Duration;
 
 macro_rules! fx {
     ($name:literal) => {
-        include_str!(concat!("fixtures/brokers/fyers/", $name))
+        include_str!(concat!("../fixtures/brokers/fyers/", $name))
     };
 }
 

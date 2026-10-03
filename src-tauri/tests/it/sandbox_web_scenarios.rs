@@ -2,7 +2,7 @@
 //! its web source; where the web's expectation depended on a web defect the
 //! test says so.
 
-mod sandbox_support;
+use crate::sandbox_support;
 
 use openalgo_desktop_lib::sandbox::db::HoldingRow;
 use openalgo_desktop_lib::sandbox::{holdings, Quote, Tick};

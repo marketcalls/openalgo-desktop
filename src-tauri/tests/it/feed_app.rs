@@ -3,7 +3,7 @@
 //! restart on a port change, port-in-use reporting and stop. Ports are
 //! ephemeral; 5000/8765 are never used.
 
-mod feed_support;
+use crate::feed_support;
 
 use feed_support::Client;
 use openalgo_desktop_lib::brokers::BrokerRegistry;

@@ -10,7 +10,7 @@
 //! 5. the web's fund identity `available + used - realized == capital`;
 //! 6. two adds commute (same average and margin in either order).
 
-mod sandbox_support;
+use crate::sandbox_support;
 
 use proptest::prelude::*;
 use rust_decimal::Decimal;

@@ -13,7 +13,7 @@
 //! shape (keys and value types). Fixtures that record a web defect are
 //! asserted against the desktop's corrected behaviour (see `DIVERGENT`).
 
-mod api_v1_support;
+use crate::api_v1_support;
 
 use api_v1_support::{all_fixtures, fixture, same_shape, H};
 use axum::body::Body;

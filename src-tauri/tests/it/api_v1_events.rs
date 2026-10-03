@@ -2,7 +2,7 @@
 //! analyzer mode), with the web's payload fields and never the API key;
 //! analyzer toggling starts and stops the sandbox engine.
 
-mod api_v1_support;
+use crate::api_v1_support;
 
 use api_v1_support::H;
 use openalgo_desktop_lib::brokers::types::{Order, Position};

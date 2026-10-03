@@ -4,7 +4,7 @@
 //! `sandbox/order_manager.py` (placement) and `sandbox/execution_engine.py`
 //! (`_process_order`, `_process_trigger_pending_order`).
 
-mod sandbox_support;
+use crate::sandbox_support;
 
 use openalgo_desktop_lib::sandbox::{Quote, Tick};
 use rust_decimal::Decimal;

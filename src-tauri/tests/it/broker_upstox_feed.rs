@@ -31,7 +31,7 @@ fn master() -> SymbolResolver {
     let r = SymbolResolver::new();
     r.load(
         master_contract::parse_json(
-            include_str!("fixtures/brokers/upstox/instruments.json").as_bytes(),
+            include_str!("../fixtures/brokers/upstox/instruments.json").as_bytes(),
         )
         .unwrap(),
     );

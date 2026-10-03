@@ -3,7 +3,7 @@
 //! broker socket, broker ticks come back as `market_data`, and leaving
 //! (including an abrupt disconnect) unsubscribes at the broker.
 
-mod feed_support;
+use crate::feed_support;
 
 use feed_support::{brokers, eventually, Client, API_KEY, BROKER, USER_ID};
 use futures_util::{SinkExt, StreamExt};

@@ -1,8 +1,8 @@
 //! Resource hygiene of the broker feed manager (CLAUDE.md "Measure, do not
 //! just read"): drive 150 reconnects against a local fake WebSocket server
 //! that drops every connection, and 100 connect/disconnect cycles, then
-//! check that descriptors and RSS stay flat. One test per binary so the
-//! descriptor count is not disturbed by parallel tests.
+//! check that descriptors and RSS stay flat. The test runs in its own
+//! process (`isolated!`) so parallel tests do not disturb the count.
 
 use futures_util::StreamExt;
 use openalgo_desktop_lib::brokers::common::streaming::{FeedMode, FeedSubscription};
@@ -35,6 +35,7 @@ fn rss_kb() -> u64 {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn reconnect_loop_does_not_leak_descriptors_or_memory() {
+    crate::isolated!(reconnect_loop_does_not_leak_descriptors_or_memory);
     // Fake broker feed: accept the handshake, read one frame, drop.
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("ws://{}", listener.local_addr().unwrap());

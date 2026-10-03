@@ -7,7 +7,7 @@
 //!
 //! 2026-10-05 is a Monday.
 
-mod sandbox_support;
+use crate::sandbox_support;
 
 use openalgo_desktop_lib::sandbox::SandboxOptions;
 use rusqlite::params;

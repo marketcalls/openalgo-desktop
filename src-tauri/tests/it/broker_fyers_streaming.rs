@@ -24,17 +24,29 @@ use tokio_tungstenite::tungstenite::handshake::server::{Request, Response};
 fn master() -> SymbolResolver {
     let mut files: HashMap<&str, String> = HashMap::new();
     for (k, v) in [
-        ("NSE_CM", include_str!("fixtures/brokers/fyers/NSE_CM.csv")),
-        ("BSE_CM", include_str!("fixtures/brokers/fyers/BSE_CM.csv")),
-        ("NSE_FO", include_str!("fixtures/brokers/fyers/NSE_FO.csv")),
-        ("BSE_FO", include_str!("fixtures/brokers/fyers/BSE_FO.csv")),
+        (
+            "NSE_CM",
+            include_str!("../fixtures/brokers/fyers/NSE_CM.csv"),
+        ),
+        (
+            "BSE_CM",
+            include_str!("../fixtures/brokers/fyers/BSE_CM.csv"),
+        ),
+        (
+            "NSE_FO",
+            include_str!("../fixtures/brokers/fyers/NSE_FO.csv"),
+        ),
+        (
+            "BSE_FO",
+            include_str!("../fixtures/brokers/fyers/BSE_FO.csv"),
+        ),
         (
             "NSE_CD",
-            include_str!("fixtures/brokers/fyers/NSE_CD_sym_master.json"),
+            include_str!("../fixtures/brokers/fyers/NSE_CD_sym_master.json"),
         ),
         (
             "MCX_COM",
-            include_str!("fixtures/brokers/fyers/MCX_COM_sym_master.json"),
+            include_str!("../fixtures/brokers/fyers/MCX_COM_sym_master.json"),
         ),
     ] {
         files.insert(k, v.to_string());

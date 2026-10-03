@@ -2,7 +2,7 @@
 //! fixtures recorded from OpenAlgo web (`tests/fixtures/web/rest/market`),
 //! served from the seeded market calendar tables.
 
-mod webui_support;
+use crate::webui_support;
 
 use axum::http::{Method, StatusCode};
 use serde_json::{json, Value};

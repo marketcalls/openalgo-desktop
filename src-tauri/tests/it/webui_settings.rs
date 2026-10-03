@@ -2,7 +2,7 @@
 //! analyze mode, desktop server settings (and its alias), leverage,
 //! playground.
 
-mod webui_support;
+use crate::webui_support;
 
 use axum::http::{Method, StatusCode};
 use serde_json::json;

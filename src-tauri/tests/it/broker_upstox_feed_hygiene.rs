@@ -1,8 +1,8 @@
 //! Resource hygiene of the Upstox feed relay (CLAUDE.md "Measure, do not
 //! just read"): 60 connect / tick / disconnect cycles through the shared
 //! manager, each starting a loopback relay, an authorize call and a broker
-//! socket, must leave descriptors flat. One test per binary so parallel
-//! tests do not disturb the count.
+//! socket, must leave descriptors flat. The test runs in its own
+//! process (`isolated!`) so parallel tests do not disturb the count.
 
 use axum::extract::State;
 use axum::routing::get;
@@ -55,6 +55,7 @@ fn frame() -> Vec<u8> {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn relay_cycles_do_not_leak_descriptors() {
+    crate::isolated!(relay_cycles_do_not_leak_descriptors);
     let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let ws_url = Arc::new(format!("ws://{}/feed?code=1", l.local_addr().unwrap()));
     let ws_server = tokio::spawn(async move {

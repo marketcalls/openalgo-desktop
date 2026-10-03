@@ -1,7 +1,7 @@
 //! Admin routes (web `blueprints/admin.py`): freeze quantities, holidays,
 //! timings, the error log and diagnostics.
 
-mod webui_support;
+use crate::webui_support;
 
 use axum::body::Body;
 use axum::http::{header, Method, Request, StatusCode};

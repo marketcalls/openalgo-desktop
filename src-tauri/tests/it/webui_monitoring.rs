@@ -1,7 +1,7 @@
 //! Logs and monitoring: API order log, traffic logger, API latency,
 //! security dashboard, health monitor; and that every store is bounded.
 
-mod webui_support;
+use crate::webui_support;
 
 use axum::http::{header, Method, StatusCode};
 use openalgo_desktop_lib::db::sqlite::monitor as store;
@@ -609,6 +609,8 @@ async fn login_activity_and_active_sessions() {
 
 #[tokio::test]
 async fn health_sampler_endpoints_and_alerts() {
+    // The sampler reads this process's descriptors, threads and RSS.
+    crate::isolated!(health_sampler_endpoints_and_alerts);
     let (h, c, t) = signed_in();
     let (s, v) = h.json(with(get("/health/api/current"), &c, None)).await;
     assert_eq!(s, StatusCode::OK);
