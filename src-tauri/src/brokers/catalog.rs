@@ -58,7 +58,7 @@ pub fn auth_type(broker: &str) -> AuthType {
     match broker {
         "zerodha" | "fyers" | "upstox" | "dhan" | "arrow" | "paytm" | "pocketful" | "hdfcsky"
         | "hdfcsecurities" | "flattrade" | "compositedge" | "iiflcapital" | "rmoney"
-        | "shoonya" | "zebu" | "tradesmart" => AuthType::OAuth,
+        | "shoonya" | "zebu" | "tradesmart" | "aliceblue" => AuthType::OAuth,
         _ => AuthType::Form,
     }
 }
@@ -120,6 +120,12 @@ pub fn authorize_url(
             crate::brokers::flattrade::config(),
             api_key,
             state,
+        )),
+        // AliceBlue V2: the vendor login page takes only the app code and
+        // redirects back with authCode and userId (no state round trip).
+        "aliceblue" => Some(format!(
+            "https://ant.aliceblueonline.com/?appcode={}",
+            enc(api_key)
         )),
         _ => None,
     }
@@ -203,6 +209,59 @@ pub fn login_fields(broker: &str) -> &'static [LoginField] {
                 required: true,
             },
         ],
+        // Definedge (web brlogin): opening the login page sends an OTP to
+        // the registered mobile/email; the form posts it as `otp`.
+        "definedge" => &[LoginField {
+            name: "otp",
+            label: "OTP sent to your registered mobile/email",
+            secret: true,
+            required: true,
+        }],
+        // mStock Type B: password, then the TOTP (verified in a second call).
+        "mstock" => &[
+            LoginField {
+                name: "password",
+                label: "Password",
+                secret: true,
+                required: true,
+            },
+            LoginField {
+                name: "totp",
+                label: "TOTP",
+                secret: true,
+                required: true,
+            },
+        ],
+        // Motilal Oswal: client code, password, date of birth (the 2FA
+        // field, DD/MM/YYYY) and the authenticator TOTP.
+        "motilal" => &[
+            LoginField {
+                name: "userid",
+                label: "User ID",
+                secret: false,
+                required: true,
+            },
+            LoginField {
+                name: "password",
+                label: "Password",
+                secret: true,
+                required: true,
+            },
+            LoginField {
+                name: "dob",
+                label: "Date of birth (DD/MM/YYYY)",
+                secret: true,
+                required: true,
+            },
+            LoginField {
+                name: "totp",
+                label: "TOTP",
+                secret: true,
+                required: false,
+            },
+        ],
+        // Samco Trade API v3.2 signs in server to server with the stored API
+        // key and secret; the form has no fields (web SamcoAuth page).
         _ => &[],
     }
 }
@@ -226,6 +285,12 @@ pub fn extract_code(broker: &str, params: &HashMap<String, String>) -> Option<St
             .or_else(|| get("requestToken"))
             .or_else(|| get("request-token"))
             .or_else(|| get("code")),
+        // AliceBlue: the checksum needs both, so they travel together as
+        // `userId:authCode` (user ids are alphanumeric).
+        "aliceblue" => match (get("userId"), get("authCode")) {
+            (Some(user), Some(code)) => Some(format!("{}:{}", user, code)),
+            _ => None,
+        },
         _ => get("code").or_else(|| get("request_token")),
     }
 }
@@ -337,6 +402,27 @@ mod tests {
         assert!(f[1].secret && !f[0].secret);
         let p = q(&[("code", "c1"), ("state", "s")]);
         assert_eq!(extract_code("shoonya", &p).as_deref(), Some("c1"));
+    }
+
+    #[test]
+    fn batch_a_sign_in() {
+        assert_eq!(auth_type("aliceblue"), AuthType::OAuth);
+        assert_eq!(
+            authorize_url("aliceblue", "APP1", "r", "s").as_deref(),
+            Some("https://ant.aliceblueonline.com/?appcode=APP1")
+        );
+        let p = q(&[("authCode", "ac9"), ("userId", "AB123")]);
+        assert_eq!(extract_code("aliceblue", &p).as_deref(), Some("AB123:ac9"));
+        assert_eq!(extract_code("aliceblue", &q(&[("authCode", "x")])), None);
+        for b in ["definedge", "mstock", "motilal", "samco"] {
+            assert_eq!(auth_type(b), AuthType::Form, "{}", b);
+        }
+        let names = |b| login_fields(b).iter().map(|f| f.name).collect::<Vec<_>>();
+        assert_eq!(names("definedge"), ["otp"]);
+        assert_eq!(names("mstock"), ["password", "totp"]);
+        assert_eq!(names("motilal"), ["userid", "password", "dob", "totp"]);
+        assert!(names("samco").is_empty());
+        assert!(!login_fields("motilal")[3].required);
     }
 
     #[test]

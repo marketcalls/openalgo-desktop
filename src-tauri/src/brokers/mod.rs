@@ -6,10 +6,12 @@
 //! capabilities (margin, GTT, streaming) default to `AppError::Unsupported`.
 //! The trait is object safe: the registry hands out `Arc<dyn Broker>`.
 
+pub mod aliceblue;
 pub mod angel;
 pub mod catalog;
 pub mod common;
 pub mod compositedge;
+pub mod definedge;
 pub mod dhan;
 pub mod dhan_sandbox;
 pub mod families;
@@ -24,7 +26,10 @@ pub mod jainamxts;
 pub mod kotak;
 #[cfg(any(test, feature = "test-support"))]
 pub mod mock;
+pub mod motilal;
+pub mod mstock;
 pub mod rmoney;
+pub mod samco;
 pub mod shoonya;
 pub mod tradesmart;
 pub mod types;
