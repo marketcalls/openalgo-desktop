@@ -1,0 +1,11 @@
+{
+  "serverTime": "03/10/26 08:30:00",
+  "msgId": "<MSG_ID>",
+  "status": "Success",
+  "statusMessage": "Session token generated successfully",
+  "sessionToken": "<SESSION_TOKEN>",
+  "accountID": "<USER_ID>",
+  "srcIp": "203.0.113.10",
+  "primaryIp": "203.0.113.10",
+  "secondaryIp": ""
+}

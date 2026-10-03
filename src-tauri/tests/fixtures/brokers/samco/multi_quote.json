@@ -1,0 +1,39 @@
+{
+  "status": "Success",
+  "statusMessage": "Multi Quote details retrieved successfully",
+  "multiQuotes": [
+    {
+      "symbol": "41015_NFO",
+      "exchange": "NFO",
+      "tradingSymbol": "NIFTY2681124600CE",
+      "lastTradePrice": "98.10",
+      "open": "100.00",
+      "high": "104.00",
+      "low": "95.50",
+      "previousClose": "101.00",
+      "totalTradeVolume": "1,234,500",
+      "openInterest": "4,500,000",
+      "bidPrice": "98.05",
+      "askPrice": "98.15",
+      "bidSize": "750",
+      "askSize": "1500"
+    },
+    {
+      "symbol": "3045_NSE",
+      "exchange": "NSE",
+      "tradingSymbol": "SBIN-EQ",
+      "symbolName": "SBIN",
+      "lastTradePrice": "812.40",
+      "open": "805.00",
+      "high": "815.95",
+      "low": "801.10",
+      "previousClose": "800.00",
+      "totalTradeVolume": "12345678",
+      "openInterest": "0",
+      "bidPrice": "812.35",
+      "askPrice": "812.45",
+      "bidSize": "500",
+      "askSize": "300"
+    }
+  ]
+}

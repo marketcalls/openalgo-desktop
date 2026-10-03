@@ -1,0 +1,30 @@
+{
+  "status": "Success",
+  "statusMessage": "Position details retrieved successfully",
+  "positionDetails": [
+    {
+      "exchange": "NSE",
+      "tradingSymbol": "SBIN-EQ",
+      "productCode": "MIS",
+      "transactionType": "BUY",
+      "netQuantity": "10",
+      "averageBuyPrice": "1,550.256",
+      "averageSellPrice": "0.00",
+      "lastTradedPrice": "1,560.00",
+      "realizedGainAndLoss": "0",
+      "unrealizedGainAndLoss": "97.44"
+    },
+    {
+      "exchange": "NFO",
+      "tradingSymbol": "NIFTY26OCT24600CE",
+      "productCode": "NRML",
+      "transactionType": "SELL",
+      "netQuantity": "75",
+      "averageBuyPrice": "0.00",
+      "averageSellPrice": "101.90",
+      "lastTradedPrice": "98.10",
+      "realizedGainAndLoss": "10.5",
+      "unrealizedGainAndLoss": "285.00"
+    }
+  ]
+}

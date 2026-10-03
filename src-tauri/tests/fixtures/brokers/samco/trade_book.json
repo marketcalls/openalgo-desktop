@@ -1,0 +1,18 @@
+{
+  "status": "Success",
+  "statusMessage": "Trade details retrieved successfully",
+  "tradeBookDetails": [
+    {
+      "orderNumber": "261003000000102",
+      "tradeNumber": "5001",
+      "exchange": "NFO",
+      "tradingSymbol": "NIFTY26OCT24600CE",
+      "transactionType": "SELL",
+      "productCode": "NRML",
+      "filledQuantity": "75",
+      "tradePrice": "101.90",
+      "orderValue": "7,642.50",
+      "tradeTime": "03-Oct-2026 10:05:44"
+    }
+  ]
+}

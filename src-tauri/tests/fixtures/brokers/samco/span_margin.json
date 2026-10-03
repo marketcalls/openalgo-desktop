@@ -1,0 +1,10 @@
+{
+  "status": "Success",
+  "statusMessage": "Span margin details retrieved successfully",
+  "spanDetails": {
+    "totalRequirement": "152,300.25",
+    "spanRequirement": "110,000.00",
+    "exposureMargin": "42,300.25",
+    "spreadBenefit": "12,000.00"
+  }
+}

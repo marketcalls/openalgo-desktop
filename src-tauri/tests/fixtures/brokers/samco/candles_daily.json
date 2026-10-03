@@ -1,0 +1,32 @@
+{
+  "status": "Success",
+  "statusMessage": "Historical candle data retrieved successfully",
+  "historicalCandleData": [
+    {
+      "date": "2026-09-30",
+      "open": "800.00",
+      "high": "812.00",
+      "low": "795.00",
+      "close": "805.50",
+      "ltp": "805.50",
+      "volume": "10,500,000"
+    },
+    {
+      "date": "2026-09-29",
+      "open": "790.00",
+      "high": "801.00",
+      "low": "788.00",
+      "close": "799.00",
+      "ltp": "799.00",
+      "volume": "9,000,000"
+    },
+    {
+      "date": "2026-09-30",
+      "open": "1",
+      "high": "1",
+      "low": "1",
+      "close": "1",
+      "volume": "1"
+    }
+  ]
+}
