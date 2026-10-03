@@ -1,0 +1,4 @@
+{"status":"SUCCESS","trades":[
+{"order_id":"25100300000101","fill_id":"50001","exchange":"NSE","tradingsymbol":"SBIN-EQ","order_type":"BUY","filled_qty":"10","fill_price":"812.35","product_type":"INTRADAY","fill_time":"03-10-2025 09:16:03"},
+{"order_id":"25100300000106","fill_id":"50002","exchange":"NFO","tradingsymbol":"NIFTY28OCT25C25000","order_type":"SELL","filled_qty":"75","fill_price":"0","average_traded_price":"118.4","product_type":"NORMAL","exchange_time":"03-10-2025 09:30:00"}
+]}

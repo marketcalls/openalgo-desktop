@@ -1,0 +1,4 @@
+{"status":"SUCCESS","data":[
+{"dp_qty":"20","t1_qty":"5","avg_buy_price":"1450.25","tradingsymbol":[{"exchange":"NSE","tradingsymbol":"INFY-EQ","isin":"INE009A01021"},{"exchange":"BSE","tradingsymbol":"INFY","isin":"INE009A01021"}]},
+{"dp_qty":"0","t1_qty":"0","avg_buy_price":"10","tradingsymbol":[{"exchange":"NSE","tradingsymbol":"YESBANK-EQ","isin":"INE528G01035"}]}
+]}
