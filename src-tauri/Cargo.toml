@@ -38,7 +38,7 @@ zeroize = { version = "1.8", features = ["derive"] }
 base64 = "0.22"
 data-encoding = "2.6"
 hex = "0.4"
-rand = "0.8"
+rand = "0.10"
 qrcode = { version = "0.14", default-features = false }
 png = "0.17"
 
