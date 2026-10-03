@@ -1,0 +1,26 @@
+{
+  "status": "Success",
+  "statusMessage": "Market depth details retrieved successfully",
+  "MarketDepthDetails": {
+    "marketDepth": {
+      "tBuyQty": "1,20,000",
+      "tSellQty": "95000",
+      "bestFiveBid": [
+        {
+          "bidPrice": "812.35",
+          "bidSize": "500"
+        },
+        {
+          "bidPrice": "812.30",
+          "bidSize": "1,200"
+        }
+      ],
+      "bestFiveAsk": [
+        {
+          "askPrice": "812.45",
+          "askSize": "300"
+        }
+      ]
+    }
+  }
+}

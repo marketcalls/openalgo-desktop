@@ -1,0 +1,33 @@
+{
+  "status": "Success",
+  "statusMessage": "Position details retrieved successfully",
+  "positionDetails": [
+    {
+      "exchange": "NFO",
+      "tradingSymbol": "NIFTY26OCT24600CE",
+      "productCode": "NRML",
+      "transactionType": "SELL",
+      "netQuantity": "150",
+      "averageSellPrice": "100.00",
+      "lastTradedPrice": "98.10"
+    },
+    {
+      "exchange": "MFO",
+      "tradingSymbol": "CRUDEOIL26OCTFUT",
+      "productCode": "NRML",
+      "transactionType": "BUY",
+      "netQuantity": "100",
+      "averageBuyPrice": "5,400.00",
+      "lastTradedPrice": "5,410.00"
+    },
+    {
+      "exchange": "NSE",
+      "tradingSymbol": "SBIN-EQ",
+      "productCode": "CNC",
+      "transactionType": "BUY",
+      "netQuantity": "0",
+      "averageBuyPrice": "800.00",
+      "lastTradedPrice": "1,560.00"
+    }
+  ]
+}
