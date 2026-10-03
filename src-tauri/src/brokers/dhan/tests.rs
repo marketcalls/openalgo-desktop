@@ -761,14 +761,13 @@ fn feed_url_and_subscribe_frames() {
     let feed = b
         .create_feed(&AuthToken::new("1100012345:::tok en"))
         .unwrap();
+    // The manager gives the bare host its `/` path (no `GET ?version=2`).
+    let req = crate::brokers::common::streaming::normalize_request(feed.ws_request().unwrap());
     assert_eq!(
-        feed.ws_request().unwrap().uri().to_string(),
+        req.uri().to_string(),
         "wss://api-feed.dhan.co/?version=2&token=tok%20en&clientId=1100012345&authType=2"
     );
-    // The request target needs the explicit `/` (no `GET ?version=2`).
-    assert!(feed
-        .ws_request()
-        .unwrap()
+    assert!(req
         .uri()
         .path_and_query()
         .unwrap()

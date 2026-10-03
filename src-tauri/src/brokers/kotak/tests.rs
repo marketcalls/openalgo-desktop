@@ -993,18 +993,11 @@ fn feed_config_and_dividers() {
         (None, DEFAULT_SFEED_URL.into())
     );
     assert_eq!(to_wss("http://h/x"), "ws://h/x");
-    assert_eq!(
-        streaming::with_root_path("wss://mlhsm.kotaksecurities.com"),
-        "wss://mlhsm.kotaksecurities.com/"
-    );
-    assert_eq!(streaming::with_root_path("wss://h?x=1"), "wss://h/?x=1");
-    assert_eq!(
-        streaming::with_root_path("wss://h/apifeed"),
-        "wss://h/apifeed"
-    );
     let hsm = KotakHsmFeed::new(hsm::DEFAULT_HSM_URL, "t", "s");
     assert_eq!(
-        hsm.ws_request().unwrap().uri().to_string(),
+        crate::brokers::common::streaming::normalize_request(hsm.ws_request().unwrap())
+            .uri()
+            .to_string(),
         "wss://mlhsm.kotaksecurities.com/"
     );
     assert_eq!(to_wss("wss://h"), "wss://h");
@@ -1208,6 +1201,13 @@ fn hsm_decoder_snapshots_updates_and_acks() {
         other => panic!("unexpected {:?}", other),
     }
     assert_eq!(feed.topic_count(), 1);
+    // A data frame due an acknowledgement is answered on the same socket.
+    let ev = feed.parse(&Message::Binary(frame2));
+    assert!(
+        ev.contains(&FeedEvent::Reply(Message::Binary(hsm::ack_frame(102)))),
+        "{:?}",
+        ev
+    );
 }
 
 #[test]

@@ -204,8 +204,8 @@ pub struct HsmDecoder {
     pub topics: HashMap<u32, Topic>,
     ack_every: u32,
     counter: u32,
-    /// Message numbers due an acknowledgement (the manager has no reply
-    /// path, so they are only counted; see the module note).
+    /// Message numbers due an acknowledgement; the feed sends them back as
+    /// `FeedEvent::Reply` frames.
     pub pending_acks: Vec<u32>,
 }
 
@@ -405,7 +405,7 @@ pub struct KotakHsmFeed {
 impl KotakHsmFeed {
     pub fn new(url: &str, token: &str, sid: &str) -> Self {
         Self {
-            url: super::streaming::with_root_path(url),
+            url: url.to_string(),
             token: token.to_string(),
             sid: sid.to_string(),
             decoder: HsmDecoder::new(),
@@ -623,7 +623,16 @@ impl BrokerFeed for KotakHsmFeed {
             Some(HsmEvent::Connected { ok: false }) => vec![FeedEvent::AuthFailed(
                 "Kotak refused the live market data session. Log in to Kotak again.".into(),
             )],
-            Some(HsmEvent::Data(ids)) => self.events(&ids),
+            Some(HsmEvent::Data(ids)) => {
+                let mut out = self.events(&ids);
+                out.extend(
+                    self.decoder
+                        .pending_acks
+                        .drain(..)
+                        .map(|n| FeedEvent::Reply(Message::Binary(ack_frame(n)))),
+                );
+                out
+            }
             _ => Vec::new(),
         }
     }

@@ -353,18 +353,6 @@ pub fn parse_dividers(v: &Value) -> HashMap<i8, f64> {
 // Feed host lookup
 // ---------------------------------------------------------------------------
 
-/// `url` with an explicit `/` path when it has none (a bare
-/// `wss://host[?query]` cannot be written as a request line).
-pub fn with_root_path(url: &str) -> String {
-    let rest = url.split_once("://").map(|(_, r)| r).unwrap_or(url);
-    let host_end = rest.find(['/', '?']).unwrap_or(rest.len());
-    if rest[host_end..].starts_with('/') {
-        return url.to_string();
-    }
-    let cut = url.len() - (rest.len() - host_end);
-    format!("{}/{}", &url[..cut], &url[cut..])
-}
-
 /// `https://` -> `wss://`, a bare host gets `wss://` (web
 /// `_to_websocket_scheme`).
 pub fn to_wss(url: &str) -> String {
@@ -549,7 +537,7 @@ pub struct KotakFeed {
 impl KotakFeed {
     pub fn new(url: &str, sid: &str, ucc: String, _symbols: SymbolResolver) -> Self {
         Self {
-            url: with_root_path(url),
+            url: url.to_string(),
             user: if ucc.is_empty() { "neome".into() } else { ucc },
             sid: sid.to_string(),
             dividers: HashMap::new(),

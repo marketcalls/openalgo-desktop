@@ -426,3 +426,35 @@ async fn prepare_refusal_stops_until_login() {
     m.disconnect().await.unwrap();
     assert!(!m.is_running());
 }
+
+#[tokio::test]
+async fn a_url_without_a_path_is_requested_at_the_root() {
+    // Kite's and Dhan's feed URLs are `wss://host?query`; the request line
+    // must be `GET /?query`, not `GET ?query`.
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let seen: Arc<Mutex<Option<String>>> = Arc::default();
+    let seen2 = seen.clone();
+    let srv = tokio::spawn(async move {
+        while let Ok((tcp, _)) = listener.accept().await {
+            let seen = seen2.clone();
+            let cb = move |req: &Request,
+                           resp: Response|
+                  -> std::result::Result<Response, ErrorResponse> {
+                *seen.lock() = req.uri().path_and_query().map(|p| p.to_string());
+                Ok(resp)
+            };
+            if let Ok(mut ws) = tokio_tungstenite::accept_hdr_async(tcp, cb).await {
+                while let Some(Ok(_)) = ws.next().await {}
+            }
+        }
+    });
+    let m = WebSocketManager::with_config(fast());
+    m.connect(Box::new(MockFeed::new(format!("ws://{}?api_key=k", addr))))
+        .await
+        .unwrap();
+    wait_for(|| m.is_connected()).await;
+    assert_eq!(seen.lock().as_deref(), Some("/?api_key=k"));
+    m.disconnect().await.unwrap();
+    srv.abort();
+}

@@ -273,7 +273,8 @@ pub trait BrokerFeed: Send + Sync {
 /// would go out as `GET ?api_key=..`, which servers refuse. Give it the root
 /// path, keeping the query and headers.
 pub fn normalize_request(mut req: WsRequest) -> WsRequest {
-    if !req.uri().path().is_empty() {
+    let pq = req.uri().path_and_query().map(|p| p.as_str()).unwrap_or("");
+    if pq.starts_with('/') {
         return req;
     }
     let uri = req.uri().clone();
@@ -320,7 +321,10 @@ mod tests {
                 .into_client_request()
                 .unwrap(),
         );
-        assert_eq!(r.uri().path(), "/");
+        assert_eq!(
+            r.uri().path_and_query().unwrap().as_str(),
+            "/?api_key=k&access_token=t"
+        );
         assert_eq!(r.uri().query(), Some("api_key=k&access_token=t"));
         assert_eq!(r.uri().host(), Some("ws.kite.trade"));
         let r = normalize_request("ws://127.0.0.1:9/feed?x=1".into_client_request().unwrap());
