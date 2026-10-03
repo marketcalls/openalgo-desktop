@@ -71,6 +71,12 @@ prost = "0.14"
 flate2 = "1"
 # NATS nkey signatures for the Groww feed.
 ed25519-dalek = "2"
+# MQTT 3.1.1 market and order feeds (IIFL Capital). Pure Rust; built with
+# no bundled crypto provider and handed a ring-backed rustls config, so it
+# adds no C toolchain needs beyond what reqwest already has (Linux aarch64).
+rumqttc = { version = "0.25", default-features = false, features = ["use-rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+webpki-roots = "1"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
