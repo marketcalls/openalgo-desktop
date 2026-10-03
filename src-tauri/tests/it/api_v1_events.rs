@@ -374,3 +374,42 @@ async fn force_live_skips_the_analyzer_toggle() {
     assert_eq!(r.body["mode"], "analyze");
     h.shutdown().await;
 }
+
+#[tokio::test]
+async fn holdings_statistics_use_the_brokers_own_totals() {
+    use openalgo_desktop_lib::brokers::types::{Holding, PortfolioStats};
+    let h = H::new().await;
+    let row = Holding {
+        symbol: "SBIN".into(),
+        exchange: "NSE".into(),
+        product: "CNC".into(),
+        isin: None,
+        quantity: 10,
+        t1_quantity: 0,
+        average_price: 800.0,
+        ltp: 810.0,
+        close_price: 805.0,
+        pnl: 100.0,
+        pnl_percentage: 1.25,
+        current_value: 8100.0,
+    };
+    *h.mock.holdings.lock() = Some(Ok(vec![row]));
+    // Without broker totals the statistics are computed from the rows.
+    let (_, v) = h.post("/api/v1/holdings", h.with_key(json!({}))).await;
+    assert_eq!(v["data"]["statistics"]["totalholdingvalue"], json!(8100.0));
+    assert_eq!(v["data"]["statistics"]["totalinvvalue"], json!(8000.0));
+    // A broker that reports its own totals (Angel) is shown as reported.
+    *h.mock.holdings_totals.lock() = Some(PortfolioStats {
+        totalholdingvalue: 8123.45,
+        totalinvvalue: 8000.0,
+        totalprofitandloss: 123.45,
+        totalpnlpercentage: 1.54,
+    });
+    let (_, v) = h.post("/api/v1/holdings", h.with_key(json!({}))).await;
+    assert_eq!(v["status"], "success");
+    assert_eq!(v["data"]["statistics"]["totalholdingvalue"], json!(8123.45));
+    assert_eq!(v["data"]["statistics"]["totalprofitandloss"], json!(123.45));
+    assert_eq!(v["data"]["statistics"]["totalpnlpercentage"], json!(1.54));
+    assert_eq!(v["data"]["holdings"][0]["symbol"], "SBIN");
+    h.shutdown().await;
+}

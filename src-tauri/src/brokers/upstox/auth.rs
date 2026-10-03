@@ -3,36 +3,27 @@
 //! `POST /v2/login/authorization/token`, form-encoded `code`, `client_id`,
 //! `client_secret`, `redirect_uri`, `grant_type=authorization_code`. Upstox
 //! refuses the exchange unless `redirect_uri` is byte-identical to the one
-//! on the authorize URL, so the catalogue records the redirect it built the
-//! login URL with (`remember_redirect_uri`) and the exchange reuses it.
-//! (`BrokerCredentials` has no redirect field yet; when it gains one, that
-//! wins.)
+//! on the authorize URL; the login flow records the redirect it built the
+//! login URL with and passes it back as `BrokerCredentials::redirect_uri`.
 
 use super::{mapping, UpstoxBroker};
 use crate::brokers::{AuthResponse, BrokerCredentials};
 use crate::error::{AppError, Result};
-use parking_lot::RwLock;
 use serde_json::Value;
 
 /// The web convention for the shipped default port.
 pub const DEFAULT_REDIRECT_URI: &str = "http://127.0.0.1:5000/upstox/callback";
 
-static REDIRECT_URI: RwLock<Option<String>> = RwLock::new(None);
-
-/// Record the redirect URI the Upstox login URL was built with.
-pub fn remember_redirect_uri(uri: &str) {
-    let uri = uri.trim();
-    if !uri.is_empty() {
-        *REDIRECT_URI.write() = Some(uri.to_string());
-    }
-}
-
-/// The redirect URI for the code exchange.
-pub fn redirect_uri() -> String {
-    REDIRECT_URI
-        .read()
-        .clone()
-        .unwrap_or_else(|| DEFAULT_REDIRECT_URI.to_string())
+/// The redirect URI for the code exchange: the one the login URL was built
+/// with, else the web convention.
+pub fn redirect_uri(creds: &BrokerCredentials) -> String {
+    creds
+        .redirect_uri
+        .as_deref()
+        .map(str::trim)
+        .filter(|u| !u.is_empty())
+        .unwrap_or(DEFAULT_REDIRECT_URI)
+        .to_string()
 }
 
 /// The form `authenticate_broker` posts.
@@ -52,6 +43,7 @@ pub fn token_form(
 }
 
 pub async fn authenticate(b: &UpstoxBroker, creds: BrokerCredentials) -> Result<AuthResponse> {
+    let redirect = redirect_uri(&creds);
     let code = creds
         .auth_code
         .or(creds.request_token)
@@ -71,7 +63,7 @@ pub async fn authenticate(b: &UpstoxBroker, creds: BrokerCredentials) -> Result<
             "Your Upstox API secret is missing. Add it on the broker settings page.".into(),
         )
     })?;
-    let form = token_form(&code, creds.api_key.trim(), &secret, &redirect_uri());
+    let form = token_form(&code, creds.api_key.trim(), &secret, &redirect);
     let resp = b
         .http
         .post(b.api("/v2/login/authorization/token"))

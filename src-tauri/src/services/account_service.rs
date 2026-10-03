@@ -114,7 +114,12 @@ pub fn holding_row(h: &Holding) -> Value {
 }
 
 pub fn holdings_statistics(h: &[Holding]) -> Value {
-    let stats = crate::brokers::types::PortfolioStats::from_holdings(h);
+    statistics_json(&crate::brokers::types::PortfolioStats::from_holdings(h))
+}
+
+/// The `statistics` object from portfolio totals (the broker's own when it
+/// reports them, else computed from the rows).
+pub fn statistics_json(stats: &crate::brokers::types::PortfolioStats) -> Value {
     json!({
         "totalholdingvalue": round2(stats.totalholdingvalue),
         "totalinvvalue": round2(stats.totalinvvalue),
@@ -290,10 +295,10 @@ pub async fn holdings(ctx: &AppState) -> Reply {
         Ok(h) => h,
         Err(r) => return r,
     };
-    match h.broker.get_holdings(&h.auth).await {
-        Ok(rows) => Reply::ok(json!({"status": "success", "data": {
-            "holdings": rows.iter().map(holding_row).collect::<Vec<_>>(),
-            "statistics": holdings_statistics(&rows),
+    match h.broker.get_holdings_with_totals(&h.auth).await {
+        Ok(book) => Reply::ok(json!({"status": "success", "data": {
+            "holdings": book.holdings.iter().map(holding_row).collect::<Vec<_>>(),
+            "statistics": statistics_json(&book.statistics()),
         }})),
         Err(e) => broker_fail(&e),
     }

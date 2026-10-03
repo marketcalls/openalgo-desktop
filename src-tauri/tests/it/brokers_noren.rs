@@ -26,7 +26,7 @@ use std::sync::Arc;
 
 macro_rules! fixture {
     ($b:literal, $name:literal) => {
-        include_str!(concat!("fixtures/brokers/", $b, "/", $name))
+        include_str!(concat!("../fixtures/brokers/", $b, "/", $name))
     };
 }
 

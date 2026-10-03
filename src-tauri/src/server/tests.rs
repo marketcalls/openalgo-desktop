@@ -1196,7 +1196,9 @@ async fn oauth_state_expires_and_is_bound_to_the_broker() {
     h.setup();
     h.save_broker_credentials();
     let st = {
-        let url = BrokerAuthService::start_oauth(h.ctx(), "zerodha").unwrap();
+        let url = BrokerAuthService::start_oauth(h.ctx(), "zerodha")
+            .await
+            .unwrap();
         state_from_kite_url(&url)
     };
     // Another broker's callback cannot use it.
@@ -1205,7 +1207,11 @@ async fn oauth_state_expires_and_is_bound_to_the_broker() {
         .await;
     assert!(location(&headers).starts_with("/broker?error="));
 
-    let st2 = state_from_kite_url(&BrokerAuthService::start_oauth(h.ctx(), "zerodha").unwrap());
+    let st2 = state_from_kite_url(
+        &BrokerAuthService::start_oauth(h.ctx(), "zerodha")
+            .await
+            .unwrap(),
+    );
     h.t.clock.advance(chrono::Duration::minutes(11));
     let (_, headers, _) = h
         .send(get(&format!(
@@ -1223,7 +1229,11 @@ async fn manual_paste_of_the_redirected_address() {
     h.setup();
     h.save_broker_credentials();
     let (cookie, csrf) = h.session(true);
-    let st = state_from_kite_url(&BrokerAuthService::start_oauth(h.ctx(), "zerodha").unwrap());
+    let st = state_from_kite_url(
+        &BrokerAuthService::start_oauth(h.ctx(), "zerodha")
+            .await
+            .unwrap(),
+    );
     let pasted = format!(
         "http://127.0.0.1:5000/zerodha/callback?status=success&request_token=pasted1&state={}",
         st

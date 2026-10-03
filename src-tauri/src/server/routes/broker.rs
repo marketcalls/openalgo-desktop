@@ -65,7 +65,7 @@ pub async fn initiate_oauth(State(ctx): Ctx, Path(broker): Path<String>) -> Resp
     if catalog::auth_type(&broker) == AuthType::Form {
         return redirect(&format!("/broker/{}/totp", broker));
     }
-    match BrokerAuthService::start_oauth(&ctx, &broker) {
+    match BrokerAuthService::start_oauth(&ctx, &broker).await {
         Ok(url) => redirect(&url),
         Err(e) => {
             tracing::warn!("Could not start broker sign-in: {}", e.code());
@@ -114,7 +114,10 @@ pub async fn form_login(
     if let Some(r) = login_limited(&ctx, ip) {
         return r;
     }
-    let input = FormLogin::from_fields(&form.0);
+    let input = match FormLogin::for_broker(&broker, &form.0) {
+        Ok(i) => i,
+        Err(e) => return error(StatusCode::BAD_REQUEST, e.client_message()),
+    };
     match BrokerAuthService::login_with_form(&ctx, &broker, input).await {
         Ok(_) => json_response(
             StatusCode::OK,

@@ -1042,20 +1042,32 @@ fn registry_capabilities() {
 }
 
 #[test]
-fn redirect_uri_is_remembered_for_the_exchange() {
-    let url = crate::brokers::catalog::authorize_url(
+fn redirect_uri_is_recorded_for_the_exchange() {
+    let a = crate::brokers::catalog::authorize_url(
         "upstox",
         "key",
         "http://127.0.0.1:5500/upstox/callback",
         "st",
     )
     .unwrap();
-    assert!(url.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A5500%2Fupstox%2Fcallback"));
+    assert!(a
+        .url
+        .contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A5500%2Fupstox%2Fcallback"));
+    assert_eq!(a.redirect_uri, "http://127.0.0.1:5500/upstox/callback");
+    let creds = BrokerCredentials {
+        redirect_uri: Some(a.redirect_uri.clone()),
+        ..Default::default()
+    };
     assert_eq!(
-        super::auth::redirect_uri(),
+        super::auth::redirect_uri(&creds),
         "http://127.0.0.1:5500/upstox/callback"
     );
-    let form = super::auth::token_form("c", "k", "s", &super::auth::redirect_uri());
+    // Without a recorded redirect the web convention applies.
+    assert_eq!(
+        super::auth::redirect_uri(&BrokerCredentials::default()),
+        super::auth::DEFAULT_REDIRECT_URI
+    );
+    let form = super::auth::token_form("c", "k", "s", &super::auth::redirect_uri(&creds));
     assert_eq!(
         form[3],
         (

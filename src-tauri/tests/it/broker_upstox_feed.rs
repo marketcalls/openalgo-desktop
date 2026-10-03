@@ -284,7 +284,7 @@ async fn order_stream_publishes_order_updates() {
     let broker = UpstoxBroker::with_urls(master(), Urls::local(&base));
     let m = manager();
     let mut rx = m.subscribe_ticks();
-    m.connect(broker.create_order_feed(&AuthToken::new(TOKEN)).unwrap())
+    m.connect(broker.order_socket(&AuthToken::new(TOKEN)).unwrap())
         .await
         .unwrap();
     let FeedEvent::OrderUpdate(u) = next_event(&mut rx).await else {

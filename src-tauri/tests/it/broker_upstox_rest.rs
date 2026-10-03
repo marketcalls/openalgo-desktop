@@ -279,9 +279,9 @@ fn order(symbol: &str, exchange: &str, pricetype: &str, qty: i32) -> ResolvedOrd
 }
 
 #[tokio::test]
-async fn code_exchange_posts_the_remembered_redirect() {
+async fn code_exchange_posts_the_recorded_redirect() {
     let (b, s) = setup().await;
-    openalgo_desktop_lib::brokers::catalog::authorize_url(
+    let a = openalgo_desktop_lib::brokers::catalog::authorize_url(
         "upstox",
         "apikey",
         "http://127.0.0.1:5500/upstox/callback",
@@ -294,6 +294,7 @@ async fn code_exchange_posts_the_remembered_redirect() {
             api_secret: Some("secret".into()),
             auth_code: Some("code123".into()),
             request_token: Some("code123".into()),
+            redirect_uri: Some(a.redirect_uri),
             ..Default::default()
         })
         .await

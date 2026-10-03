@@ -23,11 +23,9 @@ pub mod streaming;
 #[cfg(test)]
 mod tests;
 
-pub use auth::remember_redirect_uri;
-
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
-use crate::brokers::common::streaming::BrokerFeed;
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -476,13 +474,16 @@ impl Broker for UpstoxBroker {
             self.symbols.clone(),
         )))
     }
+
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        Ok(OrderFeed::Socket(self.order_socket(auth)?))
+    }
 }
 
 impl UpstoxBroker {
     /// The portfolio order-update stream (web `upstox_order_adapter.py`),
-    /// as a feed for a second `WebSocketManager`. The shared `Broker` trait
-    /// has no order-feed factory yet, so it is offered here.
-    pub fn create_order_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
+    /// served through `Broker::create_order_feed`.
+    pub fn order_socket(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         Self::bearer(auth)?;
         Ok(Box::new(streaming::UpstoxOrderFeed::new(
             streaming::Authorizer::orders(self.http.clone(), &self.urls.api, auth.raw()),

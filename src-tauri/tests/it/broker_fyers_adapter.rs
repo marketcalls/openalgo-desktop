@@ -729,6 +729,20 @@ async fn master_contract_download_and_tbt_address() {
         .unwrap();
     assert_eq!(nifty.name, "Nifty 50");
     assert_eq!(b.tbt_socket_url(&auth()).await, "wss://tbt.example/versova");
+    // The 50-level depth socket looks its address up before each connect.
+    {
+        let mut f = b.create_depth_feed(&auth(), 50).unwrap();
+        assert_eq!(
+            f.ws_request().unwrap().uri().to_string(),
+            "wss://rtsocket-api.fyers.in/versova"
+        );
+        f.prepare().await.unwrap();
+        assert_eq!(
+            f.ws_request().unwrap().uri().to_string(),
+            "wss://tbt.example/versova"
+        );
+        assert_eq!(f.supported_depth_levels(), &[50]);
+    }
 
     // One missing file keeps the existing master (error, no partial list).
     let fake = Fake::default();
@@ -749,8 +763,17 @@ fn identity_and_capabilities() {
     assert_eq!(b.login_kind(), LoginKind::Redirect { param: "auth_code" });
     let c = b.capabilities();
     assert!(c.history && c.margin && c.gtt && c.streaming && c.multiquotes_batch);
-    assert_eq!(c.depth_levels, &[5]);
-    assert!(!c.order_feed);
+    assert_eq!(c.depth_levels, &[5, 50]);
+    assert!(c.order_feed);
+    // 50 levels on NSE and NFO only, through the TBT socket.
+    assert_eq!(b.feed_depth_levels("NSE"), vec![5, 50]);
+    assert_eq!(b.feed_depth_levels("NFO"), vec![5, 50]);
+    assert_eq!(b.feed_depth_levels("MCX"), vec![5]);
+    assert!(b.create_depth_feed(&auth(), 20).is_err());
+    assert!(matches!(
+        b.create_order_feed(&auth()).unwrap(),
+        openalgo_desktop_lib::brokers::common::streaming::OrderFeed::Socket(_)
+    ));
     let keys: Vec<&str> = b.timeframe_map().iter().map(|(k, _)| *k).collect();
     assert_eq!(keys.first(), Some(&"5s"));
     assert_eq!(keys.last(), Some(&"D"));

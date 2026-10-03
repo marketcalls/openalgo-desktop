@@ -16,6 +16,11 @@
 //!   the depth snapshot (with the tick's quote fields) to Depth holders.
 //!   Index ticks carry no book and reach every mode directly.
 //!
+//! * Deep books: when the broker runs a separate depth socket (Fyers 50
+//!   levels, Dhan 20; `set_deep_levels`), a Depth subscription asking for
+//!   exactly those levels goes to the depth manager, with a Quote
+//!   subscription on the main manager for its price and quote fields.
+//!
 //! Broker `OrderUpdate` events are not relayed here: order updates reach
 //! feed clients through the `order.update` bus topic (`feed::orders`).
 //!
@@ -48,10 +53,30 @@ pub type DesiredKey = (InstrumentKey, Mode, u8);
 /// Depth levels per exchange for the connected broker.
 pub type DepthCapability = Arc<dyn Fn(&str) -> Vec<u8> + Send + Sync>;
 
+/// What one desired key holds on the managers.
+#[derive(Debug, Clone)]
+enum Applied {
+    Main(FeedSubscription),
+    /// Depth socket book plus the main feed's quote for the same instrument.
+    Deep {
+        depth: FeedSubscription,
+        quote: FeedSubscription,
+    },
+}
+
+impl Applied {
+    fn main_subs(&self) -> Vec<FeedSubscription> {
+        match self {
+            Applied::Main(s) => vec![s.clone()],
+            Applied::Deep { quote, .. } => vec![quote.clone()],
+        }
+    }
+}
+
 #[derive(Default)]
 struct State {
     desired: HashSet<DesiredKey>,
-    applied: HashMap<DesiredKey, FeedSubscription>,
+    applied: HashMap<DesiredKey, Applied>,
     /// Last tick per held instrument, for the quote fields of a separate
     /// depth snapshot.
     last_tick: HashMap<InstrumentKey, NormalizedTick>,
@@ -65,6 +90,10 @@ impl State {
 
 pub struct BrokerBridge {
     manager: Arc<WebSocketManager>,
+    /// The broker's separate depth socket (idle unless `deep` is set).
+    depth_manager: Arc<WebSocketManager>,
+    /// Depth levels served by `depth_manager`, when it runs.
+    deep: Mutex<Option<u8>>,
     symbols: SymbolResolver,
     tx: broadcast::Sender<Arc<MarketUpdate>>,
     state: Arc<Mutex<State>>,
@@ -83,9 +112,20 @@ fn mode_of(m: Mode) -> FeedMode {
 
 impl BrokerBridge {
     pub fn new(manager: Arc<WebSocketManager>, symbols: SymbolResolver) -> Arc<Self> {
+        Self::with_depth_manager(manager, Arc::new(WebSocketManager::new()), symbols)
+    }
+
+    /// A bridge that can route deep books to a second manager.
+    pub fn with_depth_manager(
+        manager: Arc<WebSocketManager>,
+        depth_manager: Arc<WebSocketManager>,
+        symbols: SymbolResolver,
+    ) -> Arc<Self> {
         let (tx, _) = broadcast::channel(BRIDGE_UPDATE_CAP);
         Arc::new(Self {
             manager,
+            depth_manager,
+            deep: Mutex::new(None),
             symbols,
             tx,
             state: Arc::new(Mutex::new(State::default())),
@@ -101,9 +141,53 @@ impl BrokerBridge {
         *self.depths.lock() = f;
     }
 
-    /// References the bridge currently holds on the manager.
+    /// Route Depth subscriptions for `levels` to the depth manager (`None`:
+    /// everything on the main manager). Set before `resync`.
+    pub fn set_deep_levels(&self, levels: Option<u8>) {
+        *self.deep.lock() = levels;
+    }
+
+    /// References the bridge currently holds on the main manager.
     pub fn applied(&self) -> Vec<FeedSubscription> {
-        self.state.lock().applied.values().cloned().collect()
+        self.state
+            .lock()
+            .applied
+            .values()
+            .flat_map(Applied::main_subs)
+            .collect()
+    }
+
+    /// References the bridge currently holds on the depth manager.
+    pub fn applied_deep(&self) -> Vec<FeedSubscription> {
+        self.state
+            .lock()
+            .applied
+            .values()
+            .filter_map(|a| match a {
+                Applied::Deep { depth, .. } => Some(depth.clone()),
+                Applied::Main(_) => None,
+            })
+            .collect()
+    }
+
+    /// Forget what was applied after the managers dropped their
+    /// subscriptions (broker logout): feed clients keep their desired set,
+    /// which `resync` re-applies on the next broker session. Depth routing
+    /// and the depth capability go back to the defaults.
+    pub fn reset(&self) {
+        {
+            let mut st = self.state.lock();
+            st.applied.clear();
+            st.last_tick.clear();
+        }
+        *self.deep.lock() = None;
+        self.set_depth_capability(Arc::new(|_| vec![DEFAULT_DEPTH]));
+    }
+
+    /// Re-apply the desired set (a broker session started, or the symbol
+    /// master was loaded).
+    pub fn resync(&self) {
+        self.changed.notify_one();
     }
 
     /// Start the reconcile and relay tasks (no-op when running).
@@ -123,6 +207,9 @@ impl BrokerBridge {
         let me = self.clone();
         let rx = self.manager.subscribe_ticks();
         set.spawn(async move { me.relay(rx).await });
+        let me = self.clone();
+        let rx = self.depth_manager.subscribe_ticks();
+        set.spawn(async move { me.relay(rx).await });
         *tasks = Some(set);
     }
 
@@ -133,17 +220,55 @@ impl BrokerBridge {
             set.abort_all();
             while set.join_next().await.is_some() {}
         }
-        let held: Vec<FeedSubscription> = {
+        let held: Vec<Applied> = {
             let mut st = self.state.lock();
             st.desired.clear();
             st.last_tick.clear();
             st.applied.drain().map(|(_, s)| s).collect()
         };
-        if !held.is_empty() {
-            if let Err(e) = self.manager.unsubscribe(held).await {
+        self.release(held).await;
+    }
+
+    /// Drop manager references held for `applied` entries.
+    async fn release(&self, applied: Vec<Applied>) {
+        let mut main = Vec::new();
+        let mut deep = Vec::new();
+        for a in applied {
+            match a {
+                Applied::Main(s) => main.push(s),
+                Applied::Deep { depth, quote } => {
+                    deep.push(depth);
+                    main.push(quote);
+                }
+            }
+        }
+        if !main.is_empty() {
+            if let Err(e) = self.manager.unsubscribe(main).await {
                 tracing::warn!("Could not release market data subscriptions: {}", e);
             }
         }
+        if !deep.is_empty() {
+            if let Err(e) = self.depth_manager.unsubscribe(deep).await {
+                tracing::warn!("Could not release market depth subscriptions: {}", e);
+            }
+        }
+    }
+
+    /// How a desired key is applied (deep route when its levels match).
+    fn applied_for(&self, key: &DesiredKey) -> Option<Applied> {
+        let sub = self.subscription(key)?;
+        let deep = *self.deep.lock();
+        Some(match deep {
+            Some(levels) if key.1 == Mode::Depth && key.2 == levels => Applied::Deep {
+                quote: FeedSubscription {
+                    mode: FeedMode::Quote,
+                    depth: DEFAULT_DEPTH,
+                    ..sub.clone()
+                },
+                depth: sub,
+            },
+            _ => Applied::Main(sub),
+        })
     }
 
     fn subscription(&self, key: &DesiredKey) -> Option<FeedSubscription> {
@@ -176,22 +301,17 @@ impl BrokerBridge {
                 .filter(|k| !st.desired.contains(*k))
                 .cloned()
                 .collect();
-            let remove: Vec<FeedSubscription> =
-                gone.iter().filter_map(|k| st.applied.remove(k)).collect();
+            let remove: Vec<Applied> = gone.iter().filter_map(|k| st.applied.remove(k)).collect();
             let held: HashSet<InstrumentKey> =
                 st.desired.iter().map(|(k, _, _)| k.clone()).collect();
             st.last_tick.retain(|k, _| held.contains(k));
             (add, remove)
         };
-        if !remove.is_empty() {
-            if let Err(e) = self.manager.unsubscribe(remove).await {
-                tracing::warn!("Market data unsubscribe failed: {}", e);
-            }
-        }
+        self.release(remove).await;
         let mut subs = Vec::with_capacity(add.len());
         let mut keys = Vec::with_capacity(add.len());
         for k in add {
-            match self.subscription(&k) {
+            match self.applied_for(&k) {
                 Some(s) => {
                     subs.push(s);
                     keys.push(k);
@@ -206,7 +326,26 @@ impl BrokerBridge {
         if subs.is_empty() {
             return;
         }
-        match self.manager.subscribe(subs.clone()).await {
+        let mut main = Vec::new();
+        let mut deep = Vec::new();
+        for a in &subs {
+            match a {
+                Applied::Main(s) => main.push(s.clone()),
+                Applied::Deep { depth, quote } => {
+                    deep.push(depth.clone());
+                    main.push(quote.clone());
+                }
+            }
+        }
+        let mut result = self.manager.subscribe(main.clone()).await;
+        if result.is_ok() && !deep.is_empty() {
+            result = self.depth_manager.subscribe(deep).await;
+            if result.is_err() {
+                // Do not keep the quote references of a refused deep book.
+                let _ = self.manager.unsubscribe(main).await;
+            }
+        }
+        match result {
             Ok(()) => {
                 let mut st = self.state.lock();
                 for (k, s) in keys.into_iter().zip(subs) {

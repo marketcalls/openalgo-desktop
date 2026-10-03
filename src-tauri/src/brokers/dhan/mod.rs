@@ -33,7 +33,7 @@ mod tests;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::Pacer;
-use crate::brokers::common::streaming::BrokerFeed;
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -600,12 +600,38 @@ impl Broker for DhanBroker {
             self.symbols.clone(),
         )))
     }
+
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        Ok(OrderFeed::Socket(self.order_socket(auth)?))
+    }
+
+    fn create_depth_feed(&self, auth: &AuthToken, levels: u8) -> Result<Box<dyn BrokerFeed>> {
+        if levels != 20 {
+            return Err(AppError::Unsupported("depth_feed"));
+        }
+        self.create_depth20_feed(auth)
+    }
+
+    /// 20-level books stream for NSE and NFO only (web Dhan 20-depth).
+    fn feed_depth_levels(&self, exchange: &str) -> Vec<u8> {
+        if !self.is_sandbox() && matches!(exchange, "NSE" | "NFO") {
+            vec![5, 20]
+        } else {
+            vec![5]
+        }
+    }
+
+    async fn begin_login(&self, credentials: &BrokerCredentials) -> Result<Option<String>> {
+        if self.is_sandbox() {
+            return Ok(None);
+        }
+        auth::login_url(self, credentials).await.map(Some)
+    }
 }
 
 impl DhanBroker {
     /// The 20-level depth socket (NSE and NFO only), a second connection on
-    /// Dhan. The feed manager runs one socket per broker today, so this is
-    /// exposed for when it can run an auxiliary feed.
+    /// Dhan, served through `Broker::create_depth_feed(_, 20)`.
     pub fn create_depth20_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         if self.is_sandbox() {
             return Err(AppError::Unsupported("streaming"));
@@ -619,8 +645,9 @@ impl DhanBroker {
         )))
     }
 
-    /// The order-update socket (`wss://api-order-update.dhan.co`).
-    pub fn create_order_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
+    /// The order-update socket (`wss://api-order-update.dhan.co`), served
+    /// through `Broker::create_order_feed`.
+    pub fn order_socket(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         if self.is_sandbox() {
             return Err(AppError::Unsupported("streaming"));
         }

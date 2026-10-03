@@ -1,11 +1,20 @@
 //! Broker sign-in, session persistence, resume and revocation.
 //!
-//! * OAuth brokers: `start_oauth` stores a server-generated `state` and
-//!   returns the broker's authorize URL; the callback (`complete_oauth`)
-//!   consumes the state, exchanges the code for a token in Rust, persists it
-//!   encrypted and publishes `broker.connected`. The code never reaches the
-//!   frontend.
-//! * Form brokers (client id, PIN, TOTP): `login_with_form`.
+//! * OAuth brokers: `start_oauth` stores a server-generated `state` (with
+//!   the redirect address the authorize URL was built with) and returns the
+//!   broker's authorize URL; a broker whose URL needs a call first (Dhan's
+//!   consent) builds it in `Broker::begin_login`. The callback
+//!   (`complete_oauth`) consumes the state (Dhan, whose redirect carries no
+//!   state: the newest pending Dhan sign-in, single use, 10 minutes),
+//!   exchanges the code for a token in Rust, persists it encrypted and
+//!   publishes `broker.connected`. The code never reaches the frontend.
+//! * Form logins: `login_with_form`, with the fields
+//!   `catalog::login_fields` declares for the broker (Groww's pasted token,
+//!   Kotak's mobile, TOTP and MPIN, Dhan's pasted access token), else the
+//!   web's client id / PIN / TOTP names.
+//! * Every successful sign-in or resume starts the session's streaming
+//!   (`BrokerRuntime::activate`: master contract, feeds, order updates);
+//!   `revoke` tears it down.
 //! * After a password sign-in, `try_resume` brings back the stored session
 //!   if it was issued after the last 03:00 IST boundary and the broker still
 //!   accepts it (validated with a funds call, like the web).
@@ -35,6 +44,38 @@ pub struct FormLogin {
 }
 
 impl FormLogin {
+    /// The broker's own fields (`catalog::login_fields`) when it declares
+    /// them, with required ones checked; otherwise the web's common names.
+    pub fn for_broker(broker: &str, f: &HashMap<String, String>) -> Result<Self> {
+        let fields = catalog::login_fields(broker);
+        if fields.is_empty() {
+            return Ok(Self::from_fields(f));
+        }
+        let mut out = FormLogin::default();
+        for lf in fields {
+            let v = f
+                .get(lf.name)
+                .map(|v| v.trim().to_string())
+                .filter(|v| !v.is_empty());
+            let Some(v) = v else {
+                if lf.required {
+                    return Err(AppError::Validation(format!(
+                        "Enter the {} to sign in.",
+                        lf.label.to_lowercase()
+                    )));
+                }
+                continue;
+            };
+            match catalog::credential_slot(lf.name) {
+                Some(catalog::CredentialSlot::ClientId) => out.client_id = Some(v),
+                Some(catalog::CredentialSlot::Password) => out.password = Some(Secret::new(v)),
+                Some(catalog::CredentialSlot::Totp) => out.totp = Some(Secret::new(v)),
+                None => tracing::warn!("Login field {} has no credential slot", lf.name),
+            }
+        }
+        Ok(out)
+    }
+
     pub fn from_fields(f: &HashMap<String, String>) -> Self {
         let pick = |keys: &[&str]| {
             keys.iter().find_map(|k| {
@@ -72,30 +113,51 @@ impl BrokerAuthService {
             })
     }
 
-    /// Start an OAuth login: store a fresh `state`, return the authorize URL.
-    pub fn start_oauth(state: &AppState, broker: &str) -> Result<String> {
-        if state.brokers.get(broker).is_none() {
+    /// The stored broker credentials as adapter input (no login secrets).
+    fn stored_input(creds: &credentials::BrokerCredentialSet) -> BrokerCredentials {
+        BrokerCredentials {
+            api_key: creds.api_key.expose().to_string(),
+            api_secret: creds.api_secret.as_ref().map(|s| s.expose().to_string()),
+            client_id: creds.client_id.clone(),
+            ..Default::default()
+        }
+    }
+
+    /// Start an OAuth login: store a fresh `state` with the redirect
+    /// address, return the authorize URL.
+    pub async fn start_oauth(state: &AppState, broker: &str) -> Result<String> {
+        let Some(adapter) = state.brokers.get(broker) else {
             return Err(AppError::Validation(format!(
                 "Signing in to {} is not available in this version of OpenAlgo Desktop yet.",
                 broker
             )));
-        }
+        };
         let creds = Self::load_credentials(state, broker)?;
         let redirect = state.server_config().redirect_url_for(broker);
         let st = random_token();
-        let url = catalog::authorize_url(broker, creds.api_key.expose(), &redirect, &st)
-            .ok_or_else(|| {
-                AppError::Validation(format!(
-                    "{} signs in with a form, not a browser redirect.",
-                    broker
-                ))
-            })?;
+        let url = match catalog::authorize_url(broker, creds.api_key.expose(), &redirect, &st) {
+            Some(a) => a.url,
+            None => {
+                let input = BrokerCredentials {
+                    redirect_uri: Some(redirect.clone()),
+                    ..Self::stored_input(&creds)
+                };
+                // No database connection is held across this await.
+                adapter.begin_login(&input).await?.ok_or_else(|| {
+                    AppError::Validation(format!(
+                        "{} signs in with a form, not a browser redirect.",
+                        broker
+                    ))
+                })?
+            }
+        };
         {
             let conn = state.sqlite.conn()?;
             oauth_state::insert(
                 &conn,
                 &st,
                 broker,
+                Some(&redirect),
                 state.now(),
                 chrono::Duration::minutes(OAUTH_STATE_TTL_MINUTES),
             )?;
@@ -110,27 +172,32 @@ impl BrokerAuthService {
         params: &HashMap<String, String>,
     ) -> Result<BrokerSession> {
         let st = params.get("state").cloned().unwrap_or_default();
-        let ok = !st.is_empty() && {
+        let pending = if catalog::callback_carries_state(broker) {
+            if st.is_empty() {
+                None
+            } else {
+                let conn = state.sqlite.conn()?;
+                oauth_state::consume(&conn, &st, broker, state.now())?
+            }
+        } else {
             let conn = state.sqlite.conn()?;
-            oauth_state::consume(&conn, &st, broker, state.now())?
+            oauth_state::consume_latest(&conn, broker, state.now())?
         };
-        if !ok {
+        let Some(pending) = pending else {
             return Err(AppError::Auth(
                 "This broker sign-in was not started from OpenAlgo or has expired. Start the broker login again from OpenAlgo."
                     .into(),
             ));
-        }
+        };
         let code = catalog::extract_code(broker, params).ok_or_else(|| {
             AppError::Auth("The broker did not complete the sign-in. Try again.".into())
         })?;
         let creds = Self::load_credentials(state, broker)?;
         let input = BrokerCredentials {
-            api_key: creds.api_key.expose().to_string(),
-            api_secret: creds.api_secret.as_ref().map(|s| s.expose().to_string()),
-            client_id: creds.client_id.clone(),
             request_token: Some(code.clone()),
             auth_code: Some(code),
-            ..Default::default()
+            redirect_uri: pending.redirect_uri,
+            ..Self::stored_input(&creds)
         };
         Self::authenticate(state, broker, input).await
     }
@@ -141,19 +208,20 @@ impl BrokerAuthService {
         broker: &str,
         form: FormLogin,
     ) -> Result<BrokerSession> {
-        if catalog::auth_type(broker) != catalog::AuthType::Form {
+        if catalog::auth_type(broker) != catalog::AuthType::Form
+            && catalog::login_fields(broker).is_empty()
+        {
             return Err(AppError::Validation(
                 "This broker signs in through the broker's own page.".into(),
             ));
         }
         let creds = Self::load_credentials(state, broker)?;
+        let stored = Self::stored_input(&creds);
         let input = BrokerCredentials {
-            api_key: creds.api_key.expose().to_string(),
-            api_secret: creds.api_secret.as_ref().map(|s| s.expose().to_string()),
-            client_id: form.client_id.or(creds.client_id.clone()),
+            client_id: form.client_id.or(stored.client_id.clone()),
             password: form.password.map(|s| s.expose().to_string()),
             totp: form.totp.map(|s| s.expose().to_string()),
-            ..Default::default()
+            ..stored
         };
         Self::authenticate(state, broker, input).await
     }
@@ -180,7 +248,17 @@ impl BrokerAuthService {
             authenticated_at: state.now(),
         };
         Self::persist(state, &session)?;
+        Self::activate(state, &session).await;
         Ok(session)
+    }
+
+    /// Start the session's streaming (master contract, feeds, order
+    /// updates).
+    async fn activate(state: &AppState, session: &BrokerSession) {
+        match state.arc() {
+            Some(ctx) => ctx.runtime.activate(&ctx, session).await,
+            None => tracing::error!("Broker streaming could not start: the app is shutting down"),
+        }
     }
 
     /// Store and activate a session, then announce it.
@@ -249,6 +327,15 @@ impl BrokerAuthService {
         let Some(broker) = state.brokers.get(&stored.broker_id) else {
             return Ok(None);
         };
+        // Per-login state the token does not carry (Kotak's UCC) comes back
+        // from the stored broker credentials.
+        let stored_creds = {
+            let conn = state.sqlite.conn()?;
+            credentials::load(&conn, &state.security, &stored.broker_id)?
+        };
+        if let Some(c) = &stored_creds {
+            broker.restore_session(&Self::stored_input(c));
+        }
         // Like the web: a cheap funds call proves the token still works.
         match tokio::time::timeout(
             RESUME_CHECK_TIMEOUT,
@@ -277,12 +364,19 @@ impl BrokerAuthService {
             authenticated_at: stored.authenticated_at,
         };
         state.set_broker_session(Some(session.clone()));
+        state.bus.publish(Event::BrokerConnected {
+            broker: session.broker_id.clone(),
+            user_id: Some(session.user_id.clone()),
+        });
         tracing::info!("Resumed broker session for {}", session.broker_id);
+        Self::activate(state, &session).await;
         Ok(Some(session))
     }
 
     /// End the broker session everywhere: stored row revoked, memory cleared,
-    /// feed closed, symbol cache dropped, subscribers told.
+    /// streaming torn down (feeds closed, subscriptions cleared, owned tasks
+    /// aborted, adapter pollers stopped), symbol cache dropped, subscribers
+    /// told.
     pub async fn revoke(state: &AppState, reason: SessionEndReason) -> Result<()> {
         {
             let conn = state.sqlite.conn()?;
@@ -290,8 +384,8 @@ impl BrokerAuthService {
         }
         state.set_broker_session(None);
         state.api_keys.clear();
+        state.runtime.teardown(state).await;
         state.clear_symbol_cache();
-        let _ = state.websocket.disconnect().await;
         state.bus.publish(Event::BrokerSessionEnded { reason });
         Ok(())
     }

@@ -35,26 +35,26 @@ const INTERACTIVE: &str = "eyJhbGciOiJIUzI1NiJ9.interactive.sig";
 const MARKET: &str = "eyJhbGciOiJIUzI1NiJ9.market.sig";
 
 fn books() -> Value {
-    serde_json::from_str(include_str!("fixtures/brokers/fivepaisaxts/books.json")).unwrap()
+    serde_json::from_str(include_str!("../fixtures/brokers/fivepaisaxts/books.json")).unwrap()
 }
 
 fn market() -> Value {
-    serde_json::from_str(include_str!("fixtures/brokers/fivepaisaxts/market.json")).unwrap()
+    serde_json::from_str(include_str!("../fixtures/brokers/fivepaisaxts/market.json")).unwrap()
 }
 
 fn stream(k: &str) -> String {
     let v: Value =
-        serde_json::from_str(include_str!("fixtures/brokers/fivepaisaxts/stream.json")).unwrap();
+        serde_json::from_str(include_str!("../fixtures/brokers/fivepaisaxts/stream.json")).unwrap();
     v[k].as_str().unwrap().to_string()
 }
 
 fn segment_file(seg: &str) -> &'static str {
     match seg {
-        "NSECM" => include_str!("fixtures/brokers/fivepaisaxts/NSECM.txt"),
-        "BSECM" => include_str!("fixtures/brokers/fivepaisaxts/BSECM.txt"),
-        "NSEFO" => include_str!("fixtures/brokers/fivepaisaxts/NSEFO.txt"),
-        "NSECD" => include_str!("fixtures/brokers/fivepaisaxts/NSECD.txt"),
-        "MCXFO" => include_str!("fixtures/brokers/fivepaisaxts/MCXFO.txt"),
+        "NSECM" => include_str!("../fixtures/brokers/fivepaisaxts/NSECM.txt"),
+        "BSECM" => include_str!("../fixtures/brokers/fivepaisaxts/BSECM.txt"),
+        "NSEFO" => include_str!("../fixtures/brokers/fivepaisaxts/NSEFO.txt"),
+        "NSECD" => include_str!("../fixtures/brokers/fivepaisaxts/NSECD.txt"),
+        "MCXFO" => include_str!("../fixtures/brokers/fivepaisaxts/MCXFO.txt"),
         _ => "",
     }
 }

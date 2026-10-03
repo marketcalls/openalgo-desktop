@@ -267,6 +267,15 @@ async fn books_funds_and_bulk_order_actions() {
     assert_eq!(positions[1].symbol, "NIFTY27OCT2625000CE");
     let holdings = b.get_holdings(&auth).await.unwrap();
     assert_eq!(holdings[0].symbol, "SBIN");
+    // Angel's own portfolio totals reach /api/v1/holdings statistics.
+    let book = b.get_holdings_with_totals(&auth).await.unwrap();
+    assert_eq!(book.holdings, holdings);
+    let totals = book.totals.unwrap();
+    assert_eq!(
+        (totals.totalholdingvalue, totals.totalprofitandloss),
+        (9541.0, 1241.0)
+    );
+    assert_eq!(book.statistics().totalpnlpercentage, 14.95);
     let funds = b.get_funds(&auth).await.unwrap();
     assert!((funds.available_cash - 2_043_799.20).abs() < 1e-6);
     assert_eq!(funds.m2m_realized, 12.5);
