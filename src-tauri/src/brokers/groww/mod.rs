@@ -4,7 +4,7 @@
 //!   <token>`; responses are `{"status": "SUCCESS", "payload": {...}}`.
 //! * The stored session token is the raw Groww access token (no prefix).
 //! * Market data streams over NATS-on-WebSocket with protobuf payloads
-//!   (`streaming.rs`, through the loopback relay); order updates are a REST
+//!   (`streaming.rs`, on the shared feed manager); order updates are a REST
 //!   poll of the order book (`order_poller.rs`), as on the web.
 
 mod auth;

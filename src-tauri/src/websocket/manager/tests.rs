@@ -305,3 +305,124 @@ async fn lagging_receivers_skip_ahead() {
     m.disconnect().await.unwrap();
     srv.abort();
 }
+
+/// A feed that needs async preparation, answers `PING` text frames with
+/// `PONG`, and is accepted only by timeout (never acknowledged).
+struct ProtocolFeed {
+    base: String,
+    prepares: Arc<AtomicU64>,
+    url: Option<String>,
+}
+
+#[async_trait::async_trait]
+impl BrokerFeed for ProtocolFeed {
+    fn broker(&self) -> &'static str {
+        "mock"
+    }
+    async fn prepare(&mut self) -> std::result::Result<(), PrepareError> {
+        let n = self.prepares.fetch_add(1, Ordering::SeqCst);
+        tokio::time::sleep(Duration::from_millis(5)).await;
+        match n {
+            // First attempt: the broker is unavailable; the manager backs off.
+            0 => Err(PrepareError::Unavailable),
+            // A single-use URL per connect.
+            _ => {
+                self.url = Some(format!("{}/?code={}", self.base, n));
+                Ok(())
+            }
+        }
+    }
+    fn ws_request(&self) -> crate::error::Result<crate::brokers::common::streaming::WsRequest> {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        self.url
+            .as_deref()
+            .ok_or_else(|| AppError::Internal("not prepared".into()))?
+            .into_client_request()
+            .map_err(|_| AppError::Internal("bad url".into()))
+    }
+    fn awaits_auth_ack(&self) -> bool {
+        true
+    }
+    fn auth_ack_timeout(&self) -> Option<Duration> {
+        Some(Duration::from_millis(150))
+    }
+    fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
+        subs.iter()
+            .map(|s| Message::Text(format!("SUB {}", s.symbol)))
+            .collect()
+    }
+    fn unsubscribe_frames(&mut self, _subs: &[FeedSubscription]) -> Vec<Message> {
+        Vec::new()
+    }
+    fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {
+        match msg {
+            Message::Text(t) if t == "PING" => vec![FeedEvent::Reply(Message::Text("PONG".into()))],
+            _ => Vec::new(),
+        }
+    }
+}
+
+#[tokio::test]
+async fn prepare_runs_before_connect_and_replies_go_back() {
+    let (url, seen, srv) = server(|_| (vec!["PING".to_string()], false)).await;
+    let m = WebSocketManager::with_config(fast());
+    m.subscribe(vec![sub("SBIN", FeedMode::Ltp)]).await.unwrap();
+    let prepares = Arc::new(AtomicU64::new(0));
+    m.connect(Box::new(ProtocolFeed {
+        base: url,
+        prepares: prepares.clone(),
+        url: None,
+    }))
+    .await
+    .unwrap();
+    // The reply reaches the broker; the subscribe goes out only after the
+    // acknowledgement timeout, on the connection opened after a retry.
+    wait_for(|| seen.lock().iter().any(|(_, t)| t == "PONG")).await;
+    wait_for(|| seen.lock().iter().any(|(_, t)| t == "SUB SBIN")).await;
+    assert!(m.is_connected());
+    assert_eq!(prepares.load(Ordering::SeqCst), 2);
+    let frames = seen.lock().clone();
+    let pong = frames.iter().position(|(_, t)| t == "PONG").unwrap();
+    let sub_at = frames.iter().position(|(_, t)| t == "SUB SBIN").unwrap();
+    assert!(pong < sub_at, "{:?}", frames);
+    m.disconnect().await.unwrap();
+    srv.abort();
+}
+
+#[tokio::test]
+async fn prepare_refusal_stops_until_login() {
+    struct Refused;
+    #[async_trait::async_trait]
+    impl BrokerFeed for Refused {
+        fn broker(&self) -> &'static str {
+            "mock"
+        }
+        async fn prepare(&mut self) -> std::result::Result<(), PrepareError> {
+            Err(PrepareError::AuthFailed("Log in again.".into()))
+        }
+        fn ws_request(&self) -> crate::error::Result<crate::brokers::common::streaming::WsRequest> {
+            Err(AppError::Internal("unreachable".into()))
+        }
+        fn subscribe_frames(&mut self, _: &[FeedSubscription]) -> Vec<Message> {
+            Vec::new()
+        }
+        fn unsubscribe_frames(&mut self, _: &[FeedSubscription]) -> Vec<Message> {
+            Vec::new()
+        }
+        fn parse(&mut self, _: &Message) -> Vec<FeedEvent> {
+            Vec::new()
+        }
+    }
+    let m = WebSocketManager::with_config(fast());
+    let mut status = m.watch_status();
+    m.connect(Box::new(Refused)).await.unwrap();
+    loop {
+        status.changed().await.unwrap();
+        if let FeedStatus::AuthFailed { message, .. } = &*status.borrow() {
+            assert_eq!(message, "Log in again.");
+            break;
+        }
+    }
+    m.disconnect().await.unwrap();
+    assert!(!m.is_running());
+}

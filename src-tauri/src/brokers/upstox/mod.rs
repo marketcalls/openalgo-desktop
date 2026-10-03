@@ -19,7 +19,6 @@ pub mod master_contract;
 mod orders;
 pub mod pacing;
 pub mod proto;
-pub mod relay;
 pub mod streaming;
 #[cfg(test)]
 mod tests;
@@ -37,7 +36,6 @@ use async_trait::async_trait;
 use pacing::WindowLimiter;
 use reqwest::{Method, StatusCode};
 use serde_json::Value;
-use std::sync::Arc;
 
 pub const API_URL: &str = "https://api.upstox.com";
 pub const HFT_URL: &str = "https://api-hft.upstox.com";
@@ -474,11 +472,7 @@ impl Broker for UpstoxBroker {
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         Self::bearer(auth)?;
         Ok(Box::new(streaming::UpstoxFeed::new(
-            Arc::new(streaming::MarketUpstream::new(
-                self.http.clone(),
-                &self.urls.api,
-                auth.raw(),
-            )),
+            streaming::Authorizer::market(self.http.clone(), &self.urls.api, auth.raw()),
             self.symbols.clone(),
         )))
     }
@@ -491,11 +485,8 @@ impl UpstoxBroker {
     pub fn create_order_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         Self::bearer(auth)?;
         Ok(Box::new(streaming::UpstoxOrderFeed::new(
-            Arc::new(streaming::OrderUpstream::new(
-                self.http.clone(),
-                &self.urls.api,
-                auth.raw(),
-            )),
+            streaming::Authorizer::orders(self.http.clone(), &self.urls.api, auth.raw()),
+            &self.urls.api,
             self.symbols.clone(),
         )))
     }

@@ -664,23 +664,15 @@ fn sub(symbol: &str, exchange: &str, mode: FeedMode) -> FeedSubscription {
     }
 }
 
-struct NoUpstream;
-
-#[async_trait::async_trait]
-impl relay::Upstream for NoUpstream {
-    fn broker(&self) -> &'static str {
-        "upstox"
-    }
-    async fn open(&self) -> relay::Open {
-        relay::Open::Unavailable
-    }
-    fn session(&self) -> Box<dyn relay::Session> {
-        unreachable!("not opened in unit tests")
-    }
-}
-
 fn feed() -> UpstoxFeed {
-    UpstoxFeed::new(std::sync::Arc::new(NoUpstream), master())
+    UpstoxFeed::new(
+        super::streaming::Authorizer::market(
+            crate::brokers::common::http::client(),
+            "http://127.0.0.1:9",
+            "token-not-used-here",
+        ),
+        master(),
+    )
 }
 
 fn frame_json(m: &Message) -> Value {
@@ -694,7 +686,8 @@ fn frame_json(m: &Message) -> Value {
 fn subscribe_sends_binary_json_per_wire_mode() {
     let mut f = feed();
     use crate::brokers::common::streaming::BrokerFeed;
-    assert!(f.awaits_auth_ack());
+    // Ready as soon as the signed socket opens; no acknowledgement.
+    assert!(!f.awaits_auth_ack());
     let frames = f.subscribe_frames(&[
         sub("RELIANCE", "NSE", FeedMode::Ltp),
         sub("NIFTY", "NSE_INDEX", FeedMode::Quote),
@@ -1000,13 +993,9 @@ fn iep_wrapper_presence_survives_decoding() {
 }
 
 #[test]
-fn relay_control_text_frames() {
+fn status_text_frames_carry_no_events() {
     use crate::brokers::common::streaming::BrokerFeed;
     let mut f = feed();
-    assert_eq!(
-        f.parse(&Message::Text(relay::READY.into())),
-        vec![FeedEvent::AuthOk]
-    );
     assert!(f
         .parse(&Message::Text(
             r#"{"status":"failed","method":"sub","error":"bad key"}"#.into()

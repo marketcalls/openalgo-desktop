@@ -14,8 +14,9 @@ use super::proto;
 use super::streaming::*;
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
-use crate::brokers::upstox::relay::{Session, READY};
+use crate::brokers::common::streaming::{
+    BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
+};
 use prost::Message as _;
 use serde_json::{json, Value};
 
@@ -711,39 +712,58 @@ fn text(m: &Message) -> String {
     }
 }
 
+fn replies(ev: &[FeedEvent]) -> Vec<String> {
+    ev.iter()
+        .filter_map(|e| match e {
+            FeedEvent::Reply(m) => Some(text(m)),
+            _ => None,
+        })
+        .collect()
+}
+
 #[test]
-fn nats_session_handshake_replies_and_forwarding() {
+fn nats_handshake_replies_through_the_feed() {
     let kp = KeyPair::from_seed(&[9u8; 32]);
     let public = kp.public_key();
-    let mut s = NatsSession::new("JWT".into(), Some(kp));
-    assert!(!s.ready_on_open());
-    // A subscribe before CONNECT is held back.
-    assert!(s
-        .on_downstream(Message::Text("SUB a 1\r\n".into()))
-        .is_empty());
-    let step = s.on_upstream(Message::Text("INFO {\"nonce\":\"N0\"}\r\n".into()));
-    let ups: Vec<String> = step.up.iter().map(text).collect();
+    let mut f = GrowwFeed::new(
+        crate::brokers::common::http::client(),
+        "tok",
+        FeedEndpoints::default(),
+    );
+    f.set_minted("JWT", Some(kp));
+    assert!(f.awaits_auth_ack());
+    assert_eq!(f.auth_ack_timeout(), Some(ASSUME_READY_AFTER));
+    f.on_connected();
+    // INFO -> CONNECT (signed over the nonce) and PING, sent by the manager.
+    let ev = f.parse(&Message::Text("INFO {\"nonce\":\"N0\"}\r\n".into()));
+    let ups = replies(&ev);
     assert!(ups[0].starts_with("CONNECT "));
     assert!(ups[0].contains(&public));
     assert!(ups[0].contains("\"sig\""));
+    assert!(ups[0].contains("\"jwt\":\"JWT\""));
     assert_eq!(ups[1], "PING\r\n");
-    assert_eq!(ups[2], "SUB a 1\r\n");
-    assert!(!step.ready);
-    let step = s.on_upstream(Message::Text("PONG\r\nPING\r\n".into()));
-    assert!(step.ready);
-    assert_eq!(text(&step.up[0]), "PONG\r\n");
-    assert!(matches!(step.down[0], Message::Ping(_)));
-    // MSG split across two frames is forwarded once, whole.
-    let step = s.on_upstream(Message::Binary(b"MSG s 1 3\r\nab".to_vec()));
-    assert!(step.down.is_empty());
-    let step = s.on_upstream(Message::Binary(b"c\r\n".to_vec()));
-    assert_eq!(
-        step.down,
-        vec![Message::Binary(b"MSG s 1 3\r\nabc\r\n".to_vec())]
-    );
-    let step = s.on_upstream(Message::Text("-ERR 'Authorization Violation'\r\n".into()));
-    assert!(step.auth_failed.is_some());
-    assert_eq!(s.keepalive().map(|(d, _)| d), Some(NATS_PING_EVERY));
+    assert!(!ev.contains(&FeedEvent::AuthOk));
+    // The PONG after CONNECT accepts the session; a server PING gets PONG.
+    let ev = f.parse(&Message::Text("PONG\r\nPING\r\n".into()));
+    assert!(ev.contains(&FeedEvent::AuthOk));
+    assert!(ev.contains(&FeedEvent::Heartbeat));
+    assert_eq!(replies(&ev), vec!["PONG\r\n".to_string()]);
+    // An op split across two frames is handled once, whole.
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Ltp)]);
+    let whole = msg_frame(1, &ltp_payload(812.35));
+    let Message::Binary(bytes) = whole else {
+        panic!()
+    };
+    let (a, b) = bytes.split_at(10);
+    assert!(f.parse(&Message::Binary(a.to_vec())).is_empty());
+    let ev = f.parse(&Message::Binary(b.to_vec()));
+    assert!(matches!(&ev[0], FeedEvent::Tick(t) if t.ltp == 812.35));
+    let ev = f.parse(&Message::Text("-ERR 'Authorization Violation'\r\n".into()));
+    assert!(matches!(ev[0], FeedEvent::AuthFailed(_)));
+    assert_eq!(f.heartbeat().map(|(d, _)| d), Some(NATS_PING_EVERY));
+    // A server that does not echo the subprotocol: retried once without it.
+    assert!(f.on_connect_failed("Protocol error: SubProtocol error"));
+    assert!(!f.on_connect_failed("Protocol error: SubProtocol error"));
 }
 
 fn sub(symbol: &str, exchange: &str, token: &str, mode: FeedMode) -> FeedSubscription {
@@ -859,7 +879,7 @@ fn feed_frames_and_ticks() {
     );
     assert!(f.awaits_auth_ack());
     assert_eq!(
-        f.parse(&Message::Text(READY.into())),
+        f.parse(&Message::Text("+OK\r\n".into())),
         vec![FeedEvent::AuthOk]
     );
     let frames = f.subscribe_frames(&[
@@ -912,9 +932,7 @@ fn feed_frames_and_ticks() {
     f.on_connected();
     assert_eq!(f.instrument_count(), 0);
     assert!(matches!(
-        f.parse(&Message::Text(
-            r#"{"openalgo_relay":"auth_failed","message":"Log in"}"#.into()
-        ))[0],
+        f.parse(&Message::Text("-ERR 'Authentication Timeout'\r\n".into()))[0],
         FeedEvent::AuthFailed(_)
     ));
 }
