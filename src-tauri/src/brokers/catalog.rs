@@ -95,6 +95,16 @@ pub fn authorize_url(
             enc(state)
         ))
         }
+        // OAuth2 code flow; the code exchange repeats this redirect.
+        "pocketful" => {
+            crate::brokers::pocketful::remember_redirect_uri(redirect_url);
+            Some(format!(
+                "https://trade.pocketful.in/oauth2/auth?client_id={}&redirect_uri={}&response_type=code&scope=orders%20holdings&state={}",
+                enc(api_key),
+                enc(redirect_url),
+                enc(state)
+            ))
+        }
         // XTS third-party login; the session comes back as `session`.
         "compositedge" | "rmoney" => {
             crate::brokers::families::xts::thirdparty_url(broker, api_key, redirect_url, state)
@@ -337,6 +347,27 @@ mod tests {
         assert!(f[1].secret && !f[0].secret);
         let p = q(&[("code", "c1"), ("state", "s")]);
         assert_eq!(extract_code("shoonya", &p).as_deref(), Some("c1"));
+    }
+
+    #[test]
+    fn pocketful_oauth2_url_and_code() {
+        let u = authorize_url(
+            "pocketful",
+            "cid-1",
+            "http://127.0.0.1:5000/pocketful/callback",
+            "st7",
+        )
+        .unwrap();
+        assert!(u.starts_with("https://trade.pocketful.in/oauth2/auth?client_id=cid-1&"));
+        assert!(u.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A5000%2Fpocketful%2Fcallback"));
+        assert!(u.contains("response_type=code&scope=orders%20holdings&state=st7"));
+        assert_eq!(
+            crate::brokers::pocketful::redirect_uri(),
+            "http://127.0.0.1:5000/pocketful/callback"
+        );
+        assert_eq!(auth_type("pocketful"), AuthType::OAuth);
+        let p = q(&[("code", "c9"), ("state", "st7")]);
+        assert_eq!(extract_code("pocketful", &p).as_deref(), Some("c9"));
     }
 
     #[test]
