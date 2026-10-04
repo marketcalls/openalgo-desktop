@@ -1,0 +1,11 @@
+{
+  "_note": "MarketFeedV3 and MarketDepthService frames in the shapes of the web adapter (fivepaisa_adapter.py) and the 5paisa websocket docs; synthetic values.",
+  "quote": [{"Exch": "N", "ExchType": "C", "Token": 3045, "LastRate": 812.5, "LastQty": 10, "TotalQty": 1520034, "High": 815.0, "Low": 805.0, "OpenRate": 808.0, "PClose": 808.25, "AvgRate": 810.2, "Time": 34200, "BidQty": 150, "BidRate": 812.4, "OffQty": 90, "OffRate": 812.6, "TBidQ": 120000, "TOffQ": 98000, "TickDt": "/Date(1791082800000)/", "ChgPcnt": 0.53}],
+  "quote_zeroes": {"Exch": "N", "ExchType": "C", "Token": 3045, "LastRate": 0, "LastQty": 5, "TotalQty": 1520100, "High": 0, "Low": 0, "OpenRate": 0, "PClose": 0, "AvgRate": 0, "BidRate": 0, "OffRate": 0, "TBidQ": 121000, "TOffQ": 97000, "TickDt": "/Date(1791082801000)/"},
+  "depth": {"Exch": "N", "ExchType": "C", "Token": 3045, "TBidQ": 120000, "TOffQ": 98000, "Time": "/Date(1791082802000)/", "Details": [
+    {"BbBuySellFlag": 66, "NumberOfOrders": 3, "Price": 812.45, "Quantity": 150},
+    {"BbBuySellFlag": 66, "NumberOfOrders": 1, "Price": 812.4, "Quantity": 20},
+    {"BbBuySellFlag": 83, "NumberOfOrders": 4, "Price": 812.55, "Quantity": 90}
+  ]},
+  "unknown_token": {"Exch": "N", "ExchType": "C", "Token": 1, "LastRate": 10}
+}
