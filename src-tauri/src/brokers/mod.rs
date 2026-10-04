@@ -26,6 +26,7 @@ pub mod jainamxts;
 pub mod kotak;
 #[cfg(any(test, feature = "test-support"))]
 pub mod mock;
+pub mod paytm;
 pub mod pocketful;
 pub mod rmoney;
 pub mod shoonya;
@@ -467,6 +468,7 @@ impl BrokerRegistry {
             Arc::new(deltaexchange::DeltaBroker::new(symbols.clone())),
             Arc::new(arrow::ArrowBroker::new(symbols.clone())),
             Arc::new(pocketful::PocketfulBroker::new(symbols.clone())),
+            Arc::new(paytm::PaytmBroker::new(symbols.clone())),
         ];
         Self::with_symbols(symbols, brokers)
     }
@@ -548,6 +550,7 @@ mod tests {
                 "iifl",
                 "jainamxts",
                 "kotak",
+                "paytm",
                 "pocketful",
                 "rmoney",
                 "shoonya",
