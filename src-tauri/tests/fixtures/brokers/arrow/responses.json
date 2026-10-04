@@ -1,0 +1,55 @@
+{
+  "_comment": "Arrow REST payloads built from the web plugin (broker/arrow/**) and the official pyarrow-client field names. No account data.",
+  "auth_ok": {"status": "success", "data": {"name": "<USER_NAME>", "token": "eyJhbGciOiJIUzI1NiJ9.e30.sig", "userID": "<USER_ID>"}},
+  "auth_failed": {"status": "failure", "message": "invalid checksum"},
+  "place_ok": {"status": "success", "data": {"orderNo": "26100300099"}},
+  "place_failed": {"status": "error", "message": "RMS: Margin Exceeds"},
+  "modify_ok": {"status": "success", "data": {"orderNo": "26100300003"}},
+  "orders": {"status": "success", "data": [
+    {"id": "26100300001", "orderNo": "26100300001", "exchangeOrderNo": "1100000012345", "symbol": "SBIN-EQ", "exchange": "NSE", "transactionType": "B", "quantity": "10", "cumulativeFillQty": "10", "price": "0", "triggerPrice": "0", "averagePrice": "812.45", "order": "MKT", "product": "I", "validity": "DAY", "orderStatus": "COMPLETE", "orderTime": "2026-10-03T09:20:11", "exchangeUpdateTime": "2026-10-03 09:20:11"},
+    {"id": "26100300002", "symbol": "NIFTY27OCT26F", "exchange": "NFO", "transactionType": "S", "quantity": "65", "cumulativeFillQty": "0", "price": "25100.5", "triggerPrice": "25110", "averagePrice": "0", "order": "SL-LMT", "product": "M", "validity": "DAY", "orderStatus": "TRIGGER_PENDING", "requestTime": "2026-10-03T09:21:00"},
+    {"id": "26100300003", "orderNo": "26100300003", "symbol": "INFY-EQ", "exchange": "NSE", "transactionType": "B", "quantity": "5", "cumulativeFillQty": "2", "price": "1500", "triggerPrice": "0", "order": "LMT", "product": "C", "validity": "DAY", "orderStatus": "OPEN", "orderTime": "2026-10-03T09:22:00"},
+    {"id": "26100300004", "orderNo": "26100300004", "symbol": "NIFTY06OCT2622400P", "exchange": "NFO", "transactionType": "B", "quantity": 65, "price": 12.5, "triggerPrice": 12, "order": "SL-MKT", "product": "M", "orderStatus": "PENDING", "orderTime": "2026-10-03T09:23:00"},
+    {"id": "26100300005", "orderNo": "26100300005", "symbol": "SBIN-EQ", "exchange": "NSE", "transactionType": "S", "quantity": "1", "price": "900", "order": "LMT", "product": "C", "orderStatus": "CANCELLED", "orderTime": "2026-10-03T09:24:00"},
+    {"id": "26100300006", "orderNo": "26100300006", "symbol": "NIFTY27OCT26F", "exchange": "NFO", "transactionType": "B", "quantity": "65", "price": "0", "order": "MKT", "product": "M", "orderStatus": "REJECTED", "rejectionReason": "RMS: Insufficient funds", "orderTime": "2026-10-03T09:25:00"},
+    {"id": "26100300007", "orderNo": "26100300007", "symbol": "UNKNOWN-EQ", "exchange": "NSE", "transactionType": "B", "quantity": "1", "price": "10", "order": "LMT", "product": "C", "orderStatus": "AFTER_MARKET_ORDER_REQ_RECEIVED", "orderTime": "2026-10-03T16:00:00"}
+  ]},
+  "trades": {"status": "success", "data": [
+    {"orderNo": "26100300001", "fillId": "5001", "symbol": "SBIN-EQ", "exchange": "NSE", "product": "I", "transactionType": "B", "fillQuantity": "10", "fillPrice": "812.45", "fillTime": "2026-10-03T09:20:12"},
+    {"id": "26100300010", "symbol": "NIFTY06OCT2622400P", "exchange": "NFO", "product": "M", "transactionType": "S", "quantity": 65, "averagePrice": 14.2, "orderTime": "2026-10-03T10:00:00"}
+  ]},
+  "positions": {"status": "success", "data": [
+    {"symbol": "SBIN-EQ", "exchange": "NSE", "product": "I", "qty": "10", "avgPrice": "812.454", "ltp": "815.1", "realisedPnL": "0", "unrealisedMarkToMarket": "26.46", "buyQty": "10", "sellQty": "0"},
+    {"symbol": "NIFTY27OCT26F", "exchange": "NFO", "product": "M", "qty": "-65", "avgPrice": "25120", "ltp": "25100", "realisedPnL": "0", "unrealisedMarkToMarket": "1300"},
+    {"symbol": "INFY-EQ", "exchange": "NSE", "product": "C", "qty": "0", "avgPrice": "0", "ltp": "1510", "realisedPnL": "120.5", "unrealisedMarkToMarket": "0"}
+  ]},
+  "holdings": {"status": "success", "data": [
+    {"symbols": [{"tradingSymbol": "SBIN-EQ", "exchange": "NSE", "isin": "INE062A01020"}, {"tradingSymbol": "SBIN", "exchange": "BSE"}], "qty": "20", "avgPrice": "700", "ltp": "815.1", "pnl": "2302", "close": "810"},
+    {"symbols": [], "qty": "1", "avgPrice": "0", "ltp": "10", "pnl": "0"}
+  ]},
+  "limits": {"status": "success", "data": {"margin": {"allocated": "250000.50", "utilized": "50000.25", "unrealizedPnl": "1250.75", "realizedPnl": "-300"}, "allocations": [{"segment": "EQ", "nonCashCurrent": "10000"}, {"segment": "FO", "nonCashCurrent": "5000.5"}]}},
+  "quote_full": {"status": "success", "data": {"token": "3045", "ltp": 81510, "open": 80900, "high": 81800, "low": 80650, "close": 81000, "volume": 1234567, "oi": 0, "ltq": 25, "totalBuyQty": 50000, "totalSellQty": 42000,
+    "bids": [{"price": 81505, "quantity": 100, "orders": 3}, {"price": 81500, "quantity": 250, "orders": 5}],
+    "asks": [{"price": 81515, "quantity": 80, "orders": 2}]}},
+  "index_quote": {"status": "success", "data": {"token": "26000", "ltp": 2501235, "open": 2490000, "high": 2510000, "low": 2485000, "close": 2495000, "volume": 0, "oi": 0}},
+  "quotes_full": {"status": "success", "data": [
+    {"token": 3045, "ltp": 81510, "open": 80900, "high": 81800, "low": 80650, "close": 81000, "volume": 1234567, "oi": 0, "bids": [{"price": 81505, "quantity": 100}], "asks": [{"price": 81515, "quantity": 80}]},
+    {"token": "35001", "ltp": 2510050, "open": 2500000, "high": 2512000, "low": 2498000, "close": 2505000, "volume": 98000, "oi": 1500000, "bids": [], "asks": []},
+    {"token": "26000", "ltp": 2501235, "open": 2490000, "high": 2510000, "low": 2485000, "close": 2495000, "volume": 0, "oi": 0}
+  ]},
+  "history_minute": [
+    ["2026-10-01T09:16:00+0530", 81100, 81300, 81000, 81250, 900, 12000],
+    ["2026-10-01T09:15:00+0530", 81000, 81200, 80900, 81100, 1000, 11000],
+    ["2026-10-01T09:16:00+0530", 81100, 81300, 81000, 81250, 900, 12000]
+  ],
+  "history_day": [
+    ["2026-09-30T00:00:00+0530", 80000, 81500, 79900, 81000, 1500000],
+    ["2026-10-01T00:00:00+0530", 81000, 82000, 80500, 81510, 1234567]
+  ],
+  "history_error": {"status": "error", "message": "invalid interval"},
+  "margin_order": {"status": "success", "data": {"requiredMargin": "152340.55", "charge": {"total": "45.2"}}},
+  "margin_basket": {"status": "success", "data": {"initial_margin": 336000, "final_margin": "206512.75", "orders": [{"margin": 168000, "charge": {"total": "20"}}, {"margin": 168000, "charge": {"total": "21.5"}}]}},
+  "index_list": {"status": "success", "data": [{"name": "Nifty 50", "token": "26000"}, {"name": "Nifty Midcap 50", "token": "26014"}, {"name": "SNXT50", "token": 14}, {"name": "", "token": ""}]},
+  "order_update": {"id": "26100300003", "updateType": "ORDER_UPDATE", "orderStatus": "COMPLETE", "symbol": "INFY-EQ", "exchange": "NSE", "token": "1594", "transactionType": "B", "quantity": "5", "cumulativeFillQty": "5", "leavesQuantity": "0", "price": "1500", "orderTriggerPrice": "0", "order": "LMT", "product": "C", "averagePrice": "1499.85"},
+  "order_update_rejected": {"id": "26100300006", "updateType": "ORDER_UPDATE", "orderStatus": "REJECTED", "symbol": "NIFTY27OCT26F", "exchange": "NFO", "transactionType": "S", "quantity": "65", "cumulativeFillQty": "0", "price": "0", "order": "SL-M", "product": "M", "rejectionReason": "RMS: Insufficient funds"}
+}
