@@ -1,0 +1,46 @@
+{
+  "status": "success",
+  "message": "Holdings fetched",
+  "data": {
+    "results": [
+      {
+        "nse_security_id": "2885",
+        "bse_security_id": "500325",
+        "nse_symbol": "RELIANCE",
+        "bse_symbol": "RELIANCE",
+        "exchange": "ALL",
+        "isin": "INE002A01018",
+        "quantity": "4",
+        "t1_quantity": 0,
+        "cost_price": "2500.00",
+        "last_traded_price": "2750.50",
+        "pc": "2740.00"
+      },
+      {
+        "nse_security_id": "",
+        "bse_security_id": "500112",
+        "nse_symbol": "",
+        "bse_symbol": "SBIN",
+        "exchange": "BSE",
+        "isin": "INE062A01020",
+        "quantity": 10,
+        "t1_quantity": 2,
+        "cost_price": 800,
+        "last_traded_price": 790,
+        "pc": 795
+      },
+      {
+        "nse_security_id": "11111",
+        "bse_security_id": "",
+        "nse_symbol": "DELISTCO",
+        "bse_symbol": "",
+        "exchange": "NSE",
+        "isin": "",
+        "quantity": 1,
+        "cost_price": 0,
+        "last_traded_price": 5,
+        "pc": 5
+      }
+    ]
+  }
+}

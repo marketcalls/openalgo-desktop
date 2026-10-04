@@ -1,0 +1,46 @@
+{
+  "status": "success",
+  "message": "Live price fetched",
+  "data": [
+    {
+      "tradable": true,
+      "mode": "FULL",
+      "security_id": 3045,
+      "last_price": 810.25,
+      "last_quantity": 25,
+      "last_trade_time": 1791014400,
+      "volume_traded": 1234567,
+      "average_traded_price": 805.1,
+      "total_buy_quantity": 120000,
+      "total_sell_quantity": 110000,
+      "oi": 0,
+      "change_oi": 0,
+      "change_absolute": 6.25,
+      "change_percent": 0.78,
+      "ohlc": {"open": 802.0, "high": 812.4, "low": 799.5, "close": 804.0},
+      "depth": {
+        "buy": [
+          {"price": 810.2, "quantity": 150, "orders": 3},
+          {"price": 810.15, "quantity": 400},
+          {"price": 810.1, "quantity": 20}
+        ],
+        "sell": [
+          {"price": 810.3, "quantity": 90, "orders": 2},
+          {"price": 810.35, "quantity": 60}
+        ]
+      }
+    },
+    {
+      "tradable": true,
+      "mode": "FULL",
+      "security_id": "43210",
+      "last_price": 118.0,
+      "last_quantity": 75,
+      "volume_traded": 9800000,
+      "oi": 4520000,
+      "change_oi": 12000,
+      "ohlc": {"open": 125.0, "high": 131.0, "low": 110.0, "close": 122.0},
+      "depth": {"buy": [], "sell": []}
+    }
+  ]
+}
