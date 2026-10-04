@@ -1,0 +1,63 @@
+{
+  "status": "success",
+  "message": "",
+  "data": {
+    "orders": [
+      {
+        "oms_order_id": "260930000000101",
+        "exchange_order_id": "1100000012345678",
+        "client_id": "<USER_ID>",
+        "exchange": "NSE",
+        "trading_symbol": "SBIN-EQ",
+        "instrument_token": 3045,
+        "order_side": "BUY",
+        "order_type": "LIMIT",
+        "product": "MIS",
+        "quantity": 10,
+        "filled_quantity": 10,
+        "remaining_quantity": 0,
+        "price": 812.5,
+        "trigger_price": 0,
+        "average_price": 812.35,
+        "order_status": "COMPLETE",
+        "mode": "NEW",
+        "validity": "DAY",
+        "order_entry_time": "2026-09-30 09:21:04"
+      },
+      {
+        "oms_order_id": "260930000000102",
+        "exchange": "NFO",
+        "trading_symbol": "NIFTY2610625000CE",
+        "order_side": "SELL",
+        "order_type": "MARKET",
+        "product": "NRML",
+        "quantity": "75",
+        "filled_quantity": "0",
+        "remaining_quantity": "0",
+        "price": "0",
+        "trigger_price": "0",
+        "average_price": 0,
+        "average_trade_price": "0",
+        "order_status": "REJECTED",
+        "rejection_reason": "RMS: Margin Exceeds",
+        "order_entry_time": "2026-09-30 09:25:10"
+      },
+      {
+        "oms_order_id": "260930000000103",
+        "exchange": "NSE",
+        "trading_symbol": "RELIANCE-EQ",
+        "order_side": "BUY",
+        "order_type": "LIMIT",
+        "product": "CNC",
+        "quantity": 5,
+        "filled_quantity": 0,
+        "remaining_quantity": 5,
+        "price": 1410,
+        "trigger_price": 0,
+        "average_price": 0,
+        "order_status": "CANCEL_CONFIRMED",
+        "order_entry_time": "2026-09-30 09:30:00"
+      }
+    ]
+  }
+}

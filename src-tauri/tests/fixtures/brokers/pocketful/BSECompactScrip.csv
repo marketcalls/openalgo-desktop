@@ -1,0 +1,6 @@
+exchange,exchange_token,trading_symbol,company_name,instrument_name,option_type,strike,expiry,lot_size,tick_size,segment
+BSE,500112,SBIN-A,STATE BANK OF INDIA,A,,0,,1,0.05,EQUITY
+BSE,500325,RELIANCE-A,RELIANCE INDUSTRIES LTD,A,,0,,1,0.05,EQUITY
+BSE,1,SENSEX,SENSEX,IDX,,0,,1,0.01,IDX
+BSE,12,BANKEX,BANKEX,IDX,,0,,1,0.01,IDX
+BSE,101,SNSX50,SENSEX 50,IDX,,0,,1,0.01,IDX

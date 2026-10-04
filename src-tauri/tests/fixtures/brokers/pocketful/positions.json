@@ -1,0 +1,39 @@
+{
+  "status": "success",
+  "message": "",
+  "data": [
+    {
+      "trading_symbol": "SBIN-EQ",
+      "exchange": "NSE",
+      "product": "MIS",
+      "net_quantity": 10,
+      "buy_quantity": 10,
+      "sell_quantity": 0,
+      "average_buy_price": 812.35,
+      "average_sell_price": 0,
+      "ltp": 815.0
+    },
+    {
+      "trading_symbol": "NIFTY26OCTFUT",
+      "exchange": "NFO",
+      "product": "NRML",
+      "net_quantity": -75,
+      "buy_quantity": 0,
+      "sell_quantity": 75,
+      "average_buy_price": 0,
+      "average_sell_price": 25110.5,
+      "ltp": 25100.5
+    },
+    {
+      "trading_symbol": "RELIANCE-EQ",
+      "exchange": "NSE",
+      "product": "CNC",
+      "net_quantity": 0,
+      "buy_quantity": 5,
+      "sell_quantity": 5,
+      "average_buy_price": 1400,
+      "average_sell_price": 1410,
+      "ltp": 1405
+    }
+  ]
+}
