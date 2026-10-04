@@ -4,3 +4,5 @@
 
 #[path = "brokers_oauth_batch/arrow.rs"]
 mod arrow;
+#[path = "brokers_oauth_batch/pocketful.rs"]
+mod pocketful;

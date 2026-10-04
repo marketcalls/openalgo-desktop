@@ -1,0 +1,4 @@
+exchange,exchange_token,trading_symbol,company_name,instrument_name,option_type,strike,expiry,lot_size,tick_size,segment
+BFO,1136789,SENSEX26OCTFUT,SENSEX,IF,,0.0,29-Oct-2026,20,0.05,FO
+BFO,1136790,SENSEX2610881500CE,SENSEX,IO,CE,81500.0,08-Oct-2026,20,0.05,FO
+BFO,1136791,SBIN26OCTFUT,SBIN,SF,,0.0,29-Oct-2026,750,0.05,FO

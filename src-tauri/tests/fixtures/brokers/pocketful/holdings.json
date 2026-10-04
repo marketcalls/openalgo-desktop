@@ -1,0 +1,30 @@
+{
+  "status": "success",
+  "message": "",
+  "data": {
+    "holdings": [
+      {
+        "trading_symbol": "SBIN-EQ",
+        "exchange": "NSE",
+        "isin": "INE062A01020",
+        "quantity": 20,
+        "average_price": 700.0,
+        "ltp": 815.0,
+        "close_price": 810.0
+      },
+      {
+        "instrument_details": {"trading_symbol": "RELIANCE-A"},
+        "exchange": "BSE",
+        "free_quantity": "4",
+        "buy_avg": "1300.5",
+        "last_price": "1405.25",
+        "pnl": "419.0",
+        "pnl_percent": "8.05"
+      },
+      {
+        "isin": "INE000000000",
+        "quantity": 1
+      }
+    ]
+  }
+}

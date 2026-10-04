@@ -1,0 +1,57 @@
+{
+  "status": "success",
+  "message": "",
+  "data": {
+    "orders": [
+      {
+        "oms_order_id": "260930000000104",
+        "exchange": "NSE",
+        "trading_symbol": "SBIN-EQ",
+        "order_side": "SELL",
+        "order_type": "SLM",
+        "product": "MIS",
+        "quantity": 10,
+        "filled_quantity": 0,
+        "remaining_quantity": 10,
+        "price": 0,
+        "trigger_price": 805.0,
+        "order_status": "TRIGGER PENDING",
+        "status": "TRIGGER PENDING",
+        "order_entry_time": "2026-09-30 09:40:00"
+      },
+      {
+        "oms_order_id": "260930000000105",
+        "exchange": "MCX",
+        "trading_symbol": "CRUDEOIL26OCTFUT",
+        "order_side": "BUY",
+        "order_type": "LIMIT",
+        "product": "NRML",
+        "quantity": 100,
+        "filled_quantity": 0,
+        "remaining_quantity": 100,
+        "price": 5650,
+        "trigger_price": 0,
+        "order_status": "OPEN",
+        "status": "OPEN",
+        "order_entry_time": "2026-09-30 10:02:11"
+      },
+      {
+        "oms_order_id": "260930000000106",
+        "exchange": "NSE",
+        "trading_symbol": "RELIANCE-EQ",
+        "order_side": "BUY",
+        "order_type": "LIMIT",
+        "product": "CNC",
+        "quantity": 1,
+        "filled_quantity": 0,
+        "remaining_quantity": 1,
+        "price": 1300,
+        "trigger_price": 0,
+        "order_status": "AMO_SUBMIT",
+        "status": "",
+        "mode": "NEW",
+        "order_entry_time": "2026-09-30 10:05:00"
+      }
+    ]
+  }
+}
