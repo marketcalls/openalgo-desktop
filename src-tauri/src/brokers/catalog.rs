@@ -95,6 +95,15 @@ pub fn authorize_url(
             enc(state)
         ))
         }
+        // Arrow appends the request token to the registered redirect URL.
+        // `state` is passed so the callback check can match it; Arrow must
+        // echo it back for the sign-in to complete (the web's login URL has
+        // no state at all).
+        "arrow" => Some(format!(
+            "https://app.arrow.trade/app/login?appID={}&state={}",
+            enc(api_key),
+            enc(state)
+        )),
         // XTS third-party login; the session comes back as `session`.
         "compositedge" | "rmoney" => {
             crate::brokers::families::xts::thirdparty_url(broker, api_key, redirect_url, state)
@@ -337,6 +346,25 @@ mod tests {
         assert!(f[1].secret && !f[0].secret);
         let p = q(&[("code", "c1"), ("state", "s")]);
         assert_eq!(extract_code("shoonya", &p).as_deref(), Some("c1"));
+    }
+
+    #[test]
+    fn arrow_login_url_and_request_token() {
+        assert_eq!(auth_type("arrow"), AuthType::OAuth);
+        let u = authorize_url("arrow", "APP 1", "r", "st5").unwrap();
+        assert_eq!(
+            u,
+            "https://app.arrow.trade/app/login?appID=APP%201&state=st5"
+        );
+        // Arrow sends `request-token` (hyphen); the other spellings are
+        // fallbacks the web also accepts.
+        let p = q(&[("request-token", "rt9"), ("checksum", "x")]);
+        assert_eq!(extract_code("arrow", &p).as_deref(), Some("rt9"));
+        assert_eq!(
+            extract_code("arrow", &q(&[("code", "c2")])).as_deref(),
+            Some("c2")
+        );
+        assert!(login_fields("arrow").is_empty());
     }
 
     #[test]

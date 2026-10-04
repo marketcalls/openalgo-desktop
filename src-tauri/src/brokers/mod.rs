@@ -7,6 +7,7 @@
 //! The trait is object safe: the registry hands out `Arc<dyn Broker>`.
 
 pub mod angel;
+pub mod arrow;
 pub mod catalog;
 pub mod common;
 pub mod compositedge;
@@ -463,6 +464,7 @@ impl BrokerRegistry {
             Arc::new(zebu::broker(symbols.clone())),
             Arc::new(firstock::FirstockBroker::new(symbols.clone())),
             Arc::new(deltaexchange::DeltaBroker::new(symbols.clone())),
+            Arc::new(arrow::ArrowBroker::new(symbols.clone())),
         ];
         Self::with_symbols(symbols, brokers)
     }
@@ -530,6 +532,7 @@ mod tests {
             reg.ids(),
             [
                 "angel",
+                "arrow",
                 "compositedge",
                 "deltaexchange",
                 "dhan",
