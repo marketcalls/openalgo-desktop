@@ -95,6 +95,12 @@ pub fn authorize_url(
             enc(state)
         ))
         }
+        // Paytm Money returns `requestToken` and echoes `state`.
+        "paytm" => Some(format!(
+            "https://login.paytmmoney.com/merchant-login?apiKey={}&state={}",
+            enc(api_key),
+            enc(state)
+        )),
         // XTS third-party login; the session comes back as `session`.
         "compositedge" | "rmoney" => {
             crate::brokers::families::xts::thirdparty_url(broker, api_key, redirect_url, state)
@@ -222,6 +228,9 @@ pub fn extract_code(broker: &str, params: &HashMap<String, String>) -> Option<St
             .or_else(|| get("token_id"))
             .or_else(|| get("token")),
         "compositedge" | "rmoney" => get("session"),
+        "paytm" => get("requestToken")
+            .or_else(|| get("request_token"))
+            .or_else(|| get("code")),
         "arrow" | "hdfcsecurities" | "hdfcsky" => get("request_token")
             .or_else(|| get("requestToken"))
             .or_else(|| get("request-token"))
@@ -337,6 +346,34 @@ mod tests {
         assert!(f[1].secret && !f[0].secret);
         let p = q(&[("code", "c1"), ("state", "s")]);
         assert_eq!(extract_code("shoonya", &p).as_deref(), Some("c1"));
+    }
+
+    #[test]
+    fn paytm_sign_in() {
+        assert_eq!(auth_type("paytm"), AuthType::OAuth);
+        let u = authorize_url(
+            "paytm",
+            "pk 1",
+            "http://127.0.0.1:5000/paytm/callback",
+            "st7",
+        )
+        .unwrap();
+        assert_eq!(
+            u,
+            "https://login.paytmmoney.com/merchant-login?apiKey=pk%201&state=st7"
+        );
+        let p = q(&[("requestToken", "rt9"), ("state", "st7"), ("code", "x")]);
+        assert_eq!(extract_code("paytm", &p).as_deref(), Some("rt9"));
+        assert_eq!(
+            extract_code("paytm", &q(&[("request_token", "rt2")])).as_deref(),
+            Some("rt2")
+        );
+        assert_eq!(
+            extract_code("paytm", &q(&[("code", "c3")])).as_deref(),
+            Some("c3")
+        );
+        assert_eq!(extract_code("paytm", &q(&[("state", "s")])), None);
+        assert!(login_fields("paytm").is_empty());
     }
 
     #[test]
