@@ -159,7 +159,7 @@ impl FivepaisaFeed {
         let snap = self.snapshots.entry(token.to_string()).or_default();
         let mut merged = frame.clone();
         for f in SNAPSHOT_FIELDS {
-            let v = frame.get(*f).map(|x| num_of(x)).unwrap_or(0.0);
+            let v = frame.get(*f).map(num_of).unwrap_or(0.0);
             if v == 0.0 {
                 if let Some(prev) = snap.get(*f) {
                     merged.insert((*f).to_string(), prev.clone());
