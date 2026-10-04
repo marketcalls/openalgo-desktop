@@ -540,6 +540,7 @@ impl BrokerRegistry {
             Arc::new(paytm::PaytmBroker::new(symbols.clone())),
             Arc::new(hdfcsky::HdfcSkyBroker::new(symbols.clone())),
             Arc::new(hdfcsecurities::HdfcSecuritiesBroker::new(symbols.clone())),
+            Arc::new(samco::SamcoBroker::new(symbols.clone())),
         ];
         Self::with_symbols(symbols, brokers)
     }
@@ -630,6 +631,7 @@ mod tests {
                 "paytm",
                 "pocketful",
                 "rmoney",
+                "samco",
                 "shoonya",
                 "tradejini",
                 "tradesmart",

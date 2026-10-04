@@ -245,12 +245,12 @@ pub async fn next_binary(ws: &mut ServerWs) -> Option<Vec<u8>> {
 
 /// Send a text frame.
 pub async fn send_text(ws: &mut ServerWs, s: impl Into<String>) {
-    let _ = ws.send(Message::Text(s.into().into())).await;
+    let _ = ws.send(Message::Text(s.into())).await;
 }
 
 /// Send a binary frame.
 pub async fn send_binary(ws: &mut ServerWs, b: Vec<u8>) {
-    let _ = ws.send(Message::Binary(b.into())).await;
+    let _ = ws.send(Message::Binary(b)).await;
 }
 
 /// A master-contract row.
