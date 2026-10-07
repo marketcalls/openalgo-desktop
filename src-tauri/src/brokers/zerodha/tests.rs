@@ -156,7 +156,8 @@ fn order_book_is_normalised_to_openalgo() {
     let crude = &orders[1];
     assert_eq!(crude.symbol, "CRUDEOIL19OCT26FUT");
     assert_eq!((crude.quantity, crude.filled_quantity), (100, 100));
-    assert_eq!(orders[2].status, "trigger pending");
+    // Trigger-pending stop orders show as open in the REST book (web #2185).
+    assert_eq!(orders[2].status, "open");
     assert_eq!(orders[2].order_type, "SL-M");
     assert_eq!(orders[2].trigger_price, 906.4);
     assert_eq!(orders[3].status, "open");

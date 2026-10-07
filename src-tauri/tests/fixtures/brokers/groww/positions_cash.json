@@ -5,11 +5,11 @@
       {
         "trading_symbol": "SBIN",
         "credit_quantity": 10,
-        "credit_price": 81235,
+        "credit_price": 812.35,
         "debit_quantity": 0,
         "debit_price": 0,
         "carry_forward_credit_quantity": 5,
-        "carry_forward_credit_price": 80000,
+        "carry_forward_credit_price": 800.0,
         "carry_forward_debit_quantity": 0,
         "carry_forward_debit_price": 0,
         "exchange": "NSE",
@@ -24,13 +24,13 @@
       {
         "trading_symbol": "RELIANCE",
         "credit_quantity": 4,
-        "credit_price": 140000,
+        "credit_price": 1400.0,
         "debit_quantity": 4,
-        "debit_price": 141000,
+        "debit_price": 1410.0,
         "exchange": "BSE",
         "symbol_isin": "INE002A01018",
         "product": "MIS",
-        "net_price": 140500,
+        "net_price": 1405.0,
         "segment": "CASH"
       }
     ]

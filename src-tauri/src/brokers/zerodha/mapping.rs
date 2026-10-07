@@ -215,6 +215,17 @@ pub fn map_status(kite: &str) -> String {
     }
 }
 
+/// Status shown in the REST order book. Kite's trigger-pending stop orders
+/// are live and can be modified or cancelled, so the book presents them as
+/// `open`, its actionable working state; live order updates keep the detailed
+/// `trigger pending` from [`map_status`] (web #2185, `transform_order_data`).
+pub fn book_status(kite: &str) -> String {
+    match map_status(kite).as_str() {
+        "trigger pending" => "open".into(),
+        other => other.into(),
+    }
+}
+
 /// Kite exchange prefix for `/quote*` calls (web `_kite_quote_exchange`).
 pub fn kite_quote_exchange(oa_exchange: &str, brexchange: &str) -> String {
     match oa_exchange {
@@ -421,7 +432,7 @@ pub fn map_orders(rows: Vec<KiteOrder>, symbols: &SymbolResolver) -> Vec<Order> 
                 average_price: o.average_price,
                 order_type: o.order_type.clone(),
                 product: o.product.clone(),
-                status: map_status(&o.status),
+                status: book_status(&o.status),
                 validity: o.validity.clone(),
                 order_timestamp: o.order_timestamp.clone(),
                 exchange_timestamp: non_empty(&o.exchange_timestamp),
@@ -584,6 +595,15 @@ mod tests {
         assert_eq!(map_status("PUT ORDER REQ RECEIVED"), "open");
         assert_eq!(map_status("AMO REQ RECEIVED"), "open");
         assert_eq!(map_status("CANCELLED AMO"), "cancelled amo");
+        // The REST book shows trigger-pending as open; updates keep it.
+        assert_eq!(book_status("TRIGGER PENDING"), "open");
+        assert_eq!(book_status("complete"), "complete");
+        // Each order maps on its own status: no state carried between rows.
+        let rows: Vec<String> = ["COMPLETE", "VALIDATION PENDING", "REJECTED", "OPEN PENDING"]
+            .iter()
+            .map(|s| book_status(s))
+            .collect();
+        assert_eq!(rows, ["complete", "open", "rejected", "open"]);
     }
 
     #[test]
