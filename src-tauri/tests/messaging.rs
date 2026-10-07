@@ -622,6 +622,21 @@ async fn telegram_mode_buttons_need_the_linked_user_in_a_private_chat() {
         )
         .await
     );
+
+    // Once the API key is regenerated, the old link no longer changes the mode.
+    ApiKeyService::regenerate(&h.ctx, USER).unwrap();
+    fake.push(button(42, 42, "mode_analyze"));
+    assert!(
+        wait_for(
+            || fake
+                .texts()
+                .iter()
+                .any(|t| t.contains("linked API key is no longer valid")),
+            5000
+        )
+        .await
+    );
+    assert!(!h.ctx.sqlite.get_analyze_mode().unwrap());
     h.ctx.messaging.telegram.shutdown().await;
 }
 

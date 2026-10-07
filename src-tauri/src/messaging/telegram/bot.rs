@@ -640,6 +640,10 @@ pub const CALLBACKS: &[&str] = &[
     "pnl",
 ];
 
+/// Reply when a linked user's stored API key no longer works.
+const KEY_NO_LONGER_VALID: &str =
+    "Your linked API key is no longer valid. Link again with /link and your current key.";
+
 pub enum Request<'a> {
     Command(&'a str),
     Callback(&'a str),
@@ -1434,6 +1438,17 @@ impl Bot {
                 }
             }
             "mode_live" | "mode_analyze" => {
+                // Being linked once is not enough to change the trading mode:
+                // the linked key must still be valid now, as for every account
+                // action (a key regenerated or deleted since must stop it).
+                let allowed = match Self::client(ctx, from.id) {
+                    Some(c) => c.is_authorized().await,
+                    None => false,
+                };
+                if !allowed {
+                    self.edit(chat, mid, KEY_NO_LONGER_VALID, false, None).await;
+                    return;
+                }
                 let requested = data == "mode_analyze";
                 match crate::services::AnalyzerService::set_mode(ctx, requested).await {
                     Ok(s) => {

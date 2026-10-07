@@ -45,6 +45,13 @@ impl OpenAlgoClient {
         }
     }
 
+    /// Whether the linked user's stored key is still valid and a broker is
+    /// connected: the check every account action makes, for callers that
+    /// change state without going through an endpoint (the mode button).
+    pub async fn is_authorized(&self) -> bool {
+        self.authorized().await.is_ok()
+    }
+
     async fn run<F, Fut>(&self, f: F) -> Option<Value>
     where
         F: FnOnce(Arc<AppState>) -> Fut,
