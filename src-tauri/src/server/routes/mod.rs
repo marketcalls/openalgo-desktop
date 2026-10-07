@@ -518,7 +518,12 @@ pub fn table() -> Vec<RouteSpec> {
         r!(GET, "/telegram/api/index", User, telegram::api_index),
         r!(GET, "/telegram/api/config", User, telegram::api_config),
         r!(GET, "/telegram/api/users", User, telegram::api_users),
-        r!(GET, "/telegram/api/analytics", User, telegram::api_analytics),
+        r!(
+            GET,
+            "/telegram/api/analytics",
+            User,
+            telegram::api_analytics
+        ),
         // WhatsApp (web blueprints/whatsapp.py)
         r!(GET, "/whatsapp/config", User, whatsapp::get_config),
         r!(POST, "/whatsapp/config", User, whatsapp::update_config),

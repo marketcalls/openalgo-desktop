@@ -30,9 +30,11 @@ pub fn py_float(v: &Value) -> Option<f64> {
 /// `int(1.5)` truncates).
 pub fn py_int(v: &Value) -> Option<i64> {
     match v {
-        Value::Number(n) => n
-            .as_i64()
-            .or_else(|| n.as_f64().filter(|f| f.is_finite()).map(|f| f.trunc() as i64)),
+        Value::Number(n) => n.as_i64().or_else(|| {
+            n.as_f64()
+                .filter(|f| f.is_finite())
+                .map(|f| f.trunc() as i64)
+        }),
         Value::Bool(b) => Some(i64::from(*b)),
         Value::String(s) => s.trim().replace('_', "").parse::<i64>().ok(),
         _ => None,
@@ -112,10 +114,7 @@ pub fn py_repr(v: &Value) -> String {
             out.push(quote);
             out
         }
-        Value::Array(a) => format!(
-            "[{}]",
-            a.iter().map(py_repr).collect::<Vec<_>>().join(", ")
-        ),
+        Value::Array(a) => format!("[{}]", a.iter().map(py_repr).collect::<Vec<_>>().join(", ")),
         Value::Object(m) => format!(
             "{{{}}}",
             m.iter()

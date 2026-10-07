@@ -181,7 +181,8 @@ pub async fn whatsapp_notify(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Reque
         }
         vec![phone_to_jid(&d)]
     } else if truthy("username") {
-        let username = crate::messaging::format::py_str(data.get("username").unwrap_or(&Value::Null));
+        let username =
+            crate::messaging::format::py_str(data.get("username").unwrap_or(&Value::Null));
         let linked = ctx
             .sqlite
             .conn()

@@ -179,7 +179,11 @@ pub fn get_config(conn: &Connection) -> Result<WaConfig> {
 
 /// Web `update_bot_config`: only the safe fields; the rate limit clamped to
 /// 1..=120 and ignored when it is not a number.
-pub fn update_config(conn: &Connection, updates: &Map<String, Value>, now: DateTime<Utc>) -> Result<()> {
+pub fn update_config(
+    conn: &Connection,
+    updates: &Map<String, Value>,
+    now: DateTime<Utc>,
+) -> Result<()> {
     conn.execute("INSERT OR IGNORE INTO whatsapp_config (id) VALUES (1)", [])?;
     for (k, v) in updates {
         match k.as_str() {
@@ -275,7 +279,10 @@ pub fn save_session(
 }
 
 /// The stored session: (snapshot, ciphertext), or `None` when unpaired.
-pub fn load_session(conn: &Connection, security: &SecurityManager) -> Result<Option<(Vec<u8>, String)>> {
+pub fn load_session(
+    conn: &Connection,
+    security: &SecurityManager,
+) -> Result<Option<(Vec<u8>, String)>> {
     let stored: Option<String> = conn
         .query_row(
             "SELECT CAST(session_blob AS TEXT) FROM whatsapp_config WHERE id = 1 AND is_paired = 1",
@@ -404,7 +411,11 @@ pub fn get_user_by_username(conn: &Connection, username: &str) -> Result<Option<
         .optional()?)
 }
 
-pub fn all_users(conn: &Connection, broker: Option<&str>, notifications: Option<bool>) -> Result<Vec<WaUser>> {
+pub fn all_users(
+    conn: &Connection,
+    broker: Option<&str>,
+    notifications: Option<bool>,
+) -> Result<Vec<WaUser>> {
     let mut stmt = conn.prepare(&format!(
         "SELECT {} FROM whatsapp_users WHERE is_active = 1
            AND (?1 IS NULL OR broker = ?1) AND (?2 IS NULL OR notifications_enabled = ?2)
@@ -452,7 +463,13 @@ pub fn delete_user(conn: &Connection, jid: &str, now: DateTime<Utc>) -> Result<b
     Ok(n > 0)
 }
 
-pub fn log_command(conn: &Connection, jid: &str, command: &str, args: &[String], now: DateTime<Utc>) -> Result<()> {
+pub fn log_command(
+    conn: &Connection,
+    jid: &str,
+    command: &str,
+    args: &[String],
+    now: DateTime<Utc>,
+) -> Result<()> {
     let ts = db_time(now);
     let params_json = if args.is_empty() {
         None
@@ -479,7 +496,9 @@ pub fn command_stats(conn: &Connection, days: i64, now: DateTime<Utc>) -> Result
          GROUP BY command ORDER BY MIN(id)",
     )?;
     let rows = stmt
-        .query_map(params![since], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?
+        .query_map(params![since], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))
+        })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     let total: i64 = rows.iter().map(|(_, n)| n).sum();
     let mut by = Map::new();
@@ -518,7 +537,11 @@ mod tests {
         };
         let ct = save_session(&c, &sec, b"SNAPSHOT-1", &owner, now()).unwrap();
         let raw: String = c
-            .query_row("SELECT CAST(session_blob AS TEXT) FROM whatsapp_config", [], |r| r.get(0))
+            .query_row(
+                "SELECT CAST(session_blob AS TEXT) FROM whatsapp_config",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         assert!(!raw.contains("SNAPSHOT"));
         let (snap, stored) = load_session(&c, &sec).unwrap().unwrap();
@@ -528,7 +551,9 @@ mod tests {
         assert!(cfg.is_paired);
         assert_eq!(cfg.owner_username.as_deref(), Some("trader"));
         // A refresh over a stale ciphertext is refused.
-        assert!(refresh_session(&c, &sec, b"S2", "v1:stale").unwrap().is_none());
+        assert!(refresh_session(&c, &sec, b"S2", "v1:stale")
+            .unwrap()
+            .is_none());
         let ct2 = refresh_session(&c, &sec, b"S2", &ct).unwrap().unwrap();
         assert_eq!(load_session(&c, &sec).unwrap().unwrap().0, b"S2");
         // A logout of the old session does not clear the new one.
@@ -550,13 +575,25 @@ mod tests {
         let cfg = get_config(&c).unwrap();
         assert_eq!(cfg.rate_limit_per_minute, 120);
         assert!(!cfg.broadcast_enabled);
-        create_or_update_user(&c, "91@s.whatsapp.net", "91", "trader", "T", "zerodha", now()).unwrap();
+        create_or_update_user(
+            &c,
+            "91@s.whatsapp.net",
+            "91",
+            "trader",
+            "T",
+            "zerodha",
+            now(),
+        )
+        .unwrap();
         assert_eq!(all_users(&c, None, None).unwrap().len(), 1);
         assert!(get_user_by_username(&c, "trader").unwrap().is_some());
         log_command(&c, "91@s.whatsapp.net", "help", &[], now()).unwrap();
         log_command(&c, "91@s.whatsapp.net", "help", &[], now()).unwrap();
         let s = command_stats(&c, 7, now()).unwrap();
-        assert_eq!(s, json!({"total_commands": 2, "by_command": {"help": 2}, "days": 7}));
+        assert_eq!(
+            s,
+            json!({"total_commands": 2, "by_command": {"help": 2}, "days": 7})
+        );
         assert!(delete_user(&c, "91@s.whatsapp.net", now()).unwrap());
         assert!(all_users(&c, None, None).unwrap().is_empty());
     }

@@ -52,7 +52,11 @@ pub async fn get_config(State(ctx): Ctx, _u: User) -> Response {
 /// POST /whatsapp/config
 pub async fn update_config(State(ctx): Ctx, _u: User, body: JsonBody) -> Response {
     let mut updates = Map::new();
-    for k in ["broadcast_enabled", "rate_limit_per_minute", "max_message_length"] {
+    for k in [
+        "broadcast_enabled",
+        "rate_limit_per_minute",
+        "max_message_length",
+    ] {
         if let Some(v) = body.0.get(k) {
             updates.insert(k.into(), v.clone());
         }
@@ -110,7 +114,12 @@ pub async fn pair_status(State(ctx): Ctx, _u: User) -> Response {
 /// POST /whatsapp/unlink
 pub async fn unlink(State(ctx): Ctx, _u: User) -> Response {
     let (good, msg) = ctx.messaging.whatsapp.unlink(&ctx).await;
-    status_of(good, &msg, StatusCode::OK, StatusCode::INTERNAL_SERVER_ERROR)
+    status_of(
+        good,
+        &msg,
+        StatusCode::OK,
+        StatusCode::INTERNAL_SERVER_ERROR,
+    )
 }
 
 /// POST /whatsapp/bot/start
@@ -122,7 +131,12 @@ pub async fn bot_start(State(ctx): Ctx, _u: User) -> Response {
 /// POST /whatsapp/bot/stop
 pub async fn bot_stop(State(ctx): Ctx, _u: User) -> Response {
     let (good, msg) = ctx.messaging.whatsapp.stop_bot(&ctx).await;
-    status_of(good, &msg, StatusCode::OK, StatusCode::INTERNAL_SERVER_ERROR)
+    status_of(
+        good,
+        &msg,
+        StatusCode::OK,
+        StatusCode::INTERNAL_SERVER_ERROR,
+    )
 }
 
 /// GET /whatsapp/bot/status
@@ -143,7 +157,11 @@ pub async fn bot_status(State(ctx): Ctx, _u: User) -> Response {
 
 /// GET /whatsapp/users
 pub async fn users(State(ctx): Ctx, _u: User) -> Response {
-    match ctx.sqlite.conn().and_then(|c| db::all_users(&c, None, None)) {
+    match ctx
+        .sqlite
+        .conn()
+        .and_then(|c| db::all_users(&c, None, None))
+    {
         Ok(list) => {
             let n = list.len();
             ok(json!({"status": "success",
@@ -283,7 +301,11 @@ pub async fn send(State(ctx): Ctx, _u: User, body: JsonBody) -> Response {
 }
 
 /// GET /whatsapp/stats?days=
-pub async fn stats(State(ctx): Ctx, _u: User, Query(q): Query<HashMap<String, String>>) -> Response {
+pub async fn stats(
+    State(ctx): Ctx,
+    _u: User,
+    Query(q): Query<HashMap<String, String>>,
+) -> Response {
     let days = q
         .get("days")
         .and_then(|d| d.trim().parse::<i64>().ok())

@@ -235,7 +235,9 @@ impl BotApi {
         let mut form = Form::new().text("chat_id", chat_id.to_string());
         for (i, (png, caption)) in photos.into_iter().enumerate() {
             let name = format!("photo{}", i);
-            media.push(json!({"type": "photo", "media": format!("attach://{}", name), "caption": caption}));
+            media.push(
+                json!({"type": "photo", "media": format!("attach://{}", name), "caption": caption}),
+            );
             form = form.part(name.clone(), Self::png_part(png, &name)?);
         }
         form = form.text("media", Value::Array(media).to_string());

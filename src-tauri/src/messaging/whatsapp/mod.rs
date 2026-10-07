@@ -187,15 +187,55 @@ enum Raw {
     },
 }
 
-/// Who may drive the bot: the paired owner's own messages (web: only
-/// `is_from_me`), and never in a group or broadcast chat, so account data is
-/// not answered where others read it.
-pub fn command_allowed(is_from_me: bool, is_group: bool, chat: &str) -> bool {
-    is_from_me
-        && !is_group
-        && !chat.ends_with("@g.us")
-        && !chat.ends_with("@broadcast")
-        && !chat.ends_with("@newsletter")
+/// What a sender of a slash command is told when it is not the owner.
+pub const OWNER_ONLY: &str =
+    "This WhatsApp bot answers only the OpenAlgo account it is paired with.";
+
+/// The decision of the command gate.
+#[derive(Debug, PartialEq, Eq)]
+pub enum WaGate {
+    Allow,
+    /// Reply with this text in that chat and do nothing else.
+    Deny(&'static str),
+    /// Say nothing.
+    Ignore,
+}
+
+fn same_user(a: &str, b: &str) -> bool {
+    let user = |j: &str| {
+        j.split('@')
+            .next()
+            .unwrap_or("")
+            .split(':')
+            .next()
+            .unwrap_or("")
+            .to_string()
+    };
+    let (ua, ub) = (user(a), user(b));
+    !ua.is_empty() && ua == ub && a.rsplit('@').next() == b.rsplit('@').next()
+}
+
+/// The one gate every slash command passes (the web lets only the paired
+/// owner's own messages drive the bot). Group, broadcast and channel chats
+/// are ignored. The owner is answered only in their own "Message yourself"
+/// chat (`own` holds the device's phone and LID JIDs), so account data never
+/// lands in a chat with someone else. Anyone else gets one refusal line.
+pub fn command_gate(is_from_me: bool, is_group: bool, chat: &str, own: &[String]) -> WaGate {
+    if is_group
+        || chat.ends_with("@g.us")
+        || chat.ends_with("@broadcast")
+        || chat.ends_with("@newsletter")
+    {
+        return WaGate::Ignore;
+    }
+    if !is_from_me {
+        return WaGate::Deny(OWNER_ONLY);
+    }
+    if own.iter().any(|o| same_user(o, chat)) {
+        WaGate::Allow
+    } else {
+        WaGate::Ignore
+    }
 }
 
 /// Web `normalize_phone`: digits only, 7 to 15 of them; floats and booleans
@@ -501,7 +541,9 @@ impl WhatsAppService {
             Ok(None) => {
                 return (
                     false,
-                    self.unavailable_reason().unwrap_or(NOT_PAIRED_MESSAGE).into(),
+                    self.unavailable_reason()
+                        .unwrap_or(NOT_PAIRED_MESSAGE)
+                        .into(),
                 )
             }
             Err(e) => {
@@ -641,9 +683,9 @@ impl WhatsAppService {
             let jid: Jid = match jid_s.parse() {
                 Ok(j) => j,
                 Err(_) => {
-                    report
-                        .failed
-                        .push(json!({"to": jid_s, "error": "This is not a valid WhatsApp number."}));
+                    report.failed.push(
+                        json!({"to": jid_s, "error": "This is not a valid WhatsApp number."}),
+                    );
                     continue;
                 }
             };
@@ -658,7 +700,9 @@ impl WhatsAppService {
                         "error": "WhatsApp did not accept the message. Check the number and that the device is still linked."}));
                 }
                 Err(_) => {
-                    report.failed.push(json!({"to": jid_s, "error": "send timeout"}));
+                    report
+                        .failed
+                        .push(json!({"to": jid_s, "error": "send timeout"}));
                 }
             }
         }
@@ -705,7 +749,13 @@ impl WhatsAppService {
 
     /// Fan a message out to linked users (web `send_broadcast_alert`):
     /// (queued, skipped). Sends run on a task owned by the app context.
-    pub fn broadcast(&self, ctx: &Arc<AppState>, message: &str, broker: Option<String>, notif: Option<bool>) -> (usize, usize) {
+    pub fn broadcast(
+        &self,
+        ctx: &Arc<AppState>,
+        message: &str,
+        broker: Option<String>,
+        notif: Option<bool>,
+    ) -> (usize, usize) {
         let users = ctx
             .sqlite
             .conn()
@@ -803,25 +853,22 @@ async fn pair_task(
         svc.pair_event(&c, outcome).await;
         return;
     };
-    let saved = store
-        .export()
+    let saved = store.export().map_err(|e| e.to_string()).and_then(|snap| {
+        let conn = c.sqlite.conn().map_err(|e| e.to_string())?;
+        db::save_session(
+            &conn,
+            &c.security,
+            &snap,
+            &db::Owner {
+                own_jid: own_jid.as_deref(),
+                own_phone: own_phone.as_deref(),
+                owner_user_id,
+                owner_username: owner_username.as_deref(),
+            },
+            c.now(),
+        )
         .map_err(|e| e.to_string())
-        .and_then(|snap| {
-            let conn = c.sqlite.conn().map_err(|e| e.to_string())?;
-            db::save_session(
-                &conn,
-                &c.security,
-                &snap,
-                &db::Owner {
-                    own_jid: own_jid.as_deref(),
-                    own_phone: own_phone.as_deref(),
-                    owner_user_id,
-                    owner_username: owner_username.as_deref(),
-                },
-                c.now(),
-            )
-            .map_err(|e| e.to_string())
-        });
+    });
     if let Err(e) = saved {
         tracing::error!("Saving the WhatsApp session failed: {}", e);
         svc.pair_event(
@@ -1008,9 +1055,26 @@ async fn bot_task(
                             if !text.starts_with('/') {
                                 continue;
                             }
-                            if !command_allowed(is_from_me, is_group, &chat) {
-                                tracing::debug!("WhatsApp command from someone other than the owner ignored");
-                                continue;
+                            let own: Vec<String> = [client.get_pn(), client.get_lid()]
+                                .into_iter()
+                                .flatten()
+                                .map(|j| j.to_non_ad_string())
+                                .collect();
+                            match command_gate(is_from_me, is_group, &chat, &own) {
+                                WaGate::Allow => {}
+                                WaGate::Ignore => continue,
+                                WaGate::Deny(m) => {
+                                    tracing::debug!("WhatsApp command from someone other than the owner refused");
+                                    let to = vec![chat.clone()];
+                                    let text = m.to_string();
+                                    let weak = ctx.clone();
+                                    c.spawn(async move {
+                                        if let Some(c) = weak.upgrade() {
+                                            c.messaging.whatsapp.send(&c, &to, &text).await;
+                                        }
+                                    });
+                                    continue;
+                                }
                             }
                             if cmd_tx.try_send((chat, sender, text)).is_err() {
                                 tracing::warn!("WhatsApp command dropped: too many waiting");
@@ -1041,7 +1105,10 @@ async fn bot_task(
                 // Save while connected, then close (which flushes the device
                 // state), then save what the close flushed.
                 saver.save(&c, true, &client).await;
-                if tokio::time::timeout(STOP_JOIN, client.disconnect()).await.is_err() {
+                if tokio::time::timeout(STOP_JOIN, client.disconnect())
+                    .await
+                    .is_err()
+                {
                     tracing::warn!("WhatsApp client did not close in time");
                 }
                 handle.abort();
@@ -1122,14 +1189,26 @@ mod tests {
         );
         assert_eq!(s.status, "paired");
         assert!(s.paired_at.is_some());
-        assert_eq!(e[0], ("whatsapp_paired", json!({"own_phone": "91", "own_jid": "91@s.whatsapp.net"})));
+        assert_eq!(
+            e[0],
+            (
+                "whatsapp_paired",
+                json!({"own_phone": "91", "own_jid": "91@s.whatsapp.net"})
+            )
+        );
         assert_eq!(e[1].0, "whatsapp_pair_status");
         assert_eq!(e[1].1["status"], "paired");
         let mut f = PairState::default();
         let e = apply_pair_event(&mut f, PairEvent::Failed(PAIR_TIMEOUT_MESSAGE.into()));
         assert_eq!(e[0].1["status"], "failed");
         assert_eq!(e[0].1["error"], PAIR_TIMEOUT_MESSAGE);
-        let keys: Vec<_> = PairState::default().to_json().as_object().unwrap().keys().cloned().collect();
+        let keys: Vec<_> = PairState::default()
+            .to_json()
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
         assert_eq!(keys.len(), 6);
     }
 
@@ -1143,10 +1222,48 @@ mod tests {
         assert_eq!(phone_to_jid("91"), "91@s.whatsapp.net");
         assert_eq!(jid_to_phone("91@s.whatsapp.net"), "91");
         assert_eq!(jid_to_phone("1203@g.us"), "");
-        assert!(command_allowed(true, false, "91@s.whatsapp.net"));
-        assert!(!command_allowed(false, false, "91@s.whatsapp.net"));
-        assert!(!command_allowed(true, true, "1203@g.us"));
-        assert!(!command_allowed(true, false, "1203@g.us"));
-        assert!(!command_allowed(true, false, "status@broadcast"));
+    }
+
+    #[test]
+    fn every_command_passes_the_owner_gate() {
+        let own = vec![
+            "919876543210@s.whatsapp.net".to_string(),
+            "1000@lid".to_string(),
+        ];
+        for cmd in commands::COMMANDS {
+            // Every command reaches `dispatch` only through this gate; the
+            // gate does not depend on which command it is.
+            let _ = cmd;
+            // The owner in "Message yourself" (phone or LID addressing).
+            assert_eq!(
+                command_gate(true, false, "919876543210@s.whatsapp.net", &own),
+                WaGate::Allow
+            );
+            assert_eq!(command_gate(true, false, "1000@lid", &own), WaGate::Allow);
+            // The owner typing in a chat with someone else: no account data there.
+            assert_eq!(
+                command_gate(true, false, "915555555555@s.whatsapp.net", &own),
+                WaGate::Ignore
+            );
+            // Anyone else: one refusal line.
+            assert_eq!(
+                command_gate(false, false, "915555555555@s.whatsapp.net", &own),
+                WaGate::Deny(OWNER_ONLY)
+            );
+            // Groups, broadcasts, channels: nothing, from anyone.
+            for chat in ["1203@g.us", "status@broadcast", "1@newsletter"] {
+                assert_eq!(command_gate(true, false, chat, &own), WaGate::Ignore);
+                assert_eq!(command_gate(false, false, chat, &own), WaGate::Ignore);
+            }
+            assert_eq!(
+                command_gate(true, true, "919876543210@s.whatsapp.net", &own),
+                WaGate::Ignore
+            );
+        }
+        // Not paired yet (no own JID): nothing is allowed.
+        assert_eq!(
+            command_gate(true, false, "919876543210@s.whatsapp.net", &[]),
+            WaGate::Ignore
+        );
     }
 }

@@ -51,8 +51,16 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         "065_symtoken_contract_value",
         super::symbol::migrate_contract_value,
     )?;
-    run_rust_migration(conn, "070_telegram", crate::messaging::telegram::db::migrate)?;
-    run_rust_migration(conn, "071_whatsapp", crate::messaging::whatsapp::db::migrate)?;
+    run_rust_migration(
+        conn,
+        "070_telegram",
+        crate::messaging::telegram::db::migrate,
+    )?;
+    run_rust_migration(
+        conn,
+        "071_whatsapp",
+        crate::messaging::whatsapp::db::migrate,
+    )?;
 
     tracing::info!("Database migrations completed");
     Ok(())

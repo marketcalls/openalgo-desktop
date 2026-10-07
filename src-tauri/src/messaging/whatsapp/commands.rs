@@ -1,6 +1,6 @@
 //! WhatsApp slash commands from the paired owner (web `_dispatch_command`
 //! and `_cmd_*`). Only the owner's own messages outside groups reach here
-//! (`command_allowed`). The account is the desktop's single user; calls run
+//! (`command_gate`). The account is the desktop's single user; calls run
 //! in-process with the stored API key, never over HTTP.
 
 use crate::messaging::format::py_str;
@@ -14,8 +14,19 @@ pub const HELP: &str = "OpenAlgo WhatsApp Bot\n/status - connection + paired sta
 
 /// Every command the bot answers.
 pub const COMMANDS: &[&str] = &[
-    "start", "help", "menu", "status", "orderbook", "tradebook", "positions", "holdings", "funds",
-    "pnl", "quote", "closeall", "mode",
+    "start",
+    "help",
+    "menu",
+    "status",
+    "orderbook",
+    "tradebook",
+    "positions",
+    "holdings",
+    "funds",
+    "pnl",
+    "quote",
+    "closeall",
+    "mode",
 ];
 
 /// Web `_format_dict`.
@@ -75,8 +86,14 @@ pub async fn reply_for(ctx: &Arc<AppState>, cmd: &str, args: &[String]) -> Strin
         "status" => {
             let cfg = super::WhatsAppService::config(ctx);
             let mut lines = vec![
-                format!("Bot connected: {}", if cfg.is_active { "yes" } else { "no" }),
-                format!("Device paired: {}", if cfg.is_paired { "yes" } else { "no" }),
+                format!(
+                    "Bot connected: {}",
+                    if cfg.is_active { "yes" } else { "no" }
+                ),
+                format!(
+                    "Device paired: {}",
+                    if cfg.is_paired { "yes" } else { "no" }
+                ),
             ];
             if let Some(p) = cfg.own_phone.filter(|p| !p.is_empty()) {
                 lines.push(format!("Paired number: +{}", p));
@@ -101,16 +118,35 @@ pub async fn reply_for(ctx: &Arc<AppState>, cmd: &str, args: &[String]) -> Strin
                 Err(m) => return m,
             };
             let (title, resp, what) = match cmd {
-                "orderbook" => ("Orderbook".to_string(), client.orderbook().await, "orderbook"),
-                "tradebook" => ("Tradebook".to_string(), client.tradebook().await, "tradebook"),
-                "positions" => ("Positions".to_string(), client.positionbook().await, "positions"),
+                "orderbook" => (
+                    "Orderbook".to_string(),
+                    client.orderbook().await,
+                    "orderbook",
+                ),
+                "tradebook" => (
+                    "Tradebook".to_string(),
+                    client.tradebook().await,
+                    "tradebook",
+                ),
+                "positions" => (
+                    "Positions".to_string(),
+                    client.positionbook().await,
+                    "positions",
+                ),
                 "holdings" => ("Holdings".to_string(), client.holdings().await, "holdings"),
                 "funds" => ("Funds".to_string(), client.funds().await, "funds"),
                 "pnl" => ("P&L".to_string(), client.positionbook().await, "P&L"),
                 "quote" => {
                     let s = args[0].to_uppercase();
-                    let e = args.get(1).map(|e| e.to_uppercase()).unwrap_or_else(|| "NSE".into());
-                    (format!("Quote {} {}", s, e), client.quotes(&s, &e).await, "quote")
+                    let e = args
+                        .get(1)
+                        .map(|e| e.to_uppercase())
+                        .unwrap_or_else(|| "NSE".into());
+                    (
+                        format!("Quote {} {}", s, e),
+                        client.quotes(&s, &e).await,
+                        "quote",
+                    )
                 }
                 "closeall" => {
                     return match client.closeposition().await {
@@ -139,13 +175,18 @@ pub async fn dispatch(ctx: &Arc<AppState>, chat: &str, sender: &str, text: &str)
     let args: Vec<String> = parts.map(String::from).collect();
     let svc = &ctx.messaging.whatsapp;
     if !COMMANDS.contains(&cmd.as_str()) {
-        svc.send(ctx, &[chat.to_string()], "Unknown command. Send /help for the list.")
-            .await;
+        svc.send(
+            ctx,
+            &[chat.to_string()],
+            "Unknown command. Send /help for the list.",
+        )
+        .await;
         return;
     }
-    let _ = ctx.sqlite.conn().and_then(|c| {
-        super::db::log_command(&c, sender, &cmd, &args, ctx.now())
-    });
+    let _ = ctx
+        .sqlite
+        .conn()
+        .and_then(|c| super::db::log_command(&c, sender, &cmd, &args, ctx.now()));
     let reply = reply_for(ctx, &cmd, &args).await;
     svc.send(ctx, &[chat.to_string()], &reply).await;
 }

@@ -76,7 +76,11 @@ impl Canvas {
     fn text(&mut self, x: i64, y: i64, s: &str, scale: i64, c: Rgb) {
         let mut cx = x;
         for ch in s.chars() {
-            let idx = if (ch as u32) < 128 { ch as usize } else { b'?' as usize };
+            let idx = if (ch as u32) < 128 {
+                ch as usize
+            } else {
+                b'?' as usize
+            };
             let glyph = font8x8::legacy::BASIC_LEGACY[idx];
             for (row, bits) in glyph.iter().enumerate() {
                 for col in 0..8 {
@@ -164,7 +168,12 @@ fn si_label(v: f64) -> String {
 /// Draw the chart. `time_fmt` is the strftime of the x labels (upper-cased,
 /// as the web does). `label_count` is how many labels to aim for (8 intraday,
 /// 10 daily). `None` when there is nothing to draw.
-pub fn render(candles: &[Candle], title: &str, time_fmt: &str, label_count: usize) -> Option<Vec<u8>> {
+pub fn render(
+    candles: &[Candle],
+    title: &str,
+    time_fmt: &str,
+    label_count: usize,
+) -> Option<Vec<u8>> {
     if candles.is_empty() {
         return None;
     }
@@ -181,16 +190,28 @@ pub fn render(candles: &[Candle], title: &str, time_fmt: &str, label_count: usiz
     cv.text(left, 16, title, 2, TEXT);
 
     let lo = candles.iter().map(|c| c.low).fold(f64::INFINITY, f64::min);
-    let hi = candles.iter().map(|c| c.high).fold(f64::NEG_INFINITY, f64::max);
+    let hi = candles
+        .iter()
+        .map(|c| c.high)
+        .fold(f64::NEG_INFINITY, f64::max);
     let pad = ((hi - lo) * 0.05).max(hi.abs() * 1e-4).max(1e-9);
     let (plo, phi) = (lo - pad, hi + pad);
     let y_price = |v: f64| top + ((phi - v) / (phi - plo) * price_h as f64).round() as i64;
-    let vmax = candles.iter().map(|c| c.volume).fold(0.0, f64::max).max(1.0) * 1.05;
+    let vmax = candles
+        .iter()
+        .map(|c| c.volume)
+        .fold(0.0, f64::max)
+        .max(1.0)
+        * 1.05;
     let y_vol = |v: f64| vol_top + ((vmax - v) / vmax * vol_h as f64).round() as i64;
 
     // Grids and axis labels.
     let pticks = nice_ticks(plo, phi, 6);
-    let pstep = if pticks.len() > 1 { pticks[1] - pticks[0] } else { 1.0 };
+    let pstep = if pticks.len() > 1 {
+        pticks[1] - pticks[0]
+    } else {
+        1.0
+    };
     for t in &pticks {
         let y = y_price(*t);
         cv.hline(left, left + plot_w, y, GRID);
@@ -218,7 +239,13 @@ pub fn render(candles: &[Candle], title: &str, time_fmt: &str, label_count: usiz
         cv.vline(x, y_price(c.high), y_price(c.low), color);
         let (yo, yc) = (y_price(c.open), y_price(c.close));
         cv.rect(x - half, yo, x + half, yc, color);
-        cv.rect(x - half, y_vol(c.volume.max(0.0)), x + half, vol_top + vol_h, color);
+        cv.rect(
+            x - half,
+            y_vol(c.volume.max(0.0)),
+            x + half,
+            vol_top + vol_h,
+            color,
+        );
     }
 
     // Time labels under the volume panel, every Nth bar.
@@ -285,7 +312,10 @@ mod tests {
 
     #[test]
     fn ticks_and_labels() {
-        assert_eq!(nice_ticks(0.0, 10.0, 5), vec![0.0, 2.0, 4.0, 6.0, 8.0, 10.0]);
+        assert_eq!(
+            nice_ticks(0.0, 10.0, 5),
+            vec![0.0, 2.0, 4.0, 6.0, 8.0, 10.0]
+        );
         assert_eq!(si_label(1_500_000.0), "1.5M");
         assert_eq!(si_label(300_000.0), "300k");
         assert_eq!(price_label(1200.0, 50.0), "1,200");

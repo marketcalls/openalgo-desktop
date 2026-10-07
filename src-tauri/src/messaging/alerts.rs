@@ -118,29 +118,59 @@ pub fn format_order_details(
 
     match order_type {
         "placeorder" => {
-            d.push(format!("Symbol: {}", code(get_str(order_data, "symbol", "N/A"))));
+            d.push(format!(
+                "Symbol: {}",
+                code(get_str(order_data, "symbol", "N/A"))
+            ));
             d.push(format!("Action: {}", get_str(order_data, "action", "N/A")));
-            d.push(format!("Quantity: {}", get_str(order_data, "quantity", "N/A")));
-            d.push(format!("Price Type: {}", get_str(order_data, "pricetype", "N/A")));
-            d.push(format!("Exchange: {}", get_str(order_data, "exchange", "N/A")));
-            d.push(format!("Product: {}", get_str(order_data, "product", "N/A")));
+            d.push(format!(
+                "Quantity: {}",
+                get_str(order_data, "quantity", "N/A")
+            ));
+            d.push(format!(
+                "Price Type: {}",
+                get_str(order_data, "pricetype", "N/A")
+            ));
+            d.push(format!(
+                "Exchange: {}",
+                get_str(order_data, "exchange", "N/A")
+            ));
+            d.push(format!(
+                "Product: {}",
+                get_str(order_data, "product", "N/A")
+            ));
             if ok {
-                d.push(format!("Order ID: {}", code(get_str(response, "orderid", "N/A"))));
+                d.push(format!(
+                    "Order ID: {}",
+                    code(get_str(response, "orderid", "N/A"))
+                ));
             } else {
                 d.push(error_line());
             }
         }
         "placesmartorder" => {
-            d.push(format!("Symbol: {}", code(get_str(order_data, "symbol", "N/A"))));
+            d.push(format!(
+                "Symbol: {}",
+                code(get_str(order_data, "symbol", "N/A"))
+            ));
             d.push(format!("Action: {}", get_str(order_data, "action", "N/A")));
-            d.push(format!("Quantity: {}", get_str(order_data, "quantity", "N/A")));
+            d.push(format!(
+                "Quantity: {}",
+                get_str(order_data, "quantity", "N/A")
+            ));
             d.push(format!(
                 "Position Size: {}",
                 get_str(order_data, "position_size", "N/A")
             ));
-            d.push(format!("Exchange: {}", get_str(order_data, "exchange", "N/A")));
+            d.push(format!(
+                "Exchange: {}",
+                get_str(order_data, "exchange", "N/A")
+            ));
             if ok {
-                d.push(format!("Order ID: {}", code(get_str(response, "orderid", "N/A"))));
+                d.push(format!(
+                    "Order ID: {}",
+                    code(get_str(response, "orderid", "N/A"))
+                ));
             }
         }
         "basketorder" => {
@@ -167,12 +197,18 @@ pub fn format_order_details(
             let rs = results(response);
             let good = rs.iter().filter(|r| status_is_success(r)).count();
             let failed = rs.len() - good;
-            d.push(format!("Symbol: {}", code(get_str(order_data, "symbol", "N/A"))));
+            d.push(format!(
+                "Symbol: {}",
+                code(get_str(order_data, "symbol", "N/A"))
+            ));
             d.push(format!(
                 "Total Quantity: {}",
                 get_str(response, "total_quantity", "N/A")
             ));
-            d.push(format!("Split Size: {}", get_str(response, "split_size", "N/A")));
+            d.push(format!(
+                "Split Size: {}",
+                get_str(response, "split_size", "N/A")
+            ));
             d.push(format!("Total Orders: {}", rs.len()));
             d.push(format!("Successful: {}", good));
             d.push(format!("Failed: {}", failed));
@@ -188,10 +224,22 @@ pub fn format_order_details(
             }
         }
         "modifyorder" => {
-            d.push(format!("Order ID: {}", code(get_str(order_data, "orderid", "N/A"))));
-            d.push(format!("Symbol: {}", code(get_str(order_data, "symbol", "N/A"))));
-            d.push(format!("New Quantity: {}", get_str(order_data, "quantity", "N/A")));
-            d.push(format!("New Price: {}", get_str(order_data, "price", "N/A")));
+            d.push(format!(
+                "Order ID: {}",
+                code(get_str(order_data, "orderid", "N/A"))
+            ));
+            d.push(format!(
+                "Symbol: {}",
+                code(get_str(order_data, "symbol", "N/A"))
+            ));
+            d.push(format!(
+                "New Quantity: {}",
+                get_str(order_data, "quantity", "N/A")
+            ));
+            d.push(format!(
+                "New Price: {}",
+                get_str(order_data, "price", "N/A")
+            ));
             if ok {
                 d.push("Modification Successful".into());
             } else {
@@ -199,7 +247,10 @@ pub fn format_order_details(
             }
         }
         "cancelorder" => {
-            d.push(format!("Order ID: {}", code(get_str(order_data, "orderid", "N/A"))));
+            d.push(format!(
+                "Order ID: {}",
+                code(get_str(order_data, "orderid", "N/A"))
+            ));
             if ok {
                 d.push("Cancellation Successful".into());
             } else {
@@ -228,10 +279,22 @@ pub fn format_order_details(
         "closeposition" => {
             if ok {
                 if truthy(order_data.get("symbol")) {
-                    d.push(format!("Symbol: {}", code(get_str(order_data, "symbol", "N/A"))));
-                    d.push(format!("Exchange: {}", get_str(order_data, "exchange", "N/A")));
-                    d.push(format!("Product: {}", get_str(order_data, "product", "N/A")));
-                    d.push(format!("Order ID: {}", code(get_str(response, "orderid", "N/A"))));
+                    d.push(format!(
+                        "Symbol: {}",
+                        code(get_str(order_data, "symbol", "N/A"))
+                    ));
+                    d.push(format!(
+                        "Exchange: {}",
+                        get_str(order_data, "exchange", "N/A")
+                    ));
+                    d.push(format!(
+                        "Product: {}",
+                        get_str(order_data, "product", "N/A")
+                    ));
+                    d.push(format!(
+                        "Order ID: {}",
+                        code(get_str(response, "orderid", "N/A"))
+                    ));
                 } else {
                     let closed = response.get("closed_positions").cloned();
                     let failed = response.get("failed_closures").cloned();
@@ -265,8 +328,14 @@ pub fn format_order_details(
                     };
                     d.push(format!("Symbol: {}", code(symbol)));
                     d.push(format!("Action: {}", get_str(order_data, "action", "N/A")));
-                    d.push(format!("Quantity: {}", get_str(order_data, "quantity", "N/A")));
-                    d.push(format!("Order ID: {}", code(get_str(response, "orderid", "N/A"))));
+                    d.push(format!(
+                        "Quantity: {}",
+                        get_str(order_data, "quantity", "N/A")
+                    ));
+                    d.push(format!(
+                        "Order ID: {}",
+                        code(get_str(response, "orderid", "N/A"))
+                    ));
                 } else if (tg && multi) || !rs.is_empty() {
                     let total = if tg && !multi {
                         "Total Orders"
@@ -411,14 +480,28 @@ mod tests {
         let req = json!({"symbol": "SBIN", "action": "BUY", "quantity": "10",
             "pricetype": "MARKET", "exchange": "NSE", "product": "MIS", "strategy": "Alpha"});
         let resp = json!({"status": "success", "orderid": "123"});
-        let live = order_alert_text(Channel::Telegram, "placeorder", &req, &resp, false, "10:00:00");
+        let live = order_alert_text(
+            Channel::Telegram,
+            "placeorder",
+            &req,
+            &resp,
+            false,
+            "10:00:00",
+        );
         assert_eq!(
             live,
             "*Order Placed*\nStrategy: *Alpha*\n*LIVE MODE - Real Order*\n─────────────────────\n\
 Symbol: `SBIN`\nAction: BUY\nQuantity: 10\nPrice Type: MARKET\nExchange: NSE\nProduct: MIS\n\
 Order ID: `123`\nTime: 10:00:00"
         );
-        let an = order_alert_text(Channel::Telegram, "placeorder", &req, &resp, true, "10:00:00");
+        let an = order_alert_text(
+            Channel::Telegram,
+            "placeorder",
+            &req,
+            &resp,
+            true,
+            "10:00:00",
+        );
         assert!(an.contains("*ANALYZE MODE - No Real Order*"));
     }
 
@@ -427,13 +510,27 @@ Order ID: `123`\nTime: 10:00:00"
         let resp = json!({"status": "success", "results": [
             {"symbol": "A", "status": "success", "orderid": "1"},
             {"symbol": "B", "status": "error", "message": "rejected"}]});
-        let t = order_alert_text(Channel::WhatsApp, "basketorder", &json!({}), &resp, false, "t");
+        let t = order_alert_text(
+            Channel::WhatsApp,
+            "basketorder",
+            &json!({}),
+            &resp,
+            false,
+            "t",
+        );
         assert_eq!(
             t,
             "*Basket Order Executed*\n*LIVE MODE - Real Order*\n---------------------\n\
 Total Orders: 2\nSuccessful: 1\nFailed: 1\n[OK] A: 1\n[X] B: rejected\nTime: t"
         );
-        let g = order_alert_text(Channel::WhatsApp, "placegttorder", &json!({}), &json!({}), false, "t");
+        let g = order_alert_text(
+            Channel::WhatsApp,
+            "placegttorder",
+            &json!({}),
+            &json!({}),
+            false,
+            "t",
+        );
         assert_eq!(
             g,
             "*Order Update*\n*LIVE MODE - Real Order*\n---------------------\nTime: t"
@@ -442,8 +539,16 @@ Total Orders: 2\nSuccessful: 1\nFailed: 1\n[OK] A: 1\n[X] B: rejected\nTime: t"
 
     #[test]
     fn closeposition_and_cancelall() {
-        let resp = json!({"status": "success", "canceled_orders": ["1", "2"], "failed_cancellations": []});
-        let t = order_alert_text(Channel::Telegram, "cancelallorder", &json!({}), &resp, false, "t");
+        let resp =
+            json!({"status": "success", "canceled_orders": ["1", "2"], "failed_cancellations": []});
+        let t = order_alert_text(
+            Channel::Telegram,
+            "cancelallorder",
+            &json!({}),
+            &resp,
+            false,
+            "t",
+        );
         assert!(t.contains("Cancelled: 2 orders\nFailed: 0 orders\nOrder IDs: 1, 2"));
         let c = order_alert_text(
             Channel::Telegram,

@@ -97,7 +97,11 @@ fn token_aad() -> Aad {
 }
 
 fn api_key_aad(telegram_id: i64) -> Aad {
-    Aad::new("telegram_users", "encrypted_api_key", &telegram_id.to_string())
+    Aad::new(
+        "telegram_users",
+        "encrypted_api_key",
+        &telegram_id.to_string(),
+    )
 }
 
 /// The `bot_config` row, token opened.
@@ -207,15 +211,24 @@ pub fn update_bot_config(
                 Some(t) => Some(sealed::seal(security, &token_aad(), &t)?),
                 None => None,
             };
-            conn.execute("UPDATE bot_config SET token = ?1 WHERE id = 1", params![stored])?;
+            conn.execute(
+                "UPDATE bot_config SET token = ?1 WHERE id = 1",
+                params![stored],
+            )?;
             changed = true;
         }
     }
     if let Some(a) = u.is_active.filter(|a| *a != cur.is_active) {
-        conn.execute("UPDATE bot_config SET is_active = ?1 WHERE id = 1", params![a])?;
+        conn.execute(
+            "UPDATE bot_config SET is_active = ?1 WHERE id = 1",
+            params![a],
+        )?;
         changed = true;
     }
-    if let Some(n) = u.bot_username.filter(|n| Some(n) != cur.bot_username.as_ref()) {
+    if let Some(n) = u
+        .bot_username
+        .filter(|n| Some(n) != cur.bot_username.as_ref())
+    {
         conn.execute(
             "UPDATE bot_config SET bot_username = ?1 WHERE id = 1",
             params![n],
@@ -671,7 +684,10 @@ mod tests {
             now(),
         )
         .unwrap();
-        assert_eq!(get_user(&c, 42).unwrap().unwrap().openalgo_username, "trader");
+        assert_eq!(
+            get_user(&c, 42).unwrap().unwrap().openalgo_username,
+            "trader"
+        );
         let creds = user_credentials(&c, &sec, 42).unwrap().unwrap();
         assert_eq!(creds.api_key.unwrap().expose(), "k");
         log_command(&c, 42, "help", Some(42), now()).unwrap();

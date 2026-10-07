@@ -32,7 +32,10 @@ impl HttpClient for ReqwestHttp {
         if let Some(body) = req.body {
             b = b.body(body.to_vec());
         }
-        let resp = b.send().await.map_err(|e| anyhow::anyhow!(e.without_url()))?;
+        let resp = b
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!(e.without_url()))?;
         let status_code = resp.status().as_u16();
         let body = resp
             .bytes()

@@ -124,14 +124,42 @@ impl SnapshotStore {
             let s = self.state.lock();
             Snapshot {
                 version: SNAPSHOT_VERSION,
-                identities: s.identities.iter().map(|(k, v)| (k.clone(), v.to_vec())).collect(),
-                sessions: s.sessions.iter().map(|(k, v)| (k.clone(), v.to_vec())).collect(),
-                prekeys: s.prekeys.iter().map(|(k, (r, u))| (*k, r.to_vec(), *u)).collect(),
-                signed_prekeys: s.signed_prekeys.iter().map(|(k, v)| (*k, v.clone())).collect(),
-                sender_keys: s.sender_keys.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
-                sync_keys: s.sync_keys.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+                identities: s
+                    .identities
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.to_vec()))
+                    .collect(),
+                sessions: s
+                    .sessions
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.to_vec()))
+                    .collect(),
+                prekeys: s
+                    .prekeys
+                    .iter()
+                    .map(|(k, (r, u))| (*k, r.to_vec(), *u))
+                    .collect(),
+                signed_prekeys: s
+                    .signed_prekeys
+                    .iter()
+                    .map(|(k, v)| (*k, v.clone()))
+                    .collect(),
+                sender_keys: s
+                    .sender_keys
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect(),
+                sync_keys: s
+                    .sync_keys
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect(),
                 latest_sync_key_id: s.latest_sync_key_id.clone(),
-                versions: s.versions.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+                versions: s
+                    .versions
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect(),
                 mutation_macs: s
                     .mutation_macs
                     .iter()
@@ -144,12 +172,22 @@ impl SnapshotStore {
                     .collect(),
                 lid_mappings: s.lid_mappings.values().cloned().collect(),
                 device_lists: s.device_lists.values().cloned().collect(),
-                group_metadata: s.group_metadata.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
-                tc_tokens: s.tc_tokens.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+                group_metadata: s
+                    .group_metadata
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect(),
+                tc_tokens: s
+                    .tc_tokens
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect(),
                 msg_secrets: s
                     .msg_secrets
                     .iter()
-                    .map(|((c, se, m), (sec, e, t))| (c.clone(), se.clone(), m.clone(), sec.clone(), *e, *t))
+                    .map(|((c, se, m), (sec, e, t))| {
+                        (c.clone(), se.clone(), m.clone(), sec.clone(), *e, *t)
+                    })
                     .collect(),
                 device: s.device.clone(),
             }
@@ -168,7 +206,9 @@ impl SnapshotStore {
             .read_to_end(&mut json)?;
         let snap: Snapshot = serde_json::from_slice(&json).map_err(ser_err)?;
         if snap.version != SNAPSHOT_VERSION {
-            return Err(StoreError::Validation("unknown session snapshot version".into()));
+            return Err(StoreError::Validation(
+                "unknown session snapshot version".into(),
+            ));
         }
         let mut s = State::default();
         for (k, v) in snap.identities {
@@ -177,14 +217,26 @@ impl SnapshotStore {
                 .map_err(|_| StoreError::Validation("identity key length".into()))?;
             s.identities.insert(k, key);
         }
-        s.sessions = snap.sessions.into_iter().map(|(k, v)| (k, Bytes::from(v))).collect();
-        s.prekeys = snap.prekeys.into_iter().map(|(k, r, u)| (k, (Bytes::from(r), u))).collect();
+        s.sessions = snap
+            .sessions
+            .into_iter()
+            .map(|(k, v)| (k, Bytes::from(v)))
+            .collect();
+        s.prekeys = snap
+            .prekeys
+            .into_iter()
+            .map(|(k, r, u)| (k, (Bytes::from(r), u)))
+            .collect();
         s.signed_prekeys = snap.signed_prekeys.into_iter().collect();
         s.sender_keys = snap.sender_keys.into_iter().collect();
         s.sync_keys = snap.sync_keys.into_iter().collect();
         s.latest_sync_key_id = snap.latest_sync_key_id;
         s.versions = snap.versions.into_iter().collect();
-        s.mutation_macs = snap.mutation_macs.into_iter().map(|(n, i, v)| ((n, i), v)).collect();
+        s.mutation_macs = snap
+            .mutation_macs
+            .into_iter()
+            .map(|(n, i, v)| ((n, i), v))
+            .collect();
         s.sender_key_devices = snap
             .sender_key_devices
             .into_iter()
@@ -194,7 +246,11 @@ impl SnapshotStore {
             s.pn_to_lid.insert(e.phone_number.clone(), e.lid.clone());
             s.lid_mappings.insert(e.lid.clone(), e);
         }
-        s.device_lists = snap.device_lists.into_iter().map(|r| (r.user.clone(), r)).collect();
+        s.device_lists = snap
+            .device_lists
+            .into_iter()
+            .map(|r| (r.user.clone(), r))
+            .collect();
         s.group_metadata = snap.group_metadata.into_iter().collect();
         s.tc_tokens = snap.tc_tokens.into_iter().collect();
         s.msg_secrets = snap
@@ -205,9 +261,8 @@ impl SnapshotStore {
         s.device = snap.device.map(|mut d| {
             // Runtime-only fields, not serialized (as the crate's SQLite store
             // rebuilds them).
-            d.device_props = std::sync::Arc::new(
-                whatsapp_rust::wacore::store::device::DEVICE_PROPS.clone(),
-            );
+            d.device_props =
+                std::sync::Arc::new(whatsapp_rust::wacore::store::device::DEVICE_PROPS.clone());
             d.client_profile = whatsapp_rust::ClientProfile::web();
             d
         });
@@ -222,7 +277,10 @@ impl SnapshotStore {
 #[async_trait::async_trait]
 impl SignalStore for SnapshotStore {
     async fn put_identity(&self, address: &str, key: [u8; 32]) -> Result<()> {
-        self.state.lock().identities.insert(address.to_string(), key);
+        self.state
+            .lock()
+            .identities
+            .insert(address.to_string(), key);
         self.touch();
         Ok(())
     }
@@ -254,7 +312,8 @@ impl SignalStore for SnapshotStore {
                 .is_some_and(|rest| rest.starts_with('@') || rest.starts_with(':'))
         }
         let s = self.state.lock();
-        Ok(s.sessions.keys().any(|k| matches(k, user)) || s.identities.keys().any(|k| matches(k, user)))
+        Ok(s.sessions.keys().any(|k| matches(k, user))
+            || s.identities.keys().any(|k| matches(k, user)))
     }
     async fn delete_session(&self, address: &str) -> Result<()> {
         self.state.lock().sessions.remove(address);
@@ -354,14 +413,25 @@ impl AppSyncStore for SnapshotStore {
         Ok(())
     }
     async fn get_version(&self, name: &str) -> Result<HashState> {
-        Ok(self.state.lock().versions.get(name).cloned().unwrap_or_default())
+        Ok(self
+            .state
+            .lock()
+            .versions
+            .get(name)
+            .cloned()
+            .unwrap_or_default())
     }
     async fn set_version(&self, name: &str, state: HashState) -> Result<()> {
         self.state.lock().versions.insert(name.to_string(), state);
         self.touch();
         Ok(())
     }
-    async fn put_mutation_macs(&self, name: &str, _version: u64, mutations: &[AppStateMutationMAC]) -> Result<()> {
+    async fn put_mutation_macs(
+        &self,
+        name: &str,
+        _version: u64,
+        mutations: &[AppStateMutationMAC],
+    ) -> Result<()> {
         let mut s = self.state.lock();
         for m in mutations {
             s.mutation_macs
@@ -389,7 +459,10 @@ impl AppSyncStore for SnapshotStore {
         Ok(())
     }
     async fn clear_mutation_macs(&self, name: &str) -> Result<()> {
-        self.state.lock().mutation_macs.retain(|(n, _), _| n != name);
+        self.state
+            .lock()
+            .mutation_macs
+            .retain(|(n, _), _| n != name);
         self.touch();
         Ok(())
     }
@@ -411,7 +484,10 @@ impl ProtocolStore for SnapshotStore {
     }
     async fn set_sender_key_status(&self, group_jid: &str, entries: &[(&str, bool)]) -> Result<()> {
         let mut s = self.state.lock();
-        let m = s.sender_key_devices.entry(group_jid.to_string()).or_default();
+        let m = s
+            .sender_key_devices
+            .entry(group_jid.to_string())
+            .or_default();
         for (d, h) in entries {
             m.insert(d.to_string(), *h);
         }
@@ -443,7 +519,10 @@ impl ProtocolStore for SnapshotStore {
     }
     async fn get_pn_mapping(&self, phone: &str) -> Result<Option<LidPnMappingEntry>> {
         let s = self.state.lock();
-        Ok(s.pn_to_lid.get(phone).and_then(|l| s.lid_mappings.get(l)).cloned())
+        Ok(s.pn_to_lid
+            .get(phone)
+            .and_then(|l| s.lid_mappings.get(l))
+            .cloned())
     }
     async fn put_lid_mapping(&self, entry: &LidPnMappingEntry) -> Result<()> {
         let mut s = self.state.lock();
@@ -455,7 +534,8 @@ impl ProtocolStore for SnapshotStore {
         {
             s.pn_to_lid.remove(&old);
         }
-        s.pn_to_lid.insert(entry.phone_number.clone(), entry.lid.clone());
+        s.pn_to_lid
+            .insert(entry.phone_number.clone(), entry.lid.clone());
         s.lid_mappings.insert(entry.lid.clone(), entry.clone());
         drop(s);
         self.touch();
@@ -465,13 +545,18 @@ impl ProtocolStore for SnapshotStore {
         Ok(self.state.lock().lid_mappings.values().cloned().collect())
     }
     async fn save_base_key(&self, address: &str, message_id: &str, base_key: &[u8]) -> Result<()> {
-        self.state
-            .lock()
-            .base_keys
-            .insert((address.to_string(), message_id.to_string()), base_key.to_vec());
+        self.state.lock().base_keys.insert(
+            (address.to_string(), message_id.to_string()),
+            base_key.to_vec(),
+        );
         Ok(())
     }
-    async fn has_same_base_key(&self, address: &str, message_id: &str, current: &[u8]) -> Result<bool> {
+    async fn has_same_base_key(
+        &self,
+        address: &str,
+        message_id: &str,
+        current: &[u8],
+    ) -> Result<bool> {
         Ok(self
             .state
             .lock()
@@ -487,7 +572,10 @@ impl ProtocolStore for SnapshotStore {
         Ok(())
     }
     async fn update_device_list(&self, record: DeviceListRecord) -> Result<()> {
-        self.state.lock().device_lists.insert(record.user.clone(), record);
+        self.state
+            .lock()
+            .device_lists
+            .insert(record.user.clone(), record);
         self.touch();
         Ok(())
     }
@@ -519,7 +607,10 @@ impl ProtocolStore for SnapshotStore {
         Ok(self.state.lock().tc_tokens.get(jid).cloned())
     }
     async fn put_tc_token(&self, jid: &str, entry: &TcTokenEntry) -> Result<()> {
-        self.state.lock().tc_tokens.insert(jid.to_string(), entry.clone());
+        self.state
+            .lock()
+            .tc_tokens
+            .insert(jid.to_string(), entry.clone());
         self.touch();
         Ok(())
     }
@@ -542,20 +633,31 @@ impl ProtocolStore for SnapshotStore {
         }
         Ok(n)
     }
-    async fn store_sent_message(&self, chat_jid: &str, message_id: &str, payload: &[u8]) -> Result<()> {
+    async fn store_sent_message(
+        &self,
+        chat_jid: &str,
+        message_id: &str,
+        payload: &[u8],
+    ) -> Result<()> {
         let now = chrono::Utc::now().timestamp();
         let mut s = self.state.lock();
         if s.sent_messages.len() >= MAX_SENT_MESSAGES {
             let target = MAX_SENT_MESSAGES * 3 / 4;
             let drop_n = s.sent_messages.len().saturating_sub(target);
-            let mut by_age: Vec<_> = s.sent_messages.iter().map(|(k, e)| (e.1, k.clone())).collect();
+            let mut by_age: Vec<_> = s
+                .sent_messages
+                .iter()
+                .map(|(k, e)| (e.1, k.clone()))
+                .collect();
             by_age.sort_unstable_by_key(|(t, _)| *t);
             for (_, k) in by_age.into_iter().take(drop_n) {
                 s.sent_messages.remove(&k);
             }
         }
-        s.sent_messages
-            .insert((chat_jid.to_string(), message_id.to_string()), (payload.to_vec(), now));
+        s.sent_messages.insert(
+            (chat_jid.to_string(), message_id.to_string()),
+            (payload.to_vec(), now),
+        );
         Ok(())
     }
     async fn take_sent_message(&self, chat_jid: &str, message_id: &str) -> Result<Option<Vec<u8>>> {
@@ -594,13 +696,23 @@ impl MsgSecretStore for SnapshotStore {
         self.touch();
         Ok(n)
     }
-    async fn get_msg_secret(&self, chat: &str, sender: &str, msg_id: &str) -> Result<Option<Vec<u8>>> {
+    async fn get_msg_secret(
+        &self,
+        chat: &str,
+        sender: &str,
+        msg_id: &str,
+    ) -> Result<Option<Vec<u8>>> {
         Ok(self
             .get_msg_secret_with_ts(chat, sender, msg_id)
             .await?
             .map(|(s, _)| s))
     }
-    async fn get_msg_secret_with_ts(&self, chat: &str, sender: &str, msg_id: &str) -> Result<Option<(Vec<u8>, i64)>> {
+    async fn get_msg_secret_with_ts(
+        &self,
+        chat: &str,
+        sender: &str,
+        msg_id: &str,
+    ) -> Result<Option<(Vec<u8>, i64)>> {
         Ok(self
             .state
             .lock()
@@ -674,24 +786,49 @@ mod tests {
         })
         .await
         .unwrap();
-        s.put_mutation_macs("regular", 1, &[AppStateMutationMAC { index_mac: vec![1], value_mac: vec![2] }])
-            .await
-            .unwrap();
+        s.put_mutation_macs(
+            "regular",
+            1,
+            &[AppStateMutationMAC {
+                index_mac: vec![1],
+                value_mac: vec![2],
+            }],
+        )
+        .await
+        .unwrap();
         s.put_msg_secret("c", "s", "m", &[3u8; 32]).await.unwrap();
         assert!(s.version() > v0);
         let dev_before = s.load().await.unwrap().unwrap();
 
         let blob = s.export().unwrap();
         let r = SnapshotStore::import(&blob).unwrap();
-        assert_eq!(r.load_identity("1@s.whatsapp.net").await.unwrap(), Some([7u8; 32]));
-        assert_eq!(r.get_session("1@s.whatsapp.net").await.unwrap().unwrap(), Bytes::from_static(b"sess"));
-        assert_eq!(r.load_prekey(5).await.unwrap().unwrap(), Bytes::from_static(b"pk"));
+        assert_eq!(
+            r.load_identity("1@s.whatsapp.net").await.unwrap(),
+            Some([7u8; 32])
+        );
+        assert_eq!(
+            r.get_session("1@s.whatsapp.net").await.unwrap().unwrap(),
+            Bytes::from_static(b"sess")
+        );
+        assert_eq!(
+            r.load_prekey(5).await.unwrap().unwrap(),
+            Bytes::from_static(b"pk")
+        );
         assert_eq!(r.get_pn_mapping("91").await.unwrap().unwrap().lid, "100");
-        assert_eq!(r.get_mutation_mac("regular", &[1]).await.unwrap(), Some(vec![2]));
-        assert_eq!(r.get_msg_secret("c", "s", "m").await.unwrap(), Some(vec![3u8; 32]));
+        assert_eq!(
+            r.get_mutation_mac("regular", &[1]).await.unwrap(),
+            Some(vec![2])
+        );
+        assert_eq!(
+            r.get_msg_secret("c", "s", "m").await.unwrap(),
+            Some(vec![3u8; 32])
+        );
         let dev_after = r.load().await.unwrap().unwrap();
         assert_eq!(dev_before.registration_id, dev_after.registration_id);
-        assert_eq!(dev_before.identity_key.public_key.serialize(), dev_after.identity_key.public_key.serialize());
+        assert_eq!(
+            dev_before.identity_key.public_key.serialize(),
+            dev_after.identity_key.public_key.serialize()
+        );
         assert!(!r.has_paired_device());
         assert!(SnapshotStore::import(b"not a snapshot").is_err());
     }

@@ -34,9 +34,10 @@ impl OpenAlgoClient {
         let ctx = self.ctx.clone();
         let key = self.api_key.clone();
         // Argon2 off the async workers (the result is cached after the first).
-        let valid = tokio::task::spawn_blocking(move || ApiKeyService::is_valid(&ctx, key.expose()))
-            .await
-            .unwrap_or(false);
+        let valid =
+            tokio::task::spawn_blocking(move || ApiKeyService::is_valid(&ctx, key.expose()))
+                .await
+                .unwrap_or(false);
         if valid && self.ctx.is_broker_connected() {
             Ok(())
         } else {
@@ -94,7 +95,11 @@ impl OpenAlgoClient {
         start: NaiveDate,
         end: NaiveDate,
     ) -> Option<Value> {
-        let (s, e, i) = (symbol.to_string(), exchange.to_string(), interval.to_string());
+        let (s, e, i) = (
+            symbol.to_string(),
+            exchange.to_string(),
+            interval.to_string(),
+        );
         self.run(|c| async move { market::history(&c, &s, &e, &i, start, end, "api").await })
             .await
     }

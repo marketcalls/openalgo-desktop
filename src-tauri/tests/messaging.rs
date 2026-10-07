@@ -36,6 +36,9 @@ use std::net::SocketAddr;
 use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
+
+/// The descriptor checks count the whole process, so tests run one at a time.
+static SERIAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 use tower::ServiceExt;
 
 const USER: &str = "trader";
@@ -86,7 +89,11 @@ impl Fake {
     }
 
     fn count(&self, method: &str) -> usize {
-        self.calls.lock().iter().filter(|(m, _)| m == method).count()
+        self.calls
+            .lock()
+            .iter()
+            .filter(|(m, _)| m == method)
+            .count()
     }
 }
 
@@ -136,7 +143,9 @@ async fn fake_handler(
             let mid = f.next_id.fetch_add(1, Ordering::SeqCst) + 1000;
             (
                 StatusCode::OK,
-                Json(json!({"ok": true, "result": {"message_id": mid, "chat": {"id": parsed["chat_id"]}}})),
+                Json(
+                    json!({"ok": true, "result": {"message_id": mid, "chat": {"id": parsed["chat_id"]}}}),
+                ),
             )
         }
         _ => (StatusCode::OK, Json(json!({"ok": true, "result": true}))),
@@ -210,19 +219,21 @@ struct H {
     csrf: String,
     key: String,
     events: Arc<Recorder>,
+    clock: Arc<ManualClock>,
     _dir: tempfile::TempDir,
 }
 
 impl H {
     fn new(broker: bool) -> Self {
         let dir = tempfile::tempdir().unwrap();
+        let clock = ManualClock::new(now());
         let symbols = SymbolResolver::new();
         let mock = Arc::new(MockBroker::with_symbols("zerodha", symbols.clone()));
         let ctx = AppState::open(
             dir.path(),
             OpenOptions {
                 keystore: Arc::new(MemoryKeyStore::new()),
-                clock: ManualClock::new(now()),
+                clock: clock.clone(),
                 brokers: Arc::new(BrokerRegistry::with_symbols(
                     symbols,
                     vec![mock as Arc<dyn Broker>],
@@ -231,7 +242,11 @@ impl H {
         )
         .unwrap();
         AuthService::setup(&ctx, USER, "trader@example.com", "Secret@123").unwrap();
-        let key = ApiKeyService::current(&ctx).unwrap().unwrap().expose().to_string();
+        let key = ApiKeyService::current(&ctx)
+            .unwrap()
+            .unwrap()
+            .expose()
+            .to_string();
         if broker {
             BrokerAuthService::persist(
                 &ctx,
@@ -273,6 +288,7 @@ impl H {
             csrf: s.csrf_token,
             key,
             events,
+            clock,
             _dir: dir,
         }
     }
@@ -311,11 +327,21 @@ impl H {
             .await
             .unwrap();
         let s = resp.status();
-        (s, resp.into_body().collect().await.unwrap().to_bytes().to_vec())
+        (
+            s,
+            resp.into_body()
+                .collect()
+                .await
+                .unwrap()
+                .to_bytes()
+                .to_vec(),
+        )
     }
 
     async fn post(&self, path: &str, body: Value) -> (StatusCode, Value) {
-        let (s, b) = self.raw(Method::POST, path, Some(body), true, true, true).await;
+        let (s, b) = self
+            .raw(Method::POST, path, Some(body), true, true, true)
+            .await;
         (s, serde_json::from_slice(&b).unwrap_or(Value::Null))
     }
 
@@ -325,7 +351,9 @@ impl H {
     }
 
     async fn api(&self, path: &str, body: Value) -> (StatusCode, Value) {
-        let (s, b) = self.raw(Method::POST, path, Some(body), false, false, true).await;
+        let (s, b) = self
+            .raw(Method::POST, path, Some(body), false, false, true)
+            .await;
         (s, serde_json::from_slice(&b).unwrap_or(Value::Null))
     }
 
@@ -335,7 +363,10 @@ impl H {
         assert_eq!(s, StatusCode::OK, "{}", v);
         let (s, v) = self.post("/telegram/bot/start", json!({})).await;
         assert_eq!(s, StatusCode::OK, "{}", v);
-        assert_eq!(v, json!({"status": "success", "message": "Bot started successfully"}));
+        assert_eq!(
+            v,
+            json!({"status": "success", "message": "Bot started successfully"})
+        );
     }
 
     fn link(&self, telegram_id: i64) {
@@ -380,6 +411,7 @@ fn open_fds() -> usize {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn telegram_polls_answers_commands_links_and_stops_cleanly() {
+    let _serial = SERIAL.lock().await;
     let h = H::new(true);
     let (fake, base, _j) = spawn_fake().await;
     h.start_telegram(&base).await;
@@ -391,46 +423,123 @@ async fn telegram_polls_answers_commands_links_and_stops_cleanly() {
     );
 
     fake.push(msg(42, 42, "/start"));
-    assert!(wait_for(|| fake.texts().iter().any(|t| t.starts_with("Welcome to OpenAlgo Bot, Asha!")), 5000).await);
+    assert!(
+        wait_for(
+            || fake
+                .texts()
+                .iter()
+                .any(|t| t.starts_with("Welcome to OpenAlgo Bot, Asha!")),
+            5000
+        )
+        .await
+    );
 
     // Not linked: account commands are refused.
     fake.push(msg(42, 42, "/funds"));
-    assert!(wait_for(|| fake.texts().iter().any(|t| t == "Please link your account first using /link"), 5000).await);
+    assert!(
+        wait_for(
+            || fake
+                .texts()
+                .iter()
+                .any(|t| t == "Please link your account first using /link"),
+            5000
+        )
+        .await
+    );
 
     // Link in-process; the host given is stored, never contacted.
     let (probe, port, _p) = spawn_probe().await;
-    fake.push(msg(42, 42, &format!("/link {} http://127.0.0.1:{}", h.key, port)));
-    assert!(wait_for(|| fake.texts().iter().any(|t| t.starts_with("Account linked successfully!")), 5000).await);
-    let user = tg_db::get_user(&h.ctx.sqlite.conn().unwrap(), 42).unwrap().unwrap();
+    fake.push(msg(
+        42,
+        42,
+        &format!("/link {} http://127.0.0.1:{}", h.key, port),
+    ));
+    assert!(
+        wait_for(
+            || fake
+                .texts()
+                .iter()
+                .any(|t| t.starts_with("Account linked successfully!")),
+            5000
+        )
+        .await
+    );
+    let user = tg_db::get_user(&h.ctx.sqlite.conn().unwrap(), 42)
+        .unwrap()
+        .unwrap();
     assert_eq!(user.openalgo_username, USER);
     assert_eq!(user.broker.as_deref(), Some("zerodha"));
 
     fake.push(msg(42, 42, "/funds"));
-    assert!(wait_for(|| fake.texts().iter().any(|t| t.starts_with("*FUNDS*")), 5000).await);
+    assert!(
+        wait_for(
+            || fake.texts().iter().any(|t| t.starts_with("*FUNDS*")),
+            5000
+        )
+        .await
+    );
     fake.push(msg(42, 42, "/menu"));
-    assert!(wait_for(|| fake.sent().iter().any(|b| b["reply_markup"]["inline_keyboard"][0][0]["callback_data"] == "orderbook"), 5000).await);
+    assert!(
+        wait_for(
+            || fake
+                .sent()
+                .iter()
+                .any(
+                    |b| b["reply_markup"]["inline_keyboard"][0][0]["callback_data"] == "orderbook"
+                ),
+            5000
+        )
+        .await
+    );
     fake.push(msg(42, 42, "/help"));
-    assert!(wait_for(|| fake.texts().iter().any(|t| t.contains("*Available Commands:*")), 5000).await);
-    assert_eq!(probe.load(Ordering::SeqCst), 0, "the linked host was contacted");
+    assert!(
+        wait_for(
+            || fake
+                .texts()
+                .iter()
+                .any(|t| t.contains("*Available Commands:*")),
+            5000
+        )
+        .await
+    );
+    assert_eq!(
+        probe.load(Ordering::SeqCst),
+        0,
+        "the linked host was contacted"
+    );
 
     // Analytics see the commands.
     let (s, a) = h.get("/telegram/api/analytics").await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(a["data"]["total_users"], 1);
-    assert!(a["data"]["stats_7d"].as_array().unwrap().iter().any(|x| x["command"] == "help"));
+    assert!(a["data"]["stats_7d"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|x| x["command"] == "help"));
 
     let (s, v) = h.post("/telegram/bot/stop", json!({})).await;
-    assert_eq!((s, v["message"].clone()), (StatusCode::OK, json!("Bot stopped successfully")));
+    assert_eq!(
+        (s, v["message"].clone()),
+        (StatusCode::OK, json!("Bot stopped successfully"))
+    );
     assert!(!h.ctx.messaging.telegram.task_alive().await);
     assert!(!h.ctx.messaging.telegram.is_running());
     let (_, st) = h.get("/telegram/bot/status").await;
     assert_eq!(st["data"]["is_active"], false);
     let (s, v) = h.post("/telegram/bot/stop", json!({})).await;
-    assert_eq!((s, v["message"].clone()), (StatusCode::INTERNAL_SERVER_ERROR, json!("Bot is not running")));
+    assert_eq!(
+        (s, v["message"].clone()),
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            json!("Bot is not running")
+        )
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn telegram_mode_buttons_need_the_linked_user_in_a_private_chat() {
+    let _serial = SERIAL.lock().await;
     let h = H::new(true);
     let (fake, base, _j) = spawn_fake().await;
     h.start_telegram(&base).await;
@@ -439,38 +548,162 @@ async fn telegram_mode_buttons_need_the_linked_user_in_a_private_chat() {
 
     // An unlinked user pressing the button changes nothing.
     fake.push(button(7, 7, "mode_analyze"));
-    assert!(wait_for(|| fake.texts().iter().any(|t| t == "Please link your account first using /link"), 5000).await);
+    assert!(
+        wait_for(
+            || fake
+                .texts()
+                .iter()
+                .any(|t| t == "Please link your account first using /link"),
+            5000
+        )
+        .await
+    );
     // Another member of a group pressing the linked user's button: nothing.
     fake.push(button(99, -100, "mode_analyze"));
     // The linked user in a group: refused too.
     fake.push(button(42, -100, "mode_analyze"));
-    assert!(wait_for(|| fake.texts().iter().filter(|t| t.contains("private chat")).count() >= 1, 5000).await);
+    assert!(
+        wait_for(
+            || fake
+                .texts()
+                .iter()
+                .filter(|t| t.contains("private chat"))
+                .count()
+                >= 1,
+            5000
+        )
+        .await
+    );
     tokio::time::sleep(Duration::from_millis(200)).await;
     assert!(!h.ctx.sqlite.get_analyze_mode().unwrap());
 
     // The linked user in a private chat succeeds.
     fake.push(button(42, 42, "mode_analyze"));
-    assert!(wait_for(|| fake.texts().iter().any(|t| t.contains("Now in: Analyze Mode")), 5000).await);
+    assert!(
+        wait_for(
+            || fake
+                .texts()
+                .iter()
+                .any(|t| t.contains("Now in: Analyze Mode")),
+            5000
+        )
+        .await
+    );
     assert!(h.ctx.sqlite.get_analyze_mode().unwrap());
     assert!(!h.events.named("app_mode_changed").is_empty());
     fake.push(button(42, 42, "mode_live"));
-    assert!(wait_for(|| fake.texts().iter().any(|t| t.contains("Now in: Live Mode")), 5000).await);
+    assert!(
+        wait_for(
+            || fake.texts().iter().any(|t| t.contains("Now in: Live Mode")),
+            5000
+        )
+        .await
+    );
     h.ctx.messaging.telegram.shutdown().await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn telegram_link_never_calls_the_given_host_even_without_a_broker() {
+    let _serial = SERIAL.lock().await;
     let h = H::new(false);
     let (fake, base, _j) = spawn_fake().await;
     h.start_telegram(&base).await;
     let (probe, port, _p) = spawn_probe().await;
-    for host in [format!("http://127.0.0.1:{}", port), "http://169.254.169.254".into(), "http://10.0.0.1:5000".into()] {
+    for host in [
+        format!("http://127.0.0.1:{}", port),
+        "http://169.254.169.254".into(),
+        "http://10.0.0.1:5000".into(),
+    ] {
         fake.push(msg(42, 42, &format!("/link {} {}", h.key, host)));
     }
-    fake.push(msg(42, 42, &format!("/link wrong-key http://127.0.0.1:{}", port)));
-    assert!(wait_for(|| fake.texts().iter().filter(|t| t.starts_with("Failed to validate API key.")).count() == 4, 8000).await);
+    fake.push(msg(
+        42,
+        42,
+        &format!("/link wrong-key http://127.0.0.1:{}", port),
+    ));
+    assert!(
+        wait_for(
+            || fake
+                .texts()
+                .iter()
+                .filter(|t| t.starts_with("Failed to validate API key."))
+                .count()
+                == 4,
+            8000
+        )
+        .await
+    );
     assert_eq!(probe.load(Ordering::SeqCst), 0);
-    assert!(tg_db::get_user(&h.ctx.sqlite.conn().unwrap(), 42).unwrap().is_none());
+    assert!(tg_db::get_user(&h.ctx.sqlite.conn().unwrap(), 42)
+        .unwrap()
+        .is_none());
+    h.ctx.messaging.telegram.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn telegram_link_guesses_are_throttled_per_sender() {
+    let _serial = SERIAL.lock().await;
+    let h = H::new(true);
+    let (fake, base, _j) = spawn_fake().await;
+    h.start_telegram(&base).await;
+    let failed = |f: &Fake| {
+        f.texts()
+            .iter()
+            .filter(|t| t.starts_with("Failed to validate API key."))
+            .count()
+    };
+    for i in 0..10 {
+        fake.push(msg(
+            42,
+            42,
+            &format!("/link wrong-{} http://127.0.0.1:5000", i),
+        ));
+        assert!(wait_for(|| failed(&fake) == i + 1, 5000).await);
+    }
+    // The 11th within the minute is refused without trying the key, even
+    // the right one, and says nothing about keys.
+    fake.push(msg(
+        42,
+        42,
+        &format!("/link {} http://127.0.0.1:5000", h.key),
+    ));
+    assert!(
+        wait_for(
+            || fake
+                .texts()
+                .iter()
+                .any(|t| t.starts_with("Too many link attempts.")),
+            5000
+        )
+        .await
+    );
+    assert_eq!(failed(&fake), 10);
+    assert!(tg_db::get_user(&h.ctx.sqlite.conn().unwrap(), 42)
+        .unwrap()
+        .is_none());
+    // Another sender is not affected.
+    fake.push(msg(43, 43, "/link wrong http://127.0.0.1:5000"));
+    assert!(wait_for(|| failed(&fake) == 11, 5000).await);
+    // After the window the right key links.
+    h.clock.advance(chrono::Duration::seconds(61));
+    fake.push(msg(
+        42,
+        42,
+        &format!("/link {} http://127.0.0.1:5000", h.key),
+    ));
+    assert!(
+        wait_for(
+            || fake
+                .texts()
+                .iter()
+                .any(|t| t.starts_with("Account linked successfully!")),
+            5000
+        )
+        .await
+    );
+    assert!(tg_db::get_user(&h.ctx.sqlite.conn().unwrap(), 42)
+        .unwrap()
+        .is_some());
     h.ctx.messaging.telegram.shutdown().await;
 }
 
@@ -496,15 +729,44 @@ fn placed(mode: Mode) -> Event {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn telegram_alerts_follow_bus_events_while_the_bot_is_started() {
+    let _serial = SERIAL.lock().await;
     let h = H::new(true);
     let (fake, base, _j) = spawn_fake().await;
     h.start_telegram(&base).await;
     h.link(42);
     h.ctx.bus.publish(placed(Mode::Live));
-    assert!(wait_for(|| fake.texts().iter().any(|t| t.starts_with("*Order Placed*\n*LIVE MODE - Real Order*")), 5000).await);
+    assert!(
+        wait_for(
+            || fake
+                .texts()
+                .iter()
+                .any(|t| t.starts_with("*Order Placed*\n*LIVE MODE - Real Order*")),
+            5000
+        )
+        .await
+    );
     h.ctx.bus.publish(placed(Mode::Analyze));
-    assert!(wait_for(|| fake.texts().iter().any(|t| t.contains("*ANALYZE MODE - No Real Order*") && t.contains("Order ID: `OID1`")), 5000).await);
-    let alert = fake.sent().into_iter().find(|b| b["text"].as_str().unwrap_or("").starts_with("*Order Placed*")).unwrap();
+    assert!(
+        wait_for(
+            || fake
+                .texts()
+                .iter()
+                .any(|t| t.contains("*ANALYZE MODE - No Real Order*")
+                    && t.contains("Order ID: `OID1`")),
+            5000
+        )
+        .await
+    );
+    let alert = fake
+        .sent()
+        .into_iter()
+        .find(|b| {
+            b["text"]
+                .as_str()
+                .unwrap_or("")
+                .starts_with("*Order Placed*")
+        })
+        .unwrap();
     assert_eq!(alert["chat_id"], 42);
     assert_eq!(alert["parse_mode"], "Markdown");
 
@@ -518,15 +780,19 @@ async fn telegram_alerts_follow_bus_events_while_the_bot_is_started() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn telegram_backs_off_and_gives_up_or_recovers_and_stops_cleanly() {
+    let _serial = SERIAL.lock().await;
     // Nothing listening: the connect retries back off, then give up.
     let h = H::new(false);
     let (_n, port, probe_join) = spawn_probe().await;
     probe_join.abort();
     let _ = probe_join.await;
-    h.ctx.messaging.telegram.set_api_base(&format!("http://127.0.0.1:{}", port));
+    h.ctx
+        .messaging
+        .telegram
+        .set_api_base(&format!("http://127.0.0.1:{}", port));
     h.post("/telegram/config", json!({"token": TOKEN})).await;
-    let (ok, msg) = h.ctx.messaging.telegram.start(&h.ctx).await;
-    assert!(!ok, "{}", msg);
+    let (ok, why) = h.ctx.messaging.telegram.start(&h.ctx).await;
+    assert!(!ok, "{}", why);
     assert!(wait_for(|| true, 0).await);
     assert!(!h.ctx.messaging.telegram.is_running());
     let mut alive = true;
@@ -548,7 +814,16 @@ async fn telegram_backs_off_and_gives_up_or_recovers_and_stops_cleanly() {
     assert!(wait_for(|| fake.fail_updates.load(Ordering::SeqCst) == 0, 5000).await);
     let polls = h.ctx.messaging.telegram.poll_count();
     fake.push(msg(5, 5, "/help"));
-    assert!(wait_for(|| fake.texts().iter().any(|t| t.contains("*Available Commands:*")), 5000).await);
+    assert!(
+        wait_for(
+            || fake
+                .texts()
+                .iter()
+                .any(|t| t.contains("*Available Commands:*")),
+            5000
+        )
+        .await
+    );
     assert!(h.ctx.messaging.telegram.poll_count() > polls);
     assert!(h.ctx.messaging.telegram.is_running());
     h.ctx.messaging.telegram.stop(&h.ctx).await;
@@ -558,6 +833,7 @@ async fn telegram_backs_off_and_gives_up_or_recovers_and_stops_cleanly() {
 #[cfg(unix)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn telegram_hundred_start_stop_cycles_leave_no_tasks_or_descriptors() {
+    let _serial = SERIAL.lock().await;
     let h = H::new(false);
     let (_fake, base, _j) = spawn_fake().await;
     h.start_telegram(&base).await;
@@ -565,38 +841,100 @@ async fn telegram_hundred_start_stop_cycles_leave_no_tasks_or_descriptors() {
     let tasks_before = h.ctx.task_count();
     let fds_before = open_fds();
     for _ in 0..100 {
-        let (ok, msg) = h.ctx.messaging.telegram.start(&h.ctx).await;
-        assert!(ok, "{}", msg);
+        let (ok, why) = h.ctx.messaging.telegram.start(&h.ctx).await;
+        assert!(ok, "{}", why);
         let (ok, _) = h.ctx.messaging.telegram.stop(&h.ctx).await;
         assert!(ok);
         assert!(!h.ctx.messaging.telegram.task_alive().await);
     }
+    tokio::time::sleep(Duration::from_millis(1200)).await;
     let fds_after = open_fds();
-    assert!(fds_after <= fds_before + 4, "fds {} -> {}", fds_before, fds_after);
+    assert!(
+        fds_after <= fds_before + 4,
+        "fds {} -> {}",
+        fds_before,
+        fds_after
+    );
     assert_eq!(h.ctx.task_count(), tasks_before);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn telegram_notify_endpoint() {
+    let _serial = SERIAL.lock().await;
     let h = H::new(false);
     let (fake, base, _j) = spawn_fake().await;
-    let (s, v) = h.api("/api/v1/telegram/notify", json!({"apikey": "bad", "username": USER, "message": "x"})).await;
-    assert_eq!((s, v), (StatusCode::UNAUTHORIZED, json!({"status": "error", "message": "Invalid or missing API key"})));
-    let (s, v) = h.api("/api/v1/telegram/notify", json!({"apikey": h.key, "username": USER, "message": "x"})).await;
+    let (s, v) = h
+        .api(
+            "/api/v1/telegram/notify",
+            json!({"apikey": "bad", "username": USER, "message": "x"}),
+        )
+        .await;
+    assert_eq!(
+        (s, v),
+        (
+            StatusCode::UNAUTHORIZED,
+            json!({"status": "error", "message": "Invalid or missing API key"})
+        )
+    );
+    let (s, v) = h
+        .api(
+            "/api/v1/telegram/notify",
+            json!({"apikey": h.key, "username": USER, "message": "x"}),
+        )
+        .await;
     assert_eq!(s, StatusCode::CONFLICT);
-    assert_eq!(v["message"], "Telegram bot is stopped. Start the bot to send notifications.");
+    assert_eq!(
+        v["message"],
+        "Telegram bot is stopped. Start the bot to send notifications."
+    );
     h.start_telegram(&base).await;
-    let (s, v) = h.api("/api/v1/telegram/notify", json!({"apikey": h.key, "message": "x"})).await;
-    assert_eq!((s, v["message"].clone()), (StatusCode::BAD_REQUEST, json!("Username and message are required")));
-    let (s, v) = h.api("/api/v1/telegram/notify", json!({"apikey": h.key, "username": USER, "message": "x"})).await;
-    assert_eq!((s, v["message"].clone()), (StatusCode::NOT_FOUND, json!("User not found or not linked to Telegram")));
+    let (s, v) = h
+        .api(
+            "/api/v1/telegram/notify",
+            json!({"apikey": h.key, "message": "x"}),
+        )
+        .await;
+    assert_eq!(
+        (s, v["message"].clone()),
+        (
+            StatusCode::BAD_REQUEST,
+            json!("Username and message are required")
+        )
+    );
+    let (s, v) = h
+        .api(
+            "/api/v1/telegram/notify",
+            json!({"apikey": h.key, "username": USER, "message": "x"}),
+        )
+        .await;
+    assert_eq!(
+        (s, v["message"].clone()),
+        (
+            StatusCode::NOT_FOUND,
+            json!("User not found or not linked to Telegram")
+        )
+    );
     h.link(42);
     let (s, v) = h.api("/api/v1/telegram/notify",
         json!({"apikey": h.key, "username": USER, "message": "Hello *there*", "wait_for_delivery": true})).await;
-    assert_eq!((s, v), (StatusCode::OK, json!({"status": "success", "message": "Notification sent successfully"})));
+    assert_eq!(
+        (s, v),
+        (
+            StatusCode::OK,
+            json!({"status": "success", "message": "Notification sent successfully"})
+        )
+    );
     assert!(fake.texts().iter().any(|t| t == "Hello *there*"));
-    let (s, v) = h.api("/api/v1/telegram/notify", json!({"apikey": h.key, "username": USER, "message": "later"})).await;
-    assert_eq!((s, v["message"].clone()), (StatusCode::OK, json!("Notification queued for delivery")));
+    let (s, v) = h
+        .api(
+            "/api/v1/telegram/notify",
+            json!({"apikey": h.key, "username": USER, "message": "later"}),
+        )
+        .await;
+    assert_eq!(
+        (s, v["message"].clone()),
+        (StatusCode::OK, json!("Notification queued for delivery"))
+    );
     assert!(wait_for(|| fake.texts().iter().any(|t| t == "later"), 5000).await);
     h.ctx.messaging.telegram.shutdown().await;
 }
@@ -634,11 +972,20 @@ const SESSION_ROUTES: &[(&str, &str)] = &[
 
 #[tokio::test]
 async fn every_route_needs_the_user_and_writes_need_csrf() {
+    let _serial = SERIAL.lock().await;
     let h = H::new(false);
     for (m, p) in SESSION_ROUTES {
         let method = Method::from_bytes(m.as_bytes()).unwrap();
-        let (s, _) = h.raw(method.clone(), p, Some(json!({})), false, false, true).await;
-        assert!(s == StatusCode::UNAUTHORIZED || s == StatusCode::BAD_REQUEST, "{} {} gave {}", m, p, s);
+        let (s, _) = h
+            .raw(method.clone(), p, Some(json!({})), false, false, true)
+            .await;
+        assert!(
+            s == StatusCode::UNAUTHORIZED || s == StatusCode::BAD_REQUEST,
+            "{} {} gave {}",
+            m,
+            p,
+            s
+        );
         if *m == "POST" {
             let (s, b) = h.raw(method, p, Some(json!({})), true, false, true).await;
             assert_eq!(s, StatusCode::BAD_REQUEST, "{} {} without CSRF", m, p);
@@ -646,7 +993,9 @@ async fn every_route_needs_the_user_and_writes_need_csrf() {
         }
     }
     // The settings page itself is the app for a browser.
-    let (s, b) = h.raw(Method::GET, "/telegram/config", None, false, false, false).await;
+    let (s, b) = h
+        .raw(Method::GET, "/telegram/config", None, false, false, false)
+        .await;
     assert_eq!(s, StatusCode::OK);
     assert!(String::from_utf8_lossy(&b).to_lowercase().contains("<html"));
 }
@@ -659,80 +1008,228 @@ fn keys(v: &Value) -> Vec<String> {
 
 #[tokio::test]
 async fn route_shapes_match_the_web() {
+    let _serial = SERIAL.lock().await;
     let h = H::new(false);
     let (_, v) = h.get("/telegram/api/index").await;
-    assert_eq!(keys(&v["data"]), ["active_users_7d", "bot_status", "config", "stats", "telegram_user", "total_commands", "users"]);
-    assert_eq!(keys(&v["data"]["config"]), ["broadcast_enabled", "bot_username", "is_active", "rate_limit_per_minute"]);
+    assert_eq!(
+        keys(&v["data"]),
+        [
+            "active_users_7d",
+            "bot_status",
+            "config",
+            "stats",
+            "telegram_user",
+            "total_commands",
+            "users"
+        ]
+    );
+    assert_eq!(
+        keys(&v["data"]["config"]),
+        [
+            "bot_username",
+            "broadcast_enabled",
+            "is_active",
+            "rate_limit_per_minute"
+        ]
+    );
     let (_, v) = h.get("/telegram/api/config").await;
-    assert_eq!(v["data"], json!({"has_token": false, "bot_username": null, "broadcast_enabled": true, "rate_limit_per_minute": 30, "is_active": false}));
+    assert_eq!(
+        v["data"],
+        json!({"has_token": false, "bot_username": null, "broadcast_enabled": true, "rate_limit_per_minute": 30, "is_active": false})
+    );
     let (_, v) = h.get("/telegram/api/users").await;
     assert_eq!(keys(&v["data"]), ["stats", "total_commands", "users"]);
     h.link(42);
     let (_, v) = h.get("/telegram/api/users").await;
     let u = &v["data"]["users"][0];
-    assert_eq!(keys(u), ["broker", "created_at", "first_name", "id", "last_command_at", "last_name", "notifications_enabled", "openalgo_username", "telegram_id", "telegram_username"]);
+    assert_eq!(
+        keys(u),
+        [
+            "broker",
+            "created_at",
+            "first_name",
+            "id",
+            "last_command_at",
+            "last_name",
+            "notifications_enabled",
+            "openalgo_username",
+            "telegram_id",
+            "telegram_username"
+        ]
+    );
     assert!(u["created_at"].as_str().unwrap().ends_with(" GMT"));
     // The token is never returned.
-    h.post("/telegram/config", json!({"token": TOKEN, "broadcast_enabled": false})).await;
-    let (_, b) = h.raw(Method::GET, "/telegram/api/config", None, true, false, true).await;
+    h.post(
+        "/telegram/config",
+        json!({"token": TOKEN, "broadcast_enabled": false}),
+    )
+    .await;
+    let (_, b) = h
+        .raw(Method::GET, "/telegram/api/config", None, true, false, true)
+        .await;
     assert!(!String::from_utf8_lossy(&b).contains("TEST-TOKEN"));
-    let (s, v) = h.post("/telegram/broadcast", json!({"message": "hi"})).await;
-    assert_eq!((s, v["message"].clone()), (StatusCode::FORBIDDEN, json!("Broadcast is disabled")));
+    let (s, v) = h
+        .post("/telegram/broadcast", json!({"message": "hi"}))
+        .await;
+    assert_eq!(
+        (s, v["message"].clone()),
+        (StatusCode::FORBIDDEN, json!("Broadcast is disabled"))
+    );
     let (s, v) = h.post("/telegram/user/42/unlink", json!({})).await;
-    assert_eq!((s, v), (StatusCode::OK, json!({"status": "success", "message": "User unlinked"})));
+    assert_eq!(
+        (s, v),
+        (
+            StatusCode::OK,
+            json!({"status": "success", "message": "User unlinked"})
+        )
+    );
 
     let (_, v) = h.get("/whatsapp/config").await;
     assert_eq!(keys(&v["data"]), ["config", "pair_state"]);
-    assert_eq!(v["data"]["pair_state"], json!({"status": "idle", "qr_data_url": null, "pair_code": null, "error": null, "started_at": null, "paired_at": null}));
-    for k in ["is_paired", "is_active", "own_jid", "owner_username", "broadcast_enabled", "is_running", "status_message", "rate_limit_per_minute"] {
+    assert_eq!(
+        v["data"]["pair_state"],
+        json!({"status": "idle", "qr_data_url": null, "pair_code": null, "error": null, "started_at": null, "paired_at": null})
+    );
+    for k in [
+        "is_paired",
+        "is_active",
+        "own_jid",
+        "owner_username",
+        "broadcast_enabled",
+        "is_running",
+        "status_message",
+        "rate_limit_per_minute",
+    ] {
         assert!(v["data"]["config"].get(k).is_some(), "{}", k);
     }
     let (_, v) = h.get("/whatsapp/bot/status").await;
-    assert_eq!(keys(&v["data"]), ["bot_username", "is_active", "is_paired", "is_running", "own_jid", "own_phone", "paired_at", "status_message"]);
+    assert_eq!(
+        keys(&v["data"]),
+        [
+            "bot_username",
+            "is_active",
+            "is_paired",
+            "is_running",
+            "own_jid",
+            "own_phone",
+            "paired_at",
+            "status_message"
+        ]
+    );
     let (_, v) = h.get("/whatsapp/stats?days=900").await;
-    assert_eq!(v["data"], json!({"total_commands": 0, "by_command": {}, "days": 365}));
+    assert_eq!(
+        v["data"],
+        json!({"total_commands": 0, "by_command": {}, "days": 365})
+    );
     let (_, v) = h.get("/whatsapp/users").await;
     assert_eq!(v, json!({"status": "success", "data": [], "count": 0}));
-    let (s, v) = h.post("/whatsapp/config", json!({"rate_limit_per_minute": 7})).await;
-    assert_eq!((s, v), (StatusCode::OK, json!({"status": "success", "message": "Configuration updated"})));
+    let (s, v) = h
+        .post("/whatsapp/config", json!({"rate_limit_per_minute": 7}))
+        .await;
+    assert_eq!(
+        (s, v),
+        (
+            StatusCode::OK,
+            json!({"status": "success", "message": "Configuration updated"})
+        )
+    );
 }
 
 // ------------------------------------------------------------ WhatsApp
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn whatsapp_unpaired_refuses_sends_and_starts() {
+    let _serial = SERIAL.lock().await;
     let h = H::new(false);
     let (s, v) = h.post("/whatsapp/bot/start", json!({})).await;
-    assert_eq!((s, v), (StatusCode::BAD_REQUEST, json!({"status": "error", "message": "Device not paired. Pair from /whatsapp first."})));
-    for (p, b) in [("/whatsapp/send", json!({"phone": "919876543210", "message": "x"})),
-                   ("/whatsapp/broadcast", json!({"message": "x"})),
-                   ("/whatsapp/test-message", json!({}))] {
+    assert_eq!(
+        (s, v),
+        (
+            StatusCode::BAD_REQUEST,
+            json!({"status": "error", "message": "Device not paired. Pair from /whatsapp first."})
+        )
+    );
+    for (p, b) in [
+        (
+            "/whatsapp/send",
+            json!({"phone": "919876543210", "message": "x"}),
+        ),
+        ("/whatsapp/broadcast", json!({"message": "x"})),
+        ("/whatsapp/test-message", json!({})),
+    ] {
         let (s, v) = h.post(p, b).await;
-        assert_eq!((s, v["message"].clone()), (StatusCode::CONFLICT, json!("WhatsApp is not paired. Pair the device first to send messages.")), "{}", p);
+        assert_eq!(
+            (s, v["message"].clone()),
+            (
+                StatusCode::CONFLICT,
+                json!("WhatsApp is not paired. Pair the device first to send messages.")
+            ),
+            "{}",
+            p
+        );
     }
-    let (s, v) = h.api("/api/v1/whatsapp/notify", json!({"apikey": h.key, "self": true, "message": "x"})).await;
+    let (s, v) = h
+        .api(
+            "/api/v1/whatsapp/notify",
+            json!({"apikey": h.key, "self": true, "message": "x"}),
+        )
+        .await;
     assert_eq!(s, StatusCode::CONFLICT);
-    assert!(v["message"].as_str().unwrap().starts_with("WhatsApp is not paired or not connected."));
-    let (s, _) = h.api("/api/v1/whatsapp/notify", json!({"apikey": "nope", "self": true, "message": "x"})).await;
+    assert!(v["message"]
+        .as_str()
+        .unwrap()
+        .starts_with("WhatsApp is not paired or not connected."));
+    let (s, _) = h
+        .api(
+            "/api/v1/whatsapp/notify",
+            json!({"apikey": "nope", "self": true, "message": "x"}),
+        )
+        .await;
     assert_eq!(s, StatusCode::UNAUTHORIZED);
     let (s, v) = h.post("/whatsapp/bot/stop", json!({})).await;
-    assert_eq!((s, v["message"].clone()), (StatusCode::OK, json!("Bot is not running")));
+    assert_eq!(
+        (s, v["message"].clone()),
+        (StatusCode::OK, json!("Bot is not running"))
+    );
     let (s, v) = h.post("/whatsapp/unlink", json!({})).await;
-    assert_eq!((s, v), (StatusCode::OK, json!({"status": "success", "message": "Device unlinked"})));
-    assert_eq!(h.events.named("whatsapp_status").last().unwrap(),
-        &json!({"is_running": false, "is_paired": false, "status_message": null}));
+    assert_eq!(
+        (s, v),
+        (
+            StatusCode::OK,
+            json!({"status": "success", "message": "Device unlinked"})
+        )
+    );
+    assert_eq!(
+        h.events.named("whatsapp_status").last().unwrap(),
+        &json!({"is_running": false, "is_paired": false, "status_message": null})
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn whatsapp_pairing_times_out_without_reaching_whatsapp() {
+    let _serial = SERIAL.lock().await;
     let h = H::new(false);
-    let (s, v) = h.post("/whatsapp/pair", json!({"phone": "+91 98765 43210"})).await;
+    let (s, v) = h
+        .post("/whatsapp/pair", json!({"phone": "+91 98765 43210"}))
+        .await;
     assert_eq!(s, StatusCode::OK, "{}", v);
     assert_eq!(v["message"], "Pairing started. Watch for QR or pair code.");
     assert_eq!(v["data"]["status"], "starting");
     let (s, v) = h.post("/whatsapp/pair", json!({})).await;
-    assert_eq!((s, v["message"].clone()), (StatusCode::BAD_REQUEST, json!("Pairing already in progress")));
-    assert!(wait_for(|| h.ctx.messaging.whatsapp.pair_state().status == "failed", 8000).await);
+    assert_eq!(
+        (s, v["message"].clone()),
+        (
+            StatusCode::BAD_REQUEST,
+            json!("Pairing already in progress")
+        )
+    );
+    assert!(
+        wait_for(
+            || h.ctx.messaging.whatsapp.pair_state().status == "failed",
+            8000
+        )
+        .await
+    );
     let (_, v) = h.get("/whatsapp/pair/status").await;
     assert_eq!(v["data"]["error"], PAIR_TIMEOUT_MESSAGE);
     let ev = h.events.named("whatsapp_pair_status");
@@ -758,26 +1255,59 @@ async fn fake_pairing(h: &H) {
     s.create().await.unwrap();
     let snap = s.export().unwrap();
     let c = h.ctx.sqlite.conn().unwrap();
-    whatsapp::db::save_session(&c, &h.ctx.security, &snap,
-        &whatsapp::db::Owner { own_jid: Some("919876543210@s.whatsapp.net"), own_phone: Some("919876543210"),
-            owner_user_id: Some(1), owner_username: Some(USER) }, h.ctx.now()).unwrap();
+    whatsapp::db::save_session(
+        &c,
+        &h.ctx.security,
+        &snap,
+        &whatsapp::db::Owner {
+            own_jid: Some("919876543210@s.whatsapp.net"),
+            own_phone: Some("919876543210"),
+            owner_user_id: Some(1),
+            owner_username: Some(USER),
+        },
+        h.ctx.now(),
+    )
+    .unwrap();
 }
 
 #[cfg(unix)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn whatsapp_bot_start_stop_cycles_are_clean() {
+    let _serial = SERIAL.lock().await;
     let h = H::new(false);
     fake_pairing(&h).await;
-    let raw: String = h.ctx.sqlite.conn().unwrap()
-        .query_row("SELECT CAST(session_blob AS TEXT) FROM whatsapp_config", [], |r| r.get(0)).unwrap();
+    let raw: String = h
+        .ctx
+        .sqlite
+        .conn()
+        .unwrap()
+        .query_row(
+            "SELECT CAST(session_blob AS TEXT) FROM whatsapp_config",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
     assert!(raw.starts_with("v1:"));
     let (s, v) = h.post("/whatsapp/bot/start", json!({})).await;
-    assert_eq!((s, v["message"].clone()), (StatusCode::OK, json!("Bot started")));
+    assert_eq!(
+        (s, v["message"].clone()),
+        (StatusCode::OK, json!("Bot started"))
+    );
     let (s, v) = h.post("/whatsapp/bot/start", json!({})).await;
-    assert_eq!((s, v["message"].clone()), (StatusCode::OK, json!("Bot already running")));
-    assert!(h.events.named("whatsapp_status").iter().any(|p| p["is_running"] == true && p["is_paired"] == true));
+    assert_eq!(
+        (s, v["message"].clone()),
+        (StatusCode::OK, json!("Bot already running"))
+    );
+    assert!(h
+        .events
+        .named("whatsapp_status")
+        .iter()
+        .any(|p| p["is_running"] == true && p["is_paired"] == true));
     let (s, v) = h.post("/whatsapp/bot/stop", json!({})).await;
-    assert_eq!((s, v["message"].clone()), (StatusCode::OK, json!("Bot stopped")));
+    assert_eq!(
+        (s, v["message"].clone()),
+        (StatusCode::OK, json!("Bot stopped"))
+    );
     assert_eq!(h.ctx.messaging.whatsapp.tasks_alive().await, (false, false));
 
     let fds_before = open_fds();
@@ -791,7 +1321,12 @@ async fn whatsapp_bot_start_stop_cycles_are_clean() {
     // Give aborted client tasks a moment to release their sockets.
     tokio::time::sleep(Duration::from_millis(300)).await;
     let fds_after = open_fds();
-    assert!(fds_after <= fds_before + 4, "fds {} -> {}", fds_before, fds_after);
+    assert!(
+        fds_after <= fds_before + 4,
+        "fds {} -> {}",
+        fds_before,
+        fds_after
+    );
     assert_eq!(h.ctx.task_count(), tasks_before);
     // Still paired, session intact.
     assert!(whatsapp::WhatsAppService::is_paired(&h.ctx));
@@ -802,30 +1337,85 @@ async fn whatsapp_bot_start_stop_cycles_are_clean() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn whatsapp_notify_validation_and_attachments_refused() {
+    let _serial = SERIAL.lock().await;
     let h = H::new(false);
     fake_pairing(&h).await;
     let (ok, _) = h.ctx.messaging.whatsapp.start_bot(&h.ctx).await;
     assert!(ok);
     let k = h.key.clone();
     let cases = [
-        (json!({"apikey": k, "message": "x"}), StatusCode::BAD_REQUEST, "Specify one of: 'self', 'username', 'phone', or 'phones'"),
-        (json!({"apikey": k, "phone": "12", "message": "x"}), StatusCode::BAD_REQUEST, "Invalid phone number"),
-        (json!({"apikey": k, "phones": "91", "message": "x"}), StatusCode::BAD_REQUEST, "'phones' must be a list"),
-        (json!({"apikey": k, "phones": ["1"], "message": "x"}), StatusCode::BAD_REQUEST, "No valid phones in list"),
-        (json!({"apikey": k, "self": true}), StatusCode::BAD_REQUEST, "Provide at least one of: message, image_path, document_path"),
-        (json!({"apikey": k, "self": true, "image_path": "/etc/passwd"}), StatusCode::BAD_REQUEST, "image_path is not allowed"),
-        (json!({"apikey": k, "username": "someone", "message": "x"}), StatusCode::NOT_FOUND, "Username not found or not linked to WhatsApp"),
-        (json!({"apikey": k, "self": true, "message": "x".repeat(4097)}), StatusCode::BAD_REQUEST, "Message must not exceed 4096 characters"),
+        (
+            json!({"apikey": k, "message": "x"}),
+            StatusCode::BAD_REQUEST,
+            "Specify one of: 'self', 'username', 'phone', or 'phones'",
+        ),
+        (
+            json!({"apikey": k, "phone": "12", "message": "x"}),
+            StatusCode::BAD_REQUEST,
+            "Invalid phone number",
+        ),
+        (
+            json!({"apikey": k, "phones": "91", "message": "x"}),
+            StatusCode::BAD_REQUEST,
+            "'phones' must be a list",
+        ),
+        (
+            json!({"apikey": k, "phones": ["1"], "message": "x"}),
+            StatusCode::BAD_REQUEST,
+            "No valid phones in list",
+        ),
+        (
+            json!({"apikey": k, "self": true}),
+            StatusCode::BAD_REQUEST,
+            "Provide at least one of: message, image_path, document_path",
+        ),
+        (
+            json!({"apikey": k, "self": true, "image_path": "/etc/passwd"}),
+            StatusCode::BAD_REQUEST,
+            "image_path is not allowed",
+        ),
+        (
+            json!({"apikey": k, "username": "someone", "message": "x"}),
+            StatusCode::NOT_FOUND,
+            "Username not found or not linked to WhatsApp",
+        ),
+        (
+            json!({"apikey": k, "self": true, "message": "x".repeat(4097)}),
+            StatusCode::BAD_REQUEST,
+            "Message must not exceed 4096 characters",
+        ),
     ];
     for (body, code, message) in cases {
         let (s, v) = h.api("/api/v1/whatsapp/notify", body).await;
         assert_eq!((s, v["message"].clone()), (code, json!(message)));
     }
-    let (s, v) = h.post("/whatsapp/send", json!({"phone": "919876543210", "message": "x", "document_path": "/etc/hosts"})).await;
-    assert_eq!((s, v["message"].clone()), (StatusCode::BAD_REQUEST, json!("document_path is not allowed")));
+    let (s, v) = h
+        .post(
+            "/whatsapp/send",
+            json!({"phone": "919876543210", "message": "x", "document_path": "/etc/hosts"}),
+        )
+        .await;
+    assert_eq!(
+        (s, v["message"].clone()),
+        (
+            StatusCode::BAD_REQUEST,
+            json!("document_path is not allowed")
+        )
+    );
     // Fire-and-forget answers at once.
-    let (s, v) = h.api("/api/v1/whatsapp/notify", json!({"apikey": k, "username": USER, "message": "x", "wait_for_delivery": false})).await;
-    assert_eq!((s, v), (StatusCode::OK, json!({"status": "success", "message": "Queued for 1 recipient(s)", "queued": 1})));
+    let (s, v) = h
+        .api(
+            "/api/v1/whatsapp/notify",
+            json!({"apikey": k, "username": USER, "message": "x", "wait_for_delivery": false}),
+        )
+        .await;
+    assert_eq!(
+        (s, v),
+        (
+            StatusCode::OK,
+            json!({"status": "success", "message": "Queued for 1 recipient(s)", "queued": 1})
+        )
+    );
     h.ctx.messaging.whatsapp.stop_bot(&h.ctx).await;
     h.ctx.shutdown().await;
 }

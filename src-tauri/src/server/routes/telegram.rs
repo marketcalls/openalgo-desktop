@@ -79,7 +79,11 @@ pub async fn configuration(State(ctx): Ctx, _u: User, body: JsonBody) -> Respons
     let b = &body.0;
     let mut u = ConfigUpdate::default();
     if let Some(t) = b.get("token") {
-        u.token = Some(t.as_str().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()));
+        u.token = Some(
+            t.as_str()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty()),
+        );
     }
     if let Some(v) = b.get("broadcast_enabled") {
         u.broadcast_enabled = Some(crate::messaging::format::truthy(Some(v)));
@@ -251,7 +255,12 @@ pub async fn test_message(State(ctx): Ctx, User(u): User) -> Response {
             )
         }
     };
-    if ctx.messaging.telegram.send_alert(&ctx, target, &message).await {
+    if ctx
+        .messaging
+        .telegram
+        .send_alert(&ctx, target, &message)
+        .await
+    {
         ok(json!({"status": "success", "message": "Test message sent"}))
     } else {
         ok(json!({"status": "success", "message": "Test message queued for delivery"}))

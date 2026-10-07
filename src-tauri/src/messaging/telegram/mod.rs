@@ -263,7 +263,10 @@ impl TelegramService {
     async fn end_run(run: PollRun) {
         run.cancel.cancel();
         let mut join = run.join;
-        if tokio::time::timeout(BOT_STOP_JOIN, &mut join).await.is_err() {
+        if tokio::time::timeout(BOT_STOP_JOIN, &mut join)
+            .await
+            .is_err()
+        {
             tracing::warn!("Telegram bot did not stop cleanly");
             join.abort();
             let _ = join.await;
@@ -333,7 +336,9 @@ impl TelegramService {
         let api = self.api(ctx, token);
         let mut res = api.send_message(telegram_id, message, true, None).await;
         if matches!(&res, Err(e) if e.is_parse_error()) {
-            tracing::warn!("Telegram could not parse the message formatting, sending as plain text");
+            tracing::warn!(
+                "Telegram could not parse the message formatting, sending as plain text"
+            );
             res = api.send_message(telegram_id, message, false, None).await;
         }
         match res {
@@ -526,4 +531,3 @@ impl PollTask {
         self.running.store(false, Ordering::SeqCst);
     }
 }
-

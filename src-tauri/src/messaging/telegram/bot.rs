@@ -12,7 +12,9 @@
 use super::api::{BotApi, TgError};
 use super::chart::{self, Candle};
 use super::db;
-use crate::messaging::format::{comma2, comma_int, get_f64, get_str, py_float, py_float_str, py_int, signed2, title};
+use crate::messaging::format::{
+    comma2, comma_int, get_f64, get_str, py_float, py_float_str, py_int, signed2, title,
+};
 use crate::messaging::openalgo::{is_success, OpenAlgoClient};
 use crate::state::AppState;
 use chrono::{Duration, FixedOffset, TimeZone};
@@ -37,9 +39,21 @@ impl From {
         let v = v?;
         Some(Self {
             id: v.get("id")?.as_i64()?,
-            first_name: v.get("first_name").and_then(Value::as_str).unwrap_or("").into(),
-            last_name: v.get("last_name").and_then(Value::as_str).unwrap_or("").into(),
-            username: v.get("username").and_then(Value::as_str).unwrap_or("").into(),
+            first_name: v
+                .get("first_name")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .into(),
+            last_name: v
+                .get("last_name")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .into(),
+            username: v
+                .get("username")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .into(),
         })
     }
 }
@@ -304,7 +318,10 @@ pub fn format_holdings_full(resp: &Value, cs: &str) -> String {
     for h in holdings.iter().take(10) {
         let pnl = get_f64(h, "pnl", 0.0);
         let pct = get_f64(h, "pnlpercent", 0.0);
-        let q = h.get("quantity").map(|v| py_int(v).unwrap_or(0)).unwrap_or(0);
+        let q = h
+            .get("quantity")
+            .map(|v| py_int(v).unwrap_or(0))
+            .unwrap_or(0);
         m += &format!(
             "{} *{}* ({})\n├ Product: {}\n├ Qty: {}\n└ P&L: {cs}{} ({}%)\n\n",
             sign_tag(pnl),
@@ -498,7 +515,11 @@ pub fn format_quote(symbol: &str, resp: &Value, cs: &str) -> String {
     let ltp = get_f64(&q, "ltp", 0.0);
     let prev = get_f64(&q, "prev_close", ltp);
     let change = ltp - prev;
-    let pct = if prev > 0.0 { change / prev * 100.0 } else { 0.0 };
+    let pct = if prev > 0.0 {
+        change / prev * 100.0
+    } else {
+        0.0
+    };
     let vol = q.get("volume").map(|v| py_int(v).unwrap_or(0)).unwrap_or(0);
     format!(
         "*{symbol}*\n{RULE}\n\n{} Price: {cs}{}\n├ Change: {cs}{} ({}%)\n├ Open: {cs}{}\n├ High: {cs}{}\n├ Low: {cs}{}\n├ Prev Close: {cs}{}\n└ Volume: {}",
@@ -556,7 +577,8 @@ pub const HELP_TEXT: &str = "
 
 /// Turn history rows into candles in IST (the SDK's DataFrame index).
 pub fn candles_from_history(resp: &Value) -> Vec<Candle> {
-    let ist = FixedOffset::east_opt(5 * 3600 + 1800).unwrap_or_else(|| FixedOffset::east_opt(0).expect("utc"));
+    let ist = FixedOffset::east_opt(5 * 3600 + 1800)
+        .unwrap_or_else(|| FixedOffset::east_opt(0).expect("utc"));
     list_in(resp, Some("data"))
         .iter()
         .filter_map(|r| {
@@ -687,12 +709,19 @@ impl Bot {
     }
 
     async fn edit(&self, chat: i64, msg: i64, text: &str, md: bool, markup: Option<Value>) {
-        let mut r = self.api.edit_message_text(chat, msg, text, md, markup.clone()).await;
+        let mut r = self
+            .api
+            .edit_message_text(chat, msg, text, md, markup.clone())
+            .await;
         if md && matches!(&r, Err(e) if e.is_parse_error()) {
-            r = self.api.edit_message_text(chat, msg, text, false, markup).await;
+            r = self
+                .api
+                .edit_message_text(chat, msg, text, false, markup)
+                .await;
         }
         if let Err(e) = r {
-            if !matches!(&e, TgError::Api { description, .. } if description.contains("not modified")) {
+            if !matches!(&e, TgError::Api { description, .. } if description.contains("not modified"))
+            {
                 tracing::warn!("Telegram edit failed: {}", e);
             }
         }
@@ -778,7 +807,14 @@ impl Bot {
         self.on_command(ctx, &cmd, &args, chat, &from).await;
     }
 
-    async fn on_command(&mut self, ctx: &Arc<AppState>, cmd: &str, args: &[String], chat: i64, from: &From) {
+    async fn on_command(
+        &mut self,
+        ctx: &Arc<AppState>,
+        cmd: &str,
+        args: &[String],
+        chat: i64,
+        from: &From,
+    ) {
         match cmd {
             "start" => {
                 let text = if Self::user(ctx, from.id).is_some() {
@@ -856,7 +892,8 @@ impl Bot {
                     return;
                 }
                 // No Python strategy host on the desktop.
-                self.send(chat, "*No Python strategies running.*", true, None).await;
+                self.send(chat, "*No Python strategies running.*", true, None)
+                    .await;
                 Self::log(ctx, from.id, "stoppython", chat);
             }
             "mode" => {
@@ -873,8 +910,13 @@ impl Bot {
                 let text = format!(
                     "*Trading Mode*\n{RULE}\n\nCurrent: {current}\n\n• *Live Mode* — Orders execute with real broker\n• *Analyze Mode* — Sandbox mode (no real orders)\n"
                 );
-                self.send(chat, &text, true, Some(json!({"inline_keyboard": [[{"text": label, "callback_data": data}]]})))
-                    .await;
+                self.send(
+                    chat,
+                    &text,
+                    true,
+                    Some(json!({"inline_keyboard": [[{"text": label, "callback_data": data}]]})),
+                )
+                .await;
                 Self::log(ctx, from.id, "mode", chat);
             }
             _ => {}
@@ -896,9 +938,21 @@ impl Bot {
         let host_url = args[1].trim_end_matches('/').to_string();
         // Validated in-process, exactly as a funds call would be; the host
         // given is stored for the pages but never contacted.
+        // Key guesses are throttled per sender, as /api/v1 throttles them per
+        // address; over the limit the key is not even tried.
+        let who = format!("tg:{}", from.id);
+        if !ctx.messaging.link_throttle.allowed(&who, ctx.now()) {
+            tracing::warn!("Telegram link attempts throttled for a sender");
+            self.send(chat, crate::messaging::TOO_MANY_LINK_ATTEMPTS, false, None)
+                .await;
+            Self::log(ctx, from.id, "link", chat);
+            return;
+        }
         let client = OpenAlgoClient::new(ctx.clone(), api_key.clone());
         let resp = client.funds().await;
         if !is_success(&resp) {
+            ctx.messaging.link_throttle.fail(&who, ctx.now());
+            tracing::warn!("Telegram link attempt with an API key that did not validate");
             self.send(
                 chat,
                 "Failed to validate API key.\nPlease check your credentials and try again.",
@@ -909,9 +963,11 @@ impl Bot {
             Self::log(ctx, from.id, "link", chat);
             return;
         }
+        ctx.messaging.link_throttle.clear(&who);
         // The key is this desktop's own (it passed the check), so the
         // account is this desktop's single user.
-        let username = crate::messaging::account_username(ctx).unwrap_or_else(|| format!("user_{}", from.id));
+        let username =
+            crate::messaging::account_username(ctx).unwrap_or_else(|| format!("user_{}", from.id));
         let broker = ctx
             .get_broker_session()
             .map(|b| b.broker_id)
@@ -960,8 +1016,13 @@ impl Bot {
 
     async fn cmd_status(&self, ctx: &Arc<AppState>, chat: i64, from: &From) {
         let Some(user) = Self::user(ctx, from.id) else {
-            self.send(chat, "No linked account found.\nUse /link to connect your OpenAlgo account.", true, None)
-                .await;
+            self.send(
+                chat,
+                "No linked account found.\nUse /link to connect your OpenAlgo account.",
+                true,
+                None,
+            )
+            .await;
             Self::log(ctx, from.id, "status", chat);
             return;
         };
@@ -985,7 +1046,10 @@ impl Bot {
             "*Account Status*\n{RULE}\nUser: {}\nStatus: {}\nHost: {}\nLinked: {}",
             display,
             status,
-            user.host_url.clone().filter(|s| !s.is_empty()).unwrap_or_else(|| "N/A".into()),
+            user.host_url
+                .clone()
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "N/A".into()),
             user.created_at.clone().unwrap_or_else(|| "N/A".into()),
         );
         self.send(chat, &text, true, None).await;
@@ -999,7 +1063,8 @@ impl Bot {
         };
         let cs = Self::cs(&user);
         let Some(client) = Self::client(ctx, from.id) else {
-            self.send(chat, "Failed to connect to OpenAlgo", false, None).await;
+            self.send(chat, "Failed to connect to OpenAlgo", false, None)
+                .await;
             return;
         };
         let (resp, what) = match cmd {
@@ -1011,7 +1076,8 @@ impl Bot {
             _ => (client.funds().await, "P&L"),
         };
         if !is_success(&resp) {
-            self.send(chat, &format!("Failed to fetch {}", what), false, None).await;
+            self.send(chat, &format!("Failed to fetch {}", what), false, None)
+                .await;
             return;
         }
         let r = resp.clone().unwrap_or(Value::Null);
@@ -1044,15 +1110,24 @@ impl Bot {
         }
         let cs = Self::cs(&user);
         let symbol = args[0].to_uppercase();
-        let exchange = args.get(1).map(|s| s.to_uppercase()).unwrap_or_else(|| "NSE".into());
+        let exchange = args
+            .get(1)
+            .map(|s| s.to_uppercase())
+            .unwrap_or_else(|| "NSE".into());
         let Some(client) = Self::client(ctx, from.id) else {
-            self.send(chat, "Failed to connect to OpenAlgo", false, None).await;
+            self.send(chat, "Failed to connect to OpenAlgo", false, None)
+                .await;
             return;
         };
         let resp = client.quotes(&symbol, &exchange).await;
         if !is_success(&resp) {
-            self.send(chat, &format!("Failed to fetch quote for {}", symbol), false, None)
-                .await;
+            self.send(
+                chat,
+                &format!("Failed to fetch quote for {}", symbol),
+                false,
+                None,
+            )
+            .await;
             return;
         }
         let text = format_quote(&symbol, resp.as_ref().unwrap_or(&Value::Null), cs);
@@ -1071,9 +1146,15 @@ impl Bot {
     ) -> Option<Vec<u8>> {
         let client = Self::client(ctx, id)?;
         let now = ctx.now().with_timezone(&chrono::Local).date_naive();
-        let back = if daily { (days as f64 * 1.5) as i64 } else { days };
+        let back = if daily {
+            (days as f64 * 1.5) as i64
+        } else {
+            days
+        };
         let start = now - Duration::days(back);
-        let resp = client.history(symbol, exchange, interval, start, now).await?;
+        let resp = client
+            .history(symbol, exchange, interval, start, now)
+            .await?;
         if resp.get("status").and_then(Value::as_str) != Some("success") {
             tracing::warn!("Chart history was not available");
             return None;
@@ -1089,7 +1170,8 @@ impl Bot {
             png.await.ok().flatten()
         } else {
             let title = format!("{} - {} Day Intraday ({})", symbol, days, interval);
-            let png = tokio::task::spawn_blocking(move || chart::render(&c, &title, "%d %b %H:%M", 8));
+            let png =
+                tokio::task::spawn_blocking(move || chart::render(&c, &title, "%d %b %H:%M", 8));
             png.await.ok().flatten()
         }
     }
@@ -1110,8 +1192,14 @@ impl Bot {
             return;
         }
         let symbol = args[0].to_uppercase();
-        let exchange = args.get(1).map(|s| s.to_uppercase()).unwrap_or_else(|| "NSE".into());
-        let kind = args.get(2).map(|s| s.to_lowercase()).unwrap_or_else(|| "intraday".into());
+        let exchange = args
+            .get(1)
+            .map(|s| s.to_uppercase())
+            .unwrap_or_else(|| "NSE".into());
+        let kind = args
+            .get(2)
+            .map(|s| s.to_lowercase())
+            .unwrap_or_else(|| "intraday".into());
         let interval = args.get(3).cloned();
         let days = match args.get(4) {
             None => None,
@@ -1119,19 +1207,31 @@ impl Bot {
                 Ok(v) => Some(v),
                 Err(_) => {
                     // The web's handler raises here and its error handler answers.
-                    self.send(chat, "An error occurred. Please try again later.", false, None)
-                        .await;
+                    self.send(
+                        chat,
+                        "An error occurred. Please try again later.",
+                        false,
+                        None,
+                    )
+                    .await;
                     return;
                 }
             },
         };
-        let loading = self.send(chat, "Generating charts... Please wait.", false, None).await;
+        let loading = self
+            .send(chat, "Generating charts... Please wait.", false, None)
+            .await;
         let mut photos: Vec<(Vec<u8>, String)> = Vec::new();
         if matches!(kind.as_str(), "both" | "intraday" | "i") {
             let iv = interval.clone().unwrap_or_else(|| "5m".into());
             let d = days.filter(|d| *d != 0).unwrap_or(5);
-            if let Some(png) = Self::chart_png(ctx, from.id, &symbol, &exchange, &iv, d, false).await {
-                photos.push((png, format!("{} - {} Day Intraday Chart ({} intervals)", symbol, d, iv)));
+            if let Some(png) =
+                Self::chart_png(ctx, from.id, &symbol, &exchange, &iv, d, false).await
+            {
+                photos.push((
+                    png,
+                    format!("{} - {} Day Intraday Chart ({} intervals)", symbol, d, iv),
+                ));
             }
         }
         if matches!(kind.as_str(), "both" | "daily" | "d") {
@@ -1143,17 +1243,27 @@ impl Bot {
                     days.filter(|d| *d != 0).unwrap_or(252),
                 )
             };
-            if let Some(png) = Self::chart_png(ctx, from.id, &symbol, &exchange, &iv, d, true).await {
+            if let Some(png) = Self::chart_png(ctx, from.id, &symbol, &exchange, &iv, d, true).await
+            {
                 photos.push((png, format!("{} - Daily Chart ({} days)", symbol, d)));
             }
         }
-        if let Some(mid) = loading.as_ref().and_then(|m| m.get("message_id")).and_then(Value::as_i64) {
+        if let Some(mid) = loading
+            .as_ref()
+            .and_then(|m| m.get("message_id"))
+            .and_then(Value::as_i64)
+        {
             let _ = self.api.delete_message(chat, mid).await;
         }
         let sent = match photos.len() {
             0 => {
-                self.send(chat, &format!("Failed to generate charts for {}", symbol), false, None)
-                    .await;
+                self.send(
+                    chat,
+                    &format!("Failed to generate charts for {}", symbol),
+                    false,
+                    None,
+                )
+                .await;
                 Ok(Value::Null)
             }
             1 => {
@@ -1164,8 +1274,13 @@ impl Bot {
         };
         if let Err(e) = sent {
             tracing::warn!("Sending the chart failed: {}", e);
-            self.send(chat, "Error generating charts. Please try again.", false, None)
-                .await;
+            self.send(
+                chat,
+                "Error generating charts. Please try again.",
+                false,
+                None,
+            )
+            .await;
         }
         Self::log(ctx, from.id, "chart", chat);
     }
@@ -1180,8 +1295,15 @@ impl Bot {
         let Some(chat) = q.pointer("/message/chat/id").and_then(Value::as_i64) else {
             return;
         };
-        let mid = q.pointer("/message/message_id").and_then(Value::as_i64).unwrap_or(0);
-        let data = q.get("data").and_then(Value::as_str).unwrap_or("").to_string();
+        let mid = q
+            .pointer("/message/message_id")
+            .and_then(Value::as_i64)
+            .unwrap_or(0);
+        let data = q
+            .get("data")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
         let linked = Self::user(ctx, from.id).is_some();
         match gate(Request::Callback(&data), linked, chat, from.id) {
             Gate::Ignore => return,
@@ -1203,7 +1325,8 @@ impl Bot {
                     return;
                 }
                 let Some(client) = Self::client(ctx, from.id) else {
-                    self.edit(chat, mid, "Failed to connect to OpenAlgo", false, None).await;
+                    self.edit(chat, mid, "Failed to connect to OpenAlgo", false, None)
+                        .await;
                     return;
                 };
                 let working = if with {
@@ -1223,7 +1346,11 @@ impl Bot {
                     let close = if is_success(&resp) {
                         message(&resp, "All positions closed")
                     } else {
-                        let err = if resp.is_some() { message(&resp, "Unknown error") } else { "No response".into() };
+                        let err = if resp.is_some() {
+                            message(&resp, "Unknown error")
+                        } else {
+                            "No response".into()
+                        };
                         format!("Failed to close positions: {}", err)
                     };
                     let text = format!(
@@ -1232,40 +1359,80 @@ impl Bot {
                     );
                     self.send(chat, &text, true, None).await;
                 } else if is_success(&resp) {
-                    let text = format!("*Positions Closed*\n{RULE}\n\n{}", message(&resp, "All positions closed"));
+                    let text = format!(
+                        "*Positions Closed*\n{RULE}\n\n{}",
+                        message(&resp, "All positions closed")
+                    );
                     self.send(chat, &text, true, None).await;
                 } else {
-                    let err = if resp.is_some() { message(&resp, "Unknown error") } else { "No response".into() };
-                    self.send(chat, &format!("*Failed to close positions*\n\n{}", err), true, None)
-                        .await;
+                    let err = if resp.is_some() {
+                        message(&resp, "Unknown error")
+                    } else {
+                        "No response".into()
+                    };
+                    self.send(
+                        chat,
+                        &format!("*Failed to close positions*\n\n{}", err),
+                        true,
+                        None,
+                    )
+                    .await;
                 }
                 Self::log(ctx, from.id, &data, chat);
             }
             d if d.starts_with("spy_") || d.starts_with("csy_") => {
                 if d == "csy_all" {
-                    self.edit(chat, mid, "Stopping all running strategies...", false, None).await;
-                    self.send(chat, "No Python strategies were running.", false, None).await;
+                    self.edit(chat, mid, "Stopping all running strategies...", false, None)
+                        .await;
+                    self.send(chat, "No Python strategies were running.", false, None)
+                        .await;
                     Self::log(ctx, from.id, "confirm_stoppython_all", chat);
                 } else {
                     // The selection list is always empty on the desktop.
-                    self.edit(chat, mid, "Selection expired. Please run /stoppython again.", false, None)
-                        .await;
+                    self.edit(
+                        chat,
+                        mid,
+                        "Selection expired. Please run /stoppython again.",
+                        false,
+                        None,
+                    )
+                    .await;
                 }
             }
             "mode_live" | "mode_analyze" => {
                 let requested = data == "mode_analyze";
                 match crate::services::AnalyzerService::set_mode(ctx, requested).await {
                     Ok(s) => {
-                        crate::messaging::emit(ctx, "app_mode_changed", json!({"analyze_mode": s.analyze_mode}))
-                            .await;
-                        let label = if s.analyze_mode { "Analyze Mode" } else { "Live Mode" };
-                        self.edit(chat, mid, &format!("*Mode Changed*\n{RULE}\n\nNow in: {}", label), true, None)
-                            .await;
+                        crate::messaging::emit(
+                            ctx,
+                            "app_mode_changed",
+                            json!({"analyze_mode": s.analyze_mode}),
+                        )
+                        .await;
+                        let label = if s.analyze_mode {
+                            "Analyze Mode"
+                        } else {
+                            "Live Mode"
+                        };
+                        self.edit(
+                            chat,
+                            mid,
+                            &format!("*Mode Changed*\n{RULE}\n\nNow in: {}", label),
+                            true,
+                            None,
+                        )
+                        .await;
                     }
                     Err(e) => {
                         tracing::error!("Telegram mode change failed: {}", e);
-                        self.edit(chat, mid, "Failed to change mode. Check server logs.", false, None)
-                            .await;
+                        self.edit(
+                            chat,
+                            mid,
+                            "Failed to change mode. Check server logs.",
+                            false,
+                            None,
+                        )
+                        .await;
                     }
                 }
                 Self::log(ctx, from.id, &data, chat);
@@ -1275,7 +1442,10 @@ impl Bot {
                 self.edit(
                     chat,
                     mid,
-                    &format!("*OpenAlgo Trading Menu*\nSelect an option below:\n_Updated: {}_", ts),
+                    &format!(
+                        "*OpenAlgo Trading Menu*\nSelect an option below:\n_Updated: {}_",
+                        ts
+                    ),
                     true,
                     Some(menu_keyboard()),
                 )
@@ -1288,7 +1458,8 @@ impl Bot {
                 };
                 let cs = Self::cs(&user);
                 let Some(client) = Self::client(ctx, from.id) else {
-                    self.send(chat, "Failed to connect to OpenAlgo", false, None).await;
+                    self.send(chat, "Failed to connect to OpenAlgo", false, None)
+                        .await;
                     return;
                 };
                 let text = match other {
@@ -1314,18 +1485,47 @@ mod tests {
     #[test]
     fn every_command_and_button_passes_the_gate() {
         for c in LINKED_COMMANDS {
-            assert_eq!(gate(Request::Command(c), false, 5, 5), Gate::Deny(LINK_FIRST), "{}", c);
-            assert_eq!(gate(Request::Command(c), true, -100, 5), Gate::Deny(PRIVATE_ONLY), "{}", c);
+            assert_eq!(
+                gate(Request::Command(c), false, 5, 5),
+                Gate::Deny(LINK_FIRST),
+                "{}",
+                c
+            );
+            assert_eq!(
+                gate(Request::Command(c), true, -100, 5),
+                Gate::Deny(PRIVATE_ONLY),
+                "{}",
+                c
+            );
             assert_eq!(gate(Request::Command(c), true, 5, 5), Gate::Allow, "{}", c);
         }
         for c in OPEN_COMMANDS {
             assert_eq!(gate(Request::Command(c), false, -100, 5), Gate::Allow);
         }
         for n in CALLBACKS {
-            let d = if n.ends_with('_') { format!("{}0", n) } else { n.to_string() };
-            assert_eq!(gate(Request::Callback(&d), false, 5, 5), Gate::Deny(LINK_FIRST), "{}", d);
-            assert_eq!(gate(Request::Callback(&d), true, -100, 5), Gate::Deny(PRIVATE_ONLY), "{}", d);
-            assert_eq!(gate(Request::Callback(&d), true, 5, 5), Gate::Allow, "{}", d);
+            let d = if n.ends_with('_') {
+                format!("{}0", n)
+            } else {
+                n.to_string()
+            };
+            assert_eq!(
+                gate(Request::Callback(&d), false, 5, 5),
+                Gate::Deny(LINK_FIRST),
+                "{}",
+                d
+            );
+            assert_eq!(
+                gate(Request::Callback(&d), true, -100, 5),
+                Gate::Deny(PRIVATE_ONLY),
+                "{}",
+                d
+            );
+            assert_eq!(
+                gate(Request::Callback(&d), true, 5, 5),
+                Gate::Allow,
+                "{}",
+                d
+            );
         }
         assert_eq!(gate(Request::Command("nope"), true, 5, 5), Gate::Ignore);
         assert_eq!(gate(Request::Callback("nope"), true, 5, 5), Gate::Ignore);
@@ -1371,6 +1571,9 @@ mod tests {
             {"timestamp": 1758512700, "open": 1, "high": 2, "low": 0.5, "close": 1.5, "volume": 10}]});
         let c = candles_from_history(&r);
         assert_eq!(c.len(), 1);
-        assert_eq!(c[0].time.format("%d %b %H:%M").to_string().to_uppercase(), "22 SEP 09:15");
+        assert_eq!(
+            c[0].time.format("%d %b %H:%M").to_string().to_uppercase(),
+            "22 SEP 09:15"
+        );
     }
 }
