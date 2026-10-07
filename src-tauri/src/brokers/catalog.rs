@@ -127,6 +127,12 @@ pub fn authorize_url(
             enc(api_key),
             enc(state)
         )),
+        // InvestRight hosts the login; the callback must echo `state`.
+        "hdfcsecurities" => Some(format!(
+            "https://developer.hdfcsec.com/oapi/v1/login?api_key={}&state={}",
+            enc(api_key),
+            enc(state)
+        )),
         // XTS third-party login; the session comes back as `session`.
         "compositedge" | "rmoney" => {
             crate::brokers::families::xts::thirdparty_url(broker, api_key, redirect_url, state)
@@ -455,6 +461,21 @@ mod tests {
             assert_eq!(extract_code("hdfcsky", &p).as_deref(), Some("rt9"), "{}", k);
         }
         assert!(login_fields("hdfcsky").is_empty());
+    }
+
+    #[test]
+    fn hdfcsecurities_login_url_and_code() {
+        assert_eq!(auth_type("hdfcsecurities"), AuthType::OAuth);
+        let u = authorize_url("hdfcsecurities", "key 1", "r", "st5").unwrap();
+        assert_eq!(
+            u,
+            "https://developer.hdfcsec.com/oapi/v1/login?api_key=key%201&state=st5"
+        );
+        for k in ["request_token", "requestToken", "request-token", "code"] {
+            let p = q(&[(k, "rt9"), ("state", "st5")]);
+            assert_eq!(extract_code("hdfcsecurities", &p).as_deref(), Some("rt9"));
+        }
+        assert!(login_fields("hdfcsecurities").is_empty());
     }
 
     #[test]

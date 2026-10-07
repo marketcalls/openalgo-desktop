@@ -4,9 +4,11 @@
 
 #[path = "brokers_oauth_batch/arrow.rs"]
 mod arrow;
+#[path = "brokers_oauth_batch/hdfcsecurities.rs"]
+mod hdfcsecurities;
+#[path = "brokers_oauth_batch/hdfcsky.rs"]
+mod hdfcsky;
 #[path = "brokers_oauth_batch/paytm.rs"]
 mod paytm;
 #[path = "brokers_oauth_batch/pocketful.rs"]
 mod pocketful;
-#[path = "brokers_oauth_batch/hdfcsky.rs"]
-mod hdfcsky;
