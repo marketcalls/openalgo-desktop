@@ -871,6 +871,8 @@ async fn telegram_backs_off_and_gives_up_or_recovers_and_stops_cleanly() {
 #[cfg(unix)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn telegram_hundred_start_stop_cycles_leave_no_tasks_or_descriptors() {
+    // Counts this process's descriptors: runs alone in a child process.
+    crate::isolated!(telegram_hundred_start_stop_cycles_leave_no_tasks_or_descriptors);
     let _serial = SERIAL.lock().await;
     let h = H::new(false);
     let (_fake, base, _j) = spawn_fake().await;
@@ -1311,6 +1313,8 @@ async fn fake_pairing(h: &H) {
 #[cfg(unix)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn whatsapp_bot_start_stop_cycles_are_clean() {
+    // Counts this process's descriptors: runs alone in a child process.
+    crate::isolated!(whatsapp_bot_start_stop_cycles_are_clean);
     let _serial = SERIAL.lock().await;
     let h = H::new(false);
     fake_pairing(&h).await;

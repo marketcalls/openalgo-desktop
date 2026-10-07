@@ -228,6 +228,15 @@ pub async fn get_credentials(State(ctx): Ctx) -> Response {
         Ok(m) => m,
         Err(e) => return e.into_response(),
     };
+    let client_id = if broker.is_empty() {
+        None
+    } else {
+        ctx.sqlite
+            .conn()
+            .ok()
+            .and_then(|c| credentials::load(&c, &ctx.security, &broker).ok().flatten())
+            .and_then(|s| s.client_id)
+    };
     let mut data = serde_json::to_value(masked).unwrap_or_default();
     let ws_host = cfg.bind_host.clone();
     if let Some(o) = data.as_object_mut() {
@@ -241,6 +250,13 @@ pub async fn get_credentials(State(ctx): Ctx) -> Response {
         );
         o.insert("current_broker".into(), json!(broker));
         o.insert("valid_brokers".into(), json!(catalog::ALL_BROKERS));
+        // Desktop: brokers whose sign-in needs a separate client id, and the
+        // saved one (an account id, not a secret), for the Profile form.
+        o.insert(
+            "client_id_brokers".into(),
+            json!(catalog::CLIENT_ID_BROKERS),
+        );
+        o.insert("client_id".into(), json!(client_id));
         o.insert("ngrok_allow".into(), json!(cfg.ngrok_allow));
         o.insert(
             "host_server".into(),

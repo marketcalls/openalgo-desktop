@@ -93,6 +93,11 @@ pub fn callback_carries_state(broker: &str) -> bool {
     )
 }
 
+/// Brokers whose sign-in is bound to a client id the trader enters
+/// separately (the Profile broker form shows the field for these): their
+/// redirect may drop `state` and their API key does not carry the account.
+pub const CLIENT_ID_BROKERS: &[&str] = &["arrow", "hdfcsky", "hdfcsecurities"];
+
 /// The trading account the stored credentials name, for brokers whose
 /// configuration carries it: Dhan and the Noren family take
 /// `client_id:::key` as the API key or a separate client id. A sign-in that
@@ -105,7 +110,7 @@ pub fn configured_account(broker: &str, api_key: &str, client_id: Option<&str>) 
         .filter(|c| !c.is_empty())
         .map(str::to_string);
     // Arrow and the HDFC pair: the client id, when the trader entered one.
-    if matches!(broker, "arrow" | "hdfcsky" | "hdfcsecurities") {
+    if CLIENT_ID_BROKERS.contains(&broker) {
         return client;
     }
     if !matches!(

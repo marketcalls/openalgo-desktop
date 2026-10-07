@@ -316,8 +316,14 @@ impl BrokerAuthService {
         match last {
             Some(u) => Ok(Some(u)),
             None if !state_less => Ok(None),
+            None if catalog::CLIENT_ID_BROKERS.contains(&broker) => {
+                Err(AppError::Validation(format!(
+                    "Add your {} client id in Profile, Broker Configuration, then start the broker login again.",
+                    broker
+                )))
+            }
             None => Err(AppError::Validation(format!(
-                "Add your {} client id on the broker settings page (or enter the API key as client_id:::api_key), then start the broker login again. You can also paste the address the broker showed you after signing in into OpenAlgo.",
+                "Enter your {} API key as client_id:::api_key in Profile, Broker Configuration, then start the broker login again.",
                 broker
             ))),
         }

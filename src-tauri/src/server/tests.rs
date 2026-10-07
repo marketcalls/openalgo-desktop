@@ -1531,6 +1531,96 @@ async fn state_less_callbacks_are_bound_to_the_browser_session() {
     ctx.runtime.teardown(ctx).await;
 }
 
+/// Arrow (and the HDFC pair) may drop `state`, and their API key does not
+/// carry the account: a first state-less sign-in is refused until the
+/// trader saves a client id in Profile, then it completes for that account.
+#[tokio::test]
+async fn first_state_less_sign_in_needs_the_saved_client_id() {
+    let mock = Arc::new(MockBroker::new("arrow"));
+    *mock.auth_user_id.lock() = "AR123".into();
+    let t = build(
+        BrokerRegistry::with(vec![mock.clone() as Arc<dyn crate::brokers::Broker>]),
+        ist(2026, 10, 5, 10, 0),
+    );
+    let ctx = &t.ctx;
+    ctx.limiter.freeze(Some(std::time::Instant::now()));
+    AuthService::setup(ctx, USER, EMAIL, PASSWORD).unwrap();
+    let save = |client_id: Option<&str>| {
+        let conn = ctx.sqlite.conn().unwrap();
+        crate::db::sqlite::credentials::save(
+            &conn,
+            &ctx.security,
+            "arrow",
+            crate::db::sqlite::credentials::CredentialUpdate {
+                api_key: Some("appid".into()),
+                api_secret: Some("appsecret".into()),
+                client_id: client_id.map(String::from),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    };
+    save(None);
+    let (cookie, csrf, sid) = user_session(ctx);
+    BrokerAuthService::start_oauth(ctx, "arrow", Some(&sid))
+        .await
+        .unwrap();
+    let (_, h, _) = send_to(
+        ctx,
+        with_session(get("/arrow/callback?request_token=r1"), &cookie, None),
+    )
+    .await;
+    let loc = urlencoding::decode(&location(&h)).unwrap().into_owned();
+    assert!(loc.starts_with("/broker?error="), "{}", loc);
+    assert!(
+        loc.contains("Add your arrow client id in Profile, Broker Configuration"),
+        "{}",
+        loc
+    );
+    assert!(ctx.get_broker_session().is_none());
+
+    // Saved through the Profile form's field.
+    let (s, _, v) = send_to(
+        ctx,
+        with_session(
+            form(
+                "/api/broker/credentials",
+                &[
+                    ("redirect_url", "http://127.0.0.1:5500/arrow/callback"),
+                    ("client_id", "AR123"),
+                ],
+            ),
+            &cookie,
+            Some(&csrf),
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    let (_, _, v) = send_to(
+        ctx,
+        with_session(get("/api/broker/credentials"), &cookie, None),
+    )
+    .await;
+    assert_eq!(v["data"]["client_id"], "AR123", "{}", v);
+    assert!(v["data"]["client_id_brokers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|b| b == "arrow"));
+
+    BrokerAuthService::start_oauth(ctx, "arrow", Some(&sid))
+        .await
+        .unwrap();
+    let (_, h, _) = send_to(
+        ctx,
+        with_session(get("/arrow/callback?request_token=r2"), &cookie, None),
+    )
+    .await;
+    assert_eq!(location(&h), "/dashboard");
+    assert_eq!(ctx.get_broker_session().unwrap().user_id, "AR123");
+    ctx.runtime.teardown(ctx).await;
+}
+
 /// The `state` OpenAlgo put on an authorize address (on the query, or
 /// inside an encoded return address).
 fn state_on(url: &str) -> String {

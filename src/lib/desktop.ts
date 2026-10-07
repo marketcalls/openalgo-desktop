@@ -198,6 +198,21 @@ export function desktopDefaultOrigin(): string {
   return window.location.origin || 'http://127.0.0.1:5000'
 }
 
+/**
+ * Desktop: whether the Profile broker form shows a Client ID field for
+ * `broker`. The list comes from GET /api/broker/credentials
+ * (`client_id_brokers`): brokers whose sign-in is bound to a client id the
+ * trader enters separately.
+ */
+export function brokerNeedsClientId(
+  broker: string | undefined,
+  clientIdBrokers: readonly string[] | undefined
+): boolean {
+  return (
+    Boolean(broker) && Array.isArray(clientIdBrokers) && clientIdBrokers.includes(broker as string)
+  )
+}
+
 /** A broker with saved keys, from GET /api/broker/configured. */
 export interface ConfiguredBroker {
   name: string

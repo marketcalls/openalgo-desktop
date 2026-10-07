@@ -14,6 +14,9 @@ pub fn run_isolated(test: &str) -> bool {
     if std::env::var(ISOLATED).as_deref() == Ok(test) {
         return true;
     }
+    // Descriptors other tests opened without close-on-exec (SQLite and
+    // DuckDB files) would otherwise be inherited and counted by the child.
+    close_on_exec_all();
     let exe = std::env::current_exe().expect("test binary path");
     let out = std::process::Command::new(exe)
         .args([
@@ -44,6 +47,31 @@ pub fn run_isolated(test: &str) -> bool {
     );
     false
 }
+
+/// Mark every open descriptor above stderr close-on-exec.
+#[cfg(unix)]
+fn close_on_exec_all() {
+    let fds: Vec<i32> = std::fs::read_dir("/dev/fd")
+        .map(|d| {
+            d.filter_map(|e| e.ok()?.file_name().to_str()?.parse().ok())
+                .filter(|fd| *fd > 2)
+                .collect()
+        })
+        .unwrap_or_default();
+    for fd in fds {
+        // SAFETY: fcntl on a descriptor number only reads and sets its
+        // flags; a number that was closed meanwhile fails with EBADF.
+        unsafe {
+            let flags = libc::fcntl(fd, libc::F_GETFD);
+            if flags >= 0 {
+                libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC);
+            }
+        }
+    }
+}
+
+#[cfg(not(unix))]
+fn close_on_exec_all() {}
 
 /// `isolated!(fn_name)` at the top of a test body: the parent returns early
 /// once the child process passed; the child runs the body.

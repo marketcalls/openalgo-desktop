@@ -56,7 +56,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { desktopDefaultOrigin, desktopInitialProfileTab } from '@/lib/desktop'
+import { brokerNeedsClientId, desktopDefaultOrigin, desktopInitialProfileTab } from '@/lib/desktop'
 import { type AlertCategories, type ToastPosition, useAlertStore } from '@/stores/alertStore'
 import { useAuthStore } from '@/stores/authStore'
 import { type ThemeColor, type ThemeMode, useThemeStore } from '@/stores/themeStore'
@@ -125,6 +125,9 @@ interface BrokerCredentials {
   redirect_url: string
   current_broker: string
   valid_brokers: string[]
+  // Desktop: brokers whose sign-in needs a separate client id, and the saved one.
+  client_id_brokers?: string[]
+  client_id?: string | null
   ngrok_allow: boolean
   host_server: string
   websocket_url: string
@@ -299,6 +302,8 @@ export default function ProfilePage() {
   const [brokerApiKey, setBrokerApiKey] = useState('')
   const [brokerApiSecret, setBrokerApiSecret] = useState('')
   const [brokerApiKeyMarket, setBrokerApiKeyMarket] = useState('')
+  // Desktop: client id for brokers whose sign-in is bound to it.
+  const [brokerClientId, setBrokerClientId] = useState('')
   const [brokerApiSecretMarket, setBrokerApiSecretMarket] = useState('')
   const [selectedBroker, setSelectedBroker] = useState('')
   const [ngrokEnabled, setNgrokEnabled] = useState(false)
@@ -432,6 +437,8 @@ export default function ProfilePage() {
       if (brokerApiKey) formData.append('broker_api_key', brokerApiKey)
       if (brokerApiSecret) formData.append('broker_api_secret', brokerApiSecret)
       if (brokerApiKeyMarket) formData.append('broker_api_key_market', brokerApiKeyMarket)
+      // Desktop: the client id some brokers' sign-in is bound to.
+      if (brokerClientId.trim()) formData.append('client_id', brokerClientId.trim())
       if (brokerApiSecretMarket) formData.append('broker_api_secret_market', brokerApiSecretMarket)
       if (selectedBroker && selectedBroker !== brokerCredentials?.current_broker) {
         formData.append('redirect_url', getRedirectUrl(selectedBroker))
@@ -477,6 +484,10 @@ export default function ProfilePage() {
         setBrokerApiSecret('')
         setBrokerApiKeyMarket('')
         setBrokerApiSecretMarket('')
+        if (brokerClientId.trim()) {
+          setBrokerCredentials((c) => (c ? { ...c, client_id: brokerClientId.trim() } : c))
+        }
+        setBrokerClientId('')
         // Desktop: saved settings apply at once (no restart). After a broker
         // switch the trader signs in to the new broker.
         const saved = response.data as { restart_required?: boolean; broker_switched?: boolean }
@@ -500,6 +511,7 @@ export default function ProfilePage() {
     brokerApiKey ||
       brokerApiSecret ||
       brokerApiKeyMarket ||
+      brokerClientId.trim() ||
       brokerApiSecretMarket ||
       (selectedBroker && selectedBroker !== brokerCredentials?.current_broker)
   )
@@ -1076,6 +1088,26 @@ export default function ProfilePage() {
                   </p>
                 </div>
               </div>
+
+              {/* Desktop: client id for brokers whose sign-in is bound to it */}
+              {brokerNeedsClientId(
+                selectedBroker || brokerCredentials?.current_broker,
+                brokerCredentials?.client_id_brokers
+              ) && (
+                <div className="space-y-2">
+                  <Label htmlFor="broker-client-id">Client ID</Label>
+                  <Input
+                    id="broker-client-id"
+                    value={brokerClientId}
+                    onChange={(e) => setBrokerClientId(e.target.value)}
+                    placeholder={brokerCredentials?.client_id || 'Your trading account client id'}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Your broker login is checked against this account.
+                    {brokerCredentials?.client_id ? ` Saved: ${brokerCredentials.client_id}` : ''}
+                  </p>
+                </div>
+              )}
 
               {/* Market API Credentials (optional) */}
               <div className="pt-4 border-t">
