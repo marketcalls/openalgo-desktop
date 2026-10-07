@@ -366,7 +366,8 @@ pub async fn download(b: &PocketfulBroker) -> Result<Vec<SymToken>> {
         .get(&b.urls.master)
         .timeout(DOWNLOAD_TIMEOUT)
         .send()
-        .await?;
+        .await
+        .map_err(|e| super::redact(e.into()))?;
     let status = resp.status();
     if !status.is_success() {
         tracing::warn!(
@@ -378,7 +379,7 @@ pub async fn download(b: &PocketfulBroker) -> Result<Vec<SymToken>> {
                 .into(),
         ));
     }
-    let bytes = resp.bytes().await?;
+    let bytes = resp.bytes().await.map_err(|e| super::redact(e.into()))?;
     let files = zip::entries(&bytes)?;
     drop(bytes);
     parse_archive(&files)

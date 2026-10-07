@@ -824,3 +824,38 @@ fn broker_identity() {
     assert!(b.create_feed(&auth).is_ok());
     assert!(b.create_feed(&AuthToken::new(" ")).is_err());
 }
+
+// ---------------------------------------------------------------------------
+// Secrets stay out of logged errors
+// ---------------------------------------------------------------------------
+
+const SENTINEL: &str = "SENTINEL-7f3a9c";
+
+/// A loopback port with nothing listening (bound, then released).
+fn closed_port() -> u16 {
+    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    l.local_addr().unwrap().port()
+}
+
+#[tokio::test]
+async fn transport_errors_lose_their_url_before_logging() {
+    let url = format!(
+        "http://127.0.0.1:{}/oapi/v1/orders?api_key={s}&token={s}",
+        closed_port(),
+        s = SENTINEL
+    );
+    let raw = crate::brokers::common::http::client()
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await
+        .unwrap_err();
+    // Precondition: the unredacted error does carry the secret.
+    assert!(format!("{} {:?}", raw, raw).contains(SENTINEL));
+    let e = super::redact(crate::error::AppError::from(raw));
+    let shown = format!("{} {:?} {} {}", e, e, e.code(), e.client_message());
+    assert!(!shown.contains(SENTINEL), "{}", shown);
+    // Non-transport errors pass through untouched.
+    let other = super::redact(crate::error::AppError::Broker("kept".into()));
+    assert_eq!(other.client_message(), "kept");
+}

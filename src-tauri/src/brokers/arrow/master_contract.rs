@@ -370,7 +370,8 @@ pub async fn download(b: &ArrowBroker, auth: &AuthToken) -> Result<Vec<SymToken>
         .header("token", jwt)
         .timeout(DOWNLOAD_TIMEOUT)
         .send()
-        .await?;
+        .await
+        .map_err(|e| super::redact(e.into()))?;
     let status = resp.status();
     if status.as_u16() == 401 || status.as_u16() == 403 {
         return Err(super::session_expired());
@@ -382,7 +383,7 @@ pub async fn download(b: &ArrowBroker, auth: &AuthToken) -> Result<Vec<SymToken>
                 .into(),
         ));
     }
-    let text = resp.text().await?;
+    let text = resp.text().await.map_err(|e| super::redact(e.into()))?;
     let mut rows = parse_instruments(&text)?;
     drop(text);
     // The index list is best effort (`fetch_index_list` returns [] on error).

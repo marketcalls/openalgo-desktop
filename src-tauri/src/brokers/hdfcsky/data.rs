@@ -543,10 +543,7 @@ pub(crate) async fn feed_snapshot(
                 // The handshake error can echo the URL; log only its kind.
                 tracing::warn!(
                     "HDFC Sky feed snapshot could not connect ({})",
-                    match e {
-                        tokio_tungstenite::tungstenite::Error::Http(r) => r.status().to_string(),
-                        _ => "network".into(),
-                    }
+                    super::streaming::ws_error_kind(&e)
                 );
                 return snap;
             }

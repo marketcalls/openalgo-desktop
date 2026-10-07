@@ -82,9 +82,10 @@ pub async fn authenticate(b: &PocketfulBroker, creds: BrokerCredentials) -> Resu
         .header("Cache-Control", "no-cache")
         .form(&token_form(code.trim(), &redirect_uri()))
         .send()
-        .await?;
+        .await
+        .map_err(|e| super::redact(e.into()))?;
     let status = resp.status();
-    let bytes = resp.bytes().await?;
+    let bytes = resp.bytes().await.map_err(|e| super::redact(e.into()))?;
     let body: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
     if !status.is_success() {
         let detail = mapping::text(&body, "message");
@@ -120,8 +121,11 @@ pub async fn authenticate(b: &PocketfulBroker, creds: BrokerCredentials) -> Resu
         .get(format!("{}/api/v1/user/trading_info", b.urls.rest))
         .bearer_auth(&access_token)
         .send()
-        .await?;
-    let (status, info): (_, Value) = http::read_json("pocketful", resp).await?;
+        .await
+        .map_err(|e| super::redact(e.into()))?;
+    let (status, info): (_, Value) = http::read_json("pocketful", resp)
+        .await
+        .map_err(super::redact)?;
     let user_id = mapping::text(&info["data"], "client_id");
     if !status.is_success()
         || info.get("status").and_then(Value::as_str) != Some("success")

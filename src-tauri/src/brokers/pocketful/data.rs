@@ -80,7 +80,10 @@ pub(crate) async fn snapshot(
             return Err(super::session_expired());
         }
         Ok(Err(e)) => {
-            tracing::warn!("Pocketful quote socket did not open: {}", e);
+            tracing::warn!(
+                "Pocketful quote socket did not open: {}",
+                super::streaming::ws_error_kind(&e)
+            );
             return Err(feed_unavailable());
         }
         Err(_) => {
@@ -104,7 +107,10 @@ pub(crate) async fn snapshot(
                 Err(_) => break, // wait is over
                 Ok(None) => break,
                 Ok(Some(Err(e))) => {
-                    tracing::warn!("Pocketful quote socket failed: {}", e);
+                    tracing::warn!(
+                        "Pocketful quote socket failed: {}",
+                        super::streaming::ws_error_kind(&e)
+                    );
                     break;
                 }
                 Ok(Some(Ok(m))) => m,

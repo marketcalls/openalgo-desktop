@@ -259,7 +259,8 @@ pub async fn download(b: &PaytmBroker) -> Result<Vec<SymToken>> {
         .get(&b.urls.master)
         .timeout(DOWNLOAD_TIMEOUT)
         .send()
-        .await?;
+        .await
+        .map_err(|e| super::redact(e.into()))?;
     let status = resp.status();
     if !status.is_success() {
         tracing::warn!(
@@ -270,6 +271,6 @@ pub async fn download(b: &PaytmBroker) -> Result<Vec<SymToken>> {
             "Paytm Money's instrument list could not be downloaded. Try again shortly.".into(),
         ));
     }
-    let text = resp.text().await?;
+    let text = resp.text().await.map_err(|e| super::redact(e.into()))?;
     parse_security_master(&text)
 }

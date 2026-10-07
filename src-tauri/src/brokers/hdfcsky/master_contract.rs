@@ -306,7 +306,7 @@ pub async fn download(b: &HdfcSkyBroker) -> Result<Vec<SymToken>> {
             "HDFC Sky's instrument list could not be downloaded. Try again shortly.".into(),
         ));
     }
-    let bytes = resp.bytes().await?;
+    let bytes = resp.bytes().await.map_err(|e| super::redact(e.into()))?;
     let csv = crate::brokers::families::noren::zip::first_entry(&bytes)?;
     let text = String::from_utf8_lossy(&csv);
     let rows = parse_csv(&text)?;

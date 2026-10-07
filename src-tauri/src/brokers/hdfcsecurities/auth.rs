@@ -81,7 +81,9 @@ pub async fn authenticate(
                     .into(),
             )
         })?;
-    let (status, v): (_, Value) = http::read_json("hdfcsecurities", resp).await?;
+    let (status, v): (_, Value) = http::read_json("hdfcsecurities", resp)
+        .await
+        .map_err(super::redact)?;
     let Some(token) = access_token(&v) else {
         tracing::warn!(
             status = status.as_u16(),

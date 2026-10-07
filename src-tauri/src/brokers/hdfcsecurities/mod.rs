@@ -169,7 +169,9 @@ impl HdfcSecuritiesBroker {
             tracing::warn!(status = status.as_u16(), "HDFC Securities refused {}", path);
             return Err(session_expired());
         }
-        http::read_json("hdfcsecurities", resp).await
+        http::read_json("hdfcsecurities", resp)
+            .await
+            .map_err(redact)
     }
 
     /// One authenticated call: HTTP status and decoded JSON body; envelope
@@ -374,5 +376,15 @@ impl Broker for HdfcSecuritiesBroker {
             s.token,
             self.symbols.clone(),
         )))
+    }
+}
+
+/// Transport errors carry the request URL, and with it query credentials
+/// (API key, account id). Strip it before the error can reach a log or a
+/// caller; every other error passes through unchanged.
+pub(crate) fn redact(e: AppError) -> AppError {
+    match e {
+        AppError::Http(h) => AppError::Http(Box::new(h.without_url())),
+        other => other,
     }
 }

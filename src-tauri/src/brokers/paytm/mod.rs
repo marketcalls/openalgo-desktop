@@ -148,9 +148,9 @@ impl PaytmBroker {
         if let Some(b) = body {
             req = req.body(b.to_string());
         }
-        let resp = req.send().await?;
+        let resp = req.send().await.map_err(|e| redact(e.into()))?;
         let status = resp.status();
-        let bytes = resp.bytes().await?;
+        let bytes = resp.bytes().await.map_err(|e| redact(e.into()))?;
         let env = serde_json::from_slice::<PaytmEnvelope>(&bytes).unwrap_or_default();
         Ok((status, env))
     }
@@ -381,5 +381,15 @@ impl Broker for PaytmBroker {
             token,
             self.symbols.clone(),
         )))
+    }
+}
+
+/// Transport errors carry the request URL, and with it query credentials
+/// (API key, account id). Strip it before the error can reach a log or a
+/// caller; every other error passes through unchanged.
+pub(crate) fn redact(e: AppError) -> AppError {
+    match e {
+        AppError::Http(h) => AppError::Http(Box::new(h.without_url())),
+        other => other,
     }
 }

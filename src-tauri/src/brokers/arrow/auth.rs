@@ -47,8 +47,11 @@ pub async fn authenticate(b: &ArrowBroker, creds: BrokerCredentials) -> Result<A
         .post(format!("{}/auth/app/authenticate-token", b.urls.rest))
         .json(&body)
         .send()
-        .await?;
-    let (status, v): (_, Value) = http::read_json("arrow", resp).await?;
+        .await
+        .map_err(|e| super::redact(e.into()))?;
+    let (status, v): (_, Value) = http::read_json("arrow", resp)
+        .await
+        .map_err(super::redact)?;
     if v.get("status").and_then(Value::as_str) != Some("success") || !status.is_success() {
         let msg = message_of(&v);
         tracing::warn!(status = status.as_u16(), "Arrow login refused: {}", msg);

@@ -178,7 +178,10 @@ pub async fn feed_snapshot(
     let mut ws = match timeout(SNAPSHOT_CONNECT, tokio_tungstenite::connect_async(req)).await {
         Ok(Ok((ws, _))) => ws,
         Ok(Err(e)) => {
-            tracing::warn!("HDFC Securities feed snapshot did not connect: {}", e);
+            tracing::warn!(
+                "HDFC Securities feed snapshot did not connect: {}",
+                super::streaming::ws_error_kind(&e)
+            );
             return snap;
         }
         Err(_) => {
@@ -199,7 +202,11 @@ pub async fn feed_snapshot(
         }
     }
     let deadline = Instant::now() + SNAPSHOT_WINDOW;
-    while send_ok {
+    // A refused subscribe skips the read loop; the socket is still closed.
+    loop {
+        if !send_ok {
+            break;
+        }
         let done = wanted
             .iter()
             .all(|k| snap.get(k).is_some_and(|p| is_complete(&k.0, p)));
@@ -209,7 +216,10 @@ pub async fn feed_snapshot(
         let msg = match tokio::time::timeout_at(deadline, ws.next()).await {
             Ok(Some(Ok(m))) => m,
             Ok(Some(Err(e))) => {
-                tracing::warn!("HDFC Securities feed snapshot read failed: {}", e);
+                tracing::warn!(
+                    "HDFC Securities feed snapshot read failed: {}",
+                    super::streaming::ws_error_kind(&e)
+                );
                 break;
             }
             Ok(None) | Err(_) => break,

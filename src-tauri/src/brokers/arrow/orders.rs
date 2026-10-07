@@ -145,7 +145,7 @@ pub async fn cancel_order(
     if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
         return Err(session_expired());
     }
-    let bytes = resp.bytes().await?;
+    let bytes = resp.bytes().await.map_err(|e| super::redact(e.into()))?;
     if status.is_success() {
         // A JSON envelope that says otherwise still counts as a refusal.
         if let Ok(v) = serde_json::from_slice::<Value>(&bytes) {

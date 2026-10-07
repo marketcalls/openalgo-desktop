@@ -157,13 +157,13 @@ impl PocketfulBroker {
         if let Some(b) = body {
             req = req.json(b);
         }
-        let resp = req.send().await?;
+        let resp = req.send().await.map_err(|e| redact(e.into()))?;
         let status = resp.status();
         if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
             tracing::warn!(status = status.as_u16(), "Pocketful refused the session");
             return Err(session_expired());
         }
-        let (status, v): (_, Value) = http::read_json("pocketful", resp).await?;
+        let (status, v): (_, Value) = http::read_json("pocketful", resp).await.map_err(redact)?;
         if status.is_success() && v.get("status").and_then(Value::as_str) == Some("success") {
             return Ok(v);
         }
@@ -355,8 +355,9 @@ impl Broker for PocketfulBroker {
     }
 
     async fn get_history(&self, _auth: &AuthToken, _req: &HistoryRequest) -> Result<Vec<Candle>> {
-        // web `get_history`: "Pocketful does not support historical data API".
-        Err(AppError::Unsupported("history"))
+        // web `get_history` answers success without candles ("Pocketful does
+        // not support historical data API"); no rows is the closest shape.
+        Ok(Vec::new())
     }
 
     async fn download_master_contract(&self, _auth: &AuthToken) -> Result<Vec<SymbolData>> {
@@ -374,5 +375,15 @@ impl Broker for PocketfulBroker {
             token,
             self.symbols.clone(),
         )))
+    }
+}
+
+/// Transport errors carry the request URL, and with it query credentials
+/// (API key, account id). Strip it before the error can reach a log or a
+/// caller; every other error passes through unchanged.
+pub(crate) fn redact(e: AppError) -> AppError {
+    match e {
+        AppError::Http(h) => AppError::Http(Box::new(h.without_url())),
+        other => other,
     }
 }

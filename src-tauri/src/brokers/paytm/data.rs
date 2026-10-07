@@ -271,6 +271,8 @@ pub async fn get_multiquotes(
 }
 
 /// Paytm Money provides no historical candles (web `get_history`).
+/// Paytm Money publishes no candle API. The web returns an empty frame
+/// rather than raising, so `/history` answers success with no rows.
 pub fn get_history() -> Result<Vec<Candle>> {
-    Err(AppError::Unsupported("history"))
+    Ok(Vec::new())
 }

@@ -220,7 +220,7 @@ impl ArrowBroker {
         if let Some(b) = body {
             req = req.json(b);
         }
-        Ok(req.send().await?)
+        req.send().await.map_err(|e| redact(e.into()))
     }
 
     /// Send and decode a JSON answer, with the HTTP status.
@@ -238,7 +238,9 @@ impl ArrowBroker {
             tracing::warn!(status = status.as_u16(), "Arrow refused the session");
             return Err(session_expired());
         }
-        http::read_json::<Value>("arrow", resp).await
+        http::read_json::<Value>("arrow", resp)
+            .await
+            .map_err(redact)
     }
 
     /// Send and unwrap the `{status, data}` envelope: `data` on success
@@ -465,5 +467,15 @@ impl ArrowBroker {
             jwt,
             self.symbols.clone(),
         )))
+    }
+}
+
+/// Transport errors carry the request URL, and with it query credentials
+/// (API key, account id). Strip it before the error can reach a log or a
+/// caller; every other error passes through unchanged.
+pub(crate) fn redact(e: AppError) -> AppError {
+    match e {
+        AppError::Http(h) => AppError::Http(Box::new(h.without_url())),
+        other => other,
     }
 }

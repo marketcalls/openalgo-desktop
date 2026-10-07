@@ -87,9 +87,10 @@ pub async fn authenticate(b: &PaytmBroker, creds: BrokerCredentials) -> Result<A
         .header("Content-Type", "application/json")
         .body(body.to_string())
         .send()
-        .await?;
+        .await
+        .map_err(|e| super::redact(e.into()))?;
     let status = resp.status();
-    let bytes = resp.bytes().await?;
+    let bytes = resp.bytes().await.map_err(|e| super::redact(e.into()))?;
     let parsed: TokenResponse = serde_json::from_slice(&bytes).unwrap_or_default();
     if !status.is_success() {
         tracing::warn!(

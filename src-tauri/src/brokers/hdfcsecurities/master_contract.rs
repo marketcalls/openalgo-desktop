@@ -307,7 +307,8 @@ pub async fn download(b: &HdfcSecuritiesBroker) -> Result<Vec<SymbolData>> {
         .header("User-Agent", USER_AGENT)
         .timeout(DOWNLOAD_TIMEOUT)
         .send()
-        .await?;
+        .await
+        .map_err(|e| super::redact(e.into()))?;
     if !resp.status().is_success() {
         tracing::warn!(
             status = resp.status().as_u16(),
@@ -318,7 +319,7 @@ pub async fn download(b: &HdfcSecuritiesBroker) -> Result<Vec<SymbolData>> {
                 .into(),
         ));
     }
-    let bytes = resp.bytes().await?;
+    let bytes = resp.bytes().await.map_err(|e| super::redact(e.into()))?;
     let text = String::from_utf8_lossy(&bytes);
     let rows = parse_security_master(&text)?;
     tracing::info!(

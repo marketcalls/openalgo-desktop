@@ -1,7 +1,7 @@
 //! Paytm Money against a local fake: token exchange, order bodies (with
 //! the book lookups modify and cancel need), cancel-all, close-all, open
 //! position, normalised books, funds with P&L from positions, quotes and
-//! multiquotes via `pref` strings, depth, read retries, history refused,
+//! multiquotes via `pref` strings, depth, read retries, history empty,
 //! and the security master download.
 
 use axum::body::Bytes;
@@ -489,7 +489,7 @@ async fn paytm_reads_are_retried_on_server_errors() {
 }
 
 #[tokio::test]
-async fn paytm_history_is_unsupported_and_master_downloads() {
+async fn paytm_history_is_empty_and_master_downloads() {
     let (b, _fake, auth) = setup().await;
     let req = HistoryRequest {
         key: QuoteKey::new("NSE", "SBIN"),
@@ -497,10 +497,8 @@ async fn paytm_history_is_unsupported_and_master_downloads() {
         start: NaiveDate::from_ymd_opt(2026, 9, 1).unwrap(),
         end: NaiveDate::from_ymd_opt(2026, 9, 30).unwrap(),
     };
-    assert!(matches!(
-        b.get_history(&auth, &req).await.unwrap_err(),
-        AppError::Unsupported(_)
-    ));
+    // web: an empty frame, not an error.
+    assert!(b.get_history(&auth, &req).await.unwrap().is_empty());
     assert!(!b.capabilities().history);
     let rows = b.download_master_contract(&auth).await.unwrap();
     assert_eq!(rows.len(), 17);

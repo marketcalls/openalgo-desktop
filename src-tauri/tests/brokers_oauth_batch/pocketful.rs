@@ -510,7 +510,8 @@ async fn pocketful_client_id_lookup_and_expiry() {
             }
         )
         .await
-        .is_err());
+        .unwrap()
+        .is_empty());
 }
 
 #[tokio::test]

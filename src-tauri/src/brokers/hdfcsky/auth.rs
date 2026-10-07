@@ -56,7 +56,9 @@ pub async fn authenticate(b: &HdfcSkyBroker, creds: BrokerCredentials) -> Result
         .send()
         .await
         .map_err(|e| AppError::from(e.without_url()))?;
-    let (status, v): (_, Value) = http::read_json("hdfcsky", resp).await?;
+    let (status, v): (_, Value) = http::read_json("hdfcsky", resp)
+        .await
+        .map_err(super::redact)?;
     let Some(token) = access_token_of(&v) else {
         let msg = message_of(&v);
         tracing::warn!(status = status.as_u16(), "HDFC Sky login refused: {}", msg);

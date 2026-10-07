@@ -232,7 +232,7 @@ impl HdfcSkyBroker {
             .send()
             .await
             .map_err(|e| AppError::from(e.without_url()))?;
-        let (status, v): (_, Value) = http::read_json("hdfcsky", resp).await?;
+        let (status, v): (_, Value) = http::read_json("hdfcsky", resp).await.map_err(redact)?;
         if status == StatusCode::UNAUTHORIZED || is_invalid_credentials(&v) {
             tracing::warn!(status = status.as_u16(), "HDFC Sky refused the session");
             return Err(session_expired());
@@ -459,5 +459,15 @@ impl Broker for HdfcSkyBroker {
             &sess.api_key,
             &sess.token,
         )))
+    }
+}
+
+/// Transport errors carry the request URL, and with it query credentials
+/// (API key, account id). Strip it before the error can reach a log or a
+/// caller; every other error passes through unchanged.
+pub(crate) fn redact(e: AppError) -> AppError {
+    match e {
+        AppError::Http(h) => AppError::Http(Box::new(h.without_url())),
+        other => other,
     }
 }
