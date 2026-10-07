@@ -1,0 +1,64 @@
+{
+  "data": {
+    "orders": [
+      {
+        "oms_order_id": "260101000001",
+        "exchange_order_id": "1100000012345678",
+        "exchange": "NSE",
+        "trading_symbol": "RELIANCE-EQ",
+        "instrument_token": "2885",
+        "order_side": "BUY",
+        "quantity": 10,
+        "filled_quantity": 0,
+        "price": 1390.0,
+        "trigger_price": 0,
+        "order_type": "LIMIT",
+        "product": "CNC",
+        "validity": "DAY",
+        "order_status": "PENDING",
+        "order_entry_time": "05-10-2026 09:20:11",
+        "exchange_time": "05-10-2026 09:20:11"
+      },
+      {
+        "oms_order_id": "260101000002",
+        "exchange": "NFO",
+        "trading_symbol": "NIFTY26OCTFUT",
+        "order_side": "SELL",
+        "quantity": "65",
+        "price": "24790.0",
+        "trigger_price": "24800.0",
+        "order_type": "SL",
+        "product": "NRML",
+        "order_status": "TRIGGER_PENDING",
+        "order_entry_time": "05-10-2026 09:21:40"
+      },
+      {
+        "oms_order_id": "260101000003",
+        "exchange": "NSE",
+        "trading_symbol": "BAJAJ-AUTO-EQ",
+        "order_side": "BUY",
+        "quantity": 1,
+        "price": 8500,
+        "trigger_price": 0,
+        "order_type": "LIMIT",
+        "product": "MIS",
+        "order_status": "AMO_REQ_RECEIVED",
+        "order_entry_time": "05-10-2026 08:00:00"
+      },
+      {
+        "oms_order_id": "260101000004",
+        "exchange": "NSE",
+        "trading_symbol": "BAJAJ-AUTO-EQ",
+        "order_side": "BUY",
+        "quantity": 1,
+        "price": 8400,
+        "order_type": "LIMIT",
+        "product": "MIS",
+        "order_status": "OPEN",
+        "order_entry_time": "05-10-2026 08:05:00"
+      }
+    ]
+  },
+  "message": "",
+  "status": "success"
+}

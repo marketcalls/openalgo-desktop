@@ -1,0 +1,1 @@
+{"status":"success","data":{"equity":{"total_available_limit":"1,00,000.50","total_utilised_limit":184,"total_limit":100184.5,"totalAvailableLimitDetails":{"cash":100000.5},"totalUtilizationDetails":{"cash":184},"totalLimitDetails":{"bank_hold":0,"ledger_balance":100184.5,"pledge_limit":2500}}}}

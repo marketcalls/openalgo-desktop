@@ -1,0 +1,5 @@
+{"status":"success","data":{"net":[
+ {"exchange":"NSE","instrument_segment":"EQUITY","security_id":"STABANEQNR","product":"INTRADAY","net_qty":10,"average_buy_price":800,"average_sell_price":0,"total_buy_value":8000,"total_sell_value":0,"total_buy_quantity":10,"total_sell_quantity":0,"realised_pl_overall_position":0},
+ {"exchange":"NSE","instrument_segment":"OPTIDX","security_id":"45001","product":"OVERNIGHT","net_qty":"-75","average_buy_price":0,"average_sell_price":120,"total_buy_value":0,"total_sell_value":9000,"total_buy_quantity":0,"total_sell_quantity":75,"realised_pl_overall_position":150},
+ {"exchange":"NSE","instrument_segment":"EQUITY","security_id":"CIPLTDEQNR","product":"DELIVERY","net_qty":0,"average_buy_price":1400,"average_sell_price":1410,"total_buy_value":7000,"total_sell_value":7050,"realised_pl_overall_position":50}
+]}}

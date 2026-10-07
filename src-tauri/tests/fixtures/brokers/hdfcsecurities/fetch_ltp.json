@@ -1,0 +1,5 @@
+{"status":"success","data":[
+ {"exchange":"NSE","token":"3045","ltp":810,"prev_close":800.1},
+ {"exchange":"NFO","token":"45001","ltp":100,"prev_close":110},
+ {"exchange":"","token":"826625","ltp":310.5,"prev_close":300}
+]}

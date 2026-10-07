@@ -20,6 +20,7 @@ pub mod fivepaisaxts;
 pub mod flattrade;
 pub mod fyers;
 pub mod groww;
+pub mod hdfcsky;
 pub mod ibulls;
 pub mod iifl;
 pub mod jainamxts;
@@ -469,6 +470,7 @@ impl BrokerRegistry {
             Arc::new(arrow::ArrowBroker::new(symbols.clone())),
             Arc::new(pocketful::PocketfulBroker::new(symbols.clone())),
             Arc::new(paytm::PaytmBroker::new(symbols.clone())),
+            Arc::new(hdfcsky::HdfcSkyBroker::new(symbols.clone())),
         ];
         Self::with_symbols(symbols, brokers)
     }
@@ -546,6 +548,7 @@ mod tests {
                 "flattrade",
                 "fyers",
                 "groww",
+                "hdfcsky",
                 "ibulls",
                 "iifl",
                 "jainamxts",

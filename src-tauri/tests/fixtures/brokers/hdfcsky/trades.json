@@ -1,0 +1,30 @@
+{
+  "data": {
+    "trades": [
+      {
+        "oms_order_id": "260101000010",
+        "trade_id": "50000001",
+        "exchange": "NSE",
+        "trading_symbol": "RELIANCE-EQ",
+        "product": "CNC",
+        "order_side": "BUY",
+        "trade_quantity": 10,
+        "trade_price": 1401.5,
+        "trade_time": "05-10-2026 09:16:02"
+      },
+      {
+        "oms_order_id": "260101000020",
+        "trade_id": "50000002",
+        "exchange": "NFO",
+        "trading_symbol": "NIFTY26OCTFUT",
+        "product": "NRML",
+        "order_side": "SELL",
+        "filled_quantity": "65",
+        "order_price": "25000",
+        "exchange_time": "05-10-2026 09:40:00"
+      }
+    ]
+  },
+  "message": "",
+  "status": "success"
+}

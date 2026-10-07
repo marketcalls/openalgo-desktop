@@ -1,0 +1,5 @@
+{"status":"success","data":[
+ {"order_id":"1002","trade_id":"T1","exchange":"NSE","instrument_segment":"OPTIDX","security_id":"NIFTY","expiry_date":"25 AUG 2026","option_type":"Call","strike_price":24500,"transaction_type":"Sell","filled_quantity":75,"average_price":120.5,"product":"OVERNIGHT","fill_timestamp":"2026-10-03 09:30:00"},
+ {"order_id":"1008","trade_id":"T2","exchange":"NSE","instrument_segment":"OPTSTK","security_id":"CIPLTDEQNR","expiry_date":"25-AUG-26","option_type":"Put","strike_price":1262.5,"transaction_type":"Buy","filled_quantity":375,"average_price":20,"product":"INTRADAY","fill_timestamp":"2026-10-03 09:31:00"},
+ {"order_id":"1001","trade_id":"T3","exchange":"NSE","instrument_segment":"EQUITY","security_id":"STABANEQNR","transaction_type":"Buy","filled_quantity":10,"average_price":801.5,"total_traded_value":8015,"product":"DELIVERY","fill_timestamp":"2026-10-03 09:20:02"}
+]}

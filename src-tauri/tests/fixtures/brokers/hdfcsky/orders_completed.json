@@ -1,0 +1,48 @@
+{
+  "data": {
+    "orders": [
+      {
+        "oms_order_id": "260101000010",
+        "exchange": "NSE",
+        "trading_symbol": "RELIANCE-EQ",
+        "order_side": "BUY",
+        "quantity": 10,
+        "filled_quantity": 10,
+        "average_trade_price": 1401.5,
+        "price": 1402.0,
+        "trigger_price": 0,
+        "order_type": "LIMIT",
+        "product": "MTF",
+        "order_status": "COMPLETE",
+        "order_entry_time": "05-10-2026 09:16:02"
+      },
+      {
+        "oms_order_id": "260101000011",
+        "exchange": "NCD",
+        "trading_symbol": "EURINR26O01FUT",
+        "order_side": "SELL",
+        "quantity": 1,
+        "price": 90.0,
+        "order_type": "LIMIT",
+        "product": "NRML",
+        "order_status": "CANCEL_CONFIRMED",
+        "order_entry_time": "05-10-2026 09:30:00"
+      },
+      {
+        "oms_order_id": "260101000012",
+        "exchange": "NFO",
+        "trading_symbol": "NIFTY26OCT25000CE",
+        "order_side": "BUY",
+        "quantity": 65,
+        "price": 0,
+        "order_type": "MARKET",
+        "product": "MIS",
+        "order_status": "REJECTED",
+        "reason": "RMS: insufficient margin",
+        "order_entry_time": "05-10-2026 09:31:00"
+      }
+    ]
+  },
+  "message": "",
+  "status": "success"
+}

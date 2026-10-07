@@ -8,3 +8,5 @@ mod arrow;
 mod paytm;
 #[path = "brokers_oauth_batch/pocketful.rs"]
 mod pocketful;
+#[path = "brokers_oauth_batch/hdfcsky.rs"]
+mod hdfcsky;

@@ -120,6 +120,13 @@ pub fn authorize_url(
             enc(api_key),
             enc(state)
         )),
+        // HDFC Sky (web BrokerSelect.tsx builds `/oapi/v1/login?api_key=`).
+        // The callback must echo `state` for the sign-in to complete.
+        "hdfcsky" => Some(format!(
+            "https://developer.hdfcsky.com/oapi/v1/login?api_key={}&state={}",
+            enc(api_key),
+            enc(state)
+        )),
         // XTS third-party login; the session comes back as `session`.
         "compositedge" | "rmoney" => {
             crate::brokers::families::xts::thirdparty_url(broker, api_key, redirect_url, state)
@@ -433,6 +440,21 @@ mod tests {
         );
         assert_eq!(extract_code("paytm", &q(&[("state", "s")])), None);
         assert!(login_fields("paytm").is_empty());
+    }
+
+    #[test]
+    fn hdfcsky_login_url_and_callback_token() {
+        assert_eq!(auth_type("hdfcsky"), AuthType::OAuth);
+        let u = authorize_url("hdfcsky", "key 1", "r", "st7").unwrap();
+        assert_eq!(
+            u,
+            "https://developer.hdfcsky.com/oapi/v1/login?api_key=key%201&state=st7"
+        );
+        for k in ["request_token", "requestToken", "request-token", "code"] {
+            let p = q(&[(k, "rt9"), ("state", "st7")]);
+            assert_eq!(extract_code("hdfcsky", &p).as_deref(), Some("rt9"), "{}", k);
+        }
+        assert!(login_fields("hdfcsky").is_empty());
     }
 
     #[test]
