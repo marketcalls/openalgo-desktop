@@ -82,6 +82,8 @@ pub struct AppState {
     pub monitor: crate::services::monitor::Monitor,
     /// The sandbox (analyzer mode) engine, in its own `sandbox.db`.
     pub sandbox: crate::sandbox::Sandbox,
+    /// Telegram and WhatsApp bots and their alerts.
+    pub messaging: crate::messaging::Messaging,
 }
 
 pub struct OpenOptions {
@@ -163,7 +165,9 @@ impl AppState {
             tasks: Mutex::new(JoinSet::new()),
             data_dir: data_dir.to_path_buf(),
             monitor: crate::services::monitor::Monitor::new(),
+            messaging: crate::messaging::Messaging::new(),
         });
+        crate::messaging::register(&ctx);
         // Analyzer mode survives restarts: resume the sandbox engine.
         if ctx.sqlite.get_analyze_mode().unwrap_or(false) {
             crate::services::analyzer_service::AnalyzerService::spawn_engine_transition(&ctx, true);
@@ -202,6 +206,7 @@ impl AppState {
     /// close the market feed.
     pub async fn shutdown(&self) {
         self.shutdown.cancel();
+        self.messaging.shutdown().await;
         self.sandbox.shutdown().await;
         self.bus.shutdown(Duration::from_secs(2)).await;
         let mut tasks = std::mem::take(&mut *self.tasks.lock());

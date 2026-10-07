@@ -23,10 +23,12 @@ pub mod search;
 pub mod security;
 pub mod settings;
 pub mod strategy_portfolio;
+pub mod telegram;
 pub mod traffic;
 pub mod watchlist;
 pub mod websocket_example;
 pub mod webui;
+pub mod whatsapp;
 
 use crate::server::middleware::{require_user, require_user_for_json};
 use crate::state::AppState;
@@ -498,6 +500,51 @@ pub fn table() -> Vec<RouteSpec> {
             User,
             strategy_portfolio::delete
         ),
+        // Telegram (web blueprints/telegram.py). GET /telegram/config is
+        // the page for a browser and the settings for a JSON request.
+        r!(POST, "/telegram/config", User, telegram::configuration),
+        r!(GET, "/telegram/config", UserJson, telegram::api_config),
+        r!(POST, "/telegram/bot/start", User, telegram::bot_start),
+        r!(POST, "/telegram/bot/stop", User, telegram::bot_stop),
+        r!(GET, "/telegram/bot/status", User, telegram::bot_status),
+        r!(POST, "/telegram/broadcast", User, telegram::broadcast),
+        r!(
+            POST,
+            "/telegram/user/{telegram_id}/unlink",
+            User,
+            telegram::unlink_user
+        ),
+        r!(POST, "/telegram/test-message", User, telegram::test_message),
+        r!(POST, "/telegram/send-message", User, telegram::send_message),
+        r!(GET, "/telegram/api/index", User, telegram::api_index),
+        r!(GET, "/telegram/api/config", User, telegram::api_config),
+        r!(GET, "/telegram/api/users", User, telegram::api_users),
+        r!(
+            GET,
+            "/telegram/api/analytics",
+            User,
+            telegram::api_analytics
+        ),
+        // WhatsApp (web blueprints/whatsapp.py)
+        r!(GET, "/whatsapp/config", User, whatsapp::get_config),
+        r!(POST, "/whatsapp/config", User, whatsapp::update_config),
+        r!(POST, "/whatsapp/pair", User, whatsapp::pair),
+        r!(GET, "/whatsapp/pair/status", User, whatsapp::pair_status),
+        r!(POST, "/whatsapp/unlink", User, whatsapp::unlink),
+        r!(POST, "/whatsapp/bot/start", User, whatsapp::bot_start),
+        r!(POST, "/whatsapp/bot/stop", User, whatsapp::bot_stop),
+        r!(GET, "/whatsapp/bot/status", User, whatsapp::bot_status),
+        r!(GET, "/whatsapp/users", User, whatsapp::users),
+        r!(
+            POST,
+            "/whatsapp/user/{jid}/unlink",
+            User,
+            whatsapp::unlink_user
+        ),
+        r!(POST, "/whatsapp/broadcast", User, whatsapp::broadcast),
+        r!(POST, "/whatsapp/test-message", User, whatsapp::test_message),
+        r!(POST, "/whatsapp/send", User, whatsapp::send),
+        r!(GET, "/whatsapp/stats", User, whatsapp::stats),
     ]
 }
 

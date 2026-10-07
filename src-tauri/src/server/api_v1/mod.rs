@@ -22,6 +22,7 @@
 mod account;
 mod data;
 mod gtt;
+mod notify;
 mod options;
 mod orders;
 
@@ -268,4 +269,7 @@ pub fn router() -> Router<Arc<AppState>> {
             "/api/v1/multioptiongreeks",
             post(options::multioptiongreeks),
         )
+        // Telegram and WhatsApp
+        .route("/api/v1/telegram/notify", post(notify::telegram_notify))
+        .route("/api/v1/whatsapp/notify", post(notify::whatsapp_notify))
 }

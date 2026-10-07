@@ -74,4 +74,8 @@ unknown-registry = "deny"
 # the PR description.
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
+allow-git = [
+  # WhatsApp client (MIT), pinned by commit in src-tauri/Cargo.toml: the crate
+  # the web's `wars` package wraps; not published to crates.io at that commit.
+  "https://github.com/marketcalls/whatsapp-rust",
+]

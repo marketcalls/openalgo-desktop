@@ -45,7 +45,7 @@ qrcode = { version = "0.14", default-features = false }
 png = "0.17"
 
 # HTTP client
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "multipart"], default-features = false }
 
 # HTTP server
 axum = { version = "0.8", features = ["multipart", "macros"] }
@@ -107,6 +107,18 @@ urlencoding = "2.1"
 
 # UUID generation
 uuid = { version = "1.8", features = ["v4"] }
+
+# WhatsApp (pairing, Signal sessions, send/receive). Pinned commit of the
+# crate the web's `wars` package wraps. Default features are off: its SQLite
+# store links a different libsqlite3 than rusqlite (Cargo forbids two crates
+# with the same `links` key), so the session lives in an in-memory store whose
+# snapshot is AES-GCM encrypted into openalgo.db; the HTTP client is ours.
+whatsapp-rust = { git = "https://github.com/marketcalls/whatsapp-rust", rev = "d8de9f4564537a77009b1f3d2b19a2702d94a6e3", default-features = false, features = ["tokio-runtime", "tokio-transport"] }
+
+bytes = "1"
+
+# 8x8 bitmap font for the Telegram chart PNGs (no system fonts needed).
+font8x8 = { version = "0.3", default-features = false }
 
 # Process and host metrics (health monitor, diagnostics)
 sysinfo = { version = "0.38", default-features = false, features = ["system", "disk"] }
