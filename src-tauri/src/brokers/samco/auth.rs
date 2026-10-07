@@ -9,6 +9,7 @@
 
 use super::mapping::text;
 use super::{is_success, SamcoBroker};
+use crate::brokers::common::redact;
 use crate::brokers::types::AuthToken;
 use crate::brokers::{AuthResponse, BrokerCredentials};
 use crate::error::{AppError, Result};
@@ -124,9 +125,10 @@ pub async fn authenticate(b: &SamcoBroker, creds: BrokerCredentials) -> Result<A
         .header("Accept", "application/json")
         .body(json!({"apiKey": api_key, "apiSecret": api_secret}).to_string())
         .send()
-        .await?;
+        .await
+        .map_err(redact::http)?;
     let status = resp.status();
-    let bytes = resp.bytes().await?;
+    let bytes = resp.bytes().await.map_err(redact::http)?;
     let v = parse_body("session/token", status, &bytes);
     let token = text(v.get("sessionToken"));
     if !is_success(&v) || token.is_empty() {
@@ -223,9 +225,10 @@ pub async fn ip_status(b: &SamcoBroker, auth: &AuthToken) -> Result<IpStatus> {
         .header("Accept", "application/json")
         .header("x-session-token", token)
         .send()
-        .await?;
+        .await
+        .map_err(redact::http)?;
     let status = resp.status();
-    let bytes = resp.bytes().await?;
+    let bytes = resp.bytes().await.map_err(redact::http)?;
     let v = parse_body("ip/whoami", status, &bytes);
     if is_success(&v) {
         Ok(IpStatus::from_whoami(&v))

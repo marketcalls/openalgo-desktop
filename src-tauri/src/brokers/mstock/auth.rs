@@ -14,6 +14,7 @@
 //! runs both from one form, like the web's single POST.
 
 use super::{is_success, message, read_payload, MstockBroker, MstockSession};
+use crate::brokers::common::redact;
 use crate::brokers::{AuthResponse, BrokerCredentials};
 use crate::error::{AppError, Result};
 use serde_json::{json, Value};
@@ -88,7 +89,8 @@ pub async fn password_login(
         .header("Content-Type", "application/json")
         .body(body.to_string())
         .send()
-        .await?;
+        .await
+        .map_err(redact::http)?;
     let status = resp.status();
     let v = match read_payload(resp).await {
         Ok(v) => v,
@@ -126,7 +128,8 @@ pub async fn verify_totp(
         .header("Content-Type", "application/json")
         .body(json!({"refreshToken": refresh.0, "totp": totp.trim()}).to_string())
         .send()
-        .await?;
+        .await
+        .map_err(redact::http)?;
     let status = resp.status();
     let v = match read_payload(resp).await {
         Ok(v) => v,

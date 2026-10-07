@@ -7,7 +7,7 @@
 //! `{"stat":"Not_ok","emsg":..}`.
 
 use super::{text, AliceBlueBroker};
-use crate::brokers::common::http;
+use crate::brokers::common::redact;
 use crate::brokers::types::AuthToken;
 use crate::brokers::{AuthResponse, BrokerCredentials};
 use crate::error::{AppError, Result};
@@ -85,8 +85,12 @@ pub async fn authenticate(b: &AliceBlueBroker, creds: BrokerCredentials) -> Resu
         .header("Accept", "application/json")
         .body(body.to_string())
         .send()
-        .await?;
-    let (_, v): (_, Value) = http::read_json("aliceblue", resp).await?;
+        .await
+        .map_err(redact::http)?;
+    // Parsed here, not with the shared reader: its log of an unreadable
+    // body must not see a sign-in answer.
+    let bytes = resp.bytes().await.map_err(redact::http)?;
+    let v: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
     let session = text(v.get("userSession"));
     if text(v.get("stat")) == "Ok" && !session.is_empty() {
         let client_id = text(v.get("clientId"));

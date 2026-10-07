@@ -32,6 +32,7 @@ mod tests;
 
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::common::redact;
 use crate::brokers::common::streaming::BrokerFeed;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
@@ -298,9 +299,9 @@ impl MotilalBroker {
             Some(b) => rb.body(b.to_string()),
             None => rb,
         };
-        let resp = rb.send().await?;
+        let resp = rb.send().await.map_err(redact::http)?;
         let status = resp.status();
-        let bytes = resp.bytes().await?;
+        let bytes = resp.bytes().await.map_err(redact::http)?;
         if bytes.is_empty() {
             tracing::warn!(
                 status = status.as_u16(),

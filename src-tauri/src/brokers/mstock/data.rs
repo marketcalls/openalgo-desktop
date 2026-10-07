@@ -16,6 +16,7 @@ use super::mapping::{f, s};
 use super::streaming::{self, exchange_type, parse_frame, Packet};
 use super::{is_success, message, refusal, MstockBroker, MstockSession};
 use crate::brokers::common::history::{chunks, sort_dedupe};
+use crate::brokers::common::redact;
 use crate::brokers::common::streaming::Message;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
@@ -249,7 +250,9 @@ pub async fn fetch_snap(
     timeout: Duration,
 ) -> Result<Option<Packet>> {
     let work = async {
-        let (mut ws, _) = tokio_tungstenite::connect_async(url).await?;
+        let (mut ws, _) = tokio_tungstenite::connect_async(url)
+            .await
+            .map_err(redact::ws)?;
         let outcome: Result<Option<Packet>> = async {
             ws.send(Message::Text(format!("LOGIN:{}", jwt))).await?;
             let sub = streaming::sub_frames(&[(mode, exchange_type, token.to_string())], true);
@@ -276,7 +279,9 @@ pub async fn fetch_snap(
         }
         .await;
         let _ = tokio::time::timeout(Duration::from_secs(2), ws.close(None)).await;
-        outcome
+        // The socket URL carries the API key and session: errors leave
+        // here reduced to their kind.
+        outcome.map_err(redact::redact)
     };
     match tokio::time::timeout(timeout, work).await {
         Ok(r) => r,

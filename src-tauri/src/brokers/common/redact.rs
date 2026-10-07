@@ -8,8 +8,15 @@
 //! log. Every connect, read or request error from a broker socket or call is
 //! logged through [`url_safe_error`], which keeps the scheme, host and path
 //! of any URL in the text and drops its userinfo, query and fragment.
+//!
+//! An error that leaves an adapter (and may be logged or chained further
+//! up) goes through [`http`], [`ws`] or [`redact`] first: they drop the URL
+//! from a `reqwest` error and reduce a socket error to its kind. The
+//! trader-facing message (`AppError::client_message`) is unchanged.
 
+use crate::error::AppError;
 use std::fmt::Display;
+use tokio_tungstenite::tungstenite::Error as WsError;
 
 /// What replaces a dropped query string or userinfo.
 pub const REDACTED: &str = "<redacted>";
@@ -65,10 +72,31 @@ fn clean_after_scheme(u: &str) -> String {
     s
 }
 
+/// A `reqwest` error without its URL.
+pub fn http(e: reqwest::Error) -> AppError {
+    AppError::Http(Box::new(e.without_url()))
+}
+
+/// A socket error reduced to its kind (see [`ws_error_kind`]).
+pub fn ws(e: WsError) -> AppError {
+    AppError::WebSocket(Box::new(WsError::Io(std::io::Error::other(ws_error_kind(
+        &e,
+    )))))
+}
+
+/// Strip transport detail from an error; every other error passes through.
+pub fn redact(e: AppError) -> AppError {
+    match e {
+        AppError::Http(h) => AppError::Http(Box::new(h.without_url())),
+        AppError::WebSocket(w) => ws(*w),
+        other => other,
+    }
+}
+
 /// What went wrong with a broker socket, without any of the error's text
 /// (which can repeat the URL or a server's reply): what the feed logs.
-pub fn ws_error_kind(err: &tokio_tungstenite::tungstenite::Error) -> &'static str {
-    use tokio_tungstenite::tungstenite::Error as E;
+pub fn ws_error_kind(err: &WsError) -> &'static str {
+    use WsError as E;
     match err {
         E::ConnectionClosed => "connection closed",
         E::AlreadyClosed => "already closed",
@@ -116,5 +144,53 @@ mod tests {
             "a http://h/p and b ws://h2:9/q?<redacted>"
         );
         assert_eq!(url_safe("://?x"), "://?<redacted>");
+    }
+
+    const SENTINEL: &str = "SENTINEL-c41b";
+
+    fn closed_port() -> u16 {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        l.local_addr().unwrap().port()
+    }
+
+    #[tokio::test]
+    async fn http_errors_lose_their_url() {
+        let url = format!(
+            "http://127.0.0.1:{}/login/{s}?token={s}",
+            closed_port(),
+            s = SENTINEL
+        );
+        let raw = crate::brokers::common::http::client()
+            .get(&url)
+            .timeout(std::time::Duration::from_secs(5))
+            .send()
+            .await
+            .unwrap_err();
+        assert!(format!("{} {:?}", raw, raw).contains(SENTINEL));
+        for e in [http(raw), redact(AppError::Broker("kept".into()))] {
+            let shown = format!("{} {:?} {}", e, e, e.client_message());
+            assert!(!shown.contains(SENTINEL), "{}", shown);
+        }
+    }
+
+    #[tokio::test]
+    async fn socket_errors_keep_only_their_kind() {
+        let url = format!("ws://127.0.0.1:{}/feed?token={}", closed_port(), SENTINEL);
+        let raw = tokio_tungstenite::connect_async(url.as_str())
+            .await
+            .err()
+            .unwrap();
+        let kind = ws_error_kind(&raw);
+        let e = redact(AppError::from(raw));
+        let shown = format!("{} {:?} {} {}", e, e, e.client_message(), kind);
+        assert!(!shown.contains(SENTINEL), "{}", shown);
+        let unable = WsError::Url(
+            tokio_tungstenite::tungstenite::error::UrlError::UnableToConnect(format!(
+                "wss://x/?t={}",
+                SENTINEL
+            )),
+        );
+        let e = ws(unable);
+        assert!(!format!("{} {:?}", e, e).contains(SENTINEL));
     }
 }

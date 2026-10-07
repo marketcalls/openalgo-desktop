@@ -14,6 +14,7 @@
 //! factor slot).
 
 use super::{mapping::vs, MotilalBroker, MotilalSession};
+use crate::brokers::common::redact;
 use crate::brokers::{AuthResponse, BrokerCredentials};
 use crate::error::{AppError, Result};
 use crate::security::Secret;
@@ -95,7 +96,10 @@ pub async fn access_token(
     let resp = match rb.send().await {
         Ok(r) => r,
         Err(e) => {
-            tracing::warn!("Motilal Oswal access-token step failed: {}", e);
+            tracing::warn!(
+                "Motilal Oswal access-token step failed: {}",
+                e.without_url()
+            );
             return None;
         }
     };
@@ -147,7 +151,11 @@ pub async fn authenticate(b: &MotilalBroker, creds: BrokerCredentials) -> Result
         .http
         .post(format!("{}{}", b.base_url, super::paths::AUTH_DIRECT));
     let rb = b.headers(rb, &api_key, api_secret.as_deref(), &userid, None);
-    let resp = rb.body(body.to_string()).send().await?;
+    let resp = rb
+        .body(body.to_string())
+        .send()
+        .await
+        .map_err(redact::http)?;
     let status = resp.status();
     if !status.is_success() {
         tracing::warn!(status = status.as_u16(), "Motilal Oswal login failed");

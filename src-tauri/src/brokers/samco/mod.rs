@@ -27,6 +27,7 @@ mod tests;
 
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::common::redact;
 use crate::brokers::common::streaming::BrokerFeed;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
@@ -217,9 +218,9 @@ impl SamcoBroker {
                 .header("Content-Type", "application/json")
                 .body(b.to_string());
         }
-        let resp = req.send().await?;
+        let resp = req.send().await.map_err(redact::http)?;
         let status = resp.status();
-        let bytes = resp.bytes().await?;
+        let bytes = resp.bytes().await.map_err(redact::http)?;
         if status == StatusCode::UNAUTHORIZED {
             return Err(session_expired());
         }
@@ -265,7 +266,7 @@ impl SamcoBroker {
             if let Some(b) = body {
                 req = req.body(b.to_string());
             }
-            let resp = req.send().await?;
+            let resp = req.send().await.map_err(redact::http)?;
             let status = resp.status();
             if status == StatusCode::FORBIDDEN || status == StatusCode::UNAUTHORIZED {
                 tracing::warn!(
@@ -304,7 +305,9 @@ impl SamcoBroker {
                     "Samco's servers are not responding normally. Try again shortly.".into(),
                 ));
             }
-            let (_, v): (StatusCode, Value) = http::read_json("samco", resp).await?;
+            let (_, v): (StatusCode, Value) = http::read_json("samco", resp)
+                .await
+                .map_err(redact::redact)?;
             return Ok(v);
         }
     }

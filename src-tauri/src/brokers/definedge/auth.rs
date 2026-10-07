@@ -11,11 +11,10 @@
 //! `{"stat":"Ok","api_session_key","susertoken","uid"|"uccid"}`.
 
 use super::{DefinedgeBroker, DefinedgeSession, PendingOtp, OTP_TTL};
-use crate::brokers::common::http;
+use crate::brokers::common::redact;
 use crate::brokers::{AuthResponse, BrokerCredentials};
 use crate::error::{AppError, Result};
 use crate::security::Secret;
-use reqwest::StatusCode;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::time::Instant;
@@ -65,7 +64,8 @@ pub async fn send_otp(b: &DefinedgeBroker, c: &BrokerCredentials) -> Result<Stri
         .get(url)
         .header("api_secret", api_secret)
         .send()
-        .await?;
+        .await
+        .map_err(redact::http)?;
     let status = resp.status();
     let refused = || {
         AppError::Auth(
@@ -81,7 +81,13 @@ pub async fn send_otp(b: &DefinedgeBroker, c: &BrokerCredentials) -> Result<Stri
         );
         return Err(refused());
     }
-    let (_, v): (StatusCode, Value) = http::read_json("definedge", resp).await?;
+    // Parsed here, not with the shared reader: its log of an unreadable
+    // body must not see a sign-in answer.
+    let bytes = resp.bytes().await.map_err(redact::http)?;
+    let Ok(v) = serde_json::from_slice::<Value>(&bytes) else {
+        tracing::warn!(broker = "definedge", "OTP response was not JSON");
+        return Err(refused());
+    };
     let token = super::text(&v, "otp_token");
     if token.is_empty() {
         tracing::warn!(broker = "definedge", "OTP response carried no otp_token");
@@ -118,9 +124,10 @@ pub async fn verify_otp(
         .header("Content-Type", "application/json")
         .body(body.to_string())
         .send()
-        .await?;
+        .await
+        .map_err(redact::http)?;
     let status = resp.status();
-    let bytes = resp.bytes().await?;
+    let bytes = resp.bytes().await.map_err(redact::http)?;
     let v: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
     if !status.is_success() || super::text(&v, "stat") != "Ok" {
         tracing::warn!(

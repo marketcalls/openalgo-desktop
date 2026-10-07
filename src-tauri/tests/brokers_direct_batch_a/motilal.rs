@@ -801,3 +801,30 @@ async fn master_contract_download() {
     let b = broker(&dead.base, "ws://127.0.0.1:9");
     assert!(b.download_master_contract(&auth()).await.is_err());
 }
+
+/// Sentinel credentials and session through every sign-in and request
+/// error path (refusing broker, unreachable broker): the sentinel never
+/// reaches a log line, an error's Display/Debug or a trader message.
+#[tokio::test]
+async fn secrets_stay_out_of_errors_and_logs() {
+    let logs = capture_logs();
+    let fake = refusing_fake().await;
+    let key = QuoteKey::new("NSE", "SBIN");
+    for base in [fake.base.clone(), closed_base()] {
+        let b = MotilalBroker::with_urls(master(), &base, closed_ws(), closed_ws())
+            .with_timings(fast());
+        clean_err(b.authenticate(sentinel_creds()).await);
+        let auth = AuthToken::new(format!("{s}:::{s}:::{s}:::{s}:::{s}", s = SENTINEL))
+            .with_feed(Some(SENTINEL))
+            .with_user_id(SENTINEL);
+        clean_err(b.get_order_book(&auth).await);
+        clean_err(b.get_positions(&auth).await);
+        clean_err(b.get_funds(&auth).await);
+        clean_err(b.cancel_order(&auth, "1").await);
+        clean_err(b.get_quote(&auth, &key).await);
+        clean_err(b.get_market_depth(&auth, &key).await);
+        clean_err(b.download_master_contract(&auth).await);
+    }
+    assert!(!logs.text().is_empty(), "the log capture saw nothing");
+    logs.assert_clean();
+}

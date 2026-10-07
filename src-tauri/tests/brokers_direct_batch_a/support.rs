@@ -281,3 +281,107 @@ pub fn row(
 pub fn d(y: i32, m: u32, day: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(y, m, day).unwrap()
 }
+
+// ---------------------------------------------------------------------------
+// Secret hygiene
+// ---------------------------------------------------------------------------
+
+/// A credential value that must never show up in a log line, an error's
+/// `Display`/`Debug`, or a trader-facing message.
+pub const SENTINEL: &str = "SENTINEL9q7z";
+
+/// Every log line emitted on this thread (all levels) while the capture is
+/// alive. `#[tokio::test]` runs on one thread, so spawned tasks are caught.
+pub struct LogCapture {
+    buf: Arc<Mutex<Vec<u8>>>,
+    _guard: tracing::subscriber::DefaultGuard,
+}
+
+struct CaptureWriter(Arc<Mutex<Vec<u8>>>);
+
+impl std::io::Write for CaptureWriter {
+    fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().extend_from_slice(b);
+        Ok(b.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+pub fn capture_logs() -> LogCapture {
+    let buf = Arc::new(Mutex::new(Vec::new()));
+    let w = buf.clone();
+    let sub = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::TRACE)
+        .with_ansi(false)
+        .with_writer(move || CaptureWriter(w.clone()))
+        .finish();
+    LogCapture {
+        buf,
+        _guard: tracing::subscriber::set_default(sub),
+    }
+}
+
+impl LogCapture {
+    pub fn text(&self) -> String {
+        String::from_utf8_lossy(&self.buf.lock()).into_owned()
+    }
+
+    /// Fails when the sentinel reached any captured line.
+    pub fn assert_clean(&self) {
+        let t = self.text();
+        assert!(!t.contains(SENTINEL), "secret in logs:\n{}", t);
+    }
+}
+
+/// Fails when the sentinel shows in the error's `Display`, `Debug` or the
+/// trader-facing message.
+pub fn assert_error_clean(e: &openalgo_desktop_lib::error::AppError) {
+    let shown = format!("{} | {:?} | {}", e, e, e.client_message());
+    assert!(!shown.contains(SENTINEL), "secret in error: {}", shown);
+}
+
+/// The error of `r`, checked for the sentinel.
+pub fn clean_err<T>(r: openalgo_desktop_lib::error::Result<T>) {
+    if let Err(e) = r {
+        assert_error_clean(&e);
+    }
+}
+
+/// A loopback base URL where nothing listens (bound, then released).
+pub fn closed_base() -> String {
+    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    format!("http://127.0.0.1:{}", l.local_addr().unwrap().port())
+}
+
+/// `closed_base` as a socket URL.
+pub fn closed_ws() -> String {
+    closed_base().replacen("http://", "ws://", 1)
+}
+
+/// Credentials whose every field is the sentinel.
+pub fn sentinel_creds() -> BrokerCredentials {
+    BrokerCredentials {
+        api_key: SENTINEL.into(),
+        api_secret: Some(SENTINEL.into()),
+        client_id: Some(SENTINEL.into()),
+        password: Some(SENTINEL.into()),
+        totp: Some(SENTINEL.into()),
+        request_token: Some(format!("{}:{}", SENTINEL, SENTINEL)),
+        auth_code: Some(format!("{}:{}", SENTINEL, SENTINEL)),
+        ..Default::default()
+    }
+}
+
+/// A fake broker that refuses everything with 401 and an error body, and
+/// answers sockets with nothing.
+pub async fn refusing_fake() -> Fake {
+    Fake::start(|_req: &Req| {
+        with_status(
+            StatusCode::UNAUTHORIZED,
+            json!({"status": "error", "stat": "Not_Ok", "message": "refused"}),
+        )
+    })
+    .await
+}

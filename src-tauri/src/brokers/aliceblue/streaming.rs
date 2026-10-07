@@ -29,6 +29,7 @@
 
 use super::mapping::{self, int, num, s};
 use super::{text, Endpoints};
+use crate::brokers::common::redact;
 use crate::brokers::common::streaming::{
     now_ms, round2, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
     NormalizedTick, WsRequest,
@@ -433,12 +434,12 @@ pub async fn prepare_session(http: &reqwest::Client, ep: &Endpoints, jwt: &str, 
     match post("/open-api/od/v1/profile/invalidateWsSess").await {
         Ok(r) if r.status() == 401 || r.status() == 403 => return Prep::Refused(refused_session()),
         Ok(_) => {}
-        Err(e) => tracing::debug!("AliceBlue invalidateWsSess failed: {}", e),
+        Err(e) => tracing::debug!("AliceBlue invalidateWsSess failed: {}", e.without_url()),
     }
     let resp = match post("/open-api/od/v1/profile/createWsSess").await {
         Ok(r) => r,
         Err(e) => {
-            tracing::warn!("AliceBlue createWsSess failed: {}", e);
+            tracing::warn!("AliceBlue createWsSess failed: {}", e.without_url());
             return Prep::Unavailable;
         }
     };
@@ -494,8 +495,11 @@ pub async fn open_market_socket(
             {
                 return Open::AuthFailed(refused_session())
             }
-            Ok(Err(e)) => tracing::debug!("AliceBlue socket {} failed: {}", url, e),
-            Err(_) => tracing::debug!("AliceBlue socket {} timed out", url),
+            Ok(Err(e)) => tracing::debug!(
+                "AliceBlue market socket failed: {}",
+                redact::ws_error_kind(&e)
+            ),
+            Err(_) => tracing::debug!("AliceBlue market socket timed out"),
         }
     }
     Open::Unavailable
@@ -797,7 +801,7 @@ impl BrokerFeed for AliceBlueFeed {
 /// What `createWsToken` produced.
 #[derive(Debug, Clone, PartialEq)]
 pub enum OrderToken {
-    Token(String),
+    Token(crate::security::Secret),
     /// The account cannot use the feed, or the session is gone.
     Refused(String),
     Unavailable,
@@ -823,7 +827,7 @@ pub async fn fetch_order_token(http: &reqwest::Client, ep: &Endpoints, jwt: &str
     {
         Ok(r) => r,
         Err(e) => {
-            tracing::warn!("AliceBlue createWsToken failed: {}", e);
+            tracing::warn!("AliceBlue createWsToken failed: {}", e.without_url());
             return OrderToken::Unavailable;
         }
     };
@@ -858,7 +862,7 @@ pub async fn fetch_order_token(http: &reqwest::Client, ep: &Endpoints, jwt: &str
         );
         return OrderToken::Refused(order_feed_disabled());
     }
-    OrderToken::Token(token)
+    OrderToken::Token(crate::security::Secret::new(token))
 }
 
 struct OrderUpstream {
@@ -881,7 +885,7 @@ impl Upstream for OrderUpstream {
             OrderToken::Refused(m) => return Open::AuthFailed(m),
             OrderToken::Unavailable => return Open::Unavailable,
         };
-        *self.token.lock() = Some(crate::security::Secret::new(token));
+        *self.token.lock() = Some(token);
         match tokio::time::timeout(
             relay::OPEN_TIMEOUT,
             tokio_tungstenite::connect_async(self.ep.order_ws.as_str()),

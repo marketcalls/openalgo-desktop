@@ -18,6 +18,7 @@ use crate::brokers::common::http;
 use crate::brokers::common::master_contract::{
     format_expiry, format_strike, parse_broker_expiry, split_csv_line, CsvHeader,
 };
+use crate::brokers::common::redact;
 use crate::brokers::types::SymbolData;
 use crate::error::{AppError, Result};
 use chrono::NaiveDate;
@@ -364,7 +365,8 @@ pub async fn download(b: &AliceBlueBroker) -> Result<Vec<SymbolData>> {
             .get(&url)
             .timeout(http::DOWNLOAD_TIMEOUT)
             .send()
-            .await?;
+            .await
+            .map_err(redact::http)?;
         if !resp.status().is_success() {
             tracing::warn!(
                 status = resp.status().as_u16(),
@@ -376,7 +378,7 @@ pub async fn download(b: &AliceBlueBroker) -> Result<Vec<SymbolData>> {
                     .into(),
             ));
         }
-        let body = resp.text().await?;
+        let body = resp.text().await.map_err(redact::http)?;
         files.push((*name, body));
     }
     let rows = parse_all(&files);

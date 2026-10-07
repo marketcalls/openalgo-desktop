@@ -48,7 +48,7 @@ struct SubInfo {
 
 pub struct SamcoFeed {
     url: String,
-    token: String,
+    token: crate::security::Secret,
     /// Streaming key (`2885_NSE`, `-23`) -> subscription. Ordered so the
     /// full-set frames are deterministic.
     subs: BTreeMap<String, SubInfo>,
@@ -95,7 +95,7 @@ impl SamcoFeed {
     pub fn new(url: &str, session_token: &str, listing_ids: Arc<Mutex<ListingIds>>) -> Self {
         Self {
             url: url.to_string(),
-            token: unquote(session_token),
+            token: crate::security::Secret::new(unquote(session_token)),
             subs: BTreeMap::new(),
             state: HashMap::new(),
             listing_ids,
@@ -275,7 +275,7 @@ impl BrokerFeed for SamcoFeed {
             .as_str()
             .into_client_request()
             .map_err(|_| AppError::Internal("Samco feed address is invalid".into()))?;
-        let v = HeaderValue::from_str(&self.token).map_err(|_| {
+        let v = HeaderValue::from_str(self.token.expose()).map_err(|_| {
             AppError::Auth("Your Samco session is not usable. Connect to Samco again.".into())
         })?;
         req.headers_mut().insert("x-session-token", v);

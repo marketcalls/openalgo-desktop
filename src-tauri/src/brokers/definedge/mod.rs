@@ -34,6 +34,7 @@ mod tests;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::Pacer;
+use crate::brokers::common::redact;
 use crate::brokers::common::streaming::BrokerFeed;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
@@ -233,14 +234,14 @@ impl DefinedgeBroker {
                     .header("Content-Type", "application/json")
                     .body(b.to_string());
             }
-            let resp = req.send().await?;
+            let resp = req.send().await.map_err(redact::http)?;
             let status = resp.status();
             let retry_after = resp
                 .headers()
                 .get("retry-after")
                 .and_then(|v| v.to_str().ok())
                 .and_then(|v| v.trim().parse::<f64>().ok());
-            let text = resp.text().await?;
+            let text = resp.text().await.map_err(redact::http)?;
             if status != StatusCode::TOO_MANY_REQUESTS || order || attempt >= MAX_RETRIES {
                 return Ok((status, text));
             }

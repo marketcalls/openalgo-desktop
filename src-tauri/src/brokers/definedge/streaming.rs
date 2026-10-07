@@ -103,7 +103,7 @@ struct SubInfo {
 pub struct DefinedgeFeed {
     url: String,
     uid: String,
-    token: String,
+    token: crate::security::Secret,
     subs: HashMap<String, SubInfo>,
     cache: HashMap<String, Map<String, Value>>,
 }
@@ -123,7 +123,7 @@ impl DefinedgeFeed {
         Self {
             url: url.to_string(),
             uid: uid.to_string(),
-            token: token.to_string(),
+            token: crate::security::Secret::new(token),
             subs: HashMap::new(),
             cache: HashMap::new(),
         }
@@ -232,7 +232,7 @@ impl BrokerFeed for DefinedgeFeed {
 
     fn on_connected(&mut self) -> Vec<Message> {
         self.cache.clear();
-        vec![connect_frame(&self.uid, &self.token)]
+        vec![connect_frame(&self.uid, self.token.expose())]
     }
 
     fn awaits_auth_ack(&self) -> bool {
@@ -298,7 +298,7 @@ impl BrokerFeed for DefinedgeFeed {
 pub struct DefinedgeOrderFeed {
     url: String,
     uid: String,
-    token: String,
+    token: crate::security::Secret,
     symbols: SymbolResolver,
 }
 
@@ -307,7 +307,7 @@ impl DefinedgeOrderFeed {
         Self {
             url: url.to_string(),
             uid: uid.to_string(),
-            token: token.to_string(),
+            token: crate::security::Secret::new(token),
             symbols,
         }
     }
@@ -342,7 +342,7 @@ impl BrokerFeed for DefinedgeOrderFeed {
 
     fn on_connected(&mut self) -> Vec<Message> {
         vec![
-            connect_frame(&self.uid, &self.token),
+            connect_frame(&self.uid, self.token.expose()),
             Message::Text(json!({"t": "o", "actid": self.uid}).to_string()),
         ]
     }

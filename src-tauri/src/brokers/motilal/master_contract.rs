@@ -17,6 +17,7 @@ use crate::brokers::common::http::DOWNLOAD_TIMEOUT;
 use crate::brokers::common::master_contract::{
     format_expiry, format_strike, split_csv_line, CsvHeader,
 };
+use crate::brokers::common::redact;
 use crate::brokers::common::symbols::SymToken;
 use crate::error::{AppError, Result};
 use chrono::NaiveDate;
@@ -434,14 +435,15 @@ async fn fetch(b: &MotilalBroker, path: &str, name: &str) -> Result<String> {
         .query(&[("name", name)])
         .timeout(DOWNLOAD_TIMEOUT)
         .send()
-        .await?;
+        .await
+        .map_err(redact::http)?;
     if !resp.status().is_success() {
         return Err(AppError::Broker(format!(
             "Motilal Oswal {} instrument file is unavailable",
             name
         )));
     }
-    Ok(resp.text().await?)
+    resp.text().await.map_err(redact::http)
 }
 
 /// web `master_contract_download`: every file it can get; fails only when

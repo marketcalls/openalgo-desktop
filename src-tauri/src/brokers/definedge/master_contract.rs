@@ -16,6 +16,7 @@
 
 use super::DefinedgeBroker;
 use crate::brokers::common::master_contract::{format_expiry, format_strike, split_csv_line};
+use crate::brokers::common::redact;
 use crate::brokers::common::symbols::SymToken;
 use crate::brokers::families::noren::zip;
 use crate::error::{AppError, Result};
@@ -228,7 +229,8 @@ pub async fn download(b: &DefinedgeBroker) -> Result<Vec<SymToken>> {
         .get(&b.urls.master)
         .timeout(crate::brokers::common::http::DOWNLOAD_TIMEOUT)
         .send()
-        .await?;
+        .await
+        .map_err(redact::http)?;
     if !resp.status().is_success() {
         tracing::warn!(
             broker = "definedge",
@@ -239,7 +241,7 @@ pub async fn download(b: &DefinedgeBroker) -> Result<Vec<SymToken>> {
             "Definedge's instrument list could not be downloaded. Try again shortly.".into(),
         ));
     }
-    let bytes = resp.bytes().await?;
+    let bytes = resp.bytes().await.map_err(redact::http)?;
     let csv = zip::first_entry(&bytes)?;
     let text = String::from_utf8_lossy(&csv);
     let rows = parse_allmaster(&text);

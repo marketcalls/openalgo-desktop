@@ -18,6 +18,7 @@
 use super::SamcoBroker;
 use crate::brokers::common::http::DOWNLOAD_TIMEOUT;
 use crate::brokers::common::master_contract::{format_strike, split_csv_line, CsvHeader};
+use crate::brokers::common::redact;
 use crate::brokers::types::{AuthToken, SymbolData};
 use crate::error::{AppError, Result};
 use chrono::NaiveDate;
@@ -298,7 +299,8 @@ pub async fn download(b: &SamcoBroker, _auth: &AuthToken) -> Result<Vec<SymbolDa
         .get(&b.master_url)
         .timeout(DOWNLOAD_TIMEOUT)
         .send()
-        .await?;
+        .await
+        .map_err(redact::http)?;
     if !resp.status().is_success() {
         tracing::warn!(
             status = resp.status().as_u16(),
@@ -308,7 +310,7 @@ pub async fn download(b: &SamcoBroker, _auth: &AuthToken) -> Result<Vec<SymbolDa
             "The Samco instrument file could not be downloaded. Try again shortly.".into(),
         ));
     }
-    let bytes = resp.bytes().await?;
+    let bytes = resp.bytes().await.map_err(redact::http)?;
     let text = String::from_utf8_lossy(&bytes);
     let rows = parse(&text)?;
     tracing::info!("Samco master contract: {} instruments", rows.len());

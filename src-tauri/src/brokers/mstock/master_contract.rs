@@ -26,6 +26,7 @@ use super::mapping::s;
 use super::{session_expired, MstockBroker, MstockSession};
 use crate::brokers::common::http::DOWNLOAD_TIMEOUT;
 use crate::brokers::common::master_contract::{expiry_compact, format_strike, rename};
+use crate::brokers::common::redact;
 use crate::brokers::common::symbols::SymToken;
 use crate::brokers::types::AuthToken;
 use crate::error::{AppError, Result};
@@ -395,7 +396,7 @@ async fn fetch_annexure(b: &MstockBroker) -> Option<String> {
         Err(e) => {
             tracing::warn!(
                 "mStock index list page unreachable ({}); indices left out",
-                e
+                e.without_url()
             );
             None
         }
@@ -408,7 +409,8 @@ pub async fn download(b: &MstockBroker, auth: &AuthToken) -> Result<Vec<SymToken
         .request(Method::GET, MASTER_PATH, &session)
         .timeout(DOWNLOAD_TIMEOUT)
         .send()
-        .await?;
+        .await
+        .map_err(redact::http)?;
     let status = resp.status();
     if status.as_u16() == 401 || status.as_u16() == 403 {
         return Err(session_expired());
@@ -423,7 +425,7 @@ pub async fn download(b: &MstockBroker, auth: &AuthToken) -> Result<Vec<SymToken
                 .into(),
         ));
     }
-    let bytes = resp.bytes().await?;
+    let bytes = resp.bytes().await.map_err(redact::http)?;
     let v: Value = serde_json::from_slice(&bytes).map_err(|e| {
         tracing::warn!("mStock master contract is not JSON: {}", e);
         AppError::Broker(

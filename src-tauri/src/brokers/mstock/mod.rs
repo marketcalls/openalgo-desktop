@@ -34,6 +34,7 @@ mod tests;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::Pacer;
+use crate::brokers::common::redact;
 use crate::brokers::common::streaming::BrokerFeed;
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
 use crate::brokers::types::*;
@@ -219,7 +220,7 @@ impl MstockBroker {
         if let Some(b) = body {
             req = req.body(b.to_string());
         }
-        let resp = req.send().await?;
+        let resp = req.send().await.map_err(redact::http)?;
         read_payload(resp).await
     }
 }
@@ -232,7 +233,7 @@ pub(crate) async fn read_payload(resp: reqwest::Response) -> Result<Value> {
         tracing::warn!(status = status.as_u16(), "mStock refused the session");
         return Err(session_expired());
     }
-    let bytes = resp.bytes().await?;
+    let bytes = resp.bytes().await.map_err(redact::http)?;
     if bytes.iter().all(u8::is_ascii_whitespace) {
         if status.is_server_error() {
             return Err(unavailable());
@@ -242,15 +243,12 @@ pub(crate) async fn read_payload(resp: reqwest::Response) -> Result<Value> {
     match serde_json::from_slice::<Value>(&bytes) {
         Ok(v) => Ok(unwrap_list(v)),
         Err(e) => {
-            let prefix: String = String::from_utf8_lossy(&bytes[..bytes.len().min(120)])
-                .chars()
-                .filter(|c| !c.is_control())
-                .collect();
+            // The body is not logged: a sign-in answer can carry tokens.
             tracing::warn!(
                 status = status.as_u16(),
-                "Unexpected response from mStock ({}): {}",
-                e,
-                prefix
+                bytes = bytes.len(),
+                "Unexpected response from mStock ({})",
+                e
             );
             if status == StatusCode::TOO_MANY_REQUESTS {
                 return Err(AppError::Broker(

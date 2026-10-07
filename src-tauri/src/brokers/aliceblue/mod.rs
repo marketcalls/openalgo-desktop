@@ -27,6 +27,7 @@ mod tests;
 
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::common::redact;
 use crate::brokers::common::streaming::BrokerFeed;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
@@ -251,7 +252,7 @@ impl AliceBlueBroker {
         if let Some(b) = body {
             req = req.body(b.to_string());
         }
-        let resp = req.send().await?;
+        let resp = req.send().await.map_err(redact::http)?;
         let status = resp.status();
         if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
             tracing::warn!(
@@ -260,7 +261,9 @@ impl AliceBlueBroker {
             );
             return Err(session_expired());
         }
-        http::read_json("aliceblue", resp).await
+        http::read_json("aliceblue", resp)
+            .await
+            .map_err(redact::redact)
     }
 }
 

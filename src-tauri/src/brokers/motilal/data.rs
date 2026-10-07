@@ -13,6 +13,7 @@
 use super::mapping::{self, vf, vi, vs};
 use super::streaming::{self, FeedState, ScripData};
 use super::{motilal_error, paths, MotilalBroker, MotilalSession};
+use crate::brokers::common::redact;
 use crate::brokers::common::streaming::Message;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
@@ -247,7 +248,10 @@ async fn pump(
             Err(_) => return Ok(()),
             Ok(None) => return Err(feed_unavailable()),
             Ok(Some(Err(e))) => {
-                tracing::warn!("Motilal Oswal market data socket failed: {}", e);
+                tracing::warn!(
+                    "Motilal Oswal market data socket failed: {}",
+                    redact::ws_error_kind(&e)
+                );
                 return Err(feed_unavailable());
             }
             Ok(Some(Ok(Message::Binary(b)))) => {
@@ -350,7 +354,10 @@ pub(crate) async fn feed_snapshot(
     {
         Ok(Ok(c)) => c,
         Ok(Err(e)) => {
-            tracing::warn!("Motilal Oswal market data socket could not open: {}", e);
+            tracing::warn!(
+                "Motilal Oswal market data socket could not open: {}",
+                redact::ws_error_kind(&e)
+            );
             return Err(feed_unavailable());
         }
         Err(_) => {
