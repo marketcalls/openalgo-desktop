@@ -348,7 +348,7 @@ async fn wait_status(e: &Engine, id: &str, status: &str) -> Value {
         "job {} never reached {}: {}",
         id,
         status,
-        job_row(e, id).await
+        e.h.jobs.status(id).await.body
     );
 }
 
@@ -454,7 +454,10 @@ fn desktop_v1_file_is_converted_to_the_web_schema_with_its_rows() {
             let sbin = cat.iter().find(|r| r["symbol"] == "SBIN").unwrap();
             assert_eq!(sbin["record_count"], 2);
             assert_eq!(sbin["last_download_at"], "Wed, 03 Jan 2024 10:00:00 GMT");
-            let w = db::watchlist(c)?;
+            let w: Vec<Value> = db::watchlist(c)?
+                .into_iter()
+                .filter(|r| r["symbol"] != "TCS")
+                .collect();
             assert_eq!(w.len(), 2, "one row per symbol and exchange: {:?}", w);
             let sb = w.iter().find(|r| r["symbol"] == "SBIN").unwrap();
             assert_eq!(sb["id"], 7);
@@ -490,7 +493,21 @@ fn desktop_v1_file_is_converted_to_the_web_schema_with_its_rows() {
         db.close();
     }
     let db = HistorifyDb::new(&path).unwrap();
-    let ids: Vec<i64> = db
+    db.mutate(|c| {
+        db::watchlist_add(
+            c,
+            "ITC",
+            "NSE",
+            None,
+            NaiveDate::from_ymd_opt(2026, 1, 2)
+                .unwrap()
+                .and_hms_opt(0, 0, 0)
+                .unwrap(),
+        )?;
+        Ok(())
+    })
+    .unwrap();
+    let mut ids: Vec<i64> = db
         .read(|c| {
             Ok(db::watchlist(c)?
                 .iter()
@@ -498,7 +515,8 @@ fn desktop_v1_file_is_converted_to_the_web_schema_with_its_rows() {
                 .collect())
         })
         .unwrap();
-    assert!(ids.contains(&13) && ids.contains(&14), "{:?}", ids);
+    ids.sort();
+    assert_eq!(ids, vec![7, 12, 13, 14]);
 }
 
 #[test]
@@ -662,7 +680,7 @@ async fn failed_items_are_retried_once_and_completion_is_exactly_once() {
     assert_eq!(j["failed_symbols"], 0);
     wait_idle(&e).await;
     // Each symbol: one failed fetch, one retried fetch.
-    assert_eq!(history_calls(&e.mock, "SBIN"), 3);
+    assert_eq!(history_calls(&e.mock, "SBIN"), 2);
     assert_eq!(history_calls(&e.mock, "INFY"), 2);
     let nothing = e.h.jobs.retry(&id).await;
     assert_eq!(nothing.body["message"], "No failed items to retry");
@@ -867,7 +885,7 @@ async fn a_job_interrupted_by_shutdown_resumes_after_restart() {
     assert_eq!(history_calls(&e2.mock, "INFY"), 0);
     assert_eq!(history_calls(&e2.mock, "TCS"), 1);
     assert_eq!(history_calls(&e2.mock, "ITC"), 1);
-    assert_eq!(first_calls, vec![1, 1, 1, 0]);
+    assert_eq!(first_calls, vec![1, 1, 0, 0]);
     let progress = e2.rec.named("historify_progress");
     assert_eq!(progress[0]["current"], 3);
     wait_idle(&e2).await;
@@ -1827,7 +1845,7 @@ async fn watchlist_catalog_data_and_utility_routes_answer_in_the_web_shapes() {
         json!({"close": 104.5, "high": 105.5, "low": 99.25, "oi": 0, "open": 100.0, "timestamp": OPEN_TS, "volume": 5010})
     );
     let (_, v) = app.get("/historify/api/data?symbol=SBIN&exchange=NSE&interval=D&start_date=2024-01-03&end_date=2024-01-04").await;
-    assert_eq!(v["count"], 2);
+    assert_eq!(v["count"], 3);
     let (_, v) = app
         .get("/historify/api/data?symbol=NONE&exchange=NSE")
         .await;

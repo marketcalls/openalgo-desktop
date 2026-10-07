@@ -287,12 +287,15 @@ fn refresh_catalog(
     if exists > 0 {
         c.execute(
             "UPDATE data_catalog SET
-                first_timestamp = agg.f, last_timestamp = agg.l, record_count = agg.n,
-                last_download_at = CAST(? AS TIMESTAMP)
-             FROM (SELECT MIN(timestamp) AS f, MAX(timestamp) AS l, COUNT(*) AS n
-                   FROM market_data WHERE symbol = ? AND exchange = ? AND interval = ?) agg
-             WHERE symbol = ? AND exchange = ? AND interval = ?",
-            params![ts_param(now), s, e, interval, s, e, interval],
+                first_timestamp = (SELECT MIN(timestamp) FROM market_data
+                                   WHERE symbol = $2 AND exchange = $3 AND interval = $4),
+                last_timestamp = (SELECT MAX(timestamp) FROM market_data
+                                  WHERE symbol = $2 AND exchange = $3 AND interval = $4),
+                record_count = (SELECT COUNT(*) FROM market_data
+                                WHERE symbol = $2 AND exchange = $3 AND interval = $4),
+                last_download_at = CAST($1 AS TIMESTAMP)
+             WHERE symbol = $2 AND exchange = $3 AND interval = $4",
+            params![ts_param(now), s, e, interval],
         )?;
     } else {
         let id = next_id(c, "data_catalog_id_seq")?;
@@ -1387,6 +1390,27 @@ mod tests {
             .unwrap();
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].close, 3.0);
+        // A second download of the same symbol updates rows and catalog.
+        db.mutate(|c| upsert_bars(c, "SBIN", "NSE", "D", &[bar(300, 4.0, 1)], now()))
+            .unwrap();
+        db.mutate(|c| upsert_bars(c, "SBIN", "NSE", "D", &[bar(300, 5.0, 1)], now()))
+            .unwrap();
+        let cat = db.read(catalog).unwrap();
+        assert_eq!(cat[0]["record_count"], 3);
+        assert_eq!(cat[0]["last_timestamp"], 300);
+        db.mutate(|c| delete_market_data(c, "SBIN", "NSE", Some("D")))
+            .unwrap();
+        db.mutate(|c| {
+            upsert_bars(
+                c,
+                "SBIN",
+                "NSE",
+                "D",
+                &[bar(100, 3.0, 7), bar(200, 2.0, 6)],
+                now(),
+            )
+        })
+        .unwrap();
         let cat = db.read(catalog).unwrap();
         assert_eq!(cat[0]["record_count"], 2);
         assert_eq!(cat[0]["first_timestamp"], 100);
