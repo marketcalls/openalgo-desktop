@@ -13,6 +13,7 @@ pub mod db;
 pub mod error;
 pub mod events;
 pub mod feed;
+pub mod messaging;
 pub mod sandbox;
 pub mod security;
 pub mod server;
@@ -63,6 +64,7 @@ pub fn run() {
                 // its status with a trader-facing message.
                 let feed = feed::FeedService::new(ctx.clone());
                 feed.start().await;
+                messaging::autostart(&ctx);
                 Ok::<_, error::AppError>((ctx, server, feed))
             })?;
             app.manage(feed);
