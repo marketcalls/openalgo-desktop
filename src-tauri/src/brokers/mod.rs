@@ -25,6 +25,7 @@ pub mod hdfcsecurities;
 pub mod hdfcsky;
 pub mod ibulls;
 pub mod iifl;
+pub mod indmoney;
 pub mod jainamxts;
 pub mod kotak;
 #[cfg(any(test, feature = "test-support"))]
@@ -473,6 +474,7 @@ impl BrokerRegistry {
             Arc::new(fivepaisa::FivepaisaBroker::new(symbols.clone())),
             Arc::new(nubra::NubraBroker::new(symbols.clone())),
             Arc::new(tradejini::TradejiniBroker::new(symbols.clone())),
+            Arc::new(indmoney::IndmoneyBroker::new(symbols.clone())),
             Arc::new(deltaexchange::DeltaBroker::new(symbols.clone())),
             Arc::new(arrow::ArrowBroker::new(symbols.clone())),
             Arc::new(pocketful::PocketfulBroker::new(symbols.clone())),
@@ -561,6 +563,7 @@ mod tests {
                 "hdfcsky",
                 "ibulls",
                 "iifl",
+                "indmoney",
                 "jainamxts",
                 "kotak",
                 "nubra",

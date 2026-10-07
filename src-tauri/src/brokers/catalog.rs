@@ -264,6 +264,23 @@ pub fn login_fields(broker: &str) -> &'static [LoginField] {
                 required: true,
             },
         ],
+        // INDmoney (INDstocks): the stored API key is the Client ID; MPIN and
+        // TOTP mint a 24-hour token. Both are optional because a pasted
+        // token saved as the API secret signs in without them.
+        "indmoney" => &[
+            LoginField {
+                name: "mpin",
+                label: "MPIN",
+                secret: true,
+                required: false,
+            },
+            LoginField {
+                name: "totp",
+                label: "TOTP from your authenticator app",
+                secret: true,
+                required: false,
+            },
+        ],
         // Nubra (web authenticate_broker_totp): the stored API key is the
         // registered mobile number and the secret the MPIN; the form
         // carries the TOTP from the authenticator app.
@@ -535,6 +552,17 @@ mod tests {
         assert_eq!(names, ["userid", "pin", "totp"]);
         assert!(f.iter().all(|x| x.required));
         assert!(!f[0].secret && f[1].secret && f[2].secret);
+    }
+
+    #[test]
+    fn indmoney_login_fields_are_mpin_and_totp() {
+        assert_eq!(auth_type("indmoney"), AuthType::Form);
+        let f = login_fields("indmoney");
+        assert_eq!(
+            f.iter().map(|x| x.name).collect::<Vec<_>>(),
+            ["mpin", "totp"]
+        );
+        assert!(f.iter().all(|x| x.secret && !x.required));
     }
 
     #[test]
