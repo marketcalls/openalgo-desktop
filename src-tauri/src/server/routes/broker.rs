@@ -361,13 +361,38 @@ pub async fn capabilities(State(ctx): Ctx) -> Response {
     let Some(b) = ctx.get_broker_session() else {
         return error(StatusCode::BAD_REQUEST, "No broker in session");
     };
+    // Web `plugin.json`: the crypto venue (Delta Exchange) declares its own
+    // type, exchanges and `leverage_config` (which shows the Leverage page).
+    let adapter = ctx.brokers.get(&b.broker_id);
+    let crypto = adapter.as_ref().filter(|a| a.broker_type() == "crypto");
+    let (broker_type, exchanges): (&str, Vec<&str>) = match crypto {
+        Some(a) => (
+            a.broker_type(),
+            a.supported_exchanges().iter().map(|e| e.as_str()).collect(),
+        ),
+        None => (
+            "IN_stock",
+            vec![
+                "NSE",
+                "BSE",
+                "NFO",
+                "BFO",
+                "CDS",
+                "BCD",
+                "MCX",
+                "NSE_INDEX",
+                "BSE_INDEX",
+            ],
+        ),
+    };
+    let leverage = adapter.as_ref().is_some_and(|a| a.leverage_config());
     json_response(
         StatusCode::OK,
         json!({"status": "success", "data": {
             "broker_name": b.broker_id,
-            "broker_type": "IN_stock",
-            "supported_exchanges": ["NSE", "BSE", "NFO", "BFO", "CDS", "BCD", "MCX", "NSE_INDEX", "BSE_INDEX"],
-            "leverage_config": false,
+            "broker_type": broker_type,
+            "supported_exchanges": exchanges,
+            "leverage_config": leverage,
         }}),
     )
 }

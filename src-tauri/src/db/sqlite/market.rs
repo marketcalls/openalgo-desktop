@@ -339,6 +339,11 @@ pub fn create_timing(conn: &Connection, timing: &MarketTiming) -> Result<MarketT
 
 /// Check if market is currently open
 pub fn is_market_open(conn: &Connection, exchange: &str) -> Result<bool> {
+    // Crypto trades 24x7 (web `market_calendar_db`: CRYPTO 00:00-23:59:59
+    // every day); no timing row or weekday applies.
+    if super::market_calendar::CRYPTO_EXCHANGES.contains(&exchange) {
+        return Ok(true);
+    }
     let timing = match get_timing_by_exchange(conn, exchange)? {
         Some(t) => t,
         None => return Ok(false),
@@ -352,4 +357,22 @@ pub fn is_market_open(conn: &Connection, exchange: &str) -> Result<bool> {
 
     // Check if current time is between market_open and market_close
     Ok(current_time >= timing.market_open && current_time <= timing.market_close)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn crypto_is_always_open_and_others_follow_their_timing() {
+        let conn = Connection::open_in_memory().unwrap();
+        crate::db::sqlite::migrations::run_migrations(&conn).unwrap();
+        // No timing row is needed for crypto, at any hour or weekday.
+        assert!(is_market_open(&conn, "CRYPTO").unwrap());
+        conn.execute("DELETE FROM market_timings", []).unwrap();
+        assert!(is_market_open(&conn, "CRYPTO").unwrap());
+        // An exchange without a timing row is closed, as before.
+        assert!(!is_market_open(&conn, "NSE").unwrap());
+        assert!(!is_market_open(&conn, "crypto").unwrap());
+    }
 }

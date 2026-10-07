@@ -1,0 +1,32 @@
+{
+  "success": true,
+  "result": {
+    "close": 59000.0,
+    "contract_type": "perpetual_futures",
+    "greeks": null,
+    "high": 60500.0,
+    "low": 58500.5,
+    "mark_price": "59876.12",
+    "oi": "12345.678",
+    "oi_value": "739188.21",
+    "open": 59100.0,
+    "price_band": {"lower_limit": "56882.32", "upper_limit": "62869.93"},
+    "product_id": 27,
+    "quotes": {
+      "ask_iv": null,
+      "ask_size": "1200",
+      "best_ask": "59877.0",
+      "best_bid": "59875.5",
+      "bid_iv": null,
+      "bid_size": "800",
+      "impact_mid_price": "59876.2"
+    },
+    "size": 152340,
+    "spot_price": "59880.1",
+    "symbol": "BTCUSD",
+    "timestamp": 1791002400000000,
+    "turnover": 9120000.5,
+    "turnover_symbol": "USD",
+    "volume": 152340
+  }
+}

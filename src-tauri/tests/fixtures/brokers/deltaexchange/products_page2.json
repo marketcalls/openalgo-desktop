@@ -1,0 +1,85 @@
+{
+  "success": true,
+  "meta": {"after": null, "before": "g3QAAAACZAACaWRhCmQABHR5cGVkAAhwcm9kdWN0", "limit": 500, "total_count": 11},
+  "result": [
+    {
+      "id": 1600,
+      "symbol": "BTC_INR",
+      "description": "BTC spot in INR",
+      "contract_type": "spot",
+      "state": "live",
+      "trading_status": "operational",
+      "contract_value": "1",
+      "tick_size": "1",
+      "settlement_time": null,
+      "product_specs": {"min_order_size": "0.0001"},
+      "underlying_asset": {"symbol": "BTC"}
+    },
+    {
+      "id": 1601,
+      "symbol": "ETH_INR",
+      "description": "ETH spot in INR",
+      "contract_type": "spot",
+      "state": "live",
+      "trading_status": "operational",
+      "contract_value": "1",
+      "tick_size": "1",
+      "settlement_time": null,
+      "product_specs": {"min_order_size": "0.001"},
+      "underlying_asset": {"symbol": "ETH"}
+    },
+    {
+      "id": 70001,
+      "symbol": "MV-BTC-62000-271126",
+      "description": "BTC move option",
+      "contract_type": "move_options",
+      "state": "live",
+      "trading_status": "operational",
+      "contract_value": "0.001",
+      "tick_size": "0.1",
+      "settlement_time": "2026-11-27T12:00:00Z",
+      "strike_price": "62000",
+      "product_specs": {"min_order_size": 1},
+      "underlying_asset": {"symbol": "BTC"}
+    },
+    {
+      "id": 70002,
+      "symbol": "SOLUSD",
+      "description": "Solana Perpetual (halted)",
+      "contract_type": "perpetual_futures",
+      "state": "live",
+      "trading_status": "disrupted_cancel_only",
+      "contract_value": "1",
+      "tick_size": "0.001",
+      "settlement_time": null,
+      "product_specs": {"min_order_size": 1},
+      "underlying_asset": {"symbol": "SOL"}
+    },
+    {
+      "id": 70003,
+      "symbol": "XRPUSD",
+      "description": "XRP Perpetual (wind-down)",
+      "contract_type": "perpetual_futures",
+      "state": "live",
+      "trading_status": "operational",
+      "contract_value": "1",
+      "tick_size": "0.0001",
+      "settlement_time": null,
+      "product_specs": {"min_order_size": 1, "only_reduce_only_orders_allowed": true},
+      "underlying_asset": {"symbol": "XRP"}
+    },
+    {
+      "id": 27,
+      "symbol": "BTCUSD",
+      "description": "Duplicate id, dropped",
+      "contract_type": "perpetual_futures",
+      "state": "live",
+      "trading_status": "operational",
+      "contract_value": "5",
+      "tick_size": "0.5",
+      "settlement_time": null,
+      "product_specs": {"min_order_size": 1},
+      "underlying_asset": {"symbol": "BTC"}
+    }
+  ]
+}

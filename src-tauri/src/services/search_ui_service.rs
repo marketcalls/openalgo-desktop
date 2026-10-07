@@ -92,6 +92,12 @@ pub fn extract_underlying(symbol: &str, exchange: &str) -> Option<String> {
 
 /// The public row shape of `/search/api/search`.
 pub fn api_row(r: &SymToken) -> Value {
+    api_row_with(r, None)
+}
+
+/// `api_row` with the row's contract multiplier (crypto masters; `null`
+/// for instruments that have none, as before).
+pub fn api_row_with(r: &SymToken, contract_value: Option<f64>) -> Value {
     json!({
         "symbol": r.symbol,
         "brsymbol": r.brsymbol,
@@ -102,7 +108,7 @@ pub fn api_row(r: &SymToken) -> Value {
         "expiry": r.expiry,
         "strike": float(r.strike),
         "lotsize": r.lot_size,
-        "contract_value": Value::Null,
+        "contract_value": contract_value,
         "instrumenttype": r.instrument_type,
         "freeze_qty": freeze_qty_for_option(&r.symbol, &r.exchange),
     })
@@ -246,6 +252,18 @@ pub fn api_search(
     exchanges: &[String],
     inst_types: &[String],
 ) -> Value {
+    api_search_with(rows, f, exchanges, inst_types, &|_| None)
+}
+
+/// `api_search` with each row's contract multiplier (web `search.py`
+/// returns `contract_value` from the master).
+pub fn api_search_with(
+    rows: &[SymToken],
+    f: &FnoFilter<'_>,
+    exchanges: &[String],
+    inst_types: &[String],
+    contract_value: &dyn Fn(&SymToken) -> Option<f64>,
+) -> Value {
     let has_fno_filters = f.expiry.is_some()
         || !inst_types.is_empty()
         || f.underlying.is_some()
@@ -283,7 +301,7 @@ pub fn api_search(
             };
             for r in found {
                 if seen.insert((r.symbol.clone(), r.exchange.clone())) {
-                    out.push(api_row(r));
+                    out.push(api_row_with(r, contract_value(r)));
                 }
             }
         }

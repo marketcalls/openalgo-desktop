@@ -13,7 +13,9 @@ use super::core::{
     safe_request, BrokerHandle, Reply,
 };
 use crate::brokers::common::mapping::{Exchange, Product};
-use crate::brokers::types::{ModifyOrderRequest, OrderRequest, ResolvedModify, ResolvedOrder};
+use crate::brokers::types::{
+    CryptoQuantity, ModifyOrderRequest, OrderRequest, ResolvedModify, ResolvedOrder,
+};
 use crate::error::AppError;
 use crate::events::{Event, Mode};
 use crate::sandbox::types::dec_from_f64;
@@ -82,6 +84,74 @@ pub const FRACTIONAL_REFUSED: &str =
 
 pub fn fractional_refusal(req: &Value) -> Option<Reply> {
     (f(req, "quantity").fract() != 0.0).then(|| Reply::error(400, FRACTIONAL_REFUSED))
+}
+
+// -- Crypto quantities --------------------------------------------------------
+// The one exception to whole units: a CRYPTO order to the live broker
+// carries its exact size (`CryptoQuantity`, parsed from the request text)
+// through `Broker::place_order_exact` / `modify_order_exact`. Every other
+// exchange, and every sandbox order, stays whole-unit and is refused above.
+
+fn is_crypto(req: &Value) -> bool {
+    s(req, "exchange") == Exchange::Crypto.as_str()
+}
+
+/// `fractional_refusal`, except for a CRYPTO order going to the live broker.
+pub fn fractional_refusal_for(req: &Value, analyze: bool) -> Option<Reply> {
+    if !analyze && is_crypto(req) {
+        return None;
+    }
+    fractional_refusal(req)
+}
+
+/// The exact size of a CRYPTO request.
+fn crypto_quantity(req: &Value) -> crate::error::Result<CryptoQuantity> {
+    CryptoQuantity::parse(
+        Exchange::Crypto,
+        req.get("quantity").unwrap_or(&Value::Null),
+    )
+}
+
+/// Venues with `leverage_config` (Delta Exchange) take the instrument's
+/// leverage before each order (web `place_order_api`): the request's own
+/// `leverage`, else the value saved on the Leverage page; 0 keeps the
+/// broker's current leverage. A refusal is logged and the order still goes
+/// out at the broker's leverage, as on the web by default.
+async fn apply_leverage(h: &BrokerHandle, ctx: &AppState, req: &Value, order: &ResolvedOrder) {
+    if !h.broker.leverage_config() {
+        return;
+    }
+    let requested = match req.get("leverage") {
+        Some(Value::Number(n)) => n.as_f64(),
+        Some(Value::String(x)) if !x.trim().is_empty() => x.trim().parse::<f64>().ok(),
+        _ => None,
+    };
+    let leverage = match requested {
+        Some(v) => v,
+        None => match ctx
+            .sqlite
+            .conn()
+            .and_then(|c| crate::db::sqlite::webui::leverage(&c))
+        {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!("Leverage setting could not be read: {}", e.code());
+                0.0
+            }
+        },
+    };
+    if !leverage.is_finite() || leverage < 1.0 || leverage > f64::from(u32::MAX) {
+        return;
+    }
+    let lev = leverage.trunc() as u32;
+    if let Err(e) = h.broker.set_leverage(&h.auth, &order.instrument, lev).await {
+        tracing::warn!(
+            "Leverage {}x for {} was not applied ({}); the order uses the broker's current leverage",
+            lev,
+            order.symbol,
+            e.code()
+        );
+    }
 }
 
 pub fn semi_auto(ctx: &AppState) -> bool {
@@ -185,7 +255,16 @@ pub async fn place_live(h: &BrokerHandle, ctx: &AppState, req: &Value) -> Reply 
         Ok(o) => o,
         Err(e) => return broker_error_reply(&e, "Failed to place order due to internal error"),
     };
-    match h.broker.place_order(&h.auth, &order).await {
+    apply_leverage(h, ctx, req, &order).await;
+    let placed = if order.exchange == Exchange::Crypto {
+        match crypto_quantity(req) {
+            Ok(q) => h.broker.place_order_exact(&h.auth, &order, &q).await,
+            Err(e) => Err(e),
+        }
+    } else {
+        h.broker.place_order(&h.auth, &order).await
+    };
+    match placed {
         Ok(r) if !r.order_id.is_empty() => {
             Reply::ok(json!({"status": "success", "orderid": r.order_id}))
         }
@@ -206,8 +285,8 @@ pub async fn place_order(ctx: &AppState, req: &Value, route: Route) -> Reply {
 /// `placeorder`, optionally without the `order.placed` / `order.failed`
 /// event (split legs of an options order report one completion event).
 pub async fn place_order_with(ctx: &AppState, req: &Value, route: Route, emit: bool) -> Reply {
-    if let Some(r) =
-        route_to_pending(ctx, "placeorder", req, route).or_else(|| fractional_refusal(req))
+    if let Some(r) = route_to_pending(ctx, "placeorder", req, route)
+        .or_else(|| fractional_refusal_for(req, route.analyze(ctx)))
     {
         return r;
     }
@@ -461,6 +540,15 @@ pub async fn modify_order(ctx: &AppState, req: &Value, route: Route) -> Reply {
         return reply;
     }
     if analyze {
+        // The sandbox carries whole units; a fractional crypto size would be
+        // truncated, so it is refused like a fractional place.
+        if let Some(reply) = fractional_refusal(req) {
+            publish(
+                ctx,
+                modify_failed(Mode::Analyze, analyzer_request(req, "modifyorder"), &reply),
+            );
+            return reply;
+        }
         let m = crate::sandbox::ModifyRequest {
             quantity: Some(i(req, "quantity")),
             price: Some(dec_from_f64(f(req, "price"))),
@@ -504,6 +592,10 @@ pub async fn modify_order(ctx: &AppState, req: &Value, route: Route) -> Reply {
         disclosed_quantity: i(req, "disclosed_quantity").clamp(0, i64::from(i32::MAX)) as i32,
     };
     let result = match ResolvedModify::resolve(&orderid, &m, &ctx.symbols) {
+        Ok(r) if r.exchange == Exchange::Crypto => match crypto_quantity(req) {
+            Ok(q) => h.broker.modify_order_exact(&h.auth, &r, &q).await,
+            Err(e) => Err(e),
+        },
         Ok(r) => h.broker.modify_order(&h.auth, &r).await,
         Err(e) => Err(e),
     };
@@ -770,6 +862,31 @@ mod tests {
         let r = fractional_refusal(&serde_json::json!({"quantity": 0.5})).unwrap();
         assert_eq!((r.status, r.message().as_str()), (400, FRACTIONAL_REFUSED));
         assert!(fractional_refusal(&serde_json::json!({"quantity": 2})).is_none());
+    }
+
+    #[test]
+    fn only_live_crypto_orders_carry_fractional_sizes() {
+        use serde_json::json;
+        let crypto = json!({"exchange": "CRYPTO", "quantity": 0.0005});
+        // Live crypto: allowed through, carried exactly.
+        assert!(fractional_refusal_for(&crypto, false).is_none());
+        assert_eq!(crypto_quantity(&crypto).unwrap().to_string(), "0.0005");
+        // The sandbox is whole units: refused there.
+        let r = fractional_refusal_for(&crypto, true).unwrap();
+        assert_eq!((r.status, r.message().as_str()), (400, FRACTIONAL_REFUSED));
+        // Every other exchange: refused live and in the sandbox.
+        for ex in ["NSE", "NFO", "MCX", "CDS", "BSE", ""] {
+            let req = json!({"exchange": ex, "quantity": 1.5});
+            assert!(fractional_refusal_for(&req, false).is_some(), "{}", ex);
+            assert!(fractional_refusal_for(&req, true).is_some(), "{}", ex);
+            let whole = json!({"exchange": ex, "quantity": 2});
+            assert!(fractional_refusal_for(&whole, false).is_none(), "{}", ex);
+        }
+        // Whole crypto sizes pass both ways.
+        let whole = json!({"exchange": "CRYPTO", "quantity": 3});
+        assert!(fractional_refusal_for(&whole, true).is_none());
+        assert_eq!(crypto_quantity(&whole).unwrap().as_whole(), Some(3));
+        assert!(crypto_quantity(&json!({"exchange": "CRYPTO"})).is_err());
     }
 
     #[test]

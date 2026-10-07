@@ -46,6 +46,11 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         "063_strategy_portfolio",
         super::strategy_portfolio::migrate,
     )?;
+    run_rust_migration(
+        conn,
+        "065_symtoken_contract_value",
+        super::symbol::migrate_contract_value,
+    )?;
 
     tracing::info!("Database migrations completed");
     Ok(())

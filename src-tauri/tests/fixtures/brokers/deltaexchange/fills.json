@@ -1,0 +1,39 @@
+{
+  "success": true,
+  "meta": {"after": null, "before": null},
+  "result": [
+    {
+      "id": 880001,
+      "order_id": "7001",
+      "product_id": 27,
+      "product_symbol": "BTCUSD",
+      "side": "buy",
+      "size": 6,
+      "price": "59500",
+      "role": "maker",
+      "commission": "0.12",
+      "created_at": "2026-10-03T04:16:00.000000Z"
+    },
+    {
+      "id": 880002,
+      "order_id": "7004",
+      "product_id": 1600,
+      "product_symbol": "BTC_INR",
+      "side": "sell",
+      "size": "0.0005",
+      "price": "5952000",
+      "role": "taker",
+      "created_at": "2026-10-03T05:30:01.000000Z"
+    },
+    {
+      "id": 879000,
+      "order_id": "6000",
+      "product_id": 27,
+      "product_symbol": "BTCUSD",
+      "side": "sell",
+      "size": 1,
+      "price": "58000",
+      "created_at": "2026-10-02T18:00:00.000000Z"
+    }
+  ]
+}

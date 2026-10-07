@@ -11,6 +11,8 @@ use super::common::symbols::{SymToken, SymbolResolver};
 use crate::error::{AppError, Result};
 use crate::security::Secret;
 use chrono::NaiveDate;
+use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 /// One master-contract row; the name the adapters have always used.
@@ -290,6 +292,84 @@ impl ResolvedModify {
 
     pub fn token(&self) -> &str {
         &self.instrument.token
+    }
+}
+
+/// An exact order size for the `CRYPTO` exchange.
+///
+/// Every other exchange trades whole units and keeps the integer `quantity`
+/// of `ResolvedOrder` / `ResolvedModify`. Crypto spot sizes may be
+/// fractional (0.0005 BTC), so the order services hand crypto orders to
+/// `Broker::place_order_exact` / `modify_order_exact` with this value,
+/// parsed from the request text without a float round trip. It cannot be
+/// built for any exchange but `CRYPTO`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CryptoQuantity(Decimal);
+
+impl CryptoQuantity {
+    /// Parse a positive size (JSON number or numeric string) for `exchange`.
+    /// Refused for every exchange except `CRYPTO`.
+    pub fn parse(exchange: Exchange, value: &serde_json::Value) -> Result<Self> {
+        if exchange != Exchange::Crypto {
+            return Err(AppError::Validation(format!(
+                "Fractional quantities are only accepted on CRYPTO, not on {}.",
+                exchange
+            )));
+        }
+        let text = match value {
+            serde_json::Value::Number(n) => n.to_string(),
+            serde_json::Value::String(s) => s.trim().to_string(),
+            _ => String::new(),
+        };
+        let bad = || AppError::Validation("Quantity must be a positive number.".into());
+        let d = text
+            .parse::<Decimal>()
+            .or_else(|_| Decimal::from_scientific(&text))
+            .map_err(|_| bad())?;
+        if d <= Decimal::ZERO {
+            return Err(bad());
+        }
+        Ok(Self(d.normalize()))
+    }
+
+    /// A whole-unit size (crypto derivatives, a whole position to close).
+    pub fn whole(units: i64) -> Self {
+        Self(Decimal::from(units))
+    }
+
+    /// An exact size taken from a broker's own decimal text (close-all of a
+    /// spot balance). `None` unless positive.
+    pub fn from_decimal(d: Decimal) -> Option<Self> {
+        (d > Decimal::ZERO).then(|| Self(d.normalize()))
+    }
+
+    pub fn as_decimal(&self) -> Decimal {
+        self.0
+    }
+
+    /// The size as whole units, when it has no fractional part.
+    pub fn as_whole(&self) -> Option<i64> {
+        if self.0.fract().is_zero() {
+            self.0.to_i64()
+        } else {
+            None
+        }
+    }
+
+    pub fn is_whole(&self) -> bool {
+        self.as_whole().is_some()
+    }
+
+    /// Whole units toward zero: the integer `quantity` of the resolved order
+    /// that travels alongside an exact size.
+    pub fn truncated(&self) -> i64 {
+        self.0.trunc().to_i64().unwrap_or(0)
+    }
+}
+
+impl std::fmt::Display for CryptoQuantity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -595,6 +675,24 @@ pub struct Candle {
     pub oi: i64,
 }
 
+/// A downloaded master contract: the `SymToken` rows plus, for venues that
+/// quote one (crypto), each row's contract multiplier keyed by token (web
+/// `SymToken.contract_value`). Indian brokers leave the map empty.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MasterContract {
+    pub rows: Vec<SymToken>,
+    pub contract_values: std::collections::HashMap<String, f64>,
+}
+
+impl MasterContract {
+    pub fn new(rows: Vec<SymToken>) -> Self {
+        Self {
+            rows,
+            contract_values: Default::default(),
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Margin
 // ---------------------------------------------------------------------------
@@ -763,6 +861,39 @@ mod tests {
         assert!(bad
             .message()
             .starts_with("1 position(s) could not be squared off"));
+    }
+
+    #[test]
+    fn crypto_quantity_is_exact_and_crypto_only() {
+        use serde_json::json;
+        let q = CryptoQuantity::parse(Exchange::Crypto, &json!(0.0005)).unwrap();
+        assert_eq!(q.to_string(), "0.0005");
+        assert!(!q.is_whole());
+        assert_eq!(q.truncated(), 0);
+        let q = CryptoQuantity::parse(Exchange::Crypto, &json!("0.123456789")).unwrap();
+        assert_eq!(q.to_string(), "0.123456789");
+        let q = CryptoQuantity::parse(Exchange::Crypto, &json!(1.5)).unwrap();
+        assert_eq!((q.truncated(), q.as_whole()), (1, None));
+        let q = CryptoQuantity::parse(Exchange::Crypto, &json!(3)).unwrap();
+        assert_eq!(q.as_whole(), Some(3));
+        let q = CryptoQuantity::parse(Exchange::Crypto, &json!(2.0)).unwrap();
+        assert_eq!((q.as_whole(), q.to_string().as_str()), (Some(2), "2"));
+        let q = CryptoQuantity::parse(Exchange::Crypto, &json!("1e-4")).unwrap();
+        assert_eq!(q.to_string(), "0.0001");
+        for bad in [json!(0), json!(-1.5), json!("abc"), json!(null), json!("")] {
+            assert!(
+                CryptoQuantity::parse(Exchange::Crypto, &bad).is_err(),
+                "{}",
+                bad
+            );
+        }
+        // Every other exchange stays whole-unit only.
+        for ex in Exchange::ALL.iter().filter(|e| **e != Exchange::Crypto) {
+            assert!(CryptoQuantity::parse(*ex, &json!(1)).is_err(), "{}", ex);
+            assert!(CryptoQuantity::parse(*ex, &json!(0.5)).is_err(), "{}", ex);
+        }
+        assert_eq!(CryptoQuantity::whole(7).as_whole(), Some(7));
+        assert!(CryptoQuantity::from_decimal(Decimal::ZERO).is_none());
     }
 
     #[test]

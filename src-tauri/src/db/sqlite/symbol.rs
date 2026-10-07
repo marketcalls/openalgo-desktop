@@ -4,9 +4,11 @@
 //! wholesale on every download and read once at start-up into the
 //! in-memory `SymbolResolver`. Runtime lookups never touch SQLite.
 
+use crate::brokers::types::MasterContract;
 use crate::error::Result;
 use crate::state::SymbolInfo;
 use rusqlite::{params, Connection};
+use std::collections::HashMap;
 
 /// Columns, in the web's order.
 const COLUMNS: &str =
@@ -127,7 +129,57 @@ pub fn migrate_symtoken(conn: &Connection) -> Result<()> {
 /// bulk insert and rebuilt once at the end, which is several times faster
 /// than maintaining them per row on a 100k-row master.
 pub fn store_symbols(conn: &mut Connection, symbols: &[SymbolInfo]) -> Result<()> {
+    store_rows(conn, symbols, &HashMap::new())
+}
+
+/// Migration 065 (web `upgrade/migrate_contract_value.py`): the
+/// `contract_value` column crypto masters carry (0.001 BTC per BTCUSD
+/// contract). Idempotent: added only when missing. Existing rows keep NULL,
+/// which every reader treats as "no multiplier" (1); the web's DEFAULT 1.0
+/// is not written so no value is invented for rows that never had one.
+pub fn migrate_contract_value(conn: &Connection) -> Result<()> {
+    if !table_exists(conn)? || column_exists(conn, "contract_value")? {
+        return Ok(());
+    }
+    conn.execute_batch("ALTER TABLE symtoken ADD COLUMN contract_value REAL")?;
+    Ok(())
+}
+
+/// Replace the whole master with a download that carries contract
+/// multipliers (crypto), in one transaction like `store_symbols`.
+pub fn store_master(conn: &mut Connection, master: &MasterContract) -> Result<()> {
+    store_rows(conn, &master.rows, &master.contract_values)
+}
+
+/// Contract multipliers by token (rows that have one).
+pub fn load_contract_values(conn: &Connection) -> Result<HashMap<String, f64>> {
+    if !column_exists(conn, "contract_value")? {
+        return Ok(HashMap::new());
+    }
+    let mut stmt = conn.prepare(
+        "SELECT token, contract_value FROM symtoken WHERE contract_value IS NOT NULL AND token IS NOT NULL",
+    )?;
+    let rows = stmt
+        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, f64>(1)?)))?
+        .collect::<std::result::Result<HashMap<_, _>, _>>()?;
+    Ok(rows)
+}
+
+/// Load the whole master with its contract multipliers (start-up).
+pub fn load_master(conn: &Connection) -> Result<MasterContract> {
+    Ok(MasterContract {
+        rows: load_symbols(conn)?,
+        contract_values: load_contract_values(conn)?,
+    })
+}
+
+fn store_rows(
+    conn: &mut Connection,
+    symbols: &[SymbolInfo],
+    contract_values: &HashMap<String, f64>,
+) -> Result<()> {
     let start = std::time::Instant::now();
+    let with_cv = column_exists(conn, "contract_value")?;
     let tx = conn.transaction()?;
     tx.execute("DELETE FROM symtoken", [])?;
     tx.execute_batch(
@@ -138,12 +190,20 @@ pub fn store_symbols(conn: &mut Connection, symbols: &[SymbolInfo]) -> Result<()
          DROP INDEX IF EXISTS idx_symtoken_name_exchange;",
     )?;
     {
-        let mut stmt = tx.prepare(&format!(
-            "INSERT INTO symtoken ({}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-            COLUMNS
-        ))?;
+        let sql = if with_cv {
+            format!(
+                "INSERT INTO symtoken ({}, contract_value) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                COLUMNS
+            )
+        } else {
+            format!(
+                "INSERT INTO symtoken ({}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                COLUMNS
+            )
+        };
+        let mut stmt = tx.prepare(&sql)?;
         for s in symbols {
-            stmt.execute(params![
+            let base = params![
                 s.symbol,
                 s.brsymbol,
                 s.name,
@@ -155,7 +215,15 @@ pub fn store_symbols(conn: &mut Connection, symbols: &[SymbolInfo]) -> Result<()
                 s.lot_size,
                 s.instrument_type,
                 s.tick_size,
-            ])?;
+            ];
+            if with_cv {
+                let cv = contract_values.get(&s.token).copied();
+                let mut all: Vec<&dyn rusqlite::ToSql> = base.to_vec();
+                all.push(&cv);
+                stmt.execute(all.as_slice())?;
+            } else {
+                stmt.execute(base)?;
+            }
         }
     }
     tx.execute_batch(CREATE_INDEXES)?;
@@ -299,5 +367,50 @@ mod tests {
         assert_eq!(loaded.len(), 100_000);
         // Generous bound for slow CI runners; locally this is well under 2 s.
         assert!(t.elapsed() < std::time::Duration::from_secs(30));
+    }
+
+    #[test]
+    fn contract_value_migration_keeps_a_populated_master() {
+        // A master stored before 065 (column absent), then the migration.
+        let conn = legacy_db();
+        migrate_symtoken(&conn).unwrap();
+        let mut conn = conn;
+        store_symbols(&mut conn, &[sym("SBIN", "SBIN-EQ", "NSE", "3045")]).unwrap();
+        assert!(!column_exists(&conn, "contract_value").unwrap());
+        assert!(load_contract_values(&conn).unwrap().is_empty());
+        migrate_contract_value(&conn).unwrap();
+        assert!(column_exists(&conn, "contract_value").unwrap());
+        // Existing rows survive with no invented multiplier.
+        assert_eq!(load_symbols(&conn).unwrap().len(), 1);
+        assert!(load_contract_values(&conn).unwrap().is_empty());
+        // Idempotent.
+        migrate_contract_value(&conn).unwrap();
+        // A crypto master round-trips its multipliers.
+        let mut cv = HashMap::new();
+        cv.insert("27".to_string(), 0.001);
+        let master = MasterContract {
+            rows: vec![
+                sym("BTCUSDFUT", "BTCUSD", "CRYPTO", "27"),
+                sym("BTCINR", "BTC_INR", "CRYPTO", "1600"),
+            ],
+            contract_values: cv,
+        };
+        store_master(&mut conn, &master).unwrap();
+        let back = load_master(&conn).unwrap();
+        assert_eq!(back.rows, master.rows);
+        assert_eq!(back.contract_values, master.contract_values);
+        // A plain store (Indian broker) clears them with the rows.
+        store_symbols(&mut conn, &[sym("SBIN", "SBIN-EQ", "NSE", "3045")]).unwrap();
+        assert!(load_contract_values(&conn).unwrap().is_empty());
+    }
+
+    #[test]
+    fn full_run_adds_the_contract_value_column() {
+        let conn = Connection::open_in_memory().unwrap();
+        crate::db::sqlite::migrations::run_migrations(&conn).unwrap();
+        assert!(column_exists(&conn, "contract_value").unwrap());
+        // Running the whole chain again changes nothing.
+        crate::db::sqlite::migrations::run_migrations(&conn).unwrap();
+        assert!(column_exists(&conn, "contract_value").unwrap());
     }
 }

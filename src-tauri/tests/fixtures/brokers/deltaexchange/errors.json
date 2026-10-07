@@ -1,0 +1,6 @@
+{
+  "insufficient_margin": {"success": false, "error": {"code": "insufficient_margin", "context": {"available_balance": "0.10", "required_additional_balance": "35.00"}}},
+  "with_message": {"success": false, "error": {"code": "bad_schema", "message": "size must be a positive integer"}},
+  "signature_expired": {"success": false, "error": {"code": "SignatureExpired", "context": {"request_time": 1791007100, "server_time": 1791007200}}},
+  "unauthorized": {"success": false, "error": {"code": "invalid_api_key"}}
+}

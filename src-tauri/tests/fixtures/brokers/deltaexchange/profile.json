@@ -1,0 +1,11 @@
+{
+  "success": true,
+  "result": {
+    "id": "<USER_ID>",
+    "email": "<EMAIL>",
+    "first_name": "Trader",
+    "nick_name": "",
+    "country": "India",
+    "is_kyc_done": true
+  }
+}

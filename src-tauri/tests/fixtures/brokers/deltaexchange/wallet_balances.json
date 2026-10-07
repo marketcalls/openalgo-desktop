@@ -1,0 +1,50 @@
+{
+  "success": true,
+  "meta": {"net_equity": "1325.50"},
+  "result": [
+    {
+      "asset_id": 14,
+      "asset_symbol": "USD",
+      "balance": "1000.50",
+      "available_balance": "957.45",
+      "blocked_margin": "43.05",
+      "balance_inr": "88044.00",
+      "cross_locked_collateral": "10.00"
+    },
+    {
+      "asset_id": 15,
+      "asset_symbol": "INR",
+      "balance": "5000",
+      "available_balance": "5000",
+      "blocked_margin": "0",
+      "balance_inr": "5000.00",
+      "cross_locked_collateral": "0"
+    },
+    {
+      "asset_id": 2,
+      "asset_symbol": "BTC",
+      "balance": "0.0105",
+      "available_balance": "0.01",
+      "blocked_margin": "0.0005",
+      "balance_inr": "62496.00",
+      "cross_locked_collateral": "0"
+    },
+    {
+      "asset_id": 3,
+      "asset_symbol": "ETH",
+      "balance": "2",
+      "available_balance": "2",
+      "blocked_margin": "0",
+      "balance_inr": "4.27",
+      "cross_locked_collateral": "0"
+    },
+    {
+      "asset_id": 5,
+      "asset_symbol": "SOL",
+      "balance": "0",
+      "blocked_margin": "0",
+      "balance_inr": "0",
+      "cross_locked_collateral": "0"
+    }
+  ]
+}

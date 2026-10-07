@@ -1,0 +1,27 @@
+{
+  "success": true,
+  "result": [
+    {
+      "user_id": "<USER_ID>",
+      "product_id": 27,
+      "product_symbol": "BTCUSD",
+      "size": 6,
+      "entry_price": "59500",
+      "margin": "35.7",
+      "liquidation_price": "50000",
+      "realized_pnl": "12.5",
+      "unrealized_pnl": "-3.25",
+      "realized_funding": "-0.1"
+    },
+    {
+      "user_id": "<USER_ID>",
+      "product_id": 3136,
+      "product_symbol": "ETHUSD",
+      "size": -3,
+      "entry_price": "2450.5",
+      "margin": "7.35",
+      "realized_pnl": "0",
+      "unrealized_pnl": "4.75"
+    }
+  ]
+}

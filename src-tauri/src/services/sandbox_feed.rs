@@ -25,9 +25,16 @@ pub struct MasterSymbols(pub SymbolResolver);
 
 impl SymbolSource for MasterSymbols {
     fn lookup(&self, symbol: &str, exchange: &str) -> Option<SymbolMeta> {
-        self.0.by_symbol(exchange, symbol).map(|r| SymbolMeta {
+        let g = self.0.snapshot();
+        g.by_symbol(exchange, symbol).map(|r| SymbolMeta {
             lotsize: i64::from(r.lot_size.max(1)),
-            contract_value: Decimal::ONE,
+            // Crypto masters carry a multiplier (0.001 BTC per BTCUSD
+            // contract); everything else is 1.
+            contract_value: g
+                .contract_value(exchange, &r.token)
+                .map(crate::sandbox::types::dec_from_f64)
+                .filter(|v| *v > Decimal::ZERO)
+                .unwrap_or(Decimal::ONE),
             expiry: parse_oa_expiry(&r.expiry),
         })
     }

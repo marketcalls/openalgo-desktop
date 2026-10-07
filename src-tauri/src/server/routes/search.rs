@@ -34,7 +34,13 @@ pub async fn api_search(State(ctx): Ctx, Query(q): Q) -> Response {
     let exchanges = svc::parse_multi(q.get("exchange").map(String::as_str));
     let insts = svc::parse_multi(q.get("instrumenttype").map(String::as_str));
     let snap = ctx.symbols.snapshot();
-    ok(svc::api_search(snap.rows(), &filter, &exchanges, &insts))
+    ok(svc::api_search_with(
+        snap.rows(),
+        &filter,
+        &exchanges,
+        &insts,
+        &|r| snap.contract_value(&r.exchange, &r.token),
+    ))
 }
 
 /// GET /search/api/expiries
