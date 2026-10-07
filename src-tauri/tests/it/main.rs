@@ -50,6 +50,7 @@ mod feed_bridge;
 mod feed_conformance;
 mod feed_hygiene;
 mod feed_soak;
+mod messaging;
 mod sandbox_concurrency;
 mod sandbox_contract;
 mod sandbox_engine;
