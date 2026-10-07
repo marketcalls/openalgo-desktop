@@ -1,0 +1,50 @@
+{
+  "status": "SUCCESS",
+  "message": "Trade Book",
+  "errorcode": "",
+  "data": [
+    {
+      "clientid": "<USER_ID>",
+      "exchange": "NSE",
+      "symboltoken": "2885",
+      "symbol": "RELIANCE",
+      "buyorsell": "BUY",
+      "producttype": "DELIVERY",
+      "precision": 2,
+      "tradeprice": 278400,
+      "tradeqty": 20,
+      "tradevalue": 5568000,
+      "tradeno": "50001",
+      "uniqueorderid": "1300000000000003",
+      "tradetime": "03-Oct-2026 09:30:05"
+    },
+    {
+      "clientid": "<USER_ID>",
+      "exchange": "NSEFO",
+      "symboltoken": "35001",
+      "symbol": "NIFTY",
+      "buyorsell": "SELL",
+      "producttype": "NORMAL",
+      "precision": 0,
+      "tradeprice": 10150,
+      "tradeqty": 75,
+      "tradevalue": 761250,
+      "tradeno": "50002",
+      "uniqueorderid": "1300000000000002",
+      "tradetime": "03-Oct-2026 10:05:00"
+    },
+    {
+      "clientid": "<USER_ID>",
+      "exchange": "BSE",
+      "symboltoken": "500325",
+      "symbol": "RELIANCE",
+      "buyorsell": "BUY",
+      "producttype": "VALUEPLUS",
+      "tradeprice": 240125,
+      "tradeqty": 1,
+      "tradevalue": 240125,
+      "uniqueorderid": "1300000000000006",
+      "tradetime": "03-Oct-2026 09:31:00"
+    }
+  ]
+}

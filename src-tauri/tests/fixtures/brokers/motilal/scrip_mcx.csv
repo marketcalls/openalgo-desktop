@@ -1,0 +1,3 @@
+exchangename,scripcode,scripname,scripshortname,instrumentname,marketlot,ticksize,strikeprice,optiontype,expirydate
+MCX,239484,CRUDEOIL 19-Oct-2026 FUT,CRUDEOIL,FUTCOM,100,1.00,-1.000,XX,1475711999
+MCX,239999,CRUDEOIL,CRUDEOIL,COM   ,100,1.00,-1.000,XX,0

@@ -1,0 +1,4 @@
+exchangename,scripcode,scripname,scripshortname,instrumentname,marketlot,ticksize,strikeprice,optiontype,expirydate
+BSEFO,880001,BSX 03-Sep-2026 PE 84200,BSX,OPTIDX,20,0.05,84200.000,PE,0
+BSEFO,880002,BKX 25-Sep-2026 FUT,BKX,FUTIDX,15,0.05,-1.000,XX,0
+BSEFO,880003,BIT 25-Sep-2026 FUT,BIT,FUTIDX,15,0.05,-1.000,XX,0
