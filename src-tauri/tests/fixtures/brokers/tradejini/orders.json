@@ -1,0 +1,42 @@
+{
+  "s": "ok",
+  "d": [
+    {
+      "sym": {"id": "EQT_SBIN_EQ_NSE", "exchange": "NSE", "symbol": "SBIN", "tradSymbol": "SBIN-EQ"},
+      "symId": "EQT_SBIN_EQ_NSE",
+      "qty": 10, "side": "buy", "type": "limit", "product": "intraday",
+      "orderId": "26100300001", "orderTime": "03-10-2026 09:20:11", "status": "open",
+      "avgPrice": 0, "limitPrice": 801.5, "trigPrice": 0, "fillQty": 0, "pendingQty": 10,
+      "validity": "day", "validTill": "", "reason": ""
+    },
+    {
+      "sym": {"id": "OPTIDX_NIFTY_NFO_2026-10-27_25000_CE", "exch": "NFO", "sym": "NIFTY", "trdSym": "NIFTY27OCT2625000CE"},
+      "symId": "OPTIDX_NIFTY_NFO_2026-10-27_25000_CE",
+      "qty": 75, "side": "sell", "type": "stoplimit", "product": "normal",
+      "orderId": "26100300002", "orderTime": "03-10-2026 09:21:00", "status": "trigger pending",
+      "avgPrice": 0, "limitPrice": 120.0, "trigPrice": 121.0, "fillQty": 0, "pendingQty": 75,
+      "validity": "day", "reason": ""
+    },
+    {
+      "sym": {"id": "EQT_RELIANCE_EQ_NSE", "exchange": "NSE", "symbol": "RELIANCE", "tradSymbol": "RELIANCE-EQ"},
+      "qty": 1, "side": "buy", "type": "market", "product": "delivery",
+      "orderId": "26100300003", "orderTime": "03-10-2026 09:22:00", "status": "completed",
+      "avgPrice": 1424.6, "limitPrice": 0, "trigPrice": 0, "fillQty": 1, "pendingQty": 0,
+      "validity": "day", "reason": ""
+    },
+    {
+      "sym": {"id": "EQT_SBIN_EQ_NSE", "exchange": "NSE", "symbol": "SBIN", "tradSymbol": "SBIN-EQ"},
+      "qty": 5, "side": "sell", "type": "stopmarket", "product": "intraday",
+      "orderId": "26100300004", "orderTime": "03-10-2026 09:23:00", "status": "rejected",
+      "avgPrice": 0, "limitPrice": 0, "trigPrice": 790, "fillQty": 0, "pendingQty": 0,
+      "validity": "ioc", "reason": "RMS: margin exceeds"
+    },
+    {
+      "sym": {"id": "EQT_UNKNOWN_EQ_NSE", "exchange": "NSE", "symbol": "UNKNOWN", "tradSymbol": "UNKNOWN-EQ"},
+      "qty": 2, "side": "buy", "type": "limit", "product": "intraday",
+      "orderId": "26100300005", "orderTime": "03-10-2026 09:24:00", "status": "modified",
+      "avgPrice": 0, "limitPrice": 10, "trigPrice": 0, "fillQty": 0, "pendingQty": 2,
+      "validity": "day", "reason": ""
+    }
+  ]
+}

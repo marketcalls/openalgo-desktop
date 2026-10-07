@@ -1,0 +1,20 @@
+{
+  "clientId": "<USER_ID>",
+  "validity": "DAY",
+  "orderComplexity": "REGULAR",
+  "product": "NORMAL",
+  "orderType": "SL",
+  "tradingSymbol": "NIFTY2643024000CE",
+  "transactionType": "SELL",
+  "instrumentId": "40001",
+  "price": "120.5",
+  "slTriggerPrice": "121",
+  "quantity": "75",
+  "filledQuantity": "0",
+  "pendingQuantity": "75",
+  "averageTradedPrice": "0",
+  "brokerOrderId": "260403000000102",
+  "exchangeOrderId": "1100000000002",
+  "rejectionReason": "RMS: margin exceeds",
+  "orderStatus": "rejected"
+}

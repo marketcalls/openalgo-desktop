@@ -1,0 +1,33 @@
+{
+  "status": "Ok",
+  "result": [
+    {
+      "instrumentId": "3045",
+      "exchange": "NSEEQ",
+      "tradingSymbol": "SBIN-EQ",
+      "product": "INTRADAY",
+      "netQuantity": "10",
+      "netAveragePrice": "812.35",
+      "previousDayClose": "815",
+      "realizedPnl": "0"
+    },
+    {
+      "instrumentId": "35001",
+      "exchange": "NSEFO",
+      "tradingSymbol": "NIFTY26APRFUT",
+      "product": "NORMAL",
+      "netQuantity": "-75",
+      "netAveragePrice": "24100",
+      "realizedPnl": "150.5"
+    },
+    {
+      "instrumentId": "2885",
+      "exchange": "NSEEQ",
+      "tradingSymbol": "RELIANCE-EQ",
+      "product": "DELIVERY",
+      "netQuantity": "0",
+      "netAveragePrice": "0",
+      "realizedPnl": "-20"
+    }
+  ]
+}

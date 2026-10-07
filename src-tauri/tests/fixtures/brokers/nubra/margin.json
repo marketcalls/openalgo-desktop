@@ -1,0 +1,8 @@
+{
+  "code": 1,
+  "marginInfo": {"totalMargin": 120000, "message": null},
+  "brokerageInfo": {"totalChargesFloat": 13.56387},
+  "totalFundsRequired": 121350,
+  "willDefaultBePlacedAsAmo": false,
+  "willBeAutoSliced": false
+}

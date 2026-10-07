@@ -1,0 +1,8 @@
+{
+  "refdata": [
+    {"ref_id": 72329, "inst_id": 2885, "exchange": "NSE", "asset": "RELIANCE", "stock_name": "RELIANCE", "derivative_type": "STOCK", "option_type": null, "expiry": null, "strike_price": null, "lot_size": 1, "tick_size": 10, "asset_type": "STOCKS"},
+    {"ref_id": 99999, "inst_id": 40123, "exchange": "NSE", "asset": "NIFTY", "stock_name": "NIFTY26OCT25000CE", "derivative_type": "OPT", "option_type": "CE", "expiry": 20261027, "strike_price": 2500000, "lot_size": 75, "tick_size": 5, "asset_type": "INDEX_FO"},
+    {"ref_id": 99998, "inst_id": 40124, "exchange": "NSE", "asset": "NIFTY", "stock_name": "NIFTY26OCT25012.5PE", "derivative_type": "OPT", "option_type": "PE", "expiry": 20261027, "strike_price": 2501250, "lot_size": 75, "tick_size": 5, "asset_type": "INDEX_FO"},
+    {"ref_id": 88888, "inst_id": 40001, "exchange": "NSE", "asset": "NIFTY", "stock_name": "NIFTY26OCTFUT", "derivative_type": "FUT", "option_type": null, "expiry": 20261027, "strike_price": null, "lot_size": 75, "tick_size": 10, "asset_type": "INDEX_FO"}
+  ]
+}

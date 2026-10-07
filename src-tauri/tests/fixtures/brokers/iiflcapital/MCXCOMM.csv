@@ -1,0 +1,2 @@
+Exchange,Underlying Instrument Symbol,Instrument ID,Instrument Type,Option Type,Strike Price,Underlying Instrument Name,Trading Symbol,Expiry,Lot Size,Tick Size
+MCXCOMM,CRUDEOIL,447001,FUTCOM,XX,0,CRUDEOIL,CRUDEOIL26APRFUT,20-Apr-2026,100,1

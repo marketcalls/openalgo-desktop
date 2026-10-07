@@ -1,0 +1,5 @@
+Exchange,Underlying Instrument Symbol,Instrument ID,Instrument Type,Option Type,Strike Price,Underlying Instrument Name,Trading Symbol,Expiry,Lot Size,Tick Size
+NSEEQ,SBIN,3045,EQUITY,XX,0,STATE BANK OF INDIA,SBIN-EQ,,1,0.05
+NSEEQ,RELIANCE,2885,EQUITY,XX,0,"RELIANCE INDUSTRIES, LTD",RELIANCE-EQ,,1,0.1
+NSEEQ,NIFTY 50,26000,INDEX,XX,0,NIFTY 50,NIFTY 50,,1,0.05
+NSEEQ,,9999,EQUITY,XX,0,BLANK,BLANK-EQ,,1,0.05

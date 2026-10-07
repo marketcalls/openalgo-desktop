@@ -1,0 +1,12 @@
+{
+  "s": "ok",
+  "d": {
+    "symbolStore": [
+      {"name": "Securities", "idFormat": "instrument_symbol_series_exchange", "version": 12},
+      {"name": "FutureContracts", "idFormat": "instrument_symbol_exchange_expiry", "version": 12},
+      {"name": "NSEOptions", "idFormat": "instrument_symbol_exchange_expiry_strike_optType", "version": 12},
+      {"name": "CommodityOptions", "idFormat": "instrument_symbol_exchange_expiry_strike_optType", "version": 12},
+      {"name": "Index", "idFormat": "instrument_symbol_exchange", "version": 12}
+    ]
+  }
+}

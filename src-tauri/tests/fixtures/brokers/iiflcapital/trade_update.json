@@ -1,0 +1,13 @@
+{
+  "tradedPrice": "812.35",
+  "filledQuantity": "10",
+  "exchangeTradeId": "T-1",
+  "instrumentId": "3045",
+  "exchange": "NSEEQ",
+  "clientId": "<USER_ID>",
+  "product": "INTRADAY",
+  "tradingSymbol": "SBIN-EQ",
+  "brokerOrderId": "260403000000101",
+  "transactionType": "B",
+  "orderType": "MARKET"
+}

@@ -1,0 +1,11 @@
+{
+  "status": "Ok",
+  "result": {
+    "tradingLimit": "100000.50",
+    "openingCashLimit": "90000",
+    "collateralMargin": "2000",
+    "utilizedMargin": "500.25",
+    "utilizedSpanMargin": "100",
+    "utilizedExposureMargin": "50"
+  }
+}

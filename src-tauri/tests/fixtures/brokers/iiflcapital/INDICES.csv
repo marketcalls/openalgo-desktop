@@ -1,0 +1,7 @@
+Exchange,Underlying Instrument Symbol,Instrument ID,Instrument Type,Option Type,Strike Price,Underlying Instrument Name,Trading Symbol,Expiry,Lot Size,Tick Size
+NSEEQ,NIFTY 50,26000,INDEX,XX,0,Nifty 50,NIFTY 50,,1,0.05
+NSEEQ,NIFTY BANK,26009,INDEX,XX,0,Nifty Bank,NIFTY BANK,,1,0.05
+NSEEQ,INDIA VIX,26017,INDEX,XX,0,India VIX,INDIA VIX,,1,0.05
+BSEEQ,SENSEX,1,INDEX,XX,0,SENSEX,SENSEX,,1,0.05
+BSEEQ,SNXT50,12,INDEX,XX,0,SNXT50,SNXT50,,1,0.05
+NCDEX,X,5,INDEX,XX,0,X,X,,1,0.05

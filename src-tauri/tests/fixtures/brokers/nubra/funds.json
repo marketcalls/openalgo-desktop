@@ -1,0 +1,12 @@
+{
+  "message": "funds",
+  "portFundsAndMargin": {
+    "netMarginAvailable": 10000050,
+    "totalCollateral": 200000,
+    "netDerivativePrem": -1500,
+    "mtmEqIdayCnc": 1000,
+    "mtmEqDelivery": 500,
+    "mtmDeriv": -250,
+    "totalMarginBlocked": 350000
+  }
+}

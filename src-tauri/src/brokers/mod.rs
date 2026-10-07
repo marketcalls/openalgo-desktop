@@ -16,6 +16,7 @@ pub mod dhan;
 pub mod dhan_sandbox;
 pub mod families;
 pub mod firstock;
+pub mod fivepaisa;
 pub mod fivepaisaxts;
 pub mod flattrade;
 pub mod fyers;
@@ -24,14 +25,18 @@ pub mod hdfcsecurities;
 pub mod hdfcsky;
 pub mod ibulls;
 pub mod iifl;
+pub mod iiflcapital;
+pub mod indmoney;
 pub mod jainamxts;
 pub mod kotak;
 #[cfg(any(test, feature = "test-support"))]
 pub mod mock;
+pub mod nubra;
 pub mod paytm;
 pub mod pocketful;
 pub mod rmoney;
 pub mod shoonya;
+pub mod tradejini;
 pub mod tradesmart;
 pub mod types;
 pub mod upstox;
@@ -462,11 +467,16 @@ impl BrokerRegistry {
             Arc::new(ibulls::broker(symbols.clone())),
             Arc::new(wisdom::broker(symbols.clone())),
             Arc::new(iifl::broker(symbols.clone())),
+            Arc::new(iiflcapital::IiflCapitalBroker::new(symbols.clone())),
             Arc::new(shoonya::broker(symbols.clone())),
             Arc::new(flattrade::broker(symbols.clone())),
             Arc::new(tradesmart::broker(symbols.clone())),
             Arc::new(zebu::broker(symbols.clone())),
             Arc::new(firstock::FirstockBroker::new(symbols.clone())),
+            Arc::new(fivepaisa::FivepaisaBroker::new(symbols.clone())),
+            Arc::new(nubra::NubraBroker::new(symbols.clone())),
+            Arc::new(tradejini::TradejiniBroker::new(symbols.clone())),
+            Arc::new(indmoney::IndmoneyBroker::new(symbols.clone())),
             Arc::new(deltaexchange::DeltaBroker::new(symbols.clone())),
             Arc::new(arrow::ArrowBroker::new(symbols.clone())),
             Arc::new(pocketful::PocketfulBroker::new(symbols.clone())),
@@ -546,6 +556,7 @@ mod tests {
                 "dhan",
                 "dhan_sandbox",
                 "firstock",
+                "fivepaisa",
                 "fivepaisaxts",
                 "flattrade",
                 "fyers",
@@ -554,12 +565,16 @@ mod tests {
                 "hdfcsky",
                 "ibulls",
                 "iifl",
+                "iiflcapital",
+                "indmoney",
                 "jainamxts",
                 "kotak",
+                "nubra",
                 "paytm",
                 "pocketful",
                 "rmoney",
                 "shoonya",
+                "tradejini",
                 "tradesmart",
                 "upstox",
                 "wisdom",
