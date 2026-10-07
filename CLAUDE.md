@@ -300,7 +300,13 @@ Decided:
     commands as the web. The web's notes on `wars` threading do not apply.
   - Agent: a native multi-provider LLM client replacing LiteLLM, with the web's
     providers, models, tools, streaming chat, confirmations and voice routes.
-    Tools call desktop services directly.
+    Tools call desktop services directly. Build our own thin provider layer
+    (OpenAI chat and Responses, Anthropic Messages, Gemini; Ollama and every
+    OpenAI-compatible provider through the OpenAI format), with the model list
+    and pricing from LiteLLM's public catalogue (fetched at start, bundled
+    fallback), as the web does. Do not depend on `LiteLLM-Labs/litellm-rust`:
+    it is a proof of concept (two providers, a Postgres-backed gateway).
+    Revisit if BerriAI ships an official Rust crate with a stable API.
 
 ## Testing
 
