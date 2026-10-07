@@ -1227,6 +1227,72 @@ async fn oauth_state_expires_and_is_bound_to_the_broker() {
 }
 
 #[tokio::test]
+async fn aliceblue_callback_without_state_needs_a_login_started_here() {
+    let mock = Arc::new(MockBroker::new("aliceblue"));
+    let t = build(
+        BrokerRegistry::with(vec![mock.clone() as Arc<dyn crate::brokers::Broker>]),
+        ist(2026, 10, 5, 10, 0),
+    );
+    t.ctx.limiter.freeze(Some(std::time::Instant::now()));
+    let h = H { t, mock };
+    h.setup();
+    {
+        let conn = h.ctx().sqlite.conn().unwrap();
+        crate::db::sqlite::credentials::save(
+            &conn,
+            &h.ctx().security,
+            "aliceblue",
+            crate::db::sqlite::credentials::CredentialUpdate {
+                api_key: Some("APPCODE".into()),
+                api_secret: Some("absecret".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    }
+    // Not started from OpenAlgo: refused, no exchange.
+    let (_, headers, _) = h
+        .send(get("/aliceblue/callback?authCode=ac1&userId=AB123"))
+        .await;
+    assert!(location(&headers).starts_with("/broker?error="));
+    assert!(h.mock.last_auth.lock().is_none());
+
+    let url = BrokerAuthService::start_oauth(h.ctx(), "aliceblue").unwrap();
+    assert_eq!(url, "https://ant.aliceblueonline.com/?appcode=APPCODE");
+    let (_, headers, _) = h
+        .send(get("/aliceblue/callback?authCode=ac1&userId=AB123"))
+        .await;
+    assert_eq!(location(&headers), "/dashboard");
+    let creds = h.mock.last_auth.lock().clone().unwrap();
+    assert_eq!(creds.auth_code.as_deref(), Some("AB123:ac1"));
+
+    // One start admits one callback.
+    *h.mock.last_auth.lock() = None;
+    let (_, headers, _) = h
+        .send(get("/aliceblue/callback?authCode=ac2&userId=AB123"))
+        .await;
+    assert!(location(&headers).starts_with("/broker?error="));
+    assert!(h.mock.last_auth.lock().is_none());
+}
+
+#[tokio::test]
+async fn samco_ip_status_without_a_samco_session_matches_the_web() {
+    let h = H::new();
+    h.setup();
+    let (cookie, _) = h.session(true);
+    let (s, body) = h
+        .json(with_session(get("/samco/ip-status"), &cookie, None))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        body,
+        json!({"status": "error", "message": "Not connected to Samco. Log in to the broker first."})
+    );
+    let (_, headers, _) = h.send(get("/samco/callback")).await;
+    assert_eq!(location(&headers), "/broker/samco/auth");
+}
+
+#[tokio::test]
 async fn manual_paste_of_the_redirected_address() {
     let h = H::new();
     h.setup();

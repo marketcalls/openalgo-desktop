@@ -155,6 +155,7 @@ pub fn table() -> Vec<RouteSpec> {
             master_contract::cache_reload
         ),
         // Signed-in user
+        r!(GET, "/samco/ip-status", User, broker::samco_ip_status),
         r!(
             GET,
             "/{broker}/initiate-oauth",

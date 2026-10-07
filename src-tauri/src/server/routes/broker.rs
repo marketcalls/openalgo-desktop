@@ -92,6 +92,17 @@ pub async fn oauth_callback(
         return error(StatusCode::NOT_FOUND, "Unknown broker.");
     }
     if catalog::auth_type(&broker) == AuthType::Form && params.is_empty() {
+        // Definedge sends its login OTP as the page opens (web brlogin).
+        if ctx.signed_in_user().is_some() {
+            if let Err(e) = BrokerAuthService::prepare_form_login(&ctx, &broker).await {
+                tracing::warn!("Preparing the {} sign-in failed: {}", broker, e.code());
+                return error(StatusCode::INTERNAL_SERVER_ERROR, e.client_message());
+            }
+        }
+        // Samco's connect page (key exchange plus the static IP check).
+        if broker == "samco" {
+            return redirect("/broker/samco/auth");
+        }
         return redirect(&format!("/broker/{}/totp", broker));
     }
     if let Some(r) = login_limited(&ctx, ip) {
@@ -177,6 +188,27 @@ async fn form_login(
     if let Some(r) = login_limited(&ctx, ip) {
         return r;
     }
+    // Definedge "resend OTP" (web answers 200 either way).
+    if form.get("action") == Some("resend") {
+        return match BrokerAuthService::prepare_form_login(&ctx, &broker).await {
+            Ok(Some(_)) => json_response(
+                StatusCode::OK,
+                json!({"status": "success", "message": "OTP has been resent successfully"}),
+            ),
+            Ok(None) => error(
+                StatusCode::BAD_REQUEST,
+                "This broker does not send a login OTP.",
+            ),
+            Err(e) => {
+                tracing::warn!("OTP resend for {} failed: {}", broker, e.code());
+                json_response(
+                    StatusCode::OK,
+                    json!({"status": "error", "message": e.client_message()}),
+                )
+            }
+        };
+    }
+    let input = FormLogin::from_fields(&form.0);
     let input = match FormLogin::for_broker(&broker, &form.0) {
         Ok(i) => i,
         Err(e) => return error(StatusCode::BAD_REQUEST, e.client_message()),
@@ -523,5 +555,15 @@ pub async fn capabilities(State(ctx): Ctx) -> Response {
             "supported_exchanges": exchanges,
             "leverage_config": leverage,
         }}),
+    )
+}
+
+/// GET /samco/ip-status: the source IP Samco sees against the registered
+/// static IPs (web `samco_ip_status`, same body and status codes).
+pub async fn samco_ip_status(State(ctx): Ctx) -> Response {
+    let (code, body) = BrokerAuthService::samco_ip_status(&ctx).await;
+    json_response(
+        StatusCode::from_u16(code).unwrap_or(StatusCode::BAD_REQUEST),
+        body,
     )
 }

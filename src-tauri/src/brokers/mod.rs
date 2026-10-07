@@ -89,6 +89,13 @@ pub trait Broker: Send + Sync {
         None
     }
 
+    /// The concrete adapter, for broker-specific sign-in helpers (the
+    /// Definedge OTP request, the Samco static IP check). `None` unless the
+    /// adapter opts in.
+    fn as_any(&self) -> Option<&dyn std::any::Any> {
+        None
+    }
+
     // ---- auth and session lifecycle ----
 
     /// Exchange login credentials (or an OAuth code) for a session token.
@@ -541,6 +548,10 @@ impl BrokerRegistry {
             Arc::new(hdfcsky::HdfcSkyBroker::new(symbols.clone())),
             Arc::new(hdfcsecurities::HdfcSecuritiesBroker::new(symbols.clone())),
             Arc::new(samco::SamcoBroker::new(symbols.clone())),
+            Arc::new(aliceblue::AliceBlueBroker::new(symbols.clone())),
+            Arc::new(definedge::DefinedgeBroker::new(symbols.clone())),
+            Arc::new(mstock::MstockBroker::new(symbols.clone())),
+            Arc::new(motilal::MotilalBroker::new(symbols.clone())),
         ];
         Self::with_symbols(symbols, brokers)
     }
@@ -607,9 +618,11 @@ mod tests {
         assert_eq!(
             reg.ids(),
             [
+                "aliceblue",
                 "angel",
                 "arrow",
                 "compositedge",
+                "definedge",
                 "deltaexchange",
                 "dhan",
                 "dhan_sandbox",
@@ -627,6 +640,8 @@ mod tests {
                 "indmoney",
                 "jainamxts",
                 "kotak",
+                "motilal",
+                "mstock",
                 "nubra",
                 "paytm",
                 "pocketful",

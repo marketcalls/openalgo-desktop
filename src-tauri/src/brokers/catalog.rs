@@ -961,6 +961,8 @@ mod tests {
         assert_eq!(names("motilal"), ["userid", "password", "dob", "totp"]);
         assert!(names("samco").is_empty());
         assert!(!login_fields("motilal")[3].required);
+        assert!(callback_without_state("aliceblue"));
+        assert!(!callback_without_state("zerodha"));
     }
 
     #[test]
