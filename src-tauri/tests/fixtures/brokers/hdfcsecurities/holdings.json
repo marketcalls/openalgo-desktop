@@ -1,0 +1,4 @@
+{"status":"success","data":[
+ {"security_id":"STABANEQNR","exchange":"NSE","isin":"INE062A01020","quantity":5,"average_price":700,"close_price":805},
+ {"security_id":"","exchange":"BSE","isin":"INE999X01010","quantity":1,"average_price":10,"close_price":12}
+]}

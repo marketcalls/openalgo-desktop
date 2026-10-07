@@ -95,6 +95,44 @@ pub fn authorize_url(
             enc(state)
         ))
         }
+        // Arrow appends the request token to the registered redirect URL.
+        // `state` is passed so the callback check can match it; Arrow must
+        // echo it back for the sign-in to complete (the web's login URL has
+        // no state at all).
+        "arrow" => Some(format!(
+            "https://app.arrow.trade/app/login?appID={}&state={}",
+            enc(api_key),
+            enc(state)
+        )),
+        // OAuth2 code flow; the code exchange repeats this redirect.
+        "pocketful" => {
+            crate::brokers::pocketful::remember_redirect_uri(redirect_url);
+            Some(format!(
+                "https://trade.pocketful.in/oauth2/auth?client_id={}&redirect_uri={}&response_type=code&scope=orders%20holdings&state={}",
+                enc(api_key),
+                enc(redirect_url),
+                enc(state)
+            ))
+        }
+        // Paytm Money returns `requestToken` and echoes `state`.
+        "paytm" => Some(format!(
+            "https://login.paytmmoney.com/merchant-login?apiKey={}&state={}",
+            enc(api_key),
+            enc(state)
+        )),
+        // HDFC Sky (web BrokerSelect.tsx builds `/oapi/v1/login?api_key=`).
+        // The callback must echo `state` for the sign-in to complete.
+        "hdfcsky" => Some(format!(
+            "https://developer.hdfcsky.com/oapi/v1/login?api_key={}&state={}",
+            enc(api_key),
+            enc(state)
+        )),
+        // InvestRight hosts the login; the callback must echo `state`.
+        "hdfcsecurities" => Some(format!(
+            "https://developer.hdfcsec.com/oapi/v1/login?api_key={}&state={}",
+            enc(api_key),
+            enc(state)
+        )),
         // XTS third-party login; the session comes back as `session`.
         "compositedge" | "rmoney" => {
             crate::brokers::families::xts::thirdparty_url(broker, api_key, redirect_url, state)
@@ -222,6 +260,9 @@ pub fn extract_code(broker: &str, params: &HashMap<String, String>) -> Option<St
             .or_else(|| get("token_id"))
             .or_else(|| get("token")),
         "compositedge" | "rmoney" => get("session"),
+        "paytm" => get("requestToken")
+            .or_else(|| get("request_token"))
+            .or_else(|| get("code")),
         "arrow" | "hdfcsecurities" | "hdfcsky" => get("request_token")
             .or_else(|| get("requestToken"))
             .or_else(|| get("request-token"))
@@ -337,6 +378,104 @@ mod tests {
         assert!(f[1].secret && !f[0].secret);
         let p = q(&[("code", "c1"), ("state", "s")]);
         assert_eq!(extract_code("shoonya", &p).as_deref(), Some("c1"));
+    }
+
+    #[test]
+    fn arrow_login_url_and_request_token() {
+        assert_eq!(auth_type("arrow"), AuthType::OAuth);
+        let u = authorize_url("arrow", "APP 1", "r", "st5").unwrap();
+        assert_eq!(
+            u,
+            "https://app.arrow.trade/app/login?appID=APP%201&state=st5"
+        );
+        // Arrow sends `request-token` (hyphen); the other spellings are
+        // fallbacks the web also accepts.
+        let p = q(&[("request-token", "rt9"), ("checksum", "x")]);
+        assert_eq!(extract_code("arrow", &p).as_deref(), Some("rt9"));
+        assert_eq!(
+            extract_code("arrow", &q(&[("code", "c2")])).as_deref(),
+            Some("c2")
+        );
+        assert!(login_fields("arrow").is_empty());
+    }
+
+    #[test]
+    fn pocketful_oauth2_url_and_code() {
+        let u = authorize_url(
+            "pocketful",
+            "cid-1",
+            "http://127.0.0.1:5000/pocketful/callback",
+            "st7",
+        )
+        .unwrap();
+        assert!(u.starts_with("https://trade.pocketful.in/oauth2/auth?client_id=cid-1&"));
+        assert!(u.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A5000%2Fpocketful%2Fcallback"));
+        assert!(u.contains("response_type=code&scope=orders%20holdings&state=st7"));
+        assert_eq!(
+            crate::brokers::pocketful::redirect_uri(),
+            "http://127.0.0.1:5000/pocketful/callback"
+        );
+        assert_eq!(auth_type("pocketful"), AuthType::OAuth);
+        let p = q(&[("code", "c9"), ("state", "st7")]);
+        assert_eq!(extract_code("pocketful", &p).as_deref(), Some("c9"));
+    }
+
+    #[test]
+    fn paytm_sign_in() {
+        assert_eq!(auth_type("paytm"), AuthType::OAuth);
+        let u = authorize_url(
+            "paytm",
+            "pk 1",
+            "http://127.0.0.1:5000/paytm/callback",
+            "st7",
+        )
+        .unwrap();
+        assert_eq!(
+            u,
+            "https://login.paytmmoney.com/merchant-login?apiKey=pk%201&state=st7"
+        );
+        let p = q(&[("requestToken", "rt9"), ("state", "st7"), ("code", "x")]);
+        assert_eq!(extract_code("paytm", &p).as_deref(), Some("rt9"));
+        assert_eq!(
+            extract_code("paytm", &q(&[("request_token", "rt2")])).as_deref(),
+            Some("rt2")
+        );
+        assert_eq!(
+            extract_code("paytm", &q(&[("code", "c3")])).as_deref(),
+            Some("c3")
+        );
+        assert_eq!(extract_code("paytm", &q(&[("state", "s")])), None);
+        assert!(login_fields("paytm").is_empty());
+    }
+
+    #[test]
+    fn hdfcsky_login_url_and_callback_token() {
+        assert_eq!(auth_type("hdfcsky"), AuthType::OAuth);
+        let u = authorize_url("hdfcsky", "key 1", "r", "st7").unwrap();
+        assert_eq!(
+            u,
+            "https://developer.hdfcsky.com/oapi/v1/login?api_key=key%201&state=st7"
+        );
+        for k in ["request_token", "requestToken", "request-token", "code"] {
+            let p = q(&[(k, "rt9"), ("state", "st7")]);
+            assert_eq!(extract_code("hdfcsky", &p).as_deref(), Some("rt9"), "{}", k);
+        }
+        assert!(login_fields("hdfcsky").is_empty());
+    }
+
+    #[test]
+    fn hdfcsecurities_login_url_and_code() {
+        assert_eq!(auth_type("hdfcsecurities"), AuthType::OAuth);
+        let u = authorize_url("hdfcsecurities", "key 1", "r", "st5").unwrap();
+        assert_eq!(
+            u,
+            "https://developer.hdfcsec.com/oapi/v1/login?api_key=key%201&state=st5"
+        );
+        for k in ["request_token", "requestToken", "request-token", "code"] {
+            let p = q(&[(k, "rt9"), ("state", "st5")]);
+            assert_eq!(extract_code("hdfcsecurities", &p).as_deref(), Some("rt9"));
+        }
+        assert!(login_fields("hdfcsecurities").is_empty());
     }
 
     #[test]

@@ -1,0 +1,14 @@
+{
+  "status": "success",
+  "message": "Funds summary fetched",
+  "data": {
+    "funds_summary": {
+      "opening_balance": 100000.0,
+      "funds_added": 5000.0,
+      "funds_withdrawn": 0,
+      "available_cash": 98500.756,
+      "utilised_amount": 6499.244,
+      "collaterals": 2500
+    }
+  }
+}

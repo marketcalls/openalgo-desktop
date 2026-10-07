@@ -1,0 +1,30 @@
+{
+  "status": "success",
+  "message": "",
+  "data": {
+    "trades": [
+      {
+        "trading_symbol": "SBIN-EQ",
+        "exchange": "NSE",
+        "product": "MIS",
+        "transaction_type": "BUY",
+        "fill_quantity": 10,
+        "avg_price": 812.35,
+        "trade_id": "50001234",
+        "order_id": "260930000000101",
+        "fill_timestamp": "2026-09-30 09:21:05"
+      },
+      {
+        "trading_symbol": "NIFTY26OCTFUT",
+        "exchange": "NFO",
+        "product": "NRML",
+        "order_side": "SELL",
+        "trade_quantity": "75",
+        "trade_price": "25110.5",
+        "trade_number": "50001299",
+        "oms_order_id": "260930000000110",
+        "trade_time": "2026-09-30 11:00:00"
+      }
+    ]
+  }
+}

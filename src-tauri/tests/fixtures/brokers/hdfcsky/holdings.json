@@ -1,0 +1,27 @@
+{
+  "data": {
+    "holdings": [
+      {
+        "trading_symbol": "RELIANCE",
+        "exchange": "NSE",
+        "isin": "INE002A01018",
+        "quantity": 5,
+        "buy_avg": 1300,
+        "ltp": 1410,
+        "instrument_details": {
+          "trading_symbol": "RELIANCE-EQ",
+          "exchange": "NSE"
+        }
+      },
+      {
+        "trading_symbol": "UNLISTEDCO",
+        "exchange": "BSE",
+        "quantity": "2",
+        "buy_avg": "0",
+        "ltp": "10"
+      }
+    ]
+  },
+  "message": "",
+  "status": "success"
+}

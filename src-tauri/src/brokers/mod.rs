@@ -7,6 +7,7 @@
 //! The trait is object safe: the registry hands out `Arc<dyn Broker>`.
 
 pub mod angel;
+pub mod arrow;
 pub mod catalog;
 pub mod common;
 pub mod compositedge;
@@ -19,12 +20,16 @@ pub mod fivepaisaxts;
 pub mod flattrade;
 pub mod fyers;
 pub mod groww;
+pub mod hdfcsecurities;
+pub mod hdfcsky;
 pub mod ibulls;
 pub mod iifl;
 pub mod jainamxts;
 pub mod kotak;
 #[cfg(any(test, feature = "test-support"))]
 pub mod mock;
+pub mod paytm;
+pub mod pocketful;
 pub mod rmoney;
 pub mod shoonya;
 pub mod tradesmart;
@@ -463,6 +468,11 @@ impl BrokerRegistry {
             Arc::new(zebu::broker(symbols.clone())),
             Arc::new(firstock::FirstockBroker::new(symbols.clone())),
             Arc::new(deltaexchange::DeltaBroker::new(symbols.clone())),
+            Arc::new(arrow::ArrowBroker::new(symbols.clone())),
+            Arc::new(pocketful::PocketfulBroker::new(symbols.clone())),
+            Arc::new(paytm::PaytmBroker::new(symbols.clone())),
+            Arc::new(hdfcsky::HdfcSkyBroker::new(symbols.clone())),
+            Arc::new(hdfcsecurities::HdfcSecuritiesBroker::new(symbols.clone())),
         ];
         Self::with_symbols(symbols, brokers)
     }
@@ -530,6 +540,7 @@ mod tests {
             reg.ids(),
             [
                 "angel",
+                "arrow",
                 "compositedge",
                 "deltaexchange",
                 "dhan",
@@ -539,10 +550,14 @@ mod tests {
                 "flattrade",
                 "fyers",
                 "groww",
+                "hdfcsecurities",
+                "hdfcsky",
                 "ibulls",
                 "iifl",
                 "jainamxts",
                 "kotak",
+                "paytm",
+                "pocketful",
                 "rmoney",
                 "shoonya",
                 "tradesmart",

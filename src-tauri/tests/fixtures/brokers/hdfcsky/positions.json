@@ -1,0 +1,44 @@
+{
+  "data": [
+    {
+      "trading_symbol": "NIFTY26OCTFUT",
+      "exchange": "NFO",
+      "product": "NRML",
+      "net_quantity": -65,
+      "buy_quantity": 0,
+      "sell_quantity": 65,
+      "buy_amount": 0,
+      "sell_amount": 1625000,
+      "ltp": 24900,
+      "multiplier": 1,
+      "average_buy_price": 0,
+      "average_sell_price": 25000,
+      "average_price": 25000
+    },
+    {
+      "trading_symbol": "RELIANCE-EQ",
+      "exchange": "NSE",
+      "product": "MIS",
+      "net_quantity": "10",
+      "buy_quantity": "10",
+      "sell_quantity": "0",
+      "buy_amount": "14000",
+      "sell_amount": "0",
+      "ltp": "1410",
+      "average_buy_price": "1400",
+      "average_sell_price": "0"
+    },
+    {
+      "trading_symbol": "BAJAJ-AUTO-EQ",
+      "exchange": "NSE",
+      "product": "MIS",
+      "net_quantity": 0,
+      "buy_amount": 8500,
+      "sell_amount": 8600,
+      "ltp": 8610,
+      "average_price": 0
+    }
+  ],
+  "message": "",
+  "status": "success"
+}

@@ -1,0 +1,16 @@
+{
+  "status": "success",
+  "message": "",
+  "data": {
+    "headers": ["Description", "Value"],
+    "values": [
+      ["Opening Balance", "100000.00"],
+      ["Available Margin", "85234.567"],
+      ["Margin Used", "14765.43"],
+      ["DP Collateral Benefit", "1000"],
+      ["Total Pledge Collateral", 25000],
+      ["unrealized_mtm", "-120.5"],
+      ["realized_mtm", "340.25"]
+    ]
+  }
+}

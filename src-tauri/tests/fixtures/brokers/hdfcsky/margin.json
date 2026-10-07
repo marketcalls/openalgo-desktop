@@ -1,0 +1,21 @@
+{
+  "status": "success",
+  "result": {
+    "combined_margin": {
+      "span": "95000.50",
+      "exposure_margin": "20000",
+      "premium_margin": 0,
+      "var_margin": 0,
+      "extreme_loss_margin": 0,
+      "delivery_margin": 0,
+      "additional_margin": 0,
+      "span_spread_margin": 0,
+      "somtier_margin": 0,
+      "premium_benefit": "1000"
+    },
+    "individual_margin_values": [
+      {"span": 120000, "exposure_margin": 25000},
+      {"span": 0, "exposure_margin": 0, "premium_margin": 13650}
+    ]
+  }
+}

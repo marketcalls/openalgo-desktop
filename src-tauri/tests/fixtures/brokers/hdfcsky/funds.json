@@ -1,0 +1,17 @@
+{
+  "data": {
+    "client_id": "<USER_ID>",
+    "headers": ["Description", "all"],
+    "realized_mtm": "125.50",
+    "unrealized_mtm": "-40.25",
+    "values": [
+      ["Available Margin", "1,00,000.00"],
+      ["Margin Used", "2500.75"],
+      ["Pledge Benefit", "5000"],
+      ["MTF Available Margin", "999999"],
+      ["Realized MTM", "1"]
+    ]
+  },
+  "message": "",
+  "status": "success"
+}
