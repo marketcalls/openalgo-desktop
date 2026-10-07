@@ -417,7 +417,7 @@ mod support {
                 .orders(run)
                 .into_iter()
                 .rev()
-                .find(|o| o.kind != "entry")
+                .find(|o| o.kind != "entry" && o.broker_order_id.is_some())
                 .unwrap();
             self.frame(
                 o.broker_order_id.as_deref().unwrap(),
@@ -518,8 +518,10 @@ mod support {
 
     impl App {
         pub async fn send(&self, mut req: Request<Body>) -> (StatusCode, Value) {
-            req.extensions_mut()
-                .insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))));
+            if req.extensions().get::<ConnectInfo<SocketAddr>>().is_none() {
+                req.extensions_mut()
+                    .insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))));
+            }
             let app = openalgo_desktop_lib::server::app(self.ctx.clone());
             use tower::ServiceExt;
             let resp = app.oneshot(req).await.unwrap();
@@ -584,6 +586,20 @@ mod support {
                     .unwrap(),
             )
             .await
+        }
+
+        /// The public webhook, called from `ip`.
+        pub async fn webhook_from(&self, ip: &str, token: &str, body: &str) -> (StatusCode, Value) {
+            let mut req = Request::builder()
+                .method(Method::POST)
+                .uri(format!("/strategy/webhook/{}", token))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap();
+            let addr: std::net::IpAddr = ip.parse().unwrap();
+            req.extensions_mut()
+                .insert(ConnectInfo(SocketAddr::new(addr, 40000)));
+            self.send(req).await
         }
 
         /// Wait until `f` holds (the bus delivers on worker tasks).
@@ -2298,6 +2314,20 @@ mod strategy_module_webhook {
         assert_eq!(a.message, "Signal accepted");
         let b = hook(&t, &token, json!({"action": "long_entry", "leg_id": 1})).await;
         assert_eq!(b.result, "ok");
+        // An exit needs a confirmed quantity: fill the entry first.
+        let run = a.run_id.unwrap();
+        let entry = t
+            .orders(run)
+            .into_iter()
+            .find(|o| o.kind == "entry")
+            .unwrap();
+        t.frame(
+            entry.broker_order_id.as_deref().unwrap(),
+            "complete",
+            entry.qty,
+            1000.0,
+        )
+        .await;
         let c = hook(&t, &token, json!({"action": "long_exit", "leg_id": 1})).await;
         assert_eq!(c.result, "ok");
         let d = hook(&t, &token, json!({"action": "short_entry", "leg_id": 9})).await;
@@ -2334,23 +2364,18 @@ mod strategy_module_webhook {
     }
 
     #[tokio::test]
-    async fn the_rate_limit_is_keyed_on_the_digest_not_the_token() {
+    async fn failures_per_webhook_are_bounded_and_cleared_on_unlock() {
+        use openalgo_desktop_lib::strategy::webhook::LOCKOUT_FAILURES;
         let t = t();
-        let ip: std::net::IpAddr = "10.1.1.1".parse().unwrap();
-        let token = format!("oaws_{}", "B".repeat(43));
-        for _ in 0..100 {
-            assert!(!openalgo_desktop_lib::strategy::webhook::rate_limited(
-                &t.m.webhook,
-                ip,
-                &token
-            ));
+        for sid in 0..5000 {
+            assert!(!t.m.webhook.record_webhook_failure(sid));
         }
-        assert!(openalgo_desktop_lib::strategy::webhook::rate_limited(
-            &t.m.webhook,
-            ip,
-            &token
-        ));
         assert!(t.m.webhook.tracked() <= 4096);
+        for _ in 0..LOCKOUT_FAILURES - 1 {
+            assert!(!t.m.webhook.record_webhook_failure(-1));
+        }
+        t.m.webhook.clear_webhook_failures(-1);
+        assert!(!t.m.webhook.record_webhook_failure(-1), "history cleared");
     }
 }
 
@@ -2752,7 +2777,14 @@ mod strategy_module_recovery {
         assert!(recover_run(&t.m, run).await.ok);
         assert!(t.m.state.snapshot(run).unwrap().stopping);
         let r = t.m.reconcile_pending_stop(run).await.unwrap();
-        assert!(r.ok);
+        assert!(r.ok, "{:?}", r);
+        assert!(
+            r.stop_pending && r.exits.iter().any(|e| e["ok"] == json!(true)),
+            "the retry placed the exit: {:?}\n{:?}\n{:?}",
+            r,
+            t.m.state.snapshot(run),
+            t.orders(run)
+        );
         t.fill_last_exit(run, 100.0).await;
         assert_eq!(t.run(run).stop_reason.as_deref(), Some("overall_sl"));
     }
@@ -3805,13 +3837,26 @@ mod strategy_restx_api {
             )
             .await;
         assert_eq!(b["data"].as_array().unwrap().len(), 1);
+        // The sandbox entry filled at once: the leg closes, then a second
+        // close finds nothing open.
+        let (s, b) = a
+            .api(
+                "/api/v1/strategy/close_leg",
+                json!({"strategy_id": sid, "leg_id": 1}),
+            )
+            .await;
+        assert_eq!(s, StatusCode::OK, "{}", b);
+        assert_eq!(
+            (b["run_id"].as_i64(), b["leg_id"].as_i64()),
+            (Some(run), Some(1))
+        );
         let (s, _) = a
             .api(
                 "/api/v1/strategy/close_leg",
                 json!({"strategy_id": sid, "leg_id": 1}),
             )
             .await;
-        assert_eq!(s, StatusCode::CONFLICT, "unfilled or already exiting");
+        assert_eq!(s, StatusCode::CONFLICT, "already closed");
     }
 
     #[tokio::test]
@@ -3843,13 +3888,12 @@ mod strategy_restx_api {
     async fn stop_and_close_all_on_a_stopped_strategy_are_409() {
         let a = app();
         let sid = made(&a).await;
-        for p in ["stop", "close_all", "close_leg"] {
-            let (s, b) = a
-                .api(
-                    &format!("/api/v1/strategy/{}", p),
-                    json!({"strategy_id": sid, "leg_id": 1}),
-                )
-                .await;
+        for (p, body) in [
+            ("stop", json!({"strategy_id": sid})),
+            ("close_all", json!({"strategy_id": sid})),
+            ("close_leg", json!({"strategy_id": sid, "leg_id": 1})),
+        ] {
+            let (s, b) = a.api(&format!("/api/v1/strategy/{}", p), body).await;
             assert_eq!(s, StatusCode::CONFLICT, "{}", p);
             assert_eq!(b["message"], "This strategy is not running");
         }
@@ -3869,7 +3913,7 @@ mod live_mode {
             .calls()
             .into_iter()
             .filter_map(|c| match c {
-                MockCall::PlaceOrder(o) => Some(format!("{} {}", o.side, o.symbol)),
+                MockCall::PlaceOrder(o) => Some(format!("{} {}", o.action.as_str(), o.symbol)),
                 _ => None,
             })
             .collect()
@@ -4056,8 +4100,8 @@ mod strategy_book {
         assert_eq!(l["realized_pnl"].as_f64(), Some(100.0));
     }
 
-    #[test]
-    fn a_fill_that_beats_its_tag_is_buffered_and_drained() {
+    #[tokio::test]
+    async fn a_fill_that_beats_its_tag_is_buffered_and_drained() {
         let a = app();
         let book = &a.ctx.strategy.book;
         assert!(book.apply_fill("O9", 5.0, 100.0, "BUY").unwrap().is_none());
@@ -4069,8 +4113,8 @@ mod strategy_book {
         assert_eq!(l[0]["quantity"].as_f64(), Some(5.0));
     }
 
-    #[test]
-    fn partials_are_priced_from_the_change_in_notional() {
+    #[tokio::test]
+    async fn partials_are_priced_from_the_change_in_notional() {
         let a = app();
         let book = &a.ctx.strategy.book;
         book.record_order_tag("P1", "", "MyAlgo", "SBIN", "NSE", "MIS")
@@ -4082,13 +4126,187 @@ mod strategy_book {
         assert_eq!(l[0]["quantity"].as_f64(), Some(10.0));
     }
 
-    #[test]
-    fn an_untagged_order_never_books() {
+    #[tokio::test]
+    async fn an_untagged_order_never_books() {
         let a = app();
         let book = &a.ctx.strategy.book;
         book.record_order_tag("T1", "", "", "SBIN", "NSE", "MIS")
             .unwrap();
         assert!(book.get_strategy_legs(None, None).unwrap().is_empty());
+    }
+}
+
+// ===================================================================== webhook security
+
+/// The public webhook can place real orders: per-address limits, per-webhook
+/// lockout, nothing throttled or locked reaches the order path.
+mod webhook_security {
+    use super::*;
+    use axum::http::StatusCode;
+    use openalgo_desktop_lib::strategy::webhook::LOCKOUT_FAILURES;
+
+    const START: &str = r#"{"action":"start","mode":"sandbox"}"#;
+
+    async fn create(a: &App, allowlist: Value) -> (i64, String) {
+        let (s, b) = a
+            .post(
+                "/strategy/api/strategies",
+                json!({
+                    "name": "Guarded",
+                    "underlying": "NIFTY",
+                    "underlying_exchange": "NSE_INDEX",
+                    "strategy_type": "positional",
+                    "legs": [short_call_leg()],
+                    "webhook_ip_allowlist": allowlist,
+                }),
+            )
+            .await;
+        assert_eq!(s, StatusCode::CREATED, "{}", b);
+        (
+            b["data"]["id"].as_i64().unwrap(),
+            b["webhook_token"].as_str().unwrap().to_string(),
+        )
+    }
+
+    fn audit_rows(a: &App, sid: i64) -> usize {
+        a.ctx
+            .strategy
+            .store
+            .list_webhook_events(sid, 1000)
+            .unwrap()
+            .len()
+    }
+
+    async fn orders(a: &App, sid: i64) -> usize {
+        let (_, b) = a
+            .get(&format!("/strategy/api/strategies/{}/orders", sid))
+            .await;
+        b["data"].as_array().map(|v| v.len()).unwrap_or(0)
+    }
+
+    fn locked(a: &App, sid: i64) -> bool {
+        a.ctx
+            .strategy
+            .store
+            .get_strategy(sid, USER)
+            .unwrap()
+            .unwrap()
+            .webhook_locked
+    }
+
+    #[tokio::test]
+    async fn a_burst_over_the_limit_is_refused_before_any_check_or_order() {
+        let a = app();
+        let (sid, token) = create(&a, json!([])).await;
+        // 100 per minute (web WEBHOOK_RATE_LIMIT); each reaches the pipeline
+        // and is refused there for its payload, so no order is placed.
+        for _ in 0..100 {
+            let (s, b) = a.webhook_from("198.51.100.1", &token, "{}").await;
+            assert_eq!(s, StatusCode::BAD_REQUEST, "{}", b);
+        }
+        assert_eq!(audit_rows(&a, sid), 100);
+        // Over the limit: refused before the token is even looked up, even
+        // for a well-formed start alert.
+        let (s, b) = a.webhook_from("198.51.100.1", &token, START).await;
+        assert_eq!(s, StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(b["result"], "rate_limited");
+        let (s, _) = a.webhook_from("198.51.100.1", "not-a-token", START).await;
+        assert_eq!(s, StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(audit_rows(&a, sid), 100, "no audit row, no lookup");
+        assert_eq!(orders(&a, sid).await, 0);
+        assert!(a.ctx.strategy.store.list_runs(sid, 10).unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn bad_attempts_lock_the_webhook_until_the_trader_unlocks_it() {
+        let a = app();
+        let (sid, token) = create(&a, json!(["10.0.0.0/8"])).await;
+        for i in 0..LOCKOUT_FAILURES {
+            let (s, b) = a.webhook_from("203.0.113.9", &token, START).await;
+            assert_eq!(s, StatusCode::FORBIDDEN, "attempt {}: {}", i, b);
+            assert_eq!(b["result"], "rejected_ip");
+        }
+        assert!(locked(&a, sid));
+        // The right caller with the right token is refused while locked.
+        let (s, b) = a.webhook_from("10.0.0.7", &token, START).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "{}", b);
+        assert_eq!(b["result"], "rejected_locked");
+        assert_eq!(orders(&a, sid).await, 0);
+        let (_, ev) = a
+            .get(&format!("/strategy/api/strategies/{}/events", sid))
+            .await;
+        assert!(
+            ev.to_string().contains("webhook_locked"),
+            "a critical event tells the trader: {}",
+            ev
+        );
+
+        // Unlock restores it.
+        let (s, b) = a
+            .post(
+                &format!("/strategy/api/strategies/{}/unlock_webhook", sid),
+                json!({}),
+            )
+            .await;
+        assert_eq!(s, StatusCode::OK, "{}", b);
+        assert!(!locked(&a, sid));
+        let (s, b) = a.webhook_from("10.0.0.7", &token, START).await;
+        assert_eq!(s, StatusCode::OK, "{}", b);
+        assert_eq!(b["result"], "ok");
+    }
+
+    #[tokio::test]
+    async fn rotating_source_addresses_still_trips_the_per_webhook_lockout() {
+        let a = app();
+        let (sid, token) = create(&a, json!(["10.0.0.0/8"])).await;
+        for i in 0..LOCKOUT_FAILURES {
+            let ip = format!("192.0.2.{}", i + 1);
+            let (s, _) = a.webhook_from(&ip, &token, START).await;
+            assert_eq!(s, StatusCode::FORBIDDEN);
+        }
+        assert!(locked(&a, sid));
+        let (s, b) = a.webhook_from("10.1.2.3", &token, START).await;
+        assert_eq!(b["result"], "rejected_locked", "{}", b);
+        assert_eq!(s, StatusCode::FORBIDDEN);
+        assert_eq!(orders(&a, sid).await, 0);
+    }
+
+    #[tokio::test]
+    async fn guessing_tokens_from_one_address_gets_that_address_refused() {
+        let a = app();
+        let (sid, token) = create(&a, json!([])).await;
+        for i in 0..10 {
+            let guess = format!("oaws_{:0>43}", i);
+            let (s, _) = a.webhook_from("198.51.100.77", &guess, "{}").await;
+            assert_eq!(s, StatusCode::NOT_FOUND);
+        }
+        // Even the real token is now refused from that address, before any
+        // lookup; another address is unaffected.
+        let (s, b) = a.webhook_from("198.51.100.77", &token, START).await;
+        assert_eq!(s, StatusCode::TOO_MANY_REQUESTS, "{}", b);
+        assert_eq!(audit_rows(&a, sid), 0);
+        let (s, b) = a.webhook_from("198.51.100.78", &token, START).await;
+        assert_eq!(s, StatusCode::OK, "{}", b);
+    }
+
+    #[tokio::test]
+    async fn a_valid_alert_within_limits_places_exactly_one_order() {
+        let a = app();
+        let (sid, token) = create(&a, json!(["10.0.0.0/8"])).await;
+        let (s, b) = a.webhook_from("10.0.0.7", &token, START).await;
+        assert_eq!(s, StatusCode::OK, "{}", b);
+        assert_eq!(b["result"], "ok");
+        let store = a.ctx.strategy.store.clone();
+        assert!(
+            a.until(|| store
+                .list_orders_for_strategy(sid, None)
+                .map(|v| !v.is_empty())
+                .unwrap_or(false))
+                .await
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        assert_eq!(orders(&a, sid).await, 1);
+        assert!(!locked(&a, sid));
     }
 }
 

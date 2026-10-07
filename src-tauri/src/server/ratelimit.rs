@@ -9,6 +9,8 @@
 //! | LoginHour    | 25 per hour     | same                                              |
 //! | Reset        | 15 per hour     | `/auth/reset-password`                            |
 //! | ApiKeyFail   | 10 per minute   | failed API-key checks; over it the key is not even tried |
+//! | StrategyWebhook | 100 per minute | `/strategy/webhook/<token>` per caller address |
+//! | WebhookFail  | 10 per minute   | failed strategy-webhook authentications per caller |
 //!
 //! No rate-limit headers are sent (web contract). Memory is bounded: windows
 //! are trimmed on every check and the table is swept when it grows.
@@ -29,6 +31,13 @@ pub enum Bucket {
     LoginHour,
     Reset,
     ApiKeyFail,
+    /// `/strategy/webhook/<token>` by caller address (web
+    /// `WEBHOOK_RATE_LIMIT`, 100 per minute).
+    StrategyWebhook,
+    /// Failed strategy-webhook authentications (unknown token, address
+    /// outside the allowlist) by caller address; over it the address is
+    /// refused before any lookup.
+    WebhookFail,
 }
 
 impl Bucket {
@@ -40,6 +49,8 @@ impl Bucket {
             Bucket::LoginHour => (25, Duration::from_secs(3600)),
             Bucket::Reset => (15, Duration::from_secs(3600)),
             Bucket::ApiKeyFail => (10, Duration::from_secs(60)),
+            Bucket::StrategyWebhook => (100, Duration::from_secs(60)),
+            Bucket::WebhookFail => (10, Duration::from_secs(60)),
         }
     }
 

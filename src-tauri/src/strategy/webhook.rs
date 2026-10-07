@@ -126,6 +126,9 @@ pub struct WebhookState {
     dedupe: Mutex<HashMap<(i64, String, Option<String>), Instant>>,
     cooling: Mutex<HashMap<i64, Instant>>,
     rate: Mutex<HashMap<String, VecDeque<Instant>>>,
+    /// Failed authentications per webhook (strategy id), bounded.
+    failures: Mutex<HashMap<i64, VecDeque<Instant>>>,
+    throttle_logged: Mutex<Option<Instant>>,
     /// Added to `Instant::now()`; tests drive the windows without sleeping.
     offset: Mutex<Duration>,
 }
@@ -142,6 +145,8 @@ impl WebhookState {
             dedupe: Mutex::new(HashMap::new()),
             cooling: Mutex::new(HashMap::new()),
             rate: Mutex::new(HashMap::new()),
+            failures: Mutex::new(HashMap::new()),
+            throttle_logged: Mutex::new(None),
             offset: Mutex::new(Duration::ZERO),
         }
     }
@@ -160,6 +165,7 @@ impl WebhookState {
         self.dedupe.lock().clear();
         self.cooling.lock().clear();
         self.rate.lock().clear();
+        self.failures.lock().clear();
     }
 
     /// Arm the cooling-off window for a strategy whose run just ended (every
@@ -217,16 +223,106 @@ impl WebhookState {
 
     /// Keys held across every window (hygiene tests).
     pub fn tracked(&self) -> usize {
-        self.dedupe.lock().len() + self.cooling.lock().len() + self.rate.lock().len()
+        self.dedupe.lock().len()
+            + self.cooling.lock().len()
+            + self.rate.lock().len()
+            + self.failures.lock().len()
+    }
+
+    /// Count one failed authentication against a webhook. True when this
+    /// failure reaches the lockout threshold inside the window (the caller
+    /// then locks the webhook until the trader unlocks it).
+    pub fn record_webhook_failure(&self, strategy_id: i64) -> bool {
+        let now = self.now();
+        let mut map = self.failures.lock();
+        map.retain(|_, q| {
+            q.back()
+                .is_some_and(|t| now.saturating_duration_since(*t) < LOCKOUT_WINDOW)
+        });
+        if map.len() >= MAX_TRACKED_KEYS && !map.contains_key(&strategy_id) {
+            // Bounded: drop the stalest webhook's history.
+            if let Some(oldest) = map
+                .iter()
+                .min_by_key(|(_, q)| q.back().copied())
+                .map(|(k, _)| *k)
+            {
+                map.remove(&oldest);
+            }
+        }
+        let q = map.entry(strategy_id).or_default();
+        while q
+            .front()
+            .is_some_and(|t| now.saturating_duration_since(*t) >= LOCKOUT_WINDOW)
+        {
+            q.pop_front();
+        }
+        q.push_back(now);
+        while q.len() > LOCKOUT_FAILURES {
+            q.pop_front();
+        }
+        if q.len() >= LOCKOUT_FAILURES {
+            map.remove(&strategy_id);
+            return true;
+        }
+        false
+    }
+
+    /// Forget a webhook's failure history (the trader unlocked it).
+    pub fn clear_webhook_failures(&self, strategy_id: i64) {
+        self.failures.lock().remove(&strategy_id);
+    }
+
+    /// Log throttling once per window, not once per refused request.
+    fn note_throttled(&self, why: &str) {
+        let now = self.now();
+        let mut last = self.throttle_logged.lock();
+        if last.is_none_or(|t| now.saturating_duration_since(t) >= RATE_WINDOW) {
+            *last = Some(now);
+            tracing::warn!(
+                "Strategy webhook requests are being refused: {} (logged once per minute)",
+                why
+            );
+        }
     }
 }
 
-/// The two route-level limits: by caller address (stops token walking) and
-/// by token digest (caps what one leaked token can do). The raw token is
-/// never a key.
-pub fn rate_limited(state: &WebhookState, ip: IpAddr, token: &str) -> bool {
-    !state.rate_check(&format!("ip:{}", ip))
-        || !state.rate_check(&format!("token:{}", hash_webhook_token(token)))
+/// Failed authentications on one webhook that lock it.
+pub const LOCKOUT_FAILURES: usize = 10;
+/// The window those failures are counted in.
+pub const LOCKOUT_WINDOW: Duration = Duration::from_secs(600);
+
+/// Whether a request may proceed to the pipeline. Checked before any token
+/// lookup, payload read or order path: the per-address limit and the
+/// per-address failure lockout on the shared limiter, then the per-token
+/// window keyed on the digest (never the raw token).
+pub fn admit(
+    state: &WebhookState,
+    limiter: &crate::server::ratelimit::RateLimiter,
+    ip: IpAddr,
+    token: &str,
+) -> bool {
+    use crate::server::ratelimit::Bucket;
+    let now = limiter.now();
+    if limiter.is_exhausted(Bucket::WebhookFail, ip, now) {
+        state.note_throttled("too many failed webhook authentications from one address");
+        return false;
+    }
+    if limiter.check(Bucket::StrategyWebhook, ip, now).is_err() {
+        state.note_throttled("one address is over the webhook rate limit");
+        return false;
+    }
+    if !state.rate_check(&format!("token:{}", hash_webhook_token(token))) {
+        state.note_throttled("one webhook is over its rate limit");
+        return false;
+    }
+    true
+}
+
+/// Constant-time comparison of a token's digest with a stored digest.
+fn digest_matches(token: &str, stored: &str) -> bool {
+    use subtle::ConstantTimeEq;
+    let got = hash_webhook_token(token);
+    got.len() == stored.len() && bool::from(got.as_bytes().ct_eq(stored.as_bytes()))
 }
 
 fn looks_like_token(token: &str) -> bool {
@@ -418,6 +514,39 @@ impl StrategyModule {
         o
     }
 
+    /// Lock a webhook that crossed the failed-authentication threshold. It
+    /// stays locked until the trader unlocks it.
+    async fn lock_webhook_after_failures(&self, strategy: &StrategyRow) {
+        if let Err(e) = self
+            .store
+            .set_webhook_locked(strategy.id, &strategy.user_id, true)
+        {
+            tracing::error!("Could not lock a webhook after failed attempts: {}", e);
+            return;
+        }
+        tracing::warn!(
+            "Strategy {} webhook locked after {} refused requests",
+            strategy.id,
+            LOCKOUT_FAILURES
+        );
+        let message = format!(
+            "Webhook locked after {} refused alerts from addresses outside the allowlist. \
+             Check who has the webhook URL, then unlock it or rotate it.",
+            LOCKOUT_FAILURES
+        );
+        self.emit(
+            strategy.id,
+            &strategy.user_id,
+            "webhook_locked",
+            &message,
+            super::store::EventFields {
+                severity: Some("critical"),
+                ..Default::default()
+            },
+        )
+        .await;
+    }
+
     /// Run one inbound alert through the pipeline and act on it, or refuse
     /// it. Never fails: an unexpected error is `rejected_engine_error`.
     pub async fn handle_webhook(
@@ -437,8 +566,10 @@ impl StrategyModule {
             return self.unknown_token_outcome(ip, ua);
         }
         let strategy = match self.store.get_strategy_by_webhook_token(token) {
-            Ok(Some(s)) => s,
-            Ok(None) => return self.unknown_token_outcome(ip, ua),
+            // The row was found through the digest index; confirm the digest
+            // in constant time so the comparison leaks nothing about it.
+            Ok(Some(s)) if digest_matches(token, &s.webhook_token_hash) => s,
+            Ok(_) => return self.unknown_token_outcome(ip, ua),
             Err(e) => {
                 tracing::error!("Could not resolve a webhook token: {}", e);
                 return self.unknown_token_outcome(ip, ua);
@@ -480,6 +611,11 @@ impl StrategyModule {
                 None,
                 Some("The caller address is outside the allowlist"),
             );
+            // A failed authentication on this webhook, counted per webhook
+            // whatever the source address, so rotating addresses locks it.
+            if self.webhook.record_webhook_failure(sid) {
+                self.lock_webhook_after_failures(&strategy).await;
+            }
             return with(
                 WebhookOutcome::new(
                     "rejected_ip",

@@ -501,6 +501,7 @@ pub async fn unlock_webhook(State(ctx): Ctx, User(u): User, Path(sid): Path<Stri
     {
         return store_error(e);
     }
+    ctx.strategy.webhook.clear_webhook_failures(row.id);
     ok200(json!({"webhook_locked": false, "message": "Webhook unlocked"}))
 }
 
@@ -822,8 +823,10 @@ pub async fn webhook(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    use crate::strategy::webhook::{rate_limited, MAX_PAYLOAD_BYTES};
-    if rate_limited(&ctx.strategy.webhook, ip, &token) {
+    use crate::server::ratelimit::Bucket;
+    use crate::strategy::webhook::{admit, MAX_PAYLOAD_BYTES};
+    // Before any token lookup, secret check, body read or order path.
+    if !admit(&ctx.strategy.webhook, &ctx.limiter, ip, &token) {
         return json_response(
             StatusCode::TOO_MANY_REQUESTS,
             json!({
@@ -838,7 +841,7 @@ pub async fn webhook(
         .get(axum::http::header::CONTENT_LENGTH)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<usize>().ok());
-    if declared.is_some_and(|d| d > MAX_PAYLOAD_BYTES) {
+    if declared.is_some_and(|d| d > MAX_PAYLOAD_BYTES) || body.len() > MAX_PAYLOAD_BYTES {
         return json_response(
             StatusCode::PAYLOAD_TOO_LARGE,
             json!({"status": "error", "message": format!("Payload larger than {} bytes", MAX_PAYLOAD_BYTES)}),
@@ -852,6 +855,13 @@ pub async fn webhook(
         .strategy
         .handle_webhook(&token, &body, Some(&ip_text), ua)
         .await;
+    if matches!(outcome.result.as_str(), "rejected_token" | "rejected_ip") {
+        // A failed authentication, counted per caller address; over the
+        // limit the address is refused before any lookup.
+        let _ = ctx
+            .limiter
+            .check(Bucket::WebhookFail, ip, ctx.limiter.now());
+    }
     json_response(
         StatusCode::from_u16(outcome.status).unwrap_or(StatusCode::BAD_REQUEST),
         outcome.body(),
