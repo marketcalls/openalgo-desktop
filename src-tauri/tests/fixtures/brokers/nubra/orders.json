@@ -1,0 +1,88 @@
+{
+  "orders": {
+    "open": [
+      {
+        "intentOrderId": 1001,
+        "refId": 72329,
+        "refData": {"exchange": "NSE", "derivativeType": "STOCK", "stockName": "RELIANCE", "displayName": "RELIANCE"},
+        "side": "BUY",
+        "deliveryType": "IDAY",
+        "priceType": "LIMIT",
+        "validityType": "DAY",
+        "orderQty": 10,
+        "filledQty": 4,
+        "orderPrice": 142500,
+        "filledPrice": 142450,
+        "stratTags": ["openalgo"],
+        "timestamps": {"lastUpdatedAt": "2026-10-03T05:00:45.054721358Z", "intentCreatedAt": "2026-10-03T04:59:00Z"},
+        "exchangeOrderIds": {"72329": [1100000012345]}
+      },
+      {
+        "intentOrderId": 1002,
+        "isMulti": true,
+        "legs": [
+          {"refId": 99999, "refData": {"exchange": "NSE", "derivativeType": "OPT", "stockName": "NIFTY26OCT25000CE", "displayName": "NIFTY 27 OCT 26 25000 CE"}}
+        ],
+        "side": "SELL",
+        "deliveryType": "CNC",
+        "priceType": "MARKET",
+        "orderQty": 75,
+        "filledQty": 0,
+        "entryConfig": {"triggers": {"ltp": {"atOrBelow": {"value": 12000}}}},
+        "timestamps": {"intentCreatedAt": "2026-10-03T04:00:00Z"}
+      }
+    ],
+    "executed": [
+      {
+        "intentOrderId": 1003,
+        "refId": 88888,
+        "refData": {"exchange": "NSE", "derivativeType": "FUT", "stockName": "NIFTY26OCTFUT"},
+        "side": "BUY",
+        "deliveryType": "CNC",
+        "priceType": "MARKET",
+        "orderQty": 75,
+        "filledQty": 75,
+        "filledPrice": 2510050,
+        "timestamps": {"filledAt": "2026-10-03T04:30:00.5Z"}
+      }
+    ],
+    "rejected": [
+      {
+        "intentOrderId": 1004,
+        "refId": 55555,
+        "refData": {"exchange": "MCX", "derivativeType": "FUT", "stockName": "CRUDEOIL26OCTFUT"},
+        "side": "SELL",
+        "deliveryType": "IDAY",
+        "priceType": "LIMIT",
+        "orderQty": 100,
+        "filledQty": 0,
+        "orderPrice": 550000
+      }
+    ],
+    "cancelled": [],
+    "expired": [
+      {
+        "intentOrderId": 1005,
+        "refId": 4242,
+        "refData": {"exchange": "NSE", "derivativeType": "STOCK", "stockName": "UNKNOWNCO"},
+        "side": "BUY",
+        "deliveryType": "CNC",
+        "priceType": "LIMIT",
+        "orderQty": 1,
+        "orderPrice": 1000
+      }
+    ],
+    "gtt": [
+      {
+        "intentOrderId": 1006,
+        "refId": 72329,
+        "refData": {"exchange": "NSE", "derivativeType": "STOCK", "stockName": "RELIANCE"},
+        "side": "SELL",
+        "deliveryType": "CNC",
+        "priceType": "LIMIT",
+        "orderQty": 5,
+        "orderPrice": 150000
+      }
+    ]
+  }
+}

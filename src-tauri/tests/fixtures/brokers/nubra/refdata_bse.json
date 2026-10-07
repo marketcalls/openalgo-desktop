@@ -1,0 +1,6 @@
+{
+  "refdata": [
+    {"ref_id": 61001, "exchange": "BSE", "asset": "SBIN", "stock_name": "SBIN", "derivative_type": "STOCK", "option_type": null, "expiry": null, "strike_price": null, "lot_size": 1, "tick_size": 5},
+    {"ref_id": 61002, "exchange": "BSE", "asset": "SENSEX", "stock_name": "SENSEX26OCT82000PE", "derivative_type": "OPT", "option_type": "PE", "expiry": "20261030", "strike_price": 8200000, "lot_size": 20, "tick_size": 5}
+  ]
+}

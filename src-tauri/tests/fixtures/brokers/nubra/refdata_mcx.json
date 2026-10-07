@@ -1,0 +1,5 @@
+{
+  "refdata": [
+    {"ref_id": 55555, "exchange": "MCX", "asset": "CRUDEOIL", "stock_name": "CRUDEOIL26OCTFUT", "derivative_type": "FUT", "option_type": null, "expiry": 20261019, "strike_price": null, "lot_size": 100, "tick_size": 100}
+  ]
+}
