@@ -48,6 +48,8 @@ pub enum Topic {
     ForceLogout,
     PendingOrderCreated,
     PendingOrderUpdated,
+    /// Historify download, job and schedule progress.
+    Historify,
 }
 
 impl Topic {
@@ -86,6 +88,7 @@ impl Topic {
             Topic::ForceLogout => "session.force_logout",
             Topic::PendingOrderCreated => "action_center.pending_order_created",
             Topic::PendingOrderUpdated => "action_center.pending_order_updated",
+            Topic::Historify => "historify.update",
         }
     }
 }
@@ -309,6 +312,12 @@ pub enum Event {
     PendingOrderUpdated {
         payload: Value,
     },
+    /// A Historify push: the web's Socket.IO event name and its payload
+    /// (`historify_progress`, `historify_job_complete`, ...).
+    Historify {
+        event: &'static str,
+        payload: Value,
+    },
 }
 
 impl Event {
@@ -349,6 +358,7 @@ impl Event {
             Event::ForceLogout { .. } => Topic::ForceLogout,
             Event::PendingOrderCreated { .. } => Topic::PendingOrderCreated,
             Event::PendingOrderUpdated { .. } => Topic::PendingOrderUpdated,
+            Event::Historify { .. } => Topic::Historify,
         }
     }
 

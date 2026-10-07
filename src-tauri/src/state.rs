@@ -84,6 +84,8 @@ pub struct AppState {
     pub sandbox: crate::sandbox::Sandbox,
     /// Telegram and WhatsApp bots and their alerts.
     pub messaging: crate::messaging::Messaging,
+    /// Historify: the DuckDB history store, download jobs and schedules.
+    pub historify: Arc<crate::historify::Historify>,
 }
 
 pub struct OpenOptions {
@@ -131,7 +133,18 @@ impl AppState {
         let symbols = opts.brokers.symbols();
         let sandbox_bus = bus.clone();
         let sandbox_clock = opts.clock.clone();
+        let historify_bus = bus.clone();
+        let historify_clock = opts.clock.clone();
+        let historify_db = (*duckdb).clone();
         let ctx = Arc::new_cyclic(|me: &std::sync::Weak<Self>| Self {
+            historify: Arc::new(crate::historify::Historify::new(
+                historify_db,
+                Arc::new(crate::historify::source::BrokerSource::new(me.clone())),
+                historify_bus,
+                historify_clock,
+                &data_dir.join("historify_work"),
+                crate::historify::jobs::EngineConfig::default(),
+            )),
             sandbox: crate::sandbox::Sandbox::with_db(
                 sandbox_db,
                 crate::sandbox::SandboxDeps {
@@ -168,6 +181,7 @@ impl AppState {
             messaging: crate::messaging::Messaging::new(),
         });
         crate::messaging::register(&ctx);
+        ctx.historify.start();
         // Analyzer mode survives restarts: resume the sandbox engine.
         if ctx.sqlite.get_analyze_mode().unwrap_or(false) {
             crate::services::analyzer_service::AnalyzerService::spawn_engine_transition(&ctx, true);
@@ -207,6 +221,7 @@ impl AppState {
     pub async fn shutdown(&self) {
         self.shutdown.cancel();
         self.messaging.shutdown().await;
+        self.historify.shutdown().await;
         self.sandbox.shutdown().await;
         self.bus.shutdown(Duration::from_secs(2)).await;
         let mut tasks = std::mem::take(&mut *self.tasks.lock());
