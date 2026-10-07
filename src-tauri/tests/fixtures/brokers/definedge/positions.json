@@ -1,0 +1,5 @@
+{"status":"SUCCESS","positions":[
+{"tradingsymbol":"SBIN-EQ","exchange":"NSE","product_type":"INTRADAY","net_quantity":"10","net_averageprice":"812.35","lastPrice":"815.00","unrealized_pnl":"26.50","realized_pnl":"0","day_buy_quantity":"10","day_buy_value":"8123.50","day_sell_quantity":"0","day_sell_value":"0"},
+{"tradingsymbol":"NIFTY28OCT25C25000","exchange":"NFO","product_type":"NORMAL","net_quantity":"-75","net_averageprice":"118.40","lastPrice":"110.00","unrealized_pnl":"630.00","realized_pnl":"0"},
+{"tradingsymbol":"INFY-EQ","exchange":"NSE","product_type":"CNC","net_quantity":"0","net_averageprice":"0","lastPrice":"1510.00","unrealized_pnl":"0","realized_pnl":"-42.75"}
+]}
