@@ -13,6 +13,7 @@ pub mod db;
 pub mod error;
 pub mod events;
 pub mod feed;
+pub mod historify;
 pub mod messaging;
 pub mod sandbox;
 pub mod security;

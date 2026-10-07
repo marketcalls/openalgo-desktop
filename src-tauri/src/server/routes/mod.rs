@@ -11,6 +11,7 @@ pub mod auth;
 pub mod broker;
 pub mod charts;
 pub mod health;
+pub mod historify;
 pub mod latency;
 pub mod leverage;
 pub mod log;
@@ -76,7 +77,7 @@ macro_rules! r {
 }
 
 pub fn table() -> Vec<RouteSpec> {
-    vec![
+    let mut t = vec![
         // Public
         r!(GET, "/auth/csrf-token", Public, auth::csrf_token),
         r!(GET, "/auth/check-setup", Public, auth::check_setup),
@@ -545,7 +546,9 @@ pub fn table() -> Vec<RouteSpec> {
         r!(POST, "/whatsapp/test-message", User, whatsapp::test_message),
         r!(POST, "/whatsapp/send", User, whatsapp::send),
         r!(GET, "/whatsapp/stats", User, whatsapp::stats),
-    ]
+    ];
+    t.extend(historify::table());
+    t
 }
 
 /// Build the session router from the table, applying the guard per access.

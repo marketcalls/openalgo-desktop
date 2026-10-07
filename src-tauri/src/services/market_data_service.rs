@@ -219,14 +219,10 @@ pub async fn history(
     source: &str,
 ) -> Reply {
     if source == "db" {
-        // Historify is not on the desktop yet: the local store is empty.
-        return Reply::error(
-            404,
-            format!(
-                "No data found for {}:{} interval {} in local database. Download data first using Historify.",
-                symbol, exchange, interval
-            ),
-        );
+        return ctx
+            .historify
+            .history_from_db(symbol, exchange, interval, start, end)
+            .await;
     }
     let h = match broker_handle(ctx) {
         Ok(h) => h,
