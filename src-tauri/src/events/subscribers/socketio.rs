@@ -24,6 +24,11 @@ impl SocketEmitter {
     pub fn set(&self, io: Option<socketioxide::SocketIo>) {
         *self.io.write() = io;
     }
+
+    /// The Socket.IO handle, for room-addressed pushes (strategy rooms).
+    pub fn io(&self) -> Option<socketioxide::SocketIo> {
+        self.io.read().clone()
+    }
 }
 
 #[async_trait::async_trait]

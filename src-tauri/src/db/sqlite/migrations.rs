@@ -61,6 +61,8 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         "071_whatsapp",
         crate::messaging::whatsapp::db::migrate,
     )?;
+    run_rust_migration(conn, "072_strategy_module", crate::strategy::store::migrate)?;
+    run_rust_migration(conn, "073_strategy_book", crate::strategy::book::migrate)?;
 
     tracing::info!("Database migrations completed");
     Ok(())

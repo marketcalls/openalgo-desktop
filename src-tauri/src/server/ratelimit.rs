@@ -60,6 +60,8 @@ impl Bucket {
             "placesmartorder" => Bucket::SmartOrder,
             "placeorder" | "modifyorder" | "cancelorder" | "optionsorder" | "optionsmultiorder"
             | "placegttorder" | "modifygttorder" | "cancelgttorder" => Bucket::Order,
+            // Web `API_RATE_LIMIT` (10 per second) on the strategy routes.
+            p if p.starts_with("strategy/") => Bucket::Order,
             _ => Bucket::Api,
         }
     }
