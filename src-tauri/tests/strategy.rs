@@ -2770,7 +2770,16 @@ mod strategy_module_recovery {
     async fn a_durable_pending_stop_is_recovered_with_its_reason() {
         let t = t();
         let sid = t.default_strategy();
-        let run = t.start_filled(sid, 100.0).await;
+        // Filled through the broker-frame path so the fill is durable.
+        let run = t.start(sid).await.run_id.unwrap();
+        let entry = t.orders(run)[0].clone();
+        t.frame(
+            entry.broker_order_id.as_deref().unwrap(),
+            "complete",
+            entry.qty,
+            100.0,
+        )
+        .await;
         t.gw.reject_next("Rate limited");
         t.m.stop_run(run, USER, "overall_sl").await;
         crash(&t, run);
@@ -2780,10 +2789,8 @@ mod strategy_module_recovery {
         assert!(r.ok, "{:?}", r);
         assert!(
             r.stop_pending && r.exits.iter().any(|e| e["ok"] == json!(true)),
-            "the retry placed the exit: {:?}\n{:?}\n{:?}",
-            r,
-            t.m.state.snapshot(run),
-            t.orders(run)
+            "the retry placed the exit: {:?}",
+            r
         );
         t.fill_last_exit(run, 100.0).await;
         assert_eq!(t.run(run).stop_reason.as_deref(), Some("overall_sl"));
