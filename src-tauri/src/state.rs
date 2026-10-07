@@ -343,6 +343,12 @@ impl AppState {
         self.symbols.load(symbols);
     }
 
+    /// Replace the master with a downloaded or stored one, contract
+    /// multipliers included. Returns the instrument count.
+    pub fn load_master_cache(&self, master: crate::brokers::types::MasterContract) -> usize {
+        self.symbols.load_master(master)
+    }
+
     /// Drop the master (logout).
     pub fn clear_symbol_cache(&self) {
         self.symbols.clear();

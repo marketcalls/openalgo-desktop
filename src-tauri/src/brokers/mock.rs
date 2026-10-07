@@ -92,6 +92,8 @@ pub struct MockBroker {
     pub depth_feed: Mutex<Option<(String, u8)>>,
     /// `on_logout` calls.
     pub logouts: Mutex<u32>,
+    /// Contract multipliers by token sent with the master.
+    pub contract_values: Mutex<HashMap<String, f64>>,
     /// The account id a sign-in returns.
     pub auth_user_id: Mutex<String>,
     /// What `begin_login` returns (a consent address).
@@ -134,6 +136,7 @@ impl MockBroker {
             order_feed_url: Mutex::new(None),
             depth_feed: Mutex::new(None),
             logouts: Mutex::new(0),
+            contract_values: Mutex::new(HashMap::new()),
             auth_user_id: Mutex::new("AB1234".into()),
             login_url: Mutex::new(None),
             restored: Mutex::new(None),
@@ -458,6 +461,12 @@ impl Broker for MockBroker {
     async fn download_master_contract(&self, _: &AuthToken) -> Result<Vec<SymbolData>> {
         self.record(MockCall::MasterContract);
         out(&self.master, Vec::new)
+    }
+
+    async fn download_master(&self, auth: &AuthToken) -> Result<MasterContract> {
+        let mut m = MasterContract::new(self.download_master_contract(auth).await?);
+        m.contract_values = self.contract_values.lock().clone();
+        Ok(m)
     }
 
     fn create_feed(&self, _: &AuthToken) -> Result<Box<dyn BrokerFeed>> {

@@ -161,14 +161,14 @@ fn emit_cache_loaded(ctx: &AppState, broker: &str, started: std::time::Instant) 
 pub async fn load_cached(ctx: &Arc<AppState>, broker: &str) -> Result<usize> {
     let started = std::time::Instant::now();
     let db = ctx.sqlite.clone();
-    let rows = tokio::task::spawn_blocking(move || {
+    // With the contract multipliers (crypto `contract_value`).
+    let master = tokio::task::spawn_blocking(move || {
         let conn = db.conn()?;
-        symbol::load_symbols(&conn)
+        symbol::load_master(&conn)
     })
     .await
     .map_err(|e| AppError::Internal(format!("symbol load task failed: {}", e)))??;
-    let n = rows.len();
-    ctx.load_symbol_cache(rows);
+    let n = ctx.load_master_cache(master);
     emit_cache_loaded(ctx, broker, started);
     tracing::info!(
         "Loaded {} instruments for {} from the stored master",
@@ -197,8 +197,10 @@ async fn download_claimed(
             ctx.now(),
         )?;
     }
-    let rows = match broker.download_master_contract(auth).await {
-        Ok(r) if !r.is_empty() => r,
+    // `download_master` carries per-row extras (Delta's contract_value),
+    // stored and loaded with the rows.
+    let master = match broker.download_master(auth).await {
+        Ok(m) if !m.rows.is_empty() => m,
         Ok(_) => {
             return Err(AppError::Broker(
                 "The broker sent an empty instrument list. Try the download again shortly.".into(),
@@ -207,16 +209,15 @@ async fn download_claimed(
         Err(e) => return Err(e),
     };
     let db = ctx.sqlite.clone();
-    let (rows, stats) = tokio::task::spawn_blocking(move || -> Result<_> {
+    let (master, stats) = tokio::task::spawn_blocking(move || -> Result<_> {
         let mut conn = db.conn()?;
-        symbol::store_symbols(&mut conn, &rows)?;
+        symbol::store_master(&mut conn, &master)?;
         let stats = symbol::exchange_counts(&conn)?;
-        Ok((rows, stats))
+        Ok((master, stats))
     })
     .await
     .map_err(|e| AppError::Internal(format!("symbol store task failed: {}", e)))??;
-    let total = rows.len();
-    ctx.load_symbol_cache(rows);
+    let total = ctx.load_master_cache(master);
     {
         let conn = ctx.sqlite.conn()?;
         let now = ctx.now();
@@ -372,6 +373,47 @@ mod tests {
         let (d, _) = should_download_at("deltaexchange", Some(ist(3, 6, 0)), None, now);
         assert!(!d);
         assert_eq!(cutoff("deltaexchange").0, 0);
+    }
+
+    /// Delta's `contract_value` is filled only through `download_master`:
+    /// the download stores it with the rows and loads it into memory, and a
+    /// cache reload brings it back from the database.
+    #[tokio::test]
+    async fn contract_values_travel_with_the_master() {
+        use crate::brokers::common::symbols::SymToken;
+        use crate::brokers::mock::MockBroker;
+        use crate::brokers::BrokerRegistry;
+        let mock = Arc::new(MockBroker::new("deltaexchange"));
+        let row = SymToken {
+            symbol: "BTCUSD".into(),
+            brsymbol: "BTCUSD".into(),
+            name: "BTCUSD".into(),
+            exchange: "CRYPTO".into(),
+            brexchange: "CRYPTO".into(),
+            token: "27".into(),
+            expiry: String::new(),
+            strike: 0.0,
+            lot_size: 1,
+            instrument_type: "PERPFUT".into(),
+            tick_size: 0.5,
+        };
+        *mock.master.lock() = Some(Ok(vec![row]));
+        mock.contract_values.lock().insert("27".into(), 0.001);
+        let t = crate::state::testing::build(
+            BrokerRegistry::with(vec![mock.clone() as Arc<dyn Broker>]),
+            ist(3, 10, 0),
+        );
+        let ctx = &t.ctx;
+        let broker: Arc<dyn Broker> = mock.clone();
+        let n = download(ctx, &broker, &AuthToken::new("t")).await.unwrap();
+        assert_eq!(n, 1);
+        assert_eq!(ctx.symbols.contract_value("BTCUSD", "CRYPTO"), Some(0.001));
+        let stored = ctx.sqlite.load_master().unwrap();
+        assert_eq!(stored.contract_values.get("27"), Some(&0.001));
+        ctx.clear_symbol_cache();
+        assert_eq!(ctx.symbols.contract_value("BTCUSD", "CRYPTO"), None);
+        assert_eq!(load_cached(ctx, "deltaexchange").await.unwrap(), 1);
+        assert_eq!(ctx.symbols.contract_value("BTCUSD", "CRYPTO"), Some(0.001));
     }
 
     #[test]

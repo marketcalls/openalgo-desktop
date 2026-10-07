@@ -28,6 +28,7 @@ mod api_v1_contract;
 mod api_v1_events;
 mod broker_angel_http;
 mod broker_contract;
+mod broker_deltaexchange;
 mod broker_dhan_adapter;
 mod broker_dhan_feed;
 mod broker_fyers_adapter;
