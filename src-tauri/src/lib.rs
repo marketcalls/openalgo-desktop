@@ -16,6 +16,7 @@ pub mod feed;
 pub mod messaging;
 pub mod sandbox;
 pub mod security;
+pub mod risk;
 pub mod server;
 pub mod services;
 pub mod session;
