@@ -298,15 +298,16 @@ Decided:
     crate that the web's `wars` package wraps with PyO3. Same pairing (QR and
     pair code), session export/import as an encrypted blob, alerts and bot
     commands as the web. The web's notes on `wars` threading do not apply.
-  - Agent: a native multi-provider LLM client replacing LiteLLM, with the web's
-    providers, models, tools, streaming chat, confirmations and voice routes.
-    Tools call desktop services directly. Build our own thin provider layer
-    (OpenAI chat and Responses, Anthropic Messages, Gemini; Ollama and every
-    OpenAI-compatible provider through the OpenAI format), with the model list
-    and pricing from LiteLLM's public catalogue (fetched at start, bundled
-    fallback), as the web does. Do not depend on `LiteLLM-Labs/litellm-rust`:
-    it is a proof of concept (two providers, a Postgres-backed gateway).
-    Revisit if BerriAI ships an official Rust crate with a stable API.
+  - Agent: **deferred** (maintainer, 2026-10-07). It needs more study and
+    design work before it is built, so no wave starts it by default. Until
+    then the Agent pages stay in the frontend and their routes answer with a
+    trader-facing "not available in the desktop yet" message. Working notes
+    for when it starts: a native provider layer of our own (OpenAI chat and
+    Responses, Anthropic Messages, Gemini; Ollama and OpenAI-compatible
+    providers through the OpenAI format), model list and pricing from
+    LiteLLM's public catalogue with a bundled fallback, tools calling desktop
+    services directly. Do not depend on `LiteLLM-Labs/litellm-rust`, a proof
+    of concept; revisit if BerriAI ships an official Rust crate.
 
 ## Testing
 
