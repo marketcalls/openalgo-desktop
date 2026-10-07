@@ -1,0 +1,20 @@
+{
+  "s": "ok",
+  "d": {
+    "holdings": [
+      {
+        "sym": {"id": "EQT_RELIANCE_EQ_NSE", "exchange": "NSE", "symbol": "RELIANCE", "tradSymbol": "RELIANCE-EQ", "isin": "INE002A01018"},
+        "symId": "EQT_RELIANCE_EQ_NSE", "qty": 4, "saleableQty": 3, "avgPrice": 1300.0,
+        "realizedPnl": 10.0, "product": "delivery"
+      },
+      {
+        "sym": {"id": "EQT_SBIN_EQ_NSE", "exchange": "NSE", "symbol": "SBIN", "tradSymbol": "SBIN-EQ", "lastPrice": 810.0},
+        "symId": "EQT_SBIN_EQ_NSE", "saleableQty": 10, "avgPrice": 800.0,
+        "realizedPnl": 0
+      },
+      {
+        "symId": "EQT_GHOST_EQ_NSE", "qty": 1, "avgPrice": 1.0
+      }
+    ]
+  }
+}

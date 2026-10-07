@@ -1,0 +1,20 @@
+{
+  "s": "ok",
+  "d": [
+    {
+      "sym": {"id": "EQT_SBIN_EQ_NSE", "exchange": "NSE", "symbol": "SBIN", "tradSymbol": "SBIN-EQ"},
+      "symId": "EQT_SBIN_EQ_NSE", "netQty": 10, "netAvgPrice": 801.256, "product": "intraday",
+      "realizedPnl": 12.5, "dayPos": {"dayQty": 10, "dayAvg": 801.256, "dayRealizedPnl": 12.5}
+    },
+    {
+      "sym": {"id": "OPTIDX_NIFTY_NFO_2026-10-27_25000_CE", "exchange": "NFO", "symbol": "NIFTY", "tradSymbol": "NIFTY27OCT2625000CE"},
+      "symId": "OPTIDX_NIFTY_NFO_2026-10-27_25000_CE", "netQty": -75, "netAvgPrice": 120.5, "product": "normal",
+      "realizedPnl": 0
+    },
+    {
+      "sym": {"id": "EQT_RELIANCE_EQ_NSE", "exchange": "NSE", "symbol": "RELIANCE", "tradSymbol": "RELIANCE-EQ"},
+      "symId": "EQT_RELIANCE_EQ_NSE", "netQty": 0, "netAvgPrice": 0, "product": "delivery",
+      "realizedPnl": -3.25
+    }
+  ]
+}

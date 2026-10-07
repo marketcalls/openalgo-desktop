@@ -33,6 +33,7 @@ pub mod paytm;
 pub mod pocketful;
 pub mod rmoney;
 pub mod shoonya;
+pub mod tradejini;
 pub mod tradesmart;
 pub mod types;
 pub mod upstox;
@@ -469,6 +470,7 @@ impl BrokerRegistry {
             Arc::new(zebu::broker(symbols.clone())),
             Arc::new(firstock::FirstockBroker::new(symbols.clone())),
             Arc::new(fivepaisa::FivepaisaBroker::new(symbols.clone())),
+            Arc::new(tradejini::TradejiniBroker::new(symbols.clone())),
             Arc::new(deltaexchange::DeltaBroker::new(symbols.clone())),
             Arc::new(arrow::ArrowBroker::new(symbols.clone())),
             Arc::new(pocketful::PocketfulBroker::new(symbols.clone())),
@@ -563,6 +565,7 @@ mod tests {
                 "pocketful",
                 "rmoney",
                 "shoonya",
+                "tradejini",
                 "tradesmart",
                 "upstox",
                 "wisdom",
