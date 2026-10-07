@@ -18,6 +18,7 @@ type Ctx = State<Arc<AppState>>;
 
 const FAILED: &str = "Could not read the Telegram settings. Try again.";
 
+#[allow(clippy::result_large_err)]
 fn config(ctx: &AppState) -> Result<db::BotConfig, Response> {
     ctx.sqlite
         .conn()

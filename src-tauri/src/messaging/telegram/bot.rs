@@ -16,6 +16,7 @@ use crate::messaging::format::{
     comma2, comma_int, get_f64, get_str, py_float, py_float_str, py_int, signed2, title,
 };
 use crate::messaging::openalgo::{is_success, OpenAlgoClient};
+use crate::messaging::ReplyClass;
 use crate::state::AppState;
 use chrono::{Duration, FixedOffset, TimeZone};
 use serde_json::{json, Value};
@@ -383,8 +384,13 @@ pub fn format_short(kind: &str, resp: &Option<Value>, cs: &str) -> String {
             for o in orders.iter().take(10) {
                 let status = get_str(o, "order_status", "unknown");
                 let price = match o.get("price").map(py_float).unwrap_or(Some(0.0)) {
-                    Some(p) if p == 0.0 => "Market".to_string(),
-                    Some(p) => format!("{cs}{}", py_float_str(p)),
+                    Some(p) => {
+                        if p == 0.0 {
+                            "Market".to_string()
+                        } else {
+                            format!("{cs}{}", py_float_str(p))
+                        }
+                    }
                     None => format!("{cs}{}", get_str(o, "price", "0")),
                 };
                 m += &format!(
@@ -633,8 +639,6 @@ pub const CALLBACKS: &[&str] = &[
     "funds",
     "pnl",
 ];
-pub const PRIVATE_ONLY: &str =
-    "For your account's safety this bot answers only in a private chat. Message the bot directly.";
 
 pub enum Request<'a> {
     Command(&'a str),
@@ -656,6 +660,10 @@ pub enum Gate {
 /// (the chat id is the sender's id), so nobody else in a group can press a
 /// linked user's buttons.
 pub fn gate(req: Request<'_>, linked: bool, chat_id: i64, from_id: i64) -> Gate {
+    // Nothing is answered outside a private chat with the sender.
+    if chat_id != from_id {
+        return Gate::Ignore;
+    }
     let known = match req {
         Request::Command(c) => {
             if OPEN_COMMANDS.contains(&c) {
@@ -676,9 +684,6 @@ pub fn gate(req: Request<'_>, linked: bool, chat_id: i64, from_id: i64) -> Gate 
     }
     if !linked {
         return Gate::Deny(LINK_FIRST);
-    }
-    if chat_id != from_id {
-        return Gate::Deny(PRIVATE_ONLY);
     }
     Gate::Allow
 }
@@ -796,13 +801,30 @@ impl Bot {
             .to_lowercase();
         let args: Vec<String> = parts.map(String::from).collect();
         let linked = Self::user(ctx, from.id).is_some();
+        // Linked users get members' caps; before linking each open command
+        // is answered once an hour (link attempts have their own throttle).
+        let (who, class) = if linked {
+            (format!("tg:{}", from.id), ReplyClass::Member)
+        } else if cmd == "link" {
+            (format!("tg:{}:link", from.id), ReplyClass::Member)
+        } else {
+            (format!("tg:{}:{}", from.id, cmd), ReplyClass::Stranger)
+        };
+        let deny_key = format!("tg:{}:deny", from.id);
+        let replies = &ctx.messaging.telegram_replies;
         match gate(Request::Command(&cmd), linked, chat, from.id) {
             Gate::Ignore => return,
             Gate::Deny(msg) => {
-                self.send(chat, msg, false, None).await;
+                if replies.allow(&deny_key, ReplyClass::Stranger, ctx.now()) {
+                    self.send(chat, msg, false, None).await;
+                }
                 return;
             }
-            Gate::Allow => {}
+            Gate::Allow => {
+                if !replies.allow(&who, class, ctx.now()) {
+                    return;
+                }
+            }
         }
         self.on_command(ctx, &cmd, &args, chat, &from).await;
     }
@@ -1305,13 +1327,25 @@ impl Bot {
             .unwrap_or("")
             .to_string();
         let linked = Self::user(ctx, from.id).is_some();
+        let who = format!("tg:{}", from.id);
+        let replies = &ctx.messaging.telegram_replies;
         match gate(Request::Callback(&data), linked, chat, from.id) {
             Gate::Ignore => return,
             Gate::Deny(msg) => {
-                self.send(chat, msg, false, None).await;
+                if replies.allow(
+                    &format!("tg:{}:deny", from.id),
+                    ReplyClass::Stranger,
+                    ctx.now(),
+                ) {
+                    self.send(chat, msg, false, None).await;
+                }
                 return;
             }
-            Gate::Allow => {}
+            Gate::Allow => {
+                if !replies.allow(&who, ReplyClass::Member, ctx.now()) {
+                    return;
+                }
+            }
         }
 
         match data.as_str() {
@@ -1493,14 +1527,15 @@ mod tests {
             );
             assert_eq!(
                 gate(Request::Command(c), true, -100, 5),
-                Gate::Deny(PRIVATE_ONLY),
+                Gate::Ignore,
                 "{}",
                 c
             );
             assert_eq!(gate(Request::Command(c), true, 5, 5), Gate::Allow, "{}", c);
         }
         for c in OPEN_COMMANDS {
-            assert_eq!(gate(Request::Command(c), false, -100, 5), Gate::Allow);
+            assert_eq!(gate(Request::Command(c), false, -100, 5), Gate::Ignore);
+            assert_eq!(gate(Request::Command(c), false, 5, 5), Gate::Allow);
         }
         for n in CALLBACKS {
             let d = if n.ends_with('_') {
@@ -1516,7 +1551,7 @@ mod tests {
             );
             assert_eq!(
                 gate(Request::Callback(&d), true, -100, 5),
-                Gate::Deny(PRIVATE_ONLY),
+                Gate::Ignore,
                 "{}",
                 d
             );

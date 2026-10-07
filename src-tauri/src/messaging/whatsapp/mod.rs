@@ -238,6 +238,48 @@ pub fn command_gate(is_from_me: bool, is_group: bool, chat: &str, own: &[String]
     }
 }
 
+/// What happens to one incoming slash command.
+#[derive(Debug, PartialEq, Eq)]
+pub enum WaRoute {
+    /// Run it (the owner, within the reply caps).
+    Dispatch,
+    /// Send this one line back to the chat.
+    Reply(&'static str),
+    /// Say nothing.
+    Drop,
+}
+
+/// The gate plus the reply caps: a stranger gets the refusal at most once
+/// an hour, the owner at most `MEMBER_PER_MINUTE` replies a minute, the bot
+/// at most `GLOBAL_PER_MINUTE` in all; groups and broadcasts never.
+pub fn route_command(
+    is_from_me: bool,
+    is_group: bool,
+    chat: &str,
+    own: &[String],
+    replies: &crate::messaging::ReplyLimiter,
+    now: chrono::DateTime<chrono::Utc>,
+) -> WaRoute {
+    use crate::messaging::ReplyClass;
+    match command_gate(is_from_me, is_group, chat, own) {
+        WaGate::Ignore => WaRoute::Drop,
+        WaGate::Deny(m) => {
+            if replies.allow(&format!("wa:{}", chat), ReplyClass::Stranger, now) {
+                WaRoute::Reply(m)
+            } else {
+                WaRoute::Drop
+            }
+        }
+        WaGate::Allow => {
+            if replies.allow("wa:owner", ReplyClass::Member, now) {
+                WaRoute::Dispatch
+            } else {
+                WaRoute::Drop
+            }
+        }
+    }
+}
+
 /// Web `normalize_phone`: digits only, 7 to 15 of them; floats and booleans
 /// are refused.
 pub fn normalize_phone(raw: &Value) -> String {
@@ -1060,10 +1102,10 @@ async fn bot_task(
                                 .flatten()
                                 .map(|j| j.to_non_ad_string())
                                 .collect();
-                            match command_gate(is_from_me, is_group, &chat, &own) {
-                                WaGate::Allow => {}
-                                WaGate::Ignore => continue,
-                                WaGate::Deny(m) => {
+                            match route_command(is_from_me, is_group, &chat, &own, &c.messaging.whatsapp_replies, c.now()) {
+                                WaRoute::Dispatch => {}
+                                WaRoute::Drop => continue,
+                                WaRoute::Reply(m) => {
                                     tracing::debug!("WhatsApp command from someone other than the owner refused");
                                     let to = vec![chat.clone()];
                                     let text = m.to_string();
@@ -1222,6 +1264,75 @@ mod tests {
         assert_eq!(phone_to_jid("91"), "91@s.whatsapp.net");
         assert_eq!(jid_to_phone("91@s.whatsapp.net"), "91");
         assert_eq!(jid_to_phone("1203@g.us"), "");
+    }
+
+    #[test]
+    fn replies_are_capped_per_sender_and_never_go_to_groups() {
+        use crate::messaging::ReplyLimiter;
+        use chrono::TimeZone;
+        let own = vec!["919876543210@s.whatsapp.net".to_string()];
+        let t0 = chrono::Utc.with_ymd_and_hms(2026, 10, 7, 10, 0, 0).unwrap();
+        let r = ReplyLimiter::default();
+        // 500 commands from one stranger: exactly one reply.
+        let stranger = (0..500)
+            .map(|i| {
+                route_command(
+                    false,
+                    false,
+                    "915555555555@s.whatsapp.net",
+                    &own,
+                    &r,
+                    t0 + chrono::Duration::seconds(i),
+                )
+            })
+            .filter(|x| *x != WaRoute::Drop)
+            .count();
+        assert_eq!(stranger, 1);
+        // Groups and the owner's messages in other chats: none.
+        for i in 0..100 {
+            assert_eq!(
+                route_command(false, true, "1203@g.us", &own, &r, t0),
+                WaRoute::Drop,
+                "{}",
+                i
+            );
+            assert_eq!(
+                route_command(true, false, "1203@g.us", &own, &r, t0),
+                WaRoute::Drop
+            );
+            assert_eq!(
+                route_command(true, false, "915555555555@s.whatsapp.net", &own, &r, t0),
+                WaRoute::Drop
+            );
+        }
+        // The owner over the limit: nothing more until the minute passes.
+        let r = ReplyLimiter::default();
+        let ran = (0..50)
+            .filter(|_| route_command(true, false, &own[0], &own, &r, t0) == WaRoute::Dispatch)
+            .count();
+        assert_eq!(ran, ReplyLimiter::MEMBER_PER_MINUTE);
+        assert_eq!(
+            route_command(
+                true,
+                false,
+                &own[0],
+                &own,
+                &r,
+                t0 + chrono::Duration::seconds(30)
+            ),
+            WaRoute::Drop
+        );
+        assert_eq!(
+            route_command(
+                true,
+                false,
+                &own[0],
+                &own,
+                &r,
+                t0 + chrono::Duration::seconds(61)
+            ),
+            WaRoute::Dispatch
+        );
     }
 
     #[test]

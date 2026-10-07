@@ -28,6 +28,9 @@ const SNAPSHOT_VERSION: u32 = 1;
 /// Bound on retained sent-message copies (retry support only).
 const MAX_SENT_MESSAGES: usize = 4096;
 
+type MsgSecretKey = (String, String, String);
+type MsgSecretRow = (Vec<u8>, i64, i64);
+
 #[derive(Default)]
 struct State {
     identities: HashMap<String, [u8; 32]>,
@@ -47,7 +50,7 @@ struct State {
     group_metadata: HashMap<String, Vec<u8>>,
     tc_tokens: HashMap<String, TcTokenEntry>,
     sent_messages: HashMap<(String, String), (Vec<u8>, i64)>,
-    msg_secrets: HashMap<(String, String, String), (Vec<u8>, i64, i64)>,
+    msg_secrets: HashMap<MsgSecretKey, MsgSecretRow>,
     device: Option<Device>,
 }
 

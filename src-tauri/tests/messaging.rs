@@ -538,6 +538,40 @@ async fn telegram_polls_answers_commands_links_and_stops_cleanly() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn telegram_replies_are_capped_and_groups_get_none() {
+    let _serial = SERIAL.lock().await;
+    let h = H::new(true);
+    let (fake, base, _j) = spawn_fake().await;
+    h.start_telegram(&base).await;
+    // 500 account commands from one stranger: exactly one reply.
+    for _ in 0..500 {
+        fake.push(msg(7, 7, "/funds"));
+    }
+    // Group messages, linked or not: none.
+    h.link(42);
+    for _ in 0..50 {
+        fake.push(msg(42, -100, "/funds"));
+        fake.push(msg(8, -100, "/start"));
+    }
+    assert!(wait_for(|| fake.updates.lock().is_empty(), 15000).await);
+    tokio::time::sleep(Duration::from_millis(800)).await;
+    let to = |chat: i64| fake.sent().iter().filter(|b| b["chat_id"] == chat).count();
+    assert_eq!(to(7), 1);
+    assert_eq!(to(-100), 0);
+    // A linked user over the limit gets nothing more until the minute passes.
+    for _ in 0..30 {
+        fake.push(msg(42, 42, "/help"));
+    }
+    assert!(wait_for(|| fake.updates.lock().is_empty(), 15000).await);
+    tokio::time::sleep(Duration::from_millis(800)).await;
+    assert_eq!(to(42), 20);
+    h.clock.advance(chrono::Duration::seconds(61));
+    fake.push(msg(42, 42, "/help"));
+    assert!(wait_for(|| to(42) == 21, 5000).await);
+    h.ctx.messaging.telegram.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn telegram_mode_buttons_need_the_linked_user_in_a_private_chat() {
     let _serial = SERIAL.lock().await;
     let h = H::new(true);
@@ -560,22 +594,11 @@ async fn telegram_mode_buttons_need_the_linked_user_in_a_private_chat() {
     );
     // Another member of a group pressing the linked user's button: nothing.
     fake.push(button(99, -100, "mode_analyze"));
-    // The linked user in a group: refused too.
+    // The linked user in a group: ignored too, and nothing is said there.
     fake.push(button(42, -100, "mode_analyze"));
-    assert!(
-        wait_for(
-            || fake
-                .texts()
-                .iter()
-                .filter(|t| t.contains("private chat"))
-                .count()
-                >= 1,
-            5000
-        )
-        .await
-    );
-    tokio::time::sleep(Duration::from_millis(200)).await;
+    tokio::time::sleep(Duration::from_millis(1500)).await;
     assert!(!h.ctx.sqlite.get_analyze_mode().unwrap());
+    assert!(!fake.sent().iter().any(|b| b["chat_id"] == -100));
 
     // The linked user in a private chat succeeds.
     fake.push(button(42, 42, "mode_analyze"));
