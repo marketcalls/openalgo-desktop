@@ -97,17 +97,42 @@ pub fn consume(
     take(conn, "state_hash = ?1", &h, broker, now)
 }
 
+/// Consume `state` for `broker` only if the browser session `session_id`
+/// started it (an address the signed-in trader pasted). The row is
+/// deleted either way.
+pub fn consume_for_session(
+    conn: &Connection,
+    state: &str,
+    broker: &str,
+    session_id: &str,
+    now: DateTime<Utc>,
+) -> Result<Option<Pending>> {
+    let h = hash_state(state);
+    let owner: Option<Option<String>> = conn
+        .query_row(
+            "SELECT session_hash FROM pending_oauth WHERE state_hash = ?1",
+            [&h],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let p = take(conn, "state_hash = ?1", &h, broker, now)?;
+    let mine = owner.flatten().is_some_and(|o| o == hash_state(session_id));
+    Ok(p.filter(|_| mine))
+}
+
 /// Consume the newest pending sign-in for `broker` started from the
-/// browser session `session_id`, for a redirect that does not return
-/// `state` (Dhan, the Noren pages). Only the most recent sign-in of that
-/// broker and browser session matches, only within
-/// [`STATELESS_WINDOW_SECONDS`] of its start, and only once: every pending
-/// row of that broker and session is removed whether or not one matched.
+/// browser session `session_id`: a redirect that does not return `state`
+/// (Dhan, the Noren pages; `window` is then three minutes) or an address
+/// the trader pasted without one. Only the most recent sign-in of that
+/// broker and browser session matches, only within `window` of its start
+/// and before its expiry, and only once: every pending row of that broker
+/// and session is removed whether or not one matched.
 pub fn consume_latest(
     conn: &Connection,
     broker: &str,
     session_id: &str,
     now: DateTime<Utc>,
+    window: Duration,
 ) -> Result<Option<Pending>> {
     let sh = hash_state(session_id);
     let row: Option<(String, String, Option<String>, Option<String>)> = conn
@@ -128,9 +153,7 @@ pub fn consume_latest(
     };
     let at = |t: &str| DateTime::parse_from_rfc3339(t).map(|d| d.with_timezone(&Utc));
     let fresh = match (at(&created), at(&expires)) {
-        (Ok(c), Ok(e)) => {
-            e > now && c <= now && now - c <= Duration::seconds(STATELESS_WINDOW_SECONDS)
-        }
+        (Ok(c), Ok(e)) => e > now && c <= now && now - c <= window,
         _ => false,
     };
     Ok(fresh.then_some(Pending {
@@ -250,7 +273,8 @@ mod tests {
         let now = Utc.with_ymd_and_hms(2026, 10, 3, 4, 0, 0).unwrap();
         let c = populated_old_db(now);
         crate::db::sqlite::migrations::run_migrations(&c).unwrap();
-        assert_eq!(consume_latest(&c, "dhan", "sess", now).unwrap(), None);
+        let w = Duration::seconds(STATELESS_WINDOW_SECONDS);
+        assert_eq!(consume_latest(&c, "dhan", "sess", now, w).unwrap(), None);
         let ttl = Duration::minutes(10);
         let sec = Duration::seconds;
         insert(&c, "d1", "dhan", Some("r1"), Some("sess"), None, now, ttl).unwrap();
@@ -276,26 +300,37 @@ mod tests {
             ttl,
         )
         .unwrap();
-        let p = consume_latest(&c, "dhan", "sess", now + sec(2))
+        let p = consume_latest(&c, "dhan", "sess", now + sec(2), w)
             .unwrap()
             .unwrap();
         assert_eq!(p.redirect_uri.as_deref(), Some("r2"));
         assert!(p.binding_matches("cid") && !p.binding_matches("someone-else"));
         // The older sign-in of the same session went with it.
         assert_eq!(
-            consume_latest(&c, "dhan", "sess", now + sec(2)).unwrap(),
+            consume_latest(&c, "dhan", "sess", now + sec(2), w).unwrap(),
             None
         );
         // Another broker's or another session's row is never taken.
-        assert_eq!(consume_latest(&c, "fyers", "other", now).unwrap(), None);
+        assert_eq!(consume_latest(&c, "fyers", "other", now, w).unwrap(), None);
         // The other session's row is past the three-minute window.
         let late = now + sec(STATELESS_WINDOW_SECONDS + 2);
-        assert_eq!(consume_latest(&c, "dhan", "other", late).unwrap(), None);
+        assert_eq!(consume_latest(&c, "dhan", "other", late, w).unwrap(), None);
         // ... and it was used up by that attempt.
         assert_eq!(
-            consume_latest(&c, "dhan", "other", now + sec(2)).unwrap(),
+            consume_latest(&c, "dhan", "other", now + sec(2), w).unwrap(),
             None
         );
+        // A pasted address completes only the sign-in its own session started.
+        insert(&c, "p1", "dhan", None, Some("sess"), None, now, ttl).unwrap();
+        assert_eq!(
+            consume_for_session(&c, "p1", "dhan", "other", now).unwrap(),
+            None
+        );
+        assert_eq!(consume(&c, "p1", "dhan", now).unwrap(), None, "used up");
+        insert(&c, "p2", "dhan", None, Some("sess"), None, now, ttl).unwrap();
+        assert!(consume_for_session(&c, "p2", "dhan", "sess", now)
+            .unwrap()
+            .is_some());
         // A row with state still completes by state within the general expiry.
         insert(&c, "d4", "dhan", None, Some("sess"), None, now, ttl).unwrap();
         assert!(consume(&c, "d4", "dhan", now + Duration::minutes(5))

@@ -3,42 +3,38 @@
 Risks that are reduced but not closed, with what bounds them. Each entry
 names the code that carries the defence.
 
-## Broker sign-in callbacks without `state` (login CSRF)
+## Broker sign-in: forged callbacks (login CSRF)
 
-Brokers: dhan, shoonya, zebu, tradesmart, flattrade
-(`catalog::callback_carries_state`). Their redirect does not reliably echo
-the `state` OpenAlgo sent, so a callback cannot be tied to the sign-in that
-started it by `state` alone. The session cookie is `SameSite=Lax`, so a
-cross-site top-level GET to `/<broker>/callback?code=...` carries it: while
-the trader has a sign-in pending, a page they visit could try to complete it
-with a code for someone else's broker account. OpenAlgo web has the same
-exposure for these brokers (its callbacks for them do not check `state`).
+Every way a broker session is created or replaced, and what protects it
+(`services/broker_auth_service.rs`, `db/sqlite/oauth_state.rs`,
+`server/routes/broker.rs`, `server/middleware.rs`). The table-driven test
+`server::tests::every_way_to_create_a_broker_session_refuses_a_forged_attempt`
+tries each one the way a forger would.
 
-Defences (`services/broker_auth_service.rs`, `db/sqlite/oauth_state.rs`):
+| Entry point | Protection |
+| --- | --- |
+| `GET /<broker>/callback` with `state` | Single-use `state` (only its hash stored), matched to the broker, 10-minute expiry |
+| `GET /<broker>/callback` without `state` (dhan, shoonya, zebu, tradesmart, flattrade) | Only the newest pending sign-in of that broker started by the same browser session, within 3 minutes, once; all other pending rows of that broker and session dropped with it. Dhan: a repeated `consentAppId` must be the one this sign-in created |
+| `POST /<broker>/callback` (compositedge, rmoney `session=`) | Public and CSRF-exempt, so it needs the single-use `state` on its query; without a valid one it is refused |
+| `POST /auth/broker/oauth/manual` (pasted address, tradesmart pasted token) | Signed-in user, CSRF token and same-origin check, and a pending sign-in for that broker started by the same browser session (by its `state`, else the newest one) |
+| `POST /<broker>/callback` (in-app login form, TOTP brokers) | Signed-in user, CSRF token and same-origin check |
+| Session resume after restart | Only the encrypted stored session of this install, checked with the broker |
 
-- Account binding: the account a sign-in returns must be the one configured
-  for that broker (`catalog::configured_account`: the client id, or the
-  `client_id:::key` prefix), else the account of the last session with that
-  broker. A state-less callback with neither is refused. A mismatch is
-  refused before anything is stored, so a connected session is never
-  replaced by a forged callback.
-- The fallback only matches the newest pending sign-in of that broker
-  started from the same browser session, within 3 minutes of its start,
-  once; every other pending sign-in of that broker and session is dropped
-  when one is consumed.
-- Dhan: the `consentAppId` the sign-in created is recorded with it; a
-  callback that repeats a different consent is refused. Dhan's redirect
-  normally carries only `tokenId`, and its consume call returns no consent
-  id, so in that case the account binding is what verifies it (the
-  `tokenId` is also only consumable with the trader's own app id and
-  secret).
-- A ready token on a callback address (tradesmart `access_token`) is
-  accepted only when the signed-in trader pastes the address into OpenAlgo,
-  never by redirect.
+On every path, before anything is stored, the account the broker returns
+must be the configured one (`catalog::configured_account`: the client id or
+the `client_id:::key` prefix, for Dhan and the Noren family), else the
+account of the last session with that broker. A mismatch is refused and the
+live session and its stored row are left as they were. Saving a broker's
+settings again forgets an ended session's account, which is how a trader
+switches accounts. A state-less callback with no known account is refused.
 
-Residual: for a broker with no configured client id, the first ever
-state-less sign-in is refused with a message asking for the client id, and
-later ones are bound to the previous session's account. Brokers that echo
-`state` are bound by `state`; the account check is not applied to them
-because their client-id field means different things per broker (Fyers
-stores the app id there).
+Residual: these brokers' redirects do not reliably echo `state`, and the
+session cookie is `SameSite=Lax`, so a cross-site top-level GET to the
+callback carries it. While the trader has a sign-in pending (3 minutes), a
+page could try to complete it with a code for another account; the account
+binding refuses that. What remains is a forged callback for the trader's
+own account, which gains the forger nothing. Dhan's redirect normally
+carries only `tokenId` and its consume call returns no consent id, so there
+the account binding (and the trader's own app secret, without which a
+`tokenId` cannot be consumed) does the verification. OpenAlgo web has the
+same exposure for these brokers: its callbacks do not check `state`.

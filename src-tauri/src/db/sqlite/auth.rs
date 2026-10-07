@@ -176,6 +176,17 @@ pub fn last_user_id(conn: &Connection, broker_id: &str) -> Result<Option<String>
         .filter(|u| !u.trim().is_empty()))
 }
 
+/// Forget the account an ended session with `broker_id` was for, so the
+/// next sign-in may be for another account (the trader saved that
+/// broker's settings again). A live session keeps its account.
+pub fn forget_account(conn: &Connection, broker_id: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE auth SET user_id = NULL WHERE broker_id = ?1 AND is_revoked = 1",
+        [broker_id],
+    )?;
+    Ok(())
+}
+
 /// Whether a row exists but is revoked (for "expired" vs "never connected").
 pub fn has_revoked(conn: &Connection) -> Result<bool> {
     let n: i64 = conn.query_row("SELECT COUNT(*) FROM auth WHERE is_revoked = 1", [], |r| {

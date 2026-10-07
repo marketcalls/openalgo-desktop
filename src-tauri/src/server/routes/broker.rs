@@ -390,6 +390,9 @@ pub async fn update_credentials(State(ctx): Ctx, form: FormData) -> Response {
                 )
             })?;
             credentials::save(&c, &ctx.security, &b, update)?;
+            // Saving the settings again is how a trader switches accounts:
+            // the next sign-in is no longer bound to the last one's.
+            crate::db::sqlite::auth::forget_account(&c, &b)?;
         }
         crate::config::save(
             &c,

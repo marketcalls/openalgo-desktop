@@ -198,20 +198,51 @@ impl BrokerAuthService {
         origin: CallbackOrigin<'_>,
     ) -> Result<BrokerSession> {
         let st = params.get("state").cloned().unwrap_or_default();
-        let session_id = match origin {
-            CallbackOrigin::Redirect { session_id } => session_id,
-            CallbackOrigin::Manual { session_id } => Some(session_id),
-        };
+        let now = state.now();
         let mut state_less = false;
-        let pending = if !st.is_empty() {
+        // Every path needs a pending sign-in this OpenAlgo started for this
+        // broker, used once.
+        let pending = {
             let conn = state.sqlite.conn()?;
-            oauth_state::consume(&conn, &st, broker, state.now())?
-        } else if let (false, Some(sid)) = (catalog::callback_carries_state(broker), session_id) {
-            state_less = true;
-            let conn = state.sqlite.conn()?;
-            oauth_state::consume_latest(&conn, broker, sid, state.now())?
-        } else {
-            None
+            match origin {
+                // The broker's redirect (GET, or the XTS form POST): by
+                // `state`; without it only for brokers that drop it, from
+                // the same browser session, within three minutes.
+                CallbackOrigin::Redirect { session_id } => {
+                    if !st.is_empty() {
+                        oauth_state::consume(&conn, &st, broker, now)?
+                    } else if let (false, Some(sid)) =
+                        (catalog::callback_carries_state(broker), session_id)
+                    {
+                        state_less = true;
+                        oauth_state::consume_latest(
+                            &conn,
+                            broker,
+                            sid,
+                            now,
+                            chrono::Duration::seconds(oauth_state::STATELESS_WINDOW_SECONDS),
+                        )?
+                    } else {
+                        None
+                    }
+                }
+                // Pasted by the signed-in trader (CSRF-checked route): a
+                // sign-in this same session started, by `state` when the
+                // address has one, else its newest one for this broker.
+                CallbackOrigin::Manual { session_id } => {
+                    if !st.is_empty() {
+                        oauth_state::consume_for_session(&conn, &st, broker, session_id, now)?
+                    } else {
+                        oauth_state::consume_latest(
+                            &conn,
+                            broker,
+                            session_id,
+                            now,
+                            chrono::Duration::minutes(OAUTH_STATE_TTL_MINUTES),
+                        )?
+                    }
+                }
+            }
         };
         // A ready token is accepted only when the signed-in trader pasted
         // the address into OpenAlgo; one arriving by redirect is ignored,
@@ -219,11 +250,6 @@ impl BrokerAuthService {
         let pasted = match origin {
             CallbackOrigin::Manual { .. } => catalog::pasted_token(broker, params),
             CallbackOrigin::Redirect { .. } => None,
-        };
-        let pending = match (pending, &pasted) {
-            (Some(p), _) => Some(p),
-            (None, Some(_)) => Some(oauth_state::Pending::with_redirect(None)),
-            _ => None,
         };
         let Some(pending) = pending else {
             return Err(AppError::Auth(
@@ -265,11 +291,13 @@ impl BrokerAuthService {
         Self::authenticate_as(state, broker, input, expected.as_deref()).await
     }
 
-    /// The broker account a callback's sign-in must belong to: the account
-    /// the stored credentials name (Dhan, the Noren family), else, for a
-    /// callback without `state`, the account of the last session with this
-    /// broker. A state-less callback with no known account is refused: the
-    /// browser session alone does not prove the trader started it.
+    /// The broker account a sign-in must belong to, on every path: the
+    /// account the stored credentials name (Dhan, the Noren family), else
+    /// the account of the last session with this broker (forgotten when the
+    /// trader saves that broker's settings again, to switch accounts).
+    /// `None` on a first sign-in, except for a callback without `state`,
+    /// which is refused then: the browser session alone does not prove the
+    /// trader started it.
     fn expected_account(
         state: &AppState,
         broker: &str,
@@ -281,15 +309,13 @@ impl BrokerAuthService {
         {
             return Ok(Some(a));
         }
-        if !state_less {
-            return Ok(None);
-        }
         let last = {
             let conn = state.sqlite.conn()?;
             auth::last_user_id(&conn, broker)?
         };
         match last {
             Some(u) => Ok(Some(u)),
+            None if !state_less => Ok(None),
             None => Err(AppError::Validation(format!(
                 "Add your {} client id on the broker settings page (or enter the API key as client_id:::api_key), then start the broker login again.",
                 broker
@@ -311,6 +337,7 @@ impl BrokerAuthService {
             ));
         }
         let creds = Self::load_credentials(state, broker)?;
+        let expected = Self::expected_account(state, broker, &creds, false)?;
         let stored = Self::stored_input(&creds);
         let input = BrokerCredentials {
             client_id: form.client_id.or(stored.client_id.clone()),
@@ -318,15 +345,7 @@ impl BrokerAuthService {
             totp: form.totp.map(|s| s.expose().to_string()),
             ..stored
         };
-        Self::authenticate(state, broker, input).await
-    }
-
-    async fn authenticate(
-        state: &AppState,
-        broker_id: &str,
-        input: BrokerCredentials,
-    ) -> Result<BrokerSession> {
-        Self::authenticate_as(state, broker_id, input, None).await
+        Self::authenticate_as(state, broker, input, expected.as_deref()).await
     }
 
     /// Sign in; when `expected` names an account, a session for any other
@@ -352,7 +371,7 @@ impl BrokerAuthService {
                     "Broker sign-in refused: it belongs to a different account than the one configured"
                 );
                 return Err(AppError::Auth(format!(
-                    "This sign-in is for a different {} account than the one set up in OpenAlgo. Nothing was changed. Log in with your own account, or update the client id on the broker settings page.",
+                    "This sign-in is for a different {} account than the one set up in OpenAlgo. Nothing was changed. Log in with your own account; to switch accounts, log out and save the broker settings again first.",
                     broker_id
                 )));
             }

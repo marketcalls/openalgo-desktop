@@ -1230,8 +1230,11 @@ async fn manual_paste_of_the_redirected_address() {
     h.setup();
     h.save_broker_credentials();
     let (cookie, csrf) = h.session(true);
+    // Started from this browser session (a pasted address completes only
+    // a sign-in its own session started).
+    let sid = cookie.trim_start_matches("session=").to_string();
     let st = state_from_kite_url(
-        &BrokerAuthService::start_oauth(h.ctx(), "zerodha", None)
+        &BrokerAuthService::start_oauth(h.ctx(), "zerodha", Some(&sid))
             .await
             .unwrap(),
     );
@@ -1528,6 +1531,211 @@ async fn state_less_callbacks_are_bound_to_the_browser_session() {
     ctx.runtime.teardown(ctx).await;
 }
 
+/// The `state` OpenAlgo put on an authorize address (on the query, or
+/// inside an encoded return address).
+fn state_on(url: &str) -> String {
+    let decoded = urlencoding::decode(url).unwrap().into_owned();
+    decoded
+        .rsplit("state=")
+        .next()
+        .unwrap()
+        .split('&')
+        .next()
+        .unwrap()
+        .to_string()
+}
+
+/// Every way a broker session can be created or replaced, each tried the
+/// way a forger would: no session, missing or wrong `state`, a sign-in
+/// started elsewhere, another broker account. Each must be refused and
+/// leave the trader's live session and its stored row untouched.
+#[tokio::test]
+async fn every_way_to_create_a_broker_session_refuses_a_forged_attempt() {
+    const MANUAL: &str = "/auth/broker/oauth/manual";
+    let cases: &[(&str, &str)] = &[
+        ("GET callback, forged state", "shoonya"),
+        ("GET callback, valid state, other account", "shoonya"),
+        ("GET callback without state, no session cookie", "shoonya"),
+        (
+            "GET callback without state, other browser session",
+            "shoonya",
+        ),
+        ("GET callback without state, other account", "shoonya"),
+        ("XTS POST callback, no state", "rmoney"),
+        ("XTS POST callback, forged state", "rmoney"),
+        ("XTS POST callback, valid state, other account", "rmoney"),
+        ("Pasted address, no CSRF token", "tradesmart"),
+        ("Pasted address, cross-site", "tradesmart"),
+        ("Pasted address, no pending sign-in", "tradesmart"),
+        (
+            "Pasted address, sign-in started by another session",
+            "tradesmart",
+        ),
+        ("Pasted address, other account", "tradesmart"),
+        ("Form login, no session", "kotak"),
+        ("Form login, no CSRF token", "kotak"),
+        ("Form login, other account", "kotak"),
+    ];
+    for &(name, broker) in cases {
+        let (t, mocks) = family_harness();
+        let ctx = &t.ctx;
+        let mock = mocks.iter().find(|m| m.id == broker).unwrap().clone();
+        // The trader's own live session.
+        BrokerAuthService::persist(
+            ctx,
+            &BrokerSession {
+                broker_id: broker.into(),
+                auth_token: crate::security::Secret::new("own-token"),
+                feed_token: None,
+                user_id: "U1".into(),
+                user_name: None,
+                authenticated_at: ctx.now(),
+            },
+        )
+        .unwrap();
+        *mock.auth_user_id.lock() = "ATTACKER".into();
+        let (cookie, csrf, sid) = user_session(ctx);
+        let (other_cookie, _, other_sid) = user_session(ctx);
+        let start = |s: String| async move {
+            BrokerAuthService::start_oauth(ctx, broker, Some(&s))
+                .await
+                .unwrap()
+        };
+        let xts = |q: &str| {
+            Request::builder()
+                .method(Method::POST)
+                .uri(format!("/rmoney/callback{}", q))
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .header("sec-fetch-site", "cross-site")
+                .body(Body::from("session=%7B%22token%22%3A%22t1%22%7D"))
+                .unwrap()
+        };
+        let paste = || {
+            post_json(
+                MANUAL,
+                json!({"url": "http://127.0.0.1:5000/tradesmart/callback?access_token=evil&uid=U1"}),
+            )
+        };
+        let kotak = || {
+            post_json(
+                "/kotak/callback",
+                json!({"mobile": "9999999999", "totp": "123456", "mpin": "1234"}),
+            )
+        };
+        let req = match name {
+            "GET callback, forged state" => {
+                start(sid.clone()).await;
+                with_session(get("/shoonya/callback?code=c&state=forged"), &cookie, None)
+            }
+            "GET callback, valid state, other account" => {
+                let st = state_on(&start(sid.clone()).await);
+                let q = format!("/shoonya/callback?code=c&state={}", st);
+                with_session(get(&q), &cookie, None)
+            }
+            "GET callback without state, no session cookie" => {
+                start(sid.clone()).await;
+                *mock.auth_user_id.lock() = "U1".into();
+                get("/shoonya/callback?code=c")
+            }
+            "GET callback without state, other browser session" => {
+                start(sid.clone()).await;
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(get("/shoonya/callback?code=c"), &other_cookie, None)
+            }
+            "GET callback without state, other account" => {
+                start(sid.clone()).await;
+                with_session(get("/shoonya/callback?code=c"), &cookie, None)
+            }
+            "XTS POST callback, no state" => {
+                start(sid.clone()).await;
+                *mock.auth_user_id.lock() = "U1".into();
+                xts("")
+            }
+            "XTS POST callback, forged state" => {
+                start(sid.clone()).await;
+                *mock.auth_user_id.lock() = "U1".into();
+                xts("?state=forged")
+            }
+            "XTS POST callback, valid state, other account" => {
+                let st = state_on(&start(sid.clone()).await);
+                xts(&format!("?state={}", st))
+            }
+            "Pasted address, no CSRF token" => {
+                start(sid.clone()).await;
+                with_session(paste(), &cookie, None)
+            }
+            "Pasted address, cross-site" => {
+                start(sid.clone()).await;
+                let mut r = with_session(paste(), &cookie, Some(&csrf));
+                r.headers_mut()
+                    .insert("sec-fetch-site", "cross-site".parse().unwrap());
+                r
+            }
+            "Pasted address, no pending sign-in" => {
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(paste(), &cookie, Some(&csrf))
+            }
+            "Pasted address, sign-in started by another session" => {
+                start(other_sid.clone()).await;
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(paste(), &cookie, Some(&csrf))
+            }
+            "Pasted address, other account" => {
+                start(sid.clone()).await;
+                with_session(paste(), &cookie, Some(&csrf))
+            }
+            "Form login, no session" => {
+                *mock.auth_user_id.lock() = "U1".into();
+                kotak()
+            }
+            "Form login, no CSRF token" => {
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(kotak(), &cookie, None)
+            }
+            "Form login, other account" => with_session(kotak(), &cookie, Some(&csrf)),
+            _ => unreachable!("{}", name),
+        };
+        let (s, h, v) = send_to(ctx, req).await;
+        let loc = h
+            .get(header::LOCATION)
+            .and_then(|l| l.to_str().ok())
+            .unwrap_or_default()
+            .to_string();
+        assert!(
+            loc != "/dashboard" && v["status"] != "success",
+            "{}: accepted ({} {} {})",
+            name,
+            s,
+            loc,
+            v
+        );
+        let live = ctx.get_broker_session().expect(name);
+        assert_eq!(
+            (
+                live.broker_id.as_str(),
+                live.user_id.as_str(),
+                live.auth_token.expose()
+            ),
+            (broker, "U1", "own-token"),
+            "{}: live session replaced",
+            name
+        );
+        let conn = ctx.sqlite.conn().unwrap();
+        let stored = crate::db::sqlite::auth::latest_active(&conn, &ctx.security)
+            .unwrap()
+            .expect(name);
+        assert_eq!(
+            stored.auth_token.expose(),
+            "own-token",
+            "{}: stored row replaced",
+            name
+        );
+        assert_eq!(stored.user_id.as_deref(), Some("U1"), "{}", name);
+        drop(conn);
+        ctx.runtime.teardown(ctx).await;
+    }
+}
+
 /// Login CSRF on brokers whose redirect drops `state`: an attacker page
 /// sends the trader's browser (cookie attached, SameSite=Lax) to the
 /// callback with the attacker's own code while a sign-in is pending.
@@ -1774,8 +1982,12 @@ async fn pasted_token_addresses_need_the_signed_in_trader() {
     let (_, headers, _) = send_to(ctx, get("/tradesmart/callback?access_token=tok&uid=U1")).await;
     assert!(location(&headers).starts_with("/broker?error="));
     assert!(mocks[2].last_auth.lock().is_none());
-    // Pasted by the signed-in trader, it is used as is.
-    let (cookie, csrf, _) = user_session(ctx);
+    // Pasted by the signed-in trader, after starting the sign-in in this
+    // session, it is used as is.
+    let (cookie, csrf, sid) = user_session(ctx);
+    BrokerAuthService::start_oauth(ctx, "tradesmart", Some(&sid))
+        .await
+        .unwrap();
     let (s, _, v) = send_to(
         ctx,
         with_session(
