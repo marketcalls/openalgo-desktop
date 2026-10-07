@@ -197,3 +197,45 @@ export function desktopInitialProfileTab(fallback: string): string {
 export function desktopDefaultOrigin(): string {
   return window.location.origin || 'http://127.0.0.1:5000'
 }
+
+/** A broker with saved keys, from GET /api/broker/configured. */
+export interface ConfiguredBroker {
+  name: string
+  active: boolean
+}
+
+/** Brokers the trader has configured, so the broker page can switch. */
+export async function fetchConfiguredBrokers(): Promise<ConfiguredBroker[]> {
+  try {
+    const res = await fetch('/api/broker/configured', { credentials: 'include' })
+    if (!res.ok) return []
+    const body = await res.json()
+    return Array.isArray(body?.data?.brokers) ? body.data.brokers : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Make another configured broker the active one. Keys are stored per broker,
+ * so only the redirect URL changes; the server ends any live session of the
+ * previous broker first. Returns the server's message on refusal.
+ */
+export async function switchActiveBroker(broker: string): Promise<string | null> {
+  const csrf = await fetch('/auth/csrf-token', { credentials: 'include' })
+    .then((r) => r.json())
+    .then((b) => b?.csrf_token as string | undefined)
+    .catch(() => undefined)
+  if (!csrf) return 'Could not reach OpenAlgo. Try again.'
+  const form = new FormData()
+  form.append('redirect_url', `${desktopDefaultOrigin()}/${broker}/callback`)
+  const res = await fetch('/api/broker/credentials', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'X-CSRFToken': csrf },
+    body: form,
+  })
+  if (res.ok) return null
+  const body = await res.json().catch(() => null)
+  return body?.message || 'Could not switch the broker. Try again.'
+}

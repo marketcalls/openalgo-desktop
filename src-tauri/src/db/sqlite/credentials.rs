@@ -176,6 +176,18 @@ pub fn save(
     Ok(())
 }
 
+/// Brokers that have an API key saved, sorted by name. Credentials are kept
+/// per broker, so switching back to one needs no re-entry.
+pub fn list_configured(conn: &Connection) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT broker_id FROM broker_credentials
+         WHERE api_key_encrypted IS NOT NULL AND api_key_encrypted <> ''
+         ORDER BY broker_id",
+    )?;
+    let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+    Ok(rows.filter_map(|r| r.ok()).collect())
+}
+
 pub fn delete(conn: &Connection, broker: &str) -> Result<()> {
     conn.execute(
         "DELETE FROM broker_credentials WHERE broker_id = ?1",

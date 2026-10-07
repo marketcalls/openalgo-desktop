@@ -477,8 +477,14 @@ export default function ProfilePage() {
         setBrokerApiSecret('')
         setBrokerApiKeyMarket('')
         setBrokerApiSecretMarket('')
-        // Show restart dialog
-        setShowRestartDialog(true)
+        // Desktop: saved settings apply at once (no restart). After a broker
+        // switch the trader signs in to the new broker.
+        const saved = response.data as { restart_required?: boolean; broker_switched?: boolean }
+        if (saved.broker_switched) {
+          window.location.assign('/broker')
+        } else if (saved.restart_required) {
+          setShowRestartDialog(true)
+        }
       } else {
         showToast.error(response.data.message || 'Failed to save credentials', 'admin')
       }

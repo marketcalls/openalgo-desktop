@@ -145,6 +145,7 @@ pub fn table() -> Vec<RouteSpec> {
             broker::update_credentials
         ),
         r!(GET, "/api/broker/capabilities", User, broker::capabilities),
+        r!(GET, "/api/broker/configured", User, broker::configured),
         // Desktop server settings (the older path is an alias).
         r!(GET, "/settings/api/server", User, settings::get_server),
         r!(POST, "/settings/api/server", User, settings::save_server),
