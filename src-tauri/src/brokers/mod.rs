@@ -25,6 +25,7 @@ pub mod hdfcsecurities;
 pub mod hdfcsky;
 pub mod ibulls;
 pub mod iifl;
+pub mod iiflcapital;
 pub mod indmoney;
 pub mod jainamxts;
 pub mod kotak;
@@ -466,6 +467,7 @@ impl BrokerRegistry {
             Arc::new(ibulls::broker(symbols.clone())),
             Arc::new(wisdom::broker(symbols.clone())),
             Arc::new(iifl::broker(symbols.clone())),
+            Arc::new(iiflcapital::IiflCapitalBroker::new(symbols.clone())),
             Arc::new(shoonya::broker(symbols.clone())),
             Arc::new(flattrade::broker(symbols.clone())),
             Arc::new(tradesmart::broker(symbols.clone())),
@@ -563,6 +565,7 @@ mod tests {
                 "hdfcsky",
                 "ibulls",
                 "iifl",
+                "iiflcapital",
                 "indmoney",
                 "jainamxts",
                 "kotak",

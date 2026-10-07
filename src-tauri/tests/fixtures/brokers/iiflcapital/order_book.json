@@ -1,0 +1,69 @@
+{
+  "status": "Ok",
+  "message": "Success",
+  "result": [
+    {
+      "brokerOrderId": "260403000000101",
+      "exchangeOrderId": "1100000000001",
+      "instrumentId": "3045",
+      "exchange": "NSEEQ",
+      "tradingSymbol": "SBIN-EQ",
+      "transactionType": "BUY",
+      "quantity": "10",
+      "filledQuantity": "10",
+      "pendingQuantity": "0",
+      "price": 0,
+      "slTriggerPrice": 0,
+      "averageTradedPrice": "812.35",
+      "orderType": "MARKET",
+      "product": "INTRADAY",
+      "validity": "DAY",
+      "orderStatus": "COMPLETE",
+      "exchangeTimestamp": "03-Oct-2026 09:15:02"
+    },
+    {
+      "brokerOrderId": "260403000000102",
+      "instrumentId": "40001",
+      "exchange": "NSEFO",
+      "tradingSymbol": "NIFTY2643024000CE",
+      "transactionType": "SELL",
+      "filledQuantity": "0",
+      "pendingQuantity": "75",
+      "cancelledQuantity": "0",
+      "price": "120.5",
+      "slTriggerPrice": "121",
+      "orderType": "SL",
+      "product": "NORMAL",
+      "validity": "DAY",
+      "orderStatus": "TRIGGER_PENDING",
+      "brokerUpdateTime": "03-Oct-2026 09:20:00"
+    },
+    {
+      "brokerOrderId": "260403000000103",
+      "instrumentId": "2885",
+      "exchange": "NSEEQ",
+      "tradingSymbol": "RELIANCE-EQ",
+      "transactionType": "BUY",
+      "quantity": 5,
+      "price": 1400,
+      "orderType": "LIMIT",
+      "product": "DELIVERY",
+      "orderStatus": "OPEN"
+    },
+    {
+      "brokerOrderId": "260403000000104",
+      "instrumentId": "3045",
+      "exchange": "NSEEQ",
+      "tradingSymbol": "SBIN-EQ",
+      "transactionType": "SELL",
+      "quantity": 1,
+      "orderType": "SLM",
+      "product": "INTRADAY",
+      "orderStatus": "REJECTED",
+      "rejectionReason": "RMS: margin exceeds"
+    },
+    {
+      "status": "Ok"
+    }
+  ]
+}
