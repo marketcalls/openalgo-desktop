@@ -116,6 +116,18 @@ impl SqliteDb {
         symbol::load_symbols(&conn)
     }
 
+    /// Store a master download with its contract multipliers (crypto).
+    pub fn store_master(&self, master: &crate::brokers::types::MasterContract) -> Result<()> {
+        let mut conn = self.conn()?;
+        symbol::store_master(&mut conn, master)
+    }
+
+    /// Load the master with its contract multipliers.
+    pub fn load_master(&self) -> Result<crate::brokers::types::MasterContract> {
+        let conn = self.conn()?;
+        symbol::load_master(&conn)
+    }
+
     // ========== Strategy Methods ==========
 
     /// Get all strategies

@@ -8,8 +8,11 @@
 //! carry OpenAlgo symbols (the adapters translate).
 
 use super::core::{broker_handle, float, is_analyze, round2, s, BrokerHandle, Reply, UNEXPECTED};
-use crate::brokers::types::{Funds, Holding, Order, Position, Trade};
+use crate::brokers::common::symbols::SymbolResolver;
+use crate::brokers::types::{ExactRow, Funds, Holding, Order, Position, Trade};
 use crate::state::AppState;
+use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::Decimal;
 use serde_json::{json, Value};
 
 fn sandbox<T: serde::Serialize>(r: crate::sandbox::SbResult<T>) -> Reply {
@@ -137,6 +140,69 @@ pub fn live_funds(f: &Funds) -> Value {
     })
 }
 
+// ------------------------------------------------------------- crypto sizes
+// A crypto venue (Delta Exchange) reports exact, possibly fractional sizes.
+// The web's Delta mapping returns them as Python floats (`float(size)`) for
+// positions and trades and as the raw size for orders, and adds the
+// contract multiplier as `lot_size` to position rows. Only `CRYPTO` rows of
+// a `crypto` venue take this branch; every other book is unchanged.
+
+fn crypto_venue(h: &BrokerHandle) -> bool {
+    h.broker.broker_type() == "crypto"
+}
+
+fn is_crypto_row(exchange: &str) -> bool {
+    exchange == "CRYPTO"
+}
+
+/// Python `float(size)`.
+pub fn crypto_float(d: Decimal) -> Value {
+    json!(d.to_f64().unwrap_or(0.0))
+}
+
+/// The raw order size: an integer for whole contracts, else a float.
+pub fn crypto_size(d: Decimal) -> Value {
+    match d.fract().is_zero().then(|| d.to_i64()).flatten() {
+        Some(n) => json!(n),
+        None => crypto_float(d),
+    }
+}
+
+fn set(row: &mut Value, key: &str, v: Value) {
+    if let Some(m) = row.as_object_mut() {
+        m.insert(key.into(), v);
+    }
+}
+
+pub fn exact_order_row(e: &ExactRow<Order>) -> Value {
+    let mut row = order_row(&e.row);
+    if is_crypto_row(&e.row.exchange) {
+        set(&mut row, "quantity", crypto_size(e.quantity));
+    }
+    row
+}
+
+pub fn exact_trade_row(e: &ExactRow<Trade>) -> Value {
+    let mut row = trade_row(&e.row);
+    if is_crypto_row(&e.row.exchange) {
+        set(&mut row, "quantity", crypto_float(e.quantity));
+    }
+    row
+}
+
+pub fn exact_position_row(e: &ExactRow<Position>, symbols: &SymbolResolver) -> Value {
+    let mut row = position_row(&e.row);
+    if is_crypto_row(&e.row.exchange) {
+        set(&mut row, "quantity", crypto_float(e.quantity));
+        let lot = symbols
+            .contract_value(&e.row.symbol, &e.row.exchange)
+            .filter(|v| *v > 0.0)
+            .unwrap_or(1.0);
+        set(&mut row, "lot_size", json!(lot));
+    }
+    row
+}
+
 // ------------------------------------------------------------------ endpoints
 
 /// `orderbook`.
@@ -148,6 +214,18 @@ pub async fn orderbook(ctx: &AppState) -> Reply {
         Ok(h) => h,
         Err(r) => return r,
     };
+    if crypto_venue(&h) {
+        return match h.broker.get_order_book_exact(&h.auth).await {
+            Ok(rows) => {
+                let orders: Vec<Order> = rows.iter().map(|e| e.row.clone()).collect();
+                Reply::ok(json!({"status": "success", "data": {
+                    "orders": rows.iter().map(exact_order_row).collect::<Vec<_>>(),
+                    "statistics": order_statistics(&orders),
+                }}))
+            }
+            Err(e) => broker_fail(&e),
+        };
+    }
     match h.broker.get_order_book(&h.auth).await {
         Ok(orders) => Reply::ok(json!({"status": "success", "data": {
             "orders": orders.iter().map(order_row).collect::<Vec<_>>(),
@@ -166,6 +244,13 @@ pub async fn tradebook(ctx: &AppState) -> Reply {
         Ok(h) => h,
         Err(r) => return r,
     };
+    if crypto_venue(&h) {
+        return match h.broker.get_trade_book_exact(&h.auth).await {
+            Ok(t) => Reply::ok(json!({"status": "success",
+                "data": t.iter().map(exact_trade_row).collect::<Vec<_>>()})),
+            Err(e) => broker_fail(&e),
+        };
+    }
     match h.broker.get_trade_book(&h.auth).await {
         Ok(t) => Reply::ok(json!({"status": "success",
             "data": t.iter().map(trade_row).collect::<Vec<_>>()})),
@@ -182,6 +267,13 @@ pub async fn positionbook(ctx: &AppState) -> Reply {
         Ok(h) => h,
         Err(r) => return r,
     };
+    if crypto_venue(&h) {
+        return match h.broker.get_positions_exact(&h.auth).await {
+            Ok(p) => Reply::ok(json!({"status": "success",
+                "data": p.iter().map(|e| exact_position_row(e, &ctx.symbols)).collect::<Vec<_>>()})),
+            Err(e) => broker_fail(&e),
+        };
+    }
     match h.broker.get_positions(&h.auth).await {
         Ok(p) => Reply::ok(json!({"status": "success",
             "data": p.iter().map(position_row).collect::<Vec<_>>()})),
@@ -271,6 +363,24 @@ pub async fn open_position(ctx: &AppState, req: &Value) -> Reply {
         Ok(h) => h,
         Err(r) => return r,
     };
+    if crypto_venue(&h) {
+        // Web: the position book's `quantity` (a float for crypto), or 0.
+        return match h.broker.get_positions_exact(&h.auth).await {
+            Ok(rows) => {
+                let q = rows
+                    .iter()
+                    .find(|e| {
+                        e.row.symbol == symbol
+                            && e.row.exchange == exchange
+                            && e.row.product == product
+                    })
+                    .map(|e| crypto_float(e.quantity))
+                    .unwrap_or(json!(0));
+                Reply::ok(json!({"quantity": q, "status": "success"}))
+            }
+            Err(e) => Reply::error(500, e.client_message()),
+        };
+    }
     match h.broker.get_positions(&h.auth).await {
         Ok(rows) => {
             let q = rows

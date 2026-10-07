@@ -1,0 +1,7 @@
+{"type":"subscriptions","channels":[{"name":"ticker","symbols":["BTCUSD","ETHUSD"]}]}
+{"type":"ticker","sy":"BTCUSD","sp":"59880.1","ts":1791007200123456,"d":[{"s":"BTCUSD","m":"59876.12","ohlc":[59100.0,60500.0,58500.5,59870.0],"oi":["12345","307138.71"],"q":["59877","1200","59875.5","800",null]}]}
+{"type":"ticker","sy":"ETHUSD","sp":"2451.2","ts":1791007200223456,"d":[{"s":"ETHUSD","ohlc":[2400.0,2480.0,2390.5,2450.0]}]}
+{"type":"ob_l2","sy":"BTCUSD","ts":1791007200323456,"a":[["59877","1200"],["59877.5","100"]],"b":[["59875.5","800"],["59875","700"],["59874.5","200"],["59874","50"],["59873.5","25"],["59873","10"]]}
+{"type":"ticker","sy":"BTCUSD","ts":1791007201123456,"d":[{"s":"BTCUSD","oi":["12400",null]}]}
+{"type":"ticker","sy":"DOGEUSD","d":[{"s":"DOGEUSD","m":"0.1"}]}
+{"type":"error","message":"subscription forbidden on this channel with more than 1 symbol"}

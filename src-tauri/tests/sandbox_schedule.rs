@@ -704,6 +704,36 @@ async fn test_crypto_mis_positions_are_skipped() {
 }
 
 #[tokio::test]
+async fn crypto_mis_positions_trade_24x7_through_sweeps_and_catch_up() {
+    // Crypto never closes: no MIS gate, no sweep and no session-boundary
+    // settlement, at any hour or on a weekend, even with the session expiry
+    // enabled for the Indian exchanges.
+    let env = Env::at("2026-10-05 10:00:00");
+    env.ltp("BTCUSD.P", "CRYPTO", "60000");
+    env.ltp("SBIN", "NSE", "100");
+    // Saturday, after midnight.
+    assert!(
+        mis_allowed(&env, "BTCUSD.P", "CRYPTO", 2, "2026-10-10 02:00:00")
+            .await
+            .is_ok()
+    );
+    for at in [
+        "2026-10-10 15:30:00",
+        "2026-10-10 23:59:00",
+        "2026-10-11 03:00:00",
+    ] {
+        env.set_time(at);
+        env.sb.square_off_now().await.unwrap();
+        assert_eq!(env.qty("BTCUSD.P", "CRYPTO", "MIS").await, 2, "{}", at);
+    }
+    // Monday, after the 03:00 boundary: catch-up leaves crypto alone.
+    env.set_time("2026-10-12 10:00:00");
+    env.sb.catch_up().await.unwrap();
+    assert_eq!(env.qty("BTCUSD.P", "CRYPTO", "MIS").await, 2);
+    env.shutdown().await;
+}
+
+#[tokio::test]
 async fn test_unconfigured_exchange_mis_positions_are_skipped() {
     let env = Env::at("2026-10-06 10:00:00");
     seed_position(

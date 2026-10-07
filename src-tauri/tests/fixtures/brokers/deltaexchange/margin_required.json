@@ -1,0 +1,8 @@
+{
+  "success": true,
+  "result": {
+    "initial_margin": "6.0125",
+    "maintenance_margin": "3.00625",
+    "order_size": 1
+  }
+}

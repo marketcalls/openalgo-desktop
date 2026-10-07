@@ -10,6 +10,7 @@ pub mod angel;
 pub mod catalog;
 pub mod common;
 pub mod compositedge;
+pub mod deltaexchange;
 pub mod dhan;
 pub mod dhan_sandbox;
 pub mod families;
@@ -86,6 +87,76 @@ pub trait Broker: Send + Sync {
         -> Result<OrderResponse>;
 
     async fn cancel_order(&self, auth: &AuthToken, order_id: &str) -> Result<OrderResponse>;
+
+    // ---- crypto: exact sizes and leverage ----
+
+    /// Place a `CRYPTO` order whose size is carried exactly (it may be
+    /// fractional). `order.quantity` holds the size truncated to whole
+    /// units. Default: whole sizes go through `place_order`; fractional ones
+    /// are refused (only crypto venues override this).
+    async fn place_order_exact(
+        &self,
+        auth: &AuthToken,
+        order: &ResolvedOrder,
+        quantity: &CryptoQuantity,
+    ) -> Result<OrderResponse> {
+        match quantity.as_whole() {
+            Some(units) => {
+                let mut whole = order.clone();
+                whole.quantity = units;
+                self.place_order(auth, &whole).await
+            }
+            None => Err(AppError::Validation(
+                "This broker accepts whole-number quantities only.".into(),
+            )),
+        }
+    }
+
+    /// Modify a `CRYPTO` order to an exact size (see `place_order_exact`).
+    async fn modify_order_exact(
+        &self,
+        auth: &AuthToken,
+        order: &ResolvedModify,
+        quantity: &CryptoQuantity,
+    ) -> Result<OrderResponse> {
+        match quantity.as_whole() {
+            Some(units) => {
+                let mut whole = order.clone();
+                whole.quantity = units;
+                self.modify_order(auth, &whole).await
+            }
+            None => Err(AppError::Validation(
+                "This broker accepts whole-number quantities only.".into(),
+            )),
+        }
+    }
+
+    /// Whether the venue takes a per-instrument leverage before each order
+    /// (web `plugin.json` `leverage_config`). The order service then applies
+    /// the leverage saved on the Leverage page through `set_leverage`.
+    fn leverage_config(&self) -> bool {
+        false
+    }
+
+    /// Web `plugin.json` `broker_type`: `IN_stock`, or `crypto`.
+    fn broker_type(&self) -> &'static str {
+        "IN_stock"
+    }
+
+    /// Set the leverage used for new orders on one instrument.
+    async fn set_leverage(
+        &self,
+        _auth: &AuthToken,
+        _instrument: &SymbolData,
+        _leverage: u32,
+    ) -> Result<()> {
+        Err(AppError::Unsupported("leverage"))
+    }
+
+    /// The leverage currently set on one instrument.
+    async fn get_leverage(&self, _auth: &AuthToken, _instrument: &SymbolData) -> Result<f64> {
+        Err(AppError::Unsupported("leverage"))
+    }
 
     /// Cancel every `open` / `trigger pending` order (web
     /// `cancel_all_orders_api`). Default: order book, then one cancel each.
@@ -178,6 +249,47 @@ pub trait Broker: Send + Sync {
     async fn get_order_book(&self, auth: &AuthToken) -> Result<Vec<Order>>;
     async fn get_trade_book(&self, auth: &AuthToken) -> Result<Vec<Trade>>;
     async fn get_positions(&self, auth: &AuthToken) -> Result<Vec<Position>>;
+
+    /// The order book with exact sizes (crypto). Default: the whole-unit
+    /// book. Only venues whose `broker_type` is `crypto` are asked.
+    async fn get_order_book_exact(&self, auth: &AuthToken) -> Result<Vec<ExactRow<Order>>> {
+        Ok(self
+            .get_order_book(auth)
+            .await?
+            .into_iter()
+            .map(|o| {
+                let q = i64::from(o.quantity);
+                ExactRow::whole(o, q)
+            })
+            .collect())
+    }
+
+    /// The trade book with exact sizes (see `get_order_book_exact`).
+    async fn get_trade_book_exact(&self, auth: &AuthToken) -> Result<Vec<ExactRow<Trade>>> {
+        Ok(self
+            .get_trade_book(auth)
+            .await?
+            .into_iter()
+            .map(|t| {
+                let q = i64::from(t.quantity);
+                ExactRow::whole(t, q)
+            })
+            .collect())
+    }
+
+    /// Positions with exact signed sizes, fractional spot balances included
+    /// (see `get_order_book_exact`).
+    async fn get_positions_exact(&self, auth: &AuthToken) -> Result<Vec<ExactRow<Position>>> {
+        Ok(self
+            .get_positions(auth)
+            .await?
+            .into_iter()
+            .map(|p| {
+                let q = i64::from(p.quantity);
+                ExactRow::whole(p, q)
+            })
+            .collect())
+    }
     async fn get_holdings(&self, auth: &AuthToken) -> Result<Vec<Holding>>;
     async fn get_funds(&self, auth: &AuthToken) -> Result<Funds>;
 
@@ -259,6 +371,14 @@ pub trait Broker: Send + Sync {
 
     /// Download and normalise the broker's instrument list.
     async fn download_master_contract(&self, auth: &AuthToken) -> Result<Vec<SymbolData>>;
+
+    /// The master with per-row extras (crypto `contract_value`). Default:
+    /// `download_master_contract` with no extras.
+    async fn download_master(&self, auth: &AuthToken) -> Result<MasterContract> {
+        Ok(MasterContract::new(
+            self.download_master_contract(auth).await?,
+        ))
+    }
 
     // ---- streaming ----
 
@@ -342,6 +462,7 @@ impl BrokerRegistry {
             Arc::new(tradesmart::broker(symbols.clone())),
             Arc::new(zebu::broker(symbols.clone())),
             Arc::new(firstock::FirstockBroker::new(symbols.clone())),
+            Arc::new(deltaexchange::DeltaBroker::new(symbols.clone())),
         ];
         Self::with_symbols(symbols, brokers)
     }
@@ -410,6 +531,7 @@ mod tests {
             [
                 "angel",
                 "compositedge",
+                "deltaexchange",
                 "dhan",
                 "dhan_sandbox",
                 "firstock",

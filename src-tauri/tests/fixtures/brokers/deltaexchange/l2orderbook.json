@@ -1,0 +1,20 @@
+{
+  "success": true,
+  "result": {
+    "buy": [
+      {"depth": "800", "price": "59875.5", "size": 800},
+      {"depth": "1500", "price": "59875.0", "size": 700},
+      {"depth": "1700", "price": "59874.5", "size": 200}
+    ],
+    "sell": [
+      {"depth": "1200", "price": "59877.0", "size": 1200},
+      {"depth": "1300", "price": "59877.5", "size": 100},
+      {"depth": "1400", "price": "59878.0", "size": 100},
+      {"depth": "1900", "price": "59878.5", "size": 500},
+      {"depth": "2000", "price": "59879.0", "size": 100},
+      {"depth": "2400", "price": "59879.5", "size": 400}
+    ],
+    "last_updated_at": 1791002400000000,
+    "symbol": "BTCUSD"
+  }
+}

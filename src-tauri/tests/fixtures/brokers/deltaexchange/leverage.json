@@ -1,0 +1,8 @@
+{
+  "success": true,
+  "result": {
+    "leverage": "10",
+    "order_margin": "563.2",
+    "product_id": 27
+  }
+}

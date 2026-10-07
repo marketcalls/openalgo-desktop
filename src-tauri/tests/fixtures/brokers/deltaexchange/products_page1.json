@@ -1,0 +1,90 @@
+{
+  "success": true,
+  "meta": {"after": "g3QAAAACZAACaWRhCmQABHR5cGVkAAhwcm9kdWN0", "before": null, "limit": 500, "total_count": 11},
+  "result": [
+    {
+      "id": 27,
+      "symbol": "BTCUSD",
+      "description": "Bitcoin Perpetual",
+      "contract_type": "perpetual_futures",
+      "state": "live",
+      "trading_status": "operational",
+      "contract_value": "0.001",
+      "contract_unit_currency": "BTC",
+      "tick_size": "0.5",
+      "settlement_time": null,
+      "strike_price": null,
+      "product_specs": {"min_order_size": 1},
+      "underlying_asset": {"id": 1, "symbol": "BTC"},
+      "quoting_asset": {"symbol": "USD"}
+    },
+    {
+      "id": 3136,
+      "symbol": "ETHUSD",
+      "description": "Ether Perpetual",
+      "contract_type": "perpetual_futures",
+      "state": "live",
+      "trading_status": "operational",
+      "contract_value": "0.01",
+      "tick_size": "0.05",
+      "settlement_time": null,
+      "product_specs": {"min_order_size": 1},
+      "underlying_asset": {"id": 3, "symbol": "ETH"}
+    },
+    {
+      "id": 84201,
+      "symbol": "BTCUSD27Nov2026",
+      "description": "BTC future expiring 27 Nov 2026",
+      "contract_type": "futures",
+      "state": "live",
+      "trading_status": "operational",
+      "contract_value": "0.001",
+      "tick_size": "0.5",
+      "settlement_time": "2026-11-27T12:00:00Z",
+      "product_specs": {"min_order_size": 1},
+      "underlying_asset": {"symbol": "BTC"}
+    },
+    {
+      "id": 95011,
+      "symbol": "C-BTC-62000-271126",
+      "description": "BTC call option",
+      "contract_type": "call_options",
+      "state": "live",
+      "trading_status": "operational",
+      "contract_value": "0.001",
+      "tick_size": "0.1",
+      "settlement_time": "2026-11-27T12:00:00Z",
+      "strike_price": "62000",
+      "product_specs": {"min_order_size": 1},
+      "underlying_asset": {"symbol": "BTC"}
+    },
+    {
+      "id": 95012,
+      "symbol": "P-BTC-60000-271126",
+      "description": "BTC put option",
+      "contract_type": "put_options",
+      "state": "live",
+      "trading_status": "operational",
+      "contract_value": "0.001",
+      "tick_size": "0.1",
+      "settlement_time": "2026-11-27T12:00:00Z",
+      "strike_price": null,
+      "product_specs": {"min_order_size": 1},
+      "underlying_asset": {"symbol": "BTC"}
+    },
+    {
+      "id": 95013,
+      "symbol": "C-ETH-2500-271126",
+      "description": "ETH turbo call",
+      "contract_type": "turbo_call_options",
+      "state": "live",
+      "trading_status": "operational",
+      "contract_value": "0.01",
+      "tick_size": "0.1",
+      "settlement_time": "2026-11-27T12:00:00Z",
+      "strike_price": "2500",
+      "product_specs": {"min_order_size": 1},
+      "underlying_asset": {"symbol": "ETH"}
+    }
+  ]
+}

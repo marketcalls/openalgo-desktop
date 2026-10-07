@@ -1,0 +1,83 @@
+{
+  "success": true,
+  "meta": {"after": null, "before": null},
+  "result": [
+    {
+      "id": 7003,
+      "user_id": "<USER_ID>",
+      "product_id": 95011,
+      "product_symbol": "C-BTC-62000-271126",
+      "side": "buy",
+      "size": 2,
+      "unfilled_size": 0,
+      "order_type": "limit_order",
+      "limit_price": "1250.5",
+      "stop_order_type": "stop_loss_order",
+      "stop_price": "1200",
+      "average_fill_price": "1250.5",
+      "state": "closed",
+      "time_in_force": "ioc",
+      "created_at": "2026-10-03T03:00:00.000000Z"
+    },
+    {
+      "id": 7004,
+      "user_id": "<USER_ID>",
+      "product_id": 1600,
+      "product_symbol": "BTC_INR",
+      "side": "sell",
+      "size": "0.0005",
+      "unfilled_size": "0",
+      "order_type": "market_order",
+      "limit_price": null,
+      "stop_order_type": null,
+      "stop_price": null,
+      "average_fill_price": "5952000",
+      "state": "closed",
+      "time_in_force": "gtc",
+      "created_at": "2026-10-03T05:30:00.000000Z"
+    },
+    {
+      "id": 7005,
+      "user_id": "<USER_ID>",
+      "product_id": 3136,
+      "product_symbol": "ETHUSD",
+      "side": "buy",
+      "size": 1,
+      "unfilled_size": 1,
+      "order_type": "limit_order",
+      "limit_price": "2300",
+      "stop_order_type": null,
+      "stop_price": null,
+      "state": "cancelled",
+      "time_in_force": "gtc",
+      "created_at": "2026-10-03T01:00:00.000000Z"
+    },
+    {
+      "id": 7001,
+      "user_id": "<USER_ID>",
+      "product_id": 27,
+      "product_symbol": "BTCUSD",
+      "side": "buy",
+      "size": 10,
+      "unfilled_size": 4,
+      "order_type": "limit_order",
+      "limit_price": "59500.5",
+      "state": "open",
+      "time_in_force": "gtc",
+      "created_at": "2026-10-03T04:15:22.123456Z"
+    },
+    {
+      "id": 7006,
+      "user_id": "<USER_ID>",
+      "product_id": 99999,
+      "product_symbol": "DOGEUSD",
+      "side": "sell",
+      "size": 5,
+      "unfilled_size": 0,
+      "order_type": "market_order",
+      "state": "rejected",
+      "time_in_force": "gtc",
+      "created_at": "2026-10-03T02:00:00.000000Z"
+    }
+  ]
+}

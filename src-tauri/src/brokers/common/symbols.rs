@@ -89,6 +89,9 @@ pub struct SymbolGeneration {
     by_underlying: HashMap<String, Vec<u32>>,
     /// Row ids ordered by (symbol, exchange) for prefix search.
     sorted: Vec<u32>,
+    /// Contract multiplier by `exchange:token` (web `contract_value`), only
+    /// for venues that quote one (crypto). Empty for Indian masters.
+    contract_values: HashMap<String, f64>,
     id: u64,
 }
 
@@ -148,8 +151,46 @@ impl SymbolGeneration {
             by_brsymbol,
             by_underlying,
             sorted,
+            contract_values: HashMap::new(),
             id,
         }
+    }
+
+    /// Build a generation with contract multipliers keyed by token. Values
+    /// for tokens that are not in the master, and non-positive values, are
+    /// dropped.
+    pub fn build_with_contract_values(
+        rows: Vec<SymToken>,
+        contract_values: &HashMap<String, f64>,
+        id: u64,
+    ) -> Self {
+        let mut g = Self::build(rows, id);
+        if !contract_values.is_empty() {
+            let mut cv = HashMap::new();
+            for row in &g.rows {
+                if let Some(v) = contract_values.get(&row.token) {
+                    if v.is_finite() && *v > 0.0 {
+                        cv.insert(key(&row.exchange, &row.token), *v);
+                    }
+                }
+            }
+            g.contract_values = cv;
+        }
+        g
+    }
+
+    /// Contract multiplier of the row `(exchange, token)`, when the venue
+    /// quotes one.
+    pub fn contract_value(&self, exchange: &str, token: &str) -> Option<f64> {
+        self.contract_values.get(&key(exchange, token)).copied()
+    }
+
+    /// Every contract multiplier, keyed by token (for persisting the master).
+    pub fn contract_values_by_token(&self) -> HashMap<String, f64> {
+        self.contract_values
+            .iter()
+            .filter_map(|(k, v)| k.split_once(':').map(|(_, t)| (t.to_string(), *v)))
+            .collect()
     }
 
     pub fn len(&self) -> usize {
@@ -297,6 +338,29 @@ impl SymbolResolver {
         *self.current.write() = generation;
         tracing::info!("Symbol master loaded: {} instruments", n);
         n
+    }
+
+    /// Replace the whole master with a download that carries contract
+    /// multipliers (crypto). Same swap semantics as `load`.
+    pub fn load_master(&self, master: crate::brokers::types::MasterContract) -> usize {
+        let next_id = self.current.read().id + 1;
+        let generation = Arc::new(SymbolGeneration::build_with_contract_values(
+            master.rows,
+            &master.contract_values,
+            next_id,
+        ));
+        let n = generation.len();
+        *self.current.write() = generation;
+        tracing::info!("Symbol master loaded: {} instruments", n);
+        n
+    }
+
+    /// Contract multiplier of an OpenAlgo symbol (web
+    /// `SymToken.contract_value`); `None` when the venue quotes none.
+    pub fn contract_value(&self, symbol: &str, exchange: &str) -> Option<f64> {
+        let g = self.snapshot();
+        let row = g.by_symbol(exchange, symbol)?;
+        g.contract_value(exchange, &row.token)
     }
 
     /// Drop the master (broker logout).
@@ -581,5 +645,30 @@ pub(crate) mod tests {
         let b = a.clone();
         a.load(vec![row("SBIN", "SBIN-EQ", "NSE", "3045")]);
         assert_eq!(b.len(), 1);
+    }
+
+    #[test]
+    fn contract_values_follow_the_master_generation() {
+        let r = SymbolResolver::new();
+        let mut cv = HashMap::new();
+        cv.insert("27".to_string(), 0.001);
+        cv.insert("999".to_string(), 5.0); // not in the master: dropped
+        cv.insert("3136".to_string(), 0.0); // not positive: dropped
+        r.load_master(crate::brokers::types::MasterContract {
+            rows: vec![
+                row("BTCUSDFUT", "BTCUSD", "CRYPTO", "27"),
+                row("ETHUSDFUT", "ETHUSD", "CRYPTO", "3136"),
+            ],
+            contract_values: cv,
+        });
+        assert_eq!(r.contract_value("BTCUSDFUT", "CRYPTO"), Some(0.001));
+        assert_eq!(r.contract_value("ETHUSDFUT", "CRYPTO"), None);
+        assert_eq!(r.contract_value("NOPE", "CRYPTO"), None);
+        let by_token = r.snapshot().contract_values_by_token();
+        assert_eq!(by_token.len(), 1);
+        assert_eq!(by_token.get("27"), Some(&0.001));
+        // A plain reload (an Indian broker) carries none.
+        r.load(vec![row("SBIN", "SBIN-EQ", "NSE", "3045")]);
+        assert!(r.snapshot().contract_values_by_token().is_empty());
     }
 }
