@@ -19,8 +19,8 @@ use parking_lot::Mutex;
 use serde_json::{json, Value};
 use std::sync::Arc;
 
-const CSV: &str = include_str!("../fixtures/brokers/arrow/instruments.csv");
-const RESPONSES: &str = include_str!("../fixtures/brokers/arrow/responses.json");
+const CSV: &str = include_str!("../../fixtures/brokers/arrow/instruments.csv");
+const RESPONSES: &str = include_str!("../../fixtures/brokers/arrow/responses.json");
 
 fn fixture(key: &str) -> Value {
     let all: Value = serde_json::from_str(RESPONSES).unwrap();

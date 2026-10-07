@@ -4,36 +4,29 @@
 //! and the form `grant_type=authorization_code&code=..&redirect_uri=..`,
 //! then `GET /api/v1/user/trading_info` (Bearer) for `data.client_id`,
 //! which the web stores as the session's user id. The exchange must repeat
-//! the redirect URI of the authorize URL, so the catalogue records it
-//! (`remember_redirect_uri`) when it builds the login URL.
+//! the redirect URI of the authorize URL, which the pending sign-in records
+//! and hands over as `BrokerCredentials::redirect_uri`.
 
 use super::{mapping, PocketfulBroker};
 use crate::brokers::common::http;
 use crate::brokers::{AuthResponse, BrokerCredentials};
 use crate::error::{AppError, Result};
 use base64::Engine;
-use parking_lot::RwLock;
 use serde_json::Value;
 
 /// The web default (`REDIRECT_URL` unset) for the shipped port.
 pub const DEFAULT_REDIRECT_URI: &str = "http://127.0.0.1:5000/pocketful/callback";
 
-static REDIRECT_URI: RwLock<Option<String>> = RwLock::new(None);
-
-/// Record the redirect URI the Pocketful login URL was built with.
-pub fn remember_redirect_uri(uri: &str) {
-    let uri = uri.trim();
-    if !uri.is_empty() {
-        *REDIRECT_URI.write() = Some(uri.to_string());
-    }
-}
-
-/// The redirect URI for the code exchange.
-pub fn redirect_uri() -> String {
-    REDIRECT_URI
-        .read()
-        .clone()
-        .unwrap_or_else(|| DEFAULT_REDIRECT_URI.to_string())
+/// The redirect URI for the code exchange: the one the authorize URL was
+/// built with, else the web default.
+pub fn redirect_uri(creds: &BrokerCredentials) -> String {
+    creds
+        .redirect_uri
+        .as_deref()
+        .map(str::trim)
+        .filter(|u| !u.is_empty())
+        .unwrap_or(DEFAULT_REDIRECT_URI)
+        .to_string()
 }
 
 /// `Basic base64(client_id:client_secret)`.
@@ -55,6 +48,7 @@ pub fn token_form(code: &str, redirect: &str) -> Vec<(&'static str, String)> {
 }
 
 pub async fn authenticate(b: &PocketfulBroker, creds: BrokerCredentials) -> Result<AuthResponse> {
+    let redirect = redirect_uri(&creds);
     let code = creds
         .auth_code
         .or(creds.request_token)
@@ -80,7 +74,7 @@ pub async fn authenticate(b: &PocketfulBroker, creds: BrokerCredentials) -> Resu
         .post(format!("{}/oauth2/token", b.urls.rest))
         .header("Authorization", basic_auth(&client_id, &secret))
         .header("Cache-Control", "no-cache")
-        .form(&token_form(code.trim(), &redirect_uri()))
+        .form(&token_form(code.trim(), &redirect))
         .send()
         .await
         .map_err(|e| super::redact(e.into()))?;

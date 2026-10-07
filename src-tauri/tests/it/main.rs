@@ -42,6 +42,7 @@ mod broker_upstox_feed;
 mod broker_upstox_feed_hygiene;
 mod broker_upstox_rest;
 mod brokers_noren;
+mod brokers_oauth_batch;
 mod brokers_xts;
 mod feed_app;
 mod feed_behaviour;

@@ -50,6 +50,7 @@ impl Pending {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn insert(
     conn: &Connection,
     state: &str,

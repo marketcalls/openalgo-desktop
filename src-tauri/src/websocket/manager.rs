@@ -22,7 +22,7 @@
 //! whose slow receivers see `Lagged` and skip ahead.
 
 use crate::brokers::common::ratelimit::backoff_delay;
-use crate::brokers::common::redact::url_safe_error;
+use crate::brokers::common::redact::{url_safe_error, ws_error_kind};
 use crate::brokers::common::streaming::{
     normalize_request, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, MarketEvent, Message,
     PrepareError,
@@ -475,8 +475,8 @@ impl Supervisor {
                 Err(e) => {
                     tracing::error!(
                         broker,
-                        "Market data feed request could not be built: {}",
-                        url_safe_error(&e)
+                        code = e.code(),
+                        "Market data feed request could not be built"
                     );
                     return SessionEnd::AuthFailed(e.client_message());
                 }
@@ -509,8 +509,8 @@ impl Supervisor {
             Ok(Err(e)) => {
                 tracing::debug!(
                     broker,
-                    "Market data feed connect failed: {}",
-                    url_safe_error(&e)
+                    kind = ws_error_kind(&e),
+                    "Market data feed connect failed"
                 );
                 return SessionEnd::Lost;
             }
@@ -585,7 +585,7 @@ impl Supervisor {
                     let msg = match msg {
                         Some(Ok(m)) => m,
                         Some(Err(e)) => {
-                            tracing::debug!(broker, "Market data feed read error: {}", url_safe_error(&e));
+                            tracing::debug!(broker, kind = ws_error_kind(&e), "Market data feed read error");
                             return SessionEnd::Lost;
                         }
                         None => return SessionEnd::Lost,

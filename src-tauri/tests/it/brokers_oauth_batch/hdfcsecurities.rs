@@ -27,7 +27,7 @@ use tokio_tungstenite::tungstenite::Message;
 
 macro_rules! fixture {
     ($name:literal) => {
-        include_str!(concat!("../fixtures/brokers/hdfcsecurities/", $name))
+        include_str!(concat!("../../fixtures/brokers/hdfcsecurities/", $name))
     };
 }
 

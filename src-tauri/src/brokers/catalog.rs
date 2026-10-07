@@ -82,7 +82,14 @@ pub struct AuthorizeUrl {
 pub fn callback_carries_state(broker: &str) -> bool {
     !matches!(
         broker,
-        "dhan" | "shoonya" | "zebu" | "tradesmart" | "flattrade"
+        "dhan"
+            | "shoonya"
+            | "zebu"
+            | "tradesmart"
+            | "flattrade"
+            | "arrow"
+            | "hdfcsky"
+            | "hdfcsecurities"
     )
 }
 
@@ -93,22 +100,26 @@ pub fn callback_carries_state(broker: &str) -> bool {
 /// `None` for brokers whose client-id field means something else (Fyers'
 /// app id) or is not stored.
 pub fn configured_account(broker: &str, api_key: &str, client_id: Option<&str>) -> Option<String> {
+    let client = client_id
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+        .map(str::to_string);
+    // Arrow and the HDFC pair: the client id, when the trader entered one.
+    if matches!(broker, "arrow" | "hdfcsky" | "hdfcsecurities") {
+        return client;
+    }
     if !matches!(
         broker,
         "dhan" | "shoonya" | "zebu" | "tradesmart" | "flattrade"
     ) {
         return None;
     }
-    client_id
-        .map(str::trim)
-        .filter(|c| !c.is_empty())
-        .map(str::to_string)
-        .or_else(|| {
-            api_key
-                .split_once(":::")
-                .map(|(c, _)| c.trim().to_string())
-                .filter(|c| !c.is_empty())
-        })
+    client.or_else(|| {
+        api_key
+            .split_once(":::")
+            .map(|(c, _)| c.trim().to_string())
+            .filter(|c| !c.is_empty())
+    })
 }
 
 /// A broker-issued login id inside the address a sign-in starts at, which
@@ -214,15 +225,12 @@ fn authorize_url_string(
             enc(state)
         )),
         // OAuth2 code flow; the code exchange repeats this redirect.
-        "pocketful" => {
-            crate::brokers::pocketful::remember_redirect_uri(redirect_url);
-            Some(format!(
-                "https://trade.pocketful.in/oauth2/auth?client_id={}&redirect_uri={}&response_type=code&scope=orders%20holdings&state={}",
-                enc(api_key),
-                enc(redirect_url),
-                enc(state)
-            ))
-        }
+        "pocketful" => Some(format!(
+            "https://trade.pocketful.in/oauth2/auth?client_id={}&redirect_uri={}&response_type=code&scope=orders%20holdings&state={}",
+            enc(api_key),
+            enc(redirect_url),
+            enc(state)
+        )),
         // Paytm Money returns `requestToken` and echoes `state`.
         "paytm" => Some(format!(
             "https://login.paytmmoney.com/merchant-login?apiKey={}&state={}",
@@ -682,7 +690,7 @@ mod tests {
     #[test]
     fn arrow_login_url_and_request_token() {
         assert_eq!(auth_type("arrow"), AuthType::OAuth);
-        let u = authorize_url("arrow", "APP 1", "r", "st5").unwrap();
+        let u = authorize_url("arrow", "APP 1", "r", "st5").unwrap().url;
         assert_eq!(
             u,
             "https://app.arrow.trade/app/login?appID=APP%201&state=st5"
@@ -706,12 +714,29 @@ mod tests {
             "http://127.0.0.1:5000/pocketful/callback",
             "st7",
         )
-        .unwrap();
+        .unwrap()
+        .url;
         assert!(u.starts_with("https://trade.pocketful.in/oauth2/auth?client_id=cid-1&"));
         assert!(u.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A5000%2Fpocketful%2Fcallback"));
         assert!(u.contains("response_type=code&scope=orders%20holdings&state=st7"));
+        let a = authorize_url(
+            "pocketful",
+            "cid-1",
+            "http://127.0.0.1:5500/pocketful/callback",
+            "s",
+        )
+        .unwrap();
+        assert_eq!(a.redirect_uri, "http://127.0.0.1:5500/pocketful/callback");
+        let creds = crate::brokers::BrokerCredentials {
+            redirect_uri: Some(a.redirect_uri),
+            ..Default::default()
+        };
         assert_eq!(
-            crate::brokers::pocketful::redirect_uri(),
+            crate::brokers::pocketful::redirect_uri(&creds),
+            "http://127.0.0.1:5500/pocketful/callback"
+        );
+        assert_eq!(
+            crate::brokers::pocketful::redirect_uri(&Default::default()),
             "http://127.0.0.1:5000/pocketful/callback"
         );
         assert_eq!(auth_type("pocketful"), AuthType::OAuth);
@@ -728,7 +753,8 @@ mod tests {
             "http://127.0.0.1:5000/paytm/callback",
             "st7",
         )
-        .unwrap();
+        .unwrap()
+        .url;
         assert_eq!(
             u,
             "https://login.paytmmoney.com/merchant-login?apiKey=pk%201&state=st7"
@@ -750,7 +776,7 @@ mod tests {
     #[test]
     fn hdfcsky_login_url_and_callback_token() {
         assert_eq!(auth_type("hdfcsky"), AuthType::OAuth);
-        let u = authorize_url("hdfcsky", "key 1", "r", "st7").unwrap();
+        let u = authorize_url("hdfcsky", "key 1", "r", "st7").unwrap().url;
         assert_eq!(
             u,
             "https://developer.hdfcsky.com/oapi/v1/login?api_key=key%201&state=st7"
@@ -765,7 +791,9 @@ mod tests {
     #[test]
     fn hdfcsecurities_login_url_and_code() {
         assert_eq!(auth_type("hdfcsecurities"), AuthType::OAuth);
-        let u = authorize_url("hdfcsecurities", "key 1", "r", "st5").unwrap();
+        let u = authorize_url("hdfcsecurities", "key 1", "r", "st5")
+            .unwrap()
+            .url;
         assert_eq!(
             u,
             "https://developer.hdfcsec.com/oapi/v1/login?api_key=key%201&state=st5"

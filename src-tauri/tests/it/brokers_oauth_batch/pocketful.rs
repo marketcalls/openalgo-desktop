@@ -23,7 +23,7 @@ use tokio_tungstenite::tungstenite::Message;
 
 macro_rules! fixture {
     ($name:literal) => {
-        include_str!(concat!("../fixtures/brokers/pocketful/", $name))
+        include_str!(concat!("../../fixtures/brokers/pocketful/", $name))
     };
 }
 

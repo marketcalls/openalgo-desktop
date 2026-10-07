@@ -65,6 +65,33 @@ fn clean_after_scheme(u: &str) -> String {
     s
 }
 
+/// What went wrong with a broker socket, without any of the error's text
+/// (which can repeat the URL or a server's reply): what the feed logs.
+pub fn ws_error_kind(err: &tokio_tungstenite::tungstenite::Error) -> &'static str {
+    use tokio_tungstenite::tungstenite::Error as E;
+    match err {
+        E::ConnectionClosed => "connection closed",
+        E::AlreadyClosed => "already closed",
+        E::Io(e) => match e.kind() {
+            std::io::ErrorKind::ConnectionRefused => "connection refused",
+            std::io::ErrorKind::ConnectionReset => "connection reset",
+            std::io::ErrorKind::ConnectionAborted => "connection aborted",
+            std::io::ErrorKind::TimedOut => "timed out",
+            std::io::ErrorKind::UnexpectedEof => "unexpected end of stream",
+            _ => "network error",
+        },
+        E::Tls(_) => "TLS error",
+        E::Capacity(_) => "message too large",
+        E::Protocol(_) => "protocol error",
+        E::WriteBufferFull(_) => "write buffer full",
+        E::Utf8 => "invalid text frame",
+        E::AttackAttempt => "rejected by the client",
+        E::Url(_) => "invalid address",
+        E::Http(_) => "handshake refused",
+        E::HttpFormat(_) => "invalid handshake",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

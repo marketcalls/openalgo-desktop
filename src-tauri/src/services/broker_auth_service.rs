@@ -317,7 +317,7 @@ impl BrokerAuthService {
             Some(u) => Ok(Some(u)),
             None if !state_less => Ok(None),
             None => Err(AppError::Validation(format!(
-                "Add your {} client id on the broker settings page (or enter the API key as client_id:::api_key), then start the broker login again.",
+                "Add your {} client id on the broker settings page (or enter the API key as client_id:::api_key), then start the broker login again. You can also paste the address the broker showed you after signing in into OpenAlgo.",
                 broker
             ))),
         }
