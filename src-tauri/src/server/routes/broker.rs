@@ -3,6 +3,7 @@
 
 use crate::brokers::catalog::{self, AuthType};
 use crate::db::sqlite::credentials::{self, CredentialUpdate};
+use crate::events::SessionEndReason;
 use crate::security::Secret;
 use crate::server::envelope::{error, json_response};
 use crate::server::form::FormData;
@@ -314,6 +315,19 @@ pub async fn update_credentials(State(ctx): Ctx, form: FormData) -> Response {
         || update.api_key_market.is_some()
         || update.api_secret_market.is_some()
         || update.client_id.is_some();
+    // Switching the active broker ends the old broker's live session first,
+    // so a session for one broker never runs while another is selected.
+    let previous = cfg.active_broker.clone();
+    let switched = matches!((&previous, &broker), (Some(p), Some(n)) if p != n);
+    let signed_out = match ctx.get_broker_session() {
+        Some(s) if switched && broker.as_deref() != Some(s.broker_id.as_str()) => {
+            if let Err(e) = BrokerAuthService::revoke(&ctx, SessionEndReason::Logout).await {
+                return e.into_response();
+            }
+            Some(s.broker_id)
+        }
+        _ => None,
+    };
     let res = ctx.sqlite.conn().and_then(|c| {
         if has_secret_fields {
             let b = broker.clone().ok_or_else(|| {
@@ -352,8 +366,35 @@ pub async fn update_credentials(State(ctx): Ctx, form: FormData) -> Response {
             "message": format!("Credentials updated successfully. Updated: {}", updated.join(", ")),
             "updated_fields": updated,
             "restart_required": false,
+            // Desktop: the active broker changed; the page sends the trader
+            // to the broker login. `signed_out_of` names an ended session.
+            "broker_switched": switched,
+            "signed_out_of": signed_out,
         }),
     )
+}
+
+/// GET /api/broker/configured: every broker with saved keys and which one is
+/// active (desktop; the broker page lists them so a trader can switch).
+pub async fn configured(State(ctx): Ctx) -> Response {
+    let active = ctx.server_config().active_broker.clone();
+    match ctx
+        .sqlite
+        .conn()
+        .and_then(|c| credentials::list_configured(&c))
+    {
+        Ok(list) => {
+            let brokers: Vec<_> = list
+                .iter()
+                .map(|b| json!({"name": b, "active": active.as_deref() == Some(b.as_str())}))
+                .collect();
+            json_response(
+                StatusCode::OK,
+                json!({"status": "success", "data": {"brokers": brokers, "active": active}}),
+            )
+        }
+        Err(e) => e.into_response(),
+    }
 }
 
 /// GET /api/broker/capabilities

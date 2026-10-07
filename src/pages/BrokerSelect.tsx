@@ -12,7 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { desktopBrokerLoginUrl } from '@/lib/desktop'
+import {
+  type ConfiguredBroker,
+  DESKTOP_BROKER_SETUP_PATH,
+  desktopBrokerLoginUrl,
+  fetchConfiguredBrokers,
+  switchActiveBroker,
+} from '@/lib/desktop'
 import { useAuthStore } from '@/stores/authStore'
 
 // All supported brokers with their display names and auth types
@@ -86,7 +92,11 @@ export default function BrokerSelect() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [brokerConfig, setBrokerConfig] = useState<BrokerConfig | null>(null)
+  // Desktop: every broker with saved keys, so the trader can switch here.
+  const [configured, setConfigured] = useState<ConfiguredBroker[]>([])
+  const [reloadKey, setReloadKey] = useState(0)
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Desktop: refetch after a broker switch.
   useEffect(() => {
     // Fetch broker configuration
     const fetchBrokerConfig = async () => {
@@ -111,7 +121,23 @@ export default function BrokerSelect() {
     }
 
     fetchBrokerConfig()
-  }, [])
+    fetchConfiguredBrokers().then(setConfigured)
+  }, [reloadKey])
+
+  // Desktop: picking another configured broker makes it the active one.
+  const handleBrokerChange = async (broker: string) => {
+    setSelectedBroker(broker)
+    if (!broker || broker === brokerConfig?.broker_name) return
+    setError(null)
+    setIsLoading(true)
+    const refusal = await switchActiveBroker(broker)
+    if (refusal) {
+      setError(refusal)
+      setIsLoading(false)
+      return
+    }
+    setReloadKey((k) => k + 1)
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -274,6 +300,12 @@ export default function BrokerSelect() {
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
+              {/* Desktop: no .env, so brokers are set up in Profile. */}
+              {!brokerConfig && !isLoading && (
+                <Button asChild variant="outline" className="w-full mb-4">
+                  <a href={DESKTOP_BROKER_SETUP_PATH}>Configure broker</a>
+                </Button>
+              )}
 
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="space-y-2">
@@ -282,7 +314,7 @@ export default function BrokerSelect() {
                   </Label>
                   <Select
                     value={selectedBroker}
-                    onValueChange={setSelectedBroker}
+                    onValueChange={handleBrokerChange}
                     disabled={isSubmitting}
                   >
                     <SelectTrigger id="broker-select" className="w-full">
@@ -290,7 +322,12 @@ export default function BrokerSelect() {
                     </SelectTrigger>
                     <SelectContent>
                       {allBrokers
-                        .filter((broker) => broker.id === brokerConfig?.broker_name)
+                        // Desktop: list every configured broker, not only the active one.
+                        .filter(
+                          (broker) =>
+                            broker.id === brokerConfig?.broker_name ||
+                            configured.some((c) => c.name === broker.id)
+                        )
                         .map((broker) => (
                           <SelectItem key={broker.id} value={broker.id}>
                             {broker.name}
@@ -325,6 +362,18 @@ export default function BrokerSelect() {
                   )}
                 </Button>
               </form>
+
+              {/* Desktop: add or edit another broker's keys, then pick it above. */}
+              {brokerConfig && (
+                <div className="mt-4 text-center text-sm">
+                  <a
+                    href={DESKTOP_BROKER_SETUP_PATH}
+                    className="text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                  >
+                    Configure another broker
+                  </a>
+                </div>
+              )}
 
               <div className="mt-6 text-center text-sm">
                 <BrokerAuthSignOut />

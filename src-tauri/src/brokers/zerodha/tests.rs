@@ -156,7 +156,8 @@ fn order_book_is_normalised_to_openalgo() {
     let crude = &orders[1];
     assert_eq!(crude.symbol, "CRUDEOIL19OCT26FUT");
     assert_eq!((crude.quantity, crude.filled_quantity), (100, 100));
-    assert_eq!(orders[2].status, "trigger pending");
+    // Trigger-pending stop orders show as open in the REST book (web #2185).
+    assert_eq!(orders[2].status, "open");
     assert_eq!(orders[2].order_type, "SL-M");
     assert_eq!(orders[2].trigger_price, 906.4);
     assert_eq!(orders[3].status, "open");
@@ -188,7 +189,14 @@ fn order_book_matches_web_fixture_rows() {
             assert_eq!(w["symbol"], o.symbol.as_str());
             assert_eq!(w["exchange"], o.exchange.as_str());
             assert_eq!(w["action"], o.side.as_str());
-            assert_eq!(w["order_status"], o.status.as_str());
+            // The fixture was recorded in analyzer mode, where the sandbox
+            // keeps "trigger pending"; Zerodha's live REST book shows those
+            // stop orders as "open" (web #2185).
+            let want = match w["order_status"].as_str().unwrap() {
+                "trigger pending" => "open",
+                s => s,
+            };
+            assert_eq!(want, o.status.as_str());
             assert_eq!(w["pricetype"], o.order_type.as_str());
             assert_eq!(w["product"], o.product.as_str());
             assert_eq!(w["quantity"].as_i64().unwrap(), i64::from(o.quantity));

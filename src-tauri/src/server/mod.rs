@@ -54,8 +54,17 @@ async fn fallback(method: Method, req: Request) -> Response {
     envelope::not_found(&path)
 }
 
-async fn method_not_allowed(req: Request) -> Response {
+async fn method_not_allowed(method: Method, req: Request) -> Response {
     let path = req.uri().path().to_string();
+    // A page address that is also a POST-only backend route (`/setup`): a
+    // browser visit or refresh gets the app, as the web serves both on one
+    // path. API routes keep the web's 404.
+    if (method == Method::GET || method == Method::HEAD)
+        && !path.starts_with("/api/")
+        && spa::is_spa_route(&path)
+    {
+        return spa::serve(req.uri());
+    }
     if path.starts_with("/api/v1/") {
         // Web contract: wrong method on an API route is 404.
         return envelope::not_found(&path);

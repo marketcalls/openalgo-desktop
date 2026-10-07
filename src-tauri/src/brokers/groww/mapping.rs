@@ -466,9 +466,10 @@ pub struct GrowwPosition {
 }
 
 /// Web `get_positions` derivations: buy/sell quantities include carry
-/// forward; `net_price` above 1000 is read as paise (web heuristic);
-/// `credit_price` / `debit_price` are paise. The web then lost these in
-/// `transform_positions_data` (quirk 9.7); they are kept here.
+/// forward. Groww documents every position price in rupees (`net_price`,
+/// `credit_price`, `debit_price`), so they are carried through unchanged
+/// (web #2173 removed the old paise conversions). A non-finite price reads
+/// as 0, and a position with nothing sold reports a sell price of 0.
 pub fn map_position(p: &GrowwPosition, segment: &str, symbols: &SymbolResolver) -> Position {
     let buy_qty = p.credit_quantity + p.carry_forward_credit_quantity;
     let sell_qty = p.debit_quantity + p.carry_forward_debit_quantity;
@@ -481,16 +482,10 @@ pub fn map_position(p: &GrowwPosition, segment: &str, symbols: &SymbolResolver) 
             .unwrap_or(buy_qty - sell_qty),
         _ => buy_qty - sell_qty,
     };
-    let mut avg = p.net_price;
-    if avg > 1000.0 {
-        avg /= 100.0;
-    }
-    let buy_price = p.credit_price / 100.0;
-    let sell_price = if p.debit_price > 0.0 {
-        p.debit_price / 100.0
-    } else {
-        0.0
-    };
+    let rupees = |v: f64| if v.is_finite() { v } else { 0.0 };
+    let avg = rupees(p.net_price);
+    let buy_price = rupees(p.credit_price);
+    let sell_price = rupees(p.debit_price).max(0.0);
     let seg = if p.segment.is_empty() {
         segment
     } else {

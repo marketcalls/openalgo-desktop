@@ -163,3 +163,79 @@ export function installDesktopShellHandlers(): () => void {
     window.open = originalOpen
   }
 }
+
+/**
+ * Pages a signed-in trader can open before connecting a broker. The web
+ * reads broker keys from `.env`, so it never needs this; the desktop has no
+ * `.env`, so the broker is configured in Profile before the first broker
+ * login, and Server Settings may be needed to free a port first.
+ */
+export const DESKTOP_PRE_BROKER_PATHS = ['/profile', '/settings/server'] as const
+
+export function isPreBrokerPath(pathname: string): boolean {
+  const p = pathname.replace(/\/+$/, '') || '/'
+  return (DESKTOP_PRE_BROKER_PATHS as readonly string[]).includes(p)
+}
+
+/** Profile link that opens the Broker Configuration tab. */
+export const DESKTOP_BROKER_SETUP_PATH = '/profile?tab=broker'
+
+/** Initial Profile tab from `?tab=`, so the broker page can link to it. */
+export function desktopInitialProfileTab(fallback: string): string {
+  try {
+    return new URLSearchParams(window.location.search).get('tab') || fallback
+  } catch {
+    return fallback
+  }
+}
+
+/**
+ * Origin the app is served from, used to build a broker redirect URL when
+ * none is saved yet. The web defaults to port 5000; the desktop runs on the
+ * port configured in Server Settings (5500 in development).
+ */
+export function desktopDefaultOrigin(): string {
+  return window.location.origin || 'http://127.0.0.1:5000'
+}
+
+/** A broker with saved keys, from GET /api/broker/configured. */
+export interface ConfiguredBroker {
+  name: string
+  active: boolean
+}
+
+/** Brokers the trader has configured, so the broker page can switch. */
+export async function fetchConfiguredBrokers(): Promise<ConfiguredBroker[]> {
+  try {
+    const res = await fetch('/api/broker/configured', { credentials: 'include' })
+    if (!res.ok) return []
+    const body = await res.json()
+    return Array.isArray(body?.data?.brokers) ? body.data.brokers : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Make another configured broker the active one. Keys are stored per broker,
+ * so only the redirect URL changes; the server ends any live session of the
+ * previous broker first. Returns the server's message on refusal.
+ */
+export async function switchActiveBroker(broker: string): Promise<string | null> {
+  const csrf = await fetch('/auth/csrf-token', { credentials: 'include' })
+    .then((r) => r.json())
+    .then((b) => b?.csrf_token as string | undefined)
+    .catch(() => undefined)
+  if (!csrf) return 'Could not reach OpenAlgo. Try again.'
+  const form = new FormData()
+  form.append('redirect_url', `${desktopDefaultOrigin()}/${broker}/callback`)
+  const res = await fetch('/api/broker/credentials', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'X-CSRFToken': csrf },
+    body: form,
+  })
+  if (res.ok) return null
+  const body = await res.json().catch(() => null)
+  return body?.message || 'Could not switch the broker. Try again.'
+}

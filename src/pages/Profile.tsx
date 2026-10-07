@@ -56,6 +56,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { desktopDefaultOrigin, desktopInitialProfileTab } from '@/lib/desktop'
 import { type AlertCategories, type ToastPosition, useAlertStore } from '@/stores/alertStore'
 import { useAuthStore } from '@/stores/authStore'
 import { type ThemeColor, type ThemeMode, useThemeStore } from '@/stores/themeStore'
@@ -257,7 +258,8 @@ export default function ProfilePage() {
   const user = useAuthStore((s) => s.user)
   const { mode, color, appMode, setMode, setColor } = useThemeStore()
   const alertStore = useAlertStore()
-  const [activeTab, setActiveTab] = useState('account')
+  // Desktop: the broker page links here with ?tab=broker.
+  const [activeTab, setActiveTab] = useState(() => desktopInitialProfileTab('account'))
   const [isLoading, setIsLoading] = useState(true)
   const [profileData, setProfileData] = useState<ProfileData | null>(null)
 
@@ -416,9 +418,10 @@ export default function ProfilePage() {
 
   const getRedirectUrl = (broker: string): string => {
     // Extract host from current redirect URL or use default
-    const currentUrl = brokerCredentials?.redirect_url || 'http://127.0.0.1:5000'
+    // Desktop: default to the origin the app is served from, not port 5000.
+    const currentUrl = brokerCredentials?.redirect_url || desktopDefaultOrigin()
     const match = currentUrl.match(/^(https?:\/\/[^/]+)/)
-    const host = match ? match[1] : 'http://127.0.0.1:5000'
+    const host = match ? match[1] : desktopDefaultOrigin()
     return `${host}/${broker}/callback`
   }
 
@@ -474,8 +477,14 @@ export default function ProfilePage() {
         setBrokerApiSecret('')
         setBrokerApiKeyMarket('')
         setBrokerApiSecretMarket('')
-        // Show restart dialog
-        setShowRestartDialog(true)
+        // Desktop: saved settings apply at once (no restart). After a broker
+        // switch the trader signs in to the new broker.
+        const saved = response.data as { restart_required?: boolean; broker_switched?: boolean }
+        if (saved.broker_switched) {
+          window.location.assign('/broker')
+        } else if (saved.restart_required) {
+          setShowRestartDialog(true)
+        }
       } else {
         showToast.error(response.data.message || 'Failed to save credentials', 'admin')
       }

@@ -298,7 +298,7 @@ fn positions_apply_web_derivations() {
     assert_eq!((p.quantity, p.buy_quantity, p.sell_quantity), (15, 15, 0));
     assert_eq!(p.average_price, 808.23);
     assert!((p.buy_value - 812.35 * 15.0).abs() < 1e-6);
-    // No net quantity: buy - sell; net_price above 1000 read as paise.
+    // No net quantity: buy - sell; prices are rupees as Groww sends them.
     let q = map_position(&cash[1], "CASH", &r);
     assert_eq!((q.exchange.as_str(), q.quantity), ("BSE", 0));
     assert_eq!(q.average_price, 1405.0);
@@ -311,6 +311,9 @@ fn positions_apply_web_derivations() {
         (f.symbol.as_str(), f.exchange.as_str(), f.quantity),
         ("NIFTY28OCT2524500CE", "NFO", 75)
     );
+    // Rupees as sent: 1400 bought and 1410 sold per unit.
+    assert!((q.buy_value - 1400.0 * q.buy_quantity as f64).abs() < 1e-6);
+    assert!((q.sell_value - 1410.0 * q.sell_quantity as f64).abs() < 1e-6);
     assert!(says_no_positions("No positions found for user"));
     assert!(!says_no_positions("Internal error"));
 }
@@ -1376,4 +1379,46 @@ mod http_round_trip {
         let end = tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv()).await;
         assert!(matches!(end, Ok(None)));
     }
+}
+
+/// Web test_groww_positions_price.py (#2173): every position price is the
+/// rupees Groww sent; no paise conversion, no step at 1000.
+#[test]
+fn position_prices_are_the_rupees_groww_sent() {
+    let r = master();
+    let pos = |v: serde_json::Value| -> Position {
+        let mut base = serde_json::json!({
+            "trading_symbol": "SBIN", "exchange": "NSE", "segment": "CASH",
+            "product": "CNC", "credit_quantity": 1, "debit_quantity": 1,
+            "net_price": 433.0, "credit_price": 433.0, "debit_price": 0.0
+        });
+        for (k, val) in v.as_object().unwrap() {
+            base[k] = val.clone();
+        }
+        map_position(&serde_json::from_value(base).unwrap(), "CASH", &r)
+    };
+    for price in [0.05, 4.33, 433.0, 999.99, 1000.0, 1001.0, 25_000.5] {
+        assert_eq!(
+            pos(serde_json::json!({"net_price": price})).average_price,
+            price
+        );
+        assert_eq!(
+            pos(serde_json::json!({"credit_price": price})).buy_value,
+            price
+        );
+        assert_eq!(
+            pos(serde_json::json!({"debit_price": price})).sell_value,
+            price
+        );
+    }
+    let below = pos(serde_json::json!({"net_price": 1000.0})).average_price;
+    let above = pos(serde_json::json!({"net_price": 1001.0})).average_price;
+    assert!((above - below - 1.0).abs() < 1e-9, "no step in the scale");
+    assert_eq!(pos(serde_json::json!({"debit_price": 0.0})).sell_value, 0.0);
+    let nulls = pos(serde_json::json!({"credit_price": null, "debit_price": null}));
+    assert_eq!((nulls.buy_value, nulls.sell_value), (0.0, 0.0));
+    assert_eq!(
+        pos(serde_json::json!({"net_price": "433.0"})).average_price,
+        433.0
+    );
 }

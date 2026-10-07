@@ -15,7 +15,11 @@ use axum::{
 use rust_embed::RustEmbed;
 
 #[derive(RustEmbed)]
-#[folder = "$CARGO_MANIFEST_DIR/../dist"]
+// Relative to the crate root. rust-embed expands `$VAR` in this path only
+// with its `interpolate-folder-path` feature; without it a `$CARGO_MANIFEST_DIR`
+// prefix was taken literally, so debug builds looked in a folder that does not
+// exist and release builds embedded nothing (allowed by `allow_missing`).
+#[folder = "../dist"]
 #[allow_missing = true]
 struct Assets;
 
@@ -177,6 +181,23 @@ pub fn serve(uri: &Uri) -> Response {
 
 #[cfg(test)]
 mod tests {
+    /// The interface ships inside the app. When the frontend has been built
+    /// (CI builds it before the Tauri bundle), index.html must be found;
+    /// a wrong folder path would otherwise only show up as a blank app.
+    #[test]
+    fn built_interface_is_found_when_present() {
+        let dist = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("dist")
+            .join("index.html");
+        if dist.exists() {
+            assert!(
+                super::Assets::get("index.html").is_some(),
+                "dist/index.html exists but the server cannot see it"
+            );
+        }
+    }
+
     use super::*;
 
     #[test]
