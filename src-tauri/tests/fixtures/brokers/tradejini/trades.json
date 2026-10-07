@@ -1,0 +1,17 @@
+{
+  "s": "ok",
+  "d": [
+    {
+      "sym": {"id": "EQT_RELIANCE_EQ_NSE", "exchange": "nse", "symbol": "RELIANCE", "tradSymbol": "RELIANCE-EQ"},
+      "symId": "EQT_RELIANCE_EQ_NSE", "product": "delivery", "side": "buy",
+      "fillQty": 1, "fillPrice": 1424.6, "fillValue": 1424.6, "orderId": "26100300003",
+      "time": "03-10-2026 09:22:01", "exchOrderId": "1100000012345", "remarks": "openalgo"
+    },
+    {
+      "sym": {"exch": "NFO", "sym": "NIFTY", "trdSym": "NIFTY27OCT2625000CE"},
+      "symId": "OPTIDX_NIFTY_NFO_2026-10-27_25000_CE", "product": "normal", "side": "sell",
+      "fillQty": 75, "fillPrice": 120.5, "fillValue": 9037.5, "orderId": "26100300002",
+      "time": "03-10-2026 09:30:00"
+    }
+  ]
+}

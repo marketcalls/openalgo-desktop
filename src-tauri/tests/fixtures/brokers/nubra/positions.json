@@ -1,0 +1,11 @@
+{
+  "message": "positions",
+  "portfolio": {
+    "positions": [
+      {"refId": 72329, "symbol": "RELIANCE", "exchange": "NSE", "derivativeType": "STOCK", "deliveryType": "IDAY", "netQty": 10, "buyQty": 10, "sellQty": 0, "avgPrice": 142450, "avgBuyPrice": 142450, "avgSellPrice": 0, "ltp": 142650, "pnl": 2000, "pnlChg": 0.14},
+      {"refId": 99999, "symbol": "NIFTY26OCT25000CE", "exchange": "NSE", "derivativeType": "OPT", "deliveryType": "CNC", "netQuantity": -75, "avgPrice": 12000, "lastTradedPrice": 11000, "pnl": 75000},
+      {"refId": 88888, "symbol": "NIFTY26OCTFUT", "exchange": "NSE", "derivativeType": "FUT", "deliveryType": "CNC", "netQty": 0, "avgPrice": 0, "ltp": 2510050, "pnl": -1200}
+    ],
+    "positionStats": {}
+  }
+}

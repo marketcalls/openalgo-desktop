@@ -1,0 +1,79 @@
+{
+  "_comment": "INDstocks payload shapes built from the web adapter (broker/indmoney) and the INDstocks API docs it cites. Synthetic values, no account data.",
+  "token_ok": {"status": "success", "data": {"token": "ind-tok-123"}},
+  "token_bad": {"status": "error", "message": "Invalid TOTP"},
+  "profile_ok": {"status": "success", "data": {"user_id": "<USER_ID>"}},
+  "profile_rejected": {"message": "Token expired", "error_type": "TokenException"},
+  "order_book": {
+    "status": "success",
+    "data": [
+      {"id": "EQ-96057848", "exch_order_id": "1100000012345", "security_id": "3045", "name": "STATE BANK OF INDIA",
+       "exchange": "NSE", "segment": "EQUITY", "txn_type": "buy", "product": "INTRADAY", "order_type": "LIMIT",
+       "status": "O-PENDING", "requested_qty": 10, "requested_price": "812.50", "tgt_limit_price": "",
+       "sl_limit_price": "", "sl_trigger_price": "", "tgt_trigger_price": "", "validity": "DAY",
+       "created_at": "2026-10-03 09:20:11"},
+      {"id": "DRV-5551", "exch_order_id": "2200000099", "security_id": "51012", "name": "NIFTY 25000 CE",
+       "exchange": "NSE", "segment": "DERIVATIVE", "txn_type": "SELL", "product": "MARGIN", "order_type": "MARKET",
+       "status": "SUCCESS", "requested_qty": "75", "requested_price": "", "traded_price": "1,250.50",
+       "created_at": "2026-10-03 09:30:00"},
+      {"id": "EQ-777", "exch_order_id": "", "security_id": "2885", "name": "RELIANCE INDUSTRIES LTD",
+       "exchange": "NSE", "segment": "EQUITY", "txn_type": "SELL", "product": "CNC", "order_type": "GTT_LIMIT",
+       "status": "SL-PENDING", "requested_qty": 5, "requested_price": "", "tgt_limit_price": "1418.0",
+       "tgt_trigger_price": "1420.0", "created_at": "2026-10-03 10:00:00"},
+      {"id": "EQ-888", "exch_order_id": "", "security_id": "500112", "name": "SBIN",
+       "exchange": "", "segment": "EQUITY", "txn_type": "BUY", "product": "CNC", "order_type": "LIMIT",
+       "status": "REJECTED", "requested_qty": 1, "requested_price": "800", "error_message": "Insufficient funds",
+       "created_at": "2026-10-03 10:05:00"}
+    ]
+  },
+  "trade_book_equity": {"status": "success", "data": [
+    {"fill_id": "F1", "exch_order_id": "1100000012345", "quantity": 4, "price": 812.5, "trade_date": "2026-10-03 09:21:00", "trade_serial_no": "1", "scrip_code": "3045"}
+  ]},
+  "trade_book_derivative": {"status": "success", "data": [
+    {"fill_id": "F2", "exch_order_id": "2200000099", "quantity": 75, "price": "1250.5", "trade_date": "2026-10-03 09:30:01", "trade_serial_no": "2", "scrip_code": "51012"}
+  ]},
+  "positions_derivative_margin": {"status": "success", "data": [
+    {"security_id": "51012", "symbol": "NIFTY-Oct2026-25000-CE", "exchange": "", "segment": "", "net_qty": -75,
+     "average_price": "1250.5", "realized_profit": 0}
+  ]},
+  "positions_derivative_intraday": {"status": "error", "message": "No positions found"},
+  "positions_equity_cnc": {"status": "success", "data": []},
+  "positions_equity_intraday": {"status": "success", "data": [
+    {"security_id": "3045", "symbol": "SBIN", "exchange": "NSE", "segment": "EQUITY", "net_qty": 4,
+     "average_price": 812.5, "realized_profit": "100.0"},
+    {"security_id": "2885", "symbol": "RELIANCE", "exchange": "NSE", "segment": "EQUITY", "net_qty": 0,
+     "average_price": 1400, "realized_profit": "-50"}
+  ]},
+  "ltp": {"status": "success", "data": {"NSE_3045": {"live_price": 815.0}, "NFO_51012": {"live_price": "1,240.50"}}},
+  "holdings": {"status": "success", "data": [
+    {"security_id": "2885", "symbol": "RELIANCE", "total_qty": 10, "avg_price": 1300.0, "dp_qty": 10, "t1_qty": 2, "isin": "INE002A01018"},
+    {"security_id": "99999999", "symbol": "UNKNOWNCO", "total_qty": 1, "avg_price": 50.0, "isin": ""}
+  ]},
+  "funds": {"status": "success", "data": {
+    "sod_balance": "5,000.00", "withdrawal_balance": 2983.47, "pledge_received": 1000, "realized_pnl": 12.5,
+    "unrealized_pnl": "-3.25", "brokerage": 20,
+    "detailed_avl_balance": {"eq_cnc": 2980.40, "eq_mis": 3100, "option_buy": 4449.65}
+  }},
+  "margin_ok": {"status": "success", "data": {"total_margin": 120000.5, "span_margin": 90000.25, "exposure_margin": 30000.25}},
+  "quotes_full": {"status": "success", "data": {
+    "NSE_3045": {"live_price": "812.40", "day_open": 805, "day_high": "818.9", "day_low": 801.1, "prev_close": 808.0,
+                 "volume": "1,234,567", "market_depth": {"NSE_3045": {"aggregate": {"total_buy": "12,000", "total_sell": "9000"},
+                 "depth": [{"buy": {"price": 812.35, "quantity": 100}, "sell": {"price": 812.45, "quantity": 50}}]}}},
+    "NFO_51012": {"ltp": 1240.5, "day_open": 1200, "day_high": 1300, "day_low": 1190, "close": 1210, "volume": 5000, "oi": 123450,
+                  "market_depth": {"depth": [{"buy": {"price": 1240, "quantity": 75}, "sell": {"price": 1241, "quantity": 150}}]}},
+    "NIDX_13": {"live_price": 25010.5, "day_open": 24900, "day_high": 25050, "day_low": 24880, "prev_close": 24950}
+  }},
+  "quotes_mkt": {"status": "success", "data": {
+    "NSE_3045": {"market_depth": {"aggregate": {"total_buy": "12,000", "total_sell": "9000"}, "depth": [
+      {"buy": {"price": "812.35", "quantity": "100"}, "sell": {"price": "812.45", "quantity": "50"}},
+      {"buy": {"price": "812.30", "quantity": "1,200"}, "sell": {"price": "812.50", "quantity": "75"}}
+    ]}}
+  }},
+  "history": {"status": "success", "data": {"NSE_3045": {"candles": [
+    {"ts": 1791000060, "o": 810, "h": 812, "l": 809, "c": 811, "v": 1000},
+    {"ts": 1791000000, "o": 808, "h": 811, "l": 807, "c": 810, "v": 1200},
+    {"ts": 1791000060, "o": 810, "h": 812, "l": 809, "c": 811, "v": 1000}
+  ]}}},
+  "history_list": {"data": [[1791000000000, 808, 811, 807, 810, 1200]]},
+  "order_update_live": "{\"mode\":\"order_update\",\"timestamp\":1786000826536,\"data\":{\"order_id\":\"96057848\",\"entity_name\":\"Yes Bank Ltd\",\"order_type\":\"SELL\",\"order_status\":\"S\",\"lot\":1,\"executed_price\":22.89,\"elapsed_time\":23,\"error_message\":\" \",\"req_quantity\":1,\"requested_lot\":1}}"
+}

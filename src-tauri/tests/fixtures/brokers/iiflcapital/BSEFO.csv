@@ -1,0 +1,2 @@
+Exchange,Underlying Instrument Symbol,Instrument ID,Instrument Type,Option Type,Strike Price,Underlying Instrument Name,Trading Symbol,Expiry,Lot Size,Tick Size
+BSEFO,SENSEX,80001,OPTIDX,PE,80000,SENSEX,SENSEX2643080000PE,30-Apr-2026,20,0.05

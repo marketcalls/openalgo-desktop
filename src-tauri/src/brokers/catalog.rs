@@ -121,6 +121,13 @@ pub fn authorize_url(
             api_key,
             state,
         )),
+        // IIFL Capital: appkey + both redirect casings; `state` rides on
+        // the callback URL.
+        "iiflcapital" => Some(crate::brokers::iiflcapital::auth::login_url(
+            api_key,
+            redirect_url,
+            state,
+        )),
         _ => None,
     }
 }
@@ -226,6 +233,49 @@ pub fn login_fields(broker: &str) -> &'static [LoginField] {
                 required: true,
             },
         ],
+        // INDmoney (INDstocks): the stored API key is the Client ID; MPIN and
+        // TOTP mint a 24-hour token. Both are optional because a pasted
+        // token saved as the API secret signs in without them.
+        "indmoney" => &[
+            LoginField {
+                name: "mpin",
+                label: "MPIN",
+                secret: true,
+                required: false,
+            },
+            LoginField {
+                name: "totp",
+                label: "TOTP from your authenticator app",
+                secret: true,
+                required: false,
+            },
+        ],
+        // Nubra (web authenticate_broker_totp): the stored API key is the
+        // registered mobile number and the secret the MPIN; the form
+        // carries the TOTP from the authenticator app.
+        "nubra" => &[LoginField {
+            name: "totp",
+            label: "TOTP from your authenticator app",
+            secret: true,
+            required: true,
+        }],
+        // Tradejini (web BrokerTOTP form): the CubePlus login PIN goes in
+        // `password`, the authenticator code in `twofa`. The stored API key
+        // is the individual app's API key.
+        "tradejini" => &[
+            LoginField {
+                name: "password",
+                label: "CubePlus login PIN",
+                secret: true,
+                required: true,
+            },
+            LoginField {
+                name: "twofa",
+                label: "TOTP",
+                secret: true,
+                required: true,
+            },
+        ],
         _ => &[],
     }
 }
@@ -249,6 +299,30 @@ pub fn extract_code(broker: &str, params: &HashMap<String, String>) -> Option<St
             .or_else(|| get("requestToken"))
             .or_else(|| get("request-token"))
             .or_else(|| get("code")),
+        // IIFL Capital sends `authCode` and `clientId` (web brlogin
+        // spellings). The adapter receives one code string, so both travel
+        // as `<clientId>:::<authCode>`; without a client id the bare code is
+        // passed and the adapter falls back to the stored client id / key.
+        "iiflcapital" => {
+            let code = get("authCode")
+                .or_else(|| get("authcode"))
+                .or_else(|| get("auth_code"))
+                .or_else(|| get("code"))?;
+            let client = get("clientId")
+                .or_else(|| get("clientid"))
+                .or_else(|| get("client_id"))
+                .or_else(|| get("clientCode"))
+                .or_else(|| get("clientcode"));
+            Some(match client {
+                Some(c) => format!(
+                    "{}{}{}",
+                    c.trim(),
+                    crate::brokers::iiflcapital::auth::CODE_SEPARATOR,
+                    code.trim()
+                ),
+                None => code,
+            })
+        }
         _ => get("code").or_else(|| get("request_token")),
     }
 }
@@ -370,6 +444,69 @@ mod tests {
         assert_eq!(names, ["userid", "pin", "totp"]);
         assert!(f.iter().all(|x| x.required));
         assert!(!f[0].secret && f[1].secret && f[2].secret);
+    }
+
+    #[test]
+    fn indmoney_login_fields_are_mpin_and_totp() {
+        assert_eq!(auth_type("indmoney"), AuthType::Form);
+        let f = login_fields("indmoney");
+        assert_eq!(
+            f.iter().map(|x| x.name).collect::<Vec<_>>(),
+            ["mpin", "totp"]
+        );
+        assert!(f.iter().all(|x| x.secret && !x.required));
+    }
+
+    #[test]
+    fn nubra_signs_in_with_a_totp_form() {
+        assert_eq!(auth_type("nubra"), AuthType::Form);
+        let f = login_fields("nubra");
+        assert_eq!(f.len(), 1);
+        assert_eq!(f[0].name, "totp");
+        assert!(f[0].secret && f[0].required);
+        assert!(authorize_url("nubra", "k", "r", "s").is_none());
+    }
+
+    #[test]
+    fn tradejini_login_fields_are_pin_and_totp() {
+        assert_eq!(auth_type("tradejini"), AuthType::Form);
+        let f = login_fields("tradejini");
+        assert_eq!(
+            f.iter().map(|x| x.name).collect::<Vec<_>>(),
+            ["password", "twofa"]
+        );
+        assert!(f.iter().all(|x| x.secret && x.required));
+        assert!(authorize_url("tradejini", "k", "r", "s").is_none());
+    }
+
+    #[test]
+    fn iiflcapital_sign_in() {
+        assert_eq!(auth_type("iiflcapital"), AuthType::OAuth);
+        let u = authorize_url(
+            "iiflcapital",
+            "CL1:::APPKEY",
+            "http://127.0.0.1:5000/iiflcapital/callback",
+            "st7",
+        )
+        .unwrap();
+        assert_eq!(
+            u,
+            "https://markets.iiflcapital.com/?v=1&appkey=APPKEY&redirecturl=http://127.0.0.1:5000/iiflcapital/callback?state=st7&redirectUrl=http://127.0.0.1:5000/iiflcapital/callback?state=st7"
+        );
+        let p = q(&[("authCode", "ac9"), ("clientId", "778"), ("state", "s")]);
+        assert_eq!(
+            extract_code("iiflcapital", &p).as_deref(),
+            Some("778:::ac9")
+        );
+        let p = q(&[("authcode", "ac9"), ("clientcode", "779")]);
+        assert_eq!(
+            extract_code("iiflcapital", &p).as_deref(),
+            Some("779:::ac9")
+        );
+        let p = q(&[("code", "ac1")]);
+        assert_eq!(extract_code("iiflcapital", &p).as_deref(), Some("ac1"));
+        assert_eq!(extract_code("iiflcapital", &q(&[("clientId", "1")])), None);
+        assert!(login_fields("iiflcapital").is_empty());
     }
 
     #[test]

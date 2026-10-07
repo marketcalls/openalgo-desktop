@@ -1,0 +1,30 @@
+{
+  "status": "Ok",
+  "result": [
+    {
+      "nseTradingSymbol": "SBIN-EQ",
+      "nseInstrumentId": "3045",
+      "bseTradingSymbol": "SBIN",
+      "isin": "INE062A01020",
+      "dpQuantity": "4",
+      "totalQuantity": "5",
+      "t1Quantity": "1",
+      "averageTradedPrice": "700",
+      "previousDayClose": "800",
+      "product": "DELIVERY"
+    },
+    {
+      "bseTradingSymbol": "SBIN",
+      "bseInstrumentId": "500112",
+      "dpQuantity": "0",
+      "totalQuantity": "2",
+      "averageTradedPrice": "750",
+      "ltp": "760"
+    },
+    {
+      "nseTradingSymbol": "",
+      "dpQuantity": "0",
+      "totalQuantity": "0"
+    }
+  ]
+}

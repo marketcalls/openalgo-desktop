@@ -1,0 +1,10 @@
+{
+  "message": "holdings",
+  "portfolio": {
+    "clientCode": "<USER_ID>",
+    "holdingStats": {"investedAmount": 600000, "currentValue": 713250, "totalPnl": 113250, "totalPnlChg": 18.88, "dayPnl": -1800, "dayPnlChg": -0.25},
+    "holdings": [
+      {"refId": 72329, "symbol": "RELIANCE", "exchange": "NSE", "quantity": 5, "avgPrice": 120000, "lastTradedPrice": 142650, "prevClose": 143010, "investedValue": 600000, "currentValue": 713250, "netPnl": 113250, "netPnlChg": 18.875, "dayPnl": -1800}
+    ]
+  }
+}

@@ -561,3 +561,39 @@ async fn fivepaisa_master_download() {
         .filter(|r| r.instrument_type == "FUT")
         .all(|r| r.expiry.len() == 9));
 }
+
+#[tokio::test]
+async fn fivepaisa_order_updates_poll_the_order_book() {
+    let (b, fake) = broker().await;
+    // The first poll seeds the snapshot; an unchanged book publishes nothing.
+    let mut rx = b
+        .start_order_updates(&auth(), Duration::from_millis(1))
+        .unwrap();
+    assert!(b.order_updates_running());
+    let quiet = tokio::time::timeout(Duration::from_millis(1300), rx.recv()).await;
+    assert!(
+        quiet.is_err(),
+        "an unchanged order book publishes no update"
+    );
+    assert!(fake.calls("OrderBook").len() >= 2);
+    b.stop_order_updates();
+    assert!(!b.order_updates_running());
+
+    // An expired session ends the poller on its own.
+    let expired = AuthToken::new(
+        Session {
+            api_key: "APPKEY".into(),
+            client_code: "50001234".into(),
+            access_token: "expired".into(),
+        }
+        .encode(),
+    );
+    let mut rx = b
+        .start_order_updates(&expired, Duration::from_secs(1))
+        .unwrap();
+    let closed = tokio::time::timeout(Duration::from_secs(3), rx.recv())
+        .await
+        .unwrap();
+    assert!(closed.is_none());
+    assert!(!b.order_updates_running());
+}

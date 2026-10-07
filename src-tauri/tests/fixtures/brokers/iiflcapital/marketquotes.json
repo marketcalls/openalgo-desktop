@@ -1,0 +1,43 @@
+{
+  "status": "Ok",
+  "result": [
+    {
+      "exchange": "NSEEQ",
+      "instrumentId": "3045",
+      "ltp": 812.35,
+      "open": 805,
+      "high": 815.5,
+      "low": 801.1,
+      "close": 800,
+      "tradedVolume": 1234567,
+      "bestBidPrice": 812.3,
+      "bestAskPrice": 812.4,
+      "bestBidQuantity": 100,
+      "bestAskQuantity": 50
+    },
+    {
+      "exchange": "NSEFO",
+      "instrumentId": "40001",
+      "ltp": "120.5",
+      "open": "110",
+      "high": "130",
+      "low": "100",
+      "previousClose": "115",
+      "volume": "7500",
+      "marketDepth": {
+        "buy": [
+          {
+            "price": 120.45,
+            "quantity": 75
+          }
+        ],
+        "sell": [
+          {
+            "price": 120.55,
+            "quantity": 150
+          }
+        ]
+      }
+    }
+  ]
+}

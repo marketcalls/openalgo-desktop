@@ -1,0 +1,2 @@
+Exchange,Underlying Instrument Symbol,Instrument ID,Instrument Type,Option Type,Strike Price,Underlying Instrument Name,Trading Symbol,Expiry,Lot Size,Tick Size
+NSECURR,USDINR,1101,FUTCUR,XX,0,USDINR,USDINR26APRFUT,28-Apr-2026,1,0.0025

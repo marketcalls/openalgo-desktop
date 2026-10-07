@@ -20,6 +20,7 @@ pub mod data;
 pub mod funds;
 pub mod mapping;
 pub mod master_contract;
+pub mod order_poller;
 pub mod orders;
 pub mod streaming;
 #[cfg(test)]
@@ -35,6 +36,7 @@ use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
 use serde_json::{json, Value};
+use std::sync::Arc;
 use std::time::Duration;
 
 /// REST host (web `BASE_URL`).
@@ -144,6 +146,9 @@ pub fn message(v: &Value) -> String {
         .to_string()
 }
 
+/// Cloning shares the HTTP client, pacer and symbol master (the order
+/// poller holds a clone).
+#[derive(Clone)]
 pub struct FivepaisaBroker {
     pub(crate) http: reqwest::Client,
     pub(crate) base_url: String,
@@ -153,7 +158,9 @@ pub struct FivepaisaBroker {
     pub(crate) symbols: SymbolResolver,
     /// web multiquotes pause between batches (500 ms).
     pub(crate) batch_pause: Duration,
-    pub(crate) pacer: Pacer,
+    pub(crate) pacer: Arc<Pacer>,
+    /// Running order-update poller, aborted on stop or drop.
+    pub(crate) poller: Arc<parking_lot::Mutex<Option<order_poller::OrderPoller>>>,
 }
 
 impl FivepaisaBroker {
@@ -174,7 +181,8 @@ impl FivepaisaBroker {
             feed_url: None,
             symbols,
             batch_pause: Duration::from_millis(500),
-            pacer: Pacer::per_second(20.0),
+            pacer: Arc::new(Pacer::per_second(20.0)),
+            poller: Arc::default(),
         }
     }
 
@@ -295,7 +303,7 @@ impl Broker for FivepaisaBroker {
             streaming: true,
             // The web's OrderTradeConfirmations adapter is not registered:
             // 5paisa allows one feed connection per token, so order status
-            // comes from REST polling.
+            // comes from REST polling (`start_order_updates`).
             order_feed: false,
             depth_levels: &[5],
         }
@@ -402,5 +410,38 @@ impl Broker for FivepaisaBroker {
             &s.access_token,
             &s.client_code,
         )))
+    }
+}
+
+impl FivepaisaBroker {
+    /// Start polling the order book for order updates (web
+    /// `PollingOrderUpdateAdapter`: fivepaisa is in `_POLLING_BROKERS`
+    /// because 5paisa evicts a second feed connection per token). Replaces
+    /// a running poller. The interval is clamped to 1..=60 s.
+    pub fn start_order_updates(
+        &self,
+        auth: &AuthToken,
+        interval: Duration,
+    ) -> Result<tokio::sync::mpsc::Receiver<crate::brokers::common::streaming::OrderUpdate>> {
+        // The task's copy gets its own empty poller slot so it never keeps
+        // this poller (and itself) alive.
+        let mut core = self.clone();
+        core.poller = Arc::default();
+        let (poller, rx) = order_poller::OrderPoller::start(core, auth.clone(), interval)?;
+        // Dropping the old poller aborts its task.
+        *self.poller.lock() = Some(poller);
+        Ok(rx)
+    }
+
+    /// Stop the order-update poller (broker logout, session revocation).
+    pub fn stop_order_updates(&self) {
+        if let Some(p) = self.poller.lock().take() {
+            p.stop();
+        }
+    }
+
+    /// Whether an order-update poller is running.
+    pub fn order_updates_running(&self) -> bool {
+        self.poller.lock().as_ref().is_some_and(|p| p.is_running())
     }
 }

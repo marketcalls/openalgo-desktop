@@ -21,12 +21,16 @@ pub mod fyers;
 pub mod groww;
 pub mod ibulls;
 pub mod iifl;
+pub mod iiflcapital;
+pub mod indmoney;
 pub mod jainamxts;
 pub mod kotak;
 #[cfg(any(test, feature = "test-support"))]
 pub mod mock;
+pub mod nubra;
 pub mod rmoney;
 pub mod shoonya;
+pub mod tradejini;
 pub mod tradesmart;
 pub mod types;
 pub mod upstox;
@@ -338,12 +342,16 @@ impl BrokerRegistry {
             Arc::new(ibulls::broker(symbols.clone())),
             Arc::new(wisdom::broker(symbols.clone())),
             Arc::new(iifl::broker(symbols.clone())),
+            Arc::new(iiflcapital::IiflCapitalBroker::new(symbols.clone())),
             Arc::new(shoonya::broker(symbols.clone())),
             Arc::new(flattrade::broker(symbols.clone())),
             Arc::new(tradesmart::broker(symbols.clone())),
             Arc::new(zebu::broker(symbols.clone())),
             Arc::new(firstock::FirstockBroker::new(symbols.clone())),
             Arc::new(fivepaisa::FivepaisaBroker::new(symbols.clone())),
+            Arc::new(nubra::NubraBroker::new(symbols.clone())),
+            Arc::new(tradejini::TradejiniBroker::new(symbols.clone())),
+            Arc::new(indmoney::IndmoneyBroker::new(symbols.clone())),
         ];
         Self::with_symbols(symbols, brokers)
     }
@@ -422,10 +430,14 @@ mod tests {
                 "groww",
                 "ibulls",
                 "iifl",
+                "iiflcapital",
+                "indmoney",
                 "jainamxts",
                 "kotak",
+                "nubra",
                 "rmoney",
                 "shoonya",
+                "tradejini",
                 "tradesmart",
                 "upstox",
                 "wisdom",

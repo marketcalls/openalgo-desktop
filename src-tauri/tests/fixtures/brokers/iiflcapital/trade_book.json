@@ -1,0 +1,17 @@
+{
+  "status": "Ok",
+  "result": [
+    {
+      "brokerOrderId": "260403000000101",
+      "exchangeTradeId": "T-1",
+      "instrumentId": "3045",
+      "exchange": "NSEEQ",
+      "tradingSymbol": "SBIN-EQ",
+      "transactionType": "BUY",
+      "filledQuantity": "10",
+      "tradedPrice": "812.35",
+      "product": "INTRADAY",
+      "fillTimestamp": "03-Oct-2026 09:15:02"
+    }
+  ]
+}

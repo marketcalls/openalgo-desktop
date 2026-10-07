@@ -1,0 +1,7 @@
+{
+  "s": "ok",
+  "d": [
+    {"segment": "EQUITY", "availMargin": 100000.5, "stockCollateral": 2500.0, "unrealizedPnL": -120.25, "realizedPnl": 45.0, "marginUsed": 15000.0},
+    {"segment": "COMMODITY", "availMargin": 5000.25, "stockCollateral": 0, "unrealizedPnL": 20.0, "realizedPnl": 0, "marginUsed": 1000.0}
+  ]
+}
