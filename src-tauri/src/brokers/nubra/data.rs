@@ -554,7 +554,7 @@ pub async fn get_history(
             }
             Err(e @ AppError::Auth(_)) => return Err(e),
             Err(e) => {
-                tracing::warn!("Nubra history chunk failed: {}", e);
+                tracing::warn!("Nubra history chunk failed: {}", e.code());
                 last_failure = Some(e.client_message());
             }
         }

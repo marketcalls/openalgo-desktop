@@ -34,6 +34,7 @@ use crate::brokers::common::streaming::{
 };
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
+use crate::security::secret::Secret;
 use serde_json::json;
 use std::collections::{BTreeMap, HashMap};
 use std::io::Read;
@@ -403,7 +404,8 @@ struct SubInfo {
 
 /// The live market-data feed.
 pub struct TradejiniFeed {
-    url: String,
+    /// Carries the access token in its query.
+    url: Secret,
     /// `ws_key` -> subscription (ordered so frames are deterministic).
     subs: BTreeMap<String, SubInfo>,
     l1: HashMap<String, L1>,
@@ -414,10 +416,10 @@ impl TradejiniFeed {
     /// `base` is the stream endpoint (`STREAM_URL`; tests pass a local one).
     pub fn new(base: &str, api_key: &str, access_token: &str) -> Self {
         Self {
-            url: format!(
+            url: Secret::new(format!(
                 "{}?token={}:{}&version={}",
                 base, api_key, access_token, STREAM_VERSION
-            ),
+            )),
             subs: BTreeMap::new(),
             l1: HashMap::new(),
             l5_totals: HashMap::new(),
@@ -565,7 +567,7 @@ impl BrokerFeed for TradejiniFeed {
 
     fn ws_request(&self) -> Result<WsRequest> {
         self.url
-            .as_str()
+            .expose()
             .into_client_request()
             .map_err(|_| AppError::Internal("Market data feed address is invalid".into()))
     }

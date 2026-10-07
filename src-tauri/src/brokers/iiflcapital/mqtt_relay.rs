@@ -89,7 +89,7 @@ impl MqttEndpoint {
 pub struct Prepared {
     pub client_id: String,
     pub username: String,
-    pub password: String,
+    pub password: crate::security::secret::Secret,
     pub topics: Vec<String>,
 }
 
@@ -177,7 +177,7 @@ fn options(ep: &MqttEndpoint, p: &Prepared) -> Result<MqttOptions> {
     let mut o = MqttOptions::new(p.client_id.clone(), ep.host.clone(), ep.port);
     o.set_keep_alive(KEEPALIVE);
     o.set_clean_session(true);
-    o.set_credentials(p.username.clone(), p.password.clone());
+    o.set_credentials(p.username.clone(), p.password.expose());
     o.set_max_packet_size(MAX_PACKET, MAX_PACKET);
     o.set_request_channel_capacity(REQUEST_CAPACITY);
     if ep.tls {
@@ -307,7 +307,10 @@ fn subscribe(client: &AsyncClient, topics: &[String]) -> bool {
             .map(|t| SubscribeFilter::new(t.clone(), QoS::AtMostOnce))
             .collect();
         if let Err(e) = client.try_subscribe_many(filters) {
-            tracing::warn!("IIFL feed subscribe could not be queued: {}", e);
+            tracing::warn!(
+                "IIFL feed subscribe could not be queued: {}",
+                client_error_kind(&e)
+            );
             return false;
         }
     }
@@ -317,11 +320,35 @@ fn subscribe(client: &AsyncClient, topics: &[String]) -> bool {
 fn unsubscribe(client: &AsyncClient, topics: &[String]) -> bool {
     for t in topics {
         if let Err(e) = client.try_unsubscribe(t.clone()) {
-            tracing::warn!("IIFL feed unsubscribe could not be queued: {}", e);
+            tracing::warn!(
+                "IIFL feed unsubscribe could not be queued: {}",
+                client_error_kind(&e)
+            );
             return false;
         }
     }
     true
+}
+
+/// A log-safe description of an MQTT connection error: only its kind,
+/// never its text (the session rides in the CONNECT password).
+pub fn mqtt_error_kind(e: &ConnectionError) -> &'static str {
+    match e {
+        ConnectionError::ConnectionRefused(
+            ConnectReturnCode::BadUserNamePassword | ConnectReturnCode::NotAuthorized,
+        ) => "login refused",
+        ConnectionError::ConnectionRefused(_) => "connection refused by the bridge",
+        ConnectionError::Io(_) => "network error",
+        ConnectionError::Tls(_) => "secure connection failed",
+        ConnectionError::NetworkTimeout | ConnectionError::FlushTimeout => "timed out",
+        ConnectionError::MqttState(_) => "protocol error",
+        _ => "connection error",
+    }
+}
+
+/// A log-safe description of a request that could not be queued.
+pub fn client_error_kind(_e: &rumqttc::ClientError) -> &'static str {
+    "the connection is closing or its queue is full"
 }
 
 fn refused_login(e: &ConnectionError) -> bool {
@@ -409,7 +436,11 @@ async fn serve(tcp: TcpStream, path: String, upstream: Arc<dyn MqttUpstream>) {
     match connack {
         Ok(Ok(())) => {}
         Ok(Err(Some(e))) if refused_login(&e) => {
-            tracing::warn!(broker, "IIFL Capital MQTT bridge refused the login: {}", e);
+            tracing::warn!(
+                broker,
+                "IIFL Capital MQTT bridge refused the login: {}",
+                mqtt_error_kind(&e)
+            );
             let _ = tokio::time::timeout(
                 CLOSE_TIMEOUT,
                 dw.send(auth_failed_frame(
@@ -424,7 +455,7 @@ async fn serve(tcp: TcpStream, path: String, upstream: Arc<dyn MqttUpstream>) {
             tracing::debug!(
                 broker,
                 "IIFL Capital MQTT connect failed: {}",
-                e.map(|e| e.to_string()).unwrap_or_default()
+                e.as_ref().map(mqtt_error_kind).unwrap_or("closed")
             );
             close_down(dw).await;
             return;
@@ -470,7 +501,11 @@ async fn serve(tcp: TcpStream, path: String, upstream: Arc<dyn MqttUpstream>) {
                 }
                 Some(Ok(_)) => {}
                 Some(Err(e)) => {
-                    tracing::debug!(broker, "IIFL Capital MQTT connection ended: {}", e);
+                    tracing::debug!(
+                        broker,
+                        "IIFL Capital MQTT connection ended: {}",
+                        mqtt_error_kind(&e)
+                    );
                     break;
                 }
                 None => break,

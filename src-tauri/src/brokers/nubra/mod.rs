@@ -287,11 +287,11 @@ impl Broker for NubraBroker {
     }
 
     async fn authenticate(&self, credentials: BrokerCredentials) -> Result<AuthResponse> {
-        auth::authenticate(self, credentials).await
+        auth::authenticate(self, credentials).await.map_err(redact)
     }
 
     async fn place_order(&self, auth: &AuthToken, order: &ResolvedOrder) -> Result<OrderResponse> {
-        orders::place_order(self, auth, order).await
+        orders::place_order(self, auth, order).await.map_err(redact)
     }
 
     async fn modify_order(
@@ -299,19 +299,25 @@ impl Broker for NubraBroker {
         auth: &AuthToken,
         order: &ResolvedModify,
     ) -> Result<OrderResponse> {
-        orders::modify_order(self, auth, order).await
+        orders::modify_order(self, auth, order)
+            .await
+            .map_err(redact)
     }
 
     async fn cancel_order(&self, auth: &AuthToken, order_id: &str) -> Result<OrderResponse> {
-        orders::cancel_order(self, auth, order_id).await
+        orders::cancel_order(self, auth, order_id)
+            .await
+            .map_err(redact)
     }
 
     async fn cancel_all_orders(&self, auth: &AuthToken) -> Result<CancelAllResult> {
-        orders::cancel_all_orders(self, auth).await
+        orders::cancel_all_orders(self, auth).await.map_err(redact)
     }
 
     async fn close_all_positions(&self, auth: &AuthToken) -> Result<CloseAllResult> {
-        orders::close_all_positions(self, auth).await
+        orders::close_all_positions(self, auth)
+            .await
+            .map_err(redact)
     }
 
     async fn get_open_position(
@@ -321,47 +327,53 @@ impl Broker for NubraBroker {
         exchange: Exchange,
         product: Product,
     ) -> Result<i64> {
-        orders::get_open_position(self, auth, symbol, exchange, product).await
+        orders::get_open_position(self, auth, symbol, exchange, product)
+            .await
+            .map_err(redact)
     }
 
     async fn get_order_book(&self, auth: &AuthToken) -> Result<Vec<Order>> {
-        orders::get_order_book(self, auth).await
+        orders::get_order_book(self, auth).await.map_err(redact)
     }
 
     async fn get_trade_book(&self, auth: &AuthToken) -> Result<Vec<Trade>> {
-        orders::get_trade_book(self, auth).await
+        orders::get_trade_book(self, auth).await.map_err(redact)
     }
 
     async fn get_positions(&self, auth: &AuthToken) -> Result<Vec<Position>> {
-        orders::get_positions(self, auth).await
+        orders::get_positions(self, auth).await.map_err(redact)
     }
 
     async fn get_holdings(&self, auth: &AuthToken) -> Result<Vec<Holding>> {
-        orders::get_holdings(self, auth).await
+        orders::get_holdings(self, auth).await.map_err(redact)
     }
 
     async fn get_funds(&self, auth: &AuthToken) -> Result<Funds> {
-        funds::get_funds(self, auth).await
+        funds::get_funds(self, auth).await.map_err(redact)
     }
 
     async fn calculate_margin(&self, auth: &AuthToken, legs: &[MarginLeg]) -> Result<MarginResult> {
-        funds::calculate_margin(self, auth, legs).await
+        funds::calculate_margin(self, auth, legs)
+            .await
+            .map_err(redact)
     }
 
     async fn get_quote(&self, auth: &AuthToken, key: &QuoteKey) -> Result<Quote> {
-        data::get_quote(self, auth, key).await
+        data::get_quote(self, auth, key).await.map_err(redact)
     }
 
     async fn get_market_depth(&self, auth: &AuthToken, key: &QuoteKey) -> Result<MarketDepth> {
-        data::get_market_depth(self, auth, key).await
+        data::get_market_depth(self, auth, key)
+            .await
+            .map_err(redact)
     }
 
     async fn get_history(&self, auth: &AuthToken, req: &HistoryRequest) -> Result<Vec<Candle>> {
-        data::get_history(self, auth, req).await
+        data::get_history(self, auth, req).await.map_err(redact)
     }
 
     async fn download_master_contract(&self, auth: &AuthToken) -> Result<Vec<SymbolData>> {
-        master_contract::download(self, auth).await
+        master_contract::download(self, auth).await.map_err(redact)
     }
 
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
@@ -395,5 +407,16 @@ impl NubraBroker {
             },
             self.symbols.clone(),
         )))
+    }
+}
+
+/// Transport errors carry the request URL. None of this adapter's REST URLs
+/// carries a credential, but an error is still stripped of its URL before it
+/// can reach a log or a caller (the OAuth batch pattern); every other error
+/// passes through unchanged.
+pub(crate) fn redact(e: AppError) -> AppError {
+    match e {
+        AppError::Http(h) => AppError::Http(Box::new(h.without_url())),
+        other => other,
     }
 }

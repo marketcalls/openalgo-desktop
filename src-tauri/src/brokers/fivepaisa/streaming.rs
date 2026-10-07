@@ -30,6 +30,7 @@ use crate::brokers::common::streaming::{
 };
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
+use crate::security::secret::Secret;
 use base64::Engine;
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, HashMap};
@@ -106,7 +107,8 @@ struct SubInfo {
 }
 
 pub struct FivepaisaFeed {
-    url: String,
+    /// Carries the access token in its query.
+    url: Secret,
     client_code: String,
     subs: HashMap<String, SubInfo>,
     snapshots: HashMap<String, Map<String, Value>>,
@@ -125,7 +127,7 @@ fn scrip(s: &FeedSubscription) -> Value {
 impl FivepaisaFeed {
     pub fn new(host: &str, access_token: &str, client_code: &str) -> Self {
         Self {
-            url: format!("{}?Value1={}|{}", host, access_token, client_code),
+            url: Secret::new(format!("{}?Value1={}|{}", host, access_token, client_code)),
             client_code: client_code.to_string(),
             subs: HashMap::new(),
             snapshots: HashMap::new(),
@@ -279,7 +281,7 @@ impl BrokerFeed for FivepaisaFeed {
 
     fn ws_request(&self) -> Result<WsRequest> {
         self.url
-            .as_str()
+            .expose()
             .into_client_request()
             .map_err(|_| AppError::Internal("5paisa feed address is invalid".into()))
     }

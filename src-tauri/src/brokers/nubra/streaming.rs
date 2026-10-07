@@ -673,7 +673,10 @@ impl Upstream for OrderUpstream {
                 Open::AuthFailed(ORDER_FEED_REFUSED.into())
             }
             Err(e) => {
-                tracing::debug!("Nubra order socket connect failed: {}", e);
+                tracing::debug!(
+                    "Nubra order socket connect failed: {}",
+                    crate::brokers::hdfcsky::streaming::ws_error_kind(&e)
+                );
                 Open::Unavailable
             }
         }

@@ -167,7 +167,7 @@ pub async fn authenticate(b: &FivepaisaBroker, creds: BrokerCredentials) -> Resu
     let session = Session {
         api_key: keys.api_key,
         client_code: keys.client_code.clone(),
-        access_token,
+        access_token: access_token.into(),
     };
     Ok(AuthResponse {
         auth_token: session.encode(),

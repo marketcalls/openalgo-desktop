@@ -21,6 +21,7 @@ use super::streaming::{self, decode_message, Packet, L1, L5};
 use super::{mapping, Body, TradejiniBroker, TIMEFRAME_MAP};
 use crate::brokers::common::history::{sort_dedupe, IST_OFFSET_SECS};
 use crate::brokers::common::streaming::Message;
+use crate::brokers::hdfcsky::streaming::ws_error_kind;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use futures_util::{SinkExt, StreamExt};
@@ -94,14 +95,17 @@ impl Session {
 
 async fn open(b: &TradejiniBroker, auth: &AuthToken) -> Result<Ws> {
     let (key, token) = TradejiniBroker::pair(auth)?;
-    let url = format!(
+    // The URL carries the access token: it is never logged, and a connect
+    // error is logged by kind only (its text can echo the request).
+    let url = crate::security::secret::Secret::new(format!(
         "{}?token={}:{}&version={}",
         b.stream_url,
         key,
         token,
         streaming::STREAM_VERSION
-    );
-    match tokio::time::timeout(b.timings.connect, tokio_tungstenite::connect_async(url)).await {
+    ));
+    let connect = tokio_tungstenite::connect_async(url.expose());
+    match tokio::time::timeout(b.timings.connect, connect).await {
         Ok(Ok((ws, _))) => Ok(ws),
         Ok(Err(tokio_tungstenite::tungstenite::Error::Http(r)))
             if matches!(r.status().as_u16(), 401 | 403) =>
@@ -109,7 +113,10 @@ async fn open(b: &TradejiniBroker, auth: &AuthToken) -> Result<Ws> {
             Err(super::session_expired())
         }
         Ok(Err(e)) => {
-            tracing::warn!("Tradejini quote socket could not connect: {}", e);
+            tracing::warn!(
+                "Tradejini quote socket could not connect: {}",
+                ws_error_kind(&e)
+            );
             Err(feed_unavailable())
         }
         Err(_) => {

@@ -81,7 +81,7 @@ fn credentials(prefix: &str, session: &str, topics: Vec<String>) -> Prepare {
         Some(username) => Prepare::Ready(Prepared {
             client_id: client_id(prefix),
             username,
-            password: format!("OPENID~~{}~", session),
+            password: crate::security::secret::Secret::new(format!("OPENID~~{}~", session)),
             topics,
         }),
         None => Prepare::AuthFailed(

@@ -247,7 +247,15 @@ pub async fn download(b: &IndmoneyBroker, auth: &AuthToken) -> Result<Vec<Symbol
         let resp = match resp {
             Ok(r) => r,
             Err(e) => {
-                tracing::error!("INDmoney {} instruments download failed: {}", src, e);
+                tracing::error!(
+                    "INDmoney {} instruments download failed: {}",
+                    src,
+                    if e.is_timeout() {
+                        "timed out"
+                    } else {
+                        "network error"
+                    }
+                );
                 continue;
             }
         };

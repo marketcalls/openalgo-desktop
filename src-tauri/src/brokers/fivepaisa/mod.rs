@@ -76,7 +76,7 @@ pub(crate) const NAME: &str = "5paisa";
 pub struct Session {
     pub api_key: String,
     pub client_code: String,
-    pub access_token: String,
+    pub access_token: crate::security::secret::Secret,
 }
 
 impl std::fmt::Debug for Session {
@@ -92,7 +92,9 @@ impl Session {
     pub fn encode(&self) -> String {
         format!(
             "{}:::{}:::{}",
-            self.api_key, self.client_code, self.access_token
+            self.api_key,
+            self.client_code,
+            self.access_token.expose()
         )
     }
 }
@@ -113,7 +115,7 @@ pub fn session(auth: &AuthToken) -> Result<Session> {
     Ok(Session {
         api_key: k.to_string(),
         client_code: c.to_string(),
-        access_token: t.to_string(),
+        access_token: t.into(),
     })
 }
 
@@ -219,7 +221,10 @@ impl FivepaisaBroker {
             .http
             .post(format!("{}{}", self.base_url, path))
             .timeout(timeout)
-            .header("Authorization", format!("bearer {}", s.access_token))
+            .header(
+                "Authorization",
+                format!("bearer {}", s.access_token.expose()),
+            )
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
             .body(envelope(&s.api_key, body).to_string())
@@ -234,7 +239,10 @@ impl FivepaisaBroker {
         let resp = self
             .http
             .get(format!("{}{}", self.base_url, path))
-            .header("Authorization", format!("bearer {}", s.access_token))
+            .header(
+                "Authorization",
+                format!("bearer {}", s.access_token.expose()),
+            )
             .header("Content-Type", "application/json")
             .send()
             .await?;
@@ -318,11 +326,11 @@ impl Broker for FivepaisaBroker {
     }
 
     async fn authenticate(&self, credentials: BrokerCredentials) -> Result<AuthResponse> {
-        auth::authenticate(self, credentials).await
+        auth::authenticate(self, credentials).await.map_err(redact)
     }
 
     async fn place_order(&self, auth: &AuthToken, order: &ResolvedOrder) -> Result<OrderResponse> {
-        orders::place_order(self, auth, order).await
+        orders::place_order(self, auth, order).await.map_err(redact)
     }
 
     async fn modify_order(
@@ -330,19 +338,25 @@ impl Broker for FivepaisaBroker {
         auth: &AuthToken,
         order: &ResolvedModify,
     ) -> Result<OrderResponse> {
-        orders::modify_order(self, auth, order).await
+        orders::modify_order(self, auth, order)
+            .await
+            .map_err(redact)
     }
 
     async fn cancel_order(&self, auth: &AuthToken, order_id: &str) -> Result<OrderResponse> {
-        orders::cancel_order(self, auth, order_id).await
+        orders::cancel_order(self, auth, order_id)
+            .await
+            .map_err(redact)
     }
 
     async fn cancel_all_orders(&self, auth: &AuthToken) -> Result<CancelAllResult> {
-        orders::cancel_all_orders(self, auth).await
+        orders::cancel_all_orders(self, auth).await.map_err(redact)
     }
 
     async fn close_all_positions(&self, auth: &AuthToken) -> Result<CloseAllResult> {
-        orders::close_all_positions(self, auth).await
+        orders::close_all_positions(self, auth)
+            .await
+            .map_err(redact)
     }
 
     async fn get_open_position(
@@ -352,31 +366,33 @@ impl Broker for FivepaisaBroker {
         exchange: Exchange,
         product: Product,
     ) -> Result<i64> {
-        orders::get_open_position(self, auth, symbol, exchange, product).await
+        orders::get_open_position(self, auth, symbol, exchange, product)
+            .await
+            .map_err(redact)
     }
 
     async fn get_order_book(&self, auth: &AuthToken) -> Result<Vec<Order>> {
-        orders::get_order_book(self, auth).await
+        orders::get_order_book(self, auth).await.map_err(redact)
     }
 
     async fn get_trade_book(&self, auth: &AuthToken) -> Result<Vec<Trade>> {
-        orders::get_trade_book(self, auth).await
+        orders::get_trade_book(self, auth).await.map_err(redact)
     }
 
     async fn get_positions(&self, auth: &AuthToken) -> Result<Vec<Position>> {
-        orders::get_positions(self, auth).await
+        orders::get_positions(self, auth).await.map_err(redact)
     }
 
     async fn get_holdings(&self, auth: &AuthToken) -> Result<Vec<Holding>> {
-        orders::get_holdings(self, auth).await
+        orders::get_holdings(self, auth).await.map_err(redact)
     }
 
     async fn get_funds(&self, auth: &AuthToken) -> Result<Funds> {
-        funds::get_funds(self, auth).await
+        funds::get_funds(self, auth).await.map_err(redact)
     }
 
     async fn get_quote(&self, auth: &AuthToken, key: &QuoteKey) -> Result<Quote> {
-        data::get_quote(self, auth, key).await
+        data::get_quote(self, auth, key).await.map_err(redact)
     }
 
     async fn get_multiquotes(
@@ -384,30 +400,35 @@ impl Broker for FivepaisaBroker {
         auth: &AuthToken,
         keys: &[QuoteKey],
     ) -> Result<Vec<QuoteResult>> {
-        data::get_multiquotes(self, auth, keys).await
+        data::get_multiquotes(self, auth, keys)
+            .await
+            .map_err(redact)
     }
 
     async fn get_market_depth(&self, auth: &AuthToken, key: &QuoteKey) -> Result<MarketDepth> {
-        data::get_market_depth(self, auth, key).await
+        data::get_market_depth(self, auth, key)
+            .await
+            .map_err(redact)
     }
 
     async fn get_history(&self, auth: &AuthToken, req: &HistoryRequest) -> Result<Vec<Candle>> {
-        data::get_history(self, auth, req).await
+        data::get_history(self, auth, req).await.map_err(redact)
     }
 
     async fn download_master_contract(&self, _auth: &AuthToken) -> Result<Vec<SymbolData>> {
-        master_contract::download(self).await
+        master_contract::download(self).await.map_err(redact)
     }
 
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         let s = session(auth)?;
         let host = match &self.feed_url {
             Some(u) => u.clone(),
-            None => streaming::feed_url(&streaming::redirect_server(&s.access_token)).to_string(),
+            None => streaming::feed_url(&streaming::redirect_server(s.access_token.expose()))
+                .to_string(),
         };
         Ok(Box::new(streaming::FivepaisaFeed::new(
             &host,
-            &s.access_token,
+            s.access_token.expose(),
             &s.client_code,
         )))
     }
@@ -443,5 +464,16 @@ impl FivepaisaBroker {
     /// Whether an order-update poller is running.
     pub fn order_updates_running(&self) -> bool {
         self.poller.lock().as_ref().is_some_and(|p| p.is_running())
+    }
+}
+
+/// Transport errors carry the request URL. None of this adapter's REST URLs
+/// carries a credential, but an error is still stripped of its URL before it
+/// can reach a log or a caller (the OAuth batch pattern); every other error
+/// passes through unchanged.
+pub(crate) fn redact(e: AppError) -> AppError {
+    match e {
+        AppError::Http(h) => AppError::Http(Box::new(h.without_url())),
+        other => other,
     }
 }

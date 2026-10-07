@@ -14,5 +14,7 @@ mod iiflcapital;
 mod indmoney;
 #[path = "brokers_direct_batch_b/nubra.rs"]
 mod nubra;
+#[path = "brokers_direct_batch_b/secrets.rs"]
+mod secrets;
 #[path = "brokers_direct_batch_b/tradejini.rs"]
 mod tradejini;

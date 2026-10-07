@@ -53,7 +53,7 @@ fn session_round_trips_and_redacts() {
     let back = session(&t).unwrap();
     assert_eq!(back.api_key, "APPKEY");
     assert_eq!(back.client_code, "50001234");
-    assert_eq!(back.access_token, JWT);
+    assert_eq!(back.access_token.expose(), JWT);
     let dbg = format!("{:?}", back);
     assert!(!dbg.contains("APPKEY") && !dbg.contains(JWT));
     assert!(session(&AuthToken::new("just-a-token")).is_err());

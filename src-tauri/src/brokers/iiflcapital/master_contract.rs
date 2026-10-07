@@ -276,10 +276,10 @@ async fn fetch(b: &IiflCapitalBroker, segment: &str) -> Result<String> {
             Ok(r) if r.status().is_success() => match r.text().await {
                 Ok(t) if !t.trim().is_empty() => return Ok(t),
                 Ok(_) => last = "empty file".into(),
-                Err(e) => last = e.to_string(),
+                Err(e) => last = e.without_url().to_string(),
             },
             Ok(r) => last = format!("HTTP {}", r.status().as_u16()),
-            Err(e) => last = e.to_string(),
+            Err(e) => last = e.without_url().to_string(),
         }
         if attempt < DOWNLOAD_ATTEMPTS {
             let wait = b.download_backoff * (1u32 << (attempt - 1));
