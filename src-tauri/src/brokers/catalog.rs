@@ -86,6 +86,56 @@ pub fn callback_carries_state(broker: &str) -> bool {
     )
 }
 
+/// The trading account the stored credentials name, for brokers whose
+/// configuration carries it: Dhan and the Noren family take
+/// `client_id:::key` as the API key or a separate client id. A sign-in that
+/// comes back for a different account is refused (a forged callback).
+/// `None` for brokers whose client-id field means something else (Fyers'
+/// app id) or is not stored.
+pub fn configured_account(broker: &str, api_key: &str, client_id: Option<&str>) -> Option<String> {
+    if !matches!(
+        broker,
+        "dhan" | "shoonya" | "zebu" | "tradesmart" | "flattrade"
+    ) {
+        return None;
+    }
+    client_id
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+        .map(str::to_string)
+        .or_else(|| {
+            api_key
+                .split_once(":::")
+                .map(|(c, _)| c.trim().to_string())
+                .filter(|c| !c.is_empty())
+        })
+}
+
+/// A broker-issued login id inside the address a sign-in starts at, which
+/// the callback may repeat: Dhan's `consentAppId`.
+pub fn login_binding(broker: &str, login_url: &str) -> Option<String> {
+    if !matches!(broker, "dhan") {
+        return None;
+    }
+    let u = url::Url::parse(login_url).ok()?;
+    let id = u
+        .query_pairs()
+        .find(|(k, _)| k == "consentAppId")
+        .map(|(_, v)| v.into_owned())
+        .filter(|v| !v.is_empty());
+    id
+}
+
+/// The login id a callback repeats, when it does (see [`login_binding`]).
+pub fn callback_binding(broker: &str, params: &HashMap<String, String>) -> Option<String> {
+    if !matches!(broker, "dhan") {
+        return None;
+    }
+    ["consentAppId", "consent_app_id", "consentId"]
+        .iter()
+        .find_map(|k| params.get(*k).filter(|v| !v.is_empty()).cloned())
+}
+
 /// Brokers whose sign-in returns by a form POST to `/<broker>/callback`
 /// (XTS third-party login: `session=` in the body, `state` on the return
 /// URL's query).
@@ -569,6 +619,29 @@ mod tests {
             Some(("tok".to_string(), Some("U1".to_string())))
         );
         assert_eq!(pasted_token("zerodha", &p), None);
+        assert_eq!(
+            configured_account("dhan", "1100:::app", None).as_deref(),
+            Some("1100")
+        );
+        assert_eq!(
+            configured_account("shoonya", "U1:::k", Some(" FA1 ")).as_deref(),
+            Some("FA1")
+        );
+        assert_eq!(configured_account("fyers", "app", Some("XY-100")), None);
+        assert_eq!(configured_account("zebu", "k", None), None);
+        assert_eq!(
+            login_binding(
+                "dhan",
+                "https://auth.dhan.co/login/consentApp-login?consentAppId=c-1"
+            )
+            .as_deref(),
+            Some("c-1")
+        );
+        assert_eq!(login_binding("zerodha", "https://x/?consentAppId=c"), None);
+        assert_eq!(
+            callback_binding("dhan", &q(&[("consentAppId", "c-1")])).as_deref(),
+            Some("c-1")
+        );
     }
 
     #[test]

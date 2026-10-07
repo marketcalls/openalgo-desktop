@@ -8,10 +8,15 @@
 
 use crate::error::Result;
 use chrono::{DateTime, Duration, Utc};
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
 
 pub const MAX_PENDING: i64 = 16;
+
+/// How long a sign-in can be completed by a redirect that does not carry
+/// `state`: much shorter than the general expiry, since the browser
+/// session is then the only link between the start and the callback.
+pub const STATELESS_WINDOW_SECONDS: i64 = 180;
 
 pub fn hash_state(state: &str) -> String {
     hex::encode(Sha256::digest(state.as_bytes()))
@@ -22,6 +27,27 @@ pub fn hash_state(state: &str) -> String {
 pub struct Pending {
     /// The callback address the authorize URL was built with.
     pub redirect_uri: Option<String>,
+    /// Hash of the broker-issued login id recorded at the start (Dhan's
+    /// `consentAppId`); a callback that repeats an id must match it.
+    pub binding_hash: Option<String>,
+}
+
+impl Pending {
+    /// A pending sign-in with only a redirect address.
+    pub fn with_redirect(redirect_uri: Option<String>) -> Self {
+        Self {
+            redirect_uri,
+            binding_hash: None,
+        }
+    }
+
+    /// Whether `id` (from the callback) is the login id recorded at the
+    /// start. True when nothing was recorded.
+    pub fn binding_matches(&self, id: &str) -> bool {
+        self.binding_hash
+            .as_deref()
+            .is_none_or(|h| h == hash_state(id))
+    }
 }
 
 pub fn insert(
@@ -30,6 +56,7 @@ pub fn insert(
     broker: &str,
     redirect_uri: Option<&str>,
     session_id: Option<&str>,
+    binding: Option<&str>,
     now: DateTime<Utc>,
     ttl: Duration,
 ) -> Result<()> {
@@ -38,14 +65,15 @@ pub fn insert(
         [now.to_rfc3339()],
     )?;
     conn.execute(
-        "INSERT INTO pending_oauth (state_hash, broker, created_at, expires_at, redirect_uri, session_hash) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO pending_oauth (state_hash, broker, created_at, expires_at, redirect_uri, session_hash, binding_hash) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![
             hash_state(state),
             broker,
             now.to_rfc3339(),
             (now + ttl).to_rfc3339(),
             redirect_uri,
-            session_id.map(hash_state)
+            session_id.map(hash_state),
+            binding.map(hash_state)
         ],
     )?;
     conn.execute(
@@ -71,26 +99,44 @@ pub fn consume(
 
 /// Consume the newest pending sign-in for `broker` started from the
 /// browser session `session_id`, for a redirect that does not return
-/// `state` (Dhan, the Noren pages). Only a sign-in started from OpenAlgo in
-/// the same browser session and still unexpired matches; it is used once.
+/// `state` (Dhan, the Noren pages). Only the most recent sign-in of that
+/// broker and browser session matches, only within
+/// [`STATELESS_WINDOW_SECONDS`] of its start, and only once: every pending
+/// row of that broker and session is removed whether or not one matched.
 pub fn consume_latest(
     conn: &Connection,
     broker: &str,
     session_id: &str,
     now: DateTime<Utc>,
 ) -> Result<Option<Pending>> {
-    let h: Option<String> = conn
+    let sh = hash_state(session_id);
+    let row: Option<(String, String, Option<String>, Option<String>)> = conn
         .query_row(
-            "SELECT state_hash FROM pending_oauth WHERE broker = ?1 AND session_hash = ?2
+            "SELECT created_at, expires_at, redirect_uri, binding_hash FROM pending_oauth
+             WHERE broker = ?1 AND session_hash = ?2
              ORDER BY created_at DESC LIMIT 1",
-            params![broker, hash_state(session_id)],
-            |r| r.get(0),
+            params![broker, sh],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
         )
-        .ok();
-    match h {
-        Some(h) => take(conn, "state_hash = ?1", &h, broker, now),
-        None => Ok(None),
-    }
+        .optional()?;
+    conn.execute(
+        "DELETE FROM pending_oauth WHERE broker = ?1 AND session_hash = ?2",
+        params![broker, sh],
+    )?;
+    let Some((created, expires, redirect_uri, binding_hash)) = row else {
+        return Ok(None);
+    };
+    let at = |t: &str| DateTime::parse_from_rfc3339(t).map(|d| d.with_timezone(&Utc));
+    let fresh = match (at(&created), at(&expires)) {
+        (Ok(c), Ok(e)) => {
+            e > now && c <= now && now - c <= Duration::seconds(STATELESS_WINDOW_SECONDS)
+        }
+        _ => false,
+    };
+    Ok(fresh.then_some(Pending {
+        redirect_uri,
+        binding_hash,
+    }))
 }
 
 fn take(
@@ -100,18 +146,18 @@ fn take(
     broker: &str,
     now: DateTime<Utc>,
 ) -> Result<Option<Pending>> {
-    let row: Option<(String, String, Option<String>)> = {
+    let row: Option<(String, String, Option<String>, Option<String>)> = {
         let mut stmt = conn.prepare(&format!(
-            "SELECT broker, expires_at, redirect_uri FROM pending_oauth WHERE {}",
+            "SELECT broker, expires_at, redirect_uri, binding_hash FROM pending_oauth WHERE {}",
             filter
         ))?;
         let mut rows = stmt.query([key])?;
         match rows.next()? {
-            Some(r) => Some((r.get(0)?, r.get(1)?, r.get(2)?)),
+            Some(r) => Some((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
             None => None,
         }
     };
-    let Some((stored_broker, expires, redirect_uri)) = row else {
+    let Some((stored_broker, expires, redirect_uri, binding_hash)) = row else {
         return Ok(None);
     };
     conn.execute(
@@ -121,7 +167,10 @@ fn take(
     let not_expired = DateTime::parse_from_rfc3339(&expires)
         .map(|e| e.with_timezone(&Utc) > now)
         .unwrap_or(false);
-    Ok((not_expired && stored_broker == broker).then_some(Pending { redirect_uri }))
+    Ok((not_expired && stored_broker == broker).then_some(Pending {
+        redirect_uri,
+        binding_hash,
+    }))
 }
 
 pub fn count(conn: &Connection) -> Result<i64> {
@@ -170,7 +219,7 @@ mod tests {
         // The in-flight sign-in still completes, with no recorded redirect.
         assert_eq!(
             consume(&c, "old-state", "zerodha", now).unwrap(),
-            Some(Pending { redirect_uri: None })
+            Some(Pending::with_redirect(None))
         );
         assert_eq!(consume(&c, "old-state", "zerodha", now).unwrap(), None);
         // New sign-ins carry their redirect address to the code exchange.
@@ -180,15 +229,16 @@ mod tests {
             "upstox",
             Some("http://127.0.0.1:5500/upstox/callback"),
             None,
+            None,
             now,
             Duration::minutes(10),
         )
         .unwrap();
         assert_eq!(
             consume(&c, "s1", "upstox", now).unwrap(),
-            Some(Pending {
-                redirect_uri: Some("http://127.0.0.1:5500/upstox/callback".into())
-            })
+            Some(Pending::with_redirect(Some(
+                "http://127.0.0.1:5500/upstox/callback".into()
+            )))
         );
         // The master contract status table exists after the migrations.
         crate::db::sqlite::master_contract_status::update(&c, "upstox", "pending", "x", None, now)
@@ -196,26 +246,60 @@ mod tests {
     }
 
     #[test]
-    fn state_less_callbacks_take_the_newest_pending_sign_in_once() {
+    fn state_less_callbacks_take_only_the_newest_fresh_sign_in_once() {
         let now = Utc.with_ymd_and_hms(2026, 10, 3, 4, 0, 0).unwrap();
         let c = populated_old_db(now);
         crate::db::sqlite::migrations::run_migrations(&c).unwrap();
         assert_eq!(consume_latest(&c, "dhan", "sess", now).unwrap(), None);
         let ttl = Duration::minutes(10);
-        insert(&c, "d1", "dhan", Some("r1"), Some("sess"), now, ttl).unwrap();
-        let later = now + Duration::seconds(1);
-        insert(&c, "d2", "dhan", Some("r2"), Some("sess"), later, ttl).unwrap();
-        insert(&c, "d3", "dhan", Some("r3"), Some("other"), later, ttl).unwrap();
-        let p = consume_latest(&c, "dhan", "sess", now + Duration::seconds(2)).unwrap();
-        assert_eq!(p.unwrap().redirect_uri.as_deref(), Some("r2"));
-        // Another browser session's sign-in is never taken.
-        let p = consume_latest(&c, "dhan", "sess", now + Duration::seconds(2)).unwrap();
-        assert_eq!(p.unwrap().redirect_uri.as_deref(), Some("r1"));
-        assert_eq!(consume_latest(&c, "dhan", "sess", now).unwrap(), None);
-        // Another broker's pending row is never taken.
+        let sec = Duration::seconds;
+        insert(&c, "d1", "dhan", Some("r1"), Some("sess"), None, now, ttl).unwrap();
+        insert(
+            &c,
+            "d2",
+            "dhan",
+            Some("r2"),
+            Some("sess"),
+            Some("cid"),
+            now + sec(1),
+            ttl,
+        )
+        .unwrap();
+        insert(
+            &c,
+            "d3",
+            "dhan",
+            Some("r3"),
+            Some("other"),
+            None,
+            now + sec(1),
+            ttl,
+        )
+        .unwrap();
+        let p = consume_latest(&c, "dhan", "sess", now + sec(2))
+            .unwrap()
+            .unwrap();
+        assert_eq!(p.redirect_uri.as_deref(), Some("r2"));
+        assert!(p.binding_matches("cid") && !p.binding_matches("someone-else"));
+        // The older sign-in of the same session went with it.
+        assert_eq!(
+            consume_latest(&c, "dhan", "sess", now + sec(2)).unwrap(),
+            None
+        );
+        // Another broker's or another session's row is never taken.
         assert_eq!(consume_latest(&c, "fyers", "other", now).unwrap(), None);
-        // Expired rows do not match.
-        let late = now + Duration::minutes(11);
+        // The other session's row is past the three-minute window.
+        let late = now + sec(STATELESS_WINDOW_SECONDS + 2);
         assert_eq!(consume_latest(&c, "dhan", "other", late).unwrap(), None);
+        // ... and it was used up by that attempt.
+        assert_eq!(
+            consume_latest(&c, "dhan", "other", now + sec(2)).unwrap(),
+            None
+        );
+        // A row with state still completes by state within the general expiry.
+        insert(&c, "d4", "dhan", None, Some("sess"), None, now, ttl).unwrap();
+        assert!(consume(&c, "d4", "dhan", now + Duration::minutes(5))
+            .unwrap()
+            .is_some());
     }
 }

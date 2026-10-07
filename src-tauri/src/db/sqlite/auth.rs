@@ -162,6 +162,20 @@ pub fn revoke_all(conn: &Connection) -> Result<usize> {
     )?)
 }
 
+/// The broker account id of the last session with `broker_id`, revoked or
+/// not (the account a new sign-in is expected to belong to).
+pub fn last_user_id(conn: &Connection, broker_id: &str) -> Result<Option<String>> {
+    Ok(conn
+        .query_row(
+            "SELECT user_id FROM auth WHERE broker_id = ?1",
+            [broker_id],
+            |r| r.get::<_, Option<String>>(0),
+        )
+        .optional()?
+        .flatten()
+        .filter(|u| !u.trim().is_empty()))
+}
+
 /// Whether a row exists but is revoked (for "expired" vs "never connected").
 pub fn has_revoked(conn: &Connection) -> Result<bool> {
     let n: i64 = conn.query_row("SELECT COUNT(*) FROM auth WHERE is_revoked = 1", [], |r| {

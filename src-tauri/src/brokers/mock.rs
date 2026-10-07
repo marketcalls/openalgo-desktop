@@ -92,6 +92,10 @@ pub struct MockBroker {
     pub depth_feed: Mutex<Option<(String, u8)>>,
     /// `on_logout` calls.
     pub logouts: Mutex<u32>,
+    /// The account id a sign-in returns.
+    pub auth_user_id: Mutex<String>,
+    /// What `begin_login` returns (a consent address).
+    pub login_url: Mutex<Option<String>>,
     /// Credentials passed to the last `restore_session`.
     pub restored: Mutex<Option<BrokerCredentials>>,
     next_id: Mutex<u64>,
@@ -130,6 +134,8 @@ impl MockBroker {
             order_feed_url: Mutex::new(None),
             depth_feed: Mutex::new(None),
             logouts: Mutex::new(0),
+            auth_user_id: Mutex::new("AB1234".into()),
+            login_url: Mutex::new(None),
             restored: Mutex::new(None),
             next_id: Mutex::new(0),
         }
@@ -196,6 +202,9 @@ impl Broker for MockBroker {
     async fn on_logout(&self) {
         *self.logouts.lock() += 1;
     }
+    async fn begin_login(&self, _credentials: &BrokerCredentials) -> Result<Option<String>> {
+        Ok(self.login_url.lock().clone())
+    }
     fn symbols(&self) -> Option<&SymbolResolver> {
         Some(&self.symbols)
     }
@@ -212,7 +221,7 @@ impl Broker for MockBroker {
         Ok(AuthResponse {
             auth_token: "mock-access-token".into(),
             feed_token: Some("mock-feed-token".into()),
-            user_id: "AB1234".into(),
+            user_id: self.auth_user_id.lock().clone(),
             user_name: Some("Mock Trader".into()),
         })
     }

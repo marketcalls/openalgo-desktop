@@ -295,11 +295,13 @@ fn m040_pending_oauth(conn: &Connection) -> Result<()> {
 /// The callback address a pending sign-in's authorize URL was built with,
 /// for the code exchange (Upstox checks it byte for byte), and the hash of
 /// the browser session that started it, for redirects that drop `state`.
-/// Rows from before the columns have neither: they fall back to the web
-/// redirect convention and can only be completed with their `state`.
+/// the hash of a broker-issued login id the callback may repeat (Dhan's
+/// `consentAppId`). Rows from before the columns have none: they fall back
+/// to the web redirect convention and can only be completed with `state`.
 fn m064_pending_oauth_redirect(conn: &Connection) -> Result<()> {
     add_column(conn, "pending_oauth", "redirect_uri", "TEXT")?;
     add_column(conn, "pending_oauth", "session_hash", "TEXT")?;
+    add_column(conn, "pending_oauth", "binding_hash", "TEXT")?;
     Ok(())
 }
 
