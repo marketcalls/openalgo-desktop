@@ -163,3 +163,37 @@ export function installDesktopShellHandlers(): () => void {
     window.open = originalOpen
   }
 }
+
+/**
+ * Pages a signed-in trader can open before connecting a broker. The web
+ * reads broker keys from `.env`, so it never needs this; the desktop has no
+ * `.env`, so the broker is configured in Profile before the first broker
+ * login, and Server Settings may be needed to free a port first.
+ */
+export const DESKTOP_PRE_BROKER_PATHS = ['/profile', '/settings/server'] as const
+
+export function isPreBrokerPath(pathname: string): boolean {
+  const p = pathname.replace(/\/+$/, '') || '/'
+  return (DESKTOP_PRE_BROKER_PATHS as readonly string[]).includes(p)
+}
+
+/** Profile link that opens the Broker Configuration tab. */
+export const DESKTOP_BROKER_SETUP_PATH = '/profile?tab=broker'
+
+/** Initial Profile tab from `?tab=`, so the broker page can link to it. */
+export function desktopInitialProfileTab(fallback: string): string {
+  try {
+    return new URLSearchParams(window.location.search).get('tab') || fallback
+  } catch {
+    return fallback
+  }
+}
+
+/**
+ * Origin the app is served from, used to build a broker redirect URL when
+ * none is saved yet. The web defaults to port 5000; the desktop runs on the
+ * port configured in Server Settings (5500 in development).
+ */
+export function desktopDefaultOrigin(): string {
+  return window.location.origin || 'http://127.0.0.1:5000'
+}

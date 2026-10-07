@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { desktopBrokerLoginUrl } from '@/lib/desktop'
+import { DESKTOP_BROKER_SETUP_PATH, desktopBrokerLoginUrl } from '@/lib/desktop'
 import { useAuthStore } from '@/stores/authStore'
 
 // All supported brokers with their display names and auth types
@@ -273,6 +273,12 @@ export default function BrokerSelect() {
                 <Alert variant="destructive" className="mb-4">
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
+              )}
+              {/* Desktop: no .env, so the broker is set up in Profile first. */}
+              {!brokerConfig && !isLoading && (
+                <Button asChild variant="outline" className="w-full mb-4">
+                  <a href={DESKTOP_BROKER_SETUP_PATH}>Configure broker</a>
+                </Button>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-6">

@@ -152,3 +152,19 @@ describe('installDesktopShellHandlers', () => {
     expect(window.open).toBe(originalOpen)
   })
 })
+
+describe('isPreBrokerPath', () => {
+  it('lets Profile and Server Settings open before a broker is connected', async () => {
+    const { isPreBrokerPath } = await import('./desktop')
+    expect(isPreBrokerPath('/profile')).toBe(true)
+    expect(isPreBrokerPath('/profile/')).toBe(true)
+    expect(isPreBrokerPath('/settings/server')).toBe(true)
+  })
+
+  it('keeps every trading page behind the broker login', async () => {
+    const { isPreBrokerPath } = await import('./desktop')
+    for (const p of ['/', '/dashboard', '/orderbook', '/positions', '/profiles', '/apikey']) {
+      expect(isPreBrokerPath(p)).toBe(false)
+    }
+  })
+})

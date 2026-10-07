@@ -189,7 +189,14 @@ fn order_book_matches_web_fixture_rows() {
             assert_eq!(w["symbol"], o.symbol.as_str());
             assert_eq!(w["exchange"], o.exchange.as_str());
             assert_eq!(w["action"], o.side.as_str());
-            assert_eq!(w["order_status"], o.status.as_str());
+            // The fixture was recorded in analyzer mode, where the sandbox
+            // keeps "trigger pending"; Zerodha's live REST book shows those
+            // stop orders as "open" (web #2185).
+            let want = match w["order_status"].as_str().unwrap() {
+                "trigger pending" => "open",
+                s => s,
+            };
+            assert_eq!(want, o.status.as_str());
             assert_eq!(w["pricetype"], o.order_type.as_str());
             assert_eq!(w["product"], o.product.as_str());
             assert_eq!(w["quantity"].as_i64().unwrap(), i64::from(o.quantity));

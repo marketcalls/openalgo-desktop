@@ -1371,3 +1371,32 @@ async fn tauri_commands_require_the_signed_in_user() {
     h.session(true);
     assert_eq!(crate::commands::require_user(h.ctx()).unwrap(), USER);
 }
+
+/// `/setup` is a POST-only route and a page: a browser visit or refresh
+/// must get the app, not 405 (found when the dev server was first opened).
+#[tokio::test]
+async fn page_on_a_post_only_route_serves_the_app() {
+    let h = H::new();
+    let (s, _, _) = h
+        .send(
+            Request::builder()
+                .method("GET")
+                .uri("/setup")
+                .header(header::ACCEPT, "text/html")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_ne!(s, StatusCode::METHOD_NOT_ALLOWED);
+    // A wrong method on an API route still follows the web contract.
+    let (s, _, _) = h
+        .send(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/placeorder")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+}
