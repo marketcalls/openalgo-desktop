@@ -101,9 +101,12 @@ jobs:
         with:
           tool: cargo-deny
       - name: SARIF report (never fails)
+        # Duplicate-version warnings (bans) are dependency hygiene, not
+        # vulnerabilities; they stay in the job log (next step) and are kept
+        # out of Code Scanning so its alerts mean something.
         run: |
           cargo deny --manifest-path src-tauri/Cargo.toml --config .github/deny.toml --locked \
-            --format sarif check advisories bans licenses sources > cargo-deny.sarif || true
+            --format sarif check advisories licenses sources > cargo-deny.sarif || true
           if ! jq -e . cargo-deny.sarif > /dev/null 2>&1; then
             echo "::warning::cargo-deny SARIF missing or invalid; uploading an empty report."
             # shellcheck disable=SC2016 # literal "$schema" key, not a variable
@@ -186,6 +189,7 @@ jobs:
           scanners: vuln,secret
           skip-dirs: node_modules,src-tauri/target,dist
           severity: CRITICAL,HIGH,MEDIUM
+          trivyignores: .trivyignore
           format: sarif
           output: trivy.sarif
           exit-code: "0"

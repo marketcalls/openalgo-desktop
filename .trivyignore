@@ -1,0 +1,8 @@
+# Accepted findings for `trivy fs` (see .github/workflows/security.yml).
+# Every entry says why it is accepted and what would let it be removed.
+
+# glib 0.18.5, GHSA-wrw7-89jp-8q8g (MEDIUM): unsound VariantStrIter iterator.
+# glib arrives only through Tauri's Linux GTK stack (tauri -> muda -> gtk 0.18
+# -> glib 0.18), which Tauri pins; the app never iterates glib Variant
+# strings. Remove when Tauri moves to gtk-rs 0.20 or later.
+GHSA-wrw7-89jp-8q8g

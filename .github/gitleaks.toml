@@ -26,8 +26,10 @@ regexes = [
   '''abcdef0123456789abcdef0123456789''',
   # Playground message templates are keyed by name, e.g. key: 'subscribe_depth_20'.
   '''subscribe_[a-z0-9_]+''',
-  # Fake JWTs in broker fixtures: real header, placeholder payload/signature.
-  '''eyJ[A-Za-z0-9_-]+\.(test\.signature|market\.sig)''',
+  # Fake JWTs in broker fixtures: a real-looking header and payload but a
+  # literal placeholder signature ("sig", "signature", or "sig" base64
+  # encoded as "c2ln"). A real token never has one of these as its signature.
+  '''eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.(signature|sig|c2ln)\b''',
   # OpenAlgo option symbols passed next to an `auth` argument in tests.
   '''[A-Z]+[0-9]{2}[A-Z]{3}[0-9]{2}[0-9.]+(CE|PE)''',
   # Made-up Groww order id used by the adapter tests.
