@@ -290,8 +290,17 @@ Decided:
   and are pinned by a contract test. Full OAuth for remote connectors comes
   later; first version uses a scoped token from the API key page.
 
-Open: Telegram bot, WhatsApp bot and the Agent depend on Python packages in the
-web; their desktop form is decided when those waves start.
+- **Telegram, WhatsApp and the Agent are native Rust** (maintainer decision
+  2026-10-07), so they too need no Python runtime:
+  - Telegram: the Bot API over the shared HTTP client, same commands,
+    alerts and analytics as the web's `python-telegram-bot` service.
+  - WhatsApp: depends directly on `marketcalls/whatsapp-rust` (MIT), the Rust
+    crate that the web's `wars` package wraps with PyO3. Same pairing (QR and
+    pair code), session export/import as an encrypted blob, alerts and bot
+    commands as the web. The web's notes on `wars` threading do not apply.
+  - Agent: a native multi-provider LLM client replacing LiteLLM, with the web's
+    providers, models, tools, streaming chat, confirmations and voice routes.
+    Tools call desktop services directly.
 
 ## Testing
 
