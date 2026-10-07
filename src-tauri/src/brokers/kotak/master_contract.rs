@@ -322,7 +322,10 @@ async fn file_paths(b: &KotakBroker, s: &KotakSession) -> Vec<(&'static str, Str
         let resp = match resp {
             Ok(r) => r,
             Err(e) => {
-                tracing::warn!("Kotak file-paths call failed: {}", e);
+                tracing::warn!(
+                    "Kotak file-paths call failed: {}",
+                    crate::brokers::common::redact::url_safe_error(&e)
+                );
                 continue;
             }
         };
@@ -361,7 +364,11 @@ async fn file_paths(b: &KotakBroker, s: &KotakSession) -> Vec<(&'static str, Str
                 "Kotak CDN file missing: {}",
                 key
             ),
-            Err(e) => tracing::warn!("Kotak CDN probe failed for {}: {}", key, e),
+            Err(e) => tracing::warn!(
+                "Kotak CDN probe failed for {}: {}",
+                key,
+                crate::brokers::common::redact::url_safe_error(&e)
+            ),
         }
     }
     ok
@@ -393,7 +400,11 @@ pub async fn download(b: &KotakBroker, auth: &AuthToken) -> Result<Vec<SymToken>
                 continue;
             }
             Err(e) => {
-                tracing::warn!("Kotak {} download failed: {}", key, e);
+                tracing::warn!(
+                    "Kotak {} download failed: {}",
+                    key,
+                    crate::brokers::common::redact::url_safe_error(&e)
+                );
                 continue;
             }
         };

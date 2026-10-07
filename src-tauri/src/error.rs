@@ -24,10 +24,11 @@ pub enum AppError {
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 
-    #[error("HTTP request error: {0}")]
+    // Displayed without any URL credentials (tokens on a query string).
+    #[error("HTTP request error: {}", crate::brokers::common::redact::url_safe_error(&**.0))]
     Http(Box<reqwest::Error>),
 
-    #[error("WebSocket error: {0}")]
+    #[error("WebSocket error: {}", crate::brokers::common::redact::url_safe_error(&**.0))]
     WebSocket(Box<tokio_tungstenite::tungstenite::Error>),
 
     #[error("Keychain error: {0}")]
@@ -76,7 +77,9 @@ impl From<duckdb::Error> for AppError {
 
 impl From<reqwest::Error> for AppError {
     fn from(e: reqwest::Error) -> Self {
-        AppError::Http(Box::new(e))
+        // The URL can carry credentials (tokens on the query); errors
+        // are logged, so it is dropped here once for every caller.
+        AppError::Http(Box::new(e.without_url()))
     }
 }
 

@@ -431,7 +431,10 @@ async fn lookup_feed_url(http: &reqwest::Client, config_url: &str, data_center: 
                 DEFAULT_SFEED_URL.to_string()
             }
             Err(e) => {
-                tracing::warn!("Kotak feed config lookup failed: {}", e);
+                tracing::warn!(
+                    "Kotak feed config lookup failed: {}",
+                    crate::brokers::common::redact::url_safe_error(&e)
+                );
                 DEFAULT_SFEED_URL.to_string()
             }
         }

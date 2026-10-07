@@ -523,3 +523,83 @@ async fn ping_heartbeats_and_post_login_frames_go_out_as_is() {
     m.disconnect().await.unwrap();
     srv.abort();
 }
+
+/// Captured log output for the current thread.
+#[derive(Clone, Default)]
+struct LogBuf(Arc<Mutex<Vec<u8>>>);
+
+impl std::io::Write for LogBuf {
+    fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().extend_from_slice(b);
+        Ok(b.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn credentials_in_urls_never_reach_the_log() {
+    const SENTINEL: &str = "SENTINELTOKEN9f3a";
+    let buf = LogBuf::default();
+    let writer = buf.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::TRACE)
+        .with_ansi(false)
+        .with_writer(move || writer.clone())
+        .finish();
+    // Thread-local: this test runtime is single-threaded, so the manager's
+    // tasks log into it too.
+    let _guard = tracing::subscriber::set_default(subscriber);
+
+    // A feed whose socket refuses, then one that accepts TCP and hangs up
+    // during the handshake: connect errors on a credentialed URL.
+    let closed = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let refused = closed.local_addr().unwrap();
+    drop(closed);
+    let hangup = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let hang_addr = hangup.local_addr().unwrap();
+    let srv = tokio::spawn(async move {
+        while let Ok((tcp, _)) = hangup.accept().await {
+            drop(tcp);
+        }
+    });
+    for addr in [refused, hang_addr] {
+        let m = WebSocketManager::with_config(fast());
+        let url = format!(
+            "ws://user:{s}@{a}/feed?api_key=k&access_token={s}",
+            s = SENTINEL,
+            a = addr
+        );
+        m.connect(Box::new(MockFeed::new(url))).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        m.disconnect().await.unwrap();
+    }
+    srv.abort();
+
+    // A failing broker call on the shared client: the raw error repeats
+    // the URL; what is logged does not.
+    let url = format!("http://{}/orders?access_token={}", refused, SENTINEL);
+    let raw = crate::brokers::common::http::client()
+        .get(&url)
+        .send()
+        .await
+        .unwrap_err();
+    assert!(raw.to_string().contains(SENTINEL), "the check must be real");
+    tracing::warn!(
+        "Broker call failed: {}",
+        crate::brokers::common::redact::url_safe_error(&raw)
+    );
+    let app: AppError = raw.into();
+    tracing::warn!("Broker call failed: {}", app);
+    tracing::warn!("Broker call failed: {:?}", app);
+
+    let out = String::from_utf8_lossy(&buf.0.lock()).to_string();
+    assert!(out.contains("Market data feed connect failed"), "{}", out);
+    assert!(out.contains("Broker call failed"), "{}", out);
+    assert!(
+        !out.contains(SENTINEL),
+        "a credential reached the log:\n{}",
+        out
+    );
+}

@@ -22,6 +22,7 @@
 //! whose slow receivers see `Lagged` and skip ahead.
 
 use crate::brokers::common::ratelimit::backoff_delay;
+use crate::brokers::common::redact::url_safe_error;
 use crate::brokers::common::streaming::{
     normalize_request, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, MarketEvent, Message,
     PrepareError,
@@ -472,14 +473,18 @@ impl Supervisor {
             let request = match self.feed.ws_request() {
                 Ok(r) => normalize_request(r),
                 Err(e) => {
-                    tracing::error!(broker, "Market data feed request could not be built: {}", e);
+                    tracing::error!(
+                        broker,
+                        "Market data feed request could not be built: {}",
+                        url_safe_error(&e)
+                    );
                     return SessionEnd::AuthFailed(e.client_message());
                 }
             };
             let connect = tokio_tungstenite::connect_async(request);
             match tokio::time::timeout(self.config.connect_timeout, connect).await {
                 Ok(Err(e)) if !matches!(e, WsError::Http(_)) && !retried => {
-                    if self.feed.on_connect_failed(&e.to_string()) {
+                    if self.feed.on_connect_failed(&url_safe_error(&e)) {
                         retried = true;
                         continue;
                     }
@@ -502,7 +507,11 @@ impl Supervisor {
                 return SessionEnd::Lost;
             }
             Ok(Err(e)) => {
-                tracing::debug!(broker, "Market data feed connect failed: {}", e);
+                tracing::debug!(
+                    broker,
+                    "Market data feed connect failed: {}",
+                    url_safe_error(&e)
+                );
                 return SessionEnd::Lost;
             }
             Err(_) => {
@@ -576,7 +585,7 @@ impl Supervisor {
                     let msg = match msg {
                         Some(Ok(m)) => m,
                         Some(Err(e)) => {
-                            tracing::debug!(broker, "Market data feed read error: {}", e);
+                            tracing::debug!(broker, "Market data feed read error: {}", url_safe_error(&e));
                             return SessionEnd::Lost;
                         }
                         None => return SessionEnd::Lost,

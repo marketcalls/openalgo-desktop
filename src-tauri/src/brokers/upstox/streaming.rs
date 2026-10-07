@@ -105,7 +105,10 @@ async fn authorize(
         .send()
         .await
         .map_err(|e| {
-            tracing::debug!("Upstox feed authorize failed: {}", e);
+            tracing::debug!(
+                "Upstox feed authorize failed: {}",
+                crate::brokers::common::redact::url_safe_error(&e)
+            );
             0u16
         })?;
     let status = resp.status();
@@ -608,7 +611,11 @@ fn parse_text(t: &str) -> Vec<FeedEvent> {
         if v.get("status").and_then(Value::as_str) == Some("failed") {
             let method = v.get("method").and_then(Value::as_str).unwrap_or("request");
             let error = v.get("error").map(|e| e.to_string()).unwrap_or_default();
-            tracing::error!("Upstox feed {} failed: {}", method, error);
+            tracing::error!(
+                "Upstox feed {} failed: {}",
+                method,
+                crate::brokers::common::redact::url_safe_error(&error)
+            );
         }
     }
     Vec::new()

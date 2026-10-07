@@ -1294,7 +1294,10 @@ impl BrokerFeed for TbtFeed {
                 status = r.status().as_u16(),
                 "Fyers depth address lookup refused; using the default"
             ),
-            Err(e) => tracing::warn!("Fyers depth address lookup failed: {}", e),
+            Err(e) => tracing::warn!(
+                "Fyers depth address lookup failed: {}",
+                crate::brokers::common::redact::url_safe_error(&e)
+            ),
         }
         Ok(())
     }
