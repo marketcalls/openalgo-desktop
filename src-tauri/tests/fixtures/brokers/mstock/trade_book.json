@@ -1,0 +1,33 @@
+{
+  "status": "true",
+  "message": "SUCCESS",
+  "data": [
+    {
+      "SEC_ID": "45001",
+      "SYMBOL": "NIFTY",
+      "EXCHANGE": "NSE",
+      "INSTRUMENT_NAME": "OPTIDX",
+      "PRODUCT": "CARRYFORWARD",
+      "BUY_SELL": "Sell",
+      "QUANTITY": "75",
+      "PRICE": "112.35",
+      "TRADE_VALUE": "8426.25",
+      "ORDER_NUMBER": "1181251003102",
+      "TRADE_NUMBER": "5001",
+      "ORDER_DATE_TIME": "03-Oct-2026 09:21:00"
+    },
+    {
+      "SEC_ID": "",
+      "SYMBOL": "INFY",
+      "EXCHANGE": "NSE",
+      "INSTRUMENT_NAME": "EQUITY",
+      "PRODUCT": "CNC",
+      "BUY_SELL": "Buy",
+      "QUANTITY": 2,
+      "PRICE": 1500.0,
+      "TRADE_VALUE": 3000.0,
+      "ORDER_NUMBER": "1181251003110",
+      "ORDER_DATE_TIME": "03-Oct-2026 10:00:00"
+    }
+  ]
+}

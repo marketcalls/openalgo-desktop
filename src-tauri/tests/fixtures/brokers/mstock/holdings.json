@@ -1,0 +1,31 @@
+{
+  "status": "true",
+  "message": "SUCCESS",
+  "data": [
+    {
+      "tradingsymbol": "SBIN-EQ",
+      "exchange": "NSE",
+      "isin": "INE062A01020",
+      "t1quantity": 0,
+      "quantity": 10,
+      "product": "DELIVERY",
+      "averageprice": 700.0,
+      "ltp": 750.5,
+      "symboltoken": "3045",
+      "close": 748.0,
+      "profitandloss": 505.0,
+      "pnlpercentage": 7.214
+    },
+    {
+      "tradingsymbol": "INFY-EQ",
+      "exchange": null,
+      "quantity": "2",
+      "product": null,
+      "averageprice": "1500",
+      "ltp": "1490",
+      "symboltoken": "1594",
+      "profitandloss": "-20",
+      "pnlpercentage": "-0.666"
+    }
+  ]
+}

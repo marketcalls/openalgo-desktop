@@ -1,0 +1,162 @@
+[
+  {
+    "token": "3045",
+    "symbol": "SBIN",
+    "name": "SBIN-EQ",
+    "expiry": "",
+    "strike": "-1.000000",
+    "lotsize": "1",
+    "instrumenttype": "",
+    "exch_seg": "NSE",
+    "tick_size": "5.000000"
+  },
+  {
+    "token": "10001",
+    "symbol": "NHPC",
+    "name": "NHPC-BE",
+    "expiry": "",
+    "strike": "",
+    "lotsize": "1",
+    "instrumenttype": "",
+    "exch_seg": "NSE",
+    "tick_size": "0.05"
+  },
+  {
+    "token": "10002",
+    "symbol": "NHPC",
+    "name": "NHPC-BZ",
+    "expiry": "",
+    "strike": "",
+    "lotsize": "1",
+    "instrumenttype": "",
+    "exch_seg": "NSE",
+    "tick_size": "0.05"
+  },
+  {
+    "token": "10003",
+    "symbol": "NHPC",
+    "name": "NHPC-EQ",
+    "expiry": "",
+    "strike": "",
+    "lotsize": "1",
+    "instrumenttype": "",
+    "exch_seg": "NSE",
+    "tick_size": "0.05"
+  },
+  {
+    "token": "1594",
+    "symbol": "INFY",
+    "name": "INFY-EQ",
+    "expiry": "",
+    "strike": "",
+    "lotsize": "1",
+    "instrumenttype": "",
+    "exch_seg": "NSE",
+    "tick_size": "0.05"
+  },
+  {
+    "token": "45001",
+    "symbol": "NIFTY",
+    "name": "NIFTY26OCT24500CE",
+    "expiry": "27OCT2026",
+    "strike": "24500.000000",
+    "lotsize": "75",
+    "instrumenttype": "OPTIDX",
+    "exch_seg": "NFO",
+    "tick_size": "0.05"
+  },
+  {
+    "token": "45002",
+    "symbol": "NIFTY",
+    "name": "NIFTY26OCTFUT",
+    "expiry": "27OCT2026",
+    "strike": "-1",
+    "lotsize": "75",
+    "instrumenttype": "FUTIDX",
+    "exch_seg": "NFO",
+    "tick_size": "0.1"
+  },
+  {
+    "token": "45003",
+    "symbol": "RELIANCE",
+    "name": "RELIANCE26OCT1332.5PE",
+    "expiry": "2026-10-27",
+    "strike": 1332.5,
+    "lotsize": 500,
+    "instrumenttype": "OPTSTK",
+    "exch_seg": "NFO",
+    "tick_size": 0.05
+  },
+  {
+    "token": "845001",
+    "symbol": "SENSEX",
+    "name": "SENSEX26O0882700CE",
+    "expiry": "08-OCT-26",
+    "strike": "82700",
+    "lotsize": "20",
+    "instrumenttype": "OPTIDX",
+    "exch_seg": "BFO",
+    "tick_size": "0.05"
+  },
+  {
+    "token": "1201",
+    "symbol": "USDINR",
+    "name": "USDINR26OCT83.25CE",
+    "expiry": "28OCT26",
+    "strike": "83.25",
+    "lotsize": "1",
+    "instrumenttype": "OPTCUR",
+    "exch_seg": "NSE",
+    "tick_size": "0.0025"
+  },
+  {
+    "token": "1202",
+    "symbol": "USDINR",
+    "name": "USDINR26OCTFUT",
+    "expiry": "28OCT2026",
+    "strike": "",
+    "lotsize": "1",
+    "instrumenttype": "FUTCUR",
+    "exch_seg": "BSE",
+    "tick_size": "0.0025"
+  },
+  {
+    "token": "99919000",
+    "symbol": "SENSEX",
+    "name": "SENSEX",
+    "expiry": "",
+    "strike": "",
+    "lotsize": "1",
+    "instrumenttype": "",
+    "exch_seg": "BSE",
+    "tick_size": "0.01"
+  },
+  {
+    "token": "99919017",
+    "symbol": "MIDSEL",
+    "name": "MIDSEL",
+    "expiry": "",
+    "strike": "",
+    "lotsize": "1",
+    "instrumenttype": "",
+    "exch_seg": "BSE",
+    "tick_size": "0.01"
+  },
+  {
+    "token": "500325",
+    "symbol": "RELIANCE",
+    "name": "RELIANCE",
+    "expiry": "",
+    "strike": "",
+    "lotsize": "1",
+    "instrumenttype": "",
+    "exch_seg": "BSE",
+    "tick_size": "0.05"
+  },
+  {
+    "token": "",
+    "symbol": "BROKEN",
+    "name": "BROKEN-EQ",
+    "exch_seg": "NSE"
+  }
+]

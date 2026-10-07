@@ -1,0 +1,17 @@
+{
+  "status": true,
+  "message": "SUCCESS",
+  "errorcode": "",
+  "data": [
+    {
+      "ACCOUNT_ID": "<USER_ID>",
+      "SEGMENT": "ALL",
+      "AVAILABLE_BALANCE": "100000.456",
+      "AMOUNT_UTILIZED": "2500.5",
+      "PAYOUT_AMOUNT": "0",
+      "COLLATERALS": "5000",
+      "REALISED_PROFITS": "None",
+      "MTM_COMBINED": "-120.25"
+    }
+  ]
+}
