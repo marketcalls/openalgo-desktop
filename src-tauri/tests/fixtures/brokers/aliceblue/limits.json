@@ -1,0 +1,12 @@
+{
+  "status": "Ok",
+  "message": "",
+  "result": [
+    {
+      "tradingLimit": "125000.456",
+      "collateralMargin": 5000,
+      "utilizedMargin": "1234.5",
+      "segment": "ALL"
+    }
+  ]
+}

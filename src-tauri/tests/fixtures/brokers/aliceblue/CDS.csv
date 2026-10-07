@@ -1,0 +1,3 @@
+Exch,Exchange Segment,Symbol,Token,Instrument Type,Option Type,Strike Price,Instrument Name,Formatted Ins Name,Trading Symbol,Expiry Date,Lot Size,Tick Size,Group Name
+CDS,cde_fo,USDINR,1001,FUTCUR,,,USDINR,USDINR OCT FUT,USDINR26OCTF,2026-10-29,1,0.0025,
+CDS,cde_fo,USDINR,1002,OPTCUR,CE,83.25,USDINR,USDINR 29OCT26 83.25 CE,USDINR26OCT83.25CE,2026-10-29,1,0.0025,

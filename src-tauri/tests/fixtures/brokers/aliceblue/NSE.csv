@@ -1,0 +1,6 @@
+Exch,Exchange Segment,Symbol,Token,Instrument Type,Option Type,Strike Price,Instrument Name,Formatted Ins Name,Trading Symbol,Expiry Date,Lot Size,Tick Size,Group Name
+NSE,nse_cm,SBIN,3045.0,,,,STATE BANK OF INDIA,SBIN-EQ,SBIN-EQ,,1,0.05,EQ
+NSE,nse_cm,INFY,1594,,,,INFOSYS LIMITED,INFY-EQ,INFY-EQ,,1,0.05,EQ
+NSE,nse_cm,NIFTYBEES,10576,,,,NIPPON INDIA ETF NIFTY BEES,NIFTYBEES-EQ,NIFTYBEES-EQ,,1,0.01,EQ
+NSE,nse_cm,IDEA,14366,,,,VODAFONE IDEA,IDEA-BE,IDEA-BE,,1,0.01,BE
+NSE,nse_cm,SGBMAR29,800123,,,,SGB,SGBMAR29-GB,SGBMAR29-GB,,1,0.01,GB

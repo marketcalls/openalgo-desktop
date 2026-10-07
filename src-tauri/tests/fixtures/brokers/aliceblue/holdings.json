@@ -1,0 +1,32 @@
+{
+  "status": "Ok",
+  "result": [
+    {
+      "nseTradingSymbol": "NIFTYBEES-EQ",
+      "bseTradingSymbol": "NIFTYBEES",
+      "dpQuantity": 100,
+      "t1Quantity": 0,
+      "ltp": 270.5,
+      "averageTradedPrice": 250.0,
+      "isin": "INF204KB14I2",
+      "nseInstrumentId": "10576",
+      "sellableQty": 100
+    },
+    {
+      "nseTradingSymbol": "",
+      "bseTradingSymbol": "TATAMOTORS",
+      "dpQuantity": 0,
+      "t1Quantity": 4,
+      "ltp": 700,
+      "investedPrice": 650,
+      "isin": "INE155A01022",
+      "bseInstrumentId": "500570"
+    },
+    {
+      "nseTradingSymbol": "",
+      "bseTradingSymbol": "",
+      "dpQuantity": 1,
+      "ltp": 1
+    }
+  ]
+}

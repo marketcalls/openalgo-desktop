@@ -1,0 +1,3 @@
+Exch,Exchange Segment,Symbol,Token,Instrument Type,Option Type,Strike Price,Instrument Name,Formatted Ins Name,Trading Symbol,Expiry Date,Lot Size,Tick Size,Group Name
+BFO,bse_fo,SENSEX,825565,IF,,,SENSEX,SENSEX 30OCT26 FUT,SENSEX26OCTFUT,2026-10-30,20,0.05,
+BFO,bse_fo,SENSEX,825600,IO,CE,82000,SENSEX,SENSEX 30OCT26 82000 CE,SENSEX2610308200CE,2026-10-30,20,0.05,
