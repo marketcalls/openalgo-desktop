@@ -583,13 +583,16 @@ pub fn catalog_symbols(c: &Connection) -> Result<Vec<(String, String)>> {
     Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
 }
 
+/// (first timestamp, last timestamp, record count).
+pub type DataRange = (Option<i64>, Option<i64>, i64);
+
 /// Web `get_data_range`: (first, last, count).
 pub fn data_range(
     c: &Connection,
     symbol: &str,
     exchange: &str,
     interval: &str,
-) -> Result<Option<(Option<i64>, Option<i64>, i64)>> {
+) -> Result<Option<DataRange>> {
     let mut st = c.prepare(
         "SELECT first_timestamp, last_timestamp, COALESCE(record_count, 0) FROM data_catalog \
          WHERE symbol = ? AND exchange = ? AND interval = ?",

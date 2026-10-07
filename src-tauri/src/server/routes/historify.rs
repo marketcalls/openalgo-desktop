@@ -161,6 +161,7 @@ fn ok_or_400(r: Result<String, String>) -> Response {
 }
 
 /// The connected broker is needed to download.
+#[allow(clippy::result_large_err)]
 fn broker_ready(ctx: &AppState) -> Result<(), Response> {
     ctx.historify
         .jobs
@@ -221,6 +222,7 @@ pub async fn watchlist_bulk_add(State(ctx): Ctx, body: JsonBody) -> Response {
 
 // --------------------------------------------------------------- download
 
+#[allow(clippy::result_large_err)]
 fn date_pair(body: &JsonBody) -> Result<(String, String), Response> {
     let (s, e) = (body.str("start_date"), body.str("end_date"));
     match (
@@ -879,6 +881,7 @@ fn int_field(body: &JsonBody, k: &str) -> Result<Option<i64>, ()> {
     }
 }
 
+#[allow(clippy::result_large_err)]
 fn lookback(body: &JsonBody, default: Option<i64>) -> Result<Option<i64>, Response> {
     let bad = || {
         error(

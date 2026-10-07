@@ -118,6 +118,9 @@ pub trait JobHook: Send + Sync {
     async fn finished(&self, f: Finished);
 }
 
+/// A job slot's generation, control sender and status lock.
+type SlotRef = (u64, Arc<watch::Sender<Ctl>>, Arc<AsyncMutex<()>>);
+
 struct Slot {
     gen: u64,
     ctl: Arc<watch::Sender<Ctl>>,
@@ -293,7 +296,7 @@ impl JobEngine {
         Some((gen, rx, status))
     }
 
-    fn slot(&self, job_id: &str) -> Option<(u64, Arc<watch::Sender<Ctl>>, Arc<AsyncMutex<()>>)> {
+    fn slot(&self, job_id: &str) -> Option<SlotRef> {
         self.inner
             .slots
             .lock()
