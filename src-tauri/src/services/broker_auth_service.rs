@@ -35,6 +35,16 @@ const RESUME_CHECK_TIMEOUT: Duration = Duration::from_secs(15);
 
 pub struct BrokerAuthService;
 
+/// Where a broker callback came from.
+#[derive(Debug, Clone, Copy)]
+pub enum CallbackOrigin<'a> {
+    /// The broker redirected the browser here; `session_id` is the browser
+    /// session's cookie, when it was sent.
+    Redirect { session_id: Option<&'a str> },
+    /// The signed-in trader pasted the address into OpenAlgo.
+    Manual { session_id: &'a str },
+}
+
 /// Inputs from a broker login form (web field names).
 #[derive(Debug, Default, Clone)]
 pub struct FormLogin {
@@ -119,13 +129,25 @@ impl BrokerAuthService {
             api_key: creds.api_key.expose().to_string(),
             api_secret: creds.api_secret.as_ref().map(|s| s.expose().to_string()),
             client_id: creds.client_id.clone(),
+            api_key_market: creds
+                .api_key_market
+                .as_ref()
+                .map(|s| s.expose().to_string()),
+            api_secret_market: creds
+                .api_secret_market
+                .as_ref()
+                .map(|s| s.expose().to_string()),
             ..Default::default()
         }
     }
 
     /// Start an OAuth login: store a fresh `state` with the redirect
     /// address, return the authorize URL.
-    pub async fn start_oauth(state: &AppState, broker: &str) -> Result<String> {
+    pub async fn start_oauth(
+        state: &AppState,
+        broker: &str,
+        session_id: Option<&str>,
+    ) -> Result<String> {
         let Some(adapter) = state.brokers.get(broker) else {
             return Err(AppError::Validation(format!(
                 "Signing in to {} is not available in this version of OpenAlgo Desktop yet.",
@@ -158,6 +180,7 @@ impl BrokerAuthService {
                 &st,
                 broker,
                 Some(&redirect),
+                session_id,
                 state.now(),
                 chrono::Duration::minutes(OAUTH_STATE_TTL_MINUTES),
             )?;
@@ -170,18 +193,31 @@ impl BrokerAuthService {
         state: &AppState,
         broker: &str,
         params: &HashMap<String, String>,
+        origin: CallbackOrigin<'_>,
     ) -> Result<BrokerSession> {
         let st = params.get("state").cloned().unwrap_or_default();
-        let pending = if catalog::callback_carries_state(broker) {
-            if st.is_empty() {
-                None
-            } else {
-                let conn = state.sqlite.conn()?;
-                oauth_state::consume(&conn, &st, broker, state.now())?
-            }
-        } else {
+        let session_id = match origin {
+            CallbackOrigin::Redirect { session_id } => session_id,
+            CallbackOrigin::Manual { session_id } => Some(session_id),
+        };
+        let pending = if !st.is_empty() {
             let conn = state.sqlite.conn()?;
-            oauth_state::consume_latest(&conn, broker, state.now())?
+            oauth_state::consume(&conn, &st, broker, state.now())?
+        } else if let (false, Some(sid)) = (catalog::callback_carries_state(broker), session_id) {
+            let conn = state.sqlite.conn()?;
+            oauth_state::consume_latest(&conn, broker, sid, state.now())?
+        } else {
+            None
+        };
+        let pasted = catalog::pasted_token(broker, params);
+        // A token the signed-in trader pasted needs no pending sign-in; one
+        // arriving by redirect does, like any code.
+        let pending = match (pending, &pasted, origin) {
+            (Some(p), _, _) => Some(p),
+            (None, Some(_), CallbackOrigin::Manual { .. }) => {
+                Some(oauth_state::Pending { redirect_uri: None })
+            }
+            _ => None,
         };
         let Some(pending) = pending else {
             return Err(AppError::Auth(
@@ -189,10 +225,19 @@ impl BrokerAuthService {
                     .into(),
             ));
         };
+        let creds = Self::load_credentials(state, broker)?;
+        if let Some((token, uid)) = pasted {
+            let stored = Self::stored_input(&creds);
+            let input = BrokerCredentials {
+                password: Some(token),
+                client_id: uid.or(stored.client_id.clone()),
+                ..stored
+            };
+            return Self::authenticate(state, broker, input).await;
+        }
         let code = catalog::extract_code(broker, params).ok_or_else(|| {
             AppError::Auth("The broker did not complete the sign-in. Try again.".into())
         })?;
-        let creds = Self::load_credentials(state, broker)?;
         let input = BrokerCredentials {
             request_token: Some(code.clone()),
             auth_code: Some(code),

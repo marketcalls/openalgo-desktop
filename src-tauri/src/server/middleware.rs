@@ -204,6 +204,11 @@ fn csrf_exempt(path: &str) -> bool {
         || matches!(path, "/auth/login" | "/setup")
         || path.starts_with("/webhook/")
         || path.starts_with("/strategy/webhook/")
+        // Broker form-POST redirects (state-verified in the handler).
+        || path
+            .strip_suffix("/callback")
+            .and_then(|p| p.strip_prefix('/'))
+            .is_some_and(crate::brokers::catalog::posts_callback)
 }
 
 /// Same-origin check for cookie-authenticated writes (web `logout` uses

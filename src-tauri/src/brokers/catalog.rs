@@ -73,11 +73,43 @@ pub struct AuthorizeUrl {
     pub redirect_uri: String,
 }
 
-/// Whether the broker's redirect carries the `state` OpenAlgo sent. Dhan's
-/// consent redirect returns only `tokenId`, so its pending sign-in is
-/// matched by broker instead (single use, short expiry).
+/// Whether the broker's redirect reliably carries the `state` OpenAlgo
+/// sent. Dhan's consent redirect returns only `tokenId`, and the Noren
+/// OAuth pages (shoonya, zebu, tradesmart, flattrade) may drop it; a
+/// callback from these without `state` is matched to the newest pending
+/// sign-in of that broker started from the same browser session (single
+/// use, 10 minutes).
 pub fn callback_carries_state(broker: &str) -> bool {
-    !matches!(broker, "dhan")
+    !matches!(
+        broker,
+        "dhan" | "shoonya" | "zebu" | "tradesmart" | "flattrade"
+    )
+}
+
+/// Brokers whose sign-in returns by a form POST to `/<broker>/callback`
+/// (XTS third-party login: `session=` in the body, `state` on the return
+/// URL's query).
+pub fn posts_callback(broker: &str) -> bool {
+    matches!(broker, "compositedge" | "rmoney")
+}
+
+/// A ready access token on a callback address instead of a code
+/// (tradesmart's manual fallback `?access_token=..&uid=..`): the token and
+/// the user id when given.
+pub fn pasted_token(
+    broker: &str,
+    params: &HashMap<String, String>,
+) -> Option<(String, Option<String>)> {
+    let get = |k: &str| {
+        params
+            .get(k)
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+    };
+    match broker {
+        "tradesmart" => get("access_token").map(|t| (t, get("uid"))),
+        _ => None,
+    }
 }
 
 /// Authorize URL with the server-generated `state`, or `None` when the
@@ -364,6 +396,22 @@ pub fn login_fields(broker: &str) -> &'static [LoginField] {
                 required: true,
             },
         ],
+        // mStock Type B (web brlogin): the stored API key is the client
+        // code; password and TOTP are posted together.
+        "mstock" => &[
+            LoginField {
+                name: "password",
+                label: "mStock password",
+                secret: true,
+                required: true,
+            },
+            LoginField {
+                name: "totp",
+                label: "TOTP",
+                secret: true,
+                required: true,
+            },
+        ],
         // Dhan signs in by consent redirect; a pasted access token (web
         // brlogin `access_token`) is accepted through the form instead.
         "dhan" => &[LoginField {
@@ -512,7 +560,15 @@ mod tests {
         assert_eq!(credential_slot("mobile"), Some(CredentialSlot::ClientId));
         assert_eq!(credential_slot("otp"), Some(CredentialSlot::Totp));
         assert!(!callback_carries_state("dhan"));
+        assert!(!callback_carries_state("shoonya"));
         assert!(callback_carries_state("upstox"));
+        assert!(posts_callback("rmoney") && !posts_callback("zerodha"));
+        let p = q(&[("access_token", "tok"), ("uid", "U1")]);
+        assert_eq!(
+            pasted_token("tradesmart", &p),
+            Some(("tok".to_string(), Some("U1".to_string())))
+        );
+        assert_eq!(pasted_token("zerodha", &p), None);
     }
 
     #[test]
@@ -522,6 +578,9 @@ mod tests {
         assert_eq!(names, ["mobile", "totp", "mpin"]);
         assert!(f.iter().all(|x| x.required));
         assert!(!f[0].secret && f[1].secret && f[2].secret);
+        let m: Vec<&str> = login_fields("mstock").iter().map(|x| x.name).collect();
+        assert_eq!(m, ["password", "totp"]);
+        assert_eq!(auth_type("mstock"), AuthType::Form);
     }
 
     #[test]

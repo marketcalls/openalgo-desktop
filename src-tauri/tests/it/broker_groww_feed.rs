@@ -1,5 +1,5 @@
 //! Groww feed end to end: the shared `WebSocketManager` drives a
-//! `GrowwFeed` through the loopback relay against a fake Groww (socket
+//! `GrowwFeed` (prepare, NATS replies) against a fake Groww (socket
 //! token endpoint plus a NATS-over-WebSocket server that sends `INFO` with
 //! a nonce, checks the `CONNECT` signature, answers `PING` and streams a
 //! protobuf tick per `SUB`). Also checks that the order poller owns exactly

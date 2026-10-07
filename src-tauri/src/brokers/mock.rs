@@ -202,7 +202,9 @@ impl Broker for MockBroker {
 
     async fn authenticate(&self, credentials: BrokerCredentials) -> Result<AuthResponse> {
         self.record(MockCall::Authenticate);
-        let ok = credentials.request_token.is_some() || credentials.totp.is_some();
+        let ok = credentials.request_token.is_some()
+            || credentials.totp.is_some()
+            || credentials.password.is_some();
         *self.last_auth.lock() = Some(credentials);
         if !ok {
             return Err(AppError::Auth("Mock rejected the sign-in".into()));

@@ -29,13 +29,32 @@ pub async fn analyze_mode(State(ctx): Ctx) -> Response {
 
 fn server_data(ctx: &AppState) -> Value {
     let cfg = ctx.server_config();
+    let ws = ctx.feed_status.read().clone();
     json!({
         "http_host": cfg.bind_host,
         "http_port": cfg.http_port,
         "ws_host": cfg.bind_host,
         "ws_port": cfg.ws_port,
         "lan_enabled": !cfg.is_loopback(),
+        // The market data listener's state; a taken port carries the fix.
+        "ws_status": ws_status(&ws),
     })
+}
+
+/// `{state, message}` of the market data listener for the settings page
+/// (`message` is null while it runs).
+pub fn ws_status(st: &crate::state::ServerStatus) -> Value {
+    use crate::state::ServerStatus as S;
+    match st {
+        S::Running { host, port } => json!({
+            "state": "running", "host": host, "port": port, "message": null,
+        }),
+        S::Starting => json!({"state": "starting", "message": null}),
+        S::PortInUse { port, message } => json!({
+            "state": "port_in_use", "port": port, "message": message,
+        }),
+        S::Failed { message } => json!({"state": "failed", "message": message}),
+    }
 }
 
 /// GET /settings/api/server

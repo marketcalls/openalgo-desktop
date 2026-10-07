@@ -7,8 +7,8 @@ use crate::events::SessionEndReason;
 use crate::security::Secret;
 use crate::server::envelope::{error, json_response};
 use crate::server::form::FormData;
-use crate::server::middleware::{login_limited, redirect, ClientIp};
-use crate::services::broker_auth_service::{BrokerAuthService, FormLogin};
+use crate::server::middleware::{login_limited, redirect, ClientIp, Sess, User};
+use crate::services::broker_auth_service::{BrokerAuthService, CallbackOrigin, FormLogin};
 use crate::state::AppState;
 use axum::{
     extract::{Path, Query, State},
@@ -58,14 +58,18 @@ pub async fn broker_config(State(ctx): Ctx) -> Response {
 
 /// GET /<broker>/initiate-oauth: store a fresh `state` and send the browser
 /// to the broker. Form brokers go to their in-app form.
-pub async fn initiate_oauth(State(ctx): Ctx, Path(broker): Path<String>) -> Response {
+pub async fn initiate_oauth(
+    State(ctx): Ctx,
+    User(user): User,
+    Path(broker): Path<String>,
+) -> Response {
     if !valid_broker(&broker) {
         return error(StatusCode::NOT_FOUND, "Unknown broker.");
     }
     if catalog::auth_type(&broker) == AuthType::Form {
         return redirect(&format!("/broker/{}/totp", broker));
     }
-    match BrokerAuthService::start_oauth(&ctx, &broker).await {
+    match BrokerAuthService::start_oauth(&ctx, &broker, Some(&user.session_id)).await {
         Ok(url) => redirect(&url),
         Err(e) => {
             tracing::warn!("Could not start broker sign-in: {}", e.code());
@@ -81,6 +85,7 @@ pub async fn oauth_callback(
     State(ctx): Ctx,
     Path(broker): Path<String>,
     ClientIp(ip): ClientIp,
+    Sess(sess): Sess,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
     if !valid_broker(&broker) {
@@ -92,7 +97,10 @@ pub async fn oauth_callback(
     if let Some(r) = login_limited(&ctx, ip) {
         return r;
     }
-    match BrokerAuthService::complete_oauth(&ctx, &broker, &params).await {
+    let origin = CallbackOrigin::Redirect {
+        session_id: sess.as_ref().map(|s| s.id.as_str()),
+    };
+    match BrokerAuthService::complete_oauth(&ctx, &broker, &params, origin).await {
         Ok(_) => redirect("/dashboard"),
         Err(e) => {
             tracing::warn!("Broker sign-in for {} failed: {}", broker, e.code());
@@ -101,16 +109,56 @@ pub async fn oauth_callback(
     }
 }
 
-/// POST /<broker>/callback: form brokers (client id, PIN, TOTP).
-pub async fn form_login(
+/// POST /<broker>/callback. For the XTS third-party login (compositedge,
+/// rmoney) this is the broker's redirect, a form POST carrying `session`
+/// with `state` on the query: public and state-verified, like the GET
+/// callback. For everyone else it is the in-app login form, which needs the
+/// signed-in user.
+pub async fn callback_post(
     State(ctx): Ctx,
     Path(broker): Path<String>,
     ClientIp(ip): ClientIp,
+    Sess(sess): Sess,
+    Query(query): Query<HashMap<String, String>>,
     form: FormData,
 ) -> Response {
     if !valid_broker(&broker) {
         return error(StatusCode::NOT_FOUND, "Unknown broker.");
     }
+    if catalog::posts_callback(&broker) {
+        if let Some(r) = login_limited(&ctx, ip) {
+            return r;
+        }
+        let mut params = form.0;
+        params.extend(query);
+        let origin = CallbackOrigin::Redirect {
+            session_id: sess.as_ref().map(|s| s.id.as_str()),
+        };
+        return match BrokerAuthService::complete_oauth(&ctx, &broker, &params, origin).await {
+            Ok(_) => redirect("/dashboard"),
+            Err(e) => {
+                tracing::warn!("Broker sign-in for {} failed: {}", broker, e.code());
+                broker_page_with_error(&e.client_message())
+            }
+        };
+    }
+    if sess.as_ref().and_then(|s| s.user.as_ref()).is_none() {
+        return error(
+            StatusCode::UNAUTHORIZED,
+            "Sign in to OpenAlgo first, then log in to your broker.",
+        );
+    }
+    form_login(ctx, broker, ip, form).await
+}
+
+/// The in-app broker login form (client id, PIN, TOTP, or the broker's own
+/// fields).
+async fn form_login(
+    ctx: Arc<AppState>,
+    broker: String,
+    ip: std::net::IpAddr,
+    form: FormData,
+) -> Response {
     if let Some(r) = login_limited(&ctx, ip) {
         return r;
     }
@@ -133,7 +181,7 @@ pub async fn form_login(
 /// POST /auth/broker/oauth/manual (json: url). For when the broker's
 /// redirect cannot reach this computer: the trader pastes the address the
 /// broker redirected to.
-pub async fn oauth_manual(State(ctx): Ctx, form: FormData) -> Response {
+pub async fn oauth_manual(State(ctx): Ctx, User(user): User, form: FormData) -> Response {
     let Some(raw) = form.non_empty("url") else {
         return error(
             StatusCode::BAD_REQUEST,
@@ -152,7 +200,10 @@ pub async fn oauth_manual(State(ctx): Ctx, form: FormData) -> Response {
         _ => return error(StatusCode::BAD_REQUEST, "That address is not a broker sign-in address. Paste the address shown after you signed in at the broker."),
     };
     let params: HashMap<String, String> = url.query_pairs().into_owned().collect();
-    match BrokerAuthService::complete_oauth(&ctx, &broker, &params).await {
+    let origin = CallbackOrigin::Manual {
+        session_id: &user.session_id,
+    };
+    match BrokerAuthService::complete_oauth(&ctx, &broker, &params, origin).await {
         Ok(_) => json_response(
             StatusCode::OK,
             json!({"status": "success", "message": "Authentication successful", "redirect": "/dashboard"}),

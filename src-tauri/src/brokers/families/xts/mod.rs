@@ -515,6 +515,24 @@ impl Broker for XtsBroker {
         master_contract::download(self).await
     }
 
+    /// After an app restart the market keys are not in memory: the feed
+    /// re-login and the token renewal need them from the stored
+    /// credentials.
+    fn restore_session(&self, credentials: &BrokerCredentials) {
+        let keys = match (&credentials.api_key_market, &credentials.api_secret_market) {
+            (Some(k), Some(s)) if !k.trim().is_empty() && !s.is_empty() => Some(MarketKeys {
+                key: Secret::new(k.trim()),
+                secret: Secret::new(s.clone()),
+            }),
+            _ => None,
+        };
+        self.remember_market_keys(keys);
+    }
+
+    async fn on_logout(&self) {
+        self.remember_market_keys(None);
+    }
+
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         self.interactive_token(auth)?;
         Ok(Box::new(streaming::XtsFeed::new(

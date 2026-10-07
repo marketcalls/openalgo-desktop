@@ -46,9 +46,25 @@ fn navigate(app: &AppHandle, ctx: &AppState) {
     }
 }
 
+/// The HTTP listener's state (the start-up page reads it as before) plus
+/// the market data listener's under `ws`.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct StartupStatus {
+    #[serde(flatten)]
+    pub http: ServerStatus,
+    pub ws: ServerStatus,
+}
+
+pub fn startup_status_of(ctx: &AppState) -> StartupStatus {
+    StartupStatus {
+        http: ctx.server_status.read().clone(),
+        ws: ctx.feed_status.read().clone(),
+    }
+}
+
 #[tauri::command]
-pub fn startup_status(shell: State<'_, ShellState>) -> ServerStatus {
-    shell.ctx.server_status.read().clone()
+pub fn startup_status(shell: State<'_, ShellState>) -> StartupStatus {
+    startup_status_of(&shell.ctx)
 }
 
 #[tauri::command]

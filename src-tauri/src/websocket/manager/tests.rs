@@ -458,3 +458,68 @@ async fn a_url_without_a_path_is_requested_at_the_root() {
     m.disconnect().await.unwrap();
     srv.abort();
 }
+
+/// Firstock's heartbeat is a WebSocket ping; the post-login hook frames go
+/// out even with nothing subscribed.
+struct PingFeed {
+    url: String,
+}
+
+impl BrokerFeed for PingFeed {
+    fn broker(&self) -> &'static str {
+        "mock"
+    }
+    fn ws_request(&self) -> crate::error::Result<crate::brokers::common::streaming::WsRequest> {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        self.url
+            .as_str()
+            .into_client_request()
+            .map_err(|_| AppError::Internal("bad url".into()))
+    }
+    fn on_authenticated(&mut self) -> Vec<Message> {
+        vec![Message::Text("ORDERS".into())]
+    }
+    fn subscribe_frames(&mut self, _: &[FeedSubscription]) -> Vec<Message> {
+        Vec::new()
+    }
+    fn unsubscribe_frames(&mut self, _: &[FeedSubscription]) -> Vec<Message> {
+        Vec::new()
+    }
+    fn parse(&mut self, _: &Message) -> Vec<FeedEvent> {
+        Vec::new()
+    }
+    fn heartbeat(&self) -> Option<(Duration, Message)> {
+        Some((Duration::from_millis(30), Message::Ping(b"hb".to_vec())))
+    }
+}
+
+#[tokio::test]
+async fn ping_heartbeats_and_post_login_frames_go_out_as_is() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+    let seen: Arc<Mutex<Vec<Message>>> = Arc::default();
+    let seen2 = seen.clone();
+    let srv = tokio::spawn(async move {
+        if let Ok((tcp, _)) = listener.accept().await {
+            if let Ok(mut ws) = tokio_tungstenite::accept_async(tcp).await {
+                while let Some(Ok(m)) = ws.next().await {
+                    seen2.lock().push(m);
+                }
+            }
+        }
+    });
+    let m = WebSocketManager::with_config(fast());
+    m.connect(Box::new(PingFeed { url })).await.unwrap();
+    wait_for(|| {
+        seen.lock()
+            .iter()
+            .filter(|m| matches!(m, Message::Ping(p) if p == b"hb"))
+            .count()
+            >= 2
+    })
+    .await;
+    // No subscriptions, yet the post-login frame went out first.
+    assert_eq!(seen.lock()[0], Message::Text("ORDERS".into()));
+    m.disconnect().await.unwrap();
+    srv.abort();
+}

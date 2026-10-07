@@ -1,7 +1,8 @@
-//! Resource hygiene of the Upstox feed relay (CLAUDE.md "Measure, do not
-//! just read"): 60 connect / tick / disconnect cycles through the shared
-//! manager, each starting a loopback relay, an authorize call and a broker
-//! socket, must leave descriptors flat. The test runs in its own
+//! Resource hygiene of the Upstox feed (CLAUDE.md "Measure, do not just
+//! read"): 60 connect / tick / disconnect cycles through the shared
+//! manager, each with an authorize call in `prepare` and a broker socket,
+//! must leave descriptors flat (test name kept from the loopback-relay
+//! design it replaced). The test runs in its own
 //! process (`isolated!`) so parallel tests do not disturb the count.
 
 use axum::extract::State;

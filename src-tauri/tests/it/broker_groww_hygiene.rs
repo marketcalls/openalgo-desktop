@@ -1,9 +1,10 @@
 //! Resource hygiene of the Groww feed (CLAUDE.md "Measure, do not just
 //! read"): a fake Groww accepts the NATS handshake and then drops every
-//! connection, so the manager reconnects through the loopback relay 150
-//! times (each with a fresh socket token and key pair). Descriptors and RSS
-//! must stay flat, and disconnecting must release the relay listener. The
-//! test runs in its own process (`isolated!`) so the count is not disturbed.
+//! connection, so the manager reconnects 150 times (each `prepare` minting
+//! a fresh socket token and key pair). Descriptors and RSS must stay flat,
+//! and disconnecting must release every socket (the test name is kept
+//! from the loopback-relay design it replaced). The test runs in its own
+//! process (`isolated!`) so the count is not disturbed.
 
 use axum::routing::post;
 use axum::{Json, Router};
@@ -136,10 +137,10 @@ async fn relay_reconnects_do_not_leak() {
         "descriptor growth while reconnecting: {}",
         peak
     );
-    // Disconnect drops the feed, which stops the relay listener.
+    // Disconnect drops the feed and closes its socket.
     assert!(
         fds_stopped <= fds_idle + 6,
-        "relay not released: idle {} -> stopped {}",
+        "sockets not released: idle {} -> stopped {}",
         fds_idle,
         fds_stopped
     );

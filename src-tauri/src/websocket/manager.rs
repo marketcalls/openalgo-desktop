@@ -666,11 +666,12 @@ impl Supervisor {
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
     {
+        // The session was just accepted: its post-login frames go first.
+        let mut frames = self.feed.on_authenticated();
         let subs = self.registry.lock().effective_all();
-        if subs.is_empty() {
-            return true;
+        if !subs.is_empty() {
+            frames.extend(self.feed.subscribe_frames(&subs));
         }
-        let frames = self.feed.subscribe_frames(&subs);
         Self::send_all(write, frames).await
     }
 }

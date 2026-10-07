@@ -887,7 +887,14 @@ fn feed_decodes_json_events() {
 
     assert!(f.parse(&Message::Text(stream("unsubscribed"))).is_empty());
     assert!(f.parse(&Message::Text(stream("joined"))).is_empty());
-    assert!(f.parse(&Message::Text("2".into())).is_empty());
+    // An Engine.IO ping is answered with a pong through the manager.
+    assert_eq!(
+        f.parse(&Message::Text("2".into())),
+        vec![
+            FeedEvent::Reply(Message::Text("3".into())),
+            FeedEvent::Heartbeat
+        ]
+    );
     assert_eq!(
         f.parse(&Message::Text(stream("connect_ack"))),
         vec![FeedEvent::AuthOk]
@@ -996,10 +1003,26 @@ async fn feed_speaks_engine_io() {
         f.parse(&Message::Text(stream("connect_error")))[0],
         FeedEvent::AuthFailed(_)
     ));
+    // With a stored feed token, prepare builds the socket address.
+    f.prepare().await.unwrap();
+    assert!(f
+        .ws_request()
+        .unwrap()
+        .uri()
+        .query()
+        .unwrap()
+        .contains("token=t&userID=U"));
     // Without a token (no market keys, nothing stored) the session is
     // refused before any connect.
+    let mut none = XtsFeed::new(
+        &crate::brokers::fivepaisaxts::CONFIG,
+        reqwest::Client::new(),
+        "https://example.invalid".into(),
+        None,
+        FeedSource::default(),
+    );
     assert!(matches!(
-        f.prepare().await,
+        none.prepare().await,
         Err(crate::brokers::common::streaming::PrepareError::AuthFailed(
             _
         ))

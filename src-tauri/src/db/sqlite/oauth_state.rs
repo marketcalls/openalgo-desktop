@@ -29,6 +29,7 @@ pub fn insert(
     state: &str,
     broker: &str,
     redirect_uri: Option<&str>,
+    session_id: Option<&str>,
     now: DateTime<Utc>,
     ttl: Duration,
 ) -> Result<()> {
@@ -37,13 +38,14 @@ pub fn insert(
         [now.to_rfc3339()],
     )?;
     conn.execute(
-        "INSERT INTO pending_oauth (state_hash, broker, created_at, expires_at, redirect_uri) VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO pending_oauth (state_hash, broker, created_at, expires_at, redirect_uri, session_hash) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
             hash_state(state),
             broker,
             now.to_rfc3339(),
             (now + ttl).to_rfc3339(),
-            redirect_uri
+            redirect_uri,
+            session_id.map(hash_state)
         ],
     )?;
     conn.execute(
@@ -67,18 +69,21 @@ pub fn consume(
     take(conn, "state_hash = ?1", &h, broker, now)
 }
 
-/// Consume the newest pending sign-in for `broker`, for a broker whose
-/// redirect does not return `state` (Dhan). Only a sign-in started from
-/// OpenAlgo and still unexpired matches; it is used once.
+/// Consume the newest pending sign-in for `broker` started from the
+/// browser session `session_id`, for a redirect that does not return
+/// `state` (Dhan, the Noren pages). Only a sign-in started from OpenAlgo in
+/// the same browser session and still unexpired matches; it is used once.
 pub fn consume_latest(
     conn: &Connection,
     broker: &str,
+    session_id: &str,
     now: DateTime<Utc>,
 ) -> Result<Option<Pending>> {
     let h: Option<String> = conn
         .query_row(
-            "SELECT state_hash FROM pending_oauth WHERE broker = ?1 ORDER BY created_at DESC LIMIT 1",
-            [broker],
+            "SELECT state_hash FROM pending_oauth WHERE broker = ?1 AND session_hash = ?2
+             ORDER BY created_at DESC LIMIT 1",
+            params![broker, hash_state(session_id)],
             |r| r.get(0),
         )
         .ok();
@@ -174,6 +179,7 @@ mod tests {
             "s1",
             "upstox",
             Some("http://127.0.0.1:5500/upstox/callback"),
+            None,
             now,
             Duration::minutes(10),
         )
@@ -194,23 +200,22 @@ mod tests {
         let now = Utc.with_ymd_and_hms(2026, 10, 3, 4, 0, 0).unwrap();
         let c = populated_old_db(now);
         crate::db::sqlite::migrations::run_migrations(&c).unwrap();
-        assert_eq!(consume_latest(&c, "dhan", now).unwrap(), None);
-        insert(&c, "d1", "dhan", Some("r1"), now, Duration::minutes(10)).unwrap();
-        insert(
-            &c,
-            "d2",
-            "dhan",
-            Some("r2"),
-            now + Duration::seconds(1),
-            Duration::minutes(10),
-        )
-        .unwrap();
-        let p = consume_latest(&c, "dhan", now + Duration::seconds(2)).unwrap();
+        assert_eq!(consume_latest(&c, "dhan", "sess", now).unwrap(), None);
+        let ttl = Duration::minutes(10);
+        insert(&c, "d1", "dhan", Some("r1"), Some("sess"), now, ttl).unwrap();
+        let later = now + Duration::seconds(1);
+        insert(&c, "d2", "dhan", Some("r2"), Some("sess"), later, ttl).unwrap();
+        insert(&c, "d3", "dhan", Some("r3"), Some("other"), later, ttl).unwrap();
+        let p = consume_latest(&c, "dhan", "sess", now + Duration::seconds(2)).unwrap();
         assert_eq!(p.unwrap().redirect_uri.as_deref(), Some("r2"));
+        // Another browser session's sign-in is never taken.
+        let p = consume_latest(&c, "dhan", "sess", now + Duration::seconds(2)).unwrap();
+        assert_eq!(p.unwrap().redirect_uri.as_deref(), Some("r1"));
+        assert_eq!(consume_latest(&c, "dhan", "sess", now).unwrap(), None);
         // Another broker's pending row is never taken.
-        assert_eq!(consume_latest(&c, "fyers", now).unwrap(), None);
+        assert_eq!(consume_latest(&c, "fyers", "other", now).unwrap(), None);
         // Expired rows do not match.
         let late = now + Duration::minutes(11);
-        assert_eq!(consume_latest(&c, "dhan", late).unwrap(), None);
+        assert_eq!(consume_latest(&c, "dhan", "other", late).unwrap(), None);
     }
 }

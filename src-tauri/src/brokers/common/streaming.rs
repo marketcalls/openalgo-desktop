@@ -223,6 +223,14 @@ pub trait BrokerFeed: Send + Sync {
         false
     }
 
+    /// Frames to send once per connection after the session is accepted
+    /// (after `FeedEvent::AuthOk`, or right after connecting when no
+    /// acknowledgement is awaited), before any subscription and even when
+    /// there are none: Noren's order-update subscription `{"t":"o"}`.
+    fn on_authenticated(&mut self) -> Vec<Message> {
+        Vec::new()
+    }
+
     /// When the broker may never acknowledge (Groww's NATS `+OK` is
     /// optional), treat the session as accepted after this long.
     fn auth_ack_timeout(&self) -> Option<Duration> {

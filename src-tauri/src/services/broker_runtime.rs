@@ -76,6 +76,14 @@ impl BrokerRuntime {
         self.active.lock().as_ref().map(|b| b.id().to_string())
     }
 
+    /// Run `fut` as a task of the current session (aborted on teardown).
+    pub fn spawn_task<F>(&self, fut: F)
+    where
+        F: std::future::Future<Output = ()> + Send + 'static,
+    {
+        Self::spawn(&self.tasks, fut);
+    }
+
     fn spawn<F>(tasks: &Arc<Mutex<JoinSet<()>>>, fut: F)
     where
         F: std::future::Future<Output = ()> + Send + 'static,
