@@ -1260,6 +1260,118 @@ async fn api_places_a_fractional_crypto_order_with_the_saved_leverage() {
 }
 
 #[tokio::test]
+async fn api_books_report_exact_crypto_sizes_like_the_web() {
+    let m = books_mock();
+    let s = serve(&m).await;
+    let app = app::App::new(&s).await;
+
+    // Positions: web `float(size)`, the fractional BTC balance included,
+    // with the contract multiplier as `lot_size`.
+    let (status, body) = app.post("/api/v1/positionbook", json!({})).await;
+    assert_eq!(status, StatusCode::OK, "{}", body);
+    let rows: Vec<(String, String, Value, Value)> = body["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| {
+            (
+                p["symbol"].as_str().unwrap().to_string(),
+                p["product"].as_str().unwrap().to_string(),
+                p["quantity"].clone(),
+                p["lot_size"].clone(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            ("BTCUSDFUT".into(), "NRML".into(), json!(6.0), json!(0.001)),
+            ("ETHUSDFUT".into(), "NRML".into(), json!(-3.0), json!(0.01)),
+            ("BTCINR".into(), "CNC".into(), json!(0.01), json!(1.0)),
+            ("ETHINR".into(), "CNC".into(), json!(2.0), json!(1.0)),
+        ]
+    );
+
+    // Open position: the position book's float, or 0.
+    let (_, body) = app
+        .post(
+            "/api/v1/openposition",
+            json!({"strategy": "t", "symbol": "BTCINR", "exchange": "CRYPTO", "product": "CNC"}),
+        )
+        .await;
+    assert_eq!(body, json!({"quantity": 0.01, "status": "success"}));
+    let (_, body) = app
+        .post(
+            "/api/v1/openposition",
+            json!({"strategy": "t", "symbol": "BTC27NOV26FUT", "exchange": "CRYPTO", "product": "NRML"}),
+        )
+        .await;
+    assert_eq!(body, json!({"quantity": 0, "status": "success"}));
+
+    // Trades: float sizes; the 0.0005 BTC spot fill is exact.
+    let (_, body) = app.post("/api/v1/tradebook", json!({})).await;
+    let q: Vec<&Value> = body["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| &t["quantity"])
+        .collect();
+    assert_eq!(q, [&json!(6.0), &json!(0.0005)]);
+
+    // Orders: the raw size (whole contracts stay integers).
+    let (_, body) = app.post("/api/v1/orderbook", json!({})).await;
+    let orders = body["data"]["orders"].as_array().unwrap();
+    assert_eq!(orders.len(), 6);
+    let spot = orders
+        .iter()
+        .find(|o| o["symbol"] == "BTCINR")
+        .expect("spot order");
+    assert!(spot["quantity"].is_number(), "{}", spot);
+    let fut = orders.iter().find(|o| o["orderid"] == "27:7001").unwrap();
+    assert!(fut["quantity"].is_i64(), "{}", fut);
+    app.shutdown().await;
+}
+
+#[test]
+fn closing_a_fractional_crypto_position_sells_its_exact_size() {
+    use openalgo_desktop_lib::services::ui_order_service::crypto_close_decision;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+    let pos = |sym: &str, product: &str, q: &str| ExactRow {
+        row: Position {
+            symbol: sym.into(),
+            exchange: "CRYPTO".into(),
+            product: product.into(),
+            quantity: 0,
+            overnight_quantity: 0,
+            average_price: 0.0,
+            ltp: 0.0,
+            pnl: 0.0,
+            realized_pnl: 0.0,
+            unrealized_pnl: 0.0,
+            buy_quantity: 0,
+            buy_value: 0.0,
+            sell_quantity: 0,
+            sell_value: 0.0,
+        },
+        quantity: Decimal::from_str(q).unwrap(),
+    };
+    let rows = [
+        pos("BTCINR", "CNC", "0.0105"),
+        pos("ETHUSDFUT", "NRML", "-3"),
+    ];
+    assert_eq!(
+        crypto_close_decision(&rows, "BTCINR", "CRYPTO", "CNC").unwrap(),
+        ("SELL".to_string(), json!("0.0105"))
+    );
+    assert_eq!(
+        crypto_close_decision(&rows, "ETHUSDFUT", "CRYPTO", "NRML").unwrap(),
+        ("BUY".to_string(), json!("3"))
+    );
+    assert!(crypto_close_decision(&rows, "BTCINR", "CRYPTO", "NRML").is_err());
+}
+
+#[tokio::test]
 async fn api_keeps_every_other_exchange_whole_and_the_sandbox_whole() {
     let m = Mock::default();
     let s = serve(&m).await;

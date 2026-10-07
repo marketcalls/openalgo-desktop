@@ -184,6 +184,18 @@ fn product_id(inst: &SymbolData) -> Result<i64> {
 
 /// Today's orders, open and historical (web `get_order_book`).
 pub async fn get_order_book(b: &DeltaBroker, auth: &AuthToken) -> Result<Vec<Order>> {
+    Ok(get_order_book_exact(b, auth)
+        .await?
+        .into_iter()
+        .map(|o| o.row)
+        .collect())
+}
+
+/// `get_order_book` with exact sizes.
+pub async fn get_order_book_exact(
+    b: &DeltaBroker,
+    auth: &AuthToken,
+) -> Result<Vec<ExactRow<Order>>> {
     let mut rows: Vec<DeltaOrder> = b
         .signed(
             auth,
@@ -204,19 +216,31 @@ pub async fn get_order_book(b: &DeltaBroker, auth: &AuthToken) -> Result<Vec<Ord
         .iter()
         .filter(|o| mapping::is_on_ist_day(&o.created_at, today))
         .filter(|o| seen.insert(o.composite_id()))
-        .map(|o| mapping::map_order(o, symbols))
+        .map(|o| mapping::map_order_exact(o, symbols))
         .collect())
 }
 
 /// Today's fills (web `get_trade_book`).
 pub async fn get_trade_book(b: &DeltaBroker, auth: &AuthToken) -> Result<Vec<Trade>> {
+    Ok(get_trade_book_exact(b, auth)
+        .await?
+        .into_iter()
+        .map(|t| t.row)
+        .collect())
+}
+
+/// `get_trade_book` with exact sizes.
+pub async fn get_trade_book_exact(
+    b: &DeltaBroker,
+    auth: &AuthToken,
+) -> Result<Vec<ExactRow<Trade>>> {
     let fills: Vec<DeltaFill> = b.signed(auth, Method::GET, "/v2/fills", &[], None).await?;
     let today = mapping::ist_date(b.now());
     let symbols = b.resolver();
     Ok(fills
         .iter()
         .filter(|t| mapping::is_on_ist_day(&t.created_at, today))
-        .map(|t| mapping::map_trade(t, symbols))
+        .map(|t| mapping::map_trade_exact(t, symbols))
         .collect())
 }
 
@@ -258,6 +282,19 @@ pub async fn get_positions(b: &DeltaBroker, auth: &AuthToken) -> Result<Vec<Posi
     Ok(raw
         .iter()
         .filter_map(|p| mapping::map_position(p, symbols))
+        .collect())
+}
+
+/// Every position with its exact size, fractional spot balances included.
+pub async fn get_positions_exact(
+    b: &DeltaBroker,
+    auth: &AuthToken,
+) -> Result<Vec<ExactRow<Position>>> {
+    let raw = raw_positions(b, auth, false).await?;
+    let symbols = b.resolver();
+    Ok(raw
+        .iter()
+        .map(|p| mapping::map_position_exact(p, symbols))
         .collect())
 }
 

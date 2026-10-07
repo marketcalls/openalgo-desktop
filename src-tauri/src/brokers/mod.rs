@@ -249,6 +249,47 @@ pub trait Broker: Send + Sync {
     async fn get_order_book(&self, auth: &AuthToken) -> Result<Vec<Order>>;
     async fn get_trade_book(&self, auth: &AuthToken) -> Result<Vec<Trade>>;
     async fn get_positions(&self, auth: &AuthToken) -> Result<Vec<Position>>;
+
+    /// The order book with exact sizes (crypto). Default: the whole-unit
+    /// book. Only venues whose `broker_type` is `crypto` are asked.
+    async fn get_order_book_exact(&self, auth: &AuthToken) -> Result<Vec<ExactRow<Order>>> {
+        Ok(self
+            .get_order_book(auth)
+            .await?
+            .into_iter()
+            .map(|o| {
+                let q = i64::from(o.quantity);
+                ExactRow::whole(o, q)
+            })
+            .collect())
+    }
+
+    /// The trade book with exact sizes (see `get_order_book_exact`).
+    async fn get_trade_book_exact(&self, auth: &AuthToken) -> Result<Vec<ExactRow<Trade>>> {
+        Ok(self
+            .get_trade_book(auth)
+            .await?
+            .into_iter()
+            .map(|t| {
+                let q = i64::from(t.quantity);
+                ExactRow::whole(t, q)
+            })
+            .collect())
+    }
+
+    /// Positions with exact signed sizes, fractional spot balances included
+    /// (see `get_order_book_exact`).
+    async fn get_positions_exact(&self, auth: &AuthToken) -> Result<Vec<ExactRow<Position>>> {
+        Ok(self
+            .get_positions(auth)
+            .await?
+            .into_iter()
+            .map(|p| {
+                let q = i64::from(p.quantity);
+                ExactRow::whole(p, q)
+            })
+            .collect())
+    }
     async fn get_holdings(&self, auth: &AuthToken) -> Result<Vec<Holding>>;
     async fn get_funds(&self, auth: &AuthToken) -> Result<Funds>;
 

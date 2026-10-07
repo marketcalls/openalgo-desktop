@@ -321,6 +321,14 @@ pub fn map_order(o: &DeltaOrder, symbols: &SymbolResolver) -> Order {
     }
 }
 
+/// Order-book row with its exact size.
+pub fn map_order_exact(o: &DeltaOrder, symbols: &SymbolResolver) -> ExactRow<Order> {
+    ExactRow {
+        row: map_order(o, symbols),
+        quantity: dec(&o.size).normalize(),
+    }
+}
+
 /// One `/v2/fills` row.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
@@ -362,6 +370,14 @@ pub fn map_trade(t: &DeltaFill, symbols: &SymbolResolver) -> Trade {
         average_price: price,
         trade_value: size * price,
         timestamp: t.created_at.clone(),
+    }
+}
+
+/// Trade-book row with its exact size.
+pub fn map_trade_exact(t: &DeltaFill, symbols: &SymbolResolver) -> ExactRow<Trade> {
+    ExactRow {
+        row: map_trade(t, symbols),
+        quantity: dec(&t.size).normalize(),
     }
 }
 
@@ -479,15 +495,28 @@ pub fn position_row(p: &RawPosition, symbols: &SymbolResolver) -> Option<SymToke
 pub fn map_position(p: &RawPosition, symbols: &SymbolResolver) -> Option<Position> {
     if !p.size.fract().is_zero() {
         tracing::debug!(
-            "Delta Exchange position {} has a fractional size; not shown in the position book",
+            "Delta Exchange position {} has a fractional size; left out of the whole-unit book",
             p.product_symbol
         );
         return None;
     }
+    Some(position_whole(p, symbols))
+}
+
+/// Position-book row with its exact size, fractional spot balances
+/// included (what the CRYPTO position book reports, as the web does).
+pub fn map_position_exact(p: &RawPosition, symbols: &SymbolResolver) -> ExactRow<Position> {
+    ExactRow {
+        row: position_whole(p, symbols),
+        quantity: p.size.normalize(),
+    }
+}
+
+fn position_whole(p: &RawPosition, symbols: &SymbolResolver) -> Position {
     let symbol = position_row(p, symbols)
         .map(|r| r.symbol)
         .unwrap_or_else(|| p.product_symbol.clone());
-    Some(Position {
+    Position {
         symbol,
         exchange: EXCHANGE.into(),
         product: if p.is_spot { "CNC" } else { "NRML" }.into(),
@@ -502,5 +531,5 @@ pub fn map_position(p: &RawPosition, symbols: &SymbolResolver) -> Option<Positio
         buy_value: 0.0,
         sell_quantity: 0,
         sell_value: 0.0,
-    })
+    }
 }

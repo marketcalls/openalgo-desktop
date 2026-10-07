@@ -13,8 +13,10 @@ use super::order_service::{
     self as orders, place_live, smart_decision, stripe, Route, SmartDecision,
 };
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::types::{ExactRow, Position};
 use crate::events::{Event, Mode};
 use crate::state::AppState;
+use rust_decimal::Decimal;
 use serde_json::{json, Map, Value};
 
 pub const AUTH_ERROR: &str = "Authentication error";
@@ -86,17 +88,30 @@ pub async fn close_position(ctx: &AppState, symbol: &str, exchange: &str, produc
     // Decide once, under the position's lock (shared with smart orders).
     let key = format!("{}:{}:{}", ex, symbol, pr);
     let _guard = stripe(&key).lock().await;
-    let current = match h.broker.get_open_position(&h.auth, symbol, ex, pr).await {
-        Ok(q) => q,
-        Err(e) => return orders::broker_error_reply(&e, "Failed to close position."),
+    let decision = if ex == Exchange::Crypto && h.broker.broker_type() == "crypto" {
+        // A crypto position can be fractional (a spot balance): close its
+        // exact size, carried as decimal text.
+        match h.broker.get_positions_exact(&h.auth).await {
+            Ok(rows) => crypto_close_decision(&rows, symbol, exchange, product),
+            Err(e) => return orders::broker_error_reply(&e, "Failed to close position."),
+        }
+    } else {
+        let current = match h.broker.get_open_position(&h.auth, symbol, ex, pr).await {
+            Ok(q) => q,
+            Err(e) => return orders::broker_error_reply(&e, "Failed to close position."),
+        };
+        match smart_decision(current, 0, 0, "BUY") {
+            SmartDecision::NoAction(msg) => Err(msg),
+            SmartDecision::Place { action, quantity } => Ok((action, json!(quantity))),
+        }
     };
-    match smart_decision(current, 0, 0, "BUY") {
-        SmartDecision::NoAction(msg) => Reply::error(400, msg),
-        SmartDecision::Place { action, quantity } => {
+    match decision {
+        Err(msg) => Reply::error(400, msg),
+        Ok((action, quantity)) => {
             let mut req = order.clone();
             if let Some(m) = req.as_object_mut() {
                 m.insert("action".into(), json!(action));
-                m.insert("quantity".into(), json!(quantity));
+                m.insert("quantity".into(), quantity);
             }
             let placed = place_live(&h, ctx, &req).await;
             let orderid = placed
@@ -140,6 +155,28 @@ pub async fn close_position(ctx: &AppState, symbol: &str, exchange: &str, produc
                     )
                 }
             }
+        }
+    }
+}
+
+/// The exit for one crypto position: the opposite side for its exact size,
+/// or the smart order's "no open position" answer.
+pub fn crypto_close_decision(
+    rows: &[ExactRow<Position>],
+    symbol: &str,
+    exchange: &str,
+    product: &str,
+) -> Result<(String, Value), &'static str> {
+    let size = rows
+        .iter()
+        .find(|e| e.row.symbol == symbol && e.row.exchange == exchange && e.row.product == product)
+        .map(|e| e.quantity)
+        .unwrap_or(Decimal::ZERO);
+    let sign = i64::from(size > Decimal::ZERO) - i64::from(size < Decimal::ZERO);
+    match smart_decision(sign, 0, 0, "BUY") {
+        SmartDecision::NoAction(msg) => Err(msg),
+        SmartDecision::Place { action, .. } => {
+            Ok((action, json!(size.abs().normalize().to_string())))
         }
     }
 }

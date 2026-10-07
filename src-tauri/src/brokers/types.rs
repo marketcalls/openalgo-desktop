@@ -373,6 +373,26 @@ impl std::fmt::Display for CryptoQuantity {
     }
 }
 
+/// A book row with its exact `CRYPTO` size. The shared rows carry whole
+/// units; a crypto spot balance or fill can be fractional (0.0005 BTC), so
+/// crypto venues also report the exact size, which the book services use
+/// for `CRYPTO` rows only. Signed for positions (negative = short).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExactRow<T> {
+    pub row: T,
+    pub quantity: Decimal,
+}
+
+impl<T> ExactRow<T> {
+    /// A row whose whole-unit quantity is already exact.
+    pub fn whole(row: T, units: i64) -> Self {
+        Self {
+            row,
+            quantity: Decimal::from(units),
+        }
+    }
+}
+
 /// Broker acknowledgement of an order operation.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct OrderResponse {

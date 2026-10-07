@@ -614,6 +614,18 @@ impl Broker for DeltaBroker {
         orders::get_positions(self, auth).await
     }
 
+    async fn get_order_book_exact(&self, auth: &AuthToken) -> Result<Vec<ExactRow<Order>>> {
+        orders::get_order_book_exact(self, auth).await
+    }
+
+    async fn get_trade_book_exact(&self, auth: &AuthToken) -> Result<Vec<ExactRow<Trade>>> {
+        orders::get_trade_book_exact(self, auth).await
+    }
+
+    async fn get_positions_exact(&self, auth: &AuthToken) -> Result<Vec<ExactRow<Position>>> {
+        orders::get_positions_exact(self, auth).await
+    }
+
     async fn get_holdings(&self, _auth: &AuthToken) -> Result<Vec<Holding>> {
         // Delta has no demat holdings; spot balances appear as positions.
         Ok(Vec::new())

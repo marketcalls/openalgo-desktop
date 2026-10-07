@@ -417,6 +417,11 @@ fn trade_book_rows() {
     let t = map_trade(&fills[1], &r);
     assert_eq!((t.symbol.as_str(), t.quantity), ("BTCINR", 0));
     assert!((t.trade_value - 2976.0).abs() < 1e-9);
+    assert_eq!(
+        map_trade_exact(&fills[1], &r).quantity.to_string(),
+        "0.0005"
+    );
+    assert_eq!(map_trade_exact(&fills[0], &r).quantity.to_string(), "6");
 }
 
 #[test]
@@ -459,6 +464,21 @@ fn positions_join_derivatives_and_whole_spot_balances() {
     );
     // The fractional BTC balance is resolved for close-all.
     assert_eq!(position_row(&raw[2], &r).unwrap().symbol, "BTCINR");
+    // The exact book keeps it, at its exact size.
+    let exact: Vec<(String, String)> = raw
+        .iter()
+        .map(|p| map_position_exact(p, &r))
+        .map(|e| (e.row.symbol, e.quantity.to_string()))
+        .collect();
+    assert_eq!(
+        exact,
+        [
+            ("BTCUSDFUT".into(), "6".into()),
+            ("ETHUSDFUT".into(), "-3".into()),
+            ("BTCINR".into(), "0.01".into()),
+            ("ETHINR".into(), "2".into()),
+        ]
+    );
 }
 
 #[test]
