@@ -17,13 +17,28 @@
 //! prefix `100::/64`, so the per-address API-key failure throttle never
 //! counts an MCP call against a real local client (an SDK script on
 //! 127.0.0.1) or the other way round.
+//!
+//! # Bounded fan-out
+//!
+//! A research tool can turn one MCP call into several `/api/v1` calls (a
+//! screen over a watchlist, several timeframes). Every one of them passes:
+//!
+//! * the `/api/v1` rate limiter (the same `api_rate_limit` layer and buckets
+//!   as SDK clients: 100 a second, 10 a second for orders), keyed on
+//!   [`MCP_CALLER`], so all MCP traffic together stays inside one client's
+//!   budget and therefore inside what the broker adapters are sized for;
+//! * a per-token upstream budget of [`UPSTREAM_LIMIT`] calls a minute,
+//!   charged to the token the HTTP transport scoped the call to
+//!   ([`CALLER`]);
+//! * a cap of [`MAX_REPLY_BYTES`] on the reply body read back.
 
 use crate::services::apikey_service::ApiKeyService;
 use crate::state::AppState;
 use axum::body::Body;
 use axum::extract::ConnectInfo;
 use axum::http::{Method, Request};
-use http_body_util::BodyExt;
+use axum::middleware as mw;
+use http_body_util::{BodyExt, Limited};
 use serde_json::{json, Map, Value};
 use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
@@ -35,6 +50,19 @@ pub const MCP_CALLER: IpAddr = IpAddr::V6(Ipv6Addr::new(0x100, 0, 0, 0, 0, 0, 0,
 
 /// The SDK's request timeout (`BaseAPI(timeout=120.0)`).
 pub const SDK_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// `/api/v1` calls one token's tools may make in a minute.
+pub const UPSTREAM_LIMIT: (usize, Duration) = (120, Duration::from_secs(60));
+
+/// Largest `/api/v1` reply a tool reads (an exchange's full instrument
+/// list is the largest legitimate one, well under this).
+pub const MAX_REPLY_BYTES: usize = 64 * 1024 * 1024;
+
+tokio::task_local! {
+    /// The token a tool call runs for (its audit id), set by the HTTP
+    /// transport around the call; its `/api/v1` calls are charged to it.
+    pub static CALLER: String;
+}
 
 /// What the handler stack answered.
 #[derive(Debug, Clone)]
@@ -48,6 +76,8 @@ pub struct Raw {
 pub enum Transport {
     Timeout,
     Unavailable,
+    /// The token's upstream budget for this minute is spent.
+    Budget,
 }
 
 /// The stored API key (the web's `get_first_available_api_key`), or the
@@ -69,9 +99,19 @@ async fn run(
     mut req: Request<Body>,
     timeout: Duration,
 ) -> Result<Raw, Transport> {
+    if let Ok(key) = CALLER.try_with(|k| k.clone()) {
+        let (n, w) = UPSTREAM_LIMIT;
+        if !ctx.mcp.hit(&format!("{}|upstream", key), n, w) {
+            return Err(Transport::Budget);
+        }
+    }
     req.extensions_mut()
         .insert(ConnectInfo(SocketAddr::new(MCP_CALLER, 0)));
     let router = crate::server::api_v1::router()
+        .route_layer(mw::from_fn_with_state(
+            ctx.clone(),
+            crate::server::middleware::api_rate_limit,
+        ))
         .fallback(crate::server::api_v1::api_not_found)
         .with_state(ctx.clone());
     let (tx, rx) = tokio::sync::oneshot::channel();
@@ -79,7 +119,10 @@ async fn run(
         let out = match router.oneshot(req).await {
             Ok(resp) => {
                 let status = resp.status().as_u16();
-                match resp.into_body().collect().await {
+                match Limited::new(resp.into_body(), MAX_REPLY_BYTES)
+                    .collect()
+                    .await
+                {
                     Ok(b) => Some(Raw {
                         status,
                         text: String::from_utf8_lossy(&b.to_bytes()).into_owned(),
@@ -147,6 +190,11 @@ pub fn transport_reply(t: Transport) -> Value {
             "status": "error",
             "message": "Failed to connect to the server. Please check if the server is running.",
             "error_type": "connection_error",
+        }),
+        Transport::Budget => json!({
+            "status": "error",
+            "message": "This AI client has made too many requests to OpenAlgo in the last minute. Wait a minute and try again.",
+            "error_type": "rate_limited",
         }),
     }
 }

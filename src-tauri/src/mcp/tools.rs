@@ -618,7 +618,10 @@ async fn run(ctx: &Arc<AppState>, name: &str, a: &Args) -> Output {
             present(a, "exchange").map(|_| st(a, "exchange")),
         )
         .into(),
-        "get_instruments" => instruments(ctx, a).await.into(),
+        "get_instruments" => match research::check_limits(name, a) {
+            Some(refused) => refused.into(),
+            None => instruments(ctx, a).await.into(),
+        },
         // ---- utility ----
         "get_openalgo_version" => {
             Output::Text(format!("OpenAlgo version: {}", env!("CARGO_PKG_VERSION")))

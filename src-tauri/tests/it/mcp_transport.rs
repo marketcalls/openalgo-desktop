@@ -152,6 +152,8 @@ async fn stdio_bridge_speaks_mcp_to_the_running_app() {
     let token = m.token(TokenScope::ReadWrite);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
+    // The Host check (DNS rebinding) only answers on the configured port.
+    m.h.ctx.config.write().http_port = addr.port();
     let app = openalgo_desktop_lib::server::app(m.h.ctx.clone());
     let server = tokio::spawn(async move {
         let _ = axum::serve(
@@ -306,6 +308,8 @@ async fn stdio_bridge_reports_a_closed_app_and_a_bad_token() {
     let m = M::new().await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
+    // The Host check (DNS rebinding) only answers on the configured port.
+    m.h.ctx.config.write().http_port = addr.port();
     let app = openalgo_desktop_lib::server::app(m.h.ctx.clone());
     let server = tokio::spawn(async move {
         let _ = axum::serve(
@@ -325,33 +329,4 @@ async fn stdio_bridge_reports_a_closed_app_and_a_bad_token() {
     );
     server.abort();
     m.h.shutdown().await;
-}
-
-#[test]
-fn stdio_start_without_a_token_is_refused_with_the_message() {
-    let exe = env!("CARGO_BIN_EXE_openalgo-desktop");
-    let out = std::process::Command::new(exe)
-        .arg("mcp")
-        .env_remove(stdio::TOKEN_ENV)
-        .stdin(std::process::Stdio::null())
-        .output()
-        .unwrap();
-    assert_eq!(out.status.code(), Some(2));
-    assert!(out.stdout.is_empty(), "stdout is reserved for MCP messages");
-    assert!(String::from_utf8_lossy(&out.stderr).contains(stdio::MISSING_TOKEN));
-
-    // A token on the command line is refused and not echoed.
-    let out = std::process::Command::new(exe)
-        .args(["mcp", "--token", "oamcp_on_the_command_line"])
-        .env(stdio::TOKEN_ENV, "oamcp_from_env")
-        .stdin(std::process::Stdio::null())
-        .output()
-        .unwrap();
-    assert_eq!(out.status.code(), Some(2));
-    let err = String::from_utf8_lossy(&out.stderr);
-    assert!(
-        !err.contains("oamcp_on_the_command_line") && !err.contains("oamcp_from_env"),
-        "{}",
-        err
-    );
 }

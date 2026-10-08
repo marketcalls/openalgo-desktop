@@ -58,6 +58,8 @@ mod historify;
 mod mcp_contract;
 mod mcp_http;
 mod mcp_research;
+mod mcp_security;
+mod mcp_subcommand;
 mod mcp_transport;
 mod messaging;
 mod sandbox_concurrency;

@@ -463,8 +463,104 @@ fn tag(action: &str) -> impl Fn(PyErr) -> (String, PyErr) + '_ {
     move |e| (action.to_string(), e)
 }
 
+// ----------------------------------------------------------------------
+// Limits
+//
+// The web bounds none of these inputs; its tool descriptions ask for a
+// modest watchlist ("keep the list modest (≤ ~25)"). The desktop enforces
+// that and the comparable sizes below, so one call cannot hold the history
+// source, the broker or memory for long. A call over a limit is refused
+// before anything is fetched, with a message that names the limit.
+// ----------------------------------------------------------------------
+
+/// Symbols in one `screen_instruments` call.
+pub const MAX_SCREEN_SYMBOLS: usize = 25;
+/// Timeframes in one `multi_timeframe_analysis` call.
+pub const MAX_TIMEFRAMES: usize = 8;
+/// `bars`, `lookback_bars` and `limit` values.
+pub const MAX_BARS: i64 = 5000;
+/// `lookback_days`, and the span of an explicit date range.
+pub const MAX_DAYS: i64 = 3660;
+/// Research calls running at once (process-wide); a call waits this long
+/// for a slot before it is refused.
+pub const RESEARCH_SLOTS: usize = 4;
+pub const SLOT_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+/// Longest a research call may run in all (its `/api/v1` calls each have
+/// their own 120 s limit).
+pub const RESEARCH_DEADLINE: std::time::Duration = std::time::Duration::from_secs(300);
+
+fn limit_error(message: String) -> Value {
+    error(
+        message,
+        &[
+            ("error_type", json!("limit_exceeded")),
+            ("retry_safe", json!(true)),
+        ],
+    )
+}
+
+/// The first limit the arguments exceed, as the tool's error output.
+pub fn check_limits(tool: &str, a: &Map<String, Value>) -> Option<Value> {
+    let n_list = |k: &str| a.get(k).and_then(Value::as_array).map_or(0, Vec::len);
+    if tool == "screen_instruments" && n_list("symbols") > MAX_SCREEN_SYMBOLS {
+        return Some(limit_error(format!(
+            "screen_instruments accepts at most {} symbols per call. Split the watchlist into smaller groups.",
+            MAX_SCREEN_SYMBOLS
+        )));
+    }
+    if tool == "multi_timeframe_analysis" && n_list("intervals") > MAX_TIMEFRAMES {
+        return Some(limit_error(format!(
+            "multi_timeframe_analysis accepts at most {} intervals per call.",
+            MAX_TIMEFRAMES
+        )));
+    }
+    for k in ["bars", "lookback_bars", "limit"] {
+        if i(a, k).is_some_and(|v| v.abs() > MAX_BARS) {
+            return Some(limit_error(format!("'{}' can be at most {}.", k, MAX_BARS)));
+        }
+    }
+    if i(a, "lookback_days").is_some_and(|v| v.abs() > MAX_DAYS) {
+        return Some(limit_error(format!(
+            "'lookback_days' can be at most {}.",
+            MAX_DAYS
+        )));
+    }
+    let date = |k: &str| s(a, k).and_then(|d| NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok());
+    if let (Some(start), Some(end)) = (date("start_date"), date("end_date")) {
+        if (end - start).num_days().abs() > MAX_DAYS {
+            return Some(limit_error(format!(
+                "The date range can span at most {} days. Narrow start_date and end_date.",
+                MAX_DAYS
+            )));
+        }
+    }
+    None
+}
+
 /// Run a research tool and turn a raised error into the web's `_fail`.
+/// Bounded: argument limits first, then a process-wide slot, then an
+/// overall deadline.
 pub async fn run(ctx: &Arc<AppState>, tool: &str, a: &Map<String, Value>) -> Value {
+    if let Some(refused) = check_limits(tool, a) {
+        return refused;
+    }
+    let slots = ctx.mcp.research_slots();
+    let Ok(Ok(_permit)) = tokio::time::timeout(SLOT_WAIT, slots.acquire_owned()).await else {
+        return error(
+            "OpenAlgo is busy with other analysis requests, so this one was not run. Try again in a moment.",
+            &[("error_type", json!("busy")), ("retry_safe", json!(true))],
+        );
+    };
+    match tokio::time::timeout(RESEARCH_DEADLINE, run_inner(ctx, tool, a)).await {
+        Ok(v) => v,
+        Err(_) => error(
+            "This analysis took too long and was stopped. Use a shorter date range or fewer symbols.",
+            &[("error_type", json!("timeout")), ("retry_safe", json!(true))],
+        ),
+    }
+}
+
+async fn run_inner(ctx: &Arc<AppState>, tool: &str, a: &Map<String, Value>) -> Value {
     let r = match tool {
         "get_historical_data" => historical(ctx, a).await,
         "calculate_indicator" => calculate_indicator(ctx, a).await,

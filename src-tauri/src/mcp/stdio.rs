@@ -40,7 +40,7 @@ pub const BUSY: &str =
 /// The environment variable that carries the MCP token.
 pub const TOKEN_ENV: &str = "OPENALGO_MCP_TOKEN";
 
-const USAGE: &str = "Usage: openalgo-desktop mcp [--url http://127.0.0.1:5000]\n\
+pub const USAGE: &str = "Usage: openalgo-desktop mcp [--url http://127.0.0.1:5000]\n\
 The token is read from the OPENALGO_MCP_TOKEN environment variable, set in the AI client's \
 configuration. Create it on the API Key page in OpenAlgo Desktop, which shows the full configuration.";
 
@@ -97,7 +97,7 @@ impl Bridge {
             }
         };
         let status = resp.status().as_u16();
-        let value: Value = resp.json().await.unwrap_or(Value::Null);
+        let value = read_capped(resp).await;
         match status {
             200 => Ok(value),
             401 => Err(Failure::Message(BAD_TOKEN.into())),
@@ -116,6 +116,28 @@ impl Bridge {
             }
         }
     }
+}
+
+/// Largest reply the bridge reads from the app.
+pub const MAX_REPLY_BYTES: usize = 64 * 1024 * 1024;
+
+/// The reply as JSON, read up to [`MAX_REPLY_BYTES`] (`Null` past it).
+async fn read_capped(mut resp: reqwest::Response) -> Value {
+    let mut buf: Vec<u8> = Vec::new();
+    loop {
+        match resp.chunk().await {
+            Ok(Some(c)) => {
+                if buf.len() + c.len() > MAX_REPLY_BYTES {
+                    tracing::warn!("OpenAlgo Desktop sent an MCP reply over the size limit");
+                    return Value::Null;
+                }
+                buf.extend_from_slice(&c);
+            }
+            Ok(None) => break,
+            Err(_) => return Value::Null,
+        }
+    }
+    serde_json::from_slice(&buf).unwrap_or(Value::Null)
 }
 
 fn rpc_error(reply: &Value) -> Option<ErrorData> {

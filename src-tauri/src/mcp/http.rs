@@ -73,6 +73,7 @@ pub struct McpRuntime {
     streams: Arc<AtomicUsize>,
     lifetime: Mutex<Duration>,
     keepalive: Mutex<Duration>,
+    research: Arc<tokio::sync::Semaphore>,
 }
 
 impl Default for McpRuntime {
@@ -88,7 +89,13 @@ impl McpRuntime {
             streams: Arc::new(AtomicUsize::new(0)),
             lifetime: Mutex::new(STREAM_LIFETIME),
             keepalive: Mutex::new(KEEPALIVE),
+            research: Arc::new(tokio::sync::Semaphore::new(super::research::RESEARCH_SLOTS)),
         }
+    }
+
+    /// Slots for research calls running at once (process-wide).
+    pub fn research_slots(&self) -> Arc<tokio::sync::Semaphore> {
+        self.research.clone()
     }
 
     /// Event streams open now.
@@ -261,7 +268,48 @@ fn reachable(ctx: &AppState, ip: IpAddr) -> bool {
             .is_some_and(|s| s.http_enabled)
 }
 
+/// DNS-rebinding and cross-site guard: a request that carries an `Origin`
+/// must come from the app's own origin (loopback, or the LAN address when
+/// the trader bound beyond loopback), or from the Remote MCP public URL
+/// when Remote MCP is on. Clients that are not browsers send no `Origin`.
+/// (The `Host` header is checked for every route by `host_check`.)
+pub fn origin_allowed(ctx: &AppState, headers: &HeaderMap) -> bool {
+    let Some(origin) = headers.get(header::ORIGIN) else {
+        return true;
+    };
+    let Ok(origin) = origin.to_str() else {
+        return false;
+    };
+    if origin == "null" {
+        return false;
+    }
+    let settings = ctx
+        .sqlite
+        .conn()
+        .ok()
+        .and_then(|c| store::settings(&c).ok());
+    if let Some(s) = &settings {
+        let public = s.public_url.trim_end_matches('/');
+        if s.http_enabled && !public.is_empty() && origin.eq_ignore_ascii_case(public) {
+            return true;
+        }
+    }
+    match origin.strip_prefix("http://") {
+        Some(host) => crate::server::middleware::host_allowed(ctx, host),
+        None => false,
+    }
+}
+
+fn bad_origin() -> Response {
+    (
+        StatusCode::FORBIDDEN,
+        Json(json!({"error": "invalid_origin", "error_description": "Request blocked."})),
+    )
+        .into_response()
+}
+
 /// The live token in the request, if any.
+#[allow(clippy::result_large_err)]
 fn token(ctx: &AppState, headers: &HeaderMap) -> Result<TokenRow, Response> {
     let Some(t) = bearer(headers) else {
         return Err(unauthorized(ctx, "invalid_token", "Missing Bearer token."));
@@ -390,6 +438,9 @@ pub async fn post(
 ) -> Response {
     if !reachable(&ctx, ip) {
         return not_found();
+    }
+    if !origin_allowed(&ctx, &headers) {
+        return bad_origin();
     }
     let tok = match token(&ctx, &headers) {
         Ok(t) => t,
@@ -543,7 +594,10 @@ async fn call_tool(
         tracing::warn!("MCP write tool {} called by '{}'", tool.name, tok.name);
     }
     let started = Instant::now();
-    let text = tools::call(ctx, tool, &bound).await;
+    // The tool's own /api/v1 calls are charged to this token.
+    let text = super::dispatch::CALLER
+        .scope(tok.jti(), tools::call(ctx, tool, &bound))
+        .await;
     call.audit("success", started.elapsed().as_millis() as i64);
     rpc_result(
         id,
@@ -555,6 +609,9 @@ async fn call_tool(
 pub async fn sse(State(ctx): Ctx, ClientIp(ip): ClientIp, headers: HeaderMap) -> Response {
     if !reachable(&ctx, ip) {
         return not_found();
+    }
+    if !origin_allowed(&ctx, &headers) {
+        return bad_origin();
     }
     let tok = match token(&ctx, &headers) {
         Ok(t) => t,
@@ -574,6 +631,8 @@ pub async fn sse(State(ctx): Ctx, ClientIp(ip): ClientIp, headers: HeaderMap) ->
     let keepalive = *ctx.mcp.keepalive.lock();
     struct S {
         _guard: StreamGuard,
+        ctx: Arc<AppState>,
+        token_id: i64,
         first: bool,
         deadline: tokio::time::Instant,
         keepalive: Duration,
@@ -581,6 +640,8 @@ pub async fn sse(State(ctx): Ctx, ClientIp(ip): ClientIp, headers: HeaderMap) ->
     }
     let state = S {
         _guard: guard,
+        ctx: ctx.clone(),
+        token_id: tok.id,
         first: true,
         deadline: tokio::time::Instant::now() + lifetime,
         keepalive,
@@ -600,7 +661,14 @@ pub async fn sse(State(ctx): Ctx, ClientIp(ip): ClientIp, headers: HeaderMap) ->
         tokio::select! {
             _ = s.stop.cancelled() => None,
             _ = tokio::time::sleep(wait) => {
-                if tokio::time::Instant::now() >= s.deadline {
+                // A token revoked while its stream is open ends the stream.
+                let live = s
+                    .ctx
+                    .sqlite
+                    .conn()
+                    .and_then(|c| store::token_is_live(&c, s.token_id))
+                    .unwrap_or(false);
+                if !live || tokio::time::Instant::now() >= s.deadline {
                     None
                 } else {
                     Some((Ok(Bytes::from_static(b": keepalive\n\n")), s))

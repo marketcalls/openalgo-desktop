@@ -180,19 +180,43 @@ fn row(r: &rusqlite::Row) -> rusqlite::Result<TokenRow> {
     })
 }
 
-/// The live (not revoked) token with this value.
+/// The live (not revoked) token with this value. Candidates are found by
+/// the token's non-secret display prefix, and the stored hash is compared
+/// in constant time.
 pub fn find_token(conn: &Connection, token: &str) -> Result<Option<TokenRow>> {
-    if !token.starts_with(TOKEN_PREFIX) {
+    use subtle::ConstantTimeEq;
+    if !token.starts_with(TOKEN_PREFIX) || token.len() != TOKEN_PREFIX.len() + 64 {
         return Ok(None);
     }
+    let prefix: String = token.chars().take(TOKEN_PREFIX.len() + 6).collect();
+    let presented = hash_token(token);
+    let mut st = conn.prepare(
+        "SELECT id, name, scope, token_prefix, created_at, last_used_at, token_hash FROM mcp_tokens
+         WHERE token_prefix = ?1 AND revoked_at IS NULL",
+    )?;
+    let candidates = st
+        .query_map([prefix], |r| Ok((row(r)?, r.get::<_, String>(6)?)))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut found = None;
+    for (t, stored) in candidates {
+        if bool::from(stored.as_bytes().ct_eq(presented.as_bytes())) {
+            found = Some(t);
+        }
+    }
+    Ok(found)
+}
+
+/// Whether the token with this id is still live (open event streams check
+/// this on every keepalive).
+pub fn token_is_live(conn: &Connection, id: i64) -> Result<bool> {
     Ok(conn
         .query_row(
-            "SELECT id, name, scope, token_prefix, created_at, last_used_at FROM mcp_tokens
-             WHERE token_hash = ?1 AND revoked_at IS NULL",
-            [hash_token(token)],
-            row,
+            "SELECT 1 FROM mcp_tokens WHERE id = ?1 AND revoked_at IS NULL",
+            [id],
+            |_| Ok(()),
         )
-        .optional()?)
+        .optional()?
+        .is_some())
 }
 
 pub fn touch_token(conn: &Connection, id: i64, now: DateTime<Utc>) -> Result<()> {
@@ -497,6 +521,6 @@ mod tests {
         assert_eq!(rows.len(), 3);
         assert!(rows.iter().all(|r| r.tool == "get_quote"));
         assert_eq!(total, AUDIT_MAX_ROWS);
-        assert!(scanned >= 3 && scanned <= 6);
+        assert!((3..=6).contains(&scanned));
     }
 }
