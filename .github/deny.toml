@@ -29,7 +29,11 @@ unmaintained = "workspace"
 unsound = "workspace"
 yanked = "warn"
 ignore = [
-  # { id = "RUSTSEC-0000-0000", reason = "why it does not apply; review by YYYY-MM-DD" },
+  # rustls-webpki 0.102.8 via rumqttc: the 0.102 verifier is never called.
+  { id = "RUSTSEC-2026-0049", reason = "rustls-webpki 0.102.8 comes only from rumqttc 0.25.1 (IIFL Capital feed), which pins ^0.102.8 even on its main branch. rumqttc only names webpki::Error; the feed passes TlsConfiguration::Rustls with our own rustls 0.23 config, which verifies with the patched rustls-webpki 0.103.15 (mqtt_relay.rs tls_config). Remove when rumqttc moves to 0.103; review by 2027-01-31" },
+  { id = "RUSTSEC-2026-0098", reason = "rustls-webpki 0.102.8 comes only from rumqttc 0.25.1 (IIFL Capital feed), which pins ^0.102.8 even on its main branch. rumqttc only names webpki::Error; the feed passes TlsConfiguration::Rustls with our own rustls 0.23 config, which verifies with the patched rustls-webpki 0.103.15 (mqtt_relay.rs tls_config). Remove when rumqttc moves to 0.103; review by 2027-01-31" },
+  { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.102.8 comes only from rumqttc 0.25.1 (IIFL Capital feed), which pins ^0.102.8 even on its main branch. rumqttc only names webpki::Error; the feed passes TlsConfiguration::Rustls with our own rustls 0.23 config, which verifies with the patched rustls-webpki 0.103.15 (mqtt_relay.rs tls_config). Remove when rumqttc moves to 0.103; review by 2027-01-31" },
+  { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.102.8 comes only from rumqttc 0.25.1 (IIFL Capital feed), which pins ^0.102.8 even on its main branch. rumqttc only names webpki::Error; the feed passes TlsConfiguration::Rustls with our own rustls 0.23 config, which verifies with the patched rustls-webpki 0.103.15 (mqtt_relay.rs tls_config). Remove when rumqttc moves to 0.103; review by 2027-01-31" },
 ]
 
 [licenses]

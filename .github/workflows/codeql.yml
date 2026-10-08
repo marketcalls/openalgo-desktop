@@ -1,0 +1,44 @@
+name: CodeQL
+
+# Static analysis for the Rust backend, the React frontend and these workflow
+# files. Results go to the repository's Code Scanning page.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    - cron: "30 2 * * 1" # Monday 02:30 UTC, after the dependency scan
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # build-mode none: CodeQL reads the source directly, no compile.
+        language: [rust, javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}

@@ -6,3 +6,14 @@
 # -> glib 0.18), which Tauri pins; the app never iterates glib Variant
 # strings. Remove when Tauri moves to gtk-rs 0.20 or later.
 GHSA-wrw7-89jp-8q8g
+
+# rustls-webpki 0.102.8 (GHSA-82j2-j2ch-gfr8 HIGH, GHSA-pwjx-qhcg-rvj4 MEDIUM,
+# GHSA-965h-392x-2mh5 LOW, GHSA-xgp8-3hg3-c2mh LOW). Pulled only by rumqttc
+# 0.25.1, which pins ^0.102.8; rumqttc uses it for an error type only. The
+# IIFL Capital feed hands rumqttc its own rustls 0.23 config, so certificates
+# are verified by the patched rustls-webpki 0.103.15 and the 0.102 code never
+# runs. Same entries as .github/deny.toml. Remove when rumqttc moves to 0.103.
+GHSA-82j2-j2ch-gfr8
+GHSA-pwjx-qhcg-rvj4
+GHSA-965h-392x-2mh5
+GHSA-xgp8-3hg3-c2mh
