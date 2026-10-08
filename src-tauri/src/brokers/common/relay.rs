@@ -17,9 +17,12 @@
 //! relay. The accept loop is a single task owned by `RelayHandle` and
 //! aborted when the handle (and so the feed) is dropped; the session task
 //! lives in a `JoinSet` inside that loop, so it is aborted with it. A new
-//! manager connection replaces the previous session. Every socket is closed
-//! (bounded) on every exit path. The listener only accepts the random path,
-//! so another local process cannot ride on the broker session.
+//! manager connection replaces the previous session, but only once it has
+//! completed the handshake on the random path: a stray local connection
+//! (a port scan, a wrong path, a socket that never finishes) cannot end the
+//! live broker session. At most `MAX_PENDING` connections may be
+//! mid-handshake; more are dropped. Every socket is closed (bounded) on
+//! every exit path, so another local process cannot ride on the session.
 
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
@@ -41,6 +44,8 @@ const AUTH_FAILED_KEY: &str = "auth_failed";
 
 /// Budget for the manager's handshake with the relay.
 const DOWNSTREAM_HANDSHAKE: Duration = Duration::from_secs(5);
+/// Connections allowed to be mid-handshake at once; extra ones are dropped.
+const MAX_PENDING: usize = 8;
 /// Budget for opening the broker socket (authorize + TLS + handshake).
 pub const OPEN_TIMEOUT: Duration = Duration::from_secs(25);
 /// Budget for closing a socket on the way out.
@@ -204,26 +209,36 @@ async fn accept_loop(listener: tokio::net::TcpListener, path: String, upstream: 
     // At most one live session; dropping the set (when this task is
     // aborted) aborts it.
     let mut sessions: JoinSet<()> = JoinSet::new();
+    // Handshakes run apart from the live session, which is only replaced by
+    // a connection that proved it knows the secret path.
+    let mut pending: JoinSet<Option<WebSocketStream<TcpStream>>> = JoinSet::new();
     loop {
         tokio::select! {
             accepted = listener.accept() => match accepted {
                 Ok((tcp, _)) => {
-                    sessions.abort_all();
-                    while sessions.try_join_next().is_some() {}
-                    sessions.spawn(serve(tcp, path.clone(), upstream.clone()));
+                    if pending.len() < MAX_PENDING {
+                        pending.spawn(handshake(tcp, path.clone()));
+                    }
                 }
                 Err(e) => {
                     tracing::warn!(broker = upstream.broker(), "Feed relay accept failed: {}", e);
                     tokio::time::sleep(Duration::from_millis(200)).await;
                 }
             },
+            Some(done) = pending.join_next(), if !pending.is_empty() => {
+                if let Ok(Some(down)) = done {
+                    sessions.abort_all();
+                    while sessions.try_join_next().is_some() {}
+                    sessions.spawn(serve(down, upstream.clone()));
+                }
+            }
             Some(_) = sessions.join_next(), if !sessions.is_empty() => {}
         }
     }
 }
 
-async fn serve(tcp: TcpStream, path: String, upstream: Arc<dyn Upstream>) {
-    let broker = upstream.broker();
+/// Accept the manager's WebSocket on the secret path, within the budget.
+async fn handshake(tcp: TcpStream, path: String) -> Option<WebSocketStream<TcpStream>> {
     let check =
         move |req: &Request, resp: Response| -> std::result::Result<Response, ErrorResponse> {
             if req.uri().path() == path {
@@ -234,15 +249,19 @@ async fn serve(tcp: TcpStream, path: String, upstream: Arc<dyn Upstream>) {
                 Err(r)
             }
         };
-    let down = match tokio::time::timeout(
+    match tokio::time::timeout(
         DOWNSTREAM_HANDSHAKE,
         tokio_tungstenite::accept_hdr_async(tcp, check),
     )
     .await
     {
-        Ok(Ok(ws)) => ws,
-        _ => return,
-    };
+        Ok(Ok(ws)) => Some(ws),
+        _ => None,
+    }
+}
+
+async fn serve(down: WebSocketStream<TcpStream>, upstream: Arc<dyn Upstream>) {
+    let broker = upstream.broker();
     let (mut dw, mut dr) = down.split();
     let opened = match tokio::time::timeout(OPEN_TIMEOUT, upstream.open()).await {
         Ok(o) => o,
@@ -445,6 +464,45 @@ mod tests {
             control(first.to_text().unwrap()),
             Some(Err("Log in again.".to_string()))
         );
+    }
+
+    /// A stray local connection (port scan, wrong path, a socket that never
+    /// completes the handshake) must not end the live broker session.
+    #[tokio::test]
+    async fn stray_connections_do_not_end_the_live_session() {
+        let up = Arc::new(Echo {
+            url: echo_server().await,
+            refuse: false,
+            opens: Arc::default(),
+        });
+        let relay = RelayHandle::start(up).unwrap();
+        let (mut ws, _) = tokio_tungstenite::connect_async(relay.url()).await.unwrap();
+        let first = ws.next().await.unwrap().unwrap();
+        assert_eq!(control(first.to_text().unwrap()), Some(Ok(())));
+        let addr = relay
+            .url()
+            .trim_start_matches("ws://")
+            .split('/')
+            .next()
+            .unwrap()
+            .to_string();
+        let mut idle = Vec::new();
+        for _ in 0..20 {
+            idle.push(TcpStream::connect(&addr).await.unwrap());
+        }
+        let base = relay.url().rsplit_once('/').unwrap().0.to_string();
+        assert!(tokio_tungstenite::connect_async(format!("{}/guess", base))
+            .await
+            .is_err());
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        ws.send(Message::Binary(vec![9, 9])).await.unwrap();
+        let back = tokio::time::timeout(Duration::from_secs(2), ws.next())
+            .await
+            .expect("live session still answers")
+            .unwrap()
+            .unwrap();
+        assert_eq!(back, Message::Binary(vec![9, 9]));
+        drop(idle);
     }
 
     #[tokio::test]
