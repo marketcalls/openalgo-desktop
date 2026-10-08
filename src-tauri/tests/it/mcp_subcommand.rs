@@ -59,6 +59,16 @@ impl Guard {
         if let Some(t) = token {
             cmd.env(stdio::TOKEN_ENV, t);
         }
+        // Windows sockets do not initialise in a process without SystemRoot,
+        // so every request would fail as if the app were closed. MCP clients
+        // on Windows pass it through as well; it points at the OS directory,
+        // not at any user data.
+        #[cfg(windows)]
+        for var in ["SystemRoot", "windir"] {
+            if let Some(v) = std::env::var_os(var) {
+                cmd.env(var, v);
+            }
+        }
         let mut child = cmd.spawn().unwrap();
         let (tx, rx) = mpsc::channel();
         // stdout lines are MCP messages (true); stderr lines diagnostics.
@@ -261,7 +271,7 @@ async fn the_mcp_process_serves_stdio_with_no_listener_and_no_data_dir() {
         let text = call["result"]["content"][0]["text"]
             .as_str()
             .unwrap_or_else(|| panic!("{}", call));
-        assert!(text.contains("NSE_INDEX"));
+        assert!(text.contains("NSE_INDEX"), "{}", text);
 
         #[cfg(unix)]
         if let Some(listening) = listening_sockets(g.child.id()) {
