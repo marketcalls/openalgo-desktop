@@ -78,6 +78,8 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         "074_openscript_runner",
         crate::trading::runner::store::migrate,
     )?;
+    run_rust_migration(conn, "075_scalping", crate::scalping::store::migrate)?;
+    run_rust_migration(conn, "076_chartink", crate::chartink::store::migrate)?;
 
     tracing::info!("Database migrations completed");
     Ok(())

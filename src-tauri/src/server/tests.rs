@@ -553,6 +553,8 @@ async fn public_route_list_is_exactly_the_reviewed_one() {
             "POST /openscript/runner/host/{run}/intents",
             "POST /openscript/runner/host/{run}/log",
             "POST /openscript/runner/host/{run}/ended",
+            // Secret-verified Chartink webhook (the URL id is the credential).
+            "POST /chartink/webhook/{webhook_id}",
         ]
     );
 }

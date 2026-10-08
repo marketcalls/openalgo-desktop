@@ -6,6 +6,7 @@
 
 pub mod analytics;
 pub mod brokers;
+pub mod chartink;
 pub mod clock;
 pub mod commands;
 pub mod config;
@@ -17,6 +18,7 @@ pub mod historify;
 pub mod messaging;
 pub mod risk;
 pub mod sandbox;
+pub mod scalping;
 pub mod security;
 pub mod server;
 pub mod services;
@@ -80,6 +82,8 @@ pub fn run() {
                     tracing::info!("Strategy module started: {}", started);
                     // OpenScript schedules (an owned task, stopped at shutdown).
                     ctx.trading.start(ctx.now(), &ctx.sqlite);
+                    // Chartink intraday square-offs (owned task).
+                    ctx.chartink.start();
                     // Market data feed for SDK clients; a taken port is kept in
                     // its status with a trader-facing message.
                     let feed = feed::FeedService::new(ctx.clone());
