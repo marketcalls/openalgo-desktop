@@ -131,6 +131,22 @@ impl TelegramService {
             .unwrap_or(false)
     }
 
+    /// Wait until the polling task has ended on its own, up to `within`.
+    /// True when no task is left; a finished task is reaped. The task is
+    /// not cancelled, so this observes a start that gave up rather than
+    /// causing it.
+    pub async fn wait_task_end(&self, within: Duration) -> bool {
+        let mut lc = self.lifecycle.lock().await;
+        let Some(run) = lc.as_mut() else {
+            return true;
+        };
+        if tokio::time::timeout(within, &mut run.join).await.is_err() {
+            return false;
+        }
+        lc.take();
+        true
+    }
+
     pub fn api(&self, ctx: &AppState, token: Secret) -> BotApi {
         BotApi::new(ctx.http.clone(), &self.api_base.read(), token)
     }

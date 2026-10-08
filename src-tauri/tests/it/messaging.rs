@@ -833,15 +833,20 @@ async fn telegram_backs_off_and_gives_up_or_recovers_and_stops_cleanly() {
     assert!(!ok, "{}", why);
     assert!(wait_for(|| true, 0).await);
     assert!(!h.ctx.messaging.telegram.is_running());
-    let mut alive = true;
-    for _ in 0..100 {
-        alive = h.ctx.messaging.telegram.task_alive().await;
-        if !alive {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(20)).await;
-    }
-    assert!(!alive);
+    // The start can report its timeout while the task is still retrying:
+    // on Windows a refused loopback connect takes about two seconds, so the
+    // five attempts outlast the start's wait. Wait for the task itself to
+    // give up, without cancelling it.
+    assert!(
+        h.ctx
+            .messaging
+            .telegram
+            .wait_task_end(Duration::from_secs(60))
+            .await,
+        "the connect retries did not give up"
+    );
+    assert!(!h.ctx.messaging.telegram.task_alive().await);
+    assert!(!h.ctx.messaging.telegram.is_running());
 
     // Failing polls are retried with backoff; the bot stays up.
     let (fake, base, _j) = spawn_fake().await;
