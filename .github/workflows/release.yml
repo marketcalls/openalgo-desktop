@@ -1,9 +1,17 @@
 name: Release
 
 # Builds OpenAlgo Desktop for every supported platform when a v* tag is pushed
-# and attaches the bundles to a DRAFT GitHub release. A maintainer reviews the
-# draft and publishes it by hand. Tag only commits on main whose CI is green;
-# this workflow does not re-run the test suite.
+# and attaches the installers, plus a SHA256SUMS.txt covering them, to a DRAFT
+# GitHub release. A maintainer reviews the draft and publishes it by hand. Tag
+# only commits on master whose CI is green; this workflow does not re-run the
+# test suite.
+#
+# Installers per platform (the matrix `bundles` below):
+#   Windows x64            NSIS setup .exe (per-user install)
+#   macOS Apple Silicon    .dmg
+#   macOS Intel            .dmg
+#   Linux x64              AppImage and .deb
+#   Linux arm64 (Pi 4/5)   AppImage and .deb
 #
 # Signing is optional. Without the secrets below the bundles are unsigned
 # (macOS Gatekeeper and Windows SmartScreen will warn). Configure them under
@@ -77,7 +85,7 @@ jobs:
             id=$(gh api -X POST "repos/${GITHUB_REPOSITORY}/releases" \
               -f tag_name="$TAG" \
               -f name="OpenAlgo Desktop ${TAG}" \
-              -f body="Installers for Windows, macOS (Apple Silicon and Intel), Linux x64 and Raspberry Pi (Linux arm64)." \
+              -f body="Installers for Windows, macOS (Apple Silicon and Intel), Linux x64 and Raspberry Pi (Linux arm64). SHA256SUMS.txt lists the checksum of every installer. The installers are not code-signed yet: see the README for how to open the app the first time." \
               -F draft=true \
               -F prerelease="$prerelease" \
               -F generate_release_notes=true \
@@ -100,19 +108,24 @@ jobs:
           - name: linux-x86_64
             os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
+            bundles: appimage,deb
           - name: linux-aarch64
             # Raspberry Pi 4/5, 64-bit Raspberry Pi OS.
             os: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
+            bundles: appimage,deb
           - name: windows-x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
+            bundles: nsis
           - name: macos-aarch64
             os: macos-latest
             target: aarch64-apple-darwin
+            bundles: dmg
           - name: macos-x86_64
             os: macos-latest
             target: x86_64-apple-darwin
+            bundles: dmg
     steps:
       - uses: actions/checkout@v6
       - if: runner.os == 'Linux'
@@ -224,7 +237,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tauriScript: npx tauri
-          args: --target ${{ matrix.target }} --ci ${{ env.TAURI_EXTRA_ARGS }}
+          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --ci ${{ env.TAURI_EXTRA_ARGS }}
           releaseId: ${{ needs.create-release.outputs.release_id }}
           tagName: ${{ github.ref_name }}
 
@@ -238,10 +251,57 @@ jobs:
           name: release-${{ matrix.name }}
           path: |
             src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
-            src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*.rpm
             src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
-            src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
             src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
             src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
           if-no-files-found: error
           retention-days: 30
+
+  checksums:
+    name: checksums
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Attach SHA256SUMS.txt to the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          work="${RUNNER_TEMP}/release-assets"
+          rm -rf "$work"
+          mkdir -p "$work"
+          # Checksums of the files exactly as published (GitHub renames
+          # spaces in asset names), so they match what a trader downloads.
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets" \
+            --jq '.[] | select(.name != "SHA256SUMS.txt") | "\(.id)\t\(.name)"' \
+            > "${RUNNER_TEMP}/assets.tsv"
+          count=0
+          while IFS=$'\t' read -r id name; do
+            case "$name" in
+              */*|..*|"") echo "Unexpected asset name: ${name}"; exit 1 ;;
+            esac
+            gh api -H "Accept: application/octet-stream" \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${id}" > "${work}/${name}"
+            count=$((count + 1))
+          done < "${RUNNER_TEMP}/assets.tsv"
+          if [ "$count" -lt 7 ]; then
+            echo "Expected at least 7 installers on the release, found ${count}."
+            exit 1
+          fi
+          (cd "$work" && sha256sum -- * | sort -k2) > "${RUNNER_TEMP}/SHA256SUMS.txt"
+          cat "${RUNNER_TEMP}/SHA256SUMS.txt"
+          # A re-run replaces the previous checksum file.
+          old=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets" --paginate \
+            --jq '.[] | select(.name == "SHA256SUMS.txt") | .id')
+          for id in $old; do
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${id}"
+          done
+          upload_url=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" --jq .upload_url)
+          upload_url="${upload_url%%\{*}"
+          gh api -X POST "${upload_url}?name=SHA256SUMS.txt" \
+            -H "Content-Type: text/plain" \
+            --input "${RUNNER_TEMP}/SHA256SUMS.txt" --jq .browser_download_url
