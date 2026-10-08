@@ -25,7 +25,7 @@ mod tests;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::Pacer;
-use crate::brokers::common::streaming::BrokerFeed;
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -272,7 +272,7 @@ impl Broker for NubraBroker {
             gtt: false,
             streaming: true,
             // The order-update stream, offered by
-            // `NubraBroker::create_order_feed` (as Upstox and Kotak do).
+            // `NubraBroker::order_socket`, served through `Broker::create_order_feed`.
             order_feed: true,
             depth_levels: &[5],
         }
@@ -376,6 +376,10 @@ impl Broker for NubraBroker {
         master_contract::download(self, auth).await.map_err(redact)
     }
 
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        Ok(OrderFeed::Socket(self.order_socket(auth)?))
+    }
+
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         if auth.raw().trim().is_empty() {
             return Err(session_expired());
@@ -393,8 +397,8 @@ impl NubraBroker {
     /// Not part of the `Broker` trait yet (upstox and angel expose theirs
     /// the same way). The socket URL comes from `GET /userinfo` on every
     /// (re)connect, which a `BrokerFeed` cannot do synchronously, so the
-    /// feed runs behind the loopback relay (`upstox::relay`).
-    pub fn create_order_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
+    /// feed runs behind the loopback relay (`common::relay`).
+    pub fn order_socket(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         if auth.raw().trim().is_empty() {
             return Err(session_expired());
         }

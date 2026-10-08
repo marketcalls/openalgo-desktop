@@ -229,13 +229,12 @@ pub fn translate(event: &Event) -> Option<(&'static str, Value)> {
                 "average_price": u.average_price, "rejection_reason": u.rejection_reason,
             }),
         )),
+        // The web's broker modules emit `{status, message}` only.
         Event::MasterContractDownload {
-            broker,
-            status,
-            message,
+            status, message, ..
         } => Some((
             "master_contract_download",
-            json!({"broker": broker, "status": status, "message": message}),
+            json!({"status": status, "message": message}),
         )),
         Event::CacheLoaded { payload } => Some(("cache_loaded", payload.clone())),
         Event::ForceLogout { message } => Some(("force_logout", json!({"message": message}))),

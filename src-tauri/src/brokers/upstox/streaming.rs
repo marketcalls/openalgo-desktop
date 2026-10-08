@@ -3,9 +3,9 @@
 //! `upstox_order_adapter.py`).
 //!
 //! * Connect: `GET /v3/feed/market-data-feed/authorize` returns a single-use,
-//!   signed `wss://` URL, fetched fresh on every (re)connect. The relay
-//!   (`super::relay`) does that and the shared manager connects to the
-//!   relay. The signed query is never logged.
+//!   signed `wss://` URL, fetched fresh on every (re)connect in
+//!   `BrokerFeed::prepare`; the shared manager then connects to it. The
+//!   signed query is never logged.
 //! * Subscribe: a BINARY frame holding JSON
 //!   `{"guid","method":"sub"|"unsub","data":{"instrumentKeys":[..],"mode"}}`;
 //!   OpenAlgo mode 1 is `ltpc`, modes 2 and 3 are `full` (5-level depth;
@@ -15,26 +15,23 @@
 //!   The feeds map is keyed by instrument key, matched to subscriptions
 //!   exactly or by the part after `|`. The last LTPC per instrument is kept
 //!   so a frame without one still carries a price.
-//! * Liveness: Upstox sends no application heartbeat; the relay pings every
-//!   30 s and turns the pongs into frames the manager's watchdog sees.
+//! * Liveness: Upstox sends no application heartbeat; the manager pings
+//!   every 30 s and the pongs reach its watchdog as heartbeats.
 
 use super::mapping::{oa_symbol, order_update_status};
 use super::proto::{feed::FeedUnion, full_feed::FullFeedUnion, FeedResponse, Ltpc, MarketOhlc};
-use super::relay::{self, Open, RelayHandle, Session, Step, Upstream};
 use crate::brokers::common::streaming::{
     now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, WsRequest,
+    NormalizedTick, OrderUpdate, PrepareError, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
 use crate::security::Secret;
 use async_trait::async_trait;
-use parking_lot::Mutex;
 use prost::Message as _;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 use std::time::Duration;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
@@ -108,7 +105,10 @@ async fn authorize(
         .send()
         .await
         .map_err(|e| {
-            tracing::debug!("Upstox feed authorize failed: {}", e);
+            tracing::debug!(
+                "Upstox feed authorize failed: {}",
+                crate::brokers::common::redact::url_safe_error(&e)
+            );
             0u16
         })?;
     let status = resp.status();
@@ -134,96 +134,47 @@ async fn authorize(
         })
 }
 
-async fn connect(request: WsRequest) -> Option<relay::UpstreamWs> {
-    match tokio::time::timeout(
-        relay::OPEN_TIMEOUT,
-        tokio_tungstenite::connect_async(request),
-    )
-    .await
-    {
-        Ok(Ok((ws, _))) => Some(ws),
-        Ok(Err(e)) => {
-            tracing::debug!("Upstox feed connect failed: {}", e);
-            None
-        }
-        Err(_) => {
-            tracing::debug!("Upstox feed connect timed out");
-            None
-        }
-    }
-}
-
 fn refused_login() -> String {
     "Upstox did not accept the stored login for live data. Log in to Upstox again.".into()
 }
 
-// ---------------------------------------------------------------------------
-// Market data upstream
-// ---------------------------------------------------------------------------
+fn invalid_address() -> AppError {
+    AppError::Broker("Upstox sent a live data address OpenAlgo could not use. Try again.".into())
+}
 
-/// Opens the market-data socket: authorize, then connect to the signed URL.
-pub struct MarketUpstream {
+/// An authorize endpoint and the token it is called with. Each call hands
+/// out a single-use signed socket URL, so it runs before every connect.
+#[derive(Clone)]
+pub struct Authorizer {
     http: reqwest::Client,
-    authorize_url: String,
+    url: String,
     token: Secret,
 }
 
-impl MarketUpstream {
-    pub fn new(http: reqwest::Client, api_base: &str, token: &str) -> Self {
+impl Authorizer {
+    /// Market data (`/v3/feed/market-data-feed/authorize`).
+    pub fn market(http: reqwest::Client, api_base: &str, token: &str) -> Self {
         Self {
             http,
-            authorize_url: format!("{}/v3/feed/market-data-feed/authorize", api_base),
+            url: format!("{}/v3/feed/market-data-feed/authorize", api_base),
             token: Secret::new(token),
         }
     }
-}
 
-/// Forwards data frames and turns broker pongs into downstream liveness.
-struct PassThrough;
-
-impl Session for PassThrough {
-    fn on_upstream(&mut self, msg: Message) -> Step {
-        let down = match msg {
-            m @ (Message::Binary(_) | Message::Text(_)) => vec![m],
-            Message::Ping(_) | Message::Pong(_) => vec![Message::Ping(Vec::new())],
-            _ => Vec::new(),
-        };
-        Step {
-            down,
-            ..Default::default()
+    /// Order updates (`/v2/feed/portfolio-stream-feed/authorize`).
+    pub fn orders(http: reqwest::Client, api_base: &str, token: &str) -> Self {
+        Self {
+            http,
+            url: format!(
+                "{}/v2/feed/portfolio-stream-feed/authorize?update_types=order",
+                api_base
+            ),
+            token: Secret::new(token),
         }
     }
 
-    fn keepalive(&self) -> Option<(Duration, Message)> {
-        Some((PING_PERIOD, Message::Ping(Vec::new())))
-    }
-}
-
-#[async_trait]
-impl Upstream for MarketUpstream {
-    fn broker(&self) -> &'static str {
-        "upstox"
-    }
-
-    async fn open(&self) -> Open {
-        let url = match authorize(&self.http, &self.authorize_url, &self.token).await {
-            Ok(u) => u,
-            Err(401) => return Open::AuthFailed(refused_login()),
-            Err(_) => return Open::Unavailable,
-        };
-        tracing::debug!("Upstox feed socket: {}", redact(&url));
-        let Ok(req) = url.as_str().into_client_request() else {
-            tracing::error!("Upstox feed socket address is invalid: {}", redact(&url));
-            return Open::Unavailable;
-        };
-        match connect(req).await {
-            Some(ws) => Open::Ready(Box::new(ws)),
-            None => Open::Unavailable,
-        }
-    }
-
-    fn session(&self) -> Box<dyn Session> {
-        Box::new(PassThrough)
+    async fn signed_url(&self) -> std::result::Result<String, u16> {
+        authorize(&self.http, &self.url, &self.token).await
     }
 }
 
@@ -241,8 +192,9 @@ struct SubInfo {
 
 /// The Upstox market-data `BrokerFeed`.
 pub struct UpstoxFeed {
-    upstream: Arc<dyn Upstream>,
-    relay: Mutex<Option<RelayHandle>>,
+    authorizer: Authorizer,
+    /// Signed socket URL from the last `prepare` (single use).
+    socket_url: Option<Secret>,
     /// Instrument key -> subscription (bounded by live subscriptions).
     subs: HashMap<String, SubInfo>,
     /// Keys live on the current connection, per wire mode.
@@ -252,10 +204,10 @@ pub struct UpstoxFeed {
 }
 
 impl UpstoxFeed {
-    pub fn new(upstream: Arc<dyn Upstream>, _symbols: SymbolResolver) -> Self {
+    pub fn new(authorizer: Authorizer, _symbols: SymbolResolver) -> Self {
         Self {
-            upstream,
-            relay: Mutex::new(None),
+            authorizer,
+            socket_url: None,
             subs: HashMap::new(),
             live: HashMap::new(),
             last_ltpc: HashMap::new(),
@@ -534,17 +486,34 @@ fn normalise(sub: &SubInfo, feed: Option<&FeedUnion>, cached: Option<&Ltpc>) -> 
     }
 }
 
+#[async_trait]
 impl BrokerFeed for UpstoxFeed {
     fn broker(&self) -> &'static str {
         "upstox"
     }
 
+    async fn prepare(&mut self) -> std::result::Result<(), PrepareError> {
+        self.socket_url = None;
+        match self.authorizer.signed_url().await {
+            Ok(url) => {
+                tracing::debug!("Upstox feed socket: {}", redact(&url));
+                self.socket_url = Some(Secret::new(url));
+                Ok(())
+            }
+            Err(401) => Err(PrepareError::AuthFailed(refused_login())),
+            Err(_) => Err(PrepareError::Unavailable),
+        }
+    }
+
     fn ws_request(&self) -> Result<WsRequest> {
-        let upstream = self.upstream.clone();
-        let url = relay::ensure_started(&self.relay, move || upstream)?;
-        url.as_str()
-            .into_client_request()
-            .map_err(|_| AppError::Internal("Upstox feed relay address is invalid".into()))
+        let url = self.socket_url.as_ref().ok_or_else(invalid_address)?;
+        url.expose().into_client_request().map_err(|_| {
+            tracing::error!(
+                "Upstox feed socket address is invalid: {}",
+                redact(url.expose())
+            );
+            invalid_address()
+        })
     }
 
     fn on_connected(&mut self) -> Vec<Message> {
@@ -553,8 +522,8 @@ impl BrokerFeed for UpstoxFeed {
         Vec::new()
     }
 
-    fn awaits_auth_ack(&self) -> bool {
-        true
+    fn heartbeat(&self) -> Option<(Duration, Message)> {
+        Some((PING_PERIOD, Message::Ping(Vec::new())))
     }
 
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
@@ -636,107 +605,57 @@ impl BrokerFeed for UpstoxFeed {
     }
 }
 
-/// Relay control frames, and Upstox's JSON status frames.
+/// Upstox's JSON status frames (logged; they carry no market data).
 fn parse_text(t: &str) -> Vec<FeedEvent> {
-    match relay::control(t) {
-        Some(Ok(())) => vec![FeedEvent::AuthOk],
-        Some(Err(m)) => vec![FeedEvent::AuthFailed(m)],
-        None => {
-            if let Ok(v) = serde_json::from_str::<Value>(t) {
-                if v.get("status").and_then(Value::as_str) == Some("failed") {
-                    let method = v.get("method").and_then(Value::as_str).unwrap_or("request");
-                    let error = v.get("error").map(|e| e.to_string()).unwrap_or_default();
-                    tracing::error!("Upstox feed {} failed: {}", method, error);
-                }
-            }
-            Vec::new()
+    if let Ok(v) = serde_json::from_str::<Value>(t) {
+        if v.get("status").and_then(Value::as_str) == Some("failed") {
+            let method = v.get("method").and_then(Value::as_str).unwrap_or("request");
+            let error = v.get("error").map(|e| e.to_string()).unwrap_or_default();
+            tracing::error!(
+                "Upstox feed {} failed: {}",
+                method,
+                crate::brokers::common::redact::url_safe_error(&error)
+            );
         }
     }
+    Vec::new()
 }
 
 // ---------------------------------------------------------------------------
 // Order updates (portfolio stream)
 // ---------------------------------------------------------------------------
 
-/// Opens the portfolio stream: authorize (single-use code, so never
-/// cached), else the direct endpoint with the Bearer header.
-pub struct OrderUpstream {
-    http: reqwest::Client,
-    authorize_url: String,
-    direct_url: String,
-    token: Secret,
-}
-
-impl OrderUpstream {
-    pub fn new(http: reqwest::Client, api_base: &str, token: &str) -> Self {
-        let ws_base = api_base
-            .replacen("https://", "wss://", 1)
-            .replacen("http://", "ws://", 1);
-        Self {
-            http,
-            authorize_url: format!(
-                "{}/v2/feed/portfolio-stream-feed/authorize?update_types=order",
-                api_base
-            ),
-            direct_url: format!(
-                "{}/v2/feed/portfolio-stream-feed?update_types=order",
-                ws_base
-            ),
-            token: Secret::new(token),
-        }
-    }
-}
-
-#[async_trait]
-impl Upstream for OrderUpstream {
-    fn broker(&self) -> &'static str {
-        "upstox"
-    }
-
-    async fn open(&self) -> Open {
-        let req = match authorize(&self.http, &self.authorize_url, &self.token).await {
-            Ok(u) => u.as_str().into_client_request().ok(),
-            Err(401) => return Open::AuthFailed(refused_login()),
-            Err(_) => None,
-        };
-        let req = match req {
-            Some(r) => r,
-            None => {
-                tracing::warn!("Upstox order stream authorize failed; using the direct endpoint");
-                let Ok(mut r) = self.direct_url.as_str().into_client_request() else {
-                    return Open::Unavailable;
-                };
-                let Ok(h) = format!("Bearer {}", self.token.expose()).parse() else {
-                    return Open::Unavailable;
-                };
-                r.headers_mut().insert("Authorization", h);
-                r
-            }
-        };
-        match connect(req).await {
-            Some(ws) => Open::Ready(Box::new(ws)),
-            None => Open::Unavailable,
-        }
-    }
-
-    fn session(&self) -> Box<dyn Session> {
-        Box::new(PassThrough)
-    }
+/// Where the order stream connects after `prepare`.
+enum OrderTarget {
+    /// The single-use signed URL from the authorize call.
+    Signed(Secret),
+    /// The direct endpoint with the Bearer header (authorize failed).
+    Direct,
 }
 
 /// The Upstox order-update `BrokerFeed`: no subscriptions, JSON text
-/// frames normalised to `OrderUpdate`.
+/// frames normalised to `OrderUpdate`. `prepare` authorizes (single-use
+/// code, so never cached), else falls back to the direct endpoint with the
+/// Bearer header, like the web.
 pub struct UpstoxOrderFeed {
-    upstream: Arc<dyn Upstream>,
-    relay: Mutex<Option<RelayHandle>>,
+    authorizer: Authorizer,
+    direct_url: String,
+    target: Option<OrderTarget>,
     symbols: SymbolResolver,
 }
 
 impl UpstoxOrderFeed {
-    pub fn new(upstream: Arc<dyn Upstream>, symbols: SymbolResolver) -> Self {
+    pub fn new(authorizer: Authorizer, api_base: &str, symbols: SymbolResolver) -> Self {
+        let ws_base = api_base
+            .replacen("https://", "wss://", 1)
+            .replacen("http://", "ws://", 1);
         Self {
-            upstream,
-            relay: Mutex::new(None),
+            authorizer,
+            direct_url: format!(
+                "{}/v2/feed/portfolio-stream-feed?update_types=order",
+                ws_base
+            ),
+            target: None,
             symbols,
         }
     }
@@ -820,21 +739,47 @@ pub fn normalize_order_update(v: &Value, symbols: &SymbolResolver) -> Option<Ord
     })
 }
 
+#[async_trait]
 impl BrokerFeed for UpstoxOrderFeed {
     fn broker(&self) -> &'static str {
         "upstox"
     }
 
-    fn ws_request(&self) -> Result<WsRequest> {
-        let upstream = self.upstream.clone();
-        let url = relay::ensure_started(&self.relay, move || upstream)?;
-        url.as_str()
-            .into_client_request()
-            .map_err(|_| AppError::Internal("Upstox order stream relay address is invalid".into()))
+    async fn prepare(&mut self) -> std::result::Result<(), PrepareError> {
+        self.target = Some(match self.authorizer.signed_url().await {
+            Ok(url) => OrderTarget::Signed(Secret::new(url)),
+            Err(401) => return Err(PrepareError::AuthFailed(refused_login())),
+            Err(_) => {
+                tracing::warn!("Upstox order stream authorize failed; using the direct endpoint");
+                OrderTarget::Direct
+            }
+        });
+        Ok(())
     }
 
-    fn awaits_auth_ack(&self) -> bool {
-        true
+    fn ws_request(&self) -> Result<WsRequest> {
+        match self.target.as_ref().ok_or_else(invalid_address)? {
+            OrderTarget::Signed(url) => url
+                .expose()
+                .into_client_request()
+                .map_err(|_| invalid_address()),
+            OrderTarget::Direct => {
+                let mut r = self
+                    .direct_url
+                    .as_str()
+                    .into_client_request()
+                    .map_err(|_| invalid_address())?;
+                let h = format!("Bearer {}", self.authorizer.token.expose())
+                    .parse()
+                    .map_err(|_| invalid_address())?;
+                r.headers_mut().insert("Authorization", h);
+                Ok(r)
+            }
+        }
+    }
+
+    fn heartbeat(&self) -> Option<(Duration, Message)> {
+        Some((PING_PERIOD, Message::Ping(Vec::new())))
     }
 
     fn subscribe_frames(&mut self, _subs: &[FeedSubscription]) -> Vec<Message> {
@@ -852,12 +797,6 @@ impl BrokerFeed for UpstoxOrderFeed {
             Message::Ping(_) | Message::Pong(_) => return vec![FeedEvent::Heartbeat],
             _ => return Vec::new(),
         };
-        if let Some(c) = relay::control(&text) {
-            return match c {
-                Ok(()) => vec![FeedEvent::AuthOk],
-                Err(m) => vec![FeedEvent::AuthFailed(m)],
-            };
-        }
         let Ok(v) = serde_json::from_str::<Value>(&text) else {
             return Vec::new();
         };

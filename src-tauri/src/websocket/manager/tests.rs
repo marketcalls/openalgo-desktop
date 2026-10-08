@@ -305,3 +305,301 @@ async fn lagging_receivers_skip_ahead() {
     m.disconnect().await.unwrap();
     srv.abort();
 }
+
+/// A feed that needs async preparation, answers `PING` text frames with
+/// `PONG`, and is accepted only by timeout (never acknowledged).
+struct ProtocolFeed {
+    base: String,
+    prepares: Arc<AtomicU64>,
+    url: Option<String>,
+}
+
+#[async_trait::async_trait]
+impl BrokerFeed for ProtocolFeed {
+    fn broker(&self) -> &'static str {
+        "mock"
+    }
+    async fn prepare(&mut self) -> std::result::Result<(), PrepareError> {
+        let n = self.prepares.fetch_add(1, Ordering::SeqCst);
+        tokio::time::sleep(Duration::from_millis(5)).await;
+        match n {
+            // First attempt: the broker is unavailable; the manager backs off.
+            0 => Err(PrepareError::Unavailable),
+            // A single-use URL per connect.
+            _ => {
+                self.url = Some(format!("{}/?code={}", self.base, n));
+                Ok(())
+            }
+        }
+    }
+    fn ws_request(&self) -> crate::error::Result<crate::brokers::common::streaming::WsRequest> {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        self.url
+            .as_deref()
+            .ok_or_else(|| AppError::Internal("not prepared".into()))?
+            .into_client_request()
+            .map_err(|_| AppError::Internal("bad url".into()))
+    }
+    fn awaits_auth_ack(&self) -> bool {
+        true
+    }
+    fn auth_ack_timeout(&self) -> Option<Duration> {
+        Some(Duration::from_millis(150))
+    }
+    fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
+        subs.iter()
+            .map(|s| Message::Text(format!("SUB {}", s.symbol)))
+            .collect()
+    }
+    fn unsubscribe_frames(&mut self, _subs: &[FeedSubscription]) -> Vec<Message> {
+        Vec::new()
+    }
+    fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {
+        match msg {
+            Message::Text(t) if t == "PING" => vec![FeedEvent::Reply(Message::Text("PONG".into()))],
+            _ => Vec::new(),
+        }
+    }
+}
+
+#[tokio::test]
+async fn prepare_runs_before_connect_and_replies_go_back() {
+    let (url, seen, srv) = server(|_| (vec!["PING".to_string()], false)).await;
+    let m = WebSocketManager::with_config(fast());
+    m.subscribe(vec![sub("SBIN", FeedMode::Ltp)]).await.unwrap();
+    let prepares = Arc::new(AtomicU64::new(0));
+    m.connect(Box::new(ProtocolFeed {
+        base: url,
+        prepares: prepares.clone(),
+        url: None,
+    }))
+    .await
+    .unwrap();
+    // The reply reaches the broker; the subscribe goes out only after the
+    // acknowledgement timeout, on the connection opened after a retry.
+    wait_for(|| seen.lock().iter().any(|(_, t)| t == "PONG")).await;
+    wait_for(|| seen.lock().iter().any(|(_, t)| t == "SUB SBIN")).await;
+    assert!(m.is_connected());
+    assert_eq!(prepares.load(Ordering::SeqCst), 2);
+    let frames = seen.lock().clone();
+    let pong = frames.iter().position(|(_, t)| t == "PONG").unwrap();
+    let sub_at = frames.iter().position(|(_, t)| t == "SUB SBIN").unwrap();
+    assert!(pong < sub_at, "{:?}", frames);
+    m.disconnect().await.unwrap();
+    srv.abort();
+}
+
+#[tokio::test]
+async fn prepare_refusal_stops_until_login() {
+    struct Refused;
+    #[async_trait::async_trait]
+    impl BrokerFeed for Refused {
+        fn broker(&self) -> &'static str {
+            "mock"
+        }
+        async fn prepare(&mut self) -> std::result::Result<(), PrepareError> {
+            Err(PrepareError::AuthFailed("Log in again.".into()))
+        }
+        fn ws_request(&self) -> crate::error::Result<crate::brokers::common::streaming::WsRequest> {
+            Err(AppError::Internal("unreachable".into()))
+        }
+        fn subscribe_frames(&mut self, _: &[FeedSubscription]) -> Vec<Message> {
+            Vec::new()
+        }
+        fn unsubscribe_frames(&mut self, _: &[FeedSubscription]) -> Vec<Message> {
+            Vec::new()
+        }
+        fn parse(&mut self, _: &Message) -> Vec<FeedEvent> {
+            Vec::new()
+        }
+    }
+    let m = WebSocketManager::with_config(fast());
+    let mut status = m.watch_status();
+    m.connect(Box::new(Refused)).await.unwrap();
+    loop {
+        status.changed().await.unwrap();
+        if let FeedStatus::AuthFailed { message, .. } = &*status.borrow() {
+            assert_eq!(message, "Log in again.");
+            break;
+        }
+    }
+    m.disconnect().await.unwrap();
+    assert!(!m.is_running());
+}
+
+#[tokio::test]
+async fn a_url_without_a_path_is_requested_at_the_root() {
+    // Kite's and Dhan's feed URLs are `wss://host?query`; the request line
+    // must be `GET /?query`, not `GET ?query`.
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let seen: Arc<Mutex<Option<String>>> = Arc::default();
+    let seen2 = seen.clone();
+    let srv = tokio::spawn(async move {
+        while let Ok((tcp, _)) = listener.accept().await {
+            let seen = seen2.clone();
+            let cb = move |req: &Request,
+                           resp: Response|
+                  -> std::result::Result<Response, ErrorResponse> {
+                *seen.lock() = req.uri().path_and_query().map(|p| p.to_string());
+                Ok(resp)
+            };
+            if let Ok(mut ws) = tokio_tungstenite::accept_hdr_async(tcp, cb).await {
+                while let Some(Ok(_)) = ws.next().await {}
+            }
+        }
+    });
+    let m = WebSocketManager::with_config(fast());
+    m.connect(Box::new(MockFeed::new(format!("ws://{}?api_key=k", addr))))
+        .await
+        .unwrap();
+    wait_for(|| m.is_connected()).await;
+    assert_eq!(seen.lock().as_deref(), Some("/?api_key=k"));
+    m.disconnect().await.unwrap();
+    srv.abort();
+}
+
+/// Firstock's heartbeat is a WebSocket ping; the post-login hook frames go
+/// out even with nothing subscribed.
+struct PingFeed {
+    url: String,
+}
+
+impl BrokerFeed for PingFeed {
+    fn broker(&self) -> &'static str {
+        "mock"
+    }
+    fn ws_request(&self) -> crate::error::Result<crate::brokers::common::streaming::WsRequest> {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        self.url
+            .as_str()
+            .into_client_request()
+            .map_err(|_| AppError::Internal("bad url".into()))
+    }
+    fn on_authenticated(&mut self) -> Vec<Message> {
+        vec![Message::Text("ORDERS".into())]
+    }
+    fn subscribe_frames(&mut self, _: &[FeedSubscription]) -> Vec<Message> {
+        Vec::new()
+    }
+    fn unsubscribe_frames(&mut self, _: &[FeedSubscription]) -> Vec<Message> {
+        Vec::new()
+    }
+    fn parse(&mut self, _: &Message) -> Vec<FeedEvent> {
+        Vec::new()
+    }
+    fn heartbeat(&self) -> Option<(Duration, Message)> {
+        Some((Duration::from_millis(30), Message::Ping(b"hb".to_vec())))
+    }
+}
+
+#[tokio::test]
+async fn ping_heartbeats_and_post_login_frames_go_out_as_is() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+    let seen: Arc<Mutex<Vec<Message>>> = Arc::default();
+    let seen2 = seen.clone();
+    let srv = tokio::spawn(async move {
+        if let Ok((tcp, _)) = listener.accept().await {
+            if let Ok(mut ws) = tokio_tungstenite::accept_async(tcp).await {
+                while let Some(Ok(m)) = ws.next().await {
+                    seen2.lock().push(m);
+                }
+            }
+        }
+    });
+    let m = WebSocketManager::with_config(fast());
+    m.connect(Box::new(PingFeed { url })).await.unwrap();
+    wait_for(|| {
+        seen.lock()
+            .iter()
+            .filter(|m| matches!(m, Message::Ping(p) if p == b"hb"))
+            .count()
+            >= 2
+    })
+    .await;
+    // No subscriptions, yet the post-login frame went out first.
+    assert_eq!(seen.lock()[0], Message::Text("ORDERS".into()));
+    m.disconnect().await.unwrap();
+    srv.abort();
+}
+
+/// Captured log output for the current thread.
+#[derive(Clone, Default)]
+struct LogBuf(Arc<Mutex<Vec<u8>>>);
+
+impl std::io::Write for LogBuf {
+    fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().extend_from_slice(b);
+        Ok(b.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn credentials_in_urls_never_reach_the_log() {
+    const SENTINEL: &str = "SENTINELTOKEN9f3a";
+    let buf = LogBuf::default();
+    let writer = buf.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::TRACE)
+        .with_ansi(false)
+        .with_writer(move || writer.clone())
+        .finish();
+    // Thread-local: this test runtime is single-threaded, so the manager's
+    // tasks log into it too.
+    let _guard = tracing::subscriber::set_default(subscriber);
+
+    // A feed whose socket refuses, then one that accepts TCP and hangs up
+    // during the handshake: connect errors on a credentialed URL.
+    let closed = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let refused = closed.local_addr().unwrap();
+    drop(closed);
+    let hangup = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let hang_addr = hangup.local_addr().unwrap();
+    let srv = tokio::spawn(async move {
+        while let Ok((tcp, _)) = hangup.accept().await {
+            drop(tcp);
+        }
+    });
+    for addr in [refused, hang_addr] {
+        let m = WebSocketManager::with_config(fast());
+        let url = format!(
+            "ws://user:{s}@{a}/feed?api_key=k&access_token={s}",
+            s = SENTINEL,
+            a = addr
+        );
+        m.connect(Box::new(MockFeed::new(url))).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        m.disconnect().await.unwrap();
+    }
+    srv.abort();
+
+    // A failing broker call on the shared client: the raw error repeats
+    // the URL; what is logged does not.
+    let url = format!("http://{}/orders?access_token={}", refused, SENTINEL);
+    let raw = crate::brokers::common::http::client()
+        .get(&url)
+        .send()
+        .await
+        .unwrap_err();
+    assert!(raw.to_string().contains(SENTINEL), "the check must be real");
+    tracing::warn!(
+        "Broker call failed: {}",
+        crate::brokers::common::redact::url_safe_error(&raw)
+    );
+    let app: AppError = raw.into();
+    tracing::warn!("Broker call failed: {}", app);
+    tracing::warn!("Broker call failed: {:?}", app);
+
+    let out = String::from_utf8_lossy(&buf.0.lock()).to_string();
+    assert!(out.contains("Market data feed connect failed"), "{}", out);
+    assert!(out.contains("Broker call failed"), "{}", out);
+    assert!(
+        !out.contains(SENTINEL),
+        "a credential reached the log:\n{}",
+        out
+    );
+}

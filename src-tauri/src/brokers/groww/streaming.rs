@@ -1,9 +1,8 @@
 //! Groww live data: NATS over WebSocket with protobuf payloads (web
 //! `streaming/nats_websocket.py`, `groww_nats.py`, `groww_adapter.py`).
 //!
-//! The shared manager talks to a loopback relay (`upstox::relay`); the
-//! relay's `GrowwUpstream` does the Groww-specific connect work on every
-//! (re)connect:
+//! `GrowwFeed` runs on the shared manager. Before every (re)connect its
+//! `prepare` does the Groww-specific work:
 //! 1. a fresh Ed25519 nkey pair; `POST /v1/api/apex/v1/socket/token/create/`
 //!    with `{"socketKey": "<U...>"}` -> `{token, subscriptionId}` (on any
 //!    failure the web falls back to the auth token and `direct_auth`);
@@ -13,7 +12,9 @@
 //!    `PING` gets `PONG`; the client pings every 10 s; `-ERR` naming
 //!    authorization ends the session as an auth failure.
 //!
-//! Each complete `MSG` op reaches `GrowwFeed::parse` as one binary frame.
+//! `parse` buffers frames into NATS ops (an op may span frames, a frame may
+//! hold several); protocol replies go back as `FeedEvent::Reply`, and the
+//! manager treats the session as accepted after 2 s without `+OK`.
 //! Subjects: `/ld/{eq|fo}/{nse|bse}/price.{token}` (LTP/quote) and
 //! `.../book.{token}` (depth). NSE indices use the OpenAlgo symbol as the
 //! token, BSE indices the numeric token; depth on an index falls back to
@@ -24,15 +25,14 @@ use super::nkeys::KeyPair;
 use super::proto;
 use crate::brokers::common::streaming::{
     now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, WsRequest,
+    NormalizedTick, PrepareError, WsRequest,
 };
 use crate::brokers::types::DepthLevel;
-use crate::brokers::upstox::relay::{self, Open, RelayHandle, Session, Step, Upstream};
 use crate::error::{AppError, Result};
+use crate::security::Secret;
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::Duration;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
@@ -165,175 +165,86 @@ pub fn connect_frame(jwt: &str, nkey: Option<&str>, sig: Option<&str>) -> String
 }
 
 // ---------------------------------------------------------------------------
-// Relay side: socket token, connect, NATS session
+// Connect: socket token and handshake request
 // ---------------------------------------------------------------------------
 
-/// Credentials minted by one `open` for the session that follows.
-struct Minted {
-    jwt: String,
+/// Credentials minted by one `prepare` for the connection that follows.
+pub struct Minted {
+    jwt: Secret,
+    subscription: String,
     key: Option<KeyPair>,
 }
 
-pub struct GrowwUpstream {
-    http: reqwest::Client,
-    auth_token: crate::security::Secret,
-    endpoints: FeedEndpoints,
-    minted: parking_lot::Mutex<Option<Minted>>,
-}
-
-impl GrowwUpstream {
-    pub fn new(http: reqwest::Client, auth_token: &str, endpoints: FeedEndpoints) -> Self {
-        Self {
-            http,
-            auth_token: crate::security::Secret::new(auth_token),
-            endpoints,
-            minted: parking_lot::Mutex::new(None),
-        }
-    }
-
-    /// Socket token for a fresh key pair; falls back to the auth token
-    /// (`direct_auth`, no signature) like the web.
-    async fn socket_token(&self) -> (String, String, Option<KeyPair>) {
-        let key = KeyPair::generate();
-        let auth = self.auth_token.expose();
-        let resp = self
-            .http
-            .post(&self.endpoints.socket_token_url)
-            .timeout(TOKEN_TIMEOUT)
-            .header("x-request-id", uuid::Uuid::new_v4().to_string())
-            .header("Authorization", format!("Bearer {}", auth))
-            .header("Content-Type", "application/json")
-            .header("x-client-id", "growwapi")
-            .header("x-client-platform", "growwapi-python-client")
-            .header("x-client-platform-version", "0.0.8")
-            .header("x-api-version", "1.0")
-            .json(&json!({"socketKey": key.public_key()}))
-            .send()
-            .await;
-        if let Ok(r) = resp {
-            let status = r.status();
-            if status.is_success() {
-                if let Ok(v) = r.json::<Value>().await {
-                    let token = v.get("token").and_then(Value::as_str).unwrap_or("");
-                    let sub = v
-                        .get("subscriptionId")
-                        .and_then(Value::as_str)
-                        .unwrap_or("");
-                    if !token.is_empty() {
-                        return (token.to_string(), sub.to_string(), Some(key));
-                    }
-                }
-            }
-            tracing::warn!(
-                status = status.as_u16(),
-                "Groww socket token not issued; using the session token directly"
-            );
-        } else {
-            tracing::warn!("Groww socket token request failed; using the session token directly");
-        }
-        (auth.to_string(), "direct_auth".to_string(), None)
-    }
-
-    fn request(&self, jwt: &str, subscription: &str, with_protocol: bool) -> Option<WsRequest> {
-        let mut req = self.endpoints.ws_url.as_str().into_client_request().ok()?;
-        let h = req.headers_mut();
-        h.insert(
-            "Authorization",
-            HeaderValue::from_str(&format!("Bearer {}", jwt)).ok()?,
-        );
-        h.insert(
-            "X-Subscription-Id",
-            HeaderValue::from_str(subscription).ok()?,
-        );
-        h.insert(
-            "User-Agent",
-            HeaderValue::from_static("Python/3.10 nats.py/2.10.18"),
-        );
-        h.insert("X-Client-Id", HeaderValue::from_static("nats-py"));
-        h.insert("X-API-Version", HeaderValue::from_static("1.0"));
-        if with_protocol {
-            h.insert("Sec-WebSocket-Protocol", HeaderValue::from_static("nats"));
-        }
-        Some(req)
-    }
-}
-
-#[async_trait]
-impl Upstream for GrowwUpstream {
-    fn broker(&self) -> &'static str {
-        "groww"
-    }
-
-    async fn open(&self) -> Open {
-        let (jwt, subscription, key) = self.socket_token().await;
-        for with_protocol in [true, false] {
-            let Some(req) = self.request(&jwt, &subscription, with_protocol) else {
-                tracing::error!("Groww feed request could not be built");
-                return Open::Unavailable;
-            };
-            match tokio_tungstenite::connect_async(req).await {
-                Ok((ws, _)) => {
-                    *self.minted.lock() = Some(Minted { jwt, key });
-                    return Open::Ready(Box::new(ws));
-                }
-                Err(tokio_tungstenite::tungstenite::Error::Http(resp))
-                    if matches!(resp.status().as_u16(), 401 | 403) =>
-                {
-                    tracing::warn!(
-                        status = resp.status().as_u16(),
-                        "Groww feed refused the session"
-                    );
-                    return Open::AuthFailed(
-                        "Groww refused the live market data session. Log in to Groww again.".into(),
-                    );
-                }
-                // The server did not echo the `nats` subprotocol: retry
-                // without asking for it.
-                Err(tokio_tungstenite::tungstenite::Error::Protocol(p))
-                    if with_protocol
-                        && p.to_string().to_ascii_lowercase().contains("subprotocol") =>
-                {
-                    continue
-                }
-                Err(e) => {
-                    tracing::debug!("Groww feed connect failed: {}", e);
-                    return Open::Unavailable;
+/// Socket token for a fresh key pair; falls back to the auth token
+/// (`direct_auth`, no signature) like the web.
+async fn socket_token(http: &reqwest::Client, url: &str, auth: &str) -> Minted {
+    let key = KeyPair::generate();
+    let resp = http
+        .post(url)
+        .timeout(TOKEN_TIMEOUT)
+        .header("x-request-id", uuid::Uuid::new_v4().to_string())
+        .header("Authorization", format!("Bearer {}", auth))
+        .header("Content-Type", "application/json")
+        .header("x-client-id", "growwapi")
+        .header("x-client-platform", "growwapi-python-client")
+        .header("x-client-platform-version", "0.0.8")
+        .header("x-api-version", "1.0")
+        .json(&json!({"socketKey": key.public_key()}))
+        .send()
+        .await;
+    if let Ok(r) = resp {
+        let status = r.status();
+        if status.is_success() {
+            if let Ok(v) = r.json::<Value>().await {
+                let token = v.get("token").and_then(Value::as_str).unwrap_or("");
+                let sub = v
+                    .get("subscriptionId")
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                if !token.is_empty() {
+                    return Minted {
+                        jwt: Secret::new(token),
+                        subscription: sub.to_string(),
+                        key: Some(key),
+                    };
                 }
             }
         }
-        Open::Unavailable
+        tracing::warn!(
+            status = status.as_u16(),
+            "Groww socket token not issued; using the session token directly"
+        );
+    } else {
+        tracing::warn!("Groww socket token request failed; using the session token directly");
     }
-
-    fn session(&self) -> Box<dyn Session> {
-        let m = self.minted.lock().take();
-        let (jwt, key) = match m {
-            Some(m) => (m.jwt, m.key),
-            None => (self.auth_token.expose().to_string(), None),
-        };
-        Box::new(NatsSession::new(jwt, key))
+    Minted {
+        jwt: Secret::new(auth),
+        subscription: "direct_auth".to_string(),
+        key: None,
     }
 }
 
-/// Per-connection NATS state (relay side).
-pub struct NatsSession {
-    jwt: String,
-    key: Option<KeyPair>,
-    buf: Vec<u8>,
-    connect_sent: bool,
-    /// Feed frames that arrived before `CONNECT` went out.
-    held: Vec<Message>,
-}
-
-impl NatsSession {
-    pub fn new(jwt: String, key: Option<KeyPair>) -> Self {
-        Self {
-            jwt,
-            key,
-            buf: Vec::new(),
-            connect_sent: false,
-            held: Vec::new(),
-        }
+fn socket_request(ws_url: &str, m: &Minted, with_protocol: bool) -> Option<WsRequest> {
+    let mut req = ws_url.into_client_request().ok()?;
+    let h = req.headers_mut();
+    h.insert(
+        "Authorization",
+        HeaderValue::from_str(&format!("Bearer {}", m.jwt.expose())).ok()?,
+    );
+    h.insert(
+        "X-Subscription-Id",
+        HeaderValue::from_str(&m.subscription).ok()?,
+    );
+    h.insert(
+        "User-Agent",
+        HeaderValue::from_static("Python/3.10 nats.py/2.10.18"),
+    );
+    h.insert("X-Client-Id", HeaderValue::from_static("nats-py"));
+    h.insert("X-API-Version", HeaderValue::from_static("1.0"));
+    if with_protocol {
+        h.insert("Sec-WebSocket-Protocol", HeaderValue::from_static("nats"));
     }
+    Some(req)
 }
 
 fn is_auth_error(m: &str) -> bool {
@@ -341,95 +252,8 @@ fn is_auth_error(m: &str) -> bool {
     m.contains("authoriz") || m.contains("authenticat")
 }
 
-impl Session for NatsSession {
-    fn ready_on_open(&self) -> bool {
-        false
-    }
-
-    fn assume_ready_after(&self) -> Option<Duration> {
-        Some(ASSUME_READY_AFTER)
-    }
-
-    fn keepalive(&self) -> Option<(Duration, Message)> {
-        Some((NATS_PING_EVERY, Message::Text("PING\r\n".into())))
-    }
-
-    fn on_downstream(&mut self, msg: Message) -> Vec<Message> {
-        match msg {
-            m @ (Message::Text(_) | Message::Binary(_)) => {
-                if self.connect_sent {
-                    vec![m]
-                } else {
-                    self.held.push(m);
-                    Vec::new()
-                }
-            }
-            _ => Vec::new(),
-        }
-    }
-
-    fn on_upstream(&mut self, msg: Message) -> Step {
-        let mut step = Step::default();
-        match msg {
-            Message::Text(t) => self.buf.extend_from_slice(t.as_bytes()),
-            Message::Binary(b) => self.buf.extend_from_slice(&b),
-            Message::Ping(_) | Message::Pong(_) => {
-                step.down.push(Message::Ping(Vec::new()));
-                return step;
-            }
-            _ => return step,
-        }
-        if self.buf.len() > MAX_PENDING_BYTES {
-            tracing::warn!("Groww feed sent an oversized frame; dropping it");
-            self.buf.clear();
-            return step;
-        }
-        let mut used = 0;
-        while let Some((op, n)) = next_op(&self.buf[used..]) {
-            let raw = &self.buf[used..used + n];
-            match op {
-                Op::Info(info) => {
-                    let nonce = info.get("nonce").and_then(Value::as_str).unwrap_or("");
-                    let (nkey, sig) = match (&self.key, nonce.is_empty()) {
-                        (Some(k), false) => (Some(k.public_key()), Some(k.sign_nonce(nonce))),
-                        _ => (None, None),
-                    };
-                    step.up.push(Message::Text(connect_frame(
-                        &self.jwt,
-                        nkey.as_deref(),
-                        sig.as_deref(),
-                    )));
-                    step.up.push(Message::Text("PING\r\n".into()));
-                    self.connect_sent = true;
-                    step.up.append(&mut self.held);
-                }
-                Op::Ping => step.up.push(Message::Text("PONG\r\n".into())),
-                Op::Pong => {
-                    if self.connect_sent {
-                        step.ready = true;
-                    }
-                    step.down.push(Message::Ping(Vec::new()));
-                }
-                Op::Ok => step.ready = true,
-                Op::Err(m) => {
-                    if is_auth_error(&m) {
-                        tracing::warn!("Groww feed refused the session: {}", m);
-                        step.auth_failed = Some(
-                            "Groww refused the live market data session. Log in to Groww again."
-                                .into(),
-                        );
-                    } else {
-                        tracing::warn!("Groww feed error: {}", m);
-                    }
-                }
-                Op::Msg { .. } => step.down.push(Message::Binary(raw.to_vec())),
-                Op::Other(line) => tracing::debug!("Groww feed op ignored: {}", line),
-            }
-            used += n;
-        }
-        self.buf.drain(..used);
-        step
-    }
+fn refused() -> String {
+    "Groww refused the live market data session. Log in to Groww again.".into()
 }
 
 // ---------------------------------------------------------------------------
@@ -467,8 +291,17 @@ struct Inst {
 type Key = (String, String);
 
 pub struct GrowwFeed {
-    upstream: Arc<GrowwUpstream>,
-    relay: parking_lot::Mutex<Option<RelayHandle>>,
+    http: reqwest::Client,
+    auth_token: Secret,
+    endpoints: FeedEndpoints,
+    /// Socket token and key pair for the current connection.
+    minted: Option<Minted>,
+    /// Ask for the `nats` subprotocol (dropped when the server does not
+    /// echo it).
+    with_protocol: bool,
+    /// Bytes of a partial NATS op (bounded by `MAX_PENDING_BYTES`).
+    buf: Vec<u8>,
+    connect_sent: bool,
     next_sid: u64,
     instruments: HashMap<Key, Inst>,
     sids: HashMap<u64, (Key, Kind)>,
@@ -528,8 +361,13 @@ fn levels(side: &[proto::DepthLevel]) -> Vec<DepthLevel> {
 impl GrowwFeed {
     pub fn new(http: reqwest::Client, auth_token: &str, endpoints: FeedEndpoints) -> Self {
         Self {
-            upstream: Arc::new(GrowwUpstream::new(http, auth_token, endpoints)),
-            relay: parking_lot::Mutex::new(None),
+            http,
+            auth_token: Secret::new(auth_token),
+            endpoints,
+            minted: None,
+            with_protocol: true,
+            buf: Vec::new(),
+            connect_sent: false,
             next_sid: 1,
             instruments: HashMap::new(),
             sids: HashMap::new(),
@@ -655,43 +493,151 @@ impl GrowwFeed {
         out
     }
 
-    fn parse_binary(&mut self, data: &[u8]) -> Vec<FeedEvent> {
+    /// Use these credentials for the next handshake (tests drive the NATS
+    /// handshake without a socket-token server).
+    pub fn set_minted(&mut self, jwt: &str, key: Option<KeyPair>) {
+        self.minted = Some(Minted {
+            jwt: Secret::new(jwt),
+            subscription: "direct_auth".into(),
+            key,
+        });
+    }
+
+    /// The `CONNECT` reply to the server's `INFO`, signed over its nonce.
+    fn connect_reply(&self, info: &Value) -> String {
+        let nonce = info.get("nonce").and_then(Value::as_str).unwrap_or("");
+        let (jwt, key) = match &self.minted {
+            Some(m) => (m.jwt.expose().to_string(), m.key.as_ref()),
+            None => (self.auth_token.expose().to_string(), None),
+        };
+        let (nkey, sig) = match (key, nonce.is_empty()) {
+            (Some(k), false) => (Some(k.public_key()), Some(k.sign_nonce(nonce))),
+            _ => (None, None),
+        };
+        connect_frame(&jwt, nkey.as_deref(), sig.as_deref())
+    }
+
+    /// Buffer one frame and handle every complete NATS op in it.
+    fn parse_ops(&mut self, data: &[u8]) -> Vec<FeedEvent> {
+        self.buf.extend_from_slice(data);
+        if self.buf.len() > MAX_PENDING_BYTES {
+            tracing::warn!("Groww feed sent an oversized frame; dropping it");
+            self.buf.clear();
+            return Vec::new();
+        }
+        let buf = std::mem::take(&mut self.buf);
         let mut out = Vec::new();
         let mut used = 0;
-        while let Some((op, n)) = next_op(&data[used..]) {
-            if let Op::Msg { sid, payload, .. } = op {
-                out.extend(self.on_msg(sid, &payload));
-            }
+        while let Some((op, n)) = next_op(&buf[used..]) {
             used += n;
+            match op {
+                Op::Info(info) => {
+                    let connect = self.connect_reply(&info);
+                    out.push(FeedEvent::Reply(Message::Text(connect)));
+                    out.push(FeedEvent::Reply(Message::Text("PING\r\n".into())));
+                    self.connect_sent = true;
+                }
+                Op::Ping => out.push(FeedEvent::Reply(Message::Text("PONG\r\n".into()))),
+                Op::Pong => {
+                    out.push(FeedEvent::Heartbeat);
+                    if self.connect_sent {
+                        out.push(FeedEvent::AuthOk);
+                    }
+                }
+                Op::Ok => out.push(FeedEvent::AuthOk),
+                Op::Err(m) => {
+                    if is_auth_error(&m) {
+                        tracing::warn!("Groww feed refused the session: {}", m);
+                        out.push(FeedEvent::AuthFailed(refused()));
+                    } else {
+                        tracing::warn!("Groww feed error: {}", m);
+                    }
+                }
+                Op::Msg { sid, payload, .. } => out.extend(self.on_msg(sid, &payload)),
+                Op::Other(line) => tracing::debug!("Groww feed op ignored: {}", line),
+            }
         }
+        self.buf = buf;
+        self.buf.drain(..used);
         out
     }
 }
 
+#[async_trait]
 impl BrokerFeed for GrowwFeed {
     fn broker(&self) -> &'static str {
         "groww"
     }
 
+    async fn prepare(&mut self) -> std::result::Result<(), PrepareError> {
+        if self.auth_token.expose().trim().is_empty() {
+            return Err(PrepareError::AuthFailed(refused()));
+        }
+        self.minted = Some(
+            socket_token(
+                &self.http,
+                &self.endpoints.socket_token_url,
+                self.auth_token.expose(),
+            )
+            .await,
+        );
+        self.with_protocol = true;
+        Ok(())
+    }
+
     fn ws_request(&self) -> Result<WsRequest> {
-        let up = self.upstream.clone();
-        let url = relay::ensure_started(&self.relay, move || up as Arc<dyn Upstream>)?;
-        url.as_str()
-            .into_client_request()
-            .map_err(|_| AppError::Internal("Groww feed relay address is invalid".into()))
+        let fallback;
+        let m = match &self.minted {
+            Some(m) => m,
+            None => {
+                fallback = Minted {
+                    jwt: self.auth_token.clone(),
+                    subscription: "direct_auth".into(),
+                    key: None,
+                };
+                &fallback
+            }
+        };
+        socket_request(&self.endpoints.ws_url, m, self.with_protocol).ok_or_else(|| {
+            tracing::error!("Groww feed request could not be built");
+            AppError::Broker("Groww live data could not be started. Log in to Groww again.".into())
+        })
+    }
+
+    fn on_connect_failed(&mut self, error: &str) -> bool {
+        // The server did not echo the `nats` subprotocol: retry without it.
+        if self.with_protocol && error.to_ascii_lowercase().contains("subprotocol") {
+            self.with_protocol = false;
+            return true;
+        }
+        false
     }
 
     fn on_connected(&mut self) -> Vec<Message> {
-        // NATS sids are per connection; everything is re-subscribed after
-        // the relay reports ready.
+        // NATS sids are per connection; everything is re-subscribed once
+        // the server accepts the session.
         self.instruments.clear();
         self.sids.clear();
         self.next_sid = 1;
+        self.buf.clear();
+        self.connect_sent = false;
         Vec::new()
     }
 
     fn awaits_auth_ack(&self) -> bool {
         true
+    }
+
+    fn auth_ack_timeout(&self) -> Option<Duration> {
+        Some(ASSUME_READY_AFTER)
+    }
+
+    fn heartbeat(&self) -> Option<(Duration, Message)> {
+        Some((NATS_PING_EVERY, Message::Text("PING\r\n".into())))
+    }
+
+    fn is_auth_failure(&self, http_status: Option<u16>) -> bool {
+        matches!(http_status, Some(401) | Some(403))
     }
 
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
@@ -741,12 +687,8 @@ impl BrokerFeed for GrowwFeed {
 
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {
         match msg {
-            Message::Text(t) => match relay::control(t) {
-                Some(Ok(())) => vec![FeedEvent::AuthOk],
-                Some(Err(m)) => vec![FeedEvent::AuthFailed(m)],
-                None => Vec::new(),
-            },
-            Message::Binary(b) => self.parse_binary(b),
+            Message::Text(t) => self.parse_ops(t.as_bytes()),
+            Message::Binary(b) => self.parse_ops(b),
             Message::Ping(_) | Message::Pong(_) => vec![FeedEvent::Heartbeat],
             _ => Vec::new(),
         }

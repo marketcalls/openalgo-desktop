@@ -47,7 +47,7 @@ pub mod zerodha;
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
 use common::mapping::{Exchange, OrderStatus, PriceType, Product};
-use common::streaming::BrokerFeed;
+use common::streaming::{BrokerFeed, OrderFeed};
 use common::symbols::SymbolResolver;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -84,10 +84,28 @@ pub trait Broker: Send + Sync {
         None
     }
 
-    // ---- auth ----
+    // ---- auth and session lifecycle ----
 
     /// Exchange login credentials (or an OAuth code) for a session token.
     async fn authenticate(&self, credentials: BrokerCredentials) -> Result<AuthResponse>;
+
+    /// A browser sign-in whose address needs a broker call first (Dhan's
+    /// consent). `None` means the catalogue's authorize URL applies.
+    /// `credentials.redirect_uri` carries the callback address.
+    async fn begin_login(&self, _credentials: &BrokerCredentials) -> Result<Option<String>> {
+        Ok(None)
+    }
+
+    /// A stored session is being used again without a new login (resume
+    /// after the app restarted): rebuild per-login state the token does not
+    /// carry (Kotak's UCC) from the stored broker credentials. Login secrets
+    /// (password, TOTP, codes) are never set here.
+    fn restore_session(&self, _credentials: &BrokerCredentials) {}
+
+    /// Stop everything the adapter runs on its own (order pollers, cached
+    /// per-session state). Called on broker logout, at the daily session
+    /// boundary and on app shutdown; must be idempotent.
+    async fn on_logout(&self) {}
 
     // ---- orders ----
 
@@ -303,6 +321,16 @@ pub trait Broker: Send + Sync {
     async fn get_holdings(&self, auth: &AuthToken) -> Result<Vec<Holding>>;
     async fn get_funds(&self, auth: &AuthToken) -> Result<Funds>;
 
+    /// Holdings with the broker's own portfolio totals when it reports them
+    /// (Angel's `totalholding`). Default: the holdings, no totals, and the
+    /// caller computes them (web `calculate_portfolio_statistics`).
+    async fn get_holdings_with_totals(&self, auth: &AuthToken) -> Result<HoldingsBook> {
+        Ok(HoldingsBook {
+            holdings: self.get_holdings(auth).await?,
+            totals: None,
+        })
+    }
+
     /// Margin for a basket of legs (web `calculate_margin_api`).
     async fn calculate_margin(
         &self,
@@ -396,6 +424,26 @@ pub trait Broker: Send + Sync {
     fn create_feed(&self, _auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         Err(AppError::Unsupported("streaming"))
     }
+
+    /// Where order updates come from: a dedicated socket, or a stream the
+    /// adapter produces itself (an order-book poller it stops in
+    /// `on_logout`). A broker whose market feed already carries order
+    /// updates (Kite) leaves this unsupported.
+    fn create_order_feed(&self, _auth: &AuthToken) -> Result<OrderFeed> {
+        Err(AppError::Unsupported("order_feed"))
+    }
+
+    /// A separate socket for books deeper than the market feed's (Fyers 50
+    /// levels, Dhan 20). Subscriptions asking for `levels` go to it.
+    fn create_depth_feed(&self, _auth: &AuthToken, _levels: u8) -> Result<Box<dyn BrokerFeed>> {
+        Err(AppError::Unsupported("depth_feed"))
+    }
+
+    /// Depth levels the feeds can stream for `exchange` (what a feed client
+    /// may ask for). Default: the advertised `depth_levels`.
+    fn feed_depth_levels(&self, _exchange: &str) -> Vec<u8> {
+        self.capabilities().depth_levels.to_vec()
+    }
 }
 
 /// Broker credentials for authentication. `Debug` is redacted.
@@ -413,6 +461,10 @@ pub struct BrokerCredentials {
     pub api_key_market: Option<String>,
     #[serde(default)]
     pub api_secret_market: Option<String>,
+    /// The callback address the authorize URL was built with; brokers that
+    /// check it on the code exchange (Upstox) repeat it byte for byte.
+    #[serde(default)]
+    pub redirect_uri: Option<String>,
 }
 
 impl std::fmt::Debug for BrokerCredentials {

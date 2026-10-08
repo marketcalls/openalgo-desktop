@@ -28,7 +28,7 @@ use crate::brokers::common::de::string_lenient;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::{backoff_delay, Pacer};
-use crate::brokers::common::streaming::BrokerFeed;
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -382,10 +382,8 @@ impl Broker for AngelBroker {
             margin: true,
             gtt: true,
             streaming: true,
-            // The order-status socket is a separate connection
-            // (`AngelBroker::create_order_feed`); the trait has no factory
-            // for it yet, so it is not advertised.
-            order_feed: false,
+            // The order-status socket is a separate connection.
+            order_feed: true,
             depth_levels: &[5],
         }
     }
@@ -512,12 +510,20 @@ impl Broker for AngelBroker {
             self.symbols.clone(),
         )?))
     }
+
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        Ok(OrderFeed::Socket(self.order_socket(auth)?))
+    }
+
+    async fn get_holdings_with_totals(&self, auth: &AuthToken) -> Result<HoldingsBook> {
+        orders::get_holdings_with_totals(self, auth).await
+    }
 }
 
 impl AngelBroker {
-    /// The dedicated order-status socket (web `angel_order_adapter.py`).
-    /// Not part of the `Broker` trait yet; see the capability note.
-    pub fn create_order_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
+    /// The dedicated order-status socket (web `angel_order_adapter.py`),
+    /// served through `Broker::create_order_feed`.
+    pub fn order_socket(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         let (_, jwt) = auth.pair().ok_or_else(session_expired)?;
         Ok(Box::new(streaming::AngelOrderFeed::new(
             &self.order_feed_url,

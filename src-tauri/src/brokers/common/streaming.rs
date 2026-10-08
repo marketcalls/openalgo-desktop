@@ -4,9 +4,16 @@
 //! frames to send, and how to turn broker frames into normalised events.
 //! The socket, reconnects, backoff, watchdog and re-subscription live once,
 //! in `crate::websocket::WebSocketManager`.
+//!
+//! Brokers whose connect needs async work (Upstox's single-use authorize
+//! call, Groww's socket token) do it in `prepare`, which the manager awaits
+//! before every (re)connect. Protocol replies (NATS `CONNECT` and `PONG`)
+//! are returned from `parse` as `FeedEvent::Reply` and written to the
+//! socket by the manager.
 
 use crate::brokers::types::DepthLevel;
 use crate::error::Result;
+use async_trait::async_trait;
 use serde::Serialize;
 use std::sync::Arc;
 use std::time::Duration;
@@ -145,18 +152,66 @@ pub enum FeedEvent {
     /// Broker refused the session; the manager stops reconnecting.
     AuthFailed(String),
     Heartbeat,
+    /// A frame to write back to the broker (protocol replies: NATS
+    /// `CONNECT` after `INFO`, `PONG` after `PING`). Never published.
+    Reply(Message),
+}
+
+/// Why `BrokerFeed::prepare` could not ready a connection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PrepareError {
+    /// The broker refused the stored login; the manager stops until the
+    /// trader logs in again. The message is trader-facing.
+    AuthFailed(String),
+    /// Anything else (network, broker outage): back off and retry.
+    Unavailable,
+}
+
+/// Where a broker's order updates come from.
+pub enum OrderFeed {
+    /// A dedicated order socket, run by its own `WebSocketManager`.
+    Socket(Box<dyn BrokerFeed>),
+    /// Updates produced by the adapter itself (an order-book poller). The
+    /// adapter owns the producing task and stops it in `Broker::on_logout`;
+    /// the channel closes with it.
+    Stream(tokio::sync::mpsc::Receiver<OrderUpdate>),
+}
+
+impl std::fmt::Debug for OrderFeed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OrderFeed::Socket(s) => write!(f, "OrderFeed::Socket({})", s.broker()),
+            OrderFeed::Stream(_) => f.write_str("OrderFeed::Stream"),
+        }
+    }
 }
 
 /// Events published to subscribers of the manager (shared, cheap to clone).
 pub type MarketEvent = Arc<FeedEvent>;
 
 /// The per-broker streaming adapter.
+#[async_trait]
 pub trait BrokerFeed: Send + Sync {
     /// Broker id, for logs.
     fn broker(&self) -> &'static str;
 
+    /// Async work before every (re)connect, awaited by the manager inside
+    /// its connect timeout: fetch a single-use socket URL, mint a socket
+    /// token. `ws_request` is called right after it succeeds.
+    async fn prepare(&mut self) -> std::result::Result<(), PrepareError> {
+        Ok(())
+    }
+
     /// URL and headers for the WebSocket handshake. Must not log secrets.
     fn ws_request(&self) -> Result<WsRequest>;
+
+    /// A connect attempt failed before the handshake completed (`error` is
+    /// for matching, never shown to the trader). Return true to retry once,
+    /// at once, with a fresh `ws_request` (Groww drops the `nats`
+    /// subprotocol when the server does not echo it); false backs off.
+    fn on_connect_failed(&mut self, _error: &str) -> bool {
+        false
+    }
 
     /// Frames to send right after the socket opens (HSM auth, login).
     fn on_connected(&mut self) -> Vec<Message> {
@@ -166,6 +221,20 @@ pub trait BrokerFeed: Send + Sync {
     /// Whether subscriptions must wait for `FeedEvent::AuthOk`.
     fn awaits_auth_ack(&self) -> bool {
         false
+    }
+
+    /// Frames to send once per connection after the session is accepted
+    /// (after `FeedEvent::AuthOk`, or right after connecting when no
+    /// acknowledgement is awaited), before any subscription and even when
+    /// there are none: Noren's order-update subscription `{"t":"o"}`.
+    fn on_authenticated(&mut self) -> Vec<Message> {
+        Vec::new()
+    }
+
+    /// When the broker may never acknowledge (Groww's NATS `+OK` is
+    /// optional), treat the session as accepted after this long.
+    fn auth_ack_timeout(&self) -> Option<Duration> {
+        None
     }
 
     /// Frames that subscribe these instruments (one per instrument, already
@@ -208,6 +277,29 @@ pub trait BrokerFeed: Send + Sync {
     }
 }
 
+/// A handshake request whose URL has no path (`wss://ws.kite.trade?api_key=..`)
+/// would go out as `GET ?api_key=..`, which servers refuse. Give it the root
+/// path, keeping the query and headers.
+pub fn normalize_request(mut req: WsRequest) -> WsRequest {
+    let pq = req.uri().path_and_query().map(|p| p.as_str()).unwrap_or("");
+    if pq.starts_with('/') {
+        return req;
+    }
+    let uri = req.uri().clone();
+    let pq = match uri.query() {
+        Some(q) => format!("/?{}", q),
+        None => "/".to_string(),
+    };
+    let mut parts = uri.into_parts();
+    if let Ok(p) = pq.parse() {
+        parts.path_and_query = Some(p);
+        if let Ok(u) = tokio_tungstenite::tungstenite::http::Uri::from_parts(parts) {
+            *req.uri_mut() = u;
+        }
+    }
+    req
+}
+
 pub fn round2(v: f64) -> f64 {
     (v * 100.0).round() / 100.0
 }
@@ -227,6 +319,24 @@ mod tests {
         assert_eq!(FeedMode::from_code(9), None);
         assert!(FeedMode::Depth > FeedMode::Quote);
         assert_eq!(FeedMode::Depth.code(), 3);
+    }
+
+    #[test]
+    fn empty_path_becomes_root_and_keeps_the_query() {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        let r = normalize_request(
+            "wss://ws.kite.trade?api_key=k&access_token=t"
+                .into_client_request()
+                .unwrap(),
+        );
+        assert_eq!(
+            r.uri().path_and_query().unwrap().as_str(),
+            "/?api_key=k&access_token=t"
+        );
+        assert_eq!(r.uri().query(), Some("api_key=k&access_token=t"));
+        assert_eq!(r.uri().host(), Some("ws.kite.trade"));
+        let r = normalize_request("ws://127.0.0.1:9/feed?x=1".into_client_request().unwrap());
+        assert_eq!(r.uri().to_string(), "ws://127.0.0.1:9/feed?x=1");
     }
 
     #[test]

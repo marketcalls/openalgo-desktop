@@ -993,18 +993,11 @@ fn feed_config_and_dividers() {
         (None, DEFAULT_SFEED_URL.into())
     );
     assert_eq!(to_wss("http://h/x"), "ws://h/x");
-    assert_eq!(
-        streaming::with_root_path("wss://mlhsm.kotaksecurities.com"),
-        "wss://mlhsm.kotaksecurities.com/"
-    );
-    assert_eq!(streaming::with_root_path("wss://h?x=1"), "wss://h/?x=1");
-    assert_eq!(
-        streaming::with_root_path("wss://h/apifeed"),
-        "wss://h/apifeed"
-    );
     let hsm = KotakHsmFeed::new(hsm::DEFAULT_HSM_URL, "t", "s");
     assert_eq!(
-        hsm.ws_request().unwrap().uri().to_string(),
+        crate::brokers::common::streaming::normalize_request(hsm.ws_request().unwrap())
+            .uri()
+            .to_string(),
         "wss://mlhsm.kotaksecurities.com/"
     );
     assert_eq!(to_wss("wss://h"), "wss://h");
@@ -1208,6 +1201,13 @@ fn hsm_decoder_snapshots_updates_and_acks() {
         other => panic!("unexpected {:?}", other),
     }
     assert_eq!(feed.topic_count(), 1);
+    // A data frame due an acknowledgement is answered on the same socket.
+    let ev = feed.parse(&Message::Binary(frame2));
+    assert!(
+        ev.contains(&FeedEvent::Reply(Message::Binary(hsm::ack_frame(102)))),
+        "{:?}",
+        ev
+    );
 }
 
 #[test]
@@ -1246,4 +1246,43 @@ fn feed_state_is_released_with_its_subscriptions() {
         )))
         .is_empty());
     assert_eq!(f.state_len(), 0);
+}
+
+#[tokio::test]
+async fn resumed_session_restores_the_ucc_and_resolves_the_feed_host() {
+    use crate::brokers::common::streaming::{normalize_request, OrderFeed};
+    let b = KotakBroker::with_urls(master(), "http://127.0.0.1:9", "http://127.0.0.1:9/cfg");
+    // A resumed session has not been through `authenticate` in this run.
+    b.restore_session(&BrokerCredentials {
+        api_key: "UCC77".into(),
+        ..Default::default()
+    });
+    assert_eq!(b.ucc_hint(), "UCC77");
+    let auth = AuthToken::new("tok:::sid:::https://h.example:::acc:::E43");
+    let mut f = b.create_feed(&auth).unwrap();
+    // The data-centre host is looked up before connecting (here the config
+    // service is unreachable, so the default host is kept) and remembered.
+    f.prepare().await.unwrap();
+    assert_eq!(
+        normalize_request(f.ws_request().unwrap()).uri().host(),
+        normalize_request(
+            tokio_tungstenite::tungstenite::client::IntoClientRequest::into_client_request(
+                DEFAULT_SFEED_URL
+            )
+            .unwrap()
+        )
+        .uri()
+        .host()
+    );
+    assert!(b
+        .feed_url
+        .lock()
+        .as_ref()
+        .is_some_and(|(dc, _)| dc == "E43"));
+    assert!(matches!(
+        b.create_order_feed(&auth).unwrap(),
+        OrderFeed::Socket(_)
+    ));
+    b.on_logout().await;
+    assert!(b.feed_url.lock().is_none());
 }

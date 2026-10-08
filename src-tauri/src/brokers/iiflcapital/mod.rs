@@ -29,7 +29,7 @@ mod tests;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::Pacer;
-use crate::brokers::common::streaming::BrokerFeed;
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -266,7 +266,7 @@ impl Broker for IiflCapitalBroker {
             gtt: false,
             streaming: true,
             // The order-update stream, offered by
-            // `IiflCapitalBroker::create_order_feed` (as Upstox and Kotak do).
+            // `IiflCapitalBroker::order_socket`, served through `Broker::create_order_feed`.
             order_feed: true,
             depth_levels: &[5],
         }
@@ -380,6 +380,10 @@ impl Broker for IiflCapitalBroker {
         master_contract::download(self, auth).await.map_err(redact)
     }
 
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        Ok(OrderFeed::Socket(self.order_socket(auth)?))
+    }
+
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         let session = auth.raw().trim();
         if session.is_empty() {
@@ -400,7 +404,7 @@ impl IiflCapitalBroker {
     /// `UpstoxBroker::create_order_feed` and `AngelBroker::create_order_feed`.
     /// The client id comes from the session (`AuthToken::user_id`) or, when
     /// absent, from `GET /profile` on each connect.
-    pub fn create_order_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
+    pub fn order_socket(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         let session = auth.raw().trim();
         if session.is_empty() {
             return Err(session_expired());

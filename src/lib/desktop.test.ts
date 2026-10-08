@@ -6,6 +6,7 @@ vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => tauri.inShell }))
 vi.mock('@tauri-apps/plugin-shell', () => ({ open: tauri.open }))
 
 import {
+  brokerNeedsClientId,
   DEFAULT_WEBSOCKET_URL,
   desktopBrokerLoginUrl,
   desktopProfileMenuItems,
@@ -166,5 +167,17 @@ describe('isPreBrokerPath', () => {
     for (const p of ['/', '/dashboard', '/orderbook', '/positions', '/profiles', '/apikey']) {
       expect(isPreBrokerPath(p)).toBe(false)
     }
+  })
+})
+
+describe('brokerNeedsClientId', () => {
+  it('follows the list the server sends', () => {
+    const list = ['arrow', 'hdfcsky', 'hdfcsecurities']
+    expect(brokerNeedsClientId('arrow', list)).toBe(true)
+    expect(brokerNeedsClientId('hdfcsky', list)).toBe(true)
+    expect(brokerNeedsClientId('zerodha', list)).toBe(false)
+    expect(brokerNeedsClientId('dhan', list)).toBe(false)
+    expect(brokerNeedsClientId(undefined, list)).toBe(false)
+    expect(brokerNeedsClientId('arrow', undefined)).toBe(false)
   })
 })

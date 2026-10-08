@@ -24,7 +24,7 @@ pub mod streaming;
 mod tests;
 pub mod zip;
 
-pub use auth::{redirect_uri, remember_redirect_uri};
+pub use auth::redirect_uri;
 
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};

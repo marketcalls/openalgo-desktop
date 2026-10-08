@@ -761,14 +761,13 @@ fn feed_url_and_subscribe_frames() {
     let feed = b
         .create_feed(&AuthToken::new("1100012345:::tok en"))
         .unwrap();
+    // The manager gives the bare host its `/` path (no `GET ?version=2`).
+    let req = crate::brokers::common::streaming::normalize_request(feed.ws_request().unwrap());
     assert_eq!(
-        feed.ws_request().unwrap().uri().to_string(),
+        req.uri().to_string(),
         "wss://api-feed.dhan.co/?version=2&token=tok%20en&clientId=1100012345&authType=2"
     );
-    // The request target needs the explicit `/` (no `GET ?version=2`).
-    assert!(feed
-        .ws_request()
-        .unwrap()
+    assert!(req
         .uri()
         .path_and_query()
         .unwrap()
@@ -1122,4 +1121,23 @@ fn feed_state_is_released_with_its_subscriptions() {
     half.extend([0u8; 324]);
     d20.parse(&Message::Binary(half));
     assert_eq!(d20.sizes(), (0, 0));
+}
+
+#[test]
+fn auxiliary_sockets_through_the_trait() {
+    use crate::brokers::common::streaming::OrderFeed;
+    let b = DhanBroker::new(master());
+    let auth = AuthToken::new("1100012345:::tok");
+    assert!(matches!(
+        b.create_order_feed(&auth).unwrap(),
+        OrderFeed::Socket(_)
+    ));
+    assert!(b.create_depth_feed(&auth, 20).is_ok());
+    assert!(b.create_depth_feed(&auth, 50).is_err());
+    assert_eq!(b.feed_depth_levels("NSE"), vec![5, 20]);
+    assert_eq!(b.feed_depth_levels("NFO"), vec![5, 20]);
+    assert_eq!(b.feed_depth_levels("MCX"), vec![5]);
+    let sandbox = crate::brokers::dhan_sandbox::broker(master());
+    assert_eq!(sandbox.feed_depth_levels("NSE"), vec![5]);
+    assert!(sandbox.create_order_feed(&auth).is_err());
 }

@@ -6,21 +6,21 @@
 //! One owned task polls every `interval` (clamped to 1..=60 s, web default
 //! 5 s). The first poll seeds the snapshot silently; later polls publish an
 //! `OrderUpdate` for every order whose `(status, filled quantity)` changed
-//! or that is new. The diff is Groww's (same web adapter). The snapshot is
+//! or that is new. The diff is the shared one (`common::order_poll`). The snapshot is
 //! rebuilt from each book, so it is bounded by the current order book.
 //! Updates go into a bounded channel; when the receiver is dropped the task
 //! ends. `OrderPoller::stop` and `Drop` abort the task.
 
 use super::{orders, FivepaisaBroker};
+use crate::brokers::common::order_poll::{clamp_interval, diff, CHANNEL_CAPACITY};
 use crate::brokers::common::streaming::OrderUpdate;
-use crate::brokers::groww::order_poller::{clamp_interval, diff, CHANNEL_CAPACITY};
 use crate::brokers::types::AuthToken;
 use crate::error::{AppError, Result};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-pub use crate::brokers::groww::order_poller::DEFAULT_INTERVAL;
+pub use crate::brokers::common::order_poll::DEFAULT_INTERVAL;
 
 pub struct OrderPoller {
     task: JoinHandle<()>,

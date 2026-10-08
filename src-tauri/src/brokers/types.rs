@@ -547,6 +547,21 @@ pub struct Holding {
     pub current_value: f64,
 }
 
+/// Holdings plus the broker's own totals, when it reports them.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct HoldingsBook {
+    pub holdings: Vec<Holding>,
+    pub totals: Option<PortfolioStats>,
+}
+
+impl HoldingsBook {
+    /// The broker's totals, else computed from the rows.
+    pub fn statistics(&self) -> PortfolioStats {
+        self.totals
+            .unwrap_or_else(|| PortfolioStats::from_holdings(&self.holdings))
+    }
+}
+
 /// Portfolio totals (web `calculate_portfolio_statistics`).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
 pub struct PortfolioStats {

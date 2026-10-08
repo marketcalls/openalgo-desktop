@@ -664,23 +664,15 @@ fn sub(symbol: &str, exchange: &str, mode: FeedMode) -> FeedSubscription {
     }
 }
 
-struct NoUpstream;
-
-#[async_trait::async_trait]
-impl relay::Upstream for NoUpstream {
-    fn broker(&self) -> &'static str {
-        "upstox"
-    }
-    async fn open(&self) -> relay::Open {
-        relay::Open::Unavailable
-    }
-    fn session(&self) -> Box<dyn relay::Session> {
-        unreachable!("not opened in unit tests")
-    }
-}
-
 fn feed() -> UpstoxFeed {
-    UpstoxFeed::new(std::sync::Arc::new(NoUpstream), master())
+    UpstoxFeed::new(
+        super::streaming::Authorizer::market(
+            crate::brokers::common::http::client(),
+            "http://127.0.0.1:9",
+            "token-not-used-here",
+        ),
+        master(),
+    )
 }
 
 fn frame_json(m: &Message) -> Value {
@@ -694,7 +686,8 @@ fn frame_json(m: &Message) -> Value {
 fn subscribe_sends_binary_json_per_wire_mode() {
     let mut f = feed();
     use crate::brokers::common::streaming::BrokerFeed;
-    assert!(f.awaits_auth_ack());
+    // Ready as soon as the signed socket opens; no acknowledgement.
+    assert!(!f.awaits_auth_ack());
     let frames = f.subscribe_frames(&[
         sub("RELIANCE", "NSE", FeedMode::Ltp),
         sub("NIFTY", "NSE_INDEX", FeedMode::Quote),
@@ -1000,13 +993,9 @@ fn iep_wrapper_presence_survives_decoding() {
 }
 
 #[test]
-fn relay_control_text_frames() {
+fn status_text_frames_carry_no_events() {
     use crate::brokers::common::streaming::BrokerFeed;
     let mut f = feed();
-    assert_eq!(
-        f.parse(&Message::Text(relay::READY.into())),
-        vec![FeedEvent::AuthOk]
-    );
     assert!(f
         .parse(&Message::Text(
             r#"{"status":"failed","method":"sub","error":"bad key"}"#.into()
@@ -1053,20 +1042,32 @@ fn registry_capabilities() {
 }
 
 #[test]
-fn redirect_uri_is_remembered_for_the_exchange() {
-    let url = crate::brokers::catalog::authorize_url(
+fn redirect_uri_is_recorded_for_the_exchange() {
+    let a = crate::brokers::catalog::authorize_url(
         "upstox",
         "key",
         "http://127.0.0.1:5500/upstox/callback",
         "st",
     )
     .unwrap();
-    assert!(url.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A5500%2Fupstox%2Fcallback"));
+    assert!(a
+        .url
+        .contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A5500%2Fupstox%2Fcallback"));
+    assert_eq!(a.redirect_uri, "http://127.0.0.1:5500/upstox/callback");
+    let creds = BrokerCredentials {
+        redirect_uri: Some(a.redirect_uri.clone()),
+        ..Default::default()
+    };
     assert_eq!(
-        super::auth::redirect_uri(),
+        super::auth::redirect_uri(&creds),
         "http://127.0.0.1:5500/upstox/callback"
     );
-    let form = super::auth::token_form("c", "k", "s", &super::auth::redirect_uri());
+    // Without a recorded redirect the web convention applies.
+    assert_eq!(
+        super::auth::redirect_uri(&BrokerCredentials::default()),
+        super::auth::DEFAULT_REDIRECT_URI
+    );
+    let form = super::auth::token_form("c", "k", "s", &super::auth::redirect_uri(&creds));
     assert_eq!(
         form[3],
         (

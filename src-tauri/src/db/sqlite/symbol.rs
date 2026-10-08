@@ -262,9 +262,19 @@ pub fn load_symbols(conn: &Connection) -> Result<Vec<SymbolInfo>> {
     Ok(rows)
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub fn count_symbols(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("SELECT COUNT(*) FROM symtoken", [], |r| r.get(0))?)
+}
+
+/// Instruments per exchange (web `get_exchange_stats_from_db`).
+pub fn exchange_counts(conn: &Connection) -> Result<std::collections::BTreeMap<String, i64>> {
+    let mut stmt = conn.prepare(
+        "SELECT exchange, COUNT(*) FROM symtoken WHERE exchange IS NOT NULL GROUP BY exchange",
+    )?;
+    let rows = stmt
+        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?
+        .collect::<std::result::Result<_, _>>()?;
+    Ok(rows)
 }
 
 #[cfg(test)]

@@ -710,7 +710,7 @@ fn feed_handshake_uses_raw_jwt_and_feed_token() {
         ))
     );
     let order = b
-        .create_order_feed(&AuthToken::new("apikey:jwt.token.sig"))
+        .order_socket(&AuthToken::new("apikey:jwt.token.sig"))
         .unwrap()
         .ws_request()
         .unwrap();

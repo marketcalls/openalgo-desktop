@@ -65,6 +65,7 @@ pub async fn read_json<T: DeserializeOwned>(
                 .chars()
                 .filter(|c| !c.is_control())
                 .collect();
+            let prefix = super::redact::url_safe(&prefix);
             tracing::warn!(
                 broker,
                 status = status.as_u16(),

@@ -19,16 +19,13 @@ pub mod master_contract;
 mod orders;
 pub mod pacing;
 pub mod proto;
-pub mod relay;
 pub mod streaming;
 #[cfg(test)]
 mod tests;
 
-pub use auth::remember_redirect_uri;
-
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
-use crate::brokers::common::streaming::BrokerFeed;
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -37,7 +34,6 @@ use async_trait::async_trait;
 use pacing::WindowLimiter;
 use reqwest::{Method, StatusCode};
 use serde_json::Value;
-use std::sync::Arc;
 
 pub const API_URL: &str = "https://api.upstox.com";
 pub const HFT_URL: &str = "https://api-hft.upstox.com";
@@ -474,28 +470,24 @@ impl Broker for UpstoxBroker {
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         Self::bearer(auth)?;
         Ok(Box::new(streaming::UpstoxFeed::new(
-            Arc::new(streaming::MarketUpstream::new(
-                self.http.clone(),
-                &self.urls.api,
-                auth.raw(),
-            )),
+            streaming::Authorizer::market(self.http.clone(), &self.urls.api, auth.raw()),
             self.symbols.clone(),
         )))
+    }
+
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        Ok(OrderFeed::Socket(self.order_socket(auth)?))
     }
 }
 
 impl UpstoxBroker {
     /// The portfolio order-update stream (web `upstox_order_adapter.py`),
-    /// as a feed for a second `WebSocketManager`. The shared `Broker` trait
-    /// has no order-feed factory yet, so it is offered here.
-    pub fn create_order_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
+    /// served through `Broker::create_order_feed`.
+    pub fn order_socket(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         Self::bearer(auth)?;
         Ok(Box::new(streaming::UpstoxOrderFeed::new(
-            Arc::new(streaming::OrderUpstream::new(
-                self.http.clone(),
-                &self.urls.api,
-                auth.raw(),
-            )),
+            streaming::Authorizer::orders(self.http.clone(), &self.urls.api, auth.raw()),
+            &self.urls.api,
             self.symbols.clone(),
         )))
     }

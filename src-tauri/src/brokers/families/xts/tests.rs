@@ -10,12 +10,11 @@ use super::mapping::*;
 use super::master_contract::{bse_index_symbol, parse_index_list, parse_segment};
 use super::socketio::{self, EioPacket, SioPacket};
 use super::streaming::{
-    normalise_message, socket_url, ws_base, xts_time_ms, Command, FeedSource, XtsFeed, XtsSession,
+    normalise_message, socket_url, ws_base, xts_time_ms, Command, FeedSource, XtsFeed,
 };
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Product, Validity};
 use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
-use crate::brokers::upstox::relay::Session;
 use chrono::NaiveDate;
 use serde_json::{json, Value};
 
@@ -888,21 +887,26 @@ fn feed_decodes_json_events() {
 
     assert!(f.parse(&Message::Text(stream("unsubscribed"))).is_empty());
     assert!(f.parse(&Message::Text(stream("joined"))).is_empty());
-    assert!(f.parse(&Message::Text("2".into())).is_empty());
+    // An Engine.IO ping is answered with a pong through the manager.
     assert_eq!(
-        f.parse(&Message::Text(
-            crate::brokers::upstox::relay::READY.to_string()
-        )),
+        f.parse(&Message::Text("2".into())),
+        vec![
+            FeedEvent::Reply(Message::Text("3".into())),
+            FeedEvent::Heartbeat
+        ]
+    );
+    assert_eq!(
+        f.parse(&Message::Text(stream("connect_ack"))),
         vec![FeedEvent::AuthOk]
     );
     assert_eq!(
         f.parse(&Message::Ping(Vec::new())),
         vec![FeedEvent::Heartbeat]
     );
-    // Snapshots from the subscribe answer reach the same decoder.
+    // Snapshots from the subscribe answer have the full-event shape.
     let snap = market()["subscription_ok"]["result"]["listQuotes"][0].clone();
     let ev = f.parse(&Message::Text(socketio::encode_event(
-        super::streaming::SNAPSHOT_EVENT,
+        "1512-json-full",
         &[snap],
     )));
     assert_eq!(ticks(&ev)[0].ltp, 2500.25);
@@ -915,9 +919,13 @@ fn feed_decodes_binary_for_members_with_a_decoder() {
     put_f64(&mut lp, 2, 781.35);
     let pkt = packet(4, 1512, 1, 3045, &lp);
     let mut r = feed(&crate::brokers::rmoney::CONFIG);
+    // An attachment is decoded only after its placeholder event.
+    assert!(r.parse(&Message::Binary(pkt.clone())).is_empty());
+    assert!(r.parse(&Message::Text(stream("binary_event"))).is_empty());
     let ev = r.parse(&Message::Binary(pkt.clone()));
     assert_eq!(ticks(&ev)[0].ltp, 781.35);
     let mut f = feed(&crate::brokers::fivepaisaxts::CONFIG);
+    f.parse(&Message::Text(stream("binary_event")));
     assert!(f.parse(&Message::Binary(pkt)).is_empty());
 }
 
@@ -937,12 +945,10 @@ fn subscribe_frames_group_by_message_code_and_unsubscribe_forgets() {
         sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Depth),
         sub("X", "NCDEX", "1", FeedMode::Ltp),
     ];
-    let frames = f.subscribe_frames(&subs);
-    assert_eq!(frames.len(), 2);
-    let cmds: Vec<Command> = frames
-        .iter()
-        .map(|m| Command::from_text(m.to_text().unwrap()).unwrap())
-        .collect();
+    // Subscriptions are REST calls, never socket frames.
+    let cmds: Vec<Command> = f.commands(&subs, true);
+    assert_eq!(cmds.len(), 2);
+    assert!(f.subscribe_frames(&subs).is_empty());
     assert!(cmds.iter().all(|c| c.subscribe));
     assert_eq!(cmds[0].code, 1512);
     assert_eq!(
@@ -955,11 +961,10 @@ fn subscribe_frames_group_by_message_code_and_unsubscribe_forgets() {
     assert_eq!(cmds[1].code, 1502);
     let ev = f.parse(&Message::Text(stream("ltp_1512")));
     assert_eq!(ticks(&ev).len(), 1);
-    let un = f.unsubscribe_frames(&subs[..1]);
-    let c = Command::from_text(un[0].to_text().unwrap()).unwrap();
-    assert!(!c.subscribe);
+    let un = f.commands(&subs[..1], false);
+    assert!(!un[0].subscribe);
+    assert!(f.unsubscribe_frames(&subs[..1]).is_empty());
     assert!(f.parse(&Message::Text(stream("ltp_1512"))).is_empty());
-    assert!(Command::from_text(r#"{"other":1}"#).is_none());
 }
 
 #[test]
@@ -972,38 +977,57 @@ fn normalise_ignores_unknown_codes_and_converts_xts_time() {
 }
 
 #[tokio::test]
-async fn session_speaks_engine_io() {
-    let mut s = XtsSession::new(
-        "fivepaisaxts",
-        reqwest::Client::new(),
-        "http://127.0.0.1:9/instruments/subscription".into(),
-        crate::security::Secret::new("tok"),
+async fn feed_speaks_engine_io() {
+    use crate::brokers::common::streaming::BrokerFeed;
+    let mut f = feed(&crate::brokers::fivepaisaxts::CONFIG);
+    assert!(f.awaits_auth_ack());
+    assert!(f.is_auth_failure(Some(400)));
+    f.on_connected();
+    // The server's open gets the Socket.IO connect, written by the manager.
+    assert_eq!(
+        f.parse(&Message::Text(stream("open"))),
+        vec![FeedEvent::Reply(Message::Text("40".into()))]
     );
-    assert!(!s.ready_on_open());
-    let step = s.on_upstream(Message::Text(stream("open")));
-    assert_eq!(step.up, vec![Message::Text("40".into())]);
-    assert!(!step.ready);
-    let step = s.on_upstream(Message::Text(stream("connect_ack")));
-    assert!(step.ready);
-    let step = s.on_upstream(Message::Text(stream("ping")));
-    assert_eq!(step.up, vec![Message::Text("3".into())]);
-    assert_eq!(step.down, vec![Message::Ping(Vec::new())]);
-    let ev = stream("ltp_1512");
-    let step = s.on_upstream(Message::Text(ev.clone()));
-    assert_eq!(step.down, vec![Message::Text(ev)]);
-    // A binary attachment is forwarded only after its placeholder event.
-    let bin = Message::Binary(packet(4, 1512, 1, 3045, &[0u8; 10]));
-    assert!(s.on_upstream(bin.clone()).down.is_empty());
-    s.on_upstream(Message::Text(stream("binary_event")));
-    assert_eq!(s.on_upstream(bin.clone()).down, vec![bin]);
-    let step = s.on_upstream(Message::Text(stream("connect_error")));
-    assert!(step.auth_failed.is_some());
-    // Commands are consumed, never forwarded to the broker socket.
-    let cmd = Command {
-        subscribe: true,
-        code: 1512,
-        instruments: vec![json!({"exchangeSegment": 1, "exchangeInstrumentID": 3045})],
-    };
-    assert!(s.on_downstream(cmd.to_frame()).is_empty());
-    assert!(s.on_downstream(Message::Text("42[]".into())).is_empty());
+    assert_eq!(
+        f.parse(&Message::Text(stream("connect_ack"))),
+        vec![FeedEvent::AuthOk]
+    );
+    assert_eq!(
+        f.parse(&Message::Text(stream("ping"))),
+        vec![
+            FeedEvent::Reply(Message::Text("3".into())),
+            FeedEvent::Heartbeat
+        ]
+    );
+    assert!(matches!(
+        f.parse(&Message::Text(stream("connect_error")))[0],
+        FeedEvent::AuthFailed(_)
+    ));
+    // With a stored feed token, prepare builds the socket address.
+    f.prepare().await.unwrap();
+    assert!(f
+        .ws_request()
+        .unwrap()
+        .uri()
+        .query()
+        .unwrap()
+        .contains("token=t&userID=U"));
+    // Without a token (no market keys, nothing stored) the session is
+    // refused before any connect.
+    let mut none = XtsFeed::new(
+        &crate::brokers::fivepaisaxts::CONFIG,
+        reqwest::Client::new(),
+        "https://example.invalid".into(),
+        None,
+        FeedSource::default(),
+    );
+    assert!(matches!(
+        none.prepare().await,
+        Err(crate::brokers::common::streaming::PrepareError::AuthFailed(
+            _
+        ))
+    ));
+    // Subscribing starts one owned REST worker; it is dropped with the feed.
+    f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Ltp)]);
+    drop(f);
 }

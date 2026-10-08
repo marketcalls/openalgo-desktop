@@ -33,7 +33,7 @@ use super::mapping::exchange_name;
 use crate::brokers::common::mpp::py_round;
 use crate::brokers::common::streaming::{
     now_ms, round2, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, WsRequest,
+    NormalizedTick, OrderUpdate, PrepareError, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::{AuthToken, DepthLevel};
@@ -1131,9 +1131,16 @@ impl Book {
     }
 }
 
+/// Where to look up the TBT socket address before connecting.
+struct TbtLookup {
+    http: reqwest::Client,
+    url: String,
+}
+
 /// The TBT 50-level depth feed.
 pub struct TbtFeed {
     url: String,
+    lookup: Option<TbtLookup>,
     authorization: Secret,
     /// ticker -> (symbol, exchange)
     subs: HashMap<String, (String, String)>,
@@ -1147,11 +1154,22 @@ impl TbtFeed {
         auth.pair().ok_or_else(super::session_expired)?;
         Ok(Self {
             url: url.to_string(),
+            lookup: None,
             authorization: Secret::new(auth.raw()),
             subs: HashMap::new(),
             books: HashMap::new(),
             channel_resumed: false,
         })
+    }
+
+    /// Ask Fyers for the socket address before each connect (web
+    /// `_get_tbt_url`); `url` stays the fallback.
+    pub fn with_lookup(mut self, http: reqwest::Client, lookup_url: String) -> Self {
+        self.lookup = Some(TbtLookup {
+            http,
+            url: lookup_url,
+        });
+        self
     }
 
     fn sub_frame(tickers: &[String], subs: i32) -> Message {
@@ -1239,9 +1257,49 @@ impl TbtFeed {
     }
 }
 
+#[async_trait::async_trait]
 impl BrokerFeed for TbtFeed {
     fn broker(&self) -> &'static str {
         "fyers"
+    }
+
+    async fn prepare(&mut self) -> std::result::Result<(), PrepareError> {
+        let Some(l) = &self.lookup else {
+            return Ok(());
+        };
+        let resp = l
+            .http
+            .get(&l.url)
+            .header("Authorization", self.authorization.expose())
+            .timeout(Duration::from_secs(10))
+            .send()
+            .await;
+        match resp {
+            Ok(r) if r.status().as_u16() == 401 => return Err(PrepareError::AuthFailed(
+                "Fyers did not accept the stored login for market depth. Log in to Fyers again."
+                    .into(),
+            )),
+            Ok(r) if r.status().is_success() => {
+                if let Ok(v) = r.json::<serde_json::Value>().await {
+                    if let Some(u) = v
+                        .pointer("/data/socket_url")
+                        .and_then(serde_json::Value::as_str)
+                        .filter(|s| s.starts_with("wss://") || s.starts_with("ws://"))
+                    {
+                        self.url = u.to_string();
+                    }
+                }
+            }
+            Ok(r) => tracing::warn!(
+                status = r.status().as_u16(),
+                "Fyers depth address lookup refused; using the default"
+            ),
+            Err(e) => tracing::warn!(
+                "Fyers depth address lookup failed: {}",
+                crate::brokers::common::redact::url_safe_error(&e)
+            ),
+        }
+        Ok(())
     }
 
     fn ws_request(&self) -> Result<WsRequest> {

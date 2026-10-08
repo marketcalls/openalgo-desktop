@@ -99,21 +99,8 @@ fn le_f64(b: &[u8], o: usize) -> f64 {
     f64::from_le_bytes(a)
 }
 
-/// `base` with an explicit `/` path when it has none: the WebSocket client
-/// writes the request target from the raw path-and-query, and
-/// `GET ?version=2...` (no path) is not a valid request line.
-fn with_root_path(base: &str) -> String {
-    let after_scheme = base.split_once("://").map(|(_, r)| r).unwrap_or(base);
-    if after_scheme.contains('/') {
-        base.to_string()
-    } else {
-        format!("{}/", base)
-    }
-}
-
 fn url_with(base: &str, token: &str, client_id: &str, version: bool) -> String {
     let enc = |s: &str| urlencoding::encode(s).into_owned();
-    let base = with_root_path(base);
     if version {
         format!(
             "{}?version=2&token={}&clientId={}&authType=2",

@@ -20,13 +20,13 @@
 
 use super::mapping;
 use super::mqtt_relay::{self, MqttEndpoint, MqttRelay, MqttUpstream, Prepare, Prepared};
+use crate::brokers::common::relay;
 use crate::brokers::common::streaming::{
     now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
     NormalizedTick, OrderUpdate, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
-use crate::brokers::upstox::relay;
 use crate::error::{AppError, Result};
 use crate::security::Secret;
 use async_trait::async_trait;

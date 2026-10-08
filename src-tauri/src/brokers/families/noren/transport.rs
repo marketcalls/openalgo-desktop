@@ -278,7 +278,13 @@ pub fn as_list(name: &str, endpoint: &str, v: Value) -> Result<Vec<Value>> {
             if is_no_data(&e) {
                 return Ok(Vec::new());
             }
-            tracing::warn!(broker = name, "{} refused {}: {}", name, endpoint, e);
+            tracing::warn!(
+                broker = name,
+                "{} refused {}: {}",
+                name,
+                endpoint,
+                crate::brokers::common::redact::url_safe_error(&e)
+            );
             Err(noren_error(name, &e))
         }
     }

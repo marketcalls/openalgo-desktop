@@ -71,7 +71,7 @@ impl FeedService {
     pub fn new(ctx: Arc<AppState>) -> Arc<Self> {
         let relay = orders::OrderRelay::register(&ctx.bus);
         Arc::new(Self {
-            bridge: bridge::BrokerBridge::new(ctx.websocket.clone(), ctx.symbols.clone()),
+            bridge: ctx.bridge.clone(),
             ctx,
             relay,
             handle: tokio::sync::Mutex::new(None),
@@ -127,6 +127,7 @@ impl FeedService {
             }
             Err(StartError::Failed { message }) => ServerStatus::Failed { message },
         };
+        *self.ctx.feed_status.write() = st.clone();
         let previous = std::mem::replace(&mut *self.status.write(), st.clone());
         // Logged once per change; the watcher retries quietly.
         if previous != st {
@@ -214,5 +215,6 @@ impl FeedService {
         }
         self.bridge.stop().await;
         *self.status.write() = ServerStatus::Starting;
+        *self.ctx.feed_status.write() = ServerStatus::Starting;
     }
 }

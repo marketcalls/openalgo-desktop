@@ -5,7 +5,9 @@
 //! other test crates through the `test-support` feature.
 
 use super::common::mapping::{Exchange, Product};
-use super::common::streaming::{BrokerFeed, FeedEvent, FeedSubscription, Message, WsRequest};
+use super::common::streaming::{
+    BrokerFeed, FeedEvent, FeedSubscription, Message, OrderFeed, OrderUpdate, WsRequest,
+};
 use super::common::symbols::SymbolResolver;
 use super::types::*;
 use super::{AuthResponse, Broker, BrokerCredentials};
@@ -69,6 +71,8 @@ pub struct MockBroker {
     pub trade_book: Mutex<Option<Scripted<Vec<Trade>>>>,
     pub positions: Mutex<Option<Scripted<Vec<Position>>>>,
     pub holdings: Mutex<Option<Scripted<Vec<Holding>>>>,
+    /// Portfolio totals the broker reports with its holdings (Angel).
+    pub holdings_totals: Mutex<Option<PortfolioStats>>,
     pub funds: Mutex<Option<Scripted<Funds>>>,
     pub margin: Mutex<Option<Scripted<MarginResult>>>,
     /// Quotes keyed by `EXCHANGE:SYMBOL`.
@@ -81,6 +85,21 @@ pub struct MockBroker {
     /// Address of a fake feed server; when set, `create_feed` returns a
     /// `MockFeed` pointed at it.
     pub feed_url: Mutex<Option<String>>,
+    /// Address of a fake order-update server; when set,
+    /// `create_order_feed` returns a `MockFeed` socket pointed at it.
+    pub order_feed_url: Mutex<Option<String>>,
+    /// Depth socket address and the levels it serves.
+    pub depth_feed: Mutex<Option<(String, u8)>>,
+    /// `on_logout` calls.
+    pub logouts: Mutex<u32>,
+    /// Contract multipliers by token sent with the master.
+    pub contract_values: Mutex<HashMap<String, f64>>,
+    /// The account id a sign-in returns.
+    pub auth_user_id: Mutex<String>,
+    /// What `begin_login` returns (a consent address).
+    pub login_url: Mutex<Option<String>>,
+    /// Credentials passed to the last `restore_session`.
+    pub restored: Mutex<Option<BrokerCredentials>>,
     next_id: Mutex<u64>,
 }
 
@@ -104,6 +123,7 @@ impl MockBroker {
             trade_book: Mutex::new(None),
             positions: Mutex::new(None),
             holdings: Mutex::new(None),
+            holdings_totals: Mutex::new(None),
             funds: Mutex::new(None),
             margin: Mutex::new(None),
             quotes: Mutex::new(HashMap::new()),
@@ -113,6 +133,13 @@ impl MockBroker {
             gtt_book: Mutex::new(None),
             master: Mutex::new(None),
             feed_url: Mutex::new(None),
+            order_feed_url: Mutex::new(None),
+            depth_feed: Mutex::new(None),
+            logouts: Mutex::new(0),
+            contract_values: Mutex::new(HashMap::new()),
+            auth_user_id: Mutex::new("AB1234".into()),
+            login_url: Mutex::new(None),
+            restored: Mutex::new(None),
             next_id: Mutex::new(0),
         }
     }
@@ -159,12 +186,27 @@ impl Broker for MockBroker {
             margin: true,
             gtt: true,
             streaming: true,
-            order_feed: false,
+            order_feed: true,
             depth_levels: &[5],
         }
     }
     fn timeframe_map(&self) -> &'static [(&'static str, &'static str)] {
         &[("1m", "1m"), ("5m", "5m"), ("D", "D")]
+    }
+    fn feed_depth_levels(&self, _exchange: &str) -> Vec<u8> {
+        match *self.depth_feed.lock() {
+            Some((_, levels)) => vec![5, levels],
+            None => vec![5],
+        }
+    }
+    fn restore_session(&self, credentials: &BrokerCredentials) {
+        *self.restored.lock() = Some(credentials.clone());
+    }
+    async fn on_logout(&self) {
+        *self.logouts.lock() += 1;
+    }
+    async fn begin_login(&self, _credentials: &BrokerCredentials) -> Result<Option<String>> {
+        Ok(self.login_url.lock().clone())
     }
     fn symbols(&self) -> Option<&SymbolResolver> {
         Some(&self.symbols)
@@ -172,7 +214,9 @@ impl Broker for MockBroker {
 
     async fn authenticate(&self, credentials: BrokerCredentials) -> Result<AuthResponse> {
         self.record(MockCall::Authenticate);
-        let ok = credentials.request_token.is_some() || credentials.totp.is_some();
+        let ok = credentials.request_token.is_some()
+            || credentials.totp.is_some()
+            || credentials.password.is_some();
         *self.last_auth.lock() = Some(credentials);
         if !ok {
             return Err(AppError::Auth("Mock rejected the sign-in".into()));
@@ -180,7 +224,7 @@ impl Broker for MockBroker {
         Ok(AuthResponse {
             auth_token: "mock-access-token".into(),
             feed_token: Some("mock-feed-token".into()),
-            user_id: "AB1234".into(),
+            user_id: self.auth_user_id.lock().clone(),
             user_name: Some("Mock Trader".into()),
         })
     }
@@ -313,6 +357,13 @@ impl Broker for MockBroker {
         out(&self.holdings, Vec::new)
     }
 
+    async fn get_holdings_with_totals(&self, auth: &AuthToken) -> Result<HoldingsBook> {
+        Ok(HoldingsBook {
+            holdings: self.get_holdings(auth).await?,
+            totals: *self.holdings_totals.lock(),
+        })
+    }
+
     async fn get_funds(&self, auth: &AuthToken) -> Result<Funds> {
         self.record(MockCall::Funds);
         *self.funds_calls.lock() += 1;
@@ -412,16 +463,37 @@ impl Broker for MockBroker {
         out(&self.master, Vec::new)
     }
 
+    async fn download_master(&self, auth: &AuthToken) -> Result<MasterContract> {
+        let mut m = MasterContract::new(self.download_master_contract(auth).await?);
+        m.contract_values = self.contract_values.lock().clone();
+        Ok(m)
+    }
+
     fn create_feed(&self, _: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         match self.feed_url.lock().clone() {
             Some(url) => Ok(Box::new(MockFeed::new(url))),
             None => Err(AppError::Unsupported("streaming")),
         }
     }
+
+    fn create_order_feed(&self, _: &AuthToken) -> Result<OrderFeed> {
+        match self.order_feed_url.lock().clone() {
+            Some(url) => Ok(OrderFeed::Socket(Box::new(MockFeed::new(url)))),
+            None => Err(AppError::Unsupported("order_feed")),
+        }
+    }
+
+    fn create_depth_feed(&self, _: &AuthToken, levels: u8) -> Result<Box<dyn BrokerFeed>> {
+        match self.depth_feed.lock().clone() {
+            Some((url, l)) if l == levels => Ok(Box::new(MockFeed::new(url))),
+            _ => Err(AppError::Unsupported("depth_feed")),
+        }
+    }
 }
 
 /// A JSON-text feed for manager tests: subscribe frames are
-/// `{"sub":[..]}`, ticks arrive as `{"t":"SYMBOL","x":"EXCH","p":123.4}`.
+/// `{"sub":[..]}`, ticks arrive as `{"t":"SYMBOL","x":"EXCH","p":123.4}`,
+/// order updates as `{"order": {OrderUpdate fields}}`.
 pub struct MockFeed {
     url: String,
 }
@@ -477,6 +549,28 @@ impl BrokerFeed for MockFeed {
                 timestamp_ms: super::common::streaming::now_ms(),
                 ..Default::default()
             })],
+            _ if v.get("order").is_some_and(|o| o.is_object()) => {
+                let o = &v["order"];
+                let s = |k: &str| o[k].as_str().unwrap_or_default().to_string();
+                let i = |k: &str| o[k].as_i64().unwrap_or(0);
+                let f = |k: &str| o[k].as_f64().unwrap_or(0.0);
+                vec![FeedEvent::OrderUpdate(OrderUpdate {
+                    orderid: s("orderid"),
+                    symbol: s("symbol"),
+                    exchange: s("exchange"),
+                    action: s("action"),
+                    quantity: i("quantity"),
+                    price: f("price"),
+                    trigger_price: f("trigger_price"),
+                    pricetype: s("pricetype"),
+                    product: s("product"),
+                    order_status: s("order_status"),
+                    filled_quantity: i("filled_quantity"),
+                    pending_quantity: i("pending_quantity"),
+                    average_price: f("average_price"),
+                    rejection_reason: s("rejection_reason"),
+                })]
+            }
             _ if v.get("auth") == Some(&serde_json::json!("denied")) => {
                 vec![FeedEvent::AuthFailed("denied".into())]
             }

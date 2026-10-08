@@ -26,7 +26,7 @@ mod tests;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::Pacer;
-use crate::brokers::common::streaming::BrokerFeed;
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -328,11 +328,10 @@ impl Broker for FyersBroker {
             margin: true,
             gtt: true,
             streaming: true,
-            // The order-update and 50-level TBT sockets exist
-            // (`create_order_feed`, `create_depth50_feed`) but the trait has
-            // no way to reach them yet, so they are not advertised.
-            order_feed: false,
-            depth_levels: &[5],
+            // Order updates on their own socket; 50-level books on the TBT
+            // socket for NSE and NFO (`feed_depth_levels`).
+            order_feed: true,
+            depth_levels: &[5, 50],
         }
     }
 
@@ -458,12 +457,38 @@ impl Broker for FyersBroker {
             self.symbols.clone(),
         )?))
     }
+
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        Ok(OrderFeed::Socket(self.order_socket(auth)?))
+    }
+
+    /// The 50-level TBT socket; its address is looked up (web
+    /// `_get_tbt_url`) before every connect.
+    fn create_depth_feed(&self, auth: &AuthToken, levels: u8) -> Result<Box<dyn BrokerFeed>> {
+        if levels != 50 {
+            return Err(AppError::Unsupported("depth_feed"));
+        }
+        let feed = streaming::TbtFeed::new(&self.urls.tbt, auth, self.symbols.clone())?
+            .with_lookup(
+                self.http.clone(),
+                format!("{}/indus/home/tbtws", self.urls.api),
+            );
+        Ok(Box::new(feed))
+    }
+
+    fn feed_depth_levels(&self, exchange: &str) -> Vec<u8> {
+        if streaming::TBT_EXCHANGES.contains(&exchange) {
+            vec![5, 50]
+        } else {
+            vec![5]
+        }
+    }
 }
 
 impl FyersBroker {
-    /// The order-update socket (`wss://socket.fyers.in/trade/v3`). Not on the
-    /// `Broker` trait yet; the feed manager can run it as a second feed.
-    pub fn create_order_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
+    /// The order-update socket (`wss://socket.fyers.in/trade/v3`), served
+    /// through `Broker::create_order_feed`.
+    pub fn order_socket(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         Ok(Box::new(streaming::OrderFeed::new(
             &self.urls.order_ws,
             auth,

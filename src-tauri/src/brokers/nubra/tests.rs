@@ -10,9 +10,9 @@ use super::proto;
 use super::streaming::{self, decode_order_update, NubraFeed, OrderSession};
 use super::*;
 use crate::brokers::common::mapping::{Action, Exchange, PriceType, Product, Validity};
+use crate::brokers::common::relay::Session;
 use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
-use crate::brokers::upstox::relay::Session;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 
@@ -836,5 +836,5 @@ fn identity_and_capabilities() {
     assert_eq!(b.supported_exchanges().len(), 7);
     assert!(b.create_feed(&AuthToken::new("")).is_err());
     assert!(b.create_feed(&AuthToken::new("tok")).is_ok());
-    assert!(b.create_order_feed(&AuthToken::new("tok")).is_ok());
+    assert!(b.order_socket(&AuthToken::new("tok")).is_ok());
 }

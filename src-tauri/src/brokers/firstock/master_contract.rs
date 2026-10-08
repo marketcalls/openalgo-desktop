@@ -319,7 +319,12 @@ pub async fn download(b: &FirstockBroker, auth: &AuthToken) -> Result<Vec<SymTok
             Ok(r) if r.status().is_success() => match r.text().await {
                 Ok(t) => t,
                 Err(e) => {
-                    tracing::warn!(broker = "firstock", "Master file {} failed: {}", ex, e);
+                    tracing::warn!(
+                        broker = "firstock",
+                        "Master file {} failed: {}",
+                        ex,
+                        crate::brokers::common::redact::url_safe_error(&e)
+                    );
                     continue;
                 }
             },
@@ -333,7 +338,12 @@ pub async fn download(b: &FirstockBroker, auth: &AuthToken) -> Result<Vec<SymTok
                 continue;
             }
             Err(e) => {
-                tracing::warn!(broker = "firstock", "Master file {} failed: {}", ex, e);
+                tracing::warn!(
+                    broker = "firstock",
+                    "Master file {} failed: {}",
+                    ex,
+                    crate::brokers::common::redact::url_safe_error(&e)
+                );
                 continue;
             }
         };

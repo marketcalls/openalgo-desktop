@@ -7,8 +7,8 @@ use crate::events::SessionEndReason;
 use crate::security::Secret;
 use crate::server::envelope::{error, json_response};
 use crate::server::form::FormData;
-use crate::server::middleware::{login_limited, redirect, ClientIp};
-use crate::services::broker_auth_service::{BrokerAuthService, FormLogin};
+use crate::server::middleware::{login_limited, redirect, ClientIp, Sess, User};
+use crate::services::broker_auth_service::{BrokerAuthService, CallbackOrigin, FormLogin};
 use crate::state::AppState;
 use axum::{
     extract::{Path, Query, State},
@@ -58,14 +58,18 @@ pub async fn broker_config(State(ctx): Ctx) -> Response {
 
 /// GET /<broker>/initiate-oauth: store a fresh `state` and send the browser
 /// to the broker. Form brokers go to their in-app form.
-pub async fn initiate_oauth(State(ctx): Ctx, Path(broker): Path<String>) -> Response {
+pub async fn initiate_oauth(
+    State(ctx): Ctx,
+    User(user): User,
+    Path(broker): Path<String>,
+) -> Response {
     if !valid_broker(&broker) {
         return error(StatusCode::NOT_FOUND, "Unknown broker.");
     }
     if catalog::auth_type(&broker) == AuthType::Form {
         return redirect(&format!("/broker/{}/totp", broker));
     }
-    match BrokerAuthService::start_oauth(&ctx, &broker) {
+    match BrokerAuthService::start_oauth(&ctx, &broker, Some(&user.session_id)).await {
         Ok(url) => redirect(&url),
         Err(e) => {
             tracing::warn!("Could not start broker sign-in: {}", e.code());
@@ -81,6 +85,7 @@ pub async fn oauth_callback(
     State(ctx): Ctx,
     Path(broker): Path<String>,
     ClientIp(ip): ClientIp,
+    Sess(sess): Sess,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
     if !valid_broker(&broker) {
@@ -92,7 +97,10 @@ pub async fn oauth_callback(
     if let Some(r) = login_limited(&ctx, ip) {
         return r;
     }
-    match BrokerAuthService::complete_oauth(&ctx, &broker, &params).await {
+    let origin = CallbackOrigin::Redirect {
+        session_id: sess.as_ref().map(|s| s.id.as_str()),
+    };
+    match BrokerAuthService::complete_oauth(&ctx, &broker, &params, origin).await {
         Ok(_) => redirect("/dashboard"),
         Err(e) => {
             tracing::warn!("Broker sign-in for {} failed: {}", broker, e.code());
@@ -101,20 +109,78 @@ pub async fn oauth_callback(
     }
 }
 
-/// POST /<broker>/callback: form brokers (client id, PIN, TOTP).
-pub async fn form_login(
+/// POST /<broker>/callback. For the XTS third-party login (compositedge,
+/// rmoney) this is the broker's redirect, a form POST carrying `session`
+/// with `state` on the query: public and state-verified, like the GET
+/// callback. For everyone else it is the in-app login form, which needs the
+/// signed-in user.
+pub async fn callback_post(
     State(ctx): Ctx,
     Path(broker): Path<String>,
     ClientIp(ip): ClientIp,
+    Sess(sess): Sess,
+    headers: axum::http::HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
     form: FormData,
 ) -> Response {
     if !valid_broker(&broker) {
         return error(StatusCode::NOT_FOUND, "Unknown broker.");
     }
+    if catalog::posts_callback(&broker) {
+        if let Some(r) = login_limited(&ctx, ip) {
+            return r;
+        }
+        let mut params = form.0;
+        params.extend(query);
+        let origin = CallbackOrigin::Redirect {
+            session_id: sess.as_ref().map(|s| s.id.as_str()),
+        };
+        return match BrokerAuthService::complete_oauth(&ctx, &broker, &params, origin).await {
+            Ok(_) => redirect("/dashboard"),
+            Err(e) => {
+                tracing::warn!("Broker sign-in for {} failed: {}", broker, e.code());
+                broker_page_with_error(&e.client_message())
+            }
+        };
+    }
+    // Every other broker: the in-app login form, which needs the signed-in
+    // user and, checked here as well as in the session layer, the CSRF
+    // token and a same-origin request.
+    let Some(s) = sess.as_ref().filter(|s| s.user.is_some()) else {
+        return error(
+            StatusCode::UNAUTHORIZED,
+            "Sign in to OpenAlgo first, then log in to your broker.",
+        );
+    };
+    if !crate::server::middleware::write_allowed(
+        &ctx,
+        &headers,
+        &s.csrf_token,
+        form.get("csrf_token"),
+    ) {
+        return error(
+            StatusCode::FORBIDDEN,
+            "This sign-in did not come from OpenAlgo. Reload the page and try again.",
+        );
+    }
+    form_login(ctx, broker, ip, form).await
+}
+
+/// The in-app broker login form (client id, PIN, TOTP, or the broker's own
+/// fields).
+async fn form_login(
+    ctx: Arc<AppState>,
+    broker: String,
+    ip: std::net::IpAddr,
+    form: FormData,
+) -> Response {
     if let Some(r) = login_limited(&ctx, ip) {
         return r;
     }
-    let input = FormLogin::from_fields(&form.0);
+    let input = match FormLogin::for_broker(&broker, &form.0) {
+        Ok(i) => i,
+        Err(e) => return error(StatusCode::BAD_REQUEST, e.client_message()),
+    };
     match BrokerAuthService::login_with_form(&ctx, &broker, input).await {
         Ok(_) => json_response(
             StatusCode::OK,
@@ -130,7 +196,7 @@ pub async fn form_login(
 /// POST /auth/broker/oauth/manual (json: url). For when the broker's
 /// redirect cannot reach this computer: the trader pastes the address the
 /// broker redirected to.
-pub async fn oauth_manual(State(ctx): Ctx, form: FormData) -> Response {
+pub async fn oauth_manual(State(ctx): Ctx, User(user): User, form: FormData) -> Response {
     let Some(raw) = form.non_empty("url") else {
         return error(
             StatusCode::BAD_REQUEST,
@@ -149,7 +215,10 @@ pub async fn oauth_manual(State(ctx): Ctx, form: FormData) -> Response {
         _ => return error(StatusCode::BAD_REQUEST, "That address is not a broker sign-in address. Paste the address shown after you signed in at the broker."),
     };
     let params: HashMap<String, String> = url.query_pairs().into_owned().collect();
-    match BrokerAuthService::complete_oauth(&ctx, &broker, &params).await {
+    let origin = CallbackOrigin::Manual {
+        session_id: &user.session_id,
+    };
+    match BrokerAuthService::complete_oauth(&ctx, &broker, &params, origin).await {
         Ok(_) => json_response(
             StatusCode::OK,
             json!({"status": "success", "message": "Authentication successful", "redirect": "/dashboard"}),
@@ -174,6 +243,15 @@ pub async fn get_credentials(State(ctx): Ctx) -> Response {
         Ok(m) => m,
         Err(e) => return e.into_response(),
     };
+    let client_id = if broker.is_empty() {
+        None
+    } else {
+        ctx.sqlite
+            .conn()
+            .ok()
+            .and_then(|c| credentials::load(&c, &ctx.security, &broker).ok().flatten())
+            .and_then(|s| s.client_id)
+    };
     let mut data = serde_json::to_value(masked).unwrap_or_default();
     let ws_host = cfg.bind_host.clone();
     if let Some(o) = data.as_object_mut() {
@@ -187,6 +265,13 @@ pub async fn get_credentials(State(ctx): Ctx) -> Response {
         );
         o.insert("current_broker".into(), json!(broker));
         o.insert("valid_brokers".into(), json!(catalog::ALL_BROKERS));
+        // Desktop: brokers whose sign-in needs a separate client id, and the
+        // saved one (an account id, not a secret), for the Profile form.
+        o.insert(
+            "client_id_brokers".into(),
+            json!(catalog::CLIENT_ID_BROKERS),
+        );
+        o.insert("client_id".into(), json!(client_id));
         o.insert("ngrok_allow".into(), json!(cfg.ngrok_allow));
         o.insert(
             "host_server".into(),
@@ -336,6 +421,9 @@ pub async fn update_credentials(State(ctx): Ctx, form: FormData) -> Response {
                 )
             })?;
             credentials::save(&c, &ctx.security, &b, update)?;
+            // Saving the settings again is how a trader switches accounts:
+            // the next sign-in is no longer bound to the last one's.
+            crate::db::sqlite::auth::forget_account(&c, &b)?;
         }
         crate::config::save(
             &c,

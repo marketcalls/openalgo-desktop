@@ -4,7 +4,7 @@
 //!   <token>`; responses are `{"status": "SUCCESS", "payload": {...}}`.
 //! * The stored session token is the raw Groww access token (no prefix).
 //! * Market data streams over NATS-on-WebSocket with protobuf payloads
-//!   (`streaming.rs`, through the loopback relay); order updates are a REST
+//!   (`streaming.rs`, on the shared feed manager); order updates are a REST
 //!   poll of the order book (`order_poller.rs`), as on the web.
 
 mod auth;
@@ -23,7 +23,7 @@ mod tests;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::Pacer;
-use crate::brokers::common::streaming::{BrokerFeed, OrderUpdate};
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed, OrderUpdate};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -298,10 +298,9 @@ impl GrowwBroker {
         Ok(rx)
     }
 
-    /// Stop the order-update poller. Call on broker logout and session
-    /// revocation: the shared `Broker` trait has no logout hook yet, so the
-    /// owner of the session must call this (dropping the broker also stops
-    /// it).
+    /// Stop the order-update poller (`Broker::on_logout` calls this on
+    /// broker logout, session revocation and app shutdown; dropping the
+    /// broker also stops it).
     pub fn stop_order_updates(&self) {
         if let Some(p) = self.poller.lock().take() {
             p.stop();
@@ -351,7 +350,7 @@ impl Broker for GrowwBroker {
             gtt: false,
             streaming: true,
             // Order updates come from the REST poller, not a socket.
-            order_feed: false,
+            order_feed: true,
             depth_levels: &[5],
         }
     }
@@ -455,5 +454,21 @@ impl Broker for GrowwBroker {
             auth.raw(),
             self.feed.clone(),
         )))
+    }
+
+    /// The order-book poller (web `PollingOrderUpdateAdapter`, 5 s); it
+    /// replaces a running one and stops in `on_logout`.
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        if auth.raw().trim().is_empty() {
+            return Err(session_expired());
+        }
+        Ok(OrderFeed::Stream(self.start_order_updates(
+            auth,
+            order_poller::DEFAULT_INTERVAL,
+        )?))
+    }
+
+    async fn on_logout(&self) {
+        self.stop_order_updates();
     }
 }

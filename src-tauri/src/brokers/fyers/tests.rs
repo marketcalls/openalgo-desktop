@@ -1047,7 +1047,7 @@ fn order_updates_normalise_like_web() {
     assert_eq!(order_feed_status(4), "open");
     assert_eq!(order_feed_status(7), "expired");
 
-    let mut f = OrderFeed::new(ORDER_WS_URL, &auth(), r).unwrap();
+    let mut f = super::streaming::OrderFeed::new(ORDER_WS_URL, &auth(), r).unwrap();
     let req = f.ws_request().unwrap();
     assert!(req.headers()["authorization"]
         .to_str()

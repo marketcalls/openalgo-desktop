@@ -233,3 +233,14 @@ pub async fn get_holdings(b: &AngelBroker, auth: &AuthToken) -> Result<Vec<Holdi
         b.resolver(),
     ))
 }
+
+/// Holdings with Angel's own `totalholding` figures (web
+/// `calculate_portfolio_statistics`).
+pub async fn get_holdings_with_totals(b: &AngelBroker, auth: &AuthToken) -> Result<HoldingsBook> {
+    let p = raw_portfolio(b, auth).await?;
+    let totals = p.stats();
+    Ok(HoldingsBook {
+        holdings: mapping::map_holdings(p, b.resolver()),
+        totals: Some(totals),
+    })
+}

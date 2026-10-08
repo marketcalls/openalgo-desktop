@@ -48,8 +48,18 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     )?;
     run_rust_migration(
         conn,
+        "064_pending_oauth_redirect",
+        m064_pending_oauth_redirect,
+    )?;
+    run_rust_migration(
+        conn,
         "065_symtoken_contract_value",
         super::symbol::migrate_contract_value,
+    )?;
+    run_rust_migration(
+        conn,
+        "066_master_contract_status",
+        super::master_contract_status::migrate,
     )?;
     run_rust_migration(
         conn,
@@ -281,6 +291,19 @@ fn m040_pending_oauth(conn: &Connection) -> Result<()> {
             expires_at TEXT NOT NULL
         );",
     )?;
+    Ok(())
+}
+
+/// The callback address a pending sign-in's authorize URL was built with,
+/// for the code exchange (Upstox checks it byte for byte), and the hash of
+/// the browser session that started it, for redirects that drop `state`.
+/// the hash of a broker-issued login id the callback may repeat (Dhan's
+/// `consentAppId`). Rows from before the columns have none: they fall back
+/// to the web redirect convention and can only be completed with `state`.
+fn m064_pending_oauth_redirect(conn: &Connection) -> Result<()> {
+    add_column(conn, "pending_oauth", "redirect_uri", "TEXT")?;
+    add_column(conn, "pending_oauth", "session_hash", "TEXT")?;
+    add_column(conn, "pending_oauth", "binding_hash", "TEXT")?;
     Ok(())
 }
 

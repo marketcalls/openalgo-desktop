@@ -16,6 +16,7 @@ pub mod latency;
 pub mod leverage;
 pub mod log;
 pub mod market_calendar;
+pub mod master_contract;
 pub mod options_tools;
 pub mod orders;
 pub mod playground;
@@ -107,8 +108,53 @@ pub fn table() -> Vec<RouteSpec> {
             BrokerCallback,
             broker::oauth_callback
         ),
+        // XTS third-party sign-in posts back here (state-verified); for the
+        // other brokers it is the in-app login form, which checks the user.
+        r!(
+            POST,
+            "/{broker}/callback",
+            BrokerCallback,
+            broker::callback_post
+        ),
+        // Master contract status and symbol cache (web
+        // blueprints/master_contract_status.py)
+        r!(
+            GET,
+            "/api/master-contract/status",
+            User,
+            master_contract::status
+        ),
+        r!(
+            GET,
+            "/api/master-contract/ready",
+            User,
+            master_contract::ready
+        ),
+        r!(
+            GET,
+            "/api/master-contract/smart-status",
+            User,
+            master_contract::smart_status
+        ),
+        r!(
+            POST,
+            "/api/master-contract/download",
+            User,
+            master_contract::download
+        ),
+        r!(
+            GET,
+            "/api/cache/health",
+            User,
+            master_contract::cache_health
+        ),
+        r!(
+            POST,
+            "/api/cache/reload",
+            User,
+            master_contract::cache_reload
+        ),
         // Signed-in user
-        r!(POST, "/{broker}/callback", User, broker::form_login),
         r!(
             GET,
             "/{broker}/initiate-oauth",

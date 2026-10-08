@@ -25,7 +25,7 @@ mod tests;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::Pacer;
-use crate::brokers::common::streaming::BrokerFeed;
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -460,7 +460,7 @@ impl Broker for IndmoneyBroker {
             margin: true,
             gtt: false,
             streaming: true,
-            // Offered by `IndmoneyBroker::create_order_feed`; the trait has no
+            // Offered by `IndmoneyBroker::order_socket` through `Broker::create_order_feed`; the trait had no
             // order-feed factory yet.
             order_feed: true,
             depth_levels: &[5],
@@ -569,6 +569,10 @@ impl Broker for IndmoneyBroker {
         master_contract::download(self, auth).await.map_err(redact)
     }
 
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        Ok(OrderFeed::Socket(self.order_socket(auth)?))
+    }
+
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         Ok(Box::new(streaming::IndmoneyFeed::new(
             &self.urls.prices_ws,
@@ -583,7 +587,7 @@ impl IndmoneyBroker {
     /// order-feed factory yet, so it is offered here (as Upstox and Angel
     /// do). Bare numeric stream ids are mapped to the canonical `EQ-`/`DRV-`
     /// ids this adapter has seen in placements and order books.
-    pub fn create_order_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
+    pub fn order_socket(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         Ok(Box::new(streaming::IndmoneyOrderFeed::new(
             &self.urls.orders_ws,
             token(auth)?,

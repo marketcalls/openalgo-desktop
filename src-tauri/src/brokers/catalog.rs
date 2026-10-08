@@ -63,9 +63,139 @@ pub fn auth_type(broker: &str) -> AuthType {
     }
 }
 
+/// A broker authorize URL and the callback address it was built with. The
+/// login flow records `redirect_uri` with the pending sign-in and hands it
+/// to the code exchange (`BrokerCredentials::redirect_uri`): Upstox refuses
+/// an exchange whose redirect differs from the authorize URL's by a byte.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthorizeUrl {
+    pub url: String,
+    pub redirect_uri: String,
+}
+
+/// Whether the broker's redirect reliably carries the `state` OpenAlgo
+/// sent. Dhan's consent redirect returns only `tokenId`, and the Noren
+/// OAuth pages (shoonya, zebu, tradesmart, flattrade), Arrow, the HDFC
+/// pair and AliceBlue may drop it; a callback from these without `state` is
+/// matched to the newest pending sign-in of that broker started from the
+/// same browser session (single use, 3 minutes) and bound to the
+/// configured account.
+pub fn callback_carries_state(broker: &str) -> bool {
+    !matches!(
+        broker,
+        "dhan"
+            | "shoonya"
+            | "zebu"
+            | "tradesmart"
+            | "flattrade"
+            | "arrow"
+            | "hdfcsky"
+            | "hdfcsecurities"
+            | "aliceblue"
+    )
+}
+
+/// Brokers whose sign-in is bound to a client id the trader enters
+/// separately (the Profile broker form shows the field for these): their
+/// redirect may drop `state` and their API key does not carry the account.
+pub const CLIENT_ID_BROKERS: &[&str] = &["arrow", "hdfcsky", "hdfcsecurities", "aliceblue"];
+
+/// The trading account the stored credentials name, for brokers whose
+/// configuration carries it: Dhan and the Noren family take
+/// `client_id:::key` as the API key or a separate client id. A sign-in that
+/// comes back for a different account is refused (a forged callback).
+/// `None` for brokers whose client-id field means something else (Fyers'
+/// app id) or is not stored.
+pub fn configured_account(broker: &str, api_key: &str, client_id: Option<&str>) -> Option<String> {
+    let client = client_id
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+        .map(str::to_string);
+    // Arrow and the HDFC pair: the client id, when the trader entered one.
+    if CLIENT_ID_BROKERS.contains(&broker) {
+        return client;
+    }
+    if !matches!(
+        broker,
+        "dhan" | "shoonya" | "zebu" | "tradesmart" | "flattrade"
+    ) {
+        return None;
+    }
+    client.or_else(|| {
+        api_key
+            .split_once(":::")
+            .map(|(c, _)| c.trim().to_string())
+            .filter(|c| !c.is_empty())
+    })
+}
+
+/// A broker-issued login id inside the address a sign-in starts at, which
+/// the callback may repeat: Dhan's `consentAppId`.
+pub fn login_binding(broker: &str, login_url: &str) -> Option<String> {
+    if !matches!(broker, "dhan") {
+        return None;
+    }
+    let u = url::Url::parse(login_url).ok()?;
+    let id = u
+        .query_pairs()
+        .find(|(k, _)| k == "consentAppId")
+        .map(|(_, v)| v.into_owned())
+        .filter(|v| !v.is_empty());
+    id
+}
+
+/// The login id a callback repeats, when it does (see [`login_binding`]).
+pub fn callback_binding(broker: &str, params: &HashMap<String, String>) -> Option<String> {
+    if !matches!(broker, "dhan") {
+        return None;
+    }
+    ["consentAppId", "consent_app_id", "consentId"]
+        .iter()
+        .find_map(|k| params.get(*k).filter(|v| !v.is_empty()).cloned())
+}
+
+/// Brokers whose sign-in returns by a form POST to `/<broker>/callback`
+/// (XTS third-party login: `session=` in the body, `state` on the return
+/// URL's query).
+pub fn posts_callback(broker: &str) -> bool {
+    matches!(broker, "compositedge" | "rmoney")
+}
+
+/// A ready access token on a callback address instead of a code
+/// (tradesmart's manual fallback `?access_token=..&uid=..`): the token and
+/// the user id when given.
+pub fn pasted_token(
+    broker: &str,
+    params: &HashMap<String, String>,
+) -> Option<(String, Option<String>)> {
+    let get = |k: &str| {
+        params
+            .get(k)
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+    };
+    match broker {
+        "tradesmart" => get("access_token").map(|t| (t, get("uid"))),
+        _ => None,
+    }
+}
+
 /// Authorize URL with the server-generated `state`, or `None` when the
-/// broker has no OAuth flow wired in this build.
+/// broker has no static OAuth URL (`Broker::begin_login` may build one).
 pub fn authorize_url(
+    broker: &str,
+    api_key: &str,
+    redirect_url: &str,
+    state: &str,
+) -> Option<AuthorizeUrl> {
+    let url = authorize_url_string(broker, api_key, redirect_url, state)?;
+    Some(AuthorizeUrl {
+        url,
+        redirect_uri: redirect_url.to_string(),
+    })
+}
+
+fn authorize_url_string(
     broker: &str,
     api_key: &str,
     redirect_url: &str,
@@ -85,16 +215,13 @@ pub fn authorize_url(
             enc(redirect_url),
             enc(state)
         )),
-        "upstox" => {
-            // The code exchange must repeat this redirect byte for byte.
-            crate::brokers::upstox::remember_redirect_uri(redirect_url);
-            Some(format!(
+        // The code exchange repeats this redirect byte for byte.
+        "upstox" => Some(format!(
             "https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id={}&redirect_uri={}&state={}",
             enc(api_key),
             enc(redirect_url),
             enc(state)
-        ))
-        }
+        )),
         // Arrow appends the request token to the registered redirect URL.
         // `state` is passed so the callback check can match it; Arrow must
         // echo it back for the sign-in to complete (the web's login URL has
@@ -105,15 +232,12 @@ pub fn authorize_url(
             enc(state)
         )),
         // OAuth2 code flow; the code exchange repeats this redirect.
-        "pocketful" => {
-            crate::brokers::pocketful::remember_redirect_uri(redirect_url);
-            Some(format!(
-                "https://trade.pocketful.in/oauth2/auth?client_id={}&redirect_uri={}&response_type=code&scope=orders%20holdings&state={}",
-                enc(api_key),
-                enc(redirect_url),
-                enc(state)
-            ))
-        }
+        "pocketful" => Some(format!(
+            "https://trade.pocketful.in/oauth2/auth?client_id={}&redirect_uri={}&response_type=code&scope=orders%20holdings&state={}",
+            enc(api_key),
+            enc(redirect_url),
+            enc(state)
+        )),
         // Paytm Money returns `requestToken` and echoes `state`.
         "paytm" => Some(format!(
             "https://login.paytmmoney.com/merchant-login?apiKey={}&state={}",
@@ -166,6 +290,29 @@ pub fn authorize_url(
             redirect_url,
             state,
         )),
+        _ => None,
+    }
+}
+
+/// Which `BrokerCredentials` field a login-form field fills.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CredentialSlot {
+    /// `client_id`: user id, client code, mobile number.
+    ClientId,
+    /// `password`: password, PIN, MPIN, or a pasted access token.
+    Password,
+    /// `totp`: TOTP, two-factor code, OTP.
+    Totp,
+}
+
+/// The credential a form field name fills (web field names).
+pub fn credential_slot(name: &str) -> Option<CredentialSlot> {
+    match name {
+        "userid" | "clientid" | "client_id" | "mobile" | "mobilenumber" => {
+            Some(CredentialSlot::ClientId)
+        }
+        "pin" | "password" | "mpin" | "access_token" => Some(CredentialSlot::Password),
+        "totp" | "twofa" | "otp" => Some(CredentialSlot::Totp),
         _ => None,
     }
 }
@@ -314,6 +461,30 @@ pub fn login_fields(broker: &str) -> &'static [LoginField] {
                 required: true,
             },
         ],
+        // mStock Type B (web brlogin): the stored API key is the client
+        // code; password and TOTP are posted together.
+        "mstock" => &[
+            LoginField {
+                name: "password",
+                label: "mStock password",
+                secret: true,
+                required: true,
+            },
+            LoginField {
+                name: "totp",
+                label: "TOTP",
+                secret: true,
+                required: true,
+            },
+        ],
+        // Dhan signs in by consent redirect; a pasted access token (web
+        // brlogin `access_token`) is accepted through the form instead.
+        "dhan" => &[LoginField {
+            name: "access_token",
+            label: "Access token (if you paste one from Dhan)",
+            secret: true,
+            required: true,
+        }],
         _ => &[],
     }
 }
@@ -405,7 +576,8 @@ mod tests {
             "http://127.0.0.1:5000/zerodha/callback",
             "st1",
         )
-        .unwrap();
+        .unwrap()
+        .url;
         assert!(z.contains("api_key=kkey"));
         assert!(z.contains("redirect_params=state%3Dst1"));
         let f = authorize_url(
@@ -415,6 +587,8 @@ mod tests {
             "st2",
         )
         .unwrap();
+        assert_eq!(f.redirect_uri, "http://127.0.0.1:5000/fyers/callback");
+        let f = f.url;
         assert!(f.contains("state=st2"));
         assert!(f.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A5000%2Ffyers%2Fcallback"));
         assert!(authorize_url("angel", "k", "r", "s").is_none());
@@ -443,7 +617,52 @@ mod tests {
         assert_eq!(auth_type("dhan_sandbox"), AuthType::Form);
         // The sandbox signs in with the stored token alone.
         assert!(login_fields("dhan_sandbox").is_empty());
-        assert!(login_fields("dhan").is_empty());
+        assert_eq!(login_fields("dhan")[0].name, "access_token");
+        assert_eq!(
+            credential_slot("access_token"),
+            Some(CredentialSlot::Password)
+        );
+        assert_eq!(credential_slot("mobile"), Some(CredentialSlot::ClientId));
+        assert_eq!(credential_slot("otp"), Some(CredentialSlot::Totp));
+        assert!(!callback_carries_state("dhan"));
+        assert!(!callback_carries_state("shoonya"));
+        assert!(callback_carries_state("upstox"));
+        assert!(posts_callback("rmoney") && !posts_callback("zerodha"));
+        let p = q(&[("access_token", "tok"), ("uid", "U1")]);
+        assert_eq!(
+            pasted_token("tradesmart", &p),
+            Some(("tok".to_string(), Some("U1".to_string())))
+        );
+        assert_eq!(pasted_token("zerodha", &p), None);
+        assert_eq!(
+            configured_account("dhan", "1100:::app", None).as_deref(),
+            Some("1100")
+        );
+        assert_eq!(
+            configured_account("shoonya", "U1:::k", Some(" FA1 ")).as_deref(),
+            Some("FA1")
+        );
+        assert_eq!(configured_account("fyers", "app", Some("XY-100")), None);
+        assert!(!callback_carries_state("aliceblue"));
+        assert_eq!(
+            configured_account("aliceblue", "key", Some("AB1")).as_deref(),
+            Some("AB1")
+        );
+        assert_eq!(configured_account("aliceblue", "key", None), None);
+        assert_eq!(configured_account("zebu", "k", None), None);
+        assert_eq!(
+            login_binding(
+                "dhan",
+                "https://auth.dhan.co/login/consentApp-login?consentAppId=c-1"
+            )
+            .as_deref(),
+            Some("c-1")
+        );
+        assert_eq!(login_binding("zerodha", "https://x/?consentAppId=c"), None);
+        assert_eq!(
+            callback_binding("dhan", &q(&[("consentAppId", "c-1")])).as_deref(),
+            Some("c-1")
+        );
     }
 
     #[test]
@@ -453,18 +672,22 @@ mod tests {
         assert_eq!(names, ["mobile", "totp", "mpin"]);
         assert!(f.iter().all(|x| x.required));
         assert!(!f[0].secret && f[1].secret && f[2].secret);
+        let m: Vec<&str> = login_fields("mstock").iter().map(|x| x.name).collect();
+        assert_eq!(m, ["password", "totp"]);
+        assert_eq!(auth_type("mstock"), AuthType::Form);
     }
 
     #[test]
     fn noren_family_sign_in() {
         for b in ["shoonya", "zebu", "tradesmart", "flattrade"] {
             assert_eq!(auth_type(b), AuthType::OAuth, "{}", b);
-            let u = authorize_url(b, "U1:::APPKEY", "r", "st9").unwrap();
+            let u = authorize_url(b, "U1:::APPKEY", "r", "st9").unwrap().url;
             assert!(u.contains("APPKEY") && u.ends_with("state=st9"), "{}", u);
             assert!(!u.contains("U1"));
         }
         assert!(authorize_url("zebu", "k", "r", "s")
             .unwrap()
+            .url
             .starts_with("https://go.mynt.in/OAuthlogin/authorize/oauth?client_id=k"));
         assert_eq!(auth_type("firstock"), AuthType::Form);
         let f = login_fields("firstock");
@@ -480,7 +703,7 @@ mod tests {
     #[test]
     fn arrow_login_url_and_request_token() {
         assert_eq!(auth_type("arrow"), AuthType::OAuth);
-        let u = authorize_url("arrow", "APP 1", "r", "st5").unwrap();
+        let u = authorize_url("arrow", "APP 1", "r", "st5").unwrap().url;
         assert_eq!(
             u,
             "https://app.arrow.trade/app/login?appID=APP%201&state=st5"
@@ -504,12 +727,29 @@ mod tests {
             "http://127.0.0.1:5000/pocketful/callback",
             "st7",
         )
-        .unwrap();
+        .unwrap()
+        .url;
         assert!(u.starts_with("https://trade.pocketful.in/oauth2/auth?client_id=cid-1&"));
         assert!(u.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A5000%2Fpocketful%2Fcallback"));
         assert!(u.contains("response_type=code&scope=orders%20holdings&state=st7"));
+        let a = authorize_url(
+            "pocketful",
+            "cid-1",
+            "http://127.0.0.1:5500/pocketful/callback",
+            "s",
+        )
+        .unwrap();
+        assert_eq!(a.redirect_uri, "http://127.0.0.1:5500/pocketful/callback");
+        let creds = crate::brokers::BrokerCredentials {
+            redirect_uri: Some(a.redirect_uri),
+            ..Default::default()
+        };
         assert_eq!(
-            crate::brokers::pocketful::redirect_uri(),
+            crate::brokers::pocketful::redirect_uri(&creds),
+            "http://127.0.0.1:5500/pocketful/callback"
+        );
+        assert_eq!(
+            crate::brokers::pocketful::redirect_uri(&Default::default()),
             "http://127.0.0.1:5000/pocketful/callback"
         );
         assert_eq!(auth_type("pocketful"), AuthType::OAuth);
@@ -526,7 +766,8 @@ mod tests {
             "http://127.0.0.1:5000/paytm/callback",
             "st7",
         )
-        .unwrap();
+        .unwrap()
+        .url;
         assert_eq!(
             u,
             "https://login.paytmmoney.com/merchant-login?apiKey=pk%201&state=st7"
@@ -548,7 +789,7 @@ mod tests {
     #[test]
     fn hdfcsky_login_url_and_callback_token() {
         assert_eq!(auth_type("hdfcsky"), AuthType::OAuth);
-        let u = authorize_url("hdfcsky", "key 1", "r", "st7").unwrap();
+        let u = authorize_url("hdfcsky", "key 1", "r", "st7").unwrap().url;
         assert_eq!(
             u,
             "https://developer.hdfcsky.com/oapi/v1/login?api_key=key%201&state=st7"
@@ -563,7 +804,9 @@ mod tests {
     #[test]
     fn hdfcsecurities_login_url_and_code() {
         assert_eq!(auth_type("hdfcsecurities"), AuthType::OAuth);
-        let u = authorize_url("hdfcsecurities", "key 1", "r", "st5").unwrap();
+        let u = authorize_url("hdfcsecurities", "key 1", "r", "st5")
+            .unwrap()
+            .url;
         assert_eq!(
             u,
             "https://developer.hdfcsec.com/oapi/v1/login?api_key=key%201&state=st5"
@@ -627,7 +870,8 @@ mod tests {
             "http://127.0.0.1:5000/iiflcapital/callback",
             "st7",
         )
-        .unwrap();
+        .unwrap()
+        .url;
         assert_eq!(
             u,
             "https://markets.iiflcapital.com/?v=1&appkey=APPKEY&redirecturl=http://127.0.0.1:5000/iiflcapital/callback?state=st7&redirectUrl=http://127.0.0.1:5000/iiflcapital/callback?state=st7"

@@ -74,7 +74,11 @@ fn identity_and_capabilities() {
     // A token without the appID half is an expired session.
     assert!(b.create_feed(&AuthToken::new("jwtonly")).is_err());
     assert!(b.create_feed(&AuthToken::new("APP:jwt")).is_ok());
-    assert!(b.create_order_feed(&AuthToken::new("APP:jwt")).is_ok());
+    assert!(b.order_socket(&AuthToken::new("APP:jwt")).is_ok());
+    assert!(matches!(
+        crate::brokers::Broker::create_order_feed(&b, &AuthToken::new("APP:jwt")),
+        Ok(crate::brokers::common::streaming::OrderFeed::Socket(_))
+    ));
 }
 
 // ---------------------------------------------------------------------------

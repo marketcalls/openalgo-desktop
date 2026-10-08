@@ -829,18 +829,20 @@ fn feed_handshake_subscribe_and_heartbeat() {
         text_of(&c[0]),
         json!({"t":"a","uid":"U1","actid":"U1","source":"API","accesstoken":"tok"})
     );
+    // The order subscription goes once per connection, after the login
+    // ack, whether or not anything is subscribed.
+    let after_ack = f.on_authenticated();
+    assert_eq!(text_of(&after_ack[0]), json!({"t":"o","actid":"U1"}));
     let frames = f.subscribe_frames(&[
         sub("SBIN", "NSE", "3045", FeedMode::Quote),
         sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Ltp),
         sub("NIFTY27OCT26FUT", "NFO", "54321", FeedMode::Depth),
     ]);
-    assert_eq!(text_of(&frames[0]), json!({"t":"o","actid":"U1"}));
     assert_eq!(
-        text_of(&frames[1]),
+        text_of(&frames[0]),
         json!({"t":"t","k":"NSE|3045#NSE|26000"})
     );
-    assert_eq!(text_of(&frames[2]), json!({"t":"d","k":"NFO|54321"}));
-    // The order subscription goes once per connection.
+    assert_eq!(text_of(&frames[1]), json!({"t":"d","k":"NFO|54321"}));
     let again = f.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Ltp)]);
     assert_eq!(again.len(), 1);
     let many: Vec<FeedSubscription> = (0..250)
@@ -859,6 +861,7 @@ fn feed_handshake_subscribe_and_heartbeat() {
         shoonya_master(),
     );
     t.on_connected();
+    assert!(t.on_authenticated().is_empty());
     let tf = t.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Ltp)]);
     assert_eq!(tf.len(), 1);
     assert_eq!(text_of(&tf[0])["t"], "t");

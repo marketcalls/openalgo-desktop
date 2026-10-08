@@ -41,7 +41,7 @@ use super::data::{index_candidates, kotak_segment};
 use super::{KotakBroker, KotakSession};
 use crate::brokers::common::streaming::{
     now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, WsRequest,
+    NormalizedTick, OrderUpdate, PrepareError, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -353,18 +353,6 @@ pub fn parse_dividers(v: &Value) -> HashMap<i8, f64> {
 // Feed host lookup
 // ---------------------------------------------------------------------------
 
-/// `url` with an explicit `/` path when it has none (a bare
-/// `wss://host[?query]` cannot be written as a request line).
-pub fn with_root_path(url: &str) -> String {
-    let rest = url.split_once("://").map(|(_, r)| r).unwrap_or(url);
-    let host_end = rest.find(['/', '?']).unwrap_or(rest.len());
-    if rest[host_end..].starts_with('/') {
-        return url.to_string();
-    }
-    let cut = url.len() - (rest.len() - host_end);
-    format!("{}/{}", &url[..cut], &url[cut..])
-}
-
 /// `https://` -> `wss://`, a bare host gets `wss://` (web
 /// `_to_websocket_scheme`).
 pub fn to_wss(url: &str) -> String {
@@ -404,12 +392,19 @@ pub fn feed_url_from_config(configs: &Value, data_center: &str) -> (Option<Strin
 /// Look up and remember the feed URL for `data_center` (web
 /// `fetch_feed_config`, 5 s budget). Any failure leaves the default.
 pub async fn resolve_feed_url(b: &KotakBroker, data_center: &str) -> String {
-    let url = if data_center.is_empty() {
+    let url = lookup_feed_url(&b.http, &b.feed_config_url, data_center).await;
+    *b.feed_url.lock() = Some((data_center.to_string(), url.clone()));
+    url
+}
+
+/// The feed URL the config service names for `data_center`, else the
+/// default.
+async fn lookup_feed_url(http: &reqwest::Client, config_url: &str, data_center: &str) -> String {
+    if data_center.is_empty() {
         DEFAULT_SFEED_URL.to_string()
     } else {
-        let resp = b
-            .http
-            .get(&b.feed_config_url)
+        let resp = http
+            .get(config_url)
             .timeout(Duration::from_secs(5))
             .send()
             .await;
@@ -436,13 +431,24 @@ pub async fn resolve_feed_url(b: &KotakBroker, data_center: &str) -> String {
                 DEFAULT_SFEED_URL.to_string()
             }
             Err(e) => {
-                tracing::warn!("Kotak feed config lookup failed: {}", e);
+                tracing::warn!(
+                    "Kotak feed config lookup failed: {}",
+                    crate::brokers::common::redact::url_safe_error(&e)
+                );
                 DEFAULT_SFEED_URL.to_string()
             }
         }
-    };
-    *b.feed_url.lock() = Some((data_center.to_string(), url.clone()));
-    url
+    }
+}
+
+/// Resolve the data-centre feed host before connecting (a session resumed
+/// in this run has not been through the login that looks it up).
+struct FeedLookup {
+    http: reqwest::Client,
+    config_url: String,
+    data_center: String,
+    /// The broker's cache, filled once resolved.
+    cache: std::sync::Arc<parking_lot::Mutex<Option<(String, String)>>>,
 }
 
 /// The remembered feed URL for `data_center`, else the default.
@@ -535,6 +541,7 @@ fn epoch_ms(t: i64) -> i64 {
 /// The Kotak SFeed market-data feed.
 pub struct KotakFeed {
     url: String,
+    lookup: Option<FeedLookup>,
     user: String,
     sid: String,
     dividers: HashMap<i8, f64>,
@@ -549,7 +556,8 @@ pub struct KotakFeed {
 impl KotakFeed {
     pub fn new(url: &str, sid: &str, ucc: String, _symbols: SymbolResolver) -> Self {
         Self {
-            url: with_root_path(url),
+            url: url.to_string(),
+            lookup: None,
             user: if ucc.is_empty() { "neome".into() } else { ucc },
             sid: sid.to_string(),
             dividers: HashMap::new(),
@@ -558,6 +566,29 @@ impl KotakFeed {
             aliases: HashMap::new(),
             state: HashMap::new(),
         }
+    }
+
+    /// Look the data centre's feed host up in `prepare` (once) and remember
+    /// it in the broker's `cache`.
+    pub fn with_lookup(
+        mut self,
+        http: reqwest::Client,
+        config_url: String,
+        data_center: String,
+        cache: std::sync::Arc<parking_lot::Mutex<Option<(String, String)>>>,
+    ) -> Self {
+        self.lookup = Some(FeedLookup {
+            http,
+            config_url,
+            data_center,
+            cache,
+        });
+        self
+    }
+
+    /// The address the next connect uses.
+    pub fn url(&self) -> &str {
+        &self.url
     }
 
     /// The `native_batch` authentication frame (web `_build_auth_frame`).
@@ -926,9 +957,19 @@ impl KotakFeed {
     }
 }
 
+#[async_trait::async_trait]
 impl BrokerFeed for KotakFeed {
     fn broker(&self) -> &'static str {
         "kotak"
+    }
+
+    async fn prepare(&mut self) -> std::result::Result<(), PrepareError> {
+        if let Some(l) = self.lookup.take() {
+            let url = lookup_feed_url(&l.http, &l.config_url, &l.data_center).await;
+            *l.cache.lock() = Some((l.data_center.clone(), url.clone()));
+            self.url = url;
+        }
+        Ok(())
     }
 
     fn ws_request(&self) -> Result<WsRequest> {

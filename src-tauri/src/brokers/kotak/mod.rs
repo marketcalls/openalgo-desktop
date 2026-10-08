@@ -30,7 +30,7 @@ mod tests;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::Pacer;
-use crate::brokers::common::streaming::BrokerFeed;
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -160,7 +160,7 @@ pub struct KotakBroker {
     pub(crate) retry_base: Duration,
     /// The market-data feed URL resolved for the last login's data centre:
     /// one entry, replaced on every login.
-    pub(crate) feed_url: Mutex<Option<(String, String)>>,
+    pub(crate) feed_url: Arc<Mutex<Option<(String, String)>>>,
     /// The UCC of the last login, which SFeed wants as its `user` (the web
     /// reads `BROKER_API_KEY`; without it the web sends `neome`).
     pub(crate) ucc: Mutex<Option<String>>,
@@ -191,7 +191,7 @@ impl KotakBroker {
             quotes_gate: Arc::new(Semaphore::new(4)),
             history_pacer: Pacer::per_second(1.0),
             retry_base: Duration::from_secs(1),
-            feed_url: Mutex::new(None),
+            feed_url: Arc::new(Mutex::new(None)),
             ucc: Mutex::new(None),
         }
     }
@@ -465,15 +465,41 @@ impl Broker for KotakBroker {
         master_contract::download(self, auth).await
     }
 
+    /// The SFeed client. Its host depends on the session's data centre and
+    /// is resolved in `prepare` when this run has not looked it up yet (a
+    /// resumed session), so streaming works without a fresh login.
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         let s = KotakSession::parse(auth)?;
         let url = streaming::cached_feed_url(self, &s.data_center);
-        Ok(Box::new(streaming::KotakFeed::new(
-            &url,
-            &s.sid,
-            self.ucc_hint(),
-            self.symbols.clone(),
-        )))
+        let feed = streaming::KotakFeed::new(&url, &s.sid, self.ucc_hint(), self.symbols.clone());
+        let feed = if self.has_feed_url(&s.data_center) {
+            feed
+        } else {
+            feed.with_lookup(
+                self.http.clone(),
+                self.feed_config_url.clone(),
+                s.data_center.clone(),
+                self.feed_url.clone(),
+            )
+        };
+        Ok(Box::new(feed))
+    }
+
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        Ok(OrderFeed::Socket(self.order_socket(auth)?))
+    }
+
+    /// The UCC (the stored API key) is what the SFeed `user` field carries;
+    /// a resumed session has not been through `authenticate` in this run.
+    fn restore_session(&self, credentials: &BrokerCredentials) {
+        let ucc = credentials.api_key.trim();
+        if !ucc.is_empty() {
+            *self.ucc.lock() = Some(ucc.to_string());
+        }
+    }
+
+    async fn on_logout(&self) {
+        *self.feed_url.lock() = None;
     }
 }
 
@@ -494,8 +520,16 @@ impl KotakBroker {
         )))
     }
 
-    /// The order-update socket (`wss://<baseUrl host>/realtime`).
-    pub fn create_order_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
+    fn has_feed_url(&self, data_center: &str) -> bool {
+        self.feed_url
+            .lock()
+            .as_ref()
+            .is_some_and(|(dc, _)| dc == data_center)
+    }
+
+    /// The order-update socket (`wss://<baseUrl host>/realtime`), served
+    /// through `Broker::create_order_feed`.
+    pub fn order_socket(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         let s = KotakSession::parse(auth)?;
         Ok(Box::new(streaming::KotakOrderFeed::new(
             &s,

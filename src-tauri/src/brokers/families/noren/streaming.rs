@@ -46,7 +46,6 @@ pub struct NorenFeed {
     symbols: SymbolResolver,
     subs: HashMap<String, SubInfo>,
     cache: HashMap<String, Map<String, Value>>,
-    order_sub_pending: bool,
 }
 
 /// `EXCH|token` scrip key.
@@ -92,7 +91,6 @@ impl NorenFeed {
             symbols,
             subs: HashMap::new(),
             cache: HashMap::new(),
-            order_sub_pending: cfg.order_feed_subscribe,
         }
     }
 
@@ -225,7 +223,6 @@ impl BrokerFeed for NorenFeed {
 
     fn on_connected(&mut self) -> Vec<Message> {
         self.cache.clear();
-        self.order_sub_pending = self.cfg.order_feed_subscribe;
         vec![Message::Text(
             json!({
                 "t": "a",
@@ -242,17 +239,20 @@ impl BrokerFeed for NorenFeed {
         true
     }
 
+    /// Order updates ride the market socket (one session per login on
+    /// single-session brokers): subscribed once per connection, after the
+    /// login ack, with or without market subscriptions.
+    fn on_authenticated(&mut self) -> Vec<Message> {
+        if !self.cfg.order_feed_subscribe {
+            return Vec::new();
+        }
+        vec![Message::Text(
+            json!({"t": "o", "actid": self.uid}).to_string(),
+        )]
+    }
+
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
         let mut out = Vec::new();
-        if self.order_sub_pending {
-            // Order updates ride the market socket (one session per login
-            // on single-session brokers); sent once per connection, after
-            // the login ack.
-            self.order_sub_pending = false;
-            out.push(Message::Text(
-                json!({"t": "o", "actid": self.uid}).to_string(),
-            ));
-        }
         let (mut touch, mut depth) = (Vec::new(), Vec::new());
         for s in subs {
             let k = scrip(s);

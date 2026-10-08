@@ -1,12 +1,15 @@
 //! Broker-agnostic market-data feed manager (outbound side).
 //!
-//! One supervisor task owns the broker socket. It connects with a timeout,
+//! One supervisor task owns the broker socket. It awaits the feed's async
+//! `prepare` (authorize call, socket token), connects with a timeout,
 //! sends the feed's handshake, re-subscribes every registered instrument,
 //! reads frames through the broker's `BrokerFeed::parse`, and publishes
 //! normalised events on a bounded broadcast channel. On error, close, or a
 //! stall (no frame for `stall_timeout`), it closes the old socket and
 //! reconnects with capped exponential backoff and jitter. An authentication
-//! refusal stops the loop until the trader logs in again.
+//! refusal stops the loop until the trader logs in again. Protocol replies
+//! a feed returns from `parse` (`FeedEvent::Reply`) are written back on the
+//! same socket.
 //!
 //! Subscriptions are reference counted per instrument and mode. The broker
 //! sees one subscription per instrument at its effective (highest) mode; a
@@ -19,8 +22,10 @@
 //! whose slow receivers see `Lagged` and skip ahead.
 
 use crate::brokers::common::ratelimit::backoff_delay;
+use crate::brokers::common::redact::{url_safe_error, ws_error_kind};
 use crate::brokers::common::streaming::{
-    BrokerFeed, FeedEvent, FeedMode, FeedSubscription, MarketEvent, Message,
+    normalize_request, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, MarketEvent, Message,
+    PrepareError,
 };
 use crate::error::{AppError, Result};
 use futures_util::{SinkExt, StreamExt};
@@ -454,15 +459,41 @@ impl Supervisor {
     }
 
     async fn connect_once(&mut self, broker: &str) -> SessionEnd {
-        let request = match self.feed.ws_request() {
-            Ok(r) => r,
-            Err(e) => {
-                tracing::error!(broker, "Market data feed request could not be built: {}", e);
-                return SessionEnd::AuthFailed(e.client_message());
+        match tokio::time::timeout(self.config.connect_timeout, self.feed.prepare()).await {
+            Ok(Ok(())) => {}
+            Ok(Err(PrepareError::AuthFailed(message))) => return SessionEnd::AuthFailed(message),
+            Ok(Err(PrepareError::Unavailable)) => return SessionEnd::Lost,
+            Err(_) => {
+                tracing::debug!(broker, "Market data feed preparation timed out");
+                return SessionEnd::Lost;
+            }
+        }
+        let mut retried = false;
+        let ws = loop {
+            let request = match self.feed.ws_request() {
+                Ok(r) => normalize_request(r),
+                Err(e) => {
+                    tracing::error!(
+                        broker,
+                        code = e.code(),
+                        "Market data feed request could not be built"
+                    );
+                    return SessionEnd::AuthFailed(e.client_message());
+                }
+            };
+            let connect = tokio_tungstenite::connect_async(request);
+            match tokio::time::timeout(self.config.connect_timeout, connect).await {
+                Ok(Err(e)) if !matches!(e, WsError::Http(_)) && !retried => {
+                    if self.feed.on_connect_failed(&url_safe_error(&e)) {
+                        retried = true;
+                        continue;
+                    }
+                    break Ok(Err(e));
+                }
+                other => break other,
             }
         };
-        let connect = tokio_tungstenite::connect_async(request);
-        let ws = match tokio::time::timeout(self.config.connect_timeout, connect).await {
+        let ws = match ws {
             Ok(Ok((ws, _))) => ws,
             Ok(Err(WsError::Http(resp))) => {
                 let code = resp.status().as_u16();
@@ -476,7 +507,11 @@ impl Supervisor {
                 return SessionEnd::Lost;
             }
             Ok(Err(e)) => {
-                tracing::debug!(broker, "Market data feed connect failed: {}", e);
+                tracing::debug!(
+                    broker,
+                    kind = ws_error_kind(&e),
+                    "Market data feed connect failed"
+                );
                 return SessionEnd::Lost;
             }
             Err(_) => {
@@ -534,13 +569,23 @@ impl Supervisor {
         let check = (self.config.stall_timeout / 4).max(Duration::from_millis(10));
         let mut watchdog = tokio::time::interval_at(Instant::now() + check, check);
         let mut last_rx = Instant::now();
+        // A broker that may never acknowledge is taken as accepted after
+        // `auth_ack_timeout` (Groww: 2 s, like the web).
+        let ack_after = self
+            .feed
+            .auth_ack_timeout()
+            .filter(|_| !subscribed)
+            .unwrap_or(Duration::from_secs(3600));
+        let ack_deadline = tokio::time::sleep(ack_after);
+        tokio::pin!(ack_deadline);
+        let mut ack_pending = !subscribed && self.feed.auth_ack_timeout().is_some();
         loop {
             tokio::select! {
                 msg = read.next() => {
                     let msg = match msg {
                         Some(Ok(m)) => m,
                         Some(Err(e)) => {
-                            tracing::debug!(broker, "Market data feed read error: {}", e);
+                            tracing::debug!(broker, kind = ws_error_kind(&e), "Market data feed read error");
                             return SessionEnd::Lost;
                         }
                         None => return SessionEnd::Lost,
@@ -564,6 +609,11 @@ impl Supervisor {
                                 }
                             }
                             FeedEvent::Heartbeat => {}
+                            FeedEvent::Reply(m) => {
+                                if write.send(m).await.is_err() {
+                                    return SessionEnd::Lost;
+                                }
+                            }
                             e @ (FeedEvent::Tick(_) | FeedEvent::Depth(_) | FeedEvent::OrderUpdate(_)) => {
                                 self.stats.events.fetch_add(1, Ordering::Relaxed);
                                 // No receiver yet is normal; nothing is retained.
@@ -598,6 +648,18 @@ impl Supervisor {
                         }
                     }
                 }
+                _ = &mut ack_deadline, if ack_pending => {
+                    ack_pending = false;
+                    if !subscribed {
+                        if !self.resubscribe(write).await {
+                            return SessionEnd::Lost;
+                        }
+                        subscribed = true;
+                        self.status.send_replace(FeedStatus::Connected {
+                            broker: broker.to_string(),
+                        });
+                    }
+                }
                 _ = watchdog.tick() => {
                     if last_rx.elapsed() >= self.config.stall_timeout {
                         tracing::warn!(broker, "Market data feed stalled; reconnecting");
@@ -613,11 +675,12 @@ impl Supervisor {
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
     {
+        // The session was just accepted: its post-login frames go first.
+        let mut frames = self.feed.on_authenticated();
         let subs = self.registry.lock().effective_all();
-        if subs.is_empty() {
-            return true;
+        if !subs.is_empty() {
+            frames.extend(self.feed.subscribe_frames(&subs));
         }
-        let frames = self.feed.subscribe_frames(&subs);
         Self::send_all(write, frames).await
     }
 }

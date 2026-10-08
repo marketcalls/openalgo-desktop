@@ -27,7 +27,7 @@ pub use funds::{funds_from_limits, margin_bodies};
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::Pacer;
-use crate::brokers::common::streaming::BrokerFeed;
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -445,6 +445,10 @@ impl Broker for ArrowBroker {
         master_contract::download(self, auth).await
     }
 
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        Ok(OrderFeed::Socket(self.order_socket(auth)?))
+    }
+
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         let (app_id, jwt) = Self::credentials(auth)?;
         Ok(Box::new(streaming::ArrowFeed::new(
@@ -456,10 +460,9 @@ impl Broker for ArrowBroker {
 }
 
 impl ArrowBroker {
-    /// The order-update stream (web `streaming/arrow_order_adapter.py`), as a
-    /// feed for a second `WebSocketManager`. The shared `Broker` trait has no
-    /// order-feed factory yet, so it is offered here (as Upstox does).
-    pub fn create_order_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
+    /// The order-update stream (web `streaming/arrow_order_adapter.py`), a
+    /// second socket, served through `Broker::create_order_feed`.
+    pub fn order_socket(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         let (app_id, jwt) = Self::credentials(auth)?;
         Ok(Box::new(streaming::ArrowOrderFeed::new(
             &self.urls.ws_orders,
