@@ -66,7 +66,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
         with:
           tool: cargo-audit
       - name: JSON report (all findings, never fails)
@@ -96,8 +96,10 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@1.92.0
-      - uses: taiki-e/install-action@v2
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: 1.92.0
+      - uses: taiki-e/install-action@f7e5d7c961414b23f5b25b2da9294395d08513ad # v2.87.26
         with:
           tool: cargo-deny
       - name: SARIF report (never fails)

@@ -1,0 +1,15 @@
+# CodeQL configuration shared by every language in codeql.yml.
+#
+# Test code is excluded: integration tests, frontend unit tests and the
+# Playwright suite use fixed keys, passwords and payloads on purpose, so the
+# "hard-coded cryptographic value" and similar queries only produce noise
+# there. Unit tests inside #[cfg(test)] modules in src-tauri/src cannot be
+# excluded by path; alerts on those are dismissed as "used in tests" after a
+# check that they really sit in a test module.
+name: openalgo-desktop CodeQL config
+
+paths-ignore:
+  - src-tauri/tests/**
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - e2e/**
