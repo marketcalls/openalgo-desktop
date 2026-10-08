@@ -191,8 +191,12 @@ fn order(symbol: &str, exchange: &str, pricetype: PriceType, action: Action) -> 
 #[test]
 fn place_jdata_matches_web_transform() {
     let o = order("NIFTY27OCT2625000CE", "NFO", PriceType::Market, Action::Buy);
+    let mut placed = place_order_jdata(&o).unwrap();
+    let ig = placed["ig"].as_str().unwrap().to_string();
+    assert!(ig.starts_with("openalgo-"), "{ig}");
+    placed["ig"] = json!("openalgo");
     assert_eq!(
-        place_order_jdata(&o).unwrap(),
+        placed,
         json!({
             "am": "NO", "dq": "0", "es": "nse_fo", "mp": "0", "pc": "NRML", "pf": "N",
             "pr": "0", "pt": "MKT", "qt": "75", "rt": "DAY", "tp": "120.0",
@@ -262,6 +266,7 @@ fn modify_jdata_matches_web_transform() {
         disclosed_quantity: 0,
     };
     let rm = ResolvedModify::resolve("261003000104", &m, &master()).unwrap();
+    // Exact equality also pins that modify sends no `ig` (web #2177).
     assert_eq!(
         modify_order_jdata(&rm).unwrap(),
         json!({
@@ -1285,4 +1290,49 @@ async fn resumed_session_restores_the_ucc_and_resolves_the_feed_host() {
     ));
     b.on_logout().await;
     assert!(b.feed_url.lock().is_none());
+}
+
+// ---------------------------------------------------------------------------
+// Order tag (web test/test_kotak_order_tag.py, #2177)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn every_order_gets_a_different_tag() {
+    let o = order("NIFTY27OCT2625000CE", "NFO", PriceType::Market, Action::Buy);
+    let tags: std::collections::HashSet<String> = (0..50)
+        .map(|_| {
+            place_order_jdata(&o).unwrap()["ig"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
+        .collect();
+    assert_eq!(tags.len(), 50);
+}
+
+#[test]
+fn default_tag_is_openalgo_prefix_plus_uuid_v4() {
+    let o = order("NIFTY27OCT2625000CE", "NFO", PriceType::Market, Action::Buy);
+    let v = place_order_jdata(&o).unwrap();
+    let tag = v["ig"].as_str().unwrap();
+    let (prefix, rest) = tag.split_once('-').unwrap();
+    assert_eq!(prefix, "openalgo");
+    assert_eq!(uuid::Uuid::parse_str(rest).unwrap().get_version_num(), 4);
+    assert!(tag.len() <= 52);
+}
+
+#[test]
+fn caller_tag_becomes_the_prefix_and_is_still_unique() {
+    let a = order_tag(Some("ironcondor"));
+    let b = order_tag(Some("ironcondor"));
+    assert!(a.starts_with("ironcondor-") && b.starts_with("ironcondor-"));
+    assert_ne!(a, b);
+}
+
+#[test]
+fn long_or_blank_caller_tag_is_bounded_and_never_blank() {
+    let long = order_tag(Some(&"x".repeat(100)));
+    assert!(long.starts_with(&format!("{}-", "x".repeat(15))));
+    assert!(long.len() <= 52);
+    assert!(order_tag(Some("   ")).starts_with("openalgo-"));
 }

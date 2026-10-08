@@ -352,8 +352,14 @@ async fn orders_post_jdata_forms() {
         Some("application/x-www-form-urlencoded")
     );
     assert!(p.body.starts_with("jData=%7B"));
+    // `ig` is a fresh `openalgo-<uuid4>` per order (web #2177); pin its shape
+    // and compare the rest exactly.
+    let mut jd = p.jdata();
+    let ig = jd["ig"].as_str().unwrap_or_default().to_string();
+    assert!(ig.starts_with("openalgo-") && ig.len() == 45, "{ig}");
+    jd["ig"] = json!("openalgo");
     assert_eq!(
-        p.jdata(),
+        jd,
         json!({"am": "NO", "dq": "0", "es": "nse_cm", "mp": "0", "pc": "MIS", "pf": "N",
                "pr": "0", "pt": "MKT", "qt": "10", "rt": "DAY", "tp": "0", "ts": "SBIN-EQ",
                "tt": "B", "ig": "openalgo"})

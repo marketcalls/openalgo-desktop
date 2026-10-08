@@ -2,8 +2,8 @@
 //! `mapping/order_data.py`).
 //!
 //! Every jData value is a string; zero prices are `"0"` (Kotak rejects
-//! `"0.0"`); `pc` is the raw OpenAlgo product; `ig: "openalgo"` is required
-//! on place. SL-M is never sent: it becomes SL with a protective limit one
+//! `"0.0"`); `pc` is the raw OpenAlgo product; `ig` is required on place
+//! and unique per order (`openalgo-<uuid4>`). SL-M is never sent: it becomes SL with a protective limit one
 //! Kotak MPP band past the trigger, snapped to the tick away from it.
 
 use crate::brokers::common::mapping::{Action, PriceType};
@@ -13,8 +13,27 @@ use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use serde_json::{json, Value};
 
-/// Order tag echoed back as `GuiOrdId` (Kotak rejects a blank one).
-pub const ORDER_TAG: &str = "openalgo";
+/// Prefix of the order tag `ig`, echoed back as `GuiOrdId`.
+///
+/// Kotak rejects a blank `ig`, so it is always set. It is also a client order
+/// id: a value already used on the account is rejected with "Client OrderID
+/// already exists", so a fixed tag lets only the first order of the day
+/// through (web #2177). Every Place Order therefore gets a fresh
+/// `<prefix>-<uuid4>`, the shape Kotak's own apps send. Modify takes no `ig`.
+pub const ORDER_TAG_PREFIX: &str = "openalgo";
+const MAX_TAG_PREFIX: usize = 15;
+
+/// A fresh, unique order tag (web `_order_tag`). A caller-supplied prefix is
+/// trimmed and capped at 15 characters so the tag stays within the
+/// 52-character ids Kotak itself issues; a blank one falls back to `openalgo`.
+pub fn order_tag(prefix: Option<&str>) -> String {
+    let p = prefix
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .unwrap_or(ORDER_TAG_PREFIX);
+    let p: String = p.chars().take(MAX_TAG_PREFIX).collect();
+    format!("{p}-{}", uuid::Uuid::new_v4())
+}
 
 // ---------------------------------------------------------------------------
 // Static maps
@@ -250,7 +269,7 @@ pub fn place_order_jdata(o: &ResolvedOrder) -> Result<Value> {
     m.insert("tp".into(), json!(fmt_price(o.trigger_price)));
     m.insert("ts".into(), json!(o.brsymbol()));
     m.insert("tt".into(), json!(tt(o.action)));
-    m.insert("ig".into(), json!(ORDER_TAG));
+    m.insert("ig".into(), json!(order_tag(None)));
     apply_slm(
         &mut m,
         o.pricetype,
