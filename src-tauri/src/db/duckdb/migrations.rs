@@ -198,7 +198,36 @@ pub fn has_column(c: &Connection, table: &str, column: &str) -> Result<bool> {
 }
 
 /// Bring the schema up to date. Safe to run on every open.
+///
+/// Runs with a zero checkpoint threshold, so every commit is checkpointed
+/// straight into the file and nothing is left in the WAL. DuckDB 1.5.6
+/// writes a WAL it cannot replay ("GetDefaultDatabase with no default
+/// database set") when a table holding a FOREIGN KEY is dropped and the
+/// referenced table has a non-constant default (`CURRENT_TIMESTAMP`): the
+/// desktop-v1 `job_items` -> `download_jobs` pair rebuilt by `006`. A crash
+/// before the next checkpoint left the store unopenable. A checkpoint on
+/// commit is atomic: a crash leaves either the old file (the steps rerun)
+/// or the migrated one.
 pub fn run(c: &Connection) -> Result<()> {
+    let previous: String =
+        c.query_row("SELECT current_setting('checkpoint_threshold')", [], |r| {
+            r.get(0)
+        })?;
+    c.execute_batch("SET checkpoint_threshold = '0b'")?;
+    let out = run_steps(c);
+    let restored = c.execute_batch(&format!(
+        "SET checkpoint_threshold = '{}'",
+        previous.replace('\'', "''")
+    ));
+    out?;
+    restored?;
+    if let Err(e) = c.execute_batch("CHECKPOINT") {
+        tracing::warn!("Historify checkpoint after migrations failed: {}", e);
+    }
+    Ok(())
+}
+
+fn run_steps(c: &Connection) -> Result<()> {
     ensure_tracking(c)?;
     if !applied(c, "006_desktop_v1_to_web")? {
         in_tx(c, convert_desktop_v1)?;

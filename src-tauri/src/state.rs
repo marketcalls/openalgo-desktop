@@ -104,6 +104,30 @@ pub struct AppState {
     pub chartink: Arc<crate::chartink::Chartink>,
 }
 
+/// Health alert type raised when Historify had to drop an unreplayable WAL.
+pub const HISTORIFY_RECOVERY_ALERT: &str = "historify_wal_recovered";
+
+/// Tell the trader, on the health page, that unsaved Historify changes from
+/// the last session were lost. The detail is already in the log.
+pub fn report_historify_recovery(logs: &LogsDb, now: DateTime<Utc>) {
+    let raised = logs.conn().and_then(|c| {
+        crate::db::sqlite::monitor::raise_alert(
+            &c,
+            &crate::db::sqlite::monitor::AlertRow {
+                alert_type: HISTORIFY_RECOVERY_ALERT.into(),
+                severity: "warn".into(),
+                metric_name: "historify_recovery".into(),
+                message: crate::db::duckdb::WAL_RECOVERED.into(),
+                ..Default::default()
+            },
+            now,
+        )
+    });
+    if let Err(e) = raised {
+        tracing::warn!("Could not record the Historify recovery alert: {}", e);
+    }
+}
+
 pub struct OpenOptions {
     pub keystore: Arc<dyn KeyStore>,
     pub clock: Arc<dyn Clock>,
@@ -124,6 +148,9 @@ impl AppState {
         }
         let duck_path = data_dir.join("historify.duckdb");
         let duckdb = Arc::new(DuckDb::new(&duck_path)?);
+        if duckdb.recovery().is_some() {
+            report_historify_recovery(&logs, opts.clock.now());
+        }
         crate::security::fsperm::restrict_db_files(&duck_path)?;
         crate::db::sqlite::data_migrations::run(&sqlite, &security)?;
         let config = {
@@ -456,5 +483,29 @@ pub mod testing {
         )
         .expect("open context");
         TestCtx { ctx, clock, dir }
+    }
+}
+
+#[cfg(test)]
+mod recovery_alert_tests {
+    use super::*;
+
+    #[test]
+    fn historify_recovery_is_raised_as_a_health_alert_in_trader_words() {
+        let dir = tempfile::tempdir().unwrap();
+        let logs = LogsDb::new(&dir.path().join("logs.db")).unwrap();
+        report_historify_recovery(&logs, Utc::now());
+        report_historify_recovery(&logs, Utc::now());
+        let c = logs.conn().unwrap();
+        let alerts = crate::db::sqlite::monitor::active_alerts(&c).unwrap();
+        let ours: Vec<_> = alerts
+            .iter()
+            .filter(|a| a.alert_type == HISTORIFY_RECOVERY_ALERT)
+            .collect();
+        assert_eq!(ours.len(), 1, "a repeat refreshes the open alert");
+        assert_eq!(ours[0].message, crate::db::duckdb::WAL_RECOVERED);
+        for word in ["WAL", "DuckDB", "replay", "rror"] {
+            assert!(!ours[0].message.contains(word), "{}", word);
+        }
     }
 }
