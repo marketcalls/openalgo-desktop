@@ -133,6 +133,10 @@ sysinfo = { version = "0.38", default-features = false, features = ["system", "d
 # Thread count for the health monitor (proc_pidinfo).
 libc = "0.2"
 
+[target.'cfg(unix)'.dev-dependencies]
+# close(2) in the integration-test child isolation (tests/it/isolate.rs).
+libc = "0.2"
+
 [dev-dependencies]
 tempfile = "3.10"
 proptest = "1"
