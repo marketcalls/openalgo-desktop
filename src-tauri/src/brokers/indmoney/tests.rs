@@ -870,6 +870,6 @@ fn identity_and_capabilities() {
     let c = b.capabilities();
     assert!(c.history && c.margin && c.streaming && c.order_feed && c.multiquotes_batch && !c.gtt);
     assert!(b.create_feed(&AuthToken::new("tok")).is_ok());
-    assert!(b.create_order_feed(&AuthToken::new("tok")).is_ok());
+    assert!(b.order_socket(&AuthToken::new("tok")).is_ok());
     assert!(b.create_feed(&AuthToken::new(" ")).is_err());
 }

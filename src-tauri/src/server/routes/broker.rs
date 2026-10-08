@@ -119,6 +119,7 @@ pub async fn callback_post(
     Path(broker): Path<String>,
     ClientIp(ip): ClientIp,
     Sess(sess): Sess,
+    headers: axum::http::HeaderMap,
     Query(query): Query<HashMap<String, String>>,
     form: FormData,
 ) -> Response {
@@ -142,10 +143,24 @@ pub async fn callback_post(
             }
         };
     }
-    if sess.as_ref().and_then(|s| s.user.as_ref()).is_none() {
+    // Every other broker: the in-app login form, which needs the signed-in
+    // user and, checked here as well as in the session layer, the CSRF
+    // token and a same-origin request.
+    let Some(s) = sess.as_ref().filter(|s| s.user.is_some()) else {
         return error(
             StatusCode::UNAUTHORIZED,
             "Sign in to OpenAlgo first, then log in to your broker.",
+        );
+    };
+    if !crate::server::middleware::write_allowed(
+        &ctx,
+        &headers,
+        &s.csrf_token,
+        form.get("csrf_token"),
+    ) {
+        return error(
+            StatusCode::FORBIDDEN,
+            "This sign-in did not come from OpenAlgo. Reload the page and try again.",
         );
     }
     form_login(ctx, broker, ip, form).await

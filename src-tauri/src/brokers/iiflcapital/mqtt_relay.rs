@@ -1,7 +1,7 @@
 //! Loopback relay between the shared `WebSocketManager` and IIFL Capital's
 //! MQTT 3.1.1 bridge.
 //!
-//! The manager speaks WebSocket only and `brokers::upstox::relay` needs a
+//! The manager speaks WebSocket only and `brokers::common::relay` needs a
 //! WebSocket upstream, so this module follows the same shape with an MQTT
 //! upstream: the feed's `ws_request` points the manager at
 //! `ws://127.0.0.1:<port>/<random secret>`; for each manager connection the
@@ -18,7 +18,7 @@
 //!   control frame (the manager stops until the trader logs in again);
 //!   anything else closes the socket so the manager backs off and retries.
 //!
-//! Control frames use the exact text of `brokers::upstox::relay` so
+//! Control frames use the exact text of `brokers::common::relay` so
 //! `relay::control` parses them.
 //!
 //! Resources: one loopback listener per relay, its accept loop a single task
@@ -27,7 +27,7 @@
 //! a task aborted by a drop guard when the session ends or is aborted, so the
 //! broker socket is closed on every exit path. Channels are bounded.
 
-use crate::brokers::upstox::relay::READY;
+use crate::brokers::common::relay::READY;
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
 use futures_util::{SinkExt, StreamExt};
@@ -151,7 +151,7 @@ pub fn decode_publish(frame: &[u8]) -> Option<(&str, &[u8])> {
 }
 
 fn auth_failed_frame(message: &str) -> Message {
-    // Same text as `brokers::upstox::relay` so `relay::control` reads it.
+    // Same text as `brokers::common::relay` so `relay::control` reads it.
     Message::Text(format!(
         "{{\"openalgo_relay\":\"auth_failed\",\"message\":{}}}",
         serde_json::Value::String(message.to_string())
@@ -545,7 +545,7 @@ mod tests {
 
     #[test]
     fn control_frames_match_the_shared_relay() {
-        use crate::brokers::upstox::relay::control;
+        use crate::brokers::common::relay::control;
         let Message::Text(t) = auth_failed_frame("Log in again.") else {
             panic!("text")
         };

@@ -958,6 +958,8 @@ fn open_fds() -> usize {
 #[cfg(unix)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn two_hundred_job_churn_keeps_descriptors_flat() {
+    // Counts this process's descriptors: runs alone in a child process.
+    crate::isolated!(two_hundred_job_churn_keeps_descriptors_flat);
     let e = engine(false);
     // Warm up: first job opens the database files.
     let id = e.h.jobs.create_and_start(job(&["SBIN"])).await.body["job_id"]

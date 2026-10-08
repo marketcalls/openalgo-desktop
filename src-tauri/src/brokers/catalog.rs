@@ -870,7 +870,8 @@ mod tests {
             "http://127.0.0.1:5000/iiflcapital/callback",
             "st7",
         )
-        .unwrap();
+        .unwrap()
+        .url;
         assert_eq!(
             u,
             "https://markets.iiflcapital.com/?v=1&appkey=APPKEY&redirecturl=http://127.0.0.1:5000/iiflcapital/callback?state=st7&redirectUrl=http://127.0.0.1:5000/iiflcapital/callback?state=st7"

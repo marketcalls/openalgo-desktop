@@ -288,7 +288,7 @@ async fn nubra_never_leaks_credentials() {
         check_result("nubra margin", b.calculate_margin(&auth, &[]).await);
         // Order-update socket through the relay: /userinfo fails or is
         // refused, the fallback socket is closed.
-        let mut feed = b.create_order_feed(&auth).unwrap();
+        let mut feed = b.order_socket(&auth).unwrap();
         if let Ok((mut ws, _)) = tokio_tungstenite::connect_async(feed.ws_request().unwrap()).await
         {
             while let Ok(Some(Ok(m))) =
@@ -374,7 +374,7 @@ async fn iiflcapital_mqtt_errors_never_leak_the_session() {
             .with_mqtt(MqttEndpoint::plain("127.0.0.1", port));
         for mut feed in [
             b.create_feed(&auth).unwrap(),
-            b.create_order_feed(&auth).unwrap(),
+            b.order_socket(&auth).unwrap(),
         ] {
             let req = feed.ws_request().unwrap();
             clean("iifl relay address", &format!("{:?}", req.uri()));

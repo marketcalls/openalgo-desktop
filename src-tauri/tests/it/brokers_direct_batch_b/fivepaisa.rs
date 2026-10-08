@@ -21,8 +21,8 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use std::time::Duration;
 
-const MASTER: &str = include_str!("../fixtures/brokers/fivepaisa/ScripMaster.csv");
-const RESPONSES: &str = include_str!("../fixtures/brokers/fivepaisa/responses.json");
+const MASTER: &str = include_str!("../../fixtures/brokers/fivepaisa/ScripMaster.csv");
+const RESPONSES: &str = include_str!("../../fixtures/brokers/fivepaisa/responses.json");
 const JWT: &str =
     "eyJhbGciOiJIUzI1NiJ9.eyJSZWRpcmVjdFNlcnZlciI6IkIiLCJ1bmlxdWVfbmFtZSI6IjxVU0VSX0lEPiJ9.c2ln";
 

@@ -12,60 +12,16 @@
 
 use super::{orders, GrowwCore};
 use crate::brokers::common::streaming::OrderUpdate;
-use crate::brokers::types::{AuthToken, Order};
+use crate::brokers::types::AuthToken;
 use crate::error::{AppError, Result};
-use std::collections::HashMap;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-pub const DEFAULT_INTERVAL: Duration = Duration::from_secs(5);
-pub const MIN_INTERVAL: Duration = Duration::from_secs(1);
-pub const MAX_INTERVAL: Duration = Duration::from_secs(60);
-/// Updates buffered for a slow consumer before the poller waits.
-pub const CHANNEL_CAPACITY: usize = 256;
-
-pub fn clamp_interval(d: Duration) -> Duration {
-    d.clamp(MIN_INTERVAL, MAX_INTERVAL)
-}
-
-/// Normalised order update from an order-book row.
-pub fn to_update(o: &Order) -> OrderUpdate {
-    OrderUpdate {
-        orderid: o.order_id.clone(),
-        symbol: o.symbol.clone(),
-        exchange: o.exchange.clone(),
-        action: o.side.clone(),
-        quantity: i64::from(o.quantity),
-        price: o.price,
-        trigger_price: o.trigger_price,
-        pricetype: o.order_type.clone(),
-        product: o.product.clone(),
-        order_status: o.status.clone(),
-        filled_quantity: i64::from(o.filled_quantity),
-        pending_quantity: i64::from(o.pending_quantity),
-        average_price: o.average_price,
-        rejection_reason: o.rejection_reason.clone().unwrap_or_default(),
-    }
-}
-
-type Snapshot = HashMap<String, (String, i32)>;
-
-/// Changes between two polls; returns the new snapshot.
-pub fn diff(previous: Option<&Snapshot>, book: &[Order]) -> (Snapshot, Vec<OrderUpdate>) {
-    let mut next = Snapshot::with_capacity(book.len());
-    let mut changed = Vec::new();
-    for o in book {
-        let state = (o.status.clone(), o.filled_quantity);
-        if let Some(prev) = previous {
-            if prev.get(&o.order_id) != Some(&state) {
-                changed.push(to_update(o));
-            }
-        }
-        next.insert(o.order_id.clone(), state);
-    }
-    (next, changed)
-}
+pub use crate::brokers::common::order_poll::{
+    clamp_interval, diff, to_update, Snapshot, CHANNEL_CAPACITY, DEFAULT_INTERVAL, MAX_INTERVAL,
+    MIN_INTERVAL,
+};
 
 pub struct OrderPoller {
     task: JoinHandle<()>,

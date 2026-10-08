@@ -24,7 +24,7 @@ use tokio::net::TcpListener;
 
 macro_rules! fixture {
     ($name:literal) => {
-        include_str!(concat!("../fixtures/brokers/nubra/", $name))
+        include_str!(concat!("../../fixtures/brokers/nubra/", $name))
     };
 }
 
@@ -698,7 +698,7 @@ async fn order_updates_flow_through_the_relay() {
     let order_ws = ws_server(frame("order"), texts.clone()).await;
     *fake.order_ws.lock() = order_ws;
     let b = NubraBroker::with_urls(master(), host, "ws://127.0.0.1:1");
-    let mut feed = b.create_order_feed(&AuthToken::new("SESS1")).unwrap();
+    let mut feed = b.order_socket(&AuthToken::new("SESS1")).unwrap();
     assert!(feed.awaits_auth_ack());
     let req = feed.ws_request().unwrap();
     let (mut ws, _) = tokio_tungstenite::connect_async(req).await.unwrap();
@@ -732,7 +732,7 @@ async fn order_updates_flow_through_the_relay() {
         serve(Arc::new(Fake::default())).await,
         "ws://127.0.0.1:1",
     );
-    let mut feed = b.create_order_feed(&AuthToken::new("EXPIRED")).unwrap();
+    let mut feed = b.order_socket(&AuthToken::new("EXPIRED")).unwrap();
     let (mut ws, _) = tokio_tungstenite::connect_async(feed.ws_request().unwrap())
         .await
         .unwrap();

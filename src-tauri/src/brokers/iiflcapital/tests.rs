@@ -722,7 +722,7 @@ fn feed_frames_and_parse() {
     assert!(u.contains("\"unsub\"") && u.contains("oi/v1/nsefo/40001"));
     assert!(f.parse(&Message::Binary(mw)).is_empty());
     assert_eq!(
-        f.parse(&Message::Text(crate::brokers::upstox::relay::READY.into())),
+        f.parse(&Message::Text(crate::brokers::common::relay::READY.into())),
         vec![FeedEvent::AuthOk]
     );
     assert!(IiflFeed::new(
@@ -1188,6 +1188,6 @@ fn create_feed_requires_a_usable_session() {
     assert!(b.create_feed(&AuthToken::new("")).is_err());
     assert!(b.create_feed(&AuthToken::new("opaque")).is_err());
     assert!(b
-        .create_order_feed(&AuthToken::new(JWT).with_user_id("778"))
+        .order_socket(&AuthToken::new(JWT).with_user_id("778"))
         .is_ok());
 }

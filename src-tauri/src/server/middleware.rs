@@ -211,6 +211,29 @@ fn csrf_exempt(path: &str) -> bool {
             .is_some_and(crate::brokers::catalog::posts_callback)
 }
 
+/// The CSRF and same-origin checks the session layer applies to a write,
+/// for a handler on a path the layer exempts that still serves a
+/// cookie-authenticated form for some callers (`/<broker>/callback`):
+/// same-origin, and the session's token in the `X-CSRFToken` header or the
+/// `csrf_token` form field.
+pub fn write_allowed(
+    ctx: &AppState,
+    headers: &HeaderMap,
+    expected: &str,
+    form_token: Option<&str>,
+) -> bool {
+    if foreign_origin(ctx, headers) {
+        return false;
+    }
+    let header = headers
+        .get("x-csrftoken")
+        .or_else(|| headers.get("x-csrf-token"))
+        .and_then(|v| v.to_str().ok());
+    header
+        .or(form_token)
+        .is_some_and(|t| tokens_match(t, expected))
+}
+
 /// Same-origin check for cookie-authenticated writes (web `logout` uses
 /// `Sec-Fetch-Site`; this applies it to every write).
 fn foreign_origin(ctx: &AppState, headers: &HeaderMap) -> bool {

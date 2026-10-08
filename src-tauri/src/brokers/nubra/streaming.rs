@@ -31,13 +31,13 @@ use super::data::{feed_name, ws_exchange, SUBSCRIPTION_MAP};
 use super::mapping;
 use super::proto::{self, MarketFrame};
 use super::DEVICE_ID;
+use crate::brokers::common::relay::{self, Open, RelayHandle, Session, Step, Upstream};
 use crate::brokers::common::streaming::{
     now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
     NormalizedTick, OrderUpdate, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
-use crate::brokers::upstox::relay::{self, Open, RelayHandle, Session, Step, Upstream};
 use crate::error::{AppError, Result};
 use crate::security::Secret;
 use async_trait::async_trait;
@@ -675,7 +675,7 @@ impl Upstream for OrderUpstream {
             Err(e) => {
                 tracing::debug!(
                     "Nubra order socket connect failed: {}",
-                    crate::brokers::hdfcsky::streaming::ws_error_kind(&e)
+                    crate::brokers::common::redact::ws_error_kind(&e)
                 );
                 Open::Unavailable
             }

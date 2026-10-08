@@ -723,3 +723,32 @@ fn capabilities_and_identity() {
     );
     assert!(!b.supported_exchanges().contains(&Exchange::Bcd));
 }
+
+/// Order updates are the poller, started through `Broker::create_order_feed`
+/// and stopped by the logout hook.
+#[tokio::test]
+async fn order_feed_is_the_poller_and_logout_stops_it() {
+    use crate::brokers::common::streaming::OrderFeed;
+    let b = FivepaisaBroker::with_urls(
+        SymbolResolver::new(),
+        "http://127.0.0.1:9",
+        "http://127.0.0.1:9/master",
+    );
+    let auth = AuthToken::new(
+        Session {
+            api_key: "k".into(),
+            client_code: "50001234".into(),
+            access_token: "t".into(),
+        }
+        .encode(),
+    );
+    let feed = Broker::create_order_feed(&b, &auth).unwrap();
+    assert!(b.order_updates_running());
+    Broker::on_logout(&b).await;
+    assert!(!b.order_updates_running());
+    let OrderFeed::Stream(mut rx) = feed else {
+        panic!("expected the poller stream")
+    };
+    let closed = tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv()).await;
+    assert!(matches!(closed, Ok(None)));
+}

@@ -1664,6 +1664,8 @@ async fn every_way_to_create_a_broker_session_refuses_a_forged_attempt() {
         ("Pasted address, other account", "tradesmart"),
         ("Form login, no session", "kotak"),
         ("Form login, no CSRF token", "kotak"),
+        ("Form login, cross-site", "kotak"),
+        ("XTS POST callback carrying login-form fields", "rmoney"),
         ("Form login, other account", "kotak"),
     ];
     for &(name, broker) in cases {
@@ -1781,6 +1783,24 @@ async fn every_way_to_create_a_broker_session_refuses_a_forged_attempt() {
             "Form login, no CSRF token" => {
                 *mock.auth_user_id.lock() = "U1".into();
                 with_session(kotak(), &cookie, None)
+            }
+            "Form login, cross-site" => {
+                *mock.auth_user_id.lock() = "U1".into();
+                let mut r = with_session(kotak(), &cookie, Some(&csrf));
+                r.headers_mut()
+                    .insert("sec-fetch-site", "cross-site".parse().unwrap());
+                r
+            }
+            "XTS POST callback carrying login-form fields" => {
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(
+                    form(
+                        "/rmoney/callback",
+                        &[("userid", "U1"), ("password", "p"), ("totp", "123456")],
+                    ),
+                    &cookie,
+                    Some(&csrf),
+                )
             }
             "Form login, other account" => with_session(kotak(), &cookie, Some(&csrf)),
             _ => unreachable!("{}", name),

@@ -24,7 +24,7 @@ use std::time::Duration;
 
 macro_rules! fixture {
     ($name:literal) => {
-        include_str!(concat!("../fixtures/brokers/iiflcapital/", $name))
+        include_str!(concat!("../../fixtures/brokers/iiflcapital/", $name))
     };
 }
 

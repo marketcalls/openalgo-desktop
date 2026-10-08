@@ -29,7 +29,7 @@ mod tests;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::Pacer;
-use crate::brokers::common::streaming::BrokerFeed;
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -417,6 +417,20 @@ impl Broker for FivepaisaBroker {
 
     async fn download_master_contract(&self, _auth: &AuthToken) -> Result<Vec<SymbolData>> {
         master_contract::download(self).await.map_err(redact)
+    }
+
+    /// Order updates come from polling the order book (5paisa evicts a
+    /// second feed connection per token).
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        Ok(OrderFeed::Stream(self.start_order_updates(
+            auth,
+            order_poller::DEFAULT_INTERVAL,
+        )?))
+    }
+
+    /// Broker logout, the daily boundary and app shutdown stop the poller.
+    async fn on_logout(&self) {
+        self.stop_order_updates();
     }
 
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
