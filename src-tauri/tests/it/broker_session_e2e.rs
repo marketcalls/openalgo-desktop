@@ -89,7 +89,7 @@ impl Subscriber for OrderEvents {
 /// `pool_state()` only once established, so a connection mid-open holds
 /// descriptors the pool does not report yet. Sample until two reads 20 ms apart agree, each with an
 /// unchanged pool count around the descriptor count.
-async fn settled_fds(ctx: &AppState) -> (usize, usize) {
+pub(crate) async fn settled_fds(ctx: &AppState) -> (usize, usize) {
     let sample = || {
         let before = ctx.sqlite.pool_state().0;
         let fds = fd_count();
@@ -108,7 +108,25 @@ async fn settled_fds(ctx: &AppState) -> (usize, usize) {
     panic!("descriptors and the database pool never settled");
 }
 
-async fn until(what: &str, mut f: impl FnMut() -> bool) {
+/// A port that was free a moment ago.
+pub(crate) async fn free_port() -> u16 {
+    TcpListener::bind("127.0.0.1:0")
+        .await
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port()
+}
+
+/// Pin the test's ports (see `AppState::pin_listener_ports`): a broker
+/// sign-in reloads the settings, and in a debug build that would otherwise
+/// put the development ports 5500/8766 back, which the feed server's
+/// watcher then binds.
+pub(crate) fn pin_ports(ctx: &AppState, http_port: u16, ws_port: u16) {
+    ctx.pin_listener_ports(http_port, ws_port);
+}
+
+pub(crate) async fn until(what: &str, mut f: impl FnMut() -> bool) {
     for _ in 0..500 {
         if f() {
             return;
@@ -173,7 +191,7 @@ async fn order_server(go: Arc<Notify>) -> (String, tokio::task::JoinHandle<()>) 
     (url, task)
 }
 
-fn sbin() -> SymToken {
+pub(crate) fn sbin() -> SymToken {
     SymToken {
         symbol: "SBIN".into(),
         brsymbol: "SBIN".into(),
@@ -190,7 +208,7 @@ fn sbin() -> SymToken {
 }
 
 /// The `state` on a Kite login URL (`redirect_params=state%3D<state>`).
-fn state_from_kite_url(url: &str) -> String {
+pub(crate) fn state_from_kite_url(url: &str) -> String {
     let u = url::Url::parse(url).unwrap();
     let rp = u
         .query_pairs()
@@ -260,17 +278,7 @@ async fn login_streams_and_logout_tears_everything_down() {
     let key = ApiKeyService::regenerate(&ctx, "alice").unwrap();
 
     // The 8765 feed server, on an ephemeral port.
-    {
-        let port = TcpListener::bind("127.0.0.1:0")
-            .await
-            .unwrap()
-            .local_addr()
-            .unwrap()
-            .port();
-        let mut c = ctx.config.write();
-        c.bind_host = "127.0.0.1".into();
-        c.ws_port = port;
-    }
+    pin_ports(&ctx, free_port().await, free_port().await);
     let feed = FeedService::new(ctx.clone());
     assert!(matches!(feed.start().await, ServerStatus::Running { .. }));
     assert!(matches!(
@@ -304,6 +312,11 @@ async fn login_streams_and_logout_tears_everything_down() {
     .unwrap();
     assert_eq!(session.broker_id, "zerodha");
     assert_eq!(ctx.runtime.active_broker().as_deref(), Some("zerodha"));
+    // The sign-in reloaded the settings; the pinned feed port held.
+    assert_eq!(
+        Some(ctx.server_config().ws_port),
+        feed.local_addr().await.map(|a| a.port())
+    );
 
     // ---- master contract: downloaded (never before), loaded, announced ----
     until("the master contract download push", || {

@@ -72,6 +72,7 @@ mod sandbox_props;
 mod sandbox_schedule;
 mod sandbox_web_scenarios;
 mod scalping;
+mod soak;
 mod tools;
 mod trading_files;
 mod trading_runner;

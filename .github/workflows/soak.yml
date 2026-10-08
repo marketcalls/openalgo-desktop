@@ -1,0 +1,64 @@
+name: Soak
+
+# Leak soak tests: descriptors, RSS and tokio tasks over 150 broker session
+# cycles (tests/it/soak.rs) and 1000 feed clients (tests/it/feed_soak.rs).
+# They are #[ignore]d in the normal suite so CI time is unaffected; this
+# workflow runs them weekly and on demand. Recorded results:
+# docs/audit/soak.md.
+
+on:
+  schedule:
+    # Sundays 02:30 UTC.
+    - cron: "30 2 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    # GitHub runs this as `bash -eo pipefail`, so `| tee` keeps the status.
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUST_BACKTRACE: 1
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_TEST_DEBUG: line-tables-only
+
+jobs:
+  soak:
+    name: soak (ubuntu)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/linux-tauri-deps
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: 1.92.0
+      - name: Frontend dist placeholder
+        run: mkdir -p dist && test -f dist/index.html || echo '<!doctype html><title>ci</title>' > dist/index.html
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: src-tauri -> target
+          # The CI test job's build; read its cache, never write it.
+          shared-key: rust-test-ubuntu-22.04
+          save-if: false
+      - name: Soak tests
+        working-directory: src-tauri
+        run: cargo test --locked --test it soak -- --ignored --nocapture --test-threads=1 2>&1 | tee soak.log
+      - name: Upload soak log
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: soak-log
+          path: src-tauri/soak.log
+          if-no-files-found: ignore
+          retention-days: 30

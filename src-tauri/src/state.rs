@@ -66,6 +66,9 @@ pub struct AppState {
     pub ui: Arc<SocketEmitter>,
     pub clock: Arc<dyn Clock>,
     pub config: RwLock<ServerConfig>,
+    /// Listener ports fixed for this context's lifetime over the stored
+    /// settings and the development override (tests on ephemeral ports).
+    port_pin: RwLock<Option<(u16, u16)>>,
     pub sessions: WebSessionStore,
     pub limiter: RateLimiter,
     pub api_keys: ApiKeyCache,
@@ -271,6 +274,7 @@ impl AppState {
             ui,
             clock: opts.clock,
             config: RwLock::new(config),
+            port_pin: RwLock::new(None),
             sessions: WebSessionStore::new(),
             limiter: RateLimiter::new(),
             api_keys: ApiKeyCache::new(),
@@ -357,12 +361,31 @@ impl AppState {
     }
 
     pub fn reload_config(&self) -> Result<ServerConfig> {
-        let c = {
+        let mut c = {
             let conn = self.sqlite.conn()?;
             ServerConfig::load(&conn)?
         };
+        if let Some((http_port, ws_port)) = *self.port_pin.read() {
+            c.http_port = http_port;
+            c.ws_port = ws_port;
+        }
         *self.config.write() = c.clone();
         Ok(c)
+    }
+
+    /// Fix the HTTP and WebSocket listener ports for this context, over
+    /// the stored settings and the development override, through every
+    /// settings reload (a broker sign-in reloads them, and the feed server's
+    /// watcher follows the result). For tests on ephemeral ports, which must
+    /// never take 5000/8765 or the development ports; the app never calls
+    /// it.
+    #[cfg(feature = "test-support")]
+    pub fn pin_listener_ports(&self, http_port: u16, ws_port: u16) {
+        *self.port_pin.write() = Some((http_port, ws_port));
+        let mut c = self.config.write();
+        c.http_port = http_port;
+        c.ws_port = ws_port;
+        c.bind_host = "127.0.0.1".into();
     }
 
     /// Port the listener is actually bound to (falls back to the setting).
