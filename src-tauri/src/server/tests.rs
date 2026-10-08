@@ -543,6 +543,10 @@ async fn public_route_list_is_exactly_the_reviewed_one() {
             "POST /auth/reset-account",
             // Secret-verified webhook (the URL token is the credential).
             "POST /strategy/webhook/{token}",
+            // MCP: bearer token (crate::mcp::http).
+            "POST /mcp",
+            "GET /mcp",
+            "GET /mcp/healthz",
             "GET /{broker}/callback",
             "POST /{broker}/callback",
             // The OpenScript runner page's channel: each call carries its

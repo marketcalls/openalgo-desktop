@@ -126,6 +126,11 @@ bytes = "1"
 # 8x8 bitmap font for the Telegram chart PNGs (no system fonts needed).
 font8x8 = { version = "0.3", default-features = false }
 
+# MCP (Model Context Protocol): the stdio transport of `openalgo-desktop mcp`.
+# Server side only, over tokio stdio; no HTTP or auth features (the `/mcp`
+# HTTP transport is served by axum in `crate::mcp::http`).
+rmcp = { version = "3.5", default-features = false, features = ["server", "transport-io"] }
+
 # Process and host metrics (health monitor, diagnostics)
 sysinfo = { version = "0.38", default-features = false, features = ["system", "disk"] }
 

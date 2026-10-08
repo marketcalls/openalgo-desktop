@@ -1,0 +1,2514 @@
+{
+  "_comment": "Captured from the web's MCP server (openalgo/mcp/mcpserver.py through FastMCP, as blueprints/mcp_http.py serves tools/list: description stripped, annotations included) and the scope table in utils/mcp_tool_registry.py. Regenerate only from the web; the desktop must match this file.",
+  "tools": [
+    {
+      "name": "place_order",
+      "description": "Place a new order (market or limit).\n\n    Args:\n        symbol: Stock symbol (e.g., 'RELIANCE')\n        quantity: Number of shares\n        action: 'BUY' or 'SELL'\n        exchange: 'NSE', 'NFO', 'CDS', 'BSE', 'BFO', 'BCD', 'MCX', 'NCDEX'\n        price_type: 'MARKET', 'LIMIT', 'SL', 'SL-M'\n        product: 'CNC', 'NRML', 'MIS'\n        strategy: Strategy name (defaults to 'python mcp')\n        price: Limit price (required for LIMIT orders)\n        trigger_price: Trigger price (required for SL and SL-M orders)\n        disclosed_quantity: Disclosed quantity",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "exchange": {
+            "default": "NSE",
+            "title": "Exchange",
+            "type": "string"
+          },
+          "price_type": {
+            "default": "MARKET",
+            "title": "Price Type",
+            "type": "string"
+          },
+          "product": {
+            "default": "MIS",
+            "title": "Product",
+            "type": "string"
+          },
+          "strategy": {
+            "default": "python mcp",
+            "title": "Strategy",
+            "type": "string"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Price"
+          },
+          "trigger_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Trigger Price"
+          },
+          "disclosed_quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Disclosed Quantity"
+          }
+        },
+        "required": [
+          "symbol",
+          "quantity",
+          "action"
+        ],
+        "title": "place_orderArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Place Order",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "place_smart_order",
+      "description": "Place a smart order that considers the current position size (auto-calculates delta\n    between requested and current size before sending to the broker).\n\n    Args:\n        symbol: Stock symbol\n        quantity: Target quantity\n        action: 'BUY' or 'SELL'\n        position_size: Current position size\n        exchange: Exchange name\n        price_type: 'MARKET', 'LIMIT', 'SL', 'SL-M'\n        product: 'CNC', 'NRML', 'MIS'\n        strategy: Strategy name (defaults to 'python mcp')\n        price: Limit price (required for LIMIT orders)\n        trigger_price: Trigger price (required for SL / SL-M orders)\n        disclosed_quantity: Disclosed quantity",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "position_size": {
+            "title": "Position Size",
+            "type": "integer"
+          },
+          "exchange": {
+            "default": "NSE",
+            "title": "Exchange",
+            "type": "string"
+          },
+          "price_type": {
+            "default": "MARKET",
+            "title": "Price Type",
+            "type": "string"
+          },
+          "product": {
+            "default": "MIS",
+            "title": "Product",
+            "type": "string"
+          },
+          "strategy": {
+            "default": "python mcp",
+            "title": "Strategy",
+            "type": "string"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Price"
+          },
+          "trigger_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Trigger Price"
+          },
+          "disclosed_quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Disclosed Quantity"
+          }
+        },
+        "required": [
+          "symbol",
+          "quantity",
+          "action",
+          "position_size"
+        ],
+        "title": "place_smart_orderArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Place Smart Order",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "place_basket_order",
+      "description": "Place multiple orders in a basket.\n\n    Args:\n        orders: List of order dictionaries. Each order should contain:\n            - symbol (str): Trading symbol. Required.\n            - exchange (str): Exchange code. Required.\n            - action (str): BUY or SELL. Required.\n            - quantity (int/str): Quantity to trade. Required.\n            - pricetype (str): MARKET, LIMIT, SL, SL-M. Optional, defaults to MARKET.\n            - product (str): MIS, CNC, NRML. Optional, defaults to MIS.\n            - price (str): Required for LIMIT orders.\n            - trigger_price (str): Required for SL orders.\n        strategy: Strategy name (default: Python)\n\n        Example: [\n            {\"symbol\": \"BHEL\", \"exchange\": \"NSE\", \"action\": \"BUY\", \"quantity\": 1, \"pricetype\": \"MARKET\", \"product\": \"MIS\"},\n            {\"symbol\": \"ZOMATO\", \"exchange\": \"NSE\", \"action\": \"SELL\", \"quantity\": 1, \"pricetype\": \"MARKET\", \"product\": \"MIS\"}\n        ]\n\n    Returns:\n        JSON with results for each order including orderid, status, and symbol",
+      "inputSchema": {
+        "properties": {
+          "orders": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Orders",
+            "type": "array"
+          },
+          "strategy": {
+            "default": "python mcp",
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "required": [
+          "orders"
+        ],
+        "title": "place_basket_orderArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Place Basket Order",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "place_split_order",
+      "description": "Place a large order split into smaller chunks.\n\n    Args:\n        symbol: Stock symbol (e.g., 'YESBANK')\n        quantity: Total quantity to trade\n        split_size: Size of each split order\n        action: 'BUY' or 'SELL'\n        exchange: Exchange name (default: NSE)\n        price_type: 'MARKET', 'LIMIT', 'SL', 'SL-M' (default: MARKET)\n        product: 'MIS', 'CNC', 'NRML' (default: MIS)\n        strategy: Strategy name (default: Python)\n        price: Limit price (required for LIMIT orders)\n        trigger_price: Trigger price (required for SL orders)\n        disclosed_quantity: Disclosed quantity (optional)\n\n    Returns:\n        JSON with results array containing each split order's orderid, quantity, and status\n\n    Example:\n        # Split 105 shares into orders of 20 each (5 orders of 20 + 1 order of 5)\n        place_split_order(\"YESBANK\", 105, 20, \"SELL\", \"NSE\")",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "split_size": {
+            "title": "Split Size",
+            "type": "integer"
+          },
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "exchange": {
+            "default": "NSE",
+            "title": "Exchange",
+            "type": "string"
+          },
+          "price_type": {
+            "default": "MARKET",
+            "title": "Price Type",
+            "type": "string"
+          },
+          "product": {
+            "default": "MIS",
+            "title": "Product",
+            "type": "string"
+          },
+          "strategy": {
+            "default": "python mcp",
+            "title": "Strategy",
+            "type": "string"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Price"
+          },
+          "trigger_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Trigger Price"
+          },
+          "disclosed_quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Disclosed Quantity"
+          }
+        },
+        "required": [
+          "symbol",
+          "quantity",
+          "split_size",
+          "action"
+        ],
+        "title": "place_split_orderArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Place Split Order",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "place_options_order",
+      "description": "Place an options order with ATM/ITM/OTM offset.\n\n    Args:\n        underlying: Underlying symbol (e.g., 'NIFTY', 'BANKNIFTY', 'NIFTY28OCT25FUT')\n        exchange: Exchange for underlying ('NSE_INDEX', 'BSE_INDEX', 'NFO')\n        offset: Strike offset - 'ATM', 'ITM1'-'ITM50', 'OTM1'-'OTM50'\n        option_type: 'CE' for Call or 'PE' for Put\n        action: 'BUY' or 'SELL'\n        quantity: Absolute quantity — must be a multiple of the contract lot size.\n                  Do NOT hardcode lot size — call get_option_symbol() or get_option_chain()\n                  first to read the current 'lotsize' from the broker master contract,\n                  then pass quantity = lots * lotsize.\n        expiry_date: Expiry date in format 'DDMMMYY' (e.g., '28OCT25'). Optional if underlying includes expiry.\n        strategy: Strategy name (default: Python)\n        price_type: 'MARKET', 'LIMIT', 'SL', 'SL-M' (default: MARKET)\n        product: 'MIS', 'NRML' (default: MIS). Note: CNC not supported for options.\n        price: Limit price (required for LIMIT orders)\n        trigger_price: Trigger price (required for SL and SL-M orders)\n        disclosed_quantity: Disclosed quantity (optional)\n\n    Returns:\n        JSON with orderid, symbol, underlying_ltp, offset, option_type, mode\n\n    Example:\n        # Basic ATM call order\n        place_options_order(\"NIFTY\", \"NSE_INDEX\", \"ATM\", \"CE\", \"BUY\", 75, \"28NOV25\")\n\n        # Using future as underlying (expiry auto-detected)\n        place_options_order(\"NIFTY28OCT25FUT\", \"NFO\", \"ITM2\", \"CE\", \"BUY\", 75)",
+      "inputSchema": {
+        "properties": {
+          "underlying": {
+            "title": "Underlying",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "string"
+          },
+          "option_type": {
+            "title": "Option Type",
+            "type": "string"
+          },
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "expiry_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expiry Date"
+          },
+          "strategy": {
+            "default": "python mcp",
+            "title": "Strategy",
+            "type": "string"
+          },
+          "price_type": {
+            "default": "MARKET",
+            "title": "Price Type",
+            "type": "string"
+          },
+          "product": {
+            "default": "MIS",
+            "title": "Product",
+            "type": "string"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Price"
+          },
+          "trigger_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Trigger Price"
+          },
+          "disclosed_quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Disclosed Quantity"
+          }
+        },
+        "required": [
+          "underlying",
+          "exchange",
+          "offset",
+          "option_type",
+          "action",
+          "quantity"
+        ],
+        "title": "place_options_orderArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Place Options Order",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "place_options_multi_order",
+      "description": "Place a multi-leg options order (spreads, iron condor, straddles, etc.).\n    BUY legs are executed first for margin efficiency, then SELL legs.\n\n    Args:\n        strategy: Strategy name (defaults to 'python mcp'). Give each multi-leg trade\n                  a meaningful name (e.g., 'nifty iron condor') to make tracking easier.\n        underlying: Underlying symbol (e.g., 'NIFTY', 'BANKNIFTY', 'NIFTY28OCT25FUT')\n        exchange: Exchange for underlying ('NSE_INDEX', 'BSE_INDEX', 'NFO')\n        legs: List of leg dictionaries (1-20 legs). Each leg must contain:\n            Required:\n            - offset: Strike offset ('ATM', 'ITM1'-'ITM50', 'OTM1'-'OTM50')\n            - option_type: 'CE' for Call or 'PE' for Put\n            - action: 'BUY' or 'SELL'\n            - quantity: Absolute quantity — must be a multiple of the contract lot size.\n                        Do NOT hardcode lot size. Look up the current 'lotsize' per leg\n                        using get_option_symbol() or get_option_chain() first, then pass\n                        quantity = lots * lotsize. Lot sizes can change (e.g., NIFTY has\n                        changed multiple times) and differ by underlying.\n            Optional:\n            - expiry_date: Per-leg expiry in DDMMMYY format for diagonal/calendar spreads\n            - pricetype: 'MARKET', 'LIMIT', 'SL', 'SL-M' (default: MARKET)\n            - product: 'MIS', 'NRML' (default: MIS)\n            - price: Limit price for LIMIT orders\n            - trigger_price: Trigger price for SL orders\n            - disclosed_quantity: Disclosed quantity\n        expiry_date: Default expiry date in format 'DDMMMYY' (e.g., '25NOV25') for all legs\n\n    Returns:\n        JSON with underlying, underlying_ltp, mode, and results array containing each leg's\n        orderid, symbol, offset, option_type, action, and status\n\n    Example - Iron Condor (same expiry):\n        [\n            {\"offset\": \"OTM10\", \"option_type\": \"CE\", \"action\": \"BUY\", \"quantity\": 75},\n            {\"offset\": \"OTM10\", \"option_type\": \"PE\", \"action\": \"BUY\", \"quantity\": 75},\n            {\"offset\": \"OTM5\", \"option_type\": \"CE\", \"action\": \"SELL\", \"quantity\": 75},\n            {\"offset\": \"OTM5\", \"option_type\": \"PE\", \"action\": \"SELL\", \"quantity\": 75}\n        ]\n\n    Example - Bull Call Spread with NRML:\n        [\n            {\"offset\": \"ATM\", \"option_type\": \"CE\", \"action\": \"BUY\", \"quantity\": 75, \"product\": \"NRML\"},\n            {\"offset\": \"OTM1\", \"option_type\": \"CE\", \"action\": \"SELL\", \"quantity\": 75, \"product\": \"NRML\"}\n        ]\n\n    Example - Diagonal Spread (different expiry):\n        [\n            {\"offset\": \"ITM2\", \"option_type\": \"CE\", \"action\": \"BUY\", \"quantity\": 75, \"expiry_date\": \"30DEC25\"},\n            {\"offset\": \"OTM2\", \"option_type\": \"CE\", \"action\": \"SELL\", \"quantity\": 75, \"expiry_date\": \"25NOV25\"}\n        ]\n\n    Example - Long Straddle with LIMIT orders:\n        [\n            {\"offset\": \"ATM\", \"option_type\": \"CE\", \"action\": \"BUY\", \"quantity\": 30, \"pricetype\": \"LIMIT\", \"price\": 250.0},\n            {\"offset\": \"ATM\", \"option_type\": \"PE\", \"action\": \"BUY\", \"quantity\": 30, \"pricetype\": \"LIMIT\", \"price\": 250.0}\n        ]",
+      "inputSchema": {
+        "properties": {
+          "underlying": {
+            "title": "Underlying",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "legs": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Legs",
+            "type": "array"
+          },
+          "expiry_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expiry Date"
+          },
+          "strategy": {
+            "default": "python mcp",
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "required": [
+          "underlying",
+          "exchange",
+          "legs"
+        ],
+        "title": "place_options_multi_orderArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Place Multi-Leg Options Order",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "modify_order",
+      "description": "Modify an existing order.\n\n    Args:\n        order_id: Order ID to modify\n        symbol: Stock symbol\n        action: 'BUY' or 'SELL'\n        exchange: Exchange name\n        product: 'CNC', 'NRML', 'MIS'\n        quantity: New quantity\n        price: New price (required by the API — use current price if unchanged)\n        strategy: Strategy name (defaults to 'python mcp')\n        price_type: 'MARKET', 'LIMIT', 'SL', 'SL-M' (defaults to 'LIMIT')\n        trigger_price: New trigger price for SL/SL-M orders (default 0)\n        disclosed_quantity: New disclosed quantity (default 0)",
+      "inputSchema": {
+        "properties": {
+          "order_id": {
+            "title": "Order Id",
+            "type": "string"
+          },
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "product": {
+            "title": "Product",
+            "type": "string"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "price": {
+            "title": "Price",
+            "type": "number"
+          },
+          "strategy": {
+            "default": "python mcp",
+            "title": "Strategy",
+            "type": "string"
+          },
+          "price_type": {
+            "default": "LIMIT",
+            "title": "Price Type",
+            "type": "string"
+          },
+          "trigger_price": {
+            "default": 0,
+            "title": "Trigger Price",
+            "type": "number"
+          },
+          "disclosed_quantity": {
+            "default": 0,
+            "title": "Disclosed Quantity",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "order_id",
+          "symbol",
+          "action",
+          "exchange",
+          "product",
+          "quantity",
+          "price"
+        ],
+        "title": "modify_orderArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Modify Order",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "cancel_order",
+      "description": "Cancel a specific order.\n\n    Args:\n        order_id: Order ID to cancel\n        strategy: Strategy name (defaults to 'python mcp')",
+      "inputSchema": {
+        "properties": {
+          "order_id": {
+            "title": "Order Id",
+            "type": "string"
+          },
+          "strategy": {
+            "default": "python mcp",
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "required": [
+          "order_id"
+        ],
+        "title": "cancel_orderArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Cancel Order",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "cancel_all_orders",
+      "description": "Cancel all open orders for a strategy.\n\n    Args:\n        strategy: Strategy name (defaults to 'python mcp')",
+      "inputSchema": {
+        "properties": {
+          "strategy": {
+            "default": "python mcp",
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "title": "cancel_all_ordersArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Cancel All Orders",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "close_all_positions",
+      "description": "Close all open positions for a strategy.\n\n    Args:\n        strategy: Strategy name (defaults to 'python mcp')",
+      "inputSchema": {
+        "properties": {
+          "strategy": {
+            "default": "python mcp",
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "title": "close_all_positionsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Close All Positions",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_open_position",
+      "description": "Get current open position for a specific instrument.\n\n    Args:\n        symbol: Stock symbol\n        exchange: Exchange name\n        product: Product type ('CNC', 'NRML', 'MIS')\n        strategy: Strategy name (defaults to 'python mcp')",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "product": {
+            "title": "Product",
+            "type": "string"
+          },
+          "strategy": {
+            "default": "python mcp",
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange",
+          "product"
+        ],
+        "title": "get_open_positionArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Open Position",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_order_status",
+      "description": "Get status of a specific order.\n\n    Args:\n        order_id: Order ID\n        strategy: Strategy name (defaults to 'python mcp')",
+      "inputSchema": {
+        "properties": {
+          "order_id": {
+            "title": "Order Id",
+            "type": "string"
+          },
+          "strategy": {
+            "default": "python mcp",
+            "title": "Strategy",
+            "type": "string"
+          }
+        },
+        "required": [
+          "order_id"
+        ],
+        "title": "get_order_statusArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Order Status",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_order_book",
+      "description": "Get all orders from the order book.",
+      "inputSchema": {
+        "properties": {},
+        "title": "get_order_bookArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Order Book",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_trade_book",
+      "description": "Get all executed trades.",
+      "inputSchema": {
+        "properties": {},
+        "title": "get_trade_bookArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Trade Book",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_position_book",
+      "description": "Get all current positions.",
+      "inputSchema": {
+        "properties": {},
+        "title": "get_position_bookArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Position Book",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_holdings",
+      "description": "Get all holdings (long-term investments).",
+      "inputSchema": {
+        "properties": {},
+        "title": "get_holdingsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Holdings",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_funds",
+      "description": "Get account funds and margin information.",
+      "inputSchema": {
+        "properties": {},
+        "title": "get_fundsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Funds",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "calculate_margin",
+      "description": "Calculate margin requirements for positions.\n\n    Args:\n        positions: List of position dictionaries\n        Example: [{\"symbol\": \"NIFTY25NOV2525000CE\", \"exchange\": \"NFO\", \"action\": \"BUY\", \"product\": \"NRML\", \"pricetype\": \"MARKET\", \"quantity\": \"75\"}]\n\n        For Futures: [{\"symbol\": \"NIFTY25NOV25FUT\", \"exchange\": \"NFO\", \"action\": \"BUY\", \"product\": \"NRML\", \"pricetype\": \"MARKET\", \"quantity\": \"25\"}]\n        For Options: [{\"symbol\": \"NIFTY25NOV2525500CE\", \"exchange\": \"NFO\", \"action\": \"BUY\", \"product\": \"NRML\", \"pricetype\": \"MARKET\", \"quantity\": \"75\"}]\n\n    Returns:\n        JSON with total_margin_required, span_margin, and exposure_margin",
+      "inputSchema": {
+        "properties": {
+          "positions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Positions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "positions"
+        ],
+        "title": "calculate_marginArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Calculate Margin",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_quote",
+      "description": "Get current quote for a symbol.\n\n    Args:\n        symbol: Stock symbol\n        exchange: Exchange name",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "exchange": {
+            "default": "NSE",
+            "title": "Exchange",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "get_quoteArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Quote",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_multi_quotes",
+      "description": "Get real-time quotes for multiple symbols in a single request.\n\n    Args:\n        symbols: List of symbol-exchange pairs\n        Example: [{\"symbol\": \"RELIANCE\", \"exchange\": \"NSE\"}, {\"symbol\": \"INFY\", \"exchange\": \"NSE\"}]\n\n    Returns:\n        JSON with quotes for all requested symbols including ltp, bid, ask, open, high, low, volume, oi",
+      "inputSchema": {
+        "properties": {
+          "symbols": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Symbols",
+            "type": "array"
+          }
+        },
+        "required": [
+          "symbols"
+        ],
+        "title": "get_multi_quotesArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Multiple Quotes",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_option_chain",
+      "description": "Get option chain data with real-time quotes for all strikes.\n\n    Args:\n        underlying: Underlying symbol (e.g., 'NIFTY', 'BANKNIFTY', 'RELIANCE',\n                    or a future like 'NIFTY30DEC25FUT')\n        exchange: Exchange for underlying ('NSE_INDEX', 'BSE_INDEX', 'NSE', 'BSE', 'NFO', 'BFO')\n        expiry_date: Expiry date in DDMMMYY format (e.g., '30DEC25'). Optional when the\n                     underlying already includes an expiry (e.g., 'NIFTY30DEC25FUT').\n        strike_count: Number of strikes above and below ATM (1-100). If not provided, returns entire chain.\n\n    Returns:\n        JSON with:\n        - underlying: Base symbol\n        - underlying_ltp: Current price of underlying\n        - expiry_date: Expiry date\n        - atm_strike: At-The-Money strike price\n        - chain: Array of strikes with CE and PE data including:\n            - symbol, label (ATM/ITM1/OTM1 etc.), ltp, bid, ask, open, high, low, volume, oi, lotsize\n\n    Note: CE and PE have different labels at the same strike:\n        - Strikes below ATM: CE is ITM, PE is OTM\n        - Strikes above ATM: CE is OTM, PE is ITM\n\n    Example for 10 strikes around ATM:\n        get_option_chain(\"NIFTY\", \"NSE_INDEX\", \"30DEC25\", 10)\n\n    Example for full chain:\n        get_option_chain(\"NIFTY\", \"NSE_INDEX\", \"30DEC25\")",
+      "inputSchema": {
+        "properties": {
+          "underlying": {
+            "title": "Underlying",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "expiry_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expiry Date"
+          },
+          "strike_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Strike Count"
+          }
+        },
+        "required": [
+          "underlying",
+          "exchange"
+        ],
+        "title": "get_option_chainArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Option Chain",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_market_depth",
+      "description": "Get market depth (order book) for a symbol.\n\n    Args:\n        symbol: Stock symbol\n        exchange: Exchange name",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "exchange": {
+            "default": "NSE",
+            "title": "Exchange",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "get_market_depthArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Market Depth",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_historical_data",
+      "description": "Get historical OHLCV data for a symbol.\n\n    Args:\n        symbol: Stock symbol\n        exchange: Exchange name\n        interval: Time interval. With source='api': '1m', '3m', '5m', '10m', '15m', '30m', '1h', 'D'.\n                  With source='db': also supports custom intervals (2m, 4m, 6m, 7m, 2h, 3h, 4h) and\n                  daily-based (W, M, Q, Y plus multiples like 2W, 3M).\n        start_date: Start date (YYYY-MM-DD). Optional — when omitted, the last `bars`\n                    (default 20) most-recent bars are returned (or `lookback_days` if given).\n        end_date: End date (YYYY-MM-DD). Optional — defaults to today.\n        source: 'api' (default) fetches from broker API. 'db' fetches from the local\n                OpenAlgo Historify DuckDB store (1m/D stored, other intervals computed via SQL).\n        bars: Number of most-recent bars to return (default 20). The window is fetched\n              server-side; only the last `bars` rows are sent back to keep the payload small.\n              Increase only if you explicitly need more rows.\n        lookback_days: When dates are omitted, fetch the last N calendar days instead of a\n                       bar-count window (e.g., 30 for \"last 30 days\").\n\n    Returns:\n        JSON with total count, returned count, a truncated flag, and data (list of\n        {timestamp, open, high, low, close, volume}) — the last `bars` rows.",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "interval": {
+            "title": "Interval",
+            "type": "string"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Date"
+          },
+          "source": {
+            "default": "api",
+            "title": "Source",
+            "type": "string"
+          },
+          "bars": {
+            "default": 20,
+            "title": "Bars",
+            "type": "integer"
+          },
+          "lookback_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lookback Days"
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange",
+          "interval"
+        ],
+        "title": "get_historical_dataArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Historical Data",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "search_instruments",
+      "description": "Search for instruments by name or symbol.\n\n    Args:\n        query: Search query (e.g., 'NIFTY 26000 DEC CE', 'RELIANCE')\n        exchange: Exchange to restrict the search to (NSE, BSE, NFO, BFO, MCX, NSE_INDEX, etc.).\n                  Optional — when omitted, searches across all exchanges.\n        instrument_type: Optional convenience filter — pass 'INDEX' to auto-rewrite\n                         exchange=NSE → NSE_INDEX and BSE → BSE_INDEX.",
+      "inputSchema": {
+        "properties": {
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "exchange": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exchange"
+          },
+          "instrument_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Instrument Type"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "search_instrumentsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Search Instruments",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_symbol_info",
+      "description": "Get detailed information about a symbol.\n\n    Args:\n        symbol: Stock symbol\n        exchange: Exchange name\n        instrument_type: Optional - 'INDEX' for index symbols",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "exchange": {
+            "default": "NSE",
+            "title": "Exchange",
+            "type": "string"
+          },
+          "instrument_type": {
+            "default": null,
+            "title": "Instrument Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "get_symbol_infoArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Symbol Info",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_index_symbols",
+      "description": "Get the OpenAlgo-standardized index symbols for NSE or BSE.\n\n    These are the common index names rolled out across all supported brokers via the\n    OpenAlgo symbol standardization. Use exchange code 'NSE_INDEX' / 'BSE_INDEX' when\n    placing orders or fetching quotes for these symbols.\n\n    Args:\n        exchange: NSE or BSE\n\n    Returns:\n        JSON with exchange, exchange_code, and the full list of standardized index\n        symbols (57+ NSE, 40+ BSE).",
+      "inputSchema": {
+        "properties": {
+          "exchange": {
+            "default": "NSE",
+            "title": "Exchange",
+            "type": "string"
+          }
+        },
+        "title": "get_index_symbolsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Index Symbols",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_expiry_dates",
+      "description": "Get expiry dates for derivatives.\n\n    Args:\n        symbol: Underlying symbol\n        exchange: Exchange name (typically NFO for F&O)\n        instrument_type: 'options' or 'futures'",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "exchange": {
+            "default": "NFO",
+            "title": "Exchange",
+            "type": "string"
+          },
+          "instrument_type": {
+            "default": "options",
+            "title": "Instrument Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "get_expiry_datesArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Expiry Dates",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_available_intervals",
+      "description": "Get all available time intervals for historical data.",
+      "inputSchema": {
+        "properties": {},
+        "title": "get_available_intervalsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Available Intervals",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_option_symbol",
+      "description": "Get option symbol for specific strike and expiry.\n\n    Args:\n        underlying: Underlying symbol (e.g., 'NIFTY', 'BANKNIFTY', 'NIFTY28OCT25FUT')\n        exchange: Exchange for underlying ('NSE_INDEX', 'BSE_INDEX', 'NFO', 'BFO')\n        offset: Strike offset - 'ATM', 'ITM1'-'ITM50', 'OTM1'-'OTM50'\n        option_type: 'CE' for Call or 'PE' for Put\n        expiry_date: Expiry date in 'DDMMMYY' format (e.g., '28OCT25'). Optional when\n                     the underlying already includes an expiry.\n\n    Returns:\n        JSON with symbol, exchange, lotsize, tick_size, underlying_ltp",
+      "inputSchema": {
+        "properties": {
+          "underlying": {
+            "title": "Underlying",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "string"
+          },
+          "option_type": {
+            "title": "Option Type",
+            "type": "string"
+          },
+          "expiry_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expiry Date"
+          }
+        },
+        "required": [
+          "underlying",
+          "exchange",
+          "offset",
+          "option_type"
+        ],
+        "title": "get_option_symbolArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Option Symbol",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_synthetic_future",
+      "description": "Calculate synthetic future price using put-call parity.\n\n    Args:\n        underlying: Underlying symbol (e.g., 'NIFTY', 'BANKNIFTY')\n        exchange: Exchange for underlying ('NSE_INDEX', 'BSE_INDEX')\n        expiry_date: Expiry date in format 'DDMMMYY' (e.g., '25NOV25')\n\n    Returns:\n        JSON with atm_strike, expiry, status, synthetic_future_price, underlying, underlying_ltp",
+      "inputSchema": {
+        "properties": {
+          "underlying": {
+            "title": "Underlying",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "expiry_date": {
+            "title": "Expiry Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "underlying",
+          "exchange",
+          "expiry_date"
+        ],
+        "title": "get_synthetic_futureArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Synthetic Future Price",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_option_greeks",
+      "description": "Calculate option Greeks (Delta, Gamma, Theta, Vega, Rho) and Implied Volatility using Black-76.\n\n    Args:\n        symbol: Option symbol (e.g., 'NIFTY25NOV2526000CE'). Required.\n        exchange: Exchange code ('NFO', 'BFO', 'CDS', 'MCX'). Required.\n        interest_rate: Risk-free interest rate in annualized % (e.g., 6.5 for RBI repo).\n                       Optional — defaults to 0.\n        forward_price: Custom forward / synthetic futures price. If provided, skips the\n                       underlying price fetch. Useful for illiquid underlyings (FINNIFTY,\n                       MIDCPNIFTY) or custom scenario analysis.\n        underlying_symbol: Custom underlying symbol (e.g., 'NIFTY', 'NIFTY30DEC25FUT').\n                           Optional — auto-detected from the option symbol when omitted.\n        underlying_exchange: Custom underlying exchange ('NSE_INDEX', 'NFO', etc.).\n                             Optional — auto-detected when omitted.\n        expiry_time: Custom expiry time in HH:MM format (e.g., '19:00'). Required for\n                     MCX contracts with non-standard expiry times. Exchange defaults:\n                     NFO/BFO=15:30, CDS=12:30, MCX=23:30.\n\n    Returns:\n        JSON with greeks, implied_volatility, spot_price, strike, days_to_expiry.",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "interest_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Interest Rate"
+          },
+          "forward_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Forward Price"
+          },
+          "underlying_symbol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Underlying Symbol"
+          },
+          "underlying_exchange": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Underlying Exchange"
+          },
+          "expiry_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expiry Time"
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange"
+        ],
+        "title": "get_option_greeksArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Option Greeks",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_openalgo_version",
+      "description": "Get the OpenAlgo library version.",
+      "inputSchema": {
+        "properties": {},
+        "title": "get_openalgo_versionArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get OpenAlgo Version",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "validate_order_constants",
+      "description": "Display all valid order constants for reference.",
+      "inputSchema": {
+        "properties": {},
+        "title": "validate_order_constantsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Validate Order Constants",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "send_telegram_alert",
+      "description": "Send a Telegram alert notification.\n\n    Args:\n        username: OpenAlgo login ID/username\n        message: Alert message to send\n        priority: Notification priority (1-10, default 5). Higher values may be used\n                  by the bot for emphasis/sorting depending on configuration.\n\n    Returns:\n        JSON with status and message",
+      "inputSchema": {
+        "properties": {
+          "username": {
+            "title": "Username",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "priority": {
+            "default": 5,
+            "title": "Priority",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "username",
+          "message"
+        ],
+        "title": "send_telegram_alertArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Send Telegram Alert",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_holidays",
+      "description": "Get trading holidays for a specific year.\n\n    Args:\n        year: Year to get holidays for (e.g., 2026). Optional — defaults to current year.\n\n    Returns:\n        JSON with list of trading holidays including:\n        - date: Holiday date (YYYY-MM-DD)\n        - description: Holiday name/reason\n        - holiday_type: TRADING_HOLIDAY, SETTLEMENT_HOLIDAY, or SPECIAL_SESSION\n        - closed_exchanges: List of closed exchanges\n        - open_exchanges: List of exchanges with special timings\n\n    Example:\n        get_holidays(2026)\n        get_holidays()          # current year",
+      "inputSchema": {
+        "properties": {
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Year"
+          }
+        },
+        "title": "get_holidaysArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Market Holidays",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_timings",
+      "description": "Get exchange trading timings for a specific date.\n\n    Args:\n        date: Date in YYYY-MM-DD format (e.g., '2026-04-23'). Optional — defaults to today.\n\n    Returns:\n        JSON with exchange timings including:\n        - exchange: Exchange name (NSE, BSE, NFO, BFO, MCX, CDS, BCD)\n        - start_time: Market open time in epoch milliseconds\n        - end_time: Market close time in epoch milliseconds\n\n    Example:\n        get_timings(\"2026-04-23\")\n        get_timings()           # today",
+      "inputSchema": {
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Date"
+          }
+        },
+        "title": "get_timingsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Market Timings",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "check_holiday",
+      "description": "Check if a specific date is a market holiday for an exchange.\n\n    This calls the /api/v1/checkholiday endpoint directly (not yet in the openalgo SDK).\n    Use this for fast pre-trade \"is the market open?\" checks.\n\n    Args:\n        date: Date in YYYY-MM-DD format (between 2020-01-01 and 2050-12-31). Required.\n        exchange: Exchange code (NSE, BSE, NFO, BFO, MCX, CDS, BCD). Optional.\n                  When omitted, returns true if the date is a holiday for any major exchange.\n\n    Returns:\n        JSON with:\n        - status: 'success' or 'error'\n        - data.date, data.exchange (if specified), data.is_holiday (bool)\n\n    Notes:\n        - Weekends and national holidays both return is_holiday=true.\n        - For a full calendar, use get_holidays(year).\n\n    Examples:\n        check_holiday(\"2026-01-26\", \"NSE\")\n        check_holiday(\"2026-01-27\")",
+      "inputSchema": {
+        "properties": {
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "exchange": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exchange"
+          }
+        },
+        "required": [
+          "date"
+        ],
+        "title": "check_holidayArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Check Trading Holiday",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_instruments",
+      "description": "Download the full instrument master.\n\n    Args:\n        exchange: Exchange name (NSE, BSE, NFO, BFO, MCX, CDS, BCD, NSE_INDEX, BSE_INDEX).\n                  Optional — when omitted, downloads instruments for ALL exchanges.\n        limit: Maximum number of rows to return in the response (default: 500).\n               The full dataset can exceed 100k rows for derivatives exchanges, which\n               overwhelms the MCP tool output. Use search_instruments for targeted lookups.\n\n    Returns:\n        JSON with count, returned, truncated flag, and data (list of instrument records).\n        Each record includes: symbol, brsymbol, name, exchange, lotsize,\n        instrumenttype, expiry, strike, token, tick_size.",
+      "inputSchema": {
+        "properties": {
+          "exchange": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exchange"
+          },
+          "limit": {
+            "default": 500,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "get_instrumentsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Instrument Master",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "analyzer_status",
+      "description": "Get the current analyzer status including mode and total logs.\n\n    Returns:\n        JSON with analyzer status information:\n        - data.analyze_mode: Boolean indicating if analyzer is active\n        - data.mode: Current mode ('analyze' or 'live')\n        - data.total_logs: Number of logs in analyzer\n        - status: 'success' or 'error'",
+      "inputSchema": {
+        "properties": {},
+        "title": "analyzer_statusArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Analyzer Status",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "analyzer_toggle",
+      "description": "Toggle the analyzer mode between analyze (simulated) and live trading.\n\n    Args:\n        mode: True for analyze mode (simulated), False for live mode\n\n    Returns:\n        JSON with updated analyzer status:\n        - data.analyze_mode, data.message, data.mode, data.total_logs\n        - status: 'success' or 'error'\n\n    Example:\n        analyzer_toggle(True)  # Switch to analyze mode (simulated responses)\n        analyzer_toggle(False) # Switch to live trading mode",
+      "inputSchema": {
+        "properties": {
+          "mode": {
+            "title": "Mode",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "analyzer_toggleArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Toggle Analyzer Mode",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "calculate_indicator",
+      "description": "Run ANY of the 80+ openalgo.ta indicators over a symbol's historical OHLCV.\n\n    History is fetched (db/api) and the indicator is computed entirely on the\n    OpenAlgo server; only compact results are returned — never the raw OHLCV.\n\n    Args:\n        symbol: Stock symbol (e.g., 'RELIANCE', 'NIFTY')\n        exchange: Exchange name (NSE, NFO, NSE_INDEX, etc.)\n        indicator: ta function name, case-insensitive (e.g., 'rsi','macd','supertrend',\n                   'atr','bbands','adx','ema','vwap').\n        interval: '1m','3m','5m','10m','15m','30m','1h','D' (default 'D')\n        start_date / end_date: YYYY-MM-DD. Optional — when omitted, a lookback window\n                   ending today is used.\n        params: Extra keyword args for the indicator (e.g., {\"period\": 14} for rsi;\n                {\"period\": 10, \"multiplier\": 3} for supertrend;\n                {\"fast_period\": 12, \"slow_period\": 26, \"signal_period\": 9} for macd).\n        inputs: Ordered list of OHLCV columns to feed the indicator, e.g. [\"close\"] or\n                [\"high\",\"low\",\"close\"]. Optional — auto-detected for common indicators;\n                pass it explicitly if a result errors on inputs.\n        bars: Number of most-recent computed rows to return (default 20). The indicator\n              is ALWAYS computed server-side over the FULL fetched history; only the last\n              `bars` rows (plus latest value and summary stats) are sent back, so the\n              payload stays small. Increase only if you explicitly need more rows.\n        lookback_bars: Bars of history to load/compute over when dates are omitted\n                       (default 252 ≈ one trading year of daily data).\n        lookback_days: Alternative calendar-day lookback (e.g., 30 for \"last 30 days\").\n                       Overrides lookback_bars when set.\n        source: 'api' (default, broker API) or 'db' (local Historify DuckDB store, which\n                supports custom research intervals like 2m/4m/W/M/Q).\n\n    Returns:\n        JSON with the latest value(s), summary stats (last/min/max/mean), and a 'data'\n        series of the last `bars` rows — all computed server-side. Multi-output indicators\n        (macd, bbands, supertrend, stochastic, adx, ichimoku, keltner, donchian) report\n        out0, out1, ...",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "indicator": {
+            "title": "Indicator",
+            "type": "string"
+          },
+          "interval": {
+            "default": "D",
+            "title": "Interval",
+            "type": "string"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Date"
+          },
+          "params": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Params"
+          },
+          "inputs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Inputs"
+          },
+          "bars": {
+            "default": 20,
+            "title": "Bars",
+            "type": "integer"
+          },
+          "lookback_bars": {
+            "default": 252,
+            "title": "Lookback Bars",
+            "type": "integer"
+          },
+          "lookback_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lookback Days"
+          },
+          "source": {
+            "default": "api",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange",
+          "indicator"
+        ],
+        "title": "calculate_indicatorArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Calculate Indicator",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_trend_snapshot",
+      "description": "One-call trend read: SMA(20/50/200), EMA(20/50), Supertrend, ADX/DMI, Ichimoku.\n\n    Args:\n        symbol: Stock symbol\n        exchange: Exchange name\n        interval: Candle interval (default 'D')\n        start_date / end_date: YYYY-MM-DD. Optional — default to a lookback window ending today.\n        lookback_bars: Bars of history loaded when dates are omitted (default 252, enough for SMA200).\n        lookback_days: Alternative calendar-day lookback (e.g., 30). Overrides lookback_bars.\n\n    Returns:\n        JSON with latest indicator values and a 'legend' explaining multi-value entries.",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "interval": {
+            "default": "D",
+            "title": "Interval",
+            "type": "string"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Date"
+          },
+          "lookback_bars": {
+            "default": 252,
+            "title": "Lookback Bars",
+            "type": "integer"
+          },
+          "lookback_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lookback Days"
+          },
+          "source": {
+            "default": "api",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange"
+        ],
+        "title": "get_trend_snapshotArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Trend Snapshot",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_momentum_snapshot",
+      "description": "One-call momentum read: RSI(14), MACD, Stochastic, CCI(20), Williams %R(14).\n\n    Args:\n        symbol: Stock symbol\n        exchange: Exchange name\n        interval: Candle interval (default 'D')\n        start_date / end_date: YYYY-MM-DD. Optional — default to a lookback window ending today.\n        lookback_bars: Bars of history loaded when dates are omitted (default 252).\n        lookback_days: Alternative calendar-day lookback (e.g., 30). Overrides lookback_bars.\n\n    Returns:\n        JSON with latest values and a 'legend' for multi-value entries.",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "interval": {
+            "default": "D",
+            "title": "Interval",
+            "type": "string"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Date"
+          },
+          "lookback_bars": {
+            "default": 252,
+            "title": "Lookback Bars",
+            "type": "integer"
+          },
+          "lookback_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lookback Days"
+          },
+          "source": {
+            "default": "api",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange"
+        ],
+        "title": "get_momentum_snapshotArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Momentum Snapshot",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_volatility_snapshot",
+      "description": "One-call volatility read: ATR, NATR, Bollinger Bands (+%B, width), Keltner,\n    Donchian, Historical Volatility.\n\n    Args:\n        symbol: Stock symbol\n        exchange: Exchange name\n        interval: Candle interval (default 'D')\n        start_date / end_date: YYYY-MM-DD. Optional — default to a lookback window ending today.\n        lookback_bars: Bars of history loaded when dates are omitted (default 252).\n        lookback_days: Alternative calendar-day lookback (e.g., 30). Overrides lookback_bars.\n\n    Returns:\n        JSON with latest values and a 'legend' for multi-value band entries.",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "interval": {
+            "default": "D",
+            "title": "Interval",
+            "type": "string"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Date"
+          },
+          "lookback_bars": {
+            "default": 252,
+            "title": "Lookback Bars",
+            "type": "integer"
+          },
+          "lookback_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lookback Days"
+          },
+          "source": {
+            "default": "api",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange"
+        ],
+        "title": "get_volatility_snapshotArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Volatility Snapshot",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_support_resistance",
+      "description": "Support/resistance levels: Pivot Points, Donchian channel, and rolling\n    highest-high / lowest-low over `period`.\n\n    Args:\n        symbol: Stock symbol\n        exchange: Exchange name\n        interval: Candle interval (default 'D')\n        start_date / end_date: YYYY-MM-DD. Optional — default to a lookback window ending today.\n        lookback_bars: Bars of history loaded when dates are omitted (default 252).\n        lookback_days: Alternative calendar-day lookback (e.g., 30). Overrides lookback_bars.\n        period: Lookback window for Donchian / highest / lowest (default 20).\n\n    Returns:\n        JSON with latest levels. 'pivot_points' is returned as ta.pivot_points emits it\n        (typically [pivot, r1, s1, r2, s2, r3, s3]).",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "interval": {
+            "default": "D",
+            "title": "Interval",
+            "type": "string"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Date"
+          },
+          "lookback_bars": {
+            "default": 252,
+            "title": "Lookback Bars",
+            "type": "integer"
+          },
+          "lookback_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lookback Days"
+          },
+          "period": {
+            "default": 20,
+            "title": "Period",
+            "type": "integer"
+          },
+          "source": {
+            "default": "api",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange"
+        ],
+        "title": "get_support_resistanceArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Get Support and Resistance",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "detect_signals",
+      "description": "Detect technical signals over a symbol's history using ta crossover/threshold logic.\n\n    Args:\n        symbol: Stock symbol\n        exchange: Exchange name\n        interval: Candle interval (default 'D')\n        start_date / end_date: YYYY-MM-DD. Optional — default to the lookback window.\n        lookback_bars: Bars loaded when dates omitted (default 252).\n        lookback_days: Alternative calendar-day lookback (e.g., 30). Overrides lookback_bars.\n        signal_type: One of:\n            'ema_cross'      - EMA(fast) crossing EMA(slow)\n            'sma_cross'      - SMA(fast) crossing SMA(slow)\n            'macd_cross'     - MACD line crossing its signal line\n            'supertrend_flip'- Supertrend direction flip\n            'rsi_threshold'  - RSI crossing out of oversold(lower) / overbought(upper)\n        fast / slow: MA periods for ema_cross / sma_cross\n        period: Lookback for rsi_threshold (default 14)\n        upper / lower: RSI overbought / oversold levels (default 70 / 30)\n        limit: Max number of most-recent signal events to return (default 20)\n\n    Returns:\n        JSON with recent events [{timestamp, signal: 'bullish'|'bearish'}] plus current values.",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "interval": {
+            "default": "D",
+            "title": "Interval",
+            "type": "string"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Date"
+          },
+          "signal_type": {
+            "default": "ema_cross",
+            "title": "Signal Type",
+            "type": "string"
+          },
+          "fast": {
+            "default": 20,
+            "title": "Fast",
+            "type": "integer"
+          },
+          "slow": {
+            "default": 50,
+            "title": "Slow",
+            "type": "integer"
+          },
+          "period": {
+            "default": 14,
+            "title": "Period",
+            "type": "integer"
+          },
+          "upper": {
+            "default": 70.0,
+            "title": "Upper",
+            "type": "number"
+          },
+          "lower": {
+            "default": 30.0,
+            "title": "Lower",
+            "type": "number"
+          },
+          "limit": {
+            "default": 20,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "lookback_bars": {
+            "default": 252,
+            "title": "Lookback Bars",
+            "type": "integer"
+          },
+          "lookback_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lookback Days"
+          },
+          "source": {
+            "default": "api",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange"
+        ],
+        "title": "detect_signalsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Detect Signals",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "screen_instruments",
+      "description": "Scan a watchlist of symbols for a technical condition.\n\n    Note: this fetches history per symbol sequentially — keep the list modest (≤ ~25)\n    or use a coarse interval to bound runtime and broker API calls.\n\n    Args:\n        symbols: List of {\"symbol\",\"exchange\"} pairs.\n            Example: [{\"symbol\":\"RELIANCE\",\"exchange\":\"NSE\"},{\"symbol\":\"INFY\",\"exchange\":\"NSE\"}]\n        interval: Candle interval (default 'D')\n        start_date / end_date: YYYY-MM-DD. Optional — default to the lookback window.\n        lookback_bars: Bars loaded per symbol when dates omitted (default 252).\n        lookback_days: Alternative calendar-day lookback (e.g., 30). Overrides lookback_bars.\n        condition: One of:\n            'rsi_below' / 'rsi_above'        - RSI(period) vs `value`\n            'price_above_sma'/'price_below_sma' - last close vs SMA(period)\n            'supertrend_bullish'/'supertrend_bearish' - current Supertrend direction\n        value: Threshold for rsi conditions (default 30)\n        period: Lookback for rsi / sma (default 14)\n\n    Returns:\n        JSON with per-symbol {passed, metric} and a count of matches.",
+      "inputSchema": {
+        "properties": {
+          "symbols": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Symbols",
+            "type": "array"
+          },
+          "interval": {
+            "default": "D",
+            "title": "Interval",
+            "type": "string"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Date"
+          },
+          "condition": {
+            "default": "rsi_below",
+            "title": "Condition",
+            "type": "string"
+          },
+          "value": {
+            "default": 30.0,
+            "title": "Value",
+            "type": "number"
+          },
+          "period": {
+            "default": 14,
+            "title": "Period",
+            "type": "integer"
+          },
+          "lookback_bars": {
+            "default": 252,
+            "title": "Lookback Bars",
+            "type": "integer"
+          },
+          "lookback_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lookback Days"
+          },
+          "source": {
+            "default": "api",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbols"
+        ],
+        "title": "screen_instrumentsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Screen Instruments",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "multi_timeframe_analysis",
+      "description": "Compute the same indicator across multiple timeframes for confluence analysis.\n\n    Args:\n        symbol: Stock symbol\n        exchange: Exchange name\n        start_date / end_date: YYYY-MM-DD. Optional — default to the lookback window per interval.\n        intervals: List of intervals (default ['5m','15m','1h','D'])\n        indicator: ta function name (default 'rsi')\n        params: Extra keyword args for the indicator (e.g., {\"period\": 14})\n        inputs: Ordered input columns; auto-detected if omitted.\n        lookback_bars: Bars loaded per interval when dates omitted (default 252).\n        lookback_days: Alternative calendar-day lookback (e.g., 30). Overrides lookback_bars.\n\n    Returns:\n        JSON with the latest indicator value (and last_close) per timeframe.",
+      "inputSchema": {
+        "properties": {
+          "symbol": {
+            "title": "Symbol",
+            "type": "string"
+          },
+          "exchange": {
+            "title": "Exchange",
+            "type": "string"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Date"
+          },
+          "intervals": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Intervals"
+          },
+          "indicator": {
+            "default": "rsi",
+            "title": "Indicator",
+            "type": "string"
+          },
+          "params": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Params"
+          },
+          "inputs": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Inputs"
+          },
+          "lookback_bars": {
+            "default": 252,
+            "title": "Lookback Bars",
+            "type": "integer"
+          },
+          "lookback_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lookback Days"
+          },
+          "source": {
+            "default": "api",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange"
+        ],
+        "title": "multi_timeframe_analysisArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Multi-Timeframe Analysis",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "correlation_beta",
+      "description": "Correlation / Beta / Linear-regression slope between two symbols (pairs & hedge research).\n\n    Both symbols' closes are aligned on common timestamps before computing.\n\n    Args:\n        symbol1 / exchange1: First instrument (the 'asset')\n        symbol2 / exchange2: Second instrument (the 'market'/benchmark)\n        interval: Candle interval (default 'D')\n        start_date / end_date: YYYY-MM-DD. Optional — default to the lookback window.\n        period: Rolling window for correlation/beta/slope (default 20)\n        lookback_bars: Bars loaded per symbol when dates omitted (default 252).\n        lookback_days: Alternative calendar-day lookback (e.g., 30). Overrides lookback_bars.\n\n    Returns:\n        JSON with rolling correlation, rolling beta, LR slope of symbol1, the full-sample\n        Pearson correlation, and the number of overlapping bars.",
+      "inputSchema": {
+        "properties": {
+          "symbol1": {
+            "title": "Symbol1",
+            "type": "string"
+          },
+          "exchange1": {
+            "title": "Exchange1",
+            "type": "string"
+          },
+          "symbol2": {
+            "title": "Symbol2",
+            "type": "string"
+          },
+          "exchange2": {
+            "title": "Exchange2",
+            "type": "string"
+          },
+          "interval": {
+            "default": "D",
+            "title": "Interval",
+            "type": "string"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "End Date"
+          },
+          "period": {
+            "default": 20,
+            "title": "Period",
+            "type": "integer"
+          },
+          "lookback_bars": {
+            "default": 252,
+            "title": "Lookback Bars",
+            "type": "integer"
+          },
+          "lookback_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lookback Days"
+          },
+          "source": {
+            "default": "api",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol1",
+          "exchange1",
+          "symbol2",
+          "exchange2"
+        ],
+        "title": "correlation_betaArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "title": "Correlation and Beta",
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    }
+  ],
+  "scopes": {
+    "analyzer_status": "read:account",
+    "analyzer_toggle": "write:orders",
+    "calculate_indicator": "read:market",
+    "calculate_margin": "read:account",
+    "cancel_all_orders": "write:orders",
+    "cancel_order": "write:orders",
+    "check_holiday": "read:market",
+    "close_all_positions": "write:orders",
+    "correlation_beta": "read:market",
+    "detect_signals": "read:market",
+    "get_available_intervals": "read:market",
+    "get_expiry_dates": "read:market",
+    "get_funds": "read:account",
+    "get_historical_data": "read:market",
+    "get_holdings": "read:account",
+    "get_holidays": "read:market",
+    "get_index_symbols": "read:market",
+    "get_instruments": "read:market",
+    "get_market_depth": "read:market",
+    "get_momentum_snapshot": "read:market",
+    "get_multi_quotes": "read:market",
+    "get_open_position": "read:account",
+    "get_openalgo_version": "read:market",
+    "get_option_chain": "read:market",
+    "get_option_greeks": "read:market",
+    "get_option_symbol": "read:market",
+    "get_order_book": "read:account",
+    "get_order_status": "read:account",
+    "get_position_book": "read:account",
+    "get_quote": "read:market",
+    "get_support_resistance": "read:market",
+    "get_symbol_info": "read:market",
+    "get_synthetic_future": "read:market",
+    "get_timings": "read:market",
+    "get_trade_book": "read:account",
+    "get_trend_snapshot": "read:market",
+    "get_volatility_snapshot": "read:market",
+    "modify_order": "write:orders",
+    "multi_timeframe_analysis": "read:market",
+    "place_basket_order": "write:orders",
+    "place_options_multi_order": "write:orders",
+    "place_options_order": "write:orders",
+    "place_order": "write:orders",
+    "place_smart_order": "write:orders",
+    "place_split_order": "write:orders",
+    "screen_instruments": "read:market",
+    "search_instruments": "read:market",
+    "send_telegram_alert": "read:account",
+    "validate_order_constants": "read:market"
+  }
+}

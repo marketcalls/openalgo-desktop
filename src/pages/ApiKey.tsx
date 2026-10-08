@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
+import { McpTokens } from '@/components/desktop/McpTokens'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -364,6 +365,9 @@ export default function ApiKey() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Desktop: AI client (MCP) tokens; the web uses OAuth for hosted clients. */}
+        <McpTokens />
       </div>
 
       {/* Regenerate Confirmation Dialog */}

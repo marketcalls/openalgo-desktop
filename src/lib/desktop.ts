@@ -255,3 +255,69 @@ export async function switchActiveBroker(broker: string): Promise<string | null>
   const body = await res.json().catch(() => null)
   return body?.message || 'Could not switch the broker. Try again.'
 }
+
+// ============================================================================
+// MCP access tokens for AI clients (API key page; desktop only)
+// ============================================================================
+
+/** An MCP token as listed by GET /api/mcp/tokens (never the token itself). */
+export interface McpToken {
+  id: number
+  name: string
+  scope: 'read' | 'read_write'
+  token_prefix: string
+  created_at: string
+  last_used_at: string | null
+}
+
+/** Ready-to-paste client configuration from the local server. */
+export interface McpClientConfig {
+  executable: string
+  server_url: string
+  mcp_url: string
+  claude_desktop: unknown
+  claude_code: string
+}
+
+async function csrfToken(): Promise<string | undefined> {
+  return fetch('/auth/csrf-token', { credentials: 'include' })
+    .then((r) => r.json())
+    .then((b) => b?.csrf_token as string | undefined)
+    .catch(() => undefined)
+}
+
+async function mcpWrite(url: string, method: 'POST' | 'DELETE', body?: unknown) {
+  const csrf = await csrfToken()
+  if (!csrf) throw new Error('Could not reach OpenAlgo. Try again.')
+  const res = await fetch(url, {
+    method,
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => null)
+  if (!res.ok) throw new Error(data?.message || 'The request failed. Try again.')
+  return data
+}
+
+/** Live MCP tokens, newest first. */
+export async function fetchMcpTokens(): Promise<McpToken[]> {
+  const res = await fetch('/api/mcp/tokens', { credentials: 'include' })
+  if (!res.ok) return []
+  const body = await res.json().catch(() => null)
+  return Array.isArray(body?.data) ? body.data : []
+}
+
+/** Create a token; the token and its client configuration come back once. */
+export async function createMcpToken(
+  name: string,
+  scope: 'read' | 'read_write'
+): Promise<{ token: string; client_config: McpClientConfig }> {
+  const data = await mcpWrite('/api/mcp/tokens', 'POST', { name, scope })
+  return { token: data.token, client_config: data.client_config }
+}
+
+/** Revoke a token: clients using it stop working at once. */
+export async function revokeMcpToken(id: number): Promise<void> {
+  await mcpWrite(`/api/mcp/tokens/${id}`, 'DELETE')
+}

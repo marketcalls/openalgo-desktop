@@ -207,6 +207,8 @@ fn csrf_exempt(path: &str) -> bool {
         // The OpenScript runner page: each call carries its run's secret.
         || path.starts_with("/openscript/runner/host/")
         || path.starts_with("/chartink/webhook/")
+        // MCP: bearer token, never the browser session.
+        || path == "/mcp"
         // Broker form-POST redirects (state-verified in the handler).
         || path
             .strip_suffix("/callback")

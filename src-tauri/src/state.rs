@@ -102,6 +102,8 @@ pub struct AppState {
     pub scalping: Arc<crate::scalping::Scalping>,
     /// Chartink strategies and their webhook (`/chartink`).
     pub chartink: Arc<crate::chartink::Chartink>,
+    /// MCP transport state: per-token rate windows and event-stream slots.
+    pub mcp: crate::mcp::McpRuntime,
 }
 
 pub struct OpenOptions {
@@ -254,6 +256,7 @@ impl AppState {
             data_dir: data_dir.to_path_buf(),
             monitor: crate::services::monitor::Monitor::new(),
             messaging: crate::messaging::Messaging::new(),
+            mcp: crate::mcp::McpRuntime::new(),
         });
         crate::messaging::register(&ctx);
         ctx.historify.start();
