@@ -1532,10 +1532,16 @@ async fn port_in_use_is_reported_for_the_trader_and_stop_releases_the_port() {
         .unwrap();
     let mut out = String::new();
     s.read_to_string(&mut out).await.unwrap();
+    // Report only the parsed status code, never the raw response text.
+    let status: u16 = out
+        .strip_prefix("HTTP/1.1 ")
+        .and_then(|r| r.get(..3))
+        .and_then(|c| c.parse().ok())
+        .unwrap_or(0);
     assert!(
-        out.starts_with("HTTP/1.1 400") || out.starts_with("HTTP/1.1 200"),
-        "{}",
-        out
+        status == 400 || status == 200,
+        "unexpected status {}",
+        status
     );
     handle.stop().await;
     let again = tokio::net::TcpListener::bind(("127.0.0.1", port)).await;
