@@ -145,8 +145,11 @@ tokio = { version = "1", features = ["full", "test-util"] }
 openalgo-desktop = { path = ".", default-features = false, features = ["test-support"] }
 
 [features]
-default = ["custom-protocol"]
+default = ["custom-protocol", "runner-window"]
 custom-protocol = ["tauri/custom-protocol"]
+# The OpenScript runner's hidden Tauri window (the app's runner host). Off,
+# runs are refused with a sentence; tests drive the runner with a fake host.
+runner-window = []
 # Exposes brokers::mock (MockBroker, MockFeed) to integration test crates.
 test-support = []
 

@@ -135,6 +135,12 @@ export default defineConfig({
     // flagging any new app-code chunk that drifts above 1MB.
     chunkSizeWarningLimit: 1100,
     rollupOptions: {
+      // Desktop: the OpenScript runner page the app opens in a hidden window
+      // per live run, built beside the app as its own small entry.
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        runner: path.resolve(__dirname, 'openscript-runner.html'),
+      },
       output: {
         // Split the stable framework libs into their own long-cached chunk
         // so an app-code change doesn't bust react/router/query for returning

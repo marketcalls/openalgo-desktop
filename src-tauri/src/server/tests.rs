@@ -545,6 +545,14 @@ async fn public_route_list_is_exactly_the_reviewed_one() {
             "POST /strategy/webhook/{token}",
             "GET /{broker}/callback",
             "POST /{broker}/callback",
+            // The OpenScript runner page's channel: each call carries its
+            // run's secret (handed to that page only, in its URL fragment).
+            "GET /openscript/runner/host/{run}/spec",
+            "GET /openscript/runner/host/{run}/bars",
+            "GET /openscript/runner/host/{run}/inbox",
+            "POST /openscript/runner/host/{run}/intents",
+            "POST /openscript/runner/host/{run}/log",
+            "POST /openscript/runner/host/{run}/ended",
         ]
     );
 }

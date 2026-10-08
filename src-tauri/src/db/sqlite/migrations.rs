@@ -73,6 +73,11 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     )?;
     run_rust_migration(conn, "072_strategy_module", crate::strategy::store::migrate)?;
     run_rust_migration(conn, "073_strategy_book", crate::strategy::book::migrate)?;
+    run_rust_migration(
+        conn,
+        "074_openscript_runner",
+        crate::trading::runner::store::migrate,
+    )?;
 
     tracing::info!("Database migrations completed");
     Ok(())
