@@ -21,6 +21,7 @@ mod isolate;
 
 mod api_v1_support;
 mod feed_support;
+mod mcp_support;
 mod sandbox_support;
 mod webui_support;
 
@@ -54,6 +55,13 @@ mod feed_conformance;
 mod feed_hygiene;
 mod feed_soak;
 mod historify;
+mod mcp_caps;
+mod mcp_contract;
+mod mcp_http;
+mod mcp_research;
+mod mcp_security;
+mod mcp_subcommand;
+mod mcp_transport;
 mod messaging;
 mod sandbox_concurrency;
 mod sandbox_contract;

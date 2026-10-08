@@ -15,6 +15,7 @@ pub mod error;
 pub mod events;
 pub mod feed;
 pub mod historify;
+pub mod mcp;
 pub mod messaging;
 pub mod risk;
 pub mod sandbox;

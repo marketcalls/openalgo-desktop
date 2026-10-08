@@ -1,0 +1,1756 @@
+//! The research tools (`mcpserver.py` "RESEARCH TOOLS"): history through
+//! `/api/v1/history` shaped as the SDK's DataFrame, indicators from
+//! [`super::ta`], and the web's summaries (`_load_history`, `_last`,
+//! `_bundle`, `_df_records`).
+
+use super::dispatch;
+use super::envelope::{error, fail, py_repr};
+use super::ta::{self, Out, PyErr};
+use crate::state::AppState;
+use chrono::{Datelike, NaiveDate, TimeZone, Utc};
+use chrono_tz::Asia::Kolkata;
+use serde_json::{json, Map, Value};
+use std::sync::Arc;
+
+/// Rows of history indexed by timestamp, as the SDK's `history()` frame.
+#[derive(Debug, Clone)]
+pub struct Frame {
+    /// Epoch seconds, ascending, unique.
+    pub ts: Vec<i64>,
+    /// Intraday frames carry IST-aware timestamps; daily ones are naive.
+    pub intraday: bool,
+    /// Every other column, in the reply's key order.
+    pub cols: Vec<(String, Vec<Value>)>,
+}
+
+impl Frame {
+    pub fn len(&self) -> usize {
+        self.ts.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.ts.is_empty()
+    }
+
+    /// A column as floats (`df[name]`), or the KeyError pandas raises.
+    pub fn col(&self, name: &str) -> Result<Vec<f64>, PyErr> {
+        self.cols
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, v)| v.iter().map(|x| x.as_f64().unwrap_or(f64::NAN)).collect())
+            .ok_or_else(|| PyErr {
+                kind: "KeyError",
+                message: format!("'{}'", name),
+            })
+    }
+
+    fn close(&self) -> Vec<f64> {
+        self.col("close").unwrap_or_default()
+    }
+
+    /// The last `n` rows (`df.tail(n)`).
+    pub fn tail(&self, n: usize) -> Frame {
+        let start = self.len().saturating_sub(n);
+        Frame {
+            ts: self.ts[start..].to_vec(),
+            intraday: self.intraday,
+            cols: self
+                .cols
+                .iter()
+                .map(|(k, v)| (k.clone(), v[start..].to_vec()))
+                .collect(),
+        }
+    }
+
+    /// `pandas.Timestamp.isoformat()` of row `i` (web `_idx_iso`).
+    pub fn iso(&self, i: usize) -> String {
+        iso(self.ts[i], self.intraday)
+    }
+}
+
+fn iso(ts: i64, intraday: bool) -> String {
+    let utc = Utc.timestamp_opt(ts, 0).single().unwrap_or_default();
+    if intraday {
+        utc.with_timezone(&Kolkata)
+            .format("%Y-%m-%dT%H:%M:%S%:z")
+            .to_string()
+    } else {
+        utc.naive_utc().format("%Y-%m-%dT%H:%M:%S").to_string()
+    }
+}
+
+/// `DataFrame.to_json(date_format="iso")` timestamp: UTC with
+/// milliseconds, `Z` when the index is timezone-aware.
+fn json_iso(ts: i64, intraday: bool) -> String {
+    let utc = Utc.timestamp_opt(ts, 0).single().unwrap_or_default();
+    let s = utc.naive_utc().format("%Y-%m-%dT%H:%M:%S%.3f").to_string();
+    if intraday {
+        format!("{}Z", s)
+    } else {
+        s
+    }
+}
+
+/// A float as `to_json` writes it (10 decimal places, NaN as null).
+fn json_float(x: f64) -> Value {
+    if x.is_finite() {
+        json!(ta::py_round(x, 10))
+    } else {
+        Value::Null
+    }
+}
+
+/// Python slice `seq[-n:]` start index for a list of `len`.
+fn tail_start(len: usize, n: i64) -> usize {
+    if n == 0 {
+        0
+    } else if n > 0 {
+        len.saturating_sub(n as usize)
+    } else {
+        (n.unsigned_abs() as usize).min(len)
+    }
+}
+
+/// Web `_df_records(df, limit)`: the last `limit` rows (all when 0) as
+/// records with a `timestamp` key.
+pub fn records(
+    ts: &[i64],
+    intraday: bool,
+    cols: &[(String, Vec<Value>)],
+    limit: i64,
+) -> Vec<Value> {
+    let start = if limit == 0 {
+        0
+    } else {
+        tail_start(ts.len(), limit)
+    };
+    (start..ts.len())
+        .map(|i| {
+            let mut m = Map::new();
+            m.insert("timestamp".into(), json!(json_iso(ts[i], intraday)));
+            for (k, v) in cols {
+                let cell = match &v[i] {
+                    Value::Number(n) if n.is_f64() => json_float(n.as_f64().unwrap_or(f64::NAN)),
+                    other => other.clone(),
+                };
+                m.insert(k.clone(), cell);
+            }
+            Value::Object(m)
+        })
+        .collect()
+}
+
+fn f64_col(v: &[f64]) -> Vec<Value> {
+    v.iter().map(|x| json!(*x)).collect()
+}
+
+fn opt(x: Option<f64>) -> Value {
+    x.map(|v| json!(v)).unwrap_or(Value::Null)
+}
+
+/// Build the frame from the SDK reply's `data` (sorted, duplicates dropped).
+fn frame_from(data: &[Value], intraday: bool) -> Frame {
+    let mut rows: Vec<(i64, &Map<String, Value>)> = data
+        .iter()
+        .filter_map(|r| {
+            let o = r.as_object()?;
+            let t = o.get("timestamp")?;
+            let ts = t.as_i64().or_else(|| t.as_f64().map(|f| f as i64))?;
+            Some((ts, o))
+        })
+        .collect();
+    rows.sort_by_key(|(t, _)| *t);
+    rows.dedup_by_key(|(t, _)| *t);
+    let mut names: Vec<String> = Vec::new();
+    if let Some((_, first)) = rows.first() {
+        for k in first.keys() {
+            if k != "timestamp" {
+                names.push(k.clone());
+            }
+        }
+    }
+    let cols = names
+        .into_iter()
+        .map(|n| {
+            let vals: Vec<Value> = rows
+                .iter()
+                .map(|(_, o)| o.get(&n).cloned().unwrap_or(Value::Null))
+                .collect();
+            // A column holding any float is a float column in pandas.
+            let float = vals
+                .iter()
+                .any(|v| v.as_number().is_some_and(|x| x.is_f64()));
+            let vals = if float {
+                vals.into_iter()
+                    .map(|v| v.as_f64().map(|f| json!(f)).unwrap_or(Value::Null))
+                    .collect()
+            } else {
+                vals
+            };
+            (n, vals)
+        })
+        .collect();
+    Frame {
+        ts: rows.iter().map(|(t, _)| *t).collect(),
+        intraday,
+        cols,
+    }
+}
+
+/// Web `_history_df`: the SDK's `history()` then the two refusals.
+async fn history_df(
+    ctx: &Arc<AppState>,
+    symbol: &str,
+    exchange: &str,
+    itv: &Interval,
+    start: &str,
+    end: &str,
+    source: &str,
+) -> Result<Frame, PyErr> {
+    let mut p = Map::new();
+    p.insert("symbol".into(), json!(symbol.to_uppercase()));
+    p.insert("exchange".into(), json!(exchange.to_uppercase()));
+    p.insert("interval".into(), json!(itv.raw));
+    p.insert("start_date".into(), json!(start));
+    p.insert("end_date".into(), json!(end));
+    p.insert("source".into(), json!(source));
+    let result = dispatch::sdk_post(ctx, "history", p).await;
+    let ok = result.get("status").and_then(Value::as_str) == Some("success");
+    let reply = match (ok, result.get("data").and_then(Value::as_array)) {
+        (true, Some(rows)) if rows.is_empty() => json!({
+            "status": "error",
+            "message": "No data available for the specified period",
+            "error_type": "no_data",
+        }),
+        (true, Some(rows)) => {
+            let f = frame_from(rows, itv.intraday());
+            if f.is_empty() {
+                return Err(PyErr::value(
+                    "no historical data returned for the given range",
+                ));
+            }
+            return Ok(f);
+        }
+        _ => result,
+    };
+    Err(PyErr::value(format!("history error: {}", py_repr(&reply))))
+}
+
+/// A history interval, parsed once with a strict grammar: an optional
+/// multiplier (1 to 999, digits only) and a unit, `s`, `m` or `h` (which
+/// need the multiplier) or `D`, `W`, `M`, `Q`, `Y`. No spaces, signs or
+/// other spellings: what passes is exactly what is sent.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Interval {
+    pub raw: String,
+    mult: u32,
+    unit: char,
+}
+
+impl Interval {
+    pub fn parse(s: &str) -> Option<Interval> {
+        let unit = s.chars().last()?;
+        let digits = &s[..s.len() - unit.len_utf8()];
+        if !matches!(unit, 's' | 'm' | 'h' | 'D' | 'W' | 'M' | 'Q' | 'Y') {
+            return None;
+        }
+        let mult = if digits.is_empty() {
+            if matches!(unit, 's' | 'm' | 'h') {
+                return None;
+            }
+            1
+        } else {
+            if digits.len() > 3 || !digits.bytes().all(|b| b.is_ascii_digit()) {
+                return None;
+            }
+            digits.parse::<u32>().ok().filter(|m| *m >= 1)?
+        };
+        Some(Interval {
+            raw: s.to_string(),
+            mult,
+            unit,
+        })
+    }
+
+    /// Web `_BARS_PER_DAY` (used, as on the web, only to size the calendar
+    /// window for a bar count).
+    fn web_bars_per_day(&self) -> f64 {
+        match self.raw.to_lowercase().as_str() {
+            "1m" => 375.0,
+            "3m" => 125.0,
+            "5m" => 75.0,
+            "10m" => 38.0,
+            "15m" => 25.0,
+            "30m" => 13.0,
+            "1h" | "60m" => 7.0,
+            "2h" => 4.0,
+            "3h" => 3.0,
+            "4h" => 2.0,
+            "d" | "day" => 1.0,
+            "w" | "week" => 0.2,
+            "m" | "month" => 0.05,
+            _ => 75.0,
+        }
+    }
+
+    /// Bars a trading day (375 minutes) really holds at this interval,
+    /// rounded up: what the caps count.
+    pub fn true_bars_per_day(&self) -> f64 {
+        let k = f64::from(self.mult);
+        match self.unit {
+            's' => (22_500.0 / k).ceil(),
+            'm' => (375.0 / k).ceil(),
+            'h' => (6.25 / k).ceil(),
+            'D' => 1.0 / k,
+            'W' => 0.2 / k,
+            'M' => 0.05 / k,
+            'Q' => 1.0 / 63.0 / k,
+            _ => 1.0 / 252.0 / k,
+        }
+    }
+
+    fn intraday(&self) -> bool {
+        !matches!(self.raw.as_str(), "D" | "W" | "M")
+    }
+}
+
+/// A date argument: exactly `YYYY-MM-DD`, years 1900 to 2100.
+pub fn strict_date(s: &str) -> Option<NaiveDate> {
+    let b = s.as_bytes();
+    if b.len() != 10 || b[4] != b'-' || b[7] != b'-' {
+        return None;
+    }
+    if !b
+        .iter()
+        .enumerate()
+        .all(|(k, c)| k == 4 || k == 7 || c.is_ascii_digit())
+    {
+        return None;
+    }
+    let d = NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()?;
+    (1900..=2100).contains(&d.year()).then_some(d)
+}
+
+/// The fetch window of one history call, resolved once from the
+/// canonical arguments: the cap check and the fetch use this same value.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Window {
+    pub start: NaiveDate,
+    pub end: NaiveDate,
+    /// Keep only the last N bars (`lookback_bars` windows).
+    pub tail: Option<usize>,
+    pub source: String,
+}
+
+/// Web `_load_history`'s window: explicit range, else the last N days,
+/// else enough calendar days for `lookback_bars` bars. All arithmetic is
+/// checked; a window past the caps is refused with a trader-facing message.
+pub fn resolve(
+    a: &Map<String, Value>,
+    itv: &Interval,
+    lookback_bars: i64,
+    today: NaiveDate,
+) -> Result<Window, String> {
+    let date = |k: &str| a.get(k).and_then(Value::as_str).and_then(strict_date);
+    let end = date("end_date").unwrap_or(today);
+    let shift = |days: i64| -> Option<NaiveDate> {
+        let n = chrono::Days::new(days.unsigned_abs());
+        if days >= 0 {
+            end.checked_sub_days(n)
+        } else {
+            end.checked_add_days(n)
+        }
+    };
+    let too_far = || {
+        "That date range is outside what OpenAlgo can analyse. Use dates between 1900 and 2100."
+            .to_string()
+    };
+    let (start, tail) = if let Some(s) = date("start_date") {
+        (s, None)
+    } else if let Some(days) = i(a, "lookback_days").filter(|d| *d != 0) {
+        (shift(days).ok_or_else(too_far)?, None)
+    } else {
+        let bars = lookback_bars.clamp(-MAX_BARS, MAX_BARS);
+        let cal_days = ((bars as f64 / itv.web_bars_per_day()) * 1.6) as i64 + 5;
+        let tail = usize::try_from(bars).ok();
+        (shift(cal_days).ok_or_else(too_far)?, tail)
+    };
+    let span = (end - start).num_days().unsigned_abs();
+    if span > MAX_DAYS as u64 {
+        return Err(format!(
+            "The date range can span at most {} days. Narrow start_date and end_date.",
+            MAX_DAYS
+        ));
+    }
+    if (span as f64 + 1.0) * itv.true_bars_per_day() > MAX_FETCH_BARS {
+        return Err(format!(
+            "That much history at interval '{}' is too large to analyse in one call \
+(at most about {} bars). Use a shorter range or a longer interval.",
+            itv.raw, MAX_FETCH_BARS as i64
+        ));
+    }
+    Ok(Window {
+        start,
+        end,
+        tail,
+        source: s(a, "source").unwrap_or_else(|| "api".into()),
+    })
+}
+
+/// Fetch one window (the SDK's `history()`), trimmed to its tail.
+pub async fn load_history(
+    ctx: &Arc<AppState>,
+    symbol: &str,
+    exchange: &str,
+    itv: &Interval,
+    w: &Window,
+) -> Result<Frame, PyErr> {
+    let fmt = |d: NaiveDate| d.format("%Y-%m-%d").to_string();
+    let f = history_df(
+        ctx,
+        symbol,
+        exchange,
+        itv,
+        &fmt(w.start),
+        &fmt(w.end),
+        &w.source,
+    )
+    .await?;
+    Ok(match w.tail {
+        Some(n) => f.tail(n),
+        None => f,
+    })
+}
+
+/// Interval and window of a one-interval tool, from the canonical
+/// arguments (the same computation `admit` checked).
+fn plan(
+    a: &Map<String, Value>,
+    default_interval: &str,
+    lookback_bars: i64,
+    today: NaiveDate,
+) -> Result<(Interval, Window), PyErr> {
+    let raw = s(a, "interval").unwrap_or_else(|| default_interval.to_string());
+    let itv = Interval::parse(&raw)
+        .ok_or_else(|| PyErr::value(format!("unsupported interval '{}'", raw)))?;
+    let w = resolve(a, &itv, lookback_bars, today).map_err(PyErr::value)?;
+    Ok((itv, w))
+}
+
+// ----------------------------------------------------------------------
+// Argument helpers (read the canonical arguments `normalize` produced)
+// ----------------------------------------------------------------------
+
+fn s(a: &Map<String, Value>, k: &str) -> Option<String> {
+    a.get(k).and_then(Value::as_str).map(str::to_string)
+}
+
+fn i(a: &Map<String, Value>, k: &str) -> Option<i64> {
+    a.get(k).and_then(Value::as_i64)
+}
+
+fn f(a: &Map<String, Value>, k: &str) -> Option<f64> {
+    a.get(k).and_then(Value::as_f64)
+}
+
+fn lookback(a: &Map<String, Value>) -> i64 {
+    i(a, "lookback_bars").unwrap_or(252)
+}
+
+/// Integer arguments and their allowed range.
+const INT_ARGS: &[(&str, i64)] = &[
+    ("bars", MAX_BARS),
+    ("lookback_bars", MAX_BARS),
+    ("limit", MAX_BARS),
+    ("lookback_days", MAX_DAYS),
+    ("period", 1_000_000),
+    ("fast", 1_000_000),
+    ("slow", 1_000_000),
+];
+/// Number arguments and their allowed magnitude.
+const NUM_ARGS: &[(&str, f64)] = &[("value", 1e12), ("upper", 1e12), ("lower", 1e12)];
+
+/// A whole number as given: a JSON integer, an integral float, or a
+/// string of digits with an optional leading minus (no spaces, no
+/// exponent, at most 12 characters). `None` when it is not one.
+fn strict_int(v: &Value) -> Option<i64> {
+    match v {
+        Value::Number(n) => n.as_i64().or_else(|| {
+            n.as_f64()
+                .filter(|f| f.is_finite() && f.fract() == 0.0 && f.abs() <= 1e15)
+                .map(|f| f as i64)
+        }),
+        Value::String(t) => {
+            let digits = t.strip_prefix('-').unwrap_or(t);
+            if t.len() > 12 || digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+                return None;
+            }
+            t.parse().ok()
+        }
+        _ => None,
+    }
+}
+
+fn strict_num(v: &Value) -> Option<f64> {
+    match v {
+        Value::Number(n) => n.as_f64().filter(|f| f.is_finite()),
+        Value::String(t) if t.len() <= 32 && t.trim() == t => {
+            t.parse::<f64>().ok().filter(|f| f.is_finite())
+        }
+        _ => None,
+    }
+}
+
+/// Parse every argument the caps depend on exactly once into its
+/// canonical form (integers, numbers, `YYYY-MM-DD` dates, validated
+/// intervals), refusing what does not parse or is out of range. The cap
+/// check and the work both read only this result.
+pub fn normalize(a: &Map<String, Value>) -> Result<Map<String, Value>, Value> {
+    let mut out = a.clone();
+    for (k, max) in INT_ARGS {
+        match a.get(*k) {
+            None | Some(Value::Null) => {}
+            Some(v) => match strict_int(v) {
+                Some(n) if (-*max..=*max).contains(&n) => {
+                    out.insert((*k).into(), json!(n));
+                }
+                Some(_) => {
+                    return Err(limit_error(format!("'{}' can be at most {}.", k, max)));
+                }
+                None => {
+                    return Err(limit_error(format!("'{}' must be a whole number.", k)));
+                }
+            },
+        }
+    }
+    for (k, max) in NUM_ARGS {
+        match a.get(*k) {
+            None | Some(Value::Null) => {}
+            Some(v) => match strict_num(v) {
+                Some(x) if x.abs() <= *max => {
+                    out.insert((*k).into(), json!(x));
+                }
+                _ => return Err(limit_error(format!("'{}' must be a number.", k))),
+            },
+        }
+    }
+    for k in ["start_date", "end_date"] {
+        match a.get(k) {
+            None | Some(Value::Null) => {}
+            // As the web: an empty date is no date.
+            Some(Value::String(t)) if t.is_empty() => {
+                out.remove(k);
+            }
+            Some(Value::String(t)) => match strict_date(t) {
+                Some(d) => {
+                    out.insert(k.into(), json!(d.format("%Y-%m-%d").to_string()));
+                }
+                None => {
+                    return Err(limit_error(format!(
+                        "'{}' must be a date written as YYYY-MM-DD between 1900 and 2100.",
+                        k
+                    )))
+                }
+            },
+            Some(_) => {
+                return Err(limit_error(format!(
+                    "'{}' must be a date written as YYYY-MM-DD.",
+                    k
+                )))
+            }
+        }
+    }
+    let bad_interval = |raw: &str| {
+        limit_error(format!(
+            "Interval '{}' is not one OpenAlgo supports. Use for example 1m, 5m, 15m, 1h, D, W or M.",
+            raw
+        ))
+    };
+    if let Some(v) = a.get("interval").filter(|v| !v.is_null()) {
+        let raw = v.as_str().unwrap_or_default();
+        if Interval::parse(raw).is_none() {
+            return Err(bad_interval(raw));
+        }
+    }
+    if let Some(list) = a.get("intervals").and_then(Value::as_array) {
+        for v in list {
+            let raw = v.as_str().unwrap_or_default();
+            if Interval::parse(raw).is_none() {
+                return Err(bad_interval(raw));
+            }
+        }
+    }
+    Ok(out)
+}
+
+const HLC_INDICATORS: &[&str] = &[
+    "atr",
+    "natr",
+    "true_range",
+    "adx",
+    "adxr",
+    "dmi",
+    "dx",
+    "supertrend",
+    "stochastic",
+    "stochf",
+    "cci",
+    "williams_r",
+    "keltner",
+    "donchian",
+    "aroon",
+    "aroon_oscillator",
+    "psar",
+    "ichimoku",
+    "pivot_points",
+    "ultimate_oscillator",
+    "uo_oscillator",
+    "chandelier_exit",
+    "starc",
+    "elderray",
+    "ckstop",
+    "fractals",
+    "rwi",
+    "alligator",
+    "gator_oscillator",
+    "bop",
+    "rvi",
+    "fisher",
+    "avgprice",
+    "medprice",
+    "midprice",
+    "typprice",
+    "wclprice",
+];
+const HLCV_INDICATORS: &[&str] = &["mfi", "cmf", "adl", "emv", "klingervolumeoscillator"];
+
+/// Web `_resolve_inputs`.
+fn resolve_inputs(
+    df: &Frame,
+    name: &str,
+    inputs: Option<&Vec<Value>>,
+) -> Result<(Vec<String>, Vec<Vec<f64>>), PyErr> {
+    let cols: Vec<String> = match inputs.filter(|v| !v.is_empty()) {
+        Some(v) => v
+            .iter()
+            .map(|c| c.as_str().unwrap_or_default().to_lowercase())
+            .collect(),
+        None if HLCV_INDICATORS.contains(&name) => {
+            vec!["high".into(), "low".into(), "close".into(), "volume".into()]
+        }
+        None if HLC_INDICATORS.contains(&name) => vec!["high".into(), "low".into(), "close".into()],
+        None => vec!["close".into()],
+    };
+    let series = cols
+        .iter()
+        .map(|c| df.col(c))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((cols, series))
+}
+
+/// The web's answer for an indicator the desktop does not compute yet.
+fn not_available(name: &str) -> Value {
+    error(
+        format!(
+            "The '{}' indicator is not available in OpenAlgo Desktop yet. Indicators available here: {}.",
+            name,
+            ta::supported().join(", ")
+        ),
+        &[("error_type", json!("not_available"))],
+    )
+}
+
+/// Name check shared by calculate_indicator and multi_timeframe_analysis.
+fn check_indicator(indicator: &str) -> Result<String, Value> {
+    let name = indicator.to_lowercase();
+    if !ta::WEB_TA_FUNCTIONS.contains(&name.as_str()) {
+        return Err(error(format!("unknown indicator '{}'", indicator), &[]));
+    }
+    if !ta::is_supported(&name) {
+        return Err(not_available(&name));
+    }
+    Ok(name)
+}
+
+/// `_last` of a result: one value, or a list for a tuple result.
+fn latest(out: &Out) -> Value {
+    match out {
+        Out::One(v) => opt(ta::last(v)),
+        Out::Many(v) => Value::Array(v.iter().map(|s| opt(ta::last(s))).collect()),
+    }
+}
+
+/// Web `_bundle`: latest values, an error object per failing item.
+fn bundle(items: Vec<(&str, Result<Out, PyErr>)>) -> Value {
+    let mut m = Map::new();
+    for (k, r) in items {
+        let v = match r {
+            Ok(o) => latest(&o),
+            Err(e) => json!({"error": e.message}),
+        };
+        m.insert(k.into(), v);
+    }
+    Value::Object(m)
+}
+
+fn no_params() -> Map<String, Value> {
+    Map::new()
+}
+
+fn kw(v: Value) -> Map<String, Value> {
+    v.as_object().cloned().unwrap_or_default()
+}
+
+type ToolResult = Result<Value, (String, PyErr)>;
+
+fn tag(action: &str) -> impl Fn(PyErr) -> (String, PyErr) + '_ {
+    move |e| (action.to_string(), e)
+}
+
+// ----------------------------------------------------------------------
+// Limits and admission
+//
+// The web bounds none of these inputs; its tool descriptions ask for a
+// modest watchlist ("keep the list modest (≤ ~25)"). The desktop enforces
+// that and the sizes below. Everything is decided before any work starts:
+//
+// 1. Shape: every string, list and map in the arguments is size-capped, and
+//    every count, bar, day and date value is range-checked, with defaults
+//    resolved first so an omitted field is checked as the value it becomes.
+// 2. Expansion: the bars a call would fetch (calendar span of the window
+//    times bars per day of the interval, for every interval and every
+//    symbol) are estimated and refused past MAX_FETCH_BARS per fetch.
+// 3. Concurrency: at most MAX_PER_TOKEN research calls per token and
+//    RESEARCH_SLOTS in the whole process run at once.
+// 4. Budget: the call's whole fan-out (one `/api/v1` call per symbol, per
+//    timeframe, per exchange) is reserved from the token's upstream budget
+//    up front; a call that does not fit is refused without fetching.
+//
+// Nothing retries: a failed fetch is reported, never repeated.
+// ----------------------------------------------------------------------
+
+/// Symbols in one `screen_instruments` call.
+pub const MAX_SCREEN_SYMBOLS: usize = 25;
+/// Timeframes in one `multi_timeframe_analysis` call.
+pub const MAX_TIMEFRAMES: usize = 8;
+/// Columns in `inputs` (no indicator takes more than four series).
+pub const MAX_INPUTS: usize = 4;
+/// Keys in an indicator's `params`.
+pub const MAX_PARAMS: usize = 8;
+/// Characters in any string argument.
+pub const MAX_STRING: usize = 64;
+/// `bars`, `lookback_bars` and `limit` values.
+pub const MAX_BARS: i64 = 5000;
+/// `lookback_days`, and the span of a date range (explicit, or from
+/// `start_date` to today).
+pub const MAX_DAYS: i64 = 3660;
+/// Estimated bars one history fetch may cover (span times bars a day).
+pub const MAX_FETCH_BARS: f64 = 100_000.0;
+/// Research calls one token may run at once.
+pub const MAX_PER_TOKEN: usize = 2;
+/// Research calls running at once (process-wide); a call waits this long
+/// for a slot before it is refused.
+pub const RESEARCH_SLOTS: usize = 4;
+pub const SLOT_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+/// Longest a research call may run in all (its `/api/v1` calls each have
+/// their own 120 s limit).
+pub const RESEARCH_DEADLINE: std::time::Duration = std::time::Duration::from_secs(300);
+
+/// Every exchange `get_instruments` reads when none is given.
+pub const ALL_INSTRUMENT_EXCHANGES: usize = 9;
+
+fn limit_error(message: String) -> Value {
+    error(
+        message,
+        &[
+            ("error_type", json!("limit_exceeded")),
+            ("retry_safe", json!(true)),
+        ],
+    )
+}
+
+fn busy(message: &str) -> Value {
+    error(
+        message,
+        &[("error_type", json!("busy")), ("retry_safe", json!(true))],
+    )
+}
+
+/// Strings, lists and maps anywhere in the arguments, size-capped.
+fn check_shape(v: &Value, path: &str) -> Option<Value> {
+    match v {
+        Value::String(t) if t.chars().count() > MAX_STRING => Some(limit_error(format!(
+            "'{}' is too long (at most {} characters).",
+            path, MAX_STRING
+        ))),
+        Value::Array(items) => {
+            let cap = match path {
+                "symbols" => MAX_SCREEN_SYMBOLS,
+                "intervals" => MAX_TIMEFRAMES,
+                "inputs" => MAX_INPUTS,
+                _ => MAX_SCREEN_SYMBOLS,
+            };
+            if items.len() > cap {
+                let what = match path {
+                    "symbols" => "symbols per call. Split the watchlist into smaller groups.",
+                    "intervals" => "intervals per call.",
+                    _ => "entries.",
+                };
+                return Some(limit_error(format!(
+                    "'{}' accepts at most {} {}",
+                    path, cap, what
+                )));
+            }
+            items.iter().find_map(|x| check_shape(x, path))
+        }
+        Value::Object(m) => {
+            if m.len() > MAX_PARAMS {
+                return Some(limit_error(format!(
+                    "'{}' accepts at most {} keys.",
+                    path, MAX_PARAMS
+                )));
+            }
+            m.iter().find_map(|(k, x)| {
+                if k.chars().count() > MAX_STRING {
+                    return Some(limit_error(format!("A key in '{}' is too long.", path)));
+                }
+                check_shape(x, path)
+            })
+        }
+        _ => None,
+    }
+}
+
+/// The interval and window size of each fetch the call will make.
+fn fetches(tool: &str, a: &Map<String, Value>) -> Vec<(Interval, i64)> {
+    let parse = |raw: &str| Interval::parse(raw);
+    match tool {
+        "get_historical_data" => {
+            let bars = i(a, "bars").unwrap_or(20).max(252);
+            parse(&s(a, "interval").unwrap_or_default())
+                .map(|itv| vec![(itv, bars)])
+                .unwrap_or_default()
+        }
+        "multi_timeframe_analysis" => intervals(a)
+            .iter()
+            .filter_map(|raw| parse(raw))
+            .map(|itv| (itv, lookback(a)))
+            .collect(),
+        "get_instruments" => Vec::new(),
+        _ => parse(&s(a, "interval").unwrap_or_else(|| "D".into()))
+            .map(|itv| vec![(itv, lookback(a))])
+            .unwrap_or_default(),
+    }
+}
+
+/// `multi_timeframe_analysis` intervals (the web's default when omitted).
+fn intervals(a: &Map<String, Value>) -> Vec<String> {
+    a.get("intervals")
+        .and_then(Value::as_array)
+        .filter(|v| !v.is_empty())
+        .map(|v| {
+            v.iter()
+                .map(|x| x.as_str().unwrap_or_default().to_string())
+                .collect()
+        })
+        .unwrap_or_else(|| vec!["5m".into(), "15m".into(), "1h".into(), "D".into()])
+}
+
+/// `/api/v1` calls the tool will make: its whole fan-out.
+pub fn planned_calls(tool: &str, a: &Map<String, Value>) -> usize {
+    let n_list = |k: &str| a.get(k).and_then(Value::as_array).map_or(0, Vec::len);
+    match tool {
+        "screen_instruments" => n_list("symbols"),
+        "multi_timeframe_analysis" => intervals(a).len(),
+        "correlation_beta" => 2,
+        "get_instruments" => {
+            if a.get("exchange").is_some_and(|e| !e.is_null()) {
+                1
+            } else {
+                ALL_INSTRUMENT_EXCHANGES
+            }
+        }
+        _ => 1,
+    }
+}
+
+/// Check the arguments against every limit and return their canonical
+/// form, which is all the tool reads afterwards: the windows checked here
+/// are the windows fetched.
+pub fn check_limits(
+    tool: &str,
+    a: &Map<String, Value>,
+    today: NaiveDate,
+) -> Result<Map<String, Value>, Value> {
+    for (k, v) in a {
+        if let Some(e) = check_shape(v, k) {
+            return Err(e);
+        }
+    }
+    let norm = normalize(a)?;
+    for (itv, lookback_bars) in fetches(tool, &norm) {
+        resolve(&norm, &itv, lookback_bars, today).map_err(limit_error)?;
+    }
+    Ok(norm)
+}
+
+/// Holds a research call's slots for as long as it runs.
+pub struct Admission {
+    _token: Option<super::http::InflightGuard>,
+    _slot: tokio::sync::OwnedSemaphorePermit,
+    /// The canonical arguments (see [`normalize`]).
+    pub args: Map<String, Value>,
+    /// The day every window of this call is resolved against.
+    pub today: NaiveDate,
+}
+
+/// Admit a call before any work: limits, then the token's in-flight cap,
+/// then a process-wide slot, then its whole upstream fan-out reserved from
+/// the token's budget. `Err` is the tool output refusing it.
+pub async fn admit(
+    ctx: &Arc<AppState>,
+    tool: &str,
+    a: &Map<String, Value>,
+) -> Result<Admission, Value> {
+    let today = ctx.now().with_timezone(&Kolkata).date_naive();
+    let args = check_limits(tool, a, today)?;
+    let a = &args;
+    let budget = dispatch::CALLER.try_with(|b| b.clone()).ok();
+    let token =
+        match &budget {
+            Some(b) => match ctx.mcp.enter(&b.key, MAX_PER_TOKEN) {
+                Some(g) => Some(g),
+                None => return Err(busy(
+                    "This AI client already has the most analysis requests OpenAlgo runs at once. \
+Wait for one to finish and try again.",
+                )),
+            },
+            None => None,
+        };
+    let slots = ctx.mcp.research_slots();
+    let Ok(Ok(slot)) = tokio::time::timeout(SLOT_WAIT, slots.acquire_owned()).await else {
+        return Err(busy(
+            "OpenAlgo is busy with other analysis requests, so this one was not run. Try again in a moment.",
+        ));
+    };
+    if let Some(b) = &budget {
+        if !b.reserve(ctx, planned_calls(tool, a)) {
+            return Err(error(
+                "This AI client has made too many requests to OpenAlgo in the last minute. \
+Wait a minute and try again.",
+                &[
+                    ("error_type", json!("rate_limited")),
+                    ("retry_safe", json!(true)),
+                ],
+            ));
+        }
+    }
+    Ok(Admission {
+        _token: token,
+        _slot: slot,
+        args,
+        today,
+    })
+}
+
+/// Run a research tool and turn a raised error into the web's `_fail`.
+/// Admitted first (see [`admit`]), then bounded by an overall deadline.
+pub async fn run(ctx: &Arc<AppState>, tool: &str, a: &Map<String, Value>) -> Value {
+    let admission = match admit(ctx, tool, a).await {
+        Ok(adm) => adm,
+        Err(refused) => return refused,
+    };
+    let (a, today) = (&admission.args, admission.today);
+    match tokio::time::timeout(RESEARCH_DEADLINE, run_inner(ctx, tool, a, today)).await {
+        Ok(v) => v,
+        Err(_) => error(
+            "This analysis took too long and was stopped. Use a shorter date range or fewer symbols.",
+            &[("error_type", json!("timeout")), ("retry_safe", json!(true))],
+        ),
+    }
+}
+
+async fn run_inner(
+    ctx: &Arc<AppState>,
+    tool: &str,
+    a: &Map<String, Value>,
+    today: NaiveDate,
+) -> Value {
+    let r = match tool {
+        "get_historical_data" => historical(ctx, a, today).await,
+        "calculate_indicator" => calculate_indicator(ctx, a, today).await,
+        "get_trend_snapshot" => snapshot(ctx, a, Snap::Trend, today).await,
+        "get_momentum_snapshot" => snapshot(ctx, a, Snap::Momentum, today).await,
+        "get_volatility_snapshot" => snapshot(ctx, a, Snap::Volatility, today).await,
+        "get_support_resistance" => snapshot(ctx, a, Snap::Levels, today).await,
+        "detect_signals" => detect_signals(ctx, a, today).await,
+        "screen_instruments" => screen(ctx, a, today).await,
+        "multi_timeframe_analysis" => multi_timeframe(ctx, a, today).await,
+        "correlation_beta" => correlation_beta(ctx, a, today).await,
+        _ => Ok(error(format!("unknown tool '{}'", tool), &[])),
+    };
+    match r {
+        Ok(v) => v,
+        Err((action, e)) => fail(&action, &e.message, e.kind),
+    }
+}
+
+async fn historical(ctx: &Arc<AppState>, a: &Map<String, Value>, today: NaiveDate) -> ToolResult {
+    let act = tag("getting historical data");
+    let bars = i(a, "bars").unwrap_or(20);
+    let (itv, w) = plan(a, "", bars.max(252), today).map_err(&act)?;
+    let df = load_history(
+        ctx,
+        &s(a, "symbol").unwrap_or_default(),
+        &s(a, "exchange").unwrap_or_default(),
+        &itv,
+        &w,
+    )
+    .await
+    .map_err(&act)?;
+    let total = df.len() as i64;
+    Ok(json!({
+        "count": total,
+        "returned": bars.min(total),
+        "truncated": total > bars,
+        "bars": bars,
+        "data": records(&df.ts, df.intraday, &df.cols, bars),
+    }))
+}
+
+fn stats(v: &[f64]) -> Value {
+    let vals: Vec<f64> = v.iter().copied().filter(|x| !x.is_nan()).collect();
+    if vals.is_empty() {
+        return Value::Null;
+    }
+    let min = vals.iter().cloned().fold(f64::INFINITY, f64::min);
+    let max = vals.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let mean = vals.iter().sum::<f64>() / vals.len() as f64;
+    json!({
+        "last": ta::py_round(vals[vals.len() - 1], 4),
+        "min": ta::py_round(min, 4),
+        "max": ta::py_round(max, 4),
+        "mean": ta::py_round(mean, 4),
+    })
+}
+
+async fn calculate_indicator(
+    ctx: &Arc<AppState>,
+    a: &Map<String, Value>,
+    today: NaiveDate,
+) -> ToolResult {
+    let act = tag("calculating indicator");
+    let symbol = s(a, "symbol").unwrap_or_default();
+    let exchange = s(a, "exchange").unwrap_or_default();
+    let bars = i(a, "bars").unwrap_or(20);
+    let (itv, w) = plan(a, "D", lookback(a), today).map_err(&act)?;
+    let interval = itv.raw.clone();
+    let df = load_history(ctx, &symbol, &exchange, &itv, &w)
+        .await
+        .map_err(&act)?;
+    let indicator = s(a, "indicator").unwrap_or_default();
+    let name = match check_indicator(&indicator) {
+        Ok(n) => n,
+        Err(v) => return Ok(v),
+    };
+    let params = a
+        .get("params")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let (cols, series) =
+        resolve_inputs(&df, &name, a.get("inputs").and_then(Value::as_array)).map_err(&act)?;
+    let refs: Vec<&[f64]> = series.iter().map(Vec::as_slice).collect();
+    let result = ta::call(&name, &refs, &params).map_err(&act)?;
+    let out_cols: Vec<(String, Vec<f64>)> = match &result {
+        Out::One(v) => vec![("value".into(), v.clone())],
+        Out::Many(v) => v
+            .iter()
+            .enumerate()
+            .map(|(k, s)| (format!("out{}", k), s.clone()))
+            .collect(),
+    };
+    let mut latest = Map::new();
+    let mut summary = Map::new();
+    for (c, v) in &out_cols {
+        latest.insert(c.clone(), opt(ta::last(v)));
+        summary.insert(c.clone(), stats(v));
+    }
+    let json_cols: Vec<(String, Vec<Value>)> = out_cols
+        .iter()
+        .map(|(c, v)| (c.clone(), f64_col(v)))
+        .collect();
+    let n = df.len() as i64;
+    Ok(json!({
+        "symbol": symbol.to_uppercase(),
+        "exchange": exchange.to_uppercase(),
+        "indicator": name,
+        "inputs": cols,
+        "params": params,
+        "interval": interval,
+        "source": w.source,
+        "bars": n,
+        "last_close": opt(ta::last(&df.close())),
+        "latest_timestamp": df.iso(df.len() - 1),
+        "latest": latest,
+        "summary": summary,
+        "returned_bars": bars.min(n),
+        "data": records(&df.ts, df.intraday, &json_cols, bars),
+    }))
+}
+
+enum Snap {
+    Trend,
+    Momentum,
+    Volatility,
+    Levels,
+}
+
+async fn snapshot(
+    ctx: &Arc<AppState>,
+    a: &Map<String, Value>,
+    kind: Snap,
+    today: NaiveDate,
+) -> ToolResult {
+    let action = match kind {
+        Snap::Trend => "getting trend snapshot",
+        Snap::Momentum => "getting momentum snapshot",
+        Snap::Volatility => "getting volatility snapshot",
+        Snap::Levels => "getting support/resistance",
+    };
+    let act = tag(action);
+    let symbol = s(a, "symbol").unwrap_or_default();
+    let exchange = s(a, "exchange").unwrap_or_default();
+    let (itv, w) = plan(a, "D", lookback(a), today).map_err(&act)?;
+    let interval = itv.raw.clone();
+    let df = load_history(ctx, &symbol, &exchange, &itv, &w)
+        .await
+        .map_err(&act)?;
+    let (h, l, c) = (df.col("high"), df.col("low"), df.col("close"));
+    let hlc = |name: &str, p: Map<String, Value>| -> Result<Out, PyErr> {
+        let (h, l, c) = (h.clone()?, l.clone()?, c.clone()?);
+        ta::call(name, &[&h, &l, &c], &p)
+    };
+    let one = |name: &str, p: Value| -> Result<Out, PyErr> {
+        let c = c.clone()?;
+        ta::call(name, &[&c], &kw(p))
+    };
+    let mut out = Map::new();
+    out.insert("symbol".into(), json!(symbol.to_uppercase()));
+    out.insert("exchange".into(), json!(exchange.to_uppercase()));
+    out.insert("interval".into(), json!(interval));
+    out.insert("from".into(), json!(df.iso(0)));
+    out.insert("to".into(), json!(df.iso(df.len() - 1)));
+    out.insert("bars_loaded".into(), json!(df.len()));
+    match kind {
+        Snap::Trend => {
+            out.insert("last_close".into(), opt(ta::last(&df.close())));
+            out.insert(
+                "indicators".into(),
+                bundle(vec![
+                    ("sma_20", one("sma", json!({"period": 20}))),
+                    ("sma_50", one("sma", json!({"period": 50}))),
+                    ("sma_200", one("sma", json!({"period": 200}))),
+                    ("ema_20", one("ema", json!({"period": 20}))),
+                    ("ema_50", one("ema", json!({"period": 50}))),
+                    ("supertrend", hlc("supertrend", no_params())),
+                    ("adx_di", hlc("adx", kw(json!({"period": 14})))),
+                    ("ichimoku", hlc("ichimoku", no_params())),
+                ]),
+            );
+            out.insert(
+                "legend".into(),
+                json!({
+                    "supertrend": "[supertrend_value, direction(+1 up / -1 down)]",
+                    "adx_di": "[+DI, -DI, ADX]",
+                    "ichimoku": "[tenkan, kijun, senkou_a, senkou_b, chikou]",
+                }),
+            );
+        }
+        Snap::Momentum => {
+            out.insert("last_close".into(), opt(ta::last(&df.close())));
+            out.insert(
+                "indicators".into(),
+                bundle(vec![
+                    ("rsi_14", one("rsi", json!({"period": 14}))),
+                    ("macd", one("macd", json!({}))),
+                    ("stochastic", hlc("stochastic", no_params())),
+                    ("cci_20", hlc("cci", kw(json!({"period": 20})))),
+                    (
+                        "williams_r_14",
+                        hlc("williams_r", kw(json!({"period": 14}))),
+                    ),
+                ]),
+            );
+            out.insert(
+                "legend".into(),
+                json!({"macd": "[macd_line, signal_line, histogram]", "stochastic": "[%K, %D]"}),
+            );
+        }
+        Snap::Volatility => {
+            let donchian = || -> Result<Out, PyErr> {
+                let (h, l) = (h.clone()?, l.clone()?);
+                ta::call("donchian", &[&h, &l], &kw(json!({"period": 20})))
+            };
+            out.insert("last_close".into(), opt(ta::last(&df.close())));
+            out.insert(
+                "indicators".into(),
+                bundle(vec![
+                    ("atr_14", hlc("atr", kw(json!({"period": 14})))),
+                    ("natr_14", hlc("natr", kw(json!({"period": 14})))),
+                    (
+                        "bbands",
+                        one("bbands", json!({"period": 20, "std_dev": 2.0})),
+                    ),
+                    (
+                        "bb_percent_b",
+                        one("bbpercent", json!({"period": 20, "std_dev": 2.0})),
+                    ),
+                    (
+                        "bb_width",
+                        one("bbwidth", json!({"period": 20, "std_dev": 2.0})),
+                    ),
+                    ("keltner", hlc("keltner", no_params())),
+                    ("donchian", donchian()),
+                    ("historical_volatility", one("hv", json!({}))),
+                ]),
+            );
+            out.insert(
+                "legend".into(),
+                json!({
+                    "bbands": "[upper, middle, lower]",
+                    "keltner": "[upper, middle, lower]",
+                    "donchian": "[upper, middle, lower]",
+                }),
+            );
+        }
+        Snap::Levels => {
+            let period = i(a, "period").unwrap_or(20);
+            let hl = |name: &str, col: &Result<Vec<f64>, PyErr>| -> Result<Out, PyErr> {
+                let v = col.clone()?;
+                ta::call(name, &[&v], &kw(json!({"period": period})))
+            };
+            let donchian = || -> Result<Out, PyErr> {
+                let (h, l) = (h.clone()?, l.clone()?);
+                ta::call("donchian", &[&h, &l], &kw(json!({"period": period})))
+            };
+            out.insert("period".into(), json!(period));
+            out.insert("last_close".into(), opt(ta::last(&df.close())));
+            out.insert(
+                "levels".into(),
+                bundle(vec![
+                    ("donchian", donchian()),
+                    ("highest_high", hl("highest", &h)),
+                    ("lowest_low", hl("lowest", &l)),
+                    ("pivot_points", hlc("pivot_points", no_params())),
+                ]),
+            );
+            out.insert(
+                "legend".into(),
+                json!({"donchian": "[upper, middle, lower]"}),
+            );
+        }
+    }
+    Ok(Value::Object(out))
+}
+
+fn one_series(o: Out) -> Vec<f64> {
+    match o {
+        Out::One(v) => v,
+        Out::Many(mut v) => v.swap_remove(0),
+    }
+}
+
+fn many(o: Out) -> Vec<Vec<f64>> {
+    match o {
+        Out::One(v) => vec![v],
+        Out::Many(v) => v,
+    }
+}
+
+/// `(x > lvl) & (x.shift(1) <= lvl)` style threshold crossings.
+fn threshold(x: &[f64], now: impl Fn(f64) -> bool, before: impl Fn(f64) -> bool) -> Vec<bool> {
+    (0..x.len())
+        .map(|k| k > 0 && !x[k].is_nan() && !x[k - 1].is_nan() && now(x[k]) && before(x[k - 1]))
+        .collect()
+}
+
+async fn detect_signals(
+    ctx: &Arc<AppState>,
+    a: &Map<String, Value>,
+    today: NaiveDate,
+) -> ToolResult {
+    let act = tag("detecting signals");
+    let symbol = s(a, "symbol").unwrap_or_default();
+    let exchange = s(a, "exchange").unwrap_or_default();
+    let signal_type = s(a, "signal_type").unwrap_or_else(|| "ema_cross".into());
+    let (itv, w) = plan(a, "D", lookback(a), today).map_err(&act)?;
+    let interval = itv.raw.clone();
+    let df = load_history(ctx, &symbol, &exchange, &itv, &w)
+        .await
+        .map_err(&act)?;
+    let close = df.col("close").map_err(&act)?;
+    let p = |k: &str, d: i64| json!({"period": i(a, k).unwrap_or(d)});
+    let (bull, bear, current) = match signal_type.as_str() {
+        "ema_cross" | "sma_cross" => {
+            let ma = if signal_type == "ema_cross" {
+                "ema"
+            } else {
+                "sma"
+            };
+            let fast = one_series(ta::call(ma, &[&close], &kw(p("fast", 20))).map_err(&act)?);
+            let slow = one_series(ta::call(ma, &[&close], &kw(p("slow", 50))).map_err(&act)?);
+            (
+                ta::crossover(&fast, &slow),
+                ta::crossunder(&fast, &slow),
+                json!({"fast": opt(ta::last(&fast)), "slow": opt(ta::last(&slow))}),
+            )
+        }
+        "macd_cross" => {
+            let v = many(ta::call("macd", &[&close], &no_params()).map_err(&act)?);
+            (
+                ta::crossover(&v[0], &v[1]),
+                ta::crossunder(&v[0], &v[1]),
+                json!({"macd_line": opt(ta::last(&v[0])), "signal_line": opt(ta::last(&v[1]))}),
+            )
+        }
+        "supertrend_flip" => {
+            let (h, l) = (df.col("high").map_err(&act)?, df.col("low").map_err(&act)?);
+            let v = many(ta::call("supertrend", &[&h, &l, &close], &no_params()).map_err(&act)?);
+            let d = &v[1];
+            (
+                threshold(d, |x| x > 0.0, |x| x <= 0.0),
+                threshold(d, |x| x < 0.0, |x| x >= 0.0),
+                json!({"supertrend": opt(ta::last(&v[0])), "direction": opt(ta::last(d))}),
+            )
+        }
+        "rsi_threshold" => {
+            let upper = f(a, "upper").unwrap_or(70.0);
+            let lower = f(a, "lower").unwrap_or(30.0);
+            let r = one_series(ta::call("rsi", &[&close], &kw(p("period", 14))).map_err(&act)?);
+            (
+                threshold(&r, |x| x > lower, |x| x <= lower),
+                threshold(&r, |x| x < upper, |x| x >= upper),
+                json!({"rsi": opt(ta::last(&r))}),
+            )
+        }
+        _ => return Ok(error(format!("unknown signal_type '{}'", signal_type), &[])),
+    };
+    let mut events: Vec<(String, &str)> = Vec::new();
+    for (k, b) in bull.iter().enumerate() {
+        if *b {
+            events.push((df.iso(k), "bullish"));
+        }
+    }
+    for (k, b) in bear.iter().enumerate() {
+        if *b {
+            events.push((df.iso(k), "bearish"));
+        }
+    }
+    events.sort_by(|x, y| x.0.cmp(&y.0));
+    let limit = i(a, "limit").unwrap_or(20);
+    let start = tail_start(events.len(), limit);
+    let list: Vec<Value> = events[start..]
+        .iter()
+        .map(|(t, sig)| json!({"timestamp": t, "signal": sig}))
+        .collect();
+    Ok(json!({
+        "symbol": symbol.to_uppercase(),
+        "exchange": exchange.to_uppercase(),
+        "interval": interval,
+        "signal_type": signal_type,
+        "last_close": opt(ta::last(&close)),
+        "current": current,
+        "event_count": events.len(),
+        "events": list,
+    }))
+}
+
+async fn screen(ctx: &Arc<AppState>, a: &Map<String, Value>, today: NaiveDate) -> ToolResult {
+    let condition = s(a, "condition").unwrap_or_else(|| "rsi_below".into());
+    let value = f(a, "value").unwrap_or(30.0);
+    let period = i(a, "period").unwrap_or(14);
+    let symbols = a
+        .get("symbols")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let (itv, w) = match plan(a, "D", lookback(a), today) {
+        Ok(p) => p,
+        Err(e) => return Err(("screening instruments".to_string(), e)),
+    };
+    let mut results = Vec::new();
+    for item in &symbols {
+        let sym = item
+            .get("symbol")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let exch = item
+            .get("exchange")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let df = match load_history(ctx, sym, exch, &itv, &w).await {
+            Ok(df) => df,
+            Err(e) => {
+                results.push(json!({"symbol": sym, "exchange": exch, "error": e.message}));
+                continue;
+            }
+        };
+        let evaluate = || -> Result<Option<(Value, bool)>, PyErr> {
+            let close = df.col("close")?;
+            Ok(match condition.as_str() {
+                "rsi_below" | "rsi_above" => {
+                    let m = ta::last(&one_series(ta::call(
+                        "rsi",
+                        &[&close],
+                        &kw(json!({"period": period})),
+                    )?));
+                    let passed = m.is_some_and(|m| {
+                        if condition == "rsi_below" {
+                            m < value
+                        } else {
+                            m > value
+                        }
+                    });
+                    Some((opt(m), passed))
+                }
+                "price_above_sma" | "price_below_sma" => {
+                    let sma = ta::last(&one_series(ta::call(
+                        "sma",
+                        &[&close],
+                        &kw(json!({"period": period})),
+                    )?));
+                    let c = ta::last(&close);
+                    let passed = match (sma, c) {
+                        (Some(sv), Some(cv)) => {
+                            if condition == "price_above_sma" {
+                                cv > sv
+                            } else {
+                                cv < sv
+                            }
+                        }
+                        _ => false,
+                    };
+                    Some((opt(c), passed))
+                }
+                "supertrend_bullish" | "supertrend_bearish" => {
+                    let (h, l) = (df.col("high")?, df.col("low")?);
+                    let v = many(ta::call("supertrend", &[&h, &l, &close], &no_params())?);
+                    let m = ta::last(&v[1]);
+                    // As the web: a positive direction counts as bullish.
+                    let passed = m.is_some_and(|m| {
+                        if condition == "supertrend_bullish" {
+                            m > 0.0
+                        } else {
+                            m < 0.0
+                        }
+                    });
+                    Some((opt(m), passed))
+                }
+                _ => None,
+            })
+        };
+        match evaluate() {
+            Ok(Some((metric, passed))) => results.push(json!({
+                "symbol": sym.to_uppercase(),
+                "exchange": exch.to_uppercase(),
+                "passed": passed,
+                "metric": metric,
+            })),
+            Ok(None) => return Ok(error(format!("unknown condition '{}'", condition), &[])),
+            Err(e) => results.push(json!({"symbol": sym, "exchange": exch, "error": e.message})),
+        }
+    }
+    let matched = results
+        .iter()
+        .filter(|r| r.get("passed") == Some(&json!(true)))
+        .count();
+    Ok(json!({
+        "condition": condition,
+        "value": value,
+        "period": period,
+        "scanned": symbols.len(),
+        "matched": matched,
+        "results": results,
+    }))
+}
+
+async fn multi_timeframe(
+    ctx: &Arc<AppState>,
+    a: &Map<String, Value>,
+    today: NaiveDate,
+) -> ToolResult {
+    let symbol = s(a, "symbol").unwrap_or_default();
+    let exchange = s(a, "exchange").unwrap_or_default();
+    let intervals: Vec<String> = a
+        .get("intervals")
+        .and_then(Value::as_array)
+        .filter(|v| !v.is_empty())
+        .map(|v| {
+            v.iter()
+                .map(|x| x.as_str().unwrap_or_default().to_string())
+                .collect()
+        })
+        .unwrap_or_else(|| vec!["5m".into(), "15m".into(), "1h".into(), "D".into()]);
+    let indicator = s(a, "indicator").unwrap_or_else(|| "rsi".into());
+    let name = match check_indicator(&indicator) {
+        Ok(n) => n,
+        Err(v) => return Ok(v),
+    };
+    let params = a
+        .get("params")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let lookback_bars = lookback(a);
+    let mut out = Map::new();
+    for itv in &intervals {
+        let r: Result<Value, PyErr> = async {
+            let parsed = Interval::parse(itv)
+                .ok_or_else(|| PyErr::value(format!("unsupported interval '{}'", itv)))?;
+            let w = resolve(a, &parsed, lookback_bars, today).map_err(PyErr::value)?;
+            let df = load_history(ctx, &symbol, &exchange, &parsed, &w).await?;
+            let (_c, series) =
+                resolve_inputs(&df, &name, a.get("inputs").and_then(Value::as_array))?;
+            let refs: Vec<&[f64]> = series.iter().map(Vec::as_slice).collect();
+            let res = ta::call(&name, &refs, &params)?;
+            Ok(json!({
+                "value": latest(&res),
+                "last_close": opt(ta::last(&df.close())),
+                "bars": df.len(),
+            }))
+        }
+        .await;
+        out.insert(
+            itv.clone(),
+            r.unwrap_or_else(|e| json!({"error": e.message})),
+        );
+    }
+    Ok(json!({
+        "symbol": symbol.to_uppercase(),
+        "exchange": exchange.to_uppercase(),
+        "indicator": name,
+        "params": params,
+        "timeframes": out,
+    }))
+}
+
+fn pearson(x: &[f64], y: &[f64]) -> Value {
+    let n = x.len() as f64;
+    let (mx, my) = (x.iter().sum::<f64>() / n, y.iter().sum::<f64>() / n);
+    let num: f64 = x.iter().zip(y).map(|(a, b)| (a - mx) * (b - my)).sum();
+    let sxx: f64 = x.iter().map(|a| (a - mx) * (a - mx)).sum();
+    let syy: f64 = y.iter().map(|b| (b - my) * (b - my)).sum();
+    let r = num / (sxx * syy).sqrt();
+    if r.is_finite() {
+        json!(ta::py_round(r, 4))
+    } else {
+        Value::Null
+    }
+}
+
+async fn correlation_beta(
+    ctx: &Arc<AppState>,
+    a: &Map<String, Value>,
+    today: NaiveDate,
+) -> ToolResult {
+    let act = tag("calculating correlation/beta");
+    let s1 = s(a, "symbol1").unwrap_or_default();
+    let s2 = s(a, "symbol2").unwrap_or_default();
+    let (itv, w) = plan(a, "D", lookback(a), today).map_err(&act)?;
+    let interval = itv.raw.clone();
+    let d1 = load_history(ctx, &s1, &s(a, "exchange1").unwrap_or_default(), &itv, &w)
+        .await
+        .map_err(&act)?;
+    let d2 = load_history(ctx, &s2, &s(a, "exchange2").unwrap_or_default(), &itv, &w)
+        .await
+        .map_err(&act)?;
+    let (c1, c2) = (
+        d1.col("close").map_err(&act)?,
+        d2.col("close").map_err(&act)?,
+    );
+    // Align on common timestamps and drop rows with a missing close.
+    let mut xa = Vec::new();
+    let mut xb = Vec::new();
+    let mut j = 0;
+    for (k, t) in d1.ts.iter().enumerate() {
+        while j < d2.ts.len() && d2.ts[j] < *t {
+            j += 1;
+        }
+        if j < d2.ts.len() && d2.ts[j] == *t && !c1[k].is_nan() && !c2[j].is_nan() {
+            xa.push(c1[k]);
+            xb.push(c2[j]);
+        }
+    }
+    if xa.len() < 2 {
+        return Ok(error("insufficient overlapping bars between symbols", &[]));
+    }
+    let p = i(a, "period").unwrap_or(20).min(xa.len() as i64);
+    let pp = kw(json!({"period": p}));
+    let mut metrics = match bundle(vec![
+        (
+            "correlation_rolling",
+            ta::call("correlation", &[&xa, &xb], &pp),
+        ),
+        ("beta_rolling", ta::call("beta", &[&xa, &xb], &pp)),
+        ("lrslope_symbol1", ta::call("lrslope", &[&xa], &pp)),
+    ]) {
+        Value::Object(m) => m,
+        _ => Map::new(),
+    };
+    metrics.insert("pearson_full_sample".into(), pearson(&xa, &xb));
+    Ok(json!({
+        "symbol1": s1.to_uppercase(),
+        "symbol2": s2.to_uppercase(),
+        "interval": interval,
+        "period": p,
+        "overlapping_bars": xa.len(),
+        "metrics": metrics,
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frame_sorts_dedupes_and_formats_like_pandas() {
+        let data = vec![
+            json!({"timestamp": 1759290300, "close": 2.5, "volume": 20}),
+            json!({"timestamp": 1759290000, "close": 100.123456789123, "volume": 10}),
+            json!({"timestamp": 1759290000, "close": 1.0, "volume": 1}),
+        ];
+        let f = frame_from(&data, true);
+        assert_eq!(f.ts, vec![1759290000, 1759290300]);
+        assert_eq!(f.iso(0), "2025-10-01T09:10:00+05:30");
+        let r = records(&f.ts, f.intraday, &f.cols, 0);
+        assert_eq!(r[0]["timestamp"], "2025-10-01T03:40:00.000Z");
+        assert_eq!(r[0]["close"], json!(100.1234567891));
+        assert_eq!(r[0]["volume"], json!(10));
+        let d = frame_from(&data, false);
+        assert_eq!(d.iso(0), "2025-10-01T03:40:00");
+        assert_eq!(
+            records(&d.ts, false, &d.cols, 1)[0]["timestamp"],
+            "2025-10-01T03:45:00.000"
+        );
+    }
+
+    #[test]
+    fn python_tail_slices() {
+        assert_eq!(tail_start(5, 2), 3);
+        assert_eq!(tail_start(5, 0), 0);
+        assert_eq!(tail_start(5, 9), 0);
+        assert_eq!(tail_start(5, -2), 2);
+        assert_eq!(tail_start(5, i64::MIN), 5);
+        assert_eq!(tail_start(5, i64::MAX), 0);
+    }
+
+    #[test]
+    fn intervals_have_one_strict_spelling() {
+        for ok in [
+            "1m", "5m", "15m", "1h", "4h", "1s", "D", "W", "M", "Q", "Y", "2W", "3M", "999m",
+        ] {
+            assert!(Interval::parse(ok).is_some(), "{}", ok);
+        }
+        for bad in [
+            "", "m", "h", "s", "d", "w", "1d", "0m", "1000m", "-1m", "+1m", "1 m", " 1m", "1m ",
+            "1e3m", "1min", "1.5m", "１m", "minute",
+        ] {
+            assert!(Interval::parse(bad).is_none(), "{:?}", bad);
+        }
+        // Minutes and months differ by case, and are counted that way.
+        assert_eq!(Interval::parse("1m").unwrap().true_bars_per_day(), 375.0);
+        assert!(Interval::parse("M").unwrap().true_bars_per_day() < 0.1);
+        assert_eq!(Interval::parse("1s").unwrap().true_bars_per_day(), 22_500.0);
+    }
+
+    #[test]
+    fn dates_have_one_strict_spelling() {
+        assert!(strict_date("2026-01-31").is_some());
+        for bad in [
+            "2026-1-31",
+            "2026/01/31",
+            "20260131",
+            " 2026-01-31",
+            "2026-01-31 ",
+            "+2026-01-31",
+            "12026-01-31",
+            "0001-01-01",
+            "9999-12-31",
+            "2026-02-30",
+            "31-01-2026",
+            "2026-01-31T00:00",
+        ] {
+            assert!(strict_date(bad).is_none(), "{:?}", bad);
+        }
+    }
+
+    #[test]
+    fn numbers_parse_once_and_extremes_are_refused() {
+        assert_eq!(strict_int(&json!(5)), Some(5));
+        assert_eq!(strict_int(&json!(5.0)), Some(5));
+        assert_eq!(strict_int(&json!("5")), Some(5));
+        assert_eq!(strict_int(&json!("-5")), Some(-5));
+        for bad in [
+            json!(5.5),
+            json!("5.0"),
+            json!(" 5"),
+            json!("1e3"),
+            json!("+5"),
+            json!("-"),
+            json!(1e300),
+            json!("99999999999999999999"),
+            json!(true),
+            json!([5]),
+        ] {
+            assert_eq!(strict_int(&bad), None, "{}", bad);
+        }
+        let n = |v: Value| normalize(json!({"bars": v}).as_object().unwrap());
+        assert!(n(json!(u64::MAX)).is_err());
+        assert!(n(json!(i64::MIN)).is_err());
+        assert!(n(json!(i64::MAX)).is_err());
+        assert!(n(json!(-5001)).is_err());
+        assert_eq!(n(json!("5000")).unwrap()["bars"], json!(5000));
+        let d = |v: Value| normalize(json!({"lookback_days": v}).as_object().unwrap());
+        assert!(d(json!(i64::MIN)).is_err());
+        assert!(d(json!(-3661)).is_err());
+        assert_eq!(
+            normalize(json!({"start_date": ""}).as_object().unwrap())
+                .unwrap()
+                .get("start_date"),
+            None,
+            "an empty date is no date, as on the web"
+        );
+    }
+
+    #[test]
+    fn windows_use_checked_arithmetic_and_count_true_bars() {
+        let today = NaiveDate::from_ymd_opt(2026, 10, 8).unwrap();
+        let one_min = Interval::parse("1m").unwrap();
+        let day = Interval::parse("D").unwrap();
+        let win = |a: Value, itv: &Interval, lb: i64, t: NaiveDate| {
+            resolve(a.as_object().unwrap(), itv, lb, t)
+        };
+        // Defaults: 252 daily bars, a tail of 252.
+        let w = win(json!({}), &day, 252, today).unwrap();
+        assert_eq!(w.tail, Some(252));
+        assert_eq!(w.end, today);
+        // Extreme lookbacks never panic: clamped, then refused past the range cap.
+        assert!(win(json!({}), &day, i64::MIN, today).is_err());
+        assert!(win(json!({}), &day, i64::MAX, today).is_err());
+        assert!(win(json!({"lookback_days": -3000}), &one_min, 252, today).is_err());
+        assert!(win(json!({"lookback_days": 3000}), &one_min, 252, today).is_err());
+        assert!(win(json!({"lookback_days": 3000}), &day, 252, today).is_ok());
+        // The far past and future are refused, not wrapped.
+        assert!(win(
+            json!({"start_date": "1900-01-01", "end_date": "2100-12-31"}),
+            &day,
+            252,
+            today
+        )
+        .is_err());
+        assert!(win(json!({"start_date": "1900-01-01"}), &day, 252, today).is_err());
+        // Seconds are counted as seconds, whatever the web's sizing table says.
+        assert!(win(json!({}), &Interval::parse("1s").unwrap(), 252, today).is_err());
+    }
+}

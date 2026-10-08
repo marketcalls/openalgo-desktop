@@ -61,6 +61,7 @@ impl LogsDb {
         let pool = super::open_pool(path, 4)?;
         pool.get()?.execute_batch(SCHEMA)?;
         super::monitor::migrate(&*pool.get()?)?;
+        crate::mcp::store::migrate_audit(&*pool.get()?)?;
         Ok(Self { pool })
     }
 

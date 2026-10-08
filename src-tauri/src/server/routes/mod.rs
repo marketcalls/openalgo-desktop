@@ -106,6 +106,10 @@ pub fn table() -> Vec<RouteSpec> {
             Public,
             strategy_module::webhook
         ),
+        // MCP over HTTP: bearer token from the API key page (crate::mcp::http).
+        r!(POST, "/mcp", Public, crate::mcp::http::post),
+        r!(GET, "/mcp", Public, crate::mcp::http::sse),
+        r!(GET, "/mcp/healthz", Public, crate::mcp::http::healthz),
         // Broker redirect target (state-verified)
         r!(
             GET,
@@ -229,6 +233,63 @@ pub fn table() -> Vec<RouteSpec> {
         ),
         r!(GET, "/api/config/host", User, app_config::host),
         // Admin (web blueprints/admin.py)
+        r!(GET, "/admin/api/mcp/audit", User, crate::mcp::admin::audit),
+        r!(
+            POST,
+            "/admin/api/mcp/kill-switch",
+            User,
+            crate::mcp::admin::kill_switch
+        ),
+        r!(
+            GET,
+            "/admin/api/mcp/settings",
+            User,
+            crate::mcp::admin::settings_get
+        ),
+        r!(
+            PUT,
+            "/admin/api/mcp/settings",
+            User,
+            crate::mcp::admin::settings_put
+        ),
+        r!(
+            GET,
+            "/admin/api/oauth/clients",
+            User,
+            crate::mcp::admin::oauth_clients
+        ),
+        r!(
+            POST,
+            "/admin/api/oauth/clients/{id}/approve",
+            User,
+            crate::mcp::admin::oauth_client_action
+        ),
+        r!(
+            POST,
+            "/admin/api/oauth/clients/{id}/revoke",
+            User,
+            crate::mcp::admin::oauth_client_action
+        ),
+        // MCP tokens and client configuration (API key page, desktop only)
+        r!(GET, "/api/mcp/tokens", User, crate::mcp::admin::tokens_list),
+        r!(
+            POST,
+            "/api/mcp/tokens",
+            User,
+            crate::mcp::admin::tokens_create
+        ),
+        r!(
+            DELETE,
+            "/api/mcp/tokens/{id}",
+            User,
+            crate::mcp::admin::tokens_revoke
+        ),
+        r!(
+            GET,
+            "/api/mcp/client-config",
+            User,
+            crate::mcp::admin::client_config_get
+        ),
         r!(GET, "/admin/api/stats", User, admin::stats),
         r!(GET, "/admin/api/freeze", User, admin::freeze_list),
         r!(POST, "/admin/api/freeze", User, admin::freeze_add),
