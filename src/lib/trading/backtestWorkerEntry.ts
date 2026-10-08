@@ -23,8 +23,50 @@
  */
 
 import { foldBacktest } from './backtestFold'
-import type { BacktestMessage } from './backtestWorkerProtocol'
+import type { BacktestMessage, BacktestReply } from './backtestWorkerProtocol'
 
-self.onmessage = async (event: MessageEvent<BacktestMessage>) => {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Whether `data` has the shape of a run request.
+ *
+ * Only the outline is checked: the engine itself refuses a malformed program,
+ * contract or input with a message a trader can read. This only keeps anything
+ * that is not a run request from reaching the engine at all.
+ */
+export function isBacktestMessage(data: unknown): data is BacktestMessage {
+  if (!isRecord(data)) return false
+  const { program, bars, contract, inputs, instrument } = data
+  return (
+    program !== undefined &&
+    Array.isArray(bars) &&
+    isRecord(contract) &&
+    typeof contract.symbol === 'string' &&
+    typeof contract.exchange === 'string' &&
+    isRecord(inputs) &&
+    isRecord(instrument)
+  )
+}
+
+const NOT_A_RUN: BacktestReply = {
+  ok: false,
+  code: '',
+  message: 'The backtest could not be started. Run it again from the strategy panel.',
+}
+
+/**
+ * A dedicated worker only hears the page that created it, and that page's
+ * messages carry an empty origin. A message naming any other origin did not
+ * come from the page and is ignored; anything that is not a run request is
+ * answered with a refusal so the page does not wait on it.
+ */
+self.onmessage = async (event: MessageEvent<unknown>) => {
+  if (event.origin && event.origin !== self.location.origin) return
+  if (!isBacktestMessage(event.data)) {
+    self.postMessage(NOT_A_RUN)
+    return
+  }
   self.postMessage(await foldBacktest(event.data))
 }
