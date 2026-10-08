@@ -11,7 +11,7 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
 };
 use base64::Engine;
-use rand::RngCore;
+use rand::Rng;
 
 pub const NONCE_SIZE: usize = 12;
 pub const KEY_SIZE: usize = 32;
@@ -38,9 +38,8 @@ impl Aad {
 }
 
 pub fn generate_key() -> SecretBytes {
-    let mut key = vec![0u8; KEY_SIZE];
-    OsRng.fill_bytes(&mut key);
-    SecretBytes::new(key)
+    let key: [u8; KEY_SIZE] = OsRng.gen();
+    SecretBytes::new(key.to_vec())
 }
 
 pub struct DataCipher {
@@ -62,8 +61,7 @@ impl DataCipher {
 
     /// Encrypt; returns (ciphertext_b64, nonce_b64).
     pub fn encrypt(&self, plaintext: &[u8], aad: &Aad) -> Result<(String, String)> {
-        let mut nonce_bytes = [0u8; NONCE_SIZE];
-        OsRng.fill_bytes(&mut nonce_bytes);
+        let nonce_bytes: [u8; NONCE_SIZE] = OsRng.gen();
         let ct = self
             .cipher
             .encrypt(
@@ -131,8 +129,7 @@ impl DataCipher {
     /// Encrypt without AAD. Test helper that reproduces pre-AAD ciphertexts.
     #[cfg(test)]
     pub fn encrypt_legacy(&self, plaintext: &str) -> (String, String) {
-        let mut nonce_bytes = [0u8; NONCE_SIZE];
-        OsRng.fill_bytes(&mut nonce_bytes);
+        let nonce_bytes: [u8; NONCE_SIZE] = OsRng.gen();
         let ct = self
             .cipher
             .encrypt(Nonce::from_slice(&nonce_bytes), plaintext.as_bytes())
