@@ -1011,6 +1011,10 @@ fn broker_identity() {
     assert!(b.capabilities().order_feed);
     assert!(matches!(b.login_kind(), LoginKind::DirectTotp { fields } if fields.contains(&"dob")));
     assert!(b.create_feed(&auth()).is_ok());
-    assert!(b.create_order_feed(&auth()).is_ok());
+    assert!(matches!(
+        Broker::create_order_feed(&b, &auth()),
+        Ok(OrderFeed::Socket(_))
+    ));
+    assert!(Broker::create_order_feed(&b, &AuthToken::new("bad")).is_err());
     assert!(b.create_feed(&AuthToken::new("bad")).is_err());
 }

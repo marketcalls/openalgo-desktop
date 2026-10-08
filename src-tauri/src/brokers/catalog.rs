@@ -309,6 +309,9 @@ pub enum CredentialSlot {
     Password,
     /// `totp`: TOTP, two-factor code, OTP.
     Totp,
+    /// Date of birth (Motilal's second factor, `DD/MM/YYYY`), carried in
+    /// `auth_code`: a form login has no OAuth code.
+    Dob,
 }
 
 /// The credential a form field name fills (web field names).
@@ -319,6 +322,7 @@ pub fn credential_slot(name: &str) -> Option<CredentialSlot> {
         }
         "pin" | "password" | "mpin" | "access_token" => Some(CredentialSlot::Password),
         "totp" | "twofa" | "otp" => Some(CredentialSlot::Totp),
+        "dob" => Some(CredentialSlot::Dob),
         _ => None,
     }
 }
@@ -946,7 +950,9 @@ mod tests {
     fn batch_a_sign_in() {
         assert_eq!(auth_type("aliceblue"), AuthType::OAuth);
         assert_eq!(
-            authorize_url("aliceblue", "APP1", "r", "s").as_deref(),
+            authorize_url("aliceblue", "APP1", "r", "s")
+                .map(|a| a.url)
+                .as_deref(),
             Some("https://ant.aliceblueonline.com/?appcode=APP1")
         );
         let p = q(&[("authCode", "ac9"), ("userId", "AB123")]);
@@ -961,8 +967,9 @@ mod tests {
         assert_eq!(names("motilal"), ["userid", "password", "dob", "totp"]);
         assert!(names("samco").is_empty());
         assert!(!login_fields("motilal")[3].required);
-        assert!(callback_without_state("aliceblue"));
-        assert!(!callback_without_state("zerodha"));
+        assert!(!callback_carries_state("aliceblue"));
+        assert!(CLIENT_ID_BROKERS.contains(&"aliceblue"));
+        assert_eq!(credential_slot("dob"), Some(CredentialSlot::Dob));
     }
 
     #[test]

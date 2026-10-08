@@ -92,8 +92,9 @@ pub async fn oauth_callback(
         return error(StatusCode::NOT_FOUND, "Unknown broker.");
     }
     if catalog::auth_type(&broker) == AuthType::Form && params.is_empty() {
-        // Definedge sends its login OTP as the page opens (web brlogin).
-        if ctx.signed_in_user().is_some() {
+        // Definedge sends its login OTP as the page opens (web brlogin),
+        // only for a browser session signed in to OpenAlgo.
+        if sess.as_ref().is_some_and(|s| s.user.is_some()) {
             if let Err(e) = BrokerAuthService::prepare_form_login(&ctx, &broker).await {
                 tracing::warn!("Preparing the {} sign-in failed: {}", broker, e.code());
                 return error(StatusCode::INTERNAL_SERVER_ERROR, e.client_message());
@@ -208,7 +209,6 @@ async fn form_login(
             }
         };
     }
-    let input = FormLogin::from_fields(&form.0);
     let input = match FormLogin::for_broker(&broker, &form.0) {
         Ok(i) => i,
         Err(e) => return error(StatusCode::BAD_REQUEST, e.client_message()),

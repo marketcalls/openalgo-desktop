@@ -41,6 +41,7 @@ mod broker_session_e2e;
 mod broker_upstox_feed;
 mod broker_upstox_feed_hygiene;
 mod broker_upstox_rest;
+mod brokers_direct_batch_a;
 mod brokers_direct_batch_b;
 mod brokers_noren;
 mod brokers_oauth_batch;

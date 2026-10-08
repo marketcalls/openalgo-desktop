@@ -10,12 +10,12 @@ use super::orders::{means_empty, Book};
 use super::streaming::{self, *};
 use super::{auth, funds, WindowLimiter};
 use crate::brokers::common::mapping::{Action, Exchange, PriceType, Product, Validity};
+use crate::brokers::common::relay::{Session, READY};
 use crate::brokers::common::streaming::{
     BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
 };
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
 use crate::brokers::types::*;
-use crate::brokers::upstox::relay::{Session, READY};
 use chrono::NaiveDate;
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -839,7 +839,13 @@ fn identity() {
     assert_eq!(b.id(), "aliceblue");
     assert_eq!(b.timeframe_map().len(), 8);
     assert!(!b.capabilities().margin);
-    assert!(b.capabilities().streaming);
+    assert!(b.capabilities().streaming && b.capabilities().order_feed);
+    // The order socket needs the client code the session carries.
+    assert!(b.create_order_feed(&AuthToken::new("jwt")).is_err());
+    assert!(matches!(
+        b.create_order_feed(&AuthToken::new("jwt").with_user_id("AB1")),
+        Ok(crate::brokers::common::streaming::OrderFeed::Socket(_))
+    ));
     let _ = streaming::HEARTBEAT;
     let _ = mapping::s;
 }

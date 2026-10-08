@@ -35,7 +35,7 @@ use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::ratelimit::Pacer;
 use crate::brokers::common::redact;
-use crate::brokers::common::streaming::BrokerFeed;
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -517,12 +517,16 @@ impl Broker for DefinedgeBroker {
             &token,
         )))
     }
+
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        Ok(OrderFeed::Socket(self.order_socket(auth)?))
+    }
 }
 
 impl DefinedgeBroker {
     /// The order-update socket (same NorenWSTRTP host, `{"t":"o"}` after the
-    /// connect frame).
-    pub fn create_order_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
+    /// connect frame), served through `Broker::create_order_feed`.
+    pub fn order_socket(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         let (uid, token) = streaming::feed_identity(auth)?;
         Ok(Box::new(streaming::DefinedgeOrderFeed::new(
             &self.urls.ws,

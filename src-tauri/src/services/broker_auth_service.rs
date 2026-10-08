@@ -82,6 +82,7 @@ impl FormLogin {
                 Some(catalog::CredentialSlot::ClientId) => out.client_id = Some(v),
                 Some(catalog::CredentialSlot::Password) => out.password = Some(Secret::new(v)),
                 Some(catalog::CredentialSlot::Totp) => out.totp = Some(Secret::new(v)),
+                Some(catalog::CredentialSlot::Dob) => out.dob = Some(Secret::new(v)),
                 None => tracing::warn!("Login field {} has no credential slot", lf.name),
             }
         }
@@ -100,7 +101,7 @@ impl FormLogin {
             client_id: pick(&["userid", "clientid", "client_id", "mobile"]),
             password: pick(&["pin", "password", "mpin"]).map(Secret::new),
             totp: pick(&["totp", "twofa", "otp"]).map(Secret::new),
-            dob: pick(&["dob"]).map(Secret::new),
+            dob: None,
         }
     }
 }
@@ -352,6 +353,9 @@ impl BrokerAuthService {
             client_id: form.client_id.or(stored.client_id.clone()),
             password: form.password.map(|s| s.expose().to_string()),
             totp: form.totp.map(|s| s.expose().to_string()),
+            // A form login has no OAuth code; the one extra factor (Motilal's
+            // date of birth, `CredentialSlot::Dob`) travels in its place.
+            auth_code: form.dob.map(|s| s.expose().to_string()),
             ..stored
         };
         Self::authenticate_as(state, broker, input, expected.as_deref()).await
@@ -371,12 +375,8 @@ impl BrokerAuthService {
         else {
             return Ok(None);
         };
-        let creds = Self::load_credentials(state, broker)?;
-        let input = BrokerCredentials {
-            api_key: creds.api_key.expose().to_string(),
-            api_secret: creds.api_secret.as_ref().map(|s| s.expose().to_string()),
-            ..Default::default()
-        };
+        let input = Self::stored_input(&Self::load_credentials(state, broker)?);
+        // No database connection is held across this await.
         definedge.send_otp(&input).await.map(Some)
     }
 
@@ -611,9 +611,23 @@ mod form_tests {
         .iter()
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
-        let form = FormLogin::from_fields(&f);
+        // Through Motilal's declared fields (`catalog::login_fields`).
+        let form = FormLogin::for_broker("motilal", &f).unwrap();
         assert_eq!(form.client_id.as_deref(), Some("AB1"));
+        assert_eq!(form.password.as_ref().map(|s| s.expose()), Some("pw"));
         assert_eq!(form.dob.as_ref().map(|s| s.expose()), Some("18/10/1988"));
         assert_eq!(form.totp.as_ref().map(|s| s.expose()), Some("123456"));
+        // The date of birth is required; the TOTP is not.
+        let mut no_dob = f.clone();
+        no_dob.remove("dob");
+        assert!(FormLogin::for_broker("motilal", &no_dob).is_err());
+        let mut no_totp = f.clone();
+        no_totp.remove("totp");
+        assert!(FormLogin::for_broker("motilal", &no_totp)
+            .unwrap()
+            .totp
+            .is_none());
+        // Brokers without the field never pick it up.
+        assert!(FormLogin::from_fields(&f).dob.is_none());
     }
 }

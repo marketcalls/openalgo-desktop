@@ -853,4 +853,9 @@ fn broker_identity() {
     assert_eq!(b.timeframe_map().len(), 8);
     assert!(b.create_feed(&AuthToken::new("jwt:::pk")).is_ok());
     assert!(b.create_feed(&AuthToken::new("jwt")).is_err());
+    // No order-update socket: the runtime is told so and starts none.
+    assert!(matches!(
+        b.create_order_feed(&AuthToken::new("jwt:::pk")),
+        Err(crate::error::AppError::Unsupported(_))
+    ));
 }

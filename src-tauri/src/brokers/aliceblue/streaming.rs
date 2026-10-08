@@ -25,18 +25,18 @@
 //!
 //! Both connects need REST calls first, which `BrokerFeed::ws_request`
 //! cannot make, so both run through the loopback relay
-//! (`crate::brokers::upstox::relay`).
+//! (`crate::brokers::common::relay`).
 
 use super::mapping::{self, int, num, s};
 use super::{text, Endpoints};
 use crate::brokers::common::redact;
+use crate::brokers::common::relay::{self, Open, RelayHandle, Session, Step, Upstream};
 use crate::brokers::common::streaming::{
     now_ms, round2, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
     NormalizedTick, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
-use crate::brokers::upstox::relay::{self, Open, RelayHandle, Session, Step, Upstream};
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
 use serde_json::{json, Value};

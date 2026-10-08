@@ -637,7 +637,10 @@ async fn order_feed_through_the_relay() {
     })
     .await;
     let b = broker(&fake, &ws.url);
-    let mut feed = b.create_order_feed(&auth()).unwrap();
+    // Through the trait hook the broker runtime uses.
+    let OrderFeed::Socket(mut feed) = Broker::create_order_feed(&b, &auth()).unwrap() else {
+        panic!("AliceBlue order updates come from a socket")
+    };
     let mut conn = connect_feed(feed.as_ref()).await;
     assert_eq!(
         next_parsed(&mut conn, feed.as_mut()).await,

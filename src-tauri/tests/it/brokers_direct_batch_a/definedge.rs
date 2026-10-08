@@ -498,7 +498,11 @@ async fn feeds_need_the_session_identity() {
     let v: Value = serde_json::from_str(t).unwrap();
     assert_eq!(v["susertoken"], "suser-1");
     assert_eq!(v["uid"], "<USER_ID>");
-    assert!(b.create_order_feed(&auth).is_ok());
+    assert!(matches!(
+        Broker::create_order_feed(&b, &auth),
+        Ok(OrderFeed::Socket(_))
+    ));
+    assert!(Broker::create_order_feed(&b, &AuthToken::new(AUTH)).is_err());
     assert!(b.create_feed(&AuthToken::new(AUTH)).is_err());
 }
 

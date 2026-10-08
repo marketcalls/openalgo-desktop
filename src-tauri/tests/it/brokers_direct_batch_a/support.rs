@@ -11,7 +11,7 @@ pub use openalgo_desktop_lib::brokers::common::mapping::{
     Action, Exchange, PriceType, Product, Validity,
 };
 pub use openalgo_desktop_lib::brokers::common::streaming::{
-    BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
+    BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, OrderFeed,
 };
 pub use openalgo_desktop_lib::brokers::common::symbols::{SymToken, SymbolResolver};
 pub use openalgo_desktop_lib::brokers::types::*;
@@ -34,7 +34,7 @@ use tokio_tungstenite::WebSocketStream;
 #[macro_export]
 macro_rules! fixture {
     ($b:literal, $name:literal) => {
-        include_str!(concat!("../fixtures/brokers/", $b, "/", $name))
+        include_str!(concat!("../../fixtures/brokers/", $b, "/", $name))
     };
 }
 

@@ -12,7 +12,7 @@
 //! pooled connection that closes itself when idle. The live feed and the
 //! order-update feed need REST calls before every connect (`createWsSess`,
 //! `createWsToken`), so they run through the loopback relay
-//! (`crate::brokers::upstox::relay`) until the streaming contract grows an
+//! (`crate::brokers::common::relay`) until the streaming contract grows an
 //! async prepare hook.
 
 pub mod auth;
@@ -28,7 +28,7 @@ mod tests;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::redact;
-use crate::brokers::common::streaming::BrokerFeed;
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -443,12 +443,22 @@ impl Broker for AliceBlueBroker {
             &ucc,
         )))
     }
+
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        Ok(OrderFeed::Socket(self.order_socket(auth)?))
+    }
+
+    /// The pooled quote socket belongs to the session that opened it.
+    async fn on_logout(&self) {
+        self.close_quote_socket();
+    }
 }
 
 impl AliceBlueBroker {
     /// The Order Status Feed socket (`createWsToken`, then
-    /// `{"orderToken","userId"}`), through the loopback relay.
-    pub fn create_order_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
+    /// `{"orderToken","userId"}`), through the loopback relay; served
+    /// through `Broker::create_order_feed`.
+    pub fn order_socket(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {
         let ucc = auth::ucc(auth).ok_or_else(missing_ucc)?;
         Ok(Box::new(streaming::AliceBlueOrderFeed::new(
             self.http.clone(),

@@ -872,4 +872,9 @@ fn identity_and_capabilities() {
     assert_eq!(b.timeframe_map().last(), Some(&("D", "DAY")));
     assert!(b.create_feed(&AuthToken::new("")).is_err());
     assert!(b.create_feed(&AuthToken::new("tok")).is_ok());
+    // No order-update socket: the runtime is told so and starts none.
+    assert!(matches!(
+        b.create_order_feed(&AuthToken::new("tok")),
+        Err(crate::error::AppError::Unsupported(_))
+    ));
 }
