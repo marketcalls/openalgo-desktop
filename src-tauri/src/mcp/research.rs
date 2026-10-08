@@ -7,7 +7,7 @@ use super::dispatch;
 use super::envelope::{error, fail, py_repr};
 use super::ta::{self, Out, PyErr};
 use crate::state::AppState;
-use chrono::{Duration as ChronoDuration, NaiveDate, TimeZone, Utc};
+use chrono::{Datelike, NaiveDate, TimeZone, Utc};
 use chrono_tz::Asia::Kolkata;
 use serde_json::{json, Map, Value};
 use std::sync::Arc;
@@ -202,7 +202,7 @@ async fn history_df(
     ctx: &Arc<AppState>,
     symbol: &str,
     exchange: &str,
-    interval: &str,
+    itv: &Interval,
     start: &str,
     end: &str,
     source: &str,
@@ -210,7 +210,7 @@ async fn history_df(
     let mut p = Map::new();
     p.insert("symbol".into(), json!(symbol.to_uppercase()));
     p.insert("exchange".into(), json!(exchange.to_uppercase()));
-    p.insert("interval".into(), json!(interval));
+    p.insert("interval".into(), json!(itv.raw));
     p.insert("start_date".into(), json!(start));
     p.insert("end_date".into(), json!(end));
     p.insert("source".into(), json!(source));
@@ -223,7 +223,7 @@ async fn history_df(
             "error_type": "no_data",
         }),
         (true, Some(rows)) => {
-            let f = frame_from(rows, !matches!(interval, "D" | "W" | "M"));
+            let f = frame_from(rows, itv.intraday());
             if f.is_empty() {
                 return Err(PyErr::value(
                     "no historical data returned for the given range",
@@ -236,77 +236,209 @@ async fn history_df(
     Err(PyErr::value(format!("history error: {}", py_repr(&reply))))
 }
 
-/// Approximate bars per trading day (`_BARS_PER_DAY`).
-fn bars_per_day(interval: &str) -> f64 {
-    match interval.to_lowercase().as_str() {
-        "1m" => 375.0,
-        "3m" => 125.0,
-        "5m" => 75.0,
-        "10m" => 38.0,
-        "15m" => 25.0,
-        "30m" => 13.0,
-        "1h" | "60m" => 7.0,
-        "2h" => 4.0,
-        "3h" => 3.0,
-        "4h" => 2.0,
-        "d" | "day" => 1.0,
-        "w" | "week" => 0.2,
-        "m" | "month" => 0.05,
-        _ => 75.0,
+/// A history interval, parsed once with a strict grammar: an optional
+/// multiplier (1 to 999, digits only) and a unit, `s`, `m` or `h` (which
+/// need the multiplier) or `D`, `W`, `M`, `Q`, `Y`. No spaces, signs or
+/// other spellings: what passes is exactly what is sent.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Interval {
+    pub raw: String,
+    mult: u32,
+    unit: char,
+}
+
+impl Interval {
+    pub fn parse(s: &str) -> Option<Interval> {
+        let unit = s.chars().last()?;
+        let digits = &s[..s.len() - unit.len_utf8()];
+        if !matches!(unit, 's' | 'm' | 'h' | 'D' | 'W' | 'M' | 'Q' | 'Y') {
+            return None;
+        }
+        let mult = if digits.is_empty() {
+            if matches!(unit, 's' | 'm' | 'h') {
+                return None;
+            }
+            1
+        } else {
+            if digits.len() > 3 || !digits.bytes().all(|b| b.is_ascii_digit()) {
+                return None;
+            }
+            digits.parse::<u32>().ok().filter(|m| *m >= 1)?
+        };
+        Some(Interval {
+            raw: s.to_string(),
+            mult,
+            unit,
+        })
+    }
+
+    /// Web `_BARS_PER_DAY` (used, as on the web, only to size the calendar
+    /// window for a bar count).
+    fn web_bars_per_day(&self) -> f64 {
+        match self.raw.to_lowercase().as_str() {
+            "1m" => 375.0,
+            "3m" => 125.0,
+            "5m" => 75.0,
+            "10m" => 38.0,
+            "15m" => 25.0,
+            "30m" => 13.0,
+            "1h" | "60m" => 7.0,
+            "2h" => 4.0,
+            "3h" => 3.0,
+            "4h" => 2.0,
+            "d" | "day" => 1.0,
+            "w" | "week" => 0.2,
+            "m" | "month" => 0.05,
+            _ => 75.0,
+        }
+    }
+
+    /// Bars a trading day (375 minutes) really holds at this interval,
+    /// rounded up: what the caps count.
+    pub fn true_bars_per_day(&self) -> f64 {
+        let k = f64::from(self.mult);
+        match self.unit {
+            's' => (22_500.0 / k).ceil(),
+            'm' => (375.0 / k).ceil(),
+            'h' => (6.25 / k).ceil(),
+            'D' => 1.0 / k,
+            'W' => 0.2 / k,
+            'M' => 0.05 / k,
+            'Q' => 1.0 / 63.0 / k,
+            _ => 1.0 / 252.0 / k,
+        }
+    }
+
+    fn intraday(&self) -> bool {
+        !matches!(self.raw.as_str(), "D" | "W" | "M")
     }
 }
 
-fn parse_iso_date(s: &str) -> Result<NaiveDate, PyErr> {
-    NaiveDate::parse_from_str(s, "%Y-%m-%d")
-        .map_err(|_| PyErr::value(format!("Invalid isoformat string: '{}'", s)))
+/// A date argument: exactly `YYYY-MM-DD`, years 1900 to 2100.
+pub fn strict_date(s: &str) -> Option<NaiveDate> {
+    let b = s.as_bytes();
+    if b.len() != 10 || b[4] != b'-' || b[7] != b'-' {
+        return None;
+    }
+    if !b
+        .iter()
+        .enumerate()
+        .all(|(k, c)| k == 4 || k == 7 || c.is_ascii_digit())
+    {
+        return None;
+    }
+    let d = NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()?;
+    (1900..=2100).contains(&d.year()).then_some(d)
 }
 
-/// The window a research call asks for.
-#[derive(Debug, Clone)]
+/// The fetch window of one history call, resolved once from the
+/// canonical arguments: the cap check and the fetch use this same value.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Window {
-    pub start_date: Option<String>,
-    pub end_date: Option<String>,
-    pub lookback_bars: i64,
-    pub lookback_days: Option<i64>,
+    pub start: NaiveDate,
+    pub end: NaiveDate,
+    /// Keep only the last N bars (`lookback_bars` windows).
+    pub tail: Option<usize>,
     pub source: String,
 }
 
-/// Web `_load_history`: explicit range, else the last N days, else enough
-/// calendar days for `lookback_bars` bars, trimmed to them.
+/// Web `_load_history`'s window: explicit range, else the last N days,
+/// else enough calendar days for `lookback_bars` bars. All arithmetic is
+/// checked; a window past the caps is refused with a trader-facing message.
+pub fn resolve(
+    a: &Map<String, Value>,
+    itv: &Interval,
+    lookback_bars: i64,
+    today: NaiveDate,
+) -> Result<Window, String> {
+    let date = |k: &str| a.get(k).and_then(Value::as_str).and_then(strict_date);
+    let end = date("end_date").unwrap_or(today);
+    let shift = |days: i64| -> Option<NaiveDate> {
+        let n = chrono::Days::new(days.unsigned_abs());
+        if days >= 0 {
+            end.checked_sub_days(n)
+        } else {
+            end.checked_add_days(n)
+        }
+    };
+    let too_far = || {
+        "That date range is outside what OpenAlgo can analyse. Use dates between 1900 and 2100."
+            .to_string()
+    };
+    let (start, tail) = if let Some(s) = date("start_date") {
+        (s, None)
+    } else if let Some(days) = i(a, "lookback_days").filter(|d| *d != 0) {
+        (shift(days).ok_or_else(too_far)?, None)
+    } else {
+        let bars = lookback_bars.clamp(-MAX_BARS, MAX_BARS);
+        let cal_days = ((bars as f64 / itv.web_bars_per_day()) * 1.6) as i64 + 5;
+        let tail = usize::try_from(bars).ok();
+        (shift(cal_days).ok_or_else(too_far)?, tail)
+    };
+    let span = (end - start).num_days().unsigned_abs();
+    if span > MAX_DAYS as u64 {
+        return Err(format!(
+            "The date range can span at most {} days. Narrow start_date and end_date.",
+            MAX_DAYS
+        ));
+    }
+    if (span as f64 + 1.0) * itv.true_bars_per_day() > MAX_FETCH_BARS {
+        return Err(format!(
+            "That much history at interval '{}' is too large to analyse in one call \
+(at most about {} bars). Use a shorter range or a longer interval.",
+            itv.raw, MAX_FETCH_BARS as i64
+        ));
+    }
+    Ok(Window {
+        start,
+        end,
+        tail,
+        source: s(a, "source").unwrap_or_else(|| "api".into()),
+    })
+}
+
+/// Fetch one window (the SDK's `history()`), trimmed to its tail.
 pub async fn load_history(
     ctx: &Arc<AppState>,
     symbol: &str,
     exchange: &str,
-    interval: &str,
+    itv: &Interval,
     w: &Window,
 ) -> Result<Frame, PyErr> {
-    let today = ctx.now().with_timezone(&Kolkata).date_naive();
-    let end = match w.end_date.as_deref() {
-        Some(e) if !e.is_empty() => e.to_string(),
-        _ => today.format("%Y-%m-%d").to_string(),
-    };
-    if let Some(s) = w.start_date.as_deref().filter(|s| !s.is_empty()) {
-        return history_df(ctx, symbol, exchange, interval, s, &end, &w.source).await;
-    }
-    if let Some(days) = w.lookback_days.filter(|d| *d != 0) {
-        let start = parse_iso_date(&end)? - ChronoDuration::days(days);
-        let start = start.format("%Y-%m-%d").to_string();
-        return history_df(ctx, symbol, exchange, interval, &start, &end, &w.source).await;
-    }
-    let cal_days = ((w.lookback_bars as f64 / bars_per_day(interval)) * 1.6) as i64 + 5;
-    let start = (parse_iso_date(&end)? - ChronoDuration::days(cal_days))
-        .format("%Y-%m-%d")
-        .to_string();
-    let f = history_df(ctx, symbol, exchange, interval, &start, &end, &w.source).await?;
-    Ok(if w.lookback_bars >= 0 {
-        f.tail(w.lookback_bars as usize)
-    } else {
-        f
+    let fmt = |d: NaiveDate| d.format("%Y-%m-%d").to_string();
+    let f = history_df(
+        ctx,
+        symbol,
+        exchange,
+        itv,
+        &fmt(w.start),
+        &fmt(w.end),
+        &w.source,
+    )
+    .await?;
+    Ok(match w.tail {
+        Some(n) => f.tail(n),
+        None => f,
     })
 }
 
+/// Interval and window of a one-interval tool, from the canonical
+/// arguments (the same computation `admit` checked).
+fn plan(
+    a: &Map<String, Value>,
+    default_interval: &str,
+    lookback_bars: i64,
+    today: NaiveDate,
+) -> Result<(Interval, Window), PyErr> {
+    let raw = s(a, "interval").unwrap_or_else(|| default_interval.to_string());
+    let itv = Interval::parse(&raw)
+        .ok_or_else(|| PyErr::value(format!("unsupported interval '{}'", raw)))?;
+    let w = resolve(a, &itv, lookback_bars, today).map_err(PyErr::value)?;
+    Ok((itv, w))
+}
+
 // ----------------------------------------------------------------------
-// Argument helpers
+// Argument helpers (read the canonical arguments `normalize` produced)
 // ----------------------------------------------------------------------
 
 fn s(a: &Map<String, Value>, k: &str) -> Option<String> {
@@ -314,29 +446,141 @@ fn s(a: &Map<String, Value>, k: &str) -> Option<String> {
 }
 
 fn i(a: &Map<String, Value>, k: &str) -> Option<i64> {
-    match a.get(k)? {
-        Value::Number(n) => n.as_i64().or_else(|| n.as_f64().map(|f| f as i64)),
-        Value::String(t) => t.trim().parse().ok(),
-        _ => None,
-    }
+    a.get(k).and_then(Value::as_i64)
 }
 
 fn f(a: &Map<String, Value>, k: &str) -> Option<f64> {
-    match a.get(k)? {
-        Value::Number(n) => n.as_f64(),
-        Value::String(t) => t.trim().parse().ok(),
+    a.get(k).and_then(Value::as_f64)
+}
+
+fn lookback(a: &Map<String, Value>) -> i64 {
+    i(a, "lookback_bars").unwrap_or(252)
+}
+
+/// Integer arguments and their allowed range.
+const INT_ARGS: &[(&str, i64)] = &[
+    ("bars", MAX_BARS),
+    ("lookback_bars", MAX_BARS),
+    ("limit", MAX_BARS),
+    ("lookback_days", MAX_DAYS),
+    ("period", 1_000_000),
+    ("fast", 1_000_000),
+    ("slow", 1_000_000),
+];
+/// Number arguments and their allowed magnitude.
+const NUM_ARGS: &[(&str, f64)] = &[("value", 1e12), ("upper", 1e12), ("lower", 1e12)];
+
+/// A whole number as given: a JSON integer, an integral float, or a
+/// string of digits with an optional leading minus (no spaces, no
+/// exponent, at most 12 characters). `None` when it is not one.
+fn strict_int(v: &Value) -> Option<i64> {
+    match v {
+        Value::Number(n) => n.as_i64().or_else(|| {
+            n.as_f64()
+                .filter(|f| f.is_finite() && f.fract() == 0.0 && f.abs() <= 1e15)
+                .map(|f| f as i64)
+        }),
+        Value::String(t) => {
+            let digits = t.strip_prefix('-').unwrap_or(t);
+            if t.len() > 12 || digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+                return None;
+            }
+            t.parse().ok()
+        }
         _ => None,
     }
 }
 
-fn window(a: &Map<String, Value>) -> Window {
-    Window {
-        start_date: s(a, "start_date"),
-        end_date: s(a, "end_date"),
-        lookback_bars: i(a, "lookback_bars").unwrap_or(252),
-        lookback_days: i(a, "lookback_days"),
-        source: s(a, "source").unwrap_or_else(|| "api".into()),
+fn strict_num(v: &Value) -> Option<f64> {
+    match v {
+        Value::Number(n) => n.as_f64().filter(|f| f.is_finite()),
+        Value::String(t) if t.len() <= 32 && t.trim() == t => {
+            t.parse::<f64>().ok().filter(|f| f.is_finite())
+        }
+        _ => None,
     }
+}
+
+/// Parse every argument the caps depend on exactly once into its
+/// canonical form (integers, numbers, `YYYY-MM-DD` dates, validated
+/// intervals), refusing what does not parse or is out of range. The cap
+/// check and the work both read only this result.
+pub fn normalize(a: &Map<String, Value>) -> Result<Map<String, Value>, Value> {
+    let mut out = a.clone();
+    for (k, max) in INT_ARGS {
+        match a.get(*k) {
+            None | Some(Value::Null) => {}
+            Some(v) => match strict_int(v) {
+                Some(n) if (-*max..=*max).contains(&n) => {
+                    out.insert((*k).into(), json!(n));
+                }
+                Some(_) => {
+                    return Err(limit_error(format!("'{}' can be at most {}.", k, max)));
+                }
+                None => {
+                    return Err(limit_error(format!("'{}' must be a whole number.", k)));
+                }
+            },
+        }
+    }
+    for (k, max) in NUM_ARGS {
+        match a.get(*k) {
+            None | Some(Value::Null) => {}
+            Some(v) => match strict_num(v) {
+                Some(x) if x.abs() <= *max => {
+                    out.insert((*k).into(), json!(x));
+                }
+                _ => return Err(limit_error(format!("'{}' must be a number.", k))),
+            },
+        }
+    }
+    for k in ["start_date", "end_date"] {
+        match a.get(k) {
+            None | Some(Value::Null) => {}
+            // As the web: an empty date is no date.
+            Some(Value::String(t)) if t.is_empty() => {
+                out.remove(k);
+            }
+            Some(Value::String(t)) => match strict_date(t) {
+                Some(d) => {
+                    out.insert(k.into(), json!(d.format("%Y-%m-%d").to_string()));
+                }
+                None => {
+                    return Err(limit_error(format!(
+                        "'{}' must be a date written as YYYY-MM-DD between 1900 and 2100.",
+                        k
+                    )))
+                }
+            },
+            Some(_) => {
+                return Err(limit_error(format!(
+                    "'{}' must be a date written as YYYY-MM-DD.",
+                    k
+                )))
+            }
+        }
+    }
+    let bad_interval = |raw: &str| {
+        limit_error(format!(
+            "Interval '{}' is not one OpenAlgo supports. Use for example 1m, 5m, 15m, 1h, D, W or M.",
+            raw
+        ))
+    };
+    if let Some(v) = a.get("interval").filter(|v| !v.is_null()) {
+        let raw = v.as_str().unwrap_or_default();
+        if Interval::parse(raw).is_none() {
+            return Err(bad_interval(raw));
+        }
+    }
+    if let Some(list) = a.get("intervals").and_then(Value::as_array) {
+        for v in list {
+            let raw = v.as_str().unwrap_or_default();
+            if Interval::parse(raw).is_none() {
+                return Err(bad_interval(raw));
+            }
+        }
+    }
+    Ok(out)
 }
 
 const HLC_INDICATORS: &[&str] = &[
@@ -577,58 +821,39 @@ fn check_shape(v: &Value, path: &str) -> Option<Value> {
     }
 }
 
-fn parse_date(a: &Map<String, Value>, k: &str) -> Result<Option<NaiveDate>, Value> {
-    match s(a, k).filter(|d| !d.is_empty()) {
-        None => Ok(None),
-        Some(d) => NaiveDate::parse_from_str(&d, "%Y-%m-%d")
-            .map(Some)
-            .map_err(|_| limit_error(format!("'{}' must be a date written as YYYY-MM-DD.", k))),
-    }
-}
-
-/// Calendar days one history fetch spans, as `_load_history` will choose
-/// it (explicit range, `lookback_days`, or enough days for `lookback_bars`).
-fn span_days(
-    a: &Map<String, Value>,
-    interval: &str,
-    lookback_bars: i64,
-    today: NaiveDate,
-) -> Result<i64, Value> {
-    let start = parse_date(a, "start_date")?;
-    let end = parse_date(a, "end_date")?.unwrap_or(today);
-    if let Some(start) = start {
-        return Ok((end - start).num_days().abs());
-    }
-    if let Some(days) = i(a, "lookback_days").filter(|d| *d != 0) {
-        return Ok(days.abs());
-    }
-    Ok(((lookback_bars.max(0) as f64 / bars_per_day(interval)) * 1.6) as i64 + 5)
-}
-
-/// The intervals and window bars of each fetch the call will make.
-fn fetches(tool: &str, a: &Map<String, Value>) -> Vec<(String, i64)> {
-    let lookback = i(a, "lookback_bars").unwrap_or(252);
+/// The interval and window size of each fetch the call will make.
+fn fetches(tool: &str, a: &Map<String, Value>) -> Vec<(Interval, i64)> {
+    let parse = |raw: &str| Interval::parse(raw);
     match tool {
         "get_historical_data" => {
             let bars = i(a, "bars").unwrap_or(20).max(252);
-            vec![(s(a, "interval").unwrap_or_default(), bars)]
+            parse(&s(a, "interval").unwrap_or_default())
+                .map(|itv| vec![(itv, bars)])
+                .unwrap_or_default()
         }
-        "multi_timeframe_analysis" => {
-            let list: Vec<String> = a
-                .get("intervals")
-                .and_then(Value::as_array)
-                .filter(|v| !v.is_empty())
-                .map(|v| {
-                    v.iter()
-                        .map(|x| x.as_str().unwrap_or_default().to_string())
-                        .collect()
-                })
-                .unwrap_or_else(|| vec!["5m".into(), "15m".into(), "1h".into(), "D".into()]);
-            list.into_iter().map(|itv| (itv, lookback)).collect()
-        }
+        "multi_timeframe_analysis" => intervals(a)
+            .iter()
+            .filter_map(|raw| parse(raw))
+            .map(|itv| (itv, lookback(a)))
+            .collect(),
         "get_instruments" => Vec::new(),
-        _ => vec![(s(a, "interval").unwrap_or_else(|| "D".into()), lookback)],
+        _ => parse(&s(a, "interval").unwrap_or_else(|| "D".into()))
+            .map(|itv| vec![(itv, lookback(a))])
+            .unwrap_or_default(),
     }
+}
+
+/// `multi_timeframe_analysis` intervals (the web's default when omitted).
+fn intervals(a: &Map<String, Value>) -> Vec<String> {
+    a.get("intervals")
+        .and_then(Value::as_array)
+        .filter(|v| !v.is_empty())
+        .map(|v| {
+            v.iter()
+                .map(|x| x.as_str().unwrap_or_default().to_string())
+                .collect()
+        })
+        .unwrap_or_else(|| vec!["5m".into(), "15m".into(), "1h".into(), "D".into()])
 }
 
 /// `/api/v1` calls the tool will make: its whole fan-out.
@@ -636,7 +861,7 @@ pub fn planned_calls(tool: &str, a: &Map<String, Value>) -> usize {
     let n_list = |k: &str| a.get(k).and_then(Value::as_array).map_or(0, Vec::len);
     match tool {
         "screen_instruments" => n_list("symbols"),
-        "multi_timeframe_analysis" => fetches(tool, a).len(),
+        "multi_timeframe_analysis" => intervals(a).len(),
         "correlation_beta" => 2,
         "get_instruments" => {
             if a.get("exchange").is_some_and(|e| !e.is_null()) {
@@ -649,52 +874,34 @@ pub fn planned_calls(tool: &str, a: &Map<String, Value>) -> usize {
     }
 }
 
-/// The first limit the arguments exceed, as the tool's error output.
-/// Defaults are resolved first, so an omitted field is checked as the
-/// value the tool will use.
-pub fn check_limits(tool: &str, a: &Map<String, Value>, today: NaiveDate) -> Option<Value> {
+/// Check the arguments against every limit and return their canonical
+/// form, which is all the tool reads afterwards: the windows checked here
+/// are the windows fetched.
+pub fn check_limits(
+    tool: &str,
+    a: &Map<String, Value>,
+    today: NaiveDate,
+) -> Result<Map<String, Value>, Value> {
     for (k, v) in a {
         if let Some(e) = check_shape(v, k) {
-            return Some(e);
+            return Err(e);
         }
     }
-    for k in ["bars", "lookback_bars", "limit"] {
-        if i(a, k).is_some_and(|v| v.abs() > MAX_BARS) {
-            return Some(limit_error(format!("'{}' can be at most {}.", k, MAX_BARS)));
-        }
+    let norm = normalize(a)?;
+    for (itv, lookback_bars) in fetches(tool, &norm) {
+        resolve(&norm, &itv, lookback_bars, today).map_err(limit_error)?;
     }
-    if i(a, "lookback_days").is_some_and(|v| v.abs() > MAX_DAYS) {
-        return Some(limit_error(format!(
-            "'lookback_days' can be at most {}.",
-            MAX_DAYS
-        )));
-    }
-    for (interval, lookback) in fetches(tool, a) {
-        let days = match span_days(a, &interval, lookback, today) {
-            Ok(d) => d,
-            Err(e) => return Some(e),
-        };
-        if days > MAX_DAYS {
-            return Some(limit_error(format!(
-                "The date range can span at most {} days. Narrow start_date and end_date.",
-                MAX_DAYS
-            )));
-        }
-        if days as f64 * bars_per_day(&interval) > MAX_FETCH_BARS {
-            return Some(limit_error(format!(
-                "That much history at interval '{}' is too large to analyse in one call \
-(at most about {} bars). Use a shorter range or a longer interval.",
-                interval, MAX_FETCH_BARS as i64
-            )));
-        }
-    }
-    None
+    Ok(norm)
 }
 
 /// Holds a research call's slots for as long as it runs.
 pub struct Admission {
     _token: Option<super::http::InflightGuard>,
     _slot: tokio::sync::OwnedSemaphorePermit,
+    /// The canonical arguments (see [`normalize`]).
+    pub args: Map<String, Value>,
+    /// The day every window of this call is resolved against.
+    pub today: NaiveDate,
 }
 
 /// Admit a call before any work: limits, then the token's in-flight cap,
@@ -706,9 +913,8 @@ pub async fn admit(
     a: &Map<String, Value>,
 ) -> Result<Admission, Value> {
     let today = ctx.now().with_timezone(&Kolkata).date_naive();
-    if let Some(refused) = check_limits(tool, a, today) {
-        return Err(refused);
-    }
+    let args = check_limits(tool, a, today)?;
+    let a = &args;
     let budget = dispatch::CALLER.try_with(|b| b.clone()).ok();
     let token =
         match &budget {
@@ -742,17 +948,20 @@ Wait a minute and try again.",
     Ok(Admission {
         _token: token,
         _slot: slot,
+        args,
+        today,
     })
 }
 
 /// Run a research tool and turn a raised error into the web's `_fail`.
 /// Admitted first (see [`admit`]), then bounded by an overall deadline.
 pub async fn run(ctx: &Arc<AppState>, tool: &str, a: &Map<String, Value>) -> Value {
-    let _admission = match admit(ctx, tool, a).await {
+    let admission = match admit(ctx, tool, a).await {
         Ok(adm) => adm,
         Err(refused) => return refused,
     };
-    match tokio::time::timeout(RESEARCH_DEADLINE, run_inner(ctx, tool, a)).await {
+    let (a, today) = (&admission.args, admission.today);
+    match tokio::time::timeout(RESEARCH_DEADLINE, run_inner(ctx, tool, a, today)).await {
         Ok(v) => v,
         Err(_) => error(
             "This analysis took too long and was stopped. Use a shorter date range or fewer symbols.",
@@ -761,18 +970,23 @@ pub async fn run(ctx: &Arc<AppState>, tool: &str, a: &Map<String, Value>) -> Val
     }
 }
 
-async fn run_inner(ctx: &Arc<AppState>, tool: &str, a: &Map<String, Value>) -> Value {
+async fn run_inner(
+    ctx: &Arc<AppState>,
+    tool: &str,
+    a: &Map<String, Value>,
+    today: NaiveDate,
+) -> Value {
     let r = match tool {
-        "get_historical_data" => historical(ctx, a).await,
-        "calculate_indicator" => calculate_indicator(ctx, a).await,
-        "get_trend_snapshot" => snapshot(ctx, a, Snap::Trend).await,
-        "get_momentum_snapshot" => snapshot(ctx, a, Snap::Momentum).await,
-        "get_volatility_snapshot" => snapshot(ctx, a, Snap::Volatility).await,
-        "get_support_resistance" => snapshot(ctx, a, Snap::Levels).await,
-        "detect_signals" => detect_signals(ctx, a).await,
-        "screen_instruments" => screen(ctx, a).await,
-        "multi_timeframe_analysis" => multi_timeframe(ctx, a).await,
-        "correlation_beta" => correlation_beta(ctx, a).await,
+        "get_historical_data" => historical(ctx, a, today).await,
+        "calculate_indicator" => calculate_indicator(ctx, a, today).await,
+        "get_trend_snapshot" => snapshot(ctx, a, Snap::Trend, today).await,
+        "get_momentum_snapshot" => snapshot(ctx, a, Snap::Momentum, today).await,
+        "get_volatility_snapshot" => snapshot(ctx, a, Snap::Volatility, today).await,
+        "get_support_resistance" => snapshot(ctx, a, Snap::Levels, today).await,
+        "detect_signals" => detect_signals(ctx, a, today).await,
+        "screen_instruments" => screen(ctx, a, today).await,
+        "multi_timeframe_analysis" => multi_timeframe(ctx, a, today).await,
+        "correlation_beta" => correlation_beta(ctx, a, today).await,
         _ => Ok(error(format!("unknown tool '{}'", tool), &[])),
     };
     match r {
@@ -781,16 +995,15 @@ async fn run_inner(ctx: &Arc<AppState>, tool: &str, a: &Map<String, Value>) -> V
     }
 }
 
-async fn historical(ctx: &Arc<AppState>, a: &Map<String, Value>) -> ToolResult {
+async fn historical(ctx: &Arc<AppState>, a: &Map<String, Value>, today: NaiveDate) -> ToolResult {
     let act = tag("getting historical data");
     let bars = i(a, "bars").unwrap_or(20);
-    let mut w = window(a);
-    w.lookback_bars = bars.max(252);
+    let (itv, w) = plan(a, "", bars.max(252), today).map_err(&act)?;
     let df = load_history(
         ctx,
         &s(a, "symbol").unwrap_or_default(),
         &s(a, "exchange").unwrap_or_default(),
-        &s(a, "interval").unwrap_or_default(),
+        &itv,
         &w,
     )
     .await
@@ -821,14 +1034,18 @@ fn stats(v: &[f64]) -> Value {
     })
 }
 
-async fn calculate_indicator(ctx: &Arc<AppState>, a: &Map<String, Value>) -> ToolResult {
+async fn calculate_indicator(
+    ctx: &Arc<AppState>,
+    a: &Map<String, Value>,
+    today: NaiveDate,
+) -> ToolResult {
     let act = tag("calculating indicator");
     let symbol = s(a, "symbol").unwrap_or_default();
     let exchange = s(a, "exchange").unwrap_or_default();
-    let interval = s(a, "interval").unwrap_or_else(|| "D".into());
     let bars = i(a, "bars").unwrap_or(20);
-    let w = window(a);
-    let df = load_history(ctx, &symbol, &exchange, &interval, &w)
+    let (itv, w) = plan(a, "D", lookback(a), today).map_err(&act)?;
+    let interval = itv.raw.clone();
+    let df = load_history(ctx, &symbol, &exchange, &itv, &w)
         .await
         .map_err(&act)?;
     let indicator = s(a, "indicator").unwrap_or_default();
@@ -889,7 +1106,12 @@ enum Snap {
     Levels,
 }
 
-async fn snapshot(ctx: &Arc<AppState>, a: &Map<String, Value>, kind: Snap) -> ToolResult {
+async fn snapshot(
+    ctx: &Arc<AppState>,
+    a: &Map<String, Value>,
+    kind: Snap,
+    today: NaiveDate,
+) -> ToolResult {
     let action = match kind {
         Snap::Trend => "getting trend snapshot",
         Snap::Momentum => "getting momentum snapshot",
@@ -899,8 +1121,9 @@ async fn snapshot(ctx: &Arc<AppState>, a: &Map<String, Value>, kind: Snap) -> To
     let act = tag(action);
     let symbol = s(a, "symbol").unwrap_or_default();
     let exchange = s(a, "exchange").unwrap_or_default();
-    let interval = s(a, "interval").unwrap_or_else(|| "D".into());
-    let df = load_history(ctx, &symbol, &exchange, &interval, &window(a))
+    let (itv, w) = plan(a, "D", lookback(a), today).map_err(&act)?;
+    let interval = itv.raw.clone();
+    let df = load_history(ctx, &symbol, &exchange, &itv, &w)
         .await
         .map_err(&act)?;
     let (h, l, c) = (df.col("high"), df.col("low"), df.col("close"));
@@ -1052,13 +1275,18 @@ fn threshold(x: &[f64], now: impl Fn(f64) -> bool, before: impl Fn(f64) -> bool)
         .collect()
 }
 
-async fn detect_signals(ctx: &Arc<AppState>, a: &Map<String, Value>) -> ToolResult {
+async fn detect_signals(
+    ctx: &Arc<AppState>,
+    a: &Map<String, Value>,
+    today: NaiveDate,
+) -> ToolResult {
     let act = tag("detecting signals");
     let symbol = s(a, "symbol").unwrap_or_default();
     let exchange = s(a, "exchange").unwrap_or_default();
-    let interval = s(a, "interval").unwrap_or_else(|| "D".into());
     let signal_type = s(a, "signal_type").unwrap_or_else(|| "ema_cross".into());
-    let df = load_history(ctx, &symbol, &exchange, &interval, &window(a))
+    let (itv, w) = plan(a, "D", lookback(a), today).map_err(&act)?;
+    let interval = itv.raw.clone();
+    let df = load_history(ctx, &symbol, &exchange, &itv, &w)
         .await
         .map_err(&act)?;
     let close = df.col("close").map_err(&act)?;
@@ -1138,8 +1366,7 @@ async fn detect_signals(ctx: &Arc<AppState>, a: &Map<String, Value>) -> ToolResu
     }))
 }
 
-async fn screen(ctx: &Arc<AppState>, a: &Map<String, Value>) -> ToolResult {
-    let interval = s(a, "interval").unwrap_or_else(|| "D".into());
+async fn screen(ctx: &Arc<AppState>, a: &Map<String, Value>, today: NaiveDate) -> ToolResult {
     let condition = s(a, "condition").unwrap_or_else(|| "rsi_below".into());
     let value = f(a, "value").unwrap_or(30.0);
     let period = i(a, "period").unwrap_or(14);
@@ -1148,7 +1375,10 @@ async fn screen(ctx: &Arc<AppState>, a: &Map<String, Value>) -> ToolResult {
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    let w = window(a);
+    let (itv, w) = match plan(a, "D", lookback(a), today) {
+        Ok(p) => p,
+        Err(e) => return Err(("screening instruments".to_string(), e)),
+    };
     let mut results = Vec::new();
     for item in &symbols {
         let sym = item
@@ -1159,7 +1389,7 @@ async fn screen(ctx: &Arc<AppState>, a: &Map<String, Value>) -> ToolResult {
             .get("exchange")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        let df = match load_history(ctx, sym, exch, &interval, &w).await {
+        let df = match load_history(ctx, sym, exch, &itv, &w).await {
             Ok(df) => df,
             Err(e) => {
                 results.push(json!({"symbol": sym, "exchange": exch, "error": e.message}));
@@ -1245,7 +1475,11 @@ async fn screen(ctx: &Arc<AppState>, a: &Map<String, Value>) -> ToolResult {
     }))
 }
 
-async fn multi_timeframe(ctx: &Arc<AppState>, a: &Map<String, Value>) -> ToolResult {
+async fn multi_timeframe(
+    ctx: &Arc<AppState>,
+    a: &Map<String, Value>,
+    today: NaiveDate,
+) -> ToolResult {
     let symbol = s(a, "symbol").unwrap_or_default();
     let exchange = s(a, "exchange").unwrap_or_default();
     let intervals: Vec<String> = a
@@ -1268,11 +1502,14 @@ async fn multi_timeframe(ctx: &Arc<AppState>, a: &Map<String, Value>) -> ToolRes
         .and_then(Value::as_object)
         .cloned()
         .unwrap_or_default();
-    let w = window(a);
+    let lookback_bars = lookback(a);
     let mut out = Map::new();
     for itv in &intervals {
         let r: Result<Value, PyErr> = async {
-            let df = load_history(ctx, &symbol, &exchange, itv, &w).await?;
+            let parsed = Interval::parse(itv)
+                .ok_or_else(|| PyErr::value(format!("unsupported interval '{}'", itv)))?;
+            let w = resolve(a, &parsed, lookback_bars, today).map_err(PyErr::value)?;
+            let df = load_history(ctx, &symbol, &exchange, &parsed, &w).await?;
             let (_c, series) =
                 resolve_inputs(&df, &name, a.get("inputs").and_then(Value::as_array))?;
             let refs: Vec<&[f64]> = series.iter().map(Vec::as_slice).collect();
@@ -1312,30 +1549,22 @@ fn pearson(x: &[f64], y: &[f64]) -> Value {
     }
 }
 
-async fn correlation_beta(ctx: &Arc<AppState>, a: &Map<String, Value>) -> ToolResult {
+async fn correlation_beta(
+    ctx: &Arc<AppState>,
+    a: &Map<String, Value>,
+    today: NaiveDate,
+) -> ToolResult {
     let act = tag("calculating correlation/beta");
     let s1 = s(a, "symbol1").unwrap_or_default();
     let s2 = s(a, "symbol2").unwrap_or_default();
-    let interval = s(a, "interval").unwrap_or_else(|| "D".into());
-    let w = window(a);
-    let d1 = load_history(
-        ctx,
-        &s1,
-        &s(a, "exchange1").unwrap_or_default(),
-        &interval,
-        &w,
-    )
-    .await
-    .map_err(&act)?;
-    let d2 = load_history(
-        ctx,
-        &s2,
-        &s(a, "exchange2").unwrap_or_default(),
-        &interval,
-        &w,
-    )
-    .await
-    .map_err(&act)?;
+    let (itv, w) = plan(a, "D", lookback(a), today).map_err(&act)?;
+    let interval = itv.raw.clone();
+    let d1 = load_history(ctx, &s1, &s(a, "exchange1").unwrap_or_default(), &itv, &w)
+        .await
+        .map_err(&act)?;
+    let d2 = load_history(ctx, &s2, &s(a, "exchange2").unwrap_or_default(), &itv, &w)
+        .await
+        .map_err(&act)?;
     let (c1, c2) = (
         d1.col("close").map_err(&act)?,
         d2.col("close").map_err(&act)?,
@@ -1412,5 +1641,116 @@ mod tests {
         assert_eq!(tail_start(5, 0), 0);
         assert_eq!(tail_start(5, 9), 0);
         assert_eq!(tail_start(5, -2), 2);
+        assert_eq!(tail_start(5, i64::MIN), 5);
+        assert_eq!(tail_start(5, i64::MAX), 0);
+    }
+
+    #[test]
+    fn intervals_have_one_strict_spelling() {
+        for ok in [
+            "1m", "5m", "15m", "1h", "4h", "1s", "D", "W", "M", "Q", "Y", "2W", "3M", "999m",
+        ] {
+            assert!(Interval::parse(ok).is_some(), "{}", ok);
+        }
+        for bad in [
+            "", "m", "h", "s", "d", "w", "1d", "0m", "1000m", "-1m", "+1m", "1 m", " 1m", "1m ",
+            "1e3m", "1min", "1.5m", "１m", "minute",
+        ] {
+            assert!(Interval::parse(bad).is_none(), "{:?}", bad);
+        }
+        // Minutes and months differ by case, and are counted that way.
+        assert_eq!(Interval::parse("1m").unwrap().true_bars_per_day(), 375.0);
+        assert!(Interval::parse("M").unwrap().true_bars_per_day() < 0.1);
+        assert_eq!(Interval::parse("1s").unwrap().true_bars_per_day(), 22_500.0);
+    }
+
+    #[test]
+    fn dates_have_one_strict_spelling() {
+        assert!(strict_date("2026-01-31").is_some());
+        for bad in [
+            "2026-1-31",
+            "2026/01/31",
+            "20260131",
+            " 2026-01-31",
+            "2026-01-31 ",
+            "+2026-01-31",
+            "12026-01-31",
+            "0001-01-01",
+            "9999-12-31",
+            "2026-02-30",
+            "31-01-2026",
+            "2026-01-31T00:00",
+        ] {
+            assert!(strict_date(bad).is_none(), "{:?}", bad);
+        }
+    }
+
+    #[test]
+    fn numbers_parse_once_and_extremes_are_refused() {
+        assert_eq!(strict_int(&json!(5)), Some(5));
+        assert_eq!(strict_int(&json!(5.0)), Some(5));
+        assert_eq!(strict_int(&json!("5")), Some(5));
+        assert_eq!(strict_int(&json!("-5")), Some(-5));
+        for bad in [
+            json!(5.5),
+            json!("5.0"),
+            json!(" 5"),
+            json!("1e3"),
+            json!("+5"),
+            json!("-"),
+            json!(1e300),
+            json!("99999999999999999999"),
+            json!(true),
+            json!([5]),
+        ] {
+            assert_eq!(strict_int(&bad), None, "{}", bad);
+        }
+        let n = |v: Value| normalize(json!({"bars": v}).as_object().unwrap());
+        assert!(n(json!(u64::MAX)).is_err());
+        assert!(n(json!(i64::MIN)).is_err());
+        assert!(n(json!(i64::MAX)).is_err());
+        assert!(n(json!(-5001)).is_err());
+        assert_eq!(n(json!("5000")).unwrap()["bars"], json!(5000));
+        let d = |v: Value| normalize(json!({"lookback_days": v}).as_object().unwrap());
+        assert!(d(json!(i64::MIN)).is_err());
+        assert!(d(json!(-3661)).is_err());
+        assert_eq!(
+            normalize(json!({"start_date": ""}).as_object().unwrap())
+                .unwrap()
+                .get("start_date"),
+            None,
+            "an empty date is no date, as on the web"
+        );
+    }
+
+    #[test]
+    fn windows_use_checked_arithmetic_and_count_true_bars() {
+        let today = NaiveDate::from_ymd_opt(2026, 10, 8).unwrap();
+        let one_min = Interval::parse("1m").unwrap();
+        let day = Interval::parse("D").unwrap();
+        let win = |a: Value, itv: &Interval, lb: i64, t: NaiveDate| {
+            resolve(a.as_object().unwrap(), itv, lb, t)
+        };
+        // Defaults: 252 daily bars, a tail of 252.
+        let w = win(json!({}), &day, 252, today).unwrap();
+        assert_eq!(w.tail, Some(252));
+        assert_eq!(w.end, today);
+        // Extreme lookbacks never panic: clamped, then refused past the range cap.
+        assert!(win(json!({}), &day, i64::MIN, today).is_err());
+        assert!(win(json!({}), &day, i64::MAX, today).is_err());
+        assert!(win(json!({"lookback_days": -3000}), &one_min, 252, today).is_err());
+        assert!(win(json!({"lookback_days": 3000}), &one_min, 252, today).is_err());
+        assert!(win(json!({"lookback_days": 3000}), &day, 252, today).is_ok());
+        // The far past and future are refused, not wrapped.
+        assert!(win(
+            json!({"start_date": "1900-01-01", "end_date": "2100-12-31"}),
+            &day,
+            252,
+            today
+        )
+        .is_err());
+        assert!(win(json!({"start_date": "1900-01-01"}), &day, 252, today).is_err());
+        // Seconds are counted as seconds, whatever the web's sizing table says.
+        assert!(win(json!({}), &Interval::parse("1s").unwrap(), 252, today).is_err());
     }
 }

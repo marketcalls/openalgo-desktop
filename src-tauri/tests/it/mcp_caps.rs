@@ -55,14 +55,27 @@ fn upstream_key(m: &M, token: &str) -> String {
     format!("mcp-token-{}|upstream", id)
 }
 
+/// The call is refused before anything is fetched: by the tool's limits
+/// (`kind` in its output) or, for a value that is not even of the declared
+/// type, by argument binding (the web's `bad_arguments`).
 async fn refused_unfetched(m: &M, t: &str, tool: &str, args: Value, kind: &str) {
     let before = history_calls(m);
-    let out = m.output(t, tool, args.clone()).await;
-    assert_eq!(
-        out["data"]["error"]["error_type"], kind,
-        "{} {}: {}",
-        tool, args, out
-    );
+    let reply = m.call(t, tool, args.clone()).await;
+    match reply["result"]["content"][0]["text"].as_str() {
+        Some(text) => {
+            let out: Value = serde_json::from_str(text).unwrap();
+            assert_eq!(
+                out["data"]["error"]["error_type"], kind,
+                "{} {}: {}",
+                tool, args, out
+            );
+        }
+        None => assert_eq!(
+            reply["error"]["data"]["reason"], "Invalid arguments. Check the tool schema.",
+            "{} {}: {}",
+            tool, args, reply
+        ),
+    }
     assert_eq!(history_calls(m), before, "{} fetched before refusing", tool);
 }
 
@@ -264,5 +277,186 @@ async fn one_token_cannot_hold_every_research_slot() {
     assert!(ok["data"]["indicators"].is_object(), "{}", ok);
     drop(held);
     assert_eq!(m.h.ctx.mcp.in_flight(&key), 0);
+    m.h.shutdown().await;
+}
+
+// ---------------------------------------------------------------------
+// Extreme values and parser variants: parsed once, checked on that value.
+// ---------------------------------------------------------------------
+
+fn snap(extra: Value) -> Value {
+    let mut v = json!({"symbol": "SBIN", "exchange": "NSE"});
+    for (k, x) in extra.as_object().unwrap() {
+        v[k] = x.clone();
+    }
+    v
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn extreme_numbers_are_refused_without_overflow() {
+    let (m, t) = harness().await;
+    for extra in [
+        json!({"lookback_bars": u64::MAX}),
+        json!({"lookback_bars": i64::MIN}),
+        json!({"lookback_bars": i64::MAX}),
+        json!({"lookback_days": i64::MIN}),
+        json!({"lookback_days": -3661}),
+        json!({"lookback_bars": 1e300}),
+        json!({"lookback_bars": -1e300}),
+        json!({"lookback_bars": "-9223372036854775808"}),
+        json!({"period": i64::MIN}),
+        json!({"limit": u64::MAX}),
+    ] {
+        refused_unfetched(&m, &t, "detect_signals", snap(extra), "limit_exceeded").await;
+    }
+    let out = m
+        .output(&t, "get_instruments", json!({"limit": i64::MIN}))
+        .await;
+    assert_eq!(
+        out["data"]["error"]["error_type"], "limit_exceeded",
+        "{}",
+        out
+    );
+    // A negative lookback that points into the future still counts its span.
+    refused_unfetched(
+        &m,
+        &t,
+        "get_historical_data",
+        snap(json!({"interval": "1m", "lookback_days": -3000})),
+        "limit_exceeded",
+    )
+    .await;
+    m.h.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn date_and_number_spellings_that_could_parse_differently_are_refused() {
+    let (m, t) = harness().await;
+    for d in [
+        "2026-1-1",
+        "2026/01/01",
+        "20260101",
+        " 2026-01-01",
+        "2026-01-01 ",
+        "+12026-01-01",
+        "0001-01-01",
+        "9999-12-31",
+        "01-01-2026",
+        "2026-01-01T00:00:00",
+    ] {
+        refused_unfetched(
+            &m,
+            &t,
+            "get_trend_snapshot",
+            snap(json!({"start_date": d})),
+            "limit_exceeded",
+        )
+        .await;
+        refused_unfetched(
+            &m,
+            &t,
+            "get_trend_snapshot",
+            snap(json!({"end_date": d})),
+            "limit_exceeded",
+        )
+        .await;
+    }
+    for bars in [
+        json!("5001"),
+        json!("1e9"),
+        json!(" 5"),
+        json!("5.0"),
+        json!(5000.5),
+        json!("+5"),
+    ] {
+        refused_unfetched(
+            &m,
+            &t,
+            "calculate_indicator",
+            snap(json!({"indicator": "rsi", "lookback_bars": bars})),
+            "limit_exceeded",
+        )
+        .await;
+    }
+    // Canonical spellings work, and are what is fetched.
+    let ok = m
+        .output(
+            &t,
+            "calculate_indicator",
+            snap(json!({"indicator": "rsi", "lookback_bars": "30", "bars": 5.0})),
+        )
+        .await;
+    assert_eq!(ok["data"]["returned_bars"], 5, "{}", ok);
+    m.h.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn interval_spellings_that_could_expand_later_are_refused() {
+    let (m, t) = harness().await;
+    for itv in [
+        "1 m", " 1m", "1m ", "1min", "1e3m", "1000m", "0m", "m", "d", "1d", "-1m", "1.5m",
+    ] {
+        refused_unfetched(
+            &m,
+            &t,
+            "get_trend_snapshot",
+            snap(json!({"interval": itv})),
+            "limit_exceeded",
+        )
+        .await;
+    }
+    refused_unfetched(
+        &m,
+        &t,
+        "multi_timeframe_analysis",
+        snap(json!({"intervals": ["D", "1 m"]})),
+        "limit_exceeded",
+    )
+    .await;
+    // Seconds are counted as seconds: the default window is far too many.
+    refused_unfetched(
+        &m,
+        &t,
+        "get_trend_snapshot",
+        snap(json!({"interval": "1s"})),
+        "limit_exceeded",
+    )
+    .await;
+    // "1m" is minutes and "W" weeks: both fine at the default window (monthly
+    // bars at the default 252-bar window span about 22 years: refused).
+    for itv in ["W", "1m"] {
+        let out = m
+            .output(&t, "get_trend_snapshot", snap(json!({"interval": itv})))
+            .await;
+        assert!(out["data"]["indicators"].is_object(), "{}: {}", itv, out);
+    }
+    m.h.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_duplicate_key_is_one_value_for_the_check_and_the_work() {
+    let (m, t) = harness().await;
+    // serde keeps the last of duplicate keys; the request is parsed once,
+    // so the check sees the same 100000 the work would.
+    let body = r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_historical_data","arguments":{"symbol":"SBIN","exchange":"NSE","interval":"D","bars":5,"bars":100000}}}"#;
+    let req = axum::http::Request::builder()
+        .method("POST")
+        .uri("/mcp")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", t))
+        .body(axum::body::Body::from(body))
+        .unwrap();
+    let before = history_calls(&m);
+    let (s, _, bytes) = m.raw(req, crate::mcp_support::LOCAL).await;
+    assert_eq!(s, axum::http::StatusCode::OK);
+    let v: Value = serde_json::from_slice(&bytes).unwrap();
+    let out: Value =
+        serde_json::from_str(v["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(
+        out["data"]["error"]["error_type"], "limit_exceeded",
+        "{}",
+        out
+    );
+    assert_eq!(history_calls(&m), before);
     m.h.shutdown().await;
 }

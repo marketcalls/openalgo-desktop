@@ -620,7 +620,8 @@ async fn run(ctx: &Arc<AppState>, name: &str, a: &Args) -> Output {
         .into(),
         // Up to nine large fetches: admitted like a research call.
         "get_instruments" => match research::admit(ctx, name, a).await {
-            Ok(_admission) => instruments(ctx, a).await.into(),
+            // The canonical arguments the limits were checked on.
+            Ok(admission) => instruments(ctx, &admission.args).await.into(),
             Err(refused) => refused.into(),
         },
         // ---- utility ----
