@@ -91,8 +91,11 @@ and the LAN toggle are changeable in-app. Loopback is the default bind; binding
 beyond loopback is an explicit user choice.
 
 Debug builds always use the development ports. A release build uses them only
-when `OPENALGO_DESKTOP_DEV_PORTS=1` is set; that is the only environment
-variable the app reads, and it never carries a secret.
+when `OPENALGO_DESKTOP_DEV_PORTS=1` is set. The only other environment variable
+is `OPENALGO_MCP_TOKEN`, read by the `mcp` subcommand alone: the MCP client
+(Claude Desktop, Claude Code) sets it in its own configuration, the token is
+created on the API Key page, and it is never a command-line argument, never
+logged and never a `.env` file. The app itself reads no other variables.
 
 A port already in use (macOS AirPlay holds 5000 on many Macs) must be reported
 to the user in the app with the fix, never only logged.
