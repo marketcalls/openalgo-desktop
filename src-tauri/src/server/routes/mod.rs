@@ -10,6 +10,7 @@ pub mod app_config;
 pub mod auth;
 pub mod broker;
 pub mod charts;
+pub mod custom_indicators;
 pub mod health;
 pub mod historify;
 pub mod latency;
@@ -17,6 +18,8 @@ pub mod leverage;
 pub mod log;
 pub mod market_calendar;
 pub mod master_contract;
+pub mod openscript;
+pub mod openscript_runner;
 pub mod options_tools;
 pub mod orders;
 pub mod playground;
@@ -725,6 +728,11 @@ pub fn table() -> Vec<RouteSpec> {
         r!(GET, "/whatsapp/stats", User, whatsapp::stats),
     ];
     t.extend(historify::table());
+    // The /trading terminal (web custom_indicators.py, openscript.py,
+    // openscript_runner.py).
+    t.extend(custom_indicators::table());
+    t.extend(openscript::table());
+    t.extend(openscript_runner::table());
     t
 }
 

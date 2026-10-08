@@ -96,6 +96,8 @@ pub struct AppState {
     pub historify: Arc<crate::historify::Historify>,
     /// The strategy module and RMS (`/strategy`).
     pub strategy: Arc<crate::strategy::StrategyModule>,
+    /// The /trading terminal: custom indicators, OpenScript files, the runner.
+    pub trading: crate::trading::Trading,
 }
 
 pub struct OpenOptions {
@@ -148,6 +150,8 @@ impl AppState {
         let historify_db = (*duckdb).clone();
         let websocket = Arc::new(WebSocketManager::new());
         let strategy_db = sqlite.clone();
+        let trading_db = sqlite.clone();
+        let trading_clock = opts.clock.clone();
         let strategy_ui = ui.clone();
         let strategy_symbols = symbols.clone();
         let strategy_clock = opts.clock.clone();
@@ -181,6 +185,14 @@ impl AppState {
                     strategy_feed,
                 ))),
             }),
+            trading: crate::trading::Trading::new(
+                data_dir,
+                trading_db,
+                trading_clock,
+                Arc::new(crate::trading::runner::services::AppServices::new(
+                    me.clone(),
+                )),
+            ),
             sandbox: crate::sandbox::Sandbox::with_db(
                 sandbox_db,
                 crate::sandbox::SandboxDeps {
@@ -223,6 +235,7 @@ impl AppState {
         crate::messaging::register(&ctx);
         ctx.historify.start();
         crate::strategy::register(&ctx);
+        crate::trading::register(&ctx);
         // Analyzer mode survives restarts: resume the sandbox engine.
         if ctx.sqlite.get_analyze_mode().unwrap_or(false) {
             crate::services::analyzer_service::AnalyzerService::spawn_engine_transition(&ctx, true);
@@ -268,6 +281,7 @@ impl AppState {
     pub async fn shutdown(&self) {
         self.shutdown.cancel();
         self.messaging.shutdown().await;
+        self.trading.shutdown().await;
         self.strategy.shutdown().await;
         self.historify.shutdown().await;
         self.runtime.teardown(self).await;

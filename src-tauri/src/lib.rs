@@ -23,6 +23,7 @@ pub mod services;
 pub mod session;
 pub mod state;
 pub mod strategy;
+pub mod trading;
 pub mod webhook;
 pub mod websocket;
 
@@ -61,62 +62,85 @@ pub fn run() {
     init_logging();
     tracing::info!("Starting OpenAlgo Desktop {}", env!("CARGO_PKG_VERSION"));
 
-    let app = tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
-        .setup(|app| {
-            let data_dir = app.path().app_data_dir()?;
-            let (ctx, server, feed) = tauri::async_runtime::block_on(async {
-                let ctx = AppState::open_default(&data_dir)?;
-                session::spawn_expiry_task(ctx.clone());
-                services::system_info::mark_start();
-                services::monitor::start(&ctx);
-                services::health_service::start(&ctx);
-                let server = server::start(ctx.clone()).await.ok();
-                // Recovery, prices, checkpoints and the IST scheduler (owned
-                // tasks, stopped by `AppState::shutdown`).
-                let started = ctx.strategy.start().await;
-                tracing::info!("Strategy module started: {}", started);
-                // Market data feed for SDK clients; a taken port is kept in
-                // its status with a trader-facing message.
-                let feed = feed::FeedService::new(ctx.clone());
-                feed.start().await;
-                messaging::autostart(&ctx);
-                Ok::<_, error::AppError>((ctx, server, feed))
-            })?;
-            app.manage(feed);
+    let app =
+        tauri::Builder::default()
+            .plugin(tauri_plugin_shell::init())
+            .setup(|app| {
+                let data_dir = app.path().app_data_dir()?;
+                let (ctx, server, feed) = tauri::async_runtime::block_on(async {
+                    let ctx = AppState::open_default(&data_dir)?;
+                    session::spawn_expiry_task(ctx.clone());
+                    services::system_info::mark_start();
+                    services::monitor::start(&ctx);
+                    services::health_service::start(&ctx);
+                    let server = server::start(ctx.clone()).await.ok();
+                    // Recovery, prices, checkpoints and the IST scheduler (owned
+                    // tasks, stopped by `AppState::shutdown`).
+                    let started = ctx.strategy.start().await;
+                    tracing::info!("Strategy module started: {}", started);
+                    // OpenScript schedules (an owned task, stopped at shutdown).
+                    ctx.trading.start(ctx.now(), &ctx.sqlite);
+                    // Market data feed for SDK clients; a taken port is kept in
+                    // its status with a trader-facing message.
+                    let feed = feed::FeedService::new(ctx.clone());
+                    feed.start().await;
+                    messaging::autostart(&ctx);
+                    Ok::<_, error::AppError>((ctx, server, feed))
+                })?;
+                app.manage(feed);
 
-            let url = if server.is_none() {
-                // Start-up page explaining why the server is not running.
-                WebviewUrl::App("index.html".into())
-            } else if cfg!(debug_assertions) {
-                // Development: Vite (devUrl) proxies to the Rust server.
-                WebviewUrl::App("index.html".into())
-            } else {
-                match commands::window_url(&ctx) {
-                    Some(u) => WebviewUrl::External(u),
-                    None => WebviewUrl::App("index.html".into()),
+                let url = if server.is_none() {
+                    // Start-up page explaining why the server is not running.
+                    WebviewUrl::App("index.html".into())
+                } else if cfg!(debug_assertions) {
+                    // Development: Vite (devUrl) proxies to the Rust server.
+                    WebviewUrl::App("index.html".into())
+                } else {
+                    match commands::window_url(&ctx) {
+                        Some(u) => WebviewUrl::External(u),
+                        None => WebviewUrl::App("index.html".into()),
+                    }
+                };
+                WebviewWindowBuilder::new(app, "main", url)
+                    .title("OpenAlgo Desktop")
+                    .inner_size(1400.0, 900.0)
+                    .min_inner_size(1024.0, 768.0)
+                    .center()
+                    .build()?;
+
+                // OpenScript live runs: one hidden window per run, loading the
+                // runner page from this app's own server.
+                #[cfg(feature = "runner-window")]
+                {
+                    let weak = Arc::downgrade(&ctx);
+                    ctx.trading.runner.set_host(Arc::new(
+                        trading::runner::window::WindowHost::new(app.handle().clone(), move || {
+                            if cfg!(debug_assertions) {
+                                // Development: the page comes from Vite, which
+                                // proxies /openscript to this server.
+                                "http://localhost:5173".to_string()
+                            } else {
+                                let port =
+                                    weak.upgrade().map(|c| c.listening_port()).unwrap_or(5000);
+                                format!("http://127.0.0.1:{}", port)
+                            }
+                        }),
+                    ));
                 }
-            };
-            WebviewWindowBuilder::new(app, "main", url)
-                .title("OpenAlgo Desktop")
-                .inner_size(1400.0, 900.0)
-                .min_inner_size(1024.0, 768.0)
-                .center()
-                .build()?;
 
-            app.manage(ShellState {
-                ctx,
-                server: tokio::sync::Mutex::new(server),
-            });
-            Ok(())
-        })
-        .invoke_handler(tauri::generate_handler![
-            commands::startup_status,
-            commands::retry_server,
-            commands::restart_server,
-            commands::open_external,
-        ])
-        .build(tauri::generate_context!());
+                app.manage(ShellState {
+                    ctx,
+                    server: tokio::sync::Mutex::new(server),
+                });
+                Ok(())
+            })
+            .invoke_handler(tauri::generate_handler![
+                commands::startup_status,
+                commands::retry_server,
+                commands::restart_server,
+                commands::open_external,
+            ])
+            .build(tauri::generate_context!());
 
     let app = match app {
         Ok(a) => a,
@@ -127,6 +151,25 @@ pub fn run() {
     };
 
     app.run(|handle, event| {
+        // Hidden runner windows would keep the app alive after the trader
+        // closes the main window: pause the runs (closing their windows) so
+        // the app exits as it always has.
+        if let RunEvent::WindowEvent {
+            label,
+            event: tauri::WindowEvent::Destroyed,
+            ..
+        } = &event
+        {
+            if label == "main" {
+                if let Some(shell) = handle.try_state::<ShellState>() {
+                    shell
+                        .ctx
+                        .trading
+                        .runner
+                        .pause_all("Paused because OpenAlgo is closing");
+                }
+            }
+        }
         if let RunEvent::Exit = event {
             if let Some(shell) = handle.try_state::<ShellState>() {
                 let ctx: Arc<AppState> = shell.ctx.clone();
