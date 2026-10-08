@@ -1,5 +1,8 @@
-//! Nubra adapter suite against a local fake broker: TOTP sign-in (with the
-//! leading-zero retry), V3 intent-order bodies in paise, bucketed books
+//! Nubra adapter suite against a local fake broker: phone-OTP sign-in (the
+//! SMS OTP sent when the login page opens, redeemed once with its temp
+//! token, then the MPIN), the same through the `/nubra/callback` routes,
+//! the unrouted TOTP path (with the leading-zero retry), V3 intent-order
+//! bodies in paise, bucketed books
 //! normalised to OpenAlgo symbols, funds, margin, quotes, depth, index
 //! snapshot over a fake market socket, history chunking, the master
 //! contract, and the order-update stream through the loopback relay.
@@ -35,6 +38,7 @@ struct Seen {
     query: String,
     authorization: String,
     device: String,
+    temp: String,
     body: Value,
 }
 
@@ -75,6 +79,40 @@ fn route(fake: &Fake, s: &Seen) -> Response {
         return reply(StatusCode::from_u16(440).unwrap(), "");
     }
     match (s.method.as_str(), s.path.as_str()) {
+        ("POST", "/sendphoneotp") => {
+            // The official SDK (and the web) send no device id here.
+            if !s.device.is_empty() {
+                return reply(StatusCode::BAD_REQUEST, json!({"error": "device"}));
+            }
+            match (s.body["phone"].as_str(), s.temp.as_str()) {
+                (Some("8888888888"), _) => ok(json!({"temp_token": "T", "next": "VERIFY_EMAIL"})),
+                (Some("9999999999"), "")
+                    if s.body == json!({"phone": "9999999999", "flow": "", "skip_totp": false}) =>
+                {
+                    ok(fixture!("sendphoneotp_verify_totp.json"))
+                }
+                (Some("9999999999"), "TEMP1") if s.body["skip_totp"] == true => {
+                    ok(fixture!("sendphoneotp_verify_mobile.json"))
+                }
+                _ => reply(
+                    StatusCode::BAD_REQUEST,
+                    json!({"message": "Invalid phone number"}),
+                ),
+            }
+        }
+        ("POST", "/verifyphoneotp") => {
+            if s.temp == "TEMP2"
+                && s.device == "OPENALGO"
+                && s.body == json!({"phone": "9999999999", "otp": "123456"})
+            {
+                ok(fixture!("verifyphoneotp.json"))
+            } else {
+                reply(
+                    StatusCode::UNAUTHORIZED,
+                    fixture!("verifyphoneotp_invalid.json"),
+                )
+            }
+        }
         ("POST", "/totp/login") => {
             if s.device != "OPENALGO" {
                 return reply(StatusCode::BAD_REQUEST, json!({"error": "device"}));
@@ -182,6 +220,7 @@ async fn serve(fake: Arc<Fake>) -> String {
                     query: uri.query().unwrap_or("").to_string(),
                     authorization: h("authorization"),
                     device: h("x-device-id"),
+                    temp: h("x-temp-token"),
                     body: serde_json::from_slice(&body).unwrap_or(Value::Null),
                 };
                 fake.seen.lock().push(seen.clone());
@@ -311,9 +350,168 @@ fn order_req(
 }
 
 #[tokio::test]
-async fn totp_login_then_mpin() {
+async fn phone_otp_is_sent_then_redeemed_once_with_the_mpin() {
     let (b, fake, _) = setup().await;
-    let r = b.authenticate(creds("123456")).await.unwrap();
+    assert!(!b.otp_pending());
+
+    // Opening the login page: a TOTP-enrolled account answers VERIFY_TOTP,
+    // so the SMS is forced with the first temp token and skip_totp.
+    let msg = b.send_login_otp(&creds("")).await.unwrap();
+    assert_eq!(
+        msg,
+        "An OTP has been sent to your registered mobile number 99999***99."
+    );
+    let sent = fake.calls("/sendphoneotp");
+    assert_eq!(sent.len(), 2);
+    assert_eq!(
+        sent[0].body,
+        json!({"phone": "9999999999", "flow": "", "skip_totp": false})
+    );
+    assert_eq!((sent[0].temp.as_str(), sent[0].device.as_str()), ("", ""));
+    assert_eq!(
+        sent[1].body,
+        json!({"phone": "9999999999", "flow": "", "skip_totp": true})
+    );
+    assert_eq!(sent[1].temp, "TEMP1");
+    assert!(b.otp_pending());
+
+    // The form posts the OTP: verified with the second temp token, then
+    // the MPIN for the session.
+    let r = b.authenticate(creds(" 123456 ")).await.unwrap();
+    assert_eq!(r.auth_token, "SESS1");
+    assert_eq!(r.user_id, "9999999999");
+    assert!(r.feed_token.is_none());
+    let verify = fake.calls("/verifyphoneotp");
+    assert_eq!(verify.len(), 1);
+    assert_eq!(verify[0].temp, "TEMP2");
+    assert_eq!(verify[0].device, "OPENALGO");
+    assert_eq!(
+        verify[0].body,
+        json!({"phone": "9999999999", "otp": "123456"})
+    );
+    let pin = fake.calls("/verifypin");
+    assert_eq!(pin.len(), 1);
+    assert_eq!(pin[0].authorization, "Bearer AUTH1");
+    assert_eq!(pin[0].device, "OPENALGO");
+    assert_eq!(pin[0].temp, "");
+    assert_eq!(pin[0].body, json!({"pin": "4321"}));
+
+    // Single use: the same OTP again needs a new login.
+    assert!(!b.otp_pending());
+    let e = b.authenticate(creds("123456")).await.unwrap_err();
+    assert!(
+        e.client_message()
+            .contains("Start the Nubra login again from the broker page"),
+        "{}",
+        e.client_message()
+    );
+    assert_eq!(fake.calls("/verifyphoneotp").len(), 1);
+}
+
+#[tokio::test]
+async fn a_refused_or_malformed_otp_still_uses_up_the_login() {
+    let (b, fake, _) = setup().await;
+
+    // Nubra refuses the code: its reason reaches the trader, and the temp
+    // token is gone (the web pops it before the attempt).
+    b.send_login_otp(&creds("")).await.unwrap();
+    let e = b.authenticate(creds("111111")).await.unwrap_err();
+    assert!(
+        e.client_message().contains("Invalid OTP"),
+        "{}",
+        e.client_message()
+    );
+    assert!(!b.otp_pending());
+    let e = b.authenticate(creds("123456")).await.unwrap_err();
+    assert!(
+        e.client_message().contains("expired"),
+        "{}",
+        e.client_message()
+    );
+
+    // Not digits: refused before any call to Nubra.
+    b.send_login_otp(&creds("")).await.unwrap();
+    let before = fake.calls("/verifyphoneotp").len();
+    let e = b.authenticate(creds("12a456")).await.unwrap_err();
+    assert!(
+        e.client_message().contains("digits only"),
+        "{}",
+        e.client_message()
+    );
+    assert_eq!(fake.calls("/verifyphoneotp").len(), before);
+    assert!(!b.otp_pending());
+
+    // A wrong MPIN after a good OTP.
+    b.send_login_otp(&creds("")).await.unwrap();
+    let mut bad_pin = creds("123456");
+    bad_pin.api_secret = Some("0000".into());
+    let e = b.authenticate(bad_pin).await.unwrap_err();
+    assert!(
+        e.client_message().contains("MPIN"),
+        "{}",
+        e.client_message()
+    );
+
+    // The OTP was sent to another number than the one signing in.
+    b.send_login_otp(&creds("")).await.unwrap();
+    let before = fake.calls("/verifyphoneotp").len();
+    let mut other_phone = creds("123456");
+    other_phone.api_key = "9999999998".into();
+    let e = b.authenticate(other_phone).await.unwrap_err();
+    assert!(
+        e.client_message().contains("number was changed"),
+        "{}",
+        e.client_message()
+    );
+    assert_eq!(fake.calls("/verifyphoneotp").len(), before);
+    assert!(!b.otp_pending());
+
+    // Phone or MPIN missing: nothing is sent.
+    let calls = fake.seen.lock().len();
+    let mut no_phone = creds("");
+    no_phone.api_key = " ".into();
+    assert!(b.send_login_otp(&no_phone).await.is_err());
+    let mut no_mpin = creds("123456");
+    no_mpin.api_secret = None;
+    assert!(b.authenticate(no_mpin).await.is_err());
+    assert_eq!(fake.seen.lock().len(), calls);
+
+    // An unexpected next step is refused and nothing is kept.
+    let mut other = creds("");
+    other.api_key = "8888888888".into();
+    let e = b.send_login_otp(&other).await.unwrap_err();
+    assert!(e.client_message().contains("unexpected login step"));
+    assert!(!b.otp_pending());
+
+    // Logout drops a pending OTP.
+    b.send_login_otp(&creds("")).await.unwrap();
+    assert!(b.otp_pending());
+    b.on_logout().await;
+    assert!(!b.otp_pending());
+}
+
+#[tokio::test]
+async fn a_pending_otp_expires() {
+    let fake = Arc::new(Fake::default());
+    let host = serve(fake.clone()).await;
+    let b = NubraBroker::with_urls(master(), host, "ws://127.0.0.1:1")
+        .with_fast_timings()
+        .with_otp_ttl(std::time::Duration::from_millis(30));
+    b.send_login_otp(&creds("")).await.unwrap();
+    assert!(b.otp_pending());
+    tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+    assert!(!b.otp_pending());
+    let e = b.authenticate(creds("123456")).await.unwrap_err();
+    assert!(e.client_message().contains("expired"));
+    assert!(fake.calls("/verifyphoneotp").is_empty());
+}
+
+/// The web's unrouted TOTP path, kept in `auth` for reference.
+#[tokio::test]
+async fn totp_login_then_mpin() {
+    use openalgo_desktop_lib::brokers::nubra::auth::authenticate_with_totp;
+    let (b, fake, _) = setup().await;
+    let r = authenticate_with_totp(&b, creds("123456")).await.unwrap();
     assert_eq!(r.auth_token, "SESS1");
     assert_eq!(r.user_id, "9999999999");
     let login = fake.calls("/totp/login");
@@ -324,28 +522,261 @@ async fn totp_login_then_mpin() {
     );
 
     // Leading zero: integer first, then the zero-padded string.
-    let r = b.authenticate(creds("12345")).await.unwrap();
+    let r = authenticate_with_totp(&b, creds("12345")).await.unwrap();
     assert_eq!(r.auth_token, "SESS1");
     let login = fake.calls("/totp/login");
     assert_eq!(login[1].body["totp"], json!(12345));
     assert_eq!(login[2].body["totp"], json!("012345"));
-    let pin = fake.calls("/verifypin");
-    assert_eq!(pin[0].authorization, "Bearer AUTH1");
-    assert_eq!(pin[0].device, "OPENALGO");
 
-    let e = b.authenticate(creds("111111")).await.unwrap_err();
+    let e = authenticate_with_totp(&b, creds("111111"))
+        .await
+        .unwrap_err();
     assert!(
         e.client_message().contains("Invalid TOTP"),
         "{}",
         e.client_message()
     );
-    let mut bad_pin = creds("123456");
-    bad_pin.api_secret = Some("0000".into());
-    let e = b.authenticate(bad_pin).await.unwrap_err();
-    assert!(e.client_message().contains("MPIN"));
     let mut no_totp = creds("x");
     no_totp.totp = None;
-    assert!(b.authenticate(no_totp).await.is_err());
+    assert!(authenticate_with_totp(&b, no_totp).await.is_err());
+}
+
+/// The in-app flow through the web's routes: GET `/nubra/callback` sends
+/// the OTP and opens the OTP page; POST `/nubra/callback` (form `otp` or
+/// `totp`, CSRF token, signed-in session) signs in with the web's JSON.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn callback_routes_send_and_redeem_the_otp() {
+    use axum::body::Body;
+    use axum::extract::ConnectInfo;
+    use axum::http::{header, Request};
+    use http_body_util::BodyExt;
+    use openalgo_desktop_lib::brokers::BrokerRegistry;
+    use openalgo_desktop_lib::db::sqlite::credentials::{self, CredentialUpdate};
+    use openalgo_desktop_lib::security::keystore::MemoryKeyStore;
+    use openalgo_desktop_lib::security::Secret;
+    use openalgo_desktop_lib::services::auth_service::AuthService;
+    use openalgo_desktop_lib::state::{AppState, OpenOptions};
+    use tower::ServiceExt;
+
+    let fake = Arc::new(Fake::default());
+    let host = serve(fake.clone()).await;
+    let symbols = SymbolResolver::new();
+    let nubra = Arc::new(
+        NubraBroker::with_urls(symbols.clone(), host, "ws://127.0.0.1:1")
+            .with_fast_timings()
+            .with_order_ws_fallback("ws://127.0.0.1:1"),
+    );
+    let dir = tempfile::tempdir().unwrap();
+    let ctx = AppState::open(
+        dir.path(),
+        OpenOptions {
+            keystore: Arc::new(MemoryKeyStore::new()),
+            clock: openalgo_desktop_lib::clock::ManualClock::new(
+                chrono::TimeZone::with_ymd_and_hms(
+                    &chrono_tz::Asia::Kolkata,
+                    2026,
+                    10,
+                    5,
+                    10,
+                    0,
+                    0,
+                )
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            ),
+            brokers: Arc::new(BrokerRegistry::with_symbols(
+                symbols,
+                vec![nubra.clone() as Arc<dyn Broker>],
+            )),
+        },
+    )
+    .unwrap();
+    AuthService::setup(&ctx, "trader", "trader@example.com", "Secret@123").unwrap();
+    {
+        let conn = ctx.sqlite.conn().unwrap();
+        credentials::save(
+            &conn,
+            &ctx.security,
+            "nubra",
+            CredentialUpdate {
+                api_key: Some(Secret::new("9999999999")),
+                api_secret: Some(Secret::new("4321")),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    }
+    let web = ctx.sessions.create(ctx.now());
+    ctx.sessions
+        .update(&web.id, |s| s.user = Some("trader".into()));
+    let cookie = format!("session={}", web.id);
+
+    let send = |req: Request<Body>, ip: u8| {
+        let ctx = ctx.clone();
+        async move {
+            let mut req = req;
+            req.extensions_mut()
+                .insert(ConnectInfo(std::net::SocketAddr::from((
+                    [10, 0, 0, ip],
+                    40000,
+                ))));
+            let resp = openalgo_desktop_lib::server::app(ctx)
+                .oneshot(req)
+                .await
+                .unwrap();
+            let status = resp.status().as_u16();
+            let location = resp
+                .headers()
+                .get(header::LOCATION)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or_default()
+                .to_string();
+            let body = resp.into_body().collect().await.unwrap().to_bytes();
+            let v: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
+            (status, location, v)
+        }
+    };
+    let get = |cookie: Option<&str>| {
+        let mut b = Request::builder().uri("/nubra/callback");
+        if let Some(c) = cookie {
+            b = b.header(header::COOKIE, c);
+        }
+        b.body(Body::empty()).unwrap()
+    };
+    let post_with = |form: &str, extra: Option<(&str, &str)>| {
+        let mut b = Request::builder()
+            .method("POST")
+            .uri("/nubra/callback")
+            .header(header::COOKIE, cookie.as_str())
+            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded");
+        if let Some((k, v)) = extra {
+            b = b.header(k, v);
+        }
+        b.body(Body::from(form.to_string())).unwrap()
+    };
+    let post = |form: &str| post_with(form, None);
+
+    // Not signed in to OpenAlgo: the page opens, nothing is sent.
+    let (status, location, _) = send(get(None), 1).await;
+    assert!((300..400).contains(&status), "{}", status);
+    assert_eq!(location, "/broker/nubra/totp");
+    assert!(fake.calls("/sendphoneotp").is_empty());
+
+    // Signed in: the OTP is sent, then the OTP page opens.
+    let (status, location, _) = send(get(Some(&cookie)), 2).await;
+    assert!((300..400).contains(&status), "{}", status);
+    assert_eq!(location, "/broker/nubra/totp");
+    assert_eq!(fake.calls("/sendphoneotp").len(), 2);
+    assert!(nubra.otp_pending());
+
+    // No CSRF token: refused, and the pending OTP is untouched.
+    let (status, _, _) = send(post("otp=123456"), 3).await;
+    assert!(status == 400 || status == 403, "{}", status);
+    assert!(nubra.otp_pending());
+
+    // The right CSRF token from another site: refused as well, untouched.
+    let csrf = urlencoding::encode(&web.csrf_token).into_owned();
+    let good = format!("otp=123456&csrf_token={}", csrf);
+    for foreign in [
+        ("origin", "http://evil.example"),
+        ("origin", "null"),
+        ("sec-fetch-site", "cross-site"),
+    ] {
+        let (status, _, _) = send(post_with(&good, Some(foreign)), 3).await;
+        assert_eq!(status, 403, "{:?}", foreign);
+    }
+    assert!(nubra.otp_pending());
+    assert!(fake.calls("/verifyphoneotp").is_empty());
+
+    // No OTP: the field error, still pending.
+    let (status, _, v) = send(post(&format!("csrf_token={}", csrf)), 4).await;
+    assert_eq!(status, 400, "{}", v);
+    assert_eq!(v["status"], "error");
+    assert_eq!(
+        v["message"],
+        "Enter the OTP sent to your registered mobile number to sign in."
+    );
+    assert!(nubra.otp_pending());
+
+    // The OTP under the web's fallback name `totp`: signed in.
+    let (status, _, v) = send(post(&format!("totp=123456&csrf_token={}", csrf)), 5).await;
+    assert_eq!(status, 200, "{}", v);
+    assert_eq!(
+        v,
+        json!({"status": "success", "message": "Authentication successful", "redirect": "/dashboard"})
+    );
+    assert_eq!(
+        ctx.get_broker_session().map(|s| s.broker_id),
+        Some("nubra".to_string())
+    );
+    assert_eq!(fake.calls("/verifyphoneotp")[0].temp, "TEMP2");
+
+    // The same OTP again: the login has to start over.
+    let (status, _, v) = send(post(&format!("otp=123456&csrf_token={}", csrf)), 6).await;
+    assert_eq!(status, 401, "{}", v);
+    assert_eq!(v["status"], "error");
+    assert!(
+        v["message"]
+            .as_str()
+            .unwrap()
+            .contains("Start the Nubra login again"),
+        "{}",
+        v
+    );
+    assert_eq!(fake.calls("/verifyphoneotp").len(), 1);
+
+    // A wrong OTP: Nubra's reason reaches the trader, and the login is
+    // used up.
+    send(get(Some(&cookie)), 8).await;
+    assert!(nubra.otp_pending());
+    let (status, _, v) = send(post(&format!("otp=111111&csrf_token={}", csrf)), 8).await;
+    assert_eq!(status, 401, "{}", v);
+    assert!(
+        v["message"].as_str().unwrap().contains("Invalid OTP"),
+        "{}",
+        v
+    );
+    assert!(!nubra.otp_pending());
+
+    // An OTP sent to the saved number is not redeemed for a number saved
+    // over it since: refused before Nubra is asked.
+    send(get(Some(&cookie)), 9).await;
+    assert!(nubra.otp_pending());
+    {
+        let conn = ctx.sqlite.conn().unwrap();
+        credentials::save(
+            &conn,
+            &ctx.security,
+            "nubra",
+            CredentialUpdate {
+                api_key: Some(Secret::new("9999999998")),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    }
+    let verified = fake.calls("/verifyphoneotp").len();
+    let (status, _, v) = send(post(&good), 9).await;
+    assert_eq!(status, 401, "{}", v);
+    assert!(
+        v["message"]
+            .as_str()
+            .unwrap()
+            .contains("number was changed"),
+        "{}",
+        v
+    );
+    assert_eq!(fake.calls("/verifyphoneotp").len(), verified);
+    assert!(!nubra.otp_pending());
+
+    // Opening the page is login-limited like the form (5 a minute).
+    for _ in 0..5 {
+        send(get(Some(&cookie)), 7).await;
+    }
+    let (status, _, _) = send(get(Some(&cookie)), 7).await;
+    assert_eq!(status, 429);
+
+    ctx.shutdown().await;
 }
 
 #[tokio::test]

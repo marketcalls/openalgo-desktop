@@ -2,7 +2,7 @@
 //! from the web code (`broker/nubra/**`) and its protobuf descriptors. No
 //! account data.
 
-use super::auth::{normalize_totp, totp_candidates};
+use super::auth::{mask_phone, normalize_totp, totp_candidates};
 use super::data::{self, chunk_days, history_body, history_query_target};
 use super::mapping::{self, *};
 use super::master_contract::{parse_indexes, parse_refdata};
@@ -820,11 +820,29 @@ fn totp_handling_matches_the_web() {
 }
 
 #[test]
+fn phone_is_masked_like_the_web() {
+    // web: f"{phone[:5]}***{phone[-2:]}" if len(phone) > 7 else "***"
+    assert_eq!(mask_phone("9876543210"), "98765***10");
+    assert_eq!(mask_phone("+919876543210"), "+9198***10");
+    assert_eq!(mask_phone("12345678"), "12345***78");
+    assert_eq!(mask_phone("1234567"), "***");
+    assert_eq!(mask_phone(""), "***");
+}
+
+#[test]
 fn identity_and_capabilities() {
     let b = NubraBroker::new(SymbolResolver::new());
     assert_eq!(b.id(), "nubra");
-    assert_eq!(b.login_kind(), LoginKind::DirectTotp { fields: &["totp"] });
-    assert!(b.requires_totp());
+    assert_eq!(
+        b.login_kind(),
+        LoginKind::TwoStep {
+            step1: &[],
+            step2: &["otp"]
+        }
+    );
+    assert!(!b.requires_totp());
+    assert!(b.as_any().is_some_and(|a| a.is::<NubraBroker>()));
+    assert!(!b.otp_pending());
     let c = b.capabilities();
     assert!(c.history && c.margin && c.streaming && !c.gtt);
     assert_eq!(c.depth_levels, &[5]);

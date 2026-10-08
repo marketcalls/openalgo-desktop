@@ -102,11 +102,17 @@ pub const CLIENT_ID_BROKERS: &[&str] = &["arrow", "hdfcsky", "hdfcsecurities", "
 
 /// The trading account the stored credentials name, for brokers whose
 /// configuration carries it: Dhan and the Noren family take
-/// `client_id:::key` as the API key or a separate client id. A sign-in that
-/// comes back for a different account is refused (a forged callback).
-/// `None` for brokers whose client-id field means something else (Fyers'
-/// app id) or is not stored.
+/// `client_id:::key` as the API key or a separate client id; Nubra's API
+/// key is the registered mobile number the account signs in with. A
+/// sign-in that comes back for a different account is refused (a forged
+/// callback, or an OTP sent to a number saved over since). `None` for
+/// brokers whose client-id field means something else (Fyers' app id) or
+/// is not stored.
 pub fn configured_account(broker: &str, api_key: &str, client_id: Option<&str>) -> Option<String> {
+    if broker == "nubra" {
+        let phone = api_key.trim();
+        return (!phone.is_empty()).then(|| phone.to_string());
+    }
     let client = client_id
         .map(str::trim)
         .filter(|c| !c.is_empty())
@@ -159,6 +165,13 @@ pub fn callback_binding(broker: &str, params: &HashMap<String, String>) -> Optio
 /// URL's query).
 pub fn posts_callback(broker: &str) -> bool {
     matches!(broker, "compositedge" | "rmoney")
+}
+
+/// Brokers that send a login OTP when their login page opens (web GET
+/// `/<broker>/callback`): Definedge and Nubra. That GET is login-limited
+/// like the form POST, since each one sends the trader a message.
+pub fn sends_login_otp(broker: &str) -> bool {
+    matches!(broker, "definedge" | "nubra")
 }
 
 /// A ready access token on a callback address instead of a code
@@ -445,12 +458,13 @@ pub fn login_fields(broker: &str) -> &'static [LoginField] {
                 required: false,
             },
         ],
-        // Nubra (web authenticate_broker_totp): the stored API key is the
-        // registered mobile number and the secret the MPIN; the form
-        // carries the TOTP from the authenticator app.
+        // Nubra (web authenticate_broker, the phone-OTP flow): the stored
+        // API key is the registered mobile number and the secret the MPIN;
+        // opening the login page sends an SMS OTP and the form posts it as
+        // `otp` (`totp` is accepted too, as on the web).
         "nubra" => &[LoginField {
-            name: "totp",
-            label: "TOTP from your authenticator app",
+            name: "otp",
+            label: "OTP sent to your registered mobile number",
             secret: true,
             required: true,
         }],
@@ -704,6 +718,12 @@ mod tests {
         );
         assert_eq!(configured_account("aliceblue", "key", None), None);
         assert_eq!(configured_account("zebu", "k", None), None);
+        // Nubra: the registered mobile number saved as the API key.
+        assert_eq!(
+            configured_account("nubra", " 9999999999 ", Some("x")).as_deref(),
+            Some("9999999999")
+        );
+        assert_eq!(configured_account("nubra", " ", None), None);
         assert_eq!(
             login_binding(
                 "dhan",
@@ -894,13 +914,16 @@ mod tests {
     }
 
     #[test]
-    fn nubra_signs_in_with_a_totp_form() {
+    fn nubra_signs_in_with_the_sms_otp() {
         assert_eq!(auth_type("nubra"), AuthType::Form);
         let f = login_fields("nubra");
         assert_eq!(f.len(), 1);
-        assert_eq!(f[0].name, "totp");
+        assert_eq!(f[0].name, "otp");
+        assert_eq!(credential_slot(f[0].name), Some(CredentialSlot::Totp));
         assert!(f[0].secret && f[0].required);
         assert!(authorize_url("nubra", "k", "r", "s").is_none());
+        assert!(sends_login_otp("nubra") && sends_login_otp("definedge"));
+        assert!(!sends_login_otp("angel") && !sends_login_otp("zerodha"));
     }
 
     #[test]

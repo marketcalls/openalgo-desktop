@@ -92,12 +92,20 @@ pub async fn oauth_callback(
         return error(StatusCode::NOT_FOUND, "Unknown broker.");
     }
     if catalog::auth_type(&broker) == AuthType::Form && params.is_empty() {
-        // Definedge sends its login OTP as the page opens (web brlogin),
-        // only for a browser session signed in to OpenAlgo.
+        // Definedge and Nubra send their login OTP as the page opens (web
+        // brlogin), only for a browser session signed in to OpenAlgo, and
+        // within the login limits (each open sends the trader a message).
         if sess.as_ref().is_some_and(|s| s.user.is_some()) {
+            if catalog::sends_login_otp(&broker) {
+                if let Some(r) = login_limited(&ctx, ip) {
+                    return r;
+                }
+            }
             if let Err(e) = BrokerAuthService::prepare_form_login(&ctx, &broker).await {
+                // Back to the broker page with the reason (web
+                // `handle_auth_failure` on a page navigation).
                 tracing::warn!("Preparing the {} sign-in failed: {}", broker, e.code());
-                return error(StatusCode::INTERNAL_SERVER_ERROR, e.client_message());
+                return broker_page_with_error(&e.client_message());
             }
         }
         // Samco's connect page (key exchange plus the static IP check).

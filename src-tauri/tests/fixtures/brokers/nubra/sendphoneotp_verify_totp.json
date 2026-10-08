@@ -1,0 +1,7 @@
+{
+  "temp_token": "TEMP1",
+  "next": "VERIFY_TOTP",
+  "message": "TOTP is enabled for this account",
+  "expiry": 300,
+  "attempts_left": 5
+}

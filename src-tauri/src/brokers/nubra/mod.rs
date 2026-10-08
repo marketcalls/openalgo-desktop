@@ -1,10 +1,14 @@
 //! Nubra Trading API V3 adapter (web `broker/nubra/**`).
 //!
-//! * Sign-in (web `authenticate_broker_totp`): the stored API key is the
-//!   registered mobile number and the secret the MPIN; the form carries a
-//!   TOTP. `POST /totp/login` -> `auth_token`, then `POST /verifypin` ->
-//!   `session_token`, which is the stored session. The phone-OTP flow's
-//!   steps are public in `auth` for a future two-form route.
+//! * Sign-in (web `authenticate_broker`, the phone-OTP flow): the stored
+//!   API key is the registered mobile number and the secret the MPIN.
+//!   Opening the login page (GET `/nubra/callback`) asks Nubra to send an
+//!   SMS OTP (`POST /sendphoneotp`, twice for a TOTP-enrolled account) and
+//!   keeps the returned temp token in one expiring slot; the form posts the
+//!   OTP, which is redeemed with that token (`POST /verifyphoneotp` ->
+//!   `auth_token`), then `POST /verifypin` -> `session_token`, the stored
+//!   session. The TOTP path (web `authenticate_broker_totp`, unrouted on
+//!   the web too) stays in `auth` for reference.
 //! * Every authenticated call sends `Authorization: Bearer <session>`,
 //!   `Accept: application/json` and `x-device-id: OPENALGO` (the id the
 //!   login bound the session to). HTTP 440 means the session expired and is
@@ -30,10 +34,12 @@ use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
 use crate::error::{AppError, Result};
+use crate::security::Secret;
 use async_trait::async_trait;
+use parking_lot::Mutex;
 use reqwest::Method;
 use serde_json::Value;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub const BASE_URL: &str = "https://api.nubra.io";
 /// Market-data socket (web `api/nubrawebsocket.py` `WS_URL`).
@@ -75,6 +81,21 @@ pub const TIMEFRAME_MAP: &[(&str, &str)] = &[
 /// Attempts for a call that keeps answering 429.
 const MAX_ATTEMPTS: u32 = 3;
 
+/// How long a sent login OTP can be redeemed. The web keeps the temp token
+/// in the browser session until the form posts; here it lives in one slot
+/// that expires with the challenge (Nubra answers `expiry: 300`).
+pub const OTP_TTL: Duration = Duration::from_secs(300);
+
+/// The temp token a sent OTP is redeemed with (one slot, replaced on every
+/// send, taken by the next sign-in attempt whatever its outcome, dropped on
+/// expiry and on logout).
+pub(crate) struct PendingOtp {
+    pub temp_token: Secret,
+    /// The registered mobile number the OTP was sent to.
+    pub phone: String,
+    pub sent_at: Instant,
+}
+
 pub struct NubraBroker {
     pub(crate) http: reqwest::Client,
     pub(crate) base_url: String,
@@ -89,6 +110,10 @@ pub struct NubraBroker {
     pub(crate) retry_base: Duration,
     /// How long a one-shot feed snapshot waits (web 2 s).
     pub(crate) snapshot_wait: Duration,
+    /// The login OTP waiting to be redeemed.
+    pub(crate) pending_otp: Mutex<Option<PendingOtp>>,
+    /// Lifetime of `pending_otp` (`OTP_TTL`; tests shorten it).
+    pub(crate) otp_ttl: Duration,
 }
 
 impl NubraBroker {
@@ -112,6 +137,8 @@ impl NubraBroker {
             history_pacer: Pacer::per_second(1.0),
             retry_base: Duration::from_secs(1),
             snapshot_wait: Duration::from_secs(2),
+            pending_otp: Mutex::new(None),
+            otp_ttl: OTP_TTL,
         }
     }
 
@@ -122,6 +149,29 @@ impl NubraBroker {
         self.loop_pacer = Pacer::per_second(1000.0);
         self.snapshot_wait = Duration::from_millis(400);
         self
+    }
+
+    /// How long a sent login OTP stays redeemable (tests).
+    pub fn with_otp_ttl(mut self, ttl: Duration) -> Self {
+        self.otp_ttl = ttl;
+        self
+    }
+
+    /// Whether an unexpired login OTP is waiting to be redeemed.
+    pub fn otp_pending(&self) -> bool {
+        self.pending_otp
+            .lock()
+            .as_ref()
+            .is_some_and(|p| p.sent_at.elapsed() < self.otp_ttl)
+    }
+
+    /// Ask Nubra to text the login OTP to the registered mobile number
+    /// (web GET `/nubra/callback`). Keeps the temp token for the OTP form
+    /// and returns the trader-facing message, naming the masked number.
+    pub async fn send_login_otp(&self, credentials: &BrokerCredentials) -> Result<String> {
+        auth::send_login_otp(self, credentials)
+            .await
+            .map_err(redact)
     }
 
     /// Order-update socket used when `/userinfo` names none.
@@ -256,8 +306,19 @@ impl Broker for NubraBroker {
         "/logos/nubra.svg"
     }
 
+    fn as_any(&self) -> Option<&dyn std::any::Any> {
+        Some(self)
+    }
+
     fn login_kind(&self) -> LoginKind {
-        LoginKind::DirectTotp { fields: &["totp"] }
+        LoginKind::TwoStep {
+            step1: &[],
+            step2: &["otp"],
+        }
+    }
+
+    async fn on_logout(&self) {
+        *self.pending_otp.lock() = None;
     }
 
     fn supported_exchanges(&self) -> &'static [Exchange] {

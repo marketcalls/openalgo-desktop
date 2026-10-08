@@ -1,0 +1,7 @@
+{
+  "temp_token": "TEMP2",
+  "next": "VERIFY_MOBILE",
+  "message": "OTP sent to your registered mobile number",
+  "expiry": 300,
+  "attempts_left": 5
+}

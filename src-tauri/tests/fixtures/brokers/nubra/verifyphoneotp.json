@@ -1,0 +1,5 @@
+{
+  "auth_token": "AUTH1",
+  "next": "VERIFY_PIN",
+  "message": "OTP verified"
+}

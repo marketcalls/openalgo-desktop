@@ -277,6 +277,7 @@ async fn nubra_never_leaks_credentials() {
         let b = NubraBroker::with_urls(symbols(), base, closed_ws())
             .with_fast_timings()
             .with_order_ws_fallback(closed_ws());
+        check_result("nubra otp", b.send_login_otp(&creds()).await);
         check_result("nubra auth", b.authenticate(creds()).await);
         drive_rest("nubra", &b, &auth).await;
         // Index quote: a one-shot market socket.
@@ -301,6 +302,84 @@ async fn nubra_never_leaks_credentials() {
         }
     }
     logs_clean("nubra logs", &log);
+}
+
+/// Nubra's phone-OTP sign-in end to end against a fake that answers every
+/// step: the mobile number, temp token, OTP, auth token, MPIN and session
+/// token are all sentinels, and none reaches a log, an error or the
+/// trader's message, whether Nubra refuses the OTP, refuses the MPIN or
+/// signs in, nor when the used-up OTP is replayed.
+#[tokio::test]
+async fn nubra_phone_otp_never_leaks_secrets() {
+    use axum::Json;
+    use serde_json::json;
+    use std::sync::atomic::{AtomicU8, Ordering};
+
+    let (log, _g) = capture();
+    let mode = Arc::new(AtomicU8::new(0));
+    let m = mode.clone();
+    let app = Router::new().fallback(move |uri: axum::http::Uri| {
+        let step = m.load(Ordering::SeqCst);
+        async move {
+            let ok = |v: serde_json::Value| (StatusCode::OK, Json(v)).into_response();
+            let refused = |why: &str| {
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(json!({"error": why, "nubra_error_code": ""})),
+                )
+                    .into_response()
+            };
+            match (uri.path(), step) {
+                ("/sendphoneotp", _) => ok(json!({
+                    "temp_token": format!("{S}-temp"),
+                    "next": "VERIFY_MOBILE",
+                    "expiry": 300,
+                })),
+                ("/verifyphoneotp", 0) => refused("Invalid OTP"),
+                ("/verifyphoneotp", _) => ok(json!({
+                    "auth_token": format!("{S}-auth"),
+                    "next": "VERIFY_PIN",
+                })),
+                ("/verifypin", 1) => refused("Invalid PIN"),
+                ("/verifypin", _) => ok(json!({"session_token": format!("{S}-session")})),
+                _ => refused("unauthorized"),
+            }
+        }
+    });
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let _ = axum::serve(listener, app).await;
+    });
+
+    let b = NubraBroker::with_urls(symbols(), base, closed_ws()).with_fast_timings();
+    let creds = BrokerCredentials {
+        api_key: S.into(),
+        api_secret: Some(S.into()),
+        totp: Some(D.into()),
+        ..Default::default()
+    };
+    // 0: the OTP is refused, 1: the MPIN is refused, 2: signed in.
+    for step in 0..3u8 {
+        mode.store(step, Ordering::SeqCst);
+        let msg = b.send_login_otp(&creds).await.unwrap();
+        clean("nubra otp message", &msg);
+        match b.authenticate(creds.clone()).await {
+            Ok(r) => {
+                assert_eq!(step, 2);
+                assert_eq!(r.auth_token, format!("{S}-session"));
+            }
+            Err(e) => {
+                assert!(step < 2, "{}", e.client_message());
+                check_err("nubra otp auth", &e);
+            }
+        }
+        // Replayed: the login is used up.
+        let e = b.authenticate(creds.clone()).await.unwrap_err();
+        check_err("nubra otp replay", &e);
+    }
+    server.abort();
+    logs_clean("nubra otp logs", &log);
 }
 
 #[tokio::test]

@@ -45,6 +45,20 @@ pub enum CallbackOrigin<'a> {
     Manual { session_id: &'a str },
 }
 
+/// A field label inside a sentence: the first letter lowered unless the
+/// first word is an abbreviation ("OTP sent to ..." stays as it is).
+fn sentence_case(label: &str) -> String {
+    let first = label.split_whitespace().next().unwrap_or("");
+    if first.len() > 1 && first.chars().all(|c| !c.is_lowercase()) {
+        return label.to_string();
+    }
+    let mut c = label.chars();
+    match c.next() {
+        Some(f) => f.to_lowercase().chain(c).collect(),
+        None => String::new(),
+    }
+}
+
 /// Inputs from a broker login form (web field names).
 #[derive(Debug, Default, Clone)]
 pub struct FormLogin {
@@ -65,15 +79,23 @@ impl FormLogin {
         }
         let mut out = FormLogin::default();
         for lf in fields {
-            let v = f
-                .get(lf.name)
-                .map(|v| v.trim().to_string())
-                .filter(|v| !v.is_empty());
+            let pick = |name: &str| {
+                f.get(name)
+                    .map(|v| v.trim().to_string())
+                    .filter(|v| !v.is_empty())
+            };
+            // Nubra's form field is `otp`, with `totp` accepted too (web
+            // `request.form.get("otp") or request.form.get("totp")`).
+            let v = pick(lf.name).or_else(|| {
+                (broker == "nubra" && lf.name == "otp")
+                    .then(|| pick("totp"))
+                    .flatten()
+            });
             let Some(v) = v else {
                 if lf.required {
                     return Err(AppError::Validation(format!(
                         "Enter the {} to sign in.",
-                        lf.label.to_lowercase()
+                        sentence_case(lf.label)
                     )));
                 }
                 continue;
@@ -362,22 +384,26 @@ impl BrokerAuthService {
     }
 
     /// Prepare a form login when its page opens or the trader asks again:
-    /// Definedge sends the login OTP (web GET `/definedge/callback` and the
-    /// `resend` action). `Ok(None)` for brokers with nothing to prepare,
-    /// otherwise the broker's message for the trader.
+    /// Definedge and Nubra send the login OTP (web GET `/<broker>/callback`,
+    /// and Definedge's `resend` action). `Ok(None)` for brokers with nothing
+    /// to prepare, otherwise the broker's message for the trader.
     pub async fn prepare_form_login(state: &AppState, broker: &str) -> Result<Option<String>> {
         let Some(adapter) = state.brokers.get(broker) else {
             return Ok(None);
         };
-        let Some(definedge) = adapter
-            .as_any()
-            .and_then(|a| a.downcast_ref::<crate::brokers::definedge::DefinedgeBroker>())
-        else {
+        let Some(any) = adapter.as_any() else {
             return Ok(None);
         };
-        let input = Self::stored_input(&Self::load_credentials(state, broker)?);
-        // No database connection is held across this await.
-        definedge.send_otp(&input).await.map(Some)
+        if let Some(definedge) = any.downcast_ref::<crate::brokers::definedge::DefinedgeBroker>() {
+            let input = Self::stored_input(&Self::load_credentials(state, broker)?);
+            // No database connection is held across this await.
+            return definedge.send_otp(&input).await.map(Some);
+        }
+        if let Some(nubra) = any.downcast_ref::<crate::brokers::nubra::NubraBroker>() {
+            let input = Self::stored_input(&Self::load_credentials(state, broker)?);
+            return nubra.send_login_otp(&input).await.map(Some);
+        }
+        Ok(None)
     }
 
     /// Samco static IP check (web GET `/samco/ip-status`):

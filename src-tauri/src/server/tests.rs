@@ -2301,7 +2301,7 @@ async fn login_forms_follow_the_brokers_own_fields() {
     )
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST, "{}", v);
-    assert_eq!(v["message"], "Enter the mpin to sign in.");
+    assert_eq!(v["message"], "Enter the MPIN to sign in.");
     let (s, _, v) = send_to(
         ctx,
         with_session(
