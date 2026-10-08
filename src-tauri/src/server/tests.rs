@@ -1226,8 +1226,7 @@ async fn oauth_state_expires_and_is_bound_to_the_broker() {
     assert!(h.mock.last_auth.lock().is_none());
 }
 
-#[tokio::test]
-async fn aliceblue_callback_without_state_needs_a_login_started_here() {
+fn aliceblue_harness(client_id: &str) -> H {
     let mock = Arc::new(MockBroker::new("aliceblue"));
     let t = build(
         BrokerRegistry::with(vec![mock.clone() as Arc<dyn crate::brokers::Broker>]),
@@ -1236,42 +1235,150 @@ async fn aliceblue_callback_without_state_needs_a_login_started_here() {
     t.ctx.limiter.freeze(Some(std::time::Instant::now()));
     let h = H { t, mock };
     h.setup();
-    {
-        let conn = h.ctx().sqlite.conn().unwrap();
+    h.set_aliceblue_client(client_id);
+    h
+}
+
+impl H {
+    fn set_aliceblue_client(&self, client_id: &str) {
+        let conn = self.ctx().sqlite.conn().unwrap();
         crate::db::sqlite::credentials::save(
             &conn,
-            &h.ctx().security,
+            &self.ctx().security,
             "aliceblue",
             crate::db::sqlite::credentials::CredentialUpdate {
                 api_key: Some("APPCODE".into()),
                 api_secret: Some("absecret".into()),
+                client_id: Some(client_id.into()),
                 ..Default::default()
             },
         )
         .unwrap();
     }
-    // Not started from OpenAlgo: refused, no exchange.
+}
+
+const ALICE_CALLBACK: &str = "/aliceblue/callback?authCode=ac1&userId=AB1234";
+
+#[tokio::test]
+async fn aliceblue_stateless_callback_needs_the_starting_browser_session() {
+    let h = aliceblue_harness("AB1234");
+    let (cookie, _) = h.session(true);
+    // Not started at all: refused, nothing exchanged or stored.
     let (_, headers, _) = h
-        .send(get("/aliceblue/callback?authCode=ac1&userId=AB123"))
+        .send(with_session(get(ALICE_CALLBACK), &cookie, None))
         .await;
     assert!(location(&headers).starts_with("/broker?error="));
     assert!(h.mock.last_auth.lock().is_none());
 
-    let url = BrokerAuthService::start_oauth(h.ctx(), "aliceblue").unwrap();
-    assert_eq!(url, "https://ant.aliceblueonline.com/?appcode=APPCODE");
+    let (s, headers, _) = h
+        .send(with_session(
+            get("/aliceblue/initiate-oauth"),
+            &cookie,
+            None,
+        ))
+        .await;
+    assert_eq!(s, StatusCode::FOUND);
+    assert_eq!(
+        location(&headers),
+        "https://ant.aliceblueonline.com/?appcode=APPCODE"
+    );
+
+    // A forged callback: no cookie, or another browser session's cookie.
+    let (_, headers, _) = h.send(get(ALICE_CALLBACK)).await;
+    assert!(location(&headers).starts_with("/broker?error="));
+    let (other, _) = h.session(false);
     let (_, headers, _) = h
-        .send(get("/aliceblue/callback?authCode=ac1&userId=AB123"))
+        .send(with_session(get(ALICE_CALLBACK), &other, None))
+        .await;
+    assert!(location(&headers).starts_with("/broker?error="));
+    assert!(h.mock.last_auth.lock().is_none());
+    assert!(!h.ctx().is_broker_connected());
+
+    // The trader's own callback still works: the forgeries removed nothing.
+    let (_, headers, _) = h
+        .send(with_session(get(ALICE_CALLBACK), &cookie, None))
         .await;
     assert_eq!(location(&headers), "/dashboard");
     let creds = h.mock.last_auth.lock().clone().unwrap();
-    assert_eq!(creds.auth_code.as_deref(), Some("AB123:ac1"));
+    assert_eq!(creds.auth_code.as_deref(), Some("AB1234:ac1"));
+    assert!(h.ctx().is_broker_connected());
 
     // One start admits one callback.
     *h.mock.last_auth.lock() = None;
     let (_, headers, _) = h
-        .send(get("/aliceblue/callback?authCode=ac2&userId=AB123"))
+        .send(with_session(get(ALICE_CALLBACK), &cookie, None))
         .await;
     assert!(location(&headers).starts_with("/broker?error="));
+    assert!(h.mock.last_auth.lock().is_none());
+}
+
+#[tokio::test]
+async fn aliceblue_callback_for_another_account_is_refused() {
+    // The configured client id differs from the account the broker signs in
+    // (the mock answers AB1234).
+    let h = aliceblue_harness("ZZ999");
+    let (cookie, _) = h.session(true);
+    h.send(with_session(
+        get("/aliceblue/initiate-oauth"),
+        &cookie,
+        None,
+    ))
+    .await;
+    let (_, headers, _) = h
+        .send(with_session(get(ALICE_CALLBACK), &cookie, None))
+        .await;
+    assert!(location(&headers).starts_with("/broker?error="));
+    assert!(!h.ctx().is_broker_connected());
+    let stored = {
+        let conn = h.ctx().sqlite.conn().unwrap();
+        crate::db::sqlite::auth::latest_active(&conn, &h.ctx().security).unwrap()
+    };
+    assert!(stored.is_none(), "a refused sign-in persists nothing");
+
+    // The refused callback used up that pending sign-in (single use): with
+    // the right client id it is still refused until the trader starts the
+    // login again, and then it completes.
+    h.set_aliceblue_client("AB1234");
+    let (_, headers, _) = h
+        .send(with_session(get(ALICE_CALLBACK), &cookie, None))
+        .await;
+    assert!(location(&headers).starts_with("/broker?error="));
+    assert!(!h.ctx().is_broker_connected());
+    h.send(with_session(
+        get("/aliceblue/initiate-oauth"),
+        &cookie,
+        None,
+    ))
+    .await;
+    let (_, headers, _) = h
+        .send(with_session(get(ALICE_CALLBACK), &cookie, None))
+        .await;
+    assert_eq!(location(&headers), "/dashboard");
+    assert!(h.ctx().is_broker_connected());
+    assert_eq!(h.ctx().get_broker_session().unwrap().user_id, "AB1234");
+
+    // Without a configured client id the callback is refused, with the
+    // trader told where to add it.
+    let h = aliceblue_harness("");
+    let (cookie, _) = h.session(true);
+    h.send(with_session(
+        get("/aliceblue/initiate-oauth"),
+        &cookie,
+        None,
+    ))
+    .await;
+    let (_, headers, _) = h
+        .send(with_session(get(ALICE_CALLBACK), &cookie, None))
+        .await;
+    let loc = urlencoding::decode(&location(&headers))
+        .unwrap()
+        .into_owned();
+    assert!(
+        loc.contains("Add your aliceblue client id in Profile, Broker Configuration"),
+        "{}",
+        loc
+    );
+    assert!(!h.ctx().is_broker_connected());
     assert!(h.mock.last_auth.lock().is_none());
 }
 
