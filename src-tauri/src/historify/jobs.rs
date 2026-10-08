@@ -188,6 +188,26 @@ enum Interrupted {
     Cancelled,
 }
 
+/// Releases a claimed slot unless it is handed over to a processor.
+struct ClaimGuard<'a> {
+    engine: &'a JobEngine,
+    job_id: &'a str,
+    gen: u64,
+}
+
+impl ClaimGuard<'_> {
+    /// The processor now owns the slot and releases it when it ends.
+    fn hand_over(self) {
+        std::mem::forget(self);
+    }
+}
+
+impl Drop for ClaimGuard<'_> {
+    fn drop(&mut self) {
+        self.engine.release(self.job_id, self.gen);
+    }
+}
+
 impl JobEngine {
     /// Build the engine and mark jobs a previous run left mid-download as
     /// paused, so they can be resumed.
@@ -563,7 +583,26 @@ impl JobEngine {
     }
 
     /// Web `retry_failed_items`.
+    ///
+    /// The claim is taken before the first await, so of two retries racing
+    /// for the same job exactly one proceeds and the other is refused. The
+    /// checks that follow run under that claim; it is released when they
+    /// decline, when a store call fails, or when the request is dropped
+    /// before the processor starts.
     pub async fn retry(&self, job_id: &str) -> Reply {
+        let Some((gen, rx, st)) = self.claim(job_id) else {
+            return match self.job_status(job_id).await {
+                Err(r) => r,
+                Ok(None) => Reply::error(404, "Job not found"),
+                Ok(Some(s)) if s == "running" => Reply::error(400, "Job is already running"),
+                Ok(Some(_)) => Reply::error(409, RETRY_BUSY_MESSAGE),
+            };
+        };
+        let claim = ClaimGuard {
+            engine: self,
+            job_id,
+            gen,
+        };
         match self.job_status(job_id).await {
             Err(r) => return r,
             Ok(None) => return Reply::error(404, "Job not found"),
@@ -588,10 +627,6 @@ impl JobEngine {
         if failed == 0 {
             return Reply::ok(json!({"status": "success", "message": "No failed items to retry"}));
         }
-        // Claim in the same hold that checks: a second retry is refused.
-        let Some((gen, rx, st)) = self.claim(job_id) else {
-            return Reply::error(409, RETRY_BUSY_MESSAGE);
-        };
         let id = job_id.to_string();
         let r = self
             .inner
@@ -604,11 +639,9 @@ impl JobEngine {
             .await;
         let n = match r {
             Ok(n) => n,
-            Err(e) => {
-                self.release(job_id, gen);
-                return store_failed("retrying a job", e);
-            }
+            Err(e) => return store_failed("retrying a job", e),
         };
+        claim.hand_over();
         self.spawn(job_id.to_string(), gen, rx, st);
         Reply::ok(json!({
             "status": "success",
