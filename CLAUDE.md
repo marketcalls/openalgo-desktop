@@ -27,6 +27,26 @@ Target platforms, all first-class:
 OpenAlgo web users run on desktops, Raspberry Pi, Linux servers and Macs. A
 change that only works on the machine it was written on is not done.
 
+## Skills
+
+Detailed procedures live in `.claude/skills/` and load on demand. Use the
+skill instead of improvising the procedure:
+
+- **`broker-integration`**: adding or changing a broker (Broker trait, auth
+  families, catalog, mapping to OpenAlgo symbols, feeds, fixtures, sign-in
+  tests).
+- **`web-sync`**: carrying recent OpenAlgo web commits over to the desktop.
+- **`fd-audit`**: after any change touching databases, sockets, feeds, spawned
+  tasks, caches or registries; also for "too many open files" or rising memory.
+- **`verify`**: before claiming a control holds, a bug is fixed or a test
+  guards a fix.
+- **`security-audit`**: the periodic security review and before a release.
+- **`parallel-work`**: running several agents or branches at once, merging
+  through a worktree, migration numbering, pausing work.
+- **`version-bump`**: changing the app version and preparing a release.
+- **`chart-indicator`** and **`openscript`**: writing a custom chart indicator
+  or an OpenScript study for the `/trading` terminal.
+
 ## The compatibility contract
 
 **Anything that works against OpenAlgo web must work against OpenAlgo Desktop
@@ -361,3 +381,132 @@ Never commit an API key, account id or email into a fixture; use the
   data rather than a default.
 - **Adding a page**: the route in the frontend router, the same path served by
   the Rust server's SPA fallback, and the navigation entry, in one change.
+
+## Known pitfalls for agents
+
+Each of these cost real time while building the desktop. They are recorded
+here so they are not rediscovered. When a new one is found, add it here in the
+same commit as its fix.
+
+### The maintainer's machine is shared
+
+- OpenAlgo web runs on 5000 and 8765 on the same Mac, so development uses 5500
+  and 8766, and nothing an agent starts may bind 5000 or 8765.
+- **Never run the app binary, in any mode or subcommand, against the real data
+  folder** (`~/Library/Application Support/com.openalgo.desktop` on macOS). A
+  stray run migrates the maintainer's database and once left a Historify log
+  that stopped the app from starting. Use the `dev_server` example (temporary
+  data folder, in-memory keystore) or a test harness with a temporary folder.
+- Only one process can hold 5500 or 8766. An "OpenAlgo could not start, port
+  in use" dialog means a dev server or a test child is still running: find it
+  with `lsof -nP -iTCP:5500 -sTCP:LISTEN` before anything else.
+- Restarting `dev_server` wipes its accounts. A browser tab left open across a
+  restart still believes it is signed in and shows empty states such as "No
+  API key generated"; reload it.
+- Never `pkill` by pattern: it kills other agents' test runs. Stop a process by
+  the PID you started or checked.
+- The web repo is read-only. Read upstream changes with `gh api` or `git log`
+  in the existing checkout; never pull, check out or edit there.
+
+### One shared build folder
+
+All worktrees share `src-tauri/target` (`CARGO_TARGET_DIR`) to save disk, so
+`target/debug/openalgo-desktop` may be another checkout's build at any moment.
+A test that runs the binary must give it an empty environment, a temporary
+home and data folder and ephemeral ports, hold it in a guard that kills and
+reaps it, and stop it if it starts the full app. The `mcp` subcommand is a thin
+forwarder and must never open the data folder or a listener.
+
+The shared folder grows past 30 GB. When free disk drops below about 8 GB,
+delete `target/debug/deps` and `build` entries older than the current session
+and `incremental`; never the whole folder while other agents build.
+
+### Builds and CI
+
+- The toolchain is pinned in `rust-toolchain.toml`. A newer clippy fails CI on
+  lints the pinned one does not have; bumping the toolchain means fixing those
+  lints in the same change.
+- A crate used under `cfg(unix)` or one OS needs a matching
+  `[target.'cfg(..)'.dependencies]` or `dev-dependencies` entry. `libc` was
+  declared for macOS only and broke Linux clippy of the test helpers. A green
+  run on the Mac proves nothing for Linux or Windows; CI is the check.
+- The interface is embedded with `#[folder = "../dist"]`, relative to the crate.
+  `$CARGO_MANIFEST_DIR` in that path is taken literally. Debug builds read
+  `dist/` from disk at runtime. CI's Rust jobs use a stand-in page
+  (`<!doctype html><title>ci</title>`), so a test may only assume the doctype.
+- Windows: a child process needs `SystemRoot` in its environment; DuckDB holds
+  an exclusive lock, so open database files cannot be copied in a test;
+  timers are coarse.
+- Third-party actions are pinned to commit SHAs and Dependabot updates them.
+  CodeQL skips test code through `.github/codeql/codeql-config.yml`.
+
+### Tests that pass locally and fail in CI
+
+Every flaky test found so far was a race, not a slow machine:
+
+- **Wait on the event, not on a sleep.** Await the task handle or a completion
+  signal, or poll the observable condition with a bound. Retry only a status
+  the API documents as retryable (a strategy leg exit answers 409 "retry once
+  it fills" until the sandbox entry fills).
+- **Fix the product when the race is real.** A Historify retry was claimed
+  after its first `.await`, so two concurrent retries both ran; the fix
+  claimed it before the await.
+- Rate-limit and expiry tests use the limiter's pinnable clock, not the wall
+  clock.
+- Descriptor checks account for database pool growth: r2d2 refills `min_idle`
+  and each SQLite connection holds two descriptors (database and WAL).
+- A test that fails about one run in five is a bug. Run a suspect test 10 to
+  30 times before calling it fixed.
+
+### Data and migrations
+
+- Migration names are recorded in the `migrations` table. Branches built in
+  parallel pick the same next number (074 happened twice). The later merge
+  renumbers its migration and the doc comment in its `store.rs`. Never rename
+  a migration that has shipped in a release.
+- DuckDB 1.5.6 writes a log it cannot replay when a table holding a foreign
+  key to a table with a `CURRENT_TIMESTAMP` default is dropped, so a crash
+  then bricks Historify. Historify migrations therefore run with
+  `checkpoint_threshold = '0b'` followed by `CHECKPOINT`, `close()`
+  checkpoints, and opening moves an unreplayable log aside, keeps it and
+  raises a health alert. Do not remove any of the three.
+- Never hold a pooled SQLite connection across an `.await` on network I/O.
+
+### Security work
+
+- **Findings from a background security review are fixed before merge**, on
+  the branch. MCP needed three rounds: unbounded fan-out, then caps that
+  concurrency could bypass, then overflowing arithmetic and a cap check that
+  parsed input differently from the code doing the work. The pattern that
+  closed them: parse each input once into a typed value, check limits on that
+  value with checked arithmetic, and reserve one shared budget before any
+  work starts.
+- A route is public only if it is in the reviewed list in `server/tests.rs`,
+  and a public route that changes state needs its own credential. A CSRF token
+  is not one: `GET /auth/csrf-token` hands it to anyone.
+- Accept an advisory only when the vulnerable code provably never runs: an
+  `ignore` in `.github/deny.toml` with the reason and a review date, the same
+  IDs in `.trivyignore`, and the Dependabot alert dismissed as "not used" with
+  the same reason.
+- Dismiss a CodeQL alert as "used in tests" only after checking that it sits
+  in a `#[cfg(test)]` module. A variable named `iv` that means interval trips
+  the hard-coded-crypto rule; rename it.
+- Fake tokens in fixtures must match the allowlist in `.github/gitleaks.toml`;
+  prefer the `<APIKEY>`, `<USER_ID>`, `<EMAIL>` placeholders.
+
+### Working with several agents
+
+- Each agent works in its own worktree and pushes only after `cargo fmt
+  --check`, `cargo clippy --all-targets --locked -- -D warnings`, the full
+  `cargo test --locked`, `npx tsc -b`, vitest and gitleaks pass on the tree
+  being pushed. One unverified push once broke the build on master.
+- Merge a feature branch through a temporary worktree on current master and
+  rerun the full gates there; the registration files (`state.rs`, `lib.rs`,
+  `routes/mod.rs`, `middleware.rs`, the public-route list in
+  `server/tests.rs`, `migrations.rs`) conflict often, and both sides are
+  almost always kept.
+- When pausing, save unfinished work to a `wip/<topic>` branch, never to
+  master.
+- If GitHub rejects pushes with server errors, a merge through
+  `gh api repos/<owner>/<repo>/merges` works; confirm the resulting tree SHA
+  matches the tested one.
