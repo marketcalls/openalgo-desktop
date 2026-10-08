@@ -76,6 +76,38 @@ impl Subscriber for OrderEvents {
     }
 }
 
+/// Descriptors held by this process and connections in the main database
+/// pool, sampled once the pool is settled.
+///
+/// The pool can grow during a session: the strategy module's two
+/// `order.update` subscribers (the strategy book and strategy order matching)
+/// each check out a connection briefly, on separate threads. When they and
+/// another caller take the idle connections at once, r2d2 refills `min_idle`
+/// with a new connection, kept for reuse (bounded by the pool's max size,
+/// reaped after its idle timeout). Each holds two descriptors, the database
+/// and its WAL. r2d2 opens it on its own thread and counts it in
+/// `pool_state()` only once established, so a connection mid-open holds
+/// descriptors the pool does not report yet. Sample until two reads 20 ms apart agree, each with an
+/// unchanged pool count around the descriptor count.
+async fn settled_fds(ctx: &AppState) -> (usize, usize) {
+    let sample = || {
+        let before = ctx.sqlite.pool_state().0;
+        let fds = fd_count();
+        let after = ctx.sqlite.pool_state().0;
+        (before == after).then_some((fds, after as usize))
+    };
+    let mut last = None;
+    for _ in 0..250 {
+        let now = sample();
+        if let Some(settled) = now.filter(|_| now == last) {
+            return settled;
+        }
+        last = now;
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    panic!("descriptors and the database pool never settled");
+}
+
 async fn until(what: &str, mut f: impl FnMut() -> bool) {
     for _ in 0..500 {
         if f() {
@@ -249,7 +281,7 @@ async fn login_streams_and_logout_tears_everything_down() {
 
     // Baseline: app running, a feed client connected, no broker session.
     tokio::time::sleep(Duration::from_millis(200)).await;
-    let fds_before = fd_count();
+    let (fds_before, pool_before) = settled_fds(&ctx).await;
     let app_tasks_before = ctx.task_count();
     assert_eq!(ctx.runtime.task_count(), 0);
 
@@ -380,24 +412,29 @@ async fn login_streams_and_logout_tears_everything_down() {
     assert_eq!(*mock.logouts.lock(), 1);
     assert!(ctx.runtime.active_broker().is_none());
     assert!(ctx.get_broker_session().is_none());
-    // Descriptors back to the baseline: both broker sockets are closed.
-    let mut fds_after = fd_count();
+    // Descriptors back to the baseline: both broker sockets are closed. The
+    // only growth allowed is the database pool's, two descriptors for each
+    // connection it holds beyond the baseline (see `settled_fds`).
+    let (mut fds_after, mut pool_after) = settled_fds(&ctx).await;
+    let allowed = |pool_after: usize| fds_before + 2 * pool_after.saturating_sub(pool_before);
     for _ in 0..50 {
-        if fds_after <= fds_before {
+        if fds_after <= allowed(pool_after) {
             break;
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
-        fds_after = fd_count();
+        (fds_after, pool_after) = settled_fds(&ctx).await;
     }
     eprintln!(
-        "broker session fds: before={} after={}",
-        fds_before, fds_after
+        "broker session fds: before={} after={} pool: before={} after={}",
+        fds_before, fds_after, pool_before, pool_after
     );
     assert!(
-        fds_after <= fds_before,
-        "descriptors left open after logout: {} -> {}",
+        fds_after <= allowed(pool_after),
+        "descriptors left open after logout: {} -> {} (pool {} -> {})",
         fds_before,
-        fds_after
+        fds_after,
+        pool_before,
+        pool_after
     );
     // A second teardown (shutdown after logout) is harmless.
     ctx.runtime.teardown(&ctx).await;
