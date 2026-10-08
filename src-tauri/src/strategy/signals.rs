@@ -259,7 +259,7 @@ impl StrategyModule {
                     // replacement.
                     tracing::info!("Rolling signal run {} through end-of-day stop", run_id);
                     let r = self.stop_run(run_id, &current.user_id, "eod").await;
-                    if !(r.ok && !r.stop_pending) {
+                    if !r.ok || r.stop_pending {
                         return Ok(run_id);
                     }
                     self.emit(

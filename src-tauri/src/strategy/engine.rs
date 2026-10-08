@@ -1076,6 +1076,7 @@ impl StrategyModule {
     ) -> Vec<Value> {
         // Claimed and classified in ONE hold of the run lock.
         let (live, unfilled) = self.state.claim_legs_for_exit(run_id, leg_ids, kind);
+        #[allow(clippy::large_enum_variant)] // short-lived, one per leg
         enum Target {
             Live(super::state::ExitClaim),
             Superseded(super::state::SupersededClaim),

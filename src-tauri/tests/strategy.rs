@@ -3015,7 +3015,7 @@ mod strategy_module_broadcast {
             .iter()
             .filter(|e| *e == "strategy_delta")
             .count();
-        assert!(deltas >= 1 && deltas < 20, "{} deltas", deltas);
+        assert!((1..20).contains(&deltas), "{} deltas", deltas);
     }
 
     #[tokio::test]

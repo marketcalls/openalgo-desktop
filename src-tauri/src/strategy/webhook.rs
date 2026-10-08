@@ -121,9 +121,12 @@ impl WebhookOutcome {
     }
 }
 
+/// (strategy id, action, mode): one dedupe window entry.
+type DedupeKey = (i64, String, Option<String>);
+
 /// Bounded in-memory windows: dedupe, cooling off and the two rate limits.
 pub struct WebhookState {
-    dedupe: Mutex<HashMap<(i64, String, Option<String>), Instant>>,
+    dedupe: Mutex<HashMap<DedupeKey, Instant>>,
     cooling: Mutex<HashMap<i64, Instant>>,
     rate: Mutex<HashMap<String, VecDeque<Instant>>>,
     /// Failed authentications per webhook (strategy id), bounded.
