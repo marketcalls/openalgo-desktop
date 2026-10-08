@@ -603,3 +603,117 @@ async fn credentials_in_urls_never_reach_the_log() {
         out
     );
 }
+
+/// mStock puts its API key and session token on the socket address
+/// (`?API_KEY=..&ACCESS_TOKEN=..`). The real mStock feed is driven through
+/// every connect outcome (refused, hang-up mid-handshake, HTTP refusal,
+/// accepted then closed) with this crate logging at TRACE on top of the
+/// shipped filter: neither value reaches the log. The shipped filters
+/// (development and release) also keep the socket libraries' own trace and
+/// debug output off, which prints the handshake request with its query.
+#[tokio::test]
+async fn mstock_socket_address_never_reaches_the_log() {
+    use crate::brokers::mstock::streaming::{feed_url, MstockFeed};
+    const KEY: &str = "SENTINELKEY71c2";
+    const JWT: &str = "SENTINELJWT5d0e";
+    for development in [true, false] {
+        let filter = tracing_subscriber::EnvFilter::new(crate::log_filter(development));
+        let subscriber = tracing_subscriber::fmt()
+            .with_env_filter(filter)
+            .with_writer(std::io::sink)
+            .finish();
+        tracing::subscriber::with_default(subscriber, || {
+            for target_enabled in [
+                tracing::enabled!(target: "tungstenite::handshake::client", tracing::Level::TRACE),
+                tracing::enabled!(target: "tungstenite::handshake::client", tracing::Level::DEBUG),
+                tracing::enabled!(target: "tokio_tungstenite", tracing::Level::DEBUG),
+            ] {
+                assert!(!target_enabled, "development={}", development);
+            }
+        });
+    }
+
+    let buf = LogBuf::default();
+    let writer = buf.clone();
+    let filter = format!("{},openalgo_desktop_lib=trace", crate::log_filter(true));
+    let subscriber = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::new(filter))
+        .with_ansi(false)
+        .with_writer(move || writer.clone())
+        .finish();
+    // Thread-local: this test runtime is single-threaded, so the manager's
+    // tasks log into it too.
+    let _guard = tracing::subscriber::set_default(subscriber);
+
+    let closed = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let refused = closed.local_addr().unwrap();
+    drop(closed);
+    let hangup = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let hang_addr = hangup.local_addr().unwrap();
+    let refusing = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let refusing_addr = refusing.local_addr().unwrap();
+    let closing = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let closing_addr = closing.local_addr().unwrap();
+    let mut servers = vec![
+        tokio::spawn(async move {
+            while let Ok((tcp, _)) = hangup.accept().await {
+                drop(tcp);
+            }
+        }),
+        tokio::spawn(async move {
+            while let Ok((tcp, _)) = refusing.accept().await {
+                let _ = tokio_tungstenite::accept_hdr_async(tcp, |_: &Request, _: Response| {
+                    let mut resp = ErrorResponse::new(Some("unauthorized".into()));
+                    *resp.status_mut() =
+                        tokio_tungstenite::tungstenite::http::StatusCode::UNAUTHORIZED;
+                    Err(resp)
+                })
+                .await;
+            }
+        }),
+    ];
+    let seen = Arc::new(Mutex::new(Vec::<String>::new()));
+    let seen2 = seen.clone();
+    servers.push(tokio::spawn(async move {
+        while let Ok((tcp, _)) = closing.accept().await {
+            let seen = seen2.clone();
+            let cb = move |req: &Request, resp: Response| {
+                seen.lock().push(req.uri().to_string());
+                Ok(resp)
+            };
+            if let Ok(mut ws) = tokio_tungstenite::accept_hdr_async(tcp, cb).await {
+                let _ = ws.next().await;
+                let _ = ws.close(None).await;
+            }
+        }
+    }));
+
+    for addr in [refused, hang_addr, refusing_addr, closing_addr] {
+        let m = WebSocketManager::with_config(fast());
+        let feed = MstockFeed::new(&format!("ws://{}", addr), JWT, KEY);
+        m.connect(Box::new(feed)).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        m.disconnect().await.unwrap();
+    }
+    for s in servers {
+        s.abort();
+    }
+
+    // The check is real: the address did carry both values.
+    assert!(feed_url("ws://h", KEY, JWT).contains(KEY));
+    assert!(
+        seen.lock()
+            .iter()
+            .any(|u| u.contains(KEY) && u.contains(JWT)),
+        "{:?}",
+        seen.lock()
+    );
+    let out = String::from_utf8_lossy(&buf.0.lock()).to_string();
+    assert!(out.contains("Market data feed connect failed"), "{}", out);
+    assert!(out.contains("handshake refused"), "{}", out);
+    assert!(
+        !out.contains(KEY) && !out.contains(JWT),
+        "an mStock credential reached the log:\n{}",
+        out
+    );
+}
