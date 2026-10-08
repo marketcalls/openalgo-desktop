@@ -9,6 +9,7 @@ pub mod analyzer;
 pub mod app_config;
 pub mod auth;
 pub mod broker;
+pub mod chartink;
 pub mod charts;
 pub mod health;
 pub mod historify;
@@ -21,6 +22,7 @@ pub mod options_tools;
 pub mod orders;
 pub mod playground;
 pub mod sandbox;
+pub mod scalping;
 pub mod search;
 pub mod security;
 pub mod settings;
@@ -725,6 +727,8 @@ pub fn table() -> Vec<RouteSpec> {
         r!(GET, "/whatsapp/stats", User, whatsapp::stats),
     ];
     t.extend(historify::table());
+    t.extend(scalping::table());
+    t.extend(chartink::table());
     t
 }
 

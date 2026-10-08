@@ -204,6 +204,7 @@ fn csrf_exempt(path: &str) -> bool {
         || matches!(path, "/auth/login" | "/setup")
         || path.starts_with("/webhook/")
         || path.starts_with("/strategy/webhook/")
+        || path.starts_with("/chartink/webhook/")
         // Broker form-POST redirects (state-verified in the handler).
         || path
             .strip_suffix("/callback")

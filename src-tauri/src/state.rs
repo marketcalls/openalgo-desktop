@@ -96,6 +96,10 @@ pub struct AppState {
     pub historify: Arc<crate::historify::Historify>,
     /// The strategy module and RMS (`/strategy`).
     pub strategy: Arc<crate::strategy::StrategyModule>,
+    /// The scalping terminal backend and its risk monitor (`/scalping`).
+    pub scalping: Arc<crate::scalping::Scalping>,
+    /// Chartink strategies and their webhook (`/chartink`).
+    pub chartink: Arc<crate::chartink::Chartink>,
 }
 
 pub struct OpenOptions {
@@ -153,6 +157,13 @@ impl AppState {
         let strategy_clock = opts.clock.clone();
         let strategy_feed = websocket.clone();
         let strategy_session = (config.session_expiry_hour, config.session_expiry_minute);
+        let scalping_db = sqlite.clone();
+        let scalping_ui = ui.clone();
+        let scalping_symbols = symbols.clone();
+        let scalping_clock = opts.clock.clone();
+        let scalping_feed = websocket.clone();
+        let chartink_db = sqlite.clone();
+        let chartink_clock = opts.clock.clone();
         let runtime = crate::services::broker_runtime::BrokerRuntime::new();
         let bridge = crate::feed::bridge::BrokerBridge::with_depth_manager(
             websocket.clone(),
@@ -181,6 +192,18 @@ impl AppState {
                     strategy_feed,
                 ))),
             }),
+            scalping: crate::scalping::Scalping::new(crate::scalping::MonitorDeps {
+                store: crate::scalping::Store::new(scalping_db),
+                gateway: Arc::new(crate::strategy::dispatch::AppGateway::new(me.clone())),
+                prices: Some(Arc::new(crate::strategy::tick_feed::FeedPrices::new(
+                    me.clone(),
+                    scalping_feed,
+                ))),
+                ui: scalping_ui,
+                clock: scalping_clock,
+                symbols: scalping_symbols,
+            }),
+            chartink: crate::chartink::Chartink::new(me.clone(), chartink_db, chartink_clock),
             sandbox: crate::sandbox::Sandbox::with_db(
                 sandbox_db,
                 crate::sandbox::SandboxDeps {
@@ -223,6 +246,7 @@ impl AppState {
         crate::messaging::register(&ctx);
         ctx.historify.start();
         crate::strategy::register(&ctx);
+        crate::scalping::register(&ctx.bus, &ctx.scalping);
         // Analyzer mode survives restarts: resume the sandbox engine.
         if ctx.sqlite.get_analyze_mode().unwrap_or(false) {
             crate::services::analyzer_service::AnalyzerService::spawn_engine_transition(&ctx, true);
@@ -269,6 +293,8 @@ impl AppState {
         self.shutdown.cancel();
         self.messaging.shutdown().await;
         self.strategy.shutdown().await;
+        self.scalping.shutdown().await;
+        self.chartink.shutdown().await;
         self.historify.shutdown().await;
         self.runtime.teardown(self).await;
         self.sandbox.shutdown().await;

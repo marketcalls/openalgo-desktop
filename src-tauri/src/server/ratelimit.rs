@@ -34,6 +34,9 @@ pub enum Bucket {
     /// `/strategy/webhook/<token>` by caller address (web
     /// `WEBHOOK_RATE_LIMIT`, 100 per minute).
     StrategyWebhook,
+    /// `/chartink/webhook/<id>` by caller address (web
+    /// `WEBHOOK_RATE_LIMIT`, 100 per minute).
+    ChartinkWebhook,
     /// Failed strategy-webhook authentications (unknown token, address
     /// outside the allowlist) by caller address; over it the address is
     /// refused before any lookup.
@@ -49,7 +52,7 @@ impl Bucket {
             Bucket::LoginHour => (25, Duration::from_secs(3600)),
             Bucket::Reset => (15, Duration::from_secs(3600)),
             Bucket::ApiKeyFail => (10, Duration::from_secs(60)),
-            Bucket::StrategyWebhook => (100, Duration::from_secs(60)),
+            Bucket::StrategyWebhook | Bucket::ChartinkWebhook => (100, Duration::from_secs(60)),
             Bucket::WebhookFail => (10, Duration::from_secs(60)),
         }
     }

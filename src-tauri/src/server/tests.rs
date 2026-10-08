@@ -545,6 +545,8 @@ async fn public_route_list_is_exactly_the_reviewed_one() {
             "POST /strategy/webhook/{token}",
             "GET /{broker}/callback",
             "POST /{broker}/callback",
+            // Secret-verified Chartink webhook (the URL id is the credential).
+            "POST /chartink/webhook/{webhook_id}",
         ]
     );
 }
