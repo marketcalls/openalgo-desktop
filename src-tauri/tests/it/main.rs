@@ -55,6 +55,7 @@ mod feed_conformance;
 mod feed_hygiene;
 mod feed_soak;
 mod historify;
+mod mcp_caps;
 mod mcp_contract;
 mod mcp_http;
 mod mcp_research;

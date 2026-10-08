@@ -854,6 +854,9 @@ const SIGS: &[Sig] = &[
     },
 ];
 
+/// Largest magnitude of a scalar indicator parameter.
+pub const MAX_PARAM: f64 = 1_000_000.0;
+
 /// Every public function of the web's `openalgo.ta` (2.0.5), so a name the
 /// desktop does not compute yet is told apart from one that does not exist.
 pub const WEB_TA_FUNCTIONS: &[&str] = &[
@@ -1092,6 +1095,14 @@ pub fn call(name: &str, series: &[&[f64]], params: &Map<String, Value>) -> R<Out
                 )))
             }
         };
+        // No window, multiplier or shift needs more; larger values would
+        // only overflow the index arithmetic.
+        if !num.is_finite() || num.abs() > MAX_PARAM {
+            return Err(PyErr::value(format!(
+                "'{}' must be a number between -{} and {}",
+                k, MAX_PARAM, MAX_PARAM
+            )));
+        }
         bound[pos] = Some(Arg::Num(num));
     }
     let missing: Vec<&str> = all

@@ -74,6 +74,7 @@ pub struct McpRuntime {
     lifetime: Mutex<Duration>,
     keepalive: Mutex<Duration>,
     research: Arc<tokio::sync::Semaphore>,
+    inflight: Arc<Mutex<HashMap<String, usize>>>,
 }
 
 impl Default for McpRuntime {
@@ -90,6 +91,7 @@ impl McpRuntime {
             lifetime: Mutex::new(STREAM_LIFETIME),
             keepalive: Mutex::new(KEEPALIVE),
             research: Arc::new(tokio::sync::Semaphore::new(super::research::RESEARCH_SLOTS)),
+            inflight: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -117,6 +119,12 @@ impl McpRuntime {
     /// Count one hit in `key`'s window unless it is full. The prune, the
     /// test and the append happen under one lock.
     pub fn hit(&self, key: &str, limit: usize, window: Duration) -> bool {
+        self.reserve(key, 1, limit, window)
+    }
+
+    /// Count `n` hits at once, all or none: refused when they would not all
+    /// fit in the window (a call's whole fan-out is paid before it starts).
+    pub fn reserve(&self, key: &str, n: usize, limit: usize, window: Duration) -> bool {
         let now = Instant::now();
         let mut g = self.buckets.lock();
         let (map, last_sweep) = &mut *g;
@@ -129,11 +137,49 @@ impl McpRuntime {
         while b.front().is_some_and(|t| now.duration_since(*t) >= window) {
             b.pop_front();
         }
-        if b.len() >= limit {
+        if b.len() + n > limit {
             return false;
         }
-        b.push_back(now);
+        b.extend(std::iter::repeat_n(now, n));
         true
+    }
+
+    /// Hits left in `key`'s window (tests and diagnostics).
+    pub fn remaining(&self, key: &str, limit: usize, window: Duration) -> usize {
+        let now = Instant::now();
+        let g = self.buckets.lock();
+        let used =
+            g.0.get(key)
+                .map(|b| {
+                    b.iter()
+                        .filter(|t| now.duration_since(**t) < window)
+                        .count()
+                })
+                .unwrap_or(0);
+        limit.saturating_sub(used)
+    }
+
+    /// Take one of `key`'s `max` in-flight slots; released when the guard
+    /// drops. The map only holds keys with calls running.
+    pub fn enter(&self, key: &str, max: usize) -> Option<InflightGuard> {
+        let mut m = self.inflight.lock();
+        let n = m.entry(key.to_string()).or_insert(0);
+        if *n >= max {
+            if *n == 0 {
+                m.remove(key);
+            }
+            return None;
+        }
+        *n += 1;
+        Some(InflightGuard {
+            map: self.inflight.clone(),
+            key: key.to_string(),
+        })
+    }
+
+    /// Calls of `key` running now.
+    pub fn in_flight(&self, key: &str) -> usize {
+        self.inflight.lock().get(key).copied().unwrap_or(0)
     }
 
     fn admit_stream(&self) -> Option<StreamGuard> {
@@ -148,6 +194,24 @@ impl McpRuntime {
             {
                 Ok(_) => return Some(StreamGuard(self.streams.clone())),
                 Err(now) => cur = now,
+            }
+        }
+    }
+}
+
+/// Releases an in-flight slot (see [`McpRuntime::enter`]).
+pub struct InflightGuard {
+    map: Arc<Mutex<HashMap<String, usize>>>,
+    key: String,
+}
+
+impl Drop for InflightGuard {
+    fn drop(&mut self) {
+        let mut m = self.map.lock();
+        if let Some(n) = m.get_mut(&self.key) {
+            *n = n.saturating_sub(1);
+            if *n == 0 {
+                m.remove(&self.key);
             }
         }
     }
@@ -595,8 +659,9 @@ async fn call_tool(
     }
     let started = Instant::now();
     // The tool's own /api/v1 calls are charged to this token.
+    let budget = Arc::new(super::dispatch::CallBudget::new(tok.jti()));
     let text = super::dispatch::CALLER
-        .scope(tok.jti(), tools::call(ctx, tool, &bound))
+        .scope(budget, tools::call(ctx, tool, &bound))
         .await;
     call.audit("success", started.elapsed().as_millis() as i64);
     rpc_result(

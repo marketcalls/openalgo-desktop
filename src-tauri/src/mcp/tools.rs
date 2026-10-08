@@ -618,9 +618,10 @@ async fn run(ctx: &Arc<AppState>, name: &str, a: &Args) -> Output {
             present(a, "exchange").map(|_| st(a, "exchange")),
         )
         .into(),
-        "get_instruments" => match research::check_limits(name, a) {
-            Some(refused) => refused.into(),
-            None => instruments(ctx, a).await.into(),
+        // Up to nine large fetches: admitted like a research call.
+        "get_instruments" => match research::admit(ctx, name, a).await {
+            Ok(_admission) => instruments(ctx, a).await.into(),
+            Err(refused) => refused.into(),
         },
         // ---- utility ----
         "get_openalgo_version" => {

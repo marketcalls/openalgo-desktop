@@ -58,10 +58,53 @@ pub const UPSTREAM_LIMIT: (usize, Duration) = (120, Duration::from_secs(60));
 /// list is the largest legitimate one, well under this).
 pub const MAX_REPLY_BYTES: usize = 64 * 1024 * 1024;
 
+/// The upstream budget of one tool call: the token it is charged to, and
+/// calls already paid for up front by a reservation.
+#[derive(Debug)]
+pub struct CallBudget {
+    pub key: String,
+    pub prepaid: std::sync::atomic::AtomicUsize,
+}
+
+impl CallBudget {
+    pub fn new(token_id: String) -> Self {
+        Self {
+            key: format!("{}|upstream", token_id),
+            prepaid: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+
+    /// Pay for `n` calls before the work starts; false when the token's
+    /// window cannot hold them all.
+    pub fn reserve(&self, ctx: &AppState, n: usize) -> bool {
+        let (limit, window) = UPSTREAM_LIMIT;
+        if !ctx.mcp.reserve(&self.key, n, limit, window) {
+            return false;
+        }
+        self.prepaid
+            .fetch_add(n, std::sync::atomic::Ordering::SeqCst);
+        true
+    }
+
+    /// Charge one call: from the reservation, else from the window.
+    fn charge(&self, ctx: &AppState) -> bool {
+        use std::sync::atomic::Ordering::SeqCst;
+        if self
+            .prepaid
+            .fetch_update(SeqCst, SeqCst, |n| n.checked_sub(1))
+            .is_ok()
+        {
+            return true;
+        }
+        let (limit, window) = UPSTREAM_LIMIT;
+        ctx.mcp.hit(&self.key, limit, window)
+    }
+}
+
 tokio::task_local! {
-    /// The token a tool call runs for (its audit id), set by the HTTP
-    /// transport around the call; its `/api/v1` calls are charged to it.
-    pub static CALLER: String;
+    /// The budget a tool call runs under, set by the HTTP transport around
+    /// the call; its `/api/v1` calls are charged to it.
+    pub static CALLER: Arc<CallBudget>;
 }
 
 /// What the handler stack answered.
@@ -99,9 +142,8 @@ async fn run(
     mut req: Request<Body>,
     timeout: Duration,
 ) -> Result<Raw, Transport> {
-    if let Ok(key) = CALLER.try_with(|k| k.clone()) {
-        let (n, w) = UPSTREAM_LIMIT;
-        if !ctx.mcp.hit(&format!("{}|upstream", key), n, w) {
+    if let Ok(budget) = CALLER.try_with(|b| b.clone()) {
+        if !budget.charge(ctx) {
             return Err(Transport::Budget);
         }
     }

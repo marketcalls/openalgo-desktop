@@ -464,23 +464,46 @@ fn tag(action: &str) -> impl Fn(PyErr) -> (String, PyErr) + '_ {
 }
 
 // ----------------------------------------------------------------------
-// Limits
+// Limits and admission
 //
 // The web bounds none of these inputs; its tool descriptions ask for a
 // modest watchlist ("keep the list modest (≤ ~25)"). The desktop enforces
-// that and the comparable sizes below, so one call cannot hold the history
-// source, the broker or memory for long. A call over a limit is refused
-// before anything is fetched, with a message that names the limit.
+// that and the sizes below. Everything is decided before any work starts:
+//
+// 1. Shape: every string, list and map in the arguments is size-capped, and
+//    every count, bar, day and date value is range-checked, with defaults
+//    resolved first so an omitted field is checked as the value it becomes.
+// 2. Expansion: the bars a call would fetch (calendar span of the window
+//    times bars per day of the interval, for every interval and every
+//    symbol) are estimated and refused past MAX_FETCH_BARS per fetch.
+// 3. Concurrency: at most MAX_PER_TOKEN research calls per token and
+//    RESEARCH_SLOTS in the whole process run at once.
+// 4. Budget: the call's whole fan-out (one `/api/v1` call per symbol, per
+//    timeframe, per exchange) is reserved from the token's upstream budget
+//    up front; a call that does not fit is refused without fetching.
+//
+// Nothing retries: a failed fetch is reported, never repeated.
 // ----------------------------------------------------------------------
 
 /// Symbols in one `screen_instruments` call.
 pub const MAX_SCREEN_SYMBOLS: usize = 25;
 /// Timeframes in one `multi_timeframe_analysis` call.
 pub const MAX_TIMEFRAMES: usize = 8;
+/// Columns in `inputs` (no indicator takes more than four series).
+pub const MAX_INPUTS: usize = 4;
+/// Keys in an indicator's `params`.
+pub const MAX_PARAMS: usize = 8;
+/// Characters in any string argument.
+pub const MAX_STRING: usize = 64;
 /// `bars`, `lookback_bars` and `limit` values.
 pub const MAX_BARS: i64 = 5000;
-/// `lookback_days`, and the span of an explicit date range.
+/// `lookback_days`, and the span of a date range (explicit, or from
+/// `start_date` to today).
 pub const MAX_DAYS: i64 = 3660;
+/// Estimated bars one history fetch may cover (span times bars a day).
+pub const MAX_FETCH_BARS: f64 = 100_000.0;
+/// Research calls one token may run at once.
+pub const MAX_PER_TOKEN: usize = 2;
 /// Research calls running at once (process-wide); a call waits this long
 /// for a slot before it is refused.
 pub const RESEARCH_SLOTS: usize = 4;
@@ -488,6 +511,9 @@ pub const SLOT_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
 /// Longest a research call may run in all (its `/api/v1` calls each have
 /// their own 120 s limit).
 pub const RESEARCH_DEADLINE: std::time::Duration = std::time::Duration::from_secs(300);
+
+/// Every exchange `get_instruments` reads when none is given.
+pub const ALL_INSTRUMENT_EXCHANGES: usize = 9;
 
 fn limit_error(message: String) -> Value {
     error(
@@ -499,20 +525,138 @@ fn limit_error(message: String) -> Value {
     )
 }
 
-/// The first limit the arguments exceed, as the tool's error output.
-pub fn check_limits(tool: &str, a: &Map<String, Value>) -> Option<Value> {
-    let n_list = |k: &str| a.get(k).and_then(Value::as_array).map_or(0, Vec::len);
-    if tool == "screen_instruments" && n_list("symbols") > MAX_SCREEN_SYMBOLS {
-        return Some(limit_error(format!(
-            "screen_instruments accepts at most {} symbols per call. Split the watchlist into smaller groups.",
-            MAX_SCREEN_SYMBOLS
-        )));
+fn busy(message: &str) -> Value {
+    error(
+        message,
+        &[("error_type", json!("busy")), ("retry_safe", json!(true))],
+    )
+}
+
+/// Strings, lists and maps anywhere in the arguments, size-capped.
+fn check_shape(v: &Value, path: &str) -> Option<Value> {
+    match v {
+        Value::String(t) if t.chars().count() > MAX_STRING => Some(limit_error(format!(
+            "'{}' is too long (at most {} characters).",
+            path, MAX_STRING
+        ))),
+        Value::Array(items) => {
+            let cap = match path {
+                "symbols" => MAX_SCREEN_SYMBOLS,
+                "intervals" => MAX_TIMEFRAMES,
+                "inputs" => MAX_INPUTS,
+                _ => MAX_SCREEN_SYMBOLS,
+            };
+            if items.len() > cap {
+                let what = match path {
+                    "symbols" => "symbols per call. Split the watchlist into smaller groups.",
+                    "intervals" => "intervals per call.",
+                    _ => "entries.",
+                };
+                return Some(limit_error(format!(
+                    "'{}' accepts at most {} {}",
+                    path, cap, what
+                )));
+            }
+            items.iter().find_map(|x| check_shape(x, path))
+        }
+        Value::Object(m) => {
+            if m.len() > MAX_PARAMS {
+                return Some(limit_error(format!(
+                    "'{}' accepts at most {} keys.",
+                    path, MAX_PARAMS
+                )));
+            }
+            m.iter().find_map(|(k, x)| {
+                if k.chars().count() > MAX_STRING {
+                    return Some(limit_error(format!("A key in '{}' is too long.", path)));
+                }
+                check_shape(x, path)
+            })
+        }
+        _ => None,
     }
-    if tool == "multi_timeframe_analysis" && n_list("intervals") > MAX_TIMEFRAMES {
-        return Some(limit_error(format!(
-            "multi_timeframe_analysis accepts at most {} intervals per call.",
-            MAX_TIMEFRAMES
-        )));
+}
+
+fn parse_date(a: &Map<String, Value>, k: &str) -> Result<Option<NaiveDate>, Value> {
+    match s(a, k).filter(|d| !d.is_empty()) {
+        None => Ok(None),
+        Some(d) => NaiveDate::parse_from_str(&d, "%Y-%m-%d")
+            .map(Some)
+            .map_err(|_| limit_error(format!("'{}' must be a date written as YYYY-MM-DD.", k))),
+    }
+}
+
+/// Calendar days one history fetch spans, as `_load_history` will choose
+/// it (explicit range, `lookback_days`, or enough days for `lookback_bars`).
+fn span_days(
+    a: &Map<String, Value>,
+    interval: &str,
+    lookback_bars: i64,
+    today: NaiveDate,
+) -> Result<i64, Value> {
+    let start = parse_date(a, "start_date")?;
+    let end = parse_date(a, "end_date")?.unwrap_or(today);
+    if let Some(start) = start {
+        return Ok((end - start).num_days().abs());
+    }
+    if let Some(days) = i(a, "lookback_days").filter(|d| *d != 0) {
+        return Ok(days.abs());
+    }
+    Ok(((lookback_bars.max(0) as f64 / bars_per_day(interval)) * 1.6) as i64 + 5)
+}
+
+/// The intervals and window bars of each fetch the call will make.
+fn fetches(tool: &str, a: &Map<String, Value>) -> Vec<(String, i64)> {
+    let lookback = i(a, "lookback_bars").unwrap_or(252);
+    match tool {
+        "get_historical_data" => {
+            let bars = i(a, "bars").unwrap_or(20).max(252);
+            vec![(s(a, "interval").unwrap_or_default(), bars)]
+        }
+        "multi_timeframe_analysis" => {
+            let list: Vec<String> = a
+                .get("intervals")
+                .and_then(Value::as_array)
+                .filter(|v| !v.is_empty())
+                .map(|v| {
+                    v.iter()
+                        .map(|x| x.as_str().unwrap_or_default().to_string())
+                        .collect()
+                })
+                .unwrap_or_else(|| vec!["5m".into(), "15m".into(), "1h".into(), "D".into()]);
+            list.into_iter().map(|itv| (itv, lookback)).collect()
+        }
+        "get_instruments" => Vec::new(),
+        _ => vec![(s(a, "interval").unwrap_or_else(|| "D".into()), lookback)],
+    }
+}
+
+/// `/api/v1` calls the tool will make: its whole fan-out.
+pub fn planned_calls(tool: &str, a: &Map<String, Value>) -> usize {
+    let n_list = |k: &str| a.get(k).and_then(Value::as_array).map_or(0, Vec::len);
+    match tool {
+        "screen_instruments" => n_list("symbols"),
+        "multi_timeframe_analysis" => fetches(tool, a).len(),
+        "correlation_beta" => 2,
+        "get_instruments" => {
+            if a.get("exchange").is_some_and(|e| !e.is_null()) {
+                1
+            } else {
+                ALL_INSTRUMENT_EXCHANGES
+            }
+        }
+        _ => 1,
+    }
+}
+
+/// The first limit the arguments exceed, as the tool's error output.
+/// Defaults are resolved first, so an omitted field is checked as the
+/// value the tool will use.
+pub fn check_limits(tool: &str, a: &Map<String, Value>, today: NaiveDate) -> Option<Value> {
+    for (k, v) in a {
+        if let Some(e) = check_shape(v, k) {
+            return Some(e);
+        }
     }
     for k in ["bars", "lookback_bars", "limit"] {
         if i(a, k).is_some_and(|v| v.abs() > MAX_BARS) {
@@ -525,31 +669,88 @@ pub fn check_limits(tool: &str, a: &Map<String, Value>) -> Option<Value> {
             MAX_DAYS
         )));
     }
-    let date = |k: &str| s(a, k).and_then(|d| NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok());
-    if let (Some(start), Some(end)) = (date("start_date"), date("end_date")) {
-        if (end - start).num_days().abs() > MAX_DAYS {
+    for (interval, lookback) in fetches(tool, a) {
+        let days = match span_days(a, &interval, lookback, today) {
+            Ok(d) => d,
+            Err(e) => return Some(e),
+        };
+        if days > MAX_DAYS {
             return Some(limit_error(format!(
                 "The date range can span at most {} days. Narrow start_date and end_date.",
                 MAX_DAYS
+            )));
+        }
+        if days as f64 * bars_per_day(&interval) > MAX_FETCH_BARS {
+            return Some(limit_error(format!(
+                "That much history at interval '{}' is too large to analyse in one call \
+(at most about {} bars). Use a shorter range or a longer interval.",
+                interval, MAX_FETCH_BARS as i64
             )));
         }
     }
     None
 }
 
-/// Run a research tool and turn a raised error into the web's `_fail`.
-/// Bounded: argument limits first, then a process-wide slot, then an
-/// overall deadline.
-pub async fn run(ctx: &Arc<AppState>, tool: &str, a: &Map<String, Value>) -> Value {
-    if let Some(refused) = check_limits(tool, a) {
-        return refused;
+/// Holds a research call's slots for as long as it runs.
+pub struct Admission {
+    _token: Option<super::http::InflightGuard>,
+    _slot: tokio::sync::OwnedSemaphorePermit,
+}
+
+/// Admit a call before any work: limits, then the token's in-flight cap,
+/// then a process-wide slot, then its whole upstream fan-out reserved from
+/// the token's budget. `Err` is the tool output refusing it.
+pub async fn admit(
+    ctx: &Arc<AppState>,
+    tool: &str,
+    a: &Map<String, Value>,
+) -> Result<Admission, Value> {
+    let today = ctx.now().with_timezone(&Kolkata).date_naive();
+    if let Some(refused) = check_limits(tool, a, today) {
+        return Err(refused);
     }
+    let budget = dispatch::CALLER.try_with(|b| b.clone()).ok();
+    let token =
+        match &budget {
+            Some(b) => match ctx.mcp.enter(&b.key, MAX_PER_TOKEN) {
+                Some(g) => Some(g),
+                None => return Err(busy(
+                    "This AI client already has the most analysis requests OpenAlgo runs at once. \
+Wait for one to finish and try again.",
+                )),
+            },
+            None => None,
+        };
     let slots = ctx.mcp.research_slots();
-    let Ok(Ok(_permit)) = tokio::time::timeout(SLOT_WAIT, slots.acquire_owned()).await else {
-        return error(
+    let Ok(Ok(slot)) = tokio::time::timeout(SLOT_WAIT, slots.acquire_owned()).await else {
+        return Err(busy(
             "OpenAlgo is busy with other analysis requests, so this one was not run. Try again in a moment.",
-            &[("error_type", json!("busy")), ("retry_safe", json!(true))],
-        );
+        ));
+    };
+    if let Some(b) = &budget {
+        if !b.reserve(ctx, planned_calls(tool, a)) {
+            return Err(error(
+                "This AI client has made too many requests to OpenAlgo in the last minute. \
+Wait a minute and try again.",
+                &[
+                    ("error_type", json!("rate_limited")),
+                    ("retry_safe", json!(true)),
+                ],
+            ));
+        }
+    }
+    Ok(Admission {
+        _token: token,
+        _slot: slot,
+    })
+}
+
+/// Run a research tool and turn a raised error into the web's `_fail`.
+/// Admitted first (see [`admit`]), then bounded by an overall deadline.
+pub async fn run(ctx: &Arc<AppState>, tool: &str, a: &Map<String, Value>) -> Value {
+    let _admission = match admit(ctx, tool, a).await {
+        Ok(adm) => adm,
+        Err(refused) => return refused,
     };
     match tokio::time::timeout(RESEARCH_DEADLINE, run_inner(ctx, tool, a)).await {
         Ok(v) => v,

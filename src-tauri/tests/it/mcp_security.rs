@@ -121,16 +121,10 @@ async fn one_tokens_fan_out_is_capped_by_its_upstream_budget() {
                 json!({"symbols": watchlist(MAX_SCREEN_SYMBOLS)}),
             )
             .await;
-        refused += out["data"]["results"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter(|r| {
-                r["error"]
-                    .as_str()
-                    .is_some_and(|e| e.contains("too many requests"))
-            })
-            .count();
+        // A call whose fan-out does not fit is refused whole, unfetched.
+        if out["data"]["error"]["error_type"] == "rate_limited" {
+            refused += 1;
+        }
     }
     assert!(
         history_calls(&m) <= budget,
