@@ -271,15 +271,16 @@ export default function Home() {
             </a>
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-6">
               <span className="block text-foreground">Your Personal</span>
-              <span className="block text-primary">Algo Trading Platform</span>
+              <span className="block text-primary">Trading Platform</span>
             </h1>
             <p className="text-lg sm:text-xl font-semibold mb-6 text-primary">
-              Community Driven Algo Trading Platform
+              For algo, options and discretionary traders. Open source, community driven, on your
+              own computer.
             </p>
             <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto mb-10">
-              Test and Execute your Trading ideas, Connect your favorite Trading Platforms, AI
-              Driven Strategy Development, with a built-in Options Analytics Suite - option chains
-              and Greeks, OI and volatility tools - across 30+ Brokers.
+              Connect TradingView, Amibroker or your own Python code. Trade options from the chain
+              to multi-leg execution with built-in risk management. Chart, scalp and analyse on one
+              live feed, and test everything in Sandbox mode first, across 30+ brokers.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" asChild>
