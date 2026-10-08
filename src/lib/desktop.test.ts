@@ -51,6 +51,7 @@ describe('desktopBrokerLoginUrl', () => {
     expect(desktopBrokerLoginUrl('zerodha')).toBe('/zerodha/initiate-oauth')
     expect(desktopBrokerLoginUrl('fyers')).toBe('/fyers/initiate-oauth')
     expect(desktopBrokerLoginUrl('dhan')).toBe('/dhan/initiate-oauth')
+    expect(desktopBrokerLoginUrl('aliceblue')).toBe('/aliceblue/initiate-oauth')
   })
 
   it('leaves form-login brokers to the existing flow', () => {

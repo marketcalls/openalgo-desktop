@@ -1599,7 +1599,14 @@ async fn page_on_a_post_only_route_serves_the_app() {
 /// pages (may drop state), tradesmart (pasted token address), rmoney (XTS
 /// form-POST redirect), Kotak (form fields).
 fn family_harness() -> (TestCtx, Vec<Arc<MockBroker>>) {
-    let ids = ["dhan", "shoonya", "tradesmart", "rmoney", "kotak"];
+    let ids = [
+        "dhan",
+        "shoonya",
+        "tradesmart",
+        "rmoney",
+        "kotak",
+        "aliceblue",
+    ];
     let mocks: Vec<Arc<MockBroker>> = ids.iter().map(|i| Arc::new(MockBroker::new(i))).collect();
     // Every sign-in comes back for the configured account (`U1:::appkey`).
     for m in &mocks {
@@ -1619,13 +1626,20 @@ fn family_harness() -> (TestCtx, Vec<Arc<MockBroker>>) {
     {
         let conn = t.ctx.sqlite.conn().unwrap();
         for b in ids {
+            // AliceBlue's app code does not carry the account: the Profile
+            // client id names it.
+            let (api_key, client_id) = match b {
+                "aliceblue" => ("APPCODE", Some("U1".to_string())),
+                _ => ("U1:::appkey", None),
+            };
             crate::db::sqlite::credentials::save(
                 &conn,
                 &t.ctx.security,
                 b,
                 crate::db::sqlite::credentials::CredentialUpdate {
-                    api_key: Some("U1:::appkey".into()),
+                    api_key: Some(api_key.into()),
                     api_secret: Some("appsecret".into()),
+                    client_id,
                     ..Default::default()
                 },
             )
@@ -1842,6 +1856,16 @@ async fn every_way_to_create_a_broker_session_refuses_a_forged_attempt() {
         ("Form login, cross-site", "kotak"),
         ("XTS POST callback carrying login-form fields", "rmoney"),
         ("Form login, other account", "kotak"),
+        ("AliceBlue callback, forged state", "aliceblue"),
+        ("AliceBlue callback, no session cookie", "aliceblue"),
+        ("AliceBlue callback, other browser session", "aliceblue"),
+        ("AliceBlue callback, no pending sign-in", "aliceblue"),
+        ("AliceBlue callback, other account", "aliceblue"),
+        (
+            "AliceBlue pasted address, sign-in started by another session",
+            "aliceblue",
+        ),
+        ("AliceBlue pasted address, other account", "aliceblue"),
     ];
     for &(name, broker) in cases {
         let (t, mocks) = family_harness();
@@ -1887,6 +1911,13 @@ async fn every_way_to_create_a_broker_session_refuses_a_forged_attempt() {
             post_json(
                 "/kotak/callback",
                 json!({"mobile": "9999999999", "totp": "123456", "mpin": "1234"}),
+            )
+        };
+        const ALICE: &str = "/aliceblue/callback?authCode=c&userId=U1";
+        let alice_paste = || {
+            post_json(
+                MANUAL,
+                json!({"url": format!("http://127.0.0.1:5000{}", ALICE)}),
             )
         };
         let req = match name {
@@ -1978,6 +2009,40 @@ async fn every_way_to_create_a_broker_session_refuses_a_forged_attempt() {
                 )
             }
             "Form login, other account" => with_session(kotak(), &cookie, Some(&csrf)),
+            // AliceBlue's login page returns no `state`: only the pending
+            // sign-in this browser session started, for the Profile client id.
+            "AliceBlue callback, forged state" => {
+                start(sid.clone()).await;
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(get(&format!("{}&state=forged", ALICE)), &cookie, None)
+            }
+            "AliceBlue callback, no session cookie" => {
+                start(sid.clone()).await;
+                *mock.auth_user_id.lock() = "U1".into();
+                get(ALICE)
+            }
+            "AliceBlue callback, other browser session" => {
+                start(sid.clone()).await;
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(get(ALICE), &other_cookie, None)
+            }
+            "AliceBlue callback, no pending sign-in" => {
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(get(ALICE), &cookie, None)
+            }
+            "AliceBlue callback, other account" => {
+                start(sid.clone()).await;
+                with_session(get(ALICE), &cookie, None)
+            }
+            "AliceBlue pasted address, sign-in started by another session" => {
+                start(other_sid.clone()).await;
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(alice_paste(), &cookie, Some(&csrf))
+            }
+            "AliceBlue pasted address, other account" => {
+                start(sid.clone()).await;
+                with_session(alice_paste(), &cookie, Some(&csrf))
+            }
             _ => unreachable!("{}", name),
         };
         let (s, h, v) = send_to(ctx, req).await;

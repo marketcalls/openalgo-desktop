@@ -44,6 +44,7 @@ export const DEFAULT_WEBSOCKET_URL = import.meta.env.DEV
  * the sign-in state and redirects: GET /<broker>/initiate-oauth.
  */
 const SERVER_OAUTH_BROKERS = new Set([
+  'aliceblue',
   'arrow',
   'compositedge',
   'dhan',
