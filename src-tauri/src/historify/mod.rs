@@ -98,13 +98,17 @@ impl Historify {
         self.clock.now()
     }
 
-    /// Stop the scheduler and every job, wait (bounded) for database work
-    /// still running on the blocking pool, delete pending exports, close
-    /// the store.
+    /// Stop the scheduler and every job, delete pending exports, refuse new
+    /// database work, wait (bounded) for work still running on the blocking
+    /// pool, close the store.
     pub async fn shutdown(&self) {
         self.scheduler.shutdown().await;
         self.jobs.shutdown().await;
         self.exports.clear();
+        // Database work queued by an aborted task may still run on the
+        // blocking pool; sealed, it cannot borrow a connection after the
+        // wait below.
+        self.db.seal();
         let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
         while self.db.open_connections() > 0 && tokio::time::Instant::now() < deadline {
             tokio::time::sleep(Duration::from_millis(10)).await;

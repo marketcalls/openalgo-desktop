@@ -30,7 +30,7 @@ use duckdb::{Config, Connection};
 use parking_lot::Mutex;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 /// Trader-facing text when the store cannot be used.
@@ -57,6 +57,8 @@ pub struct WalRecovery {
 
 struct Inner {
     root: Mutex<Option<Connection>>,
+    /// Set by [`HistorifyDb::seal`]: no new borrows, root still open.
+    sealed: AtomicBool,
     write_lock: Mutex<()>,
     live: AtomicUsize,
     path: PathBuf,
@@ -138,6 +140,7 @@ impl HistorifyDb {
         Self {
             inner: Arc::new(Inner {
                 root: Mutex::new(Some(root)),
+                sealed: AtomicBool::new(false),
                 write_lock: Mutex::new(()),
                 live: AtomicUsize::new(0),
                 path,
@@ -155,10 +158,13 @@ impl HistorifyDb {
         self.inner.recovery.as_ref()
     }
 
-    /// Borrow a connection. Fails once the store is closed.
+    /// Borrow a connection. Fails once the store is sealed or closed.
     pub fn conn(&self) -> Result<DuckConn> {
         let root = self.inner.root.lock();
-        let Some(r) = root.as_ref() else {
+        let Some(r) = root
+            .as_ref()
+            .filter(|_| !self.inner.sealed.load(Ordering::SeqCst))
+        else {
             return Err(AppError::Internal("Historify store is closed".into()));
         };
         let c = r.try_clone()?;
@@ -213,6 +219,15 @@ impl HistorifyDb {
     /// Borrowed connections currently open (excluding the root).
     pub fn open_connections(&self) -> usize {
         self.inner.live.load(Ordering::SeqCst)
+    }
+
+    /// Refuse new borrows while keeping the root open, so shutdown can wait
+    /// for the borrowed connections to drain before it checkpoints. Work
+    /// already queued on the blocking pool (from a task aborted at shutdown)
+    /// then fails to borrow instead of opening a connection after the wait.
+    pub fn seal(&self) {
+        let _root = self.inner.root.lock();
+        self.inner.sealed.store(true, Ordering::SeqCst);
     }
 
     pub fn is_open(&self) -> bool {
@@ -309,6 +324,20 @@ mod tests {
         db.close();
         assert!(db.conn().is_err());
         assert_eq!(db.open_connections(), 0);
+    }
+
+    #[test]
+    fn a_sealed_store_refuses_new_borrows_until_closed() {
+        let db = HistorifyDb::in_memory().unwrap();
+        let held = db.conn().unwrap();
+        db.seal();
+        assert!(db.conn().is_err());
+        assert!(db.is_open());
+        assert_eq!(db.open_connections(), 1);
+        drop(held);
+        assert_eq!(db.open_connections(), 0);
+        db.close();
+        assert!(!db.is_open());
     }
 
     #[test]
