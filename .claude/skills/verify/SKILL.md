@@ -50,8 +50,16 @@ cd src-tauri && CARGO_TARGET_DIR=/Users/openalgo/openalgo-desktop/openalgo-deskt
   cargo test --locked --lib probe_url_safe -- --nocapture
 ```
 
-The second line survives: `url_safe` keeps the path. That is the kind of
-answer reading the function will not give you with confidence.
+Expect the second line to survive: `url_safe` keeps the path (its own test,
+`queries_and_userinfo_are_dropped`, pins `http://h/p` through unchanged), so
+a token in a URL path is not redacted by it. That is the kind of answer
+reading the function will not give you with confidence; the probe's output
+is the evidence.
+
+Mind the shared target directory before probing: a `--lib` test build from a
+new worktree path compiles a fresh copy of this crate (several GB). On a
+nearly full disk, or while other agents hold the build lock, run the probe
+in the worktree that already built, or ask.
 
 **For a whole path** (an adapter's login failure, a feed's reconnect), drive
 it with sentinel credentials, capture the tracing output at TRACE, and scan
@@ -103,6 +111,10 @@ Ways a test passes for the wrong reason, all possible here:
 - **Racing a timer.** An assertion made before a debounce, a backoff or a
   reconnect fires holds by timing. Use the injected clock (`ManualClock`) or
   wait on the condition (`broker_session_e2e::until`), not a sleep.
+- **A test that fails one run in five is a bug**, and almost always a race
+  (every flaky test here so far was). Run a suspect test 10 to 30 times
+  before calling it fixed:
+  `for i in $(seq 1 20); do cargo test --locked --test it <name> -q || break; done`.
 - **Wrong target.** When neutering a guard, change the exact line. A blind
   replace hits the first match, which may be a different guard, and then the
   red run proves nothing.

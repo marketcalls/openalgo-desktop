@@ -63,8 +63,13 @@ Consequences:
   five; copy it.
 - **In-process tests are the default.** Integration tests run the server
   in-process on ephemeral ports (`tests/it/broker_session_e2e.rs`
-  `free_port`, `pin_ports`). Never run the app binary yourself against the
-  real data folder.
+  `free_port`, `pin_ports`). Never run the app binary, in any mode or
+  subcommand, against the real data folder. To click through the UI, use
+  `cargo run --example dev_server` (`src-tauri/examples/dev_server.rs`: a
+  throwaway data folder, an in-memory keystore, port 5500). Only one process
+  can hold 5500 or 8766; a "port in use" dialog means a dev server or a test
+  child is still running: `lsof -nP -iTCP:5500 -sTCP:LISTEN` before anything
+  else.
 - **Measurements.** Tests that count descriptors or memory re-run alone via
   `crate::isolated!` (`tests/it/isolate.rs`); other agents' builds on the
   same machine still add noise, so a borderline number is re-run, not
@@ -101,7 +106,11 @@ cd - && git worktree remove .claude/worktrees/merge-<topic>
 ```
 
 If the push is rejected because master moved, fetch, merge `origin/master`
-into the merge worktree, rerun the gates, push again. A red gate is fixed on
+into the merge worktree, rerun the gates, push again. If GitHub rejects
+pushes with server errors, a merge through
+`gh api repos/marketcalls/openalgo-desktop/merges -f base=master -f head=<branch>`
+works; then confirm the resulting tree SHA (`git rev-parse origin/master^{tree}`
+after a fetch) matches the tree you tested (`git rev-parse HEAD^{tree}`). A red gate is fixed on
 the branch (or in the merge commit when it is a conflict artefact), never
 skipped. CI (`.github/workflows/ci.yml`) reruns everything on four
 platforms; a local pass on macOS is necessary, not sufficient.
@@ -144,10 +153,12 @@ collide again. When merging, the branch merged later renumbers:
    migration, the `mNNN_` function name);
 3. update the doc comment of the module that owns it, which names the
    migration (`/// Migration \`075_scalping\`` in `scalping/store.rs`; also
-   `strategy/store.rs`, `chartink/store.rs`, `mcp/store.rs`,
-   `trading/runner/store.rs`, `messaging/whatsapp/store.rs`):
-   `grep -rn '<old number>_' src-tauri/src` finds them all;
-4. if the renamed migration already ran on a developer database under its
+   `strategy/store.rs`, `strategy/book.rs`, `chartink/store.rs`,
+   `mcp/store.rs`, `trading/runner/store.rs` and several files in
+   `db/sqlite/`): `grep -rn '<old number>_' src-tauri/src` finds them all;
+4. never rename a migration that has shipped in a release (it is recorded
+   by name on traders' machines); renumber only unreleased ones;
+5. if the renamed migration already ran on a developer database under its
    old name, it runs again under the new one: migrations must be idempotent
    (check before altering, never clobber a user value), which is the rule
    anyway. Add a migration test on a populated database if there is none.
@@ -185,9 +196,14 @@ du -sh .claude/worktrees/*/src-tauri/target 2>/dev/null     # worktrees that bui
   `git worktree prune`.
 - Delete a stray per-worktree `src-tauri/target` that was built without
   `CARGO_TARGET_DIR`.
-- `cargo clean` on the shared target only when no other build is running
-  (`pgrep -fl 'cargo|rustc'` shows none) and with the coordinator's
-  agreement: it forces every agent into a full rebuild. Prefer
-  `cargo clean -p openalgo-desktop`, which keeps the dependencies.
-- Below about 10 GB free, a full `cargo test` with coverage can fail with
-  confusing linker errors; report the disk state rather than retrying.
+- The shared folder grows past 30 GB. When free disk drops below about
+  8 GB, delete the entries of `target/debug/deps` and `target/debug/build`
+  older than the current session, and `target/debug/incremental`
+  (`find "$CARGO_TARGET_DIR/debug/deps" -maxdepth 1 -mmin +<minutes> ...`;
+  list before deleting). Never delete the whole folder, and never
+  `cargo clean` it, while other agents build (`pgrep -fl 'cargo|rustc'`):
+  it pulls files from under their links and forces every agent into a full
+  rebuild.
+- A build that fails with linker or "No space left on device" errors on a
+  near-full disk is a disk problem: report the disk state rather than
+  retrying.

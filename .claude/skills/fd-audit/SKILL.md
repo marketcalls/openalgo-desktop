@@ -173,8 +173,10 @@ inherited descriptors closed. Models: `feed_hygiene.rs`
 before and after the path (see `broker_groww_feed.rs`: `before + 1` while
 running, back to `before` after logout).
 
-**A running process** (a dev build on its own data directory and the
-development ports, never the trader's real data folder):
+**A running process**: `cargo run --example dev_server`
+(`src-tauri/examples/dev_server.rs`: a throwaway data directory, an
+in-memory keystore, port 5500), never the app binary against the trader's
+real data folder:
 
 ```bash
 lsof -p "$PID" | wc -l                                        # descriptors

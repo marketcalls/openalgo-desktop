@@ -29,6 +29,12 @@ desktop's *mechanics*: where each piece goes in Rust and how it is tested.
 | Direct login + TOTP | Own module | angel, kotak, mstock, motilal, samco, tradejini, fivepaisa, nubra, indmoney, firstock | `brokers/angel/` |
 | Bespoke | Own module | iiflcapital (REST + MQTT via the relay), deltaexchange (HMAC, `CRYPTO`, leverage) | as named |
 
+The family is the code shape. How the trader actually signs in is decided per
+broker by `catalog::auth_type` and `login_kind`, and does not follow the
+table: Groww (TOTP or a pasted access token) and Definedge (OTP) sign in through the
+in-app form, while the Noren members, compositedge, rmoney and iiflcapital
+redirect. Check the catalogue, not the family, before wiring the login.
+
 A white-label of Noren or XTS is a new `CONFIG` constant, not new code. Look
 for `/NorenWClientTP/` or `/interactive/user/session` in its API docs before
 deciding it is bespoke. If a config field cannot express a difference, add a

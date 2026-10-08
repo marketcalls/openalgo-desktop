@@ -83,7 +83,14 @@ ephemeral ports).
 
 When a route is added as public, `public_route_list_is_exactly_the_reviewed_one`
 fails until the list in `server/tests.rs` is updated; the review of that
-change is part of this audit.
+change is part of this audit. A public route that changes state needs its
+own credential (a URL secret, a bearer token, a verified `state`). A CSRF
+token is not one: `GET /auth/csrf-token` hands it to anyone.
+
+For a surface that takes limits (MCP fan-out, batch sizes, history ranges),
+check the pattern that closed three rounds of MCP findings: each input parsed
+once into a typed value, limits checked on that value with checked
+arithmetic, and one shared budget reserved before any work starts.
 
 ## 3. Secrets at rest, in logs, on the wire
 
@@ -124,6 +131,9 @@ unreachable, is accepted in writing, never by silence:
   single place.
 - **Trivy finding**: the id in `.trivyignore` with a comment above it saying
   why it is accepted and what would let it be removed, plus a review date.
+  An advisory accepted in `deny.toml` carries the same GHSA ids in
+  `.trivyignore`, and its Dependabot alert is dismissed as "not used" with the
+  same reason. Accept only when the vulnerable code provably never runs.
 - **CodeQL alert**: dismissed in GitHub with the reason, only after the check
   in section 1.
 - **npm advisory** in a production dependency at high or critical: not
