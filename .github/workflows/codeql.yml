@@ -33,7 +33,7 @@ jobs:
         # build-mode none: CodeQL reads the source directly, no compile.
         language: [rust, javascript-typescript, actions]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
