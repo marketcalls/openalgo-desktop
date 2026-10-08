@@ -1,4 +1,4 @@
-# OpenAlgo Desktop - Cross-Platform Algorithmic Trading Application
+# OpenAlgo Desktop
 
 <div align="center">
 
@@ -7,392 +7,350 @@
 [![YouTube Channel Subscribers](https://img.shields.io/youtube/channel/subscribers/UCw7eVneIEyiTApy4RtxrJsQ)](https://www.youtube.com/@openalgo)
 [![Discord](https://img.shields.io/discord/1219847221055455263)](https://discord.com/invite/UPh7QPsNhP)
 
-**Native Desktop Application | Zero Config | Secure by Design**
+**OpenAlgo on your own computer. Install, sign in, connect your broker, trade.**
 
 </div>
 
-**OpenAlgo Desktop** is a native, cross-platform desktop application for algorithmic trading. Built with Tauri 2.0 and Rust, it provides the same powerful features as OpenAlgo web but runs entirely on your machine - no server setup required. Your credentials are stored securely in your operating system's keychain, not in configuration files.
+OpenAlgo Desktop is a single-user desktop version of
+[OpenAlgo web](https://github.com/marketcalls/openalgo). It runs on Windows,
+macOS, Linux and Raspberry Pi, with the same screens, the same API and the same
+market data feed as the web version. There is no server to set up, no Python to
+install and no `.env` file: every setting and credential is entered inside the
+app, and secrets are kept encrypted with a key held in your operating system's
+keychain.
 
-## Why OpenAlgo Desktop?
+## Contents
 
-| Feature | OpenAlgo Web | OpenAlgo Desktop |
-|---------|--------------|------------------|
-| Installation | Server setup required | One-click installer |
-| Credentials | .env files | OS Keychain (secure) |
-| Configuration | Manual setup | GUI-based |
-| Deployment | Cloud/VPS | Your computer |
-| Network | Internet required | Local-first |
-| Privacy | Your server | 100% local |
+- [Works with everything that works with OpenAlgo web](#works-with-everything-that-works-with-openalgo-web)
+- [Download and install](#download-and-install)
+- [Opening the app the first time (unsigned installers)](#opening-the-app-the-first-time-unsigned-installers)
+- [First run](#first-run)
+- [Connecting your broker](#connecting-your-broker)
+- [Sandbox mode (analyzer mode)](#sandbox-mode-analyzer-mode)
+- [Ports](#ports)
+- [Where your data lives, and backups](#where-your-data-lives-and-backups)
+- [Supported brokers](#supported-brokers)
+- [What is included, and what is not](#what-is-included-and-what-is-not)
+- [Guides](#guides)
+- [Building from source](#building-from-source)
+- [License](#license)
 
-## Quick Links
+## Works with everything that works with OpenAlgo web
 
-- **OpenAlgo Documentation**: [docs.openalgo.in](https://docs.openalgo.in)
-- **Main Repository**: [github.com/marketcalls/openalgo](https://github.com/marketcalls/openalgo)
-- **Discord Community**: [Join us](https://discord.com/invite/UPh7QPsNhP)
+OpenAlgo Desktop listens on the same addresses as OpenAlgo web:
 
-## Supported Platforms
+| What | Address |
+| --- | --- |
+| Dashboard and REST API (`/api/v1`) | `http://127.0.0.1:5000` |
+| Market data WebSocket | `ws://127.0.0.1:8765` |
+| Broker redirect URL | `http://127.0.0.1:5000/<broker>/callback` |
 
-| Platform | Architecture | Status |
-|----------|--------------|--------|
-| macOS | Intel (x64) | Supported |
-| macOS | Apple Silicon (ARM64) | Supported |
-| Windows | x64 | Supported |
-| Windows Server | x64 | Supported |
-| Linux | x64 | Supported |
-| Linux | ARM64 | Supported |
+The REST API accepts the same requests and sends the same responses as the web,
+and the WebSocket speaks the same protocol. So the OpenAlgo Python SDK,
+TradingView, Amibroker, Chartink, GoCharting, Excel and MCP clients work
+unchanged: point them at the desktop and use the API key from the desktop's
+API Key page.
 
-## Supported Brokers
+```python
+from openalgo import api
 
-<details>
-<summary>Initial Release (3 Brokers)</summary>
+client = api(
+    api_key="your-desktop-api-key",
+    host="http://127.0.0.1:5000",
+    ws_url="ws://127.0.0.1:8765",
+)
+print(client.funds())
+```
 
-- **Angel One** - Full support with TOTP authentication
-- **Zerodha** - Full support with request token flow
-- **Fyers** - Full support with auth code flow
+Moving over from OpenAlgo web? See
+[Moving from OpenAlgo web](docs/user/moving-from-openalgo-web.md).
 
-</details>
+## Download and install
 
-More brokers will be added in future releases to match the full OpenAlgo broker ecosystem.
+Download the installer for your computer from the
+[GitHub Releases page](https://github.com/marketcalls/openalgo-desktop/releases).
+Each release lists a `SHA256SUMS.txt` file so you can check a download.
 
-## Core Features
+| Computer | File to download | How to install |
+| --- | --- | --- |
+| Windows 10 or 11 (64-bit) | ends in `_x64-setup.exe` | Run it. It installs for your user only and does not need administrator rights. |
+| Mac with Apple Silicon (M1 and later) | ends in `_aarch64.dmg` | Open it and drag OpenAlgo Desktop to Applications. |
+| Mac with an Intel processor | ends in `_x64.dmg` | Open it and drag OpenAlgo Desktop to Applications. |
+| Linux, 64-bit PC (Ubuntu, Debian, Mint) | ends in `_amd64.deb` or `_amd64.AppImage` | `.deb`: `sudo apt install ./<file>.deb`. AppImage: see below. |
+| Raspberry Pi 4 or 5, 64-bit Raspberry Pi OS | ends in `_arm64.deb` or `_aarch64.AppImage` | `.deb`: `sudo apt install ./<file>.deb`. AppImage: see below. |
 
-### Same UI, Native Performance
-- **1:1 Clone** of OpenAlgo web interface
-- Same theme (OKLch colors), same components, same workflow
-- Native performance with Rust backend
-- Offline-capable (no internet required for UI)
+Not sure which Mac you have? Open the Apple menu, then About This Mac. "Chip:
+Apple M..." means Apple Silicon; "Processor: Intel" means Intel.
 
-### Zero Configuration
-- **No .env files** - All configuration through GUI
-- **No server setup** - Just install and run
-- **No port forwarding** - Runs locally
-- **Automatic database** - SQLite created on first run
+Raspberry Pi needs the 64-bit Raspberry Pi OS. The 32-bit image cannot run it.
 
-### Enterprise-Grade Security
-- **OS Keychain Storage** - Credentials stored in:
-  - macOS: Keychain
-  - Windows: Credential Manager
-  - Linux: Secret Service (GNOME Keyring/KWallet)
-  - Windows Server: DPAPI encrypted file (headless fallback)
-- **AES-256-GCM** - Auth tokens encrypted before database storage
-- **Argon2id** - Password hashing with hardware-resistant algorithm
-- **Zero Data Collection** - Everything stays on your machine
-
-### Compliance Features
-- **Auto-Logout at 3:00 AM IST** - Automatic session cleanup for broker compliance
-- **Token Refresh** - Fresh authentication each trading day
-- **Audit Ready** - Complete local logs for compliance
-
-### Trading Features
-- **Order Management** - Place, modify, cancel orders
-- **Portfolio Tracking** - Positions, holdings, P&L
-- **Market Data** - Real-time quotes via WebSocket
-- **Strategy Management** - TradingView webhook strategies
-- **Sandbox Mode** - Paper trading with virtual capital
-- **Historical Data** - DuckDB-powered Historify integration
-
-## Tech Stack
-
-### Frontend
-- **React 19** - Modern UI with concurrent features
-- **TypeScript** - Type-safe development
-- **Zustand** - Lightweight state management
-- **TanStack Query** - Server state and caching
-- **shadcn/ui** - Beautiful, accessible components
-- **Tailwind CSS v4** - Utility-first styling
-
-### Backend (Rust)
-- **Tauri 2.0** - Native app framework
-- **rusqlite** - SQLite database
-- **DuckDB** - Analytical queries (Historify)
-- **keyring** - OS keychain integration
-- **aes-gcm** - Encryption
-- **argon2** - Password hashing
-- **tokio** - Async runtime
-- **reqwest** - HTTP client
-- **tokio-tungstenite** - WebSocket client
-
-## Installation
-
-### Download Installers
-
-Download the latest release for your platform:
-
-| Platform | Download |
-|----------|----------|
-| macOS (Universal) | `OpenAlgo-Desktop-x.x.x-universal.dmg` |
-| Windows | `OpenAlgo-Desktop-x.x.x-x64.msi` |
-| Linux (Debian/Ubuntu) | `openalgo-desktop_x.x.x_amd64.deb` |
-| Linux (AppImage) | `OpenAlgo-Desktop-x.x.x-x86_64.AppImage` |
-
-### First Run
-
-1. **Install** the application for your platform
-2. **Launch** OpenAlgo Desktop
-3. **Create Account** - Set up your local user (password stored with Argon2)
-4. **Add Broker** - Enter your broker API credentials via GUI
-5. **Start Trading** - Credentials securely stored in OS keychain
-
-## Development
-
-### Prerequisites
-
-- **Node.js** 20+
-- **Rust** 1.77+
-- **Platform-specific requirements**:
-
-<details>
-<summary>macOS</summary>
+To run an AppImage on Linux or Raspberry Pi, make it executable and start it:
 
 ```bash
-xcode-select --install
+chmod +x OpenAlgo*.AppImage
+./OpenAlgo*.AppImage
 ```
 
-</details>
+If it says FUSE is missing, install it with `sudo apt install libfuse2` (on
+Ubuntu 24.04 the package is `libfuse2t64`), or use the `.deb` instead.
 
-<details>
-<summary>Windows</summary>
+To check a download, compare its checksum with the line for that file in
+`SHA256SUMS.txt`:
 
-- Visual Studio 2022 Build Tools with C++ workload
-- WebView2 (usually pre-installed on Windows 10/11)
+| System | Command |
+| --- | --- |
+| Windows (PowerShell) | `Get-FileHash .\<file> -Algorithm SHA256` |
+| macOS | `shasum -a 256 <file>` |
+| Linux, Raspberry Pi | `sha256sum <file>` |
 
-</details>
+## Opening the app the first time (unsigned installers)
 
-<details>
-<summary>Linux (Debian/Ubuntu)</summary>
+The installers are not yet code-signed, so Windows and macOS warn you the first
+time you open the app. This is expected. Download only from the GitHub Releases
+page above, and check the checksum if you want to be sure the file is the one
+that was published.
+
+**Windows.** SmartScreen shows "Windows protected your PC". Choose **More
+info**, then **Run anyway**.
+
+**macOS.** The first time, macOS says the app "cannot be opened because Apple
+cannot check it for malicious software", or that it is from an unidentified
+developer. Either:
+
+- In Finder, open Applications, right-click (or Control-click) OpenAlgo
+  Desktop, choose **Open**, then **Open** again; or
+- Try to open the app once, then go to **System Settings**, **Privacy &
+  Security**, scroll down to the message about OpenAlgo Desktop, choose **Open
+  Anyway**, and confirm. On macOS 15 (Sequoia) and later this is the way that
+  works.
+
+You only need to do this once. If macOS says the app "is damaged and can't be
+opened", it is the same check; in Terminal run
+`xattr -dr com.apple.quarantine "/Applications/OpenAlgo Desktop.app"` and open
+it again.
+
+**Linux and Raspberry Pi** show no warning.
+
+## First run
+
+1. **Create your account.** The first screen asks for a username, email and
+   password. This account exists only on your computer. Your API key is
+   created automatically at the same time; find it on the **API Key** page.
+2. **Add your broker.** See the next section.
+3. **Connect.** On the **Broker** page, pick your broker and choose **Connect
+   Account**. The master contract (the list of symbols) downloads after you
+   connect; the **Master Contract** page shows its progress.
+
+When you open the app later, sign in with your password. Your broker session
+from the same trading day is resumed until the broker's daily cut-off (around
+03:00 IST); after that, connect to the broker again.
+
+## Connecting your broker
+
+There is no `.env` file. Broker credentials are entered in the app:
+
+1. Open **Profile**, then the **Broker** tab (the **Configure broker** button
+   on the Broker page takes you there).
+2. Under **Update Credentials**, choose your broker and enter the **Broker API
+   Key** and **Broker API Secret** from your broker's developer portal. Some
+   brokers also ask for a **Client ID** or for market data keys; the form shows
+   the fields your broker needs.
+3. Choose **Save Broker Credentials**.
+4. Go to the **Broker** page and choose **Connect Account**.
+
+**Redirect URL.** When you create an app on your broker's developer portal, set
+its redirect URL to
+
+```
+http://127.0.0.1:5000/<broker>/callback
+```
+
+for example `http://127.0.0.1:5000/zerodha/callback` or
+`http://127.0.0.1:5000/fyers/callback`. This is the same address OpenAlgo web
+uses, so a broker app you already set up for OpenAlgo web on this computer
+works as it is. The **Current Configuration** card on the Broker tab shows the
+exact redirect URL to use.
+
+**Switching brokers.** Save credentials for as many brokers as you like. To
+switch, choose the other broker on the Broker tab in Profile and save, or pick
+it on the Broker page, then connect. Switching ends the current broker session
+first, so only one broker is connected at a time. No restart is needed.
+
+Sign-in details for each kind of broker are in
+[Broker sign-in](docs/user/brokers.md).
+
+## Sandbox mode (analyzer mode)
+
+Sandbox mode lets you test strategies, webhooks and API clients with simulated
+money and real market prices. Turn it on with the mode switch in the top bar
+(the badge shows **Live Mode** or **Analyze Mode**).
+
+While analyzer mode is on, every order from the app, the API, webhooks and MCP
+clients goes to the sandbox instead of your broker, and the API answers the
+same way OpenAlgo web does in analyze mode. The sandbox starts with 1 crore of
+simulated capital, blocks margin, fills market orders at the live price and
+limit and stop orders from live ticks, settles CNC positions to holdings the
+next day and squares off MIS positions at the exchange cut-off times. Its data
+is kept in a separate database, apart from live trading.
+
+- **Sandbox** (in the profile menu): Sandbox Configuration, with capital,
+  leverage and square-off times, and a link to **My P&L History**.
+- **Logs**, then **Sandbox Logs**: the Sandbox Request Monitor, listing every
+  request made while analyzer mode was on.
+
+Market data still comes from your connected broker, so connect a broker before
+using sandbox mode.
+
+## Ports
+
+| What | Default port | Changed in |
+| --- | --- | --- |
+| App, API and broker redirects | 5000 | Profile menu, **Server Settings**, **App port** |
+| Market data WebSocket | 8765 | Profile menu, **Server Settings**, **Market data port** |
+
+By default OpenAlgo Desktop only accepts connections from this computer. To use
+it from another device on your network, turn on **Allow access from other
+devices** in Server Settings. New ports and addresses take effect after the app
+restarts.
+
+**Port 5000 already in use.** If another program holds port 5000, the app opens
+on a page saying so instead of the dashboard.
+
+- **On a Mac this is usually AirPlay Receiver.** Open **System Settings**,
+  **General**, **AirDrop & Handoff**, turn off **AirPlay Receiver**, then
+  choose **Try again**.
+- Otherwise close the other program (often OpenAlgo web or a second copy of
+  OpenAlgo Desktop) and choose **Try again**.
+- Or type another port on that page and choose **Try again**. If you do, use
+  the new port in your broker app's redirect URL and in your SDK and trading
+  platform settings.
+
+More in [Troubleshooting](docs/user/troubleshooting.md).
+
+## Where your data lives, and backups
+
+Everything OpenAlgo Desktop stores is in one folder:
+
+| System | Folder |
+| --- | --- |
+| Windows | `%APPDATA%\com.openalgo.desktop` |
+| macOS | `~/Library/Application Support/com.openalgo.desktop` |
+| Linux and Raspberry Pi | `~/.local/share/com.openalgo.desktop` |
+
+Inside it: `openalgo.db` (account, settings, strategies, encrypted broker
+credentials), `sandbox.db` (sandbox mode), `logs.db` (order and API logs),
+`historify.duckdb` (Historify market data), and your OpenScript and custom
+indicator files.
+
+Broker credentials, tokens and your API key are encrypted. The encryption key
+is kept in your operating system's keychain (macOS Keychain, Windows Credential
+Manager, or the Secret Service on Linux), not in this folder. On a Linux
+machine with no keychain (for example Raspberry Pi OS Lite) the key is instead
+protected by your OpenAlgo password and kept in `vault.json` in the same
+folder; the app tells you when it is working this way.
+
+**To back up**, close OpenAlgo Desktop and copy the whole folder. Restore it by
+closing the app and copying the folder back.
+
+A backup restores on the same computer and user account, where the keychain
+still holds the key. On a new computer the keychain does not have that key, so
+the copied account and credentials cannot be opened there. To move to a new
+computer, install OpenAlgo Desktop there, create your account, and add your
+broker again. (A backup made in password mode, with `vault.json`, opens on any
+computer with your OpenAlgo password.)
+
+## Supported brokers
+
+All 36 brokers of OpenAlgo web, including Delta Exchange for crypto:
+
+| | | | |
+| --- | --- | --- | --- |
+| 5 Paisa | 5 Paisa (XTS) | Alice Blue | Angel One |
+| Arrow | CompositEdge | Definedge | Delta Exchange |
+| Dhan | Dhan (Sandbox) | Firstock | Flattrade |
+| Fyers | Groww | HDFC Securities | HDFC Sky |
+| Ibulls | IIFL | IIFL Capital | IndMoney |
+| JainamXts | Kotak Securities | Motilal Oswal | mStock by Mirae Asset |
+| Nubra | Paytm Money | Pocketful | RMoney |
+| Samco | Shoonya | Tradejini | TradeSmart |
+| Upstox | Wisdom Capital | Zebu | Zerodha |
+
+## What is included, and what is not
+
+Included: everything you use in OpenAlgo web for trading. The dashboard, order
+book, trade book, positions and holdings; the `/trading` charting terminal and
+scalping; the strategy module with risk management; TradingView, GoCharting
+and Chartink webhooks; Action Center for semi-automatic orders; options tools
+(option chain, Greeks, OI tracker, max pain, IV charts, GEX, straddles, strategy
+builder); Historify; OpenScript; the Playground; API key management; logs,
+latency and traffic monitoring; Telegram and WhatsApp alerts and bots; sandbox
+mode; and an MCP server for AI clients.
+
+Not included, because they need a Python runtime that the desktop does not
+ship:
+
+- the Python Strategy Host (`/python`)
+- Flow (`/flow`)
+- the pandas-based backtesters: Portfolio Backtester, SIP Backtester and
+  Portfolio Analyzer
+
+Coming later: the **Agent**. Its pages are present but say it is not available
+in the desktop yet.
+
+Other differences from the web: one user per installation, and one broker
+connected at a time.
+
+## Guides
+
+- [Moving from OpenAlgo web](docs/user/moving-from-openalgo-web.md)
+- [Broker sign-in](docs/user/brokers.md)
+- [Connecting Claude Desktop and Claude Code (MCP)](docs/user/mcp.md)
+- [Troubleshooting](docs/user/troubleshooting.md)
+- [Changelog](CHANGELOG.md)
+- OpenAlgo documentation: [docs.openalgo.in](https://docs.openalgo.in)
+
+## Building from source
+
+For developers. You need Node.js 22, Rust 1.92 (pinned in
+`rust-toolchain.toml`) and the Tauri 2 prerequisites for your system:
+
+- macOS: `xcode-select --install`
+- Windows: Visual Studio 2022 Build Tools with the C++ workload, and WebView2
+- Linux and Raspberry Pi:
+  `sudo apt install build-essential curl wget file pkg-config patchelf libssl-dev libdbus-1-dev libxdo-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev`
 
 ```bash
-sudo apt update
-sudo apt install libwebkit2gtk-4.1-dev \
-  build-essential \
-  curl \
-  wget \
-  file \
-  libssl-dev \
-  libgtk-3-dev \
-  libayatana-appindicator3-dev \
-  librsvg2-dev
+npm ci
+npm run tauri:dev     # development build (uses ports 5500 and 8766)
+npm run tauri:build   # installers for this machine, in src-tauri/target/release/bundle
 ```
 
-</details>
+Tests: `npm run test:run` (frontend) and `cargo test` in `src-tauri` (Rust).
+Read [CLAUDE.md](CLAUDE.md) before contributing; it describes the
+compatibility contract with OpenAlgo web and the project conventions. Report
+problems on [GitHub Issues](https://github.com/marketcalls/openalgo-desktop/issues).
 
-### Development Commands
+## Community
 
-```bash
-# Install dependencies
-npm install
-
-# Run in development mode (hot reload)
-npm run tauri:dev
-
-# Build for production
-npm run tauri:build
-
-# Type check
-npm run typecheck
-
-# Lint
-npm run lint
-
-# Run tests
-npm run test
-```
-
-## Project Structure
-
-```
-openalgo-desktop/
-├── src-tauri/                    # Rust backend
-│   ├── Cargo.toml               # Rust dependencies
-│   ├── tauri.conf.json          # Tauri configuration
-│   └── src/
-│       ├── main.rs              # Entry point
-│       ├── lib.rs               # Library exports
-│       ├── error.rs             # Error types
-│       ├── state.rs             # App state
-│       ├── commands/            # Tauri IPC commands
-│       │   ├── auth.rs          # Login, logout
-│       │   ├── broker.rs        # Broker login
-│       │   ├── orders.rs        # Order management
-│       │   ├── positions.rs     # Position tracking
-│       │   ├── holdings.rs      # Holdings data
-│       │   ├── funds.rs         # Account funds
-│       │   ├── quotes.rs        # Market data
-│       │   ├── symbols.rs       # Symbol search
-│       │   ├── strategy.rs      # Strategy CRUD
-│       │   ├── settings.rs      # App settings
-│       │   ├── sandbox.rs       # Paper trading
-│       │   └── historify.rs     # Historical data
-│       ├── db/
-│       │   ├── sqlite/          # SQLite tables
-│       │   └── duckdb/          # DuckDB (Historify)
-│       ├── brokers/
-│       │   ├── mod.rs           # Broker trait
-│       │   ├── types.rs         # Common types
-│       │   ├── angel/           # Angel One adapter
-│       │   ├── zerodha/         # Zerodha adapter
-│       │   └── fyers/           # Fyers adapter
-│       ├── security/
-│       │   ├── keychain.rs      # OS keychain
-│       │   ├── encryption.rs    # AES-256-GCM
-│       │   └── hashing.rs       # Argon2id
-│       └── websocket/
-│           ├── manager.rs       # Connection manager
-│           └── handlers.rs      # Binary protocols
-├── src/                          # React frontend
-│   ├── api/                     # API client (Tauri invoke)
-│   │   ├── client.ts            # Tauri IPC wrapper
-│   │   ├── trading.ts           # Trading operations
-│   │   ├── strategy.ts          # Strategy management
-│   │   └── auth.ts              # Authentication
-│   ├── components/
-│   │   ├── ui/                  # shadcn/ui components
-│   │   └── layout/              # Layout components
-│   ├── pages/                   # Page components
-│   ├── stores/                  # Zustand stores
-│   └── index.css                # Tailwind + theme
-├── package.json
-├── vite.config.ts
-└── tsconfig.json
-```
-
-## Security Architecture
-
-### Credential Storage
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     User's Computer                          │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  ┌─────────────────┐         ┌─────────────────────────┐   │
-│  │  OpenAlgo       │         │   OS Keychain           │   │
-│  │  Desktop        │◄───────►│   (macOS/Windows/Linux) │   │
-│  │                 │         │                         │   │
-│  │  - UI           │         │   - Broker API Keys     │   │
-│  │  - Trading      │         │   - API Secrets         │   │
-│  │  - Strategies   │         │   - Master Encryption   │   │
-│  └────────┬────────┘         │     Key                 │   │
-│           │                  └─────────────────────────┘   │
-│           │                                                 │
-│           ▼                                                 │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │                    SQLite Database                   │   │
-│  │  ~/Library/Application Support/com.openalgo.desktop │   │
-│  │                                                      │   │
-│  │  - User (Argon2id hashed password)                  │   │
-│  │  - Auth Tokens (AES-256-GCM encrypted)              │   │
-│  │  - Settings, Strategies, Symbols                    │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Data Directories
-
-| Platform | Location |
-|----------|----------|
-| macOS | `~/Library/Application Support/com.openalgo.desktop/` |
-| Windows | `C:\Users\<user>\AppData\Roaming\com.openalgo.desktop\` |
-| Linux | `~/.config/com.openalgo.desktop/` |
-
-## Auto-Logout (Compliance)
-
-OpenAlgo Desktop automatically logs out broker sessions at **3:00 AM IST** daily:
-
-- Broker auth tokens are valid for ~24 hours only
-- 3:00 AM IST is well outside market hours (9:15 AM - 3:30 PM IST)
-- Ensures fresh authentication each trading day
-- **Compliance requirement** for Indian brokers
-
-### Warning Schedule
-
-| Time (IST) | Notification |
-|------------|--------------|
-| 2:30 AM | "Auto-logout in 30 minutes" |
-| 2:55 AM | "Auto-logout in 5 minutes" |
-| 3:00 AM | Session cleared, redirect to login |
-
-## Key Benefits
-
-- **Zero Config** - No server setup, no .env files, no port forwarding
-- **Secure by Design** - OS keychain, not filesystem credentials
-- **Cross-Platform** - Same experience on macOS, Windows, Linux
-- **Privacy First** - Everything runs locally, zero data collection
-- **Native Performance** - Rust backend, not Electron
-- **Familiar UI** - Same interface as OpenAlgo web
-- **Offline Capable** - UI works without internet
-- **Auto-Updates** - Built-in update mechanism
-
-## Comparison with OpenAlgo Web
-
-| Aspect | OpenAlgo Web | OpenAlgo Desktop |
-|--------|--------------|------------------|
-| Setup | Clone repo, configure .env, run server | Download and install |
-| Credentials | .env file | OS Keychain |
-| Database | SQLite on server | SQLite local |
-| Updates | git pull | Built-in updater |
-| Hosting | Self-hosted server/cloud | Your computer |
-| Multi-user | Yes | Single user |
-| Multi-broker | Yes (simultaneous) | One broker at a time |
-| Python Strategies | Yes | Not supported |
-| ChartInk | Yes | Not supported |
-| MCP Server | Yes | Not supported |
-
-## Roadmap
-
-- [ ] More brokers (matching full OpenAlgo ecosystem)
-- [ ] TradingView webhook server (local)
-- [ ] Strategy backtesting
-- [ ] Multi-monitor support
-- [ ] System tray with quick actions
-- [ ] Auto-start on login
-- [ ] Keyboard shortcuts
-
-## Contributing
-
-We welcome contributions! To contribute:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## Community & Support
-
-- **Discord**: [Join our community](https://www.openalgo.in/discord)
-- **Twitter/X**: [@openalgoHQ](https://twitter.com/openalgoHQ)
-- **YouTube**: [@openalgo](https://www.youtube.com/@openalgo)
-- **GitHub Issues**: [Report bugs or request features](https://github.com/marketcalls/openalgo/issues)
+- Discord: [Join our community](https://discord.com/invite/UPh7QPsNhP)
+- X: [@openalgoHQ](https://twitter.com/openalgoHQ)
+- YouTube: [@openalgo](https://www.youtube.com/@openalgo)
 
 ## License
 
-OpenAlgo Desktop is released under the **AGPL V3.0 License**. See [LICENSE](LICENSE.md) for details.
-
-## Credits
-
-### Third-Party Libraries
-
-**Frontend:**
-- [React](https://react.dev) - MIT License
-- [shadcn/ui](https://ui.shadcn.com) - MIT License
-- [TanStack Query](https://tanstack.com/query) - MIT License
-- [Zustand](https://zustand-demo.pmnd.rs) - MIT License
-- [Tailwind CSS](https://tailwindcss.com) - MIT License
-
-**Backend:**
-- [Tauri](https://tauri.app) - MIT/Apache 2.0 License
-- [Tokio](https://tokio.rs) - MIT License
-- [rusqlite](https://github.com/rusqlite/rusqlite) - MIT License
-- [DuckDB](https://duckdb.org) - MIT License
+OpenAlgo Desktop is released under the GNU Affero General Public License v3.0.
+See [License.md](License.md).
 
 ## Disclaimer
 
-**This software is for educational purposes only. Do not risk money which you are afraid to lose. USE THE SOFTWARE AT YOUR OWN RISK. THE AUTHORS AND ALL AFFILIATES ASSUME NO RESPONSIBILITY FOR YOUR TRADING RESULTS.**
+**This software is for educational purposes only. Do not risk money which you
+are afraid to lose. USE THE SOFTWARE AT YOUR OWN RISK. THE AUTHORS AND ALL
+AFFILIATES ASSUME NO RESPONSIBILITY FOR YOUR TRADING RESULTS.**
 
-Always test your strategies in Sandbox Mode before deploying with real money. Past performance does not guarantee future results. Trading involves substantial risk of loss.
+Test your strategies in sandbox mode before trading with real money. Past
+performance does not guarantee future results. Trading involves substantial
+risk of loss.
 
 ---
 
-Built with love by traders, for traders. Part of the [OpenAlgo FOSS Ecosystem](https://docs.openalgo.in/mini-foss-universe).
+Part of the [OpenAlgo FOSS Ecosystem](https://docs.openalgo.in/mini-foss-universe).
