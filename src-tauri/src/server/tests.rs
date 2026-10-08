@@ -541,6 +541,8 @@ async fn public_route_list_is_exactly_the_reviewed_one() {
             "POST /auth/logout",
             "POST /auth/reset-password",
             "POST /auth/reset-account",
+            // Secret-verified webhook (the URL token is the credential).
+            "POST /strategy/webhook/{token}",
             "GET /{broker}/callback",
         ]
     );

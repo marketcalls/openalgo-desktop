@@ -18,7 +18,9 @@ fn on_connect(socket: SocketRef, State(ctx): State<Arc<AppState>>) {
         .is_some();
     if !signed_in {
         let _ = socket.disconnect();
+        return;
     }
+    crate::server::routes::strategy_module::register_socket_handlers(&socket);
 }
 
 pub fn layer(ctx: Arc<AppState>) -> (SocketIoLayer, SocketIo) {

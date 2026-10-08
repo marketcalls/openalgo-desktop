@@ -25,6 +25,7 @@ mod gtt;
 mod notify;
 mod options;
 mod orders;
+mod strategy;
 
 use crate::events::{Event, GttKind, Mode};
 use crate::server::envelope::{json_response, not_found, read_json_object};
@@ -272,4 +273,14 @@ pub fn router() -> Router<Arc<AppState>> {
         // Telegram and WhatsApp
         .route("/api/v1/telegram/notify", post(notify::telegram_notify))
         .route("/api/v1/whatsapp/notify", post(notify::whatsapp_notify))
+        // strategy module (web restx_api/strategy.py)
+        .route("/api/v1/strategy/list", post(strategy::list))
+        .route("/api/v1/strategy/status", post(strategy::status))
+        .route("/api/v1/strategy/start", post(strategy::start))
+        .route("/api/v1/strategy/stop", post(strategy::stop))
+        .route("/api/v1/strategy/close_all", post(strategy::close_all))
+        .route("/api/v1/strategy/close_leg", post(strategy::close_leg))
+        .route("/api/v1/strategy/runs", post(strategy::runs))
+        .route("/api/v1/strategy/orders", post(strategy::orders))
+        .route("/api/v1/strategy/events", post(strategy::events))
 }

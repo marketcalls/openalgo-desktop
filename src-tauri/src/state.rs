@@ -86,6 +86,8 @@ pub struct AppState {
     pub messaging: crate::messaging::Messaging,
     /// Historify: the DuckDB history store, download jobs and schedules.
     pub historify: Arc<crate::historify::Historify>,
+    /// The strategy module and RMS (`/strategy`).
+    pub strategy: Arc<crate::strategy::StrategyModule>,
 }
 
 pub struct OpenOptions {
@@ -136,6 +138,13 @@ impl AppState {
         let historify_bus = bus.clone();
         let historify_clock = opts.clock.clone();
         let historify_db = (*duckdb).clone();
+        let websocket = Arc::new(WebSocketManager::new());
+        let strategy_db = sqlite.clone();
+        let strategy_ui = ui.clone();
+        let strategy_symbols = symbols.clone();
+        let strategy_clock = opts.clock.clone();
+        let strategy_feed = websocket.clone();
+        let strategy_session = (config.session_expiry_hour, config.session_expiry_minute);
         let ctx = Arc::new_cyclic(|me: &std::sync::Weak<Self>| Self {
             historify: Arc::new(crate::historify::Historify::new(
                 historify_db,
@@ -145,6 +154,19 @@ impl AppState {
                 &data_dir.join("historify_work"),
                 crate::historify::jobs::EngineConfig::default(),
             )),
+            strategy: crate::strategy::StrategyModule::new(crate::strategy::Deps {
+                db: strategy_db,
+                gateway: Arc::new(crate::strategy::dispatch::AppGateway::new(me.clone())),
+                rooms: Arc::new(crate::strategy::broadcast::SocketRooms::new(strategy_ui)),
+                clock: strategy_clock,
+                symbols: strategy_symbols,
+                session_hour: strategy_session.0,
+                session_minute: strategy_session.1,
+                prices: Some(Arc::new(crate::strategy::tick_feed::FeedPrices::new(
+                    me.clone(),
+                    strategy_feed,
+                ))),
+            }),
             sandbox: crate::sandbox::Sandbox::with_db(
                 sandbox_db,
                 crate::sandbox::SandboxDeps {
@@ -163,7 +185,7 @@ impl AppState {
             security,
             symbols,
             brokers: opts.brokers,
-            websocket: Arc::new(WebSocketManager::new()),
+            websocket,
             bus,
             ui,
             clock: opts.clock,
@@ -182,6 +204,7 @@ impl AppState {
         });
         crate::messaging::register(&ctx);
         ctx.historify.start();
+        crate::strategy::register(&ctx);
         // Analyzer mode survives restarts: resume the sandbox engine.
         if ctx.sqlite.get_analyze_mode().unwrap_or(false) {
             crate::services::analyzer_service::AnalyzerService::spawn_engine_transition(&ctx, true);
@@ -221,6 +244,7 @@ impl AppState {
     pub async fn shutdown(&self) {
         self.shutdown.cancel();
         self.messaging.shutdown().await;
+        self.strategy.shutdown().await;
         self.historify.shutdown().await;
         self.sandbox.shutdown().await;
         self.bus.shutdown(Duration::from_secs(2)).await;

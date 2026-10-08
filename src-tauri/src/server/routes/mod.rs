@@ -23,6 +23,7 @@ pub mod sandbox;
 pub mod search;
 pub mod security;
 pub mod settings;
+pub mod strategy_module;
 pub mod strategy_portfolio;
 pub mod telegram;
 pub mod traffic;
@@ -92,6 +93,13 @@ pub fn table() -> Vec<RouteSpec> {
         r!(POST, "/auth/logout", Public, auth::logout),
         r!(POST, "/auth/reset-password", Public, auth::reset_password),
         r!(POST, "/auth/reset-account", Public, auth::reset_account),
+        // Strategy webhook: public, the URL token is the credential.
+        r!(
+            POST,
+            "/strategy/webhook/{token}",
+            Public,
+            strategy_module::webhook
+        ),
         // Broker redirect target (state-verified)
         r!(
             GET,
@@ -469,6 +477,128 @@ pub fn table() -> Vec<RouteSpec> {
             "/strategybuilder/api/intervals",
             User,
             options_tools::all_intervals
+        ),
+        // Strategy module (web blueprints/strategy_module.py)
+        r!(GET, "/strategy/api/strategies", User, strategy_module::list),
+        r!(
+            POST,
+            "/strategy/api/strategies",
+            User,
+            strategy_module::create
+        ),
+        r!(
+            GET,
+            "/strategy/api/strategies/{sid}",
+            User,
+            strategy_module::detail
+        ),
+        r!(
+            PATCH,
+            "/strategy/api/strategies/{sid}",
+            User,
+            strategy_module::update
+        ),
+        r!(
+            DELETE,
+            "/strategy/api/strategies/{sid}",
+            User,
+            strategy_module::delete
+        ),
+        r!(
+            POST,
+            "/strategy/api/strategies/{sid}/webhook/rotate",
+            User,
+            strategy_module::rotate_webhook
+        ),
+        r!(
+            POST,
+            "/strategy/api/strategies/{sid}/live",
+            User,
+            strategy_module::set_live
+        ),
+        r!(
+            POST,
+            "/strategy/api/strategies/{sid}/kill_switch",
+            User,
+            strategy_module::kill_switch
+        ),
+        r!(
+            POST,
+            "/strategy/api/strategies/{sid}/start",
+            User,
+            strategy_module::start
+        ),
+        r!(
+            POST,
+            "/strategy/api/strategies/{sid}/stop",
+            User,
+            strategy_module::stop
+        ),
+        r!(
+            POST,
+            "/strategy/api/strategies/{sid}/close_all",
+            User,
+            strategy_module::close_all
+        ),
+        r!(
+            POST,
+            "/strategy/api/strategies/{sid}/legs/{leg_id}/close",
+            User,
+            strategy_module::close_leg
+        ),
+        r!(
+            POST,
+            "/strategy/api/strategies/{sid}/unlock_webhook",
+            User,
+            strategy_module::unlock_webhook
+        ),
+        r!(
+            GET,
+            "/strategy/api/strategies/{sid}/runs",
+            User,
+            strategy_module::runs
+        ),
+        r!(
+            GET,
+            "/strategy/api/strategies/{sid}/orders",
+            User,
+            strategy_module::orders
+        ),
+        r!(
+            GET,
+            "/strategy/api/strategies/{sid}/events",
+            User,
+            strategy_module::events
+        ),
+        r!(
+            GET,
+            "/strategy/api/strategies/{sid}/webhook_events",
+            User,
+            strategy_module::webhook_events
+        ),
+        r!(
+            GET,
+            "/strategy/api/strategies/{sid}/orderbook",
+            User,
+            strategy_module::orderbook
+        ),
+        r!(
+            GET,
+            "/strategy/api/strategies/{sid}/tradebook",
+            User,
+            strategy_module::tradebook
+        ),
+        r!(
+            GET,
+            "/strategy/api/strategies/{sid}/positions",
+            User,
+            strategy_module::positions
+        ),
+        r!(
+            GET,
+            "/strategy/api/strategies/{sid}/checkpoints",
+            User,
+            strategy_module::checkpoints
         ),
         // Strategy Builder portfolio (web blueprints/strategy_portfolio.py)
         r!(

@@ -15,12 +15,14 @@ pub mod events;
 pub mod feed;
 pub mod historify;
 pub mod messaging;
+pub mod risk;
 pub mod sandbox;
 pub mod security;
 pub mod server;
 pub mod services;
 pub mod session;
 pub mod state;
+pub mod strategy;
 pub mod webhook;
 pub mod websocket;
 
@@ -61,6 +63,10 @@ pub fn run() {
                 services::monitor::start(&ctx);
                 services::health_service::start(&ctx);
                 let server = server::start(ctx.clone()).await.ok();
+                // Recovery, prices, checkpoints and the IST scheduler (owned
+                // tasks, stopped by `AppState::shutdown`).
+                let started = ctx.strategy.start().await;
+                tracing::info!("Strategy module started: {}", started);
                 // Market data feed for SDK clients; a taken port is kept in
                 // its status with a trader-facing message.
                 let feed = feed::FeedService::new(ctx.clone());
