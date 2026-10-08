@@ -18,6 +18,10 @@ runs:
         # libappindicator3-dev and libayatana-appindicator3-dev conflict on
         # 22.04; only libappindicator3-dev is installed (what tauri-action
         # documents).
+        # A stalled Ubuntu mirror otherwise holds apt-get until the job
+        # timeout; fail the request and retry instead.
+        printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "5";\n' \
+          | sudo tee /etc/apt/apt.conf.d/99ci-network >/dev/null
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends \
           build-essential \

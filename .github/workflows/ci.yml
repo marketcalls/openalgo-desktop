@@ -257,6 +257,12 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - name: Bound apt network waits
+        # A stalled Ubuntu mirror otherwise holds apt-get (run by
+        # --with-deps) until the job timeout; fail the request and retry.
+        run: |
+          printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "5";\n' \
+            | sudo tee /etc/apt/apt.conf.d/99ci-network >/dev/null
       - name: Install Playwright chromium
         run: npx playwright install --with-deps chromium
       - name: Build the app for vite preview
