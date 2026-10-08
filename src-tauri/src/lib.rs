@@ -68,6 +68,8 @@ pub fn run() {
     let app =
         tauri::Builder::default()
             .plugin(tauri_plugin_shell::init())
+            // Rust-side native dialogs only (account reset); no JS permission.
+            .plugin(tauri_plugin_dialog::init())
             .setup(|app| {
                 let data_dir = app.path().app_data_dir()?;
                 let (ctx, server, feed) = tauri::async_runtime::block_on(async {
@@ -144,6 +146,7 @@ pub fn run() {
                 commands::retry_server,
                 commands::restart_server,
                 commands::open_external,
+                commands::reset_account,
             ])
             .build(tauri::generate_context!());
 

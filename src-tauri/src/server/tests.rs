@@ -197,6 +197,9 @@ fn cookie_from(headers: &axum::http::HeaderMap) -> Option<String> {
         .map(|c| c.split(';').next().unwrap_or_default().to_string())
 }
 
+// Findings of the 2026-10-09 security review, one test group per finding.
+mod security;
+
 // ------------------------------------------------------------------ fixtures
 
 fn fixture(rel: &str) -> Value {
@@ -540,7 +543,6 @@ async fn public_route_list_is_exactly_the_reviewed_one() {
             "GET /auth/logout",
             "POST /auth/logout",
             "POST /auth/reset-password",
-            "POST /auth/reset-account",
             // Secret-verified webhook (the URL token is the credential).
             "POST /strategy/webhook/{token}",
             // MCP: bearer token (crate::mcp::http).

@@ -231,17 +231,34 @@ impl AuthService {
 
     /// Forgotten password with no authenticator: remove the account and
     /// everything tied to it, and replace the keys so nothing written before
-    /// can be decrypted.
+    /// can be decrypted. Every credential that reaches this machine from
+    /// outside stops working in the same transaction: MCP tokens are
+    /// revoked, strategy and Chartink webhooks get new secret addresses
+    /// (nobody holds them yet), and Telegram and WhatsApp links are removed.
+    /// Strategy, Chartink and log history is kept.
+    ///
+    /// Only the desktop window calls this (the `reset_account` command,
+    /// after a native confirmation); no HTTP route reaches it.
     pub fn reset_account(state: &AppState) -> Result<()> {
         {
             let conn = state.sqlite.conn()?;
             conn.execute_batch("BEGIN IMMEDIATE")?;
+            let now = state.now();
             let r = (|| -> Result<()> {
                 conn.execute("DELETE FROM users", [])?;
                 api_keys::delete_all(&conn)?;
                 credentials::delete_all(&conn)?;
                 auth::delete_all(&conn)?;
                 conn.execute("DELETE FROM pending_oauth", [])?;
+                crate::mcp::store::revoke_all(&conn, now)?;
+                Self::rotate_webhook_secrets(&conn)?;
+                conn.execute("DELETE FROM telegram_users", [])?;
+                conn.execute(
+                    "UPDATE bot_config SET token = NULL, is_active = 0 WHERE id = 1",
+                    [],
+                )?;
+                conn.execute("DELETE FROM whatsapp_users", [])?;
+                crate::messaging::whatsapp::db::clear_session(&conn)?;
                 Ok(())
             })();
             match r {
@@ -256,6 +273,64 @@ impl AuthService {
         state.api_keys.clear();
         state.sessions.clear();
         state.set_broker_session(None);
+        Ok(())
+    }
+
+    /// New, unpublished secrets for every strategy webhook (only the digest
+    /// is stored, so the new token is simply never shown) and every
+    /// Chartink webhook id (the trader copies the new address from the page).
+    fn rotate_webhook_secrets(conn: &rusqlite::Connection) -> Result<()> {
+        let ids = |sql: &str| -> Result<Vec<i64>> {
+            let mut st = conn.prepare(sql)?;
+            let v = st
+                .query_map([], |r| r.get::<_, i64>(0))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(v)
+        };
+        for id in ids("SELECT id FROM sm_strategy")? {
+            let hash = crate::strategy::store::hash_webhook_token(
+                &crate::strategy::store::generate_webhook_token(),
+            );
+            conn.execute(
+                "UPDATE sm_strategy SET webhook_token_hash = ?1 WHERE id = ?2",
+                rusqlite::params![hash, id],
+            )?;
+        }
+        for id in ids("SELECT id FROM chartink_strategies")? {
+            conn.execute(
+                "UPDATE chartink_strategies SET webhook_id = ?1 WHERE id = ?2",
+                rusqlite::params![uuid::Uuid::new_v4().to_string(), id],
+            )?;
+        }
+        Ok(())
+    }
+
+    /// The whole account reset as the desktop window runs it: end the live
+    /// broker session and the bots, wipe and rotate (`reset_account`), then
+    /// sign every window out.
+    pub async fn reset_account_everywhere(ctx: &std::sync::Arc<AppState>) -> Result<()> {
+        if let Err(e) = crate::services::broker_auth_service::BrokerAuthService::revoke(
+            ctx,
+            crate::events::SessionEndReason::Logout,
+        )
+        .await
+        {
+            tracing::warn!(
+                "Account reset: the broker session could not be revoked: {}",
+                e
+            );
+        }
+        ctx.messaging.telegram.stop(ctx).await;
+        ctx.messaging.whatsapp.stop_bot(ctx).await;
+        let c = ctx.clone();
+        tokio::task::spawn_blocking(move || Self::reset_account(&c))
+            .await
+            .map_err(|e| AppError::Internal(format!("account reset task: {}", e)))??;
+        ctx.bus.publish(crate::events::Event::ForceLogout {
+            message: "OpenAlgo was reset on this computer. Create a new account to continue."
+                .into(),
+        });
+        tracing::info!("Account reset from the desktop window");
         Ok(())
     }
 }

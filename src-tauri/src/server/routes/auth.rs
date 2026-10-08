@@ -686,33 +686,3 @@ pub async fn active_sessions(State(ctx): Ctx) -> Response {
         "sessions": [],
     }))
 }
-
-/// POST /auth/reset-account (json: confirm = "RESET"). Desktop only: the
-/// last resort when the password and the authenticator are both lost.
-pub async fn reset_account(State(ctx): Ctx, ClientIp(ip): ClientIp, form: FormData) -> Response {
-    if ctx
-        .limiter
-        .check(Bucket::Reset, ip, Instant::now())
-        .is_err()
-    {
-        return error(
-            StatusCode::TOO_MANY_REQUESTS,
-            "Too many attempts. Please wait and try again later.",
-        );
-    }
-    if form.get("confirm") != Some("RESET") {
-        return error(StatusCode::BAD_REQUEST, "Type RESET to confirm.");
-    }
-    let _ = BrokerAuthService::revoke(&ctx, crate::events::SessionEndReason::Logout).await;
-    match AuthService::reset_account(&ctx) {
-        Ok(()) => {
-            let mut r = ok(
-                json!({"status": "success", "message": "Your account was removed. Create a new account to continue.", "redirect": "/setup"}),
-            );
-            r.headers_mut()
-                .append(header::SET_COOKIE, clear_session_cookie());
-            r
-        }
-        Err(e) => e.into_response(),
-    }
-}

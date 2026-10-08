@@ -12,6 +12,8 @@ import {
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { fetchCSRFToken } from '@/api/client'
+// Desktop: account reset when the password and authenticator are both lost.
+import { ResetAccountCard } from '@/components/auth/ResetAccountCard'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -519,6 +521,9 @@ export default function ResetPassword() {
                 Back to Login
               </Link>
             </div>
+
+            {/* Desktop: last-resort recovery, confirmed in the desktop window. */}
+            <ResetAccountCard />
           </CardContent>
         </Card>
       </div>

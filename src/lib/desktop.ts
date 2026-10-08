@@ -12,7 +12,7 @@
  * server, so every helper here works outside the Tauri shell too.
  */
 
-import { isTauri } from '@tauri-apps/api/core'
+import { invoke, isTauri } from '@tauri-apps/api/core'
 import { Server } from 'lucide-react'
 import type { NavItem } from '@/config/navigation'
 
@@ -320,4 +320,33 @@ export async function createMcpToken(
 /** Revoke a token: clients using it stop working at once. */
 export async function revokeMcpToken(id: number): Promise<void> {
   await mcpWrite(`/api/mcp/tokens/${id}`, 'DELETE')
+}
+
+// ============================================================================
+// Account reset (desktop window only)
+// ============================================================================
+
+/** What the desktop window answers to a reset request. */
+export interface ResetAccountOutcome {
+  status: 'reset' | 'cancelled'
+  message: string
+}
+
+/**
+ * Last-resort recovery when both the password and the authenticator are
+ * lost. There is no web address for it: the desktop shell asks the trader to
+ * confirm in a system dialog and only then resets, so nothing reaching the
+ * local server over the network can wipe the account.
+ */
+export async function resetAccountFromDesktop(): Promise<ResetAccountOutcome> {
+  if (!isDesktopShell()) {
+    throw new Error('Open OpenAlgo Desktop on this computer to reset your account.')
+  }
+  try {
+    return await invoke<ResetAccountOutcome>('reset_account')
+  } catch (e) {
+    const message =
+      typeof e === 'object' && e !== null && 'message' in e ? String(e.message) : undefined
+    throw new Error(message || 'Your account could not be reset. Restart OpenAlgo and try again.')
+  }
 }

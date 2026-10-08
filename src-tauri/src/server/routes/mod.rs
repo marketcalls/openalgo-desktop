@@ -98,7 +98,6 @@ pub fn table() -> Vec<RouteSpec> {
         r!(GET, "/auth/logout", Public, auth::logout),
         r!(POST, "/auth/logout", Public, auth::logout),
         r!(POST, "/auth/reset-password", Public, auth::reset_password),
-        r!(POST, "/auth/reset-account", Public, auth::reset_account),
         // Strategy webhook: public, the URL token is the credential.
         r!(
             POST,

@@ -6,6 +6,10 @@
   "permissions": [
     "core:app:allow-version",
     "core:window:allow-close",
-    "core:window:allow-set-title"
+    "core:window:allow-set-title",
+    "allow-startup-status",
+    "allow-retry-server",
+    "allow-restart-server",
+    "allow-open-external"
   ]
 }

@@ -21,6 +21,8 @@ tauri-build = { version = "2", features = [] }
 # Tauri framework
 tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
+# Native confirmation for account reset (called from Rust only; no JS permission)
+tauri-plugin-dialog = "2.8"
 
 # Database
 rusqlite = { version = "0.32", features = ["bundled"] }
