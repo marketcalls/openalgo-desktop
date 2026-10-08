@@ -87,7 +87,11 @@ mod tests {
                 let flag = if call { Flag::Call } else { Flag::Put };
                 let k = f * moneyness;
                 let px = b76::price(flag, f, k, t, 0.0, sigma);
-                prop_assume!(px > 1e-6 * f);
+                // IV is only identifiable from the time value: a deep in-the-
+                // money option near expiry is priced at its intrinsic value
+                // for any small sigma, so the solver rightly floors there.
+                let intrinsic = if call { (f - k).max(0.0) } else { (k - f).max(0.0) };
+                prop_assume!(px - intrinsic > 1e-6 * f);
                 let iv = b76::implied_volatility(px, f, k, 0.0, t, flag).unwrap();
                 prop_assert!((iv - sigma).abs() < 1e-6, "iv {} sigma {}", iv, sigma);
                 let hi = px * bump;
