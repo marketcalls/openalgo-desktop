@@ -337,30 +337,42 @@ fn export_bars(
     c: &Connection,
     sym: &str,
     exch: &str,
-    iv: &str,
+    interval_code: &str,
     start: Option<i64>,
     end: Option<i64>,
 ) -> Result<Option<Vec<Bar>>> {
-    if interval::is_daily_aggregated(iv) {
+    if interval::is_daily_aggregated(interval_code) {
         if db::count_source(c, sym, exch, "D", start, end)? == 0 {
-            tracing::warn!("No D data for {}:{}, skipping {}", sym, exch, iv);
+            tracing::warn!("No D data for {}:{}, skipping {}", sym, exch, interval_code);
             return Ok(None);
         }
-        return Ok(Some(db::aggregated_daily(c, sym, exch, iv, start, end)?));
+        return Ok(Some(db::aggregated_daily(
+            c,
+            sym,
+            exch,
+            interval_code,
+            start,
+            end,
+        )?));
     }
-    if interval::is_intraday_computed(iv) {
+    if interval::is_intraday_computed(interval_code) {
         if db::count_source(c, sym, exch, "1m", start, end)? == 0 {
-            tracing::warn!("No 1m data for {}:{}, skipping {}", sym, exch, iv);
+            tracing::warn!(
+                "No 1m data for {}:{}, skipping {}",
+                sym,
+                exch,
+                interval_code
+            );
             return Ok(None);
         }
-        let Some(p) = interval::parse(iv) else {
+        let Some(p) = interval::parse(interval_code) else {
             return Ok(None);
         };
         return Ok(Some(db::aggregated_intraday(
             c, sym, exch, p.minutes, start, end, true,
         )?));
     }
-    Ok(Some(db::stored(c, sym, exch, iv, start, end)?))
+    Ok(Some(db::stored(c, sym, exch, interval_code, start, end)?))
 }
 
 fn export_symbols(c: &Connection, spec: &ExportSpec) -> Result<Vec<(String, String)>> {

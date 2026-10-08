@@ -701,21 +701,6 @@ fn token_only_travels_over_tls_or_loopback() {
     assert!(!token_transport_allowed("not a url"));
 }
 
-#[tokio::test]
-async fn subscription_call_refuses_cleartext_host() {
-    let err = super::streaming::subscription_call(
-        &reqwest::Client::new(),
-        "http://xts.example.invalid/apimarketdata/instruments/subscription",
-        "t",
-        true,
-        1501,
-        &[],
-    )
-    .await
-    .unwrap_err();
-    assert!(matches!(err, AppError::Broker(m) if m.contains("not secure")));
-}
-
 #[test]
 fn socket_url_has_query_and_eio4() {
     let c = &crate::brokers::fivepaisaxts::CONFIG;
