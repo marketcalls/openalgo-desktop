@@ -260,8 +260,7 @@ impl SecurityManager {
     }
 
     fn write_vault(&self, keys: &Keys, password: &str) -> Result<()> {
-        let mut salt = [0u8; 16];
-        rand::rngs::OsRng.fill_bytes(&mut salt);
+        let salt: [u8; 16] = rand::Rng::gen(&mut rand::rngs::OsRng);
         let kek = hashing::derive_kek(password, &salt)?;
         let cipher = DataCipher::new(&kek)?;
         let mut blob = keys.raw_key.expose().to_vec();

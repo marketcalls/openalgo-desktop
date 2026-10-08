@@ -22,11 +22,11 @@ function applied(text: string, edit: IndentEdit | null): string {
 function marked(spec: string): { text: string; start: number; end: number } {
   if (spec.includes('|')) {
     const at = spec.indexOf('|')
-    return { text: spec.replace('|', ''), start: at, end: at }
+    return { text: spec.replaceAll('|', ''), start: at, end: at }
   }
   const start = spec.indexOf('[')
   const end = spec.indexOf(']') - 1
-  return { text: spec.replace('[', '').replace(']', ''), start, end }
+  return { text: spec.replaceAll('[', '').replaceAll(']', ''), start, end }
 }
 
 /** The edited text with the resulting selection marked the same way. */

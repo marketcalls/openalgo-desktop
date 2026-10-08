@@ -173,6 +173,28 @@ pub struct Command {
     pub instruments: Vec<Value>,
 }
 
+/// Whether the market-data token may be sent to `url`.
+///
+/// Every XTS member is served over TLS (web `broker/*/baseurl.py`: all
+/// `https://`), so the `Authorization` token only ever travels encrypted.
+/// Plain `http://` is accepted for loopback hosts only, which is what the
+/// local test doubles use; any other URL is refused before a byte is sent.
+pub fn token_transport_allowed(url: &str) -> bool {
+    let Ok(u) = url::Url::parse(url) else {
+        return false;
+    };
+    match u.scheme() {
+        "https" => true,
+        "http" => match u.host() {
+            Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+            Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+            Some(url::Host::Domain(d)) => d.eq_ignore_ascii_case("localhost"),
+            None => false,
+        },
+        _ => false,
+    }
+}
+
 /// One subscription call. Returns the snapshot strings of `listQuotes`.
 pub async fn subscription_call(
     http: &reqwest::Client,
@@ -182,6 +204,12 @@ pub async fn subscription_call(
     code: u16,
     instruments: &[Value],
 ) -> Result<Vec<String>> {
+    if !token_transport_allowed(url) {
+        tracing::error!("XTS subscription refused: market-data host is not served over TLS");
+        return Err(AppError::Broker(
+            "Live market data could not be started because the broker connection is not secure. Check the broker address in Broker Configuration.".into(),
+        ));
+    }
     let req = if subscribe {
         http.post(url)
     } else {

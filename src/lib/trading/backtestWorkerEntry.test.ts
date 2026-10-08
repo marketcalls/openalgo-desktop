@@ -57,9 +57,12 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-async function deliver(message: BacktestMessage): Promise<void> {
-  const handler = self.onmessage as unknown as (event: { data: BacktestMessage }) => Promise<void>
-  await handler({ data: message })
+async function deliver(message: unknown, origin = ''): Promise<void> {
+  const handler = self.onmessage as unknown as (event: {
+    data: unknown
+    origin: string
+  }) => Promise<void>
+  await handler({ data: message, origin })
 }
 
 describe('the worker', () => {
@@ -82,5 +85,30 @@ describe('the worker', () => {
     expect(posted).toHaveBeenCalledWith(
       expect.objectContaining({ ok: true, stopped: null, report: expect.any(Object) })
     )
+  })
+
+  it('refuses a message that is not a run request without calling the engine', async () => {
+    for (const junk of [
+      null,
+      'run',
+      42,
+      [],
+      {},
+      { ...MESSAGE, bars: 'x' },
+      { ...MESSAGE, contract: null },
+    ]) {
+      await deliver(junk)
+    }
+
+    expect(backtest).not.toHaveBeenCalled()
+    expect(posted).toHaveBeenCalledTimes(7)
+    expect(posted).toHaveBeenCalledWith(expect.objectContaining({ ok: false }))
+  })
+
+  it('ignores a message from another origin', async () => {
+    await deliver(MESSAGE, 'https://elsewhere.example')
+
+    expect(backtest).not.toHaveBeenCalled()
+    expect(posted).not.toHaveBeenCalled()
   })
 })

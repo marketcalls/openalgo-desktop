@@ -10,7 +10,8 @@ use super::mapping::*;
 use super::master_contract::{bse_index_symbol, parse_index_list, parse_segment};
 use super::socketio::{self, EioPacket, SioPacket};
 use super::streaming::{
-    normalise_message, socket_url, ws_base, xts_time_ms, Command, FeedSource, XtsFeed,
+    normalise_message, socket_url, token_transport_allowed, ws_base, xts_time_ms, Command,
+    FeedSource, XtsFeed,
 };
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Product, Validity};
@@ -667,6 +668,52 @@ fn engine_io_and_socket_io_packets() {
     assert_eq!(socketio::strip_eio3_prefix(&pkt).len(), pkt.len() - 1);
     let raw = packet(4, 1501, 1, 2885, &[0u8; 8]);
     assert_eq!(socketio::strip_eio3_prefix(&raw), &raw[..]);
+}
+
+#[test]
+fn token_only_travels_over_tls_or_loopback() {
+    for cfg in [
+        &crate::brokers::fivepaisaxts::CONFIG,
+        &crate::brokers::jainamxts::CONFIG,
+        &crate::brokers::compositedge::CONFIG,
+        &crate::brokers::iifl::CONFIG,
+        &crate::brokers::ibulls::CONFIG,
+        &crate::brokers::wisdom::CONFIG,
+        &crate::brokers::rmoney::CONFIG,
+    ] {
+        assert!(
+            cfg.base_url.starts_with("https://"),
+            "{} must be served over TLS",
+            cfg.id
+        );
+        let sub = format!(
+            "{}{}/instruments/subscription",
+            cfg.base_url, cfg.subscription_path
+        );
+        assert!(token_transport_allowed(&sub), "{}", sub);
+    }
+    assert!(token_transport_allowed("http://127.0.0.1:9/x"));
+    assert!(token_transport_allowed("http://localhost:9/x"));
+    assert!(token_transport_allowed("http://[::1]:9/x"));
+    assert!(!token_transport_allowed("http://xts.example.com/x"));
+    assert!(!token_transport_allowed("http://10.0.0.5/x"));
+    assert!(!token_transport_allowed("ws://127.0.0.1/x"));
+    assert!(!token_transport_allowed("not a url"));
+}
+
+#[tokio::test]
+async fn subscription_call_refuses_cleartext_host() {
+    let err = super::streaming::subscription_call(
+        &reqwest::Client::new(),
+        "http://xts.example.invalid/apimarketdata/instruments/subscription",
+        "t",
+        true,
+        1501,
+        &[],
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(err, AppError::Broker(m) if m.contains("not secure")));
 }
 
 #[test]

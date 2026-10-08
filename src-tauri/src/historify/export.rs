@@ -460,7 +460,7 @@ pub fn export_parquet(c: &Connection, path: &Path, spec: &ExportSpec) -> Result<
     if symbols.is_empty() {
         return Ok(Err("No symbols found to export".into()));
     }
-    let iv = spec
+    let export_interval = spec
         .intervals
         .first()
         .cloned()
@@ -473,7 +473,8 @@ pub fn export_parquet(c: &Connection, path: &Path, spec: &ExportSpec) -> Result<
     let r = (|| -> Result<ExportResult> {
         let (mut total, mut skipped) = (0i64, 0usize);
         for (sym, exch) in &symbols {
-            let Some(bars) = export_bars(c, sym, exch, &iv, spec.start, spec.end)? else {
+            let Some(bars) = export_bars(c, sym, exch, &export_interval, spec.start, spec.end)?
+            else {
                 skipped += 1;
                 continue;
             };
@@ -482,7 +483,7 @@ pub fn export_parquet(c: &Connection, path: &Path, spec: &ExportSpec) -> Result<
                 app.append_row(params![
                     sym,
                     exch,
-                    iv,
+                    export_interval,
                     b.timestamp,
                     b.open,
                     b.high,

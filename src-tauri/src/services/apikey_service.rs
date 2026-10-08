@@ -1,25 +1,41 @@
 //! OpenAlgo API key: verification for `/api/v1`, regeneration and order mode.
 //!
-//! Verification: SHA-256 of the presented key indexes a bounded cache
-//! (positive and negative results, 5 minutes). On a miss the HMAC index finds
+//! Verification: a keyed digest of the presented key (HMAC-SHA256 under a
+//! random per-process key, the same construction as the stored lookup index)
+//! indexes a bounded cache (positive and negative results, 5 minutes). On a miss the HMAC index finds
 //! the one candidate row and Argon2 verifies it. Regenerating the key clears
 //! the cache.
 
 use crate::db::sqlite::api_keys;
 use crate::error::Result;
+use crate::security::hashing::lookup_hmac;
 use crate::security::Secret;
 use crate::state::AppState;
 use parking_lot::Mutex;
-use sha2::{Digest, Sha256};
+use rand::RngCore;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 pub const CACHE_CAP: usize = 1024;
 pub const CACHE_TTL: Duration = Duration::from_secs(300);
 
-#[derive(Default)]
+/// Verified-key cache. Entries are keyed by an HMAC of the presented key
+/// under a random key that lives only in this process, so the map never
+/// holds the API key or an unsalted hash of it.
 pub struct ApiKeyCache {
-    map: Mutex<HashMap<[u8; 32], (bool, Instant)>>,
+    cache_key: [u8; 32],
+    map: Mutex<HashMap<String, (bool, Instant)>>,
+}
+
+impl Default for ApiKeyCache {
+    fn default() -> Self {
+        let mut cache_key = [0u8; 32];
+        rand::rngs::OsRng.fill_bytes(&mut cache_key);
+        Self {
+            cache_key,
+            map: Mutex::new(HashMap::new()),
+        }
+    }
 }
 
 impl ApiKeyCache {
@@ -27,13 +43,13 @@ impl ApiKeyCache {
         Self::default()
     }
 
-    fn digest(key: &str) -> [u8; 32] {
-        Sha256::digest(key.as_bytes()).into()
+    fn digest(&self, key: &str) -> String {
+        lookup_hmac(&self.cache_key, key)
     }
 
     pub fn get(&self, key: &str, now: Instant) -> Option<bool> {
         let mut map = self.map.lock();
-        let d = Self::digest(key);
+        let d = self.digest(key);
         match map.get(&d) {
             Some((valid, exp)) if *exp > now => Some(*valid),
             Some(_) => {
@@ -49,7 +65,10 @@ impl ApiKeyCache {
         if map.len() >= CACHE_CAP {
             map.retain(|_, (_, exp)| *exp > now);
             while map.len() >= CACHE_CAP {
-                let oldest = map.iter().min_by_key(|(_, (_, e))| *e).map(|(k, _)| *k);
+                let oldest = map
+                    .iter()
+                    .min_by_key(|(_, (_, e))| *e)
+                    .map(|(k, _)| k.clone());
                 match oldest {
                     Some(k) => {
                         map.remove(&k);
@@ -58,7 +77,8 @@ impl ApiKeyCache {
                 }
             }
         }
-        map.insert(Self::digest(key), (valid, now + CACHE_TTL));
+        let d = self.digest(key);
+        map.insert(d, (valid, now + CACHE_TTL));
     }
 
     pub fn clear(&self) {
@@ -174,5 +194,23 @@ mod tests {
         assert!(c.len() <= CACHE_CAP);
         c.clear();
         assert!(c.is_empty());
+    }
+
+    #[test]
+    fn cache_key_is_keyed_per_process_not_a_plain_hash() {
+        use sha2::{Digest, Sha256};
+        let a = ApiKeyCache::new();
+        let b = ApiKeyCache::new();
+        let key = "presented-api-key";
+        let plain = hex::encode(Sha256::digest(key.as_bytes()));
+        let da = a.digest(key);
+        assert_eq!(da, a.digest(key), "same cache, same key: stable");
+        assert_ne!(da, b.digest(key), "independent caches use independent keys");
+        assert_ne!(da, plain, "not an unsalted SHA-256 of the key");
+        assert!(!da.contains(key));
+        a.put(key, true, Instant::now());
+        assert!(a.map.lock().keys().all(|k| k != key && *k != plain));
+        assert_eq!(a.get(key, Instant::now()), Some(true));
+        assert_eq!(b.get(key, Instant::now()), None);
     }
 }
