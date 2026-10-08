@@ -1,0 +1,16 @@
+{
+  "status": "Success",
+  "statusMessage": "Index quote details retrieved successfully",
+  "indexDetails": [
+    {
+      "indexName": "NIFTY 50",
+      "listingId": "-23",
+      "spotPrice": "24,612.30",
+      "openValue": "24,500.00",
+      "highValue": "24,650.00",
+      "lowValue": "24,480.00",
+      "closeValue": "24,450.00",
+      "totalTradedVolume": "0"
+    }
+  ]
+}

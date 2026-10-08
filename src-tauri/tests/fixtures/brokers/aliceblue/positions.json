@@ -1,0 +1,50 @@
+{
+  "status": "Ok",
+  "result": [
+    {
+      "tradingSymbol": "SBIN-EQ",
+      "exchange": "NSE",
+      "product": "INTRADAY",
+      "netQuantity": 10,
+      "dayBuyPrice": 812.35,
+      "daySellPrice": 0,
+      "buyQuantity": 10,
+      "sellQuantity": 0,
+      "ltp": 815.0,
+      "mtm": 26.5,
+      "unrealisedPnl": 0,
+      "realizedPnl": 0,
+      "instrumentId": "3045"
+    },
+    {
+      "tradingSymbol": "NIFTY28OCT2625000CE",
+      "exchange": "NFO",
+      "product": "NRML",
+      "netQuantity": -75,
+      "dayBuyPrice": 0,
+      "daySellPrice": 118.2,
+      "buyQuantity": 0,
+      "sellQuantity": 75,
+      "ltp": 110.0,
+      "mtm": 615,
+      "unrealisedPnl": 615.0,
+      "realizedPnl": 0,
+      "instrumentId": "54957"
+    },
+    {
+      "tradingSymbol": "INFY-EQ",
+      "exchange": "NSE",
+      "product": "LONGTERM",
+      "netQuantity": 0,
+      "dayBuyPrice": 1500,
+      "daySellPrice": 1510,
+      "buyQuantity": 5,
+      "sellQuantity": 5,
+      "ltp": 1505,
+      "mtm": 50,
+      "unrealisedPnl": 0,
+      "realizedPnl": 50.0,
+      "instrumentId": "1594"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "status": "SUCCESS",
+  "message": "Position",
+  "errorcode": "",
+  "data": [
+    {
+      "clientid": "<USER_ID>",
+      "exchange": "NSE",
+      "symboltoken": 2885,
+      "symbol": "RELIANCE",
+      "series": "EQ",
+      "productname": "VALUEPLUS",
+      "buyquantity": 10,
+      "sellquantity": 0,
+      "buyamount": 24005,
+      "sellamount": 0,
+      "LTP": 2410.0,
+      "marktomarket": 95.0,
+      "bookedprofitloss": 0
+    },
+    {
+      "clientid": "<USER_ID>",
+      "exchange": "NSEFO",
+      "symboltoken": 35001,
+      "symbol": "NIFTY",
+      "productname": "NORMAL",
+      "buyquantity": 0,
+      "sellquantity": 75,
+      "buyamount": 0,
+      "sellamount": 7612.5,
+      "LTP": 100.0,
+      "marktomarket": 112.5,
+      "bookedprofitloss": -20.0
+    },
+    {
+      "clientid": "<USER_ID>",
+      "exchange": "NSE",
+      "symboltoken": 1594,
+      "symbol": "INFY",
+      "productname": "DELIVERY",
+      "buyquantity": 5,
+      "sellquantity": 5,
+      "buyamount": 7500,
+      "sellamount": 7550,
+      "LTP": 1510.0,
+      "marktomarket": 0,
+      "bookedprofitloss": 50.0
+    }
+  ]
+}

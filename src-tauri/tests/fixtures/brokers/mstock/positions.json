@@ -1,0 +1,45 @@
+{
+  "status": "true",
+  "message": "SUCCESS",
+  "data": [
+    {
+      "exchange": "NSE",
+      "symboltoken": "3045",
+      "producttype": "DELIVERY",
+      "tradingsymbol": "",
+      "symbolname": "SBIN-EQ",
+      "instrumenttype": "",
+      "buyqty": "10",
+      "sellqty": "0",
+      "totalbuyvalue": "7505",
+      "totalsellvalue": "0",
+      "netqty": "10",
+      "avgnetprice": "750.50",
+      "netvalue": "-7505"
+    },
+    {
+      "exchange": "NSE",
+      "symboltoken": "45001",
+      "producttype": "CARRYFORWARD",
+      "tradingsymbol": "",
+      "symbolname": "NIFTY26OCT24500CE",
+      "instrumenttype": "OPTIDX",
+      "buyqty": "0",
+      "sellqty": "75",
+      "netqty": "-75",
+      "avgnetprice": "112.35",
+      "netvalue": "8426.25"
+    },
+    {
+      "exchange": "NSE",
+      "symboltoken": "1594",
+      "producttype": "INTRADAY",
+      "tradingsymbol": "",
+      "symbolname": "INFY-EQ",
+      "instrumenttype": "",
+      "netqty": "0",
+      "avgnetprice": "0",
+      "netvalue": "12.5"
+    }
+  ]
+}

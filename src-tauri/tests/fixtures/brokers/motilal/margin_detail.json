@@ -1,0 +1,23 @@
+{
+  "status": "SUCCESS",
+  "message": "Margin Detail",
+  "errorcode": "",
+  "data": [
+    {"srno": 100, "particulars": "Total Available Margin(A-B-C-D)", "amount": 49833896.66},
+    {"srno": 102, "particulars": "Available for Cash / SLBM Segment", "amount": 49833896.66},
+    {"srno": 201, "particulars": "Cash Balance(Cash Margin)", "amount": 50000000},
+    {"srno": 220, "particulars": "Non-Cash Balance(Non-Cash Margin)", "amount": 474919.06},
+    {"srno": 300, "particulars": "Margin Usage Details (B)", "amount": 622432.4},
+    {"srno": 301, "particulars": "Equities", "amount": 674.75},
+    {"srno": 321, "particulars": "FO", "amount": 621757.65},
+    {"srno": 400, "particulars": "Profit / Loss (MTM) Details C", "amount": -18590},
+    {"srno": 402, "particulars": "Add: Unrealised (Net)", "amount": -20000},
+    {"srno": 403, "particulars": "Add: Realised P/L (Net)", "amount": 1000},
+    {"srno": 422, "particulars": "Add: Unrealised (Net)", "amount": 500},
+    {"srno": 423, "particulars": "Add: Realised P/L (Net)", "amount": -90},
+    {"srno": 507, "particulars": "Repeated row", "amount": 1},
+    {"srno": 507, "particulars": "Repeated row", "amount": 2},
+    {"srno": 600, "particulars": "Total Profit and Loss(MTM)", "amount": -18590},
+    {"srno": 700, "particulars": "Total Profit and Loss(BPL)", "amount": 910}
+  ]
+}

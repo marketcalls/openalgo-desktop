@@ -1,0 +1,9 @@
+{
+  "status": "Success",
+  "statusMessage": "Source IP matches the registered primary IP",
+  "srcIp": "203.0.113.10",
+  "primaryIp": "203.0.113.10",
+  "secondaryIp": "",
+  "matches": true,
+  "matchedAs": "primary"
+}

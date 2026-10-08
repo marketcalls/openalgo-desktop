@@ -1,0 +1,32 @@
+{
+  "status": "Ok",
+  "result": [
+    {
+      "brokerOrderId": "25100300000101",
+      "exchange": "NSE",
+      "tradingSymbol": "SBIN-EQ",
+      "formattedInstrumentName": "SBIN-EQ",
+      "transactionType": "BUY",
+      "filledQuantity": 10,
+      "tradedPrice": 812.35,
+      "product": "INTRADAY",
+      "orderType": "MARKET",
+      "fillTimestamp": "03-10-2026 09:16:02",
+      "exchangeTradeId": "T5550001",
+      "exchangeOrderId": "1100000012345678"
+    },
+    {
+      "brokerOrderId": "25100300000105",
+      "exchange": "NFO",
+      "tradingSymbol": "NIFTY28OCT2625000CE",
+      "formattedInstrumentName": "NIFTY 28OCT26 25000 CE",
+      "transactionType": "SELL",
+      "filledQuantity": 75,
+      "tradedPrice": 118.2,
+      "product": "NRML",
+      "orderType": "LIMIT",
+      "fillTimestamp": "09:31:45",
+      "exchangeTradeId": "T5550002"
+    }
+  ]
+}

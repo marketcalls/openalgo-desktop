@@ -1,0 +1,30 @@
+{
+  "status": "Success",
+  "statusMessage": "Quote details retrieved successfully",
+  "quoteDetails": {
+    "symbolName": "SBIN",
+    "tradingSymbol": "SBIN-EQ",
+    "exchange": "NSE",
+    "lastTradedPrice": "812.40",
+    "openValue": "805.00",
+    "highValue": "815.95",
+    "lowValue": "801.10",
+    "previousClose": "800.00",
+    "totalTradedVolume": "12,345,678",
+    "openInterest": "0",
+    "bestBids": [
+      {
+        "number": "1",
+        "quantity": "500",
+        "price": "812.35"
+      }
+    ],
+    "bestAsks": [
+      {
+        "number": "1",
+        "quantity": "300",
+        "price": "812.45"
+      }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "status": true,
+  "message": "SUCCESS",
+  "errorcode": "",
+  "data": {
+    "jwtToken": "",
+    "refreshToken": "<REFRESH_TOKEN>",
+    "feedToken": ""
+  }
+}

@@ -32,15 +32,24 @@ use std::sync::Arc;
 use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-fn init_logging() {
-    // Fixed filter (no environment read): info in release, debug in development.
-    let filter = if cfg!(debug_assertions) {
-        "openalgo_desktop_lib=debug,openalgo_desktop=debug,tauri=info,warn"
+/// The fixed log filter (no environment read): info in release, debug in
+/// development. The socket libraries are pinned at info whatever the
+/// catch-all says: tungstenite traces the whole handshake request, path and
+/// query included, and some brokers (mStock, Kite) carry their API key and
+/// session token on the socket address.
+pub(crate) fn log_filter(development: bool) -> &'static str {
+    if development {
+        "openalgo_desktop_lib=debug,openalgo_desktop=debug,tauri=info,tungstenite=info,tokio_tungstenite=info,warn"
     } else {
-        "openalgo_desktop_lib=info,openalgo_desktop=info,tauri=warn,warn"
-    };
+        "openalgo_desktop_lib=info,openalgo_desktop=info,tauri=warn,tungstenite=info,tokio_tungstenite=info,warn"
+    }
+}
+
+fn init_logging() {
     let _ = tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(filter))
+        .with(tracing_subscriber::EnvFilter::new(log_filter(cfg!(
+            debug_assertions
+        ))))
         .with(tracing_subscriber::fmt::layer())
         .with(services::error_log::CaptureLayer)
         .try_init();

@@ -1,0 +1,11 @@
+{
+  "status": "true",
+  "message": "SUCCESS",
+  "errorcode": "",
+  "data": {
+    "jwtToken": "<JWT>",
+    "refreshToken": "<REFRESH_TOKEN>",
+    "feedToken": "<FEED_TOKEN>",
+    "state": ""
+  }
+}

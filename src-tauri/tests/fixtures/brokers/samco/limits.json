@@ -1,0 +1,14 @@
+{
+  "status": "Success",
+  "statusMessage": "Limits retrieved successfully",
+  "equityLimit": {
+    "grossAvailableMargin": "125000.00",
+    "netAvailableMargin": "100,250.456",
+    "marginUsed": "24,749.50",
+    "collateralMarginAgainstShares": "5000"
+  },
+  "commodityLimit": {
+    "netAvailableMargin": "100,250.456",
+    "marginUsed": "0"
+  }
+}

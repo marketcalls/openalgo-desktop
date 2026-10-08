@@ -1,0 +1,7 @@
+exchangename,scripcode,scripname,scripshortname,instrumentname,marketlot,ticksize,strikeprice,optiontype,expirydate
+NSE,1594,INFY EQ,INFY,      ,1,0.05,-1.000,EQ,0
+NSE,2885,RELIANCE EQ,RELIANCE,      ,1,0.10,-1.000,EQ,0
+NSE,10001,CHOLAFIN D1,CHOLAFIN,      ,1,0.05,-1.000,D1,0
+NSE,685,CHOLAFIN EQ,CHOLAFIN,      ,1,0.05,-1.000,EQ,0
+NSE,20001,745AP33 SG,,      ,1,0.01,-1.000,SG,0
+NSE,26000,Nifty 50,Nifty 50,IDX   ,1,0.05,-1.000,XX,0

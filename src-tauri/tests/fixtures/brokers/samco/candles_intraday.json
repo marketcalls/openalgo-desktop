@@ -1,0 +1,22 @@
+{
+  "status": "Success",
+  "statusMessage": "Intraday candle data retrieved successfully",
+  "intradayCandleData": [
+    {
+      "dateTime": "2026-10-01 09:20:00.0",
+      "open": "801.00",
+      "high": "803.00",
+      "low": "800.50",
+      "close": "802.25",
+      "volume": "120,000"
+    },
+    {
+      "dateTime": "2026-10-01 09:15:00.0",
+      "open": "800.00",
+      "high": "802.00",
+      "low": "799.00",
+      "close": "801.00",
+      "volume": "250000"
+    }
+  ]
+}

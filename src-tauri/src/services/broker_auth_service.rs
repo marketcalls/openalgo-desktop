@@ -51,6 +51,8 @@ pub struct FormLogin {
     pub client_id: Option<String>,
     pub password: Option<Secret>,
     pub totp: Option<Secret>,
+    /// Date of birth (Motilal's second factor, `DD/MM/YYYY`).
+    pub dob: Option<Secret>,
 }
 
 impl FormLogin {
@@ -80,6 +82,7 @@ impl FormLogin {
                 Some(catalog::CredentialSlot::ClientId) => out.client_id = Some(v),
                 Some(catalog::CredentialSlot::Password) => out.password = Some(Secret::new(v)),
                 Some(catalog::CredentialSlot::Totp) => out.totp = Some(Secret::new(v)),
+                Some(catalog::CredentialSlot::Dob) => out.dob = Some(Secret::new(v)),
                 None => tracing::warn!("Login field {} has no credential slot", lf.name),
             }
         }
@@ -98,6 +101,7 @@ impl FormLogin {
             client_id: pick(&["userid", "clientid", "client_id", "mobile"]),
             password: pick(&["pin", "password", "mpin"]).map(Secret::new),
             totp: pick(&["totp", "twofa", "otp"]).map(Secret::new),
+            dob: None,
         }
     }
 }
@@ -349,9 +353,56 @@ impl BrokerAuthService {
             client_id: form.client_id.or(stored.client_id.clone()),
             password: form.password.map(|s| s.expose().to_string()),
             totp: form.totp.map(|s| s.expose().to_string()),
+            // A form login has no OAuth code; the one extra factor (Motilal's
+            // date of birth, `CredentialSlot::Dob`) travels in its place.
+            auth_code: form.dob.map(|s| s.expose().to_string()),
             ..stored
         };
         Self::authenticate_as(state, broker, input, expected.as_deref()).await
+    }
+
+    /// Prepare a form login when its page opens or the trader asks again:
+    /// Definedge sends the login OTP (web GET `/definedge/callback` and the
+    /// `resend` action). `Ok(None)` for brokers with nothing to prepare,
+    /// otherwise the broker's message for the trader.
+    pub async fn prepare_form_login(state: &AppState, broker: &str) -> Result<Option<String>> {
+        let Some(adapter) = state.brokers.get(broker) else {
+            return Ok(None);
+        };
+        let Some(definedge) = adapter
+            .as_any()
+            .and_then(|a| a.downcast_ref::<crate::brokers::definedge::DefinedgeBroker>())
+        else {
+            return Ok(None);
+        };
+        let input = Self::stored_input(&Self::load_credentials(state, broker)?);
+        // No database connection is held across this await.
+        definedge.send_otp(&input).await.map(Some)
+    }
+
+    /// Samco static IP check (web GET `/samco/ip-status`):
+    /// `(http status, body)` with the web's success and error shapes.
+    pub async fn samco_ip_status(state: &AppState) -> (u16, serde_json::Value) {
+        use crate::brokers::samco::{self, SamcoBroker};
+        let session = state
+            .get_broker_session()
+            .filter(|s| s.broker_id == "samco");
+        let adapter = state.brokers.get("samco");
+        let samco = adapter
+            .as_ref()
+            .and_then(|a| a.as_any())
+            .and_then(|a| a.downcast_ref::<SamcoBroker>());
+        let (Some(session), Some(samco)) = (session, samco) else {
+            return samco::ip_status_error(samco::IP_STATUS_NOT_CONNECTED);
+        };
+        let auth = crate::brokers::types::AuthToken::new(session.auth_token.expose());
+        match samco.ip_status(&auth).await {
+            Ok(s) => (200, s.to_json()),
+            Err(e) => {
+                tracing::warn!("Samco IP status check failed: {}", e.code());
+                samco::ip_status_error(&e.client_message())
+            }
+        }
     }
 
     /// Sign in; when `expected` names an account, a session for any other
@@ -542,5 +593,41 @@ impl BrokerAuthService {
             .ok()
             .and_then(|c| auth::has_revoked(&c).ok())
             .unwrap_or(false)
+    }
+}
+
+#[cfg(test)]
+mod form_tests {
+    use super::*;
+
+    #[test]
+    fn form_carries_the_date_of_birth() {
+        let f: HashMap<String, String> = [
+            ("userid", "AB1"),
+            ("password", "pw"),
+            ("dob", " 18/10/1988 "),
+            ("totp", "123456"),
+        ]
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+        // Through Motilal's declared fields (`catalog::login_fields`).
+        let form = FormLogin::for_broker("motilal", &f).unwrap();
+        assert_eq!(form.client_id.as_deref(), Some("AB1"));
+        assert_eq!(form.password.as_ref().map(|s| s.expose()), Some("pw"));
+        assert_eq!(form.dob.as_ref().map(|s| s.expose()), Some("18/10/1988"));
+        assert_eq!(form.totp.as_ref().map(|s| s.expose()), Some("123456"));
+        // The date of birth is required; the TOTP is not.
+        let mut no_dob = f.clone();
+        no_dob.remove("dob");
+        assert!(FormLogin::for_broker("motilal", &no_dob).is_err());
+        let mut no_totp = f.clone();
+        no_totp.remove("totp");
+        assert!(FormLogin::for_broker("motilal", &no_totp)
+            .unwrap()
+            .totp
+            .is_none());
+        // Brokers without the field never pick it up.
+        assert!(FormLogin::from_fields(&f).dob.is_none());
     }
 }

@@ -1,0 +1,20 @@
+{
+  "status": "Success",
+  "statusMessage": "Holdings details retrieved successfully",
+  "holdingSummary": {
+    "portfolioValue": "16,500.00",
+    "totalGainAndLossAmount": "1,500.00"
+  },
+  "holdingDetails": [
+    {
+      "exchange": "NSE",
+      "tradingSymbol": "SBIN-EQ",
+      "isin": "INE062A01020",
+      "holdingsQuantity": "10",
+      "averagePrice": "1,500.00",
+      "lastTradedPrice": "1,650.00",
+      "holdingsValue": "16,500.00",
+      "totalGainAndLoss": "1,500.00"
+    }
+  ]
+}

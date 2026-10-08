@@ -1,0 +1,3 @@
+exchangename,scripcode,scripname,scripshortname,instrumentname,marketlot,ticksize,strikeprice,optiontype,expirydate
+NSECD,5479,USDINR 23-Oct-2026 FUT,USDINR,FUTCUR,1000,0.000,-1.000,XX,0
+NSECD,10084,GBPUSD 27-Aug-2026 CE 1.4,GBPUSD,OPTCUR,1000,0.0001,1.400,CE,0

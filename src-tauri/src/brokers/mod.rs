@@ -6,11 +6,13 @@
 //! capabilities (margin, GTT, streaming) default to `AppError::Unsupported`.
 //! The trait is object safe: the registry hands out `Arc<dyn Broker>`.
 
+pub mod aliceblue;
 pub mod angel;
 pub mod arrow;
 pub mod catalog;
 pub mod common;
 pub mod compositedge;
+pub mod definedge;
 pub mod deltaexchange;
 pub mod dhan;
 pub mod dhan_sandbox;
@@ -31,10 +33,13 @@ pub mod jainamxts;
 pub mod kotak;
 #[cfg(any(test, feature = "test-support"))]
 pub mod mock;
+pub mod motilal;
+pub mod mstock;
 pub mod nubra;
 pub mod paytm;
 pub mod pocketful;
 pub mod rmoney;
+pub mod samco;
 pub mod shoonya;
 pub mod tradejini;
 pub mod tradesmart;
@@ -81,6 +86,13 @@ pub trait Broker: Send + Sync {
     /// The symbol master this adapter resolves against, when it has one.
     /// Used by the default `close_all_positions`.
     fn symbols(&self) -> Option<&SymbolResolver> {
+        None
+    }
+
+    /// The concrete adapter, for broker-specific sign-in helpers (the
+    /// Definedge OTP request, the Samco static IP check). `None` unless the
+    /// adapter opts in.
+    fn as_any(&self) -> Option<&dyn std::any::Any> {
         None
     }
 
@@ -535,6 +547,11 @@ impl BrokerRegistry {
             Arc::new(paytm::PaytmBroker::new(symbols.clone())),
             Arc::new(hdfcsky::HdfcSkyBroker::new(symbols.clone())),
             Arc::new(hdfcsecurities::HdfcSecuritiesBroker::new(symbols.clone())),
+            Arc::new(samco::SamcoBroker::new(symbols.clone())),
+            Arc::new(aliceblue::AliceBlueBroker::new(symbols.clone())),
+            Arc::new(definedge::DefinedgeBroker::new(symbols.clone())),
+            Arc::new(mstock::MstockBroker::new(symbols.clone())),
+            Arc::new(motilal::MotilalBroker::new(symbols.clone())),
         ];
         Self::with_symbols(symbols, brokers)
     }
@@ -601,9 +618,11 @@ mod tests {
         assert_eq!(
             reg.ids(),
             [
+                "aliceblue",
                 "angel",
                 "arrow",
                 "compositedge",
+                "definedge",
                 "deltaexchange",
                 "dhan",
                 "dhan_sandbox",
@@ -621,10 +640,13 @@ mod tests {
                 "indmoney",
                 "jainamxts",
                 "kotak",
+                "motilal",
+                "mstock",
                 "nubra",
                 "paytm",
                 "pocketful",
                 "rmoney",
+                "samco",
                 "shoonya",
                 "tradejini",
                 "tradesmart",

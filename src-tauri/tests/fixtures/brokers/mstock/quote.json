@@ -1,0 +1,30 @@
+{
+  "status": "true",
+  "message": "SUCCESS",
+  "data": {
+    "fetched": [
+      {
+        "exchange": "NSE",
+        "tradingSymbol": "SBIN-EQ",
+        "symbolToken": "3045",
+        "ltp": 752.4,
+        "open": 748.0,
+        "high": 755.0,
+        "low": 746.1,
+        "close": 748.0
+      },
+      {
+        "exchange": "NSE",
+        "tradingSymbol": "INFY-EQ",
+        "symbolToken": "1594",
+        "ltp": "1490.5",
+        "open": "1500",
+        "high": "1502",
+        "low": "1485",
+        "close": "1495",
+        "volume": "120000"
+      }
+    ],
+    "unfetched": []
+  }
+}

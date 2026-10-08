@@ -1,0 +1,24 @@
+{
+  "status": "true",
+  "message": "SUCCESS",
+  "data": {
+    "summary": {
+      "total_charges": 152340.75,
+      "trade_charges": 0,
+      "breakup": [
+        {
+          "name": "SPANMARGIN",
+          "amount": 120000.5
+        },
+        {
+          "name": "EXPOMARGIN",
+          "amount": 32340.25
+        },
+        {
+          "name": "OPTIONPREMIUM",
+          "amount": 0
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "status": "SUCCESS",
+  "message": "DP Holding",
+  "errorcode": "",
+  "data": [
+    {
+      "clientid": "<USER_ID>",
+      "scripname": "RELAXO EQ",
+      "scripisinno": "INE131B01039",
+      "dpquantity": 10,
+      "blockedquantity": 0,
+      "buyavgprice": 850.5,
+      "nsesymboltoken": 10838,
+      "bsescripcode": 530517
+    },
+    {
+      "clientid": "<USER_ID>",
+      "scripname": "TATASTEEL",
+      "dpquantity": 4,
+      "buyavgprice": 120.0,
+      "LTP": 150.0,
+      "nsesymboltoken": 0,
+      "bsescripcode": 500470
+    },
+    {
+      "clientid": "<USER_ID>",
+      "scripname": "UNLISTED XYZ",
+      "dpquantity": 1,
+      "buyavgprice": 10,
+      "nsesymboltoken": 0,
+      "bsescripcode": 0
+    }
+  ]
+}

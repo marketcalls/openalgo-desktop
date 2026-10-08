@@ -1226,6 +1226,179 @@ async fn oauth_state_expires_and_is_bound_to_the_broker() {
     assert!(h.mock.last_auth.lock().is_none());
 }
 
+fn aliceblue_harness(client_id: &str) -> H {
+    let mock = Arc::new(MockBroker::new("aliceblue"));
+    let t = build(
+        BrokerRegistry::with(vec![mock.clone() as Arc<dyn crate::brokers::Broker>]),
+        ist(2026, 10, 5, 10, 0),
+    );
+    t.ctx.limiter.freeze(Some(std::time::Instant::now()));
+    let h = H { t, mock };
+    h.setup();
+    h.set_aliceblue_client(client_id);
+    h
+}
+
+impl H {
+    fn set_aliceblue_client(&self, client_id: &str) {
+        let conn = self.ctx().sqlite.conn().unwrap();
+        crate::db::sqlite::credentials::save(
+            &conn,
+            &self.ctx().security,
+            "aliceblue",
+            crate::db::sqlite::credentials::CredentialUpdate {
+                api_key: Some("APPCODE".into()),
+                api_secret: Some("absecret".into()),
+                client_id: Some(client_id.into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    }
+}
+
+const ALICE_CALLBACK: &str = "/aliceblue/callback?authCode=ac1&userId=AB1234";
+
+#[tokio::test]
+async fn aliceblue_stateless_callback_needs_the_starting_browser_session() {
+    let h = aliceblue_harness("AB1234");
+    let (cookie, _) = h.session(true);
+    // Not started at all: refused, nothing exchanged or stored.
+    let (_, headers, _) = h
+        .send(with_session(get(ALICE_CALLBACK), &cookie, None))
+        .await;
+    assert!(location(&headers).starts_with("/broker?error="));
+    assert!(h.mock.last_auth.lock().is_none());
+
+    let (s, headers, _) = h
+        .send(with_session(
+            get("/aliceblue/initiate-oauth"),
+            &cookie,
+            None,
+        ))
+        .await;
+    assert_eq!(s, StatusCode::FOUND);
+    assert_eq!(
+        location(&headers),
+        "https://ant.aliceblueonline.com/?appcode=APPCODE"
+    );
+
+    // A forged callback: no cookie, or another browser session's cookie.
+    let (_, headers, _) = h.send(get(ALICE_CALLBACK)).await;
+    assert!(location(&headers).starts_with("/broker?error="));
+    let (other, _) = h.session(false);
+    let (_, headers, _) = h
+        .send(with_session(get(ALICE_CALLBACK), &other, None))
+        .await;
+    assert!(location(&headers).starts_with("/broker?error="));
+    assert!(h.mock.last_auth.lock().is_none());
+    assert!(!h.ctx().is_broker_connected());
+
+    // The trader's own callback still works: the forgeries removed nothing.
+    let (_, headers, _) = h
+        .send(with_session(get(ALICE_CALLBACK), &cookie, None))
+        .await;
+    assert_eq!(location(&headers), "/dashboard");
+    let creds = h.mock.last_auth.lock().clone().unwrap();
+    assert_eq!(creds.auth_code.as_deref(), Some("AB1234:ac1"));
+    assert!(h.ctx().is_broker_connected());
+
+    // One start admits one callback.
+    *h.mock.last_auth.lock() = None;
+    let (_, headers, _) = h
+        .send(with_session(get(ALICE_CALLBACK), &cookie, None))
+        .await;
+    assert!(location(&headers).starts_with("/broker?error="));
+    assert!(h.mock.last_auth.lock().is_none());
+}
+
+#[tokio::test]
+async fn aliceblue_callback_for_another_account_is_refused() {
+    // The configured client id differs from the account the broker signs in
+    // (the mock answers AB1234).
+    let h = aliceblue_harness("ZZ999");
+    let (cookie, _) = h.session(true);
+    h.send(with_session(
+        get("/aliceblue/initiate-oauth"),
+        &cookie,
+        None,
+    ))
+    .await;
+    let (_, headers, _) = h
+        .send(with_session(get(ALICE_CALLBACK), &cookie, None))
+        .await;
+    assert!(location(&headers).starts_with("/broker?error="));
+    assert!(!h.ctx().is_broker_connected());
+    let stored = {
+        let conn = h.ctx().sqlite.conn().unwrap();
+        crate::db::sqlite::auth::latest_active(&conn, &h.ctx().security).unwrap()
+    };
+    assert!(stored.is_none(), "a refused sign-in persists nothing");
+
+    // The refused callback used up that pending sign-in (single use): with
+    // the right client id it is still refused until the trader starts the
+    // login again, and then it completes.
+    h.set_aliceblue_client("AB1234");
+    let (_, headers, _) = h
+        .send(with_session(get(ALICE_CALLBACK), &cookie, None))
+        .await;
+    assert!(location(&headers).starts_with("/broker?error="));
+    assert!(!h.ctx().is_broker_connected());
+    h.send(with_session(
+        get("/aliceblue/initiate-oauth"),
+        &cookie,
+        None,
+    ))
+    .await;
+    let (_, headers, _) = h
+        .send(with_session(get(ALICE_CALLBACK), &cookie, None))
+        .await;
+    assert_eq!(location(&headers), "/dashboard");
+    assert!(h.ctx().is_broker_connected());
+    assert_eq!(h.ctx().get_broker_session().unwrap().user_id, "AB1234");
+
+    // Without a configured client id the callback is refused, with the
+    // trader told where to add it.
+    let h = aliceblue_harness("");
+    let (cookie, _) = h.session(true);
+    h.send(with_session(
+        get("/aliceblue/initiate-oauth"),
+        &cookie,
+        None,
+    ))
+    .await;
+    let (_, headers, _) = h
+        .send(with_session(get(ALICE_CALLBACK), &cookie, None))
+        .await;
+    let loc = urlencoding::decode(&location(&headers))
+        .unwrap()
+        .into_owned();
+    assert!(
+        loc.contains("Add your aliceblue client id in Profile, Broker Configuration"),
+        "{}",
+        loc
+    );
+    assert!(!h.ctx().is_broker_connected());
+    assert!(h.mock.last_auth.lock().is_none());
+}
+
+#[tokio::test]
+async fn samco_ip_status_without_a_samco_session_matches_the_web() {
+    let h = H::new();
+    h.setup();
+    let (cookie, _) = h.session(true);
+    let (s, body) = h
+        .json(with_session(get("/samco/ip-status"), &cookie, None))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        body,
+        json!({"status": "error", "message": "Not connected to Samco. Log in to the broker first."})
+    );
+    let (_, headers, _) = h.send(get("/samco/callback")).await;
+    assert_eq!(location(&headers), "/broker/samco/auth");
+}
+
 #[tokio::test]
 async fn manual_paste_of_the_redirected_address() {
     let h = H::new();
@@ -1426,7 +1599,14 @@ async fn page_on_a_post_only_route_serves_the_app() {
 /// pages (may drop state), tradesmart (pasted token address), rmoney (XTS
 /// form-POST redirect), Kotak (form fields).
 fn family_harness() -> (TestCtx, Vec<Arc<MockBroker>>) {
-    let ids = ["dhan", "shoonya", "tradesmart", "rmoney", "kotak"];
+    let ids = [
+        "dhan",
+        "shoonya",
+        "tradesmart",
+        "rmoney",
+        "kotak",
+        "aliceblue",
+    ];
     let mocks: Vec<Arc<MockBroker>> = ids.iter().map(|i| Arc::new(MockBroker::new(i))).collect();
     // Every sign-in comes back for the configured account (`U1:::appkey`).
     for m in &mocks {
@@ -1446,13 +1626,20 @@ fn family_harness() -> (TestCtx, Vec<Arc<MockBroker>>) {
     {
         let conn = t.ctx.sqlite.conn().unwrap();
         for b in ids {
+            // AliceBlue's app code does not carry the account: the Profile
+            // client id names it.
+            let (api_key, client_id) = match b {
+                "aliceblue" => ("APPCODE", Some("U1".to_string())),
+                _ => ("U1:::appkey", None),
+            };
             crate::db::sqlite::credentials::save(
                 &conn,
                 &t.ctx.security,
                 b,
                 crate::db::sqlite::credentials::CredentialUpdate {
-                    api_key: Some("U1:::appkey".into()),
+                    api_key: Some(api_key.into()),
                     api_secret: Some("appsecret".into()),
+                    client_id,
                     ..Default::default()
                 },
             )
@@ -1669,6 +1856,16 @@ async fn every_way_to_create_a_broker_session_refuses_a_forged_attempt() {
         ("Form login, cross-site", "kotak"),
         ("XTS POST callback carrying login-form fields", "rmoney"),
         ("Form login, other account", "kotak"),
+        ("AliceBlue callback, forged state", "aliceblue"),
+        ("AliceBlue callback, no session cookie", "aliceblue"),
+        ("AliceBlue callback, other browser session", "aliceblue"),
+        ("AliceBlue callback, no pending sign-in", "aliceblue"),
+        ("AliceBlue callback, other account", "aliceblue"),
+        (
+            "AliceBlue pasted address, sign-in started by another session",
+            "aliceblue",
+        ),
+        ("AliceBlue pasted address, other account", "aliceblue"),
     ];
     for &(name, broker) in cases {
         let (t, mocks) = family_harness();
@@ -1714,6 +1911,13 @@ async fn every_way_to_create_a_broker_session_refuses_a_forged_attempt() {
             post_json(
                 "/kotak/callback",
                 json!({"mobile": "9999999999", "totp": "123456", "mpin": "1234"}),
+            )
+        };
+        const ALICE: &str = "/aliceblue/callback?authCode=c&userId=U1";
+        let alice_paste = || {
+            post_json(
+                MANUAL,
+                json!({"url": format!("http://127.0.0.1:5000{}", ALICE)}),
             )
         };
         let req = match name {
@@ -1805,6 +2009,40 @@ async fn every_way_to_create_a_broker_session_refuses_a_forged_attempt() {
                 )
             }
             "Form login, other account" => with_session(kotak(), &cookie, Some(&csrf)),
+            // AliceBlue's login page returns no `state`: only the pending
+            // sign-in this browser session started, for the Profile client id.
+            "AliceBlue callback, forged state" => {
+                start(sid.clone()).await;
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(get(&format!("{}&state=forged", ALICE)), &cookie, None)
+            }
+            "AliceBlue callback, no session cookie" => {
+                start(sid.clone()).await;
+                *mock.auth_user_id.lock() = "U1".into();
+                get(ALICE)
+            }
+            "AliceBlue callback, other browser session" => {
+                start(sid.clone()).await;
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(get(ALICE), &other_cookie, None)
+            }
+            "AliceBlue callback, no pending sign-in" => {
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(get(ALICE), &cookie, None)
+            }
+            "AliceBlue callback, other account" => {
+                start(sid.clone()).await;
+                with_session(get(ALICE), &cookie, None)
+            }
+            "AliceBlue pasted address, sign-in started by another session" => {
+                start(other_sid.clone()).await;
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(alice_paste(), &cookie, Some(&csrf))
+            }
+            "AliceBlue pasted address, other account" => {
+                start(sid.clone()).await;
+                with_session(alice_paste(), &cookie, Some(&csrf))
+            }
             _ => unreachable!("{}", name),
         };
         let (s, h, v) = send_to(ctx, req).await;
