@@ -1037,7 +1037,10 @@ async fn every_route_needs_the_user_and_writes_need_csrf() {
         .raw(Method::GET, "/telegram/config", None, false, false, false)
         .await;
     assert_eq!(s, StatusCode::OK);
-    assert!(String::from_utf8_lossy(&b).to_lowercase().contains("<html"));
+    // Any HTML page: the built app, the not-built fallback or the CI stand-in.
+    assert!(String::from_utf8_lossy(&b)
+        .to_lowercase()
+        .starts_with("<!doctype html"));
 }
 
 fn keys(v: &Value) -> Vec<String> {
