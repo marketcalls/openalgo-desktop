@@ -643,7 +643,10 @@ async fn health_sampler_endpoints_and_alerts() {
         assert!(v[k].is_object(), "{}", k);
     }
     let (s, v) = h.json(with(get("/health"), &c, None)).await;
-    assert_eq!(s, StatusCode::OK);
+    if s != StatusCode::OK {
+        let (_, cur) = h.json(with(get("/health/api/current"), &c, None)).await;
+        panic!("health is {} with sample {}", s, cur);
+    }
     assert_eq!(v["serviceId"], "openalgo");
     let (s, v) = h.json(with(get("/health/check"), &c, None)).await;
     assert_eq!(s, StatusCode::OK);

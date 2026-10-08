@@ -14,7 +14,7 @@ tries each one the way a forger would.
 | Entry point | Protection |
 | --- | --- |
 | `GET /<broker>/callback` with `state` | Single-use `state` (only its hash stored), matched to the broker, 10-minute expiry |
-| `GET /<broker>/callback` without `state` (dhan, shoonya, zebu, tradesmart, flattrade) | Only the newest pending sign-in of that broker started by the same browser session, within 3 minutes, once; all other pending rows of that broker and session dropped with it. Dhan: a repeated `consentAppId` must be the one this sign-in created |
+| `GET /<broker>/callback` without `state` (dhan, shoonya, zebu, tradesmart, flattrade, arrow, hdfcsky, hdfcsecurities, aliceblue) | Only the newest pending sign-in of that broker started by the same browser session, within 3 minutes, once; all other pending rows of that broker and session dropped with it. Dhan: a repeated `consentAppId` must be the one this sign-in created |
 | `POST /<broker>/callback` (compositedge, rmoney `session=`) | Public and CSRF-exempt, so it needs the single-use `state` on its query; without a valid one it is refused |
 | `POST /auth/broker/oauth/manual` (pasted address, tradesmart pasted token) | Signed-in user, CSRF token and same-origin check, and a pending sign-in for that broker started by the same browser session (by its `state`, else the newest one) |
 | `POST /<broker>/callback` (in-app login form, TOTP brokers) | Signed-in user, CSRF token and same-origin check |
@@ -22,7 +22,8 @@ tries each one the way a forger would.
 
 On every path, before anything is stored, the account the broker returns
 must be the configured one (`catalog::configured_account`: the client id or
-the `client_id:::key` prefix, for Dhan and the Noren family), else the
+the `client_id:::key` prefix, for Dhan and the Noren family; the client id
+entered in Profile for Arrow, HDFC Sky, HDFC Securities and AliceBlue), else the
 account of the last session with that broker. A mismatch is refused and the
 live session and its stored row are left as they were. Saving a broker's
 settings again forgets an ended session's account, which is how a trader

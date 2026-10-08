@@ -14,11 +14,12 @@ pub fn run_isolated(test: &str) -> bool {
     if std::env::var(ISOLATED).as_deref() == Ok(test) {
         return true;
     }
-    // Descriptors other tests opened without close-on-exec (SQLite and
-    // DuckDB files) would otherwise be inherited and counted by the child.
-    close_on_exec_all();
     let exe = std::env::current_exe().expect("test binary path");
-    let out = std::process::Command::new(exe)
+    let mut cmd = std::process::Command::new(exe);
+    // Descriptors other tests opened without close-on-exec would otherwise
+    // be inherited and counted by the child.
+    close_inherited(&mut cmd);
+    let out = cmd
         .args([
             test,
             "--exact",
@@ -48,30 +49,29 @@ pub fn run_isolated(test: &str) -> bool {
     false
 }
 
-/// Mark every open descriptor above stderr close-on-exec.
+/// Close every descriptor above stderr in the child, after fork and its
+/// stdio setup, before exec: the child must start with only its own.
 #[cfg(unix)]
-fn close_on_exec_all() {
-    let fds: Vec<i32> = std::fs::read_dir("/dev/fd")
-        .map(|d| {
-            d.filter_map(|e| e.ok()?.file_name().to_str()?.parse().ok())
-                .filter(|fd| *fd > 2)
-                .collect()
-        })
-        .unwrap_or_default();
-    for fd in fds {
-        // SAFETY: fcntl on a descriptor number only reads and sets its
-        // flags; a number that was closed meanwhile fails with EBADF.
-        unsafe {
-            let flags = libc::fcntl(fd, libc::F_GETFD);
-            if flags >= 0 {
-                libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC);
+fn close_inherited(cmd: &mut std::process::Command) {
+    use std::os::unix::process::CommandExt;
+    // SAFETY: the closure runs in the forked child before exec and only
+    // calls close(2), which is async-signal-safe.
+    unsafe {
+        cmd.pre_exec(|| {
+            let max = match libc::sysconf(libc::_SC_OPEN_MAX) {
+                n if n > 0 => n.min(65_536) as i32,
+                _ => 4_096,
+            };
+            for fd in 3..max {
+                libc::close(fd);
             }
-        }
+            Ok(())
+        });
     }
 }
 
 #[cfg(not(unix))]
-fn close_on_exec_all() {}
+fn close_inherited(_cmd: &mut std::process::Command) {}
 
 /// `isolated!(fn_name)` at the top of a test body: the parent returns early
 /// once the child process passed; the child runs the body.

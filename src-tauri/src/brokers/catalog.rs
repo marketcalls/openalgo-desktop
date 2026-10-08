@@ -75,10 +75,11 @@ pub struct AuthorizeUrl {
 
 /// Whether the broker's redirect reliably carries the `state` OpenAlgo
 /// sent. Dhan's consent redirect returns only `tokenId`, and the Noren
-/// OAuth pages (shoonya, zebu, tradesmart, flattrade) may drop it; a
-/// callback from these without `state` is matched to the newest pending
-/// sign-in of that broker started from the same browser session (single
-/// use, 10 minutes).
+/// OAuth pages (shoonya, zebu, tradesmart, flattrade), Arrow, the HDFC
+/// pair and AliceBlue may drop it; a callback from these without `state` is
+/// matched to the newest pending sign-in of that broker started from the
+/// same browser session (single use, 3 minutes) and bound to the
+/// configured account.
 pub fn callback_carries_state(broker: &str) -> bool {
     !matches!(
         broker,
@@ -90,13 +91,14 @@ pub fn callback_carries_state(broker: &str) -> bool {
             | "arrow"
             | "hdfcsky"
             | "hdfcsecurities"
+            | "aliceblue"
     )
 }
 
 /// Brokers whose sign-in is bound to a client id the trader enters
 /// separately (the Profile broker form shows the field for these): their
 /// redirect may drop `state` and their API key does not carry the account.
-pub const CLIENT_ID_BROKERS: &[&str] = &["arrow", "hdfcsky", "hdfcsecurities"];
+pub const CLIENT_ID_BROKERS: &[&str] = &["arrow", "hdfcsky", "hdfcsecurities", "aliceblue"];
 
 /// The trading account the stored credentials name, for brokers whose
 /// configuration carries it: Dhan and the Noren family take
@@ -641,6 +643,12 @@ mod tests {
             Some("FA1")
         );
         assert_eq!(configured_account("fyers", "app", Some("XY-100")), None);
+        assert!(!callback_carries_state("aliceblue"));
+        assert_eq!(
+            configured_account("aliceblue", "key", Some("AB1")).as_deref(),
+            Some("AB1")
+        );
+        assert_eq!(configured_account("aliceblue", "key", None), None);
         assert_eq!(configured_account("zebu", "k", None), None);
         assert_eq!(
             login_binding(
