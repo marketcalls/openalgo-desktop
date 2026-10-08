@@ -3844,14 +3844,24 @@ mod strategy_restx_api {
             )
             .await;
         assert_eq!(b["data"].as_array().unwrap().len(), 1);
-        // The sandbox entry filled at once: the leg closes, then a second
-        // close finds nothing open.
-        let (s, b) = a
-            .api(
-                "/api/v1/strategy/close_leg",
-                json!({"strategy_id": sid, "leg_id": 1}),
-            )
-            .await;
+        // The sandbox entry fills on the engine's own task, so the close is
+        // retried while the entry is still unfilled (the 409 tells the
+        // caller to retry). Then a second close finds nothing open.
+        let mut closed = None;
+        for _ in 0..200 {
+            let (s, b) = a
+                .api(
+                    "/api/v1/strategy/close_leg",
+                    json!({"strategy_id": sid, "leg_id": 1}),
+                )
+                .await;
+            if s != StatusCode::CONFLICT {
+                closed = Some((s, b));
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        let (s, b) = closed.expect("the sandbox entry never filled");
         assert_eq!(s, StatusCode::OK, "{}", b);
         assert_eq!(
             (b["run_id"].as_i64(), b["leg_id"].as_i64()),
