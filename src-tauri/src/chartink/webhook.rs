@@ -169,7 +169,7 @@ impl Guard {
         self.locked.lock().remove(&strategy_id);
     }
 
-    fn note_throttled(&self, why: &str) {
+    pub(crate) fn note_throttled(&self, why: &str) {
         let now = self.now();
         let mut last = self.throttle_logged.lock();
         if last.is_none_or(|t| now.saturating_duration_since(t) >= RATE_WINDOW) {
@@ -191,27 +191,47 @@ pub fn locator(webhook_id: &str) -> Option<&str> {
     ok.then(|| &webhook_id[..LOCATOR_LEN])
 }
 
-/// Whether a request may proceed: the per-address failure lockout and rate
-/// limit on the shared limiter, then the per-locator window. Before any
-/// lookup, body read or order path.
-pub fn admit(
+/// The web's per-address limit (100 a minute) for this computer and devices
+/// on the network, before any lookup. Tunnel callers share one identity,
+/// so they are limited per webhook once the id checked out
+/// ([`admit_webhook`]).
+pub fn admit_address(
     guard: &Guard,
     limiter: &crate::server::ratelimit::RateLimiter,
     ip: IpAddr,
-    webhook_id: &str,
 ) -> bool {
     use crate::server::ratelimit::Bucket;
-    let now = limiter.now();
-    if limiter.is_exhausted(Bucket::WebhookFail, ip, now) {
-        guard.note_throttled("too many failed webhook attempts from one address");
-        return false;
-    }
-    if limiter.check(Bucket::ChartinkWebhook, ip, now).is_err() {
+    if limiter
+        .check(Bucket::ChartinkWebhook, ip, limiter.now())
+        .is_err()
+    {
         guard.note_throttled("one address is over the webhook rate limit");
         return false;
     }
-    // Keyed on the locator only (never the full id); a malformed id shares
-    // one bucket.
+    true
+}
+
+/// The limits of an id that checked out: behind a tunnel its own
+/// per-address window (`tunnel_key`, `middleware::limiter_key`), then the
+/// per-locator window. A valid id is never limited by other callers'
+/// traffic or failures.
+pub fn admit_webhook(
+    guard: &Guard,
+    limiter: &crate::server::ratelimit::RateLimiter,
+    tunnel_key: Option<IpAddr>,
+    webhook_id: &str,
+) -> bool {
+    use crate::server::ratelimit::Bucket;
+    if let Some(key) = tunnel_key {
+        if limiter
+            .check(Bucket::ChartinkWebhook, key, limiter.now())
+            .is_err()
+        {
+            guard.note_throttled("one webhook is over the webhook rate limit");
+            return false;
+        }
+    }
+    // Keyed on the locator only (never the full id).
     let key = locator(webhook_id).unwrap_or("malformed");
     if !guard.rate_check(key) {
         guard.note_throttled("one webhook is over its rate limit");

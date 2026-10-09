@@ -824,13 +824,11 @@ pub async fn webhook(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
+    use crate::server::middleware::{count_failure, failures_exhausted, limiter_key, Source};
     use crate::server::ratelimit::Bucket;
-    use crate::strategy::webhook::{admit, MAX_PAYLOAD_BYTES};
-    // Before any token lookup, secret check, body read or order path.
-    // Tunnel callers are counted per token, never all together (S-03).
-    let limit_key = crate::server::middleware::limiter_key(ip, "strategy-webhook", &token);
-    if !admit(&ctx.strategy.webhook, &ctx.limiter, limit_key, &token) {
-        return json_response(
+    use crate::strategy::webhook::{admit_address, admit_token, MAX_PAYLOAD_BYTES};
+    let limited = || {
+        json_response(
             StatusCode::TOO_MANY_REQUESTS,
             json!({
                 "status": "error",
@@ -838,7 +836,14 @@ pub async fn webhook(
                 "message": "Rate limit exceeded. Please slow down your requests.",
                 "retry_after": 60,
             }),
-        );
+        )
+    };
+    // This computer and devices on the network: the web's per-address
+    // limit, before any lookup. Tunnel callers share one identity, so they
+    // are limited per token once it checked out (S-03).
+    let tunnel = source == Source::Tunnel;
+    if !tunnel && !admit_address(&ctx.strategy.webhook, &ctx.limiter, ip) {
+        return limited();
     }
     let declared = headers
         .get(axum::http::header::CONTENT_LENGTH)
@@ -849,6 +854,25 @@ pub async fn webhook(
             StatusCode::PAYLOAD_TOO_LARGE,
             json!({"status": "error", "message": format!("Payload larger than {} bytes", MAX_PAYLOAD_BYTES)}),
         );
+    }
+    // The token first: a digest lookup. A valid token is limited only by
+    // its own windows. An unknown one counts against the caller's failure
+    // budget; once that is spent, the caller's unknown tokens are refused at
+    // once, with no lookup audit row, while valid tokens still pass.
+    let known = ctx.strategy.token_known(&token);
+    if known {
+        let tunnel_key = tunnel.then(|| limiter_key(ip, "strategy-webhook", &token));
+        if !admit_token(&ctx.strategy.webhook, &ctx.limiter, tunnel_key, &token) {
+            return limited();
+        }
+    } else {
+        if failures_exhausted(&ctx, ip, Bucket::WebhookFail) {
+            ctx.strategy
+                .webhook
+                .note_throttled("too many failed webhook authentications from one caller");
+            return limited();
+        }
+        count_failure(&ctx, ip, Bucket::WebhookFail);
     }
     let ua = headers
         .get(axum::http::header::USER_AGENT)
@@ -861,12 +885,10 @@ pub async fn webhook(
         .strategy
         .handle_webhook(&token, &body, ip_text.as_deref(), ua)
         .await;
-    if matches!(outcome.result.as_str(), "rejected_token" | "rejected_ip") {
-        // A failed authentication, counted per caller address; over the
-        // limit the address is refused before any lookup.
-        let _ = ctx
-            .limiter
-            .check(Bucket::WebhookFail, limit_key, ctx.limiter.now());
+    if known && matches!(outcome.result.as_str(), "rejected_token" | "rejected_ip") {
+        // A valid token from outside its allowlist: a failed
+        // authentication, counted against the caller.
+        count_failure(&ctx, ip, Bucket::WebhookFail);
     }
     json_response(
         StatusCode::from_u16(outcome.status).unwrap_or(StatusCode::BAD_REQUEST),

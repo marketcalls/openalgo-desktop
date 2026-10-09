@@ -31,6 +31,9 @@ pub struct ApiKeyCache {
     /// before a key regeneration cannot store its stale answer after it
     /// (security review S-12).
     map: Mutex<(Entries, u64)>,
+    /// Argon2 checks run so far. They run only on an HMAC index hit, so an
+    /// invented key never costs one.
+    hash_checks: std::sync::atomic::AtomicU64,
 }
 
 impl Default for ApiKeyCache {
@@ -40,11 +43,22 @@ impl Default for ApiKeyCache {
         Self {
             cache_key,
             map: Mutex::new((HashMap::new(), 0)),
+            hash_checks: std::sync::atomic::AtomicU64::new(0),
         }
     }
 }
 
 impl ApiKeyCache {
+    /// Argon2 checks of API keys this instance has run.
+    pub fn hash_checks(&self) -> u64 {
+        self.hash_checks.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    fn note_hash_check(&self) {
+        self.hash_checks
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
     pub fn new() -> Self {
         Self::default()
     }
@@ -155,6 +169,7 @@ impl ApiKeyService {
         let Some(row) = row else {
             return Ok(false);
         };
+        state.api_keys.note_hash_check();
         let ok = state.security.verify_password(api_key, &row.key_hash)?;
         if ok {
             if let Ok(conn) = state.sqlite.conn() {

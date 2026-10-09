@@ -187,20 +187,47 @@ pub async fn search(State(ctx): Ctx, Query(q): Query<HashMap<String, String>>) -
 pub async fn webhook_route(
     State(ctx): Ctx,
     ClientIp(ip): ClientIp,
+    crate::server::middleware::Src(source): crate::server::middleware::Src,
     Path(webhook_id): Path<String>,
     req: Request,
 ) -> Response {
+    use crate::server::middleware::{count_failure, failures_exhausted, limiter_key, Source};
     use crate::server::ratelimit::Bucket;
-    // Tunnel callers are counted per webhook id, never all together (S-03).
-    let ip = crate::server::middleware::limiter_key(ip, "chartink-webhook", &webhook_id);
-    if !webhook::admit(&ctx.chartink.guard, &ctx.limiter, ip, &webhook_id) {
-        return json_response(
+    let limited = || {
+        json_response(
             StatusCode::TOO_MANY_REQUESTS,
             json!({
                 "status": "error",
                 "error": "Rate limit exceeded. Please slow down your requests.",
             }),
-        );
+        )
+    };
+    // This computer and devices on the network: the web's per-address
+    // limit, before any lookup. Tunnel callers share one identity, so they
+    // are limited per webhook once the id checked out (S-03).
+    let tunnel = source == Source::Tunnel;
+    if !tunnel && !webhook::admit_address(&ctx.chartink.guard, &ctx.limiter, ip) {
+        return limited();
+    }
+    // The id first: a locator lookup and a constant-time match. A valid id
+    // is limited only by its own windows. An unknown one counts against the
+    // caller's failure budget; once that is spent, the caller's unknown ids
+    // are refused at once (no body read, no probe recorded), while valid
+    // ids still pass.
+    let known = svc::webhook_known(&ctx, &webhook_id);
+    if known {
+        let tunnel_key = tunnel.then(|| limiter_key(ip, "chartink-webhook", &webhook_id));
+        if !webhook::admit_webhook(&ctx.chartink.guard, &ctx.limiter, tunnel_key, &webhook_id) {
+            return limited();
+        }
+    } else {
+        if failures_exhausted(&ctx, ip, Bucket::WebhookFail) {
+            ctx.chartink
+                .guard
+                .note_throttled("too many failed webhook attempts from one caller");
+            return limited();
+        }
+        count_failure(&ctx, ip, Bucket::WebhookFail);
     }
     let declared = req
         .headers()
@@ -224,12 +251,9 @@ pub async fn webhook_route(
         return too_large();
     };
     let (status, body, failed_auth) = svc::webhook_alert(&ctx, &webhook_id, &bytes).await;
-    if failed_auth {
-        // Counted per caller address; over the limit the address is refused
-        // before any lookup.
-        let _ = ctx
-            .limiter
-            .check(Bucket::WebhookFail, ip, ctx.limiter.now());
+    if failed_auth && known {
+        // The id went away between the check and the alert: a failure.
+        count_failure(&ctx, ip, Bucket::WebhookFail);
     }
     json_response(
         StatusCode::from_u16(status).unwrap_or(StatusCode::BAD_REQUEST),

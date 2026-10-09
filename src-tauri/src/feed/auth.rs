@@ -39,15 +39,17 @@ pub trait FeedAuth: Send + Sync + 'static {
         false
     }
 
-    /// Whether `authenticate` from `peer` is refused without the key being
-    /// checked: too many failed keys (the budget `/api/v1` and `/mcp`
-    /// share).
-    fn locked(&self, _peer: std::net::IpAddr, _api_key: &str) -> bool {
-        false
+    /// Count one `authenticate` from `caller`
+    /// (`server::middleware::feed_caller`) against the resource guard every
+    /// request passes (well above legitimate use); `false` when over it.
+    fn admit(&self, _caller: std::net::IpAddr) -> bool {
+        true
     }
 
-    /// Count a key that failed for `peer`.
-    fn failed(&self, _peer: std::net::IpAddr, _api_key: &str) {}
+    /// Count a key that failed for `caller` against the failure budget
+    /// `/api/v1` and `/mcp` share. It only ever refuses invalid
+    /// credentials; a valid key is never refused by it.
+    fn failed(&self, _caller: std::net::IpAddr) {}
 }
 
 /// Authentication against the app's stored API key and broker session.
@@ -70,14 +72,15 @@ impl FeedAuth for AppAuth {
         !ip.is_loopback() && self.ctx.monitor.is_banned(&ip.to_string(), self.ctx.now())
     }
 
-    fn locked(&self, peer: std::net::IpAddr, api_key: &str) -> bool {
-        use crate::server::middleware::{credential_locked, feed_caller};
-        credential_locked(&self.ctx, feed_caller(peer), "apikey", api_key)
+    fn admit(&self, caller: std::net::IpAddr) -> bool {
+        use crate::server::ratelimit::Bucket;
+        let limiter = &self.ctx.limiter;
+        limiter.check(Bucket::Guard, caller, limiter.now()).is_ok()
     }
 
-    fn failed(&self, peer: std::net::IpAddr, api_key: &str) {
-        use crate::server::middleware::{credential_failed, feed_caller};
-        credential_failed(&self.ctx, feed_caller(peer), "apikey", api_key)
+    fn failed(&self, caller: std::net::IpAddr) {
+        use crate::server::ratelimit::Bucket;
+        crate::server::middleware::count_failure(&self.ctx, caller, Bucket::ApiKeyFail)
     }
 
     async fn authenticate(&self, api_key: &str) -> AuthOutcome {

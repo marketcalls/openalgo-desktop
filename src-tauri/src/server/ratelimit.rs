@@ -28,6 +28,35 @@ use std::time::{Duration, Instant};
 
 pub const MAX_ENTRIES: usize = 8192;
 
+/// Where hits from new addresses are counted while the table is full of
+/// live entries: one shared bucket, so a full table fails closed instead of
+/// forgetting anyone's count. In `100:0:0:2::/64` of the discard-only
+/// `100::/64` range: an address nothing is sent to or banned.
+pub const OVERFLOW: IpAddr = IpAddr::V6(std::net::Ipv6Addr::new(0x100, 0, 0, 2, 0, 0, 0, 0));
+
+/// A per-credential key (`middleware::limiter_key`, `100:0:0:1::/64`): the
+/// window of a valid credential behind a tunnel, recreated on its next
+/// request. Callers cannot mint these with invented credentials (their
+/// failures count per caller), but they are the first to go when the
+/// table is full.
+fn minted(ip: &IpAddr) -> bool {
+    matches!(ip, IpAddr::V6(v) if v.segments()[..4] == [0x100, 0, 0, 1])
+}
+
+/// Keys that always get their own entry, so a full table never puts this
+/// computer or the shared tunnel and MCP identities (`100::/64`) in the
+/// overflow bucket. A handful of keys.
+fn reserved(ip: &IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v) => v.is_loopback(),
+        IpAddr::V6(v) => {
+            v.is_loopback()
+                || v.to_ipv4_mapped().is_some_and(|m| m.is_loopback())
+                || v.segments()[..4] == [0x100, 0, 0, 0]
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Bucket {
     Api,
@@ -36,16 +65,22 @@ pub enum Bucket {
     LoginMinute,
     LoginHour,
     Reset,
+    /// Failed API keys, MCP tokens and feed keys by caller, one budget for
+    /// all three (`middleware::failures_exhausted`). Spent, it refuses
+    /// further invalid attempts early; never a valid credential.
     ApiKeyFail,
+    /// Every request by caller: a resource guard well above legitimate use
+    /// (`middleware::peer_layer`, the feed's `authenticate`).
+    Guard,
     /// `/strategy/webhook/<token>` by caller address (web
     /// `WEBHOOK_RATE_LIMIT`, 100 per minute).
     StrategyWebhook,
     /// `/chartink/webhook/<id>` by caller address (web
     /// `WEBHOOK_RATE_LIMIT`, 100 per minute).
     ChartinkWebhook,
-    /// Failed strategy-webhook authentications (unknown token, address
-    /// outside the allowlist) by caller address; over it the address is
-    /// refused before any lookup.
+    /// Failed strategy and Chartink webhook authentications (unknown
+    /// address, caller outside the allowlist) by caller. Spent, it refuses
+    /// further invalid attempts early; never a valid webhook address.
     WebhookFail,
 }
 
@@ -58,6 +93,7 @@ impl Bucket {
             Bucket::LoginHour => (25, Duration::from_secs(3600)),
             Bucket::Reset => (15, Duration::from_secs(3600)),
             Bucket::ApiKeyFail => (10, Duration::from_secs(60)),
+            Bucket::Guard => (1000, Duration::from_secs(1)),
             Bucket::StrategyWebhook | Bucket::ChartinkWebhook => (100, Duration::from_secs(60)),
             Bucket::WebhookFail => (10, Duration::from_secs(60)),
         }
@@ -330,9 +366,11 @@ impl RateLimiter {
     pub fn check(&self, bucket: Bucket, ip: IpAddr, now: Instant) -> Result<(), Duration> {
         let (limit, window) = bucket.limit();
         let mut map = self.map.lock();
-        if map.len() >= MAX_ENTRIES {
-            Self::sweep(&mut map, now);
-        }
+        let Some(ip) = Self::slot(&mut map, bucket, ip, now) else {
+            // A full table and a per-credential window: not recorded (the
+            // resource guard still bounds the caller).
+            return Ok(());
+        };
         let q = map.entry((bucket, ip)).or_default();
         while q
             .front()
@@ -353,6 +391,17 @@ impl RateLimiter {
     pub fn is_exhausted(&self, bucket: Bucket, ip: IpAddr, now: Instant) -> bool {
         let (limit, window) = bucket.limit();
         let map = self.map.lock();
+        // An address without its own entry while the table is full is
+        // counted in the overflow bucket.
+        let ip = if !map.contains_key(&(bucket, ip))
+            && map.len() >= MAX_ENTRIES
+            && !reserved(&ip)
+            && !minted(&ip)
+        {
+            OVERFLOW
+        } else {
+            ip
+        };
         map.get(&(bucket, ip))
             .map(|q| {
                 q.iter()
@@ -363,6 +412,51 @@ impl RateLimiter {
             .unwrap_or(false)
     }
 
+    /// The key a hit for `ip` is recorded under. A live address entry is
+    /// never dropped to make room, or a caller could flush every lockout by
+    /// filling the table: expired entries go first, then per-credential
+    /// windows (oldest first; they only ever hold valid traffic and start
+    /// afresh). If the table is still full, a new address counts in the
+    /// shared [`OVERFLOW`] bucket (fail closed), this computer and the
+    /// shared identities get their own entry anyway, and a new
+    /// per-credential key is not recorded (`None`).
+    fn slot(
+        map: &mut HashMap<(Bucket, IpAddr), VecDeque<Instant>>,
+        bucket: Bucket,
+        ip: IpAddr,
+        now: Instant,
+    ) -> Option<IpAddr> {
+        if map.len() < MAX_ENTRIES || map.contains_key(&(bucket, ip)) {
+            return Some(ip);
+        }
+        Self::sweep(map, now);
+        if map.len() >= MAX_ENTRIES {
+            // Down to seven eighths, so a stream of new keys does not sort
+            // the table on every hit.
+            let mut credentials: Vec<((Bucket, IpAddr), Instant)> = map
+                .iter()
+                .filter(|((_, k), _)| minted(k))
+                .map(|(k, q)| (*k, q.back().copied().unwrap_or(now)))
+                .collect();
+            credentials.sort_by_key(|(_, last)| *last);
+            let target = MAX_ENTRIES - MAX_ENTRIES / 8;
+            for (k, _) in credentials {
+                if map.len() <= target {
+                    break;
+                }
+                map.remove(&k);
+            }
+        }
+        if map.len() < MAX_ENTRIES || reserved(&ip) {
+            Some(ip)
+        } else if minted(&ip) {
+            None
+        } else {
+            Some(OVERFLOW)
+        }
+    }
+
+    /// Drop the entries whose window has passed.
     fn sweep(map: &mut HashMap<(Bucket, IpAddr), VecDeque<Instant>>, now: Instant) {
         map.retain(|(b, _), q| {
             let (_, w) = b.limit();
@@ -370,12 +464,6 @@ impl RateLimiter {
                 .map(|t| now.saturating_duration_since(*t) < w)
                 .unwrap_or(false)
         });
-        if map.len() >= MAX_ENTRIES {
-            // Still full: drop the short-window buckets, keep login history.
-            map.retain(|(b, _), _| {
-                matches!(b, Bucket::LoginMinute | Bucket::LoginHour | Bucket::Reset)
-            });
-        }
     }
 
     pub fn len(&self) -> usize {
@@ -574,7 +662,82 @@ mod tests {
                 t0 + Duration::from_secs(2 * (i as u64 / 1000)),
             );
         }
+        assert!(rl.len() <= MAX_ENTRIES + 1);
+    }
+
+    fn credential(n: u32) -> IpAddr {
+        let [a, b, c, d] = n.to_be_bytes();
+        IpAddr::V6(std::net::Ipv6Addr::new(
+            0x100,
+            0,
+            0,
+            1,
+            u16::from_be_bytes([a, b]),
+            u16::from_be_bytes([c, d]),
+            0,
+            0,
+        ))
+    }
+
+    /// Filling the table with per-credential windows never flushes a live
+    /// lockout of an address.
+    #[test]
+    fn per_credential_windows_never_flush_a_lockout() {
+        let rl = RateLimiter::new();
+        let t0 = Instant::now();
+        let lan = ip(7);
+        for _ in 0..10 {
+            rl.check(Bucket::ApiKeyFail, lan, t0).unwrap();
+            rl.check(Bucket::WebhookFail, lan, t0).unwrap();
+        }
+        for n in 0..(3 * MAX_ENTRIES as u32) {
+            let _ = rl.check(Bucket::ApiKeyFail, credential(n), t0);
+            let _ = rl.check(Bucket::WebhookFail, credential(n), t0);
+        }
+        assert!(rl.is_exhausted(Bucket::ApiKeyFail, lan, t0));
+        assert!(rl.is_exhausted(Bucket::WebhookFail, lan, t0));
+        assert!(rl.check(Bucket::ApiKeyFail, lan, t0).is_err());
         assert!(rl.len() <= MAX_ENTRIES);
+        // A new credential is still recorded.
+        let last = credential(3 * MAX_ENTRIES as u32 - 1);
+        assert!(rl.check(Bucket::ApiKeyFail, last, t0).is_ok());
+    }
+
+    /// A table full of live addresses fails closed: new addresses share
+    /// the overflow bucket, nobody's count is dropped, and this computer
+    /// still gets its own entry.
+    #[test]
+    fn a_full_table_fails_closed_into_one_bucket() {
+        let rl = RateLimiter::new();
+        let t0 = Instant::now();
+        let addr =
+            |n: u32| IpAddr::V6(std::net::Ipv6Addr::from(0x2001_0db8_u128 << 96 | n as u128));
+        for n in 0..MAX_ENTRIES as u32 {
+            rl.check(Bucket::ApiKeyFail, addr(n), t0).unwrap();
+        }
+        for _ in 0..9 {
+            rl.check(Bucket::ApiKeyFail, addr(0), t0).unwrap();
+        }
+        assert!(rl.is_exhausted(Bucket::ApiKeyFail, addr(0), t0));
+        // Ten new addresses fail once each: the shared bucket is used up,
+        // and the next new address is refused too.
+        for n in 0..10 {
+            let fresh = addr(MAX_ENTRIES as u32 + n);
+            assert!(!rl.is_exhausted(Bucket::ApiKeyFail, fresh, t0));
+            rl.check(Bucket::ApiKeyFail, fresh, t0).unwrap();
+        }
+        let next = addr(MAX_ENTRIES as u32 + 99);
+        assert!(rl.is_exhausted(Bucket::ApiKeyFail, next, t0));
+        assert!(rl.check(Bucket::ApiKeyFail, next, t0).is_err());
+        assert!(rl.is_exhausted(Bucket::ApiKeyFail, addr(0), t0));
+        let local: IpAddr = "127.0.0.1".parse().unwrap();
+        assert!(!rl.is_exhausted(Bucket::ApiKeyFail, local, t0));
+        assert!(rl.check(Bucket::ApiKeyFail, local, t0).is_ok());
+        assert!(rl.len() <= MAX_ENTRIES + 2);
+        // Once the windows pass, the table frees up.
+        let later = t0 + Duration::from_secs(61);
+        assert!(rl.check(Bucket::ApiKeyFail, next, later).is_ok());
+        assert!(rl.len() < 10);
     }
 
     #[test]

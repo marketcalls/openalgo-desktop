@@ -40,3 +40,45 @@ carries only `tokenId` and its consume call returns no consent id, so there
 the account binding (and the trader's own app secret, without which a
 `tokenId` cannot be consumed) does the verification. OpenAlgo web has the
 same exposure for these brokers: its callbacks do not check `state`.
+
+## Credentials and limits behind a tunnel
+
+Behind a tunnel or proxy on this computer every caller arrives from
+loopback and cannot be told apart (`server::middleware::classify`), so they
+share one identity. A low limit on that identity would let any stranger
+who finds the tunnel address use it up and block the trader's own tunnel
+callers, TradingView alerts included. So every surface that takes a random
+credential (API keys, MCP tokens, feed keys, strategy webhook tokens,
+Chartink webhook ids) works in this order:
+
+1. A resource guard on every request, 1000 a second per caller
+   (`Bucket::Guard`), far above legitimate use.
+2. This computer and devices on the network: the web's per-address limits
+   (`/api/v1` 100 a second, 10 for orders; webhooks 100 a minute) before
+   anything else. Nobody elsewhere can use them up.
+3. The credential is checked first. It is cheap: an HMAC index lookup that
+   misses for an invented API key (Argon2 only on an index hit, then
+   cached), a digest lookup for MCP and strategy tokens, a locator lookup
+   and a constant-time match for Chartink ids.
+4. A valid credential is charged only to its own windows: behind a tunnel,
+   its own copy of the per-address limit (`middleware::limiter_key`), plus
+   the per-webhook windows. It is never refused because of other callers'
+   traffic or failures.
+5. An invalid one is charged to the caller's failure budget (ten a minute;
+   one for this computer, one shared by every tunnel caller, one per
+   network address; `middleware::failures_exhausted`). Once that is spent,
+   the caller's further invalid attempts are refused at once, with no
+   audit row, probe or log, while valid credentials still pass.
+
+| Concern | What bounds it |
+| --- | --- |
+| Guessing | The credentials are random: API keys, MCP tokens and strategy webhook tokens 256 bits, Chartink ids random UUIDs (122 bits). Guessing one is not feasible at any request rate; the failure budget bounds noise, not the odds |
+| Load from invented credentials | Each costs one cheap lookup, and every request first passes the resource guard |
+| Memory | The limiter table holds 8192 entries. Invented credentials get no entry (their failures count per caller); only valid credentials get a window of their own. When the table is full, per-credential entries are evicted first, a live address entry (a lockout or a request window) is never dropped, and new addresses share one overflow bucket, so a full table fails closed |
+| Passwords and authenticator codes | Guessable, so never handled this way: sign-in uses only per-source budgets (this computer, the tunnel, each network address with IPv6 grouped by /64; `ratelimit::LoginBackoff`) and the per-address request limit |
+
+Residual: a stranger who finds the tunnel address and sustains 1000
+requests a second uses up the resource guard all tunnel callers share,
+delaying them while it lasts. This computer and devices on the network keep
+their own guard. OpenAlgo web behind the same tunnel sees every caller as
+127.0.0.1 and shares every limit among them.

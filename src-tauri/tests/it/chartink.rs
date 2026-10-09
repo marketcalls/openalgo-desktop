@@ -644,11 +644,17 @@ async fn unknown_ids_answer_404_and_a_burst_is_refused_before_lookup() {
     }
     let (s, _) = hook(&h, "not-a-uuid", alert("buy", "SBIN"), ip(51)).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
-    // The address is now refused before any lookup: even the right id.
-    let (s, b) = hook(&h, &wid, alert("buy", "SBIN"), attacker).await;
+    // The address has spent its failure budget: its further wrong ids are
+    // refused before any body read or probe; the right id is not (a valid
+    // address is never refused because of failures), and it is never
+    // echoed.
+    let fake = "ffffffff-0000-4000-8000-000000000000";
+    let (s, _) = hook(&h, fake, alert("buy", "SBIN"), attacker).await;
     assert_eq!(s, StatusCode::TOO_MANY_REQUESTS);
+    let (s, b) = hook(&h, &wid, alert("buy", "SBIN"), attacker).await;
+    assert_ne!(s, StatusCode::TOO_MANY_REQUESTS, "{}", b);
+    assert_ne!(s, StatusCode::NOT_FOUND, "{}", b);
     assert!(!b.to_string().contains(&wid), "the id is never echoed");
-    assert!(wait_orders(&h, 1).await.is_empty());
 
     // The per-address rate limit: 100 a minute, then refused.
     let busy = ip(60);

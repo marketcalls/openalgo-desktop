@@ -131,8 +131,12 @@ async fn rotating_source_addresses_still_trips_the_per_webhook_lockout() {
     assert_eq!(orders(&a, sid).await, 0);
 }
 
+/// Ten wrong tokens from one address spend its failure budget: its further
+/// guesses are refused at once, with no lookup and no audit row. The real
+/// token from that address still works (a valid token is never refused
+/// because of failures), and another address is unaffected.
 #[tokio::test]
-async fn guessing_tokens_from_one_address_gets_that_address_refused() {
+async fn guessing_tokens_from_one_address_spends_only_its_failure_budget() {
     let a = app();
     let (sid, token) = create(&a, json!([])).await;
     for i in 0..10 {
@@ -140,13 +144,37 @@ async fn guessing_tokens_from_one_address_gets_that_address_refused() {
         let (s, _) = a.webhook_from("198.51.100.77", &guess, "{}").await;
         assert_eq!(s, StatusCode::NOT_FOUND);
     }
-    // Even the real token is now refused from that address, before any
-    // lookup; another address is unaffected.
-    let (s, b) = a.webhook_from("198.51.100.77", &token, START).await;
+    let unattributed = a
+        .ctx
+        .strategy
+        .store
+        .count_unattributed_webhook_events()
+        .unwrap();
+    let (s, b) = a
+        .webhook_from("198.51.100.77", &format!("oaws_{:0>43}", 99), "{}")
+        .await;
     assert_eq!(s, StatusCode::TOO_MANY_REQUESTS, "{}", b);
-    assert_eq!(audit_rows(&a, sid), 0);
-    let (s, b) = a.webhook_from("198.51.100.78", &token, START).await;
+    assert_eq!(b["result"], "rate_limited");
+    assert_eq!(
+        a.ctx
+            .strategy
+            .store
+            .count_unattributed_webhook_events()
+            .unwrap(),
+        unattributed,
+        "no audit row once the budget is spent"
+    );
+    let (s, b) = a.webhook_from("198.51.100.77", &token, START).await;
     assert_eq!(s, StatusCode::OK, "{}", b);
+    assert_eq!(audit_rows(&a, sid), 1);
+    let (s, _) = a
+        .webhook_from("198.51.100.78", &format!("oaws_{:0>43}", 98), "{}")
+        .await;
+    assert_eq!(
+        s,
+        StatusCode::NOT_FOUND,
+        "another address has its own budget"
+    );
 }
 
 #[tokio::test]

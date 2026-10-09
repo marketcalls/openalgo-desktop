@@ -372,18 +372,26 @@ fn bad_origin() -> Response {
         .into_response()
 }
 
-/// The live token in the request, if any. Failed tokens count against the
-/// caller's credential budget, as bad API keys do (security review S-02).
+/// The live token in the request, if any. The token is looked up first (by
+/// its digest); a valid one is limited only by its own windows (per token,
+/// after this). A failed one counts against the caller's failure budget,
+/// shared with bad API keys; once that is spent, further bad tokens from
+/// the caller are refused at once (security review S-02). A valid token is
+/// never refused because of it.
 #[allow(clippy::result_large_err)]
 fn token(ctx: &AppState, ip: IpAddr, headers: &HeaderMap) -> Result<TokenRow, Response> {
-    use crate::server::middleware::{credential_failed, credential_locked};
+    use crate::server::middleware::{count_failure, failures_exhausted};
+    use crate::server::ratelimit::Bucket;
     let Some(t) = bearer(headers) else {
         return Err(unauthorized(ctx, "invalid_token", "Missing Bearer token."));
     };
-    if credential_locked(ctx, ip, "mcp", &t) {
-        return Err(unauthorized(ctx, "invalid_token", ""));
-    }
     let found = ctx.sqlite.conn().and_then(|c| store::find_token(&c, &t));
+    if !matches!(found, Ok(Some(_))) {
+        if failures_exhausted(ctx, ip, Bucket::ApiKeyFail) {
+            return Err(too_many());
+        }
+        count_failure(ctx, ip, Bucket::ApiKeyFail);
+    }
     match found {
         Ok(Some(row)) => {
             if let Ok(c) = ctx.sqlite.conn() {
@@ -391,10 +399,7 @@ fn token(ctx: &AppState, ip: IpAddr, headers: &HeaderMap) -> Result<TokenRow, Re
             }
             Ok(row)
         }
-        Ok(None) => {
-            credential_failed(ctx, ip, "mcp", &t);
-            Err(unauthorized(ctx, "invalid_token", ""))
-        }
+        Ok(None) => Err(unauthorized(ctx, "invalid_token", "")),
         Err(e) => {
             tracing::error!("MCP token check failed: {}", e);
             Err(unauthorized(ctx, "invalid_token", ""))

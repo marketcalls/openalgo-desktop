@@ -126,6 +126,12 @@ fn loopback_name(name: &str) -> bool {
     matches!(name, "127.0.0.1" | "localhost" | "::1")
 }
 
+/// Whether `host` names the feed on this computer.
+fn names_this_computer(host: Option<&str>, ws_port: u16) -> bool {
+    host.and_then(split_authority)
+        .is_some_and(|(name, port)| loopback_name(&name) && port == Some(ws_port))
+}
+
 impl HandshakePolicy {
     /// No page and no host but the feed on loopback (the app is gone).
     pub fn closed() -> Self {
@@ -575,10 +581,19 @@ async fn serve_conn(
     // came in on.
     let policy = (shared.cfg.handshake.0)();
     let ws_port = stream.local_addr().map(|a| a.port()).unwrap_or(0);
+    // Whether the handshake came through a proxy or tunnel: a forwarding
+    // header, or a host other than this computer (see `feed_caller`).
+    let proxied = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let saw_proxy = proxied.clone();
     let check_origin =
         move |req: &tokio_tungstenite::tungstenite::handshake::server::Request,
               resp: tokio_tungstenite::tungstenite::handshake::server::Response| {
             let get = |n: &str| req.headers().get(n).and_then(|v| v.to_str().ok());
+            saw_proxy.store(
+                crate::server::middleware::forwarded(req.headers())
+                    || !names_this_computer(get("host"), ws_port),
+                Ordering::Relaxed,
+            );
             if policy.allows(get("origin"), get("host"), ws_port) {
                 Ok(resp)
             } else {
@@ -610,7 +625,7 @@ async fn serve_conn(
     let mut writer = AbortOnDrop(tokio::spawn(write_loop(sink, outbox.clone())));
     let mut session = Session {
         id,
-        peer,
+        caller: crate::server::middleware::feed_caller(peer, proxied.load(Ordering::Relaxed)),
         shared: shared.clone(),
         outbox: outbox.clone(),
         user_id: None,
@@ -722,8 +737,9 @@ async fn serve_conn(
 /// One client's protocol state.
 struct Session {
     id: ClientId,
-    /// The connection's socket peer, for the failed-key budget.
-    peer: std::net::IpAddr,
+    /// Who is calling, for the per-caller guard and failure budget
+    /// (`server::middleware::feed_caller`).
+    caller: std::net::IpAddr,
     shared: Arc<Shared>,
     outbox: Arc<Outbox>,
     user_id: Option<String>,
@@ -826,13 +842,15 @@ impl Session {
         }
         let auth = &self.shared.auth;
         let outcome = match key.as_str() {
-            // Too many failed keys from this caller: refused unchecked,
-            // with the same answer (security review S-02).
-            Some(k) if auth.locked(self.peer, k) => AuthOutcome::Invalid,
+            // Over the resource guard: refused unchecked, with the same
+            // answer. Otherwise the key is checked first, and only a failed
+            // one is counted against the caller (security review S-02); a
+            // valid key is never refused because of others.
+            Some(_) if !auth.admit(self.caller) => AuthOutcome::Invalid,
             Some(k) => {
                 let outcome = auth.authenticate(k).await;
                 if outcome == AuthOutcome::Invalid {
-                    auth.failed(self.peer, k);
+                    auth.failed(self.caller);
                 }
                 outcome
             }

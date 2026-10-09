@@ -276,7 +276,7 @@ impl WebhookState {
     }
 
     /// Log throttling once per window, not once per refused request.
-    fn note_throttled(&self, why: &str) {
+    pub(crate) fn note_throttled(&self, why: &str) {
         let now = self.now();
         let mut last = self.throttle_logged.lock();
         if last.is_none_or(|t| now.saturating_duration_since(t) >= RATE_WINDOW) {
@@ -294,25 +294,45 @@ pub const LOCKOUT_FAILURES: usize = 10;
 /// The window those failures are counted in.
 pub const LOCKOUT_WINDOW: Duration = Duration::from_secs(600);
 
-/// Whether a request may proceed to the pipeline. Checked before any token
-/// lookup, payload read or order path: the per-address limit and the
-/// per-address failure lockout on the shared limiter, then the per-token
-/// window keyed on the digest (never the raw token).
-pub fn admit(
+/// The web's per-address limit (`WEBHOOK_RATE_LIMIT`, 100 a minute) for
+/// this computer and devices on the network, before any lookup. Tunnel
+/// callers share one identity, so they are limited per token once the
+/// token checked out ([`admit_token`]).
+pub fn admit_address(
     state: &WebhookState,
     limiter: &crate::server::ratelimit::RateLimiter,
     ip: IpAddr,
+) -> bool {
+    use crate::server::ratelimit::Bucket;
+    if limiter
+        .check(Bucket::StrategyWebhook, ip, limiter.now())
+        .is_err()
+    {
+        state.note_throttled("one address is over the webhook rate limit");
+        return false;
+    }
+    true
+}
+
+/// The limits of a token that checked out: behind a tunnel its own
+/// per-address window (`tunnel_key`, `middleware::limiter_key`), then the
+/// per-token window keyed on the digest (never the raw token). A valid
+/// token is never limited by other callers' traffic or failures.
+pub fn admit_token(
+    state: &WebhookState,
+    limiter: &crate::server::ratelimit::RateLimiter,
+    tunnel_key: Option<IpAddr>,
     token: &str,
 ) -> bool {
     use crate::server::ratelimit::Bucket;
-    let now = limiter.now();
-    if limiter.is_exhausted(Bucket::WebhookFail, ip, now) {
-        state.note_throttled("too many failed webhook authentications from one address");
-        return false;
-    }
-    if limiter.check(Bucket::StrategyWebhook, ip, now).is_err() {
-        state.note_throttled("one address is over the webhook rate limit");
-        return false;
+    if let Some(key) = tunnel_key {
+        if limiter
+            .check(Bucket::StrategyWebhook, key, limiter.now())
+            .is_err()
+        {
+            state.note_throttled("one webhook is over the webhook rate limit");
+            return false;
+        }
     }
     if !state.rate_check(&format!("token:{}", hash_webhook_token(token))) {
         state.note_throttled("one webhook is over its rate limit");
@@ -504,6 +524,16 @@ impl Audit<'_> {
 }
 
 impl StrategyModule {
+    /// Whether `token` is a live webhook token: its shape, then the digest
+    /// lookup and a constant-time confirmation. Cheap, and writes nothing.
+    pub fn token_known(&self, token: &str) -> bool {
+        looks_like_token(token)
+            && matches!(
+                self.store.get_strategy_by_webhook_token(token),
+                Ok(Some(s)) if digest_matches(token, &s.webhook_token_hash)
+            )
+    }
+
     /// The canonical answer to a token that resolves to nothing.
     pub fn unknown_token_outcome(&self, ip: Option<&str>, ua: Option<&str>) -> WebhookOutcome {
         let id = Audit {

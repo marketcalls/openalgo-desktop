@@ -543,12 +543,22 @@ Every flaky test found so far was a race, not a slow machine:
 - Refuse cross-site browser requests (`Sec-Fetch-Site`, a foreign `Origin`
   or `Referer`) before they reach any failure counter or rate limit: a web
   page can fire them blind and use up the trader's budget.
-- Every check of an API key or token counts its failures in the one shared
-  budget (`middleware::credential_locked` and `credential_failed`), however
-  the credential arrives: body, URL, header or a WebSocket message. A key
-  in a URL, the `/mcp` bearer token and the feed's `authenticate` were each
-  left uncounted once, an unthrottled guessing channel. Exempt a request by
-  refusing it before the check, never by skipping the count.
+- Every check of an API key, token or webhook address counts a failure
+  against the caller's budget (`middleware::failures_exhausted`,
+  `count_failure`), however the credential arrives: body, URL, header or a
+  WebSocket message. A key in a URL, the `/mcp` bearer token and the
+  feed's `authenticate` were each left uncounted once. Check the
+  credential first: a spent budget refuses only further invalid attempts,
+  never a valid credential, so no stranger can lock one out. Exempt a
+  request by refusing it before the check, never by skipping the count.
+- Never charge valid traffic to a low limit strangers share. Tunnel
+  callers are one identity, so behind a tunnel a valid credential gets its
+  own window (`middleware::limiter_key`) and the shared limit is only a
+  generous resource guard. A limiter that drops live entries when its
+  table fills is a reset button (invented keys once flushed every
+  lockout): evict only entries a caller can mint and put new addresses in
+  one shared overflow bucket. None of this is for passwords or codes,
+  which have per-source budgets only.
 - A failure budget keyed by anything the attacker picks per attempt (a user
   name, a password, a code, a credential hash) or with an evict-oldest
   table can be spread or flushed. Key it by source and account, never evict

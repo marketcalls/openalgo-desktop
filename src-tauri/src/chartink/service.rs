@@ -334,6 +334,22 @@ pub fn search(ctx: &AppState, q: &str, exchange: Option<&str>) -> Reply {
     Reply::ok(json!({"results": results}))
 }
 
+/// Whether `webhook_id` is a live Chartink webhook address: its locator,
+/// then a constant-time match. Cheap, and records nothing.
+pub fn webhook_known(ctx: &AppState, webhook_id: &str) -> bool {
+    let Some(locator) = webhook::locator(webhook_id) else {
+        return false;
+    };
+    ctx.chartink
+        .store
+        .by_locator(locator)
+        .map(|c| {
+            c.iter()
+                .any(|s| webhook::id_matches(webhook_id, &s.webhook_id))
+        })
+        .unwrap_or(false)
+}
+
 /// The webhook after `admit` and the size cap: resolve the id in constant
 /// time, apply the per-webhook lock, then run the alert. The `bool` is
 /// whether this request failed authentication (counted per address by the

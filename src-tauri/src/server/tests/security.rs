@@ -216,40 +216,31 @@ async fn s02_image_requests_with_a_bad_key_do_not_lock_out_local_programs() {
     assert_eq!(s, StatusCode::OK, "refused before the key was checked");
 }
 
-/// S-02: a key sent in the URL counts like one in the body, so a device on
-/// the network cannot guess keys through `GET /api/v1/ticker` unthrottled.
+/// S-02: a key sent in the URL counts like one in the body: ten bad keys in
+/// `GET /api/v1/ticker` spend the device's failure budget. A valid key from
+/// that device still works, in the URL or in the body.
 #[tokio::test]
 async fn s02_a_key_in_the_url_counts_like_one_in_the_body() {
+    use crate::server::ratelimit::Bucket;
     let h = H::new();
     let key = h.setup();
     h.connect_broker();
+    let lan: std::net::IpAddr = LAN.parse().unwrap();
     for i in 0..10 {
         let (s, _, _) = h.send(from_peer(ticker(&format!("guess{}", i)), LAN)).await;
         assert_eq!(s, StatusCode::FORBIDDEN);
     }
-    // The device is now refused without its key being checked, in the URL
-    // or in the body.
+    let now = h.ctx().limiter.now();
+    assert!(h.ctx().limiter.is_exhausted(Bucket::ApiKeyFail, lan, now));
     let (s, _, _) = h.send(from_peer(ticker(&key), LAN)).await;
-    assert_eq!(s, StatusCode::FORBIDDEN);
+    assert_ne!(s, StatusCode::FORBIDDEN, "a valid key in the URL works");
     let (s, _) = h
         .json(from_peer(
             post_json("/api/v1/ping", json!({"apikey": key})),
             LAN,
         ))
         .await;
-    assert_eq!(s, StatusCode::FORBIDDEN);
-    // This computer and other devices are unaffected.
-    let (s, _) = h
-        .json(post_json("/api/v1/ping", json!({"apikey": key})))
-        .await;
-    assert_eq!(s, StatusCode::OK);
-    let (s, _) = h
-        .json(from_peer(
-            post_json("/api/v1/ping", json!({"apikey": key})),
-            "192.168.1.51",
-        ))
-        .await;
-    assert_eq!(s, StatusCode::OK);
+    assert_eq!(s, StatusCode::OK, "a valid key in the body works");
 }
 
 /// Remote MCP on and a token for it.
@@ -277,36 +268,77 @@ fn mcp_ping(token: &str) -> Request<Body> {
     r
 }
 
-/// S-02: bad MCP tokens count against the same budget as bad API keys: a
-/// device on the network is refused after ten, this computer never is, and
-/// a stranger's bad tokens through the tunnel never block a good one.
+/// S-02: a thousand bad MCP tokens through the tunnel spend the tunnel's
+/// failure budget and nothing else: a valid token through the same tunnel
+/// works at once, and later bad tokens are refused straight away (429).
 #[tokio::test]
-async fn s02_bad_mcp_tokens_are_counted_like_bad_keys() {
+async fn s02_tunnel_failures_never_refuse_a_valid_mcp_token() {
+    use crate::server::ratelimit::Bucket;
     let h = H::new();
     h.setup();
     let token = remote_mcp(&h);
-    let (s, _) = h.json(from_peer(mcp_ping(&token), LAN)).await;
-    assert_eq!(s, StatusCode::OK);
-    for i in 0..10 {
-        let bad = format!("oamcp_guess{}", i);
-        let (s, _) = h.json(from_peer(mcp_ping(&bad), LAN)).await;
-        assert_eq!(s, StatusCode::UNAUTHORIZED);
-        let (s, _) = h.json(mcp_ping(&bad)).await;
-        assert_eq!(s, StatusCode::UNAUTHORIZED);
-        let (s, _) = h.json(tunnelled(mcp_ping("oamcp_wrong"))).await;
-        assert_eq!(s, StatusCode::UNAUTHORIZED);
+    let t0 = h.ctx().limiter.now();
+    let mut unauthorized = 0;
+    for i in 0..1000u64 {
+        // Five hundred a second, under the resource guard.
+        h.ctx()
+            .limiter
+            .freeze(Some(t0 + std::time::Duration::from_millis(2 * i)));
+        let (s, _) = h
+            .json(tunnelled(mcp_ping(&format!("oamcp_guess{}", i))))
+            .await;
+        match s {
+            StatusCode::UNAUTHORIZED => unauthorized += 1,
+            StatusCode::TOO_MANY_REQUESTS => {}
+            other => panic!("{}", other),
+        }
     }
-    let (s, _) = h.json(from_peer(mcp_ping(&token), LAN)).await;
-    assert_eq!(s, StatusCode::UNAUTHORIZED, "the device is locked out");
-    let (s, v) = h.json(mcp_ping(&token)).await;
-    assert_eq!(s, StatusCode::OK, "this computer is not: {}", v);
+    assert_eq!(unauthorized, 10, "ten failures, then refused at once");
+    let now = h.ctx().limiter.now();
+    assert!(h
+        .ctx()
+        .limiter
+        .is_exhausted(Bucket::ApiKeyFail, PROXIED_CALLER, now));
     let (s, v) = h.json(tunnelled(mcp_ping(&token))).await;
-    assert_eq!(s, StatusCode::OK, "a good token through the tunnel: {}", v);
-    assert!(h.ctx().limiter.is_exhausted(
-        crate::server::ratelimit::Bucket::ApiKeyFail,
-        crate::server::middleware::limiter_key(PROXIED_CALLER, "mcp", "oamcp_wrong"),
-        h.ctx().limiter.now()
-    ));
+    assert_eq!(s, StatusCode::OK, "the valid token works at once: {}", v);
+    let (s, v) = h.json(tunnelled(mcp_ping("oamcp_another"))).await;
+    assert_eq!(s, StatusCode::TOO_MANY_REQUESTS, "{}", v);
+    assert_eq!(v["error"], "rate_limited");
+}
+
+/// S-02: bad MCP tokens and bad API keys spend one failure budget per
+/// caller. Once a device has spent it, its bad tokens are refused at once
+/// (429) while its valid token still works; this computer has its own.
+#[tokio::test]
+async fn s02_bad_mcp_tokens_share_the_failure_budget_of_bad_keys() {
+    let h = H::new();
+    h.setup();
+    let token = remote_mcp(&h);
+    for i in 0..5 {
+        let (s, _) = h
+            .json(from_peer(mcp_ping(&format!("oamcp_guess{}", i)), LAN))
+            .await;
+        assert_eq!(s, StatusCode::UNAUTHORIZED);
+        let (s, _) = h
+            .json(from_peer(
+                post_json("/api/v1/ping", json!({"apikey": format!("bad{}", i)})),
+                LAN,
+            ))
+            .await;
+        assert_eq!(s, StatusCode::FORBIDDEN);
+    }
+    let (s, v) = h.json(from_peer(mcp_ping("oamcp_more"), LAN)).await;
+    assert_eq!(s, StatusCode::TOO_MANY_REQUESTS, "{}", v);
+    let (s, v) = h.json(from_peer(mcp_ping(&token), LAN)).await;
+    assert_eq!(s, StatusCode::OK, "the device's valid token: {}", v);
+    let (s, _) = h.json(mcp_ping("oamcp_more")).await;
+    assert_eq!(
+        s,
+        StatusCode::UNAUTHORIZED,
+        "this computer has its own budget"
+    );
+    let (s, v) = h.json(mcp_ping(&token)).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
 }
 
 /// S-02: a web page firing requests at /api/v1 does not use up the
@@ -326,10 +358,11 @@ async fn s02_cross_site_requests_do_not_use_up_the_local_rate_limit() {
     assert_eq!(s, StatusCode::OK, "{}", v);
 }
 
-/// S-02: the trader's own machine is never locked out by bad keys (it is
-/// still rate limited); another device is.
+/// S-02: bad keys never refuse a valid key, from this computer or from a
+/// device on the network: they spend only the caller's failure budget.
 #[tokio::test]
-async fn s02_loopback_is_not_locked_out_by_bad_keys_but_a_lan_device_is() {
+async fn s02_bad_keys_never_refuse_a_valid_key() {
+    use crate::server::ratelimit::Bucket;
     let h = H::new();
     let key = h.setup();
     h.connect_broker();
@@ -347,17 +380,22 @@ async fn s02_loopback_is_not_locked_out_by_bad_keys_but_a_lan_device_is() {
             .await;
         assert_eq!(s, StatusCode::FORBIDDEN);
     }
+    let now = h.ctx().limiter.now();
+    for caller in ["127.0.0.1", LAN] {
+        let ip: std::net::IpAddr = caller.parse().unwrap();
+        assert!(h.ctx().limiter.is_exhausted(Bucket::ApiKeyFail, ip, now));
+    }
     let (s, _) = h
         .json(post_json("/api/v1/ping", json!({"apikey": key})))
         .await;
-    assert_eq!(s, StatusCode::OK, "loopback still works");
+    assert_eq!(s, StatusCode::OK, "this computer");
     let (s, _) = h
         .json(from_peer(
             post_json("/api/v1/ping", json!({"apikey": key})),
             LAN,
         ))
         .await;
-    assert_eq!(s, StatusCode::FORBIDDEN, "the LAN address is locked out");
+    assert_eq!(s, StatusCode::OK, "the device");
 }
 
 /// S-02: a valid key before the broker login is refused as on the web but
@@ -626,37 +664,46 @@ fn tunnelled(mut r: Request<Body>) -> Request<Body> {
     r
 }
 
-/// S-03: a stranger's bad keys through the tunnel lock out neither the
-/// trader's own programs nor a correct key sent through the same tunnel.
+/// S-03: a thousand bad keys through the tunnel spend the tunnel's failure
+/// budget and nothing else: a valid key through the same tunnel works at
+/// once, local programs work, and no bad key costs an Argon2 check (the
+/// HMAC index misses first).
 #[tokio::test]
 async fn s03_bad_keys_through_a_tunnel_do_not_block_a_valid_key() {
+    use crate::server::ratelimit::Bucket;
     let h = H::new();
     let key = h.setup();
     h.connect_broker();
-    for _ in 0..30 {
+    let t0 = h.ctx().limiter.now();
+    let hashes = h.ctx().api_keys.hash_checks();
+    for i in 0..1000u64 {
+        // Five hundred a second, under the resource guard.
+        h.ctx()
+            .limiter
+            .freeze(Some(t0 + std::time::Duration::from_millis(2 * i)));
         let (s, v) = h
             .json(tunnelled(post_json(
                 "/api/v1/ping",
-                json!({"apikey": "wrong"}),
+                json!({"apikey": format!("wrong{}", i)}),
             )))
             .await;
         assert_eq!(s, StatusCode::FORBIDDEN);
         assert_eq!(v["message"], "Invalid openalgo apikey");
     }
-    let (s, _) = h
+    let now = h.ctx().limiter.now();
+    assert!(h
+        .ctx()
+        .limiter
+        .is_exhausted(Bucket::ApiKeyFail, PROXIED_CALLER, now));
+    assert_eq!(h.ctx().api_keys.hash_checks(), hashes, "no Argon2 check");
+    let (s, v) = h
         .json(tunnelled(post_json("/api/v1/ping", json!({"apikey": key}))))
         .await;
-    assert_eq!(s, StatusCode::OK, "a valid key through the tunnel works");
+    assert_eq!(s, StatusCode::OK, "a valid key through the tunnel: {}", v);
     let (s, _) = h
         .json(post_json("/api/v1/ping", json!({"apikey": key})))
         .await;
     assert_eq!(s, StatusCode::OK, "local programs work");
-    // The same wrong key keeps being refused without being checked.
-    assert!(h.ctx().limiter.is_exhausted(
-        crate::server::ratelimit::Bucket::ApiKeyFail,
-        crate::server::middleware::limiter_key(PROXIED_CALLER, "apikey", "wrong"),
-        h.ctx().limiter.now()
-    ));
 }
 
 /// S-03: the identity every tunnel caller shares is never banned, however
@@ -743,6 +790,93 @@ async fn s03_bad_webhook_calls_through_a_tunnel_do_not_block_a_good_one() {
     assert_ne!(s, StatusCode::TOO_MANY_REQUESTS, "{}", v);
     assert_ne!(v["result"], "rejected_token", "{}", v);
     assert_ne!(v["result"], "rate_limited", "{}", v);
+}
+
+/// S-03: a thousand invented webhook addresses through the tunnel spend the
+/// tunnel's failure budget and nothing else: the real strategy and Chartink
+/// webhooks then work through the same tunnel at once, and later invented
+/// addresses are refused straight away (429) with no audit row.
+#[tokio::test]
+async fn s03_tunnel_failures_never_refuse_a_valid_webhook() {
+    use crate::server::ratelimit::Bucket;
+    let h = H::new();
+    h.setup();
+    let token = crate::strategy::store::generate_webhook_token();
+    let good = "22222222-2222-4222-8222-222222222222";
+    {
+        let c = h.ctx().sqlite.conn().unwrap();
+        c.execute(
+            "INSERT INTO sm_strategy (user_id, name, universe_tab, underlying,
+                 underlying_exchange, webhook_token_hash, created_at, updated_at)
+             VALUES ('trader', 's1', 'index', 'NIFTY', 'NSE_INDEX', ?1, 'x', 'x')",
+            [crate::strategy::store::hash_webhook_token(&token)],
+        )
+        .unwrap();
+        c.execute(
+            "INSERT INTO chartink_strategies (name, webhook_id) VALUES ('scan', ?1)",
+            [good],
+        )
+        .unwrap();
+    }
+    let t0 = h.ctx().limiter.now();
+    let mut refused_at_once = 0;
+    for i in 0..1000u64 {
+        // Five hundred a second, under the resource guard.
+        h.ctx()
+            .limiter
+            .freeze(Some(t0 + std::time::Duration::from_millis(2 * i)));
+        let path = if i % 2 == 0 {
+            format!("/strategy/webhook/oaws_{:0>43}", i)
+        } else {
+            format!("/chartink/webhook/{}", uuid::Uuid::new_v4())
+        };
+        let (s, v) = h.json(tunnelled(post_json(&path, json!({})))).await;
+        match s {
+            StatusCode::NOT_FOUND => {}
+            StatusCode::TOO_MANY_REQUESTS => refused_at_once += 1,
+            other => panic!("{} {}", other, v),
+        }
+    }
+    assert_eq!(refused_at_once, 990, "ten failures, then refused at once");
+    let now = h.ctx().limiter.now();
+    assert!(h
+        .ctx()
+        .limiter
+        .is_exhausted(Bucket::WebhookFail, PROXIED_CALLER, now));
+    let audit = count(&h, "SELECT COUNT(*) FROM sm_webhook_event");
+    let (s, _) = h
+        .json(tunnelled(post_json(
+            &format!("/strategy/webhook/oaws_{:0>43}", 5000),
+            json!({}),
+        )))
+        .await;
+    assert_eq!(s, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(
+        count(&h, "SELECT COUNT(*) FROM sm_webhook_event"),
+        audit,
+        "no audit row"
+    );
+    let (s, v) = h
+        .json(tunnelled(post_json(
+            &format!("/strategy/webhook/{}", token),
+            json!({}),
+        )))
+        .await;
+    assert_ne!(s, StatusCode::TOO_MANY_REQUESTS, "{}", v);
+    assert_ne!(v["result"], "rejected_token", "{}", v);
+    let (s, v) = h
+        .json(tunnelled(post_json(
+            &format!("/chartink/webhook/{}", good),
+            json!({}),
+        )))
+        .await;
+    assert_ne!(s, StatusCode::TOO_MANY_REQUESTS, "{}", v);
+    assert_ne!(
+        v["error"],
+        crate::chartink::webhook::INVALID_WEBHOOK,
+        "{}",
+        v
+    );
 }
 
 /// S-03: fifty Chartink alerts with wrong addresses through the tunnel do

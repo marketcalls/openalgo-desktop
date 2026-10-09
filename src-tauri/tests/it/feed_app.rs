@@ -129,15 +129,16 @@ async fn app_auth_uses_the_stored_api_key_and_broker_session() {
     ctx.shutdown().await;
 }
 
-/// Security review S-02: failed feed keys count against the budget
-/// `/api/v1` and `/mcp` share. A device on the network is refused after
-/// ten whatever key it then sends; a loopback peer (this computer or a
-/// tunnel; the feed cannot tell) is counted per key, so a stranger's bad
-/// keys never block a correct one.
+/// Security review S-02: failed feed keys count against the caller's
+/// failure budget, shared with `/api/v1` and `/mcp`, the caller classified
+/// from the handshake like an HTTP request. A valid key is never refused
+/// because of it: from this computer, through a tunnel (a forwarding
+/// header) or from the network. Every `authenticate` passes the resource
+/// guard first.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn failed_feed_keys_are_counted_like_api_keys() {
-    use openalgo_desktop_lib::feed::auth::{AppAuth, AuthOutcome, FeedAuth};
-    use openalgo_desktop_lib::server::middleware::{limiter_key, PROXIED_CALLER};
+    use openalgo_desktop_lib::feed::auth::{AppAuth, FeedAuth};
+    use openalgo_desktop_lib::server::middleware::PROXIED_CALLER;
     use openalgo_desktop_lib::server::ratelimit::Bucket;
     let dir = tempfile::tempdir().unwrap();
     let ctx = open_ctx(&dir);
@@ -162,49 +163,63 @@ async fn failed_feed_keys_are_counted_like_api_keys() {
     let invalid =
         json!({"status": "error", "code": "AUTHENTICATION_ERROR", "message": "Invalid API key"});
     let no_broker = json!({"status": "error", "code": "BROKER_ERROR", "message": "No broker configuration found for user"});
+    let exhausted = |ip: std::net::IpAddr| {
+        ctx.limiter
+            .is_exhausted(Bucket::ApiKeyFail, ip, ctx.limiter.now())
+    };
+    let local: std::net::IpAddr = "127.0.0.1".parse().unwrap();
 
-    // Over loopback: ten bad keys exhaust that key's budget only.
+    // This computer: twelve bad keys spend its budget; the valid key works.
     let mut c = Client::connect(&url).await;
-    for _ in 0..10 {
+    for _ in 0..12 {
         let v = c
             .request(json!({"action": "authenticate", "api_key": "wrong"}))
             .await;
         assert_eq!(v, invalid);
     }
-    let now = ctx.limiter.now();
-    let bad = limiter_key(PROXIED_CALLER, "apikey", "wrong");
-    assert!(ctx.limiter.is_exhausted(Bucket::ApiKeyFail, bad, now));
+    assert!(exhausted(local));
+    assert!(!exhausted(PROXIED_CALLER));
     let v = c
         .request(json!({"action": "authenticate", "api_key": key}))
         .await;
-    assert_eq!(v, no_broker, "a correct key still authenticates");
+    assert_eq!(v, no_broker, "this computer's valid key");
     drop(c);
 
-    // A locked budget refuses even the correct key, unchecked.
-    let good = limiter_key(PROXIED_CALLER, "apikey", &key);
-    for _ in 0..10 {
-        let _ = ctx.limiter.check(Bucket::ApiKeyFail, good, now);
+    // Through a tunnel: the tunnel's budget; the valid key works.
+    let through_tunnel = || async {
+        use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+        let mut r = url.as_str().into_client_request().unwrap();
+        r.headers_mut()
+            .insert("x-forwarded-for", "203.0.113.7".parse().unwrap());
+        let (ws, _) = tokio_tungstenite::connect_async(r).await.unwrap();
+        Client { ws }
+    };
+    let mut c = through_tunnel().await;
+    for i in 0..12 {
+        let v = c
+            .request(json!({"action": "authenticate", "api_key": format!("wrong{}", i)}))
+            .await;
+        assert_eq!(v, invalid);
     }
-    let mut c = Client::connect(&url).await;
+    assert!(exhausted(PROXIED_CALLER));
     let v = c
         .request(json!({"action": "authenticate", "api_key": key}))
         .await;
-    assert_eq!(v, invalid);
+    assert_eq!(v, no_broker, "a valid key through the tunnel");
     drop(c);
 
-    // A device on the network is counted by its address.
+    // A device on the network: its own budget, by address.
     let auth = AppAuth::new(ctx.clone());
     let lan: std::net::IpAddr = "192.168.1.50".parse().unwrap();
     let other: std::net::IpAddr = "192.168.1.51".parse().unwrap();
-    for i in 0..10 {
-        let guess = format!("guess{}", i);
-        assert!(!auth.locked(lan, &guess));
-        assert_eq!(auth.authenticate(&guess).await, AuthOutcome::Invalid);
-        auth.failed(lan, &guess);
+    for _ in 0..10 {
+        auth.failed(lan);
     }
-    assert!(auth.locked(lan, &key));
-    assert!(auth.locked("::ffff:192.168.1.50".parse().unwrap(), &key));
-    assert!(!auth.locked(other, &key));
+    assert!(exhausted(lan));
+    assert!(!exhausted(other));
+    // The resource guard (1000 a second) comes before any key check.
+    let admitted = (0..5000).take_while(|_| auth.admit(other)).count();
+    assert!((1000..5000).contains(&admitted), "{}", admitted);
     feed.stop().await;
     ctx.shutdown().await;
 }

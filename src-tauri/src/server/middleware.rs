@@ -104,15 +104,11 @@ const FORWARDING_HEADERS: [&str; 13] = [
 
 /// Whether a forwarding-type header is present. Header names are matched
 /// case-insensitively (they are stored in lower case).
-fn forwarded(headers: &HeaderMap) -> bool {
+pub fn forwarded(headers: &HeaderMap) -> bool {
     headers.keys().any(|k| {
         let n = k.as_str();
         n.starts_with("x-forwarded-") || FORWARDING_HEADERS.contains(&n)
     })
-}
-
-fn is_loopback(ip: IpAddr) -> bool {
-    crate::server::addr::canonical(ip).is_loopback()
 }
 
 /// `host[:port]` split into its name (lower case, IPv6 without brackets)
@@ -215,18 +211,22 @@ fn limiter_secret() -> &'static [u8; 32] {
     })
 }
 
-/// The key a failure throttle or rate limit counts a caller under. A real
-/// address is itself. The shared identity of tunnel and proxy callers
-/// ([`PROXIED_CALLER`]) is never throttled as one caller for a credential
-/// that is checked against a stored secret and stays the same from one
-/// attempt to the next (a webhook address, a strategy token, an API key):
-/// one stranger would lock out every alert coming through the tunnel. Those
-/// attempts are counted per credential instead (`scope` names the kind), so
-/// a stranger's bad attempts never block a correct credential (security
-/// review S-03). Never used for sign-in, where the name and password vary
-/// with every guess. The key is a prefix of an HMAC under a per-process
-/// random key, in the discard-only `100:0:0:1::/64` block: a limiter key,
-/// never an address anything is sent to or banned.
+/// The key a VALID credential's request limit is counted under (the web's
+/// per-address limits). A real address is itself: this computer and each
+/// device on the network have their own windows, which strangers elsewhere
+/// cannot touch. Tunnel callers share one identity ([`PROXIED_CALLER`]), so
+/// for them the window is the credential's own (`scope` names the kind): a
+/// stranger sending bad keys or addresses through the tunnel can never use
+/// up the window of a valid one (security review S-03). Only charged after
+/// the credential checked out, so invented credentials never get an entry;
+/// their failures go to the caller's budget ([`failures_exhausted`]).
+///
+/// Only for random credentials nobody can guess (API keys, MCP tokens and
+/// strategy tokens of 256 bits, Chartink ids as random UUIDs of 122 bits);
+/// never for passwords or authenticator codes. The key is a prefix of an
+/// HMAC under a per-process random key, in the discard-only
+/// `100:0:0:1::/64` block: a limiter key, never an address anything is
+/// sent to or banned. See `docs/security/known-residuals.md`.
 pub fn limiter_key(ip: IpAddr, scope: &str, credential: &str) -> IpAddr {
     if ip != PROXIED_CALLER {
         return ip;
@@ -252,44 +252,47 @@ pub fn limiter_key(ip: IpAddr, scope: &str, credential: &str) -> IpAddr {
     ))
 }
 
-/// Failed-credential budget shared by every surface that checks an API key
-/// or token (`/api/v1`, `/mcp`, the market data feed): ten failures a
-/// minute, then the caller is refused without the credential being
-/// checked (security review S-02, S-03). `caller` is [`Source::ip`] (the
-/// feed passes [`feed_caller`]). This computer is never locked out; a
-/// device on the network is counted by its address, whatever it presents;
-/// tunnel callers by the credential presented ([`limiter_key`]), so a
-/// stranger's failures never block a correct credential. `scope` names the
-/// kind of credential.
-pub fn credential_locked(ctx: &AppState, caller: IpAddr, scope: &str, presented: &str) -> bool {
-    !is_loopback(caller)
-        && ctx.limiter.is_exhausted(
-            Bucket::ApiKeyFail,
-            limiter_key(caller, scope, presented),
-            ctx.limiter.now(),
-        )
+/// Failed credential checks by caller (security review S-02, S-03), for
+/// random credentials nobody can guess: API keys, MCP tokens, feed keys,
+/// strategy and Chartink webhook addresses. Every surface checks the
+/// credential first (a cheap lookup: an HMAC index or a digest; Argon2 only
+/// on an index hit, and cached), then:
+///
+/// * a valid credential is charged only to its own request limits and is
+///   never refused because of other callers or this budget;
+/// * an invalid one is charged here (`bucket`), per caller: this computer,
+///   one shared bucket for every tunnel caller, each network address. Once
+///   spent, further invalid attempts from that caller are refused at once,
+///   skipping the rest of the work (audit rows, logs, probes).
+///
+/// A stranger's failures therefore never refuse a valid credential, and a
+/// spent budget only ever affects invalid callers. Passwords and
+/// authenticator codes are not counted here: sign-in has its own per-source
+/// budget (`claim_sign_in`).
+pub fn failures_exhausted(ctx: &AppState, caller: IpAddr, bucket: Bucket) -> bool {
+    ctx.limiter.is_exhausted(bucket, caller, ctx.limiter.now())
 }
 
-/// Count one failed credential check (see [`credential_locked`]).
-pub fn credential_failed(ctx: &AppState, caller: IpAddr, scope: &str, presented: &str) {
-    if !is_loopback(caller) {
-        let _ = ctx.limiter.check(
-            Bucket::ApiKeyFail,
-            limiter_key(caller, scope, presented),
-            ctx.limiter.now(),
-        );
-    }
+/// Count one failed credential check for `caller` (see
+/// [`failures_exhausted`]).
+pub fn count_failure(ctx: &AppState, caller: IpAddr, bucket: Bucket) {
+    let _ = ctx.limiter.check(bucket, caller, ctx.limiter.now());
 }
 
-/// The feed's caller for [`credential_locked`]: a device on the network by
-/// its address; a loopback peer, which may be this computer or a tunnel
-/// (the feed reads no headers), as a tunnel caller, counted per key.
-pub fn feed_caller(peer: IpAddr) -> IpAddr {
+/// The feed's caller for its per-caller guard and failure budget
+/// ([`failures_exhausted`]), classified like an HTTP request ([`classify`]) from
+/// what its handshake carried: a device on the network by its address
+/// (headers never read); a loopback peer whose handshake had a forwarding
+/// header or named a host other than this computer (`proxied`) as the
+/// shared tunnel identity; otherwise this computer.
+pub fn feed_caller(peer: IpAddr, proxied: bool) -> IpAddr {
     let peer = crate::server::addr::canonical(peer);
-    if peer.is_loopback() {
+    if !peer.is_loopback() {
+        peer
+    } else if proxied {
         PROXIED_CALLER
     } else {
-        peer
+        IpAddr::V4(Ipv4Addr::LOCALHOST)
     }
 }
 
@@ -312,6 +315,18 @@ pub async fn peer_layer(
         req.headers(),
         req.uri().authority().map(|a| a.as_str()),
     );
+    // A resource guard on every request, well above legitimate use: the
+    // per-surface limits come after the credential is checked.
+    if ctx
+        .limiter
+        .check(Bucket::Guard, source.ip(), ctx.limiter.now())
+        .is_err()
+    {
+        return error(
+            StatusCode::TOO_MANY_REQUESTS,
+            "Too many requests. Please slow down and try again.",
+        );
+    }
     let https = served_over_https(&cfg, req.headers());
     req.extensions_mut().insert(source);
     let mut resp = next.run(req).await;
@@ -788,17 +803,53 @@ pub async fn api_rate_limit(
         );
     }
     let bucket = Bucket::for_api_path(req.uri().path());
-    if ctx
-        .limiter
-        .check(bucket, client_ip(&req), ctx.limiter.now())
-        .is_err()
-    {
-        return json_response(
+    let source = source_of(req.extensions());
+    let over = || {
+        json_response(
             StatusCode::TOO_MANY_REQUESTS,
             json!({"message": bucket.describe()}),
-        );
+        )
+    };
+    // This computer and devices on the network: the web's per-address
+    // window, on every request. Tunnel callers share one identity, so
+    // theirs is charged per key once the key checked out
+    // (`api_v1::authorize`, [`limiter_key`]).
+    if source != Source::Tunnel
+        && ctx
+            .limiter
+            .check(bucket, source.ip(), ctx.limiter.now())
+            .is_err()
+    {
+        return over();
     }
-    next.run(req).await
+    let call = ApiCall {
+        bucket,
+        over: std::cell::Cell::new(false),
+    };
+    let (resp, over_limit) = API_CALL
+        .scope(call, async move {
+            let resp = next.run(req).await;
+            let over_limit = API_CALL.with(|c| c.over.get());
+            (resp, over_limit)
+        })
+        .await;
+    if over_limit {
+        return over();
+    }
+    resp
+}
+
+/// The `/api/v1` call in progress: its rate bucket, and whether a valid
+/// key behind a tunnel went over its own window
+/// (`api_v1::authorize`).
+pub struct ApiCall {
+    pub bucket: Bucket,
+    pub over: std::cell::Cell<bool>,
+}
+
+tokio::task_local! {
+    /// Set by [`api_rate_limit`] around every `/api/v1` handler.
+    pub static API_CALL: ApiCall;
 }
 
 /// Login-type limits (5 per minute and 25 per hour per address). Counted

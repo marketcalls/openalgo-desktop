@@ -149,16 +149,36 @@ fn schema_error(
 /// one bad client would refuse all of them. Loopback stays under the
 /// 100-per-second limit. A key from the URL counts like one from the body
 /// (a web page's requests are refused before this, by
-/// `middleware::api_rate_limit`); `/mcp` and the feed share the budget
-/// ([`crate::server::middleware::credential_locked`]).
+/// `middleware::api_rate_limit`); `/mcp` and the feed share the failure
+/// budget ([`crate::server::middleware::failures_exhausted`]), which only
+/// ever refuses invalid keys.
 pub fn authorize(ctx: &AppState, key: &str, ip: IpAddr, auth: Auth) -> bool {
-    use crate::server::middleware::{credential_failed, credential_locked};
-    if credential_locked(ctx, ip, "apikey", key) {
+    use crate::server::middleware::{
+        count_failure, failures_exhausted, limiter_key, API_CALL, PROXIED_CALLER,
+    };
+    use crate::server::ratelimit::Bucket;
+    // The key first: a cached answer, else an HMAC index lookup that misses
+    // for an invented key (Argon2 only on a hit).
+    if !ApiKeyService::is_valid(ctx, key) {
+        if !failures_exhausted(ctx, ip, Bucket::ApiKeyFail) {
+            count_failure(ctx, ip, Bucket::ApiKeyFail);
+        }
         return false;
     }
-    if !ApiKeyService::is_valid(ctx, key) {
-        credential_failed(ctx, ip, "apikey", key);
-        return false;
+    // A valid key behind a tunnel is charged to its own window, never the
+    // window strangers share (this computer and network devices were
+    // charged per address before the handler).
+    if ip == PROXIED_CALLER {
+        let now = ctx.limiter.now();
+        let bucket = API_CALL.try_with(|c| c.bucket).unwrap_or(Bucket::Api);
+        if ctx
+            .limiter
+            .check(bucket, limiter_key(ip, "apikey", key), now)
+            .is_err()
+        {
+            let _ = API_CALL.try_with(|c| c.over.set(true));
+            return false;
+        }
     }
     auth == Auth::KeyOnly || ctx.is_broker_connected()
 }
