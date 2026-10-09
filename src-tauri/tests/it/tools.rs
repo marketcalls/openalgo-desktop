@@ -218,6 +218,7 @@ impl H {
         let mut req = b.body(body).unwrap();
         req.extensions_mut()
             .insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))));
+        crate::with_host(&mut req, &self.ctx);
         let resp = openalgo_desktop_lib::server::app(self.ctx.clone())
             .oneshot(req)
             .await
@@ -309,6 +310,7 @@ async fn anonymous_sessions_are_refused_and_writes_need_the_csrf_token() {
         let mut req = req;
         req.extensions_mut()
             .insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))));
+        crate::with_host(&mut req, &h.ctx);
         let resp = openalgo_desktop_lib::server::app(h.ctx.clone())
             .oneshot(req)
             .await

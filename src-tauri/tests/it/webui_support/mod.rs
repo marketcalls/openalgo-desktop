@@ -83,6 +83,7 @@ impl H {
     ) -> (StatusCode, HeaderMap, Vec<u8>) {
         req.extensions_mut()
             .insert(ConnectInfo(SocketAddr::from((ip, 40000))));
+        crate::with_host(&mut req, &self.ctx);
         let app = openalgo_desktop_lib::server::app(self.ctx.clone());
         let resp = app.oneshot(req).await.unwrap();
         let status = resp.status();

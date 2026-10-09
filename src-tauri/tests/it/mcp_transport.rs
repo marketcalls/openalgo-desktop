@@ -26,6 +26,7 @@ async fn open_stream(m: &M, token: &str) -> axum::response::Response {
         .unwrap();
     req.extensions_mut()
         .insert(ConnectInfo(SocketAddr::new(LOCAL, 40000)));
+    crate::with_host(&mut req, &m.h.ctx);
     openalgo_desktop_lib::server::app(m.h.ctx.clone())
         .oneshot(req)
         .await

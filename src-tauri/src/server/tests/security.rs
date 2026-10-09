@@ -115,3 +115,203 @@ async fn s07_account_reset_revokes_every_outside_credential() {
     assert_eq!(count(&h, "SELECT COUNT(*) FROM sm_strategy"), 1);
     assert_eq!(count(&h, "SELECT COUNT(*) FROM chartink_strategies"), 1);
 }
+
+// --------------------------------------------------------- shared helpers
+
+const LAN: &str = "192.168.1.50";
+
+/// The port the test server's configuration names (development ports in
+/// debug builds).
+fn app_port() -> u16 {
+    if crate::config::dev_ports_enabled() {
+        crate::config::DEV_HTTP_PORT
+    } else {
+        crate::config::DEFAULT_HTTP_PORT
+    }
+}
+
+/// The request as if it came over a socket from `ip`, naming the app.
+fn from_peer(mut r: Request<Body>, ip: &str) -> Request<Body> {
+    r.extensions_mut()
+        .insert(axum::extract::ConnectInfo(std::net::SocketAddr::new(
+            ip.parse().unwrap(),
+            50000,
+        )));
+    r.headers_mut().insert(
+        header::HOST,
+        format!("127.0.0.1:{}", app_port()).parse().unwrap(),
+    );
+    r
+}
+
+// ------------------------------------------- S-06 secrets in the traffic log
+
+/// S-06: a strategy webhook and a Chartink alert sent through the app leave
+/// no secret in the traffic log or the unknown-page tracker.
+#[tokio::test]
+async fn s06_webhook_secrets_never_reach_the_traffic_log() {
+    let h = H::new();
+    h.setup();
+    let token = crate::strategy::store::generate_webhook_token();
+    let chartink = "33333333-3333-4333-8333-333333333333";
+    let _ = h
+        .send(from_peer(
+            post_json(&format!("/strategy/webhook/{}", token), json!({})),
+            LAN,
+        ))
+        .await;
+    let _ = h
+        .send(from_peer(
+            post_json(&format!("/chartink/webhook/{}", chartink), json!({})),
+            LAN,
+        ))
+        .await;
+    h.ctx().monitor.drain_now(h.ctx());
+    let c = h.ctx().logs.conn().unwrap();
+    let paths: Vec<String> = c
+        .prepare("SELECT path FROM traffic_logs")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap();
+    assert!(
+        paths.iter().any(|p| p == "/strategy/webhook/<redacted>"),
+        "the call was logged: {:?}",
+        paths
+    );
+    let tried: Vec<String> = c
+        .prepare("SELECT paths_attempted FROM error_404_tracker")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap();
+    for text in paths.iter().chain(tried.iter()) {
+        assert!(!text.contains(&token), "{}", text);
+        assert!(!text.contains(chartink), "{}", text);
+    }
+}
+
+// ------------------------------------------- S-09 live updates after logout
+
+/// S-09: a signed-in page's Socket.IO connection is closed by the server
+/// when the session ends, not left receiving order and position pushes.
+#[tokio::test]
+async fn s09_live_update_connection_is_closed_on_sign_out() {
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::{client::IntoClientRequest, Message};
+
+    let h = H::new();
+    h.setup();
+    let (cookie, _) = h.session(true);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    *h.ctx().server_status.write() = crate::state::ServerStatus::Running {
+        host: "127.0.0.1".into(),
+        port: addr.port(),
+    };
+    let svc = crate::server::app(h.ctx().clone());
+    let server = tokio::spawn(async move {
+        let _ = axum::serve(
+            listener,
+            axum::ServiceExt::<Request<Body>>::into_make_service_with_connect_info::<
+                std::net::SocketAddr,
+            >(svc),
+        )
+        .await;
+    });
+
+    let mut req = format!(
+        "ws://127.0.0.1:{}/socket.io/?EIO=4&transport=websocket",
+        addr.port()
+    )
+    .into_client_request()
+    .unwrap();
+    req.headers_mut()
+        .insert(header::COOKIE, cookie.parse().unwrap());
+    let (mut ws, _) = tokio_tungstenite::connect_async(req).await.unwrap();
+    // Engine.IO open, then join the default namespace.
+    let open = tokio::time::timeout(std::time::Duration::from_secs(5), ws.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert!(open.to_text().unwrap().starts_with('0'), "{:?}", open);
+    ws.send(Message::Text("40".into())).await.unwrap();
+    let joined = tokio::time::timeout(std::time::Duration::from_secs(5), ws.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert!(joined.to_text().unwrap().starts_with("40"), "{:?}", joined);
+
+    // Sign out everywhere, as /auth/logout does.
+    h.ctx().sessions.clear();
+    h.ctx().bus.publish(crate::events::Event::ForceLogout {
+        message: "Signed out".into(),
+    });
+
+    let mut closed = false;
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+    while tokio::time::Instant::now() < deadline {
+        match tokio::time::timeout_at(deadline, ws.next()).await {
+            Ok(Some(Ok(Message::Text(t)))) if t.as_str() == "41" => {
+                closed = true;
+                break;
+            }
+            Ok(Some(Ok(Message::Close(_)))) | Ok(None) | Ok(Some(Err(_))) => {
+                closed = true;
+                break;
+            }
+            Ok(Some(Ok(_))) => continue,
+            Err(_) => break,
+        }
+    }
+    assert!(closed, "the server kept the signed-out connection open");
+    server.abort();
+}
+
+// ------------------------------------------------------------ S-13, S-14
+
+/// S-13: a request over a connection without a Host header is refused.
+#[tokio::test]
+async fn s13_a_connection_without_a_host_header_is_refused() {
+    let h = H::new();
+    let mut r = from_peer(get("/auth/check-setup"), "127.0.0.1");
+    r.headers_mut().remove(header::HOST);
+    let (s, _, _) = h.send(r).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _, _) = h
+        .send(from_peer(get("/auth/check-setup"), "127.0.0.1"))
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    // HTTP/2 names the host in `:authority` (the URI), not in `Host`: it is
+    // checked the same way.
+    for (authority, expected) in [
+        (format!("127.0.0.1:{}", app_port()), StatusCode::OK),
+        ("evil.example".to_string(), StatusCode::BAD_REQUEST),
+    ] {
+        let mut r = from_peer(
+            get(&format!("http://{}/auth/check-setup", authority)),
+            "127.0.0.1",
+        );
+        r.headers_mut().remove(header::HOST);
+        let (s, _, _) = h.send(r).await;
+        assert_eq!(s, expected, "{}", authority);
+    }
+}
+
+/// S-14: no path under `/webhook/` skips the CSRF check (no route lives
+/// there; a future one must not be exempt by accident).
+#[tokio::test]
+async fn s14_webhook_prefix_is_not_exempt_from_csrf() {
+    let h = H::new();
+    h.setup();
+    let (s, v) = h.json(post_json("/webhook/anything", json!({}))).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{}", v);
+    assert_eq!(
+        v["message"],
+        "Your session has expired. Refresh the page and try again."
+    );
+}

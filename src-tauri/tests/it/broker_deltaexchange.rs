@@ -1141,6 +1141,7 @@ mod app {
                     [10, 0, 0, 7],
                     40000,
                 ))));
+            crate::with_host(&mut req, &self.ctx);
             let resp = openalgo_desktop_lib::server::app(self.ctx.clone())
                 .oneshot(req)
                 .await

@@ -152,6 +152,7 @@ pub fn router(ctx: Arc<AppState>) -> (Router, socketioxide::SocketIo) {
 pub fn app(ctx: Arc<AppState>) -> NormalizePath<Router> {
     let (router, io) = router(ctx.clone());
     ctx.ui.set(Some(io));
+    ctx.ui.set_owner(Arc::downgrade(&ctx));
     NormalizePathLayer::trim_trailing_slash().layer(router)
 }
 

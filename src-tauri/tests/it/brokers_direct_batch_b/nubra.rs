@@ -623,6 +623,7 @@ async fn callback_routes_send_and_redeem_the_otp() {
                     [10, 0, 0, ip],
                     40000,
                 ))));
+            crate::with_host(&mut req, &ctx);
             let resp = openalgo_desktop_lib::server::app(ctx)
                 .oneshot(req)
                 .await

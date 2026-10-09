@@ -274,6 +274,7 @@ async fn revoking_a_token_ends_its_open_event_stream() {
         .unwrap();
     req.extensions_mut()
         .insert(ConnectInfo(SocketAddr::new(LOCAL, 40000)));
+    crate::with_host(&mut req, &m.h.ctx);
     let resp = openalgo_desktop_lib::server::app(m.h.ctx.clone())
         .oneshot(req)
         .await

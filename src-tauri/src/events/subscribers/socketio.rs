@@ -11,6 +11,9 @@ use std::sync::Arc;
 #[async_trait::async_trait]
 pub trait UiEmitter: Send + Sync {
     async fn emit(&self, event: &str, payload: Value);
+    /// After `force_logout` went out: close every connection whose browser
+    /// session is no longer signed in (security review S-09).
+    async fn disconnect_signed_out(&self) {}
 }
 
 /// Production emitter. Set once the HTTP server (and its Socket.IO layer)
@@ -18,11 +21,17 @@ pub trait UiEmitter: Send + Sync {
 #[derive(Default)]
 pub struct SocketEmitter {
     io: parking_lot::RwLock<Option<socketioxide::SocketIo>>,
+    /// The app, to tell which connections are still signed in.
+    owner: parking_lot::RwLock<std::sync::Weak<crate::state::AppState>>,
 }
 
 impl SocketEmitter {
     pub fn set(&self, io: Option<socketioxide::SocketIo>) {
         *self.io.write() = io;
+    }
+
+    pub fn set_owner(&self, owner: std::sync::Weak<crate::state::AppState>) {
+        *self.owner.write() = owner;
     }
 
     /// The Socket.IO handle, for room-addressed pushes (strategy rooms).
@@ -39,6 +48,14 @@ impl UiEmitter for SocketEmitter {
             if let Err(e) = io.emit(event.to_string(), &payload).await {
                 tracing::debug!("Socket.IO emit '{}' failed: {}", event, e);
             }
+        }
+    }
+
+    async fn disconnect_signed_out(&self) {
+        let io = self.io.read().clone();
+        let owner = self.owner.read().upgrade();
+        if let (Some(io), Some(ctx)) = (io, owner) {
+            crate::server::socketio::disconnect_signed_out(&ctx, &io);
         }
     }
 }
@@ -309,6 +326,9 @@ impl Subscriber for SocketIoSubscriber {
     async fn handle(&self, event: Arc<Event>) {
         if let Some((name, payload)) = translate(&event) {
             self.ui.emit(name, payload).await;
+        }
+        if matches!(*event, Event::ForceLogout { .. }) {
+            self.ui.disconnect_signed_out().await;
         }
     }
 }

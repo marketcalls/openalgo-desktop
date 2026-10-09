@@ -11,16 +11,37 @@ use socketioxide::SocketIo;
 use std::sync::Arc;
 
 fn on_connect(socket: SocketRef, State(ctx): State<Arc<AppState>>) {
-    let now = ctx.now();
-    let signed_in = cookie_value(&socket.req_parts().headers, COOKIE_NAME)
-        .and_then(|id| ctx.sessions.get(&id, now))
-        .and_then(|s| s.user)
-        .is_some();
-    if !signed_in {
+    if !signed_in(&ctx, &socket) {
         let _ = socket.disconnect();
         return;
     }
     crate::server::routes::strategy_module::register_socket_handlers(&socket);
+}
+
+/// Whether the browser session behind a connection is still signed in.
+fn signed_in(ctx: &AppState, socket: &SocketRef) -> bool {
+    let now = ctx.now();
+    cookie_value(&socket.req_parts().headers, COOKIE_NAME)
+        .and_then(|id| ctx.sessions.get(&id, now))
+        .and_then(|s| s.user)
+        .is_some()
+}
+
+/// Close every connection whose session ended (logout, password change or
+/// reset, account reset), so a device that ignores `force_logout` stops
+/// receiving order and position pushes (security review S-09). Returns how
+/// many were closed.
+pub fn disconnect_signed_out(ctx: &AppState, io: &SocketIo) -> usize {
+    let mut closed = 0;
+    for socket in io.sockets() {
+        if !signed_in(ctx, &socket) && socket.disconnect().is_ok() {
+            closed += 1;
+        }
+    }
+    if closed > 0 {
+        tracing::info!("Closed {} live update connection(s) after sign-out", closed);
+    }
+    closed
 }
 
 pub fn layer(ctx: Arc<AppState>) -> (SocketIoLayer, SocketIo) {

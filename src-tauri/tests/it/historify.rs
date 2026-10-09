@@ -1561,6 +1561,7 @@ impl App {
     async fn raw(&self, mut req: Request<Body>) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
         req.extensions_mut()
             .insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))));
+        crate::with_host(&mut req, &self.ctx);
         let resp = openalgo_desktop_lib::server::app(self.ctx.clone())
             .oneshot(req)
             .await

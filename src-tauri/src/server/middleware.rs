@@ -174,13 +174,20 @@ pub fn host_allowed(ctx: &AppState, host: &str) -> bool {
 }
 
 pub async fn host_check(State(ctx): State<Arc<AppState>>, req: Request, next: Next) -> Response {
-    if let Some(host) = req
-        .headers()
-        .get(header::HOST)
-        .and_then(|h| h.to_str().ok())
-    {
-        if !host_allowed(&ctx, host) {
-            tracing::warn!("Rejected request with unexpected Host header");
+    // HTTP/1.1 names the host in `Host`; HTTP/2 in `:authority`, which
+    // arrives as the URI's authority.
+    let named = match req.headers().get(header::HOST) {
+        Some(h) => Some(h.to_str().ok()),
+        None => req.uri().authority().map(|a| Some(a.as_str())),
+    };
+    match named {
+        Some(Some(host)) if host_allowed(&ctx, host) => {}
+        // A request over a real connection must name the host (security
+        // review S-13); in-process callers (the tests) have no connection
+        // and no `Host`.
+        None if req.extensions().get::<ConnectInfo<SocketAddr>>().is_none() => {}
+        _ => {
+            tracing::warn!("Rejected request with a missing or unexpected Host header");
             return error(StatusCode::BAD_REQUEST, "Request blocked.");
         }
     }
@@ -202,7 +209,6 @@ fn csrf_exempt(path: &str) -> bool {
         || path == "/api/v1"
         || path.starts_with("/socket.io")
         || matches!(path, "/auth/login" | "/setup")
-        || path.starts_with("/webhook/")
         || path.starts_with("/strategy/webhook/")
         // The OpenScript runner page: each call carries its run's secret.
         || path.starts_with("/openscript/runner/host/")

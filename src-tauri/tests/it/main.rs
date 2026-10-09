@@ -19,6 +19,23 @@
 
 mod isolate;
 
+/// Name the app's own loopback address in `Host`, as every real client
+/// does, unless the test set one. Harnesses that hand a request a
+/// connection (`ConnectInfo`) need it: a request over a connection without
+/// `Host` is refused (security review S-13), and only a request naming the
+/// app's own address counts as this computer (S-03).
+pub fn with_host(
+    req: &mut axum::http::Request<axum::body::Body>,
+    ctx: &openalgo_desktop_lib::state::AppState,
+) {
+    if !req.headers().contains_key(axum::http::header::HOST) {
+        let host = format!("127.0.0.1:{}", ctx.server_config().http_port);
+        if let Ok(v) = axum::http::HeaderValue::from_str(&host) {
+            req.headers_mut().insert(axum::http::header::HOST, v);
+        }
+    }
+}
+
 mod api_v1_support;
 mod feed_support;
 mod mcp_support;

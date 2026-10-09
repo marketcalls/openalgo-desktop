@@ -243,6 +243,7 @@ async fn login_page_sends_the_otp_only_when_opened_from_openalgo() {
                 [10, 0, 1, ip],
                 40000,
             ))));
+        crate::with_host(&mut req, &ctx);
         let app = openalgo_desktop_lib::server::app(ctx.clone());
         async move {
             let resp = app.oneshot(req).await.unwrap();

@@ -522,6 +522,13 @@ mod support {
                 req.extensions_mut()
                     .insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 40000))));
             }
+            // Every real client names the host; a request over a connection
+            // without one is refused (security review S-13).
+            if !req.headers().contains_key(header::HOST) {
+                let host = format!("127.0.0.1:{}", self.ctx.server_config().http_port);
+                req.headers_mut()
+                    .insert(header::HOST, host.parse().unwrap());
+            }
             let app = openalgo_desktop_lib::server::app(self.ctx.clone());
             use tower::ServiceExt;
             let resp = app.oneshot(req).await.unwrap();
