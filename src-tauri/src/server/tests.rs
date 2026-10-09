@@ -199,6 +199,8 @@ fn cookie_from(headers: &axum::http::HeaderMap) -> Option<String> {
 
 // Findings of the 2026-10-09 security review, one test group per finding.
 mod security;
+// Every catalogue broker's sign-in, started the way the broker page does.
+mod sign_in;
 
 // ------------------------------------------------------------------ fixtures
 

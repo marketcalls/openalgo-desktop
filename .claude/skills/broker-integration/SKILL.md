@@ -260,10 +260,14 @@ cargo clippy --all-targets --locked -- -D warnings
   list comes from `GET /api/broker/credentials`, which serves
   `catalog::CLIENT_ID_BROKERS`. Nothing to edit in TS for a new client-id
   broker beyond the catalogue.
-- `src/lib/desktop.ts` `SERVER_OAUTH_BROKERS`: OAuth brokers whose login
-  button goes to `GET /<broker>/initiate-oauth` (the server builds the URL and
-  records `state`; the page never sees the API key). Add a new OAuth broker
-  here and check `src/lib/desktop.test.ts`.
+- The broker page (`src/pages/BrokerSelect.tsx`) starts each sign-in the way
+  the server reports it: `sign_in` (`catalog::sign_in`) on
+  `GET /api/broker/configured` and `/auth/broker-config`. `redirect` goes to
+  `GET /<broker>/initiate-oauth` (the server builds the URL and records
+  `state`; the page never sees the API key), `form` to the in-app page. The
+  page keeps no broker list of its own; a new broker needs nothing in TS
+  beyond the catalogue. `server::tests::sign_in` drives every catalogue
+  broker this way.
 - `src/pages/BrokerTOTP.tsx` carries the web's per-broker form copy for
   direct-login brokers; keep it close to the web's
   `frontend/src/pages/BrokerTOTP.tsx` and make its field names match
@@ -306,6 +310,6 @@ the web checkout.
 - [ ] Shared HTTP client; every error through `common::redact`; nothing secret in logs
 - [ ] Fixtures under `src-tauri/tests/fixtures/brokers/<broker>/` with placeholders
 - [ ] Unit mapping tests, HTTP round trip, secrets test (non-vacuous), feed parsing, forged-sign-in cases
-- [ ] Frontend: `SERVER_OAUTH_BROKERS` (and its test), `BrokerTOTP.tsx` copy
+- [ ] `catalog::sign_in` right for the broker (the broker page follows it), `BrokerTOTP.tsx` copy
 - [ ] `fd-audit` skill run on the change; `verify` skill before claiming a control holds
 - [ ] fmt, clippy `-D warnings`, the full `cargo test --locked` green

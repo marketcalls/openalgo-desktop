@@ -47,17 +47,18 @@ describe('isExternalHttpUrl', () => {
 })
 
 describe('desktopBrokerLoginUrl', () => {
-  it('sends OAuth brokers to the server-side sign-in start', () => {
-    expect(desktopBrokerLoginUrl('zerodha')).toBe('/zerodha/initiate-oauth')
-    expect(desktopBrokerLoginUrl('fyers')).toBe('/fyers/initiate-oauth')
-    expect(desktopBrokerLoginUrl('dhan')).toBe('/dhan/initiate-oauth')
-    expect(desktopBrokerLoginUrl('aliceblue')).toBe('/aliceblue/initiate-oauth')
+  it('sends every broker the server calls a redirect to the server-side sign-in start', () => {
+    // Shoonya, Zebu, TradeSmart and RMoney were missing from a list the page
+    // used to keep, so their Connect went to /<broker>/callback and failed.
+    for (const b of ['zerodha', 'dhan', 'aliceblue', 'shoonya', 'zebu', 'tradesmart', 'rmoney']) {
+      expect(desktopBrokerLoginUrl(b, 'redirect')).toBe(`/${b}/initiate-oauth`)
+    }
   })
 
-  it('leaves form-login brokers to the existing flow', () => {
-    expect(desktopBrokerLoginUrl('angel')).toBeNull()
-    expect(desktopBrokerLoginUrl('shoonya')).toBeNull()
-    expect(desktopBrokerLoginUrl('')).toBeNull()
+  it('leaves form brokers, and brokers the server did not describe, to the web flow', () => {
+    expect(desktopBrokerLoginUrl('angel', 'form')).toBeNull()
+    expect(desktopBrokerLoginUrl('zerodha', undefined)).toBeNull()
+    expect(desktopBrokerLoginUrl('', 'redirect')).toBeNull()
   })
 })
 

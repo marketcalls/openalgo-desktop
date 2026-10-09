@@ -36,32 +36,26 @@ export const DEFAULT_WEBSOCKET_URL = import.meta.env.DEV
   : 'ws://127.0.0.1:8765'
 
 /**
- * Brokers whose sign-in is a redirect to the broker's own login page.
+ * How a broker's sign-in starts, as the local server reports it (`sign_in`
+ * on GET /api/broker/configured and /auth/broker-config). The page keeps no
+ * list of its own, so it cannot drift from the server's broker catalogue.
  *
- * The web builds that address in the browser from the broker API key. The
- * desktop never sends the key to the page (/auth/broker-config returns
- * broker_api_key as null), so the local server builds the address, records
- * the sign-in state and redirects: GET /<broker>/initiate-oauth.
+ * - `redirect`: the broker's own login page. The web builds that address in
+ *   the browser from the broker API key; the desktop never sends the key to
+ *   the page (/auth/broker-config returns broker_api_key as null), so the
+ *   local server builds the address, records the sign-in and redirects:
+ *   GET /<broker>/initiate-oauth.
+ * - `form`: the broker's in-app page, through GET /<broker>/callback as on
+ *   the web.
  */
-const SERVER_OAUTH_BROKERS = new Set([
-  'aliceblue',
-  'arrow',
-  'compositedge',
-  'dhan',
-  'flattrade',
-  'fyers',
-  'hdfcsecurities',
-  'hdfcsky',
-  'iiflcapital',
-  'paytm',
-  'pocketful',
-  'upstox',
-  'zerodha',
-])
+export type BrokerSignIn = 'redirect' | 'form'
 
-/** Where to send the browser to sign in to an OAuth broker, or null. */
-export function desktopBrokerLoginUrl(broker: string): string | null {
-  if (!SERVER_OAUTH_BROKERS.has(broker)) return null
+/** Where to send the browser to sign in to a redirect broker, or null. */
+export function desktopBrokerLoginUrl(
+  broker: string,
+  signIn: BrokerSignIn | undefined
+): string | null {
+  if (!broker || signIn !== 'redirect') return null
   return `/${encodeURIComponent(broker)}/initiate-oauth`
 }
 
@@ -218,6 +212,8 @@ export function brokerNeedsClientId(
 export interface ConfiguredBroker {
   name: string
   active: boolean
+  /** How this broker's sign-in starts. */
+  sign_in?: BrokerSignIn
 }
 
 /** Brokers the trader has configured, so the broker page can switch. */

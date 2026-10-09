@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  type BrokerSignIn,
   type ConfiguredBroker,
   DESKTOP_BROKER_SETUP_PATH,
   desktopBrokerLoginUrl,
@@ -65,6 +66,8 @@ interface BrokerConfig {
   broker_name: string
   broker_api_key: string
   redirect_url: string
+  // Desktop: how this broker's sign-in starts (from the server).
+  sign_in?: BrokerSignIn
 }
 
 // Helper function to get Flattrade API key
@@ -154,8 +157,12 @@ export default function BrokerSelect() {
 
     setIsSubmitting(true)
 
-    // Desktop: the local server builds OAuth sign-in addresses (the API key never reaches the page).
-    const desktopLoginUrl = desktopBrokerLoginUrl(selectedBroker)
+    // Desktop: the server says how each broker signs in, and builds redirect
+    // sign-in addresses itself (the API key never reaches the page).
+    const signIn =
+      configured.find((c) => c.name === selectedBroker)?.sign_in ??
+      (selectedBroker === brokerConfig.broker_name ? brokerConfig.sign_in : undefined)
+    const desktopLoginUrl = desktopBrokerLoginUrl(selectedBroker, signIn)
     if (desktopLoginUrl) {
       setTimeout(() => {
         window.location.href = desktopLoginUrl

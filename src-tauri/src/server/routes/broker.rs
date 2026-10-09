@@ -42,6 +42,8 @@ pub async fn broker_config(State(ctx): Ctx) -> Response {
                 "broker_api_key": serde_json::Value::Null,
                 "redirect_url": cfg.redirect_url_for(&b),
                 "auth_type": match catalog::auth_type(&b) { AuthType::OAuth => "oauth", AuthType::Form => "form" },
+                // Desktop: how the broker page starts the sign-in.
+                "sign_in": catalog::sign_in(&b),
                 "login_url": format!("/{}/initiate-oauth", b),
             }),
         ),
@@ -129,6 +131,13 @@ pub async fn oauth_callback(
     // from another site must not use up the sign-in limit (S-02).
     if crate::server::middleware::cross_site_subresource(&headers) {
         return error(StatusCode::FORBIDDEN, "Request blocked.");
+    }
+    // A redirect broker's callback opened without any answer from the
+    // broker is the start of a sign-in, not its end (web brlogin sends that
+    // first visit to the broker's login page): for the signed-in trader,
+    // start it where the server records it.
+    if params.is_empty() && sess.as_ref().is_some_and(|s| s.user.is_some()) {
+        return redirect(&format!("/{}/initiate-oauth", broker));
     }
     if let Some(r) = login_limited(&ctx, ip) {
         return r;
@@ -534,7 +543,14 @@ pub async fn configured(State(ctx): Ctx) -> Response {
         Ok(list) => {
             let brokers: Vec<_> = list
                 .iter()
-                .map(|b| json!({"name": b, "active": active.as_deref() == Some(b.as_str())}))
+                .map(|b| {
+                    json!({
+                        "name": b,
+                        "active": active.as_deref() == Some(b.as_str()),
+                        // How the broker page starts this broker's sign-in.
+                        "sign_in": catalog::sign_in(b),
+                    })
+                })
                 .collect();
             json_response(
                 StatusCode::OK,

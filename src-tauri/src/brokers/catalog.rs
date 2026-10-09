@@ -63,6 +63,28 @@ pub fn auth_type(broker: &str) -> AuthType {
     }
 }
 
+/// How the broker page starts a sign-in. Sent to the page (as `sign_in` on
+/// `/api/broker/configured` and `/auth/broker-config`) so the page keeps no
+/// list of brokers of its own that could drift from this catalogue.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SignIn {
+    /// `GET /<broker>/initiate-oauth`: the server records the sign-in and
+    /// sends the browser to the broker's own login page.
+    Redirect,
+    /// `GET /<broker>/callback`: the broker's in-app page (login form,
+    /// Definedge's and Nubra's OTP, Samco's connect page).
+    Form,
+}
+
+/// The sign-in a broker uses (see [`SignIn`]).
+pub fn sign_in(broker: &str) -> SignIn {
+    match auth_type(broker) {
+        AuthType::OAuth => SignIn::Redirect,
+        AuthType::Form => SignIn::Form,
+    }
+}
+
 /// A broker authorize URL and the callback address it was built with. The
 /// login flow records `redirect_uri` with the pending sign-in and hands it
 /// to the code exchange (`BrokerCredentials::redirect_uri`): Upstox refuses
@@ -993,6 +1015,35 @@ mod tests {
         assert!(!callback_carries_state("aliceblue"));
         assert!(CLIENT_ID_BROKERS.contains(&"aliceblue"));
         assert_eq!(credential_slot("dob"), Some(CredentialSlot::Dob));
+    }
+
+    /// The sign-in the broker page is told to start agrees with the rest of
+    /// the catalogue: a redirect broker has an authorize address (or builds
+    /// one in `begin_login`), a form broker has the in-app page.
+    #[test]
+    fn sign_in_kind_matches_the_catalogue() {
+        for b in ALL_BROKERS {
+            match sign_in(b) {
+                SignIn::Redirect => {
+                    assert_eq!(auth_type(b), AuthType::OAuth, "{}", b);
+                    assert!(
+                        authorize_url(b, "k:::k", "r", "s").is_some() || *b == "dhan",
+                        "{}",
+                        b
+                    );
+                }
+                SignIn::Form => assert_eq!(auth_type(b), AuthType::Form, "{}", b),
+            }
+        }
+        // The page's own list missed these four, so their Connect went to
+        // the callback with no sign-in started.
+        for b in ["shoonya", "zebu", "tradesmart", "rmoney"] {
+            assert_eq!(sign_in(b), SignIn::Redirect, "{}", b);
+        }
+        assert_eq!(sign_in("angel"), SignIn::Form);
+        assert_eq!(sign_in("samco"), SignIn::Form);
+        assert_eq!(serde_json::to_value(SignIn::Redirect).unwrap(), "redirect");
+        assert_eq!(serde_json::to_value(SignIn::Form).unwrap(), "form");
     }
 
     #[test]
