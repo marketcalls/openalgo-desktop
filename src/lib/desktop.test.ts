@@ -81,8 +81,10 @@ describe('signInWithSavedKeys', () => {
     const [url, init] = calls[1]
     expect(url).toBe('/jainamxts/callback')
     expect(init?.method).toBe('POST')
-    expect((init?.headers as Record<string, string>)['X-CSRFToken']).toBe('t1')
-    expect([...(init?.body as FormData).entries()]).toEqual([['csrf_token', 't1']])
+    const headers = init?.headers as Record<string, string> | undefined
+    const body = init?.body as FormData | undefined
+    expect(headers?.['X-CSRFToken']).toBe('t1')
+    expect([...(body?.entries() ?? [])]).toEqual([['csrf_token', 't1']])
   })
 
   it("returns the server's message when the broker refuses", async () => {

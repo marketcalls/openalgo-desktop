@@ -96,7 +96,8 @@ describe('asking for an instrument', () => {
     const [url, init] = fetchMock.mock.calls[0] ?? []
     expect(url).toBe('/openscript/instrument?symbol=BHEL&exchange=NSE')
     // JSON asked for, so an expired session is a 401 and not a login page.
-    expect((init?.headers as Record<string, string>).Accept).toBe('application/json')
+    const headers = init?.headers as Record<string, string> | undefined
+    expect(headers?.Accept).toBe('application/json')
   })
 
   it('keeps the answer, so a second read asks nothing', async () => {

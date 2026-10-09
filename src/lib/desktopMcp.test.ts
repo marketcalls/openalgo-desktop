@@ -33,7 +33,8 @@ describe('MCP token helpers', () => {
     expect(res.token).toBe('oamcp_abc')
     const post = calls.find((c) => c.url === '/api/mcp/tokens')
     expect(post?.init?.method).toBe('POST')
-    expect((post?.init?.headers as Record<string, string>)['X-CSRFToken']).toBe('csrf-1')
+    const headers = post?.init?.headers as Record<string, string> | undefined
+    expect(headers?.['X-CSRFToken']).toBe('csrf-1')
     expect(JSON.parse(String(post?.init?.body))).toEqual({ name: 'Claude', scope: 'read' })
   })
 
