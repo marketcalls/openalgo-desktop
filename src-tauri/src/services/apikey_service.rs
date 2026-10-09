@@ -19,12 +19,18 @@ use std::time::{Duration, Instant};
 pub const CACHE_CAP: usize = 1024;
 pub const CACHE_TTL: Duration = Duration::from_secs(300);
 
+/// Key digest -> (valid, expiry).
+type Entries = HashMap<String, (bool, Instant)>;
+
 /// Verified-key cache. Entries are keyed by an HMAC of the presented key
 /// under a random key that lives only in this process, so the map never
 /// holds the API key or an unsalted hash of it.
 pub struct ApiKeyCache {
     cache_key: [u8; 32],
-    map: Mutex<HashMap<String, (bool, Instant)>>,
+    /// The map, and the generation `clear` bumps: a check that started
+    /// before a key regeneration cannot store its stale answer after it
+    /// (security review S-12).
+    map: Mutex<(Entries, u64)>,
 }
 
 impl Default for ApiKeyCache {
@@ -33,7 +39,7 @@ impl Default for ApiKeyCache {
         rand::rngs::OsRng.fill_bytes(&mut cache_key);
         Self {
             cache_key,
-            map: Mutex::new(HashMap::new()),
+            map: Mutex::new((HashMap::new(), 0)),
         }
     }
 }
@@ -47,8 +53,14 @@ impl ApiKeyCache {
         lookup_hmac(&self.cache_key, key)
     }
 
+    /// The generation to pass to [`Self::put_at`], read before checking.
+    pub fn generation(&self) -> u64 {
+        self.map.lock().1
+    }
+
     pub fn get(&self, key: &str, now: Instant) -> Option<bool> {
-        let mut map = self.map.lock();
+        let mut guard = self.map.lock();
+        let map = &mut guard.0;
         let d = self.digest(key);
         match map.get(&d) {
             Some((valid, exp)) if *exp > now => Some(*valid),
@@ -61,7 +73,18 @@ impl ApiKeyCache {
     }
 
     pub fn put(&self, key: &str, valid: bool, now: Instant) {
-        let mut map = self.map.lock();
+        let gen = self.generation();
+        self.put_at(key, valid, now, gen);
+    }
+
+    /// Store an answer computed while `gen` was current; dropped when the
+    /// cache was cleared in between.
+    pub fn put_at(&self, key: &str, valid: bool, now: Instant, gen: u64) {
+        let mut guard = self.map.lock();
+        if guard.1 != gen {
+            return;
+        }
+        let map = &mut guard.0;
         if map.len() >= CACHE_CAP {
             map.retain(|_, (_, exp)| *exp > now);
             while map.len() >= CACHE_CAP {
@@ -82,11 +105,13 @@ impl ApiKeyCache {
     }
 
     pub fn clear(&self) {
-        self.map.lock().clear();
+        let mut guard = self.map.lock();
+        guard.0.clear();
+        guard.1 = guard.1.wrapping_add(1);
     }
 
     pub fn len(&self) -> usize {
-        self.map.lock().len()
+        self.map.lock().0.len()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -109,6 +134,7 @@ impl ApiKeyService {
         if !state.security.is_unlocked() {
             return false;
         }
+        let gen = state.api_keys.generation();
         let valid = match Self::verify_uncached(state, api_key) {
             Ok(v) => v,
             Err(e) => {
@@ -116,7 +142,7 @@ impl ApiKeyService {
                 return false;
             }
         };
-        state.api_keys.put(api_key, valid, now);
+        state.api_keys.put_at(api_key, valid, now, gen);
         valid
     }
 
@@ -179,6 +205,20 @@ pub fn require_valid(state: &AppState, api_key: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+
+    /// S-12: an answer computed before a regeneration is not cached after it.
+    #[test]
+    fn a_check_racing_a_regeneration_cannot_cache_the_old_key() {
+        let c = ApiKeyCache::new();
+        let now = Instant::now();
+        let gen = c.generation();
+        c.clear(); // the key was regenerated while the check ran
+        c.put_at("old-key", true, now, gen);
+        assert_eq!(c.get("old-key", now), None);
+        c.put_at("new-key", true, now, c.generation());
+        assert_eq!(c.get("new-key", now), Some(true));
+    }
+
     use super::*;
 
     #[test]
@@ -209,7 +249,7 @@ mod tests {
         assert_ne!(da, plain, "not an unsalted SHA-256 of the key");
         assert!(!da.contains(key));
         a.put(key, true, Instant::now());
-        assert!(a.map.lock().keys().all(|k| k != key && *k != plain));
+        assert!(a.map.lock().0.keys().all(|k| k != key && *k != plain));
         assert_eq!(a.get(key, Instant::now()), Some(true));
         assert_eq!(b.get(key, Instant::now()), None);
     }

@@ -136,20 +136,23 @@ pub fn consume_latest(
     window: Duration,
 ) -> Result<Option<Pending>> {
     let sh = hash_state(session_id);
-    let row: Option<(String, String, Option<String>, Option<String>)> = conn
-        .query_row(
-            "SELECT created_at, expires_at, redirect_uri, binding_hash FROM pending_oauth
-             WHERE broker = ?1 AND session_hash = ?2
-             ORDER BY created_at DESC LIMIT 1",
-            params![broker, sh],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
-        )
-        .optional()?;
-    conn.execute(
-        "DELETE FROM pending_oauth WHERE broker = ?1 AND session_hash = ?2",
-        params![broker, sh],
-    )?;
-    let Some((created, expires, redirect_uri, binding_hash)) = row else {
+    // One statement removes and returns the rows, so two callbacks arriving
+    // together cannot both read the same sign-in (security review S-11).
+    let rows: Vec<(String, String, Option<String>, Option<String>)> = {
+        let mut st = conn.prepare(
+            "DELETE FROM pending_oauth WHERE broker = ?1 AND session_hash = ?2
+             RETURNING created_at, expires_at, redirect_uri, binding_hash",
+        )?;
+        let v = st
+            .query_map(params![broker, sh], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        v
+    };
+    let Some((created, expires, redirect_uri, binding_hash)) =
+        rows.into_iter().max_by(|a, b| a.0.cmp(&b.0))
+    else {
         return Ok(None);
     };
     let at = |t: &str| DateTime::parse_from_rfc3339(t).map(|d| d.with_timezone(&Utc));
@@ -170,9 +173,12 @@ fn take(
     broker: &str,
     now: DateTime<Utc>,
 ) -> Result<Option<Pending>> {
+    // Single use by construction: the row is removed and read in one
+    // statement (security review S-11).
     let row: Option<(String, String, Option<String>, Option<String>)> = {
         let mut stmt = conn.prepare(&format!(
-            "SELECT broker, expires_at, redirect_uri, binding_hash FROM pending_oauth WHERE {}",
+            "DELETE FROM pending_oauth WHERE {} \
+             RETURNING broker, expires_at, redirect_uri, binding_hash",
             filter
         ))?;
         let mut rows = stmt.query([key])?;
@@ -184,10 +190,6 @@ fn take(
     let Some((stored_broker, expires, redirect_uri, binding_hash)) = row else {
         return Ok(None);
     };
-    conn.execute(
-        &format!("DELETE FROM pending_oauth WHERE {}", filter),
-        [key],
-    )?;
     let not_expired = DateTime::parse_from_rfc3339(&expires)
         .map(|e| e.with_timezone(&Utc) > now)
         .unwrap_or(false);
@@ -230,6 +232,54 @@ mod tests {
         )
         .unwrap();
         c
+    }
+
+    /// S-11: a sign-in state is single use even when callbacks carrying it
+    /// arrive at the same moment on different pooled connections.
+    #[test]
+    fn a_state_is_single_use_under_concurrent_callbacks() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = crate::db::sqlite::SqliteDb::new(&dir.path().join("t.db")).unwrap();
+        let now = Utc::now();
+        let threads = 4;
+        for trial in 0..200 {
+            let state = format!("s{}", trial);
+            insert(
+                &db.conn().unwrap(),
+                &state,
+                "zerodha",
+                None,
+                None,
+                None,
+                now,
+                Duration::minutes(10),
+            )
+            .unwrap();
+            let barrier = std::sync::Barrier::new(threads);
+            let wins = std::thread::scope(|s| {
+                let handles: Vec<_> = (0..threads)
+                    .map(|_| {
+                        let conn = db.conn().unwrap();
+                        let (barrier, state) = (&barrier, &state);
+                        s.spawn(move || {
+                            barrier.wait();
+                            consume(&conn, state, "zerodha", now).unwrap().is_some()
+                        })
+                    })
+                    .collect();
+                handles
+                    .into_iter()
+                    .map(|h| h.join().unwrap())
+                    .filter(|won| *won)
+                    .count()
+            });
+            assert!(
+                wins <= 1,
+                "trial {}: {} callbacks took the same state",
+                trial,
+                wins
+            );
+        }
     }
 
     #[test]

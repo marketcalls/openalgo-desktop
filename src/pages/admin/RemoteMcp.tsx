@@ -471,6 +471,12 @@ export default function RemoteMcp() {
                     Suitable for single-trader self-hosted installs. Turn OFF on shared deployments
                     to require manual approval per client.
                   </p>
+                  {/* Desktop: AI clients use access tokens; client sign-in is not built yet. */}
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Applies when AI clients can sign in to OpenAlgo Desktop on their own, which is
+                    not available yet. Today every AI client uses an access token from the API Key
+                    page, so this setting has no effect.
+                  </p>
                 </div>
                 <Switch
                   checked={!pendingSettings.require_approval}
