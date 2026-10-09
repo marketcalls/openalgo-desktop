@@ -134,8 +134,7 @@ async fn app_auth_uses_the_stored_api_key_and_broker_session() {
 /// from the handshake like an HTTP request. Once it is spent, a failed key
 /// is answered and the connection closed. A valid key is never refused
 /// because of it: from this computer, through a tunnel (a forwarding
-/// header) or from the network. Every `authenticate` passes the resource
-/// guard first.
+/// header) or from the network.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn failed_feed_keys_are_counted_like_api_keys() {
     use openalgo_desktop_lib::feed::auth::{AppAuth, FeedAuth};
@@ -223,9 +222,13 @@ async fn failed_feed_keys_are_counted_like_api_keys() {
     }
     assert!(exhausted(lan));
     assert!(!exhausted(other));
-    // The resource guard (1000 a second) comes before any key check.
-    let admitted = (0..5000).take_while(|_| auth.admit(other)).count();
-    assert!((1000..5000).contains(&admitted), "{}", admitted);
+    // The resource guard (1000 a second) counts every authenticate, from
+    // this computer and from the network alike.
+    for caller in [local, other] {
+        let admitted = (0..5000).take_while(|_| auth.admit(caller)).count();
+        // This computer used a few of its 1000 already in this second.
+        assert!((900..5000).contains(&admitted), "{} {}", caller, admitted);
+    }
     feed.stop().await;
     ctx.shutdown().await;
 }

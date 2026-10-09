@@ -128,32 +128,11 @@ pub fn handshake_policy(ctx: &AppState) -> server::HandshakePolicy {
         interfaces: if c.is_loopback() {
             Vec::new()
         } else {
-            local_interfaces()
+            crate::server::addr::own_addresses()
         },
         public,
         development: cfg!(debug_assertions),
     }
-}
-
-/// This machine's own interface addresses (IPv4 inside IPv6 as IPv4).
-fn local_interfaces() -> Vec<std::net::IpAddr> {
-    let nets = sysinfo::Networks::new_with_refreshed_list();
-    let mut v: Vec<std::net::IpAddr> = nets
-        .list()
-        .values()
-        .flat_map(|d| d.ip_networks().iter().map(|n| n.addr))
-        .map(|ip| match ip {
-            std::net::IpAddr::V6(v6) => v6
-                .to_ipv4_mapped()
-                .map(std::net::IpAddr::V4)
-                .unwrap_or(std::net::IpAddr::V6(v6)),
-            v4 => v4,
-        })
-        .filter(|ip| !ip.is_unspecified())
-        .collect();
-    v.sort();
-    v.dedup();
-    v
 }
 
 impl FeedService {

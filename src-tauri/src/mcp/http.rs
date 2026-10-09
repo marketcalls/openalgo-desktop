@@ -379,7 +379,12 @@ fn bad_origin() -> Response {
 /// the caller are refused at once (security review S-02). A valid token is
 /// never refused because of it.
 #[allow(clippy::result_large_err)]
-fn token(ctx: &AppState, ip: IpAddr, headers: &HeaderMap) -> Result<TokenRow, Response> {
+fn token(
+    ctx: &AppState,
+    ip: IpAddr,
+    deferred: bool,
+    headers: &HeaderMap,
+) -> Result<TokenRow, Response> {
     use crate::server::middleware::{count_failure, failures_exhausted};
     use crate::server::ratelimit::Bucket;
     let Some(t) = bearer(headers) else {
@@ -387,7 +392,9 @@ fn token(ctx: &AppState, ip: IpAddr, headers: &HeaderMap) -> Result<TokenRow, Re
     };
     let found = ctx.sqlite.conn().and_then(|c| store::find_token(&c, &t));
     if !matches!(found, Ok(Some(_))) {
-        if failures_exhausted(ctx, ip, Bucket::ApiKeyFail) {
+        // Spent budget, or a caller in the full shared overflow window:
+        // refused at once.
+        if deferred || failures_exhausted(ctx, ip, Bucket::ApiKeyFail) {
             return Err(too_many());
         }
         count_failure(ctx, ip, Bucket::ApiKeyFail);
@@ -510,6 +517,7 @@ impl Call<'_> {
 pub async fn post(
     State(ctx): Ctx,
     ClientIp(ip): ClientIp,
+    crate::server::middleware::Deferred(deferred): crate::server::middleware::Deferred,
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
@@ -519,7 +527,7 @@ pub async fn post(
     if !origin_allowed(&ctx, &headers) {
         return bad_origin();
     }
-    let tok = match token(&ctx, ip, &headers) {
+    let tok = match token(&ctx, ip, deferred, &headers) {
         Ok(t) => t,
         Err(r) => return r,
     };
@@ -684,14 +692,19 @@ async fn call_tool(
 }
 
 /// GET /mcp: keepalive-only event stream.
-pub async fn sse(State(ctx): Ctx, ClientIp(ip): ClientIp, headers: HeaderMap) -> Response {
+pub async fn sse(
+    State(ctx): Ctx,
+    ClientIp(ip): ClientIp,
+    crate::server::middleware::Deferred(deferred): crate::server::middleware::Deferred,
+    headers: HeaderMap,
+) -> Response {
     if !reachable(&ctx, ip) {
         return not_found();
     }
     if !origin_allowed(&ctx, &headers) {
         return bad_origin();
     }
-    let tok = match token(&ctx, ip, &headers) {
+    let tok = match token(&ctx, ip, deferred, &headers) {
         Ok(t) => t,
         Err(r) => return r,
     };

@@ -109,6 +109,15 @@ impl Monitor {
         }
     }
 
+    /// Whether a device on the network is banned: its own address, or the
+    /// key it is counted and automatically banned under (a foreign IPv6
+    /// device's /64; `crate::server::addr::budget_key`).
+    pub fn is_banned_peer(&self, ip: std::net::IpAddr, now: DateTime<Utc>) -> bool {
+        let key = crate::server::addr::budget_key(ip);
+        self.is_banned(&ip.to_string(), now)
+            || (key != crate::server::addr::canonical(ip) && self.is_banned(&key.to_string(), now))
+    }
+
     pub fn ban_count(&self) -> usize {
         self.bans.read().bans.len()
     }
@@ -235,6 +244,9 @@ fn write_batch(ctx: &AppState, batch: Vec<Record>) {
     let now = ctx.now();
     let settings = ctx.monitor.security_settings(ctx);
     let mut bans_changed = false;
+    // This machine's own addresses, read only when a ban is due: an
+    // automatic ban never covers one of them.
+    let mut own: Option<Vec<std::net::IpAddr>> = None;
     let res = ctx.logs.conn().and_then(|conn| {
         conn.execute_batch("BEGIN")?;
         for r in batch {
@@ -244,15 +256,14 @@ fn write_batch(ctx: &AppState, batch: Vec<Record>) {
                 Record::NotFound { ip, path } => {
                     store::track_404(&conn, &ip, &path, now).and_then(|n| {
                         if settings.auto_ban_enabled && n >= settings.threshold_404 {
-                            bans_changed |= store::ban_ip(
+                            bans_changed |= store::auto_ban(
                                 &conn,
                                 &ip,
                                 &format!("Too many missing pages ({} in a day)", n),
                                 hours(settings.ban_duration_404),
-                                false,
-                                "system",
                                 now,
-                                settings.repeat_offender_limit,
+                                own.get_or_insert_with(crate::server::addr::own_addresses),
+                                store::AUTO_BAN_CAP,
                             )?;
                         }
                         Ok(())
@@ -261,15 +272,14 @@ fn write_batch(ctx: &AppState, batch: Vec<Record>) {
                 Record::InvalidKey { ip } => store::track_invalid_api_key(&conn, &ip, now)
                     .and_then(|n| {
                         if settings.auto_ban_enabled && n >= settings.api_threshold {
-                            bans_changed |= store::ban_ip(
+                            bans_changed |= store::auto_ban(
                                 &conn,
                                 &ip,
                                 &format!("Too many invalid API key attempts ({} in a day)", n),
                                 hours(settings.api_ban_duration),
-                                false,
-                                "system",
                                 now,
-                                settings.repeat_offender_limit,
+                                own.get_or_insert_with(crate::server::addr::own_addresses),
+                                store::AUTO_BAN_CAP,
                             )?;
                         }
                         Ok(())
@@ -378,7 +388,7 @@ pub async fn layer(State(ctx): State<Arc<AppState>>, req: Request, next: Next) -
     let now = ctx.now();
     let banned = source
         .network_address()
-        .is_some_and(|a| ctx.monitor.is_banned(&a.to_string(), now));
+        .is_some_and(|a| ctx.monitor.is_banned_peer(a, now));
     if banned {
         let mut r = (
             StatusCode::FORBIDDEN,

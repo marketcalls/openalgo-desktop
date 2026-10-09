@@ -43,10 +43,38 @@ fn minted(ip: &IpAddr) -> bool {
     matches!(ip, IpAddr::V6(v) if v.segments()[..4] == [0x100, 0, 0, 1])
 }
 
+/// A request window: it holds no failure and no penalty, so it may be
+/// dropped to make room (that caller's window starts afresh). Failure
+/// budgets and sign-in limits are never dropped while they count.
+fn request_window(bucket: Bucket, ip: &IpAddr) -> bool {
+    // The shared overflow window and a network's aggregate are never
+    // dropped: a fresh one would not limit anyone.
+    *ip != OVERFLOW
+        && !crate::server::addr::is_aggregate(*ip)
+        && (minted(ip)
+            || matches!(
+                bucket,
+                Bucket::Api
+                    | Bucket::Order
+                    | Bucket::SmartOrder
+                    | Bucket::Guard
+                    | Bucket::StrategyWebhook
+                    | Bucket::ChartinkWebhook
+            ))
+}
+
+/// How many times one device's limit an aggregate allows: every device of
+/// one of this machine's own IPv6 networks together
+/// (`addr::aggregate_key`), well above a household's legitimate use.
+pub const AGGREGATE_FACTOR: usize = 5;
+
 /// Keys that always get their own entry, so a full table never puts this
-/// computer or the shared tunnel and MCP identities (`100::/64`) in the
-/// overflow bucket. A handful of keys.
+/// computer, the shared tunnel and MCP identities (`100::/64`) or a
+/// network's aggregate in the overflow bucket. A handful of keys.
 fn reserved(ip: &IpAddr) -> bool {
+    if crate::server::addr::is_aggregate(*ip) {
+        return true;
+    }
     match ip {
         IpAddr::V4(v) => v.is_loopback(),
         IpAddr::V6(v) => {
@@ -335,6 +363,20 @@ impl LoginBackoff {
     }
 }
 
+/// How a request window answered ([`RateLimiter::admit`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Admission {
+    /// Within the window.
+    Allowed,
+    /// Over the caller's own window.
+    Over(Duration),
+    /// Over a window this caller shares with others: the overflow window a
+    /// new caller is counted in while the table is full, or its network's
+    /// aggregate (`addr::aggregate_key`). Others can fill these, so refuse
+    /// the caller only if it does not present a valid credential.
+    OverflowOver(Duration),
+}
+
 #[derive(Default)]
 pub struct RateLimiter {
     /// Per-account sign-in failure budget.
@@ -362,38 +404,77 @@ impl RateLimiter {
     }
 
     /// Count a hit. `Err(retry_after)` when over the limit (the hit is not
-    /// recorded, so a client that backs off recovers).
+    /// recorded, so a client that backs off recovers). A request window
+    /// that should not refuse a caller with a valid credential uses
+    /// [`RateLimiter::admit`] instead.
     pub fn check(&self, bucket: Bucket, ip: IpAddr, now: Instant) -> Result<(), Duration> {
-        let (limit, window) = bucket.limit();
-        let mut map = self.map.lock();
-        let Some(ip) = Self::slot(&mut map, bucket, ip, now) else {
-            // A full table and a per-credential window: not recorded (the
-            // resource guard still bounds the caller).
-            return Ok(());
-        };
-        let q = map.entry((bucket, ip)).or_default();
-        while q
-            .front()
-            .map(|t| now.saturating_duration_since(*t) >= window)
-            .unwrap_or(false)
-        {
-            q.pop_front();
+        match self.admit(bucket, ip, now) {
+            Admission::Allowed => Ok(()),
+            Admission::Over(wait) | Admission::OverflowOver(wait) => Err(wait),
         }
-        if q.len() >= limit {
-            let oldest = q.front().copied().unwrap_or(now);
-            return Err(window.saturating_sub(now.saturating_duration_since(oldest)));
-        }
-        q.push_back(now);
-        Ok(())
     }
 
-    /// Whether `bucket` is exhausted for `ip`, without counting a hit.
+    /// Count a hit, and say whether the refusal (if any) came from the
+    /// caller's own window or from the shared [`OVERFLOW`] window a new
+    /// caller is counted in while the table is full of live failure counts.
+    /// Two tiers: a per-address IPv6 key also counts against its network's
+    /// aggregate (`addr::aggregate_key`, [`AGGREGATE_FACTOR`] times the
+    /// limit), in every bucket, so no surface charges one tier only. The hit
+    /// is recorded in both or neither.
+    pub fn admit(&self, bucket: Bucket, ip: IpAddr, now: Instant) -> Admission {
+        let (limit, window) = bucket.limit();
+        let mut map = self.map.lock();
+        let own = Self::slot(&mut map, bucket, ip, now);
+        let aggregate = crate::server::addr::aggregate_key(ip);
+        let mut tiers = vec![(own, limit)];
+        if let Some(net) = aggregate {
+            tiers.push((net, limit * AGGREGATE_FACTOR));
+        }
+        for (tier, (key, limit)) in tiers.iter().enumerate() {
+            let q = map.entry((bucket, *key)).or_default();
+            while q
+                .front()
+                .map(|t| now.saturating_duration_since(*t) >= window)
+                .unwrap_or(false)
+            {
+                q.pop_front();
+            }
+            if q.len() >= *limit {
+                let oldest = q.front().copied().unwrap_or(now);
+                let wait = window.saturating_sub(now.saturating_duration_since(oldest));
+                // The caller's own window, or one it shares with others.
+                let shared = tier > 0 || (*key == OVERFLOW && ip != OVERFLOW);
+                return if shared {
+                    Admission::OverflowOver(wait)
+                } else {
+                    Admission::Over(wait)
+                };
+            }
+        }
+        for (key, _) in &tiers {
+            map.entry((bucket, *key)).or_default().push_back(now);
+        }
+        Admission::Allowed
+    }
+
+    /// Whether `bucket` is exhausted for `ip` (its own window, or its
+    /// network's aggregate), without counting a hit.
     pub fn is_exhausted(&self, bucket: Bucket, ip: IpAddr, now: Instant) -> bool {
         let (limit, window) = bucket.limit();
         let map = self.map.lock();
-        // An address without its own entry while the table is full is
-        // counted in the overflow bucket.
-        let ip = if !map.contains_key(&(bucket, ip))
+        let full = |key: IpAddr, limit: usize| {
+            map.get(&(bucket, key))
+                .map(|q| {
+                    q.iter()
+                        .filter(|t| now.saturating_duration_since(**t) < window)
+                        .count()
+                        >= limit
+                })
+                .unwrap_or(false)
+        };
+        // A caller without its own entry while the table is full is counted
+        // in the overflow bucket.
+        let own = if !map.contains_key(&(bucket, ip))
             && map.len() >= MAX_ENTRIES
             && !reserved(&ip)
             && !minted(&ip)
@@ -402,57 +483,67 @@ impl RateLimiter {
         } else {
             ip
         };
-        map.get(&(bucket, ip))
+        full(own, limit)
+            || crate::server::addr::aggregate_key(ip)
+                .is_some_and(|net| full(net, limit * AGGREGATE_FACTOR))
+    }
+
+    /// Hits inside the window of `bucket` for `key` (tests).
+    #[cfg(test)]
+    pub fn hits(&self, bucket: Bucket, key: IpAddr, now: Instant) -> usize {
+        let (_, window) = bucket.limit();
+        self.map
+            .lock()
+            .get(&(bucket, key))
             .map(|q| {
                 q.iter()
                     .filter(|t| now.saturating_duration_since(**t) < window)
                     .count()
-                    >= limit
             })
-            .unwrap_or(false)
+            .unwrap_or(0)
     }
 
-    /// The key a hit for `ip` is recorded under. A live address entry is
-    /// never dropped to make room, or a caller could flush every lockout by
-    /// filling the table: expired entries go first, then per-credential
-    /// windows (oldest first; they only ever hold valid traffic and start
-    /// afresh). If the table is still full, a new address counts in the
-    /// shared [`OVERFLOW`] bucket (fail closed), this computer and the
-    /// shared identities get their own entry anyway, and a new
-    /// per-credential key is not recorded (`None`).
+    /// The key a hit for `ip` is recorded under. A failure count still
+    /// inside its window is never dropped to make room, or a caller could
+    /// flush every lockout by filling the table: expired entries go first,
+    /// then request windows (oldest first; they hold no failure, and that
+    /// caller's window starts afresh). Only when every entry is live does a
+    /// new caller go to the shared, bounded [`OVERFLOW`] bucket, which still
+    /// limits it; the callers of request windows refuse an overflow only
+    /// for a caller without a valid credential ([`Admission::OverflowOver`]).
+    /// This computer, the shared identities and valid credentials' windows
+    /// always get their own entry.
     fn slot(
         map: &mut HashMap<(Bucket, IpAddr), VecDeque<Instant>>,
         bucket: Bucket,
         ip: IpAddr,
         now: Instant,
-    ) -> Option<IpAddr> {
+    ) -> IpAddr {
         if map.len() < MAX_ENTRIES || map.contains_key(&(bucket, ip)) {
-            return Some(ip);
+            return ip;
         }
         Self::sweep(map, now);
         if map.len() >= MAX_ENTRIES {
-            // Down to seven eighths, so a stream of new keys does not sort
-            // the table on every hit.
-            let mut credentials: Vec<((Bucket, IpAddr), Instant)> = map
+            // Down to seven eighths, so a stream of new callers does not
+            // sort the table on every hit.
+            let mut windows: Vec<((Bucket, IpAddr), Instant)> = map
                 .iter()
-                .filter(|((_, k), _)| minted(k))
+                .filter(|((b, k), _)| request_window(*b, k))
                 .map(|(k, q)| (*k, q.back().copied().unwrap_or(now)))
                 .collect();
-            credentials.sort_by_key(|(_, last)| *last);
+            windows.sort_by_key(|(_, last)| *last);
             let target = MAX_ENTRIES - MAX_ENTRIES / 8;
-            for (k, _) in credentials {
+            for (k, _) in windows {
                 if map.len() <= target {
                     break;
                 }
                 map.remove(&k);
             }
         }
-        if map.len() < MAX_ENTRIES || reserved(&ip) {
-            Some(ip)
-        } else if minted(&ip) {
-            None
+        if map.len() < MAX_ENTRIES || reserved(&ip) || minted(&ip) {
+            ip
         } else {
-            Some(OVERFLOW)
+            OVERFLOW
         }
     }
 
@@ -703,6 +794,79 @@ mod tests {
         assert!(rl.check(Bucket::ApiKeyFail, last, t0).is_ok());
     }
 
+    /// Flooding with new callers' request windows and failures never drops
+    /// a failure count still inside its window; request windows make room.
+    #[test]
+    fn active_failures_are_never_evicted_by_flooding() {
+        let rl = RateLimiter::new();
+        let t0 = Instant::now();
+        let lan = ip(9);
+        for _ in 0..10 {
+            rl.check(Bucket::ApiKeyFail, lan, t0).unwrap();
+        }
+        let addr = |n: u32| IpAddr::V4(Ipv4Addr::from(0x0b00_0000 + n));
+        for n in 0..(3 * MAX_ENTRIES as u32) {
+            let _ = rl.check(Bucket::Guard, addr(n), t0);
+            let _ = rl.check(Bucket::Api, addr(n), t0);
+            if n % 3 == 0 {
+                let _ = rl.check(Bucket::WebhookFail, addr(n), t0);
+            }
+        }
+        assert!(rl.is_exhausted(Bucket::ApiKeyFail, lan, t0));
+        assert!(rl.check(Bucket::ApiKeyFail, lan, t0).is_err());
+        // One shared overflow entry per kind of bucket at most.
+        assert!(rl.len() <= MAX_ENTRIES + 8, "{}", rl.len());
+    }
+
+    /// A table full of live failure counts still limits new callers: they
+    /// share one bounded overflow window, reported as such so a caller
+    /// with a valid credential is not refused by it. This computer keeps
+    /// its own window.
+    #[test]
+    fn a_full_table_still_limits_new_callers() {
+        let rl = RateLimiter::new();
+        let t0 = Instant::now();
+        let addr = |n: u32| IpAddr::V4(Ipv4Addr::from(0x0c00_0000 + n));
+        for n in 0..MAX_ENTRIES as u32 {
+            rl.check(Bucket::ApiKeyFail, addr(n), t0).unwrap();
+        }
+        for n in 0..100 {
+            let fresh = addr(MAX_ENTRIES as u32 + n);
+            assert_eq!(rl.admit(Bucket::Api, fresh, t0), Admission::Allowed);
+        }
+        let next = addr(MAX_ENTRIES as u32 + 500);
+        assert!(matches!(
+            rl.admit(Bucket::Api, next, t0),
+            Admission::OverflowOver(_)
+        ));
+        assert!(rl.check(Bucket::Api, next, t0).is_err());
+        let local: IpAddr = "127.0.0.1".parse().unwrap();
+        assert_eq!(rl.admit(Bucket::Api, local, t0), Admission::Allowed);
+        // Every live failure count is still there.
+        assert!(rl.check(Bucket::ApiKeyFail, addr(0), t0).is_ok());
+        assert!(rl.len() <= MAX_ENTRIES + 4);
+    }
+
+    /// Ten thousand addresses of one IPv6 /64 are one caller: one entry.
+    #[test]
+    fn an_ipv6_device_is_one_caller_across_its_64() {
+        use crate::server::source::Source;
+        let rl = RateLimiter::new();
+        let t0 = Instant::now();
+        for n in 0..10_000u128 {
+            let a = IpAddr::V6(std::net::Ipv6Addr::from(
+                0x2001_0db8_0001_0002_0000_0000_0000_0000_u128 | (n * 7919),
+            ));
+            let _ = rl.check(Bucket::ApiKeyFail, Source::Lan(a).ip(), t0);
+        }
+        assert_eq!(rl.len(), 1);
+        let one: IpAddr = "2001:db8:1:2::".parse().unwrap();
+        assert!(rl.is_exhausted(Bucket::ApiKeyFail, one, t0));
+        // IPv4 stays per address.
+        let v4 = |n: u8| Source::Lan(IpAddr::V4(Ipv4Addr::new(10, 0, 0, n))).ip();
+        assert_ne!(v4(1), v4(2));
+    }
+
     /// A table full of live addresses fails closed: new addresses share
     /// the overflow bucket, nobody's count is dropped, and this computer
     /// still gets its own entry.
@@ -710,8 +874,8 @@ mod tests {
     fn a_full_table_fails_closed_into_one_bucket() {
         let rl = RateLimiter::new();
         let t0 = Instant::now();
-        let addr =
-            |n: u32| IpAddr::V6(std::net::Ipv6Addr::from(0x2001_0db8_u128 << 96 | n as u128));
+        // Distinct devices (IPv4: no network aggregate).
+        let addr = |n: u32| IpAddr::V4(Ipv4Addr::from(0x0d00_0000 + n));
         for n in 0..MAX_ENTRIES as u32 {
             rl.check(Bucket::ApiKeyFail, addr(n), t0).unwrap();
         }

@@ -751,6 +751,163 @@ pub fn ban_ip(
     Ok(true)
 }
 
+/// Most automatic bans in force at once. Beyond it no further address is
+/// banned automatically; the rate limits and failure budgets still apply.
+pub const AUTO_BAN_CAP: i64 = 10_000;
+
+/// How long an automatic ban lasts when the setting gives no duration.
+pub const AUTO_BAN_DEFAULT_HOURS: i64 = 24;
+
+/// An automatic ban (the 404 and invalid-key trackers). It applies to a
+/// device on the network only, keyed as it is counted (an IPv4 address,
+/// an IPv6 /64): never this computer, the internal identities (the tunnel
+/// identity among them) or exactly one of this machine's own addresses
+/// (`own`; the trader's own browser on the LAN address). Devices sharing
+/// the machine's IPv6 prefix are keyed one by one, so each is banned on its
+/// own. It always expires, is never
+/// made permanent by repetition, never shortens a ban already in force (a
+/// ban entered by hand included), and at most `cap` are in force at once.
+#[allow(clippy::too_many_arguments)]
+pub fn auto_ban(
+    conn: &Connection,
+    ip: &str,
+    reason: &str,
+    duration_hours: Option<i64>,
+    now: DateTime<Utc>,
+    own: &[std::net::IpAddr],
+    cap: i64,
+) -> Result<bool> {
+    let Some(addr) = crate::server::addr::parse(ip) else {
+        return Ok(false);
+    };
+    let text = crate::server::addr::canonical(addr).to_string();
+    if never_banned(&text) {
+        return Ok(false);
+    }
+    // This machine's own addresses, exactly (the trader's own browser on
+    // the LAN address). Other devices in its IPv6 prefix are keyed and
+    // banned one by one.
+    let exact = crate::server::addr::canonical(addr);
+    if own
+        .iter()
+        .any(|o| crate::server::addr::canonical(*o) == exact)
+    {
+        return Ok(false);
+    }
+    let in_force: Option<(bool, Option<String>)> = conn
+        .query_row(
+            "SELECT is_permanent, expires_at FROM ip_bans WHERE ip_address = ?1",
+            [&text],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?;
+    if let Some((permanent, expires)) = in_force {
+        if permanent || expires.is_some_and(|e| e > ts(now)) {
+            return Ok(false);
+        }
+    } else {
+        let active: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM ip_bans WHERE created_by = 'system'
+             AND (is_permanent = 1 OR expires_at > ?1)",
+            [ts(now)],
+            |r| r.get(0),
+        )?;
+        if active >= cap {
+            // Never make room by lifting a ban in force: keep them all,
+            // add none, and tell the trader.
+            raise_alert(
+                conn,
+                &AlertRow {
+                    alert_type: "ban_list_full".into(),
+                    severity: "warning".into(),
+                    metric_name: "automatic_bans".into(),
+                    metric_value: active as f64,
+                    threshold_value: cap as f64,
+                    message: "Too many addresses are banned automatically, so no more are \
+                              being added. Review the Security page."
+                        .into(),
+                    ..Default::default()
+                },
+                now,
+            )?;
+            return Ok(false);
+        }
+    }
+    let hours = duration_hours.unwrap_or(AUTO_BAN_DEFAULT_HOURS).max(1);
+    let banned = ban_ip(
+        conn,
+        &text,
+        reason,
+        Some(hours),
+        false,
+        "system",
+        now,
+        i64::MAX,
+    )?;
+    if banned {
+        if let Some(net) = crate::server::addr::aggregate_key(addr) {
+            alert_on_banned_network(conn, net, now)?;
+        }
+    }
+    Ok(banned)
+}
+
+/// Devices banned in one of this machine's own IPv6 networks before the
+/// trader is told: such a network is never banned as a whole (every device
+/// at home shares it), so many banned devices in it raise a health alert
+/// instead.
+pub const BANNED_DEVICES_ALERT: usize = 10;
+
+/// The /64 an aggregate key stands for, written as its prefix.
+fn network_prefix(net: std::net::IpAddr) -> String {
+    match net {
+        std::net::IpAddr::V6(v) => {
+            let s = v.segments();
+            std::net::Ipv6Addr::new(s[0], s[1], s[2], s[3], 0, 0, 0, 0).to_string()
+        }
+        v4 => v4.to_string(),
+    }
+}
+
+fn alert_on_banned_network(
+    conn: &Connection,
+    net: std::net::IpAddr,
+    now: DateTime<Utc>,
+) -> Result<()> {
+    let mut st = conn.prepare(
+        "SELECT ip_address FROM ip_bans WHERE created_by = 'system'
+         AND (is_permanent = 1 OR expires_at > ?1)",
+    )?;
+    let banned = st
+        .query_map([ts(now)], |r| r.get::<_, String>(0))?
+        .filter_map(|r| r.ok())
+        .filter_map(|ip| crate::server::addr::parse(&ip))
+        .filter(|ip| crate::server::addr::aggregate_key(*ip) == Some(net))
+        .count();
+    if banned >= BANNED_DEVICES_ALERT {
+        raise_alert(
+            conn,
+            &AlertRow {
+                alert_type: "banned_devices_on_network".into(),
+                severity: "warning".into(),
+                metric_name: "banned_devices_on_network".into(),
+                metric_value: banned as f64,
+                threshold_value: BANNED_DEVICES_ALERT as f64,
+                message: format!(
+                    "{} devices on your network ({}/64) were blocked for repeated bad requests. \
+                     One of your devices may be misconfigured or compromised; check the \
+                     Security page.",
+                    banned,
+                    network_prefix(net)
+                ),
+                ..Default::default()
+            },
+            now,
+        )?;
+    }
+    Ok(())
+}
+
 pub fn unban_ip(conn: &Connection, ip: &str) -> Result<bool> {
     let canonical = crate::server::addr::canonical_text(ip).unwrap_or_else(|| ip.to_string());
     Ok(conn.execute(
@@ -1500,6 +1657,138 @@ mod tests {
 
     /// Bans stored in other spellings by earlier builds become one row per
     /// address in the canonical spelling, keeping the stricter ban.
+    /// Automatic bans: network devices only (never loopback, the tunnel
+    /// identity or exactly one of this machine's own addresses), keyed as
+    /// counted, always expiring, never shortening a ban in force, and
+    /// capped. Two devices in the machine's own IPv6 prefix are banned one
+    /// by one.
+    #[test]
+    fn automatic_bans_apply_to_network_devices_only() {
+        let c = Connection::open_in_memory().unwrap();
+        c.execute_batch(
+            "CREATE TABLE migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE,
+             applied_at TEXT NOT NULL DEFAULT (datetime('now')));",
+        )
+        .unwrap();
+        create_tables(&c).unwrap();
+        let now = Utc::now();
+        let own: Vec<std::net::IpAddr> = vec!["2001:db8:aa:bb::5".parse().unwrap()];
+        let ban = |ip: &str, cap: i64| auto_ban(&c, ip, "test", None, now, &own, cap).unwrap();
+        for ip in ["127.0.0.1", "::1", "100::2", "100::1", "2001:db8:aa:bb::5"] {
+            for _ in 0..50 {
+                assert!(!ban(ip, AUTO_BAN_CAP), "{} was banned", ip);
+            }
+        }
+        assert!(ban("192.168.1.66", AUTO_BAN_CAP));
+        assert!(ban("2001:db8:cc:dd::", AUTO_BAN_CAP));
+        // A device in our own prefix is banned by its own address; its
+        // neighbour is not.
+        assert!(ban("2001:db8:aa:bb::6", AUTO_BAN_CAP));
+        let banned = |ip: &str| -> i64 {
+            c.query_row(
+                "SELECT COUNT(*) FROM ip_bans WHERE ip_address = ?1",
+                [ip],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(banned("2001:db8:aa:bb::6"), 1);
+        assert_eq!(banned("2001:db8:aa:bb::7"), 0);
+        assert_eq!(banned("2001:db8:aa:bb::"), 0);
+        // Repeated: still expiring, never permanent.
+        for _ in 0..10 {
+            c.execute(
+                "UPDATE ip_bans SET expires_at = ?1 WHERE ip_address = '192.168.1.66'",
+                [ts(now - chrono::Duration::hours(1))],
+            )
+            .unwrap();
+            assert!(ban("192.168.1.66", AUTO_BAN_CAP));
+        }
+        let permanent: bool = c
+            .query_row(
+                "SELECT is_permanent FROM ip_bans WHERE ip_address = '192.168.1.66'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(!permanent);
+        // A ban entered by hand is never shortened.
+        ban_ip(&c, "192.168.1.70", "manual", None, true, "admin", now, 5).unwrap();
+        assert!(!ban("192.168.1.70", AUTO_BAN_CAP));
+        let still: bool = c
+            .query_row(
+                "SELECT is_permanent FROM ip_bans WHERE ip_address = '192.168.1.70'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(still);
+        // The cap: three automatic bans are in force. A full list keeps
+        // every ban in force, adds none, and raises an alert.
+        let in_force = || -> i64 {
+            c.query_row(
+                "SELECT COUNT(*) FROM ip_bans WHERE created_by = 'system'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(in_force(), 3);
+        assert!(!ban("192.168.1.80", 3));
+        assert_eq!(in_force(), 3, "no ban was lifted to make room");
+        assert!(active_alerts(&c)
+            .unwrap()
+            .iter()
+            .any(|a| a.alert_type == "ban_list_full"));
+        assert!(ban("192.168.1.80", 4));
+    }
+
+    /// Our own IPv6 network is never banned as a whole: when many of its
+    /// devices are banned one by one, the trader gets a health alert.
+    #[test]
+    fn many_banned_devices_in_our_network_raise_an_alert() {
+        let c = Connection::open_in_memory().unwrap();
+        c.execute_batch(
+            "CREATE TABLE migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE,
+             applied_at TEXT NOT NULL DEFAULT (datetime('now')));",
+        )
+        .unwrap();
+        create_tables(&c).unwrap();
+        let now = Utc::now();
+        let own: Vec<std::net::IpAddr> = vec!["2001:db8:aa:bb::5".parse().unwrap()];
+        let alerts = || {
+            active_alerts(&c)
+                .unwrap()
+                .into_iter()
+                .filter(|a| a.alert_type == "banned_devices_on_network")
+                .count()
+        };
+        for n in 1..BANNED_DEVICES_ALERT {
+            let ip = format!("2001:db8:aa:bb::{:x}", 0x100 + n);
+            assert!(auto_ban(&c, &ip, "test", None, now, &own, AUTO_BAN_CAP).unwrap());
+        }
+        assert_eq!(alerts(), 0);
+        assert!(auto_ban(
+            &c,
+            "2001:db8:aa:bb::ff",
+            "test",
+            None,
+            now,
+            &own,
+            AUTO_BAN_CAP
+        )
+        .unwrap());
+        assert_eq!(alerts(), 1);
+        let whole: i64 = c
+            .query_row(
+                "SELECT COUNT(*) FROM ip_bans WHERE ip_address = '2001:db8:aa:bb::'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(whole, 0, "the network itself is never banned");
+    }
+
     #[test]
     fn stored_bans_are_rewritten_in_one_spelling() {
         let c = Connection::open_in_memory().unwrap();

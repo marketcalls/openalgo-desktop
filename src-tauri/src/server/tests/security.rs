@@ -2206,3 +2206,762 @@ async fn s02_feed_tunnel_failures_never_refuse_a_valid_key() {
     drop(ws);
     feed.stop().await;
 }
+
+/// S-02: an IPv6 device is one caller across its /64. A thousand addresses
+/// of one /64 sending bad keys share one failure budget and take a couple
+/// of limiter entries, not a thousand.
+#[tokio::test]
+async fn s02_an_ipv6_device_is_one_caller_across_its_64() {
+    use crate::server::ratelimit::Bucket;
+    let h = H::new();
+    h.setup();
+    let now = h.ctx().limiter.now();
+    h.ctx().limiter.freeze(Some(now));
+    let before = h.ctx().limiter.len();
+    for n in 0..1000u32 {
+        let a = format!("2001:db8:1:2:{:x}:{:x}::1", n >> 8, n & 0xff);
+        let _ = h
+            .send(from_peer(
+                post_json("/api/v1/ping", json!({"apikey": format!("bad{}", n)})),
+                &a,
+            ))
+            .await;
+    }
+    let key: std::net::IpAddr = "2001:db8:1:2::".parse().unwrap();
+    assert!(h.ctx().limiter.is_exhausted(Bucket::ApiKeyFail, key, now));
+    assert!(
+        h.ctx().limiter.len() <= before + 3,
+        "{} entries",
+        h.ctx().limiter.len()
+    );
+}
+
+/// S-02: filling the limiter with failures from thousands of addresses
+/// still limits new callers with bad keys (they share one bounded overflow
+/// window) and never refuses a new device on the network that presents a
+/// valid key: the overflow refuses only invalid credentials.
+#[tokio::test]
+async fn s02_a_full_limiter_never_refuses_a_new_device_with_a_valid_key() {
+    use crate::server::ratelimit::MAX_ENTRIES;
+    let h = H::new();
+    let key = h.setup();
+    h.connect_broker();
+    let now = h.ctx().limiter.now();
+    h.ctx().limiter.freeze(Some(now));
+    for n in 0..(MAX_ENTRIES as u32 + 800) {
+        let a = std::net::Ipv4Addr::from(0x0a10_0000 + n).to_string();
+        let (s, _, _) = h
+            .send(from_peer(
+                post_json("/api/v1/ping", json!({"apikey": "wrong"})),
+                &a,
+            ))
+            .await;
+        // Refused as invalid, or as over the overflow window once the
+        // table is full.
+        assert!(
+            matches!(s, StatusCode::FORBIDDEN | StatusCode::TOO_MANY_REQUESTS),
+            "{}",
+            s
+        );
+    }
+    assert!(h.ctx().limiter.len() <= MAX_ENTRIES + 6);
+    // New callers with bad keys are still limited: they share one bounded
+    // overflow window, and once it is full they are refused as over the
+    // limit (429), with the web's body.
+    let mut limited = 0;
+    for n in 0..300u32 {
+        let a = std::net::Ipv4Addr::from(0x0a30_0000 + n).to_string();
+        let (s, v) = h
+            .json(from_peer(
+                post_json("/api/v1/ping", json!({"apikey": "wrong"})),
+                &a,
+            ))
+            .await;
+        match s {
+            StatusCode::FORBIDDEN => {}
+            StatusCode::TOO_MANY_REQUESTS => {
+                limited += 1;
+                assert!(v.get("message").is_some(), "{}", v);
+            }
+            other => panic!("{} {}", other, v),
+        }
+    }
+    assert!(limited >= 100, "only {} of 300 were limited", limited);
+    // A new device presenting a valid key is not refused by the overflow.
+    let (s, v) = h
+        .json(from_peer(
+            post_json("/api/v1/ping", json!({"apikey": key})),
+            "10.200.0.1",
+        ))
+        .await;
+    assert_eq!(s, StatusCode::OK, "a new device with a valid key: {}", v);
+    let (s, v) = h
+        .json(post_json("/api/v1/ping", json!({"apikey": key})))
+        .await;
+    assert_eq!(s, StatusCode::OK, "this computer: {}", v);
+}
+
+/// S-03: automatic bans apply to devices on the network only. With
+/// automatic bans on and low thresholds, many bad keys and missing pages
+/// from this computer and through the tunnel ban neither; the same from a
+/// device on the network bans it.
+#[tokio::test]
+async fn s03_automatic_bans_never_ban_this_computer_or_the_tunnel() {
+    let h = H::new();
+    h.setup();
+    {
+        let c = h.ctx().sqlite.conn().unwrap();
+        let mut st = crate::db::sqlite::webui::security_settings(&c).unwrap();
+        st.auto_ban_enabled = true;
+        st.threshold_404 = 5;
+        st.api_threshold = 5;
+        crate::db::sqlite::webui::set_security_settings(&c, &st).unwrap();
+    }
+    h.ctx().monitor.invalidate_settings();
+    let now = h.ctx().limiter.now();
+    for i in 0..40u64 {
+        h.ctx()
+            .limiter
+            .freeze(Some(now + std::time::Duration::from_millis(50 * i)));
+        let bad = || post_json("/api/v1/ping", json!({"apikey": "wrong"}));
+        let page = || get(&format!("/no-such-page-{}.php", i));
+        let _ = h.send(bad()).await;
+        let _ = h.send(page()).await;
+        let _ = h.send(tunnelled(bad())).await;
+        let _ = h.send(tunnelled(page())).await;
+        let _ = h.send(from_peer(bad(), LAN)).await;
+        let _ = h.send(from_peer(page(), LAN)).await;
+    }
+    h.ctx().monitor.drain_now(h.ctx());
+    let t = h.ctx().now();
+    for ip in ["127.0.0.1", "::1", &PROXIED_CALLER.to_string()] {
+        assert!(!h.ctx().monitor.is_banned(ip, t), "{} was banned", ip);
+    }
+    let rows: i64 = h
+        .ctx()
+        .logs
+        .conn()
+        .unwrap()
+        .query_row(
+            "SELECT COUNT(*) FROM ip_bans WHERE ip_address IN ('127.0.0.1', ?1)",
+            [PROXIED_CALLER.to_string()],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(rows, 0);
+    assert!(
+        h.ctx().monitor.is_banned(LAN, t),
+        "the device was not banned"
+    );
+}
+
+/// Availability guarantees (security review S-02, S-03), one table across
+/// every surface: `/api/v1`, the strategy and Chartink webhooks, `/mcp`,
+/// Socket.IO, the feed's `authenticate` and `/auth/login`. After hostile
+/// traffic from strangers on the network (IPv4 devices, and an IPv6 device
+/// rotating addresses in its /64), through the tunnel, from this machine's
+/// own addresses, and a flood that fills the limiter:
+///
+/// * G1: this computer (a loopback peer) with a valid credential or
+///   session is never refused;
+/// * G2: a valid credential from any source (the tunnel, a new device on
+///   the network, this machine's own LAN address, which is a device on the
+///   network like any other) is never refused because of other callers;
+/// * G3: bans fall only on the strangers on the network (an IPv4 address,
+///   an IPv6 /64), capped and expiring, never on this computer, the tunnel
+///   identity or this machine's own addresses, automatic or by hand;
+/// * G4: invalid traffic stays bounded: once budgets are spent or the
+///   overflow window is full, invalid callers are refused at once;
+/// * G5: sign-in keeps its per-source budget (this computer's sign-in is
+///   untouched by everyone else's failures).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn availability_guarantees_hold_on_every_surface() {
+    use crate::server::ratelimit::{Bucket, MAX_ENTRIES};
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    use tokio_tungstenite::tungstenite::Message;
+
+    // ---------------------------------------------------------------- setup
+    let h = H::new();
+    let key = h.setup();
+    h.connect_broker();
+    {
+        let c = h.ctx().sqlite.conn().unwrap();
+        let mut st = crate::db::sqlite::webui::security_settings(&c).unwrap();
+        st.auto_ban_enabled = true;
+        st.threshold_404 = 5;
+        st.api_threshold = 5;
+        crate::db::sqlite::webui::set_security_settings(&c, &st).unwrap();
+    }
+    h.ctx().monitor.invalidate_settings();
+    let token = remote_mcp(&h);
+    let hook = crate::strategy::store::generate_webhook_token();
+    let chartink = "22222222-2222-4222-8222-222222222222";
+    {
+        let c = h.ctx().sqlite.conn().unwrap();
+        c.execute(
+            "INSERT INTO sm_strategy (user_id, name, universe_tab, underlying,
+                 underlying_exchange, webhook_token_hash, created_at, updated_at)
+             VALUES ('trader', 's1', 'index', 'NIFTY', 'NSE_INDEX', ?1, 'x', 'x')",
+            [crate::strategy::store::hash_webhook_token(&hook)],
+        )
+        .unwrap();
+        c.execute(
+            "INSERT INTO chartink_strategies (name, webhook_id) VALUES ('scan', ?1)",
+            [chartink],
+        )
+        .unwrap();
+    }
+    let (cookie, csrf) = h.session(true);
+    // The feed on an ephemeral port; the HTTP port stays the one these
+    // in-process requests name (nothing binds it).
+    h.ctx().pin_listener_ports(app_port(), 0);
+    h.ctx().reload_config().unwrap();
+    let feed = crate::feed::FeedService::new(h.ctx().clone());
+    assert!(matches!(
+        feed.start().await,
+        crate::state::ServerStatus::Running { .. }
+    ));
+    let feed_url = format!("ws://{}", feed.local_addr().await.unwrap());
+    let own: Vec<String> = crate::server::addr::own_addresses()
+        .into_iter()
+        .filter(|a| !a.is_loopback())
+        .map(|a| a.to_string())
+        .collect();
+    // Requests a moment apart, so no one's own resource guard is in play.
+    let t0 = h.ctx().limiter.now();
+    let tick = std::sync::atomic::AtomicU64::new(0);
+    let step = || {
+        let n = tick.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        h.ctx()
+            .limiter
+            .freeze(Some(t0 + std::time::Duration::from_millis(2 * n)));
+    };
+    let bad_key = || post_json("/api/v1/ping", json!({"apikey": "wrong"}));
+    let page = |i: u32| get(&format!("/no-such-page-{}.php", i));
+
+    // -------------------------------------------------------- hostile traffic
+    let strangers_v4 = ["192.168.7.1", "192.168.7.2", "192.168.7.3"];
+    for i in 0..10u32 {
+        for a in strangers_v4 {
+            step();
+            let _ = h.send(from_peer(bad_key(), a)).await;
+            let _ = h.send(from_peer(page(i), a)).await;
+        }
+        // An IPv6 device rotating addresses in its /64.
+        for j in 0..3u32 {
+            step();
+            let a = format!("2001:db8:7:7:{:x}::{:x}", i, j + 1);
+            let _ = h.send(from_peer(bad_key(), &a)).await;
+            let _ = h.send(from_peer(page(i), &a)).await;
+        }
+        // Through the tunnel, on every surface.
+        step();
+        let _ = h.send(tunnelled(bad_key())).await;
+        let _ = h.send(tunnelled(page(i))).await;
+        let _ = h
+            .send(tunnelled(mcp_ping(&format!("oamcp_guess{}", i))))
+            .await;
+        let _ = h
+            .send(tunnelled(post_json(
+                &format!("/strategy/webhook/oaws_{:0>43}", i),
+                json!({}),
+            )))
+            .await;
+        let _ = h
+            .send(tunnelled(post_json(
+                &format!("/chartink/webhook/{}", uuid::Uuid::new_v4()),
+                json!({}),
+            )))
+            .await;
+        // From this machine's own addresses, as a stranger would.
+        for a in &own {
+            step();
+            let _ = h.send(from_peer(bad_key(), a)).await;
+            let _ = h.send(from_peer(page(i), a)).await;
+        }
+        // Bad keys over the feed through the tunnel.
+        step();
+        let mut r = feed_url.as_str().into_client_request().unwrap();
+        r.headers_mut()
+            .insert("x-forwarded-for", "203.0.113.7".parse().unwrap());
+        let (mut ws, _) = tokio_tungstenite::connect_async(r).await.unwrap();
+        ws.send(Message::Text(
+            json!({"action": "authenticate", "api_key": format!("wrong{}", i)}).to_string(),
+        ))
+        .await
+        .unwrap();
+        let _ = ws.next().await;
+    }
+    // A flood from thousands of addresses that fills the limiter.
+    for n in 0..(MAX_ENTRIES as u32 + 200) {
+        step();
+        let a = std::net::Ipv4Addr::from(0x0a40_0000 + n).to_string();
+        let (s, _, _) = h.send(from_peer(bad_key(), &a)).await;
+        assert!(
+            matches!(s, StatusCode::FORBIDDEN | StatusCode::TOO_MANY_REQUESTS),
+            "{}",
+            s
+        );
+    }
+    h.ctx().monitor.drain_now(h.ctx());
+
+    // ------------------------------------------------- G1 and G2, per surface
+    let refused = |s: StatusCode, b: &[u8]| {
+        s == StatusCode::TOO_MANY_REQUESTS
+            || s == StatusCode::NOT_FOUND
+            || (s == StatusCode::FORBIDDEN && b.starts_with(b"Access Denied"))
+            || s == StatusCode::UNAUTHORIZED
+    };
+    // Each source: how its requests are sent, and whether it is this
+    // computer (sign-in needs no page headers there).
+    type Via = Box<dyn Fn(Request<Body>) -> Request<Body>>;
+    let mut sources: Vec<(String, Via, bool)> = vec![
+        ("this computer".into(), Box::new(|r: Request<Body>| r), true),
+        ("the tunnel".into(), Box::new(tunnelled), false),
+        (
+            "a new device".into(),
+            Box::new(|r: Request<Body>| from_peer(r, "10.250.0.1")),
+            false,
+        ),
+    ];
+    for a in &own {
+        let a = a.clone();
+        let label = format!("own address {}", a);
+        sources.push((
+            label,
+            Box::new(move |r: Request<Body>| from_peer(r, &a)),
+            false,
+        ));
+    }
+    for (name, via, this_computer) in &sources {
+        step();
+        let surfaces: Vec<(&str, Request<Body>)> = vec![
+            ("/api/v1", post_json("/api/v1/ping", json!({"apikey": key}))),
+            (
+                "strategy webhook",
+                post_json(&format!("/strategy/webhook/{}", hook), json!({})),
+            ),
+            (
+                "chartink webhook",
+                post_json(&format!("/chartink/webhook/{}", chartink), json!({})),
+            ),
+            ("/mcp", mcp_ping(&token)),
+            (
+                "socket.io",
+                with_session(get("/socket.io/?EIO=4&transport=polling"), &cookie, None),
+            ),
+        ];
+        for (surface, r) in surfaces {
+            let (s, _, b) = h.send(via(r)).await;
+            assert!(
+                !refused(s, &b),
+                "{} on {} was refused: {} {}",
+                name,
+                surface,
+                s,
+                String::from_utf8_lossy(&b)
+            );
+            if surface == "/api/v1" || surface == "/mcp" {
+                assert_eq!(s, StatusCode::OK, "{} on {}", name, surface);
+            }
+        }
+        if *this_computer {
+            // G1 and G5: sign-in from this computer, after everyone
+            // else's failures.
+            let (s, v) = h
+                .json(via(multipart(
+                    "/auth/login",
+                    &[("username", USER), ("password", PASSWORD)],
+                )))
+                .await;
+            assert_eq!(s, StatusCode::OK, "{} signing in: {}", name, v);
+        }
+    }
+    // The feed: this computer and the tunnel authenticate with the key.
+    for tunnel in [false, true] {
+        let mut r = feed_url.as_str().into_client_request().unwrap();
+        if tunnel {
+            r.headers_mut()
+                .insert("x-forwarded-for", "203.0.113.7".parse().unwrap());
+        }
+        let (mut ws, _) = tokio_tungstenite::connect_async(r).await.unwrap();
+        ws.send(Message::Text(
+            json!({"action": "authenticate", "api_key": key}).to_string(),
+        ))
+        .await
+        .unwrap();
+        let frame = loop {
+            match ws.next().await {
+                Some(Ok(Message::Text(t))) => break t,
+                Some(Ok(Message::Ping(_))) | Some(Ok(Message::Pong(_))) => continue,
+                other => panic!("feed (tunnel {}): {:?}", tunnel, other.map(|r| r.is_ok())),
+            }
+        };
+        let v: Value = serde_json::from_str(&frame).unwrap();
+        assert_eq!(v["status"], "success", "feed (tunnel {}): {}", tunnel, v);
+    }
+
+    // -------------------------------------------------------------- G3: bans
+    let t = h.ctx().now();
+    let proxied = PROXIED_CALLER.to_string();
+    let mut never: Vec<String> = vec!["127.0.0.1".into(), "::1".into(), proxied.clone()];
+    never.extend(own.iter().cloned());
+    for ip in &never {
+        assert!(!h.ctx().monitor.is_banned(ip, t), "{} was banned", ip);
+        let rows: i64 = h
+            .ctx()
+            .logs
+            .conn()
+            .unwrap()
+            .query_row(
+                "SELECT COUNT(*) FROM ip_bans WHERE ip_address = ?1",
+                [ip],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(rows, 0, "{} has a ban row", ip);
+    }
+    for ip in strangers_v4 {
+        assert!(
+            h.ctx().monitor.is_banned(ip, t),
+            "stranger {} not banned",
+            ip
+        );
+    }
+    let rotated: std::net::IpAddr = "2001:db8:7:7:abcd::1".parse().unwrap();
+    assert!(
+        h.ctx().monitor.is_banned_peer(rotated, t),
+        "the IPv6 device's /64 is not banned"
+    );
+    let (permanent, open_ended, system): (i64, i64, i64) = h
+        .ctx()
+        .logs
+        .conn()
+        .unwrap()
+        .query_row(
+            "SELECT SUM(is_permanent), SUM(expires_at IS NULL), COUNT(*)
+             FROM ip_bans WHERE created_by = 'system'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!((permanent, open_ended), (0, 0), "automatic bans expire");
+    assert!(system <= crate::db::sqlite::monitor::AUTO_BAN_CAP);
+    // By hand: this computer, the tunnel identity and own addresses are
+    // refused with a reason the trader can read.
+    let mut by_hand = vec!["127.0.0.1".to_string(), proxied.clone()];
+    by_hand.extend(own.iter().cloned());
+    for ip in by_hand {
+        let (s, v) = h
+            .json(with_session(
+                post_json("/security/ban", json!({"ip_address": ip})),
+                &cookie,
+                Some(&csrf),
+            ))
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "banning {}: {}", ip, v);
+        assert!(
+            v.to_string().contains("cannot be banned"),
+            "banning {}: {}",
+            ip,
+            v
+        );
+    }
+
+    // -------------------------------------------------- G4: invalid bounded
+    let now = h.ctx().limiter.now();
+    assert!(h
+        .ctx()
+        .limiter
+        .is_exhausted(Bucket::ApiKeyFail, PROXIED_CALLER, now));
+    step();
+    let (s, _) = h.json(tunnelled(mcp_ping("oamcp_late"))).await;
+    assert_eq!(s, StatusCode::TOO_MANY_REQUESTS, "a late bad token");
+    let (s, _) = h
+        .json(tunnelled(post_json(
+            &format!("/strategy/webhook/oaws_{:0>43}", 999),
+            json!({}),
+        )))
+        .await;
+    assert_eq!(s, StatusCode::TOO_MANY_REQUESTS, "a late unknown webhook");
+    let mut limited = 0;
+    for n in 0..300u32 {
+        let a = std::net::Ipv4Addr::from(0x0a60_0000 + n).to_string();
+        let (s, _, _) = h.send(from_peer(bad_key(), &a)).await;
+        if s == StatusCode::TOO_MANY_REQUESTS {
+            limited += 1;
+        }
+    }
+    assert!(
+        limited >= 100,
+        "new invalid callers after the flood: only {} of 300 limited",
+        limited
+    );
+    feed.stop().await;
+}
+
+/// S-03: only a loopback peer is this computer. A request from one of this
+/// machine's own LAN addresses is a device on the network (`Lan`), whatever
+/// it names, so no list of interfaces can make a caller local.
+#[test]
+fn s03_this_computers_lan_address_is_a_network_device() {
+    use crate::server::source::Source;
+    let cfg = crate::config::ServerConfig {
+        http_port: 5000,
+        ..crate::config::ServerConfig::default()
+    };
+    let mut peers: Vec<std::net::IpAddr> = crate::server::addr::own_addresses()
+        .into_iter()
+        .filter(|a| !a.is_loopback())
+        .collect();
+    peers.push("192.168.1.5".parse().unwrap());
+    for peer in peers {
+        for host in [
+            format!("{}:5000", peer),
+            format!("[{}]:5000", peer),
+            "127.0.0.1:5000".to_string(),
+        ] {
+            let mut h = axum::http::HeaderMap::new();
+            h.insert(axum::http::header::HOST, host.parse().unwrap());
+            let got = crate::server::middleware::classify(&cfg, 5000, Some(peer), &h, None);
+            assert_eq!(
+                got,
+                Source::Lan(crate::server::addr::canonical(peer)),
+                "{} {}",
+                peer,
+                host
+            );
+        }
+    }
+}
+
+/// S-02, S-03: a device in our own IPv6 network (link-local here, which
+/// every machine has) is counted by its own address and, with all the
+/// devices of that /64, against an aggregate failure budget and request
+/// ceiling. Rotating through ten thousand addresses with bad keys hits the
+/// aggregate cap; a neighbour with a valid key is still served; a banned
+/// address does not affect its neighbour.
+#[tokio::test]
+async fn s02_rotating_through_our_own_ipv6_network_hits_the_aggregate_cap() {
+    use crate::server::ratelimit::Bucket;
+    let h = H::new();
+    let key = h.setup();
+    h.connect_broker();
+    let now = h.ctx().limiter.now();
+    h.ctx().limiter.freeze(Some(now));
+    let mut limited = 0;
+    for n in 0..10_000u32 {
+        let a = format!("fe80::{:x}:{:x}", (n >> 16) + 1, n & 0xffff);
+        let (s, _, _) = h
+            .send(from_peer(
+                post_json("/api/v1/ping", json!({"apikey": format!("bad{}", n)})),
+                &a,
+            ))
+            .await;
+        match s {
+            StatusCode::FORBIDDEN => {}
+            StatusCode::TOO_MANY_REQUESTS => limited += 1,
+            other => panic!("{}", other),
+        }
+    }
+    let net = crate::server::addr::aggregate_key("fe80::1".parse().unwrap()).unwrap();
+    assert!(
+        h.ctx().limiter.hits(Bucket::ApiKeyFail, net, now)
+            >= 10 * crate::server::ratelimit::AGGREGATE_FACTOR,
+        "the network's aggregate failure budget is spent"
+    );
+    assert!(
+        crate::server::middleware::failures_exhausted(
+            h.ctx(),
+            "fe80::9999:1".parse().unwrap(),
+            Bucket::ApiKeyFail
+        ),
+        "a fresh address in the network is already over the aggregate budget"
+    );
+    assert!(
+        limited >= 4000,
+        "the aggregate request ceiling: only {} of 10000 limited",
+        limited
+    );
+    // The network's request windows are spent by the invalid traffic (the
+    // resource guard and the /api/v1 window); a neighbour with a valid key
+    // is still served: shared windows refuse only invalid credentials.
+    for bucket in [Bucket::Guard, Bucket::Api] {
+        let (limit, _) = bucket.limit();
+        assert!(
+            h.ctx().limiter.hits(bucket, net, now)
+                >= limit * crate::server::ratelimit::AGGREGATE_FACTOR,
+            "{:?} aggregate not spent",
+            bucket
+        );
+    }
+    let (s, v) = h
+        .json(from_peer(
+            post_json("/api/v1/ping", json!({"apikey": key})),
+            "fe80::beef",
+        ))
+        .await;
+    assert_eq!(s, StatusCode::OK, "the neighbour: {}", v);
+    // A banned address does not affect its neighbour.
+    {
+        let c = h.ctx().logs.conn().unwrap();
+        crate::db::sqlite::monitor::ban_ip(
+            &c,
+            "fe80::bad",
+            "test",
+            Some(1),
+            false,
+            "admin",
+            h.ctx().now(),
+            5,
+        )
+        .unwrap();
+    }
+    h.ctx().monitor.reload_bans(h.ctx());
+    let (s, _, b) = h
+        .send(from_peer(
+            post_json("/api/v1/ping", json!({"apikey": key})),
+            "fe80::bad",
+        ))
+        .await;
+    assert!(
+        s == StatusCode::FORBIDDEN && b.starts_with(b"Access Denied"),
+        "the banned address: {}",
+        s
+    );
+    let (s, v) = h
+        .json(from_peer(
+            post_json("/api/v1/ping", json!({"apikey": key})),
+            "fe80::beef",
+        ))
+        .await;
+    assert_eq!(s, StatusCode::OK, "its neighbour: {}", v);
+    assert!(!h
+        .ctx()
+        .monitor
+        .is_banned_peer("fe80::beef".parse().unwrap(), h.ctx().now()));
+}
+
+/// S-02, S-03: on every surface, a device rotating through a thousand
+/// addresses of our own IPv6 network (link-local here, which every machine
+/// has) with invalid credentials is charged to the network's aggregate,
+/// in the same limit every surface uses, so it is capped in total: a fresh
+/// address of that network is then already over the aggregate.
+#[tokio::test]
+async fn s02_every_surface_charges_our_networks_aggregate() {
+    use crate::server::ratelimit::{Bucket, AGGREGATE_FACTOR};
+    let rotated = |n: u32| format!("fe80::{:x}:{:x}", (n >> 16) + 1, n & 0xffff);
+    let fresh: std::net::IpAddr = "fe80::abcd:1234".parse().unwrap();
+    let net = crate::server::addr::aggregate_key(fresh).unwrap();
+    let same_site = |mut r: Request<Body>| {
+        r.headers_mut()
+            .insert("sec-fetch-site", "same-origin".parse().unwrap());
+        r
+    };
+    // Each surface, the bad request it is sent, and the limit it charges.
+    type Bad = Box<dyn Fn(u32, &H) -> Request<Body>>;
+    let rows: Vec<(&str, Bad, Bucket)> = vec![
+        (
+            "/api/v1",
+            Box::new(|n: u32, _: &H| {
+                post_json("/api/v1/ping", json!({"apikey": format!("bad{}", n)}))
+            }),
+            Bucket::ApiKeyFail,
+        ),
+        (
+            "strategy webhook",
+            Box::new(|n: u32, _: &H| {
+                post_json(&format!("/strategy/webhook/oaws_{:0>43}", n), json!({}))
+            }),
+            Bucket::WebhookFail,
+        ),
+        (
+            "chartink webhook",
+            Box::new(|_: u32, _: &H| {
+                post_json(
+                    &format!("/chartink/webhook/{}", uuid::Uuid::new_v4()),
+                    json!({}),
+                )
+            }),
+            Bucket::WebhookFail,
+        ),
+        (
+            "/mcp",
+            Box::new(|n: u32, _: &H| mcp_ping(&format!("oamcp_guess{}", n))),
+            Bucket::ApiKeyFail,
+        ),
+        (
+            "socket.io",
+            Box::new(|_: u32, _: &H| get("/socket.io/?EIO=4&transport=polling")),
+            Bucket::Guard,
+        ),
+        (
+            "/auth/login",
+            Box::new(move |n: u32, _: &H| {
+                same_site(multipart(
+                    "/auth/login",
+                    &[("username", USER), ("password", &format!("Wrong@{}", n))],
+                ))
+            }),
+            Bucket::LoginMinute,
+        ),
+        (
+            "/auth/login/totp",
+            Box::new(move |_: u32, h: &H| {
+                let (cookie, csrf) = h.session(false);
+                same_site(with_session(
+                    multipart("/auth/login/totp", &[("totp_code", "000000")]),
+                    &cookie,
+                    Some(&csrf),
+                ))
+            }),
+            Bucket::LoginMinute,
+        ),
+    ];
+    for (surface, bad, bucket) in rows {
+        let h = H::new();
+        h.setup();
+        remote_mcp(&h);
+        let now = h.ctx().limiter.now();
+        h.ctx().limiter.freeze(Some(now));
+        for n in 0..1000u32 {
+            let _ = h.send(from_peer(bad(n, &h), &rotated(n))).await;
+        }
+        let (limit, _) = bucket.limit();
+        let charged = h.ctx().limiter.hits(bucket, net, now);
+        if bucket == Bucket::Guard {
+            // The request ceiling: every request is charged to the network.
+            assert!(charged >= 1000, "{}: {} charged", surface, charged);
+        } else {
+            assert!(
+                charged >= limit * AGGREGATE_FACTOR,
+                "{}: the aggregate holds {} of {}",
+                surface,
+                charged,
+                limit * AGGREGATE_FACTOR
+            );
+            assert!(
+                h.ctx().limiter.is_exhausted(bucket, fresh, now),
+                "{}: a fresh address is not over the aggregate",
+                surface
+            );
+        }
+    }
+    // The feed's authenticate, through the same budget.
+    let h = H::new();
+    h.setup();
+    let auth = crate::feed::auth::AppAuth::new(h.ctx().clone());
+    let now = h.ctx().limiter.now();
+    h.ctx().limiter.freeze(Some(now));
+    for n in 0..1000u32 {
+        let caller = crate::server::source::Source::Lan(rotated(n).parse().unwrap()).ip();
+        let _ = crate::feed::auth::FeedAuth::admit(&auth, caller);
+        crate::feed::auth::FeedAuth::failed(&auth, caller);
+    }
+    assert!(
+        crate::feed::auth::FeedAuth::spent(&auth, crate::server::source::Source::Lan(fresh).ip()),
+        "feed: a fresh address is not over the aggregate"
+    );
+    assert!(h.ctx().limiter.hits(Bucket::Guard, net, now) >= 1000);
+}

@@ -39,17 +39,18 @@ pub trait FeedAuth: Send + Sync + 'static {
         false
     }
 
-    /// Count one `authenticate` from `caller`
-    /// (`feed::server::handshake_source`) against the resource guard every
-    /// request passes (well above legitimate use); `false` when over it.
-    fn admit(&self, _caller: std::net::IpAddr) -> bool {
-        true
-    }
-
     /// Count a key that failed for `caller` against the failure budget
     /// `/api/v1` and `/mcp` share. It only ever refuses invalid
     /// credentials; a valid key is never refused by it.
     fn failed(&self, _caller: std::net::IpAddr) {}
+
+    /// Count one `authenticate` from `caller` against the resource guard
+    /// every request passes (well above legitimate use); `false` when over
+    /// it. Over it, the key is still checked: a valid key proceeds, an
+    /// invalid one is answered and the connection closed at once.
+    fn admit(&self, _caller: std::net::IpAddr) -> bool {
+        true
+    }
 
     /// Whether `caller` has spent its failure budget: its failed
     /// `authenticate` is then answered and the connection closed.
@@ -75,18 +76,18 @@ impl FeedAuth for AppAuth {
     /// callers are never banned), compared as canonical addresses.
     fn refused(&self, peer: std::net::IpAddr) -> bool {
         let ip = crate::server::addr::canonical(peer);
-        !ip.is_loopback() && self.ctx.monitor.is_banned(&ip.to_string(), self.ctx.now())
-    }
-
-    fn admit(&self, caller: std::net::IpAddr) -> bool {
-        use crate::server::ratelimit::Bucket;
-        let limiter = &self.ctx.limiter;
-        limiter.check(Bucket::Guard, caller, limiter.now()).is_ok()
+        !ip.is_loopback()
+            && !crate::server::addr::is_own_address(ip)
+            && self.ctx.monitor.is_banned_peer(ip, self.ctx.now())
     }
 
     fn failed(&self, caller: std::net::IpAddr) {
         use crate::server::ratelimit::Bucket;
         crate::server::middleware::count_failure(&self.ctx, caller, Bucket::ApiKeyFail)
+    }
+
+    fn admit(&self, caller: std::net::IpAddr) -> bool {
+        crate::server::middleware::within_guard(&self.ctx, caller)
     }
 
     fn spent(&self, caller: std::net::IpAddr) -> bool {

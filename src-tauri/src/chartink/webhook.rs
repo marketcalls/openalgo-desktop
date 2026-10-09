@@ -194,21 +194,23 @@ pub fn locator(webhook_id: &str) -> Option<&str> {
 /// The web's per-address limit (100 a minute) for this computer and devices
 /// on the network, before any lookup. Tunnel callers share one identity,
 /// so they are limited per webhook once the id checked out
-/// ([`admit_webhook`]).
+/// ([`admit_webhook`]). `None`: over the caller's own window.
+/// `Some(true)`: the caller is in the full shared overflow window, to be
+/// refused only if its id is unknown.
 pub fn admit_address(
     guard: &Guard,
     limiter: &crate::server::ratelimit::RateLimiter,
     ip: IpAddr,
-) -> bool {
-    use crate::server::ratelimit::Bucket;
-    if limiter
-        .check(Bucket::ChartinkWebhook, ip, limiter.now())
-        .is_err()
-    {
-        guard.note_throttled("one address is over the webhook rate limit");
-        return false;
+) -> Option<bool> {
+    use crate::server::ratelimit::{Admission, Bucket};
+    match limiter.admit(Bucket::ChartinkWebhook, ip, limiter.now()) {
+        Admission::Allowed => Some(false),
+        Admission::OverflowOver(_) => Some(true),
+        Admission::Over(_) => {
+            guard.note_throttled("one address is over the webhook rate limit");
+            None
+        }
     }
-    true
 }
 
 /// The limits of an id that checked out: behind a tunnel its own

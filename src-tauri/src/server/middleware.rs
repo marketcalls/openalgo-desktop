@@ -3,7 +3,7 @@
 
 use crate::server::envelope::{error, json_response, not_authenticated};
 use crate::server::form::{csrf_rejected, tokens_match, FormData};
-use crate::server::ratelimit::{Bucket, Claim, SignInSource};
+use crate::server::ratelimit::{Admission, Bucket, Claim, SignInSource};
 use crate::session::web::{WebSession, COOKIE_NAME};
 use crate::state::AppState;
 use axum::{
@@ -137,13 +137,20 @@ pub fn limiter_key(ip: IpAddr, scope: &str, credential: &str) -> IpAddr {
 /// authenticator codes are not counted here: sign-in has its own per-source
 /// budget (`claim_sign_in`).
 pub fn failures_exhausted(ctx: &AppState, caller: IpAddr, bucket: Bucket) -> bool {
+    // Both tiers: the caller's own budget and its network's aggregate.
     ctx.limiter.is_exhausted(bucket, caller, ctx.limiter.now())
 }
 
 /// Count one failed credential check for `caller` (see
-/// [`failures_exhausted`]).
+/// [`failures_exhausted`]), in both tiers.
 pub fn count_failure(ctx: &AppState, caller: IpAddr, bucket: Bucket) {
     let _ = ctx.limiter.check(bucket, caller, ctx.limiter.now());
+}
+
+/// Count one request against the resource guard (both tiers); `false`
+/// when over it.
+pub fn within_guard(ctx: &AppState, caller: IpAddr) -> bool {
+    ctx.limiter.admit(Bucket::Guard, caller, ctx.limiter.now()) == Admission::Allowed
 }
 
 /// Outermost application layer: classify the caller once ([`classify`])
@@ -167,15 +174,24 @@ pub async fn peer_layer(
     );
     // A resource guard on every request, well above legitimate use: the
     // per-surface limits come after the credential is checked.
-    if ctx
-        .limiter
-        .check(Bucket::Guard, source.ip(), ctx.limiter.now())
-        .is_err()
-    {
-        return error(
+    let too_many = || {
+        error(
             StatusCode::TOO_MANY_REQUESTS,
             "Too many requests. Please slow down and try again.",
-        );
+        )
+    };
+    // It applies to every caller, this computer included. Over it (the
+    // caller's own window, the tunnel's shared one or the overflow
+    // window), a route that checks a credential refuses only an invalid
+    // one, and any other page only a caller that is not signed in: a valid
+    // caller is never refused (availability guarantees G1, G2) and invalid
+    // traffic stays bounded (G4).
+    if !within_guard(&ctx, source.ip()) {
+        if credential_route(req.uri().path()) {
+            req.extensions_mut().insert(OverflowDeferred);
+        } else if !signed_in_cookie(&ctx, req.headers()) {
+            return too_many();
+        }
     }
     let https = served_over_https(&cfg, req.headers());
     req.extensions_mut().insert(source);
@@ -664,17 +680,20 @@ pub async fn api_rate_limit(
     // window, on every request. Tunnel callers share one identity, so
     // theirs is charged per key once the key checked out
     // (`api_v1::authorize`, [`limiter_key`]).
-    if source != Source::Tunnel
-        && ctx
-            .limiter
-            .check(bucket, source.ip(), ctx.limiter.now())
-            .is_err()
-    {
-        return over();
+    let mut deferred = overflow_deferred(req.extensions());
+    if source != Source::Tunnel {
+        match ctx.limiter.admit(bucket, source.ip(), ctx.limiter.now()) {
+            Admission::Allowed => {}
+            Admission::Over(_) => return over(),
+            // The shared overflow window is full: refused below only if
+            // the key is invalid (`api_v1::authorize`).
+            Admission::OverflowOver(_) => deferred = true,
+        }
     }
     let call = ApiCall {
         bucket,
         over: std::cell::Cell::new(false),
+        deferred,
     };
     let (resp, over_limit) = API_CALL
         .scope(call, async move {
@@ -695,6 +714,51 @@ pub async fn api_rate_limit(
 pub struct ApiCall {
     pub bucket: Bucket,
     pub over: std::cell::Cell<bool>,
+    /// The caller is counted in the shared overflow window, which is full:
+    /// refuse it (429) if its key is invalid; a valid key proceeds.
+    pub deferred: bool,
+}
+
+/// Marks a request whose caller is over the resource guard or counted in
+/// the full shared overflow window (`ratelimit::Admission`): the route's
+/// credential check refuses it if the credential is invalid, and lets a
+/// valid one through.
+#[derive(Clone, Copy, Debug)]
+pub struct OverflowDeferred;
+
+/// Whether the request carries [`OverflowDeferred`].
+pub fn overflow_deferred(ext: &axum::http::Extensions) -> bool {
+    ext.get::<OverflowDeferred>().is_some()
+}
+
+/// [`overflow_deferred`] as an extractor.
+pub struct Deferred(pub bool);
+
+impl<S: Send + Sync> axum::extract::FromRequestParts<S> for Deferred {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        _state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(Deferred(overflow_deferred(&parts.extensions)))
+    }
+}
+
+/// Routes that check a credential of their own (API key, MCP token,
+/// webhook address) and so decide an overflowed caller themselves.
+fn credential_route(path: &str) -> bool {
+    path.starts_with("/api/v1/")
+        || path == "/mcp"
+        || path.starts_with("/strategy/webhook/")
+        || path.starts_with("/chartink/webhook/")
+}
+
+/// Whether the request's session cookie names a signed-in session.
+fn signed_in_cookie(ctx: &AppState, headers: &HeaderMap) -> bool {
+    cookie_value(headers, COOKIE_NAME)
+        .and_then(|id| ctx.sessions.get(&id, ctx.now()))
+        .is_some_and(|s| s.user.is_some())
 }
 
 tokio::task_local! {

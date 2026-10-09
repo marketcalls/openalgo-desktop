@@ -19,6 +19,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Shown when a trader tries to ban the identity every tunnel caller shares.
+const OWN_COMPUTER: &str = "This is your own computer, so it cannot be banned.";
+
+const OWN_ADDRESS: &str =
+    "This is one of this computer's own network addresses, so it cannot be banned.";
+
+/// Exactly one of this machine's own addresses, as of the last read.
+fn own_network_address(ip: &str) -> bool {
+    crate::server::addr::parse(ip).is_some_and(crate::server::addr::is_own_address)
+}
+
 const TUNNEL_IDENTITY: &str = "This address stands for every request that comes through your tunnel, including your own alerts, so it cannot be banned. Ban the caller's own address instead.";
 
 type Ctx = State<Arc<AppState>>;
@@ -66,10 +76,13 @@ pub async fn ban(State(ctx): Ctx, body: JsonBody) -> Response {
         return err(StatusCode::BAD_REQUEST, "Invalid IP address format");
     };
     if store::is_loopback_ip(&ip) {
-        return err(StatusCode::BAD_REQUEST, "Cannot ban localhost");
+        return err(StatusCode::BAD_REQUEST, OWN_COMPUTER);
     }
     if store::never_banned(&ip) {
         return err(StatusCode::BAD_REQUEST, TUNNEL_IDENTITY);
+    }
+    if own_network_address(&ip) {
+        return err(StatusCode::BAD_REQUEST, OWN_ADDRESS);
     }
     let now = ctx.now();
     let limit = ctx.monitor.security_settings(&ctx).repeat_offender_limit;
@@ -128,7 +141,7 @@ pub async fn ban_host(State(ctx): Ctx, body: JsonBody) -> Response {
     let limit = ctx.monitor.security_settings(&ctx).repeat_offender_limit;
     if let Some(host) = crate::server::addr::canonical_text(&host) {
         if store::is_loopback_ip(&host) {
-            return err(StatusCode::BAD_REQUEST, "Cannot ban localhost");
+            return err(StatusCode::BAD_REQUEST, OWN_COMPUTER);
         }
         if store::never_banned(&host) {
             return err(StatusCode::BAD_REQUEST, TUNNEL_IDENTITY);

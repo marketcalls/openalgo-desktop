@@ -556,14 +556,33 @@ Every flaky test found so far was a race, not a slow machine:
   credential first: a spent budget refuses only further invalid attempts,
   never a valid credential, so no stranger can lock one out. Exempt a
   request by refusing it before the check, never by skipping the count.
+- Limits and bans keep five availability guarantees, held by one
+  table-driven test across every surface
+  (`availability_guarantees_hold_on_every_surface`): this computer (a
+  loopback peer, never one granted by a list of interfaces) with a valid
+  credential or session is never refused by a ban, budget, overflow or
+  monitor rule, though it keeps its resource caps; a valid credential from
+  any source is never refused because of other callers (check it first);
+  bans apply only to devices on the network, never to this computer, the
+  tunnel identity or exactly the machine's own addresses, and are capped
+  and expire; invalid traffic is
+  always bounded (no path admits it unlimited when a table is full);
+  password and code budgets stay per source. A new limit or ban is
+  checked against all five and added to that test.
 - Never charge valid traffic to a low limit strangers share. Tunnel
   callers are one identity, so behind a tunnel a valid credential gets its
   own window (`middleware::limiter_key`) and the shared limit is only a
   generous resource guard. A limiter that drops live entries when its
   table fills is a reset button (invented keys once flushed every
-  lockout): evict only entries a caller can mint and put new addresses in
-  one shared overflow bucket. None of this is for passwords or codes,
-  which have per-source budgets only.
+  lockout): evict only request windows, never a failure count inside its
+  window; count a foreign IPv6 device by its /64 so rotating addresses
+  takes one entry (devices in the machine's own prefix, which every home
+  device shares, one by one plus an aggregate for the /64 that the limiter
+  charges itself, so no surface can skip it); and once
+  every entry is live, put new
+  callers in one bounded overflow entry per limit, never evicted, that
+  refuses only invalid credentials. None of this is for passwords or
+  codes, which have per-source budgets only.
 - A failure budget keyed by anything the attacker picks per attempt (a user
   name, a password, a code, a credential hash) or with an evict-oldest
   table can be spread or flushed. Key it by source and account, never evict

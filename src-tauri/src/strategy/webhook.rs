@@ -297,21 +297,23 @@ pub const LOCKOUT_WINDOW: Duration = Duration::from_secs(600);
 /// The web's per-address limit (`WEBHOOK_RATE_LIMIT`, 100 a minute) for
 /// this computer and devices on the network, before any lookup. Tunnel
 /// callers share one identity, so they are limited per token once the
-/// token checked out ([`admit_token`]).
+/// token checked out ([`admit_token`]). `None`: over the caller's own
+/// window. `Some(true)`: the caller is in the full shared overflow window,
+/// to be refused only if its token is unknown.
 pub fn admit_address(
     state: &WebhookState,
     limiter: &crate::server::ratelimit::RateLimiter,
     ip: IpAddr,
-) -> bool {
-    use crate::server::ratelimit::Bucket;
-    if limiter
-        .check(Bucket::StrategyWebhook, ip, limiter.now())
-        .is_err()
-    {
-        state.note_throttled("one address is over the webhook rate limit");
-        return false;
+) -> Option<bool> {
+    use crate::server::ratelimit::{Admission, Bucket};
+    match limiter.admit(Bucket::StrategyWebhook, ip, limiter.now()) {
+        Admission::Allowed => Some(false),
+        Admission::OverflowOver(_) => Some(true),
+        Admission::Over(_) => {
+            state.note_throttled("one address is over the webhook rate limit");
+            None
+        }
     }
-    true
 }
 
 /// The limits of a token that checked out: behind a tunnel its own

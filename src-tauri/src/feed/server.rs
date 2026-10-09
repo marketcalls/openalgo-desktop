@@ -48,7 +48,17 @@ pub struct FeedConfig {
     pub ping_interval: Duration,
     pub ping_timeout: Duration,
     pub handshake_timeout: Duration,
+    /// The handshake deadline for loopback connections (this computer and
+    /// the tunnel, not yet told apart): short, so a stalled handshake
+    /// through the tunnel holds a place in their shared pending pool only
+    /// briefly.
+    pub loopback_handshake_timeout: Duration,
     pub max_connections: usize,
+    /// Connections this computer's programs (the SDK, Amibroker, Excel) may
+    /// hold, in a pool of their own: `max_connections` caps every other
+    /// caller (devices on the network, the tunnel), so they can never fill
+    /// it (availability guarantee G1).
+    pub local_connections: usize,
     pub max_message_bytes: usize,
     /// Control frames (acks, errors, order updates) a client may leave
     /// unread before it is disconnected.
@@ -104,6 +114,49 @@ impl Default for HandshakePolicy {
 }
 
 use crate::server::source::{is_loopback_name as loopback_name, split_authority};
+
+/// The identity a connection counts against
+/// [`MAX_CONNECTIONS_PER_REMOTE_ADDRESS`]: a device on the network as it is
+/// counted everywhere ([`crate::server::addr::budget_key`]). A loopback
+/// peer (every program on this computer and the tunnel share it) is not
+/// capped per address; the global `max_connections` caps it.
+pub fn connection_key(peer: std::net::IpAddr) -> Option<std::net::IpAddr> {
+    let peer = crate::server::addr::canonical(peer);
+    (!peer.is_loopback()).then(|| crate::server::addr::budget_key(peer))
+}
+
+/// Count a connection from `key` ([`connection_key`]) if it is under the
+/// cap: its own, and for a device in one of this machine's own IPv6
+/// networks its network's aggregate too (five times the cap), so a device
+/// rotating through the prefix is capped in total. `false` when over.
+pub fn admit_connection(
+    counts: &mut HashMap<std::net::IpAddr, usize>,
+    key: std::net::IpAddr,
+) -> bool {
+    let net = crate::server::addr::aggregate_key(key);
+    let count = |k: &std::net::IpAddr| counts.get(k).copied().unwrap_or(0);
+    let cap = crate::server::ratelimit::AGGREGATE_FACTOR * MAX_CONNECTIONS_PER_REMOTE_ADDRESS;
+    if count(&key) >= MAX_CONNECTIONS_PER_REMOTE_ADDRESS || net.is_some_and(|n| count(&n) >= cap) {
+        return false;
+    }
+    for k in std::iter::once(key).chain(net) {
+        *counts.entry(k).or_insert(0) += 1;
+    }
+    true
+}
+
+/// Release a connection counted by [`admit_connection`].
+pub fn release_connection(counts: &mut HashMap<std::net::IpAddr, usize>, key: std::net::IpAddr) {
+    let net = crate::server::addr::aggregate_key(key);
+    for k in std::iter::once(key).chain(net) {
+        if let Some(n) = counts.get_mut(&k) {
+            *n = n.saturating_sub(1);
+            if *n == 0 {
+                counts.remove(&k);
+            }
+        }
+    }
+}
 
 /// Who opened a feed connection: the classifier the HTTP server uses
 /// ([`crate::server::source::classify`]), with the feed's port as the
@@ -227,7 +280,9 @@ impl Default for FeedConfig {
             ping_interval: Duration::from_secs(20),
             ping_timeout: Duration::from_secs(20),
             handshake_timeout: Duration::from_secs(10),
+            loopback_handshake_timeout: Duration::from_secs(3),
             max_connections: 256,
+            local_connections: 64,
             max_message_bytes: 1024 * 1024,
             control_queue_cap: 1024,
             max_subscriptions_per_client: 3000,
@@ -273,6 +328,15 @@ struct Shared {
     active: AtomicUsize,
     /// Open connections per non-loopback address.
     per_address: parking_lot::Mutex<HashMap<std::net::IpAddr, usize>>,
+    /// Connections of callers other than this computer: devices on the
+    /// network (from accept) and tunnel callers (once the handshake shows
+    /// them); capped by `max_connections`.
+    network: AtomicUsize,
+    /// This computer's connections; capped by `local_connections`.
+    local: AtomicUsize,
+    /// Loopback connections still in the handshake (this computer or the
+    /// tunnel, not yet told apart); capped by both pools together.
+    pending_loopback: AtomicUsize,
 }
 
 /// A running feed server.
@@ -358,6 +422,9 @@ port in Server Settings.",
         brokers: deps.supported_brokers,
         next_id: AtomicU64::new(1),
         active: AtomicUsize::new(0),
+        network: AtomicUsize::new(0),
+        local: AtomicUsize::new(0),
+        pending_loopback: AtomicUsize::new(0),
         per_address: parking_lot::Mutex::new(HashMap::new()),
         cfg,
     });
@@ -396,7 +463,14 @@ async fn accept_loop(listener: TcpListener, shared: Arc<Shared>, token: Cancella
                     }
                 };
                 let _ = stream.set_nodelay(true);
-                if shared.active.load(Ordering::Relaxed) >= shared.cfg.max_connections {
+                let loopback = crate::server::addr::canonical(peer.ip()).is_loopback();
+                let full = if loopback {
+                    shared.pending_loopback.load(Ordering::Relaxed)
+                        >= shared.cfg.max_connections + shared.cfg.local_connections
+                } else {
+                    shared.network.load(Ordering::Relaxed) >= shared.cfg.max_connections
+                };
+                if full {
                     if rejecting.load(Ordering::Relaxed) < 16 {
                         rejecting.fetch_add(1, Ordering::Relaxed);
                         let r = rejecting.clone();
@@ -415,17 +489,18 @@ async fn accept_loop(listener: TcpListener, shared: Arc<Shared>, token: Cancella
                     drop(stream);
                     continue;
                 }
-                let remote = (!peer.ip().is_loopback()).then_some(peer.ip());
+                let remote = connection_key(peer.ip());
                 if let Some(ip) = remote {
-                    let mut m = shared.per_address.lock();
-                    let n = m.entry(ip).or_insert(0);
-                    if *n >= MAX_CONNECTIONS_PER_REMOTE_ADDRESS {
-                        drop(m);
+                    if !admit_connection(&mut shared.per_address.lock(), ip) {
                         tracing::warn!("Market data feed: one network address opened too many connections");
                         drop(stream);
                         continue;
                     }
-                    *n += 1;
+                }
+                if loopback {
+                    shared.pending_loopback.fetch_add(1, Ordering::Relaxed);
+                } else {
+                    shared.network.fetch_add(1, Ordering::Relaxed);
                 }
                 shared.active.fetch_add(1, Ordering::Relaxed);
                 conns.spawn(serve_conn(
@@ -489,9 +564,21 @@ async fn reject(stream: TcpStream, cfg: &FeedConfig) {
 
 /// Removes the client from the registry (releasing its source keys) and
 /// decrements the connection count, whatever ends the connection.
+/// Which connection pool a connection holds a place in.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Pool {
+    /// A loopback connection in its handshake.
+    Pending,
+    Local,
+    Network,
+    /// None (refused after the handshake).
+    Released,
+}
+
 struct ClientGuard {
     shared: Arc<Shared>,
     id: ClientId,
+    pool: Pool,
     remote: Option<std::net::IpAddr>,
 }
 
@@ -499,14 +586,17 @@ impl Drop for ClientGuard {
     fn drop(&mut self) {
         self.shared.registry.remove_client(self.id);
         self.shared.active.fetch_sub(1, Ordering::Relaxed);
+        let pool = match self.pool {
+            Pool::Pending => Some(&self.shared.pending_loopback),
+            Pool::Local => Some(&self.shared.local),
+            Pool::Network => Some(&self.shared.network),
+            Pool::Released => None,
+        };
+        if let Some(counter) = pool {
+            counter.fetch_sub(1, Ordering::Relaxed);
+        }
         if let Some(ip) = self.remote {
-            let mut m = self.shared.per_address.lock();
-            if let Some(n) = m.get_mut(&ip) {
-                *n = n.saturating_sub(1);
-                if *n == 0 {
-                    m.remove(&ip);
-                }
-            }
+            release_connection(&mut self.shared.per_address.lock(), ip);
         }
     }
 }
@@ -560,9 +650,14 @@ async fn serve_conn(
         shared.cfg.max_subscriptions_per_client * 3,
     ));
     shared.registry.add_client(id, outbox.clone());
-    let _guard = ClientGuard {
+    let mut guard = ClientGuard {
         shared: shared.clone(),
         id,
+        pool: if crate::server::addr::canonical(peer).is_loopback() {
+            Pool::Pending
+        } else {
+            Pool::Network
+        },
         remote,
     };
     // The policy as the settings are now, and the port this connection
@@ -594,8 +689,16 @@ async fn serve_conn(
                 Err(refused)
             }
         };
+    let deadline = if guard.pool == Pool::Pending {
+        shared
+            .cfg
+            .loopback_handshake_timeout
+            .min(shared.cfg.handshake_timeout)
+    } else {
+        shared.cfg.handshake_timeout
+    };
     let ws = match timeout(
-        shared.cfg.handshake_timeout,
+        deadline,
         tokio_tungstenite::accept_hdr_async_with_config(
             stream,
             check_origin,
@@ -607,6 +710,36 @@ async fn serve_conn(
         Ok(Ok(ws)) => ws,
         _ => return,
     };
+    // A loopback connection takes its place in this computer's pool or,
+    // through the tunnel, in the one every other caller shares, now that
+    // the handshake told them apart. A full pool closes it at once.
+    let mut ws = ws;
+    if guard.pool == Pool::Pending {
+        shared.pending_loopback.fetch_sub(1, Ordering::Relaxed);
+        guard.pool = Pool::Released;
+        let (counter, cap, pool) = if *source.lock() == crate::server::source::Source::Local {
+            (&shared.local, shared.cfg.local_connections, Pool::Local)
+        } else {
+            (&shared.network, shared.cfg.max_connections, Pool::Network)
+        };
+        let placed = counter
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+                (n < cap).then_some(n + 1)
+            })
+            .is_ok();
+        if !placed {
+            let _ = timeout(
+                Duration::from_secs(2),
+                ws.close(Some(CloseFrame {
+                    code: CloseCode::Again,
+                    reason: "Too many connections".into(),
+                })),
+            )
+            .await;
+            return;
+        }
+        guard.pool = pool;
+    }
     let (sink, mut stream) = ws.split();
     let mut writer = AbortOnDrop(tokio::spawn(write_loop(sink, outbox.clone())));
     let mut session = Session {
@@ -841,18 +974,20 @@ impl Session {
         }
         let auth = &self.shared.auth;
         let outcome = match key.as_str() {
-            // Over the resource guard: refused unchecked, with the same
-            // answer. Otherwise the key is checked first, and only a failed
-            // one is counted against the caller (security review S-02); a
-            // valid key is never refused because of others.
-            Some(_) if !auth.admit(self.caller) => AuthOutcome::Invalid,
+            // Every `authenticate` passes the resource guard, then the key is
+            // checked (a cheap lookup). A failed key is counted against the
+            // caller; when the caller was over the guard or its budget is
+            // spent, the connection is closed after the answer (security
+            // review S-02). A valid key is never refused because of others.
             Some(k) => {
+                let within_guard = auth.admit(self.caller);
                 let outcome = auth.authenticate(k).await;
                 if outcome == AuthOutcome::Invalid {
-                    self.closing_on_failure = auth.spent(self.caller);
-                    if !self.closing_on_failure {
+                    let spent = auth.spent(self.caller);
+                    if !spent {
                         auth.failed(self.caller);
                     }
+                    self.closing_on_failure = spent || !within_guard;
                 }
                 outcome
             }
@@ -1247,6 +1382,63 @@ async fn order_loop(shared: Arc<Shared>, mut rx: broadcast::Receiver<Arc<OrderUp
 
 #[cfg(test)]
 mod origin_tests {
+    /// A device rotating through our own IPv6 network is capped in total by
+    /// the network's aggregate; each address by its own cap; released
+    /// connections free both.
+    #[test]
+    fn rotating_connections_hit_the_networks_aggregate() {
+        use super::{admit_connection, release_connection, MAX_CONNECTIONS_PER_REMOTE_ADDRESS};
+        let mut counts = std::collections::HashMap::new();
+        let key = |n: u32| -> std::net::IpAddr { format!("fe80::{:x}", n + 1).parse().unwrap() };
+        let mut admitted = 0;
+        for n in 0..1000 {
+            if admit_connection(&mut counts, key(n)) {
+                admitted += 1;
+            }
+        }
+        let cap = crate::server::ratelimit::AGGREGATE_FACTOR * MAX_CONNECTIONS_PER_REMOTE_ADDRESS;
+        assert_eq!(admitted, cap);
+        for _ in 0..MAX_CONNECTIONS_PER_REMOTE_ADDRESS {
+            assert!(admit_connection(
+                &mut counts,
+                "192.168.1.9".parse().unwrap()
+            ));
+        }
+        assert!(!admit_connection(
+            &mut counts,
+            "192.168.1.9".parse().unwrap()
+        ));
+        for n in 0..cap as u32 {
+            release_connection(&mut counts, key(n));
+        }
+        for _ in 0..MAX_CONNECTIONS_PER_REMOTE_ADDRESS {
+            release_connection(&mut counts, "192.168.1.9".parse().unwrap());
+        }
+        assert!(counts.is_empty(), "{:?}", counts);
+    }
+
+    /// The per-address connection cap counts a device on the network as it
+    /// is counted everywhere; loopback is capped by the global limit only.
+    #[test]
+    fn connections_are_capped_per_network_identity() {
+        use super::connection_key;
+        let ip = |s: &str| s.parse::<std::net::IpAddr>().unwrap();
+        assert_eq!(connection_key(ip("127.0.0.1")), None);
+        assert_eq!(connection_key(ip("::1")), None);
+        assert_eq!(connection_key(ip("::ffff:127.0.0.1")), None);
+        assert_eq!(connection_key(ip("192.168.1.9")), Some(ip("192.168.1.9")));
+        assert_eq!(
+            connection_key(ip("::ffff:192.168.1.9")),
+            Some(ip("192.168.1.9"))
+        );
+        // A foreign IPv6 device by its /64; link-local devices one by one.
+        assert_eq!(
+            connection_key(ip("2001:db8:cc:dd::1")),
+            connection_key(ip("2001:db8:cc:dd:9::2"))
+        );
+        assert_ne!(connection_key(ip("fe80::1")), connection_key(ip("fe80::2")));
+    }
+
     use super::HandshakePolicy;
 
     const WS: u16 = 8765;

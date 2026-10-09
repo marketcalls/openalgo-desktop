@@ -820,6 +820,7 @@ pub async fn webhook(
     State(ctx): Ctx,
     ClientIp(ip): ClientIp,
     crate::server::middleware::Src(source): crate::server::middleware::Src,
+    crate::server::middleware::Deferred(deferred): crate::server::middleware::Deferred,
     Path(token): Path<String>,
     headers: HeaderMap,
     body: Bytes,
@@ -842,8 +843,12 @@ pub async fn webhook(
     // limit, before any lookup. Tunnel callers share one identity, so they
     // are limited per token once it checked out (S-03).
     let tunnel = source == Source::Tunnel;
-    if !tunnel && !admit_address(&ctx.strategy.webhook, &ctx.limiter, ip) {
-        return limited();
+    let mut deferred = deferred;
+    if !tunnel {
+        match admit_address(&ctx.strategy.webhook, &ctx.limiter, ip) {
+            None => return limited(),
+            Some(d) => deferred |= d,
+        }
     }
     let declared = headers
         .get(axum::http::header::CONTENT_LENGTH)
@@ -866,7 +871,7 @@ pub async fn webhook(
             return limited();
         }
     } else {
-        if failures_exhausted(&ctx, ip, Bucket::WebhookFail) {
+        if deferred || failures_exhausted(&ctx, ip, Bucket::WebhookFail) {
             ctx.strategy
                 .webhook
                 .note_throttled("too many failed webhook authentications from one caller");

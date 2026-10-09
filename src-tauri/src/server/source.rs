@@ -14,9 +14,10 @@ use std::net::{IpAddr, Ipv4Addr};
 /// else reads forwarding headers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Source {
-    /// A program on this computer: a loopback peer that sent no
-    /// forwarding-type header and names this computer on the listener's
-    /// own port.
+    /// A program on this computer: a loopback peer (127.0.0.0/8, ::1, or
+    /// loopback inside IPv6) that sent no forwarding-type header and names
+    /// this computer on the listener's own port. A peer using one of this
+    /// machine's LAN addresses is a device on the network, like any other.
     Local,
     /// A device on the network: a socket peer that is not loopback. Its
     /// headers are never read.
@@ -29,18 +30,22 @@ pub enum Source {
 }
 
 impl Source {
-    /// The address per-caller controls count this caller under. Every
-    /// tunnel caller shares [`PROXIED_CALLER`].
+    /// The address per-caller controls (rate limits, failure budgets,
+    /// monitoring and automatic bans) count this caller under: a device on
+    /// the network by [`crate::server::addr::budget_key`] (its address;
+    /// a foreign IPv6 device by its /64); every tunnel caller shares
+    /// [`PROXIED_CALLER`].
     pub fn ip(self) -> IpAddr {
         match self {
             Source::Local => IpAddr::V4(Ipv4Addr::LOCALHOST),
-            Source::Lan(ip) => ip,
+            Source::Lan(ip) => crate::server::addr::budget_key(ip),
             Source::Tunnel => PROXIED_CALLER,
         }
     }
 
-    /// The address bans and IP allowlists apply to: a device on the
-    /// network only. This computer and tunnel callers have none.
+    /// The device's own address, which IP allowlists match and bans are
+    /// checked for (with its /64 too, `Monitor::is_banned_peer`): a device
+    /// on the network only. This computer and tunnel callers have none.
     pub fn network_address(self) -> Option<IpAddr> {
         match self {
             Source::Lan(ip) => Some(ip),
@@ -113,7 +118,8 @@ pub fn is_loopback_name(name: &str) -> bool {
     matches!(name, "127.0.0.1" | "localhost" | "::1")
 }
 
-/// Whether `host` names this computer on one of the listener's own ports.
+/// Whether `host` names this computer on loopback on one of the
+/// listener's own ports.
 fn names_this_computer(host: &str, own_port: &dyn Fn(Option<u16>) -> bool) -> bool {
     split_authority(host).is_some_and(|(name, port)| is_loopback_name(&name) && own_port(port))
 }
@@ -124,12 +130,14 @@ fn names_this_computer(host: &str, own_port: &dyn Fn(Option<u16>) -> bool) -> bo
 /// HTTP/1.1 target); `own_port` says whether a port (or none) is the
 /// listener's own: the app's pages for HTTP, the feed's port for the feed.
 ///
-/// * A peer that is not loopback is [`Source::Lan`], by canonical address;
-///   its headers are never read (anyone can send them).
+/// * A peer that is not loopback is [`Source::Lan`], by canonical address
+///   (one of this machine's own LAN addresses included); its headers are
+///   never read (anyone can send them).
 /// * A loopback peer (or no connection) is [`Source::Local`] only when no
 ///   forwarding-type header is present and every host it names (`Host`,
-///   exactly once, and the target's authority) is this computer on the
-///   listener's own port. A request with a connection must name one.
+///   exactly once, and the target's authority) is this computer on
+///   loopback on the listener's own port. A request with a connection must
+///   name one. No list of interfaces ever makes a caller local.
 /// * Anything else is [`Source::Tunnel`]: never local, no address, one
 ///   shared identity.
 pub fn classify(

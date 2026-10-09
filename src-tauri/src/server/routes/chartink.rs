@@ -188,6 +188,7 @@ pub async fn webhook_route(
     State(ctx): Ctx,
     ClientIp(ip): ClientIp,
     crate::server::middleware::Src(source): crate::server::middleware::Src,
+    crate::server::middleware::Deferred(deferred): crate::server::middleware::Deferred,
     Path(webhook_id): Path<String>,
     req: Request,
 ) -> Response {
@@ -206,8 +207,12 @@ pub async fn webhook_route(
     // limit, before any lookup. Tunnel callers share one identity, so they
     // are limited per webhook once the id checked out (S-03).
     let tunnel = source == Source::Tunnel;
-    if !tunnel && !webhook::admit_address(&ctx.chartink.guard, &ctx.limiter, ip) {
-        return limited();
+    let mut deferred = deferred;
+    if !tunnel {
+        match webhook::admit_address(&ctx.chartink.guard, &ctx.limiter, ip) {
+            None => return limited(),
+            Some(d) => deferred |= d,
+        }
     }
     // The id first: a locator lookup and a constant-time match. A valid id
     // is limited only by its own windows. An unknown one counts against the
@@ -221,7 +226,7 @@ pub async fn webhook_route(
             return limited();
         }
     } else {
-        if failures_exhausted(&ctx, ip, Bucket::WebhookFail) {
+        if deferred || failures_exhausted(&ctx, ip, Bucket::WebhookFail) {
             ctx.chartink
                 .guard
                 .note_throttled("too many failed webhook attempts from one caller");

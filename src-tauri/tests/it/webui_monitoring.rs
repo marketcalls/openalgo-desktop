@@ -294,7 +294,10 @@ async fn bans_block_remote_addresses_until_unbanned() {
     for (b, m) in [
         (json!({}), "IP address is required"),
         (json!({"ip_address": "nope"}), "Invalid IP address format"),
-        (json!({"ip_address": "127.0.0.1"}), "Cannot ban localhost"),
+        (
+            json!({"ip_address": "127.0.0.1"}),
+            "This is your own computer, so it cannot be banned.",
+        ),
     ] {
         let (s, v) = h
             .json(with(
@@ -448,7 +451,10 @@ async fn not_found_tracking_auto_ban_and_host_ban() {
     let tr = &v["suspicious_ips"][0];
     assert_eq!(tr["ip_address"], "10.9.8.7");
     assert_eq!(tr["error_count"], 3);
-    assert_eq!(v["banned_ips"][0]["is_permanent"], true);
+    // Automatic bans always expire: a duration of 0 means the default of
+    // 24 hours, never permanent (security review availability guarantees).
+    assert_eq!(v["banned_ips"][0]["is_permanent"], false);
+    assert!(v["banned_ips"][0]["expires_at"].is_string());
 
     let (s, v) = h
         .json(with(

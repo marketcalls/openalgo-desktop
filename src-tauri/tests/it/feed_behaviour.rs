@@ -353,9 +353,10 @@ async fn no_throttle_forwards_every_tick_to_a_fast_client() {
     h.handle.stop().await;
 }
 
+/// This computer's pool: over it, a connection is closed with 1013.
 #[tokio::test]
 async fn connection_cap_rejects_with_try_again_later() {
-    let h = start_with(FakeSource::new(known()), |c| c.max_connections = 2).await;
+    let h = start_with(FakeSource::new(known()), |c| c.local_connections = 2).await;
     let a = Client::connect(&h.url).await;
     let _b = Client::connect(&h.url).await;
     assert!(eventually(Duration::from_secs(2), || h.handle.connections() == 2).await);
@@ -529,4 +530,71 @@ async fn a_refused_address_is_closed_before_the_handshake() {
         assert_eq!(connected, !refuse, "refuse = {}", refuse);
         handle.stop().await;
     }
+}
+
+/// Availability guarantee G1: callers other than this computer (here
+/// through the tunnel) can fill only their own pool; the trader's own
+/// programs on this computer keep theirs and still connect and
+/// authenticate.
+#[tokio::test]
+async fn others_cannot_fill_this_computers_connection_pool() {
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    let h = start_with(FakeSource::new(known()), |c| c.max_connections = 2).await;
+    let tunnel = || async {
+        let mut r = h.url.as_str().into_client_request().unwrap();
+        r.headers_mut()
+            .insert("x-forwarded-for", "203.0.113.7".parse().unwrap());
+        let (ws, _) = tokio_tungstenite::connect_async(r).await.unwrap();
+        Client { ws }
+    };
+    let mut a = tunnel().await;
+    let mut b = tunnel().await;
+    assert_eq!(a.request(json!({"action": "ping"})).await["type"], "pong");
+    assert_eq!(b.request(json!({"action": "ping"})).await["type"], "pong");
+    let mut c = tunnel().await;
+    assert_eq!(
+        c.expect_close(Duration::from_secs(5)).await,
+        Some((1013, "Too many connections".into())),
+        "the tunnel's pool is full"
+    );
+    // This computer's SDK client still connects and authenticates.
+    let mut local = Client::connect(&h.url).await;
+    assert_eq!(local.auth().await["status"], "success");
+    let mut second = Client::connect(&h.url).await;
+    assert_eq!(second.auth().await["status"], "success");
+    h.handle.stop().await;
+}
+
+/// A loopback connection that stalls in its handshake (a slow caller
+/// through the tunnel) is dropped at the short loopback deadline, freeing
+/// its place in the pending pool this computer's programs share with the
+/// tunnel.
+#[tokio::test]
+async fn a_stalled_loopback_handshake_is_dropped_at_its_deadline() {
+    use tokio::io::AsyncReadExt;
+    let h = start_with(FakeSource::new(known()), |c| {
+        c.loopback_handshake_timeout = Duration::from_millis(300);
+    })
+    .await;
+    let mut stalled = tokio::net::TcpStream::connect(h.handle.local_addr())
+        .await
+        .unwrap();
+    assert!(eventually(Duration::from_secs(2), || h.handle.connections() == 1).await);
+    let started = std::time::Instant::now();
+    let mut buf = [0u8; 16];
+    let n = tokio::time::timeout(Duration::from_secs(5), stalled.read(&mut buf))
+        .await
+        .expect("dropped before the outer timeout")
+        .unwrap_or(0);
+    assert_eq!(n, 0, "the server closed the stalled connection");
+    assert!(
+        started.elapsed() < Duration::from_secs(3),
+        "{:?}",
+        started.elapsed()
+    );
+    assert!(eventually(Duration::from_secs(2), || h.handle.connections() == 0).await);
+    // A program on this computer connects at once afterwards.
+    let mut c = Client::connect(&h.url).await;
+    assert_eq!(c.auth().await["status"], "success");
+    h.handle.stop().await;
 }

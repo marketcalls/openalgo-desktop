@@ -163,6 +163,13 @@ pub fn authorize(ctx: &AppState, key: &str, ip: IpAddr, auth: Auth) -> bool {
         if !failures_exhausted(ctx, ip, Bucket::ApiKeyFail) {
             count_failure(ctx, ip, Bucket::ApiKeyFail);
         }
+        // A caller in the full shared overflow window: an invalid key is
+        // refused as over the limit (429).
+        let _ = API_CALL.try_with(|c| {
+            if c.deferred {
+                c.over.set(true)
+            }
+        });
         return false;
     }
     // A valid key behind a tunnel is charged to its own window, never the

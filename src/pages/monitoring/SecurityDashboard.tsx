@@ -710,7 +710,7 @@ export default function SecurityDashboard() {
                       <SelectItem value="168">1 Week</SelectItem>
                       <SelectItem value="720">30 Days</SelectItem>
                       <SelectItem value="8760">1 Year</SelectItem>
-                      <SelectItem value="0">Permanent</SelectItem>
+                      <SelectItem value="0">Default (24 hours)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -755,7 +755,7 @@ export default function SecurityDashboard() {
                       <SelectItem value="168">1 Week</SelectItem>
                       <SelectItem value="720">30 Days</SelectItem>
                       <SelectItem value="8760">1 Year</SelectItem>
-                      <SelectItem value="0">Permanent</SelectItem>
+                      <SelectItem value="0">Default (24 hours)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

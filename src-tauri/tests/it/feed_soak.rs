@@ -63,7 +63,12 @@ async fn wave(url: &str, h: &Harness, wave_no: usize) {
 #[ignore]
 async fn soak_1000_clients_fd_and_rss_flat() {
     crate::isolated!(soak_1000_clients_fd_and_rss_flat);
-    let h = start_with(FakeSource::permissive(), |c| c.max_connections = WAVE + 8).await;
+    // Every client is a program on this computer: its own pool.
+    let h = start_with(FakeSource::permissive(), |c| {
+        c.max_connections = WAVE + 8;
+        c.local_connections = WAVE + 8;
+    })
+    .await;
     let url = h.url.clone();
 
     // Warm-up wave: lets the allocator, the runtime and the registry maps
