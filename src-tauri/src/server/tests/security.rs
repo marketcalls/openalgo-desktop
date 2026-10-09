@@ -239,12 +239,23 @@ async fn s09_live_update_connection_is_closed_on_sign_out() {
         .unwrap();
     assert!(open.to_text().unwrap().starts_with('0'), "{:?}", open);
     ws.send(Message::Text("40".into())).await.unwrap();
-    let joined = tokio::time::timeout(std::time::Duration::from_secs(5), ws.next())
-        .await
-        .unwrap()
-        .unwrap()
-        .unwrap();
-    assert!(joined.to_text().unwrap().starts_with("40"), "{:?}", joined);
+    // Wait for the namespace join, answering Engine.IO pings ("2") that
+    // may arrive first on a slow runner.
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        let m = tokio::time::timeout_at(deadline, ws.next())
+            .await
+            .expect("no namespace join before the deadline")
+            .unwrap()
+            .unwrap();
+        let text = m.to_text().unwrap_or_default().to_string();
+        if text == "2" {
+            ws.send(Message::Text("3".into())).await.unwrap();
+            continue;
+        }
+        assert!(text.starts_with("40"), "{:?}", m);
+        break;
+    }
 
     // Sign out everywhere, as /auth/logout does.
     h.ctx().sessions.clear();
