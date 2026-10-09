@@ -423,9 +423,13 @@ forwarder and must never open the data folder or a listener.
 
 The maintainer's Mac has 8 GB of RAM. Compiling the main library takes
 several GB, so four agents building at once swapped for hours and every build
-queued behind the lock. Run at most two build-heavy agents at a time, each
-with `CARGO_BUILD_JOBS=4` and one cargo command at a time; iterate with
-filtered test runs and run the full suite once before pushing.
+queued behind the lock. Run at most two agents at a time, with
+`CARGO_BUILD_JOBS=4` and one cargo command at a time; iterate with filtered
+test runs and run the full suite once before pushing. Only one of them builds
+at any moment: two worktrees building the crate in the shared target folder
+overwrite each other's build-script output, so each forces the other's
+library to recompile and both test runs stretch past an hour. Let one agent
+hold the build lane while the other writes code, then swap.
 
 The shared folder grows past 30 GB. When free disk drops below about 8 GB
 and no build is running (`pgrep -fl 'cargo|rustc'` is empty), delete
