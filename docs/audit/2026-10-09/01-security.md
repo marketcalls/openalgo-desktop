@@ -3,13 +3,14 @@
 Review of `master` at commit `f60dc53`. File and line references point at
 that commit.
 
-**Status (updated 2026-10-09).** Every finding is fixed on `master` except
+**Status (updated 2026-10-10).** Every finding is fixed on `master` except
 S-04 (a documented residual) and S-17 (dependency status). The commits are
 in the table below and under each finding, with the tests that guard each
 fix. Each fix was checked by disabling it locally and watching its tests
 fail, then pass with the fix restored; the disabled states were never
 committed. What remains after a fix is listed as "Residual" under the
-finding.
+finding; the limits and bans residuals are in
+`docs/security/known-residuals.md`.
 
 Scope: the Rust HTTP server and its middleware, browser sessions and CSRF,
 sign-in and account recovery, broker sign-in (OAuth `state`, the state-less
@@ -37,8 +38,8 @@ new in this review.
 | ID | Severity | Title | Status |
 | --- | --- | --- | --- |
 | S-01 | High | Unauthenticated account wipe and takeover through `POST /auth/reset-account` | Fixed in `69ed11e` |
-| S-02 | Medium | Any web page can lock the trader out of sign-in and lock local API clients out of `/api/v1` | Fixed in `4e6c801`, `8fb3cef`, `b922cd1` |
-| S-03 | Medium | Behind a tunnel every caller is 127.0.0.1: per-address limits, bans, allowlists and the Remote MCP gate stop working | Fixed in `4e6c801`, `b922cd1`, `2697f4b` |
+| S-02 | Medium | Any web page can lock the trader out of sign-in and lock local API clients out of `/api/v1` | Fixed in `4e6c801`, `8fb3cef`, `b922cd1`, `591c49a` |
+| S-03 | Medium | Behind a tunnel every caller is 127.0.0.1: per-address limits, bans, allowlists and the Remote MCP gate stop working | Fixed in `4e6c801`, `b922cd1`, `2697f4b`, `591c49a` |
 | S-04 | Medium | Forged state-less broker callbacks for the trader's own account | Residual (documented, unchanged) |
 | S-05 | Low | `POST /setup` is exempt from CSRF and the same-origin check | Fixed in `4e6c801` |
 | S-06 | Low | Webhook secrets are written in plaintext to the traffic log | Fixed in `166cb1d` |
@@ -133,7 +134,7 @@ broker session as a key failure. Consider keying the `ApiKeyFail` lockout on
 the presented key's digest plus address, so wrong keys cannot lock out the
 right one.
 
-**Status: fixed in `4e6c801`, `8fb3cef` and `b922cd1`.**
+**Status: fixed in `4e6c801`, `8fb3cef`, `b922cd1` and `591c49a`.**
 - Sign-in (`/auth/login`, `/auth/login/totp`, the authenticator step of the
   password reset, the 2FA settings, the current password on a password
   change) must come from the app's own page: `Sec-Fetch-Site` same-origin or
@@ -169,6 +170,19 @@ right one.
   share one overflow bucket (before, a full table dropped every lockout).
   Passwords and codes are never handled this way. The rationale is in
   `docs/security/known-residuals.md`.
+- Availability guarantees (`591c49a`), held by one table-driven test across
+  every surface (`availability_guarantees_hold_on_every_surface`): this
+  computer (a loopback peer only) with a valid credential or session is
+  never refused by a ban, budget, overflow or monitor rule;
+  a valid credential from any source is never refused because of other
+  callers; bans apply only to devices on the network, never to exactly
+  this machine's own addresses, capped and expiring; invalid traffic
+  stays bounded (a foreign IPv6 device counts once per /64; devices in
+  our own prefix one by one, plus an aggregate cap for the /64, which is
+  never banned as a whole; a full limiter evicts request windows
+  first, never a live failure count, then limits new callers in one
+  bounded overflow window that still serves valid credentials); sign-in
+  keeps its per-source budget.
 - Tests (`server::tests::security`): `s02_cross_site_login_posts_do_not_lock_out_sign_in`,
   `s02_sign_ins_not_from_the_apps_page_are_refused_before_counting`,
   `s02_local_guessing_waits_longer_each_time_up_to_five_minutes`,
@@ -221,7 +235,7 @@ allowlists cannot tell tunnel callers apart. Optionally honour
 `X-Forwarded-For` only when the request came from loopback and the `Host` is
 the configured tunnel host, and document that.
 
-**Status: fixed in `4e6c801`, `b922cd1` and `2697f4b`.** The caller is classified once per request by
+**Status: fixed in `4e6c801`, `b922cd1`, `2697f4b` and `591c49a`.** The caller is classified once per request by
 the outermost layer (`server::source::classify`, stored as `Source`; the
 feed's handshake uses the same function) and every
 control reads the stored value. A socket peer that is not loopback is
@@ -233,7 +247,9 @@ case-insensitively, empty or repeated) and a `Host` naming the app's own
 loopback address and port; anything else is `Tunnel`. No forwarding header
 is ever read as an address: tunnel callers are one shared identity, never
 local, never banned and matching no IP allowlist. Bans and allowlists apply
-to network peers only, compared as canonical addresses (`::ffff:1.2.3.4` is
+to network peers only (a peer using one of this machine's LAN addresses
+is a network peer; automatic bans never cover exactly one of its own
+addresses, are capped and expire), compared as canonical addresses (`::ffff:1.2.3.4` is
 `1.2.3.4`, IPv6 in one spelling; logs.db migration 012 rewrites stored
 bans), in the one monitor layer every HTTP surface passes and at the feed
 server's accept. For webhook addresses, strategy tokens and API keys, tunnel
