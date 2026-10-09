@@ -23,7 +23,7 @@
         "object-src": "'none'",
         "base-uri": "'self'"
       },
-      "capabilities": ["default", "remote-app"]
+      "capabilities": ["default"]
     }
   },
   "bundle": {

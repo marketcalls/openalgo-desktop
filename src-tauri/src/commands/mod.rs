@@ -25,6 +25,51 @@ pub fn require_user(ctx: &AppState) -> Result<String> {
         .ok_or_else(|| AppError::Auth("Sign in to OpenAlgo first.".into()))
 }
 
+/// Permissions of the app's own pages served by the local server: window
+/// basics, opening http(s) links, and the account reset. Granted at run
+/// time to the exact origin the server listens on, never to every port on
+/// loopback (security review S-08).
+pub const REMOTE_APP_PERMISSIONS: [&str; 8] = [
+    "core:app:allow-version",
+    "core:window:allow-set-title",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-set-focus",
+    "shell:allow-open",
+    "allow-reset-account",
+];
+
+/// The page addresses trusted with [`REMOTE_APP_PERMISSIONS`]: the server's
+/// listening port on loopback, plus the Vite dev server in development.
+pub fn remote_app_urls(port: u16, development: bool) -> Vec<String> {
+    let mut v = vec![
+        format!("http://127.0.0.1:{}/*", port),
+        format!("http://localhost:{}/*", port),
+    ];
+    if development {
+        v.push("http://localhost:5173/*".into());
+    }
+    v
+}
+
+/// Grant the main window's pages on `port` their permissions. Called when
+/// the server starts and again when it moves to another port.
+pub fn trust_app_origin(app: &AppHandle, port: u16) {
+    let mut cap = tauri::ipc::CapabilityBuilder::new(format!("remote-app-{}", port))
+        .window("main")
+        .local(false);
+    for url in remote_app_urls(port, cfg!(debug_assertions)) {
+        cap = cap.remote(url);
+    }
+    for p in REMOTE_APP_PERMISSIONS {
+        cap = cap.permission(p);
+    }
+    if let Err(e) = app.add_capability(cap) {
+        tracing::error!("Could not grant the app window its permissions: {}", e);
+    }
+}
+
 /// URL the main window should show for the current server state.
 pub fn window_url(ctx: &AppState) -> Option<url::Url> {
     match &*ctx.server_status.read() {
@@ -92,6 +137,7 @@ pub async fn retry_server(
     }
     match server::start(shell.ctx.clone()).await {
         Ok(h) => {
+            trust_app_origin(&app, h.addr.port());
             *guard = Some(h);
             navigate(&app, &shell.ctx);
         }
@@ -110,6 +156,7 @@ pub async fn restart_server(app: AppHandle, shell: State<'_, ShellState>) -> Res
     }
     match server::start(shell.ctx.clone()).await {
         Ok(h) => {
+            trust_app_origin(&app, h.addr.port());
             *guard = Some(h);
             navigate(&app, &shell.ctx);
             Ok(shell.ctx.server_status.read().clone())
@@ -217,7 +264,53 @@ then create a new account.",
 
 #[cfg(test)]
 mod reset_tests {
-    use super::reset_caller_allowed;
+    use super::{remote_app_urls, reset_caller_allowed};
+
+    /// S-08: the app's permissions go to the server's own port only; no
+    /// capability file trusts every port on loopback.
+    #[test]
+    fn app_permissions_are_scoped_to_the_listening_port() {
+        assert_eq!(
+            remote_app_urls(5000, false),
+            vec!["http://127.0.0.1:5000/*", "http://localhost:5000/*"]
+        );
+        assert!(remote_app_urls(5500, true).contains(&"http://localhost:5173/*".to_string()));
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("capabilities");
+        for f in std::fs::read_dir(dir).unwrap() {
+            let text = std::fs::read_to_string(f.unwrap().path()).unwrap();
+            assert!(
+                !text.contains(":*\""),
+                "a capability trusts every port: {}",
+                text
+            );
+            assert!(
+                !text.contains("\"remote\""),
+                "remote pages are granted at run time"
+            );
+        }
+    }
+
+    /// S-08: the permissions granted at run time name permissions that
+    /// exist. A wrong name fails `add_capability` at start-up, leaving the
+    /// window without them, and no compile-time check covers a capability
+    /// built in code. The build script writes the ACL manifests this reads.
+    #[test]
+    fn runtime_app_permissions_exist_in_the_acl_manifests() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("gen")
+            .join("schemas")
+            .join("acl-manifests.json");
+        let text = std::fs::read_to_string(&path).unwrap();
+        let manifests: serde_json::Value = serde_json::from_str(&text).unwrap();
+        for p in super::REMOTE_APP_PERMISSIONS {
+            let (manifest, name) = p.rsplit_once(':').unwrap_or(("__app-acl__", p));
+            assert!(
+                manifests[manifest]["permissions"][name].is_object(),
+                "{} is not a known permission",
+                p
+            );
+        }
+    }
 
     fn u(s: &str) -> url::Url {
         url::Url::parse(s).unwrap()

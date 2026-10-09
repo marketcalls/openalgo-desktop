@@ -95,6 +95,9 @@ pub fn run() {
                     Ok::<_, error::AppError>((ctx, server, feed))
                 })?;
                 app.manage(feed);
+                if let Some(h) = &server {
+                    commands::trust_app_origin(app.handle(), h.addr.port());
+                }
 
                 let url = if server.is_none() {
                     // Start-up page explaining why the server is not running.
