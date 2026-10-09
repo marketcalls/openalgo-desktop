@@ -434,7 +434,13 @@ async fn accept_loop(listener: TcpListener, shared: Arc<Shared>, token: Cancella
                     *n += 1;
                 }
                 shared.active.fetch_add(1, Ordering::Relaxed);
-                conns.spawn(serve_conn(stream, remote, shared.clone(), token.clone()));
+                conns.spawn(serve_conn(
+                    stream,
+                    peer.ip(),
+                    remote,
+                    shared.clone(),
+                    token.clone(),
+                ));
             }
         }
     }
@@ -549,6 +555,7 @@ async fn write_loop(mut sink: WsSink, outbox: Arc<Outbox>) {
 
 async fn serve_conn(
     stream: TcpStream,
+    peer: std::net::IpAddr,
     remote: Option<std::net::IpAddr>,
     shared: Arc<Shared>,
     token: CancellationToken,
@@ -603,6 +610,7 @@ async fn serve_conn(
     let mut writer = AbortOnDrop(tokio::spawn(write_loop(sink, outbox.clone())));
     let mut session = Session {
         id,
+        peer,
         shared: shared.clone(),
         outbox: outbox.clone(),
         user_id: None,
@@ -714,6 +722,8 @@ async fn serve_conn(
 /// One client's protocol state.
 struct Session {
     id: ClientId,
+    /// The connection's socket peer, for the failed-key budget.
+    peer: std::net::IpAddr,
     shared: Arc<Shared>,
     outbox: Arc<Outbox>,
     user_id: Option<String>,
@@ -814,8 +824,18 @@ impl Session {
         if !py_truthy(key) {
             return self.error(code::AUTHENTICATION_ERROR, "API key is required", None);
         }
+        let auth = &self.shared.auth;
         let outcome = match key.as_str() {
-            Some(k) => self.shared.auth.authenticate(k).await,
+            // Too many failed keys from this caller: refused unchecked,
+            // with the same answer (security review S-02).
+            Some(k) if auth.locked(self.peer, k) => AuthOutcome::Invalid,
+            Some(k) => {
+                let outcome = auth.authenticate(k).await;
+                if outcome == AuthOutcome::Invalid {
+                    auth.failed(self.peer, k);
+                }
+                outcome
+            }
             None => AuthOutcome::Invalid,
         };
         match outcome {

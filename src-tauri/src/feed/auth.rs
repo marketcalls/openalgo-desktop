@@ -38,6 +38,16 @@ pub trait FeedAuth: Send + Sync + 'static {
     fn refused(&self, _peer: std::net::IpAddr) -> bool {
         false
     }
+
+    /// Whether `authenticate` from `peer` is refused without the key being
+    /// checked: too many failed keys (the budget `/api/v1` and `/mcp`
+    /// share).
+    fn locked(&self, _peer: std::net::IpAddr, _api_key: &str) -> bool {
+        false
+    }
+
+    /// Count a key that failed for `peer`.
+    fn failed(&self, _peer: std::net::IpAddr, _api_key: &str) {}
 }
 
 /// Authentication against the app's stored API key and broker session.
@@ -58,6 +68,16 @@ impl FeedAuth for AppAuth {
     fn refused(&self, peer: std::net::IpAddr) -> bool {
         let ip = crate::server::addr::canonical(peer);
         !ip.is_loopback() && self.ctx.monitor.is_banned(&ip.to_string(), self.ctx.now())
+    }
+
+    fn locked(&self, peer: std::net::IpAddr, api_key: &str) -> bool {
+        use crate::server::middleware::{credential_locked, feed_caller};
+        credential_locked(&self.ctx, feed_caller(peer), "apikey", api_key)
+    }
+
+    fn failed(&self, peer: std::net::IpAddr, api_key: &str) {
+        use crate::server::middleware::{credential_failed, feed_caller};
+        credential_failed(&self.ctx, feed_caller(peer), "apikey", api_key)
     }
 
     async fn authenticate(&self, api_key: &str) -> AuthOutcome {

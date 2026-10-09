@@ -372,12 +372,17 @@ fn bad_origin() -> Response {
         .into_response()
 }
 
-/// The live token in the request, if any.
+/// The live token in the request, if any. Failed tokens count against the
+/// caller's credential budget, as bad API keys do (security review S-02).
 #[allow(clippy::result_large_err)]
-fn token(ctx: &AppState, headers: &HeaderMap) -> Result<TokenRow, Response> {
+fn token(ctx: &AppState, ip: IpAddr, headers: &HeaderMap) -> Result<TokenRow, Response> {
+    use crate::server::middleware::{credential_failed, credential_locked};
     let Some(t) = bearer(headers) else {
         return Err(unauthorized(ctx, "invalid_token", "Missing Bearer token."));
     };
+    if credential_locked(ctx, ip, "mcp", &t) {
+        return Err(unauthorized(ctx, "invalid_token", ""));
+    }
     let found = ctx.sqlite.conn().and_then(|c| store::find_token(&c, &t));
     match found {
         Ok(Some(row)) => {
@@ -386,7 +391,10 @@ fn token(ctx: &AppState, headers: &HeaderMap) -> Result<TokenRow, Response> {
             }
             Ok(row)
         }
-        Ok(None) => Err(unauthorized(ctx, "invalid_token", "")),
+        Ok(None) => {
+            credential_failed(ctx, ip, "mcp", &t);
+            Err(unauthorized(ctx, "invalid_token", ""))
+        }
         Err(e) => {
             tracing::error!("MCP token check failed: {}", e);
             Err(unauthorized(ctx, "invalid_token", ""))
@@ -506,7 +514,7 @@ pub async fn post(
     if !origin_allowed(&ctx, &headers) {
         return bad_origin();
     }
-    let tok = match token(&ctx, &headers) {
+    let tok = match token(&ctx, ip, &headers) {
         Ok(t) => t,
         Err(r) => return r,
     };
@@ -678,7 +686,7 @@ pub async fn sse(State(ctx): Ctx, ClientIp(ip): ClientIp, headers: HeaderMap) ->
     if !origin_allowed(&ctx, &headers) {
         return bad_origin();
     }
-    let tok = match token(&ctx, &headers) {
+    let tok = match token(&ctx, ip, &headers) {
         Ok(t) => t,
         Err(r) => return r,
     };

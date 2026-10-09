@@ -1,6 +1,6 @@
 //! Market data and symbol endpoints.
 
-use super::{authorize, check_url_key, load, send, Auth, Style};
+use super::{authorize, check, load, send, Auth, Style};
 use crate::server::envelope::json_response;
 use crate::server::middleware::ClientIp;
 use crate::services::market_data_service as market;
@@ -224,7 +224,7 @@ pub async fn ticker(
     body.insert("start_date".into(), get("from"));
     body.insert("end_date".into(), get("to"));
     let plain = |status: StatusCode, msg: String| text(status, "text/plain", msg);
-    let v = match check_url_key(
+    let v = match check(
         &ctx,
         ip,
         &body,

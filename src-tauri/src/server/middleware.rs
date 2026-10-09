@@ -252,6 +252,47 @@ pub fn limiter_key(ip: IpAddr, scope: &str, credential: &str) -> IpAddr {
     ))
 }
 
+/// Failed-credential budget shared by every surface that checks an API key
+/// or token (`/api/v1`, `/mcp`, the market data feed): ten failures a
+/// minute, then the caller is refused without the credential being
+/// checked (security review S-02, S-03). `caller` is [`Source::ip`] (the
+/// feed passes [`feed_caller`]). This computer is never locked out; a
+/// device on the network is counted by its address, whatever it presents;
+/// tunnel callers by the credential presented ([`limiter_key`]), so a
+/// stranger's failures never block a correct credential. `scope` names the
+/// kind of credential.
+pub fn credential_locked(ctx: &AppState, caller: IpAddr, scope: &str, presented: &str) -> bool {
+    !is_loopback(caller)
+        && ctx.limiter.is_exhausted(
+            Bucket::ApiKeyFail,
+            limiter_key(caller, scope, presented),
+            ctx.limiter.now(),
+        )
+}
+
+/// Count one failed credential check (see [`credential_locked`]).
+pub fn credential_failed(ctx: &AppState, caller: IpAddr, scope: &str, presented: &str) {
+    if !is_loopback(caller) {
+        let _ = ctx.limiter.check(
+            Bucket::ApiKeyFail,
+            limiter_key(caller, scope, presented),
+            ctx.limiter.now(),
+        );
+    }
+}
+
+/// The feed's caller for [`credential_locked`]: a device on the network by
+/// its address; a loopback peer, which may be this computer or a tunnel
+/// (the feed reads no headers), as a tunnel caller, counted per key.
+pub fn feed_caller(peer: IpAddr) -> IpAddr {
+    let peer = crate::server::addr::canonical(peer);
+    if peer.is_loopback() {
+        PROXIED_CALLER
+    } else {
+        peer
+    }
+}
+
 /// Outermost application layer: classify the caller once ([`classify`])
 /// and store it for every per-caller control further in.
 pub async fn peer_layer(
@@ -876,6 +917,7 @@ impl SignInAttempt<'_> {
 /// the account's.
 /// The wait check and the count are one step under one lock, so parallel
 /// requests cannot all slip through. Call [`sign_in_refused`] first.
+#[allow(clippy::result_large_err)]
 pub fn claim_sign_in(ctx: &AppState, source: Source) -> Result<SignInAttempt<'_>, Response> {
     match ctx
         .limiter

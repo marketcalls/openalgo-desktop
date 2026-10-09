@@ -198,11 +198,9 @@ async fn s02_image_requests_with_a_bad_key_do_not_lock_out_local_programs() {
         let (s, v) = h.json(cross_site(ticker("x"), "image")).await;
         assert_eq!(s, StatusCode::FORBIDDEN);
         assert_eq!(v["message"], "Invalid openalgo apikey");
-    }
-    // The same requests from another device without browser headers: a key
-    // in a URL is never counted.
-    for _ in 0..20 {
-        let (s, _, _) = h.send(from_peer(ticker("x"), LAN)).await;
+        let (s, _) = h
+            .json(from_peer(cross_site(ticker("x"), "image"), LAN))
+            .await;
         assert_eq!(s, StatusCode::FORBIDDEN);
     }
     let (s, _) = h
@@ -215,7 +213,100 @@ async fn s02_image_requests_with_a_bad_key_do_not_lock_out_local_programs() {
             LAN,
         ))
         .await;
+    assert_eq!(s, StatusCode::OK, "refused before the key was checked");
+}
+
+/// S-02: a key sent in the URL counts like one in the body, so a device on
+/// the network cannot guess keys through `GET /api/v1/ticker` unthrottled.
+#[tokio::test]
+async fn s02_a_key_in_the_url_counts_like_one_in_the_body() {
+    let h = H::new();
+    let key = h.setup();
+    h.connect_broker();
+    for i in 0..10 {
+        let (s, _, _) = h.send(from_peer(ticker(&format!("guess{}", i)), LAN)).await;
+        assert_eq!(s, StatusCode::FORBIDDEN);
+    }
+    // The device is now refused without its key being checked, in the URL
+    // or in the body.
+    let (s, _, _) = h.send(from_peer(ticker(&key), LAN)).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, _) = h
+        .json(from_peer(
+            post_json("/api/v1/ping", json!({"apikey": key})),
+            LAN,
+        ))
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    // This computer and other devices are unaffected.
+    let (s, _) = h
+        .json(post_json("/api/v1/ping", json!({"apikey": key})))
+        .await;
     assert_eq!(s, StatusCode::OK);
+    let (s, _) = h
+        .json(from_peer(
+            post_json("/api/v1/ping", json!({"apikey": key})),
+            "192.168.1.51",
+        ))
+        .await;
+    assert_eq!(s, StatusCode::OK);
+}
+
+/// Remote MCP on and a token for it.
+fn remote_mcp(h: &H) -> String {
+    let c = h.ctx().sqlite.conn().unwrap();
+    let mut st = crate::mcp::store::settings(&c).unwrap();
+    st.http_enabled = true;
+    crate::mcp::store::save_settings(&c, &st).unwrap();
+    crate::mcp::store::create_token(
+        &c,
+        "claude",
+        crate::mcp::store::TokenScope::Read,
+        h.ctx().now(),
+    )
+    .unwrap()
+    .1
+}
+
+fn mcp_ping(token: &str) -> Request<Body> {
+    let mut r = post_json("/mcp", json!({"jsonrpc": "2.0", "id": 1, "method": "ping"}));
+    r.headers_mut().insert(
+        header::AUTHORIZATION,
+        format!("Bearer {}", token).parse().unwrap(),
+    );
+    r
+}
+
+/// S-02: bad MCP tokens count against the same budget as bad API keys: a
+/// device on the network is refused after ten, this computer never is, and
+/// a stranger's bad tokens through the tunnel never block a good one.
+#[tokio::test]
+async fn s02_bad_mcp_tokens_are_counted_like_bad_keys() {
+    let h = H::new();
+    h.setup();
+    let token = remote_mcp(&h);
+    let (s, _) = h.json(from_peer(mcp_ping(&token), LAN)).await;
+    assert_eq!(s, StatusCode::OK);
+    for i in 0..10 {
+        let bad = format!("oamcp_guess{}", i);
+        let (s, _) = h.json(from_peer(mcp_ping(&bad), LAN)).await;
+        assert_eq!(s, StatusCode::UNAUTHORIZED);
+        let (s, _) = h.json(mcp_ping(&bad)).await;
+        assert_eq!(s, StatusCode::UNAUTHORIZED);
+        let (s, _) = h.json(tunnelled(mcp_ping("oamcp_wrong"))).await;
+        assert_eq!(s, StatusCode::UNAUTHORIZED);
+    }
+    let (s, _) = h.json(from_peer(mcp_ping(&token), LAN)).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED, "the device is locked out");
+    let (s, v) = h.json(mcp_ping(&token)).await;
+    assert_eq!(s, StatusCode::OK, "this computer is not: {}", v);
+    let (s, v) = h.json(tunnelled(mcp_ping(&token))).await;
+    assert_eq!(s, StatusCode::OK, "a good token through the tunnel: {}", v);
+    assert!(h.ctx().limiter.is_exhausted(
+        crate::server::ratelimit::Bucket::ApiKeyFail,
+        crate::server::middleware::limiter_key(PROXIED_CALLER, "mcp", "oamcp_wrong"),
+        h.ctx().limiter.now()
+    ));
 }
 
 /// S-02: a web page firing requests at /api/v1 does not use up the

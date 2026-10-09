@@ -29,7 +29,6 @@ mod strategy;
 
 use crate::events::{Event, GttKind, Mode};
 use crate::server::envelope::{json_response, not_found, read_json_object};
-use crate::server::ratelimit::Bucket;
 use crate::services::apikey_service::ApiKeyService;
 use crate::services::core::{is_analyze, meta, safe_request, Reply, INVALID_API_KEY};
 use crate::services::schema::{FieldErrors, Schema};
@@ -148,35 +147,20 @@ fn schema_error(
 /// (`middleware::Source::Local`, the only source whose address is
 /// loopback) is never locked out: every local program shares 127.0.0.1, so
 /// one bad client would refuse all of them. Loopback stays under the
-/// 100-per-second limit.
+/// 100-per-second limit. A key from the URL counts like one from the body
+/// (a web page's requests are refused before this, by
+/// `middleware::api_rate_limit`); `/mcp` and the feed share the budget
+/// ([`crate::server::middleware::credential_locked`]).
 pub fn authorize(ctx: &AppState, key: &str, ip: IpAddr, auth: Auth) -> bool {
-    authorize_counting(ctx, key, ip, auth, true)
-}
-
-/// [`authorize`], with `count` false for keys taken from a URL (`GET
-/// /api/v1/ticker`): anything that can load an address can send those.
-pub fn authorize_counting(ctx: &AppState, key: &str, ip: IpAddr, auth: Auth, count: bool) -> bool {
-    let now = ctx.limiter.now();
-    let lockable = !is_local(ip);
-    // Tunnel callers are counted per presented key, never all together.
-    let ip = crate::server::middleware::limiter_key(ip, "apikey", key);
-    if lockable && ctx.limiter.is_exhausted(Bucket::ApiKeyFail, ip, now) {
+    use crate::server::middleware::{credential_failed, credential_locked};
+    if credential_locked(ctx, ip, "apikey", key) {
         return false;
     }
     if !ApiKeyService::is_valid(ctx, key) {
-        if lockable && count {
-            let _ = ctx.limiter.check(Bucket::ApiKeyFail, ip, now);
-        }
+        credential_failed(ctx, ip, "apikey", key);
         return false;
     }
     auth == Auth::KeyOnly || ctx.is_broker_connected()
-}
-
-fn is_local(ip: IpAddr) -> bool {
-    match ip {
-        IpAddr::V4(v) => v.is_loopback(),
-        IpAddr::V6(v) => v.is_loopback() || v.to_ipv4_mapped().is_some_and(|m| m.is_loopback()),
-    }
 }
 
 fn auth_failure(auth: Auth) -> Response {
@@ -210,30 +194,6 @@ pub fn check(
         .unwrap_or_default()
         .to_string();
     if !authorize(ctx, &key, ip, auth) {
-        return Err(auth_failure(auth));
-    }
-    Ok(Value::Object(loaded))
-}
-
-/// [`check`] for a key taken from the URL: failures are not counted.
-#[allow(clippy::result_large_err)]
-pub fn check_url_key(
-    ctx: &AppState,
-    ip: IpAddr,
-    body: &Map<String, Value>,
-    schema: &Schema,
-    style: Style,
-    auth: Auth,
-) -> Result<Value, Response> {
-    let loaded = schema
-        .load(body)
-        .map_err(|e| schema_error(ctx, style, body, &e))?;
-    let key = loaded
-        .get("apikey")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    if !authorize_counting(ctx, &key, ip, auth, false) {
         return Err(auth_failure(auth));
     }
     Ok(Value::Object(loaded))

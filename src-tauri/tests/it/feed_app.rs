@@ -129,6 +129,86 @@ async fn app_auth_uses_the_stored_api_key_and_broker_session() {
     ctx.shutdown().await;
 }
 
+/// Security review S-02: failed feed keys count against the budget
+/// `/api/v1` and `/mcp` share. A device on the network is refused after
+/// ten whatever key it then sends; a loopback peer (this computer or a
+/// tunnel; the feed cannot tell) is counted per key, so a stranger's bad
+/// keys never block a correct one.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn failed_feed_keys_are_counted_like_api_keys() {
+    use openalgo_desktop_lib::feed::auth::{AppAuth, AuthOutcome, FeedAuth};
+    use openalgo_desktop_lib::server::middleware::{limiter_key, PROXIED_CALLER};
+    use openalgo_desktop_lib::server::ratelimit::Bucket;
+    let dir = tempfile::tempdir().unwrap();
+    let ctx = open_ctx(&dir);
+    {
+        let conn = ctx.sqlite.conn().unwrap();
+        user::insert(
+            &conn,
+            &ctx.security,
+            "alice",
+            "alice@example.com",
+            "not-a-real-hash",
+            "JBSWY3DPEHPK3PXP",
+        )
+        .unwrap();
+    }
+    let key = ApiKeyService::regenerate(&ctx, "alice").unwrap();
+    let key = key.expose().to_string();
+    set_ws_port(&ctx, free_port().await);
+    let feed = FeedService::new(ctx.clone());
+    assert!(matches!(feed.start().await, ServerStatus::Running { .. }));
+    let url = format!("ws://{}", feed.local_addr().await.unwrap());
+    let invalid =
+        json!({"status": "error", "code": "AUTHENTICATION_ERROR", "message": "Invalid API key"});
+    let no_broker = json!({"status": "error", "code": "BROKER_ERROR", "message": "No broker configuration found for user"});
+
+    // Over loopback: ten bad keys exhaust that key's budget only.
+    let mut c = Client::connect(&url).await;
+    for _ in 0..10 {
+        let v = c
+            .request(json!({"action": "authenticate", "api_key": "wrong"}))
+            .await;
+        assert_eq!(v, invalid);
+    }
+    let now = ctx.limiter.now();
+    let bad = limiter_key(PROXIED_CALLER, "apikey", "wrong");
+    assert!(ctx.limiter.is_exhausted(Bucket::ApiKeyFail, bad, now));
+    let v = c
+        .request(json!({"action": "authenticate", "api_key": key}))
+        .await;
+    assert_eq!(v, no_broker, "a correct key still authenticates");
+    drop(c);
+
+    // A locked budget refuses even the correct key, unchecked.
+    let good = limiter_key(PROXIED_CALLER, "apikey", &key);
+    for _ in 0..10 {
+        let _ = ctx.limiter.check(Bucket::ApiKeyFail, good, now);
+    }
+    let mut c = Client::connect(&url).await;
+    let v = c
+        .request(json!({"action": "authenticate", "api_key": key}))
+        .await;
+    assert_eq!(v, invalid);
+    drop(c);
+
+    // A device on the network is counted by its address.
+    let auth = AppAuth::new(ctx.clone());
+    let lan: std::net::IpAddr = "192.168.1.50".parse().unwrap();
+    let other: std::net::IpAddr = "192.168.1.51".parse().unwrap();
+    for i in 0..10 {
+        let guess = format!("guess{}", i);
+        assert!(!auth.locked(lan, &guess));
+        assert_eq!(auth.authenticate(&guess).await, AuthOutcome::Invalid);
+        auth.failed(lan, &guess);
+    }
+    assert!(auth.locked(lan, &key));
+    assert!(auth.locked("::ffff:192.168.1.50".parse().unwrap(), &key));
+    assert!(!auth.locked(other, &key));
+    feed.stop().await;
+    ctx.shutdown().await;
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn service_moves_on_port_change_and_reports_a_taken_port() {
     let dir = tempfile::tempdir().unwrap();
