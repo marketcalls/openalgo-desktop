@@ -48,6 +48,15 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # @openuidev/* is 0.x, where a "minor" is a breaking release. The web
+      # pins react-headless 0.9, react-lang 0.2 and react-ui 0.13, and the Agent
+      # prompt generated from them must fit AGENT_UI_PROMPT_MAX_CHARS
+      # (src/lib/agent/openuiLibrary.ts). 0.17 / 0.3 grew it from under 8800 to
+      # 10088 characters and failed openuiLibrary.test.ts (PR #29). Take these
+      # with the web's own upgrade or when the Agent is built, not from a weekly
+      # PR. Patch releases still come through.
+      - dependency-name: "@openuidev/*"
+        update-types: ["version-update:semver-minor"]
     groups:
       tauri:
         patterns: ["@tauri-apps/*"]
