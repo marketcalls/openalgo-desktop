@@ -426,6 +426,21 @@ filtered test runs and run the full suite once before pushing.
 The shared folder grows past 30 GB. When free disk drops below about 8 GB,
 delete `target/debug/deps` and `build` entries older than the current session
 and `incremental`; never the whole folder while other agents build.
+Deleting `incremental` under a running build fails it with `failed to move
+dependency graph`; rerun it, or build with `CARGO_INCREMENTAL=0` while
+others are cleaning.
+
+Cargo hashes this crate's build-script output (`target/debug/build/
+openalgo-desktop-<hash>/out`, the Tauri capabilities that
+`generate_context!` embeds) without the checkout path, so all worktrees share
+it, and its `rerun-if-changed` names whichever worktree ran it last. A
+worktree on an older base then leaves capabilities another does not match: a
+build or the doc tests fail with `capability with identifier <name> not
+found` although the file is there. Deleting that unit's
+`.fingerprint/openalgo-desktop-<hash>/run-build-script-*` (the hash whose
+`build/.../output` names another worktree) and rebuilding at once fixes it
+until the older worktree builds again; the lasting fix is rebasing that
+worktree onto master. CI builds fresh and is unaffected.
 
 ### Builds and CI
 
