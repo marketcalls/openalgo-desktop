@@ -1,8 +1,10 @@
 //! Flattrade (PiConnect), a Noren member (web `broker/flattrade/`).
 //! jKey form dialect, `/trade/apitoken` login, S3 CSV masters with fixed
-//! tick sizes and BSE `UNDIND` indices, `marginusedtrade` basket margin,
-//! funds M2M from the position book, a dual rolling-window limiter, and
-//! one socket per session (order updates ride the market socket).
+//! tick sizes and BSE `UNDIND` indices (index rows typed `EQ`, stale BSE
+//! rows with no exchange dropped, every file required), hardened candle
+//! parsing, `marginusedtrade` basket margin, funds M2M from the position
+//! book, a dual rolling-window limiter, and one socket per session (order
+//! updates ride the market socket).
 
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::families::noren::*;
@@ -42,12 +44,16 @@ pub static CONFIG: NorenConfig = NorenConfig {
     index_naming: IndexNaming::StripAndOverride,
     bse_indices: BseIndices::FromMaster,
     nse_index_brexchange: "NSE_INDEX",
+    index_instrument_type: "EQ",
+    master_all_or_nothing: true,
+    bse_drop_without_exchange: true,
     bfo_from_tsym: false,
     timeframes: TIMEFRAMES_NO_4H,
     history_window_secs: None,
     eod_index_names: &[],
     history_repair: false,
     eod_widen: true,
+    strict_candles: true,
     today_bar_utc: true,
     quote_identity_retries: 0,
     multiquote_batch: 10,

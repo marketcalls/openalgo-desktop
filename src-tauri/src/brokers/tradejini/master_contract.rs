@@ -24,7 +24,7 @@ use crate::brokers::types::SymbolData;
 use crate::error::{AppError, Result};
 use chrono::NaiveDate;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// One scrip group from the symbol store.
 #[derive(Debug, Clone, PartialEq)]
@@ -364,8 +364,50 @@ async fn get_text(b: &TradejiniBroker, url: &str) -> Result<String> {
     Ok(resp.text().await?)
 }
 
-/// Download every group. A group that fails is skipped (web), but no group
-/// list at all is an error.
+/// Rows a group's CSV carries, parsed or not: lines after the header with
+/// the header's field count (web `get_scrip_data`).
+pub fn sent_rows(csv: &str) -> usize {
+    let mut lines = csv.trim().lines();
+    let Some(header) = lines.next() else {
+        return 0;
+    };
+    let fields = header.trim().split(',').count();
+    lines
+        .filter(|l| l.trim().split(',').count() == fields)
+        .count()
+}
+
+/// One group's rows (web #2198). A group that sent rows of which none
+/// parsed fails the download, since replacing the master then would
+/// silently drop that group's symbols; a group that sent nothing yields no
+/// rows and is skipped.
+pub fn group_rows(csv: &str, group: &Group) -> Result<Vec<SymbolData>> {
+    let parsed = parse_group(csv, group);
+    if parsed.is_empty() && sent_rows(csv) > 0 {
+        return Err(AppError::Broker(format!(
+            "Tradejini returned no usable symbols for {}. Your existing symbols were kept; try the download again.",
+            group.name
+        )));
+    }
+    Ok(parsed)
+}
+
+/// The first row for each token across groups (web `drop_duplicates(
+/// subset=["token"], keep="first")`), keyed by exchange as well so that two
+/// exchanges' independent token numbers never drop each other's
+/// instruments.
+pub fn first_per_token(rows: Vec<SymbolData>) -> Vec<SymbolData> {
+    let mut seen: HashSet<(String, String)> = HashSet::with_capacity(rows.len());
+    rows.into_iter()
+        .filter(|r| seen.insert((r.exchange.clone(), r.token.clone())))
+        .collect()
+}
+
+/// Download every group before anything is replaced (web #2198): a group
+/// that fails, or sends rows none of which parse, fails the download so
+/// the stored master is kept (the service swaps the table in one
+/// transaction); a group with nothing in it is skipped. No group list, or
+/// no usable row at all, is an error.
 pub async fn download(b: &TradejiniBroker) -> Result<Vec<SymbolData>> {
     let base = format!("{}/api/mkt-data/scrips/symbol-store", b.base_url);
     let text = get_text(b, &base).await?;
@@ -380,14 +422,28 @@ pub async fn download(b: &TradejiniBroker) -> Result<Vec<SymbolData>> {
     }
     let mut rows = Vec::new();
     for g in &groups {
-        match get_text(b, &format!("{}/{}", base, g.name)).await {
-            Ok(csv) => {
-                let parsed = parse_group(&csv, g);
-                tracing::info!("Tradejini master: {} rows from {}", parsed.len(), g.name);
-                rows.extend(parsed);
-            }
-            Err(e) => tracing::warn!("Tradejini master group {} skipped: {}", g.name, e.code()),
+        let csv = get_text(b, &format!("{}/{}", base, g.name))
+            .await
+            .map_err(|e| {
+                tracing::warn!("Tradejini master group {} failed: {}", g.name, e.code());
+                AppError::Broker(format!(
+                    "Could not download the Tradejini {} symbols. Your existing symbols were kept; try the download again.",
+                    g.name
+                ))
+            })?;
+        let parsed = group_rows(&csv, g)?;
+        if parsed.is_empty() {
+            tracing::warn!("Tradejini master group {} has no symbols", g.name);
+            continue;
         }
+        tracing::info!("Tradejini master: {} rows from {}", parsed.len(), g.name);
+        rows.extend(parsed);
     }
-    Ok(rows)
+    if rows.iter().all(|r| r.token.is_empty()) {
+        return Err(AppError::Broker(
+            "Tradejini returned no usable symbols. Your existing symbols were kept; try the download again."
+                .into(),
+        ));
+    }
+    Ok(first_per_token(rows))
 }

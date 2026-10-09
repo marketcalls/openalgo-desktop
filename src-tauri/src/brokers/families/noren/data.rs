@@ -208,10 +208,35 @@ fn ist_epoch(d: NaiveDate, h: u32, m: u32, s: u32) -> i64 {
         .unwrap_or_else(|| naive.and_utc().timestamp() - 19800)
 }
 
+/// A candle field as the hardened parser reads it (web flattrade
+/// `_candle_number`, #2198): `None` when it is missing, null, empty, not a
+/// number, NaN or infinite, so a missing price is never charted as 0.
+pub fn candle_number(v: &Value, k: &str) -> Option<f64> {
+    let n = match v.get(k)? {
+        Value::Number(n) => n.as_f64(),
+        Value::String(s) => s.trim().parse::<f64>().ok(),
+        _ => None,
+    }?;
+    n.is_finite().then_some(n)
+}
+
 /// One TPSeries / EODChartData element -> candle. Elements may be JSON
 /// strings; all-zero OHLC rows are skipped; `ssboe` wins over `time`
-/// (`DD-MM-YYYY HH:MM:SS` IST, or `DD-Mon-YYYY` at UTC midnight).
+/// (`DD-MM-YYYY HH:MM:SS` IST, or `DD-Mon-YYYY` at UTC midnight). A
+/// missing field reads as 0.
 pub fn parse_candle(el: &Value) -> Option<Candle> {
+    candle_from(el, false)
+}
+
+/// `parse_candle` for members with `strict_candles` (flattrade, web
+/// #2198): a candle whose open, high, low or close is missing, null, empty,
+/// NaN or infinite is skipped instead of charted at 0; a missing or
+/// unreadable volume or OI reads as 0.
+pub fn parse_candle_strict(el: &Value) -> Option<Candle> {
+    candle_from(el, true)
+}
+
+fn candle_from(el: &Value, strict: bool) -> Option<Candle> {
     let owned;
     let c = match el {
         Value::String(s) => {
@@ -221,13 +246,37 @@ pub fn parse_candle(el: &Value) -> Option<Candle> {
         Value::Object(_) => el,
         _ => return None,
     };
-    let (o, h, l, cl) = (f(c, "into"), f(c, "inth"), f(c, "intl"), f(c, "intc"));
+    let (o, h, l, cl) = if strict {
+        (
+            candle_number(c, "into")?,
+            candle_number(c, "inth")?,
+            candle_number(c, "intl")?,
+            candle_number(c, "intc")?,
+        )
+    } else {
+        (f(c, "into"), f(c, "inth"), f(c, "intl"), f(c, "intc"))
+    };
     if o == 0.0 && h == 0.0 && l == 0.0 && cl == 0.0 {
         return None;
     }
-    let ts = match c.get("ssboe") {
-        Some(v) if !v.is_null() && !text(c, "ssboe").is_empty() => i(c, "ssboe"),
-        _ => {
+    let whole = |k: &str| {
+        if strict {
+            candle_number(c, k).map_or(0, |v| v as i64)
+        } else {
+            i(c, k)
+        }
+    };
+    let ssboe = if strict {
+        candle_number(c, "ssboe").map(|v| v as i64)
+    } else {
+        match c.get("ssboe") {
+            Some(v) if !v.is_null() && !text(c, "ssboe").is_empty() => Some(i(c, "ssboe")),
+            _ => None,
+        }
+    };
+    let ts = match ssboe {
+        Some(ts) => ts,
+        None => {
             let t = text(c, "time");
             if let Ok(dt) = NaiveDateTime::parse_from_str(&t, "%d-%m-%Y %H:%M:%S") {
                 Kolkata.from_local_datetime(&dt).single()?.timestamp()
@@ -238,9 +287,9 @@ pub fn parse_candle(el: &Value) -> Option<Candle> {
         }
     };
     let oi = if c.get("oi").is_some() {
-        i(c, "oi")
+        whole("oi")
     } else {
-        i(c, "intoi")
+        whole("intoi")
     };
     Some(Candle {
         timestamp: ts,
@@ -248,9 +297,39 @@ pub fn parse_candle(el: &Value) -> Option<Candle> {
         high: h,
         low: l,
         close: cl,
-        volume: i(c, "intv"),
+        volume: whole("intv"),
         oi,
     })
+}
+
+/// Exchanges whose TPSeries adds a pre-open bar before the 09:15 open
+/// (web flattrade `get_history`, #2198; indices query on NSE / BSE).
+const PRE_OPEN_EXCHANGES: &[&str] = &["NSE", "BSE", "NFO", "BFO"];
+
+/// Is this bar stamped before 09:15 IST?
+pub fn before_session_open(ts: i64) -> bool {
+    use chrono::Timelike;
+    Kolkata
+        .timestamp_opt(ts, 0)
+        .single()
+        .is_some_and(|t| t.hour() * 60 + t.minute() < 9 * 60 + 15)
+}
+
+/// Intraday clean-up for members with `strict_candles` (web flattrade
+/// `get_history`, #2198). On NSE/BSE/NFO/BFO (`exch` is the Noren
+/// exchange) TPSeries adds a 09:14 bar holding the pre-open discovered
+/// price, flat with no bar volume; the session opens at 09:15, so bars
+/// before it are dropped (QA HS-07). Volume is floored at 0: during the
+/// closing session the cumulative volume switches counters and back, so
+/// the bar-to-bar difference goes negative and a chart refuses the whole
+/// history on one such bar.
+pub fn clean_intraday(candles: &mut Vec<Candle>, exch: &str) {
+    if PRE_OPEN_EXCHANGES.contains(&exch) {
+        candles.retain(|c| !before_session_open(c.timestamp));
+    }
+    for c in candles.iter_mut() {
+        c.volume = c.volume.max(0);
+    }
 }
 
 /// Make every candle satisfy `low <= open, close <= high`, volume >= 0
@@ -365,7 +444,25 @@ pub async fn get_history(
         tracing::warn!(broker = b.cfg.id, "History failed: {}", last_err);
         return Err(noren_error(b.cfg.name, &last_err));
     }
-    let mut candles: Vec<Candle> = raw.iter().filter_map(parse_candle).collect();
+    let parse = if b.cfg.strict_candles {
+        parse_candle_strict
+    } else {
+        parse_candle
+    };
+    let mut candles: Vec<Candle> = raw.iter().filter_map(parse).collect();
+    if b.cfg.strict_candles {
+        let skipped = raw.len() - candles.len();
+        if skipped > 0 {
+            tracing::warn!(
+                broker = b.cfg.id,
+                "Skipped {} history rows with a missing or zero price",
+                skipped
+            );
+        }
+        if !daily {
+            clean_intraday(&mut candles, &exch);
+        }
+    }
     if daily && b.cfg.eod_widen {
         candles.iter_mut().for_each(widen_to_open_close);
     }

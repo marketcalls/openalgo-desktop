@@ -5,7 +5,10 @@
 use super::auth::{api_key, twofa_type};
 use super::data::{history_window, parse_bars, to_depth};
 use super::mapping::*;
-use super::master_contract::{index_symbol, parse_expiry, parse_group, parse_groups, Group};
+use super::master_contract::{
+    first_per_token, group_rows, index_symbol, parse_expiry, parse_group, parse_groups, sent_rows,
+    Group,
+};
 use super::orders::{modify_order_form, place_order_form};
 use super::streaming::build::{self, V};
 use super::streaming::{decode_message, segment, sub_frame, unsub_frame, ws_key, Packet};
@@ -135,6 +138,49 @@ fn index_rows_and_renames() {
     assert_eq!(index_symbol("NSE_INDEX", "Nifty Pvt Bank"), "NIFTYPVTBANK");
     // The maps are per exchange.
     assert_eq!(index_symbol("NSE_INDEX", "AUTO"), "AUTO");
+}
+
+/// Web #2198: a group that sent rows none of which parse fails the
+/// download (replacing the master would drop that group); a group that
+/// sent nothing is skipped; rows with the header's field count are what
+/// "sent" means (web `get_scrip_data`).
+#[test]
+fn unusable_groups_refuse_the_download() {
+    let g = group("Securities", "instrument_symbol_series_exchange");
+    let header = "id,dispName,excToken,lot,tick,symbol,desc,asset\n";
+    assert_eq!(sent_rows(header), 0);
+    assert_eq!(sent_rows(""), 0);
+    assert!(group_rows(header, &g).unwrap().is_empty());
+    assert!(group_rows("", &g).unwrap().is_empty());
+    // A short row was never sent as far as the web is concerned.
+    let short = format!("{}EQT_X_EQ_NSE,X\n", header);
+    assert_eq!(sent_rows(&short), 0);
+    assert!(group_rows(&short, &g).unwrap().is_empty());
+    // Rows sent, none usable (no id): refused, naming the group.
+    let unusable = format!("{},X,1,1,0.05,X,X,equity\n", header);
+    assert_eq!(sent_rows(&unusable), 1);
+    let e = group_rows(&unusable, &g).unwrap_err();
+    assert!(e
+        .client_message()
+        .contains("no usable symbols for Securities"));
+    assert_eq!(group_rows(fixture!("Securities.csv"), &g).unwrap().len(), 3);
+}
+
+/// Web #2198 keeps the first row per token across groups; keyed by
+/// exchange too, so NSE and NFO rows sharing a token number both stay.
+#[test]
+fn first_row_per_exchange_and_token_wins() {
+    let row = |sym: &str, ex: &str, tok: &str| {
+        crate::brokers::common::symbols::tests::row(sym, sym, ex, tok)
+    };
+    let rows = first_per_token(vec![
+        row("A", "NSE", "1"),
+        row("B", "NSE", "1"),
+        row("C", "NFO", "1"),
+        row("D", "NSE", "2"),
+    ]);
+    let syms: Vec<&str> = rows.iter().map(|r| r.symbol.as_str()).collect();
+    assert_eq!(syms, ["A", "C", "D"]);
 }
 
 #[test]

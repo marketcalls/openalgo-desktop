@@ -13,6 +13,7 @@ use crate::brokers::families::noren::master_contract::expiry;
 use crate::brokers::types::AuthToken;
 use crate::error::{AppError, Result};
 use serde_json::{json, Value};
+use std::collections::HashSet;
 
 pub const FILES: &[&str] = &["NSE", "BSE", "NFO", "BFO"];
 
@@ -310,33 +311,31 @@ pub fn parse_index_list(v: &Value) -> Vec<SymToken> {
         .unwrap_or_default()
 }
 
-pub async fn download(b: &FirstockBroker, auth: &AuthToken) -> Result<Vec<SymToken>> {
-    let mut rows = Vec::new();
-    let mut ok = 0;
-    for ex in FILES {
-        let url = format!("{}/symbols/{}?ref=firstock.in", b.base_url, ex);
-        let text_body = match b.http.get(&url).timeout(DOWNLOAD_TIMEOUT).send().await {
-            Ok(r) if r.status().is_success() => match r.text().await {
-                Ok(t) => t,
-                Err(e) => {
-                    tracing::warn!(
-                        broker = "firstock",
-                        "Master file {} failed: {}",
-                        ex,
-                        crate::brokers::common::redact::url_safe_error(&e)
-                    );
-                    continue;
-                }
-            },
-            Ok(r) => {
-                tracing::warn!(
-                    broker = "firstock",
-                    "Master file {} answered {}",
-                    ex,
-                    r.status()
-                );
-                continue;
-            }
+/// The index rows of the master in use, to carry forward when the index
+/// list cannot be fetched (web `get_existing_index_rows`, #2198): each
+/// exchange and token once, and none the fresh rows already hold (the web
+/// drops a token already taken).
+pub fn carried_index_rows(current: &[SymToken], fresh: &[SymToken]) -> Vec<SymToken> {
+    let mut have: HashSet<(&str, &str)> = fresh
+        .iter()
+        .map(|r| (r.exchange.as_str(), r.token.as_str()))
+        .collect();
+    current
+        .iter()
+        .filter(|r| {
+            r.instrument_type == "INDEX" && have.insert((r.exchange.as_str(), r.token.as_str()))
+        })
+        .cloned()
+        .collect()
+}
+
+/// One symbol file's text, or `None` when it could not be fetched or came
+/// back empty (the reason is logged).
+async fn fetch_file(b: &FirstockBroker, ex: &str) -> Option<String> {
+    let url = format!("{}/symbols/{}?ref=firstock.in", b.base_url, ex);
+    let text = match b.http.get(&url).timeout(DOWNLOAD_TIMEOUT).send().await {
+        Ok(r) if r.status().is_success() => match r.text().await {
+            Ok(t) => t,
             Err(e) => {
                 tracing::warn!(
                     broker = "firstock",
@@ -344,26 +343,90 @@ pub async fn download(b: &FirstockBroker, auth: &AuthToken) -> Result<Vec<SymTok
                     ex,
                     crate::brokers::common::redact::url_safe_error(&e)
                 );
-                continue;
+                return None;
             }
-        };
-        rows.extend(parse_file(ex, &text_body));
-        ok += 1;
-    }
-    if ok == 0 {
-        return Err(AppError::Broker(
-            "Could not download the Firstock instrument list. Check your internet connection and try again."
-                .into(),
-        ));
-    }
-    // Indices come from the authenticated index list; a failure leaves the
-    // CSV rows (the web logs and continues).
-    match session(auth) {
-        Ok(s) => match b.call_ok("/indexList", json!({}), &s).await {
-            Ok(v) => rows.extend(parse_index_list(&v)),
-            Err(e) => tracing::warn!(broker = "firstock", "Index list failed: {}", e.code()),
         },
-        Err(_) => tracing::warn!(broker = "firstock", "No session for the index list"),
+        Ok(r) => {
+            tracing::warn!(
+                broker = "firstock",
+                "Master file {} answered {}",
+                ex,
+                r.status()
+            );
+            return None;
+        }
+        Err(e) => {
+            tracing::warn!(
+                broker = "firstock",
+                "Master file {} failed: {}",
+                ex,
+                crate::brokers::common::redact::url_safe_error(&e)
+            );
+            return None;
+        }
+    };
+    if text.trim().is_empty() {
+        tracing::warn!(broker = "firstock", "Master file {} came back empty", ex);
+        return None;
+    }
+    Some(text)
+}
+
+/// Every symbol file must arrive and yield rows, or the download fails and
+/// the stored master is kept (web #2198; the service swaps the table in
+/// one transaction). Indices come from the authenticated index list; when
+/// it fails or is empty, the index rows of the master in use are carried
+/// forward instead of being dropped.
+pub async fn download(b: &FirstockBroker, auth: &AuthToken) -> Result<Vec<SymToken>> {
+    let mut texts = Vec::with_capacity(FILES.len());
+    let mut failed = Vec::new();
+    for ex in FILES {
+        match fetch_file(b, ex).await {
+            Some(t) => texts.push((*ex, t)),
+            None => failed.push(*ex),
+        }
+    }
+    if !failed.is_empty() {
+        return Err(AppError::Broker(format!(
+            "Could not download the Firstock symbol files for {}. Your existing symbols were kept; try the download again.",
+            failed.join(", ")
+        )));
+    }
+    let mut rows = Vec::new();
+    for (ex, text) in &texts {
+        let parsed = parse_file(ex, text);
+        if parsed.is_empty() {
+            return Err(AppError::Broker(format!(
+                "The Firstock {} symbol file had no usable rows. Your existing symbols were kept; try the download again.",
+                ex
+            )));
+        }
+        rows.extend(parsed);
+    }
+    drop(texts);
+    let fresh = match session(auth) {
+        Ok(s) => match b.call_ok("/indexList", json!({}), &s).await {
+            Ok(v) => parse_index_list(&v),
+            Err(e) => {
+                tracing::warn!(broker = "firstock", "Index list failed: {}", e.code());
+                Vec::new()
+            }
+        },
+        Err(_) => {
+            tracing::warn!(broker = "firstock", "No session for the index list");
+            Vec::new()
+        }
+    };
+    if fresh.is_empty() {
+        let kept = carried_index_rows(b.symbols.snapshot().rows(), &rows);
+        tracing::warn!(
+            broker = "firstock",
+            "Index list unavailable; keeping {} existing index rows",
+            kept.len()
+        );
+        rows.extend(kept);
+    } else {
+        rows.extend(fresh);
     }
     Ok(rows)
 }

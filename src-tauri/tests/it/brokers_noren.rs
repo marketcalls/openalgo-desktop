@@ -46,6 +46,11 @@ struct Fake {
     quote_calls: AtomicUsize,
     /// First N GetQuotes answer with another instrument (identity guard).
     wrong_quotes: AtomicUsize,
+    /// Path leaves answered 404 (a master file or endpoint that is down).
+    down: Mutex<Vec<&'static str>>,
+    /// Path leaves answered 200 with this body instead (an empty or
+    /// header-only master file).
+    bodies: Mutex<Vec<(&'static str, &'static str)>>,
 }
 
 impl Fake {
@@ -86,6 +91,12 @@ fn zipped(text: &str, name: &str) -> Response {
 
 fn route(fake: &Fake, path: &str, body: &Value) -> Response {
     let leaf = path.rsplit('/').find(|s| !s.is_empty()).unwrap_or("");
+    if fake.down.lock().contains(&leaf) {
+        return (StatusCode::NOT_FOUND, "down").into_response();
+    }
+    if let Some((_, text)) = fake.bodies.lock().iter().find(|(l, _)| *l == leaf) {
+        return (StatusCode::OK, text.to_string()).into_response();
+    }
     match leaf {
         "GenAcsTok" => {
             if body["code"] == "bad" {
@@ -129,12 +140,18 @@ fn route(fake: &Fake, path: &str, body: &Value) -> Response {
             q["exch"] = body["exch"].clone();
             ok(q)
         }
+        // Index minute bars as Flattrade sends them: a 09:14 pre-open bar,
+        // rows with a missing or NaN price, a negative closing-session
+        // volume (web #2198).
+        "TPSeries" if body["token"] == "26000" => ok(fixture!("flattrade", "tpseries.json")),
         "TPSeries" => ok(fixture!("shoonya", "tpseries.json")),
         // BSE EOD rows as Flattrade sends them for BSE indices: the close
-        // lies outside the day's high/low (web #2196).
+        // lies outside the day's high/low (web #2196), and a row with no
+        // low (web #2198).
         "EODChartData" if body["sym"].as_str().is_some_and(|s| s.starts_with("BSE:")) => ok(json!([
             "{\"time\":\"30-SEP-2026\",\"into\":\"81000.00\",\"inth\":\"81500.00\",\"intl\":\"80800.00\",\"intc\":\"81650.00\",\"ssboe\":\"1790726400\",\"intv\":\"0\"}",
-            "{\"time\":\"01-OCT-2026\",\"into\":\"81650.00\",\"inth\":\"81900.00\",\"intl\":\"81400.00\",\"intc\":\"81300.00\",\"ssboe\":\"1790812800\",\"intv\":\"0\"}"
+            "{\"time\":\"01-OCT-2026\",\"into\":\"81650.00\",\"inth\":\"81900.00\",\"intl\":\"81400.00\",\"intc\":\"81300.00\",\"ssboe\":\"1790812800\",\"intv\":\"0\"}",
+            "{\"time\":\"02-OCT-2026\",\"into\":\"81300.00\",\"inth\":\"81700.00\",\"intl\":null,\"intc\":\"81600.00\",\"ssboe\":\"1790899200\",\"intv\":\"0\"}"
         ])),
         "EODChartData" => ok(fixture!("shoonya", "eod.json")),
         "NSE_symbols.txt.zip" => zipped(fixture!("shoonya", "NSE_symbols.txt"), "NSE_symbols.txt"),
@@ -146,6 +163,11 @@ fn route(fake: &Fake, path: &str, body: &Value) -> Response {
         "NSE_Equity.csv" => ok(fixture!("flattrade", "NSE_Equity.csv")),
         "BSE_Equity.csv" => ok(fixture!("flattrade", "BSE_Equity.csv")),
         "Nfo_Index_Derivatives.csv" => ok(fixture!("flattrade", "Nfo_Index_Derivatives.csv")),
+        "Nfo_Equity_Derivatives.csv" => ok(fixture!("flattrade", "Nfo_Equity_Derivatives.csv")),
+        "Currency_Derivatives.csv" => ok(fixture!("flattrade", "Currency_Derivatives.csv")),
+        "Commodity.csv" => ok(fixture!("flattrade", "Commodity.csv")),
+        "Bfo_Index_Derivatives.csv" => ok(fixture!("flattrade", "Bfo_Index_Derivatives.csv")),
+        "Bfo_Equity_Derivatives.csv" => ok(fixture!("flattrade", "Bfo_Equity_Derivatives.csv")),
         // Firstock
         "login" => {
             let all: Value = serde_json::from_str(fixture!("firstock", "responses.json")).unwrap();
@@ -190,7 +212,7 @@ fn firstock_route(leaf: &str, body: &Value) -> Response {
         "NSE" => ok(fixture!("firstock", "NSE.csv")),
         "BSE" => ok(fixture!("firstock", "BSE.csv")),
         "NFO" => ok(fixture!("firstock", "NFO.csv")),
-        "BFO" => (StatusCode::NOT_FOUND, "x").into_response(),
+        "BFO" => ok(fixture!("firstock", "BFO.csv")),
         _ => (StatusCode::NOT_FOUND, "no such endpoint").into_response(),
     }
 }
@@ -617,16 +639,142 @@ async fn flattrade_daily_candles_cover_open_and_close() {
     assert_eq!((d[0].low, d[0].high), (80800.0, 81500.0));
 }
 
+/// Web #2198: index rows are typed EQ and the stale BSE rows with no
+/// exchange are dropped; every one of the eight files is fetched.
 #[tokio::test]
 async fn flattrade_master_csvs() {
-    let (b, _fake, auth) = noren(flattrade::config()).await;
+    let (b, fake, auth) = noren(flattrade::config()).await;
     let rows = b.download_master_contract(&auth).await.unwrap();
-    assert!(rows
+    let sensex = rows
         .iter()
-        .any(|r| r.exchange == "BSE_INDEX" && r.symbol == "SENSEX"));
+        .find(|r| r.exchange == "BSE_INDEX" && r.symbol == "SENSEX")
+        .unwrap();
+    assert_eq!(sensex.instrument_type, "EQ");
+    let nifty = rows
+        .iter()
+        .find(|r| r.exchange == "NSE_INDEX" && r.symbol == "NIFTY")
+        .unwrap();
+    assert_eq!(nifty.instrument_type, "EQ");
     assert!(rows
         .iter()
         .any(|r| r.symbol == "NIFTY27OCT2625000CE" && r.tick_size == 0.05));
+    for ex in ["NSE", "BSE", "NFO", "CDS", "MCX", "BFO"] {
+        assert!(rows.iter().any(|r| r.exchange == ex), "{}", ex);
+    }
+    assert!(rows.iter().any(|r| r.symbol == "SENSEX29OCT2682000CE"));
+    assert!(!rows
+        .iter()
+        .any(|r| ["212716", "212255", "212139"].contains(&r.token.as_str())));
+    let files: Vec<String> = fake
+        .seen
+        .lock()
+        .iter()
+        .filter(|s| s.path.ends_with(".csv"))
+        .map(|s| s.path.clone())
+        .collect();
+    assert_eq!(files.len(), 8, "{:?}", files);
+}
+
+/// Web #2198: a Flattrade master file that fails, comes back empty, or a
+/// segment that yields no rows refuses the whole download (the stored
+/// master is kept), naming the segment; Shoonya still skips a failed file
+/// (`shoonya_master_download_reads_the_zips`).
+#[tokio::test]
+async fn flattrade_master_is_all_or_nothing() {
+    let (b, fake, auth) = noren(flattrade::config()).await;
+    fake.down.lock().push("Bfo_Equity_Derivatives.csv");
+    let e = b.download_master_contract(&auth).await.unwrap_err();
+    let msg = e.client_message();
+    assert!(msg.contains("Flattrade symbol files for BFO"), "{}", msg);
+    assert!(msg.contains("existing symbols were kept"), "{}", msg);
+
+    let (b, fake, auth) = noren(flattrade::config()).await;
+    fake.bodies.lock().push(("Currency_Derivatives.csv", " \n"));
+    let msg = b
+        .download_master_contract(&auth)
+        .await
+        .unwrap_err()
+        .client_message();
+    assert!(msg.contains("symbol files for CDS"), "{}", msg);
+
+    let (b, fake, auth) = noren(flattrade::config()).await;
+    fake.bodies.lock().push((
+        "Commodity.csv",
+        "Exchange,Token,Lotsize,Symbol,Tradingsymbol,Instrument,Expiry,Strike,Optiontype\n",
+    ));
+    let msg = b
+        .download_master_contract(&auth)
+        .await
+        .unwrap_err()
+        .client_message();
+    assert!(
+        msg.contains("Flattrade MCX symbol file had no usable rows"),
+        "{}",
+        msg
+    );
+
+    // Both NFO files failing names NFO once.
+    let (b, fake, auth) = noren(flattrade::config()).await;
+    fake.down
+        .lock()
+        .extend(["Nfo_Index_Derivatives.csv", "Nfo_Equity_Derivatives.csv"]);
+    let msg = b
+        .download_master_contract(&auth)
+        .await
+        .unwrap_err()
+        .client_message();
+    assert!(msg.contains("symbol files for NFO."), "{}", msg);
+}
+
+/// Web #2198: Flattrade drops TPSeries' 09:14 pre-open bar on an NSE index
+/// (queried on NSE), skips rows with a missing or NaN price, and floors the
+/// negative closing-session volume; Zebu passes the same rows through.
+#[tokio::test]
+async fn flattrade_intraday_candles_are_hardened() {
+    let req = HistoryRequest {
+        key: QuoteKey::new("NSE_INDEX", "NIFTY"),
+        interval: "1m".into(),
+        start: NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
+        end: NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
+    };
+    let (b, fake, auth) = noren(flattrade::config()).await;
+    let c = b.get_history(&auth, &req).await.unwrap();
+    let call = &fake.calls("/TPSeries")[0].jdata;
+    assert_eq!(
+        (call["exch"].as_str(), call["token"].as_str()),
+        (Some("NSE"), Some("26000"))
+    );
+    let ts: Vec<i64> = c.iter().map(|x| x.timestamp).collect();
+    assert_eq!(ts, [1790826300, 1790826540, 1790848200]);
+    assert!(c
+        .iter()
+        .all(|x| x.volume >= 0 && x.low > 0.0 && x.close.is_finite()));
+    assert_eq!(c[0].volume, 120000);
+
+    let (b, _fake, auth) = noren(zebu::config()).await;
+    let c = b.get_history(&auth, &req).await.unwrap();
+    assert_eq!(c.len(), 7);
+    assert_eq!(c[0].timestamp, 1790826240, "zebu keeps the 09:14 bar");
+}
+
+/// Web #2198: an EOD row with no low is skipped for Flattrade, so the
+/// #2196 widening cannot keep a 0 low; Zebu reads it as 0.
+#[tokio::test]
+async fn flattrade_daily_rows_without_a_price_are_skipped() {
+    let req = HistoryRequest {
+        key: QuoteKey::new("BSE", "SBIN"),
+        interval: "D".into(),
+        start: NaiveDate::from_ymd_opt(2026, 9, 30).unwrap(),
+        end: NaiveDate::from_ymd_opt(2026, 10, 2).unwrap(),
+    };
+    let (b, _fake, auth) = noren(flattrade::config()).await;
+    let d = b.get_history(&auth, &req).await.unwrap();
+    assert_eq!(d.len(), 2);
+    assert!(d.iter().all(|c| c.low > 0.0));
+    let (b, _fake, auth) = noren(zebu::config()).await;
+    let d = b.get_history(&auth, &req).await.unwrap();
+    assert_eq!(d.len(), 3);
+    assert_eq!(d[2].low, 0.0);
 }
 
 // ---------------------------------------------------------------------------
@@ -852,4 +1000,79 @@ async fn firstock_quotes_history_and_master() {
         fake.calls("/basketMargin")[0].jdata["BasketList_Params"],
         json!([])
     );
+}
+
+/// Web #2198: every Firstock symbol file must arrive and yield rows, or the
+/// download fails and the stored master is kept.
+#[tokio::test]
+async fn firstock_master_is_all_or_nothing() {
+    let (b, fake, auth) = firstock_setup().await;
+    fake.down.lock().push("BFO");
+    let msg = b
+        .download_master_contract(&auth)
+        .await
+        .unwrap_err()
+        .client_message();
+    assert!(msg.contains("Firstock symbol files for BFO"), "{}", msg);
+    assert!(msg.contains("existing symbols were kept"), "{}", msg);
+
+    let (b, fake, auth) = firstock_setup().await;
+    fake.bodies.lock().push((
+        "NFO",
+        "Exchange,Token,LotSize,Symbol,TradingSymbol,CompanyName,Expiry,Instrument,OptionType,StrikePrice,TickSize,FreezeQty\n",
+    ));
+    let msg = b
+        .download_master_contract(&auth)
+        .await
+        .unwrap_err()
+        .client_message();
+    assert!(
+        msg.contains("Firstock NFO symbol file had no usable rows"),
+        "{}",
+        msg
+    );
+}
+
+/// Web #2198 (`get_existing_index_rows`): when the index list cannot be
+/// fetched, the index rows of the master in use are carried forward
+/// instead of being dropped, each (exchange, token) once.
+#[tokio::test]
+async fn firstock_index_rows_survive_a_failed_index_list() {
+    let (b, fake, auth) = firstock_setup().await;
+    let all: Value = serde_json::from_str(fixture!("firstock", "responses.json")).unwrap();
+    let mut current = firstock::master_contract::parse_file("NSE", fixture!("firstock", "NSE.csv"));
+    current.extend(firstock::master_contract::parse_index_list(
+        &all["index_list"],
+    ));
+    b.symbols().unwrap().load(current);
+    fake.down.lock().push("indexList");
+    let rows = b.download_master_contract(&auth).await.unwrap();
+    assert_eq!(fake.calls("/indexList").len(), 1);
+    // NIFTY BANK exists only in the index list: carried forward.
+    let bank: Vec<_> = rows
+        .iter()
+        .filter(|r| r.exchange == "NSE_INDEX" && r.token == "26009")
+        .collect();
+    assert_eq!(bank.len(), 1);
+    assert_eq!(bank[0].symbol, "BANKNIFTY");
+    // Nifty 50 and SENSEX are in the fresh CSVs too: not repeated.
+    for (ex, tok) in [("NSE_INDEX", "26000"), ("BSE_INDEX", "1")] {
+        assert_eq!(
+            rows.iter()
+                .filter(|r| r.exchange == ex && r.token == tok)
+                .count(),
+            1,
+            "{} {}",
+            ex,
+            tok
+        );
+    }
+
+    // An empty master in use (the first download after sign-in) has
+    // nothing to carry.
+    let (b, fake, auth) = firstock_setup().await;
+    b.symbols().unwrap().load(Vec::new());
+    fake.down.lock().push("indexList");
+    let rows = b.download_master_contract(&auth).await.unwrap();
+    assert!(!rows.iter().any(|r| r.token == "26009"));
 }

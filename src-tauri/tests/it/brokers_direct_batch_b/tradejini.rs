@@ -46,6 +46,8 @@ struct Fake {
     ws_open: AtomicUsize,
     ws_total: AtomicUsize,
     ws_frames: Mutex<Vec<Value>>,
+    /// Symbol-store groups that answer 500.
+    down_groups: Mutex<Vec<&'static str>>,
 }
 
 impl Fake {
@@ -72,7 +74,7 @@ fn form(body: &[u8]) -> Vec<(String, String)> {
     serde_urlencoded::from_bytes(body).unwrap_or_default()
 }
 
-fn route(s: &Seen) -> Response {
+fn route(fake: &Fake, s: &Seen) -> Response {
     let get = |k: &str| {
         s.form
             .iter()
@@ -98,8 +100,16 @@ fn route(s: &Seen) -> Response {
             .into_response();
     }
     if path.starts_with("/api/mkt-data/scrips/symbol-store") {
-        return match path.rsplit('/').next().unwrap_or("") {
+        let group = path.rsplit('/').next().unwrap_or("");
+        if fake.down_groups.lock().contains(&group) {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "down").into_response();
+        }
+        return match group {
             "symbol-store" => ok(fixture!("symbol_store.json")),
+            // A group with nothing in it today (header only): skipped.
+            "CommodityOptions" => {
+                "id,dispName,excToken,lot,tick,symbol,expiry,strike,optType,asset\n".into_response()
+            }
             "Securities" => fixture!("Securities.csv").into_response(),
             "FutureContracts" => fixture!("FutureContracts.csv").into_response(),
             "NSEOptions" => fixture!("NSEOptions.csv").into_response(),
@@ -158,7 +168,7 @@ async fn serve_rest(fake: Arc<Fake>) -> String {
                     form: form(&body),
                 };
                 fake.seen.lock().push(s.clone());
-                route(&s)
+                route(&fake, &s)
             }
         },
     );
@@ -358,6 +368,30 @@ async fn master_contract_download() {
     let g = e.fake.calls("/Securities");
     assert_eq!(g[0].query, "version=0");
     assert_eq!(g[0].authorization, "");
+    // CommodityOptions sent a header and no rows: skipped, not an error.
+    assert_eq!(e.fake.calls("/CommodityOptions").len(), 1);
+}
+
+/// Web #2198: a scrip group that fails refuses the whole download (the
+/// stored master is kept) instead of being skipped.
+#[tokio::test]
+async fn master_contract_download_fails_on_a_failed_group() {
+    let fake = Arc::new(Fake::default());
+    fake.down_groups.lock().push("NSEOptions");
+    let base = serve_rest(fake.clone()).await;
+    let broker = TradejiniBroker::with_urls(SymbolResolver::new(), base, "ws://127.0.0.1:1");
+    let auth = AuthToken::new(format!("{}:{}", KEY, ACCESS));
+    let msg = broker
+        .download_master_contract(&auth)
+        .await
+        .unwrap_err()
+        .client_message();
+    assert!(
+        msg.contains("Could not download the Tradejini NSEOptions symbols"),
+        "{}",
+        msg
+    );
+    assert!(msg.contains("existing symbols were kept"), "{}", msg);
 }
 
 #[tokio::test]

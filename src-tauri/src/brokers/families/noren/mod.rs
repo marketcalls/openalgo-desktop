@@ -213,6 +213,20 @@ pub struct NorenConfig {
     pub bse_indices: BseIndices,
     /// `brexchange` of NSE index rows (`NSE_INDEX`, or `NSE` on zebu).
     pub nse_index_brexchange: &'static str,
+    /// `instrumenttype` of index rows: `INDEX`, or `EQ` where the web keeps
+    /// index rows inside OpenAlgo's EQ/FUT/CE/PE vocabulary and lets the
+    /// `NSE_INDEX` / `BSE_INDEX` exchange alone mark them (flattrade, web
+    /// #2198, QA MC-04).
+    pub index_instrument_type: &'static str,
+    /// The master is all or nothing (flattrade, web #2198): a file that
+    /// fails or comes back empty, or a segment that yields no rows, fails
+    /// the download so the stored master is kept. Otherwise a failed file
+    /// is skipped and only every file failing is an error.
+    pub master_all_or_nothing: bool,
+    /// Drop BSE master rows whose `Exchange` is blank or NULL (flattrade,
+    /// web #2198, QA MC-14): stale scrips the broker refuses, with no name,
+    /// some repeating a live scrip under an old token.
+    pub bse_drop_without_exchange: bool,
     /// BFO rows take the underlying from the leading letters of the
     /// trading symbol and the type from its suffix (shoonya, zebu).
     pub bfo_from_tsym: bool,
@@ -229,6 +243,13 @@ pub struct NorenConfig {
     /// day's range, and a chart refuses the whole history on one such
     /// candle; web #2196).
     pub eod_widen: bool,
+    /// Hardened candle parsing (flattrade, web #2198): a candle with a
+    /// price that is missing, null, empty, NaN or infinite is skipped
+    /// instead of charted as 0; intraday bars stamped before the 09:15
+    /// open on NSE/BSE/NFO/BFO (TPSeries' pre-open bar, QA HS-07) are
+    /// dropped; intraday volume is floored at 0 (the cumulative volume
+    /// switches counters in the closing session).
+    pub strict_candles: bool,
     /// Today's synthetic daily bar at UTC midnight of the IST date (true)
     /// or at IST midnight (zebu).
     pub today_bar_utc: bool,

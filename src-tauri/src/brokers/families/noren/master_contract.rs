@@ -5,7 +5,7 @@
 //! both casings (`TradingSymbol`/`Tradingsymbol`, `StrikePrice`/`Strike`,
 //! `LotSize`/`Lotsize`, `OptionType`/`Optiontype`).
 
-use super::{BseIndices, IndexNaming, NorenBroker, NorenConfig, TickRule};
+use super::{BseIndices, IndexNaming, MasterFile, NorenBroker, NorenConfig, TickRule};
 use crate::brokers::common::http::DOWNLOAD_TIMEOUT;
 use crate::brokers::common::master_contract::{
     format_expiry, format_strike, future_symbol, option_symbol, split_csv_line, CsvHeader,
@@ -80,6 +80,7 @@ pub fn expiry(s: &str) -> String {
 }
 
 struct Cols {
+    exchange: Option<usize>,
     token: Option<usize>,
     lot: Option<usize>,
     name: Option<usize>,
@@ -95,6 +96,7 @@ impl Cols {
     fn new(h: &CsvHeader) -> Self {
         let any = |names: &[&str]| names.iter().find_map(|n| h.index(n));
         Self {
+            exchange: any(&["Exchange"]),
             token: any(&["Token"]),
             lot: any(&["LotSize", "Lotsize"]),
             name: any(&["Symbol"]),
@@ -119,6 +121,27 @@ fn tick_size(rule: TickRule, exchange: &str, raw: &str) -> f64 {
     }
 }
 
+/// A cell pandas reads as missing (`read_csv`'s default NA strings), as
+/// the web sees the master: Flattrade writes `NULL` into stale rows.
+fn is_na(cell: &str) -> bool {
+    matches!(
+        cell,
+        "" | "NULL"
+            | "null"
+            | "NaN"
+            | "nan"
+            | "-NaN"
+            | "-nan"
+            | "None"
+            | "N/A"
+            | "n/a"
+            | "NA"
+            | "<NA>"
+            | "#N/A"
+            | "#NA"
+    )
+}
+
 /// Parse one exchange file into SymToken rows.
 pub fn parse_file(cfg: &NorenConfig, exchange: &str, text: &str) -> Vec<SymToken> {
     let mut lines = text.lines();
@@ -126,6 +149,14 @@ pub fn parse_file(cfg: &NorenConfig, exchange: &str, text: &str) -> Vec<SymToken
         return Vec::new();
     };
     let c = Cols::new(&CsvHeader::parse(head));
+    let drop_stale = exchange == "BSE" && cfg.bse_drop_without_exchange;
+    if drop_stale && c.exchange.is_none() {
+        tracing::warn!(
+            broker = cfg.id,
+            "BSE master has no Exchange column; stale rows are kept"
+        );
+    }
+    let mut stale = 0usize;
     let mut out = Vec::new();
     for line in lines {
         if line.trim().is_empty() {
@@ -141,6 +172,10 @@ pub fn parse_file(cfg: &NorenConfig, exchange: &str, text: &str) -> Vec<SymToken
         let tsym = get(c.tsym);
         let name = get(c.name);
         if token.is_empty() || tsym.is_empty() {
+            continue;
+        }
+        if drop_stale && c.exchange.is_some() && is_na(&get(c.exchange)) {
+            stale += 1;
             continue;
         }
         let lot_raw = get(c.lot);
@@ -177,7 +212,7 @@ pub fn parse_file(cfg: &NorenConfig, exchange: &str, text: &str) -> Vec<SymToken
                         symbol: nse_index_symbol(cfg.index_naming, &tsym),
                         exchange: "NSE_INDEX".into(),
                         brexchange: cfg.nse_index_brexchange.into(),
-                        instrument_type: "INDEX".into(),
+                        instrument_type: cfg.index_instrument_type.into(),
                         ..base
                     }
                 } else {
@@ -202,7 +237,7 @@ pub fn parse_file(cfg: &NorenConfig, exchange: &str, text: &str) -> Vec<SymToken
                             .unwrap_or(s),
                         exchange: "BSE_INDEX".into(),
                         brexchange: "BSE".into(),
-                        instrument_type: "INDEX".into(),
+                        instrument_type: cfg.index_instrument_type.into(),
                         ..base
                     });
                 } else {
@@ -284,70 +319,119 @@ pub fn parse_file(cfg: &NorenConfig, exchange: &str, text: &str) -> Vec<SymToken
                 expiry: String::new(),
                 strike: -1.0,
                 lot_size: 1,
-                instrument_type: "INDEX".into(),
+                instrument_type: cfg.index_instrument_type.into(),
                 tick_size: 0.05,
             });
+        }
+    }
+    if stale > 0 {
+        tracing::info!(
+            broker = cfg.id,
+            "Dropped {} BSE master rows with no exchange",
+            stale
+        );
+    }
+    out
+}
+
+/// One master file's text, or `None` when it could not be fetched (the
+/// reason is logged).
+async fn fetch_file(b: &NorenBroker, file: &MasterFile, url: &str) -> Option<String> {
+    let resp = match b.http.get(url).timeout(DOWNLOAD_TIMEOUT).send().await {
+        Ok(r) if r.status().is_success() => r,
+        Ok(r) => {
+            tracing::warn!(
+                broker = b.cfg.id,
+                "Master file {} answered {}",
+                file.exchange,
+                r.status()
+            );
+            return None;
+        }
+        Err(e) => {
+            tracing::warn!(
+                broker = b.cfg.id,
+                "Master file {} failed: {}",
+                file.exchange,
+                e
+            );
+            return None;
+        }
+    };
+    let bytes = match resp.bytes().await {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::warn!(
+                broker = b.cfg.id,
+                "Master file {} failed: {}",
+                file.exchange,
+                e
+            );
+            return None;
+        }
+    };
+    let raw = if file.zipped {
+        match super::zip::first_entry(&bytes) {
+            Ok(v) => v,
+            Err(_) => {
+                tracing::warn!(
+                    broker = b.cfg.id,
+                    "Master file {} is not a readable zip",
+                    file.exchange
+                );
+                return None;
+            }
+        }
+    } else {
+        bytes.to_vec()
+    };
+    // No copy for a valid UTF-8 file (the usual case; masters run to tens
+    // of megabytes).
+    Some(
+        String::from_utf8(raw)
+            .unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned()),
+    )
+}
+
+/// Each name once, in first-seen order (NFO and BFO span two files).
+fn unique<'a>(names: &[&'a str]) -> Vec<&'a str> {
+    let mut out: Vec<&str> = Vec::new();
+    for &n in names {
+        if !out.contains(&n) {
+            out.push(n);
         }
     }
     out
 }
 
 /// Download and parse every file of the member's set. A file that fails
-/// is logged and skipped (as on the web); all failing is an error.
+/// is logged and skipped (as on the web); all failing is an error. A member
+/// with `master_all_or_nothing` (flattrade, web #2198) refuses the whole
+/// download instead when any file fails or comes back empty, or a segment
+/// yields no rows, so the stored master is kept rather than replaced by a
+/// partial one.
 pub async fn download(b: &NorenBroker) -> Result<Vec<SymToken>> {
+    let strict = b.cfg.master_all_or_nothing;
     let mut rows = Vec::new();
     let mut ok = 0usize;
+    let mut failed: Vec<&str> = Vec::new();
+    // Rows per segment, in file order (NFO and BFO add up over two files).
+    let mut segments: Vec<(&str, usize)> = Vec::new();
     let mut bse_seen = false;
     for (file, url) in b.endpoints.master.iter().zip(&b.endpoints.master_urls) {
-        let resp = match b.http.get(url).timeout(DOWNLOAD_TIMEOUT).send().await {
-            Ok(r) if r.status().is_success() => r,
-            Ok(r) => {
-                tracing::warn!(
-                    broker = b.cfg.id,
-                    "Master file {} answered {}",
-                    file.exchange,
-                    r.status()
-                );
-                continue;
-            }
-            Err(e) => {
-                tracing::warn!(
-                    broker = b.cfg.id,
-                    "Master file {} failed: {}",
-                    file.exchange,
-                    e
-                );
-                continue;
-            }
+        let Some(text) = fetch_file(b, file, url).await else {
+            failed.push(file.exchange);
+            continue;
         };
-        let bytes = match resp.bytes().await {
-            Ok(b) => b,
-            Err(e) => {
-                tracing::warn!(
-                    broker = b.cfg.id,
-                    "Master file {} failed: {}",
-                    file.exchange,
-                    e
-                );
-                continue;
-            }
-        };
-        let raw = if file.zipped {
-            match super::zip::first_entry(&bytes) {
-                Ok(v) => v,
-                Err(_) => {
-                    tracing::warn!(
-                        broker = b.cfg.id,
-                        "Master file {} is not a readable zip",
-                        file.exchange
-                    );
-                    continue;
-                }
-            }
-        } else {
-            bytes.to_vec()
-        };
-        let text = String::from_utf8_lossy(&raw);
+        if strict && text.trim().is_empty() {
+            tracing::warn!(
+                broker = b.cfg.id,
+                "Master file {} came back empty",
+                file.exchange
+            );
+            failed.push(file.exchange);
+            continue;
+        }
         let mut parsed = parse_file(b.cfg, file.exchange, &text);
         // Manual BSE index rows are added once even when BSE is split.
         if file.exchange == "BSE" {
@@ -358,13 +442,30 @@ pub async fn download(b: &NorenBroker) -> Result<Vec<SymToken>> {
             }
             bse_seen = true;
         }
+        match segments.iter_mut().find(|(ex, _)| *ex == file.exchange) {
+            Some((_, n)) => *n += parsed.len(),
+            None => segments.push((file.exchange, parsed.len())),
+        }
         rows.extend(parsed);
         ok += 1;
+    }
+    if strict && !failed.is_empty() {
+        return Err(AppError::Broker(format!(
+            "Could not download the {} symbol files for {}. Your existing symbols were kept; try the download again.",
+            b.cfg.name,
+            unique(&failed).join(", ")
+        )));
     }
     if ok == 0 {
         return Err(AppError::Broker(format!(
             "Could not download the {} instrument list. Check your internet connection and try again.",
             b.cfg.name
+        )));
+    }
+    if let Some((segment, _)) = segments.iter().find(|(_, n)| strict && *n == 0) {
+        return Err(AppError::Broker(format!(
+            "The {} {} symbol file had no usable rows. Your existing symbols were kept; try the download again.",
+            b.cfg.name, segment
         )));
     }
     Ok(rows)

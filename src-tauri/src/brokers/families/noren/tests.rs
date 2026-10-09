@@ -3,7 +3,10 @@
 //! and the Noren API documentation; no account data.
 
 use super::auth::{exchange_request, sha256_hex, split_api_key};
-use super::data::{parse_candle, quote_matches, repair, sort_dedupe_last, to_depth, to_quote};
+use super::data::{
+    before_session_open, candle_number, clean_intraday, parse_candle, parse_candle_strict,
+    quote_matches, repair, sort_dedupe_last, to_depth, to_quote,
+};
 use super::funds::{basket_body, funds_from};
 use super::mapping::*;
 use super::master_contract::{expiry, nse_index_symbol, parse_file};
@@ -268,9 +271,13 @@ fn flattrade_master_csv_layout() {
     assert_eq!(nse.len(), 4, "blank trading symbol dropped");
     let sbin = nse.iter().find(|r| r.symbol == "SBIN").unwrap();
     assert_eq!((sbin.tick_size, sbin.lot_size), (0.05, 1));
-    assert!(nse
+    assert_eq!(sbin.instrument_type, "EQ");
+    let nifty = nse
         .iter()
-        .any(|r| r.exchange == "NSE_INDEX" && r.symbol == "NIFTY"));
+        .find(|r| r.exchange == "NSE_INDEX" && r.symbol == "NIFTY")
+        .unwrap();
+    // Web #2198 (QA MC-04): index rows are EQ; NSE_INDEX marks the index.
+    assert_eq!(nifty.instrument_type, "EQ");
     assert!(nse.iter().any(|r| r.symbol == "MIDCPNIFTY"));
     let bse = parse_file(cfg, "BSE", fixture!("flattrade", "BSE_Equity.csv"));
     let sensex = bse
@@ -279,9 +286,19 @@ fn flattrade_master_csv_layout() {
         .unwrap();
     assert_eq!(
         (sensex.brexchange.as_str(), sensex.instrument_type.as_str()),
-        ("BSE", "INDEX")
+        ("BSE", "EQ")
     );
     assert!(bse.iter().any(|r| r.symbol == "SENSEX50"));
+    assert!(bse.iter().all(|r| r.instrument_type == "EQ"));
+    // Web #2198 (QA MC-14): the stale rows with a NULL or blank Exchange
+    // are dropped, including GLOBAL under its old token.
+    assert_eq!(bse.len(), 3);
+    for token in ["212716", "212255", "212139"] {
+        assert!(!bse.iter().any(|r| r.token == token), "{}", token);
+    }
+    assert!(!bse
+        .iter()
+        .any(|r| r.symbol == "GLOBAL" || r.name.is_empty()));
     let nfo = parse_file(
         cfg,
         "NFO",
@@ -296,6 +313,32 @@ fn flattrade_master_csv_layout() {
         "Exchange,Token,Lotsize,Symbol,Tradingsymbol,Instrument,Expiry,Strike,Optiontype\nCDS,5,1,USDINR,USDINR27OCT26F,FUTCUR,27-OCT-2026,0,XX\n",
     );
     assert_eq!(cds[0].tick_size, 0.0025);
+}
+
+/// Web #2198 is Flattrade's alone: the other members keep `INDEX` index
+/// rows and keep a BSE row whatever its Exchange cell says; Flattrade
+/// keeps every row of a file that has no Exchange column at all (the web
+/// skips the drop with a warning rather than failing).
+#[test]
+fn stale_bse_rows_and_index_type_are_flattrade_only() {
+    let stale = "Exchange,Token,LotSize,Symbol,TradingSymbol,Instrument,TickSize,\nNULL,212255,1,NULL,GLOBAL,NULL,5,\n";
+    let rows = parse_file(shoonya::config(), "BSE", stale);
+    assert!(rows.iter().any(|r| r.token == "212255"));
+    assert!(rows
+        .iter()
+        .filter(|r| r.exchange == "BSE_INDEX")
+        .all(|r| r.instrument_type == "INDEX"));
+    let r = shoonya_master();
+    assert_eq!(
+        r.by_symbol("NSE_INDEX", "NIFTY").unwrap().instrument_type,
+        "INDEX"
+    );
+    let no_column = "Token,Lotsize,Symbol,Tradingsymbol,Instrument\n212255,1,GLOBAL,GLOBAL,A\n";
+    let rows = parse_file(flattrade::config(), "BSE", no_column);
+    assert_eq!(rows.len(), 1);
+    // The drop is BSE only: an NSE row is never dropped for it.
+    let nse = "Exchange,Token,Lotsize,Symbol,Tradingsymbol,Instrument,Expiry,Strike,Optiontype\nNULL,3045,1,SBIN,SBIN-EQ,EQ,,,\n";
+    assert_eq!(parse_file(flattrade::config(), "NSE", nse).len(), 1);
 }
 
 #[test]
@@ -784,6 +827,86 @@ fn candles_parse_repair_and_dedupe() {
     assert_eq!((dup.len(), dup[0].close), (1, 2.0));
     assert_eq!(shoonya_history_window("1m"), 5 * 86400);
     assert_eq!(shoonya_history_window("D"), 730 * 86400);
+}
+
+/// Web flattrade `_candle_number` (#2198): missing, null, empty, unreadable,
+/// NaN and infinite all read as no value.
+#[test]
+fn candle_numbers_reject_missing_and_non_finite_values() {
+    let c = json!({
+        "a": "12.5", "b": 7, "c": " 3 ", "n": null, "e": "", "x": "abc",
+        "nan": "NaN", "lnan": "nan", "inf": "inf", "ninf": "-inf", "full": "Infinity",
+        "obj": {}
+    });
+    assert_eq!(candle_number(&c, "a"), Some(12.5));
+    assert_eq!(candle_number(&c, "b"), Some(7.0));
+    assert_eq!(candle_number(&c, "c"), Some(3.0));
+    for k in [
+        "n", "e", "x", "nan", "lnan", "inf", "ninf", "full", "obj", "absent",
+    ] {
+        assert_eq!(candle_number(&c, k), None, "{}", k);
+    }
+}
+
+/// Web #2198 (flattrade `get_history`): a candle with a missing or
+/// non-finite price is skipped rather than charted at 0, while the lenient
+/// parser the other members use reads the same rows as 0.
+#[test]
+fn strict_candles_skip_missing_prices() {
+    let raw = rows(fixture!("flattrade", "tpseries.json"));
+    let strict: Vec<Candle> = raw.iter().filter_map(parse_candle_strict).collect();
+    let ts: Vec<i64> = strict.iter().map(|c| c.timestamp).collect();
+    // 09:16 (null high), 09:17 (no low), 09:18 (NaN close) and the all-zero
+    // 15:21 row are gone; the 09:14 bar is removed later, intraday only.
+    assert_eq!(
+        ts,
+        [1790826240, 1790826300, 1790826540, 1790848200],
+        "strict rows"
+    );
+    assert_eq!(strict[2].volume, 0, "an infinite volume reads as 0");
+    assert_eq!(strict[3].volume, -13357992, "floored in clean_intraday");
+    let lenient: Vec<Candle> = raw.iter().filter_map(parse_candle).collect();
+    assert_eq!(lenient.len(), 7);
+    let null_high = lenient.iter().find(|c| c.timestamp == 1790826360).unwrap();
+    assert_eq!(null_high.high, 0.0, "the lenient parser charts it at 0");
+    // An EOD row with a missing low is skipped, so widening cannot keep a
+    // 0 low (web: "a missing one became 0, which the EOD range widening
+    // then kept as a real low").
+    let eod = json!("{\"time\":\"30-SEP-2026\",\"into\":\"81000\",\"inth\":\"81500\",\"intc\":\"81650\",\"ssboe\":\"1790726400\",\"intv\":\"0\"}");
+    assert!(parse_candle_strict(&eod).is_none());
+    assert_eq!(parse_candle(&eod).unwrap().low, 0.0);
+    // Strict keeps the desktop's `time` fallback when ssboe is unusable.
+    let no_ssboe =
+        json!({"time":"01-OCT-2026","into":"1","inth":"2","intl":"1","intc":"2","ssboe":"NaN"});
+    assert_eq!(
+        parse_candle_strict(&no_ssboe).unwrap().timestamp,
+        1790812800
+    );
+}
+
+/// Web #2198 (QA HS-07): the 09:14 pre-open bar is dropped on
+/// NSE/BSE/NFO/BFO only, and intraday volume is floored at 0.
+#[test]
+fn intraday_clean_up_drops_the_pre_open_bar_and_negative_volume() {
+    assert!(before_session_open(1790826240));
+    assert!(!before_session_open(1790826300));
+    let raw = rows(fixture!("flattrade", "tpseries.json"));
+    let parsed: Vec<Candle> = raw.iter().filter_map(parse_candle_strict).collect();
+    for exch in ["NSE", "BSE", "NFO", "BFO"] {
+        let mut c = parsed.clone();
+        clean_intraday(&mut c, exch);
+        let ts: Vec<i64> = c.iter().map(|c| c.timestamp).collect();
+        assert_eq!(ts, [1790826300, 1790826540, 1790848200], "{}", exch);
+        assert!(c.iter().all(|c| c.volume >= 0));
+        assert_eq!(c[0].volume, 120000);
+    }
+    // MCX and CDS trade from 09:00: an early bar there is real.
+    for exch in ["MCX", "CDS"] {
+        let mut c = parsed.clone();
+        clean_intraday(&mut c, exch);
+        assert_eq!(c.len(), 4, "{}", exch);
+        assert_eq!(c[3].volume, 0);
+    }
 }
 
 // ---------------------------------------------------------------------------

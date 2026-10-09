@@ -3,7 +3,7 @@
 
 use super::data::{chunk_days, parse_candle, to_depth, to_quote};
 use super::mapping::*;
-use super::master_contract::{index_symbol, parse_file, parse_index_list};
+use super::master_contract::{carried_index_rows, index_symbol, parse_file, parse_index_list};
 use super::streaming::FirstockFeed;
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType};
@@ -63,6 +63,32 @@ fn master_csvs_and_index_list() {
         "NIFTYMIDCAP150"
     );
     assert_eq!(index_symbol("Some New Index", "", "NSE"), "SOMENEWINDEX");
+}
+
+/// Web #2198 `get_existing_index_rows`: only INDEX rows are carried, and
+/// one the fresh rows already hold under the same exchange and token is
+/// not repeated.
+#[test]
+fn carried_index_rows_skip_what_the_fresh_files_hold() {
+    let mut current = parse_file("NSE", fixture!("NSE.csv"));
+    current.extend(parse_index_list(&resp("index_list")));
+    let fresh = parse_file("BSE", fixture!("BSE.csv"));
+    let kept = carried_index_rows(&current, &fresh);
+    assert!(kept.iter().all(|r| r.instrument_type == "INDEX"));
+    assert!(!kept
+        .iter()
+        .any(|r| r.exchange == "NSE" || r.symbol == "SBIN"));
+    // SENSEX (BSE_INDEX, token 1) is in the fresh BSE file.
+    assert!(!kept
+        .iter()
+        .any(|r| r.exchange == "BSE_INDEX" && r.token == "1"));
+    let tokens: Vec<&str> = kept.iter().map(|r| r.token.as_str()).collect();
+    assert!(tokens.contains(&"26009"));
+    assert!(tokens.contains(&"26037"));
+    // NIFTY is stored twice (file and index list): carried once, first wins.
+    assert_eq!(tokens.iter().filter(|t| **t == "26000").count(), 1);
+    assert_eq!(tokens.len(), 3);
+    assert!(carried_index_rows(&[], &fresh).is_empty());
 }
 
 #[test]
