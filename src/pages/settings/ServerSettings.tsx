@@ -9,7 +9,11 @@
 
 import { AlertTriangle, Loader2, RefreshCw, Save, Server } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { type ServerSettings as Settings, serverSettingsApi } from '@/api/server-settings'
+import {
+  type MarketDataStatus,
+  type ServerSettings as Settings,
+  serverSettingsApi,
+} from '@/api/server-settings'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -58,18 +62,32 @@ export function validateServerSettings(form: FormState): string | null {
   return null
 }
 
+/**
+ * The feed could not start and the server says why. A taken port counts only
+ * while it is still the saved market data port: after the trader saves
+ * another one, the feed moves to it by itself.
+ */
+export function feedProblem(status: MarketDataStatus | undefined, wsPort?: string): boolean {
+  if (!status?.message) return false
+  if (status.state === 'failed') return true
+  return status.state === 'port_in_use' && (wsPort === undefined || String(status.port) === wsPort)
+}
+
 export default function ServerSettings() {
   const [saved, setSaved] = useState<FormState | null>(null)
   const [form, setForm] = useState<FormState | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [fetchError, setFetchError] = useState(false)
+  const [feedStatus, setFeedStatus] = useState<MarketDataStatus | undefined>()
 
   const fetchCurrent = useCallback(async () => {
     setIsLoading(true)
     setFetchError(false)
     try {
-      const current = toForm(await serverSettingsApi.get())
+      const settings = await serverSettingsApi.get()
+      setFeedStatus(settings.ws_status)
+      const current = toForm(settings)
       setSaved(current)
       setForm(current)
     } catch {
@@ -116,6 +134,7 @@ export default function ServerSettings() {
       })
       if (res.status === 'success') {
         const next = res.data ? toForm(res.data) : form
+        if (res.data) setFeedStatus(res.data.ws_status)
         setSaved(next)
         setForm(next)
         showToast.success(res.message || 'Server settings saved.')
@@ -159,6 +178,13 @@ export default function ServerSettings() {
           </div>
         </CardHeader>
         <CardContent>
+          {feedProblem(feedStatus, saved?.ws_port) && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Live market data is not running</AlertTitle>
+              <AlertDescription>{feedStatus?.message}</AlertDescription>
+            </Alert>
+          )}
           {fetchError || !form ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">

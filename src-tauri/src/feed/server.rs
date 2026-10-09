@@ -256,9 +256,10 @@ pub enum StartError {
 /// Trader-facing explanation for a taken feed port.
 pub fn port_in_use_message(port: u16) -> String {
     format!(
-        "Live market data for your programs could not start because port {} is already used by \
-another program. Close the other program (for example OpenAlgo web or another copy of \
-OpenAlgo), or choose a different WebSocket port in Settings, then restart the server.",
+        "Live market data for your trading platforms and the Python SDK could not start because \
+port {} is already used by another program. Close the other program (for example OpenAlgo web \
+or another copy of OpenAlgo), or choose a different market data port in Server Settings. Live \
+market data starts by itself once the port is free.",
         port
     )
 }
@@ -342,8 +343,8 @@ pub async fn start(cfg: FeedConfig, deps: FeedDeps) -> Result<FeedHandle, StartE
             tracing::debug!("Could not bind the market data feed on {}: {}", addr, e);
             return Err(StartError::Failed {
                 message: format!(
-                    "Live market data could not open port {}. Choose a different WebSocket port \
-in Settings and restart the server.",
+                    "Live market data could not open port {}. Choose a different market data \
+port in Server Settings.",
                     cfg.port
                 ),
             });

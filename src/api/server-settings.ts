@@ -13,6 +13,14 @@ export interface ServerSettings {
   ws_host: string
   ws_port: number
   lan_enabled: boolean
+  /** The market data feed's state; `message` names the cause and the fix. */
+  ws_status?: MarketDataStatus
+}
+
+export interface MarketDataStatus {
+  state: 'running' | 'starting' | 'port_in_use' | 'failed'
+  port?: number
+  message: string | null
 }
 
 export interface ServerSettingsResponse {

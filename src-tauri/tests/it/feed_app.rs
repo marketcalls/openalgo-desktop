@@ -281,6 +281,25 @@ async fn service_moves_on_port_change_and_reports_a_taken_port() {
         other => panic!("expected PortInUse, got {:?}", other),
     }
     assert!(matches!(feed.status(), ServerStatus::PortInUse { .. }));
+    // Shown in the app, not only logged: on the Health Monitor page, with
+    // the cause and the fix.
+    let feed_alerts = || {
+        let c = ctx.logs.conn().unwrap();
+        openalgo_desktop_lib::db::sqlite::monitor::active_alerts(&c)
+            .unwrap()
+            .into_iter()
+            .filter(|a| a.metric_name == openalgo_desktop_lib::feed::FEED_ALERT_METRIC)
+            .collect::<Vec<_>>()
+    };
+    let alerts = feed_alerts();
+    assert_eq!(alerts.len(), 1, "{:?}", alerts);
+    assert_eq!(alerts[0].alert_type, "market_data_port_in_use");
+    assert_eq!(alerts[0].severity, "fail");
+    assert!(alerts[0].message.contains(&p3.to_string()));
+    assert!(alerts[0].message.contains("Server Settings"));
+    // The watcher's retries do not pile up alerts.
+    feed.apply_config().await;
+    assert_eq!(feed_alerts().len(), 1);
 
     // Once the other program lets go, the watcher brings the feed up.
     drop(blocker);
@@ -293,6 +312,7 @@ async fn service_moves_on_port_change_and_reports_a_taken_port() {
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
     assert!(up, "feed did not recover: {:?}", feed.status());
+    assert!(feed_alerts().is_empty(), "alert not resolved");
 
     feed.stop().await;
     assert!(tokio::net::TcpListener::bind(("127.0.0.1", p3))

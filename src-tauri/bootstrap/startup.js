@@ -7,9 +7,20 @@
   var port = document.getElementById('port')
   var retry = document.getElementById('retry')
   var title = document.querySelector('h1')
+  var feed = document.getElementById('feed')
+
+  // The market data feed's own problem (a taken port), shown with its fix.
+  function showFeed(ws) {
+    if (!feed) return
+    var problem = ws && (ws.state === 'port_in_use' || ws.state === 'failed') && ws.message
+    feed.textContent = problem ? ws.message : ''
+    feed.hidden = !problem
+  }
 
   function show(status) {
     if (!status) return
+    // retry_server answers with the app's own state only; keep the last one.
+    if (status.ws) showFeed(status.ws)
     if (status.state === 'running') {
       msg.textContent = 'Opening OpenAlgo.'
       window.location.href = 'http://127.0.0.1:' + status.port + '/'

@@ -8,7 +8,7 @@ const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 vi.mock('@/api/server-settings', () => ({ serverSettingsApi: api }))
 vi.mock('@/utils/toast', () => ({ showToast: toast }))
 
-import ServerSettings, { validateServerSettings } from './ServerSettings'
+import ServerSettings, { feedProblem, validateServerSettings } from './ServerSettings'
 
 const LOOPBACK = {
   http_host: '127.0.0.1',
@@ -113,5 +113,65 @@ describe('Server Settings page', () => {
     const { container } = render(<ServerSettings />)
     await screen.findByLabelText('App port')
     expect(await axe(container)).toHaveNoViolations()
+  })
+})
+
+describe('market data feed status', () => {
+  const taken =
+    'Live market data for your trading platforms and the Python SDK could not start because port 8765 is already used by another program. Close the other program (for example OpenAlgo web or another copy of OpenAlgo), or choose a different market data port in Server Settings. Live market data starts by itself once the port is free.'
+
+  it('shows a taken market data port with its cause and fix', async () => {
+    api.get.mockResolvedValue({
+      ...LOOPBACK,
+      ws_status: { state: 'port_in_use', port: 8765, message: taken },
+    })
+    const { container } = render(<ServerSettings />)
+    expect(await screen.findByText('Live market data is not running')).toBeInTheDocument()
+    expect(screen.getByText(taken)).toBeInTheDocument()
+    expect(await axe(container)).toHaveNoViolations()
+  })
+
+  it('shows nothing while the feed runs', async () => {
+    api.get.mockResolvedValue({
+      ...LOOPBACK,
+      ws_status: { state: 'running', port: 8765, message: null },
+    })
+    render(<ServerSettings />)
+    await screen.findByLabelText('App port')
+    expect(screen.queryByText('Live market data is not running')).toBeNull()
+  })
+
+  it('treats only a reported problem as one', () => {
+    expect(feedProblem({ state: 'failed', message: 'x' })).toBe(true)
+    expect(feedProblem({ state: 'port_in_use', port: 1, message: null })).toBe(false)
+    expect(feedProblem({ state: 'starting', message: null })).toBe(false)
+    expect(feedProblem(undefined)).toBe(false)
+  })
+
+  it('drops a taken port once another market data port is saved', async () => {
+    const user = userEvent.setup()
+    api.get.mockResolvedValue({
+      ...LOOPBACK,
+      ws_status: { state: 'port_in_use', port: 8765, message: taken },
+    })
+    // The feed moves to the new port a moment after the save answers.
+    api.save.mockResolvedValue({
+      status: 'success',
+      message: 'Saved.',
+      data: {
+        ...LOOPBACK,
+        ws_port: 8770,
+        ws_status: { state: 'port_in_use', port: 8765, message: taken },
+      },
+    })
+    render(<ServerSettings />)
+    expect(await screen.findByText('Live market data is not running')).toBeInTheDocument()
+    const port = screen.getByLabelText('Market data port')
+    await user.clear(port)
+    await user.type(port, '8770')
+    await user.click(screen.getByRole('button', { name: /save/i }))
+    await waitFor(() => expect(api.save).toHaveBeenCalled())
+    await waitFor(() => expect(screen.queryByText('Live market data is not running')).toBeNull())
+    expect(feedProblem({ state: 'port_in_use', port: 8765, message: taken }, '8765')).toBe(true)
   })
 })

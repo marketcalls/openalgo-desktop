@@ -39,6 +39,42 @@ use tokio::task::JoinHandle;
 /// How often the service checks the stored settings for a new host or port.
 const CONFIG_POLL: Duration = Duration::from_secs(2);
 
+/// Health alert (Health Monitor page) metric for a market data feed that
+/// could not start; resolved once it runs.
+pub const FEED_ALERT_METRIC: &str = "market_data_feed";
+
+/// Show the feed's state on the Health Monitor page: a taken or refused
+/// port is raised with the server's message (cause and fix), and resolved
+/// once the feed runs. Called only when the state changes.
+fn report_feed_health(ctx: &AppState, st: &ServerStatus) {
+    use crate::db::sqlite::monitor;
+    let now = ctx.now();
+    let res = ctx.logs.conn().and_then(|c| {
+        // A new problem replaces the old one (its message names the port).
+        monitor::auto_resolve(&c, FEED_ALERT_METRIC, now)?;
+        let (alert_type, message) = match st {
+            ServerStatus::PortInUse { message, .. } => ("market_data_port_in_use", message),
+            ServerStatus::Failed { message } => ("market_data_feed_failed", message),
+            _ => return Ok(()),
+        };
+        monitor::raise_alert(
+            &c,
+            &monitor::AlertRow {
+                alert_type: alert_type.into(),
+                // The Health Monitor's severities are warn and fail (web).
+                severity: "fail".into(),
+                metric_name: FEED_ALERT_METRIC.into(),
+                message: message.clone(),
+                ..Default::default()
+            },
+            now,
+        )
+    });
+    if let Err(e) = res {
+        tracing::warn!("Could not record the market data feed health alert: {}", e);
+    }
+}
+
 /// The feed server as the app runs it: one instance per app, created once
 /// (it registers the order-update relay on the event bus, which has no
 /// unsubscribe), started after the HTTP server, restarted when the
@@ -183,8 +219,9 @@ impl FeedService {
         };
         *self.ctx.feed_status.write() = st.clone();
         let previous = std::mem::replace(&mut *self.status.write(), st.clone());
-        // Logged once per change; the watcher retries quietly.
+        // Logged and shown once per change; the watcher retries quietly.
         if previous != st {
+            report_feed_health(&self.ctx, &st);
             match &st {
                 ServerStatus::PortInUse { message, .. } | ServerStatus::Failed { message } => {
                     tracing::error!("Market data feed not running: {}", message)
