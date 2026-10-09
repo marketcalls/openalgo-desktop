@@ -230,9 +230,20 @@ pub async fn start(ctx: Arc<AppState>) -> Result<ServerHandle, ServerStatus> {
             return Err(st);
         }
     };
+    // The port actually bound, the one source of truth for what is live.
+    let addr = listener.local_addr().unwrap_or(addr);
+    let bound = addr.port();
     let service = app(ctx.clone());
     let token = ctx.shutdown.child_token();
     let stop = token.clone();
+    // Live from here on; set before the task starts so a listener that dies
+    // at once still clears it.
+    *ctx.server_status.write() = ServerStatus::Running {
+        host: host.clone(),
+        port: bound,
+    };
+    // Weak: the context does not own this task (the server handle does).
+    let owner = Arc::downgrade(&ctx);
     let join = tokio::spawn(async move {
         let r = axum::serve(
             listener,
@@ -240,14 +251,22 @@ pub async fn start(ctx: Arc<AppState>) -> Result<ServerHandle, ServerStatus> {
         )
         .with_graceful_shutdown(async move { stop.cancelled().await })
         .await;
-        if let Err(e) = r {
+        if let Err(e) = &r {
             tracing::error!("HTTP server stopped: {}", e);
         }
+        // This listener no longer holds the port: nothing may trust it.
+        if let Some(ctx) = owner.upgrade() {
+            let mut st = ctx.server_status.write();
+            if matches!(&*st, ServerStatus::Running { port, .. } if *port == bound) {
+                *st = match r {
+                    Ok(()) => ServerStatus::Starting,
+                    Err(_) => ServerStatus::Failed {
+                        message: "The OpenAlgo server stopped. Restart it from Settings.".into(),
+                    },
+                };
+            }
+        }
     });
-    *ctx.server_status.write() = ServerStatus::Running {
-        host: host.clone(),
-        port: cfg.http_port,
-    };
     tracing::info!("OpenAlgo server listening on http://{}", addr);
     Ok(ServerHandle { addr, token, join })
 }

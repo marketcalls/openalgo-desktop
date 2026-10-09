@@ -53,8 +53,53 @@ pub fn remote_app_urls(port: u16, development: bool) -> Vec<String> {
     v
 }
 
+/// Whether `url` is the app's own page: exactly `127.0.0.1` or `localhost`
+/// (any case) on the live server port, which must be known (`live` is 0
+/// before the first bind, after a failed bind and once the listener stops,
+/// and then nothing is the app's page). In development the Vite dev server
+/// page, `localhost:5173`, is too. Any other address on this computer
+/// (another port, `127.0.0.2`, `[::1]`) is not.
+pub fn app_page(url: &url::Url, live: u16, development: bool) -> bool {
+    if url.scheme() != "http" {
+        return false;
+    }
+    let host = url.host_str().map(str::to_ascii_lowercase);
+    let port = url.port_or_known_default();
+    if development && host.as_deref() == Some("localhost") && port == Some(5173) {
+        return true;
+    }
+    live != 0
+        && port == Some(live)
+        && matches!(host.as_deref(), Some("127.0.0.1") | Some("localhost"))
+}
+
+/// Whether the main window may load `url` while the server is bound to
+/// `live` (0: not bound). Tauri cannot take back a capability granted at
+/// run time, so after the server moves from port A to port B the grant for
+/// A stays registered; what keeps it unusable is that the main window loads
+/// no page on this computer but the app's own ([`app_page`]), and nothing on
+/// this computer at all while no listener holds the port. Pages that are not
+/// on this computer (a broker's sign-in page, which must open in this window
+/// so its redirect lands on the same browser session) and the bundled
+/// start-up page (not http) get none of the app's permissions and stay
+/// reachable. The app's own commands re-check the caller's page too
+/// ([`reset_caller_allowed`]).
+pub fn main_window_may_load(url: &url::Url, live: u16, development: bool) -> bool {
+    if !matches!(url.scheme(), "http" | "https") {
+        return true;
+    }
+    let on_this_computer = match url.host() {
+        Some(url::Host::Domain(d)) => d.eq_ignore_ascii_case("localhost"),
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback() || ip.is_unspecified(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback() || ip.is_unspecified(),
+        None => true,
+    };
+    !on_this_computer || app_page(url, live, development)
+}
+
 /// Grant the main window's pages on `port` their permissions. Called when
-/// the server starts and again when it moves to another port.
+/// the server starts and again when it moves to another port, before the
+/// window is sent there.
 pub fn trust_app_origin(app: &AppHandle, port: u16) {
     let mut cap = tauri::ipc::CapabilityBuilder::new(format!("remote-app-{}", port))
         .window("main")
@@ -187,16 +232,12 @@ pub fn open_external(app: AppHandle, shell: State<'_, ShellState>, url: String) 
 }
 
 /// Who may start an account reset: the main window, showing the app's own
-/// page (the local server on its listening port, or the Vite dev server in
-/// development builds). A hidden runner window, a broker page the main
-/// window was sent to, or any other origin is refused.
-pub fn reset_caller_allowed(label: &str, url: &url::Url, listening_port: u16) -> bool {
-    if label != "main" || url.scheme() != "http" {
-        return false;
-    }
-    let loopback = matches!(url.host_str(), Some("127.0.0.1") | Some("localhost"));
-    let port = url.port_or_known_default();
-    loopback && (port == Some(listening_port) || (cfg!(debug_assertions) && port == Some(5173)))
+/// page ([`app_page`]: the local server on the port it is bound to now, or
+/// the Vite dev server in development builds). A hidden runner window, a
+/// broker page the main window was sent to, a page on a port the server has
+/// left, or anything while no listener is bound (`live_port` 0) is refused.
+pub fn reset_caller_allowed(label: &str, url: &url::Url, live_port: u16) -> bool {
+    label == "main" && app_page(url, live_port, cfg!(debug_assertions))
 }
 
 /// The answer the reset page gets back.
@@ -222,7 +263,7 @@ pub async fn reset_account(
     let url = window
         .url()
         .map_err(|e| AppError::Internal(format!("window address: {}", e)))?;
-    if !reset_caller_allowed(window.label(), &url, shell.ctx.listening_port()) {
+    if !reset_caller_allowed(window.label(), &url, shell.ctx.live_port()) {
         tracing::warn!("Account reset refused: not requested from the OpenAlgo window");
         return Err(AppError::Auth(
             "Reset account works only from the OpenAlgo Desktop window on this computer.".into(),
@@ -288,6 +329,101 @@ mod reset_tests {
                 "remote pages are granted at run time"
             );
         }
+    }
+
+    /// S-08 follow-up: the app's own page is exactly 127.0.0.1 or localhost
+    /// on the live port; nothing on this computer is while no listener is
+    /// bound; development adds localhost:5173 only.
+    #[test]
+    fn the_app_page_is_exactly_the_live_port_on_loopback() {
+        use super::{app_page, main_window_may_load};
+        let live = 5001;
+        for page in ["http://127.0.0.1:5001/dashboard", "http://LOCALHOST:5001/"] {
+            assert!(app_page(&u(page), live, false), "{}", page);
+            assert!(main_window_may_load(&u(page), live, false), "{}", page);
+        }
+        for page in [
+            "http://127.0.0.1:5000/",
+            "http://localhost:8080/",
+            "http://127.0.0.2:5001/",
+            "http://[::1]:5001/",
+            "http://0.0.0.0:5001/",
+            "https://127.0.0.1:5001/",
+        ] {
+            assert!(!app_page(&u(page), live, false), "{}", page);
+            assert!(!main_window_may_load(&u(page), live, false), "{}", page);
+        }
+        // No listener bound: nothing on this computer, the live port's
+        // address included.
+        for page in ["http://127.0.0.1:5001/", "http://localhost:5001/"] {
+            assert!(!app_page(&u(page), 0, false), "{}", page);
+            assert!(!main_window_may_load(&u(page), 0, false), "{}", page);
+        }
+        // Development: the Vite page on localhost:5173 only, even unbound.
+        assert!(main_window_may_load(&u("http://localhost:5173/"), 0, true));
+        assert!(!main_window_may_load(
+            &u("http://127.0.0.1:5173/"),
+            live,
+            true
+        ));
+        assert!(!main_window_may_load(
+            &u("http://localhost:5173/"),
+            live,
+            false
+        ));
+        // Pages not on this computer carry none of the app's permissions and
+        // stay reachable (a broker's sign-in page, the bundled page).
+        for page in [
+            "https://kite.zerodha.com/connect/login",
+            "tauri://localhost/index.html",
+            "http://tauri.localhost/index.html",
+        ] {
+            assert!(main_window_may_load(&u(page), 0, false), "{}", page);
+            assert!(!app_page(&u(page), live, false), "{}", page);
+        }
+    }
+
+    /// S-08 follow-up: after the server moves from port A to port B, only
+    /// B is the app's page: the window never loads A again and a command
+    /// called from a page on A is refused.
+    #[test]
+    fn after_a_port_change_only_the_new_port_is_trusted() {
+        let (a, b) = (5000, 5001);
+        assert!(super::main_window_may_load(
+            &u("http://127.0.0.1:5000/"),
+            a,
+            false
+        ));
+        assert!(!super::main_window_may_load(
+            &u("http://127.0.0.1:5000/"),
+            b,
+            false
+        ));
+        assert!(super::main_window_may_load(
+            &u("http://127.0.0.1:5001/"),
+            b,
+            false
+        ));
+        // The grant for the new port names that port only.
+        assert!(remote_app_urls(b, false)
+            .iter()
+            .all(|p| p.contains(":5001/")));
+        // A command invoked from a page on the old port is refused.
+        assert!(!reset_caller_allowed(
+            "main",
+            &u("http://127.0.0.1:5000/"),
+            b
+        ));
+        assert!(reset_caller_allowed(
+            "main",
+            &u("http://127.0.0.1:5001/"),
+            b
+        ));
+        assert!(!reset_caller_allowed(
+            "main",
+            &u("http://127.0.0.1:5001/"),
+            0
+        ));
     }
 
     /// S-08: the permissions granted at run time name permissions that

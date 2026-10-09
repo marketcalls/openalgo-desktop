@@ -397,6 +397,10 @@ same commit as its fix.
   stray run migrates the maintainer's database and once left a Historify log
   that stopped the app from starting. Use the `dev_server` example (temporary
   data folder, in-memory keystore) or a test harness with a temporary folder.
+- A test that starts a listener pins its ports first
+  (`AppState::pin_listener_ports`, port 0 for an ephemeral one): in a debug
+  build every settings reload puts the development ports 5500 and 8766
+  back, whatever the test wrote to the settings.
 - Only one process can hold 5500 or 8766. An "OpenAlgo could not start, port
   in use" dialog means a dev server or a test child is still running: find it
   with `lsof -nP -iTCP:5500 -sTCP:LISTEN` before anything else.

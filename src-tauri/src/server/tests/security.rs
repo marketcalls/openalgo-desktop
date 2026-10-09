@@ -326,3 +326,52 @@ async fn s14_webhook_prefix_is_not_exempt_from_csrf() {
         "Your session has expired. Refresh the page and try again."
     );
 }
+
+// --------------------------------------- S-08 the live port, fail closed
+
+fn set_bind_host(h: &H, host: &str) {
+    h.ctx()
+        .sqlite
+        .conn()
+        .unwrap()
+        .execute("UPDATE settings SET bind_host = ?1 WHERE id = 1", [host])
+        .unwrap();
+    h.ctx().reload_config().unwrap();
+}
+
+/// S-08 follow-up: the port the app window trusts is the one the listener
+/// is bound to, read from the bound socket; before the first bind, once
+/// the listener stops and after a failed bind it is 0, and the window then
+/// trusts no page on this computer. The listener only ever binds an
+/// ephemeral port here (pinned to 0), never the app's own ports.
+#[tokio::test]
+async fn s08_the_live_port_is_the_bound_listener_and_fails_closed() {
+    use crate::commands::main_window_may_load;
+    let h = H::new();
+    h.ctx().pin_listener_ports(0, 0);
+    h.ctx().reload_config().unwrap();
+    let page = |p: u16| url::Url::parse(&format!("http://127.0.0.1:{}/", p)).unwrap();
+    let trusted = |p: u16| main_window_may_load(&page(p), h.ctx().live_port(), false);
+
+    // Before the first bind.
+    assert_eq!(h.ctx().live_port(), 0);
+
+    // A successful bind: the port actually bound.
+    let server = crate::server::start(h.ctx().clone()).await.unwrap();
+    let bound = server.addr.port();
+    assert_ne!(bound, 0);
+    assert_eq!(h.ctx().live_port(), bound);
+    assert!(trusted(bound));
+
+    // The listener stops.
+    server.stop().await;
+    assert_eq!(h.ctx().live_port(), 0);
+    assert!(!trusted(bound), "a stopped listener is still trusted");
+
+    // A restart whose bind fails: an address this computer does not have
+    // (TEST-NET), refused the same way on every system.
+    set_bind_host(&h, "192.0.2.1");
+    assert!(crate::server::start(h.ctx().clone()).await.is_err());
+    assert_eq!(h.ctx().live_port(), 0);
+    assert!(!trusted(bound), "a failed bind trusts the old port");
+}

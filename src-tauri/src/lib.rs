@@ -111,7 +111,24 @@ pub fn run() {
                         None => WebviewUrl::App("index.html".into()),
                     }
                 };
+                // The main window loads pages on this computer only from the
+                // live server port (security review S-08): the grant for a
+                // port the server has left cannot be taken back, so no page
+                // on it may load here.
+                let live = Arc::downgrade(&ctx);
                 WebviewWindowBuilder::new(app, "main", url)
+                    .on_navigation(move |to| {
+                        let port = live.upgrade().map(|c| c.live_port());
+                        let ok = port.is_some_and(|p| {
+                            commands::main_window_may_load(to, p, cfg!(debug_assertions))
+                        });
+                        if !ok {
+                            tracing::warn!(
+                                "Kept the OpenAlgo window from loading a page on another local port"
+                            );
+                        }
+                        ok
+                    })
                     .title("OpenAlgo Desktop")
                     .inner_size(1400.0, 900.0)
                     .min_inner_size(1024.0, 768.0)

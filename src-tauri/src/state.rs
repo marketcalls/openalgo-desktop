@@ -396,6 +396,17 @@ impl AppState {
         }
     }
 
+    /// The port the HTTP listener is bound to right now, from the bound
+    /// socket itself; 0 before the first bind, after a failed bind and once
+    /// the listener stops. What the app window's trust checks read, so they
+    /// fail closed whenever no listener of this app holds the port.
+    pub fn live_port(&self) -> u16 {
+        match &*self.server_status.read() {
+            ServerStatus::Running { port, .. } => *port,
+            _ => 0,
+        }
+    }
+
     /// Broker connected and its token still inside today's session.
     pub fn is_broker_connected(&self) -> bool {
         self.get_broker_session().is_some()
