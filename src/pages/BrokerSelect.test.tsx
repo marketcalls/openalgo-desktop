@@ -62,19 +62,15 @@ async function connect() {
 }
 
 describe('BrokerSelect sign-in start', () => {
-  it.each([
-    'shoonya',
-    'zebu',
-    'tradesmart',
-    'rmoney',
-    'zerodha',
-    'flattrade',
-  ])('sends %s through the server-side sign-in start', async (broker) => {
-    serve(broker, 'redirect')
-    render(<BrokerSelect />)
-    await connect()
-    await waitFor(() => expect(assigned).toEqual([`/${broker}/initiate-oauth`]))
-  })
+  it.each(['shoonya', 'zebu', 'tradesmart', 'rmoney', 'zerodha', 'flattrade'])(
+    'sends %s through the server-side sign-in start',
+    async (broker) => {
+      serve(broker, 'redirect')
+      render(<BrokerSelect />)
+      await connect()
+      await waitFor(() => expect(assigned).toEqual([`/${broker}/initiate-oauth`]))
+    }
+  )
 
   it.each([
     'fivepaisaxts',

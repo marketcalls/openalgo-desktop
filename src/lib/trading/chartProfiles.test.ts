@@ -85,24 +85,24 @@ function canvas(bars: readonly Bar[], spacing = 10) {
 }
 
 describe('per-session TPO context actions', () => {
-  it.each([
-    'tpo',
-    'session-volume-profile',
-  ] as const)('uses the primary-series price scale after an axis move (%s)', (kind) => {
-    const data = [bar('2026-09-01T03:45:00Z')]
-    const c = canvas(data, 80)
-    const seriesScale = c.rc.priceScale
-    c.rc.priceScale = Object.assign(Object.create(seriesScale), { priceToY: () => -10_000 })
-    const profile = createChartProfile(kind, readProfileSettings(kind, {}), {
-      ...context,
-      priceScale: () => seriesScale,
-    })
-    profile.attached!({ requestUpdate: vi.fn() })
-    profile.setBars(data)
-    profile.draw(c.ctx, c.rc)
-    expect(c.fills.some((fill) => fill.y >= 0 && fill.y < c.rc.plotHeight)).toBe(true)
-    if (kind === 'tpo') expect(profile.contextMenuAt(4, 140)?.label).toBe('Split this session')
-  })
+  it.each(['tpo', 'session-volume-profile'] as const)(
+    'uses the primary-series price scale after an axis move (%s)',
+    (kind) => {
+      const data = [bar('2026-09-01T03:45:00Z')]
+      const c = canvas(data, 80)
+      const seriesScale = c.rc.priceScale
+      c.rc.priceScale = Object.assign(Object.create(seriesScale), { priceToY: () => -10_000 })
+      const profile = createChartProfile(kind, readProfileSettings(kind, {}), {
+        ...context,
+        priceScale: () => seriesScale,
+      })
+      profile.attached!({ requestUpdate: vi.fn() })
+      profile.setBars(data)
+      profile.draw(c.ctx, c.rc)
+      expect(c.fills.some((fill) => fill.y >= 0 && fill.y < c.rc.plotHeight)).toBe(true)
+      if (kind === 'tpo') expect(profile.contextMenuAt(4, 140)?.label).toBe('Split this session')
+    }
+  )
 
   it('splits and unsplits only the clicked session in every native rendering pass', () => {
     const data = splitFixture()
@@ -229,22 +229,22 @@ describe('profile session calculations', () => {
     expect(profile.warning()).toBeNull()
   })
 
-  it.each([
-    'tpo',
-    'session-volume-profile',
-  ] as const)('explains an empty custom session without warning during initial loading (%s)', (kind) => {
-    const settings = {
-      ...readProfileSettings(kind, {}),
-      sessionMode: 'custom' as const,
-      sessionStart: '09:15',
-      sessionEnd: '15:30',
+  it.each(['tpo', 'session-volume-profile'] as const)(
+    'explains an empty custom session without warning during initial loading (%s)',
+    (kind) => {
+      const settings = {
+        ...readProfileSettings(kind, {}),
+        sessionMode: 'custom' as const,
+        sessionStart: '09:15',
+        sessionEnd: '15:30',
+      }
+      const profile = createChartProfile(kind, settings, context)
+      profile.setBars([])
+      expect(profile.warning()).toBeNull()
+      profile.setBars([bar('2026-09-01T02:00:00Z')])
+      expect(profile.warning()).toContain('custom session')
     }
-    const profile = createChartProfile(kind, settings, context)
-    profile.setBars([])
-    expect(profile.warning()).toBeNull()
-    profile.setBars([bar('2026-09-01T02:00:00Z')])
-    expect(profile.warning()).toContain('custom session')
-  })
+  )
 
   it('anchors All-session composite blocks to the exchange clock after a partial first day', () => {
     const store = new ProfileSessionStore(
@@ -295,15 +295,15 @@ describe('profile session calculations', () => {
     expect(store.sessions[0].market!.sessions[0].levels[0].count).toBe(2)
   })
 
-  it.each([
-    'all',
-    'custom',
-  ] as const)('marks the initial balance unavailable when its opening bars are absent (%s)', (sessionMode) => {
-    const store = new ProfileSessionStore({ ...tpo(), sessionMode }, context)
-    store.setBars([bar('2026-09-01T04:50:00Z', { low: 90, high: 120 })])
-    expect(store.sessions[0].initialBalanceAvailable).toBe(false)
-    expect(Number.isFinite(store.sessions[0].market!.sessions[0].initialBalance.high)).toBe(false)
-  })
+  it.each(['all', 'custom'] as const)(
+    'marks the initial balance unavailable when its opening bars are absent (%s)',
+    (sessionMode) => {
+      const store = new ProfileSessionStore({ ...tpo(), sessionMode }, context)
+      store.setBars([bar('2026-09-01T04:50:00Z', { low: 90, high: 120 })])
+      expect(store.sessions[0].initialBalanceAvailable).toBe(false)
+      expect(Number.isFinite(store.sessions[0].market!.sessions[0].initialBalance.high)).toBe(false)
+    }
+  )
 
   it('limits a partial initial balance to observed bars inside the true opening window', () => {
     const store = new ProfileSessionStore(tpo(), context)

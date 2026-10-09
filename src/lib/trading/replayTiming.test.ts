@@ -25,15 +25,16 @@ describe('workspace replay availability', () => {
     expect(timing.barEndTime(bar(utc('2026-03-06T14:30:00Z')), 0)).toBe(utc('2026-03-13T13:30:00Z'))
   })
 
-  it.each([
-    'M',
-    '1M',
-    '1mo',
-  ])('handles the monthly alias %s without guessing minutes', (interval) => {
-    const timing = replayTiming(interval, 'Asia/Kolkata')
-    expect(timing.barEndTime(bar(utc('2024-01-31T18:30:00Z')), 0)).toBe(utc('2024-02-29T18:30:00Z'))
-    expect(replayTiming('1m', 'Asia/Kolkata').barEndTime(bar(100), 0)).toBe(160)
-  })
+  it.each(['M', '1M', '1mo'])(
+    'handles the monthly alias %s without guessing minutes',
+    (interval) => {
+      const timing = replayTiming(interval, 'Asia/Kolkata')
+      expect(timing.barEndTime(bar(utc('2024-01-31T18:30:00Z')), 0)).toBe(
+        utc('2024-02-29T18:30:00Z')
+      )
+      expect(replayTiming('1m', 'Asia/Kolkata').barEndTime(bar(100), 0)).toBe(160)
+    }
+  )
 
   it('honors a registered calendar and captures its rule before unregistration', () => {
     const dispose = registerInterval({

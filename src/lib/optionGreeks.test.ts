@@ -340,64 +340,39 @@ describe('parity with the opengreeks Rust library', () => {
     expectClose(black76Price(flag, F, K, t, r, iv), price, PRICE_RTOL, `${label} price`)
   })
 
-  it.each(GOLDEN)('recovers implied volatility for $label', ({
-    label,
-    flag,
-    F,
-    K,
-    t,
-    r,
-    price,
-    iv,
-  }) => {
-    const solved = impliedVolatility(price, flag, F, K, t, r)
-    expect(solved, `${label}: solver returned null`).not.toBeNull()
-    expect(Math.abs((solved as number) - iv), `${label} iv`).toBeLessThan(1e-6)
-  })
+  it.each(GOLDEN)(
+    'recovers implied volatility for $label',
+    ({ label, flag, F, K, t, r, price, iv }) => {
+      const solved = impliedVolatility(price, flag, F, K, t, r)
+      expect(solved, `${label}: solver returned null`).not.toBeNull()
+      expect(Math.abs((solved as number) - iv), `${label} iv`).toBeLessThan(1e-6)
+    }
+  )
 
-  it.each(GOLDEN)('matches Greeks for $label', ({
-    label,
-    flag,
-    F,
-    K,
-    t,
-    r,
-    iv,
-    delta,
-    gamma,
-    theta,
-    vega,
-  }) => {
-    const g = black76Greeks(flag, F, K, t, r, iv)
-    expectClose(g.delta, delta, GREEK_RTOL, `${label} delta`)
-    expectClose(g.gamma, gamma, GREEK_RTOL, `${label} gamma`)
-    expectClose(g.theta, theta, GREEK_RTOL, `${label} theta`)
-    expectClose(g.vega, vega, GREEK_RTOL, `${label} vega`)
-  })
+  it.each(GOLDEN)(
+    'matches Greeks for $label',
+    ({ label, flag, F, K, t, r, iv, delta, gamma, theta, vega }) => {
+      const g = black76Greeks(flag, F, K, t, r, iv)
+      expectClose(g.delta, delta, GREEK_RTOL, `${label} delta`)
+      expectClose(g.gamma, gamma, GREEK_RTOL, `${label} gamma`)
+      expectClose(g.theta, theta, GREEK_RTOL, `${label} theta`)
+      expectClose(g.vega, vega, GREEK_RTOL, `${label} vega`)
+    }
+  )
 
-  it.each(GOLDEN)('legGreeks reproduces $label end to end from price alone', ({
-    label,
-    flag,
-    F,
-    K,
-    t,
-    r,
-    price,
-    delta,
-    gamma,
-    theta,
-    vega,
-    iv,
-  }) => {
-    const g = legGreeks(flag, F, K, t, r * 100, price)
-    expect(g, `${label}: legGreeks returned null`).not.toBeNull()
-    const got = g as NonNullable<typeof g>
-    expectClose(got.iv, iv * 100, 1e-6, `${label} iv`)
-    expectClose(got.delta, delta, 1e-6, `${label} delta`)
-    expectClose(got.gamma, gamma, 1e-6, `${label} gamma`)
-    expectClose(got.theta, theta, 1e-6, `${label} theta`)
-    expectClose(got.vega, vega, 1e-6, `${label} vega`)
-  })
+  it.each(GOLDEN)(
+    'legGreeks reproduces $label end to end from price alone',
+    ({ label, flag, F, K, t, r, price, delta, gamma, theta, vega, iv }) => {
+      const g = legGreeks(flag, F, K, t, r * 100, price)
+      expect(g, `${label}: legGreeks returned null`).not.toBeNull()
+      const got = g as NonNullable<typeof g>
+      expectClose(got.iv, iv * 100, 1e-6, `${label} iv`)
+      expectClose(got.delta, delta, 1e-6, `${label} delta`)
+      expectClose(got.gamma, gamma, 1e-6, `${label} gamma`)
+      expectClose(got.theta, theta, 1e-6, `${label} theta`)
+      expectClose(got.vega, vega, 1e-6, `${label} vega`)
+    }
+  )
 })
 
 describe('legGreeks fallbacks', () => {

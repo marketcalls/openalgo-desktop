@@ -47,15 +47,13 @@ describe.each([
   ['authClient', authClient],
   ['webClient', webClient],
 ])('%s CSRF interceptor', (_name, instance) => {
-  it.each([
-    'post',
-    'put',
-    'patch',
-    'delete',
-  ])('attaches the token to %s, which Flask-WTF protects', async (method) => {
-    const headers = await headersFor(instance, method)
-    expect(headers['X-CSRFToken']).toBe(CSRF)
-  })
+  it.each(['post', 'put', 'patch', 'delete'])(
+    'attaches the token to %s, which Flask-WTF protects',
+    async (method) => {
+      const headers = await headersFor(instance, method)
+      expect(headers['X-CSRFToken']).toBe(CSRF)
+    }
+  )
 
   it('leaves a GET alone, which needs no token', async () => {
     const headers = await headersFor(instance, 'get')

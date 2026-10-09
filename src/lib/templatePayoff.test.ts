@@ -121,29 +121,30 @@ function buildLegs(template: (typeof STRATEGY_TEMPLATES)[number]): StrategyLeg[]
 }
 
 describe('strategy template payoff', () => {
-  it.each(
-    STRATEGY_TEMPLATES
-  )('$id breaks even where spot settlement says it should', (template) => {
-    const legs = buildLegs(template)
-    const nearest = nearestLegDays(legs, NOW)
-    const range = payoffPriceRange(SPOT, legs, 12, nearest / 365)
-    const payoff = computePayoff(legs, SPOT, nearest, 0, range, 240, 0, 12, NOW)
+  it.each(STRATEGY_TEMPLATES)(
+    '$id breaks even where spot settlement says it should',
+    (template) => {
+      const legs = buildLegs(template)
+      const nearest = nearestLegDays(legs, NOW)
+      const range = payoffPriceRange(SPOT, legs, 12, nearest / 365)
+      const payoff = computePayoff(legs, SPOT, nearest, 0, range, 240, 0, 12, NOW)
 
-    if (template.legs.some((leg) => leg.expiryOffset === 1)) {
-      // A calendar's far leg is still alive at the first expiry, so the curve
-      // is not piecewise linear and cannot be solved this way. Assert only that
-      // the window is sane and the roots are ordered.
-      expect(payoff.samples[0].underlying).toBeGreaterThan(0)
-      expect(payoff.breakevens).toEqual([...payoff.breakevens].sort((a, b) => a - b))
-      return
-    }
+      if (template.legs.some((leg) => leg.expiryOffset === 1)) {
+        // A calendar's far leg is still alive at the first expiry, so the curve
+        // is not piecewise linear and cannot be solved this way. Assert only that
+        // the window is sane and the roots are ordered.
+        expect(payoff.samples[0].underlying).toBeGreaterThan(0)
+        expect(payoff.breakevens).toEqual([...payoff.breakevens].sort((a, b) => a - b))
+        return
+      }
 
-    const expected = independentBreakevens(legs)
-    expect(payoff.breakevens).toHaveLength(expected.length)
-    for (let index = 0; index < expected.length; index++) {
-      expect(payoff.breakevens[index]).toBeCloseTo(expected[index], 2)
+      const expected = independentBreakevens(legs)
+      expect(payoff.breakevens).toHaveLength(expected.length)
+      for (let index = 0; index < expected.length; index++) {
+        expect(payoff.breakevens[index]).toBeCloseTo(expected[index], 2)
+      }
+      // No breakeven may be reported at an unreachable underlying of zero.
+      expect(payoff.breakevens.every((value) => value > 0)).toBe(true)
     }
-    // No breakeven may be reported at an unreachable underlying of zero.
-    expect(payoff.breakevens.every((value) => value > 0)).toBe(true)
-  })
+  )
 })

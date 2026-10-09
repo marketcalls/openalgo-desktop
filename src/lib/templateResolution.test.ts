@@ -43,30 +43,31 @@ describe('template payoff topology', () => {
     expect(resolveListedContract(chain, 100, 'PE')).toBeNull()
   })
 
-  it.each(
-    STRATEGY_TEMPLATES
-  )('$id keeps every distinct offset distinct on an irregular chain', (template) => {
-    const strikes = Array.from({ length: 41 }, (_, index) => {
-      const distance = index - 20
-      return 1000 + distance * 10 + Math.sign(distance) * Math.floor(Math.abs(distance) / 4) * 5
-    })
-    const resolved = template.legs.map((leg) => ({
-      ...leg,
-      resolvedStrike: resolveStrikeOffset(strikes, 1000, leg.strikeOffset),
-    }))
+  it.each(STRATEGY_TEMPLATES)(
+    '$id keeps every distinct offset distinct on an irregular chain',
+    (template) => {
+      const strikes = Array.from({ length: 41 }, (_, index) => {
+        const distance = index - 20
+        return 1000 + distance * 10 + Math.sign(distance) * Math.floor(Math.abs(distance) / 4) * 5
+      })
+      const resolved = template.legs.map((leg) => ({
+        ...leg,
+        resolvedStrike: resolveStrikeOffset(strikes, 1000, leg.strikeOffset),
+      }))
 
-    expect(resolved.every((leg) => leg.resolvedStrike !== null)).toBe(true)
-    expect(validateTemplateStrikeTopology(resolved)).toEqual([])
+      expect(resolved.every((leg) => leg.resolvedStrike !== null)).toBe(true)
+      expect(validateTemplateStrikeTopology(resolved)).toEqual([])
 
-    const strikeByOffset = new Map<number, number>()
-    for (const leg of resolved) {
-      const strike = leg.resolvedStrike as number
-      const previous = strikeByOffset.get(leg.strikeOffset)
-      if (previous === undefined) strikeByOffset.set(leg.strikeOffset, strike)
-      else expect(strike).toBe(previous)
+      const strikeByOffset = new Map<number, number>()
+      for (const leg of resolved) {
+        const strike = leg.resolvedStrike as number
+        const previous = strikeByOffset.get(leg.strikeOffset)
+        if (previous === undefined) strikeByOffset.set(leg.strikeOffset, strike)
+        else expect(strike).toBe(previous)
+      }
+      expect(new Set(strikeByOffset.values()).size).toBe(strikeByOffset.size)
     }
-    expect(new Set(strikeByOffset.values()).size).toBe(strikeByOffset.size)
-  })
+  )
 
   it.each(STRATEGY_TEMPLATES)('$id produces finite, exact payoff vertices', (template) => {
     const strikes = Array.from({ length: 41 }, (_, index) => 800 + index * 10)

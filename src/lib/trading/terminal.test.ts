@@ -76,12 +76,12 @@ describe('productOptionsFor', () => {
 })
 
 describe('usesLots', () => {
-  it.each([
-    ...LOTSIZE_ONE_SEGMENTS,
-    ...REAL_LOTSIZE_SEGMENTS,
-  ])('%s takes quantity in lots', (exchange) => {
-    expect(usesLots(exchange)).toBe(true)
-  })
+  it.each([...LOTSIZE_ONE_SEGMENTS, ...REAL_LOTSIZE_SEGMENTS])(
+    '%s takes quantity in lots',
+    (exchange) => {
+      expect(usesLots(exchange)).toBe(true)
+    }
+  )
 
   it.each(CASH_EQUITY)('%s takes quantity in shares', (exchange) => {
     expect(usesLots(exchange)).toBe(false)

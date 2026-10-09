@@ -563,29 +563,29 @@ describe('terminal comparison workspace integration', () => {
 })
 
 describe('selected candle readout', () => {
-  it.each([
-    false,
-    true,
-  ])('explains absent OI without claiming a warmup shortage (capability %s)', async (supported) => {
-    const { state, terminal } = mount()
-    state.sym.hasOpenInterest = supported
-    const toast = vi.fn()
-    const host = terminal as unknown as {
-      cb: { onToast: typeof toast }
-      warnIfStarved(inst: unknown): void
-    }
-    host.cb.onToast = toast
-    await import('openalgo-charts/indicators')
-    const study = state.chart.addIndicator('open-interest', {})
-    host.warnIfStarved(study)
+  it.each([false, true])(
+    'explains absent OI without claiming a warmup shortage (capability %s)',
+    async (supported) => {
+      const { state, terminal } = mount()
+      state.sym.hasOpenInterest = supported
+      const toast = vi.fn()
+      const host = terminal as unknown as {
+        cb: { onToast: typeof toast }
+        warnIfStarved(inst: unknown): void
+      }
+      host.cb.onToast = toast
+      await import('openalgo-charts/indicators')
+      const study = state.chart.addIndicator('open-interest', {})
+      host.warnIfStarved(study)
 
-    expect(toast).toHaveBeenCalledWith(
-      supported
-        ? 'The loaded history contains no open interest readings.'
-        : 'Open interest is not available for this instrument.',
-      ''
-    )
-  })
+      expect(toast).toHaveBeenCalledWith(
+        supported
+          ? 'The loaded history contains no open interest readings.'
+          : 'Open interest is not available for this instrument.',
+        ''
+      )
+    }
+  )
 
   it('treats zero OI as a reading and retains ordinary study warmup feedback', async () => {
     const { state, terminal } = mount()
@@ -702,34 +702,32 @@ describe('selected candle readout', () => {
 })
 
 describe('built-in volume and average', () => {
-  it.each([
-    'NSE_INDEX',
-    'BSE_INDEX',
-    'MCX_INDEX',
-    'GLOBAL_INDEX',
-  ])('hides index volume and its average on %s without losing the user preference', async (exchange) => {
-    const { terminal, state } = mount()
-    state.sym.exchange = exchange
-    state.sym.quoteOnly = true
-    await terminal.applyChartSettings({ 'volume.showMA': true, 'volume.maPeriod': 2 })
-    terminal.setVolumeVisible(true)
-    expect(
-      state.chart
-        .getState()
-        .series.filter((s) => s.priceScaleId === '')
-        .every((s) => s.style.visible === false)
-    ).toBe(true)
-    expect(terminal.volumeVisible()).toBe(true)
-    state.sym.exchange = 'NFO'
-    state.sym.synthetic = true
-    terminal.setVolumeVisible(true)
-    expect(
-      state.chart
-        .getState()
-        .series.filter((s) => s.priceScaleId === '')
-        .every((s) => s.style.visible === true)
-    ).toBe(true)
-  })
+  it.each(['NSE_INDEX', 'BSE_INDEX', 'MCX_INDEX', 'GLOBAL_INDEX'])(
+    'hides index volume and its average on %s without losing the user preference',
+    async (exchange) => {
+      const { terminal, state } = mount()
+      state.sym.exchange = exchange
+      state.sym.quoteOnly = true
+      await terminal.applyChartSettings({ 'volume.showMA': true, 'volume.maPeriod': 2 })
+      terminal.setVolumeVisible(true)
+      expect(
+        state.chart
+          .getState()
+          .series.filter((s) => s.priceScaleId === '')
+          .every((s) => s.style.visible === false)
+      ).toBe(true)
+      expect(terminal.volumeVisible()).toBe(true)
+      state.sym.exchange = 'NFO'
+      state.sym.synthetic = true
+      terminal.setVolumeVisible(true)
+      expect(
+        state.chart
+          .getState()
+          .series.filter((s) => s.priceScaleId === '')
+          .every((s) => s.style.visible === true)
+      ).toBe(true)
+    }
+  )
 
   it('follows candle colours and corrects direction on a live replacement', () => {
     const { state } = mount()
@@ -801,44 +799,46 @@ describe('built-in volume and average', () => {
     expect(state.volume.getData()[1].color).toBe('#aa0000')
   })
 
-  it.each([
-    'heikin-ashi',
-    'renko',
-  ])('preserves transformed volume and colours for %s', async (ctype) => {
-    const { terminal, state } = mount()
-    state.ctype = ctype
-    state.rawBars = state.rawBars.map((b, i) => ({ ...b, volume: [10, 20, 30, 60][i] }))
-    state.buildChart()
-    // The chart applies the transform; the series is still fed the raw bars.
-    expect(state.chart.seriesTransform(state.price)?.type).toBe(
-      CHART_TYPES[ctype].transform?.(1).type
-    )
-    expect(state.price.getData().map((b) => b.time)).toEqual(state.rawBars.map((b) => b.time))
-    await terminal.applyChartSettings({ 'volume.showMA': true, 'volume.maPeriod': 1 })
-    const prices = state.chart.primaryBars()
-    const volumes = state.volume.getData()
-    expect(volumes.length).toBeGreaterThan(1)
-    expect(volumes.reduce((total, b) => total + b.close, 0)).toBe(120)
-    expect(volumes.map((b) => b.time)).toEqual(prices.map((b) => b.time))
-    const style = state.chart.primarySeriesInfo()!.style
-    const theme = state.chart.theme()
-    expect(volumes.map((b) => b.color)).toEqual(
-      prices.map((b) =>
-        b.close >= b.open ? (style.upColor ?? theme.upColor) : (style.downColor ?? theme.downColor)
+  it.each(['heikin-ashi', 'renko'])(
+    'preserves transformed volume and colours for %s',
+    async (ctype) => {
+      const { terminal, state } = mount()
+      state.ctype = ctype
+      state.rawBars = state.rawBars.map((b, i) => ({ ...b, volume: [10, 20, 30, 60][i] }))
+      state.buildChart()
+      // The chart applies the transform; the series is still fed the raw bars.
+      expect(state.chart.seriesTransform(state.price)?.type).toBe(
+        CHART_TYPES[ctype].transform?.(1).type
       )
-    )
-    await state.beginReplayAt(1)
-    // Replay walks the raw bars, so the elements and their volume are formed
-    // from the revealed prefix alone: no volume from a bar not yet replayed.
-    const revealed = state.price.getData()
-    expect(revealed.length).toBeLessThan(state.rawBars.length)
-    const replayed = state.volume.getData()
-    expect(replayed.map((b) => b.time)).toEqual(state.chart.primaryBars().map((b) => b.time))
-    expect(replayed.reduce((total, b) => total + b.close, 0)).toBe(
-      revealed.reduce((total, b) => total + (b.volume ?? 0), 0)
-    )
-    expect(state.volumeMA!.getData().map((b) => b.close)).toEqual(replayed.map((b) => b.close))
-  })
+      expect(state.price.getData().map((b) => b.time)).toEqual(state.rawBars.map((b) => b.time))
+      await terminal.applyChartSettings({ 'volume.showMA': true, 'volume.maPeriod': 1 })
+      const prices = state.chart.primaryBars()
+      const volumes = state.volume.getData()
+      expect(volumes.length).toBeGreaterThan(1)
+      expect(volumes.reduce((total, b) => total + b.close, 0)).toBe(120)
+      expect(volumes.map((b) => b.time)).toEqual(prices.map((b) => b.time))
+      const style = state.chart.primarySeriesInfo()!.style
+      const theme = state.chart.theme()
+      expect(volumes.map((b) => b.color)).toEqual(
+        prices.map((b) =>
+          b.close >= b.open
+            ? (style.upColor ?? theme.upColor)
+            : (style.downColor ?? theme.downColor)
+        )
+      )
+      await state.beginReplayAt(1)
+      // Replay walks the raw bars, so the elements and their volume are formed
+      // from the revealed prefix alone: no volume from a bar not yet replayed.
+      const revealed = state.price.getData()
+      expect(revealed.length).toBeLessThan(state.rawBars.length)
+      const replayed = state.volume.getData()
+      expect(replayed.map((b) => b.time)).toEqual(state.chart.primaryBars().map((b) => b.time))
+      expect(replayed.reduce((total, b) => total + b.close, 0)).toBe(
+        revealed.reduce((total, b) => total + (b.volume ?? 0), 0)
+      )
+      expect(state.volumeMA!.getData().map((b) => b.close)).toEqual(replayed.map((b) => b.close))
+    }
+  )
 
   it('forms Renko bricks from each tick in the chart, without reloading the series', () => {
     const { state } = mount()
@@ -1143,38 +1143,38 @@ describe('history refresh while replay controls the chart', () => {
     expect(setPaused).toHaveBeenLastCalledWith(false)
   })
 
-  it.each([
-    'before',
-    'during',
-  ] as const)('isolates a refresh started %s replay and restores updated live data on exit', async (when) => {
-    const { terminal, state } = mount()
-    const pending = pendingHistory(state)
-    let refresh: Promise<void>
-    if (when === 'before') refresh = state.runReconcile()
-    await state.beginReplayAt(1)
-    if (when === 'during') refresh = state.runReconcile()
-    const price = [...state.price.getData()]
-    const volume = [...state.volume.getData()]
-    const replay = terminal.replayState()
+  it.each(['before', 'during'] as const)(
+    'isolates a refresh started %s replay and restores updated live data on exit',
+    async (when) => {
+      const { terminal, state } = mount()
+      const pending = pendingHistory(state)
+      let refresh: Promise<void>
+      if (when === 'before') refresh = state.runReconcile()
+      await state.beginReplayAt(1)
+      if (when === 'during') refresh = state.runReconcile()
+      const price = [...state.price.getData()]
+      const volume = [...state.volume.getData()]
+      const replay = terminal.replayState()
 
-    pending.resolve([bar(120, 111), bar(240, 999, 4200)])
-    await refresh!
+      pending.resolve([bar(120, 111), bar(240, 999, 4200)])
+      await refresh!
 
-    expect(state.rawBars[1].close).toBe(111)
-    expect(state.builder.current()?.volume).toBe(4200)
-    expect(state.price.getData()).toEqual(price)
-    expect(state.volume.getData()).toEqual(volume)
-    expect(terminal.replayState()).toEqual(replay)
+      expect(state.rawBars[1].close).toBe(111)
+      expect(state.builder.current()?.volume).toBe(4200)
+      expect(state.price.getData()).toEqual(price)
+      expect(state.volume.getData()).toEqual(volume)
+      expect(terminal.replayState()).toEqual(replay)
 
-    terminal.replayStep()
-    expect(state.price.getData()).toHaveLength(3)
-    expect(state.price.getData()[1].close).toBe(101)
-    terminal.stopReplay()
-    expect(state.price.getData()).toHaveLength(4)
-    expect(state.price.getData()[1].close).toBe(111)
-    expect(state.price.getData()[3].close).toBe(103)
-    expect(state.volume.getData()[3].close).toBe(4200)
-  })
+      terminal.replayStep()
+      expect(state.price.getData()).toHaveLength(3)
+      expect(state.price.getData()[1].close).toBe(101)
+      terminal.stopReplay()
+      expect(state.price.getData()).toHaveLength(4)
+      expect(state.price.getData()[1].close).toBe(111)
+      expect(state.price.getData()[3].close).toBe(103)
+      expect(state.volume.getData()[3].close).toBe(4200)
+    }
+  )
 
   it('keeps a pending older page out of the replay series and viewport', async () => {
     const { terminal, state } = mount()
@@ -1205,24 +1205,22 @@ describe('history refresh while replay controls the chart', () => {
     expect(state.price.getData()[1].close).toBe(111)
   })
 
-  it.each([
-    'symbol',
-    'interval',
-    'reload',
-    'destroy',
-  ] as const)('discards a late refresh after a %s change', async (change) => {
-    const { terminal, state } = mount()
-    const pending = pendingHistory(state)
-    const refresh = state.runReconcile()
-    if (change === 'symbol') state.sym = { ...state.sym, symbol: 'BANKNIFTY29SEP26FUT' }
-    if (change === 'interval') state.interval = '5m'
-    if (change === 'reload') state.loadTicket++
-    if (change === 'destroy') terminal.destroy()
-    pending.resolve([bar(120, 999)])
-    await refresh
-    expect(state.rawBars[1].close).toBe(101)
-    if (change === 'destroy') expect(vi.getTimerCount()).toBe(0)
-  })
+  it.each(['symbol', 'interval', 'reload', 'destroy'] as const)(
+    'discards a late refresh after a %s change',
+    async (change) => {
+      const { terminal, state } = mount()
+      const pending = pendingHistory(state)
+      const refresh = state.runReconcile()
+      if (change === 'symbol') state.sym = { ...state.sym, symbol: 'BANKNIFTY29SEP26FUT' }
+      if (change === 'interval') state.interval = '5m'
+      if (change === 'reload') state.loadTicket++
+      if (change === 'destroy') terminal.destroy()
+      pending.resolve([bar(120, 999)])
+      await refresh
+      expect(state.rawBars[1].close).toBe(101)
+      if (change === 'destroy') expect(vi.getTimerCount()).toBe(0)
+    }
+  )
 })
 
 describe('live candle alignment', () => {
@@ -1429,26 +1427,26 @@ describe('terminal listener ownership', () => {
 })
 
 describe('older history session ownership', () => {
-  it.each([
-    'bars',
-    'empty',
-  ] as const)('discards a previous symbol page returning %s', async (outcome) => {
-    const { terminal, state } = mount()
-    vi.spyOn(terminal, 'api').mockResolvedValue({ data: {} })
-    const pending = pendingHistory(state)
-    const page = state.loadOlderHistory()
-    const newer = [bar(300, 200), bar(360, 201)]
-    state.rest = { getBars: async () => newer }
-    await terminal.loadSymbol({ ...state.sym, symbol: 'BANKNIFTY29SEP26FUT' })
-    const completion = vi.spyOn(state.chart, 'historyLoadComplete')
-    pending.resolve(outcome === 'bars' ? [bar(0, 99)] : [])
-    await page
+  it.each(['bars', 'empty'] as const)(
+    'discards a previous symbol page returning %s',
+    async (outcome) => {
+      const { terminal, state } = mount()
+      vi.spyOn(terminal, 'api').mockResolvedValue({ data: {} })
+      const pending = pendingHistory(state)
+      const page = state.loadOlderHistory()
+      const newer = [bar(300, 200), bar(360, 201)]
+      state.rest = { getBars: async () => newer }
+      await terminal.loadSymbol({ ...state.sym, symbol: 'BANKNIFTY29SEP26FUT' })
+      const completion = vi.spyOn(state.chart, 'historyLoadComplete')
+      pending.resolve(outcome === 'bars' ? [bar(0, 99)] : [])
+      await page
 
-    expect(state.rawBars).toEqual(newer)
-    expect(state.price.getData()).toEqual(newer)
-    expect(state.noMoreHistory).toBe(false)
-    expect(completion).not.toHaveBeenCalled()
-  })
+      expect(state.rawBars).toEqual(newer)
+      expect(state.price.getData()).toEqual(newer)
+      expect(state.noMoreHistory).toBe(false)
+      expect(completion).not.toHaveBeenCalled()
+    }
+  )
 
   it('keeps a newer page pending when an obsolete page finishes', async () => {
     const { terminal, state } = mount()
@@ -1566,28 +1564,28 @@ describe('symbol load lifecycle', () => {
     expect(state.chart).toBeNull()
   })
 
-  it.each([
-    'success',
-    'failure',
-  ] as const)('keeps the newer symbol when old history returns a %s', async (outcome) => {
-    const { terminal, state } = mount()
-    vi.spyOn(terminal, 'api').mockResolvedValue({ data: {} })
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    const pending = pendingHistory(state)
-    const first = terminal.loadSymbol(state.sym)
-    await Promise.resolve()
-    const newer = [bar(300, 200), bar(360, 201)]
-    state.rest = { getBars: async () => newer }
-    const second = terminal.loadSymbol({ ...state.sym, symbol: 'BANKNIFTY29SEP26FUT' })
-    expect(await second).toBe(true)
-    const chart = state.chart
-    if (outcome === 'success') pending.resolve([bar(300, 999)])
-    else pending.reject(new Error('old request failed'))
+  it.each(['success', 'failure'] as const)(
+    'keeps the newer symbol when old history returns a %s',
+    async (outcome) => {
+      const { terminal, state } = mount()
+      vi.spyOn(terminal, 'api').mockResolvedValue({ data: {} })
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      const pending = pendingHistory(state)
+      const first = terminal.loadSymbol(state.sym)
+      await Promise.resolve()
+      const newer = [bar(300, 200), bar(360, 201)]
+      state.rest = { getBars: async () => newer }
+      const second = terminal.loadSymbol({ ...state.sym, symbol: 'BANKNIFTY29SEP26FUT' })
+      expect(await second).toBe(true)
+      const chart = state.chart
+      if (outcome === 'success') pending.resolve([bar(300, 999)])
+      else pending.reject(new Error('old request failed'))
 
-    expect(await first).toBe(false)
-    expect(state.rawBars).toEqual(newer)
-    expect(state.price.getData()).toEqual(newer)
-    expect(state.sym.symbol).toBe('BANKNIFTY29SEP26FUT')
-    expect(state.chart).toBe(chart)
-  })
+      expect(await first).toBe(false)
+      expect(state.rawBars).toEqual(newer)
+      expect(state.price.getData()).toEqual(newer)
+      expect(state.sym.symbol).toBe('BANKNIFTY29SEP26FUT')
+      expect(state.chart).toBe(chart)
+    }
+  )
 })

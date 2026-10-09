@@ -154,16 +154,17 @@ describe('mini payoff icon geometry', () => {
     expect(points[points.length - 1].x).toBe(VIEWBOX_WIDTH)
   })
 
-  it.each(
-    COMPUTED_TEMPLATES
-  )('$id keeps the drawn curve within the icon amplitude', (candidate) => {
-    const points = parsePath(candidate.payoffPath)
+  it.each(COMPUTED_TEMPLATES)(
+    '$id keeps the drawn curve within the icon amplitude',
+    (candidate) => {
+      const points = parsePath(candidate.payoffPath)
 
-    for (const point of points) {
-      expect(point.y).toBeGreaterThanOrEqual(ZERO_LINE_Y - AMPLITUDE)
-      expect(point.y).toBeLessThanOrEqual(ZERO_LINE_Y + AMPLITUDE)
+      for (const point of points) {
+        expect(point.y).toBeGreaterThanOrEqual(ZERO_LINE_Y - AMPLITUDE)
+        expect(point.y).toBeLessThanOrEqual(ZERO_LINE_Y + AMPLITUDE)
+      }
     }
-  })
+  )
 
   it.each(COMPUTED_TEMPLATES)('$id is not drawn as a flat horizontal line', (candidate) => {
     const ys = parsePath(candidate.payoffPath).map((point) => point.y)
@@ -189,42 +190,45 @@ describe('mini payoff icon geometry', () => {
 })
 
 describe('mini payoff icon window (regression for the razor-thin spike)', () => {
-  it.each(
-    COMPUTED_TEMPLATES
-  )('$id draws its strike structure well inside the icon, not against an edge', (candidate) => {
-    const interior = parsePath(candidate.payoffPath)
-      .slice(1, -1)
-      .map((point) => point.x)
+  it.each(COMPUTED_TEMPLATES)(
+    '$id draws its strike structure well inside the icon, not against an edge',
+    (candidate) => {
+      const interior = parsePath(candidate.payoffPath)
+        .slice(1, -1)
+        .map((point) => point.x)
 
-    expect(interior.length).toBeGreaterThan(0)
-    expect(Math.min(...interior)).toBeGreaterThanOrEqual(5)
-    expect(Math.max(...interior)).toBeLessThanOrEqual(95)
-  })
+      expect(interior.length).toBeGreaterThan(0)
+      expect(Math.min(...interior)).toBeGreaterThanOrEqual(5)
+      expect(Math.max(...interior)).toBeLessThanOrEqual(95)
+    }
+  )
 
-  it.each(
-    COMPUTED_TEMPLATES.filter((candidate) => distinctStrikes(candidate).length > 1)
-  )('$id fills at least 30% of the icon width with its strike structure', (candidate) => {
-    const interior = parsePath(candidate.payoffPath)
-      .slice(1, -1)
-      .map((point) => point.x)
+  it.each(COMPUTED_TEMPLATES.filter((candidate) => distinctStrikes(candidate).length > 1))(
+    '$id fills at least 30% of the icon width with its strike structure',
+    (candidate) => {
+      const interior = parsePath(candidate.payoffPath)
+        .slice(1, -1)
+        .map((point) => point.x)
 
-    // The old fixed 0..200 spot window put every butterfly and vertical
-    // inside 4-16% of the icon, which drew a razor-thin spike between two
-    // long flat lines. The window is now derived per template.
-    expect(Math.max(...interior) - Math.min(...interior)).toBeGreaterThanOrEqual(30)
-  })
+      // The old fixed 0..200 spot window put every butterfly and vertical
+      // inside 4-16% of the icon, which drew a razor-thin spike between two
+      // long flat lines. The window is now derived per template.
+      expect(Math.max(...interior) - Math.min(...interior)).toBeGreaterThanOrEqual(30)
+    }
+  )
 
-  it.each(
-    COMPUTED_TEMPLATES.filter((candidate) => distinctStrikes(candidate).length === 1)
-  )('$id centres its single kink rather than parking it at an edge', (candidate) => {
-    const interior = parsePath(candidate.payoffPath)
-      .slice(1, -1)
-      .map((point) => point.x)
+  it.each(COMPUTED_TEMPLATES.filter((candidate) => distinctStrikes(candidate).length === 1))(
+    '$id centres its single kink rather than parking it at an edge',
+    (candidate) => {
+      const interior = parsePath(candidate.payoffPath)
+        .slice(1, -1)
+        .map((point) => point.x)
 
-    expect(interior).toHaveLength(1)
-    expect(interior[0]).toBeGreaterThanOrEqual(20)
-    expect(interior[0]).toBeLessThanOrEqual(80)
-  })
+      expect(interior).toHaveLength(1)
+      expect(interior[0]).toBeGreaterThanOrEqual(20)
+      expect(interior[0]).toBeLessThanOrEqual(80)
+    }
+  )
 
   it('scales the window to the template instead of sharing one fixed spot range', () => {
     const widths = COMPUTED_TEMPLATES.map((candidate) => {

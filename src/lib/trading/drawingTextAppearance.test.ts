@@ -75,18 +75,18 @@ function paint(drawing: Drawing) {
 }
 
 describe('drawing content editor appearance', () => {
-  it.each([
-    'callout',
-    'price-label',
-  ])('ignores obsolete background overrides when editing saved %s', (tool) => {
-    const { drawing, terminal } = setup(tool)
-    drawing.style.color = '#ffff00'
-    drawing.text = { ...drawing.text, backgroundColor: '#434651' }
-    const initial = terminal.drawTextStyle('sample')!
-    expect(initial.color).toBe(paint(drawing).text[0])
-    terminal.applyDrawText('sample', { ...initial, color: '#ffffff' })
-    expect(paint(drawing).text.every((color) => color === '#ffffff')).toBe(true)
-  })
+  it.each(['callout', 'price-label'])(
+    'ignores obsolete background overrides when editing saved %s',
+    (tool) => {
+      const { drawing, terminal } = setup(tool)
+      drawing.style.color = '#ffff00'
+      drawing.text = { ...drawing.text, backgroundColor: '#434651' }
+      const initial = terminal.drawTextStyle('sample')!
+      expect(initial.color).toBe(paint(drawing).text[0])
+      terminal.applyDrawText('sample', { ...initial, color: '#ffffff' })
+      expect(paint(drawing).text.every((color) => color === '#ffffff')).toBe(true)
+    }
+  )
 
   it('seeds the price label font from its rendered default', () => {
     expect(setup('price-label').terminal.drawTextStyle('sample')?.fontSize).toBe(12)
@@ -98,16 +98,14 @@ describe('drawing content editor appearance', () => {
     expect(terminal.drawTextStyle('sample')?.border).toBe(true)
   })
 
-  it.each([
-    '#fff',
-    '#10131a',
-    'rgb(230,240,250)',
-    'rgba(16,19,26,0.8)',
-  ])('seeds the note font from the renderer contrast for %s', (backgroundColor) => {
-    const { drawing, terminal } = setup('note')
-    drawing.text = { ...drawing.text, backgroundColor }
-    expect(terminal.drawTextStyle('sample')?.color).toBe(paint(drawing).text[0])
-  })
+  it.each(['#fff', '#10131a', 'rgb(230,240,250)', 'rgba(16,19,26,0.8)'])(
+    'seeds the note font from the renderer contrast for %s',
+    (backgroundColor) => {
+      const { drawing, terminal } = setup('note')
+      drawing.text = { ...drawing.text, backgroundColor }
+      expect(terminal.drawTextStyle('sample')?.color).toBe(paint(drawing).text[0])
+    }
+  )
 
   it.each(textTools)('preserves %s appearance and unset defaults on an untouched save', (tool) => {
     const { drawing, terminal } = setup(tool)

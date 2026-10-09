@@ -133,29 +133,29 @@ afterEach(() => {
 })
 
 describe('terminal comparison ownership', () => {
-  it.each([
-    'linear',
-    'logarithmic',
-  ] as const)('restores the underlying %s price scale after saving and removing a comparison', async (mode) => {
-    const { instance } = helper()
-    const original = chart()
-    original.setPriceScaleOptions({ mode })
-    await instance.replace([spec()], 'percent')
-    await instance.bind(original, context)
-    expect(original.priceScaleOptions().mode).toBe('percentage')
-    const before = original.getState()
-    const setOptions = vi.spyOn(original.panes()[0].priceScale, 'setOptions')
-    const saved = instance.captureBaseState()
-    expect(setOptions).not.toHaveBeenCalled()
-    expect(original.getState()).toEqual(before)
-    const restored = chart()
-    restored.restoreState(JSON.parse(JSON.stringify(saved)))
-    const next = helper().instance
-    await next.replace(instance.specs(), instance.mode)
-    await next.bind(restored, context)
-    next.remove('other')
-    expect(restored.priceScaleOptions().mode).toBe(mode)
-  })
+  it.each(['linear', 'logarithmic'] as const)(
+    'restores the underlying %s price scale after saving and removing a comparison',
+    async (mode) => {
+      const { instance } = helper()
+      const original = chart()
+      original.setPriceScaleOptions({ mode })
+      await instance.replace([spec()], 'percent')
+      await instance.bind(original, context)
+      expect(original.priceScaleOptions().mode).toBe('percentage')
+      const before = original.getState()
+      const setOptions = vi.spyOn(original.panes()[0].priceScale, 'setOptions')
+      const saved = instance.captureBaseState()
+      expect(setOptions).not.toHaveBeenCalled()
+      expect(original.getState()).toEqual(before)
+      const restored = chart()
+      restored.restoreState(JSON.parse(JSON.stringify(saved)))
+      const next = helper().instance
+      await next.replace(instance.specs(), instance.mode)
+      await next.bind(restored, context)
+      next.remove('other')
+      expect(restored.priceScaleOptions().mode).toBe(mode)
+    }
+  )
 
   it('preserves a user scale choice made while comparing through mode changes and capture', async () => {
     const { instance } = helper()
@@ -330,20 +330,18 @@ describe('terminal comparison ownership', () => {
     expect(instance.rows(180)[0].close).toBe(999)
   })
 
-  it.each([
-    'D',
-    'M',
-    '1M',
-    '1mo',
-  ])('keeps calendar %s authoritative without inventing tick buckets', async (interval) => {
-    const { instance, sockets, getBars } = helper()
-    await instance.replace([spec()], 'price')
-    await instance.bind(chart(), { ...context, interval })
-    expect(getBars).toHaveBeenCalledWith(expect.objectContaining({ interval }))
-    expect(sockets).toHaveLength(0)
-    await vi.advanceTimersByTimeAsync(30_000)
-    expect(getBars).toHaveBeenCalledTimes(2)
-  })
+  it.each(['D', 'M', '1M', '1mo'])(
+    'keeps calendar %s authoritative without inventing tick buckets',
+    async (interval) => {
+      const { instance, sockets, getBars } = helper()
+      await instance.replace([spec()], 'price')
+      await instance.bind(chart(), { ...context, interval })
+      expect(getBars).toHaveBeenCalledWith(expect.objectContaining({ interval }))
+      expect(sockets).toHaveLength(0)
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(getBars).toHaveBeenCalledTimes(2)
+    }
+  )
 
   it('releases socket, history polling and callbacks on last removal and destruction', async () => {
     const { instance, sockets, getBars, onChange } = helper()
