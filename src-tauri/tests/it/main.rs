@@ -90,6 +90,7 @@ mod sandbox_schedule;
 mod sandbox_web_scenarios;
 mod scalping;
 mod soak;
+mod strategy;
 mod tools;
 mod trading_files;
 mod trading_runner;

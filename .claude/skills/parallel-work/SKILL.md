@@ -96,7 +96,7 @@ mkdir -p dist && test -f dist/index.html || echo '<!doctype html><title>ci</titl
 npm ci
 (cd src-tauri && cargo fmt --all --check)
 (cd src-tauri && cargo clippy --all-targets --locked -- -D warnings)
-(cd src-tauri && cargo test --locked)                 # the full suite: lib, it, strategy, doc
+(cd src-tauri && cargo test --locked)                 # the full suite: lib, it, doc
 npx tsc -b
 npx vitest run
 npx biome ci ./src
