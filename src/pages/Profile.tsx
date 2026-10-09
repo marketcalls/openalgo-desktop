@@ -558,8 +558,8 @@ export default function ProfilePage() {
             websocket_url: websocketUrl || brokerCredentials.websocket_url,
           })
         }
-        // Show restart dialog
-        setShowRestartDialog(true)
+        // Desktop: settings apply at once; ask for a restart only when the server says so.
+        if (response.data.restart_required) setShowRestartDialog(true)
       } else {
         showToast.error(response.data.message || 'Failed to save settings', 'admin')
       }
@@ -947,9 +947,11 @@ export default function ProfilePage() {
           <Alert>
             <Key className="h-4 w-4" />
             <AlertTitle>Broker API Credentials</AlertTitle>
+            {/* Desktop: saved credentials apply at once; no restart, no sign-out. */}
             <AlertDescription>
-              Update your broker API credentials. Changes require an application restart to take
-              effect. You will be logged out after saving.
+              Update your broker API credentials. Changes apply as soon as you save. Choosing a
+              different broker ends the current broker session, and you then sign in to the new
+              broker.
             </AlertDescription>
           </Alert>
 
