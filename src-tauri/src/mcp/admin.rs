@@ -314,12 +314,40 @@ fn shell_quote(s: &str) -> String {
     }
 }
 
-/// Ready-to-paste configuration for Claude Desktop and Claude Code with the
-/// running executable's real path.
-pub fn client_config(ctx: &AppState, token: &str) -> Value {
-    let exe = std::env::current_exe()
+/// The environment variable the AppImage runtime sets to the `.AppImage`
+/// file being run (set by the OS packaging runtime, never by the trader; it
+/// carries no secret).
+const APPIMAGE_ENV: &str = "APPIMAGE";
+
+/// The program an MCP client should launch. Run from a Linux AppImage, the
+/// binary sits in a temporary mount (`/tmp/.mount_XXXX/...`) that changes at
+/// every launch, so a client configured with it stops working after the
+/// next start; the `.AppImage` file itself stays put and runs the same
+/// binary. `appimage` is used only when it is an absolute path to a file.
+fn mcp_executable(
+    current_exe: Option<&std::path::Path>,
+    appimage: Option<&std::path::Path>,
+    is_file: impl Fn(&std::path::Path) -> bool,
+) -> String {
+    if let Some(a) = appimage.filter(|a| a.is_absolute() && is_file(a)) {
+        return a.to_string_lossy().into_owned();
+    }
+    current_exe
         .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_default();
+        .unwrap_or_default()
+}
+
+/// Ready-to-paste configuration for Claude Desktop and Claude Code with the
+/// running executable's real path (the `.AppImage` file on a Linux
+/// AppImage).
+pub fn client_config(ctx: &AppState, token: &str) -> Value {
+    let current = std::env::current_exe().ok();
+    let appimage = if cfg!(target_os = "linux") {
+        std::env::var_os(APPIMAGE_ENV).map(std::path::PathBuf::from)
+    } else {
+        None
+    };
+    let exe = mcp_executable(current.as_deref(), appimage.as_deref(), |p| p.is_file());
     let server_url = format!("http://127.0.0.1:{}", ctx.listening_port());
     let mcp_url = format!("{}/mcp", server_url);
     // The token travels in the client's `env` block, never in the command
@@ -364,6 +392,38 @@ mod tests {
         assert!(!https_url_ok("http://example.com"));
         assert!(!https_url_ok("https://exa mple.com"));
         assert!(!https_url_ok("https://"));
+    }
+
+    #[test]
+    fn appimage_file_is_launched_instead_of_its_temporary_mount() {
+        use std::path::Path;
+        let mount = Path::new("/tmp/.mount_OpenAlXYZ/usr/bin/openalgo-desktop");
+        let image = Path::new("/home/trader/Apps/OpenAlgo_1.0.0_amd64.AppImage");
+        let yes = |_: &Path| true;
+        let no = |_: &Path| false;
+        if cfg!(windows) {
+            // Unix paths are not absolute on Windows; the rule is the same.
+            return;
+        }
+        assert_eq!(
+            mcp_executable(Some(mount), Some(image), yes),
+            image.to_string_lossy()
+        );
+        // Not an AppImage (deb, macOS, Windows): the running binary.
+        assert_eq!(
+            mcp_executable(Some(mount), None, yes),
+            mount.to_string_lossy()
+        );
+        // A stale or relative value is ignored.
+        assert_eq!(
+            mcp_executable(Some(mount), Some(image), no),
+            mount.to_string_lossy()
+        );
+        assert_eq!(
+            mcp_executable(Some(mount), Some(Path::new("OpenAlgo.AppImage")), yes),
+            mount.to_string_lossy()
+        );
+        assert_eq!(mcp_executable(None, None, yes), "");
     }
 
     #[test]

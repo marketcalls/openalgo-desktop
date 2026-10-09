@@ -115,7 +115,11 @@ when `OPENALGO_DESKTOP_DEV_PORTS=1` is set. The only other environment variable
 is `OPENALGO_MCP_TOKEN`, read by the `mcp` subcommand alone: the MCP client
 (Claude Desktop, Claude Code) sets it in its own configuration, the token is
 created on the API Key page, and it is never a command-line argument, never
-logged and never a `.env` file. The app itself reads no other variables.
+logged and never a `.env` file. Besides these the app reads only
+`APPIMAGE`, on Linux: the AppImage runtime sets it to the `.AppImage` file
+being run (an OS-runtime variable, never set by the trader, carrying no
+secret), and the MCP client configuration names that file instead of the
+temporary mount the binary runs from. The app reads no other variables.
 
 A port already in use (macOS AirPlay holds 5000 on many Macs) must be reported
 to the user in the app with the fix, never only logged.
