@@ -447,6 +447,42 @@ mod tests {
         }
     }
 
+    /// Web #2164: brokers reuse a token across exchanges (Shoonya NSE INFY
+    /// and CDS EURINR26NOV26113CE are both 1594). The web's unfiltered
+    /// search walked a dict keyed by token alone, so one row hid the other;
+    /// the desktop keys the master by exchange and token and searches every
+    /// row, so both are found whatever the insertion order.
+    #[test]
+    fn a_token_shared_across_exchanges_hides_neither_row() {
+        use crate::brokers::common::symbols::SymbolGeneration;
+        let mut infy = row("INFY", "NSE", "INFY", "", -1.0, "EQ");
+        infy.token = "1594".into();
+        let mut cds = row(
+            "EURINR26NOV26113CE",
+            "CDS",
+            "EURINR",
+            "26-NOV-26",
+            113.0,
+            "CE",
+        );
+        cds.token = "1594".into();
+        for rows in [
+            vec![infy.clone(), cds.clone()],
+            vec![cds.clone(), infy.clone()],
+        ] {
+            let g = SymbolGeneration::build(rows, 1);
+            assert_eq!(g.len(), 2);
+            let found = enhanced_search(g.rows(), Some("INFY"), None);
+            assert_eq!(found.len(), 1);
+            assert_eq!(found[0].exchange, "NSE");
+            let found = enhanced_search(g.rows(), Some("EURINR26NOV26113CE"), None);
+            assert_eq!(found.len(), 1);
+            assert_eq!(found[0].exchange, "CDS");
+            assert_eq!(enhanced_search(g.rows(), Some("1594"), None).len(), 2);
+            assert_eq!(g.search_prefix("INFY", None, 10).len(), 1);
+        }
+    }
+
     #[test]
     fn underlying_extraction_matches_the_web_regexes() {
         assert_eq!(
