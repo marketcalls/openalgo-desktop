@@ -196,8 +196,99 @@ fn applied(conn: &Connection, name: &str) -> Result<bool> {
     )?)
 }
 
+/// Paths whose next segment is the credential itself (the strategy webhook
+/// token, the Chartink webhook id).
+const SECRET_PATH_PREFIXES: [&str; 2] = ["/strategy/webhook/", "/chartink/webhook/"];
+pub const REDACTED: &str = "<redacted>";
+
+/// `text` (a path, or a stored list of paths) with every webhook secret
+/// segment replaced by `<redacted>`. Security review S-06: the traffic log
+/// and the 404 tracker keep the route, never the secret.
+pub fn redact_secret_paths(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    loop {
+        let next = SECRET_PATH_PREFIXES
+            .iter()
+            .filter_map(|p| rest.find(p).map(|i| (i, *p)))
+            .min_by_key(|(i, _)| *i);
+        let Some((i, prefix)) = next else {
+            out.push_str(rest);
+            return out;
+        };
+        out.push_str(&rest[..i + prefix.len()]);
+        rest = &rest[i + prefix.len()..];
+        let end = rest
+            .find(|c: char| {
+                matches!(c, ',' | '"' | '\'' | ']' | '/' | '?' | ';') || c.is_whitespace()
+            })
+            .unwrap_or(rest.len());
+        if end > 0 {
+            out.push_str(REDACTED);
+        }
+        rest = &rest[end..];
+    }
+}
+
+/// Migration `011_redact_webhook_paths` of `logs.db`: scrub secrets that
+/// earlier builds wrote. Idempotent and recorded once.
+fn redact_stored_paths(conn: &Connection) -> Result<()> {
+    if applied(conn, "011_redact_webhook_paths")? {
+        return Ok(());
+    }
+    conn.execute_batch("BEGIN IMMEDIATE")?;
+    let r = (|| -> Result<()> {
+        for (table, column) in [
+            ("traffic_logs", "path"),
+            ("error_404_tracker", "paths_attempted"),
+        ] {
+            let rows: Vec<(i64, String)> = {
+                let mut st = conn.prepare(&format!(
+                    "SELECT id, {c} FROM {t} WHERE {c} LIKE '%/strategy/webhook/%' \
+                     OR {c} LIKE '%/chartink/webhook/%'",
+                    c = column,
+                    t = table
+                ))?;
+                let v = st
+                    .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                v
+            };
+            for (id, text) in rows {
+                let clean = redact_secret_paths(&text);
+                if clean != text {
+                    conn.execute(
+                        &format!("UPDATE {} SET {} = ?1 WHERE id = ?2", table, column),
+                        rusqlite::params![clean, id],
+                    )?;
+                }
+            }
+        }
+        conn.execute(
+            "INSERT OR IGNORE INTO migrations (name) VALUES ('011_redact_webhook_paths')",
+            [],
+        )?;
+        Ok(())
+    })();
+    match r {
+        Ok(()) => {
+            conn.execute_batch("COMMIT")?;
+            Ok(())
+        }
+        Err(e) => {
+            let _ = conn.execute_batch("ROLLBACK");
+            Err(e)
+        }
+    }
+}
+
 /// Schema for the monitoring tables (idempotent). Runs on every open.
 pub fn migrate(conn: &Connection) -> Result<()> {
+    create_tables(conn)?;
+    redact_stored_paths(conn)
+}
+
+fn create_tables(conn: &Connection) -> Result<()> {
     if applied(conn, "010_monitoring_tables")? {
         return Ok(());
     }
@@ -518,6 +609,19 @@ pub fn is_loopback_ip(ip: &str) -> bool {
             .unwrap_or(false)
 }
 
+/// Addresses that are never banned: loopback (the trader's own machine), and
+/// the internal identities in the discard-only `100::/64` block: the shared
+/// identity of every caller behind a tunnel or proxy (banning it would cut
+/// off the trader's own TradingView and Chartink alerts) and the MCP
+/// dispatcher (security review S-03).
+pub fn never_banned(ip: &str) -> bool {
+    is_loopback_ip(ip)
+        || matches!(
+            ip.parse::<std::net::IpAddr>(),
+            Ok(std::net::IpAddr::V6(v)) if v.segments()[..4] == [0x100, 0, 0, 0]
+        )
+}
+
 /// Ban (or re-ban) an address. A fifth ban, or `repeat_limit` bans, makes it
 /// permanent as on the web. Loopback is never banned.
 #[allow(clippy::too_many_arguments)]
@@ -531,7 +635,7 @@ pub fn ban_ip(
     now: DateTime<Utc>,
     repeat_limit: i64,
 ) -> Result<bool> {
-    if is_loopback_ip(ip) {
+    if never_banned(ip) {
         return Ok(false);
     }
     let existing: Option<i64> = conn
@@ -1263,6 +1367,66 @@ pub fn resolve_alert(conn: &Connection, id: i64, now: DateTime<Utc>) -> Result<b
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// S-06: secrets already written by earlier builds are scrubbed once,
+    /// on a populated database.
+    #[test]
+    fn stored_webhook_secrets_are_redacted_once() {
+        let c = Connection::open_in_memory().unwrap();
+        c.execute_batch(
+            "CREATE TABLE migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE,
+             applied_at TEXT NOT NULL DEFAULT (datetime('now')));",
+        )
+        .unwrap();
+        create_tables(&c).unwrap();
+        c.execute(
+            "INSERT INTO traffic_logs (timestamp, client_ip, method, path, status_code, duration_ms)
+             VALUES ('t', '1.2.3.4', 'POST', '/strategy/webhook/oaws_SECRET123', 200, 1.0),
+                    ('t', '1.2.3.4', 'POST', '/api/v1/placeorder', 200, 1.0)",
+            [],
+        )
+        .unwrap();
+        c.execute(
+            "INSERT INTO error_404_tracker (ip_address, first_error_at, last_error_at, paths_attempted)
+             VALUES ('5.6.7.8', 't', 't', '[\"/chartink/webhook/abc-SECRET\", \"/x\"]')",
+            [],
+        )
+        .unwrap();
+        migrate(&c).unwrap();
+        migrate(&c).unwrap();
+        let paths: Vec<String> = c
+            .prepare("SELECT path FROM traffic_logs ORDER BY id")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(
+            paths,
+            vec!["/strategy/webhook/<redacted>", "/api/v1/placeorder"]
+        );
+        let tried: String = c
+            .query_row("SELECT paths_attempted FROM error_404_tracker", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert!(!tried.contains("SECRET"), "{}", tried);
+        assert!(tried.contains("/chartink/webhook/<redacted>"));
+        assert!(tried.contains("/x"));
+    }
+
+    #[test]
+    fn redaction_keeps_the_route() {
+        assert_eq!(
+            redact_secret_paths("/strategy/webhook/oaws_abc"),
+            "/strategy/webhook/<redacted>"
+        );
+        assert_eq!(
+            redact_secret_paths("/chartink/webhook/"),
+            "/chartink/webhook/"
+        );
+        assert_eq!(redact_secret_paths("/api/v1/funds"), "/api/v1/funds");
+    }
 
     fn db() -> Connection {
         let c = Connection::open_in_memory().unwrap();

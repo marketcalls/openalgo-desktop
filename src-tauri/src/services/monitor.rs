@@ -93,7 +93,7 @@ impl Monitor {
     }
 
     pub fn is_banned(&self, ip: &str, now: DateTime<Utc>) -> bool {
-        if store::is_loopback_ip(ip) {
+        if store::never_banned(ip) {
             return false;
         }
         match self.bans.read().bans.get(ip) {
@@ -299,6 +299,12 @@ fn skip_traffic(path: &str) -> bool {
         || path.starts_with("/api/v1/latency/logs")
 }
 
+/// The path as it may be stored: the strategy webhook token and the
+/// Chartink webhook id replaced (security review S-06).
+pub fn loggable_path(path: &str) -> String {
+    store::redact_secret_paths(path)
+}
+
 /// Latency record type for an `/api/v1` path (web `api_types`).
 pub fn api_type(path: &str) -> String {
     let name = path
@@ -370,7 +376,7 @@ pub async fn layer(State(ctx): State<Arc<AppState>>, req: Request, next: Next) -
         );
         return r;
     }
-    let path = req.uri().path().to_string();
+    let path = loggable_path(req.uri().path());
     if skip_traffic(&path) {
         return next.run(req).await;
     }
@@ -497,6 +503,22 @@ async fn scan_body(resp: Response) -> (Response, Option<Value>) {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn webhook_secrets_never_reach_the_traffic_log() {
+        let token = "oaws_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789abcdefg";
+        assert_eq!(
+            loggable_path(&format!("/strategy/webhook/{}", token)),
+            "/strategy/webhook/<redacted>"
+        );
+        assert_eq!(
+            loggable_path("/chartink/webhook/11111111-1111-4111-8111-111111111111"),
+            "/chartink/webhook/<redacted>"
+        );
+        assert_eq!(loggable_path("/api/v1/placeorder"), "/api/v1/placeorder");
+        assert_eq!(loggable_path("/chartink/webhook/"), "/chartink/webhook/");
+    }
+
     use super::*;
 
     #[test]
