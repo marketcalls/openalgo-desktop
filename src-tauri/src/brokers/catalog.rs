@@ -63,6 +63,21 @@ pub fn auth_type(broker: &str) -> AuthType {
     }
 }
 
+/// Brokers that sign in from the saved API key and secret alone, with no
+/// extra input (web brlogin signs these in on the first visit to
+/// `/<broker>/callback`): the XTS direct logins, Delta Exchange and Dhan's
+/// sandbox, whose access token is the saved secret. Samco also needs no
+/// input but has its own connect page (the static IP check).
+pub const SAVED_KEY_BROKERS: &[&str] = &[
+    "deltaexchange",
+    "dhan_sandbox",
+    "fivepaisaxts",
+    "ibulls",
+    "iifl",
+    "jainamxts",
+    "wisdom",
+];
+
 /// How the broker page starts a sign-in. Sent to the page (as `sign_in` on
 /// `/api/broker/configured` and `/auth/broker-config`) so the page keeps no
 /// list of brokers of its own that could drift from this catalogue.
@@ -75,12 +90,17 @@ pub enum SignIn {
     /// `GET /<broker>/callback`: the broker's in-app page (login form,
     /// Definedge's and Nubra's OTP, Samco's connect page).
     Form,
+    /// `POST /<broker>/callback` with no fields, from the broker page with
+    /// its CSRF token: one action, the saved keys sign in. A `GET` of the
+    /// callback (which any site can make the browser send) signs in nothing.
+    SavedKeys,
 }
 
 /// The sign-in a broker uses (see [`SignIn`]).
 pub fn sign_in(broker: &str) -> SignIn {
     match auth_type(broker) {
         AuthType::OAuth => SignIn::Redirect,
+        AuthType::Form if SAVED_KEY_BROKERS.contains(&broker) => SignIn::SavedKeys,
         AuthType::Form => SignIn::Form,
     }
 }
@@ -1018,11 +1038,20 @@ mod tests {
     }
 
     /// The sign-in the broker page is told to start agrees with the rest of
-    /// the catalogue: a redirect broker has an authorize address (or builds
-    /// one in `begin_login`), a form broker has the in-app page.
+    /// the catalogue and with the adapter: a redirect broker has an
+    /// authorize address (or builds one in `begin_login`), a saved-keys
+    /// broker asks for nothing and its adapter signs in from keys alone, and
+    /// every other broker whose adapter needs nothing more is a saved-keys
+    /// one (Samco aside: its connect page checks the static IP).
     #[test]
     fn sign_in_kind_matches_the_catalogue() {
+        use crate::brokers::types::LoginKind;
+        let reg = crate::brokers::BrokerRegistry::new();
         for b in ALL_BROKERS {
+            let keys_only = matches!(
+                reg.get(b).unwrap().login_kind(),
+                LoginKind::ApiKeySecret | LoginKind::AccessToken
+            );
             match sign_in(b) {
                 SignIn::Redirect => {
                     assert_eq!(auth_type(b), AuthType::OAuth, "{}", b);
@@ -1032,7 +1061,19 @@ mod tests {
                         b
                     );
                 }
-                SignIn::Form => assert_eq!(auth_type(b), AuthType::Form, "{}", b),
+                SignIn::SavedKeys => {
+                    assert_eq!(auth_type(b), AuthType::Form, "{}", b);
+                    assert!(login_fields(b).is_empty(), "{}", b);
+                    assert!(keys_only, "{}", b);
+                }
+                SignIn::Form => {
+                    assert_eq!(auth_type(b), AuthType::Form, "{}", b);
+                    assert!(
+                        !(keys_only && login_fields(b).is_empty()) || *b == "samco",
+                        "{} signs in from the saved keys alone",
+                        b
+                    );
+                }
             }
         }
         // The page's own list missed these four, so their Connect went to
@@ -1040,10 +1081,22 @@ mod tests {
         for b in ["shoonya", "zebu", "tradesmart", "rmoney"] {
             assert_eq!(sign_in(b), SignIn::Redirect, "{}", b);
         }
+        for b in ["fivepaisaxts", "jainamxts", "ibulls", "iifl", "wisdom"] {
+            assert_eq!(sign_in(b), SignIn::SavedKeys, "{}", b);
+        }
+        assert_eq!(sign_in("deltaexchange"), SignIn::SavedKeys);
+        assert_eq!(sign_in("dhan_sandbox"), SignIn::SavedKeys);
+        // XTS members that sign in by redirect stay redirects.
+        assert_eq!(sign_in("compositedge"), SignIn::Redirect);
         assert_eq!(sign_in("angel"), SignIn::Form);
+        assert_eq!(sign_in("groww"), SignIn::Form);
         assert_eq!(sign_in("samco"), SignIn::Form);
         assert_eq!(serde_json::to_value(SignIn::Redirect).unwrap(), "redirect");
         assert_eq!(serde_json::to_value(SignIn::Form).unwrap(), "form");
+        assert_eq!(
+            serde_json::to_value(SignIn::SavedKeys).unwrap(),
+            "saved_keys"
+        );
     }
 
     #[test]

@@ -20,6 +20,9 @@ fn every_broker() -> (TestCtx, Vec<Arc<MockBroker>>) {
         .collect();
     for m in &mocks {
         *m.auth_user_id.lock() = ACCOUNT.into();
+        // Only the brokers the page signs in from the saved keys accept a
+        // sign-in with nothing typed.
+        *m.saved_keys_sign_in.lock() = catalog::sign_in(m.id) == SignIn::SavedKeys;
     }
     // Dhan builds its consent address in `begin_login`.
     let dhan = catalog::ALL_BROKERS
@@ -214,6 +217,42 @@ async fn every_broker_signs_in_the_way_the_server_tells_the_broker_page() {
                 let a = mock.last_auth.lock().clone().unwrap();
                 assert!(a.request_token.is_some(), "{}", broker);
             }
+            SignIn::SavedKeys => {
+                seen.entry("saved_keys").or_default().push(broker);
+                // No form to fill: opening the callback or the sign-in start
+                // goes back to the broker page, and signs in nothing.
+                for path in [
+                    format!("/{}/callback", broker),
+                    format!("/{}/initiate-oauth", broker),
+                ] {
+                    let (_, h, _) = send_to(ctx, navigate(&path, &cookie)).await;
+                    assert_eq!(location(&h), "/broker", "{} {}", broker, path);
+                }
+                assert!(mock.last_auth.lock().is_none(), "{}", broker);
+                // The page's one action: the CSRF-checked POST, as the page
+                // sends it (multipart, the token and no login fields).
+                let (s, _, v) = send_to(
+                    ctx,
+                    with_session(
+                        multipart(
+                            &format!("/{}/callback", broker),
+                            &[("csrf_token", csrf.as_str())],
+                        ),
+                        &cookie,
+                        Some(&csrf),
+                    ),
+                )
+                .await;
+                assert_eq!(s, StatusCode::OK, "{}: {}", broker, v);
+                assert_eq!(v["redirect"], "/dashboard", "{}", broker);
+                let a = mock.last_auth.lock().clone().unwrap();
+                assert_eq!(a.api_secret.as_deref(), Some("appsecret"), "{}", broker);
+                assert!(
+                    a.password.is_none() && a.totp.is_none() && a.request_token.is_none(),
+                    "{}",
+                    broker
+                );
+            }
             SignIn::Form => {
                 seen.entry("form").or_default().push(broker);
                 let (_, h, _) =
@@ -252,6 +291,18 @@ async fn every_broker_signs_in_the_way_the_server_tells_the_broker_page() {
     for b in ["shoonya", "zebu", "tradesmart", "rmoney"] {
         assert!(seen["redirect"].contains(&b), "{}", b);
     }
+    assert_eq!(
+        seen["saved_keys"],
+        [
+            "deltaexchange",
+            "dhan_sandbox",
+            "fivepaisaxts",
+            "ibulls",
+            "iifl",
+            "jainamxts",
+            "wisdom"
+        ]
+    );
     // State-less redirects and client-id brokers are among those covered.
     for b in catalog::ALL_BROKERS
         .iter()

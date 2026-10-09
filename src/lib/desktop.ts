@@ -47,8 +47,11 @@ export const DEFAULT_WEBSOCKET_URL = import.meta.env.DEV
  *   GET /<broker>/initiate-oauth.
  * - `form`: the broker's in-app page, through GET /<broker>/callback as on
  *   the web.
+ * - `saved_keys`: the saved keys are all the broker needs (the XTS brokers,
+ *   Delta Exchange, Dhan Sandbox), so the page signs in with one action, as
+ *   the web does on its first visit to /<broker>/callback.
  */
-export type BrokerSignIn = 'redirect' | 'form'
+export type BrokerSignIn = 'redirect' | 'form' | 'saved_keys'
 
 /** Where to send the browser to sign in to a redirect broker, or null. */
 export function desktopBrokerLoginUrl(
@@ -57,6 +60,32 @@ export function desktopBrokerLoginUrl(
 ): string | null {
   if (!broker || signIn !== 'redirect') return null
   return `/${encodeURIComponent(broker)}/initiate-oauth`
+}
+
+/**
+ * Sign in to a broker whose saved keys are all it needs: a POST to its
+ * callback carrying the CSRF token (as the broker login form posts it) and
+ * no login fields. Returns null when signed in, else the server's message
+ * for the trader.
+ */
+export async function signInWithSavedKeys(broker: string): Promise<string | null> {
+  const csrf = await csrfToken()
+  if (!csrf) return 'Could not reach OpenAlgo. Try again.'
+  const form = new FormData()
+  form.append('csrf_token', csrf)
+  try {
+    const res = await fetch(`/${encodeURIComponent(broker)}/callback`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-CSRFToken': csrf },
+      body: form,
+    })
+    const body = await res.json().catch(() => null)
+    if (res.ok && body?.status === 'success') return null
+    return body?.message || 'Could not sign in to your broker. Try again.'
+  } catch {
+    return 'Could not reach OpenAlgo. Try again.'
+  }
 }
 
 /** Profile menu entries that exist only in the desktop app. */

@@ -264,8 +264,11 @@ cargo clippy --all-targets --locked -- -D warnings
   the server reports it: `sign_in` (`catalog::sign_in`) on
   `GET /api/broker/configured` and `/auth/broker-config`. `redirect` goes to
   `GET /<broker>/initiate-oauth` (the server builds the URL and records
-  `state`; the page never sees the API key), `form` to the in-app page. The
-  page keeps no broker list of its own; a new broker needs nothing in TS
+  `state`; the page never sees the API key), `form` to the in-app page,
+  `saved_keys` (`catalog::SAVED_KEY_BROKERS`: the keys are all the adapter
+  needs) signs in with one CSRF-checked `POST /<broker>/callback` and no
+  fields; a `GET` of that callback signs in nothing. The page keeps no
+  broker list of its own; a new broker needs nothing in TS
   beyond the catalogue. `server::tests::sign_in` drives every catalogue
   broker this way.
 - `src/pages/BrokerTOTP.tsx` carries the web's per-broker form copy for

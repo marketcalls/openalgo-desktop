@@ -18,6 +18,7 @@ import {
   DESKTOP_BROKER_SETUP_PATH,
   desktopBrokerLoginUrl,
   fetchConfiguredBrokers,
+  signInWithSavedKeys,
   switchActiveBroker,
 } from '@/lib/desktop'
 import { useAuthStore } from '@/stores/authStore'
@@ -157,8 +158,9 @@ export default function BrokerSelect() {
 
     setIsSubmitting(true)
 
-    // Desktop: the server says how each broker signs in, and builds redirect
-    // sign-in addresses itself (the API key never reaches the page).
+    // Desktop: the server says how each broker signs in. It builds redirect
+    // sign-in addresses itself (the API key never reaches the page), and a
+    // broker that needs only the saved keys signs in here in one action.
     const signIn =
       configured.find((c) => c.name === selectedBroker)?.sign_in ??
       (selectedBroker === brokerConfig.broker_name ? brokerConfig.sign_in : undefined)
@@ -167,6 +169,18 @@ export default function BrokerSelect() {
       setTimeout(() => {
         window.location.href = desktopLoginUrl
       }, 100)
+      return
+    }
+    if (signIn === 'saved_keys') {
+      setError(null)
+      signInWithSavedKeys(selectedBroker).then((refusal) => {
+        if (refusal) {
+          setError(refusal)
+          setIsSubmitting(false)
+          return
+        }
+        window.location.href = '/dashboard'
+      })
       return
     }
 

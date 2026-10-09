@@ -1659,7 +1659,8 @@ async fn page_on_a_post_only_route_serves_the_app() {
 /// A context with mock adapters standing in for brokers whose sign-in
 /// differs: Dhan (state-less consent redirect, pasted token), the Noren
 /// pages (may drop state), tradesmart (pasted token address), rmoney (XTS
-/// form-POST redirect), Kotak (form fields).
+/// form-POST redirect), Kotak (form fields), jainamxts (signs in from the
+/// saved keys alone).
 fn family_harness() -> (TestCtx, Vec<Arc<MockBroker>>) {
     let ids = [
         "dhan",
@@ -1668,11 +1669,14 @@ fn family_harness() -> (TestCtx, Vec<Arc<MockBroker>>) {
         "rmoney",
         "kotak",
         "aliceblue",
+        "jainamxts",
     ];
     let mocks: Vec<Arc<MockBroker>> = ids.iter().map(|i| Arc::new(MockBroker::new(i))).collect();
     // Every sign-in comes back for the configured account (`U1:::appkey`).
     for m in &mocks {
         *m.auth_user_id.lock() = "U1".into();
+        *m.saved_keys_sign_in.lock() =
+            crate::brokers::catalog::sign_in(m.id) == crate::brokers::catalog::SignIn::SavedKeys;
     }
     let t = build(
         BrokerRegistry::with(
@@ -1928,6 +1932,12 @@ async fn every_way_to_create_a_broker_session_refuses_a_forged_attempt() {
             "aliceblue",
         ),
         ("AliceBlue pasted address, other account", "aliceblue"),
+        // The web signs these in on a GET of the callback; here only the
+        // broker page's CSRF-checked POST does.
+        ("Saved-key sign-in, GET callback", "jainamxts"),
+        ("Saved-key sign-in, no session", "jainamxts"),
+        ("Saved-key sign-in, no CSRF token", "jainamxts"),
+        ("Saved-key sign-in, cross-site", "jainamxts"),
     ];
     for &(name, broker) in cases {
         let (t, mocks) = family_harness();
@@ -2104,6 +2114,30 @@ async fn every_way_to_create_a_broker_session_refuses_a_forged_attempt() {
             "AliceBlue pasted address, other account" => {
                 start(sid.clone()).await;
                 with_session(alice_paste(), &cookie, Some(&csrf))
+            }
+            // The keys are the trader's own, so the account matches: only
+            // the request's own checks stand between it and a new session.
+            "Saved-key sign-in, GET callback" => {
+                *mock.auth_user_id.lock() = "U1".into();
+                let mut r = with_session(get("/jainamxts/callback"), &cookie, None);
+                r.headers_mut()
+                    .insert("sec-fetch-site", "same-origin".parse().unwrap());
+                r
+            }
+            "Saved-key sign-in, no session" => {
+                *mock.auth_user_id.lock() = "U1".into();
+                form("/jainamxts/callback", &[])
+            }
+            "Saved-key sign-in, no CSRF token" => {
+                *mock.auth_user_id.lock() = "U1".into();
+                with_session(form("/jainamxts/callback", &[]), &cookie, None)
+            }
+            "Saved-key sign-in, cross-site" => {
+                *mock.auth_user_id.lock() = "U1".into();
+                let mut r = with_session(form("/jainamxts/callback", &[]), &cookie, Some(&csrf));
+                r.headers_mut()
+                    .insert("sec-fetch-site", "cross-site".parse().unwrap());
+                r
             }
             _ => unreachable!("{}", name),
         };

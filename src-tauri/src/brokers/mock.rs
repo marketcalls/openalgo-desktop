@@ -100,6 +100,9 @@ pub struct MockBroker {
     pub login_url: Mutex<Option<String>>,
     /// Credentials passed to the last `restore_session`.
     pub restored: Mutex<Option<BrokerCredentials>>,
+    /// Sign in from the saved API key and secret alone (the XTS direct
+    /// logins, Delta Exchange); otherwise a code, password or TOTP is needed.
+    pub saved_keys_sign_in: Mutex<bool>,
     next_id: Mutex<u64>,
 }
 
@@ -140,6 +143,7 @@ impl MockBroker {
             auth_user_id: Mutex::new("AB1234".into()),
             login_url: Mutex::new(None),
             restored: Mutex::new(None),
+            saved_keys_sign_in: Mutex::new(false),
             next_id: Mutex::new(0),
         }
     }
@@ -216,7 +220,8 @@ impl Broker for MockBroker {
         self.record(MockCall::Authenticate);
         let ok = credentials.request_token.is_some()
             || credentials.totp.is_some()
-            || credentials.password.is_some();
+            || credentials.password.is_some()
+            || (*self.saved_keys_sign_in.lock() && credentials.api_secret.is_some());
         *self.last_auth.lock() = Some(credentials);
         if !ok {
             return Err(AppError::Auth("Mock rejected the sign-in".into()));

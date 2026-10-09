@@ -1,7 +1,7 @@
 //! Broker sign-in routes (web `blueprints/brlogin.py`, `/auth/broker-config`,
 //! `blueprints/broker_credentials.py`).
 
-use crate::brokers::catalog::{self, AuthType};
+use crate::brokers::catalog::{self, AuthType, SignIn};
 use crate::db::sqlite::credentials::{self, CredentialUpdate};
 use crate::events::SessionEndReason;
 use crate::security::Secret;
@@ -59,7 +59,8 @@ pub async fn broker_config(State(ctx): Ctx) -> Response {
 }
 
 /// GET /<broker>/initiate-oauth: store a fresh `state` and send the browser
-/// to the broker. Form brokers go to their in-app form.
+/// to the broker. Form brokers go to their in-app form, saved-keys brokers
+/// back to the broker page (which signs them in with one action).
 pub async fn initiate_oauth(
     State(ctx): Ctx,
     User(user): User,
@@ -67,6 +68,9 @@ pub async fn initiate_oauth(
 ) -> Response {
     if !valid_broker(&broker) {
         return error(StatusCode::NOT_FOUND, "Unknown broker.");
+    }
+    if catalog::sign_in(&broker) == SignIn::SavedKeys {
+        return redirect("/broker");
     }
     if catalog::auth_type(&broker) == AuthType::Form {
         return redirect(&format!("/broker/{}/totp", broker));
@@ -121,6 +125,12 @@ pub async fn oauth_callback(
                 return broker_page_with_error(&e.client_message());
             }
         }
+        // The saved keys sign in from the broker page in one action (a
+        // CSRF-checked POST), never from this GET, which any site can make
+        // the browser send. Web brlogin signs these in here.
+        if catalog::sign_in(&broker) == SignIn::SavedKeys {
+            return redirect("/broker");
+        }
         // Samco's connect page (key exchange plus the static IP check).
         if broker == "samco" {
             return redirect("/broker/samco/auth");
@@ -157,8 +167,8 @@ pub async fn oauth_callback(
 /// POST /<broker>/callback. For the XTS third-party login (compositedge,
 /// rmoney) this is the broker's redirect, a form POST carrying `session`
 /// with `state` on the query: public and state-verified, like the GET
-/// callback. For everyone else it is the in-app login form, which needs the
-/// signed-in user.
+/// callback. For everyone else it is the in-app login form (with no fields
+/// for a saved-keys broker), which needs the signed-in user.
 pub async fn callback_post(
     State(ctx): Ctx,
     Path(broker): Path<String>,

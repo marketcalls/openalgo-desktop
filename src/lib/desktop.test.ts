@@ -13,6 +13,7 @@ import {
   installDesktopShellHandlers,
   isDesktopShell,
   isExternalHttpUrl,
+  signInWithSavedKeys,
 } from './desktop'
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
@@ -57,8 +58,58 @@ describe('desktopBrokerLoginUrl', () => {
 
   it('leaves form brokers, and brokers the server did not describe, to the web flow', () => {
     expect(desktopBrokerLoginUrl('angel', 'form')).toBeNull()
+    expect(desktopBrokerLoginUrl('fivepaisaxts', 'saved_keys')).toBeNull()
     expect(desktopBrokerLoginUrl('zerodha', undefined)).toBeNull()
     expect(desktopBrokerLoginUrl('', 'redirect')).toBeNull()
+  })
+})
+
+describe('signInWithSavedKeys', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('posts to the broker callback with the CSRF token and no login fields', async () => {
+    const calls: Array<[string, RequestInit | undefined]> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push([url, init])
+        if (url === '/auth/csrf-token') return new Response(JSON.stringify({ csrf_token: 't1' }))
+        return new Response(JSON.stringify({ status: 'success', redirect: '/dashboard' }))
+      })
+    )
+    await expect(signInWithSavedKeys('jainamxts')).resolves.toBeNull()
+    const [url, init] = calls[1]
+    expect(url).toBe('/jainamxts/callback')
+    expect(init?.method).toBe('POST')
+    expect((init?.headers as Record<string, string>)['X-CSRFToken']).toBe('t1')
+    expect([...(init?.body as FormData).entries()]).toEqual([['csrf_token', 't1']])
+  })
+
+  it("returns the server's message when the broker refuses", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        url === '/auth/csrf-token'
+          ? new Response(JSON.stringify({ csrf_token: 't1' }))
+          : new Response(JSON.stringify({ status: 'error', message: 'Check your API key.' }), {
+              status: 401,
+            })
+      )
+    )
+    await expect(signInWithSavedKeys('deltaexchange')).resolves.toBe('Check your API key.')
+  })
+
+  it('says OpenAlgo could not be reached when the request fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url === '/auth/csrf-token') return new Response(JSON.stringify({ csrf_token: 't1' }))
+        throw new TypeError('Failed to fetch')
+      })
+    )
+    await expect(signInWithSavedKeys('wisdom')).resolves.toBe(
+      'Could not reach OpenAlgo. Try again.'
+    )
   })
 })
 

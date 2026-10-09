@@ -76,6 +76,43 @@ describe('BrokerSelect sign-in start', () => {
     await waitFor(() => expect(assigned).toEqual([`/${broker}/initiate-oauth`]))
   })
 
+  it.each([
+    'fivepaisaxts',
+    'jainamxts',
+    'ibulls',
+    'iifl',
+    'wisdom',
+    'deltaexchange',
+    'dhan_sandbox',
+  ])('signs %s in from the saved keys with one action, without a form', async (broker) => {
+    serve(broker, 'saved_keys')
+    render(<BrokerSelect />)
+    await connect()
+    await waitFor(() => expect(assigned).toEqual(['/dashboard']))
+    expect(posts).toEqual([`/${broker}/callback`])
+  })
+
+  it("shows the server's reason when a saved-keys sign-in is refused", async () => {
+    serve('fivepaisaxts', 'saved_keys')
+    const ok = globalThis.fetch as unknown as (u: string, i?: RequestInit) => Promise<Response>
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) =>
+        init?.method === 'POST'
+          ? new Response(
+              JSON.stringify({ status: 'error', message: 'Check your API key and secret.' }),
+              { status: 401 }
+            )
+          : ok(url, init)
+      )
+    )
+    render(<BrokerSelect />)
+    await connect()
+    expect(await screen.findByText('Check your API key and secret.')).toBeInTheDocument()
+    expect(assigned).toEqual([])
+    expect(screen.getByRole('button', { name: /connect account/i })).toBeEnabled()
+  })
+
   it('opens the in-app form for a form broker', async () => {
     serve('angel', 'form')
     render(<BrokerSelect />)
