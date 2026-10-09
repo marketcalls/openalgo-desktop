@@ -50,6 +50,11 @@ async function save(user: ReturnType<typeof userEvent.setup>, name = 'Momentum')
   await user.type(screen.getByLabelText('New template name'), name)
   await user.click(screen.getByRole('button', { name: 'Save current studies' }))
   await screen.findByRole('option', { name })
+  // The saved template is selected, and its name reaches the rename field
+  // through an effect one render later. Wait for it: a test that clears and
+  // types into that field could otherwise start before the effect writes the
+  // name back, and rename the template to "MomentumTrend".
+  await waitFor(() => expect(screen.getByLabelText('Saved template name')).toHaveValue(name))
 }
 function fileOf(input: unknown) {
   const text = JSON.stringify(input)
