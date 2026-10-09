@@ -444,4 +444,42 @@ async fn s10_browser_pages_from_other_sites_cannot_open_the_feed() {
         .expect("websocket-client style Origin connects");
     let mut c = Client { ws };
     assert_eq!(c.auth().await["status"], "success");
+
+    // DNS rebinding: a page on evil.example resolved to 127.0.0.1 names its
+    // own host in both Origin and Host. Refused, and so is a foreign Host
+    // without any Origin.
+    let port = h.handle.local_addr().port();
+    let mut r = with_origin(&format!("http://evil.example:{}", port));
+    r.headers_mut()
+        .insert("host", format!("evil.example:{}", port).parse().unwrap());
+    assert!(tokio_tungstenite::connect_async(r).await.is_err());
+    let mut r = h.url.as_str().into_client_request().unwrap();
+    r.headers_mut()
+        .insert("host", format!("evil.example:{}", port).parse().unwrap());
+    assert!(tokio_tungstenite::connect_async(r).await.is_err());
+}
+
+/// S-10: the configured public tunnel host opens the feed, as Host and as
+/// the page's Origin.
+#[tokio::test]
+async fn s10_the_public_tunnel_host_opens_the_feed() {
+    use openalgo_desktop_lib::feed::server::{HandshakeGate, HandshakePolicy};
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    let h = start_with(FakeSource::new(known()), |c| {
+        c.handshake = HandshakeGate::fixed(HandshakePolicy {
+            public: vec![("abc.ngrok.app".into(), 443)],
+            ..HandshakePolicy::default()
+        });
+    })
+    .await;
+    let mut r = h.url.as_str().into_client_request().unwrap();
+    r.headers_mut()
+        .insert("host", "abc.ngrok.app".parse().unwrap());
+    r.headers_mut()
+        .insert("origin", "https://abc.ngrok.app".parse().unwrap());
+    let (ws, _) = tokio_tungstenite::connect_async(r)
+        .await
+        .expect("the public host connects");
+    let mut c = Client { ws };
+    assert_eq!(c.auth().await["status"], "success");
 }

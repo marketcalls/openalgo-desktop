@@ -134,7 +134,7 @@ font8x8 = { version = "0.3", default-features = false }
 rmcp = { version = "3.5", default-features = false, features = ["server", "transport-io"] }
 
 # Process and host metrics (health monitor, diagnostics)
-sysinfo = { version = "0.38", default-features = false, features = ["system", "disk"] }
+sysinfo = { version = "0.38", default-features = false, features = ["system", "disk", "network"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Thread count for the health monitor (proc_pidinfo).

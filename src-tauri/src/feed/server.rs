@@ -58,42 +58,123 @@ pub struct FeedConfig {
     /// forwards every tick (the web's current behaviour); otherwise the
     /// latest tick in each window is sent at the window's end.
     pub throttle: Duration,
-    /// Which browser pages may open a connection (security review S-10).
-    pub origins: OriginPolicy,
+    /// Who may open a connection, read at each handshake (security
+    /// review S-10).
+    pub handshake: HandshakeGate,
 }
 
-/// The pages allowed to open the feed from a browser: the app's own. A
-/// client that is not a browser sends no `Origin` and is accepted exactly
-/// as on the web; so is one whose `Origin` names the feed address itself
-/// (Python `websocket-client`, which the SDK uses, sends that by default).
+/// Who may open the feed (security review S-10), worked out from the live
+/// settings at every handshake ([`HandshakeGate`]).
+///
+/// * The `Host` of every upgrade must name the feed on this computer
+///   (`127.0.0.1`, `localhost` or `[::1]` on the feed's port), one of this
+///   machine's own interface addresses on the feed's port when LAN access is
+///   on, or a configured public tunnel host. Anything else (a DNS-rebinding
+///   page names its own host) is refused, with or without an `Origin`.
+/// * No `Origin` (the SDK, Amibroker, other programs): accepted, as on the
+///   web; the API key is still required to `authenticate`.
+/// * An `Origin`, which browsers send: http(s) only, and either the app's
+///   own page (exactly `127.0.0.1` or `localhost` on the live HTTP port, an
+///   interface address on that port when LAN access is on, `localhost:5173`
+///   in development builds), the configured public host, or the feed's own
+///   address on this computer (Python `websocket-client`, which the SDK
+///   uses, names it by default; no web page can be served from it).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OriginPolicy {
-    /// Ports the app's pages are served on (the HTTP port, and the Vite dev
-    /// server in development builds).
-    pub app_ports: Vec<u16>,
-    /// LAN access is on: the app's page may be opened by IP address.
-    pub lan: bool,
-    /// The configured tunnel host, whose pages are the app's too.
-    pub public_host: Option<String>,
+pub struct HandshakePolicy {
+    /// The port the app's pages are served on now (0: no listener).
+    pub app_port: u16,
+    /// This machine's own interface addresses while LAN access is on;
+    /// empty otherwise.
+    pub interfaces: Vec<std::net::IpAddr>,
+    /// Public tunnel addresses (lower-case host, port).
+    pub public: Vec<(String, u16)>,
+    /// Development build: the Vite page on `localhost:5173` too.
+    pub development: bool,
 }
 
-impl Default for OriginPolicy {
+impl Default for HandshakePolicy {
     fn default() -> Self {
         Self {
-            app_ports: vec![crate::config::DEFAULT_HTTP_PORT],
-            lan: false,
-            public_host: None,
+            app_port: crate::config::DEFAULT_HTTP_PORT,
+            interfaces: Vec::new(),
+            public: Vec::new(),
+            development: false,
         }
     }
 }
 
-impl OriginPolicy {
-    /// Whether a handshake with this `Origin` (and `Host`) is accepted.
-    pub fn allows(&self, origin: Option<&str>, host: Option<&str>) -> bool {
-        let Some(origin) = origin.map(str::trim) else {
+/// `host[:port]` as (lower-case name without brackets, port). `None` when
+/// malformed.
+fn split_authority(host: &str) -> Option<(String, Option<u16>)> {
+    let host = host.trim().to_ascii_lowercase();
+    if let Some(rest) = host.strip_prefix('[') {
+        let (name, after) = rest.split_once(']')?;
+        let port = match after.strip_prefix(':') {
+            Some(p) => Some(p.parse::<u16>().ok()?),
+            None if after.is_empty() => None,
+            None => return None,
+        };
+        return Some((name.to_string(), port));
+    }
+    match host.rsplit_once(':') {
+        Some((name, p)) => Some((name.to_string(), Some(p.parse::<u16>().ok()?))),
+        None => Some((host, None)),
+    }
+}
+
+fn loopback_name(name: &str) -> bool {
+    matches!(name, "127.0.0.1" | "localhost" | "::1")
+}
+
+impl HandshakePolicy {
+    /// No page and no host but the feed on loopback (the app is gone).
+    pub fn closed() -> Self {
+        Self {
+            app_port: 0,
+            ..Self::default()
+        }
+    }
+
+    fn interface(&self, name: &str) -> bool {
+        name.parse::<std::net::IpAddr>().is_ok_and(|ip| {
+            let ip = match ip {
+                std::net::IpAddr::V6(v6) => v6
+                    .to_ipv4_mapped()
+                    .map(std::net::IpAddr::V4)
+                    .unwrap_or(std::net::IpAddr::V6(v6)),
+                v4 => v4,
+            };
+            !ip.is_unspecified() && self.interfaces.contains(&ip)
+        })
+    }
+
+    fn public_host(&self, name: &str, port: Option<u16>) -> bool {
+        self.public
+            .iter()
+            .any(|(h, p)| h == name && port.is_none_or(|port| port == *p))
+    }
+
+    /// Whether an upgrade naming `host`, from a page at `origin`, may open
+    /// the feed listening on `ws_port`.
+    pub fn allows(&self, origin: Option<&str>, host: Option<&str>, ws_port: u16) -> bool {
+        self.host_allowed(host, ws_port) && self.origin_allowed(origin, ws_port)
+    }
+
+    fn host_allowed(&self, host: Option<&str>, ws_port: u16) -> bool {
+        let Some((name, port)) = host.and_then(split_authority) else {
+            return false;
+        };
+        if self.public_host(&name, port) {
+            return true;
+        }
+        port == Some(ws_port) && (loopback_name(&name) || self.interface(&name))
+    }
+
+    fn origin_allowed(&self, origin: Option<&str>, ws_port: u16) -> bool {
+        let Some(origin) = origin else {
             return true;
         };
-        let Ok(url) = url::Url::parse(origin) else {
+        let Ok(url) = url::Url::parse(origin.trim()) else {
             return false;
         };
         if !matches!(url.scheme(), "http" | "https") {
@@ -106,26 +187,37 @@ impl OriginPolicy {
             return false;
         };
         let port = url.port_or_known_default();
-        // A non-browser client naming the address it connects to.
-        if let Some(host) = host {
-            let authority = match url.port() {
-                Some(p) => format!("{}:{}", url.host_str().unwrap_or_default(), p),
-                None => url.host_str().unwrap_or_default().to_string(),
-            };
-            if authority.eq_ignore_ascii_case(host.trim()) {
-                return true;
-            }
-        }
-        if self
-            .public_host
-            .as_deref()
-            .is_some_and(|h| h.eq_ignore_ascii_case(&name))
-        {
+        if port.is_some_and(|p| self.public_host(&name, Some(p))) {
             return true;
         }
-        let app_port = port.is_some_and(|p| self.app_ports.contains(&p));
-        let loopback = matches!(name.as_str(), "127.0.0.1" | "localhost" | "::1");
-        app_port && (loopback || (self.lan && name.parse::<std::net::IpAddr>().is_ok()))
+        // A program naming the feed it connects to.
+        if port == Some(ws_port) && (loopback_name(&name) || self.interface(&name)) {
+            return true;
+        }
+        // The app's own page on the live port.
+        let page = matches!(name.as_str(), "127.0.0.1" | "localhost") || self.interface(&name);
+        if self.app_port != 0 && port == Some(self.app_port) && page {
+            return true;
+        }
+        self.development && name == "localhost" && port == Some(5173)
+    }
+}
+
+/// Supplies the [`HandshakePolicy`] at each handshake, so a moved HTTP
+/// port, LAN access or tunnel address takes effect at once.
+#[derive(Clone)]
+pub struct HandshakeGate(pub Arc<dyn Fn() -> HandshakePolicy + Send + Sync>);
+
+impl HandshakeGate {
+    /// Always the same policy (tests, and the default).
+    pub fn fixed(policy: HandshakePolicy) -> Self {
+        Self(Arc::new(move || policy.clone()))
+    }
+}
+
+impl std::fmt::Debug for HandshakeGate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("HandshakeGate")
     }
 }
 
@@ -147,7 +239,7 @@ impl Default for FeedConfig {
             control_queue_cap: 1024,
             max_subscriptions_per_client: 3000,
             throttle: Duration::ZERO,
-            origins: OriginPolicy::default(),
+            handshake: HandshakeGate::fixed(HandshakePolicy::default()),
         }
     }
 }
@@ -465,15 +557,20 @@ async fn serve_conn(
         id,
         remote,
     };
-    let origins = shared.cfg.origins.clone();
+    // The policy as the settings are now, and the port this connection
+    // came in on.
+    let policy = (shared.cfg.handshake.0)();
+    let ws_port = stream.local_addr().map(|a| a.port()).unwrap_or(0);
     let check_origin =
         move |req: &tokio_tungstenite::tungstenite::handshake::server::Request,
               resp: tokio_tungstenite::tungstenite::handshake::server::Response| {
             let get = |n: &str| req.headers().get(n).and_then(|v| v.to_str().ok());
-            if origins.allows(get("origin"), get("host")) {
+            if policy.allows(get("origin"), get("host"), ws_port) {
                 Ok(resp)
             } else {
-                tracing::warn!("Market data feed refused a web page from another site");
+                tracing::warn!(
+                    "Market data feed refused a connection from another site or host name"
+                );
                 let mut refused =
                     tokio_tungstenite::tungstenite::handshake::server::ErrorResponse::new(Some(
                         "Request blocked.".into(),
@@ -1093,26 +1190,91 @@ async fn order_loop(shared: Arc<Shared>, mut rx: broadcast::Receiver<Arc<OrderUp
 
 #[cfg(test)]
 mod origin_tests {
-    use super::OriginPolicy;
+    use super::HandshakePolicy;
 
+    const WS: u16 = 8765;
+
+    fn policy() -> HandshakePolicy {
+        HandshakePolicy {
+            app_port: 5000,
+            interfaces: vec![],
+            public: vec![("abc.ngrok.app".into(), 443)],
+            development: false,
+        }
+    }
+
+    /// S-10: programs without an `Origin` and the app's own pages connect;
+    /// other sites, rebinding host names and foreign hosts do not.
     #[test]
-    fn only_the_apps_own_pages_and_non_browsers_are_let_in() {
-        let p = OriginPolicy {
-            app_ports: vec![5000],
-            lan: false,
-            public_host: Some("abc.ngrok.app".into()),
+    fn only_the_apps_own_pages_and_programs_are_let_in() {
+        let p = policy();
+        let local = Some("127.0.0.1:8765");
+        // A program (the SDK, Amibroker): no Origin.
+        assert!(p.allows(None, local, WS));
+        assert!(p.allows(None, Some("localhost:8765"), WS));
+        assert!(p.allows(None, Some("[::1]:8765"), WS));
+        // The app's page on the live HTTP port; websocket-client's default
+        // Origin, the feed's own address.
+        assert!(p.allows(Some("http://127.0.0.1:5000"), local, WS));
+        assert!(p.allows(Some("http://localhost:5000"), local, WS));
+        assert!(p.allows(Some("http://127.0.0.1:8765"), local, WS));
+        // The public host, as Origin and as Host.
+        assert!(p.allows(Some("https://abc.ngrok.app"), Some("abc.ngrok.app"), WS));
+        assert!(p.allows(None, Some("abc.ngrok.app"), WS));
+        // Refused: another site, another local port, a foreign IP, null,
+        // non-http schemes.
+        for origin in [
+            "https://evil.example",
+            "http://127.0.0.1:3000",
+            "http://192.168.1.5:5000",
+            "null",
+            "file:///tmp/x.html",
+            "http://abc.ngrok.app:8080",
+        ] {
+            assert!(!p.allows(Some(origin), local, WS), "{}", origin);
+        }
+        // DNS rebinding: Origin and Host both name the attacker's host.
+        assert!(!p.allows(
+            Some("http://evil.example:8765"),
+            Some("evil.example:8765"),
+            WS
+        ));
+        // Even without an Origin, a host name that is not ours is refused,
+        // as is a missing Host or another port.
+        assert!(!p.allows(None, Some("evil.example:8765"), WS));
+        assert!(!p.allows(None, None, WS));
+        assert!(!p.allows(None, Some("127.0.0.1:9999"), WS));
+        // Development adds the Vite page on localhost:5173 only.
+        let dev = HandshakePolicy {
+            development: true,
+            ..policy()
         };
-        assert!(p.allows(None, Some("127.0.0.1:8765")));
-        assert!(p.allows(Some("http://127.0.0.1:5000"), Some("127.0.0.1:8765")));
-        assert!(p.allows(Some("http://localhost:5000"), None));
-        assert!(p.allows(Some("https://abc.ngrok.app"), None));
-        assert!(p.allows(Some("http://127.0.0.1:8765"), Some("127.0.0.1:8765")));
-        assert!(!p.allows(Some("http://127.0.0.1:3000"), Some("127.0.0.1:8765")));
-        assert!(!p.allows(Some("https://evil.example"), Some("127.0.0.1:8765")));
-        assert!(!p.allows(Some("null"), Some("127.0.0.1:8765")));
-        assert!(!p.allows(Some("http://192.168.1.5:5000"), Some("127.0.0.1:8765")));
-        let lan = OriginPolicy { lan: true, ..p };
-        assert!(lan.allows(Some("http://192.168.1.5:5000"), Some("192.168.1.5:8765")));
-        assert!(!lan.allows(Some("http://evil.example:5000"), Some("192.168.1.5:8765")));
+        assert!(dev.allows(Some("http://localhost:5173"), local, WS));
+        assert!(!dev.allows(Some("http://127.0.0.1:5173"), local, WS));
+        assert!(!p.allows(Some("http://localhost:5173"), local, WS));
+        // No listener for the app's pages: none of them is let in.
+        let closed = HandshakePolicy::closed();
+        assert!(!closed.allows(Some("http://127.0.0.1:5000"), local, WS));
+        assert!(closed.allows(None, local, WS));
+    }
+
+    /// S-10: with LAN access on, only this machine's own interface
+    /// addresses count, as Origin and as Host; any other IP is refused.
+    #[test]
+    fn lan_access_accepts_this_machines_own_addresses_only() {
+        let lan = HandshakePolicy {
+            interfaces: vec!["192.168.1.5".parse().unwrap()],
+            ..policy()
+        };
+        let ours = Some("192.168.1.5:8765");
+        assert!(lan.allows(None, ours, WS));
+        assert!(lan.allows(Some("http://192.168.1.5:5000"), ours, WS));
+        assert!(lan.allows(Some("http://[::ffff:192.168.1.5]:5000"), ours, WS));
+        assert!(!lan.allows(Some("http://192.168.1.9:5000"), ours, WS));
+        assert!(!lan.allows(Some("http://10.0.0.1:5000"), ours, WS));
+        assert!(!lan.allows(None, Some("192.168.1.9:8765"), WS));
+        assert!(!lan.allows(Some("http://evil.example:5000"), ours, WS));
+        // Without LAN access an interface address is not ours.
+        assert!(!policy().allows(Some("http://192.168.1.5:5000"), ours, WS));
     }
 }

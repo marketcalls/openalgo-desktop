@@ -53,8 +53,10 @@ pub struct FeedService {
 }
 
 /// Feed listener settings from the stored server configuration.
-pub fn config_from(ctx: &AppState) -> FeedConfig {
+pub fn config_from(ctx: &Arc<AppState>) -> FeedConfig {
     let c = ctx.server_config();
+    // Weak: the context owns the feed, which owns this gate.
+    let weak = Arc::downgrade(ctx);
     FeedConfig {
         host: if c.is_loopback() {
             "127.0.0.1".into()
@@ -62,23 +64,60 @@ pub fn config_from(ctx: &AppState) -> FeedConfig {
             c.bind_host.clone()
         },
         port: c.ws_port,
-        origins: server::OriginPolicy {
-            app_ports: {
-                let mut v = vec![c.http_port, ctx.listening_port()];
-                if cfg!(debug_assertions) {
-                    v.push(5173);
-                }
-                v
-            },
-            lan: !c.is_loopback(),
-            public_host: c
-                .host_server
-                .as_deref()
-                .and_then(|h| url::Url::parse(h).ok())
-                .and_then(|u| u.host_str().map(str::to_ascii_lowercase)),
-        },
+        handshake: server::HandshakeGate(Arc::new(move || match weak.upgrade() {
+            Some(ctx) => handshake_policy(&ctx),
+            None => server::HandshakePolicy::closed(),
+        })),
         ..FeedConfig::default()
     }
+}
+
+/// Who may open the feed now (security review S-10): the app's pages on
+/// the port the HTTP server is bound to, this machine's own addresses
+/// while LAN access is on, and the configured public tunnel addresses.
+pub fn handshake_policy(ctx: &AppState) -> server::HandshakePolicy {
+    let c = ctx.server_config();
+    let public = [c.host_server.as_deref(), c.websocket_url.as_deref()]
+        .into_iter()
+        .flatten()
+        .filter_map(|u| url::Url::parse(u).ok())
+        .filter_map(|u| {
+            let host = u.host_str()?.to_ascii_lowercase();
+            let port = u.port_or_known_default()?;
+            Some((host, port))
+        })
+        .collect();
+    server::HandshakePolicy {
+        app_port: ctx.live_port(),
+        interfaces: if c.is_loopback() {
+            Vec::new()
+        } else {
+            local_interfaces()
+        },
+        public,
+        development: cfg!(debug_assertions),
+    }
+}
+
+/// This machine's own interface addresses (IPv4 inside IPv6 as IPv4).
+fn local_interfaces() -> Vec<std::net::IpAddr> {
+    let nets = sysinfo::Networks::new_with_refreshed_list();
+    let mut v: Vec<std::net::IpAddr> = nets
+        .list()
+        .values()
+        .flat_map(|d| d.ip_networks().iter().map(|n| n.addr))
+        .map(|ip| match ip {
+            std::net::IpAddr::V6(v6) => v6
+                .to_ipv4_mapped()
+                .map(std::net::IpAddr::V4)
+                .unwrap_or(std::net::IpAddr::V6(v6)),
+            v4 => v4,
+        })
+        .filter(|ip| !ip.is_unspecified())
+        .collect();
+    v.sort();
+    v.dedup();
+    v
 }
 
 impl FeedService {
