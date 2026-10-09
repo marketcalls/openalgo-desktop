@@ -48,6 +48,8 @@ struct Fake {
     ws_frames: Mutex<Vec<Value>>,
     /// Symbol-store groups that answer 500.
     down_groups: Mutex<Vec<&'static str>>,
+    /// The position book instead of the fixture.
+    positions: Mutex<Option<&'static str>>,
 }
 
 impl Fake {
@@ -143,7 +145,10 @@ fn route(fake: &Fake, s: &Seen) -> Response {
         }
         ("GET", "/api/oms/orders") => ok(fixture!("orders.json")),
         ("GET", "/api/oms/trades") => ok(fixture!("trades.json")),
-        ("GET", "/api/oms/positions") => ok(fixture!("positions.json")),
+        ("GET", "/api/oms/positions") => match *fake.positions.lock() {
+            Some(book) => ok(book),
+            None => ok(fixture!("positions.json")),
+        },
         ("GET", "/api/oms/holdings") => ok(fixture!("holdings.json")),
         ("GET", "/api/oms/limits") => ok(fixture!("limits.json")),
         ("GET", "/api/mkt-data/chart/interval-data") => ok(fixture!("history.json")),
@@ -507,6 +512,27 @@ async fn books_are_openalgo_symbols() {
         .await
         .unwrap();
     assert_eq!(flat, 0);
+}
+
+/// Web #2116: a position book the smart order cannot read refuses the
+/// order instead of reading the position as flat.
+#[tokio::test]
+async fn unreadable_position_is_not_flat() {
+    let e = env().await;
+    *e.fake.positions.lock() = Some(
+        r#"{"s":"ok","d":[{"sym":{"id":"EQT_SBIN_EQ_NSE","exchange":"NSE","symbol":"SBIN","tradSymbol":"SBIN-EQ"},"symId":"EQT_SBIN_EQ_NSE","netQty":null,"netAvgPrice":801.25,"product":"intraday","realizedPnl":0}]}"#,
+    );
+    let err = e
+        .broker
+        .get_open_position(&e.auth, "SBIN", Exchange::Nse, Product::Mis)
+        .await
+        .unwrap_err();
+    assert!(
+        err.client_message()
+            .starts_with("OpenAlgo could not read your open position from Tradejini"),
+        "{}",
+        err.client_message()
+    );
 }
 
 #[tokio::test]

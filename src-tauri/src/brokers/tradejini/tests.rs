@@ -9,7 +9,7 @@ use super::master_contract::{
     first_per_token, group_rows, index_symbol, parse_expiry, parse_group, parse_groups, sent_rows,
     Group,
 };
-use super::orders::{modify_order_form, place_order_form};
+use super::orders::{modify_order_form, open_qty, place_order_form, POSITION_UNREAD};
 use super::streaming::build::{self, V};
 use super::streaming::{decode_message, segment, sub_frame, unsub_frame, ws_key, Packet};
 use super::streaming::{TradejiniFeed, L1};
@@ -304,6 +304,46 @@ fn position_rows() {
     assert_eq!(p[1].quantity, -75);
     assert_eq!(p[1].product, "NRML");
     assert_eq!(p[2].quantity, 0);
+}
+
+/// Web #2116 (`get_positions(strict=True)` and `get_open_position`): a
+/// smart order never reads a row it could not read as a flat position.
+#[test]
+fn open_position_refuses_an_unreadable_book() {
+    let r = master();
+    let book = rows(&json(fixture!("positions.json")));
+    assert_eq!(
+        open_qty(&book, "NIFTY27OCT2625000CE", "NFO", &r).unwrap(),
+        -75
+    );
+    assert_eq!(open_qty(&book, "RELIANCE", "NSE", &r).unwrap(), 0);
+    assert_eq!(open_qty(&book, "INFY", "NSE", &r).unwrap(), 0);
+    assert_eq!(open_qty(&[], "SBIN", "NSE", &r).unwrap(), 0);
+
+    // Another symbol's unreadable quantity is skipped; this symbol's is
+    // refused, null or text alike.
+    for bad in [Value::String("n/a".into()), Value::Null] {
+        let mut b = book.clone();
+        b[0]["netQty"] = bad;
+        assert_eq!(open_qty(&b, "NIFTY27OCT2625000CE", "NFO", &r).unwrap(), -75);
+        let e = open_qty(&b, "SBIN", "NSE", &r).unwrap_err();
+        assert_eq!(e.client_message(), POSITION_UNREAD);
+    }
+
+    // A null or non-numeric average price anywhere fails the whole read.
+    for bad in [Value::Null, Value::String("-".into())] {
+        let mut b = book.clone();
+        b[2]["netAvgPrice"] = bad;
+        assert!(open_qty(&b, "NIFTY27OCT2625000CE", "NFO", &r).is_err());
+    }
+
+    // Numeric text reads, a fraction truncates as `int(float())` does, and a
+    // missing quantity is flat.
+    let mut b = book.clone();
+    b[1]["netQty"] = Value::String("-75.9".into());
+    assert_eq!(open_qty(&b, "NIFTY27OCT2625000CE", "NFO", &r).unwrap(), -75);
+    b[1].as_object_mut().unwrap().remove("netQty");
+    assert_eq!(open_qty(&b, "NIFTY27OCT2625000CE", "NFO", &r).unwrap(), 0);
 }
 
 #[test]

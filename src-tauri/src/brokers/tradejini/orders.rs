@@ -11,6 +11,7 @@
 use super::mapping::{self, py_float};
 use super::{Body, TradejiniBroker};
 use crate::brokers::common::mapping::{Exchange, PriceType, Product};
+use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use reqwest::Method;
@@ -174,9 +175,56 @@ pub async fn cancel_all_orders(b: &TradejiniBroker, auth: &AuthToken) -> Result<
     Ok(out)
 }
 
-/// web `get_open_position`: the first non-zero row of this symbol on this
-/// exchange. The web matches on symbol and exchange only (the product is
-/// mapped but not compared), and so does this.
+/// A smart order whose position could not be read (web
+/// `utils/position_read.py`): nothing is sent.
+pub const POSITION_UNREAD: &str = "OpenAlgo could not read your open position from Tradejini, so no order was sent. Check your positions and try again.";
+
+/// web `get_open_position` over the strict position read (#2116): the
+/// first non-zero row of this symbol on this exchange. The web matches on
+/// symbol and exchange only (the product is mapped but not compared), and
+/// so does this. A row is never read as flat because it could not be read:
+/// any row whose `netAvgPrice` is null or not a number fails the read (web
+/// `get_positions(strict=True)`), as does this symbol's own row when its
+/// `netQty` is; another symbol's unreadable `netQty` is skipped.
+pub fn open_qty(
+    rows: &[Value],
+    symbol: &str,
+    exchange: &str,
+    symbols: &SymbolResolver,
+) -> Result<i64> {
+    let unread = |why: String| {
+        tracing::error!("Tradejini position book unreadable: {}", why);
+        AppError::Broker(POSITION_UNREAD.into())
+    };
+    // The strict read transforms every row before any is matched.
+    if let Some(row) = rows
+        .iter()
+        .find(|r| mapping::num_strict(r.get("netAvgPrice"), 0.0).is_none())
+    {
+        return Err(unread(format!("netAvgPrice {}", row["netAvgPrice"])));
+    }
+    let want = symbol.trim().to_ascii_uppercase();
+    for row in rows {
+        let p = mapping::position_row(row, symbols);
+        let mine = p.symbol.trim().eq_ignore_ascii_case(&want)
+            && p.exchange.trim().eq_ignore_ascii_case(exchange);
+        match mapping::num_strict(row.get("netQty"), 0.0).filter(|q| q.is_finite()) {
+            None if mine => {
+                return Err(unread(format!("netQty {} of {}", row["netQty"], p.symbol)));
+            }
+            None => tracing::warn!(
+                "Tradejini position {} on {} skipped: its quantity is not a number",
+                p.symbol,
+                p.exchange
+            ),
+            // `int(float(q))` truncates toward zero.
+            Some(q) if mine && q.trunc() != 0.0 => return Ok(q.trunc() as i64),
+            Some(_) => {}
+        }
+    }
+    Ok(0)
+}
+
 pub async fn get_open_position(
     b: &TradejiniBroker,
     auth: &AuthToken,
@@ -184,17 +232,16 @@ pub async fn get_open_position(
     exchange: Exchange,
     _product: Product,
 ) -> Result<i64> {
-    let want = symbol.trim().to_ascii_uppercase();
-    let positions = get_positions(b, auth).await?;
-    Ok(positions
-        .iter()
-        .find(|p| {
-            p.symbol.trim().eq_ignore_ascii_case(&want)
-                && p.exchange.trim().eq_ignore_ascii_case(exchange.as_str())
-                && p.quantity != 0
-        })
-        .map(|p| i64::from(p.quantity))
-        .unwrap_or(0))
+    let v = b
+        .call(
+            Method::GET,
+            "/api/oms/positions",
+            &sym_details(),
+            auth,
+            Body::None,
+        )
+        .await?;
+    open_qty(&mapping::rows(&v), symbol, exchange.as_str(), b.resolver())
 }
 
 fn sym_details() -> [(&'static str, String); 1] {

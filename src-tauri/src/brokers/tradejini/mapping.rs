@@ -31,6 +31,19 @@ pub fn f(v: &Value, k: &str) -> f64 {
     num(v.get(k))
 }
 
+/// A number as the web's `float()` reads it, for the strict position read
+/// (#2116): missing is `default`, a JSON number or numeric text is its
+/// value, and null or any other text is `None` (where Python raises).
+pub fn num_strict(v: Option<&Value>, default: f64) -> Option<f64> {
+    match v {
+        None => Some(default),
+        Some(Value::Number(n)) => n.as_f64(),
+        Some(Value::String(s)) => s.trim().parse::<f64>().ok(),
+        Some(Value::Bool(b)) => Some(if *b { 1.0 } else { 0.0 }),
+        _ => None,
+    }
+}
+
 /// Integer like Python's `int(float(x))`.
 pub fn i(v: &Value, k: &str) -> i64 {
     num(v.get(k)) as i64
