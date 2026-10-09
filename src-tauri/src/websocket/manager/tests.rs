@@ -195,6 +195,78 @@ async fn subscriptions_are_reference_counted_with_effective_mode() {
     srv.abort();
 }
 
+/// A burst of subscriptions reaches the feed as one run, so a batching
+/// feed sends one frame (web #2176), while order is kept across kinds.
+#[tokio::test]
+async fn subscription_bursts_reach_the_feed_as_one_run() {
+    let (url, seen, srv) = server(|_| (vec![], false)).await;
+    let m = WebSocketManager::with_config(fast());
+    m.connect(Box::new(MockFeed::new(url))).await.unwrap();
+    wait_for(|| m.is_connected()).await;
+    m.subscribe(vec![
+        sub("A", FeedMode::Ltp),
+        sub("B", FeedMode::Quote),
+        sub("C", FeedMode::Ltp),
+    ])
+    .await
+    .unwrap();
+    m.unsubscribe(vec![sub("A", FeedMode::Ltp), sub("C", FeedMode::Ltp)])
+        .await
+        .unwrap();
+    wait_for(|| seen.lock().len() >= 2).await;
+    let frames: Vec<String> = seen.lock().iter().map(|(_, f)| f.clone()).collect();
+    assert_eq!(
+        frames,
+        [
+            r#"{"sub":["NSE:A:1","NSE:B:2","NSE:C:1"]}"#,
+            r#"{"unsub":["NSE:A:1","NSE:C:1"]}"#,
+        ][..]
+    );
+    m.disconnect().await.unwrap();
+    srv.abort();
+}
+
+/// A feed whose data stopped while its socket still answers.
+struct SilentDataFeed(MockFeed);
+
+#[async_trait::async_trait]
+impl BrokerFeed for SilentDataFeed {
+    fn broker(&self) -> &'static str {
+        "silent"
+    }
+    fn ws_request(&self) -> crate::error::Result<crate::brokers::common::streaming::WsRequest> {
+        self.0.ws_request()
+    }
+    fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
+        self.0.subscribe_frames(subs)
+    }
+    fn unsubscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
+        self.0.unsubscribe_frames(subs)
+    }
+    fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {
+        self.0.parse(msg)
+    }
+    fn data_stalled(&mut self) -> bool {
+        true
+    }
+}
+
+#[tokio::test]
+async fn feed_reported_data_stall_closes_and_reconnects() {
+    let (url, _seen, srv) = server(|_| (vec![], false)).await;
+    let m = WebSocketManager::with_config(FeedConfig {
+        stall_timeout: Duration::from_secs(2),
+        ..fast()
+    });
+    m.connect(Box::new(SilentDataFeed(MockFeed::new(url))))
+        .await
+        .unwrap();
+    wait_for(|| m.stats().connects.load(Ordering::Relaxed) >= 2).await;
+    assert!(m.stats().stalls.load(Ordering::Relaxed) >= 1);
+    m.disconnect().await.unwrap();
+    srv.abort();
+}
+
 #[tokio::test]
 async fn stall_watchdog_reconnects_a_silent_socket() {
     let (url, _seen, srv) = server(|_| (vec![], false)).await;

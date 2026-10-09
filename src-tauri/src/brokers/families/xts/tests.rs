@@ -1063,3 +1063,212 @@ async fn feed_speaks_engine_io() {
     f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Ltp)]);
     drop(f);
 }
+
+// ---------------------------------------------------------------------------
+// Subscription batching (web test_rmoney_adapter_batch_subscriptions.py)
+// ---------------------------------------------------------------------------
+
+mod subscription_batches {
+    use super::super::streaming::{
+        is_already_subscribed, run_command, Command, SubscriptionTarget, SUBSCRIBE_BATCH,
+    };
+    use super::super::XtsConfig;
+    use axum::routing::post;
+    use axum::{Json, Router};
+    use parking_lot::Mutex;
+    use serde_json::{json, Value};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    /// A subscription endpoint that records each request's instrument ids
+    /// and refuses the calls whose 1-based index is in `duplicate_calls`
+    /// with XTS's "Instrument Already Subscribed" (HTTP 400, plain text).
+    async fn endpoint(duplicate_calls: &'static [usize]) -> (String, Arc<Mutex<Vec<Vec<i64>>>>) {
+        let seen: Arc<Mutex<Vec<Vec<i64>>>> = Arc::default();
+        let s2 = seen.clone();
+        let app = Router::new().route(
+            "/sub",
+            post(move |Json(b): Json<Value>| {
+                let seen = s2.clone();
+                async move {
+                    let ids: Vec<i64> = b["instruments"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|i| i["exchangeInstrumentID"].as_i64().unwrap())
+                        .collect();
+                    let n = {
+                        let mut g = seen.lock();
+                        g.push(ids.clone());
+                        g.len()
+                    };
+                    if duplicate_calls.contains(&n) {
+                        return (
+                            axum::http::StatusCode::BAD_REQUEST,
+                            "Instrument Already Subscribed !".to_string(),
+                        );
+                    }
+                    let quotes: Vec<Value> = ids
+                        .iter()
+                        .map(|i| json!(format!("{{\"ExchangeInstrumentID\":{i}}}")))
+                        .collect();
+                    (
+                        axum::http::StatusCode::OK,
+                        json!({"type": "success", "result": {"listQuotes": quotes}}).to_string(),
+                    )
+                }
+            }),
+        );
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/sub", l.local_addr().unwrap());
+        tokio::spawn(async move {
+            let _ = axum::serve(l, app).await;
+        });
+        (url, seen)
+    }
+
+    fn cmd(n: i64) -> Command {
+        Command {
+            subscribe: true,
+            code: 1501,
+            instruments: (0..n)
+                .map(|i| json!({"exchangeSegment": 1, "exchangeInstrumentID": i}))
+                .collect(),
+        }
+    }
+
+    async fn run(duplicates: &'static [usize], c: Command) -> (Vec<Vec<i64>>, usize, usize) {
+        run_as(&crate::brokers::rmoney::CONFIG, duplicates, c).await
+    }
+
+    async fn run_as(
+        cfg: &XtsConfig,
+        duplicates: &'static [usize],
+        c: Command,
+    ) -> (Vec<Vec<i64>>, usize, usize) {
+        let (url, seen) = endpoint(duplicates).await;
+        let http = crate::brokers::common::http::client();
+        let t = SubscriptionTarget {
+            broker: cfg.id,
+            http: &http,
+            url: &url,
+            token: "tok",
+            gap: Duration::ZERO,
+            split_duplicates: cfg.hooks.split_duplicate_batch,
+        };
+        let (tx, mut rx) = tokio::sync::mpsc::channel(512);
+        let mut first = true;
+        let calls = run_command(&t, &c, &tx, &mut first).await;
+        let mut snaps = 0;
+        while rx.try_recv().is_ok() {
+            snaps += 1;
+        }
+        let seen = seen.lock().clone();
+        (seen, calls, snaps)
+    }
+
+    #[tokio::test]
+    async fn one_request_carries_a_whole_batch() {
+        let (seen, calls, snaps) = run(&[], cmd(2)).await;
+        assert_eq!(seen, vec![vec![0, 1]]);
+        assert_eq!((calls, snaps), (1, 2));
+    }
+
+    #[tokio::test]
+    async fn each_request_is_capped_at_fifty_instruments() {
+        assert_eq!(SUBSCRIBE_BATCH, 50);
+        let (seen, _, snaps) = run(&[], cmd(51)).await;
+        assert_eq!(seen.iter().map(Vec::len).collect::<Vec<_>>(), [50, 1]);
+        assert_eq!(snaps, 51);
+    }
+
+    #[tokio::test]
+    async fn duplicate_batch_retries_individually() {
+        // Call 1 (the batch) and call 2 (instrument 0) are duplicates;
+        // instrument 1 still starts.
+        let (seen, calls, snaps) = run(&[1, 2], cmd(2)).await;
+        assert_eq!(seen, vec![vec![0, 1], vec![0], vec![1]]);
+        assert_eq!((calls, snaps), (3, 1));
+    }
+
+    /// Web test_reconnect_subscriptions_batch_all_saved_symbols_by_mode and
+    /// test_websocket_client_caps_each_request_at_fifty_instruments: every
+    /// saved rmoney subscription is sent again in one request group per
+    /// mode, 50 instruments per request.
+    #[tokio::test]
+    async fn rmoney_resubscribes_everything_in_mode_batches_of_fifty() {
+        use super::super::streaming::{FeedSource, XtsFeed};
+        use crate::brokers::common::streaming::FeedMode;
+        let f = XtsFeed::new(
+            &crate::brokers::rmoney::CONFIG,
+            crate::brokers::common::http::client(),
+            "https://example.invalid".into(),
+            None,
+            FeedSource::default(),
+        );
+        let mut subs: Vec<_> = (0..120)
+            .map(|i| super::sub("S", "NSE", &i.to_string(), FeedMode::Ltp))
+            .collect();
+        subs.extend((1000..1055).map(|i| super::sub("S", "NSE", &i.to_string(), FeedMode::Depth)));
+        let cmds = f.commands(&subs, true);
+        assert_eq!(
+            cmds.iter()
+                .map(|c| (c.code, c.instruments.len()))
+                .collect::<Vec<_>>(),
+            vec![
+                (crate::brokers::rmoney::CONFIG.mode_code(1), 120),
+                (crate::brokers::rmoney::CONFIG.mode_code(3), 55)
+            ]
+        );
+        let mut sizes = Vec::new();
+        for c in cmds {
+            let (seen, _, snaps) = run(&[], c).await;
+            sizes.push(seen.iter().map(Vec::len).collect::<Vec<_>>());
+            assert_eq!(snaps, seen.iter().map(Vec::len).sum::<usize>());
+        }
+        assert_eq!(sizes, vec![vec![50, 50, 20], vec![50, 5]]);
+    }
+
+    /// Only rmoney splits a refused batch (web #2176 changed rmoney alone);
+    /// the other members keep their web behaviour: the refusal is non-fatal
+    /// and nothing is retried.
+    #[tokio::test]
+    async fn other_members_do_not_split_a_refused_batch() {
+        assert!(crate::brokers::rmoney::CONFIG.hooks.split_duplicate_batch);
+        for cfg in [
+            &crate::brokers::fivepaisaxts::CONFIG,
+            &crate::brokers::compositedge::CONFIG,
+            &crate::brokers::jainamxts::CONFIG,
+            &crate::brokers::ibulls::CONFIG,
+            &crate::brokers::iifl::CONFIG,
+            &crate::brokers::wisdom::CONFIG,
+        ] {
+            assert!(!cfg.hooks.split_duplicate_batch, "{}", cfg.id);
+            let (seen, calls, snaps) = run_as(cfg, &[1], cmd(2)).await;
+            assert_eq!(seen, vec![vec![0, 1]], "{}", cfg.id);
+            assert_eq!((calls, snaps), (1, 0), "{}", cfg.id);
+            // Their normal batches are unchanged.
+            let (seen, calls, snaps) = run_as(cfg, &[], cmd(51)).await;
+            assert_eq!(seen.iter().map(Vec::len).collect::<Vec<_>>(), [50, 1]);
+            assert_eq!((calls, snaps), (2, 51), "{}", cfg.id);
+        }
+    }
+
+    #[tokio::test]
+    async fn a_single_duplicate_is_not_retried() {
+        let (seen, calls, _) = run(&[1], cmd(1)).await;
+        assert_eq!(seen.len(), 1);
+        assert_eq!(calls, 1);
+    }
+
+    #[test]
+    fn duplicate_refusal_is_recognised() {
+        assert!(is_already_subscribed("Instrument Already Subscribed !"));
+        assert!(is_already_subscribed(
+            r#"{"type":"error","code":"e-session-0002","description":"x"}"#
+        ));
+        assert!(!is_already_subscribed(
+            r#"{"type":"error","description":"Invalid Token"}"#
+        ));
+    }
+}

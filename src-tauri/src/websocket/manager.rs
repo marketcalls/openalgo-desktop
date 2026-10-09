@@ -624,18 +624,26 @@ impl Supervisor {
                 }
                 cmd = self.cmd.recv() => match cmd {
                     None | Some(Command::Stop) => return SessionEnd::Stopped,
-                    Some(Command::Apply(deltas)) => {
+                    Some(Command::Apply(mut deltas)) => {
+                        // Coalesce commands already waiting, so a burst of
+                        // subscribe calls reaches the broker as batches.
+                        let mut stop = false;
+                        while let Ok(more) = self.cmd.try_recv() {
+                            match more {
+                                Command::Apply(d) => deltas.extend(d),
+                                Command::Stop => {
+                                    stop = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if stop {
+                            return SessionEnd::Stopped;
+                        }
                         if !subscribed {
                             continue; // sent with the full set after the ack
                         }
-                        let mut frames = Vec::new();
-                        for d in deltas {
-                            frames.extend(match d {
-                                Delta::Subscribe(s) => self.feed.subscribe_frames(std::slice::from_ref(&s)),
-                                Delta::Unsubscribe(s) => self.feed.unsubscribe_frames(std::slice::from_ref(&s)),
-                                Delta::ModeChange(old, new) => self.feed.mode_change_frames(&old, &new),
-                            });
-                        }
+                        let frames = self.delta_frames(deltas);
                         if !Self::send_all(write, frames).await {
                             return SessionEnd::Lost;
                         }
@@ -666,9 +674,56 @@ impl Supervisor {
                         self.stats.stalls.fetch_add(1, Ordering::Relaxed);
                         return SessionEnd::Stalled;
                     }
+                    if self.feed.data_stalled() {
+                        tracing::warn!(broker, "Market data stopped while the socket stayed open; reconnecting");
+                        self.stats.stalls.fetch_add(1, Ordering::Relaxed);
+                        return SessionEnd::Stalled;
+                    }
                 }
             }
         }
+    }
+
+    /// Frames for a run of deltas, in order. Consecutive subscribes (and
+    /// consecutive unsubscribes) go to the feed in one call, so feeds that
+    /// can batch send one frame or request per run rather than one per
+    /// instrument (web #2176: Firstock, Pocketful, RMoney batching).
+    fn delta_frames(&mut self, deltas: Vec<Delta>) -> Vec<Message> {
+        let mut frames = Vec::new();
+        let mut subs: Vec<FeedSubscription> = Vec::new();
+        let mut unsubs: Vec<FeedSubscription> = Vec::new();
+        for d in deltas {
+            match d {
+                Delta::Subscribe(s) => {
+                    if !unsubs.is_empty() {
+                        frames.extend(self.feed.unsubscribe_frames(&std::mem::take(&mut unsubs)));
+                    }
+                    subs.push(s);
+                }
+                Delta::Unsubscribe(s) => {
+                    if !subs.is_empty() {
+                        frames.extend(self.feed.subscribe_frames(&std::mem::take(&mut subs)));
+                    }
+                    unsubs.push(s);
+                }
+                Delta::ModeChange(old, new) => {
+                    if !subs.is_empty() {
+                        frames.extend(self.feed.subscribe_frames(&std::mem::take(&mut subs)));
+                    }
+                    if !unsubs.is_empty() {
+                        frames.extend(self.feed.unsubscribe_frames(&std::mem::take(&mut unsubs)));
+                    }
+                    frames.extend(self.feed.mode_change_frames(&old, &new));
+                }
+            }
+        }
+        if !subs.is_empty() {
+            frames.extend(self.feed.subscribe_frames(&subs));
+        }
+        if !unsubs.is_empty() {
+            frames.extend(self.feed.unsubscribe_frames(&unsubs));
+        }
+        frames
     }
 
     async fn resubscribe<S>(&mut self, write: &mut S) -> bool

@@ -5,7 +5,9 @@
 //!   no login frame; a refusal arrives as `{"status":"failed"}` or
 //!   `{"message":"unauthenticated"}`.
 //! * `{"action":"subscribe","tokens":"NSE:26000|NFO:65872"}` (one feed for
-//!   every mode; the mode only shapes the output).
+//!   every mode; the mode only shapes the output). Every instrument of a
+//!   subscribe run goes in one frame, without repeats (web #2176 batching;
+//!   the manager hands a burst of subscriptions over as one run).
 //! * ticks: V1 flat `{c_symbol, c_exch_seg, i_*}` or V2
 //!   `{"EX:TOKEN": {...}}`; prices in paise; `9223372036854775808` means
 //!   "no value"; zero prices never overwrite the snapshot.
@@ -224,11 +226,17 @@ impl FirstockFeed {
     }
 
     fn frames(action: &str, keys: &[String]) -> Vec<Message> {
-        if keys.is_empty() {
+        let mut unique: Vec<&str> = Vec::with_capacity(keys.len());
+        for k in keys {
+            if !unique.contains(&k.as_str()) {
+                unique.push(k);
+            }
+        }
+        if unique.is_empty() {
             return Vec::new();
         }
         vec![Message::Text(
-            json!({"action": action, "tokens": keys.join("|")}).to_string(),
+            json!({"action": action, "tokens": unique.join("|")}).to_string(),
         )]
     }
 }

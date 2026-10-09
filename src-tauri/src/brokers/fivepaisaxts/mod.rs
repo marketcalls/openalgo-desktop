@@ -32,6 +32,7 @@ pub static CONFIG: XtsConfig = XtsConfig {
         funds_balance_header: None,
         margin_details: false,
         multiquote_oi: false,
+        split_duplicate_batch: false,
     },
 };
 

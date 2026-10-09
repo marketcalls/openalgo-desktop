@@ -630,6 +630,30 @@ fn feed_frames_and_heartbeat() {
             json!({"a":"subscribe","v":[[2,41918]],"m":"full_snapquote"}),
         ]
     );
+    // Batched by (type, exchange code), repeats dropped (web #2176
+    // test_subscriptions_are_batched_by_feed_mode_and_exchange).
+    let frames = f.subscribe_frames(&[
+        sub("A", "NSE", "11", "NSE", FeedMode::Ltp),
+        sub("B", "NSE", "12", "NSE", FeedMode::Ltp),
+        sub("C", "NSE", "13", "NSE", FeedMode::Depth),
+        sub("D", "NFO", "14", "NFO", FeedMode::Ltp),
+        sub("B", "NSE", "12", "NSE", FeedMode::Ltp),
+    ]);
+    let texts: Vec<Value> = frames
+        .iter()
+        .map(|m| match m {
+            Message::Text(t) => json(t),
+            other => panic!("{:?}", other),
+        })
+        .collect();
+    assert_eq!(
+        texts,
+        vec![
+            json!({"a":"subscribe","v":[[1,11],[1,12]],"m":"compact_marketdata"}),
+            json!({"a":"subscribe","v":[[1,13]],"m":"full_snapquote"}),
+            json!({"a":"subscribe","v":[[2,14]],"m":"compact_marketdata"}),
+        ]
+    );
     let un = f.unsubscribe_frames(&[sub("SBIN", "NSE", "3045", "NSE", FeedMode::Ltp)]);
     assert_eq!(
         un,
@@ -821,4 +845,65 @@ async fn socket_errors_are_logged_by_kind_only() {
         super::streaming::ws_error_kind(&errors[1]),
         "refused with HTTP 401"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Data-silence watchdog (web test_pocketful_adapter_batch_watchdog.py)
+// ---------------------------------------------------------------------------
+
+mod data_watchdog {
+    use super::super::streaming::{DataWatchdog, DATA_SILENCE};
+    use std::time::Duration;
+    use tokio::time::Instant;
+
+    fn at(origin: Instant, secs: u64) -> Instant {
+        origin + Duration::from_secs(secs)
+    }
+
+    #[test]
+    fn arms_on_data_spread_across_three_buckets() {
+        let o = Instant::now();
+        let mut w = DataWatchdog::new(o);
+        for s in [100, 101, 131, 161] {
+            w.record(at(o, s));
+        }
+        assert!(w.armed());
+    }
+
+    #[test]
+    fn stays_disarmed_until_three_recent_buckets() {
+        let o = Instant::now();
+        let mut w = DataWatchdog::new(o);
+        for s in [100, 101, 131] {
+            w.record(at(o, s));
+        }
+        assert!(!w.armed());
+        // Buckets older than 5 minutes no longer count.
+        w.record(at(o, 431));
+        w.record(at(o, 461));
+        assert!(!w.armed());
+    }
+
+    #[test]
+    fn closes_only_after_real_data_stalls() {
+        let o = Instant::now();
+        let mut w = DataWatchdog::new(o);
+        for s in [0, 30, 60] {
+            w.record(at(o, s));
+        }
+        assert!(w.armed());
+        w.record(at(o, 100));
+        assert!(!w.stalled(at(o, 189)));
+        assert!(w.stalled(at(o, 191)));
+        assert_eq!(DATA_SILENCE, Duration::from_secs(90));
+    }
+
+    #[test]
+    fn a_disarmed_watchdog_never_reports_a_stall() {
+        let o = Instant::now();
+        let mut w = DataWatchdog::new(o);
+        w.record(at(o, 0));
+        assert!(!w.stalled(at(o, 10_000)));
+        assert!(!DataWatchdog::new(o).stalled(at(o, 10_000)));
+    }
 }

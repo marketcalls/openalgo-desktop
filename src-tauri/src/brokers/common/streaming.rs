@@ -260,6 +260,14 @@ pub trait BrokerFeed: Send + Sync {
     /// Decode one frame.
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent>;
 
+    /// Polled by the manager's stall watchdog: true when market data has
+    /// stopped although the socket still answers (heartbeat replies keep
+    /// the frame-level watchdog satisfied). The manager then closes the
+    /// socket and reconnects. Default: never.
+    fn data_stalled(&mut self) -> bool {
+        false
+    }
+
     /// Client heartbeat, if the broker wants one.
     fn heartbeat(&self) -> Option<(Duration, Message)> {
         None

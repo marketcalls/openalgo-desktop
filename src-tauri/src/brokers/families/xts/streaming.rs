@@ -18,7 +18,12 @@
 //! socket frames: `POST {subscription_path}/instruments/subscription`
 //! (`PUT` to unsubscribe) with `Authorization: <socket token>`, at most 50
 //! instruments per call, 0.5 s apart, run in order by one worker task the
-//! feed owns (aborted on reconnect and when the feed is dropped). The
+//! feed owns (aborted on reconnect and when the feed is dropped). XTS
+//! refuses a whole batch when one instrument in it is already subscribed
+//! ("e-session-0002"); for a member with `XtsHooks::split_duplicate_batch`
+//! (rmoney) such a batch is retried one instrument at a time so the others
+//! still start (web rmoney #2176); for the others the refusal is non-fatal,
+//! as in their web adapters. The
 //! snapshots in the subscribe answer (`listQuotes`) are decoded like live
 //! events with the next frame.
 //!
@@ -195,7 +200,23 @@ pub fn token_transport_allowed(url: &str) -> bool {
     }
 }
 
-/// One subscription call. Returns the snapshot strings of `listQuotes`.
+/// What one subscription call achieved.
+#[derive(Debug, PartialEq, Eq)]
+pub enum CallOutcome {
+    /// Accepted; the snapshot strings of `listQuotes`.
+    Done(Vec<String>),
+    /// Refused because an instrument is already subscribed (non-fatal).
+    AlreadySubscribed,
+}
+
+/// XTS's "Instrument Already Subscribed" refusal (`e-session-0002`), in a
+/// JSON description or a plain-text body.
+pub fn is_already_subscribed(body: &str) -> bool {
+    let b = body.to_ascii_lowercase();
+    b.contains("already subscribed") || b.contains("e-session-0002")
+}
+
+/// One subscription call.
 pub async fn subscription_call(
     http: &reqwest::Client,
     url: &str,
@@ -203,7 +224,7 @@ pub async fn subscription_call(
     subscribe: bool,
     code: u16,
     instruments: &[Value],
-) -> Result<Vec<String>> {
+) -> Result<CallOutcome> {
     if !token_transport_allowed(url) {
         tracing::error!("XTS subscription refused: market-data host is not served over TLS");
         return Err(AppError::Broker(
@@ -221,58 +242,134 @@ pub async fn subscription_call(
         .json(&json!({"instruments": instruments, "xtsMessageCode": code}))
         .send()
         .await?;
-    let v: Value = resp.json().await?;
+    let body = resp.text().await?;
+    let v: Value = serde_json::from_str(&body).unwrap_or(Value::Null);
     if v.get("type").and_then(Value::as_str) != Some("success") {
-        return Err(AppError::Broker(mapping::error_text(&v)));
+        if is_already_subscribed(&body) {
+            return Ok(CallOutcome::AlreadySubscribed);
+        }
+        let why = mapping::error_text(&v);
+        return Err(AppError::Broker(if why.is_empty() {
+            "The broker refused the market data subscription.".into()
+        } else {
+            why
+        }));
     }
-    Ok(v.get("result")
-        .and_then(|r| r.get("listQuotes"))
-        .and_then(Value::as_array)
-        .map(|a| {
-            a.iter()
-                .map(|q| match q {
-                    Value::String(s) => s.clone(),
-                    other => other.to_string(),
-                })
-                .collect()
-        })
-        .unwrap_or_default())
+    Ok(CallOutcome::Done(
+        v.get("result")
+            .and_then(|r| r.get("listQuotes"))
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .map(|q| match q {
+                        Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
+    ))
+}
+
+/// Where one command's calls go, and how far apart.
+pub struct SubscriptionTarget<'a> {
+    pub broker: &'static str,
+    pub http: &'a reqwest::Client,
+    pub url: &'a str,
+    pub token: &'a str,
+    pub gap: Duration,
+    /// `XtsHooks::split_duplicate_batch` of the member.
+    pub split_duplicates: bool,
+}
+
+/// Run one command: at most `SUBSCRIBE_BATCH` instruments per call, `gap`
+/// between calls. With `split_duplicates`, a subscribe batch refused as
+/// already subscribed is retried one instrument at a time; without it the
+/// refusal is non-fatal. Returns the calls made.
+pub async fn run_command(
+    t: &SubscriptionTarget<'_>,
+    cmd: &Command,
+    snapshots: &mpsc::Sender<String>,
+    first: &mut bool,
+) -> usize {
+    let mut calls = 0;
+    let mut call = |batch: Vec<Value>| {
+        let wait = !*first;
+        *first = false;
+        calls += 1;
+        async move {
+            if wait {
+                tokio::time::sleep(t.gap).await;
+            }
+            let r =
+                subscription_call(t.http, t.url, t.token, cmd.subscribe, cmd.code, &batch).await;
+            (batch, r)
+        }
+    };
+    let mut outcomes = Vec::new();
+    for batch in cmd.instruments.chunks(SUBSCRIBE_BATCH) {
+        let (batch, r) = call(batch.to_vec()).await;
+        match r {
+            Ok(CallOutcome::AlreadySubscribed)
+                if t.split_duplicates && cmd.subscribe && batch.len() > 1 =>
+            {
+                tracing::info!(
+                    broker = t.broker,
+                    code = cmd.code,
+                    "Batch holds an instrument already subscribed; subscribing one by one"
+                );
+                for inst in batch {
+                    let (_, r) = call(vec![inst]).await;
+                    outcomes.push(r);
+                }
+            }
+            r => outcomes.push(r),
+        }
+    }
+    for r in outcomes {
+        match r {
+            Ok(CallOutcome::Done(list)) => {
+                if cmd.subscribe {
+                    for s in list {
+                        let _ = snapshots.try_send(s);
+                    }
+                }
+            }
+            Ok(CallOutcome::AlreadySubscribed) => {
+                tracing::debug!(broker = t.broker, "Instrument already subscribed")
+            }
+            Err(e) => tracing::warn!(
+                broker = t.broker,
+                code = cmd.code,
+                subscribe = cmd.subscribe,
+                "Subscription call failed: {}",
+                e
+            ),
+        }
+    }
+    calls
 }
 
 async fn subscription_worker(
     broker: &'static str,
+    split_duplicates: bool,
     http: reqwest::Client,
     url: String,
     token: Secret,
     mut rx: mpsc::Receiver<Command>,
     snapshots: mpsc::Sender<String>,
 ) {
+    let target = SubscriptionTarget {
+        broker,
+        http: &http,
+        url: &url,
+        token: token.expose(),
+        gap: SUBSCRIBE_GAP,
+        split_duplicates,
+    };
     let mut first = true;
     while let Some(cmd) = rx.recv().await {
-        for batch in cmd.instruments.chunks(SUBSCRIBE_BATCH) {
-            if !first {
-                tokio::time::sleep(SUBSCRIBE_GAP).await;
-            }
-            first = false;
-            match subscription_call(&http, &url, token.expose(), cmd.subscribe, cmd.code, batch)
-                .await
-            {
-                Ok(list) => {
-                    if cmd.subscribe {
-                        for s in list {
-                            let _ = snapshots.try_send(s);
-                        }
-                    }
-                }
-                Err(e) => tracing::warn!(
-                    broker,
-                    code = cmd.code,
-                    subscribe = cmd.subscribe,
-                    "Subscription call failed: {}",
-                    e
-                ),
-            }
-        }
+        run_command(&target, &cmd, &snapshots, &mut first).await;
     }
 }
 
@@ -353,6 +450,7 @@ impl XtsFeed {
             let (tx, rx) = mpsc::channel(COMMAND_QUEUE);
             self.worker = Some(handle.spawn(subscription_worker(
                 self.cfg.id,
+                self.cfg.hooks.split_duplicate_batch,
                 self.connector.http.clone(),
                 format!(
                     "{}{}/instruments/subscription",

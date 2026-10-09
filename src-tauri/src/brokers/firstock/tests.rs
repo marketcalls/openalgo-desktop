@@ -311,3 +311,63 @@ fn feed_url_frames_and_ticks() {
     assert!(f.parse_text(&resp("feed_v1").to_string()).is_empty());
     assert!(matches!(f.heartbeat().unwrap().1, Message::Ping(_)));
 }
+
+/// A run of subscriptions is one frame without repeated instruments; mode
+/// changes need no wire frame (web test_firstock_batch_subscriptions.py).
+#[test]
+fn subscribe_run_is_one_deduplicated_frame() {
+    let mut f = FirstockFeed::new("wss://x", "u", "k");
+    let frames = f.subscribe_frames(&[
+        sub("SBIN", "NSE", "3045", FeedMode::Ltp),
+        sub("TCS", "NSE", "11536", FeedMode::Quote),
+        sub("SBIN", "NSE", "3045", FeedMode::Ltp),
+        sub("NIFTY27OCT26FUT", "NFO", "54321", FeedMode::Depth),
+    ]);
+    assert_eq!(frames.len(), 1);
+    match &frames[0] {
+        Message::Text(t) => assert_eq!(
+            serde_json::from_str::<Value>(t).unwrap(),
+            json!({"action":"subscribe","tokens":"NSE:3045|NSE:11536|NFO:54321"})
+        ),
+        _ => panic!(),
+    }
+    assert!(f
+        .mode_change_frames(
+            &sub("SBIN", "NSE", "3045", FeedMode::Ltp),
+            &sub("SBIN", "NSE", "3045", FeedMode::Depth)
+        )
+        .is_empty());
+    assert!(f.subscribe_frames(&[]).is_empty());
+}
+
+/// Unsubscribing one instrument of a batch retires only that instrument;
+/// the others keep streaming (web test_firstock_batch_subscriptions.py
+/// test_unsubscribe_retires_batched_tracking_only_after_last_token). A new
+/// connection starts without the old snapshots
+/// (test_connection_close_clears_batch_tracking_before_reconnect).
+#[test]
+fn unsubscribe_retires_only_its_instrument_from_a_batch() {
+    use crate::brokers::common::streaming::BrokerFeed;
+    let mut f = FirstockFeed::new(WS_URL, "AB1234", "jk");
+    let frames = f.subscribe_frames(&[
+        sub("SBIN", "NSE", "3045", FeedMode::Quote),
+        sub("NIFTY27OCT26FUT", "NFO", "54321", FeedMode::Depth),
+    ]);
+    assert_eq!(frames.len(), 1);
+    assert!(!f.parse_text(&resp("feed_v1").to_string()).is_empty());
+    assert!(!f.parse_text(&resp("feed_v2").to_string()).is_empty());
+    let u = f.unsubscribe_frames(&[sub("NIFTY27OCT26FUT", "NFO", "54321", FeedMode::Depth)]);
+    match &u[..] {
+        [Message::Text(t)] => assert_eq!(
+            serde_json::from_str::<Value>(t).unwrap(),
+            json!({"action":"unsubscribe","tokens":"NFO:54321"})
+        ),
+        other => panic!("{other:?}"),
+    }
+    // SBIN, from the same batch, still streams; the future no longer does.
+    assert!(!f.parse_text(&resp("feed_v1").to_string()).is_empty());
+    assert!(f.parse_text(&resp("feed_v2").to_string()).is_empty());
+    assert_eq!(f.cached(), 1);
+    assert!(f.on_connected().is_empty());
+    assert_eq!(f.cached(), 0);
+}

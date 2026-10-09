@@ -78,6 +78,12 @@ pub struct XtsHooks {
     pub margin_details: bool,
     /// Multiquotes merge a second 1510 open-interest call (rmoney).
     pub multiquote_oi: bool,
+    /// A subscription batch refused because one of its instruments is
+    /// already subscribed (`e-session-0002`) is retried one instrument at a
+    /// time, so the others still start (rmoney `subscribe_batch`, web
+    /// #2176). Without it the refusal is non-fatal and not retried, as in
+    /// the other members' web adapters.
+    pub split_duplicate_batch: bool,
 }
 
 /// Static configuration of one XTS white-label.

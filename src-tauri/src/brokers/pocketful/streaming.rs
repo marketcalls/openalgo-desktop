@@ -2,13 +2,16 @@
 //! `api/packet_decoder.py`, `streaming/pocketful_adapter.py`).
 //!
 //! * URL `wss://trade.pocketful.in/ws/v1/feeds?login_id=<client_id>&access_token=<token>`.
-//! * Subscribe `{"a":"subscribe","v":[[exchange_code, token]],"m":<type>}`,
-//!   one instrument per frame like the web; unsubscribe with
-//!   `"a":"unsubscribe"`. Types: `marketdata` (detailed, mode 1),
+//! * Subscribe `{"a":"subscribe","v":[[exchange_code, token], ...],"m":<type>}`,
+//!   batched per (type, exchange code) like the web (#2176); unsubscribe
+//!   one instrument per frame with `"a":"unsubscribe"`. Types: `marketdata` (detailed, mode 1),
 //!   `compact_marketdata` (mode 2), `full_snapquote` (mode 4). OpenAlgo
 //!   LTP -> compact, QUOTE -> detailed, DEPTH -> snapquote
 //!   (`pocketful_adapter.py` `pocketful_mode_map`).
-//! * Heartbeat: text `{"a":"h"}` every 15 s.
+//! * Heartbeat: text `{"a":"h"}` every 15 s. The server answers it, so a
+//!   socket can stay "alive" with no market data: once data has been seen
+//!   in three 30 s buckets within 5 minutes, 90 s without market data
+//!   closes the socket and reconnects (web data-silence watchdog, #2176).
 //! * Binary frames are big-endian; byte 0 is the mode. Prices are integer
 //!   paise (/100); quantities raw. Offsets below cite `packet_decoder.py`.
 //! * Modes 50 and 51 are order and trade updates: UTF-8 JSON after a 5-byte
@@ -26,8 +29,9 @@ use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::time::Duration;
+use tokio::time::Instant;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
 /// web `heartbeat_thread`: `{"a":"h"}` every 15 s.
@@ -63,6 +67,81 @@ pub fn sub_frame(action: &str, code: u8, token: u32, pocketful_mode: u8) -> Mess
     Message::Text(
         json!({"a": action, "v": [[code, token]], "m": market_type(pocketful_mode)}).to_string(),
     )
+}
+
+/// (Pocketful mode, exchange code): one subscribe frame per key.
+type BatchKey = (u8, u8);
+
+/// One subscribe frame for several instruments of one type
+/// (web `_send_subscription_batch`).
+pub fn batch_frame(action: &str, pocketful_mode: u8, instruments: &[(u8, u32)]) -> Message {
+    let v: Vec<Value> = instruments.iter().map(|(c, t)| json!([c, t])).collect();
+    Message::Text(json!({"a": action, "v": v, "m": market_type(pocketful_mode)}).to_string())
+}
+
+/// Seconds per activity bucket, buckets needed and the window they must
+/// fall in before the watchdog is active, and the silence that then
+/// triggers a reconnect (web `DATA_ARM_*`, `DATA_SILENCE_TIMEOUT`).
+pub const DATA_ARM_BUCKET_SECS: u64 = 30;
+pub const DATA_ARM_BUCKETS: usize = 3;
+pub const DATA_ARM_WINDOW_SECS: u64 = 300;
+pub const DATA_SILENCE: Duration = Duration::from_secs(90);
+
+/// Market-data silence watchdog (web `_record_market_data`,
+/// `_health_check_loop`). It only becomes active once data has flowed in
+/// three distinct 30 s buckets within 5 minutes, so a quiet instrument
+/// list or a closed market never triggers reconnects.
+#[derive(Debug)]
+pub struct DataWatchdog {
+    origin: Instant,
+    last_data: Option<Instant>,
+    armed: bool,
+    buckets: VecDeque<u64>,
+}
+
+impl DataWatchdog {
+    pub fn new(origin: Instant) -> Self {
+        Self {
+            origin,
+            last_data: None,
+            armed: false,
+            buckets: VecDeque::with_capacity(DATA_ARM_BUCKETS),
+        }
+    }
+
+    /// A market-data packet arrived at `now`.
+    pub fn record(&mut self, now: Instant) {
+        self.last_data = Some(now);
+        if self.armed {
+            return;
+        }
+        let secs = now.saturating_duration_since(self.origin).as_secs();
+        let bucket = secs - secs % DATA_ARM_BUCKET_SECS;
+        if self.buckets.back() != Some(&bucket) {
+            if self.buckets.len() == DATA_ARM_BUCKETS {
+                self.buckets.pop_front();
+            }
+            self.buckets.push_back(bucket);
+        }
+        self.buckets
+            .retain(|b| secs.saturating_sub(*b) <= DATA_ARM_WINDOW_SECS);
+        if self.buckets.len() >= DATA_ARM_BUCKETS {
+            self.armed = true;
+            tracing::info!(broker = "pocketful", "Market-data silence watchdog active");
+        }
+    }
+
+    pub fn armed(&self) -> bool {
+        self.armed
+    }
+
+    /// Active and no market data for `DATA_SILENCE`.
+    pub fn stalled(&self, now: Instant) -> bool {
+        self.armed
+            && self
+                .last_data
+                .is_some_and(|t| now.saturating_duration_since(t) >= DATA_SILENCE)
+    }
 }
 
 pub fn heartbeat_frame() -> Message {
@@ -407,6 +486,7 @@ pub struct PocketfulFeed {
     /// (exchange code, token) -> subscription.
     subs: HashMap<(u8, u32), SubInfo>,
     symbols: SymbolResolver,
+    watchdog: DataWatchdog,
 }
 
 impl PocketfulFeed {
@@ -420,6 +500,7 @@ impl PocketfulFeed {
             url: feed_url(ws_base, client_id, access_token),
             subs: HashMap::new(),
             symbols,
+            watchdog: DataWatchdog::new(Instant::now()),
         }
     }
 
@@ -594,8 +675,15 @@ impl BrokerFeed for PocketfulFeed {
             .map_err(|_| AppError::Internal("Pocketful feed address is invalid".into()))
     }
 
+    fn on_connected(&mut self) -> Vec<Message> {
+        self.watchdog = DataWatchdog::new(Instant::now());
+        Vec::new()
+    }
+
+    /// One frame per (Pocketful type, exchange code), instruments in
+    /// request order without repeats (web `_process_batch_subscriptions`).
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
-        let mut out = Vec::new();
+        let mut groups: Vec<(BatchKey, Vec<(u8, u32)>)> = Vec::new();
         for s in subs {
             let Some(key) = Self::key(s) else { continue };
             self.subs.insert(
@@ -606,9 +694,20 @@ impl BrokerFeed for PocketfulFeed {
                     mode: s.mode,
                 },
             );
-            out.push(sub_frame("subscribe", key.0, key.1, pocketful_mode(s.mode)));
+            let group = (pocketful_mode(s.mode), key.0);
+            match groups.iter_mut().find(|(g, _)| *g == group) {
+                Some((_, v)) => {
+                    if !v.contains(&key) {
+                        v.push(key)
+                    }
+                }
+                None => groups.push((group, vec![key])),
+            }
         }
-        out
+        groups
+            .into_iter()
+            .map(|((mode, _), v)| batch_frame("subscribe", mode, &v))
+            .collect()
     }
 
     fn unsubscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
@@ -628,9 +727,29 @@ impl BrokerFeed for PocketfulFeed {
 
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {
         match decode_frame(msg) {
-            Some(p) => self.handle(p),
+            Some(p) => {
+                if matches!(
+                    p,
+                    Packet::Compact(_) | Packet::Detailed(_) | Packet::Snapquote(_)
+                ) {
+                    self.watchdog.record(Instant::now());
+                }
+                self.handle(p)
+            }
             None => Vec::new(),
         }
+    }
+
+    fn data_stalled(&mut self) -> bool {
+        if !self.watchdog.stalled(Instant::now()) {
+            return false;
+        }
+        tracing::warn!(
+            broker = "pocketful",
+            "No market data for {} s; reconnecting",
+            DATA_SILENCE.as_secs()
+        );
+        true
     }
 
     fn heartbeat(&self) -> Option<(Duration, Message)> {
