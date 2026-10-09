@@ -417,6 +417,12 @@ home and data folder and ephemeral ports, hold it in a guard that kills and
 reaps it, and stop it if it starts the full app. The `mcp` subcommand is a thin
 forwarder and must never open the data folder or a listener.
 
+The maintainer's Mac has 8 GB of RAM. Compiling the main library takes
+several GB, so four agents building at once swapped for hours and every build
+queued behind the lock. Run at most two build-heavy agents at a time, each
+with `CARGO_BUILD_JOBS=4` and one cargo command at a time; iterate with
+filtered test runs and run the full suite once before pushing.
+
 The shared folder grows past 30 GB. When free disk drops below about 8 GB,
 delete `target/debug/deps` and `build` entries older than the current session
 and `incremental`; never the whole folder while other agents build.
