@@ -2,18 +2,21 @@
 //! the web code and Groww's documented shapes
 //! (`src-tauri/tests/fixtures/brokers/groww/`). No real account data.
 
-use super::auth::{checksum, choose_variant, looks_like_jwt, Variant};
+use super::auth::{
+    checksum, choose_variant, login_error, looks_like_jwt, token_from_response, Variant,
+};
 use super::data::*;
-use super::funds::{funds_from_payload, margin_payload, parse_margin};
+use super::funds::{day_m2m, funds_from_payload, margin_groups, margin_requests, parse_margin};
 use super::mapping::*;
 use super::master_contract::parse_instruments;
 use super::nkeys::{self, KeyPair};
 use super::order_poller::{clamp_interval, diff};
-use super::orders::{modify_order_body, place_order_body, segment_from_id};
+use super::orders::{modify_order_body, place_order_body, place_outcome, validate};
 use super::proto;
+use super::rate_limiter::{self, paced, retry_delay, ApiType, Attempt, GrowwLimiter};
 use super::streaming::*;
 use super::*;
-use crate::brokers::common::mapping::{Action, PriceType};
+use crate::brokers::common::mapping::{Action, PriceType, Validity};
 use crate::brokers::common::streaming::{
     BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
 };
@@ -45,14 +48,294 @@ fn orders_of(v: &Value) -> Vec<GrowwOrder> {
 }
 
 // ---------------------------------------------------------------------------
+// Rate limiter (web test_groww_rate_limiter.py)
+// ---------------------------------------------------------------------------
+
+#[tokio::test(start_paused = true)]
+async fn calls_of_one_type_are_spaced_by_the_documented_per_minute_limit() {
+    for (t, per_minute) in [
+        (ApiType::Order, 250.0),
+        (ApiType::Live, 300.0),
+        (ApiType::NonTrading, 500.0),
+        (ApiType::Auth, 30.0),
+    ] {
+        let l = GrowwLimiter::default();
+        let start = tokio::time::Instant::now();
+        for _ in 0..3 {
+            l.acquire(t).await.unwrap();
+        }
+        let want = std::time::Duration::from_secs_f64(2.0 * 60.0 / per_minute);
+        let got = start.elapsed();
+        assert!(
+            got >= want && got < want + std::time::Duration::from_millis(5),
+            "{:?}: {:?} vs {:?}",
+            t,
+            got,
+            want
+        );
+    }
+    assert_eq!(
+        ApiType::History.min_interval(),
+        std::time::Duration::from_secs(1)
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn types_do_not_wait_for_each_other() {
+    let l = GrowwLimiter::default();
+    let start = tokio::time::Instant::now();
+    l.acquire(ApiType::Live).await.unwrap();
+    l.acquire(ApiType::Order).await.unwrap();
+    l.acquire(ApiType::NonTrading).await.unwrap();
+    l.acquire(ApiType::History).await.unwrap();
+    assert_eq!(start.elapsed(), std::time::Duration::ZERO);
+}
+
+/// Drive `paced` with scripted statuses; returns (calls, final status or
+/// the refusal, time slept beyond pacing).
+async fn script(
+    statuses: &[u16],
+    retry_after: Option<&str>,
+) -> (usize, Result<u16>, std::time::Duration) {
+    let l = GrowwLimiter::default();
+    let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let start = tokio::time::Instant::now();
+    let st = statuses.to_vec();
+    let ra = retry_after.map(str::to_string);
+    let c = calls.clone();
+    let last = paced(&l, ApiType::Live, move || {
+        let n = c.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let status = st[n.min(st.len() - 1)];
+        let ra = ra.clone();
+        async move {
+            Ok(Attempt {
+                status,
+                retry_after: ra,
+                value: status,
+            })
+        }
+    })
+    .await;
+    (
+        calls.load(std::sync::atomic::Ordering::SeqCst),
+        last,
+        start.elapsed(),
+    )
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_429_is_retried_after_the_delay_groww_asks_for() {
+    let (calls, last, slept) = script(&[429, 200], Some("2")).await;
+    assert_eq!((calls, last.unwrap()), (2, 200));
+    assert!(slept >= std::time::Duration::from_secs(2));
+    assert!(slept < std::time::Duration::from_millis(2300));
+}
+
+#[tokio::test(start_paused = true)]
+async fn retries_stop_after_max_retries_and_return_the_429() {
+    let n = rate_limiter::MAX_RETRIES as usize + 1;
+    let (calls, last, slept) = script(&vec![429; n], None).await;
+    assert_eq!((calls, last.unwrap()), (n, 429));
+    // Exponential fallback when Groww sends no Retry-After: 1, 2, 4.
+    assert!(slept >= std::time::Duration::from_secs(7));
+    assert!(slept < std::time::Duration::from_millis(7500));
+    assert_eq!(
+        (0..3)
+            .map(|a| retry_delay(None, a, std::time::SystemTime::now()).as_secs())
+            .collect::<Vec<_>>(),
+        [1, 2, 4]
+    );
+}
+
+#[test]
+fn an_http_date_retry_after_is_honoured() {
+    let now = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_760_000_000);
+    let when = chrono::DateTime::from_timestamp(1_760_000_003, 0)
+        .unwrap()
+        .to_rfc2822()
+        .replace("+0000", "GMT");
+    let d = retry_delay(Some(&when), 0, now);
+    assert!(
+        d >= std::time::Duration::from_millis(2900) && d <= std::time::Duration::from_millis(3100),
+        "{when}: {d:?}"
+    );
+    // A date in the past still waits the 50 ms floor; junk falls back.
+    assert_eq!(
+        retry_delay(Some("Thu, 01 Jan 1970 00:00:00 GMT"), 0, now),
+        std::time::Duration::from_millis(50)
+    );
+    assert_eq!(
+        retry_delay(Some("soon"), 1, now),
+        std::time::Duration::from_secs(2)
+    );
+}
+
+/// Web test_under_gthread_a_long_server_delay_is_refused_not_slept: a wait
+/// Groww asks for beyond the 10 s ceiling (web `cap_server_delay`) is
+/// refused with a message saying the request was not retried.
+#[tokio::test(start_paused = true)]
+async fn a_long_server_delay_is_refused_not_slept() {
+    for ra in ["600", "15", "11", "1e300", "inf"] {
+        let (calls, last, slept) = script(&[429, 200], Some(ra)).await;
+        assert_eq!(calls, 1, "{ra}");
+        assert_eq!(
+            last.unwrap_err().client_message(),
+            rate_limiter::SLOW_DOWN_MESSAGE,
+            "{ra}"
+        );
+        assert!(slept < std::time::Duration::from_secs(1), "{ra}");
+    }
+    // Up to the ceiling it is honoured.
+    let (calls, last, slept) = script(&[429, 200], Some("9")).await;
+    assert_eq!((calls, last.unwrap()), (2, 200));
+    assert!(slept >= std::time::Duration::from_secs(9));
+}
+
+#[test]
+fn retry_after_values_never_panic() {
+    let now = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_760_000_000);
+    assert_eq!(retry_delay(Some("1e300"), 0, now), std::time::Duration::MAX);
+    assert_eq!(retry_delay(Some("inf"), 0, now), std::time::Duration::MAX);
+    assert_eq!(
+        retry_delay(Some("-5"), 0, now),
+        std::time::Duration::from_millis(50)
+    );
+    assert_eq!(
+        retry_delay(Some("NaN"), 2, now),
+        std::time::Duration::from_secs(4)
+    );
+    assert_eq!(
+        retry_delay(Some("Wed, 31 Dec 1969 23:59:59 GMT"), 0, now),
+        std::time::Duration::from_millis(50)
+    );
+}
+
+/// The web's `check_queue_wait`: a call whose turn is more than 10 s away
+/// is refused at once and books nothing, so the calls queued behind it
+/// are not delayed by it.
+#[tokio::test(start_paused = true)]
+async fn a_call_whose_turn_is_too_far_away_is_refused_before_it_books() {
+    let l = GrowwLimiter::default();
+    let start = tokio::time::Instant::now();
+    // History is one a second: slots 0..=10 s are within the ceiling.
+    let results =
+        futures_util::future::join_all((0..12).map(|_| l.acquire(ApiType::History))).await;
+    let refused: Vec<_> = results.iter().filter_map(|r| r.as_ref().err()).collect();
+    assert_eq!(refused.len(), 1);
+    assert_eq!(refused[0].client_message(), rate_limiter::BUSY_MESSAGE);
+    assert!(results[..11].iter().all(Result::is_ok));
+    assert_eq!(start.elapsed(), std::time::Duration::from_secs(10));
+    // The refused call booked nothing: the next slot is 11 s, not 12 s.
+    l.acquire(ApiType::History).await.unwrap();
+    assert_eq!(start.elapsed(), std::time::Duration::from_secs(11));
+    // Other types were never held up.
+    let t = tokio::time::Instant::now();
+    l.acquire(ApiType::Order).await.unwrap();
+    assert_eq!(t.elapsed(), std::time::Duration::ZERO);
+}
+
+/// Books `n` slots of `t` on `core`'s limiter from tasks that then wait
+/// their turn, so the next call of `t` finds the queue that long.
+async fn fill_queue(c: &GrowwCore, t: ApiType, n: usize) -> Vec<tokio::task::JoinHandle<()>> {
+    let tasks: Vec<_> = (0..n)
+        .map(|_| {
+            let l = c.limiter.clone();
+            tokio::spawn(async move {
+                let _ = l.acquire(t).await;
+            })
+        })
+        .collect();
+    for _ in 0..(n + 2) {
+        tokio::task::yield_now().await;
+    }
+    tasks
+}
+
+/// Web test_login_rate_limit_refusal_is_not_reported_as_unreachable: a
+/// login OpenAlgo's own pacing refused is reported as that, not as Groww
+/// being unreachable (nothing was sent).
+#[tokio::test(start_paused = true)]
+async fn login_pacing_refusal_is_not_reported_as_unreachable() {
+    let c = core();
+    // Authentication is 30 a minute (one every 2 s): six queued logins put
+    // the seventh 12 s away.
+    let held = fill_queue(&c, ApiType::Auth, 6).await;
+    let e = super::auth::authenticate(
+        &c,
+        BrokerCredentials {
+            api_key: "KEY".into(),
+            api_secret: Some("SECRET".into()),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(e.client_message(), rate_limiter::BUSY_MESSAGE);
+    held.iter().for_each(|h| h.abort());
+}
+
+/// Web test_place_order_passes_broker_busy_through and
+/// test_get_api_response_passes_broker_busy_through: OpenAlgo's own pacing
+/// refusal reaches the caller as such, not as a Groww or network error.
+#[tokio::test(start_paused = true)]
+async fn pacing_refusals_pass_through_orders_and_data() {
+    let c = core();
+    let auth = AuthToken::new("good");
+    // Orders are 250 a minute (0.24 s apart): 43 queued put the next one
+    // more than 10 s away.
+    let held = fill_queue(&c, ApiType::Order, 43).await;
+    let o = resolved("SBIN", "NSE", "MARKET", 0.0, 0.0);
+    let e = super::orders::place_order(&c, &auth, &o).await.unwrap_err();
+    assert_eq!(e.client_message(), rate_limiter::BUSY_MESSAGE);
+    held.iter().for_each(|h| h.abort());
+    // Live data: 300 a minute (0.2 s apart): 52 queued.
+    let held = fill_queue(&c, ApiType::Live, 52).await;
+    let e = super::data::get_quote(&c, &auth, &QuoteKey::new("NSE", "SBIN"))
+        .await
+        .unwrap_err();
+    assert_eq!(e.client_message(), rate_limiter::BUSY_MESSAGE);
+    held.iter().for_each(|h| h.abort());
+}
+
+/// A call that fails in transit: an order call says to check the order
+/// book before retrying (the order may have reached Groww), a login says
+/// Groww could not be reached.
+#[tokio::test]
+async fn transport_failures_name_the_next_step() {
+    // Port 9 on loopback is closed: every call fails in transit.
+    let c = core();
+    let auth = AuthToken::new("good");
+    let o = resolved("SBIN", "NSE", "MARKET", 0.0, 0.0);
+    let e = super::orders::place_order(&c, &auth, &o).await.unwrap_err();
+    assert_eq!(
+        e.client_message(),
+        "Could not reach Groww to place the order. Check the order book before retrying."
+    );
+    let e = super::auth::authenticate(
+        &c,
+        BrokerCredentials {
+            api_key: "KEY".into(),
+            api_secret: Some("SECRET".into()),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(
+        e.client_message(),
+        "Could not reach Groww to log in. Check your connection and try again."
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Master contract
 // ---------------------------------------------------------------------------
 
 #[test]
 fn master_contract_rows_and_exchanges() {
     let rows = parse_instruments(fixture!("instrument.csv")).unwrap();
-    // 16 data rows; the one with a blank trading symbol is dropped.
-    assert_eq!(rows.len(), 15);
+    // 21 data rows; the one with a blank trading symbol is dropped.
+    assert_eq!(rows.len(), 20);
     let r = master();
     let sbin = r.by_symbol("NSE", "SBIN").unwrap();
     assert_eq!(
@@ -77,15 +360,20 @@ fn master_contract_rows_and_exchanges() {
 }
 
 #[test]
-fn master_contract_indices_and_renames() {
+fn master_contract_indices_are_eq_rows_on_index_exchanges() {
     let r = master();
+    // MC-04: no INDEX instrument type; the exchange marks the index.
     let nifty = r.by_symbol("NSE_INDEX", "NIFTY").unwrap();
-    assert_eq!(nifty.instrument_type, "INDEX");
+    assert_eq!(nifty.instrument_type, "EQ");
     assert_eq!(nifty.brexchange, "NSE");
+    assert_eq!(nifty.name, "NIFTY 50");
     let jr = r.by_symbol("NSE_INDEX", "NIFTYNXT50").unwrap();
     assert_eq!(jr.brsymbol, "NIFTYJR");
     let sensex = r.by_symbol("BSE_INDEX", "SENSEX").unwrap();
-    assert_eq!(sensex.token, "1");
+    assert_eq!(
+        (sensex.token.as_str(), sensex.instrument_type.as_str()),
+        ("1", "EQ")
+    );
     assert!(r.by_symbol("NSE_INDEX", "BANKNIFTY").is_some());
 }
 
@@ -108,11 +396,60 @@ fn master_contract_derivative_symbols() {
     // Missing instrument type with a strike -> OPT, symbol not rebuilt.
     let opt = r.by_symbol("NFO", "SBIN25OCT800PE").unwrap();
     assert_eq!(opt.instrument_type, "OPT");
-    // BFO keeps Groww's symbol (quirk 9.10).
-    let bfo = r.by_symbol("BFO", "SENSEX25OCT82000CE").unwrap();
-    assert_eq!(bfo.expiry, "30-OCT-25");
+    // MC-06/10: BSE F&O is rebuilt in OpenAlgo format too.
+    let bfo = r.by_symbol("BFO", "SENSEX30OCT2582000CE").unwrap();
+    assert_eq!(
+        (
+            bfo.brsymbol.as_str(),
+            bfo.expiry.as_str(),
+            bfo.name.as_str()
+        ),
+        ("SENSEX25OCT82000CE", "30-OCT-25", "SENSEX")
+    );
+    assert!(r.by_symbol("BFO", "SENSEX25OCT82000CE").is_none());
+    let bfut = r.by_symbol("BFO", "SENSEX30OCT25FUT").unwrap();
+    assert_eq!(bfut.brsymbol, "SENSEX25OCTFUT");
+    // MC-12: NSE commodities are rebuilt, stay on NSE and carry their
+    // underlying as name.
+    let gold = r.by_symbol("NSE", "GOLD05NOV25FUT").unwrap();
+    assert_eq!(
+        (
+            gold.brsymbol.as_str(),
+            gold.instrument_type.as_str(),
+            gold.name.as_str()
+        ),
+        ("GOLD25NOVFUT", "FUT", "GOLD")
+    );
     // Option chains work off `name`.
     assert_eq!(r.expiries("NFO", "NIFTY", None), ["28-OCT-25"]);
+}
+
+#[test]
+fn master_contract_series_sharing_a_trading_symbol_are_unique() {
+    let rows = parse_instruments(fixture!("instrument.csv")).unwrap();
+    // MC-03: internal_trading_symbol first, else SYMBOL-SERIES.
+    let imc: Vec<(&str, &str, &str)> = rows
+        .iter()
+        .filter(|r| r.brsymbol.starts_with("IMC"))
+        .map(|r| (r.symbol.as_str(), r.brsymbol.as_str(), r.token.as_str()))
+        .collect();
+    assert_eq!(
+        imc,
+        [
+            ("IMC1-N1", "IMC1", "7001"),
+            ("IMC1-N2", "IMC1", "7002"),
+            ("IMC2", "IMC2", "7003")
+        ]
+    );
+    let mut seen = std::collections::HashSet::new();
+    for r in &rows {
+        assert!(
+            seen.insert((r.symbol.clone(), r.exchange.clone())),
+            "duplicate {} {}",
+            r.symbol,
+            r.exchange
+        );
+    }
 }
 
 #[test]
@@ -127,22 +464,38 @@ fn master_contract_rejects_unknown_header() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn outbound_maps() {
-    assert_eq!(groww_exchange("NFO"), "NSE");
-    assert_eq!(groww_exchange("BFO"), "BSE");
+fn outbound_maps_refuse_instead_of_defaulting() {
+    assert_eq!(order_exchange("NFO").unwrap(), "NSE");
+    assert_eq!(order_exchange("BFO").unwrap(), "BSE");
+    assert_eq!(order_segment("NFO").unwrap(), "FNO");
+    assert_eq!(order_segment("BSE").unwrap(), "CASH");
+    let e = order_exchange("MCX").unwrap_err();
+    assert_eq!(
+        e.client_message(),
+        "Groww's trading API does not support the MCX exchange. Orders can be placed on NSE, BSE, NFO and BFO only."
+    );
+    assert!(order_segment("CDS").is_err());
+    assert!(order_exchange("NSE_INDEX").is_err());
+    assert_eq!(validity(Validity::Day).unwrap(), "DAY");
+    assert!(validity(Validity::Ioc)
+        .unwrap_err()
+        .client_message()
+        .contains("DAY validity only"));
+    // Market data: indices on their own exchange's CASH segment (QT-05/07).
     assert_eq!(groww_exchange("BSE_INDEX"), "BSE");
-    assert_eq!(groww_segment("NFO"), "FNO");
     assert_eq!(groww_segment("NSE_INDEX"), "CASH");
-    assert_eq!(order_type(PriceType::Sl), "STOP_LOSS_LIMIT");
-    assert_eq!(order_type(PriceType::SlM), "STOP_LOSS_MARKET");
+    assert!(check_data_exchange("BSE_INDEX").is_ok());
+    assert!(check_data_exchange("MCX").is_err());
+    // Annexure "Order Type": SL and SL_M.
+    assert_eq!(order_type(PriceType::Sl), "SL");
+    assert_eq!(order_type(PriceType::SlM), "SL_M");
     assert_eq!(product(Product::Nrml), "NRML");
 }
 
 #[test]
 fn inbound_maps() {
-    assert_eq!(reverse_order_type("STOP_LOSS"), "SL");
-    assert_eq!(reverse_order_type("STOP_LOSS_LIMIT"), "SL");
-    assert_eq!(reverse_order_type("STOP_LOSS_MARKET"), "SL-M");
+    assert_eq!(reverse_order_type("SL_M"), "SL-M");
+    assert_eq!(reverse_order_type("SL"), "SL");
     assert_eq!(reverse_order_type("LIMIT"), "LIMIT");
     assert_eq!(reverse_product("INTRADAY"), "MIS");
     assert_eq!(reverse_product("MARGIN"), "NRML");
@@ -152,43 +505,29 @@ fn inbound_maps() {
         ("ACKED", "open"),
         ("APPROVED", "open"),
         ("OPEN", "open"),
+        ("MODIFICATION_REQUESTED", "open"),
+        ("CANCELLATION_REQUESTED", "open"),
         ("TRIGGER_PENDING", "trigger pending"),
         ("EXECUTED", "complete"),
+        ("DELIVERY_AWAITED", "complete"),
         ("COMPLETED", "complete"),
         ("CANCELLED", "cancelled"),
         ("REJECTED", "rejected"),
         ("FAILED", "rejected"),
-        ("MODIFICATION_REQUESTED", "open"),
+        // Unknown statuses are shown as sent, not as "open".
+        ("SOMETHING_NEW", "something_new"),
     ] {
         assert_eq!(map_status(s), want, "{}", s);
     }
     assert!(is_cancellable("modification_requested"));
+    assert!(is_cancellable("TRIGGER_PENDING"));
     assert!(!is_cancellable("EXECUTED"));
+    assert!(!is_cancellable("CANCELLATION_REQUESTED"));
     assert_eq!(oa_exchange("NSE", "FNO"), "NFO");
     assert_eq!(oa_exchange("BSE", "FNO"), "BFO");
-    // The web forced ITC to NFO because it contains a C (quirk 9.1).
+    // The segment decides, never a C or P in the symbol.
     assert_eq!(oa_exchange("NSE", "CASH"), "NSE");
-    assert_eq!(oa_exchange("BSE_EQ", ""), "BSE");
-}
-
-#[test]
-fn derivative_fallbacks() {
-    assert_eq!(
-        derivative_fallback("NIFTY25051324500CE").as_deref(),
-        Some("NIFTY13MAY2524500CE")
-    );
-    assert_eq!(
-        derivative_fallback("NIFTY250513FUT").as_deref(),
-        Some("NIFTY13MAY25FUT")
-    );
-    assert_eq!(derivative_fallback("NIFTY251313FUT"), None);
-    assert_eq!(derivative_fallback("SBIN"), None);
-    assert_eq!(derivative_symbol_fallback("SBIN30SEP25FUT"), "SBIN25SEPFUT");
-    assert_eq!(
-        derivative_symbol_fallback("SBIN30SEP25800CE"),
-        "SBIN25SEP800CE"
-    );
-    assert_eq!(derivative_symbol_fallback("SBIN"), "SBIN");
+    assert_eq!(oa_exchange("BSE", "CASH"), "BSE");
 }
 
 #[test]
@@ -222,7 +561,7 @@ fn order_book_is_normalised_to_openalgo() {
     );
     assert_eq!((o[0].filled_quantity, o[0].average_price), (10, 812.35));
     assert_eq!(o[0].order_type, "MARKET");
-    // Not in the master: Groww symbol kept, exchange stays NSE.
+    // Not in the master: Groww symbol kept; ITC stays on NSE.
     assert_eq!(
         (o[1].symbol.as_str(), o[1].exchange.as_str()),
         ("ITC", "NSE")
@@ -239,8 +578,10 @@ fn order_book_is_normalised_to_openalgo() {
     );
     assert_eq!(rej.rejection_reason.as_deref(), Some("Insufficient funds"));
     assert_eq!((rej.quantity, rej.trigger_price), (3, 1395.0));
-    assert_eq!(o[3].status, "trigger pending");
+    // A trigger-pending stop-loss is shown as open so it can be cancelled.
+    assert_eq!(o[3].status, "open");
     assert_eq!(o[3].order_type, "SL-M");
+    assert_eq!(o[3].pending_quantity, 2);
     assert_eq!(
         (o[4].symbol.as_str(), o[4].exchange.as_str()),
         ("NIFTY28OCT2524500CE", "NFO")
@@ -251,8 +592,9 @@ fn order_book_is_normalised_to_openalgo() {
             o[5].exchange.as_str(),
             o[5].product.as_str()
         ),
-        ("SENSEX25OCT82000CE", "BFO", "NRML")
+        ("SENSEX30OCT2582000CE", "BFO", "NRML")
     );
+    // Statistics read the mapped status: trigger pending counts as open.
     let s = order_stats(&raw);
     assert_eq!(
         (
@@ -262,34 +604,43 @@ fn order_book_is_normalised_to_openalgo() {
             s.total_open_orders,
             s.total_rejected_orders
         ),
-        (3, 3, 2, 1, 1)
+        (3, 3, 2, 2, 1)
     );
 }
 
 #[test]
-fn trades_map_and_synthesise_without_scaling() {
+fn trades_map_from_their_own_exchange_and_segment() {
     let r = master();
-    let orders = orders_of(&fx(fixture!("order_list_cash.json")));
     let trades: Vec<GrowwTrade> =
         serde_json::from_value(fx(fixture!("trades.json"))["payload"]["trade_list"].clone())
             .unwrap();
-    let t = map_trade(&trades[0], &orders[0], &r);
+    let t = map_trade(&trades[0], "GMK39038RDT490CCVRO", "CASH", &r);
     assert_eq!((t.symbol.as_str(), t.exchange.as_str()), ("SBIN", "NSE"));
+    // Rupees, never divided (web test_groww_tradebook_price).
     assert_eq!((t.quantity, t.average_price), (6, 812.3));
     assert!((t.trade_value - 4873.8).abs() < 1e-9);
-    assert_eq!(t.trade_id, "GMKT1001");
-    let fno = orders_of(&fx(fixture!("order_list_fno.json")));
-    assert!(has_fills(&fno[0]));
-    assert!(!has_fills(&fno[1]));
-    let syn = map_trade(&synthetic_trade(&fno[0]), &fno[0], &r);
-    assert_eq!(syn.trade_id, "synthetic_GLTFO25100600001");
-    assert_eq!(syn.symbol, "NIFTY28OCT2524500CE");
-    // Rupees, never divided (web test_groww_tradebook_price).
-    assert_eq!((syn.quantity, syn.average_price), (75, 112.4));
+    assert_eq!(
+        (t.trade_id.as_str(), t.product.as_str()),
+        ("GMKT1001", "CNC")
+    );
+    assert_eq!(t.timestamp, "2025-10-06T09:20:12");
+    // A trade without its own segment takes the segment it was read in.
+    let fno = GrowwTrade {
+        trading_symbol: "SENSEX25OCT82000CE".into(),
+        exchange: "BSE".into(),
+        quantity: 20,
+        price: 150.0,
+        ..Default::default()
+    };
+    let t = map_trade(&fno, "GLTFO1", "FNO", &r);
+    assert_eq!(
+        (t.symbol.as_str(), t.exchange.as_str(), t.order_id.as_str()),
+        ("SENSEX30OCT2582000CE", "BFO", "GLTFO1")
+    );
 }
 
 #[test]
-fn positions_apply_web_derivations() {
+fn positions_use_groww_documented_fields() {
     let r = master();
     let cash: Vec<GrowwPosition> =
         serde_json::from_value(fx(fixture!("positions_cash.json"))["payload"]["positions"].clone())
@@ -299,15 +650,17 @@ fn positions_apply_web_derivations() {
     assert_eq!((p.quantity, p.buy_quantity, p.sell_quantity), (15, 15, 0));
     assert_eq!(p.average_price, 808.23);
     assert!((p.buy_value - 812.35 * 15.0).abs() < 1e-6);
-    // No net quantity: buy - sell; prices are rupees as Groww sends them.
+    // No net quantity: buy - sell; prices are rupees as Groww sends them;
+    // P&L starts as realised_pnl.
     let q = map_position(&cash[1], "CASH", &r);
     assert_eq!((q.exchange.as_str(), q.quantity), ("BSE", 0));
     assert_eq!(q.average_price, 1405.0);
     assert_eq!(q.product, "MIS");
+    assert_eq!((q.pnl, q.realized_pnl, q.ltp), (120.5, 120.5, 0.0));
     let fno: Vec<GrowwPosition> =
         serde_json::from_value(fx(fixture!("positions_fno.json"))["payload"]["positions"].clone())
             .unwrap();
-    let f = map_position(&fno[0], "FNO", &r);
+    let mut f = map_position(&fno[0], "FNO", &r);
     assert_eq!(
         (f.symbol.as_str(), f.exchange.as_str(), f.quantity),
         ("NIFTY28OCT2524500CE", "NFO", 75)
@@ -315,39 +668,89 @@ fn positions_apply_web_derivations() {
     // Rupees as sent: 1400 bought and 1410 sold per unit.
     assert!((q.buy_value - 1400.0 * q.buy_quantity as f64).abs() < 1e-6);
     assert!((q.sell_value - 1410.0 * q.sell_quantity as f64).abs() < 1e-6);
+    // LTP adds the open quantity's move from the average.
+    attach_ltp(&mut f, Some(120.4));
+    assert_eq!(f.ltp, 120.4);
+    assert!((f.unrealized_pnl - 8.0 * 75.0).abs() < 1e-6);
+    assert!((f.pnl - 600.0).abs() < 1e-6);
+    // No price: the row stays with P&L as realised.
+    let mut g = map_position(&cash[0], "CASH", &r);
+    attach_ltp(&mut g, None);
+    assert_eq!((g.ltp, g.pnl), (0.0, 0.0));
     assert!(says_no_positions("No positions found for user"));
+    assert!(says_no_positions("Data not found"));
     assert!(!says_no_positions("Internal error"));
+    // Only the web's empty-book phrases count: a refusal naming something
+    // else missing is a failed read, never a flat book for a smart order.
+    assert!(!says_no_positions("Instrument not found"));
+    assert!(!says_no_positions("User not found"));
+    assert!(!says_no_positions(&format!("no data {}", "x".repeat(2000))));
 }
 
 #[test]
-fn holdings_resolve_and_carry_no_prices() {
+fn holdings_resolve_exchange_and_price_from_ltp() {
     let r = master();
     let rows: Vec<GrowwHolding> =
         serde_json::from_value(fx(fixture!("holdings.json"))["payload"]["holdings"].clone())
             .unwrap();
-    let h: Vec<Holding> = rows.iter().map(|x| map_holding(x, &r)).collect();
+    let a = map_holding(&rows[0], &r, Some(820.0));
     assert_eq!(
-        (h[0].symbol.as_str(), h[0].quantity, h[0].t1_quantity),
-        ("SBIN", 20, 2)
+        (
+            a.symbol.as_str(),
+            a.exchange.as_str(),
+            a.quantity,
+            a.t1_quantity
+        ),
+        ("SBIN", "NSE", 20, 2)
     );
-    assert_eq!(h[0].isin.as_deref(), Some("INE062A01020"));
-    assert_eq!((h[0].ltp, h[0].pnl), (0.0, 0.0));
-    assert_eq!((h[1].quantity, h[1].average_price), (100, 245.1));
-    assert_eq!(h[1].product, "CNC");
+    assert_eq!(a.isin.as_deref(), Some("INE062A01020"));
+    assert_eq!((a.ltp, a.pnl), (820.0, 3390.0));
+    assert_eq!(a.pnl_percentage, 26.06);
+    // Unpriced: no P&L rather than a made-up one; valued at the average.
+    let b = map_holding(&rows[1], &r, None);
+    assert_eq!((b.quantity, b.average_price), (100, 245.1));
+    assert_eq!((b.ltp, b.pnl, b.pnl_percentage), (0.0, 0.0, 0.0));
+    assert_eq!(b.product, "CNC");
+    let s = holdings_stats(&[a, b]);
+    assert_eq!(s.totalinvvalue, 37520.0);
+    assert_eq!(s.totalholdingvalue, 40910.0);
+    assert_eq!(s.totalprofitandloss, 3390.0);
+    // A symbol only on BSE resolves to BSE; one on neither has no exchange.
+    let bse_only = GrowwHolding {
+        trading_symbol: "RELIANCE".into(),
+        ..Default::default()
+    };
+    // RELIANCE is on NSE and BSE: NSE first.
+    assert_eq!(map_holding(&bse_only, &r, None).exchange, "NSE");
+    let unknown = GrowwHolding {
+        trading_symbol: "ZZZ".into(),
+        ..Default::default()
+    };
+    let u = map_holding(&unknown, &r, None);
+    assert_eq!((u.symbol.as_str(), u.exchange.as_str()), ("ZZZ", ""));
 }
 
 #[test]
 fn funds_and_margin_parse() {
-    let f = funds_from_payload(&fx(fixture!("funds.json"))["payload"]);
+    let f = funds_from_payload(&fx(fixture!("funds.json"))["payload"], 120.5, 600.0);
     assert_eq!(f.available_cash, 125000.5);
     assert_eq!(f.collateral, 15000.0);
     assert_eq!(f.utilised_debits, 23500.25);
-    assert_eq!((f.m2m_realized, f.m2m_unrealized), (0.0, 0.0));
+    assert_eq!((f.m2m_realized, f.m2m_unrealized), (120.5, 600.0));
     let m = parse_margin(&fx(fixture!("margin.json"))["payload"]);
     assert_eq!(
         (m.total_margin_required, m.span_margin, m.exposure_margin),
         (121000.75, 98000.25, 23000.5)
     );
+    let cash: Vec<GrowwPosition> =
+        serde_json::from_value(fx(fixture!("positions_cash.json"))["payload"]["positions"].clone())
+            .unwrap();
+    let mut p = map_position(&cash[0], "CASH", &master());
+    p.realized_pnl = 5.0;
+    p.unrealized_pnl = 7.0;
+    assert_eq!(day_m2m(std::slice::from_ref(&p)), (5.0, 7.0));
+    p.ltp = 1.0;
+    assert_eq!(day_m2m(&[p]), (5.0, 7.0));
 }
 
 fn leg(symbol: &str, exchange: &str, price: f64) -> MarginLeg {
@@ -363,27 +766,36 @@ fn leg(symbol: &str, exchange: &str, price: f64) -> MarginLeg {
 }
 
 #[test]
-fn margin_payload_follows_segment_rules() {
+fn margin_items_carry_segment_and_group_per_segment() {
     let c = core();
-    let (seg, body) = margin_payload(
+    let groups = margin_groups(
         &c,
         &[
             leg("NIFTY28OCT2524500CE", "NFO", 0.0),
             leg("SBIN", "NSE", 0.0),
-            leg("SENSEX25OCT82000CE", "BFO", 150.0),
+            leg("SENSEX30OCT2582000CE", "BFO", 150.0),
+            leg("RELIANCE", "NSE", 0.0),
         ],
-    );
-    assert_eq!(seg, "FNO");
-    assert_eq!(body.len(), 2);
-    assert_eq!(body[0]["trading_symbol"], "NIFTY25OCT24500CE");
-    assert_eq!(body[0]["exchange"], "NSE");
-    assert_eq!(body[0]["order_type"], "MARKET");
-    assert!(body[0].get("price").is_none());
-    assert_eq!(body[1]["exchange"], "BSE");
-    assert_eq!(body[1]["price"], 150.0);
-    // CASH: first leg only.
-    let (seg, body) = margin_payload(&c, &[leg("SBIN", "NSE", 0.0), leg("RELIANCE", "NSE", 0.0)]);
-    assert_eq!((seg.as_str(), body.len()), ("CASH", 1));
+    )
+    .unwrap();
+    let reqs = margin_requests(groups);
+    // FNO as one basket; each CASH order on its own (no CASH basket).
+    let shape: Vec<(&str, usize)> = reqs.iter().map(|(s, v)| (*s, v.len())).collect();
+    assert_eq!(shape, [("FNO", 2), ("CASH", 1), ("CASH", 1)]);
+    let fno = &reqs[0].1;
+    assert_eq!(fno[0]["trading_symbol"], "NIFTY25OCT24500CE");
+    assert_eq!(fno[0]["exchange"], "NSE");
+    assert_eq!(fno[0]["segment"], "FNO");
+    assert_eq!(fno[0]["order_type"], "MARKET");
+    assert!(fno[0].get("price").is_none());
+    assert_eq!(fno[1]["exchange"], "BSE");
+    assert_eq!(fno[1]["price"], 150.0);
+    assert_eq!(reqs[1].1[0]["segment"], "CASH");
+    // A position that cannot be sent refuses the request, naming it.
+    let e = margin_groups(&c, &[leg("UNKNOWN", "NSE", 0.0)]).unwrap_err();
+    assert!(e.client_message().contains("UNKNOWN"));
+    let e = margin_groups(&c, &[leg("CRUDEOIL", "MCX", 0.0)]).unwrap_err();
+    assert!(e.client_message().contains("MCX"));
 }
 
 // ---------------------------------------------------------------------------
@@ -410,7 +822,7 @@ fn resolved(symbol: &str, exchange: &str, pricetype: &str, price: f64, trig: f64
 #[test]
 fn place_body_matches_web_payload() {
     let o = resolved("NIFTY28OCT2524500CE", "NFO", "LIMIT", 110.5, 0.0);
-    let b = place_order_body(&o, "20261003-1a2b3c4d");
+    let b = place_order_body(&o, "20261003-1a2b3c4d").unwrap();
     assert_eq!(
         b,
         json!({
@@ -426,16 +838,93 @@ fn place_body_matches_web_payload() {
             "price": 110.5
         })
     );
-    let m = place_order_body(&resolved("SBIN", "NSE", "MARKET", 0.0, 0.0), "x0000000");
+    let m = place_order_body(&resolved("SBIN", "NSE", "MARKET", 0.0, 0.0), "x0000000").unwrap();
     assert!(m.get("price").is_none() && m.get("trigger_price").is_none());
-    let slm = place_order_body(&resolved("SBIN", "NSE", "SL-M", 0.0, 790.0), "x0000000");
-    assert_eq!(slm["order_type"], "STOP_LOSS_MARKET");
+    let slm = place_order_body(&resolved("SBIN", "NSE", "SL-M", 0.0, 790.0), "x0000000").unwrap();
+    assert_eq!(slm["order_type"], "SL_M");
     assert_eq!(slm["trigger_price"], 790.0);
     assert!(slm.get("price").is_none());
+    // SL is a stop-limit order: it carries its limit price.
+    let sl = place_order_body(&resolved("SBIN", "NSE", "SL", 791.0, 790.0), "x0000000").unwrap();
+    assert_eq!(
+        (sl["order_type"].as_str(), sl["price"].as_f64()),
+        (Some("SL"), Some(791.0))
+    );
 }
 
 #[test]
-fn modify_body_and_segments() {
+fn unsupported_order_inputs_are_refused_before_sending() {
+    let c = core();
+    assert!(validate(&c, &resolved("SBIN", "NSE", "MARKET", 0.0, 0.0)).is_ok());
+    let mut ioc = resolved("SBIN", "NSE", "MARKET", 0.0, 0.0);
+    ioc.validity = Validity::Ioc;
+    assert!(validate(&c, &ioc)
+        .unwrap_err()
+        .client_message()
+        .contains("DAY validity only"));
+    let idx = resolved("NIFTY", "NSE_INDEX", "MARKET", 0.0, 0.0);
+    assert!(validate(&c, &idx)
+        .unwrap_err()
+        .client_message()
+        .contains("does not support the NSE_INDEX exchange"));
+    // An NSE bond whose Groww trading symbol is shared by several series.
+    let bond = resolved("IMC1-N2", "NSE", "MARKET", 0.0, 0.0);
+    let e = validate(&c, &bond).unwrap_err().client_message();
+    assert!(e.contains("IMC1") && e.contains("series"), "{e}");
+    assert!(validate(&c, &resolved("IMC2", "NSE", "MARKET", 0.0, 0.0)).is_ok());
+}
+
+#[test]
+fn place_replies_report_failures_as_errors() {
+    let reply = |status: u16, body: Value| Reply {
+        status: reqwest::StatusCode::from_u16(status).unwrap(),
+        body,
+    };
+    let ok = place_outcome(&reply(
+        200,
+        json!({"status": "SUCCESS", "payload": {"groww_order_id": "GMK1", "order_status": "OPEN"}}),
+    ))
+    .unwrap();
+    assert_eq!(ok.order_id, "GMK1");
+    // Accepted by the API but failed straight away: Groww's remark.
+    let e = place_outcome(&reply(
+        200,
+        json!({"status": "SUCCESS", "payload": {"groww_order_id": "GMK2", "order_status": "FAILED",
+               "remark": "Retry within the allowed price range for stop-loss trigger."}}),
+    ))
+    .unwrap_err();
+    assert_eq!(
+        e.client_message(),
+        "Retry within the allowed price range for stop-loss trigger."
+    );
+    // Never success without an order id.
+    let e = place_outcome(&reply(200, json!({"status": "SUCCESS", "payload": {}}))).unwrap_err();
+    assert!(e.client_message().contains("did not return an order ID"));
+    // HTTP 200 + FAILURE is an error with Groww's reason.
+    let e = place_outcome(&reply(
+        200,
+        json!({"status": "FAILURE", "error": {"code": "GA001", "message": "Insufficient margin"}}),
+    ))
+    .unwrap_err();
+    assert_eq!(e.client_message(), "Insufficient margin");
+    // A server error does not say the order was not taken: no blind retry.
+    let e = place_outcome(&reply(503, Value::Null)).unwrap_err();
+    assert_eq!(
+        e.client_message(),
+        "Groww did not confirm the order. Check the order book before placing it again."
+    );
+    // A 403 with its own reason keeps it (only the session's 401/403 is
+    // "session expired").
+    let e = place_outcome(&reply(
+        403,
+        json!({"status": "FAILURE", "error": {"message": "Order not allowed from this IP"}}),
+    ))
+    .unwrap_err();
+    assert_eq!(e.client_message(), "Order not allowed from this IP");
+}
+
+#[test]
+fn modify_body_and_types() {
     let m = ResolvedModify::resolve(
         "GLTFO1",
         &ModifyOrderRequest {
@@ -453,12 +942,13 @@ fn modify_body_and_segments() {
     )
     .unwrap();
     assert_eq!(
-        modify_order_body(&m),
-        json!({"groww_order_id": "GLTFO1", "order_type": "STOP_LOSS_LIMIT", "segment": "FNO",
+        modify_order_body(&m).unwrap(),
+        json!({"groww_order_id": "GLTFO1", "order_type": "SL", "segment": "FNO",
                "quantity": 150, "price": 101.0, "trigger_price": 100.0})
     );
-    assert_eq!(segment_from_id("GLTFO123"), Some("FNO"));
-    assert_eq!(segment_from_id("GMK123"), None);
+    let mut z = m.clone();
+    z.quantity = 0;
+    assert!(modify_order_body(&z).is_err());
 }
 
 // ---------------------------------------------------------------------------
@@ -501,18 +991,23 @@ fn fno_quote_falls_back_to_top_of_book() {
 }
 
 #[test]
-fn ohlc_entries_and_invalid_symbols() {
+fn multiquote_rows_take_ltp_from_the_ltp_endpoint() {
     let p = fx(fixture!("ohlc.json"));
     let k = QuoteKey::new("NSE", "SBIN");
-    let q = quote_from_ohlc(&k, &p["payload"]["NSE_SBIN"]);
+    // ohlc.close is the previous close; the live price is the LTP.
+    let q = quote_from_ohlc(&k, p["payload"].get("NSE_SBIN"), 815.0);
     assert_eq!(
         (q.open, q.high, q.low, q.ltp, q.close),
-        (809.0, 815.5, 806.25, 812.35, 812.35)
+        (809.0, 815.5, 806.25, 815.0, 812.35)
     );
-    let r = quote_from_ohlc(&k, &p["payload"]["BSE_RELIANCE"]);
-    assert_eq!(r.ltp, 1405.1);
-    let n = quote_from_ohlc(&k, &p["payload"]["NSE_NIFTY"]);
-    assert_eq!((n.ltp, n.open), (24890.15, 0.0));
+    let r = quote_from_ohlc(&k, p["payload"].get("BSE_RELIANCE"), 1406.0);
+    assert_eq!((r.ltp, r.close), (1406.0, 1405.1));
+    // A priced symbol whose OHLC entry is a bare number keeps its price
+    // (web test_multiquote_keeps_a_priced_symbol_whose_ohlc_is_a_bare_number).
+    let n = quote_from_ohlc(&k, p["payload"].get("NSE_NIFTY"), 101.5);
+    assert_eq!((n.ltp, n.open, n.close), (101.5, 0.0, 0.0));
+    let none = quote_from_ohlc(&k, None, 7.0);
+    assert_eq!((none.ltp, none.open), (7.0, 0.0));
     assert_eq!(
         invalid_symbol(r#"{"error":{"message":"Invalid trading symbol: FOO-BE in request"}}"#)
             .as_deref(),
@@ -521,7 +1016,7 @@ fn ohlc_entries_and_invalid_symbols() {
     assert_eq!(invalid_symbol("other"), None);
     let c = core();
     assert_eq!(
-        exchange_symbol(&c, &QuoteKey::new("BFO", "SENSEX25OCT82000CE")),
+        exchange_symbol(&c, &QuoteKey::new("BFO", "SENSEX30OCT2582000CE")),
         "BSE_SENSEX25OCT82000CE"
     );
     assert_eq!(
@@ -530,60 +1025,195 @@ fn ohlc_entries_and_invalid_symbols() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// History
+// ---------------------------------------------------------------------------
+
 #[test]
-fn history_processing() {
-    assert_eq!(interval_minutes("4h").unwrap(), 240);
-    assert!(interval_minutes("3m").is_err());
+fn history_intervals_symbols_and_chunks() {
+    assert_eq!(candle_interval("2m").unwrap(), "2minute");
+    assert_eq!(candle_interval("4h").unwrap(), "4hour");
+    assert_eq!(candle_interval("W").unwrap(), "1week");
+    assert!(candle_interval("M").is_err());
     assert_eq!(
-        [1, 5, 10, 60, 240, 1440, 10080].map(chunk_days),
-        [3, 7, 7, 15, 15, 100, 300]
+        ["1minute", "5minute", "10minute", "30minute", "1hour", "4hour", "1day", "1week"]
+            .map(max_days),
+        [30, 30, 90, 90, 180, 180, 1080, 3650]
+    );
+    let d = |m, dd| chrono::NaiveDate::from_ymd_opt(2025, m, dd).unwrap();
+    assert_eq!(
+        date_chunks(d(1, 1), d(3, 5), 30),
+        [(d(1, 1), d(1, 30)), (d(1, 31), d(3, 1)), (d(3, 2), d(3, 5))]
+    );
+    assert_eq!(date_chunks(d(3, 5), d(3, 5), 30), [(d(3, 5), d(3, 5))]);
+    // groww_symbol from the master contract (backtesting "Groww Symbol").
+    let c = core();
+    let t = |s: &str, e: &str| history_target(&c, &QuoteKey::new(e, s)).unwrap();
+    assert_eq!(
+        t("SBIN", "NSE"),
+        ("NSE".into(), "CASH", "NSE-SBIN".into(), "SBIN".into())
+    );
+    assert_eq!(t("NIFTYNXT50", "NSE_INDEX").2, "NSE-NIFTYJR");
+    assert_eq!(t("SENSEX", "BSE_INDEX").2, "BSE-SENSEX");
+    assert_eq!(
+        t("NIFTY28OCT2524500CE", "NFO"),
+        (
+            "NSE".into(),
+            "FNO",
+            "NSE-NIFTY-28Oct25-24500-CE".into(),
+            "NIFTY25OCT24500CE".into()
+        )
+    );
+    assert_eq!(t("NIFTY28OCT25FUT", "NFO").2, "NSE-NIFTY-28Oct25-FUT");
+    assert_eq!(
+        t("VEDL28OCT25292.5CE", "NFO").2,
+        "NSE-VEDL-28Oct25-292.5-CE"
     );
     assert_eq!(
-        history_exchange_segment("BSE_INDEX").unwrap(),
-        ("BSE", "CASH")
+        t("SENSEX30OCT2582000CE", "BFO").2,
+        "BSE-SENSEX-30Oct25-82000-CE"
     );
-    assert_eq!(history_exchange_segment("NFO").unwrap(), ("NSE", "FNO"));
-    assert!(history_exchange_segment("MCX").is_err());
+    assert!(history_target(&c, &QuoteKey::new("NSE", "NOPE")).is_err());
+    assert_eq!(fno_underlying("NIFTY28OCT2524500CE"), Some("NIFTY"));
+    assert_eq!(fno_underlying("M&M28OCT25FUT"), Some("M&M"));
+    assert_eq!(fno_underlying("SBIN"), None);
+}
 
-    let rows = fx(fixture!("history_intraday.json"));
-    let raw: Vec<Candle> = rows["payload"]["candles"]
+#[test]
+fn intraday_history_drops_pre_open_and_keeps_volume_numeric() {
+    let rows = fx(fixture!("history_intraday.json"))["payload"]["candles"]
         .as_array()
         .unwrap()
-        .iter()
-        .filter_map(raw_candle)
-        .collect();
-    let c = process_candles(raw, 5);
+        .clone();
+    let c = to_candles(session_candles(&rows, 5));
+    let c = crate::brokers::common::history::sort_dedupe(c);
     let ts: Vec<i64> = c.iter().map(|c| c.timestamp).collect();
-    // 09:10 and 15:35 IST dropped; ms -> s; sorted and de-duplicated.
-    assert_eq!(ts, [1759722300, 1759722600, 1759723200, 1759744800]);
-    assert_eq!(c[2].volume, 0);
+    // 09:00 and 09:10 lie wholly in the pre-open, 09:30 has no open; the
+    // day starts at 09:15 IST (1759722300); duplicates dropped.
+    assert_eq!(ts, [1759722300, 1759722600, 1759722900, 1759744500]);
+    // Volume is per candle; a null volume reads as 0.
+    assert_eq!(
+        c.iter().map(|c| c.volume).collect::<Vec<_>>(),
+        [98000, 120000, 0, 4000]
+    );
     assert!(c.iter().all(|c| c.oi == 0));
+}
 
+#[test]
+fn thirty_minute_and_hourly_are_built_from_15m_aligned_to_0915() {
+    let rows: Vec<Value> = [
+        json!(["2025-10-06T09:00:00", null, 801.0, 799.0, 800.0, 900]),
+        json!(["2025-10-06T09:15:00", 800.0, 805.0, 798.0, 804.0, 100]),
+        json!(["2025-10-06T09:30:00", 804.0, 810.0, 803.0, 809.0, 200]),
+        json!(["2025-10-06T09:45:00", 809.0, 812.0, 806.0, 807.0, null]),
+        json!(["2025-10-06T10:00:00", 807.0, 808.0, 801.0, 802.0, 400]),
+    ]
+    .to_vec();
+    let s = session_candles(&rows, 15);
+    assert_eq!(s.len(), 4, "the 09:00 pre-open candle is left out");
+    let half = to_candles(rebucket(s.clone(), 30));
+    assert_eq!(
+        half.iter()
+            .map(|c| (c.timestamp, c.open, c.high, c.low, c.close, c.volume))
+            .collect::<Vec<_>>(),
+        [
+            (1759722300, 800.0, 810.0, 798.0, 809.0, 300),
+            (1759724100, 809.0, 812.0, 801.0, 802.0, 400)
+        ]
+    );
+    let hour = to_candles(rebucket(s, 60));
+    assert_eq!(hour.len(), 1);
+    assert_eq!(
+        (
+            hour[0].timestamp,
+            hour[0].open,
+            hour[0].high,
+            hour[0].low,
+            hour[0].close,
+            hour[0].volume
+        ),
+        (1759722300, 800.0, 812.0, 798.0, 802.0, 700)
+    );
+}
+
+#[test]
+fn eod_candles_are_stamped_at_midnight_utc_of_the_ist_date() {
     let rows = fx(fixture!("history_daily.json"));
-    let raw: Vec<Candle> = rows["payload"]["candles"]
+    let d: Vec<Candle> = rows["payload"]["candles"]
         .as_array()
         .unwrap()
         .iter()
-        .filter_map(raw_candle)
+        .filter_map(eod_candle)
         .collect();
-    let d = process_candles(raw.clone(), 1440);
     let ts: Vec<i64> = d.iter().map(|c| c.timestamp).collect();
-    // Midnight UTC of the IST date (quirk 9.11).
     assert_eq!(ts, [1759708800, 1759795200, 1759881600, 1760313600]);
-    let w = process_candles(raw, 10080);
-    assert_eq!(w.len(), 2);
-    assert_eq!(w[0].timestamp, 1759722300); // Monday 6 Oct 09:15 IST
     assert_eq!(
-        (w[0].open, w[0].high, w[0].low, w[0].close),
-        (800.0, 822.0, 795.0, 806.0)
+        (d[0].open, d[0].close, d[0].volume),
+        (800.0, 812.0, 5_000_000)
     );
-    assert_eq!(w[0].volume, 13_100_000);
-    assert_eq!(w[1].timestamp, 1760327100);
+    // Milliseconds read as seconds.
+    let ms = eod_candle(&json!([1759689000000_i64, 1.0, 2.0, 0.5, 1.5, 10])).unwrap();
+    assert_eq!(ms.timestamp, 1759708800);
+    // A missing price leaves the candle out rather than drawing it at 0; a
+    // missing volume reads as 0.
+    assert!(eod_candle(&json!([1759689000, null, 2.0, 0.5, 1.5, 10])).is_none());
+    assert!(eod_candle(&json!([1759689000, 1.0, 2.0, 0.5, null, 10])).is_none());
+    let nv = eod_candle(&json!([1759689000, 1.0, 2.0, 0.5, 1.5, null])).unwrap();
+    assert_eq!((nv.close, nv.volume), (1.5, 0));
+    // A symbol with non-ASCII text after its letters is left as is, never
+    // sliced inside a character.
+    assert_eq!(
+        derivative_symbol_fallback("SBIN\u{20ac}30SEP25FUT"),
+        "SBIN\u{20ac}30SEP25FUT"
+    );
 }
 
 // ---------------------------------------------------------------------------
 // Auth helpers
 // ---------------------------------------------------------------------------
+
+/// Web test_groww_review_fixes.py: login advice matches why Groww refused.
+#[test]
+fn login_advice_matches_why_groww_refused() {
+    let refused = json!({"status": "FAILURE", "error": {"code": "GA003", "message": "Unable to serve request currently"}});
+    for (status, expect, avoid) in [
+        (429, "Wait a minute", "API key and secret"),
+        (503, "not the problem", "API key and secret"),
+        (401, "API key and secret", "Wait a minute"),
+    ] {
+        let e = login_error(&refused, Some(status)).client_message();
+        assert!(e.contains(expect) && !e.contains(avoid), "{status}: {e}");
+        assert!(e.contains("Unable to serve request currently"));
+    }
+    assert_eq!(login_error(&refused, Some(401)).code(), "AUTH_ERROR");
+}
+
+#[test]
+fn inactive_or_expired_tokens_are_refused() {
+    let now = chrono::DateTime::parse_from_rfc3339("2026-10-08T04:00:00Z")
+        .unwrap()
+        .with_timezone(&chrono::Utc);
+    assert_eq!(
+        token_from_response(
+            &json!({"token": "t", "isActive": true, "expiry": "2026-10-09T06:00:00"}),
+            now
+        )
+        .unwrap(),
+        "t"
+    );
+    let e = token_from_response(&json!({"token": "t", "isActive": false}), now).unwrap_err();
+    assert!(e.client_message().contains("not active"));
+    // A naive expiry is IST: 09:00 IST on 8 Oct is 03:30 UTC, already past.
+    let e = token_from_response(&json!({"token": "t", "expiry": "2026-10-08T09:00:00"}), now)
+        .unwrap_err();
+    assert!(e.client_message().contains("expired"));
+    assert!(token_from_response(
+        &json!({"token": "t", "expiry": "2026-10-08T10:00:00+05:30"}),
+        now
+    )
+    .is_ok());
+    assert!(token_from_response(&json!({"tokenRefId": "r"}), now).is_err());
+}
 
 #[test]
 fn checksum_and_variants() {
@@ -1004,6 +1634,13 @@ mod http_round_trip {
 
     type Seen = Arc<Mutex<Vec<String>>>;
 
+    #[derive(Clone, Copy, Default)]
+    struct Faults {
+        fno_positions_fail: bool,
+        fno_trades_fail: bool,
+        cash_orders_fail: bool,
+    }
+
     async fn serve(app: Router) -> String {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -1020,7 +1657,22 @@ mod http_round_trip {
             .to_string()
     }
 
-    fn fake(seen: Seen, fno_positions_fail: bool) -> Router {
+    fn api_version(h: &HeaderMap) -> bool {
+        h.get("x-api-version").and_then(|v| v.to_str().ok()) == Some("1.0")
+    }
+
+    /// Live prices the fake LTP endpoint knows.
+    fn ltp_of(key: &str) -> Option<f64> {
+        match key {
+            "NSE_SBIN" => Some(820.0),
+            "NSE_NIFTY25OCT24500CE" => Some(120.4),
+            "NSE_NIFTYBEES" => None,
+            _ => Some(106.5),
+        }
+    }
+
+    fn fake(seen: Seen, f: Faults) -> Router {
+        let log = move |s: &Seen, line: String| s.lock().push(line);
         let s = seen.clone();
         let s2 = seen.clone();
         let s3 = seen.clone();
@@ -1028,12 +1680,15 @@ mod http_round_trip {
         let s5 = seen.clone();
         let s6 = seen.clone();
         let s7 = seen.clone();
-        let s8 = seen;
+        let s8 = seen.clone();
+        let s9 = seen.clone();
+        let s10 = seen.clone();
+        let s11 = seen;
         Router::new()
             .route(
                 "/v1/token/api/access",
                 post(move |h: HeaderMap, Json(b): Json<Value>| async move {
-                    s.lock().push(format!("token|{}|{}", bearer(&h), b["key_type"]));
+                    log(&s, format!("token|{}|{}|{}", bearer(&h), b["key_type"], api_version(&h)));
                     let ok = match b["key_type"].as_str() {
                         Some("totp") => b["totp"] == "123456",
                         Some("approval") => {
@@ -1043,16 +1698,16 @@ mod http_round_trip {
                         _ => false,
                     };
                     if ok {
-                        (StatusCode::OK, Json(json!({"token": "good", "tokenRefId": "r"})))
+                        (StatusCode::OK, Json(json!({"token": "good", "tokenRefId": "r", "isActive": true})))
                     } else {
-                        (StatusCode::BAD_REQUEST, Json(json!({"error": {"message": "bad"}})))
+                        (StatusCode::BAD_REQUEST, Json(json!({"status": "FAILURE", "error": {"code": "GA001", "message": "bad"}})))
                     }
                 }),
             )
             .route(
                 "/v1/margins/detail/user",
                 get(|h: HeaderMap| async move {
-                    if bearer(&h) == "Bearer good" {
+                    if bearer(&h) == "Bearer good" && api_version(&h) {
                         (StatusCode::OK, Json(fx(fixture!("funds.json"))))
                     } else {
                         (StatusCode::UNAUTHORIZED, Json(json!({"status": "FAILURE"})))
@@ -1061,58 +1716,94 @@ mod http_round_trip {
             )
             .route(
                 "/v1/order/list",
-                get(move |Query(q): Query<HashMap<String, String>>| async move {
-                    s2.lock().push(format!("list|{}|{}|{}", q["segment"], q["page"], q["page_size"]));
+                get(move |h: HeaderMap, Query(q): Query<HashMap<String, String>>| async move {
+                    log(&s2, format!("list|{}|{}|{}|{}", q["segment"], q["page"], q["page_size"], api_version(&h)));
+                    if q["segment"] == "CASH" && f.cash_orders_fail {
+                        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"status": "FAILURE", "error": {"message": "Unable to serve request currently"}})));
+                    }
                     if q["page"] != "0" {
-                        return Json(json!({"status": "SUCCESS", "payload": {"order_list": []}}));
+                        return (StatusCode::OK, Json(json!({"status": "SUCCESS", "payload": {"order_list": []}})));
                     }
                     if q["segment"] == "FNO" {
-                        Json(fx(fixture!("order_list_fno.json")))
+                        (StatusCode::OK, Json(fx(fixture!("order_list_fno.json"))))
                     } else {
-                        Json(fx(fixture!("order_list_cash.json")))
+                        (StatusCode::OK, Json(fx(fixture!("order_list_cash.json"))))
                     }
                 }),
             )
             .route(
                 "/v1/order/create",
-                post(move |Json(b): Json<Value>| async move {
-                    s3.lock().push(format!("create|{}", b));
-                    Json(json!({"status": "SUCCESS", "payload": {"groww_order_id": "GMK1", "order_status": "OPEN", "order_reference_id": b["order_reference_id"]}}))
+                post(move |h: HeaderMap, Json(b): Json<Value>| async move {
+                    log(&s3, format!("create|{}|{}", b, api_version(&h)));
+                    if b["quantity"] == 7 {
+                        return (StatusCode::OK, Json(json!({"status": "SUCCESS", "payload": {"groww_order_id": "GMK7", "order_status": "FAILED", "remark": "Retry within the allowed price range for stop-loss trigger."}})));
+                    }
+                    if b["quantity"] == 8 {
+                        return (StatusCode::BAD_REQUEST, Json(json!({"status": "FAILURE", "error": {"code": "GA001", "message": "Insufficient margin"}})));
+                    }
+                    (StatusCode::OK, Json(json!({"status": "SUCCESS", "payload": {"groww_order_id": "GMK1", "order_status": "OPEN", "order_reference_id": b["order_reference_id"]}})))
                 }),
             )
             .route(
                 "/v1/order/modify",
                 post(move |Json(b): Json<Value>| async move {
-                    s4.lock().push(format!("modify|{}", b));
+                    log(&s4, format!("modify|{}", b));
                     if b["groww_order_id"] == "BAD" {
                         return (StatusCode::BAD_REQUEST, Json(json!({"status": "FAILURE", "error": {"message": "Order not modifiable"}})));
+                    }
+                    if b["groww_order_id"] == "SOFT" {
+                        // HTTP 200 but FAILURE: not a success.
+                        return (StatusCode::OK, Json(json!({"status": "FAILURE", "error": {"message": "Order already executed"}})));
                     }
                     (StatusCode::OK, Json(json!({"status": "SUCCESS", "payload": {"groww_order_id": b["groww_order_id"], "order_status": "MODIFICATION_REQUESTED"}})))
                 }),
             )
             .route(
                 "/v1/order/cancel",
-                post(move |Json(b): Json<Value>| async move {
-                    s5.lock().push(format!("cancel|{}|{}", b["groww_order_id"], b["segment"]));
-                    Json(json!({"status": "SUCCESS", "payload": {"groww_order_id": b["groww_order_id"], "order_status": "CANCELLATION_REQUESTED"}}))
+                post(move |h: HeaderMap, Json(b): Json<Value>| async move {
+                    log(&s5, format!("cancel|{}|{}|{}", b["groww_order_id"], b["segment"], api_version(&h)));
+                    let id = b["groww_order_id"].as_str().unwrap_or("");
+                    // An F&O order sent to CASH is refused by Groww.
+                    if id.starts_with("GLTFO") && b["segment"] == "CASH" {
+                        return (StatusCode::BAD_REQUEST, Json(json!({"status": "FAILURE", "error": {"message": "Order not found"}})));
+                    }
+                    if id == "GONE" {
+                        return (StatusCode::BAD_REQUEST, Json(json!({"status": "FAILURE", "error": {"message": "Order not found"}})));
+                    }
+                    (StatusCode::OK, Json(json!({"status": "SUCCESS", "payload": {"groww_order_id": id, "order_status": "CANCELLATION_REQUESTED"}})))
                 }),
             )
             .route(
                 "/v1/order/trades/{id}",
                 get(move |Path(id): Path<String>, Query(q): Query<HashMap<String, String>>| async move {
-                    s6.lock().push(format!("trades|{}|{}", id, q["segment"]));
-                    if id == "GMK39038RDT490CCVRO" {
-                        (StatusCode::OK, Json(fx(fixture!("trades.json"))))
-                    } else {
-                        (StatusCode::NOT_FOUND, Json(json!({"status": "FAILURE"})))
+                    log(&s6, format!("trades|{}|{}|{}|{}", id, q["segment"], q["page"], q["page_size"]));
+                    if id == "GMK39038RDT490CCVRO" && q["page"] == "0" {
+                        return (StatusCode::OK, Json(fx(fixture!("trades.json"))));
                     }
+                    if id == "GLTFO25100600001" && q["segment"] == "FNO" && !f.fno_trades_fail {
+                        if q["page"] != "0" {
+                            return (StatusCode::OK, Json(json!({"status": "SUCCESS", "payload": {"trade_list": []}})));
+                        }
+                        // A full page: the next page must be read too.
+                        let list: Vec<Value> = (0..50)
+                            .map(|i| json!({"groww_trade_id": format!("GLT{}", i), "groww_order_id": id,
+                                            "trading_symbol": "NIFTY25OCT24500CE", "exchange": "NSE", "segment": "FNO",
+                                            "quantity": 1, "price": 112.4, "product": "NRML", "transaction_type": "BUY",
+                                            "trade_date_time": "2025-10-06T10:00:01"}))
+                            .collect();
+                        return (StatusCode::OK, Json(json!({"status": "SUCCESS", "payload": {"trade_list": list}})));
+                    }
+                    if q["page"] != "0" {
+                        return (StatusCode::OK, Json(json!({"status": "SUCCESS", "payload": {"trade_list": []}})));
+                    }
+                    (StatusCode::NOT_FOUND, Json(json!({"status": "FAILURE", "error": {"message": "No trades"}})))
                 }),
             )
             .route(
                 "/v1/positions/user",
                 get(move |Query(q): Query<HashMap<String, String>>| async move {
                     if q["segment"] == "FNO" {
-                        if fno_positions_fail {
+                        if f.fno_positions_fail {
                             return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"status": "FAILURE"})));
                         }
                         return (StatusCode::OK, Json(fx(fixture!("positions_fno.json"))));
@@ -1123,7 +1814,7 @@ mod http_round_trip {
             .route(
                 "/v1/holdings/user",
                 get(|h: HeaderMap| async move {
-                    if h.get("x-api-version").and_then(|v| v.to_str().ok()) != Some("1.0") {
+                    if !api_version(&h) {
                         return Json(json!({"status": "FAILURE"}));
                     }
                     Json(fx(fixture!("holdings.json")))
@@ -1132,11 +1823,14 @@ mod http_round_trip {
             .route(
                 "/v1/live-data/quote",
                 get(move |Query(q): Query<HashMap<String, String>>| async move {
-                    s7.lock().push(format!("quote|{}|{}|{}", q["exchange"], q["segment"], q["trading_symbol"]));
+                    log(&s7, format!("quote|{}|{}|{}", q["exchange"], q["segment"], q["trading_symbol"]));
+                    if q["trading_symbol"] == "BANKEX" {
+                        return (StatusCode::BAD_REQUEST, Json(json!({"status": "FAILURE", "error": {"message": "No data retrieved"}})));
+                    }
                     if q["segment"] == "FNO" {
-                        Json(fx(fixture!("quote_fno.json")))
+                        (StatusCode::OK, Json(fx(fixture!("quote_fno.json"))))
                     } else {
-                        Json(fx(fixture!("quote_cash.json")))
+                        (StatusCode::OK, Json(fx(fixture!("quote_cash.json"))))
                     }
                 }),
             )
@@ -1144,42 +1838,82 @@ mod http_round_trip {
                 "/v1/live-data/ohlc",
                 get(move |Query(q): Query<HashMap<String, String>>| async move {
                     let syms = q["exchange_symbols"].clone();
-                    s8.lock().push(format!("ohlc|{}|{}", q["segment"], syms));
+                    log(&s8, format!("ohlc|{}|{}", q["segment"], syms));
                     if syms.contains("NSE_BOGUS") {
                         return (StatusCode::BAD_REQUEST, Json(json!({"status": "FAILURE", "error": {"message": "Invalid trading symbol: BOGUS"}})));
                     }
                     let mut p = serde_json::Map::new();
                     for s in syms.split(',') {
-                        p.insert(s.to_string(), json!("{open: 100.0,high: 110.0,low: 95.0,close: 105.0}"));
+                        if s == "NSE_RELIANCE" {
+                            // An OHLC entry Groww sends as a bare number.
+                            p.insert(s.to_string(), json!(101.5));
+                        } else {
+                            p.insert(s.to_string(), json!("{open: 100.0,high: 110.0,low: 95.0,close: 105.0}"));
+                        }
                     }
                     (StatusCode::OK, Json(json!({"status": "SUCCESS", "payload": p})))
                 }),
             )
             .route(
-                "/v1/historical/candle/range",
-                get(|Query(q): Query<HashMap<String, String>>| async move {
-                    assert_eq!(q["start_time"], "2025-10-06 09:15:00");
-                    assert_eq!(q["end_time"], "2025-10-06 15:30:00");
-                    assert_eq!(q["interval_in_minutes"], "5");
-                    assert_eq!(q["trading_symbol"], "SBIN");
+                "/v1/live-data/ltp",
+                get(move |Query(q): Query<HashMap<String, String>>| async move {
+                    let syms = q["exchange_symbols"].clone();
+                    log(&s9, format!("ltp|{}|{}", q["segment"], syms));
+                    let mut p = serde_json::Map::new();
+                    for s in syms.split(',') {
+                        if let Some(v) = ltp_of(s) {
+                            p.insert(s.to_string(), json!(v));
+                        }
+                    }
+                    Json(json!({"status": "SUCCESS", "payload": p}))
+                }),
+            )
+            .route(
+                "/v1/historical/candles",
+                get(move |Query(q): Query<HashMap<String, String>>| async move {
+                    log(&s10, format!(
+                        "candles|{}|{}|{}|{}|{}|{}",
+                        q["exchange"], q["segment"], q["groww_symbol"], q["candle_interval"], q["start_time"], q["end_time"]
+                    ));
                     Json(fx(fixture!("history_intraday.json")))
+                }),
+            )
+            .route(
+                "/v1/historical/candle/range",
+                get(move |Query(q): Query<HashMap<String, String>>| async move {
+                    log(&s11, format!(
+                        "range|{}|{}|{}|{}",
+                        q["exchange"], q["segment"], q["trading_symbol"], q["interval_in_minutes"]
+                    ));
+                    Json(fx(fixture!("history_daily.json")))
                 }),
             )
             .route(
                 "/v1/margins/detail/orders",
                 post(|Query(q): Query<HashMap<String, String>>, Json(b): Json<Value>| async move {
-                    assert_eq!(q["segment"], "FNO");
-                    assert!(b.is_array());
+                    let items = b.as_array().cloned().unwrap_or_default();
+                    assert!(items.iter().all(|i| i["segment"] == q["segment"]));
+                    if q["segment"] == "CASH" {
+                        assert_eq!(items.len(), 1, "CASH has no basket");
+                    }
                     Json(fx(fixture!("margin.json")))
                 }),
             )
             .fallback(|| async { StatusCode::NOT_FOUND.into_response() })
     }
 
-    async fn broker(fno_fail: bool) -> (GrowwBroker, Seen) {
+    async fn broker_with(f: Faults) -> (GrowwBroker, Seen) {
         let seen: Seen = Arc::default();
-        let base = serve(fake(seen.clone(), fno_fail)).await;
+        let base = serve(fake(seen.clone(), f)).await;
         (GrowwBroker::with_base_url(master(), base), seen)
+    }
+
+    async fn broker(fno_fail: bool) -> (GrowwBroker, Seen) {
+        broker_with(Faults {
+            fno_positions_fail: fno_fail,
+            ..Default::default()
+        })
+        .await
     }
 
     fn creds() -> BrokerCredentials {
@@ -1209,9 +1943,10 @@ mod http_round_trip {
         let e = b.authenticate(c).await.unwrap_err();
         assert_eq!(e.code(), "AUTH_ERROR");
         assert!(!e.client_message().contains("400"));
+        assert!(e.client_message().contains("bad"));
         let seen = seen.lock().clone();
-        assert_eq!(seen[0], "token|Bearer APIKEY|\"totp\"");
-        assert_eq!(seen[1], "token|Bearer APIKEY|\"approval\"");
+        assert_eq!(seen[0], "token|Bearer APIKEY|\"totp\"|true");
+        assert_eq!(seen[1], "token|Bearer APIKEY|\"approval\"|true");
     }
 
     #[tokio::test]
@@ -1229,26 +1964,125 @@ mod http_round_trip {
         let book = b.get_order_book(&auth).await.unwrap();
         assert_eq!(book.len(), 6);
         assert_eq!(book[4].symbol, "NIFTY28OCT2524500CE");
-        // Cancel resolves the segment from the book.
+        // Cancel takes the segment from the book.
         b.cancel_order(&auth, "GMK39038RDT490CCVRP").await.unwrap();
+        // Not in the book: CASH first, then FNO.
         b.cancel_order(&auth, "GLTFO25100600009").await.unwrap();
+        // Refused in both: Groww's reason, never a success.
+        let e = b.cancel_order(&auth, "GONE").await.unwrap_err();
+        assert_eq!(e.client_message(), "Order not found");
         let all = b.cancel_all_orders(&auth).await.unwrap();
         assert_eq!(
             all.cancelled,
             ["GMK39038RDT490CCVRP", "GMK39038RDT490CCVRR"]
         );
+        assert!(all.failed.is_empty());
         let trades = b.get_trade_book(&auth).await.unwrap();
-        assert_eq!(trades.len(), 3);
-        assert_eq!(trades[2].trade_id, "synthetic_GLTFO25100600001");
+        // Two CASH fills plus every page of the F&O order's fills; nothing
+        // synthesised.
+        assert_eq!(trades.len(), 52);
+        assert_eq!(
+            (trades[2].symbol.as_str(), trades[2].exchange.as_str()),
+            ("NIFTY28OCT2524500CE", "NFO")
+        );
+        assert!(trades.iter().all(|t| !t.trade_id.starts_with("synthetic")));
         let seen = seen.lock().clone();
         let create = seen.iter().find(|s| s.starts_with("create|")).unwrap();
         assert!(create.contains("\"trading_symbol\":\"NIFTY25OCT24500CE\""));
         assert!(create.contains("\"segment\":\"FNO\""));
-        assert!(seen.contains(&"list|CASH|0|25".to_string()));
-        assert!(seen.contains(&"list|FNO|0|25".to_string()));
-        assert!(seen.contains(&"cancel|\"GMK39038RDT490CCVRP\"|\"CASH\"".to_string()));
-        assert!(seen.contains(&"cancel|\"GLTFO25100600009\"|\"FNO\"".to_string()));
-        assert!(seen.contains(&"trades|GLTFO25100600001|FNO".to_string()));
+        assert!(create.ends_with("|true"), "X-API-VERSION on create");
+        assert!(seen.contains(&"list|CASH|0|100|true".to_string()));
+        assert!(seen.contains(&"list|FNO|0|100|true".to_string()));
+        assert!(seen.contains(&"cancel|\"GMK39038RDT490CCVRP\"|\"CASH\"|true".to_string()));
+        assert!(seen.contains(&"cancel|\"GLTFO25100600009\"|\"CASH\"|true".to_string()));
+        assert!(seen.contains(&"cancel|\"GLTFO25100600009\"|\"FNO\"|true".to_string()));
+        assert!(seen.contains(&"trades|GLTFO25100600001|FNO|0|50".to_string()));
+        assert!(seen.contains(&"trades|GLTFO25100600001|FNO|1|50".to_string()));
+        // Only filled orders are read for trades.
+        assert!(!seen
+            .iter()
+            .any(|s| s.starts_with("trades|GMK39038RDT490CCVRP")));
+    }
+
+    /// Web test_multiquote_keeps_a_priced_symbol_whose_ohlc_is_a_bare_number.
+    #[tokio::test]
+    async fn multiquote_keeps_a_priced_symbol_whose_ohlc_is_a_bare_number() {
+        let (b, seen) = broker(false).await;
+        let auth = AuthToken::new("good");
+        let mq = b
+            .get_multiquotes(&auth, &[QuoteKey::new("NSE", "RELIANCE")])
+            .await
+            .unwrap();
+        assert!(mq[0].error.is_none(), "{:?}", mq[0].error);
+        let q = mq[0].data.as_ref().unwrap();
+        // The live price stands; the bare number gives no OHLC breakdown.
+        assert_eq!((q.ltp, q.open, q.close), (106.5, 0.0, 0.0));
+        assert!(seen.lock().contains(&"ohlc|CASH|NSE_RELIANCE".to_string()));
+    }
+
+    /// Close-all reads the position book without live prices (web
+    /// `close_all_positions` uses `include_ltp=False`) and exits each open
+    /// row with the OpenAlgo symbol.
+    #[tokio::test]
+    async fn close_all_reads_positions_without_prices() {
+        let (b, seen) = broker(false).await;
+        let auth = AuthToken::new("good");
+        let r = b.close_all_positions(&auth).await.unwrap();
+        assert!(!r.placed.is_empty() || !r.failed.is_empty());
+        let seen = seen.lock().clone();
+        assert!(!seen.iter().any(|s| s.starts_with("ltp|")), "{seen:?}");
+        assert!(seen.iter().any(|s| s.starts_with("create|")), "{seen:?}");
+    }
+
+    #[tokio::test]
+    async fn place_refusals_are_errors() {
+        let (b, seen) = broker(false).await;
+        let auth = AuthToken::new("good");
+        let mut o = resolved("SBIN", "NSE", "MARKET", 0.0, 0.0);
+        o.quantity = 7;
+        let e = b.place_order(&auth, &o).await.unwrap_err();
+        assert_eq!(
+            e.client_message(),
+            "Retry within the allowed price range for stop-loss trigger."
+        );
+        o.quantity = 8;
+        let e = b.place_order(&auth, &o).await.unwrap_err();
+        assert_eq!(e.client_message(), "Insufficient margin");
+        // Refused before sending: nothing reaches Groww.
+        let before = seen.lock().len();
+        let bond = resolved("IMC1-N1", "NSE", "MARKET", 0.0, 0.0);
+        assert!(b.place_order(&auth, &bond).await.is_err());
+        let mut ioc = resolved("SBIN", "NSE", "MARKET", 0.0, 0.0);
+        ioc.validity = Validity::Ioc;
+        assert!(b.place_order(&auth, &ioc).await.is_err());
+        assert_eq!(seen.lock().len(), before);
+    }
+
+    #[tokio::test]
+    async fn unreadable_cash_order_book_is_an_error() {
+        let (b, _) = broker_with(Faults {
+            cash_orders_fail: true,
+            ..Default::default()
+        })
+        .await;
+        let auth = AuthToken::new("good");
+        let e = b.get_order_book(&auth).await.unwrap_err();
+        assert!(e
+            .client_message()
+            .contains("Unable to serve request currently"));
+        // Not "nothing to cancel".
+        assert!(b.cancel_all_orders(&auth).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn trade_book_reports_unread_fills_instead_of_inventing_them() {
+        let (b, _) = broker_with(Faults {
+            fno_trades_fail: true,
+            ..Default::default()
+        })
+        .await;
+        let e = b.get_trade_book(&AuthToken::new("good")).await.unwrap_err();
+        assert!(e.client_message().contains("1 filled order"));
     }
 
     #[tokio::test]
@@ -1271,31 +2105,72 @@ mod http_round_trip {
         let bad = ResolvedModify::resolve("BAD", &req, &master()).unwrap();
         let e = b.modify_order(&auth, &bad).await.unwrap_err();
         assert_eq!(e.client_message(), "Order not modifiable");
+        let soft = ResolvedModify::resolve("SOFT", &req, &master()).unwrap();
+        let e = b.modify_order(&auth, &soft).await.unwrap_err();
+        assert_eq!(e.client_message(), "Order already executed");
     }
 
     #[tokio::test]
     async fn positions_holdings_funds_margin() {
-        let (b, _) = broker(false).await;
+        let (b, seen) = broker(false).await;
         let auth = AuthToken::new("good");
         let p = b.get_positions(&auth).await.unwrap();
         assert_eq!(p.len(), 3);
+        // Open positions carry the live price and the open move.
+        assert_eq!(p[0].ltp, 820.0);
+        assert!((p[0].pnl - (820.0 - 808.23) * 15.0).abs() < 1e-6);
+        // Closed: realised P&L only, no price read.
+        assert_eq!((p[1].ltp, p[1].pnl), (0.0, 120.5));
+        assert_eq!(p[2].ltp, 120.4);
+        // Web test_position_read_failure (Groww no longer reads flat): the
+        // smart-order read sees a held position.
         assert_eq!(
             b.get_open_position(&auth, "NIFTY28OCT2524500CE", Exchange::Nfo, Product::Nrml)
                 .await
                 .unwrap(),
             75
         );
+        assert_eq!(
+            b.get_open_position(&auth, "SBIN", Exchange::Nse, Product::Cnc)
+                .await
+                .unwrap(),
+            15
+        );
         let h = b.get_holdings(&auth).await.unwrap();
         assert_eq!(h.len(), 2);
+        assert_eq!(
+            (h[0].exchange.as_str(), h[0].ltp, h[0].pnl),
+            ("NSE", 820.0, 3390.0)
+        );
+        assert_eq!((h[1].ltp, h[1].pnl), (0.0, 0.0));
+        let book = b.get_holdings_with_totals(&auth).await.unwrap();
+        assert_eq!(book.statistics().totalholdingvalue, 40910.0);
         let f = b.get_funds(&auth).await.unwrap();
         assert_eq!(f.available_cash, 125000.5);
+        assert_eq!(f.m2m_realized, 120.5);
+        let unrealised = (820.0 - 808.23) * 15.0 + (120.4 - 112.4) * 75.0;
+        assert!((f.m2m_unrealized - unrealised).abs() < 1e-6);
         let m = b
-            .calculate_margin(&auth, &[leg("NIFTY28OCT2524500CE", "NFO", 0.0)])
+            .calculate_margin(
+                &auth,
+                &[
+                    leg("NIFTY28OCT2524500CE", "NFO", 0.0),
+                    leg("SBIN", "NSE", 0.0),
+                    leg("RELIANCE", "NSE", 0.0),
+                ],
+            )
             .await
             .unwrap();
-        assert_eq!(m.total_margin_required, 121000.75);
+        // One FNO basket plus two CASH orders, added.
+        assert!((m.total_margin_required - 3.0 * 121000.75).abs() < 1e-6);
         let e = b.get_funds(&AuthToken::new("expired")).await.unwrap_err();
         assert_eq!(e.code(), "AUTH_ERROR");
+        let seen = seen.lock().clone();
+        // The smart-order read takes no prices.
+        let ltp_calls = seen.iter().filter(|s| s.starts_with("ltp|")).count();
+        assert!(ltp_calls >= 1);
+        assert!(seen.contains(&"ltp|CASH|NSE_SBIN".to_string()));
+        assert!(seen.contains(&"ltp|FNO|NSE_NIFTY25OCT24500CE".to_string()));
     }
 
     #[tokio::test]
@@ -1310,10 +2185,11 @@ mod http_round_trip {
                 .unwrap(),
             15
         );
-        assert!(b
+        let e = b
             .get_open_position(&auth, "NIFTY28OCT2524500CE", Exchange::Nfo, Product::Nrml)
             .await
-            .is_err());
+            .unwrap_err();
+        assert_eq!(e.client_message(), super::super::orders::POSITION_UNREAD);
     }
 
     #[tokio::test]
@@ -1325,6 +2201,21 @@ mod http_round_trip {
             .await
             .unwrap();
         assert_eq!(q.ltp, 812.35);
+        // Indices go to their own exchange's CASH segment (QT-05/07).
+        b.get_quote(&auth, &QuoteKey::new("BSE_INDEX", "SENSEX"))
+            .await
+            .unwrap();
+        // A failed quote is an error with Groww's reason, not zeros.
+        let e = b
+            .get_quote(&auth, &QuoteKey::new("BSE", "BANKEX"))
+            .await
+            .unwrap_err();
+        assert_eq!(e.client_message(), "No data retrieved");
+        // Exchanges Groww has no data for are refused, not sent as NSE.
+        assert!(b
+            .get_quote(&auth, &QuoteKey::new("MCX", "CRUDEOIL"))
+            .await
+            .is_err());
         let d = b
             .get_market_depth(&auth, &QuoteKey::new("NFO", "NIFTY28OCT2524500CE"))
             .await
@@ -1338,38 +2229,68 @@ mod http_round_trip {
                     QuoteKey::new("NSE", "SBIN"),
                     QuoteKey::new("NSE", "BOGUS"),
                     QuoteKey::new("NFO", "NIFTY28OCT2524500CE"),
+                    QuoteKey::new("MCX", "CRUDEOIL"),
+                    QuoteKey::new("NSE", "NIFTYBEES"),
                 ],
             )
             .await
             .unwrap();
-        assert_eq!(mq.len(), 3);
-        assert_eq!(mq[0].data.as_ref().unwrap().ltp, 105.0);
+        assert_eq!(mq.len(), 5);
+        // Live price from the LTP endpoint; ohlc.close is the prev close.
+        let sbin = mq[0].data.as_ref().unwrap();
+        assert_eq!((sbin.ltp, sbin.close), (820.0, 105.0));
         assert_eq!(
             mq[1].error.as_deref(),
             Some("Invalid trading symbol in Groww")
         );
         // F&O overlay adds bid/ask and OI.
         let fo = mq[2].data.as_ref().unwrap();
-        assert_eq!((fo.ltp, fo.bid, fo.oi), (105.0, 112.35, 4567800));
-        let h = b
-            .get_history(
-                &auth,
-                &HistoryRequest {
-                    key: QuoteKey::new("NSE", "SBIN"),
-                    interval: "5m".into(),
-                    start: chrono::NaiveDate::from_ymd_opt(2025, 10, 6).unwrap(),
-                    end: chrono::NaiveDate::from_ymd_opt(2025, 10, 6).unwrap(),
-                },
-            )
-            .await
-            .unwrap();
+        assert_eq!((fo.ltp, fo.bid, fo.oi), (120.4, 112.35, 4567800));
+        assert!(mq[3].error.as_deref().unwrap().contains("MCX"));
+        // No live price: an error, not yesterday's close.
+        assert_eq!(
+            mq[4].error.as_deref(),
+            Some("Groww returned no live price for this symbol")
+        );
+        let hist = |interval: &str| HistoryRequest {
+            key: QuoteKey::new("NSE", "SBIN"),
+            interval: interval.into(),
+            start: chrono::NaiveDate::from_ymd_opt(2025, 10, 6).unwrap(),
+            end: chrono::NaiveDate::from_ymd_opt(2025, 10, 6).unwrap(),
+        };
+        let h = b.get_history(&auth, &hist("5m")).await.unwrap();
         assert_eq!(h.len(), 4);
+        b.get_history(&auth, &hist("1h")).await.unwrap();
+        let day = b.get_history(&auth, &hist("D")).await.unwrap();
+        assert_eq!(day[0].timestamp, 1759708800);
+        let fno = HistoryRequest {
+            key: QuoteKey::new("NFO", "NIFTY28OCT2524500CE"),
+            ..hist("15m")
+        };
+        b.get_history(&auth, &fno).await.unwrap();
         let seen = seen.lock().clone();
         assert!(seen.contains(&"quote|NSE|CASH|SBIN".to_string()));
+        assert!(seen.contains(&"quote|BSE|CASH|SENSEX".to_string()));
         assert!(seen.contains(&"quote|NSE|FNO|NIFTY25OCT24500CE".to_string()));
-        assert!(seen.contains(&"ohlc|CASH|NSE_SBIN,NSE_BOGUS".to_string()));
-        assert!(seen.contains(&"ohlc|CASH|NSE_SBIN".to_string()));
+        assert!(!seen.iter().any(|s| s.contains("CRUDEOIL")));
+        assert!(seen.contains(&"ohlc|CASH|NSE_SBIN,NSE_BOGUS,NSE_NIFTYBEES".to_string()));
+        assert!(seen.contains(&"ohlc|CASH|NSE_SBIN,NSE_NIFTYBEES".to_string()));
+        assert!(seen.contains(&"ltp|CASH|NSE_SBIN,NSE_NIFTYBEES".to_string()));
         assert!(seen.contains(&"ohlc|FNO|NSE_NIFTY25OCT24500CE".to_string()));
+        assert!(seen.contains(
+            &"candles|NSE|CASH|NSE-SBIN|5minute|2025-10-06 00:00:00|2025-10-06 23:59:59"
+                .to_string()
+        ));
+        // 1h is built from 15m candles.
+        assert!(seen.contains(
+            &"candles|NSE|CASH|NSE-SBIN|15minute|2025-10-06 00:00:00|2025-10-06 23:59:59"
+                .to_string()
+        ));
+        assert!(seen.contains(&"range|NSE|CASH|SBIN|1440".to_string()));
+        assert!(seen.contains(
+            &"candles|NSE|FNO|NSE-NIFTY-28Oct25-24500-CE|15minute|2025-10-06 00:00:00|2025-10-06 23:59:59"
+                .to_string()
+        ));
     }
 
     #[tokio::test]

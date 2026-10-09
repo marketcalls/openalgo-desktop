@@ -31,7 +31,8 @@
         "symbol_isin": "INE002A01018",
         "product": "MIS",
         "net_price": 1405.0,
-        "segment": "CASH"
+        "segment": "CASH",
+        "realised_pnl": 120.5
       }
     ]
   }

@@ -8,18 +8,22 @@
 //! * exchange: `NSE`/`BSE` + segment `FNO` -> `NFO`/`BFO`; segment or
 //!   instrument type `IDX` -> `NSE_INDEX`/`BSE_INDEX`; others keep the CSV
 //!   exchange;
-//! * instrument type: EQ, IDX->INDEX, FUT, CE, PE, ETF->EQ, CURR->CUR,
+//! * instrument type: EQ, IDX->EQ (an index is an EQ row on
+//!   NSE_INDEX/BSE_INDEX, as Zerodha), FUT, CE, PE, ETF->EQ, CURR->CUR,
 //!   COM->COM; missing: CASH->EQ, FNO strike>0 -> OPT, else FUT;
 //! * expiry `yyyy-mm-dd` -> `DD-MMM-YY`; lot size NaN -> 1; strike NaN -> 0;
 //!   tick size NaN -> 0.05;
-//! * index renames on `symbol` only; NSE F&O symbols rebuilt as
-//!   `[underlying][DDMMMYY]FUT` / `[underlying][DDMMMYY][strike]CE|PE`;
-//!   BFO rows keep Groww's symbol (quirk 9.10); NFO options whose broker
-//!   symbol has spaces get the spaces removed; rows with no symbol dropped.
-//!
-//! Deviation: the web leaves `name` empty (quirk 9.9). Here it is the
-//! underlying for derivatives and Groww's `name` otherwise, so expiry
-//! pickers and option chains (keyed on `name`) work.
+//! * index renames on `symbol` only; NSE and BSE F&O and NSE commodity
+//!   symbols rebuilt as `[underlying][DDMMMYY]FUT` /
+//!   `[underlying][DDMMMYY][strike]CE|PE` (Groww's own are not OpenAlgo
+//!   format: `SENSEX26O2274900CE`, `GOLD26NOVFUT`); NSE commodities stay on
+//!   NSE; NFO options whose broker symbol has spaces get the spaces
+//!   removed; rows with no symbol dropped;
+//! * `name` is Groww's name, and the underlying for FUT/CE/PE rows;
+//! * CASH rows sharing a trading symbol on one exchange (NSE bonds listed
+//!   under one symbol for several series, IMC1 N1/N2/N3) take Groww's
+//!   `internal_trading_symbol`, else `SYMBOL-SERIES` when a series is given,
+//!   so `(symbol, exchange)` is unique (web #2194, MC-03).
 
 use super::GrowwCore;
 use crate::brokers::common::http;
@@ -28,6 +32,7 @@ use crate::brokers::common::master_contract::{
 };
 use crate::brokers::common::symbols::SymToken;
 use crate::error::{AppError, Result};
+use std::collections::HashMap;
 
 pub const MASTER_URL: &str = "https://growwapi-assets.groww.in/instruments/instrument.csv";
 
@@ -69,7 +74,7 @@ fn parse_num(s: &str) -> Option<f64> {
 fn instrument_type(raw: &str, segment: &str, strike: Option<f64>) -> &'static str {
     match raw {
         "EQ" | "ETF" => "EQ",
-        "IDX" => "INDEX",
+        "IDX" => "EQ",
         "FUT" => "FUT",
         "CE" => "CE",
         "PE" => "PE",
@@ -104,7 +109,16 @@ pub fn parse_instruments(csv: &str) -> Result<Vec<SymToken>> {
     fn field<'a>(f: &'a [String], idx: &[usize], n: usize) -> &'a str {
         f.get(idx[n]).map(|s| s.trim()).unwrap_or("")
     }
+    let i_series = header.index("series");
+    let i_internal = header.index("internal_trading_symbol");
+    let opt = |f: &[String], i: Option<usize>| -> String {
+        i.and_then(|i| f.get(i))
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default()
+    };
     let mut out = Vec::new();
+    // Per CASH row: (index in `out`, series, internal trading symbol).
+    let mut cash: Vec<(usize, String, String)> = Vec::new();
     for line in lines {
         if line.trim().is_empty() {
             continue;
@@ -124,10 +138,7 @@ pub fn parse_instruments(csv: &str) -> Result<Vec<SymToken>> {
         let tick = parse_num(col(11)).unwrap_or(0.05);
 
         let is_index = segment == "IDX" || raw_type == "IDX";
-        let mut itype = instrument_type(raw_type, segment, strike);
-        if is_index {
-            itype = "INDEX";
-        }
+        let itype = instrument_type(raw_type, segment, strike);
         let exchange = match (exchange_csv, segment, is_index) {
             ("NSE", _, true) => "NSE_INDEX",
             ("BSE", _, true) => "BSE_INDEX",
@@ -146,7 +157,11 @@ pub fn parse_instruments(csv: &str) -> Result<Vec<SymToken>> {
         let mut symbol = rename(INDEX_RENAMES, trading_symbol)
             .unwrap_or(trading_symbol)
             .to_string();
-        if exchange_csv == "NSE" && segment == "FNO" && !expiry.is_empty() {
+        let rebuild = matches!(
+            (exchange_csv, segment),
+            ("NSE", "FNO") | ("BSE", "FNO") | ("NSE", "COMMODITY")
+        );
+        if rebuild && !expiry.is_empty() {
             let base = if underlying.is_empty() {
                 symbol.as_str()
             } else {
@@ -172,13 +187,16 @@ pub fn parse_instruments(csv: &str) -> Result<Vec<SymToken>> {
         if symbol.trim().is_empty() {
             continue;
         }
-        let name = if segment == "FNO" && !underlying.is_empty() {
+        let name = if matches!(itype, "FUT" | "CE" | "PE") && !underlying.is_empty() {
             underlying.to_string()
         } else if !name.is_empty() {
             name.to_string()
         } else {
             symbol.clone()
         };
+        if segment == "CASH" {
+            cash.push((out.len(), opt(&f[..], i_series), opt(&f[..], i_internal)));
+        }
         out.push(SymToken {
             symbol,
             brsymbol,
@@ -193,6 +211,7 @@ pub fn parse_instruments(csv: &str) -> Result<Vec<SymToken>> {
             tick_size: tick,
         });
     }
+    disambiguate_series(&mut out, &cash);
     if out.is_empty() {
         return Err(AppError::Broker(
             "Groww's instrument list was empty. Try downloading the master contract again later."
@@ -200,6 +219,48 @@ pub fn parse_instruments(csv: &str) -> Result<Vec<SymToken>> {
         ));
     }
     Ok(out)
+}
+
+/// CASH rows sharing `(symbol, exchange)` take Groww's
+/// `internal_trading_symbol` (`IMC1-N2`), else `SYMBOL-SERIES` where a
+/// series is given; a row without either keeps its symbol.
+fn disambiguate_series(rows: &mut [SymToken], cash: &[(usize, String, String)]) {
+    let mut count: HashMap<(String, String), usize> = HashMap::new();
+    for (i, _, _) in cash {
+        let r = &rows[*i];
+        *count
+            .entry((r.symbol.clone(), r.exchange.clone()))
+            .or_default() += 1;
+    }
+    let mut renamed = Vec::new();
+    for (i, series, internal) in cash {
+        let r = &mut rows[*i];
+        if count
+            .get(&(r.symbol.clone(), r.exchange.clone()))
+            .copied()
+            .unwrap_or(0)
+            < 2
+        {
+            continue;
+        }
+        let new = if !internal.is_empty() {
+            internal.clone()
+        } else if !series.is_empty() {
+            format!("{}-{}", r.symbol, series)
+        } else {
+            continue;
+        };
+        renamed.push((*i, new));
+    }
+    if !renamed.is_empty() {
+        tracing::info!(
+            "Disambiguated {} Groww CASH rows sharing a trading symbol",
+            renamed.len()
+        );
+    }
+    for (i, new) in renamed {
+        rows[i].symbol = new;
+    }
 }
 
 pub(crate) async fn download(core: &GrowwCore) -> Result<Vec<SymToken>> {

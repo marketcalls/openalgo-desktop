@@ -11,8 +11,7 @@
 //!
 //! The stored session token is the raw Groww token.
 
-use super::{error_message, Category, GrowwCore};
-use crate::brokers::common::http;
+use super::{error_message, in_transit, Category, GrowwCore};
 use crate::brokers::types::AuthToken;
 use crate::brokers::{AuthResponse, BrokerCredentials};
 use crate::error::{AppError, Result};
@@ -82,47 +81,107 @@ pub fn choose_variant(creds: &BrokerCredentials) -> Result<Variant> {
     ))
 }
 
-/// Exchange an API key for an access token (`/v1/token/api/access`).
-async fn token_exchange(core: &GrowwCore, api_key: &str, body: Value) -> Result<String> {
-    let resp = core
-        .http
-        .post(format!("{}/v1/token/api/access", core.base_url))
-        .timeout(http::REQUEST_TIMEOUT)
-        .header("Authorization", format!("Bearer {}", api_key))
-        .header("Content-Type", "application/json")
-        .json(&body)
-        .send()
-        .await?;
-    let status = resp.status();
-    let bytes = resp.bytes().await?;
-    let v: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-    if status.is_success() {
-        if let Some(t) = v
-            .get("token")
-            .and_then(Value::as_str)
-            .filter(|t| !t.is_empty())
-        {
-            return Ok(t.to_string());
-        }
-        tracing::warn!("Groww login answered without a token");
+/// A login refusal in words a trader can act on, with Groww's own reason
+/// (web `_login_error`): too many token requests and a failure on Groww's
+/// side are not credential problems.
+pub fn login_error(body: &Value, status: Option<u16>) -> AppError {
+    let reason = error_message(body);
+    let mut message = "Groww did not issue an access token".to_string();
+    if !reason.is_empty() {
+        message.push_str(": ");
+        message.push_str(&reason);
+    }
+    match status {
+        Some(429) => AppError::Broker(format!(
+            "{}. Groww is limiting login requests (30 a minute, 150 a day). Wait a minute, then log in again.",
+            message
+        )),
+        Some(s) if s >= 500 => AppError::Broker(format!(
+            "{}. Groww's login service is not responding right now; the API key is not the problem. Try again in a few minutes.",
+            message
+        )),
+        _ => AppError::Auth(format!(
+            "{}. Check the API key and secret, and that the key is approved for today on Groww's API Keys page.",
+            message
+        )),
+    }
+}
+
+/// The access token from a token response (web `_token_from_response`).
+/// Groww returns `token`, `tokenRefId`, `sessionName`, `expiry` and
+/// `isActive`; a token marked inactive, or already past its expiry, is
+/// refused here rather than failing on the first order. A naive expiry is
+/// read as IST.
+pub fn token_from_response(body: &Value, now: chrono::DateTime<chrono::Utc>) -> Result<String> {
+    let Some(token) = body
+        .get("token")
+        .and_then(Value::as_str)
+        .filter(|t| !t.is_empty())
+    else {
+        return Err(login_error(body, None));
+    };
+    if body.get("isActive") == Some(&Value::Bool(false)) {
         return Err(AppError::Auth(
-            "Groww accepted the login but returned no session. Try logging in again.".into(),
+            "Groww issued an access token that is not active. Approve the API key for today on Groww's API Keys page, then log in again."
+                .into(),
         ));
+    }
+    if let Some(expiry) = body
+        .get("expiry")
+        .and_then(Value::as_str)
+        .filter(|e| !e.is_empty())
+    {
+        let parsed = chrono::DateTime::parse_from_rfc3339(expiry)
+            .map(|d| d.with_timezone(&chrono::Utc))
+            .ok()
+            .or_else(|| {
+                ["%Y-%m-%dT%H:%M:%S%.f", "%Y-%m-%d %H:%M:%S%.f"]
+                    .iter()
+                    .find_map(|f| chrono::NaiveDateTime::parse_from_str(expiry, f).ok())
+                    .and_then(|n| {
+                        use chrono::TimeZone;
+                        chrono_tz::Asia::Kolkata
+                            .from_local_datetime(&n)
+                            .single()
+                            .map(|d| d.with_timezone(&chrono::Utc))
+                    })
+            });
+        match parsed {
+            Some(at) if at <= now => {
+                return Err(AppError::Auth(format!(
+                "Groww issued an access token that expired at {}. Log in again to get a new one.",
+                expiry
+            )))
+            }
+            Some(_) => tracing::info!("Groww access token valid until {}", expiry),
+            None => tracing::warn!("Groww token expiry not understood: {:?}", expiry),
+        }
+    }
+    Ok(token.to_string())
+}
+
+/// Exchange an API key for an access token (`/v1/token/api/access`, paced
+/// as Authentication, 30 a minute).
+async fn token_exchange(core: &GrowwCore, api_key: &str, body: Value) -> Result<String> {
+    let r = core
+        .request(
+            Method::POST,
+            "/v1/token/api/access",
+            &format!("Bearer {}", api_key),
+            Some(&body),
+            Category::Auth,
+        )
+        .await
+        .map_err(|e| in_transit(e, "login"))?;
+    if r.status == reqwest::StatusCode::OK {
+        return token_from_response(&r.body, chrono::Utc::now());
     }
     tracing::warn!(
-        status = status.as_u16(),
+        status = r.status.as_u16(),
         "Groww login refused: {}",
-        error_message(&v)
+        error_message(&r.body)
     );
-    if status.is_server_error() {
-        return Err(AppError::Broker(
-            "Groww's login service is not responding normally. Try again shortly.".into(),
-        ));
-    }
-    Err(AppError::Auth(
-        "Groww did not accept the login. Check your API key and secret (or TOTP) on the broker settings page and try again."
-            .into(),
-    ))
+    Err(login_error(&r.body, Some(r.status.as_u16())))
 }
 
 /// A pasted token is checked with a funds call before it is stored.
@@ -134,8 +193,7 @@ async fn validate_token(core: &GrowwCore, token: &str) -> Result<()> {
             "/v1/margins/detail/user",
             &auth,
             None,
-            Category::Other,
-            false,
+            Category::NonTrading,
         )
         .await
         .map_err(|e| match e {
@@ -143,7 +201,7 @@ async fn validate_token(core: &GrowwCore, token: &str) -> Result<()> {
                 "Groww did not accept this access token. Generate a new one in Groww and paste it again."
                     .into(),
             ),
-            other => other,
+            other => in_transit(other, "login"),
         })?;
     if r.is_success() {
         Ok(())

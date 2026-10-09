@@ -1,7 +1,11 @@
 //! Groww Trade API adapter (web `broker/groww/**`).
 //!
 //! * REST base `https://api.groww.in`, every call `Authorization: Bearer
-//!   <token>`; responses are `{"status": "SUCCESS", "payload": {...}}`.
+//!   <token>` and `X-API-VERSION: 1.0`; responses are `{"status":
+//!   "SUCCESS", "payload": {...}}` or `{"status": "FAILURE", "error":
+//!   {"code", "message"}}`.
+//! * Every call is paced per Groww API type and retried on HTTP 429
+//!   (`rate_limiter.rs`, web #2194).
 //! * The stored session token is the raw Groww access token (no prefix).
 //! * Market data streams over NATS-on-WebSocket with protobuf payloads
 //!   (`streaming.rs`, on the shared feed manager); order updates are a REST
@@ -16,13 +20,14 @@ pub mod nkeys;
 pub mod order_poller;
 mod orders;
 pub mod proto;
+pub mod rate_limiter;
 pub mod streaming;
 #[cfg(test)]
 mod tests;
 
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
-use crate::brokers::common::ratelimit::Pacer;
+use crate::brokers::common::redact::url_safe_error;
 use crate::brokers::common::streaming::{BrokerFeed, OrderFeed, OrderUpdate};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
@@ -47,48 +52,24 @@ pub const SUPPORTED_EXCHANGES: &[Exchange] = &[
     Exchange::BseIndex,
 ];
 
-/// web `BrokerData.timeframe_map` (`interval_in_minutes`).
+/// web `BrokerData.timeframe_map`: OpenAlgo interval -> Groww
+/// `candle_interval` (Groww backtesting "Get Historical Candle Data").
 pub const TIMEFRAME_MAP: &[(&str, &str)] = &[
-    ("1m", "1"),
-    ("5m", "5"),
-    ("10m", "10"),
-    ("1h", "60"),
-    ("4h", "240"),
-    ("D", "1440"),
-    ("W", "10080"),
+    ("1m", "1minute"),
+    ("2m", "2minute"),
+    ("3m", "3minute"),
+    ("5m", "5minute"),
+    ("10m", "10minute"),
+    ("15m", "15minute"),
+    ("30m", "30minute"),
+    ("1h", "1hour"),
+    ("4h", "4hour"),
+    ("D", "1day"),
+    ("W", "1week"),
 ];
 
-/// Pacing category of a call.
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum Category {
-    Order,
-    /// Per-symbol live quotes (web overlay spacing 0.25 s).
-    Live,
-    /// OHLC batches (web 0.2 s between batches).
-    Ohlc,
-    Other,
-}
-
-#[derive(Debug)]
-pub(crate) struct Pacers {
-    order: Pacer,
-    live: Pacer,
-    ohlc: Pacer,
-    other: Pacer,
-}
-
-impl Default for Pacers {
-    fn default() -> Self {
-        Self {
-            // Groww publishes 15 orders/s and 10 live-data calls/s; the web
-            // spaces quote calls at 0.25 s and OHLC batches at 0.2 s.
-            order: Pacer::per_second(10.0),
-            live: Pacer::with_interval(Duration::from_millis(250)),
-            ohlc: Pacer::with_interval(Duration::from_millis(200)),
-            other: Pacer::per_second(10.0),
-        }
-    }
-}
+pub(crate) use rate_limiter::ApiType as Category;
+use rate_limiter::{paced, Attempt, GrowwLimiter};
 
 /// Everything a call needs; cheap to clone so the order poller task can own
 /// one.
@@ -97,7 +78,7 @@ pub(crate) struct GrowwCore {
     pub(crate) http: reqwest::Client,
     pub(crate) base_url: Arc<str>,
     pub(crate) symbols: SymbolResolver,
-    pacers: Arc<Pacers>,
+    limiter: Arc<GrowwLimiter>,
 }
 
 /// A Groww response: HTTP status and the parsed body (`Null` when the body
@@ -144,21 +125,14 @@ impl GrowwCore {
             http: http::client(),
             base_url: Arc::from(base_url.trim_end_matches('/')),
             symbols,
-            pacers: Arc::new(Pacers::default()),
+            limiter: Arc::new(GrowwLimiter::default()),
         }
     }
 
-    async fn pace(&self, c: Category) {
-        match c {
-            Category::Order => self.pacers.order.acquire().await,
-            Category::Live => self.pacers.live.acquire().await,
-            Category::Ohlc => self.pacers.ohlc.acquire().await,
-            Category::Other => self.pacers.other.acquire().await,
-        }
-    }
-
-    /// One Groww call; any HTTP status comes back as a `Reply` except 401 /
-    /// 403, which mean the session is gone.
+    /// One Groww call, paced by its API type and retried on HTTP 429; any
+    /// other HTTP status comes back as a `Reply`, except 401 (and a 403
+    /// about the token), which mean the session is gone. Any other 403
+    /// keeps Groww's reason, as the web shows it.
     pub(crate) async fn send(
         &self,
         method: Method,
@@ -166,48 +140,82 @@ impl GrowwCore {
         auth: &AuthToken,
         body: Option<&Value>,
         category: Category,
-        api_version: bool,
     ) -> Result<Reply> {
         let token = auth.raw();
         if token.trim().is_empty() {
             return Err(session_expired());
         }
-        self.pace(category).await;
-        let url = format!("{}{}", self.base_url, path_and_query);
-        let mut req = self
-            .http
-            .request(method, &url)
-            .timeout(http::REQUEST_TIMEOUT)
-            .header("Authorization", format!("Bearer {}", token))
-            .header("Accept", "application/json");
-        if api_version {
-            req = req.header("X-API-VERSION", "1.0");
-        }
-        if let Some(b) = body {
-            req = req.json(b);
-        }
-        let resp = req.send().await?;
-        let status = resp.status();
-        let bytes = resp.bytes().await?;
-        let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+        let r = self
+            .request(
+                method,
+                path_and_query,
+                &format!("Bearer {}", token),
+                body,
+                category,
+            )
+            .await?;
         let path = path_and_query.split('?').next().unwrap_or("");
-        if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+        if r.status == reqwest::StatusCode::UNAUTHORIZED
+            || (r.status == reqwest::StatusCode::FORBIDDEN && refuses_session(&r))
+        {
             tracing::warn!(
-                status = status.as_u16(),
+                status = r.status.as_u16(),
                 "Groww refused the session on {}",
                 path
             );
             return Err(session_expired());
         }
-        if !status.is_success() {
+        if !r.status.is_success() {
             tracing::warn!(
-                status = status.as_u16(),
+                status = r.status.as_u16(),
                 "Groww refused {}: {}",
                 path,
-                error_message(&body)
+                r.error_message()
             );
         }
-        Ok(Reply { status, body })
+        Ok(r)
+    }
+
+    /// The paced, retried HTTP exchange behind every Groww call, with the
+    /// headers Groww requires (01-introduction).
+    pub(crate) async fn request(
+        &self,
+        method: Method,
+        path_and_query: &str,
+        authorization: &str,
+        body: Option<&Value>,
+        category: Category,
+    ) -> Result<Reply> {
+        let url = format!("{}{}", self.base_url, path_and_query);
+        paced(&self.limiter, category, || {
+            let mut req = self
+                .http
+                .request(method.clone(), &url)
+                .timeout(http::REQUEST_TIMEOUT)
+                .header("Authorization", authorization)
+                .header("Accept", "application/json")
+                .header("X-API-VERSION", "1.0");
+            if let Some(b) = body {
+                req = req.json(b);
+            }
+            async move {
+                let resp = req.send().await?;
+                let status = resp.status();
+                let retry_after = resp
+                    .headers()
+                    .get(reqwest::header::RETRY_AFTER)
+                    .and_then(|v| v.to_str().ok())
+                    .map(str::to_string);
+                let bytes = resp.bytes().await?;
+                let body = serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null);
+                Ok(Attempt {
+                    status: status.as_u16(),
+                    retry_after,
+                    value: Reply { status, body },
+                })
+            }
+        })
+        .await
     }
 
     /// Like `send`, but only a `SUCCESS` envelope is a success; its payload
@@ -221,7 +229,7 @@ impl GrowwCore {
         category: Category,
     ) -> Result<Value> {
         let r = self
-            .send(method, path_and_query, auth, body, category, false)
+            .send(method, path_and_query, auth, body, category)
             .await?;
         if r.is_success() {
             return Ok(r.payload().clone());
@@ -232,6 +240,52 @@ impl GrowwCore {
 
 pub(crate) fn session_expired() -> AppError {
     AppError::Auth("Your Groww session has expired. Log in to Groww again.".into())
+}
+
+/// Whether a 403 is about the session (no reason given, or one naming the
+/// token or session) rather than a refusal of this request with its own
+/// reason (an IP or permission check), which keeps Groww's words.
+fn refuses_session(r: &Reply) -> bool {
+    let m = r.error_message().to_ascii_lowercase();
+    m.is_empty()
+        || [
+            "token",
+            "session",
+            "unauthori",
+            "authenticat",
+            "expired",
+            "login",
+        ]
+        .iter()
+        .any(|w| m.contains(w))
+}
+
+/// A Groww call that failed in transit -> trader-facing error. For an
+/// order call the order may have reached Groww, so the trader is told to
+/// check the order book before sending it again (web
+/// `direct_place_order_api`). Other errors (a refused session, OpenAlgo's
+/// own pacing refusal) pass through unchanged.
+pub(crate) fn in_transit(e: AppError, what: &str) -> AppError {
+    match e {
+        AppError::Http(ref err) => {
+            tracing::warn!(
+                "Groww {} request failed in transit: {}",
+                what,
+                url_safe_error(err)
+            );
+            AppError::Broker(match what {
+                "place" | "modify" | "cancel" => format!(
+                    "Could not reach Groww to {} the order. Check the order book before retrying.",
+                    what
+                ),
+                "login" => {
+                    "Could not reach Groww to log in. Check your connection and try again.".into()
+                }
+                _ => "Could not reach Groww. Check your connection and try again.".into(),
+            })
+        }
+        other => other,
+    }
 }
 
 /// A non-success Groww reply -> trader-facing error.
@@ -387,6 +441,10 @@ impl Broker for GrowwBroker {
         orders::cancel_all_orders(&self.core, auth).await
     }
 
+    async fn close_all_positions(&self, auth: &AuthToken) -> Result<CloseAllResult> {
+        orders::close_all_positions(&self.core, auth).await
+    }
+
     async fn get_open_position(
         &self,
         auth: &AuthToken,
@@ -411,6 +469,12 @@ impl Broker for GrowwBroker {
 
     async fn get_holdings(&self, auth: &AuthToken) -> Result<Vec<Holding>> {
         orders::get_holdings(&self.core, auth).await
+    }
+
+    /// Holdings valued at the live price where Groww priced them, else at
+    /// the average (web `calculate_portfolio_statistics`).
+    async fn get_holdings_with_totals(&self, auth: &AuthToken) -> Result<HoldingsBook> {
+        orders::get_holdings_book(&self.core, auth).await
     }
 
     async fn get_funds(&self, auth: &AuthToken) -> Result<Funds> {

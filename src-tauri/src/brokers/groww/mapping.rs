@@ -1,16 +1,60 @@
 //! OpenAlgo <-> Groww field maps and book normalisers (web
-//! `mapping/transform_data.py`, `mapping/order_data.py`).
+//! `mapping/transform_data.py`, `mapping/order_data.py`, aligned with
+//! Groww's API docs in #2194).
 
 use crate::brokers::common::de::{f64_lenient, i64_lenient, string_lenient};
-use crate::brokers::common::mapping::{Exchange, PriceType, Product};
+use crate::brokers::common::mapping::{Exchange, PriceType, Product, Validity};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
+use crate::error::{AppError, Result};
 use serde::Deserialize;
 
 pub const SEGMENT_CASH: &str = "CASH";
 pub const SEGMENT_FNO: &str = "FNO";
 
-/// OpenAlgo exchange -> Groww `exchange` (`NFO` trades on `NSE`).
+/// Why an order on this exchange cannot go to Groww (web
+/// `_unsupported_exchange`).
+pub fn unsupported_exchange(exchange: &str) -> AppError {
+    AppError::Validation(format!(
+        "Groww's trading API does not support the {} exchange. Orders can be placed on NSE, BSE, NFO and BFO only.",
+        exchange
+    ))
+}
+
+/// OpenAlgo exchange -> Groww `exchange` for orders (web
+/// `map_exchange_type`): NSE/BSE/NFO/BFO only, never a default.
+pub fn order_exchange(exchange: &str) -> Result<&'static str> {
+    match exchange {
+        "NSE" | "NFO" => Ok("NSE"),
+        "BSE" | "BFO" => Ok("BSE"),
+        other => Err(unsupported_exchange(other)),
+    }
+}
+
+/// OpenAlgo exchange -> Groww `segment` for orders (web
+/// `map_segment_type`).
+pub fn order_segment(exchange: &str) -> Result<&'static str> {
+    match exchange {
+        "NSE" | "BSE" => Ok(SEGMENT_CASH),
+        "NFO" | "BFO" => Ok(SEGMENT_FNO),
+        other => Err(unsupported_exchange(other)),
+    }
+}
+
+/// Validity: Groww's annexure lists DAY only; anything else is refused
+/// rather than quietly changed (web `map_validity`).
+pub fn validity(v: Validity) -> Result<&'static str> {
+    match v {
+        Validity::Day => Ok("DAY"),
+        other => Err(AppError::Validation(format!(
+            "Groww accepts DAY validity only; {} is not supported.",
+            other.as_str()
+        ))),
+    }
+}
+
+/// OpenAlgo exchange -> Groww `exchange` for market data: indices are on
+/// their own exchange's CASH segment.
 pub fn groww_exchange(exchange: &str) -> &'static str {
     match exchange {
         "BSE" | "BFO" | "BSE_INDEX" => "BSE",
@@ -18,7 +62,7 @@ pub fn groww_exchange(exchange: &str) -> &'static str {
     }
 }
 
-/// OpenAlgo exchange -> Groww `segment`.
+/// OpenAlgo exchange -> Groww `segment` for market data.
 pub fn groww_segment(exchange: &str) -> &'static str {
     match exchange {
         "NFO" | "BFO" => SEGMENT_FNO,
@@ -26,22 +70,36 @@ pub fn groww_segment(exchange: &str) -> &'static str {
     }
 }
 
-/// OpenAlgo price type -> Groww `order_type`.
+/// Exchanges Groww has market data for (web quotes, depth, multiquotes).
+pub fn check_data_exchange(exchange: &str) -> Result<()> {
+    if matches!(
+        exchange,
+        "NSE" | "BSE" | "NFO" | "BFO" | "NSE_INDEX" | "BSE_INDEX"
+    ) {
+        return Ok(());
+    }
+    Err(AppError::Validation(format!(
+        "Groww does not provide market data for the {} exchange. Supported: NSE, BSE, NFO, BFO, NSE_INDEX and BSE_INDEX.",
+        exchange
+    )))
+}
+
+/// OpenAlgo price type -> Groww `order_type` (annexure "Order Type":
+/// MARKET, LIMIT, SL, SL_M).
 pub fn order_type(p: PriceType) -> &'static str {
     match p {
         PriceType::Market => "MARKET",
         PriceType::Limit => "LIMIT",
-        PriceType::Sl => "STOP_LOSS_LIMIT",
-        PriceType::SlM => "STOP_LOSS_MARKET",
+        PriceType::Sl => "SL",
+        PriceType::SlM => "SL_M",
     }
 }
 
-/// Groww `order_type` -> OpenAlgo price type. The web maps only
-/// `STOP_LOSS`; `STOP_LOSS_LIMIT` (what it sends) is mapped too (quirk 9.6).
+/// Groww `order_type` -> OpenAlgo price type (web `GROWW_PRICETYPE_MAP`);
+/// anything else as sent.
 pub fn reverse_order_type(t: &str) -> String {
     match t {
-        "STOP_LOSS" | "STOP_LOSS_LIMIT" => "SL".into(),
-        "STOP_LOSS_MARKET" => "SL-M".into(),
+        "SL_M" => "SL-M".into(),
         other => other.into(),
     }
 }
@@ -60,120 +118,57 @@ pub fn reverse_product(p: &str) -> String {
     }
 }
 
-/// Groww `order_status` -> OpenAlgo status. Unknown statuses read as
-/// `open` like the web's `map_order_data`, except `FAILED` (rejected) and
-/// `DELIVERY_AWAITED` (executed), which the web also reported as `open`.
+/// Groww `order_status` -> OpenAlgo status (web `GROWW_ORDER_STATUS_MAP`,
+/// every status of Groww's annexure plus `OPEN`). A requested cancel or
+/// modify is still working until Groww confirms it. Unknown statuses are
+/// shown as sent, lowercased.
 pub fn map_status(s: &str) -> String {
-    match s.trim().to_ascii_uppercase().as_str() {
-        "NEW" | "ACKED" | "OPEN" | "APPROVED" => "open",
-        "TRIGGER_PENDING" => "trigger pending",
-        "EXECUTED" | "COMPLETED" | "DELIVERY_AWAITED" => "complete",
-        "CANCELLED" => "cancelled",
-        "REJECTED" | "FAILED" => "rejected",
-        _ => "open",
+    let up = s.trim().to_ascii_uppercase();
+    match up.as_str() {
+        "NEW"
+        | "ACKED"
+        | "OPEN"
+        | "APPROVED"
+        | "MODIFICATION_REQUESTED"
+        | "CANCELLATION_REQUESTED" => "open".into(),
+        "TRIGGER_PENDING" => "trigger pending".into(),
+        "EXECUTED" | "DELIVERY_AWAITED" | "COMPLETED" => "complete".into(),
+        "CANCELLED" => "cancelled".into(),
+        "REJECTED" | "FAILED" => "rejected".into(),
+        _ => {
+            tracing::warn!("Unmapped Groww order status: {:?}", s);
+            s.trim().to_ascii_lowercase()
+        }
     }
-    .to_string()
 }
 
 /// Statuses the web's `cancel_all_orders_api` cancels.
 pub fn is_cancellable(s: &str) -> bool {
     matches!(
         s.trim().to_ascii_uppercase().as_str(),
-        "OPEN"
-            | "PENDING"
-            | "TRIGGER_PENDING"
-            | "PLACED"
-            | "PENDING_ORDER"
-            | "NEW"
-            | "ACKED"
-            | "APPROVED"
-            | "MODIFICATION_REQUESTED"
+        "NEW" | "ACKED" | "TRIGGER_PENDING" | "APPROVED" | "OPEN" | "MODIFICATION_REQUESTED"
     )
 }
 
-/// OpenAlgo exchange of a Groww row. The web guessed `NFO` from any `C`
-/// or `P` in the symbol (quirk 9.1); the segment is authoritative.
+/// OpenAlgo exchange for a Groww exchange (NSE/BSE) and segment (CASH/FNO)
+/// (web `openalgo_exchange`): F&O goes to NFO/BFO; anything else as sent.
 pub fn oa_exchange(exchange: &str, segment: &str) -> String {
-    let fno = segment.eq_ignore_ascii_case("FNO")
-        || segment.eq_ignore_ascii_case("F&O")
-        || segment.eq_ignore_ascii_case("FO");
-    match (exchange, fno) {
-        ("BSE", true) | ("BSE_FO", _) | ("BFO", _) => "BFO".into(),
-        ("NSE", true) | ("NSE_FO", _) | ("NFO", _) => "NFO".into(),
-        ("BSE_EQ", _) | ("BSE", false) => "BSE".into(),
-        _ => "NSE".into(),
-    }
-}
-
-const MONTHS: [&str; 12] = [
-    "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
-];
-
-fn split_alpha(s: &str) -> (&str, &str) {
-    let i = s
-        .char_indices()
-        .find(|(_, c)| !c.is_ascii_uppercase())
-        .map(|(i, _)| i)
-        .unwrap_or(s.len());
-    s.split_at(i)
-}
-
-fn month(mm: &str) -> Option<&'static str> {
-    let m: usize = mm.parse().ok()?;
-    MONTHS.get(m.checked_sub(1)?).copied()
-}
-
-/// Web regex fallbacks for a derivative symbol the master does not know
-/// (`order_api.py:258-339`): `NIFTY250515 24500 CE`-style compact codes
-/// `[NAME][YY][MM][DD][STRIKE][CE|PE]` and `[NAME][YY][MM][DD][FUT]`.
-pub fn derivative_fallback(br: &str) -> Option<String> {
-    let (name, rest) = split_alpha(br);
-    if name.is_empty() || rest.len() < 6 {
-        return None;
-    }
-    let (yy, mm, dd) = (&rest[0..2], &rest[2..4], &rest[4..6]);
-    if !rest[..6].bytes().all(|b| b.is_ascii_digit()) {
-        return None;
-    }
-    let mon = month(mm)?;
-    let tail = &rest[6..];
-    if tail.is_empty() || tail == "FUT" {
-        return Some(format!("{}{}{}{}FUT", name, dd, mon, yy));
-    }
-    for opt in ["CE", "PE"] {
-        if let Some(strike) = tail.strip_suffix(opt) {
-            if !strike.is_empty() && strike.bytes().all(|b| b.is_ascii_digit()) {
-                return Some(format!("{}{}{}{}{}{}", name, dd, mon, yy, strike, opt));
-            }
-        }
-    }
-    None
-}
-
-/// OpenAlgo symbol for a Groww trading symbol on an OpenAlgo exchange:
-/// master lookup, then (derivatives) the web's regex fallbacks, then the
-/// Groww symbol unchanged.
-pub fn oa_symbol(symbols: &SymbolResolver, brsymbol: &str, exchange: &str) -> String {
-    if let Some(s) = symbols.oa_symbol(brsymbol, exchange) {
-        return s;
-    }
-    if exchange == "NSE" || exchange == "BSE" {
-        // An index traded in the cash book (rare) still resolves.
-        let idx = if exchange == "NSE" {
-            "NSE_INDEX"
-        } else {
-            "BSE_INDEX"
+    if segment == SEGMENT_FNO {
+        return match exchange {
+            "NSE" => "NFO".into(),
+            "BSE" => "BFO".into(),
+            other => other.into(),
         };
-        if let Some(s) = symbols.oa_symbol(brsymbol, idx) {
-            return s;
-        }
     }
-    if matches!(exchange, "NFO" | "BFO") {
-        if let Some(s) = derivative_fallback(brsymbol) {
-            return s;
-        }
-    }
-    brsymbol.to_string()
+    exchange.into()
+}
+
+/// OpenAlgo symbol for a Groww trading symbol: the master contract, else
+/// Groww's symbol unchanged (web `get_oa_symbol(..) or groww_symbol`).
+pub fn oa_symbol(symbols: &SymbolResolver, brsymbol: &str, exchange: &str) -> String {
+    symbols
+        .oa_symbol(brsymbol, exchange)
+        .unwrap_or_else(|| brsymbol.to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -229,15 +224,24 @@ fn clamp_i32(v: i64) -> i32 {
     i32::try_from(v).unwrap_or(if v < 0 { i32::MIN } else { i32::MAX })
 }
 
+/// One order-book row (web `map_order_data` + `transform_order_data`).
+/// The exchange is Groww's exchange + segment, the symbol comes from the
+/// master contract. A TRIGGER_PENDING stop-loss is shown as `open`, as
+/// Zerodha does, so the Order Book offers Cancel/Modify for it.
 pub fn map_order(o: &GrowwOrder, symbols: &SymbolResolver) -> Order {
     let exchange = oa_exchange(&o.exchange, &o.segment);
-    let status = map_status(&o.order_status);
+    let detailed = map_status(&o.order_status);
     let pending = if o.remaining_quantity > 0 {
         o.remaining_quantity
-    } else if matches!(status.as_str(), "open" | "trigger pending") {
+    } else if matches!(detailed.as_str(), "open" | "trigger pending") {
         (o.quantity - o.filled_quantity).max(0)
     } else {
         0
+    };
+    let status = if detailed == "trigger pending" {
+        "open".to_string()
+    } else {
+        detailed
     };
     Order {
         order_id: o.groww_order_id.clone(),
@@ -269,7 +273,8 @@ pub fn map_orders(orders: &[GrowwOrder], symbols: &SymbolResolver) -> Vec<Order>
     orders.iter().map(|o| map_order(o, symbols)).collect()
 }
 
-/// Web `calculate_order_statistics` counts.
+/// Web `calculate_order_statistics` counts, read from the mapped status
+/// (open includes orders waiting on their trigger).
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct OrderStats {
     pub total_buy_orders: usize,
@@ -287,26 +292,14 @@ pub fn order_stats(orders: &[GrowwOrder]) -> OrderStats {
             "SELL" => s.total_sell_orders += 1,
             _ => {}
         }
-        match o.order_status.as_str() {
-            "EXECUTED" | "COMPLETED" => s.total_completed_orders += 1,
-            "NEW" | "ACKED" | "APPROVED" | "OPEN" => s.total_open_orders += 1,
-            "REJECTED" => s.total_rejected_orders += 1,
+        match map_status(&o.order_status).as_str() {
+            "complete" => s.total_completed_orders += 1,
+            "open" | "trigger pending" => s.total_open_orders += 1,
+            "rejected" => s.total_rejected_orders += 1,
             _ => {}
         }
     }
     s
-}
-
-/// Orders the trade book reads trades for (web `get_trade_book`).
-pub fn has_fills(o: &GrowwOrder) -> bool {
-    let s = o.order_status.to_ascii_uppercase();
-    matches!(
-        s.as_str(),
-        "EXECUTED" | "COMPLETED" | "FILLED" | "PARTIAL" | "COMPLETE"
-    ) || s.contains("EXECUT")
-        || s.contains("FILL")
-        || s.contains("COMPLET")
-        || o.filled_quantity > 0
 }
 
 // ---------------------------------------------------------------------------
@@ -345,84 +338,31 @@ pub struct GrowwTrade {
     pub trade_date_time: String,
 }
 
-pub fn map_trade(t: &GrowwTrade, order: &GrowwOrder, symbols: &SymbolResolver) -> Trade {
-    let exchange = oa_exchange(
-        if t.exchange.is_empty() {
-            &order.exchange
-        } else {
-            &t.exchange
-        },
-        if t.segment.is_empty() {
-            &order.segment
-        } else {
-            &t.segment
-        },
-    );
-    let br = if t.trading_symbol.is_empty() {
-        &order.trading_symbol
+/// One fill of an order read from `/v1/order/trades/{id}` with `segment`
+/// (web `get_order_trades` + `transform_tradebook_data`): exchange from the
+/// trade's exchange + segment, symbol from the master contract.
+pub fn map_trade(t: &GrowwTrade, order_id: &str, segment: &str, symbols: &SymbolResolver) -> Trade {
+    let seg = if t.segment.is_empty() {
+        segment
     } else {
-        &t.trading_symbol
+        &t.segment
     };
+    let exchange = oa_exchange(&t.exchange, seg);
     Trade {
         order_id: if t.groww_order_id.is_empty() {
-            order.groww_order_id.clone()
+            order_id.to_string()
         } else {
             t.groww_order_id.clone()
         },
         trade_id: t.groww_trade_id.clone(),
-        symbol: oa_symbol(symbols, br, &exchange),
+        symbol: oa_symbol(symbols, &t.trading_symbol, &exchange),
         exchange,
-        product: reverse_product(if t.product.is_empty() {
-            &order.product
-        } else {
-            &t.product
-        }),
-        side: if t.transaction_type.is_empty() {
-            order.transaction_type.clone()
-        } else {
-            t.transaction_type.clone()
-        },
+        product: reverse_product(&t.product),
+        side: t.transaction_type.clone(),
         quantity: clamp_i32(t.quantity),
         average_price: t.price,
         trade_value: t.price * t.quantity as f64,
-        timestamp: if t.trade_date_time.is_empty() {
-            t.created_at.clone()
-        } else {
-            t.trade_date_time.clone()
-        },
-    }
-}
-
-/// A trade made up from an executed order when Groww has no trade rows for
-/// it (web: 404 / empty trade list with `filled_quantity > 0`).
-pub fn synthetic_trade(order: &GrowwOrder) -> GrowwTrade {
-    let qty = if order.filled_quantity > 0 {
-        order.filled_quantity
-    } else {
-        order.quantity
-    };
-    GrowwTrade {
-        groww_trade_id: format!("synthetic_{}", order.groww_order_id),
-        groww_order_id: order.groww_order_id.clone(),
-        trading_symbol: order.trading_symbol.clone(),
-        quantity: qty,
-        price: if order.average_fill_price > 0.0 {
-            order.average_fill_price
-        } else {
-            order.price
-        },
-        trade_status: "EXECUTED".into(),
-        exchange: order.exchange.clone(),
-        segment: order.segment.clone(),
-        product: order.product.clone(),
-        transaction_type: order.transaction_type.clone(),
-        created_at: order.created_at.clone(),
-        trade_date_time: if order.exchange_time.is_empty() {
-            order.created_at.clone()
-        } else {
-            order.exchange_time.clone()
-        },
-        ..Default::default()
+        timestamp: t.trade_date_time.clone(),
     }
 }
 
@@ -463,13 +403,20 @@ pub struct GrowwPosition {
     pub carry_forward_credit_price: f64,
     #[serde(deserialize_with = "f64_lenient")]
     pub carry_forward_debit_price: f64,
+    /// Groww's documented realised P&L of the position, rupees.
+    #[serde(deserialize_with = "f64_lenient")]
+    pub realised_pnl: f64,
 }
 
-/// Web `get_positions` derivations: buy/sell quantities include carry
-/// forward. Groww documents every position price in rupees (`net_price`,
-/// `credit_price`, `debit_price`), so they are carried through unchanged
-/// (web #2173 removed the old paise conversions). A non-finite price reads
-/// as 0, and a position with nothing sold reports a sell price of 0.
+/// `EXCHANGE_TRADINGSYMBOL` key of `/v1/live-data/ltp` and `/ohlc`.
+pub fn ltp_key(groww_exchange: &str, trading_symbol: &str) -> String {
+    format!("{}_{}", groww_exchange, trading_symbol)
+}
+
+/// One Groww position (06-portfolio "Get User Positions") in OpenAlgo
+/// terms (web `_position_row`): buy/sell quantities include carry forward;
+/// every price is rupees as Groww documents them (web #2173); P&L starts
+/// as `realised_pnl` and `attach_ltp` adds the open quantity's move.
 pub fn map_position(p: &GrowwPosition, segment: &str, symbols: &SymbolResolver) -> Position {
     let buy_qty = p.credit_quantity + p.carry_forward_credit_quantity;
     let sell_qty = p.debit_quantity + p.carry_forward_debit_quantity;
@@ -486,6 +433,7 @@ pub fn map_position(p: &GrowwPosition, segment: &str, symbols: &SymbolResolver) 
     let avg = rupees(p.net_price);
     let buy_price = rupees(p.credit_price);
     let sell_price = rupees(p.debit_price).max(0.0);
+    let realised = rupees(p.realised_pnl);
     let seg = if p.segment.is_empty() {
         segment
     } else {
@@ -501,10 +449,9 @@ pub fn map_position(p: &GrowwPosition, segment: &str, symbols: &SymbolResolver) 
             p.carry_forward_credit_quantity - p.carry_forward_debit_quantity,
         ),
         average_price: avg,
-        // Groww's position book carries no LTP or P&L (web sends 0).
         ltp: 0.0,
-        pnl: 0.0,
-        realized_pnl: 0.0,
+        pnl: realised,
+        realized_pnl: realised,
         unrealized_pnl: 0.0,
         buy_quantity: clamp_i32(buy_qty),
         buy_value: buy_price * buy_qty as f64,
@@ -513,11 +460,53 @@ pub fn map_position(p: &GrowwPosition, segment: &str, symbols: &SymbolResolver) 
     }
 }
 
-/// Whether a refused position read only says the book is empty (web
-/// `says_no_positions`).
+/// Add a live price and the open quantity's P&L to an open position (web
+/// `_attach_ltp`). A missing price leaves LTP 0 and P&L as realised.
+pub fn attach_ltp(p: &mut Position, ltp: Option<f64>) {
+    let Some(ltp) = ltp.filter(|v| *v > 0.0) else {
+        return;
+    };
+    if p.quantity == 0 {
+        return;
+    }
+    p.ltp = ltp;
+    if p.average_price > 0.0 {
+        p.unrealized_pnl = (ltp - p.average_price) * f64::from(p.quantity);
+        p.pnl = p.realized_pnl + p.unrealized_pnl;
+    }
+}
+
+/// Phrases a broker uses for "no positions" (web `utils/position_read.py`
+/// `_EMPTY_BOOK_MARKERS`). A bare "not found" is not one of them: a
+/// refusal that names something else missing is a failed read.
+const EMPTY_BOOK_MARKERS: &[&str] = &[
+    "no data",
+    "nodata",
+    "no_data",
+    "no-data",
+    "no position",
+    "no open position",
+    "no record",
+    "have any position",
+    "have any open position",
+    "data not found",
+    "record not found",
+    "positions not found",
+];
+
+/// A one-line "no data" message is short; a longer text (an error page)
+/// is never read as one (web `_EMPTY_BOOK_MAX_CHARS`).
+const EMPTY_BOOK_MAX_CHARS: usize = 2000;
+
+/// Whether a refused read only says the book is empty (web
+/// `says_no_positions`). Anything else is a failed read, never an empty
+/// book: a smart order must not take a refusal for a flat position.
 pub fn says_no_positions(message: &str) -> bool {
-    let m = message.to_ascii_lowercase();
-    m.contains("no position") || m.contains("no data") || m.contains("not found")
+    if message.chars().count() > EMPTY_BOOK_MAX_CHARS {
+        return false;
+    }
+    let m = message.to_lowercase();
+    EMPTY_BOOK_MARKERS.iter().any(|k| m.contains(*k))
 }
 
 // ---------------------------------------------------------------------------
@@ -547,35 +536,87 @@ pub struct GrowwHolding {
     pub t1_quantity: i64,
 }
 
-/// Groww holdings carry no price or P&L (web test comment), so `ltp` and
-/// `pnl` are 0 like the web; the symbol resolves on NSE, then BSE.
-pub fn map_holding(h: &GrowwHolding, symbols: &SymbolResolver) -> Holding {
-    let (symbol, exchange) = match symbols.oa_symbol(&h.trading_symbol, "NSE") {
-        Some(s) => (s, "NSE"),
-        None => match symbols.oa_symbol(&h.trading_symbol, "BSE") {
-            Some(s) => (s, "BSE"),
-            None => (h.trading_symbol.clone(), "NSE"),
-        },
+fn round2(v: f64) -> f64 {
+    (v * 100.0).round() / 100.0
+}
+
+/// The exchange a holding is on: where the master contract lists the
+/// symbol, NSE first, else BSE; empty when neither (web `get_holdings`;
+/// Groww's holdings carry no exchange).
+pub fn holding_exchange(h: &GrowwHolding, symbols: &SymbolResolver) -> Option<&'static str> {
+    ["NSE", "BSE"]
+        .into_iter()
+        .find(|ex| symbols.oa_symbol(&h.trading_symbol, ex).is_some())
+}
+
+/// One holding (web `get_holdings` + `transform_holdings_data`). Groww's
+/// holdings carry no price: `ltp` is the live price when Groww priced the
+/// holding, and only then are P&L and P&L % set; an unpriced holding is
+/// valued at its average price.
+pub fn map_holding(h: &GrowwHolding, symbols: &SymbolResolver, ltp: Option<f64>) -> Holding {
+    let exchange = holding_exchange(h, symbols);
+    let symbol = exchange
+        .and_then(|ex| symbols.oa_symbol(&h.trading_symbol, ex))
+        .unwrap_or_else(|| h.trading_symbol.clone());
+    let qty = h.quantity as f64;
+    let ltp = ltp.filter(|v| *v > 0.0);
+    let (pnl, pct) = match ltp {
+        Some(l) => (
+            round2((l - h.average_price) * qty),
+            if h.average_price != 0.0 {
+                round2((l - h.average_price) / h.average_price * 100.0)
+            } else {
+                0.0
+            },
+        ),
+        None => (0.0, 0.0),
     };
     Holding {
         symbol,
-        exchange: exchange.into(),
+        exchange: exchange.unwrap_or("").into(),
         product: "CNC".into(),
         isin: (!h.isin.is_empty()).then(|| h.isin.clone()),
         quantity: clamp_i32(h.quantity),
         t1_quantity: clamp_i32(h.t1_quantity),
         average_price: h.average_price,
-        ltp: 0.0,
+        ltp: ltp.map(round2).unwrap_or(0.0),
         close_price: 0.0,
-        pnl: 0.0,
-        pnl_percentage: 0.0,
-        current_value: h.average_price * h.quantity as f64,
+        pnl,
+        pnl_percentage: pct,
+        current_value: ltp.unwrap_or(h.average_price) * qty,
     }
 }
 
-/// `Exchange` for the cash or derivatives side of a segment check.
-pub fn segment_of(exchange: Exchange) -> &'static str {
-    groww_segment(exchange.as_str())
+/// Web `calculate_portfolio_statistics`: invested at the average price,
+/// held at the live price when Groww priced the holding, else at the
+/// average.
+pub fn holdings_stats(h: &[Holding]) -> PortfolioStats {
+    let inv: f64 = h
+        .iter()
+        .map(|x| x.average_price * f64::from(x.quantity))
+        .sum();
+    let value: f64 = h.iter().map(|x| x.current_value).sum();
+    let pnl: f64 = h.iter().map(|x| x.pnl).sum();
+    PortfolioStats {
+        totalholdingvalue: round2(value),
+        totalinvvalue: round2(inv),
+        totalprofitandloss: round2(pnl),
+        totalpnlpercentage: if inv != 0.0 {
+            round2(pnl / inv * 100.0)
+        } else {
+            0.0
+        },
+    }
+}
+
+/// The position segment that holds an exchange's positions; `None` for an
+/// exchange the position read does not cover.
+pub fn segment_of(exchange: Exchange) -> Option<&'static str> {
+    match exchange {
+        Exchange::Nse | Exchange::Bse => Some(SEGMENT_CASH),
+        Exchange::Nfo | Exchange::Bfo => Some(SEGMENT_FNO),
+        _ => None,
+    }
 }
 
 /// Web `order_reference_id` rules: keep `[A-Za-z0-9-]`, at most two

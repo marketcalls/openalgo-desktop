@@ -54,6 +54,29 @@ impl Pacer {
         };
         tokio::time::sleep_until(wait_until).await;
     }
+
+    /// Like [`acquire`](Self::acquire), but bounded: when the next free
+    /// slot is more than `max_wait` away the call is refused at once with
+    /// that wait, and books nothing, so a refused caller delays nobody
+    /// behind it (web `utils/broker_backpressure.py` `check_queue_wait`).
+    pub async fn acquire_within(&self, max_wait: Duration) -> Result<(), Duration> {
+        let wait_until = {
+            let mut next = self.next.lock().await;
+            let now = Instant::now();
+            let slot = match *next {
+                Some(t) if t > now => t,
+                _ => now,
+            };
+            let wait = slot.saturating_duration_since(now);
+            if wait > max_wait {
+                return Err(wait);
+            }
+            *next = Some(slot + self.interval);
+            slot
+        };
+        tokio::time::sleep_until(wait_until).await;
+        Ok(())
+    }
 }
 
 /// Exponential backoff delay for retry `attempt` (0-based), capped, with
@@ -88,6 +111,20 @@ mod tests {
         let t = Instant::now();
         p.acquire().await;
         assert_eq!(t.elapsed(), Duration::ZERO);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn bounded_acquire_refuses_without_booking() {
+        let p = Pacer::per_second(1.0);
+        let max = Duration::from_secs(2);
+        let start = Instant::now();
+        // Slots at 0, 1 and 2 s are within the bound; the fourth is 3 s away.
+        let r = futures_util::future::join_all((0..4).map(|_| p.acquire_within(max))).await;
+        assert_eq!(r, vec![Ok(()), Ok(()), Ok(()), Err(Duration::from_secs(3))]);
+        assert_eq!(start.elapsed(), Duration::from_secs(2));
+        // The refusal booked nothing: the next slot is at 3 s, not 4 s.
+        p.acquire_within(max).await.unwrap();
+        assert_eq!(start.elapsed(), Duration::from_secs(3));
     }
 
     #[test]
