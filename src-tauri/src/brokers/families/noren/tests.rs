@@ -4,8 +4,8 @@
 
 use super::auth::{exchange_request, sha256_hex, split_api_key};
 use super::data::{
-    before_session_open, candle_number, clean_intraday, parse_candle, parse_candle_strict,
-    quote_matches, repair, sort_dedupe_last, to_depth, to_quote,
+    before_session_open, candle_number, clean_intraday, has_finite_prices, parse_candle,
+    parse_candle_strict, quote_matches, repair, sort_dedupe_last, to_depth, to_quote,
 };
 use super::funds::{basket_body, funds_from};
 use super::mapping::*;
@@ -731,6 +731,96 @@ fn mpp_scopes() {
     assert_eq!(mpp_margin(&m, None), ("LMT", "0".into()));
     assert_eq!(mpp_margin(&slm, None), ("SL-LMT", "800".into()));
     assert_eq!(mpp_margin(&m, q).1, "816.45");
+}
+
+/// Web flattrade `margin_data._apply_mpp` (#2161): SL-M is protected off
+/// its trigger, MARKET off the LTP, the tick comes from the quote or else
+/// the master, and a leg with no positive price is refused, not sent at 0.
+#[test]
+fn trigger_first_margin_pricing() {
+    let quote = |ltp: f64, tick: Option<f64>| Some(MppQuote { ltp, tick });
+    let sell = |pricetype, price, trigger| MppOrder {
+        action: Action::Sell,
+        ..mo(pricetype, price, trigger)
+    };
+    let slm = mo(PriceType::SlM, 0.0, 800.0);
+    // Off the trigger (800 * 1.005), not the LTP (810 * 1.005 = 814.05).
+    assert_eq!(
+        mpp_margin_trigger_first(&slm, quote(810.0, Some(0.05)), 0.05),
+        Ok(("SL-LMT", "804".into()))
+    );
+    // A SELL stop stays below its trigger.
+    assert_eq!(
+        mpp_margin_trigger_first(&sell(PriceType::SlM, 0.0, 800.0), quote(810.0, None), 0.05),
+        Ok(("SL-LMT", "796".into()))
+    );
+    // No trigger: the LTP.
+    assert_eq!(
+        mpp_margin_trigger_first(&mo(PriceType::SlM, 0.0, 0.0), quote(810.0, Some(0.05)), 0.0),
+        Ok(("SL-LMT", "814.05".into()))
+    );
+    // The quote has no tick: the master's (paise would give 816.36).
+    let m = mo(PriceType::Market, 0.0, 0.0);
+    assert_eq!(
+        mpp_margin_trigger_first(&m, quote(812.3, None), 0.05),
+        Ok(("LMT", "816.35".into()))
+    );
+    // No tick anywhere: the LTP unprotected.
+    assert_eq!(
+        mpp_margin_trigger_first(&m, quote(812.3, None), 0.0),
+        Ok(("LMT", "812.3".into()))
+    );
+    // The quote failed: the supplied price, or the trigger, unprotected.
+    assert_eq!(
+        mpp_margin_trigger_first(&mo(PriceType::Market, 805.0, 0.0), None, 0.05),
+        Ok(("LMT", "805".into()))
+    );
+    assert_eq!(
+        mpp_margin_trigger_first(&slm, None, 0.05),
+        Ok(("SL-LMT", "800".into()))
+    );
+    // Nothing positive: refused with a reason a trader can act on.
+    for q in [None, quote(0.0, Some(0.05))] {
+        let e = mpp_margin_trigger_first(&m, q, 0.05).unwrap_err();
+        assert!(
+            e.starts_with("Could not get a live price for SBIN."),
+            "{}",
+            e
+        );
+    }
+    assert!(mpp_margin_trigger_first(&mo(PriceType::SlM, 0.0, -5.0), None, 0.05).is_err());
+    // Priced orders pass through.
+    assert_eq!(
+        mpp_margin_trigger_first(&mo(PriceType::Limit, 811.0, 0.0), None, 0.05),
+        Ok(("LMT", "811".into()))
+    );
+    // The shoonya rule is unchanged: a MARKET leg without a quote goes at 0.
+    assert_eq!(mpp_margin(&m, None), ("LMT", "0".into()));
+}
+
+/// Web shoonya `_repair_candles` (#2161) drops a bar with a NaN price.
+#[test]
+fn finite_prices_only() {
+    let ok = Candle {
+        open: 1.0,
+        high: 2.0,
+        low: 0.5,
+        close: 1.5,
+        ..Default::default()
+    };
+    assert!(has_finite_prices(&ok));
+    for bad in [
+        Candle {
+            open: f64::NAN,
+            ..ok
+        },
+        Candle {
+            close: f64::INFINITY,
+            ..ok
+        },
+    ] {
+        assert!(!has_finite_prices(&bad));
+    }
 }
 
 #[test]

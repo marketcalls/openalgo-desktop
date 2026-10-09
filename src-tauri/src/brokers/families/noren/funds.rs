@@ -2,12 +2,12 @@
 //! `api/margin_api.py`, `mapping/margin_data.py`).
 
 use super::mapping::{
-    self, escape_tsym, f, mpp_margin, noren_exchange, pricetype_code, product_code, MppOrder,
-    MppQuote,
+    self, escape_tsym, f, mpp_margin, mpp_margin_trigger_first, noren_exchange, pricetype_code,
+    product_code, MppOrder, MppQuote,
 };
 use super::orders::raw_book;
 use super::transport::{check, session, Category, Session};
-use super::{FundsM2m, MarginApi, NorenBroker, NorenConfig, PositionPnl};
+use super::{FundsM2m, MarginApi, MarginMpp, NorenBroker, NorenConfig, PositionPnl};
 use crate::brokers::common::mapping::{Action, PriceType};
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
@@ -126,21 +126,33 @@ pub async fn calculate_margin(
         MarginApi::Basket => {
             let mut built = Vec::new();
             for l in legs {
+                let Some(row) = b.resolver().by_symbol(&l.key.exchange, &l.key.symbol) else {
+                    tracing::warn!(
+                        "Margin leg skipped, symbol not found: {} ({})",
+                        l.key.symbol,
+                        l.key.exchange
+                    );
+                    continue;
+                };
                 let quote = if matches!(l.pricetype, PriceType::Market | PriceType::SlM) {
                     margin_quote(b, &s, l).await
                 } else {
                     None
                 };
-                let (prctyp, prc) = mpp_margin(
-                    &MppOrder {
-                        symbol: &l.key.symbol,
-                        action: l.action,
-                        pricetype: l.pricetype,
-                        price: l.price,
-                        trigger: l.trigger_price,
-                    },
-                    quote,
-                );
+                let order = MppOrder {
+                    symbol: &l.key.symbol,
+                    action: l.action,
+                    pricetype: l.pricetype,
+                    price: l.price,
+                    trigger: l.trigger_price,
+                };
+                let (prctyp, prc) = match b.cfg.margin_mpp {
+                    MarginMpp::LtpOrSupplied => mpp_margin(&order, quote),
+                    MarginMpp::TriggerFirst => {
+                        mpp_margin_trigger_first(&order, quote, row.tick_size)
+                            .map_err(AppError::Validation)?
+                    }
+                };
                 match leg(b, l, prctyp, &prc) {
                     Some(v) => built.push(v),
                     None => tracing::warn!(

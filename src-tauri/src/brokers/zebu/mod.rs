@@ -93,6 +93,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
     modify_market_price_zero: true,
     funds_m2m: FundsM2m::Limits,
     margin: MarginApi::Unsupported,
+    margin_mpp: MarginMpp::LtpOrSupplied,
     position_pnl: PositionPnl::NetAverage,
     tradebook_time_only: false,
     orderbook_price_fallback: false,

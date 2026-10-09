@@ -146,6 +146,20 @@ pub enum MarginApi {
     Unsupported,
 }
 
+/// How a MARKET or SL-M basket-margin leg is priced (GetBasketMargin
+/// refuses MKT/SL-MKT and, on flattrade, a zero price).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MarginMpp {
+    /// Protected off the LTP; without one, MARKET sends the supplied price
+    /// and SL-M the trigger, even 0 (shoonya).
+    LtpOrSupplied,
+    /// SL-M protected off its trigger (the LTP only without one), MARKET
+    /// off the LTP; tick from the quote, else the master; no tick anywhere
+    /// sends the base unprotected; no positive price at all refuses the
+    /// leg rather than pricing a different basket (flattrade, web #2161).
+    TriggerFirst,
+}
+
 /// Position-book P&L formula.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PositionPnl {
@@ -266,6 +280,8 @@ pub struct NorenConfig {
     pub modify_market_price_zero: bool,
     pub funds_m2m: FundsM2m,
     pub margin: MarginApi,
+    /// Pricing of MARKET / SL-M legs for `MarginApi::Basket`.
+    pub margin_mpp: MarginMpp,
     pub position_pnl: PositionPnl,
     /// Tradebook keeps only `HH:MM:SS` of `norentm` (shoonya).
     pub tradebook_time_only: bool,

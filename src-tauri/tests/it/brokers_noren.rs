@@ -446,6 +446,29 @@ async fn shoonya_history_is_chunked_on_the_jkey_form() {
     assert!(e.client_message().contains("not supported"));
 }
 
+/// Web #2161 (shoonya `_repair_candles`): a bar with a NaN price is dropped
+/// rather than sent to the chart, which refuses the whole series over it;
+/// the rest are repaired.
+#[tokio::test]
+async fn shoonya_history_drops_bars_without_a_price() {
+    let (b, fake, auth) = noren(shoonya::config()).await;
+    fake.bodies.lock().push((
+        "TPSeries",
+        r#"[{"stat":"Ok","time":"01-10-2026 09:15:00","ssboe":"1790826300","into":"809","inth":"808","intl":"808.5","intc":"809.5","intv":"-10"},
+            {"stat":"Ok","time":"01-10-2026 09:16:00","ssboe":"1790826360","into":"NaN","inth":"811","intl":"809","intc":"810","intv":"10"}]"#,
+    ));
+    let req = HistoryRequest {
+        key: QuoteKey::new("NSE", "SBIN"),
+        interval: "1m".into(),
+        start: NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
+        end: NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
+    };
+    let c = b.get_history(&auth, &req).await.unwrap();
+    assert_eq!(c.len(), 1);
+    assert_eq!(c[0].timestamp, 1790826300);
+    assert_eq!((c[0].low, c[0].high, c[0].volume), (808.0, 809.5, 0));
+}
+
 #[tokio::test]
 async fn shoonya_books_funds_and_cancel_all() {
     let (b, fake, auth) = noren(shoonya::config()).await;
@@ -610,6 +633,56 @@ async fn flattrade_login_and_jkey_dialect() {
         .await
         .unwrap();
     assert_eq!(mr.total_margin_required, 90000.25);
+}
+
+/// Web #2161: Flattrade reports the post-hedge `marginusedtrade`, prices an
+/// SL-M margin leg off its trigger (a SELL stays below it), and refuses a
+/// MARKET leg it cannot price instead of sending it at 0 or dropping it.
+#[tokio::test]
+async fn flattrade_margin_legs_are_priced_or_refused() {
+    let slm = MarginLeg {
+        key: QuoteKey::new("NSE", "SBIN"),
+        action: Action::Sell,
+        quantity: 1,
+        product: Product::Mis,
+        pricetype: PriceType::SlM,
+        price: 0.0,
+        trigger_price: 800.0,
+    };
+    let (b, fake, auth) = noren(flattrade::config()).await;
+    let mr = b
+        .calculate_margin(&auth, std::slice::from_ref(&slm))
+        .await
+        .unwrap();
+    assert_eq!(mr.total_margin_required, 90000.25);
+    let body = &fake.calls("/GetBasketMargin")[0].jdata;
+    assert_eq!(
+        (&body["prctyp"], &body["prc"], &body["trgprc"]),
+        (&json!("SL-LMT"), &json!("796"), &json!("800"))
+    );
+
+    let (b, fake, auth) = noren(flattrade::config()).await;
+    fake.bodies
+        .lock()
+        .push(("GetQuotes", r#"{"stat":"Ok","lp":"0"}"#));
+    let market = MarginLeg {
+        pricetype: PriceType::Market,
+        trigger_price: 0.0,
+        ..slm.clone()
+    };
+    let e = b.calculate_margin(&auth, &[market]).await.unwrap_err();
+    assert!(
+        e.client_message()
+            .starts_with("Could not get a live price for SBIN."),
+        "{}",
+        e.client_message()
+    );
+    assert!(fake.calls("/GetBasketMargin").is_empty());
+
+    // Shoonya keeps the LTP rule: the same SL-M leg is priced off the LTP.
+    let (b, fake, auth) = noren(shoonya::config()).await;
+    b.calculate_margin(&auth, &[slm]).await.unwrap();
+    assert_eq!(fake.calls("/GetBasketMargin")[0].jdata["prc"], "808.35");
 }
 
 /// Web #2196: Flattrade's EOD rows for BSE indices carry a close outside the

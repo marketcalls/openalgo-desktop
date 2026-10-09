@@ -329,6 +329,79 @@ pub fn mpp_margin(o: &MppOrder<'_>, quote: Option<MppQuote>) -> (&'static str, S
     }
 }
 
+/// Margin legs for `MarginMpp::TriggerFirst` (web flattrade
+/// `margin_data._apply_mpp`, #2161). GetBasketMargin refuses MKT/SL-MKT
+/// and a zero price, so MARKET and SL-M go out as LMT and SL-LMT with a
+/// positive price:
+/// - MARKET is protected off the LTP; SL-M off its trigger, so the limit
+///   stays on the right side of `trgprc`, and off the LTP only without a
+///   trigger;
+/// - the protection rounds to the quote's tick, else the master's
+///   (`master_tick`); with neither the base price goes unprotected;
+/// - when the quote could not be fetched (`quote` is `None`) or nothing
+///   above gives a positive price, MARKET falls back to the supplied price
+///   and SL-M to the trigger;
+/// - `Err` with the trader-facing refusal when none of these is positive:
+///   dropping the leg would report the margin of a different basket.
+pub fn mpp_margin_trigger_first(
+    o: &MppOrder<'_>,
+    quote: Option<MppQuote>,
+    master_tick: f64,
+) -> std::result::Result<(&'static str, String), String> {
+    let MppOrder {
+        symbol,
+        action,
+        pricetype,
+        price,
+        trigger,
+    } = *o;
+    let target = match pricetype {
+        PriceType::Market => "LMT",
+        PriceType::SlM => "SL-LMT",
+        other => return Ok((pricetype_code(other), num(price))),
+    };
+    let positive = |v: f64| if v.is_finite() && v > 0.0 { v } else { 0.0 };
+    let trigger = positive(trigger);
+    let fallback = if pricetype == PriceType::Market {
+        positive(price)
+    } else {
+        trigger
+    };
+    // A failed quote skips the protection, as the web's exception path does.
+    if let Some(q) = quote {
+        let reference = if trigger > 0.0 && pricetype == PriceType::SlM {
+            trigger
+        } else {
+            positive(q.ltp)
+        };
+        let tick = q
+            .tick
+            .filter(|t| *t > 0.0)
+            .or_else(|| (master_tick > 0.0).then_some(master_tick));
+        if reference > 0.0 {
+            let Some(tick) = tick else {
+                return Ok((target, num(reference)));
+            };
+            let protected = protected_price(
+                reference,
+                action,
+                instrument_type_from_symbol(symbol),
+                Some(tick),
+            );
+            if positive(protected) > 0.0 {
+                return Ok((target, num(protected)));
+            }
+        }
+    }
+    if fallback > 0.0 {
+        return Ok((target, num(fallback)));
+    }
+    Err(format!(
+        "Could not get a live price for {}. Enter a price for this leg, or try again in a moment.",
+        symbol
+    ))
+}
+
 // ---------------------------------------------------------------------------
 // Order payloads
 // ---------------------------------------------------------------------------

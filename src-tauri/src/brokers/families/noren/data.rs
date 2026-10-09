@@ -332,6 +332,13 @@ pub fn clean_intraday(candles: &mut Vec<Candle>, exch: &str) {
     }
 }
 
+/// Are open, high, low and close all real numbers (no NaN or infinity)?
+pub fn has_finite_prices(c: &Candle) -> bool {
+    [c.open, c.high, c.low, c.close]
+        .iter()
+        .all(|v| v.is_finite())
+}
+
 /// Make every candle satisfy `low <= open, close <= high`, volume >= 0
 /// (web shoonya `_repair_candles`).
 pub fn repair(c: &mut Candle) {
@@ -495,6 +502,18 @@ pub async fn get_history(
     }
     let mut out = sort_dedupe_last(candles);
     if b.cfg.history_repair {
+        // Web shoonya `_repair_candles` (#2161): a bar still missing a price
+        // (NaN) has no honest repair and a chart refuses the whole series
+        // over it, so it is dropped before the rest are repaired.
+        let before = out.len();
+        out.retain(has_finite_prices);
+        if out.len() < before {
+            tracing::warn!(
+                broker = b.cfg.id,
+                "Dropped {} history bars with a missing price",
+                before - out.len()
+            );
+        }
         out.iter_mut().for_each(repair);
     }
     Ok(out)
