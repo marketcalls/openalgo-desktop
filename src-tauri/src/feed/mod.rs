@@ -62,6 +62,21 @@ pub fn config_from(ctx: &AppState) -> FeedConfig {
             c.bind_host.clone()
         },
         port: c.ws_port,
+        origins: server::OriginPolicy {
+            app_ports: {
+                let mut v = vec![c.http_port, ctx.listening_port()];
+                if cfg!(debug_assertions) {
+                    v.push(5173);
+                }
+                v
+            },
+            lan: !c.is_loopback(),
+            public_host: c
+                .host_server
+                .as_deref()
+                .and_then(|h| url::Url::parse(h).ok())
+                .and_then(|u| u.host_str().map(str::to_ascii_lowercase)),
+        },
         ..FeedConfig::default()
     }
 }

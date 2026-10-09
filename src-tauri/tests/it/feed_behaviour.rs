@@ -404,3 +404,44 @@ async fn stop_closes_clients_and_releases_port_and_subscriptions() {
     let rebind = tokio::net::TcpListener::bind(addr).await;
     assert!(rebind.is_ok(), "port released after stop");
 }
+
+/// Security review S-10: a web page on another site cannot open the feed;
+/// the app's own page, a client without `Origin` (the SDK, Amibroker) and a
+/// client whose `Origin` names the feed itself (Python websocket-client)
+/// connect and authenticate exactly as before.
+#[tokio::test]
+async fn s10_browser_pages_from_other_sites_cannot_open_the_feed() {
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    let h = start_default().await;
+    let with_origin = |origin: &str| {
+        let mut r = h.url.as_str().into_client_request().unwrap();
+        r.headers_mut().insert("origin", origin.parse().unwrap());
+        r
+    };
+    match tokio_tungstenite::connect_async(with_origin("https://evil.example")).await {
+        Err(tokio_tungstenite::tungstenite::Error::Http(resp)) => {
+            assert_eq!(resp.status(), 403)
+        }
+        other => panic!("a foreign page was let in: {:?}", other.map(|_| ())),
+    }
+    assert!(tokio_tungstenite::connect_async(with_origin("null"))
+        .await
+        .is_err());
+
+    // No Origin: unchanged.
+    let mut c = Client::connect(&h.url).await;
+    assert_eq!(c.auth().await["status"], "success");
+    // The app's own page.
+    let (ws, _) = tokio_tungstenite::connect_async(with_origin("http://127.0.0.1:5000"))
+        .await
+        .expect("the app's page connects");
+    let mut c = Client { ws };
+    assert_eq!(c.auth().await["status"], "success");
+    // websocket-client's default Origin: the feed's own address.
+    let own = format!("http://{}", h.handle.local_addr());
+    let (ws, _) = tokio_tungstenite::connect_async(with_origin(&own))
+        .await
+        .expect("websocket-client style Origin connects");
+    let mut c = Client { ws };
+    assert_eq!(c.auth().await["status"], "success");
+}

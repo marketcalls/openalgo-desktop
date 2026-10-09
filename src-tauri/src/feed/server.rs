@@ -58,7 +58,80 @@ pub struct FeedConfig {
     /// forwards every tick (the web's current behaviour); otherwise the
     /// latest tick in each window is sent at the window's end.
     pub throttle: Duration,
+    /// Which browser pages may open a connection (security review S-10).
+    pub origins: OriginPolicy,
 }
+
+/// The pages allowed to open the feed from a browser: the app's own. A
+/// client that is not a browser sends no `Origin` and is accepted exactly
+/// as on the web; so is one whose `Origin` names the feed address itself
+/// (Python `websocket-client`, which the SDK uses, sends that by default).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginPolicy {
+    /// Ports the app's pages are served on (the HTTP port, and the Vite dev
+    /// server in development builds).
+    pub app_ports: Vec<u16>,
+    /// LAN access is on: the app's page may be opened by IP address.
+    pub lan: bool,
+    /// The configured tunnel host, whose pages are the app's too.
+    pub public_host: Option<String>,
+}
+
+impl Default for OriginPolicy {
+    fn default() -> Self {
+        Self {
+            app_ports: vec![crate::config::DEFAULT_HTTP_PORT],
+            lan: false,
+            public_host: None,
+        }
+    }
+}
+
+impl OriginPolicy {
+    /// Whether a handshake with this `Origin` (and `Host`) is accepted.
+    pub fn allows(&self, origin: Option<&str>, host: Option<&str>) -> bool {
+        let Some(origin) = origin.map(str::trim) else {
+            return true;
+        };
+        let Ok(url) = url::Url::parse(origin) else {
+            return false;
+        };
+        if !matches!(url.scheme(), "http" | "https") {
+            return false;
+        }
+        let Some(name) = url
+            .host_str()
+            .map(|h| h.trim_matches(['[', ']']).to_ascii_lowercase())
+        else {
+            return false;
+        };
+        let port = url.port_or_known_default();
+        // A non-browser client naming the address it connects to.
+        if let Some(host) = host {
+            let authority = match url.port() {
+                Some(p) => format!("{}:{}", url.host_str().unwrap_or_default(), p),
+                None => url.host_str().unwrap_or_default().to_string(),
+            };
+            if authority.eq_ignore_ascii_case(host.trim()) {
+                return true;
+            }
+        }
+        if self
+            .public_host
+            .as_deref()
+            .is_some_and(|h| h.eq_ignore_ascii_case(&name))
+        {
+            return true;
+        }
+        let app_port = port.is_some_and(|p| self.app_ports.contains(&p));
+        let loopback = matches!(name.as_str(), "127.0.0.1" | "localhost" | "::1");
+        app_port && (loopback || (self.lan && name.parse::<std::net::IpAddr>().is_ok()))
+    }
+}
+
+/// Open connections one address on the network may hold. Loopback is not
+/// capped this way: every program on this computer shares 127.0.0.1.
+pub const MAX_CONNECTIONS_PER_REMOTE_ADDRESS: usize = 32;
 
 impl Default for FeedConfig {
     fn default() -> Self {
@@ -74,6 +147,7 @@ impl Default for FeedConfig {
             control_queue_cap: 1024,
             max_subscriptions_per_client: 3000,
             throttle: Duration::ZERO,
+            origins: OriginPolicy::default(),
         }
     }
 }
@@ -111,6 +185,8 @@ struct Shared {
     brokers: Vec<String>,
     next_id: AtomicU64,
     active: AtomicUsize,
+    /// Open connections per non-loopback address.
+    per_address: parking_lot::Mutex<HashMap<std::net::IpAddr, usize>>,
 }
 
 /// A running feed server.
@@ -196,6 +272,7 @@ in Settings and restart the server.",
         brokers: deps.supported_brokers,
         next_id: AtomicU64::new(1),
         active: AtomicUsize::new(0),
+        per_address: parking_lot::Mutex::new(HashMap::new()),
         cfg,
     });
     let token = CancellationToken::new();
@@ -223,7 +300,7 @@ async fn accept_loop(listener: TcpListener, shared: Arc<Shared>, token: Cancella
         tokio::select! {
             _ = token.cancelled() => break,
             accepted = listener.accept() => {
-                let (stream, _peer) = match accepted {
+                let (stream, peer) = match accepted {
                     Ok(a) => a,
                     Err(e) => {
                         // Out of descriptors and similar: back off instead of spinning.
@@ -245,8 +322,20 @@ async fn accept_loop(listener: TcpListener, shared: Arc<Shared>, token: Cancella
                     }
                     continue;
                 }
+                let remote = (!peer.ip().is_loopback()).then_some(peer.ip());
+                if let Some(ip) = remote {
+                    let mut m = shared.per_address.lock();
+                    let n = m.entry(ip).or_insert(0);
+                    if *n >= MAX_CONNECTIONS_PER_REMOTE_ADDRESS {
+                        drop(m);
+                        tracing::warn!("Market data feed: one network address opened too many connections");
+                        drop(stream);
+                        continue;
+                    }
+                    *n += 1;
+                }
                 shared.active.fetch_add(1, Ordering::Relaxed);
-                conns.spawn(serve_conn(stream, shared.clone(), token.clone()));
+                conns.spawn(serve_conn(stream, remote, shared.clone(), token.clone()));
             }
         }
     }
@@ -304,12 +393,22 @@ async fn reject(stream: TcpStream, cfg: &FeedConfig) {
 struct ClientGuard {
     shared: Arc<Shared>,
     id: ClientId,
+    remote: Option<std::net::IpAddr>,
 }
 
 impl Drop for ClientGuard {
     fn drop(&mut self) {
         self.shared.registry.remove_client(self.id);
         self.shared.active.fetch_sub(1, Ordering::Relaxed);
+        if let Some(ip) = self.remote {
+            let mut m = self.shared.per_address.lock();
+            if let Some(n) = m.get_mut(&ip) {
+                *n = n.saturating_sub(1);
+                if *n == 0 {
+                    m.remove(&ip);
+                }
+            }
+        }
     }
 }
 
@@ -349,7 +448,12 @@ async fn write_loop(mut sink: WsSink, outbox: Arc<Outbox>) {
     }
 }
 
-async fn serve_conn(stream: TcpStream, shared: Arc<Shared>, token: CancellationToken) {
+async fn serve_conn(
+    stream: TcpStream,
+    remote: Option<std::net::IpAddr>,
+    shared: Arc<Shared>,
+    token: CancellationToken,
+) {
     let id = shared.next_id.fetch_add(1, Ordering::Relaxed);
     let outbox = Arc::new(Outbox::new(
         shared.cfg.control_queue_cap,
@@ -359,10 +463,32 @@ async fn serve_conn(stream: TcpStream, shared: Arc<Shared>, token: CancellationT
     let _guard = ClientGuard {
         shared: shared.clone(),
         id,
+        remote,
     };
+    let origins = shared.cfg.origins.clone();
+    let check_origin =
+        move |req: &tokio_tungstenite::tungstenite::handshake::server::Request,
+              resp: tokio_tungstenite::tungstenite::handshake::server::Response| {
+            let get = |n: &str| req.headers().get(n).and_then(|v| v.to_str().ok());
+            if origins.allows(get("origin"), get("host")) {
+                Ok(resp)
+            } else {
+                tracing::warn!("Market data feed refused a web page from another site");
+                let mut refused =
+                    tokio_tungstenite::tungstenite::handshake::server::ErrorResponse::new(Some(
+                        "Request blocked.".into(),
+                    ));
+                *refused.status_mut() = tokio_tungstenite::tungstenite::http::StatusCode::FORBIDDEN;
+                Err(refused)
+            }
+        };
     let ws = match timeout(
         shared.cfg.handshake_timeout,
-        tokio_tungstenite::accept_async_with_config(stream, Some(ws_config(&shared.cfg))),
+        tokio_tungstenite::accept_hdr_async_with_config(
+            stream,
+            check_origin,
+            Some(ws_config(&shared.cfg)),
+        ),
     )
     .await
     {
@@ -962,5 +1088,31 @@ async fn order_loop(shared: Arc<Shared>, mut rx: broadcast::Receiver<Arc<OrderUp
             }
             Err(RecvError::Closed) => return,
         }
+    }
+}
+
+#[cfg(test)]
+mod origin_tests {
+    use super::OriginPolicy;
+
+    #[test]
+    fn only_the_apps_own_pages_and_non_browsers_are_let_in() {
+        let p = OriginPolicy {
+            app_ports: vec![5000],
+            lan: false,
+            public_host: Some("abc.ngrok.app".into()),
+        };
+        assert!(p.allows(None, Some("127.0.0.1:8765")));
+        assert!(p.allows(Some("http://127.0.0.1:5000"), Some("127.0.0.1:8765")));
+        assert!(p.allows(Some("http://localhost:5000"), None));
+        assert!(p.allows(Some("https://abc.ngrok.app"), None));
+        assert!(p.allows(Some("http://127.0.0.1:8765"), Some("127.0.0.1:8765")));
+        assert!(!p.allows(Some("http://127.0.0.1:3000"), Some("127.0.0.1:8765")));
+        assert!(!p.allows(Some("https://evil.example"), Some("127.0.0.1:8765")));
+        assert!(!p.allows(Some("null"), Some("127.0.0.1:8765")));
+        assert!(!p.allows(Some("http://192.168.1.5:5000"), Some("127.0.0.1:8765")));
+        let lan = OriginPolicy { lan: true, ..p };
+        assert!(lan.allows(Some("http://192.168.1.5:5000"), Some("192.168.1.5:8765")));
+        assert!(!lan.allows(Some("http://evil.example:5000"), Some("192.168.1.5:8765")));
     }
 }
