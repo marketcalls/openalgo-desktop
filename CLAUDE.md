@@ -502,6 +502,8 @@ Every flaky test found so far was a race, not a slow machine:
 - Dismiss a CodeQL alert as "used in tests" only after checking that it sits
   in a `#[cfg(test)]` module. A variable named `iv` that means interval trips
   the hard-coded-crypto rule; rename it.
+- Check a fix by disabling it locally and watching its test fail; never
+  commit or push the disabled state, not even to a wip branch.
 - Fake tokens in fixtures must match the allowlist in `.github/gitleaks.toml`;
   prefer the `<APIKEY>`, `<USER_ID>`, `<EMAIL>` placeholders.
 
