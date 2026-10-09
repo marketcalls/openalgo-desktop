@@ -162,6 +162,205 @@ async fn setup() -> (Fake, DefinedgeBroker, AuthToken) {
     (fake, b, auth)
 }
 
+/// Opening the Definedge login page sends the OTP only when OpenAlgo itself
+/// opened it: a cross-site navigation (which carries the Lax session cookie)
+/// or one with no sign of its origin sends nothing, keeps a pending OTP and
+/// does not count against the login limit. The app's own navigation, a typed
+/// address, and a webview's same-origin `Origin` or `Referer` send. The
+/// page's Send OTP action is a POST that needs the CSRF token and a
+/// same-origin request.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn login_page_sends_the_otp_only_when_opened_from_openalgo() {
+    use axum::body::Body;
+    use axum::extract::ConnectInfo;
+    use axum::http::{header, Request};
+    use http_body_util::BodyExt;
+    use openalgo_desktop_lib::brokers::{Broker, BrokerRegistry};
+    use openalgo_desktop_lib::db::sqlite::credentials::{self, CredentialUpdate};
+    use openalgo_desktop_lib::security::keystore::MemoryKeyStore;
+    use openalgo_desktop_lib::security::Secret;
+    use openalgo_desktop_lib::services::auth_service::AuthService;
+    use openalgo_desktop_lib::state::{AppState, OpenOptions};
+    use std::sync::Arc;
+    use tower::ServiceExt;
+
+    let fake = Fake::start(handler(Arc::new(State::default()))).await;
+    let symbols = master();
+    let definedge = Arc::new(
+        DefinedgeBroker::with_endpoints(symbols.clone(), endpoints(&fake.base)).with_fast_timing(),
+    );
+    let dir = tempfile::tempdir().unwrap();
+    let ctx = AppState::open(
+        dir.path(),
+        OpenOptions {
+            keystore: Arc::new(MemoryKeyStore::new()),
+            clock: openalgo_desktop_lib::clock::ManualClock::new(
+                chrono::TimeZone::with_ymd_and_hms(
+                    &chrono_tz::Asia::Kolkata,
+                    2026,
+                    10,
+                    5,
+                    10,
+                    0,
+                    0,
+                )
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            ),
+            brokers: Arc::new(BrokerRegistry::with_symbols(
+                symbols,
+                vec![definedge.clone() as Arc<dyn Broker>],
+            )),
+        },
+    )
+    .unwrap();
+    AuthService::setup(&ctx, "trader", "trader@example.com", "Secret@123").unwrap();
+    {
+        let conn = ctx.sqlite.conn().unwrap();
+        credentials::save(
+            &conn,
+            &ctx.security,
+            "definedge",
+            CredentialUpdate {
+                api_key: Some(Secret::new(TOKEN)),
+                api_secret: Some(Secret::new(SECRET)),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    }
+    let web = ctx.sessions.create(ctx.now());
+    ctx.sessions
+        .update(&web.id, |s| s.user = Some("trader".into()));
+    let cookie = format!("session={}", web.id);
+    let app_origin = format!("http://127.0.0.1:{}", ctx.server_config().http_port);
+
+    // Each request comes from 10.0.1.<ip>, so the login limit (5 a minute
+    // per address) is visible per step.
+    let call = |mut req: Request<Body>, ip: u8| {
+        req.extensions_mut()
+            .insert(ConnectInfo(std::net::SocketAddr::from((
+                [10, 0, 1, ip],
+                40000,
+            ))));
+        let app = openalgo_desktop_lib::server::app(ctx.clone());
+        async move {
+            let resp = app.oneshot(req).await.unwrap();
+            let status = resp.status().as_u16();
+            let location = resp
+                .headers()
+                .get(header::LOCATION)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or_default()
+                .to_string();
+            let body = resp.into_body().collect().await.unwrap().to_bytes();
+            let v: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
+            (status, location, v)
+        }
+    };
+    let open = |ip: u8, extra: &[(&str, &str)]| {
+        let mut b = Request::builder()
+            .uri("/definedge/callback")
+            .header(header::COOKIE, cookie.as_str());
+        for (k, v) in extra {
+            b = b.header(*k, *v);
+        }
+        call(b.body(Body::empty()).unwrap(), ip)
+    };
+    let post = |ip: u8, form: &str, extra: Option<(&str, &str)>| {
+        let mut b = Request::builder()
+            .method("POST")
+            .uri("/definedge/callback")
+            .header(header::COOKIE, cookie.as_str())
+            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded");
+        if let Some((k, v)) = extra {
+            b = b.header(k, v);
+        }
+        call(b.body(Body::from(form.to_string())).unwrap(), ip)
+    };
+    let sends = || fake.calls("/login/API-TOKEN-1").len();
+
+    // Cross-site or unknown, more often than the login limit (5 a minute)
+    // allows: nothing sent, nothing limited.
+    let foreign: [&[(&str, &str)]; 6] = [
+        &[("sec-fetch-site", "cross-site")],
+        &[("sec-fetch-site", "same-site")],
+        &[("origin", "http://evil.example")],
+        &[("origin", "null")],
+        &[("referer", "https://evil.example/")],
+        &[],
+    ];
+    for _ in 0..2 {
+        for extra in foreign {
+            let (status, location, _) = open(1, extra).await;
+            assert!((300..400).contains(&status), "{:?}: {}", extra, status);
+            assert_eq!(location, "/broker/definedge/totp?otp=send", "{:?}", extra);
+        }
+    }
+    assert_eq!(sends(), 0);
+    assert!(!definedge.otp_pending());
+
+    // The app's own navigation, from the same address: sent.
+    let (status, location, _) = open(1, &[("sec-fetch-site", "same-origin")]).await;
+    assert!((300..400).contains(&status), "{}", status);
+    assert_eq!(location, "/broker/definedge/totp");
+    assert_eq!(sends(), 1);
+    assert!(definedge.otp_pending());
+
+    // A cross-site open afterwards keeps the pending OTP and sends nothing.
+    let (_, location, _) = open(1, &[("sec-fetch-site", "cross-site")]).await;
+    assert_eq!(location, "/broker/definedge/totp?otp=send");
+    assert_eq!(sends(), 1);
+    assert!(definedge.otp_pending());
+
+    // A typed address, and webviews without Sec-Fetch-Site whose Origin or
+    // Referer names the app: sent.
+    let referer = format!("{}/broker", app_origin);
+    let own: [&[(&str, &str)]; 3] = [
+        &[("sec-fetch-site", "none")],
+        &[("origin", app_origin.as_str())],
+        &[("referer", referer.as_str())],
+    ];
+    for (i, extra) in own.into_iter().enumerate() {
+        let before = sends();
+        let (_, location, _) = open(2 + i as u8, extra).await;
+        assert_eq!(location, "/broker/definedge/totp", "{:?}", extra);
+        assert_eq!(sends(), before + 1, "{:?}", extra);
+    }
+    assert!(definedge.otp_pending());
+
+    // Send OTP without the CSRF token, or with it from another site:
+    // refused, nothing sent, the pending OTP kept.
+    let csrf = urlencoding::encode(&web.csrf_token).into_owned();
+    let resend = format!("action=resend&csrf_token={}", csrf);
+    let before = sends();
+    let (status, _, _) = post(10, "action=resend", None).await;
+    assert!(status == 400 || status == 403, "{}", status);
+    for foreign in [
+        ("origin", "http://evil.example"),
+        ("origin", "null"),
+        ("sec-fetch-site", "cross-site"),
+        ("sec-fetch-site", "same-site"),
+    ] {
+        let (status, _, _) = post(10, &resend, Some(foreign)).await;
+        assert_eq!(status, 403, "{:?}", foreign);
+    }
+    assert_eq!(sends(), before);
+    assert!(definedge.otp_pending());
+
+    // Send OTP from OpenAlgo with its CSRF token: sent.
+    let (status, _, v) = post(11, &resend, Some(("sec-fetch-site", "same-origin"))).await;
+    assert_eq!(status, 200, "{}", v);
+    assert_eq!(
+        v,
+        json!({"status": "success", "message": "OTP has been resent successfully"})
+    );
+    assert_eq!(sends(), before + 1);
+    assert!(definedge.otp_pending());
+
+    ctx.shutdown().await;
+}
+
 #[tokio::test]
 async fn otp_login_auto_send_wrong_otp_then_success() {
     let (fake, b, _) = setup().await;

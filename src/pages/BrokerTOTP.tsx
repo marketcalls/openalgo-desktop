@@ -1,6 +1,6 @@
 import { AlertTriangle, ArrowLeft, ExternalLink, Loader2, Shield } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { fetchCSRFToken } from '@/api/client'
 import { BrokerAuthSignOut } from '@/components/auth/BrokerAuthSignOut'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -328,11 +328,19 @@ const brokerNames: Record<string, string> = {
   zebu: 'Zebu',
 }
 
+// Desktop: brokers that text a login OTP when their page opens. The server
+// sends it only when OpenAlgo itself opened the page; otherwise it opens the
+// page with `?otp=send` and the trader asks for the OTP here.
+const SENDS_LOGIN_OTP = new Set(['definedge', 'nubra'])
+
 export default function BrokerTOTP() {
   const { broker } = useParams<{ broker: string }>()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { login } = useAuthStore()
   const [isLoading, setIsLoading] = useState(false)
+  const [isSending, setIsSending] = useState(false)
+  const [otpNotice, setOtpNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState<Record<string, string>>({})
 
@@ -345,6 +353,38 @@ export default function BrokerTOTP() {
   const brokerName = broker
     ? brokerNames[broker] || brokerNames[normalizedBroker || ''] || broker
     : 'Broker'
+
+  const otpNotSent =
+    !!normalizedBroker &&
+    SENDS_LOGIN_OTP.has(normalizedBroker) &&
+    searchParams.get('otp') === 'send' &&
+    otpNotice === null
+
+  const handleSendOtp = async () => {
+    setIsSending(true)
+    setError(null)
+    try {
+      const csrfToken = await fetchCSRFToken()
+      const form = new FormData()
+      form.append('action', 'resend')
+      form.append('csrf_token', csrfToken)
+      const response = await fetch(config.callbackUrl || `/${broker}/callback`, {
+        method: 'POST',
+        body: form,
+        credentials: 'include',
+      })
+      const data = await response.json()
+      if (response.ok && data.status === 'success') {
+        setOtpNotice('An OTP has been sent to your registered mobile number.')
+      } else {
+        setError(data.message || 'The OTP could not be sent. Please try again.')
+      }
+    } catch {
+      setError('The OTP could not be sent. Please try again.')
+    } finally {
+      setIsSending(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -464,6 +504,30 @@ export default function BrokerTOTP() {
               </Alert>
             )}
 
+            {otpNotSent && (
+              <Alert className="mb-4">
+                <AlertDescription>
+                  <p>No OTP has been sent yet. Press Send OTP to receive it.</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={handleSendOtp}
+                    disabled={isSending}
+                  >
+                    {isSending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Send OTP
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+            {otpNotice && (
+              <Alert className="mb-4">
+                <AlertDescription>{otpNotice}</AlertDescription>
+              </Alert>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               {config.fields.map((field) => (
                 <div key={field.name} className="space-y-2">
@@ -500,7 +564,10 @@ export default function BrokerTOTP() {
                       className={field.prefix ? 'pl-12' : ''}
                     />
                   </div>
-                  {field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
+                  {/* Desktop: the hint says an OTP was sent; not until it was. */}
+                  {field.hint && !otpNotSent && (
+                    <p className="text-xs text-muted-foreground">{field.hint}</p>
+                  )}
                 </div>
               ))}
 

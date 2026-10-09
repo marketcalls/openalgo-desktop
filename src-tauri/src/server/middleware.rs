@@ -239,6 +239,41 @@ pub fn write_allowed(
         .is_some_and(|t| tokens_match(t, expected))
 }
 
+/// A page navigation the app itself made, or one the trader typed: the
+/// only GETs allowed to trigger a side effect such as a broker OTP send.
+/// `Sec-Fetch-Site` decides when present (`same-origin` or `none`);
+/// without it (older webviews) the `Origin`, else the `Referer`, must name
+/// this app. Anything else (cross-site, or no evidence at all) is not.
+pub fn same_origin_navigation(ctx: &AppState, headers: &HeaderMap) -> bool {
+    let get = |name: &str| headers.get(name).and_then(|v| v.to_str().ok());
+    if let Some(site) = get("sec-fetch-site") {
+        return site == "same-origin" || site == "none";
+    }
+    if let Some(origin) = get("origin") {
+        if origin == "null" {
+            return false;
+        }
+        let host = origin
+            .trim_start_matches("http://")
+            .trim_start_matches("https://");
+        return host_allowed(ctx, host);
+    }
+    let Some(url) = get("referer").and_then(|r| url::Url::parse(r).ok()) else {
+        return false;
+    };
+    if !matches!(url.scheme(), "http" | "https") {
+        return false;
+    }
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    let host = match url.port() {
+        Some(p) => format!("{}:{}", host, p),
+        None => host.to_string(),
+    };
+    host_allowed(ctx, &host)
+}
+
 /// Same-origin check for cookie-authenticated writes (web `logout` uses
 /// `Sec-Fetch-Site`; this applies it to every write).
 fn foreign_origin(ctx: &AppState, headers: &HeaderMap) -> bool {

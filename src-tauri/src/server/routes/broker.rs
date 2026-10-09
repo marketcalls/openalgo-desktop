@@ -86,6 +86,7 @@ pub async fn oauth_callback(
     Path(broker): Path<String>,
     ClientIp(ip): ClientIp,
     Sess(sess): Sess,
+    headers: axum::http::HeaderMap,
     Query(params): Query<HashMap<String, String>>,
 ) -> Response {
     if !valid_broker(&broker) {
@@ -93,13 +94,23 @@ pub async fn oauth_callback(
     }
     if catalog::auth_type(&broker) == AuthType::Form && params.is_empty() {
         // Definedge and Nubra send their login OTP as the page opens (web
-        // brlogin), only for a browser session signed in to OpenAlgo, and
-        // within the login limits (each open sends the trader a message).
-        if sess.as_ref().is_some_and(|s| s.user.is_some()) {
-            if catalog::sends_login_otp(&broker) {
-                if let Some(r) = login_limited(&ctx, ip) {
-                    return r;
-                }
+        // brlogin), only for a browser session signed in to OpenAlgo, only
+        // when the app itself opened the page (a cross-site navigation
+        // carries the Lax session cookie too, and must not text the trader,
+        // replace a pending OTP or use up the login limit), and within the
+        // login limits (each open sends the trader a message). Otherwise
+        // the page opens with a Send OTP action, a CSRF-checked POST.
+        let signed_in = sess.as_ref().is_some_and(|s| s.user.is_some());
+        if signed_in && catalog::sends_login_otp(&broker) {
+            if !crate::server::middleware::same_origin_navigation(&ctx, &headers) {
+                tracing::info!(
+                    "Not sending the {} login OTP: the page was not opened from OpenAlgo",
+                    broker
+                );
+                return redirect(&format!("/broker/{}/totp?otp=send", broker));
+            }
+            if let Some(r) = login_limited(&ctx, ip) {
+                return r;
             }
             if let Err(e) = BrokerAuthService::prepare_form_login(&ctx, &broker).await {
                 // Back to the broker page with the reason (web

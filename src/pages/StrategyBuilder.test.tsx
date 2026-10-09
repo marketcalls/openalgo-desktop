@@ -972,58 +972,66 @@ describe('StrategyBuilder live request orchestration', () => {
     expect(screen.queryByText('11111.00')).not.toBeInTheDocument()
   })
 
-  it('hydrates calendar legs from each expiry response with Greeks requested', async () => {
-    const user = userEvent.setup()
-    const farChain = chainFixture('NIFTY', '18AUG26')
-    farChain.expiry_ts = 1_797_000_000
-    farChain.server_ts = 1_786_000_100
-    farChain.forward_price = 24_880
-    farChain.underlying_ltp = 24_850
-    if (farChain.chain[0].ce) {
-      farChain.chain[0].ce.symbol = 'NIFTY18AUG2624600CE'
-      farChain.chain[0].ce.ltp = 225
-      farChain.chain[0].ce.implied_volatility = 33
-      farChain.chain[0].ce.delta = 0.44
-      farChain.chain[0].ce.gamma = 0.0012
-      farChain.chain[0].ce.theta = -8
-      farChain.chain[0].ce.vega = 9
-      farChain.chain[0].ce.lotsize = 50
-      farChain.chain[0].ce.tick_size = 0.1
-    }
-    mocks.getOptionChain.mockResolvedValue(farChain)
+  it(
+    'hydrates calendar legs from each expiry response with Greeks requested',
+    async () => {
+      const user = userEvent.setup()
+      const farChain = chainFixture('NIFTY', '18AUG26')
+      farChain.expiry_ts = 1_797_000_000
+      farChain.server_ts = 1_786_000_100
+      farChain.forward_price = 24_880
+      farChain.underlying_ltp = 24_850
+      if (farChain.chain[0].ce) {
+        farChain.chain[0].ce.symbol = 'NIFTY18AUG2624600CE'
+        farChain.chain[0].ce.ltp = 225
+        farChain.chain[0].ce.implied_volatility = 33
+        farChain.chain[0].ce.delta = 0.44
+        farChain.chain[0].ce.gamma = 0.0012
+        farChain.chain[0].ce.theta = -8
+        farChain.chain[0].ce.vega = 9
+        farChain.chain[0].ce.lotsize = 50
+        farChain.chain[0].ce.tick_size = 0.1
+      }
+      mocks.getOptionChain.mockResolvedValue(farChain)
 
-    renderBuilder()
-    await waitForAddButton()
-    fireEvent.click(screen.getByRole('button', { name: /Neutral/ }))
-    fireEvent.click(screen.getByRole('button', { name: /Call Calendar/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Add Strategy' }))
+      renderBuilder()
+      await waitForAddButton()
+      fireEvent.click(screen.getByRole('button', { name: /Neutral/ }))
+      fireEvent.click(screen.getByRole('button', { name: /Call Calendar/ }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Add Strategy' }))
 
-    await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: 'Remove position' })).toHaveLength(2)
-    )
-    expect(mocks.getOptionChain).toHaveBeenCalledWith(
-      'test-api-key',
-      'NIFTY',
-      'NSE_INDEX',
-      '18AUG26',
-      20,
-      { withGreeks: true }
-    )
-    expect(screen.getAllByText('18AUG26').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('₹225.00').length).toBeGreaterThan(0)
+      await waitFor(() =>
+        expect(screen.getAllByRole('button', { name: 'Remove position' })).toHaveLength(2)
+      )
+      expect(mocks.getOptionChain).toHaveBeenCalledWith(
+        'test-api-key',
+        'NIFTY',
+        'NSE_INDEX',
+        '18AUG26',
+        20,
+        { withGreeks: true }
+      )
+      expect(screen.getAllByText('18AUG26').length).toBeGreaterThan(0)
+      expect(screen.getAllByText('₹225.00').length).toBeGreaterThan(0)
 
-    await user.click(
-      await screen.findByRole('tab', { name: 'Greeks' }, { timeout: ASYNC_READY_TIMEOUT })
-    )
-    const greekRows = await screen.findAllByRole('row')
-    const farGreekRow = greekRows.find((row) => row.textContent?.includes('18AUG26 24600CE'))
-    expect(farGreekRow).toBeDefined()
-    expect(farGreekRow).toHaveTextContent('33.00')
-    expect(farGreekRow).toHaveTextContent('22.00')
-    expect(farGreekRow).toHaveTextContent('-400.00')
-    expect(farGreekRow).toHaveTextContent('0.060000')
-    expect(farGreekRow).toHaveTextContent('450.00')
-  })
+      await user.click(
+        await screen.findByRole('tab', { name: 'Greeks' }, { timeout: ASYNC_READY_TIMEOUT })
+      )
+      const greekRows = await screen.findAllByRole('row')
+      const farGreekRow = greekRows.find((row) => row.textContent?.includes('18AUG26 24600CE'))
+      expect(farGreekRow).toBeDefined()
+      expect(farGreekRow).toHaveTextContent('33.00')
+      expect(farGreekRow).toHaveTextContent('22.00')
+      expect(farGreekRow).toHaveTextContent('-400.00')
+      expect(farGreekRow).toHaveTextContent('0.060000')
+      expect(farGreekRow).toHaveTextContent('450.00')
+      // The same full-page flow as the calendar refresh test below: four
+      // synchronous re-renders of the whole builder plus two ready waits
+      // budgeted ASYNC_READY_TIMEOUT each, so it needs the same budget as
+      // that test, not the 5 s default (it took up to 5.5 s under load).
+    },
+    SLOW_INTEGRATION_TEST_TIMEOUT
+  )
 
   it(
     'refreshes each calendar expiry from its own option-chain Greeks response',

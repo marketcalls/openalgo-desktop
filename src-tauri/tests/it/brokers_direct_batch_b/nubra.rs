@@ -542,8 +542,11 @@ async fn totp_login_then_mpin() {
 }
 
 /// The in-app flow through the web's routes: GET `/nubra/callback` sends
-/// the OTP and opens the OTP page; POST `/nubra/callback` (form `otp` or
-/// `totp`, CSRF token, signed-in session) signs in with the web's JSON.
+/// the OTP and opens the OTP page, but only when OpenAlgo itself opened it
+/// (a cross-site open sends nothing, keeps a pending OTP and does not count
+/// against the login limit; the page then offers Send OTP, a CSRF-checked,
+/// same-origin POST); POST `/nubra/callback` (form `otp` or `totp`, CSRF
+/// token, signed-in session) signs in with the web's JSON.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn callback_routes_send_and_redeem_the_otp() {
     use axum::body::Body;
@@ -636,13 +639,19 @@ async fn callback_routes_send_and_redeem_the_otp() {
             (status, location, v)
         }
     };
-    let get = |cookie: Option<&str>| {
+    let get_with = |cookie: Option<&str>, extra: &[(&str, &str)]| {
         let mut b = Request::builder().uri("/nubra/callback");
         if let Some(c) = cookie {
             b = b.header(header::COOKIE, c);
         }
+        for (k, v) in extra {
+            b = b.header(*k, *v);
+        }
         b.body(Body::empty()).unwrap()
     };
+    // The app's own navigation from the broker page.
+    let get = |cookie: Option<&str>| get_with(cookie, &[("sec-fetch-site", "same-origin")]);
+    let app_origin = format!("http://127.0.0.1:{}", ctx.server_config().http_port);
     let post_with = |form: &str, extra: Option<(&str, &str)>| {
         let mut b = Request::builder()
             .method("POST")
@@ -662,11 +671,80 @@ async fn callback_routes_send_and_redeem_the_otp() {
     assert_eq!(location, "/broker/nubra/totp");
     assert!(fake.calls("/sendphoneotp").is_empty());
 
-    // Signed in: the OTP is sent, then the OTP page opens.
+    // Signed in, but the page was opened by another site (the Lax session
+    // cookie rides along) or by nothing that shows it came from OpenAlgo:
+    // the page opens with its Send OTP action, nothing is sent, and none
+    // of it counts against the login limit (5 a minute).
+    let foreign: [&[(&str, &str)]; 6] = [
+        &[("sec-fetch-site", "cross-site")],
+        &[("sec-fetch-site", "same-site")],
+        &[("origin", "http://evil.example")],
+        &[("origin", "null")],
+        &[("referer", "http://evil.example/page")],
+        &[],
+    ];
+    for _ in 0..2 {
+        for extra in foreign {
+            let (status, location, _) = send(get_with(Some(&cookie), extra), 2).await;
+            assert!((300..400).contains(&status), "{:?}: {}", extra, status);
+            assert_eq!(location, "/broker/nubra/totp?otp=send", "{:?}", extra);
+        }
+    }
+    assert!(fake.calls("/sendphoneotp").is_empty());
+    assert!(!nubra.otp_pending());
+
+    // Signed in and opened from OpenAlgo: the OTP is sent, then the OTP
+    // page opens (same address as above, so not rate-limited).
     let (status, location, _) = send(get(Some(&cookie)), 2).await;
     assert!((300..400).contains(&status), "{}", status);
     assert_eq!(location, "/broker/nubra/totp");
     assert_eq!(fake.calls("/sendphoneotp").len(), 2);
+    assert!(nubra.otp_pending());
+
+    // A cross-site open now leaves the pending OTP as it is.
+    let (_, location, _) = send(
+        get_with(Some(&cookie), &[("sec-fetch-site", "cross-site")]),
+        2,
+    )
+    .await;
+    assert_eq!(location, "/broker/nubra/totp?otp=send");
+    assert_eq!(fake.calls("/sendphoneotp").len(), 2);
+    assert!(nubra.otp_pending());
+
+    // A typed address, and webviews without Sec-Fetch-Site whose Origin
+    // or Referer names the app: sent.
+    let referer = format!("{}/broker", app_origin);
+    let own: [&[(&str, &str)]; 3] = [
+        &[("sec-fetch-site", "none")],
+        &[("origin", app_origin.as_str())],
+        &[("referer", referer.as_str())],
+    ];
+    for (i, extra) in own.into_iter().enumerate() {
+        let before = fake.calls("/sendphoneotp").len();
+        let (_, location, _) = send(get_with(Some(&cookie), extra), 30 + i as u8).await;
+        assert_eq!(location, "/broker/nubra/totp", "{:?}", extra);
+        assert_eq!(fake.calls("/sendphoneotp").len(), before + 2, "{:?}", extra);
+    }
+    assert!(nubra.otp_pending());
+
+    // The page's Send OTP action is a POST that needs the CSRF token and a
+    // same-origin request: without the token, or with it from another
+    // site, nothing is sent and the pending OTP stays as it is.
+    let csrf = urlencoding::encode(&web.csrf_token).into_owned();
+    let resend = format!("action=resend&csrf_token={}", csrf);
+    let sent = fake.calls("/sendphoneotp").len();
+    let (status, _, _) = send(post("action=resend"), 10).await;
+    assert!(status == 400 || status == 403, "{}", status);
+    for foreign in [
+        ("origin", "http://evil.example"),
+        ("origin", "null"),
+        ("sec-fetch-site", "cross-site"),
+        ("sec-fetch-site", "same-site"),
+    ] {
+        let (status, _, _) = send(post_with(&resend, Some(foreign)), 10).await;
+        assert_eq!(status, 403, "{:?}", foreign);
+    }
+    assert_eq!(fake.calls("/sendphoneotp").len(), sent);
     assert!(nubra.otp_pending());
 
     // No CSRF token: refused, and the pending OTP is untouched.
@@ -675,7 +753,6 @@ async fn callback_routes_send_and_redeem_the_otp() {
     assert!(nubra.otp_pending());
 
     // The right CSRF token from another site: refused as well, untouched.
-    let csrf = urlencoding::encode(&web.csrf_token).into_owned();
     let good = format!("otp=123456&csrf_token={}", csrf);
     for foreign in [
         ("origin", "http://evil.example"),
@@ -725,10 +802,20 @@ async fn callback_routes_send_and_redeem_the_otp() {
     );
     assert_eq!(fake.calls("/verifyphoneotp").len(), 1);
 
+    // The page's Send OTP action from OpenAlgo, with its CSRF token: sent.
+    let sent = fake.calls("/sendphoneotp").len();
+    let (status, _, v) = send(
+        post_with(&resend, Some(("sec-fetch-site", "same-origin"))),
+        8,
+    )
+    .await;
+    assert_eq!(status, 200, "{}", v);
+    assert_eq!(v["status"], "success", "{}", v);
+    assert_eq!(fake.calls("/sendphoneotp").len(), sent + 2);
+    assert!(nubra.otp_pending());
+
     // A wrong OTP: Nubra's reason reaches the trader, and the login is
     // used up.
-    send(get(Some(&cookie)), 8).await;
-    assert!(nubra.otp_pending());
     let (status, _, v) = send(post(&format!("otp=111111&csrf_token={}", csrf)), 8).await;
     assert_eq!(status, 401, "{}", v);
     assert!(

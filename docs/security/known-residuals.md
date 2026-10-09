@@ -18,6 +18,7 @@ tries each one the way a forger would.
 | `POST /<broker>/callback` (compositedge, rmoney `session=`) | Public and CSRF-exempt, so it needs the single-use `state` on its query; without a valid one it is refused |
 | `POST /auth/broker/oauth/manual` (pasted address, tradesmart pasted token) | Signed-in user, CSRF token and same-origin check, and a pending sign-in for that broker started by the same browser session (by its `state`, else the newest one) |
 | `POST /<broker>/callback` (in-app login form, TOTP brokers) | Signed-in user, CSRF token and same-origin check |
+| `GET /<broker>/callback` without a query (definedge, nubra: the login OTP is texted as the page opens) | Signed-in user, a same-origin navigation only (`Sec-Fetch-Site` `same-origin` or `none`, else the app's own `Origin` or `Referer`), and the login limit. A cross-site open sends nothing, keeps a pending OTP and uses no login attempt; the page then offers Send OTP, the CSRF-checked `POST` above |
 | Session resume after restart | Only the encrypted stored session of this install, checked with the broker |
 
 On every path, before anything is stored, the account the broker returns

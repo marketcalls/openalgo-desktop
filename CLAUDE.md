@@ -490,6 +490,11 @@ Every flaky test found so far was a race, not a slow machine:
 - A route is public only if it is in the reviewed list in `server/tests.rs`,
   and a public route that changes state needs its own credential. A CSRF token
   is not one: `GET /auth/csrf-token` hands it to anyone.
+- The session cookie is `SameSite=Lax`, so a cross-site link carries it on
+  a GET. A GET with a side effect (the Definedge and Nubra login OTP texted
+  as their page opens) runs only for a same-origin navigation
+  (`middleware::same_origin_navigation`); otherwise the page offers the
+  action as a CSRF-checked POST.
 - Accept an advisory only when the vulnerable code provably never runs: an
   `ignore` in `.github/deny.toml` with the reason and a review date, the same
   IDs in `.trivyignore`, and the Dependabot alert dismissed as "not used" with
