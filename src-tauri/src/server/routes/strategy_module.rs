@@ -819,6 +819,7 @@ pub async fn checkpoints(
 pub async fn webhook(
     State(ctx): Ctx,
     ClientIp(ip): ClientIp,
+    crate::server::middleware::Src(source): crate::server::middleware::Src,
     Path(token): Path<String>,
     headers: HeaderMap,
     body: Bytes,
@@ -826,7 +827,9 @@ pub async fn webhook(
     use crate::server::ratelimit::Bucket;
     use crate::strategy::webhook::{admit, MAX_PAYLOAD_BYTES};
     // Before any token lookup, secret check, body read or order path.
-    if !admit(&ctx.strategy.webhook, &ctx.limiter, ip, &token) {
+    // Tunnel callers are counted per token, never all together (S-03).
+    let limit_key = crate::server::middleware::limiter_key(ip, "strategy-webhook", &token);
+    if !admit(&ctx.strategy.webhook, &ctx.limiter, limit_key, &token) {
         return json_response(
             StatusCode::TOO_MANY_REQUESTS,
             json!({
@@ -850,17 +853,20 @@ pub async fn webhook(
     let ua = headers
         .get(axum::http::header::USER_AGENT)
         .and_then(|v| v.to_str().ok());
-    let ip_text = ip.to_string();
+    // An IP allowlist applies to devices on the network only: a caller
+    // behind a tunnel has no address the app can see, so it never matches
+    // an entry (security review S-03).
+    let ip_text = source.network_address().map(|ip| ip.to_string());
     let outcome = ctx
         .strategy
-        .handle_webhook(&token, &body, Some(&ip_text), ua)
+        .handle_webhook(&token, &body, ip_text.as_deref(), ua)
         .await;
     if matches!(outcome.result.as_str(), "rejected_token" | "rejected_ip") {
         // A failed authentication, counted per caller address; over the
         // limit the address is refused before any lookup.
         let _ = ctx
             .limiter
-            .check(Bucket::WebhookFail, ip, ctx.limiter.now());
+            .check(Bucket::WebhookFail, limit_key, ctx.limiter.now());
     }
     json_response(
         StatusCode::from_u16(outcome.status).unwrap_or(StatusCode::BAD_REQUEST),

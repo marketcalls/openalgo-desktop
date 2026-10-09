@@ -282,10 +282,85 @@ fn redact_stored_paths(conn: &Connection) -> Result<()> {
     }
 }
 
+/// Migration `012_canonical_ban_addresses` of `logs.db`: every stored ban in
+/// the one spelling the checks look up (`::ffff:1.2.3.4` is `1.2.3.4`, IPv6
+/// compressed and lower case), so a ban written another way by an earlier
+/// build is not skipped. Two rows for one address become one, keeping the
+/// stricter ban. Idempotent and recorded once.
+fn canonical_ban_addresses(conn: &Connection) -> Result<()> {
+    if applied(conn, "012_canonical_ban_addresses")? {
+        return Ok(());
+    }
+    conn.execute_batch("BEGIN IMMEDIATE")?;
+    let r = (|| -> Result<()> {
+        let rows: Vec<(i64, String, bool, Option<String>)> = {
+            let mut st = conn.prepare(
+                "SELECT id, ip_address, is_permanent, expires_at FROM ip_bans ORDER BY id",
+            )?;
+            let v = st
+                .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            v
+        };
+        for (id, ip, permanent, expires) in rows {
+            let Some(canonical) = crate::server::addr::canonical_text(&ip) else {
+                continue;
+            };
+            if canonical == ip {
+                continue;
+            }
+            let keep: Option<i64> = conn
+                .query_row(
+                    "SELECT id FROM ip_bans WHERE ip_address = ?1",
+                    [&canonical],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            match keep {
+                Some(keep) => {
+                    conn.execute(
+                        "UPDATE ip_bans SET
+                             is_permanent = MAX(is_permanent, ?2),
+                             expires_at = CASE
+                                 WHEN MAX(is_permanent, ?2) = 1 THEN NULL
+                                 WHEN ?3 IS NOT NULL AND (expires_at IS NULL OR ?3 > expires_at) THEN ?3
+                                 ELSE expires_at END
+                         WHERE id = ?1",
+                        params![keep, permanent, expires],
+                    )?;
+                    conn.execute("DELETE FROM ip_bans WHERE id = ?1", [id])?;
+                }
+                None => {
+                    conn.execute(
+                        "UPDATE ip_bans SET ip_address = ?1 WHERE id = ?2",
+                        params![canonical, id],
+                    )?;
+                }
+            }
+        }
+        conn.execute(
+            "INSERT OR IGNORE INTO migrations (name) VALUES ('012_canonical_ban_addresses')",
+            [],
+        )?;
+        Ok(())
+    })();
+    match r {
+        Ok(()) => {
+            conn.execute_batch("COMMIT")?;
+            Ok(())
+        }
+        Err(e) => {
+            let _ = conn.execute_batch("ROLLBACK");
+            Err(e)
+        }
+    }
+}
+
 /// Schema for the monitoring tables (idempotent). Runs on every open.
 pub fn migrate(conn: &Connection) -> Result<()> {
     create_tables(conn)?;
-    redact_stored_paths(conn)
+    redact_stored_paths(conn)?;
+    canonical_ban_addresses(conn)
 }
 
 fn create_tables(conn: &Connection) -> Result<()> {
@@ -602,23 +677,21 @@ pub struct BanRow {
 }
 
 pub fn is_loopback_ip(ip: &str) -> bool {
-    matches!(ip, "127.0.0.1" | "::1" | "localhost")
-        || ip
-            .parse::<std::net::IpAddr>()
-            .map(|a| a.is_loopback())
-            .unwrap_or(false)
+    ip.trim().eq_ignore_ascii_case("localhost")
+        || crate::server::addr::parse(ip).is_some_and(|a| a.is_loopback())
 }
 
 /// Addresses that are never banned: loopback (the trader's own machine), and
 /// the internal identities in the discard-only `100::/64` block: the shared
 /// identity of every caller behind a tunnel or proxy (banning it would cut
 /// off the trader's own TradingView and Chartink alerts) and the MCP
-/// dispatcher (security review S-03).
+/// dispatcher (security review S-03). Every real address, however it is
+/// written, is checked like any other.
 pub fn never_banned(ip: &str) -> bool {
     is_loopback_ip(ip)
         || matches!(
-            ip.parse::<std::net::IpAddr>(),
-            Ok(std::net::IpAddr::V6(v)) if v.segments()[..4] == [0x100, 0, 0, 0]
+            crate::server::addr::parse(ip),
+            Some(std::net::IpAddr::V6(v)) if v.segments()[..4] == [0x100, 0, 0, 0]
         )
 }
 
@@ -635,6 +708,12 @@ pub fn ban_ip(
     now: DateTime<Utc>,
     repeat_limit: i64,
 ) -> Result<bool> {
+    // Stored in the one spelling every check looks up: `::ffff:1.2.3.4`
+    // is `1.2.3.4`, IPv6 in its compressed lower-case form.
+    let Some(ip) = crate::server::addr::canonical_text(ip) else {
+        return Ok(false);
+    };
+    let ip = ip.as_str();
     if never_banned(ip) {
         return Ok(false);
     }
@@ -673,7 +752,11 @@ pub fn ban_ip(
 }
 
 pub fn unban_ip(conn: &Connection, ip: &str) -> Result<bool> {
-    Ok(conn.execute("DELETE FROM ip_bans WHERE ip_address = ?1", [ip])? > 0)
+    let canonical = crate::server::addr::canonical_text(ip).unwrap_or_else(|| ip.to_string());
+    Ok(conn.execute(
+        "DELETE FROM ip_bans WHERE ip_address IN (?1, ?2)",
+        params![canonical, ip],
+    )? > 0)
 }
 
 pub fn all_bans(conn: &Connection, now: DateTime<Utc>) -> Result<Vec<BanRow>> {
@@ -1413,6 +1496,44 @@ mod tests {
         assert!(!tried.contains("SECRET"), "{}", tried);
         assert!(tried.contains("/chartink/webhook/<redacted>"));
         assert!(tried.contains("/x"));
+    }
+
+    /// Bans stored in other spellings by earlier builds become one row per
+    /// address in the canonical spelling, keeping the stricter ban.
+    #[test]
+    fn stored_bans_are_rewritten_in_one_spelling() {
+        let c = Connection::open_in_memory().unwrap();
+        c.execute_batch(
+            "CREATE TABLE migrations (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE,
+             applied_at TEXT NOT NULL DEFAULT (datetime('now')));",
+        )
+        .unwrap();
+        create_tables(&c).unwrap();
+        c.execute_batch(
+            "INSERT INTO ip_bans (ip_address, banned_at, expires_at, is_permanent)
+                 VALUES ('1.2.3.4', 't', '2026-01-01T00:00:00Z', 0),
+                        ('::ffff:1.2.3.4', 't', NULL, 1),
+                        ('2001:DB8:0:0::1', 't', '2026-01-01T00:00:00Z', 0);",
+        )
+        .unwrap();
+        migrate(&c).unwrap();
+        migrate(&c).unwrap();
+        let rows: Vec<(String, bool)> = c
+            .prepare("SELECT ip_address, is_permanent FROM ip_bans ORDER BY ip_address")
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(
+            rows,
+            vec![
+                ("1.2.3.4".to_string(), true),
+                ("2001:db8::1".to_string(), false)
+            ]
+        );
+        // Unbanning by any spelling finds the row.
+        assert!(unban_ip(&c, "[2001:DB8::1]").unwrap());
     }
 
     #[test]

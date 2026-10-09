@@ -31,6 +31,13 @@ pub trait FeedAuth: Send + Sync + 'static {
     fn adapter_status(&self) -> &'static str {
         "connected"
     }
+
+    /// Whether a connection from `peer` is refused before anything else is
+    /// read from it: a banned address on the network, from the same ban
+    /// list every HTTP surface checks.
+    fn refused(&self, _peer: std::net::IpAddr) -> bool {
+        false
+    }
 }
 
 /// Authentication against the app's stored API key and broker session.
@@ -46,6 +53,13 @@ impl AppAuth {
 
 #[async_trait::async_trait]
 impl FeedAuth for AppAuth {
+    /// Bans apply to devices on the network only (this computer and tunnel
+    /// callers are never banned), compared as canonical addresses.
+    fn refused(&self, peer: std::net::IpAddr) -> bool {
+        let ip = crate::server::addr::canonical(peer);
+        !ip.is_loopback() && self.ctx.monitor.is_banned(&ip.to_string(), self.ctx.now())
+    }
+
     async fn authenticate(&self, api_key: &str) -> AuthOutcome {
         let ctx = self.ctx.clone();
         let key = api_key.to_string();

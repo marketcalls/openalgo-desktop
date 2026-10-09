@@ -9,8 +9,6 @@
 
 use crate::server::envelope::{error, json_response, read_json_object, FieldErrors};
 use crate::server::middleware::ClientIp;
-use crate::server::ratelimit::Bucket;
-use crate::services::apikey_service::ApiKeyService;
 use crate::services::market_calendar_service as svc;
 use crate::state::AppState;
 use crate::webhook::handlers::INVALID_API_KEY;
@@ -23,7 +21,6 @@ use chrono::NaiveDate;
 use serde_json::{Map, Value};
 use std::net::IpAddr;
 use std::sync::Arc;
-use std::time::Instant;
 
 type Ctx = State<Arc<AppState>>;
 
@@ -61,18 +58,10 @@ fn unknown(f: &mut FieldErrors, body: &Map<String, Value>, allowed: &[&str]) {
     }
 }
 
-/// A valid API key; no broker session is needed for calendar data.
+/// A valid API key; no broker session is needed for calendar data. Same
+/// failure throttle as every other `/api/v1` route.
 fn key_ok(ctx: &AppState, key: &str, ip: IpAddr) -> bool {
-    let now = Instant::now();
-    if ctx.limiter.is_exhausted(Bucket::ApiKeyFail, ip, now) {
-        return false;
-    }
-    if ApiKeyService::is_valid(ctx, key) {
-        true
-    } else {
-        let _ = ctx.limiter.check(Bucket::ApiKeyFail, ip, now);
-        false
-    }
+    crate::server::api_v1::authorize(ctx, key, ip, crate::server::api_v1::Auth::KeyOnly)
 }
 
 fn unexpected(e: impl std::fmt::Display) -> Response {

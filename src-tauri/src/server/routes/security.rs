@@ -16,8 +16,10 @@ use axum::{
 };
 use serde_json::json;
 use std::collections::HashMap;
-use std::net::IpAddr;
 use std::sync::Arc;
+
+/// Shown when a trader tries to ban the identity every tunnel caller shares.
+const TUNNEL_IDENTITY: &str = "This address stands for every request that comes through your tunnel, including your own alerts, so it cannot be banned. Ban the caller's own address instead.";
 
 type Ctx = State<Arc<AppState>>;
 
@@ -59,11 +61,15 @@ pub async fn ban(State(ctx): Ctx, body: JsonBody) -> Response {
     if ip.is_empty() {
         return err(StatusCode::BAD_REQUEST, "IP address is required");
     }
-    if ip.parse::<IpAddr>().is_err() {
+    // One spelling per address, as every ban check compares.
+    let Some(ip) = crate::server::addr::canonical_text(&ip) else {
         return err(StatusCode::BAD_REQUEST, "Invalid IP address format");
-    }
+    };
     if store::is_loopback_ip(&ip) {
         return err(StatusCode::BAD_REQUEST, "Cannot ban localhost");
+    }
+    if store::never_banned(&ip) {
+        return err(StatusCode::BAD_REQUEST, TUNNEL_IDENTITY);
     }
     let now = ctx.now();
     let limit = ctx.monitor.security_settings(&ctx).repeat_offender_limit;
@@ -96,6 +102,7 @@ pub async fn unban(State(ctx): Ctx, body: JsonBody) -> Response {
     if ip.is_empty() {
         return err(StatusCode::BAD_REQUEST, "IP address is required");
     }
+    let ip = crate::server::addr::canonical_text(&ip).unwrap_or(ip);
     match ctx.logs.conn().and_then(|c| store::unban_ip(&c, &ip)) {
         Ok(true) => {
             ctx.monitor.reload_bans(&ctx);
@@ -119,9 +126,12 @@ pub async fn ban_host(State(ctx): Ctx, body: JsonBody) -> Response {
     let hours = (!permanent).then_some(24);
     let now = ctx.now();
     let limit = ctx.monitor.security_settings(&ctx).repeat_offender_limit;
-    if host.parse::<IpAddr>().is_ok() {
+    if let Some(host) = crate::server::addr::canonical_text(&host) {
         if store::is_loopback_ip(&host) {
             return err(StatusCode::BAD_REQUEST, "Cannot ban localhost");
+        }
+        if store::never_banned(&host) {
+            return err(StatusCode::BAD_REQUEST, TUNNEL_IDENTITY);
         }
         let r = ctx.logs.conn().and_then(|c| {
             store::ban_ip(
@@ -155,7 +165,7 @@ pub async fn ban_host(State(ctx): Ctx, body: JsonBody) -> Response {
         let ips = store::traffic_ips_for_host(&c, &host)?;
         let mut n = 0;
         for ip in &ips {
-            if !store::is_loopback_ip(ip)
+            if !store::never_banned(ip)
                 && store::ban_ip(
                     &c,
                     ip,

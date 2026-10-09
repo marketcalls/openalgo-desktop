@@ -1746,7 +1746,9 @@ function WebhookTab({
           <CardTitle>TradingView webhook</CardTitle>
           <CardDescription>
             The URL carries a per-strategy secret token. The token is shown once on create or
-            rotate, and stored only as a hash.
+            rotate, and stored only as a hash. Through a tunnel (ngrok, Cloudflare Tunnel) OpenAlgo
+            cannot see the caller's address, so an IP allowlist does not apply there: keep the URL
+            secret, it is what protects the webhook.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

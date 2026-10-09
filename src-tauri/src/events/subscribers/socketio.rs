@@ -23,6 +23,8 @@ pub struct SocketEmitter {
     io: parking_lot::RwLock<Option<socketioxide::SocketIo>>,
     /// The app, to tell which connections are still signed in.
     owner: parking_lot::RwLock<std::sync::Weak<crate::state::AppState>>,
+    /// The task that closes connections of ended sessions is running.
+    sweeping: std::sync::atomic::AtomicBool,
 }
 
 impl SocketEmitter {
@@ -30,25 +32,79 @@ impl SocketEmitter {
         *self.io.write() = io;
     }
 
+    /// Record the app and start, once, the owned task that closes every
+    /// live update connection whose browser session has ended, each time a
+    /// session ends (security review S-09).
     pub fn set_owner(&self, owner: std::sync::Weak<crate::state::AppState>) {
-        *self.owner.write() = owner;
+        *self.owner.write() = owner.clone();
+        if self
+            .sweeping
+            .swap(true, std::sync::atomic::Ordering::SeqCst)
+        {
+            return;
+        }
+        let Some(ctx) = owner.upgrade() else {
+            self.sweeping
+                .store(false, std::sync::atomic::Ordering::SeqCst);
+            return;
+        };
+        let mut ended = ctx.sessions.subscribe_ended();
+        let token = ctx.shutdown.clone();
+        ctx.spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    changed = ended.changed() => {
+                        if changed.is_err() {
+                            break;
+                        }
+                        // Weak: the context owns this task.
+                        let Some(ctx) = owner.upgrade() else { break };
+                        if let Some(io) = ctx.ui.io() {
+                            crate::server::socketio::disconnect_signed_out(&ctx, &io);
+                        }
+                    }
+                }
+            }
+        });
     }
 
     /// The Socket.IO handle, for room-addressed pushes (strategy rooms).
     pub fn io(&self) -> Option<socketioxide::SocketIo> {
         self.io.read().clone()
     }
+
+    /// Send `event` to every connection (or every one in `room`) whose
+    /// browser session is still signed in, checked at the moment of
+    /// sending, and close the others: a push never reaches a session that
+    /// has ended, whatever the order of a sign-out and a reconnect.
+    pub fn emit_signed_in(&self, room: Option<&str>, event: &str, payload: &Value) {
+        let Some(io) = self.io() else {
+            return;
+        };
+        let Some(ctx) = self.owner.read().upgrade() else {
+            return;
+        };
+        let sockets = match room {
+            Some(r) => io.within(r.to_string()).sockets(),
+            None => io.sockets(),
+        };
+        for socket in sockets {
+            if crate::server::socketio::signed_in(&ctx, &socket) {
+                if let Err(e) = socket.emit(event, payload) {
+                    tracing::debug!("Socket.IO emit '{}' failed: {}", event, e);
+                }
+            } else {
+                let _ = socket.disconnect();
+            }
+        }
+    }
 }
 
 #[async_trait::async_trait]
 impl UiEmitter for SocketEmitter {
     async fn emit(&self, event: &str, payload: Value) {
-        let io = self.io.read().clone();
-        if let Some(io) = io {
-            if let Err(e) = io.emit(event.to_string(), &payload).await {
-                tracing::debug!("Socket.IO emit '{}' failed: {}", event, e);
-            }
-        }
+        self.emit_signed_in(None, event, &payload);
     }
 
     async fn disconnect_signed_out(&self) {

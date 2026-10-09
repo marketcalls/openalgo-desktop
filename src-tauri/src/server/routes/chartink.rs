@@ -191,6 +191,8 @@ pub async fn webhook_route(
     req: Request,
 ) -> Response {
     use crate::server::ratelimit::Bucket;
+    // Tunnel callers are counted per webhook id, never all together (S-03).
+    let ip = crate::server::middleware::limiter_key(ip, "chartink-webhook", &webhook_id);
     if !webhook::admit(&ctx.chartink.guard, &ctx.limiter, ip, &webhook_id) {
         return json_response(
             StatusCode::TOO_MANY_REQUESTS,

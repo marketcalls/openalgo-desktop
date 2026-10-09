@@ -414,6 +414,13 @@ async fn accept_loop(listener: TcpListener, shared: Arc<Shared>, token: Cancella
                     }
                     continue;
                 }
+                // A banned address is closed before the handshake, as every
+                // HTTP surface refuses it.
+                if shared.auth.refused(peer.ip()) {
+                    tracing::warn!("Market data feed refused a blocked address");
+                    drop(stream);
+                    continue;
+                }
                 let remote = (!peer.ip().is_loopback()).then_some(peer.ip());
                 if let Some(ip) = remote {
                     let mut m = shared.per_address.lock();

@@ -125,6 +125,11 @@ pub async fn oauth_callback(
         }
         return redirect(&format!("/broker/{}/totp", broker));
     }
+    // The broker's redirect is a top-level page load; an image or frame
+    // from another site must not use up the sign-in limit (S-02).
+    if crate::server::middleware::cross_site_subresource(&headers) {
+        return error(StatusCode::FORBIDDEN, "Request blocked.");
+    }
     if let Some(r) = login_limited(&ctx, ip) {
         return r;
     }
@@ -158,6 +163,10 @@ pub async fn callback_post(
         return error(StatusCode::NOT_FOUND, "Unknown broker.");
     }
     if catalog::posts_callback(&broker) {
+        // The broker's form post is a top-level page load (S-02).
+        if crate::server::middleware::cross_site_subresource(&headers) {
+            return error(StatusCode::FORBIDDEN, "Request blocked.");
+        }
         if let Some(r) = login_limited(&ctx, ip) {
             return r;
         }

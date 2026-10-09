@@ -446,17 +446,28 @@ async fn bad_api_keys_are_throttled_per_ip() {
     let h = H::new();
     h.setup();
     h.connect_broker();
+    // Another device (loopback is never locked out: security review S-02).
+    let lan: std::net::IpAddr = "192.168.1.50".parse().unwrap();
     for _ in 0..12 {
-        let (s, v) = h
-            .json(post_json("/api/v1/ping", json!({"apikey": "wrong"})))
-            .await;
+        let mut r = post_json("/api/v1/ping", json!({"apikey": "wrong"}));
+        r.extensions_mut()
+            .insert(axum::extract::ConnectInfo(std::net::SocketAddr::new(
+                lan, 50000,
+            )));
+        r.headers_mut().insert(
+            header::HOST,
+            format!("127.0.0.1:{}", h.ctx().server_config().http_port)
+                .parse()
+                .unwrap(),
+        );
+        let (s, v) = h.json(r).await;
         assert_eq!(s, StatusCode::FORBIDDEN);
         assert_eq!(v["message"], "Invalid openalgo apikey");
     }
     assert!(h.ctx().limiter.is_exhausted(
         crate::server::ratelimit::Bucket::ApiKeyFail,
-        std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
-        std::time::Instant::now()
+        lan,
+        h.ctx().limiter.now()
     ));
 }
 
@@ -740,27 +751,39 @@ async fn setup_login_logout_lifecycle_like_the_web() {
     assert_eq!(s, StatusCode::BAD_REQUEST);
     assert_eq!(v["redirect"], "/setup");
 
-    // Weak password is refused with the web's message.
+    // Weak password is refused with the web's message. Setup needs the
+    // page's session and CSRF token, like the web's setup form.
+    let (setup_cookie, setup_csrf) = h.session(false);
+    let setup = |fields: &[(&str, &str)]| {
+        with_session(
+            multipart("/setup", fields),
+            &setup_cookie,
+            Some(&setup_csrf),
+        )
+    };
     let (s, v) = h
-        .json(multipart(
-            "/setup",
-            &[("username", USER), ("email", EMAIL), ("password", "weak")],
-        ))
+        .json(setup(&[
+            ("username", USER),
+            ("email", EMAIL),
+            ("password", "weak"),
+        ]))
         .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
     assert_eq!(v["message"], "Password must be at least 8 characters long");
     let (s, _) = h
-        .json(multipart(
-            "/setup",
-            &[("username", USER), ("email", EMAIL), ("password", PASSWORD)],
-        ))
+        .json(setup(&[
+            ("username", USER),
+            ("email", EMAIL),
+            ("password", PASSWORD),
+        ]))
         .await;
     assert_eq!(s, StatusCode::OK);
     let (s, _) = h
-        .json(multipart(
-            "/setup",
-            &[("username", "x"), ("email", EMAIL), ("password", PASSWORD)],
-        ))
+        .json(setup(&[
+            ("username", "x"),
+            ("email", EMAIL),
+            ("password", PASSWORD),
+        ]))
         .await;
     assert_eq!(s, StatusCode::BAD_REQUEST, "second setup refused");
 
@@ -967,20 +990,35 @@ async fn stale_token_is_not_resumed_even_without_the_scheduler() {
 async fn login_is_throttled_per_ip() {
     let h = H::new();
     h.setup();
+    // The app's page opened from a device on the network (this computer has
+    // the same limit: `security::s02_local_guessing_...`).
+    let lan = |r: Request<Body>| {
+        let mut r = r;
+        r.extensions_mut()
+            .insert(axum::extract::ConnectInfo(std::net::SocketAddr::new(
+                "192.168.1.50".parse().unwrap(),
+                50000,
+            )));
+        let own = format!("127.0.0.1:{}", h.ctx().server_config().http_port);
+        r.headers_mut().insert(header::HOST, own.parse().unwrap());
+        r.headers_mut()
+            .insert(header::ORIGIN, format!("http://{}", own).parse().unwrap());
+        r
+    };
     for _ in 0..5 {
         let (s, _) = h
-            .json(multipart(
+            .json(lan(multipart(
                 "/auth/login",
                 &[("username", USER), ("password", "Wrong@123")],
-            ))
+            )))
             .await;
         assert_eq!(s, StatusCode::UNAUTHORIZED);
     }
     let (s, v) = h
-        .json(multipart(
+        .json(lan(multipart(
             "/auth/login",
             &[("username", USER), ("password", PASSWORD)],
-        ))
+        )))
         .await;
     assert_eq!(s, StatusCode::TOO_MANY_REQUESTS);
     assert_eq!(

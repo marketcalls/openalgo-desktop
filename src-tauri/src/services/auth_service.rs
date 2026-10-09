@@ -7,6 +7,28 @@ use crate::security::{totp, KeyMode, Secret};
 use crate::services::apikey_service::ApiKeyService;
 use crate::state::AppState;
 
+/// The answer to a wrong current password on a password change.
+pub const WRONG_CURRENT_PASSWORD: &str = "Current password is incorrect";
+
+/// Pepper of the stand-in hash checked for a name that is not the
+/// account's (see [`AuthService::verify_credentials`]). Not a secret.
+const STAND_IN_PEPPER: [u8; 32] = [0x5a; 32];
+
+/// A fixed Argon2id hash with the same parameters as the account's, made
+/// once per process, that every password for a name that is not the
+/// account's is checked against: the same work as a wrong password.
+fn stand_in_hash() -> &'static str {
+    static HASH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    HASH.get_or_init(|| {
+        crate::security::hashing::hash_password(&STAND_IN_PEPPER, "openalgo-no-such-user")
+            .unwrap_or_default()
+    })
+}
+
+/// How many sign-ins were checked against the stand-in hash (tests read
+/// it to see the unknown-name path ran the same work).
+pub static STAND_IN_CHECKS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// Same rules and messages as the web's `validate_password_strength`.
 pub fn validate_password_strength(password: &str) -> std::result::Result<(), &'static str> {
     if password.is_empty() {
@@ -107,6 +129,16 @@ impl AuthService {
             user::find_by_username(&conn, username)?
         };
         let Some(row) = row else {
+            // A name that is not the account's is checked against a fixed
+            // stand-in hash with the account's Argon2 parameters: the same
+            // work, the same answer and (in the caller) the same budget as
+            // a wrong password, so nothing tells which names exist.
+            STAND_IN_CHECKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let _ = crate::security::hashing::verify_password(
+                &STAND_IN_PEPPER,
+                password,
+                stand_in_hash(),
+            );
             return Ok(LoginOutcome::Invalid);
         };
         if state.security.mode() == KeyMode::Password
@@ -179,9 +211,9 @@ impl AuthService {
             let conn = state.sqlite.conn()?;
             user::find_by_username(&conn, username)?
         }
-        .ok_or_else(|| AppError::Validation("Current password is incorrect".into()))?;
+        .ok_or_else(|| AppError::Validation(WRONG_CURRENT_PASSWORD.into()))?;
         if !state.security.verify_password(old, &row.password_hash)? {
-            return Err(AppError::Validation("Current password is incorrect".into()));
+            return Err(AppError::Validation(WRONG_CURRENT_PASSWORD.into()));
         }
         if new != confirm {
             return Err(AppError::Validation("New passwords do not match".into()));

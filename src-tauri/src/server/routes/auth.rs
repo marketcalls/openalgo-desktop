@@ -5,7 +5,8 @@ use crate::security::{totp, Secret};
 use crate::server::envelope::{error, json_response};
 use crate::server::form::FormData;
 use crate::server::middleware::{
-    clear_session_cookie, login_limited, redirect, with_cookie, ClientIp, Sess, User,
+    claim_sign_in, clear_session_cookie, login_limited, redirect, sign_in_refused, sign_in_source,
+    with_cookie, Sess, Src, User,
 };
 use crate::server::ratelimit::Bucket;
 use crate::services::apikey_service::ApiKeyService;
@@ -21,7 +22,6 @@ use axum::{
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
-use std::time::Instant;
 
 type Ctx = State<Arc<AppState>>;
 
@@ -54,8 +54,18 @@ pub async fn app_info() -> Response {
     ok(json!({"status": "success", "version": env!("CARGO_PKG_VERSION"), "name": "OpenAlgo"}))
 }
 
-/// POST /setup (form: username, email, password[, confirm_password])
-pub async fn setup(State(ctx): Ctx, form: FormData) -> Response {
+/// POST /setup (form: username, email, password[, confirm_password]).
+/// The session layer requires the CSRF token and a same-origin request;
+/// from anywhere but this computer (a tunnel, a proxy, another device) the
+/// account cannot be created at all.
+pub async fn setup(State(ctx): Ctx, Src(source): Src, form: FormData) -> Response {
+    if !source.is_local() {
+        tracing::warn!("Account setup refused: request did not come from this computer");
+        return error(
+            StatusCode::FORBIDDEN,
+            "Create your account on the computer where OpenAlgo Desktop is installed.",
+        );
+    }
     let username = form.non_empty("username").unwrap_or_default();
     let email = form.non_empty("email").unwrap_or_default();
     let password = Secret::new(form.get("password").unwrap_or_default());
@@ -126,12 +136,21 @@ async fn finish_sign_in(
 pub async fn login(
     State(ctx): Ctx,
     Sess(sess): Sess,
-    ClientIp(ip): ClientIp,
+    Src(source): Src,
+    headers: HeaderMap,
     form: FormData,
 ) -> Response {
+    // A post that is not from the app's own page (a cross-site form, or a
+    // program elsewhere) is refused before anything counts or is checked,
+    // so a web page cannot spend the trader's budget (security review S-02).
+    if let Some(r) = sign_in_refused(&ctx, &headers, source) {
+        return r;
+    }
+    let ip = source.ip();
     if let Some(r) = login_limited(&ctx, ip) {
         return r;
     }
+    let username = form.non_empty("username").unwrap_or_default();
     match AuthService::needs_setup(&ctx) {
         Ok(true) => {
             return json_response(
@@ -154,7 +173,14 @@ pub async fn login(
             );
         }
     }
-    let username = form.non_empty("username").unwrap_or_default();
+    // The failure budget of this source, whatever name was typed (so the
+    // delays never tell which name is the account's), claimed and counted
+    // as a failure before the password is checked: no password is checked
+    // while its wait runs, and parallel requests cannot all pass.
+    let attempt = match claim_sign_in(&ctx, source) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
     let password = Secret::new(form.get("password").unwrap_or_default());
     let c2 = ctx.clone();
     let u2 = username.clone();
@@ -164,6 +190,7 @@ pub async fn login(
     .await;
     match outcome {
         Ok(Ok(LoginOutcome::Success(user))) => {
+            attempt.succeeded();
             tracing::info!("Sign-in succeeded");
             crate::services::security_service::record_login(
                 &ctx, &user, ip, "success", "password", None,
@@ -171,6 +198,10 @@ pub async fn login(
             finish_sign_in(&ctx, sess.as_ref().map(|s| s.id.as_str()), &user).await
         }
         Ok(Ok(LoginOutcome::TotpRequired(user))) => {
+            // The password was right, so this attempt is given back; earlier
+            // failures stay until the code is right too, so someone who
+            // knows the password cannot clear them between code guesses.
+            attempt.released();
             let now = ctx.now();
             let s = match &sess {
                 Some(s) => ctx.sessions.rotate(&s.id, now),
@@ -189,6 +220,10 @@ pub async fn login(
             )
         }
         Ok(Ok(LoginOutcome::Invalid)) => {
+            // A wrong password and a name that is not the account's give
+            // the same answer, after the same work, and spend the same
+            // budget.
+            attempt.failed();
             tracing::info!("Sign-in failed: invalid credentials");
             crate::services::security_service::record_login(
                 &ctx,
@@ -200,11 +235,17 @@ pub async fn login(
             );
             error(StatusCode::UNAUTHORIZED, "Invalid credentials")
         }
-        Ok(Err(e)) => e.into_response(),
-        Err(_) => error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Login failed. Please try again.",
-        ),
+        Ok(Err(e)) => {
+            attempt.released();
+            e.into_response()
+        }
+        Err(_) => {
+            attempt.released();
+            error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Login failed. Please try again.",
+            )
+        }
     }
 }
 
@@ -224,9 +265,14 @@ pub async fn login_page(State(ctx): Ctx, Sess(sess): Sess) -> Response {
 pub async fn login_totp(
     State(ctx): Ctx,
     Sess(sess): Sess,
-    ClientIp(ip): ClientIp,
+    Src(source): Src,
+    headers: HeaderMap,
     form: FormData,
 ) -> Response {
+    if let Some(r) = sign_in_refused(&ctx, &headers, source) {
+        return r;
+    }
+    let ip = source.ip();
     if let Some(r) = login_limited(&ctx, ip) {
         return r;
     }
@@ -255,8 +301,15 @@ pub async fn login_totp(
     if code.is_empty() {
         return error(StatusCode::BAD_REQUEST, "TOTP code is required.");
     }
+    // The account's budget from this source, the same one its password
+    // spends, claimed before the code is checked.
+    let attempt = match claim_sign_in(&ctx, source) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
     match AuthService::verify_totp_for(&ctx, &user, &code) {
         Ok(true) => {
+            attempt.succeeded();
             ctx.sessions
                 .update(&s.id, |x| x.totp_verified_at = Some(now));
             crate::services::security_service::record_login(
@@ -265,6 +318,7 @@ pub async fn login_totp(
             finish_sign_in(&ctx, Some(&s.id), &user).await
         }
         Ok(false) => {
+            attempt.failed();
             crate::services::security_service::record_login(
                 &ctx,
                 &user,
@@ -275,7 +329,10 @@ pub async fn login_totp(
             );
             error(StatusCode::UNAUTHORIZED, "Invalid TOTP code.")
         }
-        Err(e) => e.into_response(),
+        Err(e) => {
+            attempt.released();
+            e.into_response()
+        }
     }
 }
 
@@ -361,12 +418,15 @@ fn hash_token(t: &str) -> String {
 pub async fn reset_password(
     State(ctx): Ctx,
     Sess(sess): Sess,
-    ClientIp(ip): ClientIp,
+    Src(source): Src,
+    headers: HeaderMap,
     form: FormData,
 ) -> Response {
+    // Per address only; the authenticator code below also spends the
+    // source's sign-in budget.
     if ctx
         .limiter
-        .check(Bucket::Reset, ip, Instant::now())
+        .check(Bucket::Reset, source.ip(), ctx.limiter.now())
         .is_err()
     {
         return error(
@@ -393,8 +453,23 @@ pub async fn reset_password(
                     "Password reset with an authenticator is not available on this computer because OpenAlgo protects its keys with your password. Use Reset account instead.",
                 );
             }
+            // An authenticator code is a sign-in attempt: from the app's own
+            // page only, and spending the source's budget for the account
+            // the email names, claimed before the code is checked.
+            if let Some(r) = sign_in_refused(&ctx, &headers, source) {
+                return r;
+            }
+            let attempt = match claim_sign_in(&ctx, source) {
+                Ok(a) => a,
+                Err(r) => return r,
+            };
             let code = form.non_empty("totp_code").unwrap_or_default();
-            match AuthService::verify_totp_by_email(&ctx, &email, &code) {
+            let verified = AuthService::verify_totp_by_email(&ctx, &email, &code);
+            match &verified {
+                Ok(true) | Err(_) => attempt.released(),
+                Ok(false) => attempt.failed(),
+            }
+            match verified {
                 Ok(true) => {
                     let token = random_token();
                     let h = hash_token(&token);
@@ -424,6 +499,8 @@ pub async fn reset_password(
             let password = Secret::new(form.get("password").unwrap_or_default());
             match AuthService::reset_password(&ctx, &email, password.expose()) {
                 Ok(()) => {
+                    // Proven with the authenticator: the budget starts over.
+                    ctx.limiter.backoff.clear(sign_in_source(source));
                     ctx.bus.publish(Event::ForceLogout {
                         message:
                             "Your password was reset. Please log in again with the new password."
@@ -441,7 +518,16 @@ pub async fn reset_password(
 }
 
 /// POST /auth/change-password (form: old_password, new_password, confirm_password)
-pub async fn change_password_api(State(ctx): Ctx, User(u): User, form: FormData) -> Response {
+pub async fn change_password_api(
+    State(ctx): Ctx,
+    User(u): User,
+    Src(source): Src,
+    headers: HeaderMap,
+    form: FormData,
+) -> Response {
+    if let Some(r) = sign_in_refused(&ctx, &headers, source) {
+        return r;
+    }
     let (Some(old), Some(new), Some(confirm)) = (
         form.non_empty("old_password"),
         form.non_empty("new_password"),
@@ -451,6 +537,7 @@ pub async fn change_password_api(State(ctx): Ctx, User(u): User, form: FormData)
     };
     change_password_common(
         &ctx,
+        source,
         &u.username,
         &old,
         &new,
@@ -461,7 +548,16 @@ pub async fn change_password_api(State(ctx): Ctx, User(u): User, form: FormData)
 }
 
 /// POST /auth/change (json or form: old_password|current_password, new_password[, confirm_password])
-pub async fn change_password_legacy(State(ctx): Ctx, User(u): User, form: FormData) -> Response {
+pub async fn change_password_legacy(
+    State(ctx): Ctx,
+    User(u): User,
+    Src(source): Src,
+    headers: HeaderMap,
+    form: FormData,
+) -> Response {
+    if let Some(r) = sign_in_refused(&ctx, &headers, source) {
+        return r;
+    }
     let old = form
         .non_empty("old_password")
         .or_else(|| form.non_empty("current_password"))
@@ -473,6 +569,7 @@ pub async fn change_password_legacy(State(ctx): Ctx, User(u): User, form: FormDa
         .unwrap_or_else(|| new.clone());
     change_password_common(
         &ctx,
+        source,
         &u.username,
         &old,
         &new,
@@ -484,12 +581,20 @@ pub async fn change_password_legacy(State(ctx): Ctx, User(u): User, form: FormDa
 
 async fn change_password_common(
     ctx: &Arc<AppState>,
+    source: crate::server::middleware::Source,
     username: &str,
     old: &str,
     new: &str,
     confirm: &str,
     success: &str,
 ) -> Response {
+    // Checking the current password spends the account's budget from this
+    // source, so a signed-in session cannot be used to guess it. (The
+    // handler has already refused a request from another site.)
+    let attempt = match claim_sign_in(ctx, source) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
     let (c2, u, o, n, cf) = (
         ctx.clone(),
         username.to_string(),
@@ -503,6 +608,7 @@ async fn change_password_common(
     .await;
     match r {
         Ok(Ok(())) => {
+            attempt.succeeded();
             ctx.bus.publish(Event::ForceLogout {
                 message: "Your password was changed. Please log in again with the new password."
                     .into(),
@@ -512,11 +618,22 @@ async fn change_password_common(
                 .append(header::SET_COOKIE, clear_session_cookie());
             resp
         }
-        Ok(Err(e)) => error(StatusCode::BAD_REQUEST, e.client_message()),
-        Err(_) => error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to change password",
-        ),
+        Ok(Err(e)) => {
+            if matches!(&e, crate::error::AppError::Validation(m) if m == crate::services::auth_service::WRONG_CURRENT_PASSWORD)
+            {
+                attempt.failed();
+            } else {
+                attempt.released();
+            }
+            error(StatusCode::BAD_REQUEST, e.client_message())
+        }
+        Err(_) => {
+            attempt.released();
+            error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to change password",
+            )
+        }
     }
 }
 
@@ -631,8 +748,13 @@ pub async fn two_factor_configure(
     State(ctx): Ctx,
     User(u): User,
     Sess(sess): Sess,
+    Src(source): Src,
+    headers: HeaderMap,
     form: FormData,
 ) -> Response {
+    if let Some(r) = sign_in_refused(&ctx, &headers, source) {
+        return r;
+    }
     let code = form.non_empty("totp_code").unwrap_or_default();
     if code.is_empty() {
         return error(
@@ -640,10 +762,22 @@ pub async fn two_factor_configure(
             "TOTP code is required to change 2FA settings.",
         );
     }
+    // A signed-in session still cannot guess the code: it spends the
+    // source's budget like a sign-in.
+    let attempt = match claim_sign_in(&ctx, source) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
     match AuthService::verify_totp_for(&ctx, &u.username, &code) {
-        Ok(true) => {}
-        Ok(false) => return error(StatusCode::UNAUTHORIZED, "Invalid TOTP code."),
-        Err(e) => return e.into_response(),
+        Ok(true) => attempt.released(),
+        Ok(false) => {
+            attempt.failed();
+            return error(StatusCode::UNAUTHORIZED, "Invalid TOTP code.");
+        }
+        Err(e) => {
+            attempt.released();
+            return e.into_response();
+        }
     }
     let flag = |k: &str| matches!(form.get(k), Some("true") | Some("1") | Some("on"));
     let enabled = flag("totp_enabled");

@@ -5,6 +5,7 @@
 //! and path only, never the query), CORS limited to the app origin, security
 //! headers, Host check (DNS rebinding), body limit, browser session + CSRF.
 
+pub mod addr;
 pub mod api_v1;
 pub mod envelope;
 pub mod form;
@@ -122,6 +123,10 @@ pub fn router(ctx: Arc<AppState>) -> (Router, socketioxide::SocketIo) {
             ctx.clone(),
             crate::services::monitor::layer,
         ))
+        // Who is calling (this computer, a device on the network, or a
+        // tunnel caller), classified once before every per-caller control
+        // (security review S-03).
+        .layer(mw::from_fn_with_state(ctx.clone(), middleware::peer_layer))
         .layer(SetResponseHeaderLayer::if_not_present(
             header::CONTENT_SECURITY_POLICY,
             HeaderValue::from_static(CSP),

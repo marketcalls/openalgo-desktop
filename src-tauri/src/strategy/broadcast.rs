@@ -75,15 +75,9 @@ impl RoomEmitter for SocketRooms {
     }
 
     async fn emit_to(&self, room: &str, event: &str, payload: Value) {
-        if let Some(io) = self.ui.io() {
-            if let Err(e) = io
-                .to(room.to_string())
-                .emit(event.to_string(), &payload)
-                .await
-            {
-                tracing::debug!("Strategy broadcast {} to {} failed: {}", event, room, e);
-            }
-        }
+        // Only to connections whose browser session is still signed in
+        // (security review S-09).
+        self.ui.emit_signed_in(Some(room), event, &payload);
     }
 }
 

@@ -92,11 +92,17 @@ impl Monitor {
         self.dropped.load(Ordering::Relaxed)
     }
 
+    /// Whether `ip`, in any spelling, is banned. Bans are held and looked up
+    /// in the one canonical spelling (`crate::server::addr`), so
+    /// `::ffff:1.2.3.4` is refused when `1.2.3.4` is banned.
     pub fn is_banned(&self, ip: &str, now: DateTime<Utc>) -> bool {
-        if store::never_banned(ip) {
+        let Some(ip) = crate::server::addr::canonical_text(ip) else {
+            return false;
+        };
+        if store::never_banned(&ip) {
             return false;
         }
-        match self.bans.read().bans.get(ip) {
+        match self.bans.read().bans.get(&ip) {
             Some(None) => true,
             Some(Some(exp)) => *exp > now,
             None => false,
@@ -115,13 +121,13 @@ impl Monitor {
             Ok(rows) => {
                 let bans = rows
                     .into_iter()
-                    .map(|b| {
+                    .filter_map(|b| {
                         let exp = if b.is_permanent {
                             None
                         } else {
                             b.expires_at.as_deref().and_then(store::parse_ts)
                         };
-                        (b.ip_address, exp)
+                        crate::server::addr::canonical_text(&b.ip_address).map(|ip| (ip, exp))
                     })
                     .collect();
                 self.bans.write().bans = bans;
@@ -362,9 +368,18 @@ fn too_large() -> Response {
 
 /// The monitoring middleware (outermost application layer).
 pub async fn layer(State(ctx): State<Arc<AppState>>, req: Request, next: Next) -> Response {
-    let ip = client_ip(&req).to_string();
+    // The stored caller (`middleware::Source`). Bans apply to a device on
+    // the network, by its canonical address; this computer and tunnel
+    // callers (whose addresses the app cannot see) are never banned. Every
+    // route (API, webhooks, Socket.IO, /mcp, pages) passes this one check;
+    // the market data feed asks the same ban list (`feed::auth`).
+    let source = crate::server::middleware::source_of(req.extensions());
+    let ip = crate::server::addr::canonical(client_ip(&req)).to_string();
     let now = ctx.now();
-    if ctx.monitor.is_banned(&ip, now) {
+    let banned = source
+        .network_address()
+        .is_some_and(|a| ctx.monitor.is_banned(&a.to_string(), now));
+    if banned {
         let mut r = (
             StatusCode::FORBIDDEN,
             "Access Denied: Your IP has been banned",

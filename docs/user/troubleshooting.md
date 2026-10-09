@@ -142,6 +142,32 @@ alerts.** Enter the tunnel's public address as **Host Server URL** under
 **Server Configuration** on the Broker tab in Profile. Requests that arrive
 through a tunnel whose address is not entered there are refused.
 
+Everything that arrives through a tunnel or proxy on this computer is treated
+as coming from the internet, never from this computer:
+
+- **Remote MCP** must be on for AI clients to use OpenAlgo through the tunnel.
+- Through a tunnel OpenAlgo cannot see the callers' addresses: they all share
+  one identity. A strategy webhook's **IP allowlist** therefore applies to
+  devices on your network only: it never matches a caller that comes through
+  a tunnel (nor a program on this computer), and blocking an address on the
+  Security page does not apply to tunnel callers. Protect your webhooks with
+  their secret address, which OpenAlgo always requires: keep it private, and
+  rotate it if it leaks.
+- Invalid API keys and wrong webhook addresses that come through the tunnel
+  are counted per key or address tried, so a stranger's attempts never block
+  your own alerts or your correct key. Your own programs on this computer are
+  not affected by what tunnel callers do.
+- Signing in through the tunnel works only from the OpenAlgo page itself.
+- A plain port forwarder that adds no forwarding header (for example `socat`
+  or `ssh -R`) makes its callers look like programs on this computer. Use a
+  tunnel that adds one, such as ngrok or Cloudflare Tunnel.
+
+Signing in to OpenAlgo slows down after five wrong passwords or
+authenticator codes from the same place (this computer, the tunnel, or one
+device on your network): 30 seconds, then twice as long after each further
+mistake, up to 5 minutes. Mistakes made elsewhere never slow down signing in
+on this computer. Sign in with the right password once the wait is over.
+
 ## Your API client says the API key is invalid
 
 - Use the key from the **API Key** page of OpenAlgo Desktop. A key from
@@ -150,5 +176,8 @@ through a tunnel whose address is not entered there are refused.
 - On a computer with no system keychain (for example Raspberry Pi OS Lite),
   OpenAlgo protects its keys with your password. After the app starts, sign
   in once; until then every API request is refused as an invalid key.
-- After several invalid-key attempts in a minute, OpenAlgo blocks further
-  attempts from that address for a while. Fix the key, wait, and try again.
+- After several invalid-key attempts in a minute from another device on your
+  network, OpenAlgo blocks further attempts from that device for a while. Fix
+  the key, wait, and try again. Programs on this computer are never blocked
+  this way, a web page open in your browser cannot cause it, and through a
+  tunnel only the wrong key itself is blocked, never your correct one.

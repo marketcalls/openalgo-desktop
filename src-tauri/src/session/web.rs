@@ -48,14 +48,36 @@ pub fn random_token() -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b)
 }
 
-#[derive(Default)]
 pub struct WebSessionStore {
     map: Mutex<HashMap<String, WebSession>>,
+    /// Bumped after any session ends (sign-out, password change or reset,
+    /// account reset, the daily boundary, id rotation, eviction), so live
+    /// update connections of ended sessions are closed (security review
+    /// S-09).
+    ended: tokio::sync::watch::Sender<u64>,
+}
+
+impl Default for WebSessionStore {
+    fn default() -> Self {
+        Self {
+            map: Mutex::new(HashMap::new()),
+            ended: tokio::sync::watch::channel(0).0,
+        }
+    }
 }
 
 impl WebSessionStore {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Changes after any session ended.
+    pub fn subscribe_ended(&self) -> tokio::sync::watch::Receiver<u64> {
+        self.ended.subscribe()
+    }
+
+    fn signal_ended(&self) {
+        self.ended.send_modify(|g| *g = g.wrapping_add(1));
     }
 
     fn expired(s: &WebSession, now: DateTime<Utc>) -> bool {
@@ -70,15 +92,17 @@ impl WebSessionStore {
         if map.len() >= MAX_SESSIONS {
             map.retain(|_, s| !Self::expired(s, now));
         }
+        let mut evicted_signed_in = false;
         while map.len() >= MAX_SESSIONS {
             // Evict the least recently seen, preferring anonymous sessions.
             let victim = map
                 .values()
                 .min_by_key(|s| (s.user.is_some(), s.last_seen))
-                .map(|s| s.id.clone());
+                .map(|s| (s.id.clone(), s.user.is_some()));
             match victim {
-                Some(v) => {
+                Some((v, signed_in)) => {
                     map.remove(&v);
+                    evicted_signed_in |= signed_in;
                 }
                 None => break,
             }
@@ -91,6 +115,10 @@ impl WebSessionStore {
             ..Default::default()
         };
         map.insert(s.id.clone(), s.clone());
+        drop(map);
+        if evicted_signed_in {
+            self.signal_ended();
+        }
         s
     }
 
@@ -119,7 +147,11 @@ impl WebSessionStore {
     /// Replace the session id (fixation hygiene on sign-in) keeping nothing
     /// from the old session but the CSRF token.
     pub fn rotate(&self, old_id: &str, now: DateTime<Utc>) -> WebSession {
-        let csrf = self.map.lock().remove(old_id).map(|s| s.csrf_token);
+        let old = self.map.lock().remove(old_id);
+        if old.is_some() {
+            self.signal_ended();
+        }
+        let csrf = old.map(|s| s.csrf_token);
         let mut s = self.create(now);
         if let Some(c) = csrf {
             s.csrf_token = c;
@@ -129,13 +161,17 @@ impl WebSessionStore {
     }
 
     pub fn remove(&self, id: &str) {
-        self.map.lock().remove(id);
+        let removed = self.map.lock().remove(id).is_some();
+        if removed {
+            self.signal_ended();
+        }
     }
 
     /// Drop every session (logout means all devices; daily boundary;
     /// password change).
     pub fn clear(&self) {
         self.map.lock().clear();
+        self.signal_ended();
     }
 
     pub fn len(&self) -> usize {

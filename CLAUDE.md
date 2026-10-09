@@ -243,7 +243,10 @@ anything that is not the signed-in user.
 - Strict CSP, `withGlobalTauri: false`, devtools off in release builds,
   `shell:allow-open` scoped to http(s).
 - API keys are verified through an HMAC index plus Argon2, with a short cache;
-  login and API-key failures are throttled per IP.
+  API-key failures are throttled per network address (never for this
+  computer; per key behind a tunnel). Sign-in has the per-address request
+  limit plus a failure budget per source (this computer, the tunnel, each
+  network address) and account, with a growing delay capped at 5 minutes.
 - Logs never contain API keys, tokens, OAuth codes, passwords, TOTP secrets or
   full request bodies of authenticated calls. Wrap secrets in a type whose
   `Debug` is redacted. Release log level is `info`.
@@ -529,6 +532,23 @@ Every flaky test found so far was a race, not a slow machine:
   the hard-coded-crypto rule; rename it.
 - Check a fix by disabling it locally and watching its test fail; never
   commit or push the disabled state, not even to a wip branch.
+- Behind a tunnel or proxy on the same machine (ngrok, cloudflared) every
+  caller is 127.0.0.1. Classify the caller once, in the outermost layer
+  (`middleware::classify`, stored as `Source`), and have every check read
+  the stored value; a second parser of forwarding headers is a way around
+  the first. Loopback is local only without any forwarding header and with
+  the app's own `Host`. No forwarding header is read as an address: tunnel
+  callers are one identity, and bans and IP allowlists apply to network
+  peers only.
+- Refuse cross-site browser requests (`Sec-Fetch-Site`, a foreign `Origin`
+  or `Referer`) before they reach any failure counter or rate limit: a web
+  page can fire them blind and use up the trader's budget.
+- A failure budget keyed by anything the attacker picks per attempt (a user
+  name, a password, a code, a credential hash) or with an evict-oldest
+  table can be spread or flushed. Key it by source and account, never evict
+  one still counting, and count the attempt under the same lock that checks
+  the wait, before verifying (`LoginBackoff::claim`), or parallel requests
+  all pass the check.
 - Fake tokens in fixtures must match the allowlist in `.github/gitleaks.toml`;
   prefer the `<APIKEY>`, `<USER_ID>`, `<EMAIL>` placeholders.
 

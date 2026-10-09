@@ -483,3 +483,50 @@ async fn s10_the_public_tunnel_host_opens_the_feed() {
     let mut c = Client { ws };
     assert_eq!(c.auth().await["status"], "success");
 }
+
+/// Security review S-03 follow-up: the feed asks the ban list before the
+/// handshake. An auth that refuses the peer gets the connection closed
+/// before anything is read from it; the same server with an auth that
+/// refuses nobody lets the client in (the app's own `AppAuth::refused`
+/// answers from the shared ban list, tested in `server::tests::security`).
+#[tokio::test]
+async fn a_refused_address_is_closed_before_the_handshake() {
+    use openalgo_desktop_lib::feed::auth::{AuthOutcome, FeedAuth};
+    use openalgo_desktop_lib::feed::{start, FeedConfig, FeedDeps};
+    struct Refuse(bool);
+    #[async_trait::async_trait]
+    impl FeedAuth for Refuse {
+        async fn authenticate(&self, _api_key: &str) -> AuthOutcome {
+            AuthOutcome::Invalid
+        }
+        fn refused(&self, _peer: std::net::IpAddr) -> bool {
+            self.0
+        }
+    }
+    for refuse in [true, false] {
+        let handle = start(
+            FeedConfig {
+                port: 0,
+                ..FeedConfig::default()
+            },
+            FeedDeps {
+                source: FakeSource::new(known()),
+                auth: std::sync::Arc::new(Refuse(refuse)),
+                orders: None,
+                supported_brokers: brokers(),
+            },
+        )
+        .await
+        .expect("feed server starts on an ephemeral port");
+        let url = format!("ws://{}", handle.local_addr());
+        let connected = tokio::time::timeout(
+            Duration::from_secs(10),
+            tokio_tungstenite::connect_async(url.as_str()),
+        )
+        .await
+        .expect("the handshake ends within the bound")
+        .is_ok();
+        assert_eq!(connected, !refuse, "refuse = {}", refuse);
+        handle.stop().await;
+    }
+}
