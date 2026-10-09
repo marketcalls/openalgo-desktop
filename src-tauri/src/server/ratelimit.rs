@@ -382,6 +382,9 @@ pub struct RateLimiter {
     /// Per-account sign-in failure budget.
     pub backoff: LoginBackoff,
     map: Mutex<HashMap<(Bucket, IpAddr), VecDeque<Instant>>>,
+    /// The table's size; 0 means [`MAX_ENTRIES`]. Tests shrink it so a full
+    /// table takes hundreds of callers, not thousands.
+    capacity: std::sync::atomic::AtomicUsize,
     /// Tests pin time so a window cannot slide while a slow runner (Windows,
     /// coverage instrumentation) is still sending the requests that fill it.
     frozen: Mutex<Option<Instant>>,
@@ -390,6 +393,20 @@ pub struct RateLimiter {
 impl RateLimiter {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// How many entries the table holds before it makes room.
+    fn capacity(&self) -> usize {
+        match self.capacity.load(std::sync::atomic::Ordering::Relaxed) {
+            0 => MAX_ENTRIES,
+            n => n,
+        }
+    }
+
+    /// Shrink the table (tests only).
+    #[cfg(test)]
+    pub fn set_capacity(&self, n: usize) {
+        self.capacity.store(n, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// The instant callers should count a hit at.
@@ -424,7 +441,7 @@ impl RateLimiter {
     pub fn admit(&self, bucket: Bucket, ip: IpAddr, now: Instant) -> Admission {
         let (limit, window) = bucket.limit();
         let mut map = self.map.lock();
-        let own = Self::slot(&mut map, bucket, ip, now);
+        let own = Self::slot(&mut map, self.capacity(), bucket, ip, now);
         let aggregate = crate::server::addr::aggregate_key(ip);
         let mut tiers = vec![(own, limit)];
         if let Some(net) = aggregate {
@@ -475,7 +492,7 @@ impl RateLimiter {
         // A caller without its own entry while the table is full is counted
         // in the overflow bucket.
         let own = if !map.contains_key(&(bucket, ip))
-            && map.len() >= MAX_ENTRIES
+            && map.len() >= self.capacity()
             && !reserved(&ip)
             && !minted(&ip)
         {
@@ -515,15 +532,16 @@ impl RateLimiter {
     /// always get their own entry.
     fn slot(
         map: &mut HashMap<(Bucket, IpAddr), VecDeque<Instant>>,
+        capacity: usize,
         bucket: Bucket,
         ip: IpAddr,
         now: Instant,
     ) -> IpAddr {
-        if map.len() < MAX_ENTRIES || map.contains_key(&(bucket, ip)) {
+        if map.len() < capacity || map.contains_key(&(bucket, ip)) {
             return ip;
         }
         Self::sweep(map, now);
-        if map.len() >= MAX_ENTRIES {
+        if map.len() >= capacity {
             // Down to seven eighths, so a stream of new callers does not
             // sort the table on every hit.
             let mut windows: Vec<((Bucket, IpAddr), Instant)> = map
@@ -532,7 +550,7 @@ impl RateLimiter {
                 .map(|(k, q)| (*k, q.back().copied().unwrap_or(now)))
                 .collect();
             windows.sort_by_key(|(_, last)| *last);
-            let target = MAX_ENTRIES - MAX_ENTRIES / 8;
+            let target = capacity - capacity / 8;
             for (k, _) in windows {
                 if map.len() <= target {
                     break;
@@ -540,7 +558,7 @@ impl RateLimiter {
                 map.remove(&k);
             }
         }
-        if map.len() < MAX_ENTRIES || reserved(&ip) || minted(&ip) {
+        if map.len() < capacity || reserved(&ip) || minted(&ip) {
             ip
         } else {
             OVERFLOW
@@ -845,6 +863,31 @@ mod tests {
         // Every live failure count is still there.
         assert!(rl.check(Bucket::ApiKeyFail, addr(0), t0).is_ok());
         assert!(rl.len() <= MAX_ENTRIES + 4);
+    }
+
+    /// Ten thousand rotated addresses of our own IPv6 network (link-local
+    /// here) sending invalid keys hit the network's aggregate: a fresh
+    /// address of it is then over the budget too.
+    #[test]
+    fn ten_thousand_rotated_addresses_in_our_network_hit_the_aggregate() {
+        use crate::server::source::Source;
+        let rl = RateLimiter::new();
+        let t0 = Instant::now();
+        let key = |n: u32| -> IpAddr {
+            let a: IpAddr = format!("fe80::{:x}:{:x}", (n >> 16) + 1, n & 0xffff)
+                .parse()
+                .unwrap();
+            Source::Lan(a).ip()
+        };
+        let mut refused = 0;
+        for n in 0..10_000 {
+            if rl.check(Bucket::ApiKeyFail, key(n), t0).is_err() {
+                refused += 1;
+            }
+        }
+        let (limit, _) = Bucket::ApiKeyFail.limit();
+        assert_eq!(refused, 10_000 - limit * AGGREGATE_FACTOR);
+        assert!(rl.is_exhausted(Bucket::ApiKeyFail, key(99_999), t0));
     }
 
     /// Ten thousand addresses of one IPv6 /64 are one caller: one entry.

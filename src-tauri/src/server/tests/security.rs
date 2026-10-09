@@ -2242,13 +2242,16 @@ async fn s02_an_ipv6_device_is_one_caller_across_its_64() {
 /// valid key: the overflow refuses only invalid credentials.
 #[tokio::test]
 async fn s02_a_full_limiter_never_refuses_a_new_device_with_a_valid_key() {
-    use crate::server::ratelimit::MAX_ENTRIES;
     let h = H::new();
     let key = h.setup();
     h.connect_broker();
     let now = h.ctx().limiter.now();
     h.ctx().limiter.freeze(Some(now));
-    for n in 0..(MAX_ENTRIES as u32 + 800) {
+    // A small table, so filling it takes hundreds of callers, not
+    // thousands (the behaviour is the same at any size).
+    let capacity = 1024;
+    h.ctx().limiter.set_capacity(capacity);
+    for n in 0..(capacity as u32 + 800) {
         let a = std::net::Ipv4Addr::from(0x0a10_0000 + n).to_string();
         let (s, _, _) = h
             .send(from_peer(
@@ -2264,7 +2267,7 @@ async fn s02_a_full_limiter_never_refuses_a_new_device_with_a_valid_key() {
             s
         );
     }
-    assert!(h.ctx().limiter.len() <= MAX_ENTRIES + 6);
+    assert!(h.ctx().limiter.len() <= capacity + 6);
     // New callers with bad keys are still limited: they share one bounded
     // overflow window, and once it is full they are refused as over the
     // limit (429), with the web's body.
@@ -2376,7 +2379,7 @@ async fn s03_automatic_bans_never_ban_this_computer_or_the_tunnel() {
 ///   untouched by everyone else's failures).
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn availability_guarantees_hold_on_every_surface() {
-    use crate::server::ratelimit::{Bucket, MAX_ENTRIES};
+    use crate::server::ratelimit::Bucket;
     use futures_util::{SinkExt, StreamExt};
     use tokio_tungstenite::tungstenite::client::IntoClientRequest;
     use tokio_tungstenite::tungstenite::Message;
@@ -2493,8 +2496,11 @@ async fn availability_guarantees_hold_on_every_surface() {
         .unwrap();
         let _ = ws.next().await;
     }
-    // A flood from thousands of addresses that fills the limiter.
-    for n in 0..(MAX_ENTRIES as u32 + 200) {
+    // A flood from many addresses that fills the limiter (a small table,
+    // so it takes hundreds of callers rather than thousands).
+    let capacity = 1024;
+    h.ctx().limiter.set_capacity(capacity);
+    for n in 0..(capacity as u32 + 200) {
         step();
         let a = std::net::Ipv4Addr::from(0x0a40_0000 + n).to_string();
         let (s, _, _) = h.send(from_peer(bad_key(), &a)).await;
@@ -2739,9 +2745,11 @@ fn s03_this_computers_lan_address_is_a_network_device() {
 /// S-02, S-03: a device in our own IPv6 network (link-local here, which
 /// every machine has) is counted by its own address and, with all the
 /// devices of that /64, against an aggregate failure budget and request
-/// ceiling. Rotating through ten thousand addresses with bad keys hits the
-/// aggregate cap; a neighbour with a valid key is still served; a banned
-/// address does not affect its neighbour.
+/// ceiling. Rotating through a thousand addresses with bad keys hits the
+/// aggregate cap (the resource guard's aggregate is filled directly); a
+/// neighbour with a valid key is still served; a banned address does not
+/// affect its neighbour. Ten thousand rotations are covered at the limiter
+/// (`ten_thousand_rotated_addresses_in_our_network_hit_the_aggregate`).
 #[tokio::test]
 async fn s02_rotating_through_our_own_ipv6_network_hits_the_aggregate_cap() {
     use crate::server::ratelimit::Bucket;
@@ -2750,8 +2758,15 @@ async fn s02_rotating_through_our_own_ipv6_network_hits_the_aggregate_cap() {
     h.connect_broker();
     let now = h.ctx().limiter.now();
     h.ctx().limiter.freeze(Some(now));
+    // The network's resource guard spent directly through the limiter (five
+    // thousand requests' worth), so the HTTP part stays short.
+    for n in 0..5_000u32 {
+        let a: std::net::IpAddr = format!("fe80::7:{:x}", n + 1).parse().unwrap();
+        let caller = crate::server::source::Source::Lan(a).ip();
+        let _ = h.ctx().limiter.check(Bucket::Guard, caller, now);
+    }
     let mut limited = 0;
-    for n in 0..10_000u32 {
+    for n in 0..1_000u32 {
         let a = format!("fe80::{:x}:{:x}", (n >> 16) + 1, n & 0xffff);
         let (s, _, _) = h
             .send(from_peer(
@@ -2780,8 +2795,8 @@ async fn s02_rotating_through_our_own_ipv6_network_hits_the_aggregate_cap() {
         "a fresh address in the network is already over the aggregate budget"
     );
     assert!(
-        limited >= 4000,
-        "the aggregate request ceiling: only {} of 10000 limited",
+        limited >= 400,
+        "the aggregate request window: only {} of 1000 limited",
         limited
     );
     // The network's request windows are spent by the invalid traffic (the

@@ -17,6 +17,13 @@ success-output = "never"
 status-level = "slow"
 final-status-level = "slow"
 
+# The security tests that drive hundreds to thousands of requests through
+# the whole HTTP stack on purpose (floods, address rotation) are slow on the
+# Windows runner: ten minutes for them, five for everything else.
+[[profile.ci.overrides]]
+filter = 'test(/availability_guarantees|every_surface_charges|rotating_through_our_own|full_limiter_never_refuses|tunnel_failures_never_refuse/)'
+slow-timeout = { period = "120s", terminate-after = 5 }
+
 [profile.ci.junit]
 # Written to src-tauri/target/nextest/ci/junit.xml and uploaded by ci.yml.
 path = "junit.xml"
