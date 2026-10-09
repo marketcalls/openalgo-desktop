@@ -3,6 +3,7 @@
 use super::mapping::{self, text, Resolved};
 use super::{data, is_success, samco_error, SamcoBroker};
 use crate::brokers::common::mapping::{Exchange, PriceType, Product};
+use crate::brokers::common::position_read::{says_no_positions, unread};
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use reqwest::Method;
@@ -330,8 +331,18 @@ pub async fn close_all_positions(b: &SamcoBroker, auth: &AuthToken) -> Result<Cl
     Ok(result)
 }
 
+/// web `_position_book_ok`: Samco says `status` "Success" for a read that
+/// worked and "Failure" otherwise; an empty body is not a read.
+pub fn positions_ok(v: &Value) -> bool {
+    v.get("status")
+        .and_then(Value::as_str)
+        .is_some_and(|s| s.eq_ignore_ascii_case("success"))
+}
+
 /// web `get_open_position`: the DAY book row with the same trading symbol,
-/// exchange and product, signed by `transactionType`.
+/// exchange and product, signed by `transactionType`. A book Samco did not
+/// confirm refuses the order unless its `statusMessage` says the book is
+/// empty (web `read_position_book`, #2116).
 pub async fn get_open_position(
     b: &SamcoBroker,
     auth: &AuthToken,
@@ -344,19 +355,20 @@ pub async fn get_open_position(
         .br_symbol(symbol, exchange.as_str())
         .unwrap_or_else(|| symbol.to_string());
     let (status, v) = raw_positions(b, auth, "DAY").await?;
-    if !is_success(&v) {
-        if v.get("positionDetails").is_none() && v.get("status").is_some() {
-            let msg = text(v.get("statusMessage")).to_ascii_lowercase();
-            if !(msg.contains("no ") || msg.contains("not found")) {
-                // Never report flat on a book we could not read.
-                return Err(samco_error(
-                    status,
-                    &v,
-                    "Samco could not load the position book.",
-                ));
-            }
+    if !positions_ok(&v) {
+        if says_no_positions(&v, &["statusMessage"]) {
+            return Ok(0);
         }
-        return Ok(0);
+        // Never report flat on a book we could not read (web #2116): an
+        // expired session keeps its own sign-in message.
+        tracing::error!(
+            "Samco position book not confirmed: {}",
+            text(v.get("statusMessage"))
+        );
+        return Err(match samco_error(status, &v, "") {
+            e @ AppError::Auth(_) => e,
+            _ => unread("Samco"),
+        });
     }
     Ok(v.get("positionDetails")
         .and_then(Value::as_array)

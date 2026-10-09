@@ -223,6 +223,42 @@ fn unknown_scrip_keeps_the_broker_name() {
     assert_eq!((o.symbol.as_str(), o.exchange.as_str()), ("SBIN", "NSE"));
 }
 
+/// Web fivepaisa `_position_book_ok` and `read_position_book` (#2116):
+/// a smart order reads the book only when 5 Paisa confirmed it, or when its
+/// message says it is empty; anything else refuses the order.
+#[test]
+fn position_book_must_be_confirmed() {
+    use super::orders::{positions_ok, strict_rows};
+    assert!(positions_ok(&resp("positions")));
+    // Rows confirm a read whatever the head says.
+    assert!(positions_ok(
+        &json!({"head":{"statusDescription":"Failure"},"body":{"Status":1,"NetPositionDetail":[{"NetQty":5}]}})
+    ));
+    let empty =
+        json!({"head":{"statusDescription":"Success"},"body":{"Status":0,"NetPositionDetail":[]}});
+    assert!(strict_rows(&empty).unwrap().is_empty());
+    let failed =
+        json!({"head":{"statusDescription":"Failure"},"body":{"Status":1,"NetPositionDetail":[]}});
+    let e = strict_rows(&failed).unwrap_err();
+    assert_eq!(
+        e.client_message(),
+        "OpenAlgo could not read your open position from 5 Paisa, so no order was sent. Check your positions and try again."
+    );
+    let said_empty = json!({"head":{"statusDescription":"Failure"},"body":{"Status":1,"Message":"No Data Found"}});
+    assert!(strict_rows(&said_empty).unwrap().is_empty());
+    // Python `int(body.get("Status", 0)) == 0`.
+    let head = |body: Value| json!({"head":{"statusDescription":"Success"},"body": body});
+    assert!(positions_ok(&head(json!({}))));
+    assert!(positions_ok(&head(json!({"Status":"0"}))));
+    assert!(!positions_ok(&head(json!({"Status":"x"}))));
+    assert!(!positions_ok(&head(json!({"Status":null}))));
+    assert!(!positions_ok(&head(json!({"Status":2}))));
+    assert!(!positions_ok(
+        &json!({"head":{"statusDescription":"Success"}})
+    ));
+    assert!(!positions_ok(&json!({})));
+}
+
 #[test]
 fn trades_positions_holdings() {
     let r = master();

@@ -392,6 +392,50 @@ async fn books_funds_and_open_position() {
     assert_eq!(flat, 0);
 }
 
+/// Web #2116 (samco `_position_book_ok` and `read_position_book`): only a
+/// "Success" book, or a `statusMessage` that says the book is empty, reads
+/// as flat; an empty body or another failure refuses the smart order.
+#[tokio::test]
+async fn open_position_refuses_an_unconfirmed_book() {
+    for (answer, flat) in [
+        (json!({}), false),
+        (
+            json!({"status":"Failure","statusMessage":"No Positions found"}),
+            true,
+        ),
+        (
+            json!({"status":"Failure","statusMessage":"No session available"}),
+            false,
+        ),
+        (json!({"status":"Failure","positionDetails":[]}), false),
+        (json!({"status":"success","positionDetails":[]}), true),
+    ] {
+        let a = answer.clone();
+        let fake = Fake::start(move |r: &Req| {
+            if r.path == "/position/getPositions" {
+                ok(a.clone())
+            } else {
+                samco_routes(r)
+            }
+        })
+        .await;
+        let got = broker(&fake)
+            .get_open_position(&auth(), "SBIN", Exchange::Nse, Product::Cnc)
+            .await;
+        if flat {
+            assert_eq!(got.unwrap(), 0, "{}", answer);
+        } else {
+            let msg = got.unwrap_err().client_message();
+            assert!(
+                msg.starts_with("OpenAlgo could not read your open position from Samco"),
+                "{} -> {}",
+                answer,
+                msg
+            );
+        }
+    }
+}
+
 #[tokio::test]
 async fn expired_session_is_an_auth_error() {
     let fake =

@@ -934,6 +934,18 @@ pub fn set_job_status(
     Ok(())
 }
 
+/// Mark a job cancelled only while it is still open (pending, running or
+/// paused). False when it finished first: a cancel never overwrites a
+/// finished job (web #2117 `cancel_job`, "Job has already finished").
+pub fn cancel_if_open(c: &Connection, id: &str, now: NaiveDateTime) -> Result<bool> {
+    let n = c.execute(
+        "UPDATE download_jobs SET status = 'cancelled', completed_at = CAST(? AS TIMESTAMP), \
+         error_message = NULL WHERE id = ? AND status IN ('pending', 'running', 'paused')",
+        params![ts_param(now), id],
+    )?;
+    Ok(n == 1)
+}
+
 /// Web `update_job_item_status`.
 pub fn set_item_status(
     c: &Connection,
@@ -1369,6 +1381,53 @@ mod tests {
             close: c,
             volume: v,
             oi: 0,
+        }
+    }
+
+    /// Web #2117 `cancel_job`: a cancel never overwrites a job that has
+    /// already finished; an open one (queued, running, paused) is cancelled.
+    #[test]
+    fn cancel_only_reaches_an_open_job() {
+        let db = HistorifyDb::in_memory().unwrap();
+        let status = |id: &str| {
+            let id = id.to_string();
+            db.read(move |c| job(c, &id)).unwrap().unwrap()["status"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+        let config = serde_json::json!({});
+        let symbols = vec![("SBIN".to_string(), "NSE".to_string())];
+        for (id, start, cancels) in [
+            ("queued", "pending", true),
+            ("live", "running", true),
+            ("held", "paused", true),
+            ("done", "completed", false),
+            ("partial", "completed_with_errors", false),
+            ("broken", "failed", false),
+            ("gone", "cancelled", false),
+        ] {
+            db.mutate(|c| {
+                create_job(
+                    c,
+                    &NewJob {
+                        id,
+                        job_type: "watchlist",
+                        symbols: &symbols,
+                        interval: "D",
+                        start_date: None,
+                        end_date: None,
+                        config: &config,
+                    },
+                    now(),
+                )?;
+                set_job_status(c, id, start, None, now())
+            })
+            .unwrap();
+            let did = db.mutate(|c| cancel_if_open(c, id, now())).unwrap();
+            assert_eq!(did, cancels, "{}", id);
+            let want = if cancels { "cancelled" } else { start };
+            assert_eq!(status(id), want, "{}", id);
         }
     }
 

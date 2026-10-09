@@ -29,7 +29,7 @@ use std::sync::Arc;
 /// Trader-facing refusal while a download runs (web
 /// `MASTER_CONTRACT_BUSY_MESSAGE`).
 pub const BUSY_MESSAGE: &str =
-    "The master contract is downloading right now. Wait for it to finish, then try again.";
+    "A master contract download is already running. Wait for it to finish, then try again.";
 
 /// Brokers whose master follows the UTC day (web `CRYPTO_BROKERS`).
 const CRYPTO_BROKERS: &[&str] = &["deltaexchange"];
@@ -249,12 +249,69 @@ pub async fn download(
     broker: &Arc<dyn Broker>,
     auth: &AuthToken,
 ) -> Result<usize> {
-    let id = broker.id();
-    if !ctx.runtime.claims.claim(id) {
+    let Some(claim) = try_claim(ctx, broker.id()) else {
         return Err(AppError::Validation(BUSY_MESSAGE.into()));
+    };
+    run_claimed(ctx, broker, auth, claim).await
+}
+
+/// A held download claim. Dropping it releases the claim, so a download
+/// that finishes, fails, or whose task is aborted (logout, shutdown) never
+/// leaves the broker marked as downloading.
+pub struct DownloadClaim {
+    ctx: std::sync::Weak<AppState>,
+    broker: String,
+}
+
+impl Drop for DownloadClaim {
+    fn drop(&mut self) {
+        if let Some(c) = self.ctx.upgrade() {
+            c.runtime.claims.release(&self.broker);
+        }
     }
+}
+
+fn try_claim(ctx: &Arc<AppState>, broker: &str) -> Option<DownloadClaim> {
+    ctx.runtime.claims.claim(broker).then(|| DownloadClaim {
+        ctx: Arc::downgrade(ctx),
+        broker: broker.to_string(),
+    })
+}
+
+/// Claim `broker`'s download and only then reset its status row to pending
+/// (web `try_start_master_contract_download(reset_status=True)`). `None`,
+/// with the row untouched, when a download already holds the claim: that
+/// download owns the row, and a reset made before losing the claim would
+/// leave it pending after it had reported success.
+pub fn claim_and_reset(ctx: &Arc<AppState>, broker: &str) -> Option<DownloadClaim> {
+    let Some(claim) = try_claim(ctx, broker) else {
+        tracing::info!(
+            "Master contract download for {} already running; not starting another",
+            broker
+        );
+        return None;
+    };
+    match ctx.sqlite.conn() {
+        Ok(c) => {
+            if let Err(e) = mcs::init_pending(&c, broker, ctx.now()) {
+                tracing::warn!("Master contract status for {} not reset: {}", broker, e);
+            }
+        }
+        Err(e) => tracing::warn!("Master contract status for {} not reset: {}", broker, e),
+    }
+    Some(claim)
+}
+
+/// Run a download under a held claim, release it, and record a failure.
+pub async fn run_claimed(
+    ctx: &Arc<AppState>,
+    broker: &Arc<dyn Broker>,
+    auth: &AuthToken,
+    claim: DownloadClaim,
+) -> Result<usize> {
+    let id = broker.id();
     let r = download_claimed(ctx, broker, auth).await;
-    ctx.runtime.claims.release(id);
+    drop(claim);
     if let Err(e) = &r {
         tracing::error!("Master contract download for {} failed: {}", id, e);
         let msg = e.client_message();
@@ -299,11 +356,13 @@ pub async fn ensure(
             Ok(_) => tracing::warn!("Stored master for {} is empty; downloading", id),
             Err(e) => tracing::warn!("Stored master for {} could not be read: {}", id, e),
         }
-    } else {
-        let conn = ctx.sqlite.conn()?;
-        mcs::init_pending(&conn, id, ctx.now())?;
+        return download(ctx, broker, auth).await;
     }
-    download(ctx, broker, auth).await
+    // Claim first, reset the row second (web `handle_auth_success`).
+    let Some(claim) = claim_and_reset(ctx, id) else {
+        return Err(AppError::Validation(BUSY_MESSAGE.into()));
+    };
+    run_claimed(ctx, broker, auth, claim).await
 }
 
 /// `/api/cache/health` (web `get_cache_health`): the resolver has no
@@ -414,6 +473,39 @@ mod tests {
         assert_eq!(ctx.symbols.contract_value("BTCUSD", "CRYPTO"), None);
         assert_eq!(load_cached(ctx, "deltaexchange").await.unwrap(), 1);
         assert_eq!(ctx.symbols.contract_value("BTCUSD", "CRYPTO"), Some(0.001));
+    }
+
+    /// Web #2117 (`try_start_master_contract_download(reset_status=True)`):
+    /// a start that loses the claim leaves the status row of the download
+    /// that holds it alone, and a dropped claim (an aborted task) is
+    /// released.
+    #[tokio::test]
+    async fn a_refused_start_leaves_the_running_downloads_status() {
+        use crate::brokers::mock::MockBroker;
+        use crate::brokers::BrokerRegistry;
+        let mock = Arc::new(MockBroker::new("zerodha"));
+        let t = crate::state::testing::build(
+            BrokerRegistry::with(vec![mock as Arc<dyn Broker>]),
+            ist(3, 10, 0),
+        );
+        let ctx = &t.ctx;
+        let status = || {
+            let c = ctx.sqlite.conn().unwrap();
+            mcs::get(&c, "zerodha", ctx.now())
+                .unwrap()
+                .map(|r| r.status)
+        };
+        let held = claim_and_reset(ctx, "zerodha").expect("first claim");
+        assert_eq!(status().as_deref(), Some("pending"));
+        {
+            let c = ctx.sqlite.conn().unwrap();
+            mcs::update(&c, "zerodha", "success", "done", Some(1), ctx.now()).unwrap();
+        }
+        assert!(claim_and_reset(ctx, "zerodha").is_none());
+        assert_eq!(status().as_deref(), Some("success"));
+        drop(held);
+        assert!(!ctx.runtime.claims.is_running("zerodha"));
+        assert!(claim_and_reset(ctx, "zerodha").is_some());
     }
 
     #[test]

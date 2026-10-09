@@ -116,22 +116,24 @@ pub async fn download(State(ctx): Ctx, body: Option<axum::Json<Value>>) -> Respo
     let Some(broker) = ctx.brokers.get(&s.broker_id) else {
         return no_broker();
     };
-    if ctx.runtime.claims.is_running(&s.broker_id) {
+    // Claim the broker, then reset its status and start (web
+    // `try_start_master_contract_download(reset_status=True)`): a download
+    // already running owns the status row, so a refused start leaves it be.
+    let Some(claim) = master_contract_service::claim_and_reset(&ctx, &s.broker_id) else {
         return json_response(
             StatusCode::CONFLICT,
             json!({"status": "error", "message": BUSY_MESSAGE, "started": false}),
         );
-    }
-    if let Ok(c) = ctx.sqlite.conn() {
-        let _ = mcs::init_pending(&c, &s.broker_id, ctx.now());
-    }
+    };
     let auth = auth_of(&s);
     let task_ctx = Arc::downgrade(&ctx);
+    // The claim travels with the task and is released when it ends, even
+    // when the task is aborted before it runs.
     ctx.runtime.spawn_task(async move {
         let Some(ctx) = task_ctx.upgrade() else {
             return;
         };
-        if master_contract_service::download(&ctx, &broker, &auth)
+        if master_contract_service::run_claimed(&ctx, &broker, &auth, claim)
             .await
             .is_ok()
         {

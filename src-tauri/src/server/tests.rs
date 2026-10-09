@@ -2612,6 +2612,32 @@ async fn master_contract_routes_and_server_settings_status() {
         .await;
     assert_eq!(v["health_score"], 100);
 
+    // Web #2117: a forced download while one runs is refused with the web's
+    // sentence, and the running download's status row is left alone.
+    assert!(h.ctx().runtime.claims.claim("zerodha"));
+    let (s, v) = h
+        .json(with_session(
+            post_json("/api/master-contract/download", json!({"force": true})),
+            &cookie,
+            Some(&csrf),
+        ))
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT, "{}", v);
+    assert_eq!(
+        v,
+        json!({"status": "error", "started": false,
+               "message": "A master contract download is already running. Wait for it to finish, then try again."})
+    );
+    let (_, v) = h
+        .json(with_session(
+            get("/api/master-contract/status"),
+            &cookie,
+            None,
+        ))
+        .await;
+    assert_eq!(v["status"], "success");
+    h.ctx().runtime.claims.release("zerodha");
+
     // The feed listener's state reaches Server Settings with its fix.
     *h.ctx().feed_status.write() = crate::state::ServerStatus::PortInUse {
         port: 8766,

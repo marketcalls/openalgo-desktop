@@ -3,6 +3,7 @@
 use super::mapping::{self, s};
 use super::{is_success, message, refusal, MstockBroker};
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::common::position_read::{says_no_positions, unread};
 use crate::brokers::types::*;
 use crate::error::Result;
 use reqwest::Method;
@@ -148,6 +149,32 @@ pub(crate) async fn raw_positions(b: &MstockBroker, auth: &AuthToken) -> Result<
     Ok(mapping::rows(&book(b, auth, POSITIONS_PATH).await?))
 }
 
+/// web `_position_book_ok`: mStock marks a read that worked with `status`
+/// true, as a bool or as the text "true" (or "success").
+pub fn positions_ok(v: &Value) -> bool {
+    match v.get("status") {
+        Some(Value::Bool(b)) => *b,
+        Some(Value::String(t)) => matches!(t.to_ascii_lowercase().as_str(), "true" | "success"),
+        _ => false,
+    }
+}
+
+/// The rows for a smart order (web `read_position_book`, #2116): a book
+/// mStock did not confirm refuses the order instead of reading as flat,
+/// unless its `message` says the book is empty. An empty or unreadable
+/// body is not a read (the Positions page still shows it as empty).
+async fn positions_strict(b: &MstockBroker, auth: &AuthToken) -> Result<Vec<Value>> {
+    let v = b.call(Method::GET, POSITIONS_PATH, auth, None).await?;
+    if positions_ok(&v) {
+        return Ok(mapping::rows(&v));
+    }
+    if says_no_positions(&v, &["message"]) {
+        return Ok(Vec::new());
+    }
+    tracing::error!("mStock position book not confirmed: {}", message(&v));
+    Err(unread("mStock by Mirae Asset"))
+}
+
 /// web `get_open_position`: match the instrument token, exchange and mStock
 /// product on the raw book; `netqty`, 0 when absent. The exchange is
 /// compared after the derivative fix, so NFO / BFO positions (reported as
@@ -164,7 +191,7 @@ pub async fn get_open_position(
         return Ok(0);
     };
     let producttype = mapping::map_product_type(product);
-    Ok(raw_positions(b, auth)
+    Ok(positions_strict(b, auth)
         .await?
         .iter()
         .find(|p| {

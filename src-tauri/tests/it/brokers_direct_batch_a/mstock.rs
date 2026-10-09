@@ -322,6 +322,61 @@ async fn cancel_all_close_all_and_open_position() {
     assert_eq!(q, 0);
 }
 
+/// Web #2116 (mstock `_position_book_ok` and `read_position_book`): a book
+/// mStock did not confirm, an empty body included, refuses the smart order
+/// unless its `message` says the book is empty.
+#[tokio::test]
+async fn open_position_refuses_an_unconfirmed_book() {
+    for (answer, flat) in [
+        (json!({}), false),
+        (json!({"status":"false","message":"No Data Found"}), true),
+        (
+            json!({"status":"false","message":"Something went wrong"}),
+            false,
+        ),
+        (json!({"data":[]}), false),
+        (json!({"status":true,"data":[]}), true),
+    ] {
+        let a = answer.clone();
+        let fake = Fake::start(move |r: &Req| {
+            if r.path.ends_with("/portfolio/positions") {
+                ok(a.clone())
+            } else {
+                route(r)
+            }
+        })
+        .await;
+        let got = broker(&fake, "ws://127.0.0.1:9")
+            .get_open_position(&auth(), "SBIN", Exchange::Nse, Product::Cnc)
+            .await;
+        if flat {
+            assert_eq!(got.unwrap(), 0, "{}", answer);
+        } else {
+            let msg = got.unwrap_err().client_message();
+            assert!(
+                msg.starts_with("OpenAlgo could not read your open position from mStock"),
+                "{} -> {}",
+                answer,
+                msg
+            );
+        }
+    }
+    // The Positions page still reads an empty body as an empty book.
+    let fake = Fake::start(|r: &Req| {
+        if r.path.ends_with("/portfolio/positions") {
+            ok(json!({}))
+        } else {
+            route(r)
+        }
+    })
+    .await;
+    assert!(broker(&fake, "ws://127.0.0.1:9")
+        .get_positions(&auth())
+        .await
+        .unwrap()
+        .is_empty());
+}
+
 #[tokio::test]
 async fn cancel_all_with_nothing_pending_sends_nothing() {
     let fake = Fake::start(|r: &Req| {

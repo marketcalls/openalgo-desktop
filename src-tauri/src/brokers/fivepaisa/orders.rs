@@ -4,6 +4,7 @@ use super::mapping::{self, body_rows, int, text};
 use super::{session, FivepaisaBroker, Session};
 use crate::brokers::common::mapping::{Exchange, PriceType, Product};
 use crate::brokers::common::mpp::{instrument_type_from_symbol, protected_price};
+use crate::brokers::common::position_read::{says_no_positions, unread};
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use serde_json::{json, Value};
@@ -30,8 +31,8 @@ pub(crate) async fn order_book_raw(b: &FivepaisaBroker, s: &Session) -> Result<V
     Ok(body_rows(&v, "OrderBookDetail"))
 }
 
-/// The net position rows; a timeout is retried, other failures surface.
-pub(crate) async fn positions_raw(b: &FivepaisaBroker, s: &Session) -> Result<Vec<Value>> {
+/// The net position answer; a timeout is retried, other failures surface.
+async fn positions_answer(b: &FivepaisaBroker, s: &Session) -> Result<Value> {
     let mut attempt = 0;
     loop {
         attempt += 1;
@@ -39,13 +40,79 @@ pub(crate) async fn positions_raw(b: &FivepaisaBroker, s: &Session) -> Result<Ve
             .post_with(POSITIONS, client_body(s), s, POSITIONS_TIMEOUT)
             .await
         {
-            Ok(v) => return Ok(body_rows(&v, "NetPositionDetail")),
+            Ok(v) => return Ok(v),
             Err(AppError::Http(e)) if e.is_timeout() && attempt < POSITIONS_ATTEMPTS => {
                 tracing::debug!(broker = "fivepaisa", "Positions timed out, retrying");
             }
             Err(e) => return Err(e),
         }
     }
+}
+
+/// The net position rows (the Positions page and close-all).
+pub(crate) async fn positions_raw(b: &FivepaisaBroker, s: &Session) -> Result<Vec<Value>> {
+    Ok(body_rows(
+        &positions_answer(b, s).await?,
+        "NetPositionDetail",
+    ))
+}
+
+/// web `_position_book_ok`: 5 Paisa confirms a read with rows, or with a
+/// "Success" head and `body.Status` 0.
+pub fn positions_ok(v: &Value) -> bool {
+    let Some(body) = v.get("body").filter(|b| b.is_object()) else {
+        return false;
+    };
+    if body
+        .get("NetPositionDetail")
+        .and_then(Value::as_array)
+        .is_some_and(|rows| !rows.is_empty())
+    {
+        return true;
+    }
+    if v.get("head")
+        .and_then(|h| h.get("statusDescription"))
+        .and_then(Value::as_str)
+        != Some("Success")
+    {
+        return false;
+    }
+    // Python `int(body.get("Status", 0)) == 0`.
+    match body.get("Status") {
+        None => true,
+        Some(Value::Number(n)) => n.as_f64().is_some_and(|f| f.trunc() == 0.0),
+        Some(Value::String(t)) => t.trim().parse::<i64>() == Ok(0),
+        Some(Value::Bool(b)) => !*b,
+        Some(_) => false,
+    }
+}
+
+/// The rows for a smart order: a read 5 Paisa did not confirm refuses the
+/// order instead of reading as flat, unless its message says the book is
+/// empty (web `read_position_book` with `head.statusDescription` and
+/// `body.Message`).
+pub(crate) async fn positions_strict(b: &FivepaisaBroker, s: &Session) -> Result<Vec<Value>> {
+    strict_rows(&positions_answer(b, s).await?)
+}
+
+/// The decision of `positions_strict` on one answer.
+pub fn strict_rows(v: &Value) -> Result<Vec<Value>> {
+    if positions_ok(v) || says_no_positions(v, &["head.statusDescription", "body.Message"]) {
+        return Ok(body_rows(v, "NetPositionDetail"));
+    }
+    // Read outside the macro: `tracing::error!` brings its own `Value`
+    // trait into scope around its arguments.
+    let head = v
+        .get("head")
+        .and_then(|h| h.get("statusDescription"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    tracing::error!(
+        broker = "fivepaisa",
+        "Position book not confirmed: {}",
+        head
+    );
+    Err(unread("5 Paisa"))
 }
 
 /// LIMIT price for a MARKET order: the LTP plus/minus the MPP slab, rounded
@@ -305,7 +372,7 @@ pub async fn get_open_position(
         .resolver()
         .token(symbol, ex)
         .ok_or_else(|| mapping::unknown_symbol(symbol, ex))?;
-    let rows = positions_raw(b, &s).await?;
+    let rows = positions_strict(b, &s).await?;
     let (ec, et, pc) = (
         mapping::exch_code(ex),
         mapping::exch_type(ex),

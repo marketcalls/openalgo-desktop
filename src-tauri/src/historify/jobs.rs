@@ -43,6 +43,13 @@ use tokio::task::JoinSet;
 pub const RETRY_BUSY_MESSAGE: &str =
     "This download is already running. Wait for it to finish, then retry the failed symbols.";
 
+/// What a cancel of a job that finished first is told (web `cancel_job`).
+pub const FINISHED_MESSAGE: &str = "Job has already finished";
+
+/// How often a cancel decides again when the job's processor changes while
+/// it waits for it.
+const CANCEL_ATTEMPTS: u32 = 3;
+
 const SAVE_FAILED: &str =
     "The downloaded candles could not be saved. Check free disk space, then retry.";
 
@@ -543,36 +550,55 @@ impl JobEngine {
     }
 
     /// Web `cancel_job`. A queued job and one paused by a restart can be
-    /// cancelled too.
+    /// cancelled too. A cancel never overwrites a job that finished while
+    /// it was being decided (web #2117): it answers 409 "Job has already
+    /// finished" instead.
     pub async fn cancel(&self, job_id: &str) -> Reply {
-        let status = match self.job_status(job_id).await {
-            Err(r) => return r,
-            Ok(None) => return Reply::error(404, "Job not found"),
-            Ok(Some(s)) => s,
-        };
-        if !matches!(status.as_str(), "running" | "paused" | "pending") {
-            return Reply::error(
-                400,
-                format!("Job is not running or paused (status: {})", status),
-            );
-        }
-        match self.slot(job_id) {
-            Some((gen, ctl, st)) => {
-                let _g = st.lock().await;
-                if self.slot(job_id).map(|s| s.0) != Some(gen) {
-                    return match self.job_status(job_id).await {
-                        Ok(Some(s)) => Reply::error(
-                            400,
-                            format!("Job is not running or paused (status: {})", s),
-                        ),
-                        Ok(None) => Reply::error(404, "Job not found"),
-                        Err(r) => r,
-                    };
-                }
-                ctl.send_replace(Ctl::Cancel);
-                self.write_status(job_id, "cancelled", None).await;
+        let mut attempts = 0;
+        loop {
+            let status = match self.job_status(job_id).await {
+                Err(r) => return r,
+                Ok(None) => return Reply::error(404, "Job not found"),
+                Ok(Some(s)) => s,
+            };
+            if !matches!(status.as_str(), "running" | "paused" | "pending") {
+                return Reply::error(
+                    400,
+                    format!("Job is not running or paused (status: {})", status),
+                );
             }
-            None => self.write_status(job_id, "cancelled", None).await,
+            attempts += 1;
+            match self.slot(job_id) {
+                Some((gen, ctl, st)) => {
+                    let _g = st.lock().await;
+                    if self.slot(job_id).map(|s| s.0) != Some(gen) {
+                        // The processor finished, or a new one took over,
+                        // while this waited: decide again on what is there.
+                        if attempts < CANCEL_ATTEMPTS {
+                            continue;
+                        }
+                        return Reply::error(409, FINISHED_MESSAGE);
+                    }
+                    ctl.send_replace(Ctl::Cancel);
+                    self.write_status(job_id, "cancelled", None).await;
+                    break;
+                }
+                // No processor holds the job (queued, or left by a restart):
+                // cancel it only if it is still open in the store.
+                None => {
+                    let (id, now) = (job_id.to_string(), self.now());
+                    match self
+                        .inner
+                        .db
+                        .write(move |c| db::cancel_if_open(c, &id, now))
+                        .await
+                    {
+                        Ok(true) => break,
+                        Ok(false) => return Reply::error(409, FINISHED_MESSAGE),
+                        Err(e) => return store_failed("cancelling a job", e),
+                    }
+                }
+            }
         }
         tracing::info!("Historify job {} cancelled", job_id);
         self.inner.notify.notify(
