@@ -487,6 +487,7 @@ fn concrete(path: &str) -> String {
         .replace("{id}", "1")
         .replace("{alert_id}", "1")
         .replace("{exchange}", "NSE")
+        .replace("{*rest}", "status")
 }
 
 #[tokio::test]
@@ -539,6 +540,42 @@ async fn every_user_route_rejects_without_a_signed_in_session() {
         checked += 1;
     }
     assert!(checked >= 18, "only {} user routes", checked);
+}
+
+/// The Agent is deferred (CLAUDE.md): every `/agent/api` call from its pages
+/// gets the web's error envelope with a trader-facing sentence and 503 (the
+/// web's status when it cannot run the agent), never the page's 404, while
+/// the `/agent` pages themselves are still served.
+#[tokio::test]
+async fn agent_api_says_the_agent_is_not_available_yet() {
+    let h = H::new();
+    h.setup();
+    let (cookie, csrf) = h.session(true);
+    let want = json!({"status": "error", "message": routes::agent::UNAVAILABLE_MESSAGE});
+    assert!(routes::agent::UNAVAILABLE_MESSAGE.contains("not available in OpenAlgo Desktop yet"));
+    for (method, path) in [
+        (Method::GET, "/agent/api/status"),
+        (Method::GET, "/agent/api"),
+        (Method::GET, "/agent/api/catalog/models?provider=openai"),
+        (Method::POST, "/agent/api/chat/stream"),
+        (Method::PUT, "/agent/api/settings"),
+        (Method::PATCH, "/agent/api/models/1"),
+        (Method::DELETE, "/agent/api/conversations/7"),
+    ] {
+        let req = Request::builder()
+            .method(method.clone())
+            .uri(path)
+            .header(header::ACCEPT, "application/json")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from("{}"))
+            .unwrap();
+        let (s, v) = h.json(with_session(req, &cookie, Some(&csrf))).await;
+        assert_eq!(s, StatusCode::SERVICE_UNAVAILABLE, "{} {}", method, path);
+        assert_eq!(v, want, "{} {}", method, path);
+    }
+    let (s, _, body) = h.send(with_session(get("/agent"), &cookie, None)).await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(String::from_utf8_lossy(&body).contains("<!doctype html"));
 }
 
 #[tokio::test]

@@ -5,6 +5,7 @@
 
 pub mod account;
 pub mod admin;
+pub mod agent;
 pub mod analyzer;
 pub mod app_config;
 pub mod auth;
@@ -797,6 +798,8 @@ pub fn table() -> Vec<RouteSpec> {
     t.extend(openscript_runner::table());
     t.extend(scalping::table());
     t.extend(chartink::table());
+    // The Agent is deferred: its API answers that it is not available yet.
+    t.extend(agent::table());
     t
 }
 
