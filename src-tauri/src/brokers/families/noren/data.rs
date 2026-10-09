@@ -265,6 +265,14 @@ pub fn repair(c: &mut Candle) {
     }
 }
 
+/// Widen an EOD candle's high/low to cover its open and close (web
+/// flattrade `get_history`, #2196): `high = max(high, open, close)`,
+/// `low = min(low, open, close)`; volume is left as sent.
+pub fn widen_to_open_close(c: &mut Candle) {
+    c.high = c.high.max(c.open).max(c.close);
+    c.low = c.low.min(c.open).min(c.close);
+}
+
 /// Sort by timestamp, duplicates keep the last (web `keep="last"`).
 pub fn sort_dedupe_last(mut v: Vec<Candle>) -> Vec<Candle> {
     v.sort_by_key(|c| c.timestamp);
@@ -358,6 +366,9 @@ pub async fn get_history(
         return Err(noren_error(b.cfg.name, &last_err));
     }
     let mut candles: Vec<Candle> = raw.iter().filter_map(parse_candle).collect();
+    if daily && b.cfg.eod_widen {
+        candles.iter_mut().for_each(widen_to_open_close);
+    }
     if daily {
         let today = chrono::Utc::now().with_timezone(&Kolkata).date_naive();
         let today_ts = if b.cfg.today_bar_utc {

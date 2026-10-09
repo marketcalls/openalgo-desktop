@@ -130,6 +130,12 @@ fn route(fake: &Fake, path: &str, body: &Value) -> Response {
             ok(q)
         }
         "TPSeries" => ok(fixture!("shoonya", "tpseries.json")),
+        // BSE EOD rows as Flattrade sends them for BSE indices: the close
+        // lies outside the day's high/low (web #2196).
+        "EODChartData" if body["sym"].as_str().is_some_and(|s| s.starts_with("BSE:")) => ok(json!([
+            "{\"time\":\"30-SEP-2026\",\"into\":\"81000.00\",\"inth\":\"81500.00\",\"intl\":\"80800.00\",\"intc\":\"81650.00\",\"ssboe\":\"1790726400\",\"intv\":\"0\"}",
+            "{\"time\":\"01-OCT-2026\",\"into\":\"81650.00\",\"inth\":\"81900.00\",\"intl\":\"81400.00\",\"intc\":\"81300.00\",\"ssboe\":\"1790812800\",\"intv\":\"0\"}"
+        ])),
         "EODChartData" => ok(fixture!("shoonya", "eod.json")),
         "NSE_symbols.txt.zip" => zipped(fixture!("shoonya", "NSE_symbols.txt"), "NSE_symbols.txt"),
         "BSE_symbols.txt.zip" => zipped(fixture!("shoonya", "BSE_symbols.txt"), "BSE_symbols.txt"),
@@ -582,6 +588,33 @@ async fn flattrade_login_and_jkey_dialect() {
         .await
         .unwrap();
     assert_eq!(mr.total_margin_required, 90000.25);
+}
+
+/// Web #2196: Flattrade's EOD rows for BSE indices carry a close outside the
+/// day's high/low, and a chart refuses the whole history on one such candle,
+/// so Flattrade widens high/low to cover open and close. Members whose web
+/// adapters do not (Zebu, TradeSmart) pass the rows through as sent.
+#[tokio::test]
+async fn flattrade_daily_candles_cover_open_and_close() {
+    let req = HistoryRequest {
+        key: QuoteKey::new("BSE", "SBIN"),
+        interval: "D".into(),
+        start: NaiveDate::from_ymd_opt(2026, 9, 30).unwrap(),
+        end: NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
+    };
+    let (b, fake, auth) = noren(flattrade::config()).await;
+    let d = b.get_history(&auth, &req).await.unwrap();
+    assert_eq!(fake.calls("/EODChartData")[0].jdata["sym"], "BSE:SBIN");
+    assert_eq!(d.len(), 2);
+    assert_eq!((d[0].low, d[0].high), (80800.0, 81650.0));
+    assert_eq!((d[1].low, d[1].high), (81300.0, 81900.0));
+    assert!(d
+        .iter()
+        .all(|c| c.low <= c.open.min(c.close) && c.high >= c.open.max(c.close)));
+
+    let (b, _fake, auth) = noren(zebu::config()).await;
+    let d = b.get_history(&auth, &req).await.unwrap();
+    assert_eq!((d[0].low, d[0].high), (80800.0, 81500.0));
 }
 
 #[tokio::test]

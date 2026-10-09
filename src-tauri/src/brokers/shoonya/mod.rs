@@ -73,6 +73,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
         (("NSE_INDEX", "INDIAVIX"), "India VIX"),
     ],
     history_repair: true,
+    eod_widen: false,
     today_bar_utc: true,
     quote_identity_retries: 3,
     multiquote_batch: 20,

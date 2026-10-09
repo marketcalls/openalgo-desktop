@@ -68,6 +68,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
     history_window_secs: None,
     eod_index_names: &[],
     history_repair: false,
+    eod_widen: false,
     today_bar_utc: true,
     quote_identity_retries: 0,
     multiquote_batch: 10,

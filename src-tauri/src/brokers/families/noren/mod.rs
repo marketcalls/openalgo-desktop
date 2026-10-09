@@ -224,6 +224,11 @@ pub struct NorenConfig {
     pub eod_index_names: &'static [((&'static str, &'static str), &'static str)],
     /// Widen high/low to cover open/close and zero negative volume.
     pub history_repair: bool,
+    /// Widen the high/low of `EODChartData` rows to cover their open and
+    /// close (flattrade: BSE index rows often carry a close outside the
+    /// day's range, and a chart refuses the whole history on one such
+    /// candle; web #2196).
+    pub eod_widen: bool,
     /// Today's synthetic daily bar at UTC midnight of the IST date (true)
     /// or at IST midnight (zebu).
     pub today_bar_utc: bool,
