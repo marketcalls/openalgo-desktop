@@ -332,6 +332,7 @@ pub fn to_order(symbols: &SymbolResolver, row: &Value) -> Order {
     let exch_id = text(row, "ExchOrderID");
     let reason = text(row, "Reason");
     Order {
+        order_tag: None,
         order_id: text(row, "BrokerOrderId"),
         exchange_order_id: (!exch_id.is_empty() && exch_id != "0").then_some(exch_id),
         symbol,
@@ -360,6 +361,7 @@ pub fn to_trade(symbols: &SymbolResolver, row: &Value) -> Trade {
     let qty = num(row, "Qty");
     let rate = num(row, "Rate");
     Trade {
+        order_tag: None,
         order_id: text(row, "ExchOrderID"),
         trade_id: text(row, "ExchangeTradeID"),
         symbol,

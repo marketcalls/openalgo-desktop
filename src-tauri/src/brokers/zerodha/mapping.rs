@@ -419,6 +419,7 @@ pub fn map_orders(rows: Vec<KiteOrder>, symbols: &SymbolResolver) -> Vec<Order> 
         .map(|o| {
             let units = |q| qty_units(symbols, q, &o.tradingsymbol, &o.exchange);
             Order {
+                order_tag: None,
                 order_id: o.order_id.clone(),
                 exchange_order_id: non_empty(&o.exchange_order_id),
                 symbol: symbols.oa_symbol_or_raw(&o.tradingsymbol, &o.exchange),
@@ -460,6 +461,7 @@ pub fn map_trades(rows: Vec<KiteTrade>, symbols: &SymbolResolver) -> Vec<Trade> 
                 * price_multiplier(&t.tradingsymbol, &t.exchange, lot) as f64
                 * t.average_price;
             Trade {
+                order_tag: None,
                 order_id: t.order_id.clone(),
                 trade_id: t.trade_id.clone(),
                 symbol: symbols.oa_symbol_or_raw(&t.tradingsymbol, &t.exchange),

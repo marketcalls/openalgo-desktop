@@ -569,6 +569,7 @@ pub fn map_orders(rows: &[Value], symbols: &SymbolResolver) -> Vec<Order> {
                 .find(|v| !v.is_empty());
             let eoid = s(r, "exchange_order_id");
             Order {
+                order_tag: None,
                 order_id: s(r, "order_id"),
                 exchange_order_id: (!eoid.is_empty()).then_some(eoid),
                 symbol: oa_symbol(r, &exchange, symbols),
@@ -619,6 +620,7 @@ pub fn map_trades(rows: &[Value], symbols: &SymbolResolver) -> Vec<Trade> {
                 quantity as f64 * avg
             };
             Trade {
+                order_tag: None,
                 order_id: s(r, "order_id"),
                 trade_id: s(r, "trade_id"),
                 symbol: oa_symbol(r, &exchange, symbols),

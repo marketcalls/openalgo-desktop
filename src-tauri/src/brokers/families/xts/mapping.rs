@@ -264,6 +264,7 @@ pub fn orders(result: &Value, symbols: &SymbolResolver) -> Vec<Order> {
             let exchange_order_id = s(o, "ExchangeOrderID");
             let reason = s(o, "CancelRejectReason");
             Order {
+                order_tag: None,
                 order_id: order_id(o.get("AppOrderID")),
                 exchange_order_id: (!exchange_order_id.is_empty()).then_some(exchange_order_id),
                 symbol: oa_symbol(symbols, &exchange, &token, s(o, "TradingSymbol")),
@@ -306,6 +307,7 @@ pub fn trades(result: &Value, symbols: &SymbolResolver) -> Vec<Trade> {
             let quantity = i(t, "OrderQuantity") as i32;
             let average_price = f(t, "OrderAverageTradedPrice");
             Trade {
+                order_tag: None,
                 order_id: order_id(t.get("AppOrderID")),
                 trade_id: s(t, "ExecutionID"),
                 symbol: oa_symbol(symbols, &exchange, &token, s(t, "TradingSymbol")),

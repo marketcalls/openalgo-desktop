@@ -392,6 +392,7 @@ pub fn map_orders(rows: &[Value], symbols: &SymbolResolver) -> Vec<Order> {
             let qty = n(o, "qty");
             let filled = n(o, "fldQty");
             Order {
+                order_tag: Some(s(o, "GuiOrdId")),
                 order_id: s(o, "nOrdNo"),
                 exchange_order_id: Some(s(o, "exOrdId")).filter(|x| !x.is_empty()),
                 symbol: openalgo_symbol(symbols, o, &exchange),
@@ -441,6 +442,7 @@ pub fn map_trades(rows: &[Value], symbols: &SymbolResolver) -> Vec<Trade> {
             let qty = n(t, "fldQty");
             let avg = n(t, "avgPrc");
             Trade {
+                order_tag: Some(s(t, "GuiOrdId")),
                 order_id: s(t, "nOrdNo"),
                 trade_id: s(t, "flId"),
                 symbol: openalgo_symbol(symbols, t, &exchange),

@@ -467,6 +467,11 @@ pub struct Order {
     pub order_timestamp: String,
     pub exchange_timestamp: Option<String>,
     pub rejection_reason: Option<String>,
+    /// The broker's order tag, on brokers whose web book rows carry one
+    /// (Kotak `GuiOrdId` as `order_tag`, web #2145); `None` elsewhere, and
+    /// then the row has no such key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order_tag: Option<String>,
 }
 
 /// Trade-book row (web `transform_tradebook_data`).
@@ -482,6 +487,9 @@ pub struct Trade {
     pub average_price: f64,
     pub trade_value: f64,
     pub timestamp: String,
+    /// As `Order::order_tag`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order_tag: Option<String>,
 }
 
 impl From<Trade> for Order {
@@ -506,6 +514,7 @@ impl From<Trade> for Order {
             order_timestamp: t.timestamp,
             exchange_timestamp: None,
             rejection_reason: None,
+            order_tag: t.order_tag,
         }
     }
 }

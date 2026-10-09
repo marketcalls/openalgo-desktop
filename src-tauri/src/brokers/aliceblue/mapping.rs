@@ -220,6 +220,7 @@ pub fn order_from(r: &Value, symbols: &SymbolResolver) -> Order {
     let reason = s(r, "rejectionReason");
     let exch_id = s(r, "exchangeOrderId");
     Order {
+        order_tag: None,
         order_id: s(r, "brokerOrderId"),
         exchange_order_id: (!exch_id.is_empty()).then_some(exch_id),
         symbol: oa_symbol(symbols, &exchange, &cand_refs, &s(r, "instrumentId")),
@@ -285,6 +286,7 @@ pub fn trade_from(r: &Value, symbols: &SymbolResolver) -> Trade {
     };
     let fill = super::text(first(r, "fillTimestamp", "orderTime"));
     Trade {
+        order_tag: None,
         order_id: s(r, "brokerOrderId"),
         trade_id: s(r, "exchangeTradeId"),
         symbol: oa_symbol(symbols, &exchange, &cand_refs, &s(r, "instrumentId")),

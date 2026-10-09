@@ -334,6 +334,7 @@ pub fn map_order(symbols: &SymbolResolver, o: &Value) -> Order {
     };
     let reason = text(o, "error_message");
     Order {
+        order_tag: None,
         order_id: text(o, "id"),
         exchange_order_id: Some(text(o, "exch_order_id")).filter(|s| !s.is_empty()),
         symbol: symbol_for(symbols, &token, &exchange, &text(o, "name")),
@@ -409,6 +410,7 @@ pub fn map_trade(
     let qty = num(t, "quantity");
     let price = num(t, "price");
     Trade {
+        order_tag: None,
         order_id: exch_order_id,
         trade_id: text(t, "fill_id"),
         symbol: symbol_for(symbols, &token, &exchange, &token),

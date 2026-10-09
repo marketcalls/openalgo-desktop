@@ -452,6 +452,7 @@ pub fn map_orders(rows: Vec<DhanOrder>, symbols: &SymbolResolver) -> Vec<Order> 
             let exchange = map_exchange(&o.exchange_segment);
             let status = map_status(&o.order_status);
             Order {
+                order_tag: None,
                 order_id: o.order_id.clone(),
                 exchange_order_id: non_empty(&o.exchange_order_id),
                 symbol: resolve_symbol(symbols, &o.security_id, &exchange, &o.trading_symbol),
@@ -485,6 +486,7 @@ pub fn map_trades(rows: Vec<DhanTrade>, symbols: &SymbolResolver) -> Vec<Trade> 
         .map(|t| {
             let exchange = map_exchange(&t.exchange_segment);
             Trade {
+                order_tag: None,
                 order_id: t.order_id.clone(),
                 trade_id: t.exchange_trade_id.clone(),
                 symbol: resolve_symbol(symbols, &t.security_id, &exchange, &t.trading_symbol),

@@ -254,6 +254,7 @@ pub fn map_orders(rows: &[Value], symbols: &SymbolResolver) -> Vec<Order> {
                 .map(|_| vi(r, "totalqtyremaining"))
                 .unwrap_or_else(|| (quantity - filled).max(0));
             Order {
+                order_tag: None,
                 order_id: vs(r, "uniqueorderid").unwrap_or_default(),
                 exchange_order_id: vs(r, "exchorderid"),
                 symbol: oa_symbol(symbols, r, &exchange, "symbol"),
@@ -289,6 +290,7 @@ pub fn map_trades(rows: &[Value], symbols: &SymbolResolver) -> Vec<Trade> {
                 _ => DEFAULT_PRECISION,
             };
             Trade {
+                order_tag: None,
                 order_id: vs(r, "uniqueorderid").unwrap_or_default(),
                 trade_id: vs(r, "tradeno").unwrap_or_default(),
                 symbol: oa_symbol(symbols, r, &exchange, "symbol"),

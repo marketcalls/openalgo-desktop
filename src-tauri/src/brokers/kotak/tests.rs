@@ -353,6 +353,27 @@ fn trade_book_resolves_symbol_without_token() {
     );
 }
 
+/// Web #2145: Kotak's book rows carry `GuiOrdId` as `order_tag` (an empty
+/// one when Kotak sends none), and the `/api/v1` rows show it; other
+/// brokers' rows have no such key.
+#[test]
+fn books_carry_the_order_tag() {
+    use crate::services::account_service::{order_row, trade_row};
+    let r = master();
+    let o = map_orders(&data_rows(&j(fixture!("orders.json"))), &r);
+    assert!(o.iter().all(|x| x.order_tag.as_deref() == Some("openalgo")));
+    assert_eq!(order_row(&o[0])["order_tag"], "openalgo");
+    let t = map_trades(&data_rows(&j(fixture!("trades.json"))), &r);
+    assert_eq!(trade_row(&t[0])["order_tag"], "openalgo");
+    let untagged = map_orders(&[json!({"nOrdNo": "1", "exSeg": "nse_cm"})], &r);
+    assert_eq!(order_row(&untagged[0])["order_tag"], "");
+    let other = crate::brokers::types::Order {
+        order_tag: None,
+        ..o[0].clone()
+    };
+    assert!(order_row(&other).get("order_tag").is_none());
+}
+
 #[test]
 fn positions_follow_kotak_pnl_formula() {
     let r = master();

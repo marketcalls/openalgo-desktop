@@ -284,6 +284,7 @@ pub fn map_orders(rows: &[Value], symbols: &SymbolResolver) -> Vec<Order> {
             let reason = text_any(o, &["rejection_reason", "reject_reason", "reason"]);
             let exchange_order_id = text_any(o, &["exchange_order_id", "exchangeOrderId"]);
             Order {
+                order_tag: None,
                 order_id: text_any(o, &["oms_order_id", "order_id"]),
                 exchange_order_id: (!exchange_order_id.is_empty()).then_some(exchange_order_id),
                 symbol: oa_symbol(symbols, &br, &exchange),
@@ -324,6 +325,7 @@ pub fn map_trades(rows: &[Value], symbols: &SymbolResolver) -> Vec<Trade> {
             let quantity = num_any(t, &["fill_quantity", "trade_quantity"]).unwrap_or(0.0) as i64;
             let average = num_any(t, &["avg_price", "trade_price"]).unwrap_or(0.0);
             Trade {
+                order_tag: None,
                 order_id: text_any(t, &["order_id", "oms_order_id"]),
                 trade_id: text_any(t, &["trade_id", "trade_number"]),
                 symbol: oa_symbol(symbols, &br, &exchange),

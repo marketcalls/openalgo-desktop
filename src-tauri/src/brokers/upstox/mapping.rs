@@ -405,6 +405,7 @@ pub fn map_orders(rows: Vec<UpstoxOrder>, symbols: &SymbolResolver) -> Vec<Order
         .map(|o| {
             let status = normalize_status(&o.status);
             Order {
+                order_tag: None,
                 symbol: oa_symbol(
                     symbols,
                     &o.instrument_token,
@@ -472,6 +473,7 @@ pub fn order_stats(orders: &[Order]) -> OrderStats {
 pub fn map_trades(rows: Vec<UpstoxTrade>, symbols: &SymbolResolver) -> Vec<Trade> {
     rows.into_iter()
         .map(|t| Trade {
+            order_tag: None,
             symbol: oa_symbol(
                 symbols,
                 &t.instrument_token,

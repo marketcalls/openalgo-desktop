@@ -387,6 +387,7 @@ pub fn map_orders(rows: &[PaytmOrder], symbols: &SymbolResolver) -> Vec<Order> {
             };
             let status = map_status(&o.display_status);
             Order {
+                order_tag: None,
                 order_id: o.order_no.clone(),
                 exchange_order_id: non_empty(&o.exch_order_no),
                 symbol: oa_symbol(symbols, &o.security_id, &exchange),
@@ -438,6 +439,7 @@ pub fn map_trades(rows: &[PaytmOrder], symbols: &SymbolResolver) -> Vec<Trade> {
             }
             let exchange = oa_exchange(&o.exchange, &o.instrument);
             Some(Trade {
+                order_tag: None,
                 order_id: o.order_no.clone(),
                 trade_id: o.order_no.clone(),
                 symbol: oa_symbol(symbols, &o.security_id, &exchange),

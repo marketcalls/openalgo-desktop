@@ -503,6 +503,7 @@ pub fn map_order(cfg: &NorenConfig, o: &Value, symbols: &SymbolResolver) -> Orde
     }
     let status = normalize_status(&text(o, "status"));
     Order {
+        order_tag: None,
         order_id: text(o, "norenordno"),
         exchange_order_id: non_empty(text(o, "exchordid")),
         symbol: oa_symbol(symbols, &exch, &text(o, "token"), &text(o, "tsym")),
@@ -556,6 +557,7 @@ pub fn map_trade(cfg: &NorenConfig, t: &Value, symbols: &SymbolResolver) -> Trad
     let order_id = text(t, "norenordno");
     let flid = text(t, "flid");
     Trade {
+        order_tag: None,
         trade_id: if flid.is_empty() {
             order_id.clone()
         } else {

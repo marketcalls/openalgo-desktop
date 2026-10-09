@@ -150,6 +150,7 @@ async fn live_order_endpoints_publish_web_events() {
     *h.mock.cancel.lock() = None;
 
     *h.mock.order_book.lock() = Some(Ok(vec![Order {
+        order_tag: None,
         order_id: "MOCK-9".into(),
         exchange_order_id: None,
         symbol: "SBIN".into(),

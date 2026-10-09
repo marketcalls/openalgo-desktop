@@ -244,6 +244,7 @@ pub fn map_order(o: &GrowwOrder, symbols: &SymbolResolver) -> Order {
         detailed
     };
     Order {
+        order_tag: None,
         order_id: o.groww_order_id.clone(),
         exchange_order_id: (!o.exchange_order_id.is_empty()).then(|| o.exchange_order_id.clone()),
         symbol: oa_symbol(symbols, &o.trading_symbol, &exchange),
@@ -349,6 +350,7 @@ pub fn map_trade(t: &GrowwTrade, order_id: &str, segment: &str, symbols: &Symbol
     };
     let exchange = oa_exchange(&t.exchange, seg);
     Trade {
+        order_tag: None,
         order_id: if t.groww_order_id.is_empty() {
             order_id.to_string()
         } else {

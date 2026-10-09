@@ -537,6 +537,7 @@ pub fn order_book(resp: &Value, symbols: &SymbolResolver) -> Vec<Order> {
             let filled = num(&o, "filledQty");
             let eoid = exchange_order_id(&o);
             Order {
+                order_tag: None,
                 order_id: s(&o, "intentOrderId"),
                 exchange_order_id: (!eoid.is_empty()).then_some(eoid),
                 symbol,
@@ -570,6 +571,7 @@ pub fn trade_book(resp: &Value, symbols: &SymbolResolver) -> Vec<Trade> {
             let qty = num(&o, "filledQty");
             let price = num(&o, "filledPrice") / 100.0;
             Trade {
+                order_tag: None,
                 order_id: s(&o, "intentOrderId"),
                 trade_id: String::new(),
                 symbol,

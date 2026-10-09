@@ -121,6 +121,7 @@ pub fn map_order(o: &Value, symbols: &SymbolResolver) -> Order {
     let status = map_status(&text(o, "status"));
     let trig = f(o, "triggerPrice");
     Order {
+        order_tag: None,
         order_id: text(o, "orderNumber"),
         exchange_order_id: None,
         symbol: oa_symbol(symbols, &exch, &text(o, "token"), &text(o, "tradingSymbol")),
@@ -153,6 +154,7 @@ pub fn map_trade(t: &Value, symbols: &SymbolResolver) -> Trade {
     let order_id = text(t, "orderNumber");
     let fill = text(t, "fillId");
     Trade {
+        order_tag: None,
         trade_id: if fill.is_empty() {
             order_id.clone()
         } else {

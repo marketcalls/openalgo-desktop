@@ -514,6 +514,7 @@ pub fn map_order(o: &Value, symbols: &SymbolResolver) -> Order {
     let exch_oid = s(o, "exchange_order_id");
     let status = map_status(&status_raw);
     Order {
+        order_tag: None,
         order_id: s(o, "oms_order_id"),
         exchange_order_id: (!exch_oid.is_empty()).then_some(exch_oid),
         symbol: oa_symbol(symbols, &s(o, "trading_symbol"), &exchange),
@@ -577,6 +578,7 @@ pub fn map_trades(rows: &[Value], symbols: &SymbolResolver) -> Vec<Trade> {
                 }
             };
             Trade {
+                order_tag: None,
                 order_id: s(t, "oms_order_id"),
                 trade_id: s(t, "trade_id"),
                 symbol: oa_symbol(symbols, &s(t, "trading_symbol"), &exchange),

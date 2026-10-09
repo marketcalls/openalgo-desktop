@@ -301,6 +301,7 @@ pub fn map_orders(rows: Vec<ArrowOrder>, symbols: &SymbolResolver) -> Vec<Order>
                 o.order_time.clone()
             };
             Order {
+                order_tag: None,
                 order_id: o.order_id().to_string(),
                 exchange_order_id: (!o.exchange_order_no.is_empty())
                     .then(|| o.exchange_order_no.clone()),
@@ -343,6 +344,7 @@ pub fn map_trades(rows: Vec<ArrowTrade>, symbols: &SymbolResolver) -> Vec<Trade>
                 .or_else(|| lenient_num(&t.average_price))
                 .unwrap_or(0.0);
             Trade {
+                order_tag: None,
                 order_id: if t.order_no.is_empty() {
                     t.id.clone()
                 } else {

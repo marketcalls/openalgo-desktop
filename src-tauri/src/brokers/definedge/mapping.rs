@@ -194,6 +194,7 @@ pub fn map_order(o: &Value, symbols: &SymbolResolver) -> Order {
         .unwrap_or_else(|| text(o, "order_entry_time"));
     let reason = text(o, "message");
     Order {
+        order_tag: None,
         order_id: text(o, "order_id"),
         exchange_order_id: Some(text(o, "exchange_orderid")).filter(|s| !s.is_empty()),
         symbol: oa_symbol(symbols, &text(o, "tradingsymbol"), &exchange),
@@ -237,6 +238,7 @@ pub fn map_trade(t: &Value, symbols: &SymbolResolver) -> Trade {
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| text(t, "exchange_time"));
     Trade {
+        order_tag: None,
         order_id: text(t, "order_id"),
         trade_id: Some(text(t, "fill_id"))
             .filter(|s| !s.is_empty())

@@ -236,6 +236,7 @@ pub fn order_row(o: &Value, symbols: &SymbolResolver) -> Order {
     let reason = s(o, "reason");
     let validity = s(o, "validity").to_ascii_uppercase();
     Order {
+        order_tag: None,
         order_id: s(o, "orderId"),
         exchange_order_id: Some(s(o, "exchOrderId")).filter(|x| !x.is_empty()),
         symbol,
@@ -280,6 +281,7 @@ pub fn trade_row(t: &Value, symbols: &SymbolResolver) -> Trade {
         }
     });
     Trade {
+        order_tag: None,
         order_id: s(t, "orderId"),
         trade_id: first(t, &["tradeId", "fillId", "exchTradeId"]),
         symbol,

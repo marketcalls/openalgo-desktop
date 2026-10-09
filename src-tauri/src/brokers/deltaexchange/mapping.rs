@@ -296,6 +296,7 @@ pub fn map_order(o: &DeltaOrder, symbols: &SymbolResolver) -> Order {
         dec(&o.unfilled_size)
     };
     Order {
+        order_tag: None,
         order_id: o.composite_id(),
         exchange_order_id: None,
         symbol: oa_symbol_by_token(symbols, &o.product_id, &o.product_symbol),
@@ -356,6 +357,7 @@ pub fn map_trade(t: &DeltaFill, symbols: &SymbolResolver) -> Trade {
     let size = f(&t.size);
     let price = f(&t.price);
     Trade {
+        order_tag: None,
         order_id: if truthy_id(&t.product_id) {
             format!("{}:{}", t.product_id, t.order_id)
         } else {

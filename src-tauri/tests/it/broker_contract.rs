@@ -31,6 +31,7 @@ fn row(symbol: &str, exchange: &str, token: &str) -> SymToken {
 
 fn order(id: &str, status: &str) -> Order {
     Order {
+        order_tag: None,
         order_id: id.into(),
         exchange_order_id: None,
         symbol: "SBIN".into(),

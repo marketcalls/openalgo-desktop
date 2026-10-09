@@ -339,6 +339,7 @@ pub fn map_orders(rows: Vec<AngelOrder>, symbols: &SymbolResolver) -> Vec<Order>
                 &o.status
             };
             Order {
+                order_tag: None,
                 symbol: oa_symbol(symbols, &o.symboltoken, &o.tradingsymbol, &o.exchange),
                 order_type: oa_pricetype(&o.ordertype),
                 product: oa_product(&o.exchange, &o.producttype),
@@ -368,6 +369,7 @@ pub fn map_orders(rows: Vec<AngelOrder>, symbols: &SymbolResolver) -> Vec<Order>
 pub fn map_trades(rows: Vec<AngelTrade>, symbols: &SymbolResolver) -> Vec<Trade> {
     rows.into_iter()
         .map(|t| Trade {
+            order_tag: None,
             symbol: symbols.oa_symbol_or_raw(&t.tradingsymbol, &t.exchange),
             product: oa_product(&t.exchange, &t.producttype),
             // The trade book carries `fillsize`; `quantity` is a fallback.

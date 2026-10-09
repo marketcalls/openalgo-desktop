@@ -527,6 +527,7 @@ pub fn order_row(row: &Value, symbols: &SymbolResolver) -> Order {
     let reason = text(row.get("rejectionReason"));
     let validity = text(row.get("validity"));
     Order {
+        order_tag: None,
         order_id: row_order_id(row),
         exchange_order_id: Some(text(row.get("exchangeOrderId"))).filter(|s| !s.is_empty()),
         symbol: resolve_symbol(row, &exchange, symbols),
@@ -564,6 +565,7 @@ pub fn trade_row(row: &Value, symbols: &SymbolResolver) -> Trade {
     let qty = int(first(row, &["filledQuantity", "quantity", "filledQty"]));
     let avg = num(first(row, &["tradedPrice", "averageTradedPrice", "price"]));
     Trade {
+        order_tag: None,
         order_id: row_order_id(row),
         trade_id: text(first(row, &["exchangeTradeId", "tradeId"])),
         symbol: resolve_symbol(row, &exchange, symbols),

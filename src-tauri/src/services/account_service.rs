@@ -41,7 +41,7 @@ fn handle(ctx: &AppState) -> Result<BrokerHandle, Reply> {
 /// Web orderbook row (`transform_order_data` + `format_order_data`).
 pub fn order_row(o: &Order) -> Value {
     let market = o.order_type.eq_ignore_ascii_case("MARKET");
-    json!({
+    let mut row = json!({
         "symbol": o.symbol,
         "exchange": o.exchange,
         "action": o.side,
@@ -53,7 +53,17 @@ pub fn order_row(o: &Order) -> Value {
         "orderid": o.order_id,
         "order_status": o.status,
         "timestamp": o.order_timestamp,
-    })
+    });
+    with_order_tag(&mut row, o.order_tag.as_deref());
+    row
+}
+
+/// The `order_tag` key a broker's web book rows carry (Kotak `GuiOrdId`,
+/// web #2145); other brokers' rows have no such key.
+fn with_order_tag(row: &mut Value, tag: Option<&str>) {
+    if let (Some(tag), Some(map)) = (tag, row.as_object_mut()) {
+        map.insert("order_tag".into(), Value::String(tag.to_string()));
+    }
 }
 
 /// Web `calculate_order_statistics`.
@@ -69,7 +79,7 @@ pub fn order_statistics(orders: &[Order]) -> Value {
 }
 
 pub fn trade_row(t: &Trade) -> Value {
-    json!({
+    let mut row = json!({
         "symbol": t.symbol,
         "exchange": t.exchange,
         "product": t.product,
@@ -80,7 +90,9 @@ pub fn trade_row(t: &Trade) -> Value {
         "orderid": t.order_id,
         "tradeid": t.trade_id,
         "timestamp": t.timestamp,
-    })
+    });
+    with_order_tag(&mut row, t.order_tag.as_deref());
+    row
 }
 
 pub fn position_row(p: &Position) -> Value {
@@ -431,6 +443,7 @@ mod tests {
 
     fn order(side: &str, status: &str, pricetype: &str) -> Order {
         Order {
+            order_tag: None,
             order_id: "1".into(),
             exchange_order_id: None,
             symbol: "SBIN".into(),

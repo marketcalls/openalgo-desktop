@@ -371,6 +371,7 @@ fn position(symbol: &str, qty: i32, avg: f64, pnl: f64) -> Position {
 
 fn order_row(id: &str, status: &str) -> Order {
     Order {
+        order_tag: None,
         order_id: id.into(),
         exchange_order_id: None,
         symbol: "SBIN".into(),
@@ -1188,6 +1189,7 @@ async fn pnl_tracker_shapes() {
         ])
     );
     *h.mock.trade_book.lock() = Some(Ok(vec![Trade {
+        order_tag: None,
         order_id: "1".into(),
         trade_id: "T1".into(),
         symbol: "SBIN".into(),

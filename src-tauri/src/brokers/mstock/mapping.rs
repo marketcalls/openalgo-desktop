@@ -288,6 +288,7 @@ pub fn map_order(o: &Value, symbols: &SymbolResolver) -> Order {
     };
     let reason = s(o, "text");
     Order {
+        order_tag: None,
         order_id: s(o, "orderid"),
         exchange_order_id: Some(s(o, "exchangeorderid")).filter(|x| !x.is_empty()),
         symbol,
@@ -361,6 +362,7 @@ pub fn map_trade(t: &Value, symbols: &SymbolResolver) -> Trade {
         }
     };
     Trade {
+        order_tag: None,
         order_id: s(t, "ORDER_NUMBER"),
         trade_id,
         symbol,

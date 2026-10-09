@@ -308,6 +308,7 @@ pub fn order_book(v: &Value, symbols: &SymbolResolver) -> Vec<Order> {
             };
             let reason = clean_text(o.get("rejectionReason"));
             Order {
+                order_tag: None,
                 order_id: text(o.get("orderNumber")),
                 exchange_order_id: None,
                 symbol,
@@ -346,6 +347,7 @@ pub fn trade_book(v: &Value, symbols: &SymbolResolver) -> Vec<Trade> {
                 &text(t.get("exchange")),
             );
             Trade {
+                order_tag: None,
                 order_id: text(t.get("orderNumber")),
                 trade_id: text(t.get("tradeNumber")),
                 symbol,

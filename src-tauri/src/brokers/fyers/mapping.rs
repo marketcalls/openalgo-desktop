@@ -396,6 +396,7 @@ pub fn map_orders(rows: Vec<FyersOrder>, symbols: &SymbolResolver) -> Vec<Order>
                 (o.qty - o.filled_qty).max(0)
             };
             Order {
+                order_tag: None,
                 order_id: o.id,
                 exchange_order_id: non_empty(&o.exch_ord_id),
                 symbol,
@@ -435,6 +436,7 @@ pub fn map_trades(rows: Vec<FyersTrade>, symbols: &SymbolResolver) -> Vec<Trade>
         .map(|t| {
             let (symbol, exchange) = oa_identity(&t.symbol, t.exchange, t.segment, symbols);
             Trade {
+                order_tag: None,
                 order_id: t.order_number,
                 trade_id: t.trade_number,
                 symbol,
