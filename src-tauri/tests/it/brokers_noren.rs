@@ -1141,11 +1141,29 @@ async fn firstock_index_rows_survive_a_failed_index_list() {
         );
     }
 
-    // An empty master in use (the first download after sign-in) has
-    // nothing to carry.
+    // A direct download with an empty master in memory has nothing to
+    // carry...
     let (b, fake, auth) = firstock_setup().await;
     b.symbols().unwrap().load(Vec::new());
     fake.down.lock().push("indexList");
     let rows = b.download_master_contract(&auth).await.unwrap();
     assert!(!rows.iter().any(|r| r.token == "26009"));
+    // ...but the service's download, the first after a sign-in included,
+    // hands over the index rows of the stored table, and those are kept.
+    assert_eq!(b.carries_stored(), Some("INDEX"));
+    let stored = firstock::master_contract::parse_index_list(&all["index_list"]);
+    let m = b.download_master_carrying(&auth, stored).await.unwrap();
+    let bank: Vec<_> = m
+        .rows
+        .iter()
+        .filter(|r| r.exchange == "NSE_INDEX" && r.token == "26009")
+        .collect();
+    assert_eq!(bank.len(), 1);
+    assert_eq!(
+        m.rows
+            .iter()
+            .filter(|r| r.exchange == "NSE_INDEX" && r.token == "26000")
+            .count(),
+        1
+    );
 }

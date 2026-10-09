@@ -262,6 +262,23 @@ pub fn load_symbols(conn: &Connection) -> Result<Vec<SymbolInfo>> {
     Ok(rows)
 }
 
+/// The stored rows of one instrument type, in master order: what a broker
+/// carries into a download when part of it fails (Firstock's index rows,
+/// web `get_existing_index_rows`). Empty when there is no table.
+pub fn load_by_instrument_type(conn: &Connection, itype: &str) -> Result<Vec<SymbolInfo>> {
+    if !table_exists(conn)? {
+        return Ok(Vec::new());
+    }
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {} FROM symtoken WHERE instrumenttype = ?1 ORDER BY id",
+        COLUMNS
+    ))?;
+    let rows = stmt
+        .query_map([itype], row)?
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
 pub fn count_symbols(conn: &Connection) -> Result<i64> {
     Ok(conn.query_row("SELECT COUNT(*) FROM symtoken", [], |r| r.get(0))?)
 }

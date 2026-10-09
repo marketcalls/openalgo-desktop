@@ -375,9 +375,16 @@ async fn fetch_file(b: &FirstockBroker, ex: &str) -> Option<String> {
 /// Every symbol file must arrive and yield rows, or the download fails and
 /// the stored master is kept (web #2198; the service swaps the table in
 /// one transaction). Indices come from the authenticated index list; when
-/// it fails or is empty, the index rows of the master in use are carried
-/// forward instead of being dropped.
-pub async fn download(b: &FirstockBroker, auth: &AuthToken) -> Result<Vec<SymToken>> {
+/// it fails or is empty, the index rows already stored are carried forward
+/// instead of being dropped: `stored` is what the service read from the
+/// stored table (`Broker::carries_stored`), so the first download after a
+/// sign-in keeps them too; without it (a direct call) the master in memory
+/// is the source.
+pub async fn download(
+    b: &FirstockBroker,
+    auth: &AuthToken,
+    stored: Option<Vec<SymToken>>,
+) -> Result<Vec<SymToken>> {
     let mut texts = Vec::with_capacity(FILES.len());
     let mut failed = Vec::new();
     for ex in FILES {
@@ -418,7 +425,10 @@ pub async fn download(b: &FirstockBroker, auth: &AuthToken) -> Result<Vec<SymTok
         }
     };
     if fresh.is_empty() {
-        let kept = carried_index_rows(b.symbols.snapshot().rows(), &rows);
+        let kept = match &stored {
+            Some(stored) => carried_index_rows(stored, &rows),
+            None => carried_index_rows(b.symbols.snapshot().rows(), &rows),
+        };
         tracing::warn!(
             broker = "firstock",
             "Index list unavailable; keeping {} existing index rows",

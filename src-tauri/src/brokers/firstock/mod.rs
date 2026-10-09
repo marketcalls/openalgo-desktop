@@ -447,7 +447,23 @@ impl Broker for FirstockBroker {
     }
 
     async fn download_master_contract(&self, auth: &AuthToken) -> Result<Vec<SymbolData>> {
-        master_contract::download(self, auth).await
+        master_contract::download(self, auth, None).await
+    }
+
+    /// Index rows are carried forward when `/indexList` fails (web
+    /// `get_existing_index_rows`).
+    fn carries_stored(&self) -> Option<&'static str> {
+        Some("INDEX")
+    }
+
+    async fn download_master_carrying(
+        &self,
+        auth: &AuthToken,
+        stored: Vec<SymbolData>,
+    ) -> Result<MasterContract> {
+        Ok(MasterContract::new(
+            master_contract::download(self, auth, Some(stored)).await?,
+        ))
     }
 
     fn create_feed(&self, auth: &AuthToken) -> Result<Box<dyn BrokerFeed>> {

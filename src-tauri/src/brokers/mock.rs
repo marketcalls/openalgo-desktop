@@ -94,6 +94,10 @@ pub struct MockBroker {
     pub logouts: Mutex<u32>,
     /// Contract multipliers by token sent with the master.
     pub contract_values: Mutex<HashMap<String, f64>>,
+    /// What `carries_stored` answers.
+    pub carry: Mutex<Option<&'static str>>,
+    /// The stored rows the last `download_master_carrying` was given.
+    pub carried: Mutex<Option<Vec<SymbolData>>>,
     /// The account id a sign-in returns.
     pub auth_user_id: Mutex<String>,
     /// What `begin_login` returns (a consent address).
@@ -140,6 +144,8 @@ impl MockBroker {
             depth_feed: Mutex::new(None),
             logouts: Mutex::new(0),
             contract_values: Mutex::new(HashMap::new()),
+            carry: Mutex::new(None),
+            carried: Mutex::new(None),
             auth_user_id: Mutex::new("AB1234".into()),
             login_url: Mutex::new(None),
             restored: Mutex::new(None),
@@ -472,6 +478,19 @@ impl Broker for MockBroker {
         let mut m = MasterContract::new(self.download_master_contract(auth).await?);
         m.contract_values = self.contract_values.lock().clone();
         Ok(m)
+    }
+
+    fn carries_stored(&self) -> Option<&'static str> {
+        *self.carry.lock()
+    }
+
+    async fn download_master_carrying(
+        &self,
+        auth: &AuthToken,
+        stored: Vec<SymbolData>,
+    ) -> Result<MasterContract> {
+        *self.carried.lock() = Some(stored);
+        self.download_master(auth).await
     }
 
     fn create_feed(&self, _: &AuthToken) -> Result<Box<dyn BrokerFeed>> {

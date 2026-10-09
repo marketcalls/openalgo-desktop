@@ -13,7 +13,7 @@
 //! * The downloaded list is written to SQLite on a blocking thread and
 //!   handed to the resolver; nothing else keeps it.
 
-use crate::brokers::types::AuthToken;
+use crate::brokers::types::{AuthToken, SymbolData};
 use crate::brokers::Broker;
 use crate::db::sqlite::{master_contract_status as mcs, symbol};
 use crate::error::{AppError, Result};
@@ -178,6 +178,34 @@ pub async fn load_cached(ctx: &Arc<AppState>, broker: &str) -> Result<usize> {
     Ok(n)
 }
 
+/// The stored rows of `itype` a broker carries into its download
+/// (`Broker::carries_stored`), when the stored table holds this broker's
+/// master; empty otherwise, or when it cannot be read (the download then
+/// goes ahead without them).
+pub async fn stored_rows(ctx: &AppState, broker: &str, itype: &'static str) -> Vec<SymbolData> {
+    let db = ctx.sqlite.clone();
+    let broker = broker.to_string();
+    let read = tokio::task::spawn_blocking(move || -> Result<Vec<SymbolData>> {
+        let conn = db.conn()?;
+        if mcs::last_downloaded_broker(&conn)?.as_deref() != Some(broker.as_str()) {
+            return Ok(Vec::new());
+        }
+        symbol::load_by_instrument_type(&conn, itype)
+    })
+    .await;
+    match read {
+        Ok(Ok(rows)) => rows,
+        Ok(Err(e)) => {
+            tracing::warn!("Stored {} rows could not be read: {}", itype, e);
+            Vec::new()
+        }
+        Err(e) => {
+            tracing::warn!("Stored {} rows could not be read: {}", itype, e);
+            Vec::new()
+        }
+    }
+}
+
 /// Download, store and load the master for a claimed broker.
 async fn download_claimed(
     ctx: &Arc<AppState>,
@@ -199,7 +227,14 @@ async fn download_claimed(
     }
     // `download_master` carries per-row extras (Delta's contract_value),
     // stored and loaded with the rows.
-    let master = match broker.download_master(auth).await {
+    let downloaded = match broker.carries_stored() {
+        Some(itype) => {
+            let stored = stored_rows(ctx, id, itype).await;
+            broker.download_master_carrying(auth, stored).await
+        }
+        None => broker.download_master(auth).await,
+    };
+    let master = match downloaded {
         Ok(m) if !m.rows.is_empty() => m,
         Ok(_) => {
             return Err(AppError::Broker(
@@ -473,6 +508,51 @@ mod tests {
         assert_eq!(ctx.symbols.contract_value("BTCUSD", "CRYPTO"), None);
         assert_eq!(load_cached(ctx, "deltaexchange").await.unwrap(), 1);
         assert_eq!(ctx.symbols.contract_value("BTCUSD", "CRYPTO"), Some(0.001));
+    }
+
+    /// Web #2198 `get_existing_index_rows`: a broker that carries stored rows
+    /// (Firstock's index rows) gets them from the stored table, so the first
+    /// download after a sign-in, with nothing in memory, keeps them too; the
+    /// stored master of another broker is never carried.
+    #[tokio::test]
+    async fn carried_rows_come_from_the_stored_master() {
+        use crate::brokers::common::symbols::tests::row;
+        use crate::brokers::mock::MockBroker;
+        use crate::brokers::BrokerRegistry;
+        let firstock = Arc::new(MockBroker::new("firstock"));
+        let other = Arc::new(MockBroker::new("zerodha"));
+        *firstock.carry.lock() = Some("INDEX");
+        let mut nifty = row("NIFTY", "NIFTY 50", "NSE_INDEX", "26000");
+        nifty.instrument_type = "INDEX".into();
+        let sbin = row("SBIN", "SBIN-EQ", "NSE", "3045");
+        *firstock.master.lock() = Some(Ok(vec![sbin.clone(), nifty.clone()]));
+        *other.master.lock() = Some(Ok(vec![sbin.clone(), nifty.clone()]));
+        let t = crate::state::testing::build(
+            BrokerRegistry::with(vec![
+                firstock.clone() as Arc<dyn Broker>,
+                other.clone() as Arc<dyn Broker>,
+            ]),
+            ist(3, 10, 0),
+        );
+        let ctx = &t.ctx;
+        let auth = AuthToken::new("t");
+        let fs: Arc<dyn Broker> = firstock.clone();
+        let zd: Arc<dyn Broker> = other.clone();
+        // Nothing stored yet.
+        download(ctx, &fs, &auth).await.unwrap();
+        assert_eq!(firstock.carried.lock().clone(), Some(vec![]));
+        // A sign-in starts with an empty master in memory; the stored one
+        // still holds the index row.
+        ctx.clear_symbol_cache();
+        download(ctx, &fs, &auth).await.unwrap();
+        assert_eq!(firstock.carried.lock().clone(), Some(vec![nifty.clone()]));
+        // After another broker's (later) download the stored master is not
+        // Firstock's.
+        t.clock.advance(chrono::Duration::minutes(1));
+        download(ctx, &zd, &auth).await.unwrap();
+        assert!(other.carried.lock().is_none(), "zerodha carries nothing");
+        download(ctx, &fs, &auth).await.unwrap();
+        assert_eq!(firstock.carried.lock().clone(), Some(vec![]));
     }
 
     /// Web #2117 (`try_start_master_contract_download(reset_status=True)`):

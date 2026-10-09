@@ -430,6 +430,25 @@ pub trait Broker: Send + Sync {
         ))
     }
 
+    /// The instrument type of stored master rows this broker carries into a
+    /// new download when part of it fails (Firstock: `INDEX`, web
+    /// `get_existing_index_rows`). For `Some`, the master contract service
+    /// reads those rows from the stored table, when it holds this broker's
+    /// master, and downloads through `download_master_carrying`.
+    fn carries_stored(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// `download_master` with the stored rows `carries_stored` names.
+    /// Default: they are not needed.
+    async fn download_master_carrying(
+        &self,
+        auth: &AuthToken,
+        _stored: Vec<SymbolData>,
+    ) -> Result<MasterContract> {
+        self.download_master(auth).await
+    }
+
     // ---- streaming ----
 
     /// A streaming adapter for the market-data feed.
