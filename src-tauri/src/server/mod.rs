@@ -13,6 +13,7 @@ pub mod middleware;
 pub mod ratelimit;
 pub mod routes;
 pub mod socketio;
+pub mod source;
 pub mod spa;
 
 #[cfg(test)]

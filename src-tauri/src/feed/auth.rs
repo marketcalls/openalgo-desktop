@@ -40,7 +40,7 @@ pub trait FeedAuth: Send + Sync + 'static {
     }
 
     /// Count one `authenticate` from `caller`
-    /// (`server::middleware::feed_caller`) against the resource guard every
+    /// (`feed::server::handshake_source`) against the resource guard every
     /// request passes (well above legitimate use); `false` when over it.
     fn admit(&self, _caller: std::net::IpAddr) -> bool {
         true
@@ -50,6 +50,12 @@ pub trait FeedAuth: Send + Sync + 'static {
     /// `/api/v1` and `/mcp` share. It only ever refuses invalid
     /// credentials; a valid key is never refused by it.
     fn failed(&self, _caller: std::net::IpAddr) {}
+
+    /// Whether `caller` has spent its failure budget: its failed
+    /// `authenticate` is then answered and the connection closed.
+    fn spent(&self, _caller: std::net::IpAddr) -> bool {
+        false
+    }
 }
 
 /// Authentication against the app's stored API key and broker session.
@@ -81,6 +87,11 @@ impl FeedAuth for AppAuth {
     fn failed(&self, caller: std::net::IpAddr) {
         use crate::server::ratelimit::Bucket;
         crate::server::middleware::count_failure(&self.ctx, caller, Bucket::ApiKeyFail)
+    }
+
+    fn spent(&self, caller: std::net::IpAddr) -> bool {
+        use crate::server::ratelimit::Bucket;
+        crate::server::middleware::failures_exhausted(&self.ctx, caller, Bucket::ApiKeyFail)
     }
 
     async fn authenticate(&self, api_key: &str) -> AuthOutcome {

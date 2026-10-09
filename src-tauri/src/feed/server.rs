@@ -103,33 +103,20 @@ impl Default for HandshakePolicy {
     }
 }
 
-/// `host[:port]` as (lower-case name without brackets, port). `None` when
-/// malformed.
-fn split_authority(host: &str) -> Option<(String, Option<u16>)> {
-    let host = host.trim().to_ascii_lowercase();
-    if let Some(rest) = host.strip_prefix('[') {
-        let (name, after) = rest.split_once(']')?;
-        let port = match after.strip_prefix(':') {
-            Some(p) => Some(p.parse::<u16>().ok()?),
-            None if after.is_empty() => None,
-            None => return None,
-        };
-        return Some((name.to_string(), port));
-    }
-    match host.rsplit_once(':') {
-        Some((name, p)) => Some((name.to_string(), Some(p.parse::<u16>().ok()?))),
-        None => Some((host, None)),
-    }
-}
+use crate::server::source::{is_loopback_name as loopback_name, split_authority};
 
-fn loopback_name(name: &str) -> bool {
-    matches!(name, "127.0.0.1" | "localhost" | "::1")
-}
-
-/// Whether `host` names the feed on this computer.
-fn names_this_computer(host: Option<&str>, ws_port: u16) -> bool {
-    host.and_then(split_authority)
-        .is_some_and(|(name, port)| loopback_name(&name) && port == Some(ws_port))
+/// Who opened a feed connection: the classifier the HTTP server uses
+/// ([`crate::server::source::classify`]), with the feed's port as the
+/// listener's own. So a connection through a tunnel (a forwarding header,
+/// or a host other than this computer) is the shared tunnel identity, a
+/// device on the network its address, and only a plain local connection
+/// this computer.
+pub fn handshake_source(
+    peer: std::net::IpAddr,
+    headers: &axum::http::HeaderMap,
+    ws_port: u16,
+) -> crate::server::source::Source {
+    crate::server::source::classify(Some(peer), headers, None, &|p| p.unwrap_or(80) == ws_port)
 }
 
 impl HandshakePolicy {
@@ -581,19 +568,17 @@ async fn serve_conn(
     // came in on.
     let policy = (shared.cfg.handshake.0)();
     let ws_port = stream.local_addr().map(|a| a.port()).unwrap_or(0);
-    // Whether the handshake came through a proxy or tunnel: a forwarding
-    // header, or a host other than this computer (see `feed_caller`).
-    let proxied = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let saw_proxy = proxied.clone();
+    // Who is calling, classified from the handshake exactly as an HTTP
+    // request is (`handshake_source`).
+    let source = Arc::new(parking_lot::Mutex::new(
+        crate::server::source::Source::Tunnel,
+    ));
+    let seen = source.clone();
     let check_origin =
         move |req: &tokio_tungstenite::tungstenite::handshake::server::Request,
               resp: tokio_tungstenite::tungstenite::handshake::server::Response| {
             let get = |n: &str| req.headers().get(n).and_then(|v| v.to_str().ok());
-            saw_proxy.store(
-                crate::server::middleware::forwarded(req.headers())
-                    || !names_this_computer(get("host"), ws_port),
-                Ordering::Relaxed,
-            );
+            *seen.lock() = handshake_source(peer, req.headers(), ws_port);
             if policy.allows(get("origin"), get("host"), ws_port) {
                 Ok(resp)
             } else {
@@ -625,7 +610,9 @@ async fn serve_conn(
     let mut writer = AbortOnDrop(tokio::spawn(write_loop(sink, outbox.clone())));
     let mut session = Session {
         id,
-        caller: crate::server::middleware::feed_caller(peer, proxied.load(Ordering::Relaxed)),
+        caller: source.lock().ip(),
+        close: None,
+        closing_on_failure: false,
         shared: shared.clone(),
         outbox: outbox.clone(),
         user_id: None,
@@ -704,6 +691,11 @@ async fn serve_conn(
                     // on the next read, which then ends the stream.
                     _ => {}
                 }
+                if let Some((code, reason)) = session.close.take() {
+                    outbox.close_after_control(code, reason);
+                    closing = true;
+                    break;
+                }
             }
         }
     }
@@ -738,8 +730,14 @@ async fn serve_conn(
 struct Session {
     id: ClientId,
     /// Who is calling, for the per-caller guard and failure budget
-    /// (`server::middleware::feed_caller`).
+    /// ([`handshake_source`]).
     caller: std::net::IpAddr,
+    /// A close the connection loop sends after the frames already queued
+    /// (an `authenticate` refused once the caller's budget is spent).
+    close: Option<(u16, &'static str)>,
+    /// The last failed `authenticate` came from a caller whose failure
+    /// budget was already spent.
+    closing_on_failure: bool,
     shared: Arc<Shared>,
     outbox: Arc<Outbox>,
     user_id: Option<String>,
@@ -850,14 +848,27 @@ impl Session {
             Some(k) => {
                 let outcome = auth.authenticate(k).await;
                 if outcome == AuthOutcome::Invalid {
-                    auth.failed(self.caller);
+                    self.closing_on_failure = auth.spent(self.caller);
+                    if !self.closing_on_failure {
+                        auth.failed(self.caller);
+                    }
                 }
                 outcome
             }
             None => AuthOutcome::Invalid,
         };
         match outcome {
-            AuthOutcome::Invalid => self.error(code::AUTHENTICATION_ERROR, "Invalid API key", None),
+            AuthOutcome::Invalid => {
+                // The web's error frame. A caller whose failure budget is
+                // already spent is then closed (4401, as an unauthenticated
+                // connection is), so each further guess costs it a new
+                // connection; a valid key was checked above and is never
+                // refused by the budget (security review S-02).
+                self.error(code::AUTHENTICATION_ERROR, "Invalid API key", None);
+                if self.closing_on_failure {
+                    self.close = Some((AUTH_TIMEOUT_CODE, "Invalid API key"));
+                }
+            }
             AuthOutcome::NoBroker { user_id } => {
                 // The web records the user before the broker check, so the
                 // socket counts as authenticated from here on.

@@ -131,7 +131,8 @@ async fn app_auth_uses_the_stored_api_key_and_broker_session() {
 
 /// Security review S-02: failed feed keys count against the caller's
 /// failure budget, shared with `/api/v1` and `/mcp`, the caller classified
-/// from the handshake like an HTTP request. A valid key is never refused
+/// from the handshake like an HTTP request. Once it is spent, a failed key
+/// is answered and the connection closed. A valid key is never refused
 /// because of it: from this computer, through a tunnel (a forwarding
 /// header) or from the network. Every `authenticate` passes the resource
 /// guard first.
@@ -169,9 +170,10 @@ async fn failed_feed_keys_are_counted_like_api_keys() {
     };
     let local: std::net::IpAddr = "127.0.0.1".parse().unwrap();
 
-    // This computer: twelve bad keys spend its budget; the valid key works.
+    // This computer: ten bad keys spend its budget; the next is answered
+    // and the connection closed; the valid key works on a new one.
     let mut c = Client::connect(&url).await;
-    for _ in 0..12 {
+    for _ in 0..11 {
         let v = c
             .request(json!({"action": "authenticate", "api_key": "wrong"}))
             .await;
@@ -179,6 +181,8 @@ async fn failed_feed_keys_are_counted_like_api_keys() {
     }
     assert!(exhausted(local));
     assert!(!exhausted(PROXIED_CALLER));
+    drop(c);
+    let mut c = Client::connect(&url).await;
     let v = c
         .request(json!({"action": "authenticate", "api_key": key}))
         .await;
@@ -195,13 +199,15 @@ async fn failed_feed_keys_are_counted_like_api_keys() {
         Client { ws }
     };
     let mut c = through_tunnel().await;
-    for i in 0..12 {
+    for i in 0..11 {
         let v = c
             .request(json!({"action": "authenticate", "api_key": format!("wrong{}", i)}))
             .await;
         assert_eq!(v, invalid);
     }
     assert!(exhausted(PROXIED_CALLER));
+    drop(c);
+    let mut c = through_tunnel().await;
     let v = c
         .request(json!({"action": "authenticate", "api_key": key}))
         .await;

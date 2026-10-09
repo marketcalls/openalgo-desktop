@@ -533,10 +533,11 @@ Every flaky test found so far was a race, not a slow machine:
 - Check a fix by disabling it locally and watching its test fail; never
   commit or push the disabled state, not even to a wip branch.
 - Behind a tunnel or proxy on the same machine (ngrok, cloudflared) every
-  caller is 127.0.0.1. Classify the caller once, in the outermost layer
-  (`middleware::classify`, stored as `Source`), and have every check read
-  the stored value; a second parser of forwarding headers is a way around
-  the first. Loopback is local only without any forwarding header and with
+  caller is 127.0.0.1. Classify the caller once, in the outermost layer,
+  with the one classifier (`server::source::classify`, stored as
+  `Source`; the feed's handshake calls it too), and have every check read
+  the stored value; a second parser of forwarding headers or `Host` is a
+  way around the first. Loopback is local only without any forwarding header and with
   the app's own `Host`. No forwarding header is read as an address: tunnel
   callers are one identity, and bans and IP allowlists apply to network
   peers only.

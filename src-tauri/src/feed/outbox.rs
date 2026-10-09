@@ -30,6 +30,8 @@ struct State {
     market: HashMap<MarketKey, String>,
     order: VecDeque<MarketKey>,
     close: Option<(u16, String)>,
+    /// A close to send once the control frames already queued are written.
+    close_after: Option<(u16, String)>,
     finished: bool,
     overflowed: bool,
 }
@@ -52,6 +54,7 @@ impl Outbox {
                 market: HashMap::new(),
                 order: VecDeque::new(),
                 close: None,
+                close_after: None,
                 finished: false,
                 overflowed: false,
             }),
@@ -133,6 +136,21 @@ impl Outbox {
         self.notify.notify_one();
     }
 
+    /// Ask the writer to send a close frame once the control frames already
+    /// queued (an error frame) are written. Market frames are discarded.
+    pub fn close_after_control(&self, code: u16, reason: &str) {
+        {
+            let mut s = self.state.lock();
+            if s.close.is_some() || s.close_after.is_some() || s.finished {
+                return;
+            }
+            s.market.clear();
+            s.order.clear();
+            s.close_after = Some((code, reason.to_string()));
+        }
+        self.notify.notify_one();
+    }
+
     /// Stop the writer without a close frame (the socket is gone).
     pub fn finish(&self) {
         {
@@ -156,6 +174,10 @@ impl Outbox {
         }
         if let Some(item) = s.control.pop_front() {
             return Some(Some(item));
+        }
+        if let Some((code, reason)) = s.close_after.take() {
+            s.finished = true;
+            return Some(Some(Outgoing::Close(code, reason)));
         }
         while let Some(k) = s.order.pop_front() {
             if let Some(f) = s.market.remove(&k) {
@@ -255,6 +277,21 @@ mod tests {
         assert_eq!(
             o.next().await,
             Some(Outgoing::Close(4401, "auth timeout".into()))
+        );
+        assert_eq!(o.next().await, None);
+    }
+
+    #[tokio::test]
+    async fn a_close_after_control_frames_sends_them_first() {
+        let o = Outbox::new(8, 8);
+        o.push_control("error".into());
+        o.close_after_control(4401, "Invalid API key");
+        o.push_control("late ping".into());
+        assert_eq!(o.next().await, Some(Outgoing::Text("error".into())));
+        assert_eq!(o.next().await, Some(Outgoing::Text("late ping".into())));
+        assert_eq!(
+            o.next().await,
+            Some(Outgoing::Close(4401, "Invalid API key".into()))
         );
         assert_eq!(o.next().await, None);
     }

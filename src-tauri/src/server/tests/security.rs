@@ -2003,3 +2003,206 @@ async fn s08_the_live_port_is_the_bound_listener_and_fails_closed() {
     assert_eq!(h.ctx().live_port(), 0);
     assert!(!trusted(bound), "a failed bind trusts the old port");
 }
+
+/// S-03, S-10: the HTTP server and the market data feed classify every
+/// combination of socket peer, forwarding header and `Host` the same way:
+/// both call the one classifier (`server::source::classify`), each with
+/// its own port. A loopback peer is this computer only without any
+/// forwarding header and naming this computer on the listener's port.
+#[test]
+fn s03_http_and_the_feed_classify_callers_identically() {
+    use crate::server::source::Source;
+    use axum::http::{HeaderName, HeaderValue};
+    let cfg = crate::config::ServerConfig {
+        http_port: 5000,
+        ..crate::config::ServerConfig::default()
+    };
+    let (http, ws) = (5000u16, 8765u16);
+    let peers = [
+        "127.0.0.1",
+        "::1",
+        "::ffff:127.0.0.1",
+        "192.168.1.50",
+        "::ffff:192.168.1.50",
+        "fe80::1",
+    ];
+    // How the request names its host; `{}` is the listener's own port.
+    let hosts: [&[&str]; 9] = [
+        &["127.0.0.1:{}"],
+        &["localhost:{}"],
+        &["[::1]:{}"],
+        &["LOCALHOST:{}"],
+        &["evil.example:{}"],
+        &["127.0.0.1:9999"],
+        &["127.0.0.1"],
+        &["127.0.0.1:{}", "127.0.0.1:{}"],
+        &[],
+    ];
+    let extra: [&[(&str, &str)]; 9] = [
+        &[],
+        &[("x-forwarded-for", "203.0.113.7")],
+        &[("X-Forwarded-Host", "evil.example")],
+        &[("x-forwarded-for", "")],
+        &[("forwarded", "for=203.0.113.7")],
+        &[("x-real-ip", "127.0.0.1")],
+        &[("cf-connecting-ip", "203.0.113.7")],
+        &[("via", "1.1 proxy")],
+        &[("tailscale-funnel-request", "?1")],
+    ];
+    let build = |host: &[&str], port: u16, extra: &[(&str, &str)]| {
+        let mut h = axum::http::HeaderMap::new();
+        for v in host {
+            let v = v.replace("{}", &port.to_string());
+            h.append(axum::http::header::HOST, HeaderValue::from_str(&v).unwrap());
+        }
+        for (n, v) in extra {
+            h.append(
+                HeaderName::from_bytes(n.as_bytes()).unwrap(),
+                HeaderValue::from_str(v).unwrap(),
+            );
+        }
+        h
+    };
+    let mut seen = std::collections::HashSet::new();
+    for peer in peers {
+        let ip: std::net::IpAddr = peer.parse().unwrap();
+        for host in hosts {
+            for headers in extra {
+                let via_http = crate::server::middleware::classify(
+                    &cfg,
+                    http,
+                    Some(ip),
+                    &build(host, http, headers),
+                    None,
+                );
+                let via_feed =
+                    crate::feed::server::handshake_source(ip, &build(host, ws, headers), ws);
+                assert_eq!(via_http, via_feed, "{} {:?} {:?}", peer, host, headers);
+                let canonical = crate::server::addr::canonical(ip);
+                let local = headers.is_empty()
+                    && host.len() == 1
+                    && host[0].ends_with(":{}")
+                    && !host[0].starts_with("evil");
+                let expected = if !canonical.is_loopback() {
+                    Source::Lan(canonical)
+                } else if local {
+                    Source::Local
+                } else {
+                    Source::Tunnel
+                };
+                assert_eq!(via_http, expected, "{} {:?} {:?}", peer, host, headers);
+                seen.insert(std::mem::discriminant(&expected));
+            }
+        }
+    }
+    assert_eq!(seen.len(), 3, "the table covers all three kinds of caller");
+}
+
+/// S-02, end to end through real WebSocket connections: a thousand bad
+/// keys over the market data feed through the tunnel spend the tunnel's
+/// failure budget. Once it is spent, a bad key gets the web's error frame
+/// and the connection is closed at once with 4401, so each further guess
+/// costs a new connection. A valid key from another source (this
+/// computer) still connects, and so does a valid key through the tunnel.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn s02_feed_tunnel_failures_never_refuse_a_valid_key() {
+    use crate::server::ratelimit::Bucket;
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    use tokio_tungstenite::tungstenite::Message;
+    async fn next_frame<S>(ws: &mut S) -> Message
+    where
+        S: futures_util::Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>
+            + Unpin,
+    {
+        loop {
+            match ws.next().await {
+                Some(Ok(Message::Ping(_))) | Some(Ok(Message::Pong(_))) => continue,
+                Some(Ok(m)) => return m,
+                other => panic!("the connection ended: {:?}", other.map(|r| r.is_ok())),
+            }
+        }
+    }
+    let h = H::new();
+    let key = h.setup();
+    h.connect_broker();
+    h.ctx().pin_listener_ports(0, 0);
+    h.ctx().reload_config().unwrap();
+    let feed = crate::feed::FeedService::new(h.ctx().clone());
+    assert!(matches!(
+        feed.start().await,
+        crate::state::ServerStatus::Running { .. }
+    ));
+    let url = format!("ws://{}", feed.local_addr().await.unwrap());
+    let connect = || async {
+        let mut r = url.as_str().into_client_request().unwrap();
+        r.headers_mut()
+            .insert("x-forwarded-for", "203.0.113.7".parse().unwrap());
+        tokio_tungstenite::connect_async(r)
+            .await
+            .expect("the feed accepts the connection")
+            .0
+    };
+    let authenticate =
+        |k: &str| Message::Text(json!({"action": "authenticate", "api_key": k}).to_string());
+    let invalid =
+        json!({"status": "error", "code": "AUTHENTICATION_ERROR", "message": "Invalid API key"});
+    let t0 = h.ctx().limiter.now();
+    let mut ws = connect().await;
+    for i in 0..1000u64 {
+        // Five hundred a second, under the resource guard.
+        h.ctx()
+            .limiter
+            .freeze(Some(t0 + std::time::Duration::from_millis(2 * i)));
+        ws.send(authenticate(&format!("wrong{}", i))).await.unwrap();
+        match next_frame(&mut ws).await {
+            Message::Text(t) => assert_eq!(serde_json::from_str::<Value>(&t).unwrap(), invalid),
+            other => panic!("{:?}", other),
+        }
+        if i >= 10 {
+            // Closed at once for the failed key, not by the auth timeout.
+            let frame =
+                tokio::time::timeout(std::time::Duration::from_secs(5), next_frame(&mut ws))
+                    .await
+                    .expect("closed at once once the budget is spent");
+            match frame {
+                Message::Close(Some(f)) => {
+                    assert_eq!(u16::from(f.code), 4401);
+                    assert_eq!(f.reason.as_ref(), "Invalid API key");
+                }
+                other => panic!("not closed after a spent budget: {:?}", other),
+            }
+            ws = connect().await;
+        }
+    }
+    let now = h.ctx().limiter.now();
+    assert!(h
+        .ctx()
+        .limiter
+        .is_exhausted(Bucket::ApiKeyFail, PROXIED_CALLER, now));
+    // Another source (this computer, no forwarding header) is unaffected.
+    let (mut local, _) = tokio_tungstenite::connect_async(url.as_str())
+        .await
+        .unwrap();
+    local.send(authenticate(&key)).await.unwrap();
+    match next_frame(&mut local).await {
+        Message::Text(t) => {
+            let v: Value = serde_json::from_str(&t).unwrap();
+            assert_eq!(v["status"], "success", "this computer: {}", v);
+        }
+        other => panic!("{:?}", other),
+    }
+    drop(local);
+    // And a valid key through the spent tunnel itself.
+    ws.send(authenticate(&key)).await.unwrap();
+    match next_frame(&mut ws).await {
+        Message::Text(t) => {
+            let v: Value = serde_json::from_str(&t).unwrap();
+            assert_eq!(v["type"], "auth", "{}", v);
+            assert_eq!(v["status"], "success", "{}", v);
+        }
+        other => panic!("{:?}", other),
+    }
+    drop(ws);
+    feed.stop().await;
+}
