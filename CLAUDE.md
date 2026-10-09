@@ -427,12 +427,14 @@ queued behind the lock. Run at most two build-heavy agents at a time, each
 with `CARGO_BUILD_JOBS=4` and one cargo command at a time; iterate with
 filtered test runs and run the full suite once before pushing.
 
-The shared folder grows past 30 GB. When free disk drops below about 8 GB,
-delete `target/debug/deps` and `build` entries older than the current session
-and `incremental`; never the whole folder while other agents build.
-Deleting `incremental` under a running build fails it with `failed to move
-dependency graph`; rerun it, or build with `CARGO_INCREMENTAL=0` while
-others are cleaning.
+The shared folder grows past 30 GB. When free disk drops below about 8 GB
+and no build is running (`pgrep -fl 'cargo|rustc'` is empty), delete
+`target/debug/deps` and `build` entries older than the current session and
+`incremental`; never the whole folder. Never delete anything under a running
+build: removing `incremental` fails it with `failed to move dependency graph`,
+and removing a `deps` entry it links against fails the link. If disk is
+critical while builds run, remove only per-crate `incremental/*` folders
+untouched for hours.
 
 Cargo hashes this crate's build-script output (`target/debug/build/
 openalgo-desktop-<hash>/out`, the Tauri capabilities that

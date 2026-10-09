@@ -197,8 +197,10 @@ du -sh .claude/worktrees/*/src-tauri/target 2>/dev/null     # worktrees that bui
 - Delete a stray per-worktree `src-tauri/target` that was built without
   `CARGO_TARGET_DIR`.
 - The shared folder grows past 30 GB. When free disk drops below about
-  8 GB, delete the entries of `target/debug/deps` and `target/debug/build`
-  older than the current session, and `target/debug/incremental`
+  8 GB and no build is running, delete the entries of `target/debug/deps`
+  and `target/debug/build` older than the current session, and
+  `target/debug/incremental`. Under a running build delete nothing (at most
+  per-crate `incremental/*` folders untouched for hours when disk is critical)
   (`find "$CARGO_TARGET_DIR/debug/deps" -maxdepth 1 -mmin +<minutes> ...`;
   list before deleting). Never delete the whole folder, and never
   `cargo clean` it, while other agents build (`pgrep -fl 'cargo|rustc'`):
