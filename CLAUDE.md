@@ -164,7 +164,7 @@ Tauri window ---- loads ----> http://127.0.0.1:5000  (React app, same as web)
 
 ### Brokers
 
-All 36 web brokers plus Delta Exchange (crypto) are in scope. They are built by
+All 36 web brokers are in scope, Delta Exchange (crypto) among them. They are built by
 **auth family**, not one by one:
 
 | Family | Implementation | Members |
