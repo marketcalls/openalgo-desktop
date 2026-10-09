@@ -10,8 +10,8 @@ use super::mapping::*;
 use super::master_contract::{bse_index_symbol, parse_index_list, parse_segment};
 use super::socketio::{self, EioPacket, SioPacket};
 use super::streaming::{
-    normalise_message, socket_url, token_transport_allowed, ws_base, xts_time_ms, Command,
-    FeedSource, XtsFeed,
+    normalise_message, socket_url, stall_reference, token_transport_allowed, ws_base, xts_time_ms,
+    Command, FeedSource, XtsFeed, DATA_STALL_SECS,
 };
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Product, Validity};
@@ -856,6 +856,92 @@ fn feed(cfg: &'static XtsConfig) -> XtsFeed {
     f.insert(sub("NIFTY25APR2422500CE", "NFO", "43210", FeedMode::Quote));
     f.insert(sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Ltp));
     f
+}
+
+/// IST wall clock -> epoch seconds.
+fn ist(y: i32, mo: u32, d: u32, h: u32, mi: u32) -> i64 {
+    use chrono::TimeZone;
+    chrono_tz::Asia::Kolkata
+        .with_ymd_and_hms(y, mo, d, h, mi, 0)
+        .single()
+        .unwrap()
+        .timestamp()
+}
+
+/// Web test/test_fivepaisaxts_health_check.py (#2155): silence only counts
+/// while a subscribed segment's session is open. 2026-09-30 is a
+/// Wednesday, 2026-10-03 a Saturday; segment 2 is NSE F&O, 51 MCX.
+#[test]
+fn stall_reference_counts_silence_only_in_an_open_session() {
+    let wed = |h, m| ist(2026, 9, 30, h, m);
+    let sat = |h, m| ist(2026, 10, 3, h, m);
+    let (nfo, mcx) = (2_i64, 51_i64);
+    // test_no_reference_without_subscriptions
+    assert_eq!(stall_reference(wed(11, 0), None, std::iter::empty()), None);
+    // test_no_reference_on_weekend
+    assert_eq!(stall_reference(sat(11, 0), None, [nfo]), None);
+    // test_no_reference_outside_equity_session (15:30 is already closed)
+    assert_eq!(stall_reference(wed(8, 0), None, [nfo]), None);
+    assert_eq!(stall_reference(wed(16, 0), None, [nfo]), None);
+    assert_eq!(stall_reference(wed(15, 30), None, [nfo]), None);
+    // test_mcx_session_runs_late (5 is the web's own MCX code)
+    assert!(stall_reference(wed(20, 0), None, [mcx]).is_some());
+    assert!(stall_reference(wed(20, 0), None, [5]).is_some());
+    assert_eq!(stall_reference(wed(23, 45), None, [mcx]), None);
+    // test_stale_pre_open_message_does_not_count_against_the_open
+    assert_eq!(
+        stall_reference(wed(9, 20), Some(wed(8, 0)), [nfo]),
+        Some(wed(9, 15))
+    );
+    // test_recent_message_is_the_reference
+    assert_eq!(
+        stall_reference(wed(11, 1), Some(wed(11, 0)), [nfo]),
+        Some(wed(11, 0))
+    );
+    // The earliest live session wins: MCX opened at 09:00.
+    assert_eq!(
+        stall_reference(wed(9, 20), None, [nfo, mcx]),
+        Some(wed(9, 0))
+    );
+}
+
+/// Web #2155: the watchdog is fivepaisaxts's alone; every market-data event
+/// (even one for an instrument not in the book) and a connect reset the
+/// silence, other events do not.
+#[test]
+fn data_stall_watchdog_is_fivepaisaxts_only() {
+    use crate::brokers::common::streaming::BrokerFeed;
+    let now = ist(2026, 9, 30, 11, 5);
+    let mut f = feed(&crate::brokers::fivepaisaxts::CONFIG);
+    f.set_last_data(Some(now - DATA_STALL_SECS - 1));
+    assert!(f.stalled_at(now));
+    f.set_last_data(Some(now - DATA_STALL_SECS));
+    assert!(!f.stalled_at(now));
+    // Out of session nothing is stale.
+    f.set_last_data(Some(ist(2026, 9, 30, 10, 0)));
+    assert!(!f.stalled_at(ist(2026, 9, 30, 16, 0)));
+
+    let mut other = feed(&crate::brokers::compositedge::CONFIG);
+    other.set_last_data(Some(now - 3600));
+    assert!(!other.stalled_at(now));
+
+    for (frame, stamps) in [
+        (stream("ltp_1512"), true),
+        (
+            r#"42["1501-json-partial","{\"ExchangeSegment\":1,\"ExchangeInstrumentID\":999999}"]"#
+                .to_string(),
+            true,
+        ),
+        (stream("joined"), false),
+        (stream("ping"), false),
+    ] {
+        f.set_last_data(None);
+        f.parse(&Message::Text(frame.clone()));
+        assert_eq!(f.last_data().is_some(), stamps, "{}", frame);
+    }
+    f.set_last_data(None);
+    f.on_connected();
+    assert!(f.last_data().is_some());
 }
 
 fn ticks(ev: &[FeedEvent]) -> Vec<&crate::brokers::common::streaming::NormalizedTick> {

@@ -84,6 +84,11 @@ pub struct XtsHooks {
     /// #2176). Without it the refusal is non-fatal and not retried, as in
     /// the other members' web adapters.
     pub split_duplicate_batch: bool,
+    /// Reconnect the market-data socket after 90 s without market data
+    /// while a subscribed segment's session is open (fivepaisaxts, web
+    /// #2155). XTS answers pings on an otherwise silent socket, so the
+    /// manager's frame watchdog alone never sees such a stall.
+    pub data_stall_watchdog: bool,
 }
 
 /// Static configuration of one XTS white-label.

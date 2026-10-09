@@ -36,6 +36,7 @@ pub static CONFIG: XtsConfig = XtsConfig {
         margin_details: true,
         multiquote_oi: true,
         split_duplicate_batch: true,
+        data_stall_watchdog: false,
     },
 };
 

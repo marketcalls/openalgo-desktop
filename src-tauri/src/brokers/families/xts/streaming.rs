@@ -389,6 +389,68 @@ pub struct XtsFeed {
     snapshots_tx: mpsc::Sender<String>,
     snapshots_rx: mpsc::Receiver<String>,
     pending_attachments: usize,
+    /// When market data last arrived (epoch seconds), for the data-stall
+    /// watchdog (`XtsHooks::data_stall_watchdog`).
+    last_data: Option<i64>,
+}
+
+/// Silence during an open session after which the feed reconnects (web
+/// fivepaisaxts `DATA_TIMEOUT`, #2155).
+pub const DATA_STALL_SECS: i64 = 90;
+/// IST session windows in minutes after midnight, end excluded (web
+/// `_EQUITY_SESSION`, `_MCX_SESSION`).
+const EQUITY_SESSION: (u32, u32) = (9 * 60 + 15, 15 * 60 + 30);
+const MCX_SESSION: (u32, u32) = (9 * 60, 23 * 60 + 30);
+/// MCX segment codes: 51 in XTS, 5 in the web's 5paisa constants.
+const MCX_SEGMENTS: [i64; 2] = [5, 51];
+
+/// The instant silence is measured from, or `None` when no subscribed
+/// segment's session is open (web fivepaisaxts `_stall_reference`): no
+/// subscriptions, a weekend in IST, or outside every subscribed segment's
+/// window. Otherwise the later of the last market data and the open of the
+/// earliest live session, so a socket quiet since before the open is not
+/// reconnected the moment trading starts.
+pub fn stall_reference(
+    now: i64,
+    last_data: Option<i64>,
+    segments: impl IntoIterator<Item = i64>,
+) -> Option<i64> {
+    use chrono::{Datelike, TimeZone, Timelike};
+    let ist = chrono_tz::Asia::Kolkata.timestamp_opt(now, 0).single()?;
+    if ist.weekday().number_from_monday() >= 6 {
+        return None;
+    }
+    let minute = ist.hour() * 60 + ist.minute();
+    let midnight = now - i64::from(ist.num_seconds_from_midnight());
+    let mut segments = segments.into_iter().peekable();
+    segments.peek()?;
+    let open = segments
+        .filter_map(|seg| {
+            let (start, end) = if MCX_SEGMENTS.contains(&seg) {
+                MCX_SESSION
+            } else {
+                EQUITY_SESSION
+            };
+            (start <= minute && minute < end).then_some(midnight + i64::from(start) * 60)
+        })
+        .min()?;
+    Some(last_data.unwrap_or(0).max(open))
+}
+
+/// A Socket.IO market-data event the watchdog counts (web: the handlers
+/// wrapped by `_stamped`), whether or not its payload is later used.
+fn is_market_event(name: &str) -> bool {
+    matches!(
+        name.split_once('-'),
+        Some((
+            "1501" | "1502" | "1505" | "1510" | "1512" | "1105",
+            "json-full" | "json-partial"
+        ))
+    )
+}
+
+fn now_secs() -> i64 {
+    chrono::Utc::now().timestamp()
 }
 
 impl Drop for XtsFeed {
@@ -424,7 +486,28 @@ impl XtsFeed {
             snapshots_tx,
             snapshots_rx,
             pending_attachments: 0,
+            last_data: None,
         }
+    }
+
+    /// Has market data stopped during an open session (as of `now`, epoch
+    /// seconds)? Always false for a member without the watchdog.
+    pub(crate) fn stalled_at(&self, now: i64) -> bool {
+        if !self.cfg.hooks.data_stall_watchdog {
+            return false;
+        }
+        stall_reference(now, self.last_data, self.book.keys().map(|(seg, _)| *seg))
+            .is_some_and(|reference| now - reference > DATA_STALL_SECS)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_last_data(&mut self, at: Option<i64>) {
+        self.last_data = at;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn last_data(&self) -> Option<i64> {
+        self.last_data
     }
 
     /// Stop the subscription worker of the previous connection.
@@ -572,6 +655,9 @@ impl XtsFeed {
             Some(SioPacket::Event { name, args }) => (name, args),
             _ => return Vec::new(),
         };
+        if is_market_event(&name) {
+            self.last_data = Some(now_secs());
+        }
         let wanted = name.ends_with("-json-full")
             || name.ends_with("-json-partial")
             || name == "message"
@@ -753,7 +839,22 @@ impl BrokerFeed for XtsFeed {
     fn on_connected(&mut self) -> Vec<Message> {
         self.pending_attachments = 0;
         while self.snapshots_rx.try_recv().is_ok() {}
+        // Web `_on_connect`: silence is measured from the connection.
+        self.last_data = Some(now_secs());
         Vec::new()
+    }
+
+    fn data_stalled(&mut self) -> bool {
+        let now = now_secs();
+        if !self.stalled_at(now) {
+            return false;
+        }
+        tracing::warn!(
+            broker = self.cfg.id,
+            "No market data for over {} s during an open session; reconnecting",
+            DATA_STALL_SECS
+        );
+        true
     }
 
     fn awaits_auth_ack(&self) -> bool {
