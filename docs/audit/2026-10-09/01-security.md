@@ -1,7 +1,15 @@
 # 01 - Security review of master (2026-10-09)
 
 Review of `master` at commit `f60dc53`. File and line references point at
-that commit. Report only: nothing in this review has been fixed yet.
+that commit.
+
+**Status (updated 2026-10-09).** Every finding is fixed on `master` except
+S-04 (a documented residual) and S-17 (dependency status). The commits are
+in the table below and under each finding, with the tests that guard each
+fix. Each fix was checked by disabling it locally and watching its tests
+fail, then pass with the fix restored; the disabled states were never
+committed. What remains after a fix is listed as "Residual" under the
+finding.
 
 Scope: the Rust HTTP server and its middleware, browser sessions and CSRF,
 sign-in and account recovery, broker sign-in (OAuth `state`, the state-less
@@ -28,23 +36,23 @@ new in this review.
 
 | ID | Severity | Title | Status |
 | --- | --- | --- | --- |
-| S-01 | High | Unauthenticated account wipe and takeover through `POST /auth/reset-account` | New |
-| S-02 | Medium | Any web page can lock the trader out of sign-in and lock local API clients out of `/api/v1` | New |
-| S-03 | Medium | Behind a tunnel every caller is 127.0.0.1: per-address limits, bans, allowlists and the Remote MCP gate stop working | New |
-| S-04 | Medium | Forged state-less broker callbacks for the trader's own account | Residual (documented) |
-| S-05 | Low | `POST /setup` is exempt from CSRF and the same-origin check | New |
-| S-06 | Low | Webhook secrets are written in plaintext to the traffic log | New |
-| S-07 | Low | Reset account leaves MCP tokens, strategy webhooks and Chartink webhooks live | New |
-| S-08 | Low | The remote-app capability trusts every port on loopback | New |
-| S-09 | Low | Socket.IO connections outlive logout | New |
-| S-10 | Low | Feed server accepts any web page and has no failed-key throttle | New |
-| S-11 | Info | `pending_oauth` consume is a read then delete, not one statement | New |
-| S-12 | Info | A key check racing a key regeneration can cache the old key for 5 minutes | New |
-| S-13 | Info | Requests without a `Host` header skip the Host check | New |
-| S-14 | Info | `/webhook/` CSRF exemption has no route behind it | New |
-| S-15 | Info | The MCP "require approval" setting is stored but has no effect | New |
-| S-16 | Info | Session cookie has no `Secure` flag when served through an HTTPS tunnel | New |
-| S-17 | Info | Development dependency advisories (npm, dev only) and accepted RustSec advisories | Dependency status |
+| S-01 | High | Unauthenticated account wipe and takeover through `POST /auth/reset-account` | Fixed in `69ed11e` |
+| S-02 | Medium | Any web page can lock the trader out of sign-in and lock local API clients out of `/api/v1` | Fixed in `4e6c801`, `8fb3cef`, `b922cd1` |
+| S-03 | Medium | Behind a tunnel every caller is 127.0.0.1: per-address limits, bans, allowlists and the Remote MCP gate stop working | Fixed in `4e6c801`, `b922cd1`, `2697f4b` |
+| S-04 | Medium | Forged state-less broker callbacks for the trader's own account | Residual (documented, unchanged) |
+| S-05 | Low | `POST /setup` is exempt from CSRF and the same-origin check | Fixed in `4e6c801` |
+| S-06 | Low | Webhook secrets are written in plaintext to the traffic log | Fixed in `166cb1d` |
+| S-07 | Low | Reset account leaves MCP tokens, strategy webhooks and Chartink webhooks live | Fixed in `69ed11e` |
+| S-08 | Low | The remote-app capability trusts every port on loopback | Fixed in `01c1adc`, `1d15e2b` |
+| S-09 | Low | Socket.IO connections outlive logout | Fixed in `b542b6e`, `4e6c801` |
+| S-10 | Low | Feed server accepts any web page and has no failed-key throttle | Fixed in `5ecabb1`, `8f14c84`, `2697f4b` |
+| S-11 | Info | `pending_oauth` consume is a read then delete, not one statement | Fixed in `eed39c3` |
+| S-12 | Info | A key check racing a key regeneration can cache the old key for 5 minutes | Fixed in `eed39c3` |
+| S-13 | Info | Requests without a `Host` header skip the Host check | Fixed in `b542b6e` |
+| S-14 | Info | `/webhook/` CSRF exemption has no route behind it | Fixed in `b542b6e` |
+| S-15 | Info | The MCP "require approval" setting is stored but has no effect | Fixed in `eed39c3` (labelled) |
+| S-16 | Info | Session cookie has no `Secure` flag when served through an HTTPS tunnel | Fixed in `4e6c801` |
+| S-17 | Info | Development dependency advisories (npm, dev only) and accepted RustSec advisories | Dependency status, unchanged |
 
 No Critical issue was found. One High issue (S-01) needs a fix before the
 1.0.0 release is announced to traders who expose the app through a tunnel or
@@ -89,6 +97,11 @@ deliberate local confirmation such as a code shown only in the desktop window.
 Add the route to a "never reachable through a tunnel" list and cover it with a
 test that drives it with a tunnel `Host`.
 
+**Status: fixed in `69ed11e`.** The account is reset only from the desktop
+window (a Tauri command whose caller must be the main window on the app's
+own page); `POST /auth/reset-account` no longer exists. Test:
+`server::tests::security::s01_account_reset_is_not_reachable_over_http`.
+
 ### S-02 Medium: any web page can lock the trader out of sign-in and lock local API clients out of `/api/v1`
 
 Code:
@@ -120,6 +133,68 @@ broker session as a key failure. Consider keying the `ApiKeyFail` lockout on
 the presented key's digest plus address, so wrong keys cannot lock out the
 right one.
 
+**Status: fixed in `4e6c801`, `8fb3cef` and `b922cd1`.**
+- Sign-in (`/auth/login`, `/auth/login/totp`, the authenticator step of the
+  password reset, the 2FA settings, the current password on a password
+  change) must come from the app's own page: `Sec-Fetch-Site` same-origin or
+  none, else an `Origin`, else a `Referer`, naming the app. A request with
+  none of them is accepted only from this computer. Anything else is refused
+  before anything is counted or checked (`middleware::sign_in_origin_ok`).
+- The per-address request limit (5 a minute, 25 an hour) stays, counted per
+  address only. On top of it, one failure budget per source (this computer,
+  the tunnel, each network address, IPv6 by /64), whatever name is typed:
+  5 free failures, then 30 s doubling to a 5-minute cap; a delay, never a
+  lockout. The attempt is claimed and counted under the lock that checks
+  the wait, before the password is verified, so parallel requests cannot
+  slip through (`ratelimit::LoginBackoff`). A name that is not the account's
+  is verified against a fixed stand-in Argon2 hash with the same parameters
+  and gets the same answer, so neither the response, its timing nor the
+  delays tell which names exist.
+- `/api/v1`: a cross-site browser request gets the web's 403 "Invalid
+  openalgo apikey" before the rate limit or the key is counted; a valid key
+  without a broker session is not a failure; this computer is never locked
+  out by bad keys. The 100-per-second limit and the 403 body are unchanged.
+- Every surface that takes a random credential (API keys, MCP tokens, feed
+  keys, strategy and Chartink webhook addresses) checks it first (a cheap
+  lookup; Argon2 only on an HMAC index hit). A valid credential is charged
+  only to its own windows (behind a tunnel, its own copy of the
+  per-address limit) and is never refused by other callers' traffic or
+  failures. An invalid one, a key in the URL included, is charged to the
+  caller's failure budget (ten a minute; this computer, the tunnel as one,
+  each network address); once spent, that caller's further invalid
+  attempts are refused at once, with no audit row, probe or log. A
+  resource guard of 1000 requests a second per caller covers every
+  request. When the limiter's table fills, per-credential windows go
+  first and a live address entry is never dropped; new addresses then
+  share one overflow bucket (before, a full table dropped every lockout).
+  Passwords and codes are never handled this way. The rationale is in
+  `docs/security/known-residuals.md`.
+- Tests (`server::tests::security`): `s02_cross_site_login_posts_do_not_lock_out_sign_in`,
+  `s02_sign_ins_not_from_the_apps_page_are_refused_before_counting`,
+  `s02_local_guessing_waits_longer_each_time_up_to_five_minutes`,
+  `s02_remote_failures_never_delay_a_local_sign_in`,
+  `s02_tunnel_guesses_with_new_names_and_passwords_share_one_budget`,
+  `s02_parallel_attempts_cannot_slip_through`,
+  `s02_totp_guessing_waits_on_the_same_budget`,
+  `s02_unknown_user_names_are_delayed_too`,
+  `s02_unknown_names_and_wrong_passwords_are_indistinguishable`,
+  `s02_image_requests_with_a_bad_key_do_not_lock_out_local_programs`,
+  `s02_a_key_in_the_url_counts_like_one_in_the_body`,
+  `s02_bad_keys_never_refuse_a_valid_key`,
+  `s02_bad_mcp_tokens_share_the_failure_budget_of_bad_keys`,
+  `s02_tunnel_failures_never_refuse_a_valid_mcp_token`,
+  `s02_cross_site_requests_do_not_use_up_the_local_rate_limit`,
+  `s02_valid_key_without_a_broker_session_is_not_a_failure`,
+  `s02_cross_site_callback_images_do_not_use_up_the_sign_in_limit`;
+  `server::ratelimit::tests` (including
+  `per_credential_windows_never_flush_a_lockout`,
+  `a_full_table_fails_closed_into_one_bucket`); `tests/it/feed_app.rs`
+  `failed_feed_keys_are_counted_like_api_keys`.
+- Residual: a remote caller can delay sign-in from its own source (all
+  tunnel callers share one budget, since they cannot be told apart), never
+  from this computer. Someone holding many network addresses gets a budget
+  per address (IPv6 grouped by /64).
+
 ### S-03 Medium: behind a tunnel every caller is 127.0.0.1
 
 Code:
@@ -146,6 +221,49 @@ allowlists cannot tell tunnel callers apart. Optionally honour
 `X-Forwarded-For` only when the request came from loopback and the `Host` is
 the configured tunnel host, and document that.
 
+**Status: fixed in `4e6c801`, `b922cd1` and `2697f4b`.** The caller is classified once per request by
+the outermost layer (`server::source::classify`, stored as `Source`; the
+feed's handshake uses the same function) and every
+control reads the stored value. A socket peer that is not loopback is
+`Lan(ip)` and its headers are never read. A loopback peer is `Local` only
+with no forwarding-type header (any `x-forwarded-*`, `Forwarded`, `Via`,
+`X-Real-IP`, `CF-Connecting-IP`, `True-Client-IP`, `X-Client-IP`,
+`Fastly-Client-IP`, `X-Original-Forwarded-For` and others, matched
+case-insensitively, empty or repeated) and a `Host` naming the app's own
+loopback address and port; anything else is `Tunnel`. No forwarding header
+is ever read as an address: tunnel callers are one shared identity, never
+local, never banned and matching no IP allowlist. Bans and allowlists apply
+to network peers only, compared as canonical addresses (`::ffff:1.2.3.4` is
+`1.2.3.4`, IPv6 in one spelling; logs.db migration 012 rewrites stored
+bans), in the one monitor layer every HTTP surface passes and at the feed
+server's accept. For webhook addresses, strategy tokens and API keys, tunnel
+failures are counted per credential (an HMAC prefix under a per-process
+key), so a stranger's bad attempts never block a correct one: the
+credential is checked first, a valid one is limited only by its own
+windows, and failures count against the caller's budget, which only ever
+refuses invalid attempts (see S-02). The user docs
+and the strategy webhook page say that through a tunnel the app cannot see
+callers' addresses, so allowlists do not apply there. Tests:
+`s03_no_forwarding_header_is_read_as_an_address`,
+`s03_header_variants_and_foreign_hosts_are_tunnel_requests`,
+`s03_every_control_reads_the_stored_source`,
+`s03_remote_mcp_switch_applies_to_tunnel_callers`,
+`s03_bad_keys_through_a_tunnel_do_not_block_a_valid_key`,
+`s03_bad_webhook_calls_through_a_tunnel_do_not_block_a_good_one`,
+`s03_bad_chartink_calls_through_a_tunnel_do_not_block_a_good_one`,
+`s03_tunnel_failures_never_refuse_a_valid_webhook`,
+`s03_spoofed_forwarded_address_does_not_pass_the_webhook_allowlist`,
+`s03_the_shared_tunnel_identity_is_never_banned`,
+`s03_a_ban_holds_in_every_spelling_of_the_address`,
+`s03_a_banned_address_is_refused_on_every_surface`,
+`s03_forged_forwarding_headers_never_match_or_escape_a_ban`,
+`s03_http_and_the_feed_classify_callers_identically`,
+`server::addr::tests`, `db::sqlite::monitor::tests::stored_bans_are_rewritten_in_one_spelling`,
+`tests/it/feed_behaviour.rs` `a_refused_address_is_closed_before_the_handshake`.
+Residual: a plain port forwarder that adds no header (socat, ssh -R) makes
+its callers look local (documented); an IP allowlist no longer matches a
+program on this computer.
+
 ### S-04 Medium (residual): forged state-less broker callbacks
 
 Code: `src-tauri/src/services/broker_auth_service.rs:198-296`,
@@ -159,6 +277,9 @@ returned must match the configured or last account, and a state-less callback
 with no known account is refused. What remains is a forged callback for the
 trader's own account, which gains the forger nothing. No change recommended
 beyond keeping the table-driven test in `server/tests.rs` current.
+
+**Status: residual, unchanged.** Documented in
+`docs/security/known-residuals.md`.
 
 ### S-05 Low: `POST /setup` is exempt from CSRF and the same-origin check
 
@@ -178,6 +299,12 @@ same-origin check, as for every other write; the setup page can fetch
 `/auth/csrf-token` first like the login page does. Refuse setup through the
 tunnel host.
 
+**Status: fixed in `4e6c801`.** `/setup` needs the session's CSRF token and a
+same-origin request like every other write, and is refused from anywhere but
+this computer (a tunnel, a proxy, another device). Test:
+`s05_setup_needs_the_page_token_and_this_computer`; the setup lifecycle test
+in `server::tests` now uses the page's token.
+
 ### S-06 Low: webhook secrets are written in plaintext to the traffic log
 
 Code: `src-tauri/src/services/monitor.rs:454-466` records the request path
@@ -193,6 +320,13 @@ Anyone reading it can send orders through the strategy webhook.
 Recommended fix. Record these paths with the secret segment replaced
 (`/strategy/webhook/<redacted>`), and do the same for the 404 tracker.
 
+**Status: fixed in `166cb1d`.** The traffic log and the 404 tracker store
+`/strategy/webhook/<redacted>` and `/chartink/webhook/<redacted>`; logs.db
+migration 011 scrubs what earlier builds wrote. Tests:
+`s06_webhook_secrets_never_reach_the_traffic_log` (end to end),
+`db::sqlite::monitor::tests::stored_webhook_secrets_are_redacted_once`,
+`services::monitor::tests::webhook_secrets_never_reach_the_traffic_log`.
+
 ### S-07 Low: reset account leaves other credentials live
 
 Code: `src-tauri/src/services/auth_service.rs:239-246` deletes users, API
@@ -207,6 +341,10 @@ webhook address keep working against the new account.
 Recommended fix. In the same transaction, revoke every MCP token, rotate or
 deactivate strategy and Chartink webhooks, and unlink Telegram users, and say
 so in the confirmation text.
+
+**Status: fixed in `69ed11e`.** The reset revokes MCP tokens, rotates
+strategy and Chartink webhook addresses and unlinks Telegram and WhatsApp in
+the same transaction. Test: `s07_account_reset_revokes_every_outside_credential`.
 
 ### S-08 Low: the remote-app capability trusts every port on loopback
 
@@ -224,6 +362,23 @@ Recommended fix. Narrow the remote URL to the configured port, or check the
 origin in an `on_navigation` handler and keep the main window on the app's own
 origin.
 
+**Status: fixed in `01c1adc` and `1d15e2b`.** The static `remote-app`
+capability is gone; the same permissions are granted at run time to
+`http://127.0.0.1:<port>` and `http://localhost:<port>` of the bound port
+(plus the Vite dev server in development), never to the bundled page.
+Tauri cannot take a run-time grant back, so after a port change the old
+grant stays registered; it is unreachable because the main window loads no
+page on this computer except exactly 127.0.0.1 or localhost on the live
+port, and nothing on this computer while no listener is bound. The live
+port is one value, set from the bound socket after a successful bind and 0
+before the first bind, after a failed bind and once the listener stops or
+dies; the window check and the account reset command fail closed on it.
+Tests: `commands::reset_tests::app_permissions_are_scoped_to_the_listening_port`,
+`runtime_app_permissions_exist_in_the_acl_manifests`,
+`the_app_page_is_exactly_the_live_port_on_loopback`,
+`after_a_port_change_only_the_new_port_is_trusted`,
+`server::tests::security::s08_the_live_port_is_the_bound_listener_and_fails_closed`.
+
 ### S-09 Low: Socket.IO connections outlive logout
 
 Code: `src-tauri/src/server/socketio.rs:13-24` checks the session only at
@@ -236,6 +391,21 @@ its page ignores the `force_logout` event.
 
 Recommended fix. On logout, password change and reset, disconnect every
 Socket.IO client (`io.disconnect_all` or per-socket disconnect).
+
+**Status: fixed in `b542b6e` (sign-out; test made robust to Engine.IO pings in
+`63df1ef`) and completed in `4e6c801`.** Every time a browser session ends
+(sign-out, password change or reset, account reset, the daily boundary, id
+rotation, eviction) an owned task closes every Socket.IO connection whose
+session is no longer signed in; a connection is accepted only for a
+signed-in session (the socket is already registered when that is checked,
+so a sign-out racing it finds it); and every push re-checks the session of
+each connection at the moment of sending. Tests:
+`s09_live_update_connection_is_closed_on_sign_out`,
+`s09_connections_of_a_rotated_session_are_closed`,
+`s09_reset_password_change_and_expiry_close_connections`,
+`s09_a_connection_racing_a_sign_out_ends_closed`,
+`s09_other_sessions_stay_connected`. The desktop has no "sign out other
+sessions" action.
 
 ### S-10 Low: the feed server accepts any web page and has no failed-key throttle
 
@@ -252,6 +422,34 @@ has the same exposure.
 Recommended fix. Refuse handshakes whose `Origin` is a browser origin other
 than the app's own, and cap connections per address.
 
+**Status: fixed in `5ecabb1`, tightened in `8f14c84`.** The policy is read from
+the live settings at every handshake. The `Host` of every upgrade must name
+the feed on this computer (127.0.0.1, localhost or [::1] on the feed's
+port), one of this machine's own interface addresses while LAN access is
+on, or a configured public tunnel host, so a DNS-rebinding page (which
+names its own host) is refused with or without an `Origin`. Programs
+without an `Origin` (SDK, Amibroker) connect as on the web and still need
+the API key. A browser `Origin` must be the app's own page (exactly
+127.0.0.1 or localhost on the port the HTTP server is bound to now, an
+interface address on that port with LAN access, localhost:5173 in
+development), the public tunnel host, or the feed's own address on this
+computer (Python websocket-client's default Origin; no page is served
+there). One network address may hold at most 32 connections. Tests:
+`feed::server::origin_tests::only_the_apps_own_pages_and_programs_are_let_in`,
+`lan_access_accepts_this_machines_own_addresses_only`, `tests/it/feed_behaviour.rs`
+`s10_browser_pages_from_other_sites_cannot_open_the_feed`,
+`s10_the_public_tunnel_host_opens_the_feed`. Failed `authenticate` keys
+count against the caller's failure budget `/api/v1` uses, the caller
+classified from the handshake by the classifier HTTP requests go through
+(`server::source::classify`); once the budget is spent, a failed key still
+gets the web's error frame and the connection is closed with 4401. A valid
+key is never refused by it, and every `authenticate` passes the resource
+guard first (see S-02, `8fb3cef`, `b922cd1`, `2697f4b`). Tests:
+`s02_feed_tunnel_failures_never_refuse_a_valid_key`,
+`s03_http_and_the_feed_classify_callers_identically`. Residual:
+loopback is not capped per address (every local program shares it).
+Availability only.
+
 ### S-11 Info: `pending_oauth` consume is a read then delete
 
 Code: `src-tauri/src/db/sqlite/oauth_state.rs:166-198`. The select and the
@@ -260,6 +458,12 @@ the same `state` arriving together could both pass. The broker refuses a
 reused code, so there is no practical impact. Use
 `DELETE ... RETURNING` to make it single-use by construction.
 
+**Status: fixed in `eed39c3`.** Both consume paths remove and return the row in
+one `DELETE ... RETURNING`. Test:
+`db::sqlite::oauth_state::tests::a_state_is_single_use_under_concurrent_callbacks`
+(four connections behind a barrier, 200 rounds; the old select-then-delete
+let three callbacks take one state in the first round).
+
 ### S-12 Info: key check racing a key regeneration
 
 Code: `src-tauri/src/services/apikey_service.rs:101-121` and `:142-150`. A
@@ -267,16 +471,28 @@ check that read the database before a regeneration and stores its result
 after the cache was cleared keeps the old key valid for up to 5 minutes. Tag
 cache entries with a generation number bumped by `regenerate`.
 
+**Status: fixed in `eed39c3`.** The key cache carries a generation that
+`clear()` bumps; an answer computed before a regeneration is dropped. Test:
+`services::apikey_service::tests::a_check_racing_a_regeneration_cannot_cache_the_old_key`.
+
 ### S-13 Info: requests without a `Host` header skip the Host check
 
 Code: `src-tauri/src/server/middleware.rs:176-188`. Browsers always send
 `Host`, so DNS rebinding is still blocked; only hand-made HTTP/1.0 requests
 skip it. Refuse a missing `Host` for consistency.
 
+**Status: fixed in `b542b6e`.** A request over a real connection must name the
+host (`Host`, or `:authority` for HTTP/2, checked the same way). Test:
+`s13_a_connection_without_a_host_header_is_refused`. The integration test
+harnesses now send `Host` like every real client.
+
 ### S-14 Info: dead CSRF exemption
 
 Code: `src-tauri/src/server/middleware.rs:205` exempts `/webhook/`, which has
 no route. Remove it so a future route there is not exempt by accident.
+
+**Status: fixed in `b542b6e`.** The exemption is removed. Test:
+`s14_webhook_prefix_is_not_exempt_from_csrf`.
 
 ### S-15 Info: "require approval" has no effect
 
@@ -285,11 +501,19 @@ The setting is saved and shown but nothing reads it (on the web it applies to
 OAuth client registration, which the desktop does not have yet). Hide it or
 label it "applies when remote sign-in for AI clients arrives".
 
+**Status: fixed in `eed39c3` (labelled).** The Remote MCP page says the
+setting has no effect until AI clients can sign in on their own. Test:
+`src/pages/admin/RemoteMcp.test.tsx`.
+
 ### S-16 Info: session cookie has no `Secure` flag through an HTTPS tunnel
 
 Code: `src-tauri/src/server/middleware.rs:112-118`. Correct for plain
 loopback. When the page is served through the HTTPS tunnel host, add
 `Secure`.
+
+**Status: fixed in `4e6c801`.** Through an `https` tunnel host the session cookie
+gets `Secure`; plain loopback is unchanged. Test:
+`s16_session_cookie_is_secure_through_an_https_tunnel`.
 
 ### S-17 Dependency status
 
@@ -297,6 +521,9 @@ loopback. When the page is served through the HTTPS tunnel host, add
 - `npm audit --omit=dev`: 0 vulnerabilities in shipped dependencies.
 - `npm audit` (all): 4 high, all one chain in development tooling: `braces` (GHSA-vfj7-8cjw-p6xm, deep-nesting denial of service) through `micromatch`, `jest-message-util` and `expect`, pulled by `@types/jest`. Not shipped in the app. Fix with `npm audit fix` or by dropping `@types/jest` if Vitest types are enough.
 - Versions of note: `tauri 2.12.1`, `tauri-plugin-shell 2.4.0` (past the 2.2.1 open-scope fix), `axum 0.8.9`, `rustls 0.23.45`, `aes-gcm 0.10.3`, `argon2 0.5.3`, `keyring 3.6.3`.
+
+**Status: unchanged.** `npm audit --omit=dev` on 2026-10-09: 0 vulnerabilities
+in shipped dependencies.
 
 ## Checked and found sound
 
