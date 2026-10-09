@@ -61,10 +61,19 @@ pub async fn broker_config(State(ctx): Ctx) -> Response {
 /// GET /<broker>/initiate-oauth: store a fresh `state` and send the browser
 /// to the broker. Form brokers go to their in-app form, saved-keys brokers
 /// back to the broker page (which signs them in with one action).
+///
+/// Recording a pending sign-in is a change of state that a GET makes, and a
+/// cross-site navigation carries the `SameSite=Lax` session cookie. A
+/// pending sign-in is what a state-less callback completes (see
+/// `docs/security/known-residuals.md`), so one is started only on a
+/// navigation made inside OpenAlgo (the broker page's Connect) or typed by
+/// the trader; any other site's navigation goes to the broker page and
+/// starts nothing.
 pub async fn initiate_oauth(
     State(ctx): Ctx,
     User(user): User,
     Path(broker): Path<String>,
+    headers: axum::http::HeaderMap,
 ) -> Response {
     if !valid_broker(&broker) {
         return error(StatusCode::NOT_FOUND, "Unknown broker.");
@@ -74,6 +83,13 @@ pub async fn initiate_oauth(
     }
     if catalog::auth_type(&broker) == AuthType::Form {
         return redirect(&format!("/broker/{}/totp", broker));
+    }
+    if !crate::server::middleware::same_origin_navigation(&ctx, &headers) {
+        tracing::info!(
+            "Not starting the {} sign-in: the page was not opened from OpenAlgo",
+            broker
+        );
+        return redirect("/broker");
     }
     match BrokerAuthService::start_oauth(&ctx, &broker, Some(&user.session_id)).await {
         Ok(url) => redirect(&url),
@@ -144,10 +160,17 @@ pub async fn oauth_callback(
     }
     // A redirect broker's callback opened without any answer from the
     // broker is the start of a sign-in, not its end (web brlogin sends that
-    // first visit to the broker's login page): for the signed-in trader,
-    // start it where the server records it.
-    if params.is_empty() && sess.as_ref().is_some_and(|s| s.user.is_some()) {
-        return redirect(&format!("/{}/initiate-oauth", broker));
+    // first visit to the broker's login page). It never completes or uses up
+    // a pending sign-in. Like the login OTP above, it starts one only for
+    // the signed-in trader on a navigation made inside OpenAlgo (or typed);
+    // any other open, such as another site's, goes to the broker page,
+    // whose Connect starts it, and changes nothing.
+    if params.is_empty() {
+        let signed_in = sess.as_ref().is_some_and(|s| s.user.is_some());
+        if signed_in && crate::server::middleware::same_origin_navigation(&ctx, &headers) {
+            return redirect(&format!("/{}/initiate-oauth", broker));
+        }
+        return redirect("/broker");
     }
     if let Some(r) = login_limited(&ctx, ip) {
         return r;

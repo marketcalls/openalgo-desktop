@@ -149,6 +149,13 @@ fn get(path: &str) -> Request<Body> {
     Request::builder().uri(path).body(Body::empty()).unwrap()
 }
 
+/// A page navigation made inside OpenAlgo (the browser's `Sec-Fetch-Site`).
+fn in_app(mut r: Request<Body>) -> Request<Body> {
+    r.headers_mut()
+        .insert("sec-fetch-site", "same-origin".parse().unwrap());
+    r
+}
+
 fn with_session(mut r: Request<Body>, cookie: &str, csrf: Option<&str>) -> Request<Body> {
     r.headers_mut()
         .insert(header::COOKIE, cookie.parse().unwrap());
@@ -1206,7 +1213,11 @@ async fn zerodha_oauth_round_trip_uses_request_token_and_verifies_state() {
     let (cookie, _) = h.session(true);
 
     let (s, headers, _) = h
-        .send(with_session(get("/zerodha/initiate-oauth"), &cookie, None))
+        .send(in_app(with_session(
+            get("/zerodha/initiate-oauth"),
+            &cookie,
+            None,
+        )))
         .await;
     assert_eq!(s, StatusCode::FOUND);
     let url = location(&headers);
@@ -1328,7 +1339,7 @@ async fn aliceblue_stateless_callback_needs_the_starting_browser_session() {
 
     let (s, headers, _) = h
         .send(with_session(
-            get("/aliceblue/initiate-oauth"),
+            in_app(get("/aliceblue/initiate-oauth")),
             &cookie,
             None,
         ))
@@ -1375,7 +1386,7 @@ async fn aliceblue_callback_for_another_account_is_refused() {
     let h = aliceblue_harness("ZZ999");
     let (cookie, _) = h.session(true);
     h.send(with_session(
-        get("/aliceblue/initiate-oauth"),
+        in_app(get("/aliceblue/initiate-oauth")),
         &cookie,
         None,
     ))
@@ -1401,7 +1412,7 @@ async fn aliceblue_callback_for_another_account_is_refused() {
     assert!(location(&headers).starts_with("/broker?error="));
     assert!(!h.ctx().is_broker_connected());
     h.send(with_session(
-        get("/aliceblue/initiate-oauth"),
+        in_app(get("/aliceblue/initiate-oauth")),
         &cookie,
         None,
     ))
@@ -1418,7 +1429,7 @@ async fn aliceblue_callback_for_another_account_is_refused() {
     let h = aliceblue_harness("");
     let (cookie, _) = h.session(true);
     h.send(with_session(
-        get("/aliceblue/initiate-oauth"),
+        in_app(get("/aliceblue/initiate-oauth")),
         &cookie,
         None,
     ))
@@ -1935,6 +1946,18 @@ async fn every_way_to_create_a_broker_session_refuses_a_forged_attempt() {
         // The web signs these in on a GET of the callback; here only the
         // broker page's CSRF-checked POST does.
         ("Saved-key sign-in, GET callback", "jainamxts"),
+        // Another site opens the sign-in start (or the bare callback) in the
+        // trader's browser, then sends it the broker's code: had the first
+        // GET recorded a pending sign-in, the state-less callback would
+        // complete it.
+        (
+            "Sign-in started cross-site, then a state-less code",
+            "shoonya",
+        ),
+        (
+            "Bare callback opened cross-site, then a state-less code",
+            "shoonya",
+        ),
         ("Saved-key sign-in, no session", "jainamxts"),
         ("Saved-key sign-in, no CSRF token", "jainamxts"),
         ("Saved-key sign-in, cross-site", "jainamxts"),
@@ -2114,6 +2137,33 @@ async fn every_way_to_create_a_broker_session_refuses_a_forged_attempt() {
             "AliceBlue pasted address, other account" => {
                 start(sid.clone()).await;
                 with_session(alice_paste(), &cookie, Some(&csrf))
+            }
+            "Sign-in started cross-site, then a state-less code"
+            | "Bare callback opened cross-site, then a state-less code" => {
+                // The trader's own account: only the missing pending
+                // sign-in refuses the code.
+                *mock.auth_user_id.lock() = "U1".into();
+                let mut path = if name.starts_with("Sign-in started") {
+                    "/shoonya/initiate-oauth".to_string()
+                } else {
+                    "/shoonya/callback".to_string()
+                };
+                // The browser follows an in-app redirect to the sign-in
+                // start, still a cross-site navigation.
+                for _ in 0..2 {
+                    let mut r = with_session(get(&path), &cookie, None);
+                    r.headers_mut()
+                        .insert("sec-fetch-site", "cross-site".parse().unwrap());
+                    let (_, h, _) = send_to(ctx, r).await;
+                    match h.get(header::LOCATION).and_then(|l| l.to_str().ok()) {
+                        Some(l) if l.ends_with("/initiate-oauth") => path = l.to_string(),
+                        _ => break,
+                    }
+                }
+                let mut r = with_session(get("/shoonya/callback?code=c"), &cookie, None);
+                r.headers_mut()
+                    .insert("sec-fetch-site", "cross-site".parse().unwrap());
+                r
             }
             // The keys are the trader's own, so the account matches: only
             // the request's own checks stand between it and a new session.

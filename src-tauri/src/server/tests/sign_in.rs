@@ -318,24 +318,96 @@ async fn every_broker_signs_in_the_way_the_server_tells_the_broker_page() {
     ctx.runtime.teardown(ctx).await;
 }
 
+fn pending(ctx: &AppState) -> i64 {
+    crate::db::sqlite::oauth_state::count(&ctx.sqlite.conn().unwrap()).unwrap()
+}
+
+/// The same request opened from another site (cross-site top-level
+/// navigations carry the `SameSite=Lax` session cookie).
+fn from_another_site(path: &str, cookie: &str) -> Request<Body> {
+    let mut r = with_session(get(path), cookie, None);
+    r.headers_mut()
+        .insert("sec-fetch-site", "cross-site".parse().unwrap());
+    r
+}
+
 /// The broker page's Connect for a redirect broker, as it was before the
 /// page read the sign-in from the server: a bare `GET /<broker>/callback`.
-/// It used to be refused ("not started from OpenAlgo"); it now starts the
-/// sign-in. Without a signed-in trader it still starts nothing.
+/// It used to be refused ("not started from OpenAlgo"); on a navigation
+/// inside OpenAlgo it now starts the sign-in. Opened by another site, it
+/// and the sign-in start record no pending sign-in (which a state-less
+/// callback could complete) and use none up; the broker's own redirect
+/// back, with its code, still completes the sign-in.
 #[tokio::test]
-async fn a_bare_callback_starts_a_redirect_sign_in_only_for_the_signed_in_trader() {
+async fn a_bare_callback_starts_a_sign_in_only_from_inside_openalgo() {
     let (t, mocks) = every_broker();
     let ctx = &t.ctx;
     ctx.limiter.freeze(Some(std::time::Instant::now()));
     let (cookie, _, _) = user_session(ctx);
     for b in ["shoonya", "zebu", "tradesmart", "rmoney"] {
         activate(ctx, b);
+        let before = pending(ctx);
+        // Another site: the broker page, nothing recorded.
+        for path in [format!("/{}/callback", b), format!("/{}/initiate-oauth", b)] {
+            let (_, h, _) = send_to(ctx, from_another_site(&path, &cookie)).await;
+            assert_eq!(location(&h), "/broker", "{} {}", b, path);
+        }
+        // No evidence of where the navigation came from is not inside
+        // OpenAlgo either; nor is a page on another host.
+        let (_, h, _) = send_to(
+            ctx,
+            with_session(get(&format!("/{}/callback", b)), &cookie, None),
+        )
+        .await;
+        assert_eq!(location(&h), "/broker", "{}", b);
+        let mut r = with_session(get(&format!("/{}/initiate-oauth", b)), &cookie, None);
+        r.headers_mut()
+            .insert(header::REFERER, "https://evil.example/".parse().unwrap());
+        let (_, h, _) = send_to(ctx, r).await;
+        assert_eq!(location(&h), "/broker", "{}", b);
+        // Without a signed-in trader: the broker page too, nothing recorded.
+        let (_, h, _) = send_to(ctx, navigate(&format!("/{}/callback", b), "session=x")).await;
+        assert_eq!(location(&h), "/broker", "{}", b);
+        assert_eq!(
+            pending(ctx),
+            before,
+            "{}: a pending sign-in was recorded",
+            b
+        );
+
+        // Inside OpenAlgo: the bare callback goes to the sign-in start, which
+        // records one pending sign-in and sends the browser to the broker.
         let (_, h, _) = send_to(ctx, navigate(&format!("/{}/callback", b), &cookie)).await;
         assert_eq!(location(&h), format!("/{}/initiate-oauth", b), "{}", b);
-        let (_, h, _) = send_to(ctx, get(&format!("/{}/callback", b))).await;
-        assert!(location(&h).starts_with("/broker?error="), "{}", b);
+        let mut r = with_session(get(&format!("/{}/initiate-oauth", b)), &cookie, None);
+        // An older webview sends no Sec-Fetch-Site; the app's own Referer
+        // (Referrer-Policy: same-origin) shows where it came from.
+        r.headers_mut().insert(
+            header::REFERER,
+            format!("http://127.0.0.1:{}/broker", ctx.listening_port())
+                .parse()
+                .unwrap(),
+        );
+        let (_, h, _) = send_to(ctx, r).await;
+        let authorize = location(&h);
+        assert!(authorize.starts_with("https://"), "{}: {}", b, authorize);
+        assert_eq!(pending(ctx), before + 1, "{}", b);
+
+        // The broker's own redirect back (cross-site, with its code) still
+        // completes the sign-in.
+        let (_, h, v) = send_to(ctx, broker_redirect(b, &authorize, &cookie)).await;
+        assert_eq!(location(&h), "/dashboard", "{}: {}", b, v);
+        assert_eq!(pending(ctx), before, "{}", b);
+        BrokerAuthService::revoke(ctx, SessionEndReason::Logout)
+            .await
+            .unwrap();
     }
-    assert!(mocks.iter().all(|m| m.last_auth.lock().is_none()));
-    assert!(ctx.get_broker_session().is_none());
+    assert_eq!(
+        mocks
+            .iter()
+            .filter(|m| m.last_auth.lock().is_some())
+            .count(),
+        4
+    );
     ctx.runtime.teardown(ctx).await;
 }
