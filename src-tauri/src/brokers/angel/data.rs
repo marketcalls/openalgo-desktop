@@ -309,12 +309,29 @@ fn num(v: Option<&Value>) -> f64 {
     }
 }
 
+/// Epoch seconds of an Angel timestamp. Angel sends ISO with its `+05:30`
+/// offset; one without an offset is IST wall-clock time, never the host's
+/// zone (web `_angel_timestamps_to_epoch`, #2176).
+pub fn angel_epoch(s: &str) -> Option<i64> {
+    parse_iso_epoch(s).or_else(|| {
+        let s = s.trim();
+        NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S")
+            .or_else(|_| NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S"))
+            .or_else(|_| NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M"))
+            .or_else(|_| NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M"))
+            .ok()
+            .map(|t| t.and_utc().timestamp() - IST_OFFSET_SECS)
+    })
+}
+
 /// `getCandleData` rows `[ts, o, h, l, c, v]` -> candles. `ts` is ISO with
-/// offset; daily candles are shifted +5:30 like the web.
+/// offset; daily candles are shifted +5:30 to 00:00 UTC of their date, the
+/// stamp every other broker uses (the web's Angel no longer shifts them; see
+/// `tests/fixtures/web/INDEX.md`).
 pub fn parse_candles(rows: &[Vec<Value>], daily: bool) -> Vec<Candle> {
     rows.iter()
         .filter_map(|r| {
-            let ts = parse_iso_epoch(r.first()?.as_str()?)?;
+            let ts = angel_epoch(r.first()?.as_str()?)?;
             Some(Candle {
                 timestamp: if daily { ts + IST_OFFSET_SECS } else { ts },
                 open: num(r.get(1)),
@@ -341,7 +358,7 @@ pub struct AngelOi {
 pub fn parse_oi(rows: &[AngelOi], daily: bool) -> HashMap<i64, i64> {
     rows.iter()
         .filter_map(|r| {
-            let ts = parse_iso_epoch(&r.time)?;
+            let ts = angel_epoch(&r.time)?;
             Some((if daily { ts + IST_OFFSET_SECS } else { ts }, r.oi))
         })
         .collect()

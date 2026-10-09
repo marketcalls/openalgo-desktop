@@ -16,7 +16,7 @@ use openalgo_desktop_lib::brokers::types::*;
 use openalgo_desktop_lib::brokers::{Broker, BrokerCredentials};
 use parking_lot::Mutex;
 use serde_json::{json, Value};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 macro_rules! fixture {
@@ -37,6 +37,12 @@ struct Seen {
 struct Fake {
     seen: Mutex<Vec<Seen>>,
     quote_calls: AtomicUsize,
+    /// How `placeOrder` answers: "" (success), "empty502", "partial",
+    /// "cutoff" (the body breaks off mid-reply), "refused". With a non-empty
+    /// mode the order book holds the placed
+    /// order under its tag when `book_has_order` is set.
+    place_mode: Mutex<&'static str>,
+    book_has_order: AtomicBool,
 }
 
 impl Fake {
@@ -70,7 +76,43 @@ fn route(fake: &Fake, path: &str, body: &Value) -> Response {
                 ok(&errors["login_ok"].to_string())
             }
         }
-        "placeOrder" => ok(r#"{"status":true,"message":"SUCCESS","errorcode":"","data":{"script":"SBIN-EQ","orderid":"261003000000099","uniqueorderid":"u"}}"#),
+        "placeOrder" => match *fake.place_mode.lock() {
+            "empty502" => (StatusCode::BAD_GATEWAY, "").into_response(),
+            "partial" => ok(r#"{"status":true}"#),
+            "cutoff" => {
+                let parts: Vec<std::io::Result<Bytes>> = vec![
+                    Ok(Bytes::from_static(br#"{"status":true,"da"#)),
+                    Err(std::io::Error::other("connection reset")),
+                ];
+                (
+                    StatusCode::OK,
+                    [("content-type", "application/json")],
+                    axum::body::Body::from_stream(futures_util::stream::iter(parts)),
+                )
+                    .into_response()
+            }
+            "refused" => ok(r#"{"status":false,"message":"Order rejected by RMS","errorcode":"AB4008","data":null}"#),
+            _ => ok(r#"{"status":true,"message":"SUCCESS","errorcode":"","data":{"script":"SBIN-EQ","orderid":"261003000000099","uniqueorderid":"u"}}"#),
+        },
+        "getOrderBook" if !fake.place_mode.lock().is_empty() => {
+            let placed = fake.bodies("placeOrder");
+            let rows: Vec<Value> = if fake.book_has_order.load(Ordering::SeqCst) {
+                placed
+                    .iter()
+                    .map(|p| json!({
+                        "orderid": "261003000000777", "ordertag": p["ordertag"],
+                        "tradingsymbol": p["tradingsymbol"], "symboltoken": p["symboltoken"],
+                        "exchange": p["exchange"], "transactiontype": p["transactiontype"],
+                        "quantity": p["quantity"], "status": "open"
+                    }))
+                    .collect()
+            } else {
+                vec![json!({"orderid": "older", "ordertag": "openalgo", "tradingsymbol": "SBIN-EQ",
+                            "symboltoken": "3045", "exchange": "NSE", "transactiontype": "BUY",
+                            "quantity": "10", "status": "open"})]
+            };
+            ok(&json!({"status": true, "message": "SUCCESS", "errorcode": "", "data": rows}).to_string())
+        }
         "modifyOrder" => {
             let errors: Value = serde_json::from_str(fixture!("errors.json")).unwrap();
             ok(&errors["modify_ok"].to_string())
@@ -503,4 +545,145 @@ async fn malformed_token_is_refused_before_any_call() {
         .await
         .unwrap_err();
     assert_eq!(e.code(), "AUTH_ERROR");
+}
+
+// Ambiguous placement replies are settled from the order book by the order's
+// tag and never retried (web #2176).
+#[tokio::test]
+async fn ambiguous_place_reply_is_reconciled_by_ordertag_without_retry() {
+    for mode in ["empty502", "partial", "cutoff"] {
+        let (b, fake, auth) = setup().await;
+        *fake.place_mode.lock() = mode;
+        fake.book_has_order.store(true, Ordering::SeqCst);
+        let r = b
+            .place_order(&auth, &order("SBIN", "NSE", "LIMIT"))
+            .await
+            .unwrap();
+        assert_eq!(r.order_id, "261003000000777", "{mode}");
+        let placed = fake.bodies("placeOrder");
+        assert_eq!(placed.len(), 1, "the POST is never retried ({mode})");
+        let tag = placed[0]["ordertag"].as_str().unwrap();
+        assert!(tag.starts_with("oa") && tag.len() < 20, "{tag}");
+        assert_eq!(fake.bodies("getOrderBook").len(), 1);
+    }
+}
+
+#[tokio::test]
+async fn unmatched_ambiguous_reply_is_not_reported_as_success() {
+    let (b, fake, auth) = setup().await;
+    *fake.place_mode.lock() = "empty502";
+    let e = b
+        .place_order(&auth, &order("SBIN", "NSE", "LIMIT"))
+        .await
+        .unwrap_err();
+    assert!(
+        e.client_message().contains("Check the order book"),
+        "{}",
+        e.client_message()
+    );
+    assert_eq!(fake.bodies("placeOrder").len(), 1);
+}
+
+#[tokio::test]
+async fn explicit_rejection_does_not_query_the_order_book() {
+    let (b, fake, auth) = setup().await;
+    *fake.place_mode.lock() = "refused";
+    let e = b
+        .place_order(&auth, &order("SBIN", "NSE", "LIMIT"))
+        .await
+        .unwrap_err();
+    assert!(e.client_message().contains("Order rejected by RMS"));
+    assert!(fake.bodies("getOrderBook").is_empty());
+}
+
+/// Web test_angel_ambiguous_order_reconciliation.py::test_transport_error_reconciles_without_retry.
+/// The connection drops after the order request is read, before any answer:
+/// the order is looked up by its tag, and the POST is sent exactly once.
+#[tokio::test]
+async fn transport_error_reconciles_without_retry() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let posts: Arc<Mutex<Vec<Value>>> = Arc::new(Mutex::new(Vec::new()));
+    let seen = posts.clone();
+    let server = tokio::spawn(async move {
+        loop {
+            let Ok((mut sock, _)) = listener.accept().await else {
+                return;
+            };
+            // Read the head, then the body by Content-Length.
+            let mut buf = Vec::new();
+            let mut chunk = [0u8; 4096];
+            let head_end = loop {
+                let n = sock.read(&mut chunk).await.unwrap_or(0);
+                if n == 0 {
+                    break None;
+                }
+                buf.extend_from_slice(&chunk[..n]);
+                if let Some(i) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                    break Some(i + 4);
+                }
+            };
+            let Some(head_end) = head_end else { continue };
+            let head = String::from_utf8_lossy(&buf[..head_end]).to_ascii_lowercase();
+            let len: usize = head
+                .lines()
+                .find_map(|l| l.strip_prefix("content-length:"))
+                .and_then(|v| v.trim().parse().ok())
+                .unwrap_or(0);
+            while buf.len() < head_end + len {
+                let n = sock.read(&mut chunk).await.unwrap_or(0);
+                if n == 0 {
+                    break;
+                }
+                buf.extend_from_slice(&chunk[..n]);
+            }
+            let body: Value = serde_json::from_slice(&buf[head_end..]).unwrap_or(Value::Null);
+            if head.contains("/placeorder") {
+                // Taken by the broker, but the answer never arrives.
+                seen.lock().push(body);
+                drop(sock);
+                continue;
+            }
+            let rows: Vec<Value> = seen
+                .lock()
+                .iter()
+                .map(|p| {
+                    json!({
+                        "orderid": "accepted-before-timeout", "ordertag": p["ordertag"],
+                        "tradingsymbol": p["tradingsymbol"], "symboltoken": p["symboltoken"],
+                        "exchange": p["exchange"], "transactiontype": p["transactiontype"],
+                        "quantity": p["quantity"], "status": "open"
+                    })
+                })
+                .collect();
+            let reply =
+                json!({"status": true, "message": "SUCCESS", "errorcode": "", "data": rows})
+                    .to_string();
+            let _ = sock
+                .write_all(
+                    format!(
+                        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                        reply.len(),
+                        reply
+                    )
+                    .as_bytes(),
+                )
+                .await;
+        }
+    });
+
+    let b = AngelBroker::with_base_url(master(), base);
+    let auth = AuthToken::new("myapikey:jwt.token.sig").with_user_id("<USER_ID>");
+    let r = b
+        .place_order(&auth, &order("SBIN", "NSE", "LIMIT"))
+        .await
+        .unwrap();
+    server.abort();
+    assert_eq!(r.order_id, "accepted-before-timeout");
+    let posts = posts.lock();
+    assert_eq!(posts.len(), 1, "the POST is never retried");
+    let tag = posts[0]["ordertag"].as_str().unwrap();
+    assert!(tag.starts_with("oa") && tag.len() < 20, "{tag}");
 }

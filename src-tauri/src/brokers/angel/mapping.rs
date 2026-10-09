@@ -55,10 +55,18 @@ pub fn num(v: f64) -> String {
     format_strike(v)
 }
 
+/// A fresh order tag, `oa` + 16 hex digits (web `place_order_api`, #2176).
+/// Angel shows `ordertag` in the order book, so it identifies this order when
+/// the placement answer is lost or unreadable.
+pub fn new_ordertag() -> String {
+    let hex = uuid::Uuid::new_v4().simple().to_string();
+    format!("oa{}", &hex[..16])
+}
+
 /// `placeOrder` body (web `transform_data` + the payload in
 /// `place_order_api`). `triggerprice` and `stoploss` both carry the trigger,
-/// always as a string, never null.
-pub fn place_order_body(o: &ResolvedOrder) -> Value {
+/// always as a string, never null; `ordertag` is the per-order tag.
+pub fn place_order_body(o: &ResolvedOrder, ordertag: &str) -> Value {
     let pt = o.pricetype.as_str();
     json!({
         "variety": map_variety(pt),
@@ -74,6 +82,7 @@ pub fn place_order_body(o: &ResolvedOrder) -> Value {
         "squareoff": "0",
         "stoploss": num(o.trigger_price),
         "quantity": o.quantity.to_string(),
+        "ordertag": ordertag,
     })
 }
 
@@ -189,6 +198,8 @@ pub struct AngelOrder {
     pub exchtime: String,
     #[serde(deserialize_with = "string_lenient")]
     pub text: String,
+    #[serde(deserialize_with = "string_lenient")]
+    pub ordertag: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

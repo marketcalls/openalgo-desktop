@@ -1,13 +1,15 @@
 //! Orders and books (web `api/order_api.py`).
 
 use super::mapping::{self, AngelOrder, AngelPortfolio, AngelPosition, AngelTrade};
-use super::{angel_error, AngelBroker, Category};
+use super::{angel_error, session_expired, AngelBroker, Category};
 use crate::brokers::common::de::string_lenient;
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::common::redact::url_safe_error;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
-use reqwest::Method;
+use reqwest::{Method, StatusCode};
 use serde::Deserialize;
+use serde_json::Value;
 
 pub const PLACE_PATH: &str = "/rest/secure/angelbroking/order/v1/placeOrder";
 pub const MODIFY_PATH: &str = "/rest/secure/angelbroking/order/v1/modifyOrder";
@@ -24,23 +26,172 @@ struct OrderIdData {
     orderid: String,
 }
 
+/// What one `placeOrder` answer says about the order.
+#[derive(Debug, PartialEq, Eq)]
+pub enum PlaceOutcome {
+    /// `status: true` with an order id.
+    Placed(String),
+    /// `status: false`: Angel refused it; the order was not placed.
+    Refused { errorcode: String, message: String },
+    /// Anything else (transport error, empty or unreadable body, a success
+    /// without an order id, a gateway page): the order may have been placed.
+    Ambiguous,
+}
+
+/// Classify a `placeOrder` body (web `place_order_api`, #2176). Only an
+/// explicit `status: false` is a refusal; only `status: true` with a non-empty
+/// `data.orderid` is a placement.
+pub fn classify_place_reply(body: &[u8]) -> PlaceOutcome {
+    let Ok(Value::Object(v)) = serde_json::from_slice::<Value>(body) else {
+        return PlaceOutcome::Ambiguous;
+    };
+    let text = |k: &str| match v.get(k) {
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Null) | None => String::new(),
+        Some(other) => other.to_string(),
+    };
+    match v.get("status") {
+        Some(Value::Bool(false)) => PlaceOutcome::Refused {
+            errorcode: text("errorcode"),
+            message: text("message"),
+        },
+        Some(Value::Bool(true)) => {
+            let id = match v.get("data").and_then(|d| d.get("orderid")) {
+                Some(Value::String(s)) => s.trim().to_string(),
+                Some(Value::Number(n)) => n.to_string(),
+                _ => String::new(),
+            };
+            if id.is_empty() {
+                PlaceOutcome::Ambiguous
+            } else {
+                PlaceOutcome::Placed(id)
+            }
+        }
+        _ => PlaceOutcome::Ambiguous,
+    }
+}
+
+/// The one order in the book carrying `ordertag` and matching the request's
+/// symbol, token, exchange, side and quantity. Zero or several matches give
+/// `None`: an order is never claimed on a guess.
+pub fn reconcile_by_tag<'a>(
+    rows: &'a [AngelOrder],
+    ordertag: &str,
+    body: &Value,
+) -> Option<&'a AngelOrder> {
+    let want = |k: &str| body.get(k).and_then(Value::as_str).unwrap_or_default();
+    let mut hits = rows.iter().filter(|r| {
+        r.ordertag == ordertag
+            && r.tradingsymbol == want("tradingsymbol")
+            && r.symboltoken == want("symboltoken")
+            && r.exchange == want("exchange")
+            && r.transactiontype == want("transactiontype")
+            && r.quantity.to_string() == want("quantity")
+    });
+    let first = hits.next()?;
+    hits.next().is_none().then_some(first)
+}
+
+/// Place one order. The POST is never retried: an answer that does not say
+/// clearly whether the order was taken is settled by looking the order up by
+/// its tag in the order book, so a lost reply is neither reported as a
+/// failure nor retried into a duplicate (web #2176).
 pub async fn place_order(
     b: &AngelBroker,
     auth: &AuthToken,
     o: &ResolvedOrder,
 ) -> Result<OrderResponse> {
-    let body = mapping::place_order_body(o);
-    let data: Option<OrderIdData> = b
-        .call(Method::POST, PLACE_PATH, auth, Some(&body), Category::Order)
-        .await?;
-    let id = data
-        .map(|d| d.orderid)
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| AppError::Broker("Angel One did not return an order id.".into()))?;
-    Ok(OrderResponse {
-        order_id: id,
-        message: None,
-    })
+    let (api_key, jwt) = auth.pair().ok_or_else(session_expired)?;
+    let ordertag = mapping::new_ordertag();
+    let body = mapping::place_order_body(o, &ordertag);
+    b.pace(Category::Order).await;
+    let sent = b
+        .request(Method::POST, PLACE_PATH, api_key, Some(jwt))
+        .json(&body)
+        .send()
+        .await;
+    let outcome = match sent {
+        Ok(resp) => {
+            let status = resp.status();
+            match resp.bytes().await {
+                Ok(bytes) => match classify_place_reply(&bytes) {
+                    PlaceOutcome::Ambiguous
+                        if status == StatusCode::UNAUTHORIZED
+                            || (status == StatusCode::FORBIDDEN
+                                && !String::from_utf8_lossy(&bytes)
+                                    .to_ascii_lowercase()
+                                    .contains("rate")) =>
+                    {
+                        // Refused at the gateway for the session: not placed.
+                        return Err(session_expired());
+                    }
+                    PlaceOutcome::Ambiguous => {
+                        tracing::warn!(
+                            status = status.as_u16(),
+                            "Ambiguous Angel One order reply; looking up tag {}",
+                            ordertag
+                        );
+                        PlaceOutcome::Ambiguous
+                    }
+                    other => other,
+                },
+                Err(e) => {
+                    tracing::warn!("Angel One order reply was cut off: {}", url_safe_error(&e));
+                    PlaceOutcome::Ambiguous
+                }
+            }
+        }
+        Err(e) => {
+            tracing::warn!(
+                "Angel One order request failed in transit: {}",
+                url_safe_error(&e)
+            );
+            PlaceOutcome::Ambiguous
+        }
+    };
+    match outcome {
+        PlaceOutcome::Placed(id) => Ok(OrderResponse {
+            order_id: id,
+            message: None,
+        }),
+        PlaceOutcome::Refused { errorcode, message } => {
+            tracing::warn!(code = %errorcode, "Angel One refused the order: {}", message);
+            Err(angel_error(&errorcode, &message))
+        }
+        PlaceOutcome::Ambiguous => {
+            let rows = match raw_orders(b, auth).await {
+                Ok(rows) => rows,
+                Err(e) => {
+                    tracing::error!(
+                        "Could not read the Angel One order book to settle tag {}: {}",
+                        ordertag,
+                        e.code()
+                    );
+                    Vec::new()
+                }
+            };
+            match reconcile_by_tag(&rows, &ordertag, &body) {
+                Some(r) => {
+                    tracing::info!(
+                        "Angel One order {} found by its tag {}",
+                        r.orderid,
+                        ordertag
+                    );
+                    Ok(OrderResponse {
+                        order_id: r.orderid.clone(),
+                        message: None,
+                    })
+                }
+                None => {
+                    tracing::error!("Angel One order with tag {} is unconfirmed", ordertag);
+                    Err(AppError::Broker(
+                        "Angel One did not confirm this order and it was not found in the order book. Check the order book before placing it again."
+                            .into(),
+                    ))
+                }
+            }
+        }
+    }
 }
 
 pub async fn modify_order(

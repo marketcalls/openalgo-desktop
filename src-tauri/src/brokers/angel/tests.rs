@@ -3,8 +3,8 @@
 //! (`src-tauri/tests/fixtures/brokers/angel/`; placeholders only).
 
 use super::data::{
-    angel_interval, api_exchange, chunk_days, chunk_window, merge_oi, parse_candles, parse_oi,
-    quote_body, to_depth, to_quote, AngelOi, AngelQuoteData,
+    angel_epoch, angel_interval, api_exchange, chunk_days, chunk_window, merge_oi, parse_candles,
+    parse_oi, quote_body, to_depth, to_quote, AngelOi, AngelQuoteData,
 };
 use super::funds::{funds_from_rms, m2m, margin_positions, parse_margin, AngelRms};
 use super::gtt::{
@@ -202,7 +202,11 @@ fn enum_maps_match_transform_data() {
 
 #[test]
 fn place_body_matches_web_payload() {
-    let b = place_order_body(&resolved("NIFTY27OCT2625000CE", "NFO", "SL", "NRML"));
+    let b = place_order_body(
+        &resolved("NIFTY27OCT2625000CE", "NFO", "SL", "NRML"),
+        "oa0123456789abcdef",
+    );
+    assert_eq!(b["ordertag"], "oa0123456789abcdef");
     assert_eq!(b["variety"], "STOPLOSS");
     assert_eq!(b["tradingsymbol"], "NIFTY27OCT2625000CE");
     assert_eq!(b["symboltoken"], "43210");
@@ -217,7 +221,7 @@ fn place_body_matches_web_payload() {
     assert_eq!(b["squareoff"], "0");
     assert_eq!(b["quantity"], "75");
     // MARKET: trigger is "0", never null.
-    let m = place_order_body(&resolved("SBIN", "NSE", "MARKET", "CNC"));
+    let m = place_order_body(&resolved("SBIN", "NSE", "MARKET", "CNC"), "oa0");
     assert_eq!(m["triggerprice"], "0");
     assert_eq!(m["variety"], "NORMAL");
     assert_eq!(m["tradingsymbol"], "SBIN-EQ");
@@ -437,6 +441,16 @@ fn history_candles_oi_and_chunks() {
     let d = parse_candles(&day, true);
     // 2026-09-29T00:00+05:30 + 5:30 = 2026-09-29T00:00Z
     assert_eq!(d[0].timestamp, 1_790_640_000);
+    // A timestamp without an offset is IST wall-clock, not the host's zone
+    // (web _angel_timestamps_to_epoch, #2176).
+    assert_eq!(angel_epoch("2026-10-01T09:15:00"), Some(1_790_826_300));
+    assert_eq!(angel_epoch("2026-10-01 09:15"), Some(1_790_826_300));
+    assert_eq!(
+        angel_epoch("2026-10-01T09:15:00+05:30"),
+        Some(1_790_826_300)
+    );
+    assert_eq!(angel_epoch("2026-10-01T04:15:00Z"), Some(1_790_828_100));
+    assert_eq!(angel_epoch("not a time"), None);
     assert_eq!(d[1].volume, 8_700_000);
     assert_eq!(angel_interval("1h").unwrap(), "ONE_HOUR");
     assert_eq!(angel_interval("D").unwrap(), "ONE_DAY");
@@ -854,4 +868,108 @@ fn order_update_normalises_like_web() {
     assert_eq!(order_status_from_code("ZZ"), None);
     assert_eq!(order_status_from_text("Executed"), "complete");
     assert_eq!(order_status_from_text(""), "open");
+}
+
+// ---------------------------------------------------------------------------
+// Ambiguous placement replies (web test_angel_ambiguous_order_reconciliation.py)
+// ---------------------------------------------------------------------------
+
+mod ambiguous_place {
+    use super::super::orders::{classify_place_reply, reconcile_by_tag, PlaceOutcome};
+    use super::*;
+    use serde_json::Value;
+
+    fn body(tag: &str) -> Value {
+        place_order_body(&resolved("SBIN", "NSE", "LIMIT", "MIS"), tag)
+    }
+
+    fn row(tag: &str, symbol: &str, qty: i64, id: &str) -> AngelOrder {
+        AngelOrder {
+            ordertag: tag.into(),
+            tradingsymbol: symbol.into(),
+            symboltoken: "3045".into(),
+            exchange: "NSE".into(),
+            transactiontype: "BUY".into(),
+            quantity: qty,
+            orderid: id.into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn ordertag_is_short_and_unique() {
+        let a = new_ordertag();
+        let b = new_ordertag();
+        assert!(a.starts_with("oa") && a.len() == 18, "{a}");
+        assert!(a[2..].chars().all(|c| c.is_ascii_hexdigit()));
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn only_status_true_with_orderid_is_placed() {
+        assert_eq!(
+            classify_place_reply(br#"{"status":true,"data":{"orderid":"2610"}}"#),
+            PlaceOutcome::Placed("2610".into())
+        );
+        // A partial success, an empty body, a non-object and a gateway page
+        // are all ambiguous: the order may have been taken.
+        for b in [
+            &br#"{"status":true}"#[..],
+            br#"{"status":true,"data":{"orderid":""}}"#,
+            br#"{"status":true,"data":null}"#,
+            b"",
+            b"null",
+            b"[1]",
+            b"<html>502 Bad Gateway</html>",
+        ] {
+            assert_eq!(classify_place_reply(b), PlaceOutcome::Ambiguous, "{b:?}");
+        }
+    }
+
+    #[test]
+    fn explicit_rejection_is_a_refusal_not_ambiguous() {
+        assert_eq!(
+            classify_place_reply(br#"{"status":false,"message":"rejected","errorcode":"AB1"}"#),
+            PlaceOutcome::Refused {
+                errorcode: "AB1".into(),
+                message: "rejected".into()
+            }
+        );
+    }
+
+    #[test]
+    fn reconciliation_matches_only_the_unique_tag_and_fields() {
+        let tag = "oa0123456789abcdef";
+        let b = body(tag);
+        let qty: i64 = b["quantity"].as_str().unwrap().parse().unwrap();
+        let rows = vec![row(tag, "SBIN-EQ", qty, "fresh-order")];
+        assert_eq!(
+            reconcile_by_tag(&rows, tag, &b).map(|r| r.orderid.as_str()),
+            Some("fresh-order")
+        );
+        // An older order with another tag is never claimed.
+        let rows = vec![row("openalgo", "SBIN-EQ", qty, "older-order")];
+        assert!(reconcile_by_tag(&rows, tag, &b).is_none());
+        // Same tag but another symbol, or another quantity: refused.
+        let rows = vec![row(tag, "OTHER-EQ", qty, "wrong-symbol")];
+        assert!(reconcile_by_tag(&rows, tag, &b).is_none());
+        let rows = vec![row(tag, "SBIN-EQ", qty + 1, "wrong-qty")];
+        assert!(reconcile_by_tag(&rows, tag, &b).is_none());
+        // Two rows with the tag: ambiguous, refused.
+        let rows = vec![
+            row(tag, "SBIN-EQ", qty, "duplicate-0"),
+            row(tag, "SBIN-EQ", qty, "duplicate-1"),
+        ];
+        assert!(reconcile_by_tag(&rows, tag, &b).is_none());
+    }
+
+    #[test]
+    fn order_book_rows_carry_the_ordertag() {
+        let r: AngelOrder = serde_json::from_str(
+            r#"{"orderid":"1","ordertag":"oa0123456789abcdef","quantity":"1"}"#,
+        )
+        .unwrap();
+        assert_eq!(r.ordertag, "oa0123456789abcdef");
+        assert_eq!(r.quantity, 1);
+    }
 }
