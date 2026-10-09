@@ -9,7 +9,12 @@
 //! * rows kept when `Series` is `EQ`, `BE`, `XX` or two spaces; `XX` and
 //!   blank series are replaced by `ScripType` (`XX`, `CE`, `PE`).
 //! * symbol: EQ/BE `SymbolRoot`; XX `root+DDMMMYY+FUT`; CE/PE
-//!   `root+DDMMMYY+strike+CE|PE`; `instrumenttype` XX -> FUT.
+//!   `root+DDMMMYY+strike+CE|PE`; `instrumenttype` XX -> FUT, BE -> EQ
+//!   (trade-for-trade stocks are still equity; web #2195).
+//! * one row per (symbol, exchange): the master lists some contracts under
+//!   several ScripCodes identical in every other column (BFO ITC around the
+//!   ITC Hotels demerger, long-dated SENSEX strikes); the highest ScripCode
+//!   (newest listing) is kept. Index rows keep the first one, as before.
 //! * `brsymbol = Name` uppercased and right-trimmed; `token = ScripCode`;
 //!   `brexchange = exchange`.
 //! * index symbols uppercased with spaces and hyphens removed, then renamed;
@@ -23,7 +28,7 @@ use crate::brokers::common::master_contract::{
 };
 use crate::brokers::common::symbols::SymToken;
 use crate::error::{AppError, Result};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// web index rename map (applied after the cleanup), index exchanges only.
 pub const INDEX_RENAMES: &[(&str, &str)] = &[
@@ -121,6 +126,9 @@ pub fn index_symbol(raw: &str) -> String {
         .unwrap_or(cleaned)
 }
 
+/// (symbol, exchange).
+type RowKey = (String, String);
+
 /// Parse the whole CSV.
 pub fn parse_csv(text: &str) -> Vec<SymToken> {
     let mut lines = text.lines();
@@ -161,7 +169,10 @@ pub fn parse_csv(text: &str) -> Vec<SymToken> {
         );
         return Vec::new();
     };
-    let mut rows = Vec::new();
+    let mut rows: Vec<SymToken> = Vec::new();
+    // (symbol, exchange) -> (position in `rows`, ScripCode kept there).
+    let mut kept: HashMap<RowKey, (usize, i64)> = HashMap::new();
+    let mut duplicates = 0usize;
     let mut index_rows = Vec::new();
     let mut seen_index: HashSet<(String, String)> = HashSet::new();
     for line in lines {
@@ -202,10 +213,10 @@ pub fn parse_csv(text: &str) -> Vec<SymToken> {
         if is_index {
             symbol = index_symbol(&symbol);
         }
-        let instrument_type = if series == "XX" {
-            "FUT".to_string()
-        } else {
-            series.clone()
+        let instrument_type = match series.as_str() {
+            "XX" => "FUT".to_string(),
+            "BE" => "EQ".to_string(),
+            _ => series.clone(),
         };
         let name = if matches!(instrument_type.as_str(), "CE" | "PE" | "FUT") && !root.is_empty() {
             root.clone()
@@ -230,8 +241,28 @@ pub fn parse_csv(text: &str) -> Vec<SymToken> {
                 index_rows.push(row);
             }
         } else {
-            rows.push(row);
+            let k = (row.symbol.clone(), row.exchange.clone());
+            match kept.get_mut(&k) {
+                Some((at, best)) => {
+                    duplicates += 1;
+                    if code > *best {
+                        *best = code;
+                        rows[*at] = row;
+                    }
+                }
+                None => {
+                    kept.insert(k, (rows.len(), code));
+                    rows.push(row);
+                }
+            }
         }
+    }
+    if duplicates > 0 {
+        tracing::info!(
+            broker = "fivepaisa",
+            "Dropped {} duplicate (symbol, exchange) rows, kept the highest ScripCode",
+            duplicates
+        );
     }
     rows.extend(index_rows);
     rows

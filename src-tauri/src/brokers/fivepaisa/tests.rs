@@ -2,7 +2,9 @@
 //! web adapter's and the 5paisa docs (`tests/fixtures/brokers/fivepaisa/`).
 
 use super::auth::{access_token_body, split_api_key, totp_login_body};
-use super::data::{chunk_days, history_path, interval_code, parse_candle, to_levels, to_quote};
+use super::data::{
+    candle_in_range, chunk_days, history_path, interval_code, parse_candle, to_levels, to_quote,
+};
 use super::funds::to_funds;
 use super::mapping::*;
 use super::master_contract::{index_symbol, parse_csv, row_exchange};
@@ -10,6 +12,7 @@ use super::streaming::{feed_codes, feed_url, methods, redirect_server, Fivepaisa
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Validity};
 use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::symbols::SymToken;
 use chrono::NaiveDate;
 use serde_json::{json, Value};
 
@@ -375,7 +378,8 @@ fn master_contract_rows() {
     );
     assert_eq!(sbin.instrument_type, "EQ");
     assert_eq!(r.by_symbol("NSE", "RELIANCE").unwrap().brsymbol, "RELIANCE");
-    assert_eq!(r.by_symbol("NSE", "YESBANK").unwrap().instrument_type, "BE");
+    // BE-series (trade-for-trade) cash rows are equity (web #2195).
+    assert_eq!(r.by_symbol("NSE", "YESBANK").unwrap().instrument_type, "EQ");
     assert!(r.by_symbol("NSE", "SKIPPED").is_none());
     assert_eq!(r.by_symbol("BSE", "SBIN").unwrap().token, "500112");
 
@@ -751,4 +755,59 @@ async fn order_feed_is_the_poller_and_logout_stops_it() {
     };
     let closed = tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv()).await;
     assert!(matches!(closed, Ok(None)));
+}
+
+/// 5paisa lists some contracts under several ScripCodes identical in every
+/// other column; one (symbol, exchange) row survives, the highest ScripCode
+/// (web #2195, QA audit MC-03). Index rows still keep the first.
+#[test]
+fn duplicate_contracts_keep_the_highest_scripcode() {
+    let head = "Exch,ExchType,ScripCode,Name,Expiry,ScripType,StrikeRate,FullName,TickSize,LotSize,QtyLimit,Multiplier,SymbolRoot,BOCOAllowed,ISIN,ScripData,Series";
+    let csv = format!(
+        "{head}\n\
+B,D,1180001,ITC 29 Oct 2026 CE 400.00,2026-10-29 14:30:00,CE,400,ITC,0.05,1600,0,1,ITC,N,,ITC_CE,XX\n\
+B,D,1190002,ITC 29 Oct 2026 CE 400.00,2026-10-29 14:30:00,CE,400,ITC,0.05,1600,0,1,ITC,N,,ITC_CE,XX\n\
+B,D,1170003,ITC 29 Oct 2026 CE 400.00,2026-10-29 14:30:00,CE,400,ITC,0.05,1600,0,1,ITC,N,,ITC_CE,XX\n\
+N,C,11915,YESBANK,1980-01-01 00:00:00,EQ,0,YES BANK LTD,0.01,1,0,1,YESBANK,Y,,YESBANK_BE,BE\n\
+N,C,999920000,NIFTY,1980-01-01 00:00:00,EQ,0,NIFTY 50,0.05,1,0,1,NIFTY 50,N,,NIFTY,EQ\n\
+N,C,999920099,NIFTY,1980-01-01 00:00:00,EQ,0,NIFTY 50 AGAIN,0.05,1,0,1,NIFTY 50,N,,NIFTY,EQ\n"
+    );
+    let rows = parse_csv(&csv);
+    let itc: Vec<&SymToken> = rows
+        .iter()
+        .filter(|r| r.symbol == "ITC29OCT26400CE" && r.exchange == "BFO")
+        .collect();
+    assert_eq!(itc.len(), 1);
+    assert_eq!(itc[0].token, "1190002");
+    assert_eq!(
+        rows.iter()
+            .find(|r| r.symbol == "YESBANK")
+            .map(|r| r.instrument_type.as_str()),
+        Some("EQ")
+    );
+    let nifty: Vec<&SymToken> = rows.iter().filter(|r| r.exchange == "NSE_INDEX").collect();
+    assert_eq!(nifty.len(), 1);
+    assert_eq!(nifty[0].token, "999920000");
+    // Unique (symbol, exchange) across the whole master.
+    let mut seen = std::collections::HashSet::new();
+    assert!(rows
+        .iter()
+        .all(|r| seen.insert((r.symbol.clone(), r.exchange.clone()))));
+}
+
+/// A future-dated range answered with the latest candle yields nothing
+/// (web #2195, QA audit HS-19).
+#[test]
+fn candles_outside_the_requested_chunk_are_dropped() {
+    let d = |y, m, dd| NaiveDate::from_ymd_opt(y, m, dd).unwrap();
+    let latest = serde_json::json!(["2026-10-08T09:15:00", 812.0, 815.0, 810.0, 813.0, 1000]);
+    assert!(!candle_in_range(&latest, d(2026, 11, 1), d(2026, 11, 30)));
+    assert!(candle_in_range(&latest, d(2026, 10, 1), d(2026, 10, 8)));
+    assert!(candle_in_range(&latest, d(2026, 10, 8), d(2026, 10, 8)));
+    assert!(!candle_in_range(&latest, d(2026, 10, 9), d(2026, 10, 9)));
+    assert!(!candle_in_range(
+        &serde_json::json!(["bad"]),
+        d(2026, 1, 1),
+        d(2027, 1, 1)
+    ));
 }

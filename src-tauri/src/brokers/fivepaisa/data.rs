@@ -369,6 +369,18 @@ pub fn parse_candle(c: &Value, daily: bool, is_index: bool) -> Option<Candle> {
     })
 }
 
+/// Whether a candle's date lies inside the requested chunk. 5paisa answers
+/// a range with no sessions in it (a future-dated one) with the latest
+/// candle instead of an empty list, so anything outside is dropped
+/// (web #2195).
+pub fn candle_in_range(c: &Value, from: NaiveDate, to: NaiveDate) -> bool {
+    c.as_array()
+        .and_then(|a| a.first())
+        .and_then(Value::as_str)
+        .and_then(|t| NaiveDateTime::parse_from_str(t, "%Y-%m-%dT%H:%M:%S").ok())
+        .is_some_and(|ts| (from..=to).contains(&ts.date()))
+}
+
 /// The history path for one chunk.
 pub fn history_path(
     exchange: &str,
@@ -439,7 +451,11 @@ pub async fn get_history(
             .and_then(|d| d.get("candles"))
             .and_then(Value::as_array)
         {
-            candles.extend(rows.iter().filter_map(|c| parse_candle(c, daily, is_index)));
+            candles.extend(
+                rows.iter()
+                    .filter(|c| candle_in_range(c, from, to))
+                    .filter_map(|c| parse_candle(c, daily, is_index)),
+            );
         }
     }
     Ok(sort_dedupe(candles))

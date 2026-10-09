@@ -533,6 +533,23 @@ async fn fivepaisa_history_is_chunked() {
     assert_eq!(calls[3].path, "/V2/historical/N/C/999920000/1d");
     assert_eq!(daily.len(), 3, "indices keep zero-volume days");
 
+    // 5paisa answers a range with no sessions in it with its latest candles;
+    // none of them lies inside the range, so nothing is returned (web #2195).
+    let future = b
+        .get_history(
+            &a,
+            &HistoryRequest {
+                key: QuoteKey::new("NSE", "SBIN"),
+                interval: "1m".into(),
+                start: d(2026, 11, 2),
+                end: d(2026, 11, 6),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(fake.history_calls().len(), 7);
+    assert!(future.is_empty(), "{future:?}");
+
     let e = b
         .get_history(
             &a,
