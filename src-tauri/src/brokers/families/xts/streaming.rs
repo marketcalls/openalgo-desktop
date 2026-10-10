@@ -209,6 +209,33 @@ pub enum CallOutcome {
     AlreadySubscribed,
 }
 
+/// Why a subscription call failed (BF-03).
+#[derive(Debug, PartialEq, Eq)]
+pub enum CallError {
+    /// No answer, or a server error or rate limit: the batch is retried.
+    Transient(String),
+    /// The broker refused the request (a validation error): not retried.
+    Refused(String),
+    /// The market-data token is no longer accepted: the feed reconnects
+    /// (a new token, then every subscription again) instead of retrying.
+    InvalidToken,
+}
+
+impl std::fmt::Display for CallError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CallError::Transient(m) | CallError::Refused(m) => f.write_str(m),
+            CallError::InvalidToken => f.write_str("the market data token was refused"),
+        }
+    }
+}
+
+/// XTS's refusal of an expired or unknown market-data token.
+pub fn is_invalid_token(body: &str) -> bool {
+    let b = body.to_ascii_lowercase();
+    b.contains("invalid token") || b.contains("token expired") || b.contains("invalid session")
+}
+
 /// XTS's "Instrument Already Subscribed" refusal (`e-session-0002`), in a
 /// JSON description or a plain-text body.
 pub fn is_already_subscribed(body: &str) -> bool {
@@ -224,10 +251,10 @@ pub async fn subscription_call(
     subscribe: bool,
     code: u16,
     instruments: &[Value],
-) -> Result<CallOutcome> {
+) -> std::result::Result<CallOutcome, CallError> {
     if !token_transport_allowed(url) {
         tracing::error!("XTS subscription refused: market-data host is not served over TLS");
-        return Err(AppError::Broker(
+        return Err(CallError::Refused(
             "Live market data could not be started because the broker connection is not secure. Check the broker address in Broker Configuration.".into(),
         ));
     }
@@ -236,24 +263,39 @@ pub async fn subscription_call(
     } else {
         http.put(url)
     };
+    let transient = |e: reqwest::Error| {
+        CallError::Transient(crate::brokers::common::redact::url_safe_error(&e))
+    };
     let resp = req
         .header("Authorization", token)
         .header("Content-Type", "application/json")
         .json(&json!({"instruments": instruments, "xtsMessageCode": code}))
         .send()
-        .await?;
-    let body = resp.text().await?;
+        .await
+        .map_err(transient)?;
+    let status = resp.status();
+    let body = resp.text().await.map_err(transient)?;
     let v: Value = serde_json::from_str(&body).unwrap_or(Value::Null);
     if v.get("type").and_then(Value::as_str) != Some("success") {
         if is_already_subscribed(&body) {
             return Ok(CallOutcome::AlreadySubscribed);
         }
+        if status == reqwest::StatusCode::UNAUTHORIZED || is_invalid_token(&body) {
+            return Err(CallError::InvalidToken);
+        }
         let why = mapping::error_text(&v);
-        return Err(AppError::Broker(if why.is_empty() {
-            "The broker refused the market data subscription.".into()
+        let why = if why.is_empty() {
+            "The broker refused the market data subscription.".to_string()
         } else {
             why
-        }));
+        };
+        return Err(
+            if status.is_server_error() || status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                CallError::Transient(why)
+            } else {
+                CallError::Refused(why)
+            },
+        );
     }
     Ok(CallOutcome::Done(
         v.get("result")
@@ -282,16 +324,29 @@ pub struct SubscriptionTarget<'a> {
     pub split_duplicates: bool,
 }
 
+/// What running one command left to do.
+#[derive(Debug, Default, PartialEq)]
+pub struct CommandReport {
+    /// Calls made.
+    pub calls: usize,
+    /// Instruments of the batches that failed for a passing reason (no
+    /// answer, a server error, a rate limit), to send again.
+    pub retry: Vec<Value>,
+    /// The token was refused: the feed must reconnect.
+    pub reconnect: bool,
+}
+
 /// Run one command: at most `SUBSCRIBE_BATCH` instruments per call, `gap`
 /// between calls. With `split_duplicates`, a subscribe batch refused as
 /// already subscribed is retried one instrument at a time; without it the
-/// refusal is non-fatal. Returns the calls made.
+/// refusal is non-fatal. A batch that failed for a passing reason is
+/// reported for a retry (BF-03; the web retries rmoney's on a timer).
 pub async fn run_command(
     t: &SubscriptionTarget<'_>,
     cmd: &Command,
     snapshots: &mpsc::Sender<String>,
     first: &mut bool,
-) -> usize {
+) -> CommandReport {
     let mut calls = 0;
     let mut call = |batch: Vec<Value>| {
         let wait = !*first;
@@ -319,14 +374,15 @@ pub async fn run_command(
                     "Batch holds an instrument already subscribed; subscribing one by one"
                 );
                 for inst in batch {
-                    let (_, r) = call(vec![inst]).await;
-                    outcomes.push(r);
+                    let (one, r) = call(vec![inst]).await;
+                    outcomes.push((one, r));
                 }
             }
-            r => outcomes.push(r),
+            r => outcomes.push((batch, r)),
         }
     }
-    for r in outcomes {
+    let mut report = CommandReport::default();
+    for (batch, r) in outcomes {
         match r {
             Ok(CallOutcome::Done(list)) => {
                 if cmd.subscribe {
@@ -338,26 +394,131 @@ pub async fn run_command(
             Ok(CallOutcome::AlreadySubscribed) => {
                 tracing::debug!(broker = t.broker, "Instrument already subscribed")
             }
-            Err(e) => tracing::warn!(
+            Err(CallError::Transient(e)) => {
+                tracing::warn!(
+                    broker = t.broker,
+                    code = cmd.code,
+                    subscribe = cmd.subscribe,
+                    "Subscription call failed, will retry: {}",
+                    e
+                );
+                report.retry.extend(batch);
+            }
+            Err(CallError::InvalidToken) => {
+                tracing::warn!(
+                    broker = t.broker,
+                    "Subscription refused the market data token; reconnecting"
+                );
+                report.reconnect = true;
+            }
+            Err(CallError::Refused(e)) => tracing::warn!(
                 broker = t.broker,
                 code = cmd.code,
                 subscribe = cmd.subscribe,
-                "Subscription call failed: {}",
+                "Subscription call refused: {}",
                 e
             ),
         }
     }
-    calls
+    report.calls = calls;
+    report
 }
 
+/// First wait before a failed batch is sent again; doubled per attempt.
+pub const RETRY_BASE: Duration = Duration::from_secs(1);
+/// Longest wait between retries of a failed batch.
+pub const RETRY_MAX: Duration = Duration::from_secs(30);
+/// Attempts after the first before a batch is given up (the next
+/// reconnect subscribes it again).
+pub const RETRY_ATTEMPTS: u32 = 5;
+
+/// A failed batch waiting to be sent again.
+struct Pending {
+    cmd: Command,
+    attempt: u32,
+    due: tokio::time::Instant,
+}
+
+/// Run commands in order until the queue closes, sending failed batches
+/// again with doubling waits from `retry_base` up to `RETRY_MAX`, at most
+/// `RETRY_ATTEMPTS` times (BF-03). An unsubscribe drops the same
+/// instruments from a pending retry. A refused token sets `reconnect`,
+/// which the feed turns into a reconnect. Ends (and so cancels every
+/// pending retry) when the feed drops the queue or aborts the task.
+pub async fn run_commands(
+    t: &SubscriptionTarget<'_>,
+    mut rx: mpsc::Receiver<Command>,
+    snapshots: &mpsc::Sender<String>,
+    reconnect: &std::sync::atomic::AtomicBool,
+    retry_base: Duration,
+) {
+    let mut first = true;
+    let mut pending: std::collections::VecDeque<Pending> = std::collections::VecDeque::new();
+    loop {
+        let (cmd, attempt) = match pending.front().map(|p| p.due) {
+            Some(due) => tokio::select! {
+                biased;
+                c = rx.recv() => match c {
+                    Some(c) => (c, 0),
+                    None => return,
+                },
+                _ = tokio::time::sleep_until(due) => match pending.pop_front() {
+                    Some(p) => (p.cmd, p.attempt),
+                    None => continue,
+                },
+            },
+            None => match rx.recv().await {
+                Some(c) => (c, 0),
+                None => return,
+            },
+        };
+        if !cmd.subscribe {
+            for p in pending.iter_mut().filter(|p| p.cmd.code == cmd.code) {
+                p.cmd.instruments.retain(|i| !cmd.instruments.contains(i));
+            }
+            pending.retain(|p| !p.cmd.instruments.is_empty());
+        }
+        let report = run_command(t, &cmd, snapshots, &mut first).await;
+        if report.reconnect {
+            reconnect.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+        if report.retry.is_empty() {
+            continue;
+        }
+        if attempt >= RETRY_ATTEMPTS {
+            tracing::warn!(
+                broker = t.broker,
+                instruments = report.retry.len(),
+                "Subscription still failing after {} retries; the next reconnect sends it again",
+                RETRY_ATTEMPTS
+            );
+            continue;
+        }
+        let wait = retry_base.saturating_mul(1u32 << attempt.min(16)).min(RETRY_MAX);
+        let p = Pending {
+            cmd: Command {
+                subscribe: cmd.subscribe,
+                code: cmd.code,
+                instruments: report.retry,
+            },
+            attempt: attempt + 1,
+            due: tokio::time::Instant::now() + wait,
+        };
+        let at = pending.iter().position(|q| q.due > p.due).unwrap_or(pending.len());
+        pending.insert(at, p);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 async fn subscription_worker(
     broker: &'static str,
     split_duplicates: bool,
     http: reqwest::Client,
     url: String,
     token: Secret,
-    mut rx: mpsc::Receiver<Command>,
+    rx: mpsc::Receiver<Command>,
     snapshots: mpsc::Sender<String>,
+    resync: std::sync::Arc<std::sync::atomic::AtomicBool>,
 ) {
     let target = SubscriptionTarget {
         broker,
@@ -367,10 +528,7 @@ async fn subscription_worker(
         gap: SUBSCRIBE_GAP,
         split_duplicates,
     };
-    let mut first = true;
-    while let Some(cmd) = rx.recv().await {
-        run_command(&target, &cmd, &snapshots, &mut first).await;
-    }
+    run_commands(&target, rx, &snapshots, &resync, RETRY_BASE).await;
 }
 
 // ---------------------------------------------------------------------------
@@ -392,6 +550,10 @@ pub struct XtsFeed {
     /// When market data last arrived (epoch seconds), for the data-stall
     /// watchdog (`XtsHooks::data_stall_watchdog`).
     last_data: Option<i64>,
+    /// Set when the subscriptions may no longer match the book (the token
+    /// was refused, or the command queue was full): the feed reconnects,
+    /// which subscribes the whole book again (BF-03).
+    resync: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// Silence during an open session after which the feed reconnects (web
@@ -487,6 +649,7 @@ impl XtsFeed {
             snapshots_rx,
             pending_attachments: 0,
             last_data: None,
+            resync: Default::default(),
         }
     }
 
@@ -542,6 +705,7 @@ impl XtsFeed {
                 token,
                 rx,
                 self.snapshots_tx.clone(),
+                self.resync.clone(),
             )));
             self.commands = Some(tx);
         }
@@ -549,10 +713,19 @@ impl XtsFeed {
             if tx.try_send(cmd).is_err() {
                 tracing::warn!(
                     broker = self.cfg.id,
-                    "Subscription queue full; request dropped"
+                    "Subscription queue full; reconnecting to subscribe again"
                 );
+                self.resync
+                    .store(true, std::sync::atomic::Ordering::SeqCst);
             }
         }
+    }
+
+    /// Whether the feed must reconnect to bring its subscriptions back in
+    /// line (clears the request).
+    pub(crate) fn take_resync(&self) -> bool {
+        self.resync
+            .swap(false, std::sync::atomic::Ordering::SeqCst)
     }
 
     /// Subscription snapshots received since the last frame.
@@ -841,10 +1014,19 @@ impl BrokerFeed for XtsFeed {
         while self.snapshots_rx.try_recv().is_ok() {}
         // Web `_on_connect`: silence is measured from the connection.
         self.last_data = Some(now_secs());
+        // A new connection subscribes the whole book again.
+        self.take_resync();
         Vec::new()
     }
 
     fn data_stalled(&mut self) -> bool {
+        if self.take_resync() {
+            tracing::warn!(
+                broker = self.cfg.id,
+                "Market data subscriptions need to be sent again; reconnecting"
+            );
+            return true;
+        }
         let now = now_secs();
         if !self.stalled_at(now) {
             return false;

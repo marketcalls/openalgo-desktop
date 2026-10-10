@@ -1244,7 +1244,7 @@ mod subscription_batches {
         };
         let (tx, mut rx) = tokio::sync::mpsc::channel(512);
         let mut first = true;
-        let calls = run_command(&t, &c, &tx, &mut first).await;
+        let calls = run_command(&t, &c, &tx, &mut first).await.calls;
         let mut snaps = 0;
         while rx.try_recv().is_ok() {
             snaps += 1;
@@ -1345,6 +1345,169 @@ mod subscription_batches {
         let (seen, calls, _) = run(&[1], cmd(1)).await;
         assert_eq!(seen.len(), 1);
         assert_eq!(calls, 1);
+    }
+
+    /// A subscription endpoint answering each call (1-based) with the
+    /// scripted status and body, success otherwise.
+    async fn scripted(
+        script: Vec<(usize, u16, &'static str)>,
+    ) -> (String, Arc<Mutex<Vec<Vec<i64>>>>) {
+        let seen: Arc<Mutex<Vec<Vec<i64>>>> = Arc::default();
+        let s2 = seen.clone();
+        let script = Arc::new(script);
+        let app = Router::new().route(
+            "/sub",
+            post(move |Json(b): Json<Value>| {
+                let (seen, script) = (s2.clone(), script.clone());
+                async move {
+                    let ids: Vec<i64> = b["instruments"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|i| i["exchangeInstrumentID"].as_i64().unwrap())
+                        .collect();
+                    let n = {
+                        let mut g = seen.lock();
+                        g.push(ids);
+                        g.len()
+                    };
+                    match script.iter().find(|(k, _, _)| *k == n) {
+                        Some((_, status, body)) => (
+                            axum::http::StatusCode::from_u16(*status).unwrap(),
+                            body.to_string(),
+                        ),
+                        None => (
+                            axum::http::StatusCode::OK,
+                            json!({"type": "success", "result": {"listQuotes": []}}).to_string(),
+                        ),
+                    }
+                }
+            }),
+        );
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/sub", l.local_addr().unwrap());
+        tokio::spawn(async move {
+            let _ = axum::serve(l, app).await;
+        });
+        (url, seen)
+    }
+
+    /// Run the worker loop of `cfg` against `url` until `until` holds (or
+    /// the bound passes), then stop it as the feed does (drop the queue).
+    async fn worker(
+        cfg: &'static XtsConfig,
+        url: String,
+        cmds: Vec<super::super::streaming::Command>,
+        retry_base: Duration,
+        settle: Duration,
+    ) -> bool {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let http = crate::brokers::common::http::client();
+        let reconnect = Arc::new(AtomicBool::new(false));
+        let (tx, rx) = tokio::sync::mpsc::channel(16);
+        let (snap_tx, _snap_rx) = tokio::sync::mpsc::channel(512);
+        for c in cmds {
+            tx.send(c).await.unwrap();
+        }
+        let flag = reconnect.clone();
+        let task = tokio::spawn(async move {
+            let t = super::super::streaming::SubscriptionTarget {
+                broker: cfg.id,
+                http: &http,
+                url: &url,
+                token: "tok",
+                gap: Duration::ZERO,
+                split_duplicates: cfg.hooks.split_duplicate_batch,
+            };
+            super::super::streaming::run_commands(&t, rx, &snap_tx, &flag, retry_base).await;
+        });
+        tokio::time::sleep(settle).await;
+        drop(tx);
+        task.abort();
+        let _ = task.await;
+        reconnect.load(Ordering::SeqCst)
+    }
+
+    /// BF-03: a batch whose call failed with a server error is sent again
+    /// (only that batch) and then starts, for rmoney (the web's retry) and
+    /// the other XTS members alike; a validation refusal (400) is not
+    /// retried; a refused token asks for a reconnect.
+    #[tokio::test]
+    async fn a_failed_batch_is_sent_again() {
+        for cfg in [
+            &crate::brokers::rmoney::CONFIG,
+            &crate::brokers::fivepaisaxts::CONFIG,
+        ] {
+            let (url, seen) = scripted(vec![(2, 500, "{\"type\":\"error\"}")]).await;
+            worker(cfg, url, vec![cmd(51)], Duration::from_millis(20), Duration::from_millis(600))
+                .await;
+            let seen = seen.lock().clone();
+            assert_eq!(
+                seen.iter().map(Vec::len).collect::<Vec<_>>(),
+                [50, 1, 1],
+                "{}",
+                cfg.id
+            );
+            assert_eq!(seen[2], vec![50], "{}", cfg.id);
+
+            let (url, seen) =
+                scripted(vec![(1, 400, "{\"type\":\"error\",\"description\":\"Bad instrument\"}")])
+                    .await;
+            worker(cfg, url, vec![cmd(2)], Duration::from_millis(20), Duration::from_millis(300))
+                .await;
+            assert_eq!(seen.lock().len(), 1, "{}: a 400 was retried", cfg.id);
+
+            let (url, seen) = scripted(vec![(
+                1,
+                400,
+                "{\"type\":\"error\",\"description\":\"Invalid Token\"}",
+            )])
+            .await;
+            let reconnect = worker(
+                cfg,
+                url,
+                vec![cmd(2)],
+                Duration::from_millis(20),
+                Duration::from_millis(300),
+            )
+            .await;
+            assert!(reconnect, "{}", cfg.id);
+            assert_eq!(seen.lock().len(), 1, "{}", cfg.id);
+        }
+    }
+
+    /// BF-03: retries are bounded, and stop with the worker (logout or
+    /// reconnect drops the queue) even in the middle of a back-off.
+    #[tokio::test]
+    async fn retries_are_bounded_and_stop_with_the_worker() {
+        let always: Vec<(usize, u16, &'static str)> =
+            (1..=50).map(|n| (n, 503, "{\"type\":\"error\"}")).collect();
+        let (url, seen) = scripted(always.clone()).await;
+        worker(
+            &crate::brokers::rmoney::CONFIG,
+            url,
+            vec![cmd(1)],
+            Duration::from_millis(5),
+            Duration::from_millis(800),
+        )
+        .await;
+        assert_eq!(
+            seen.lock().len(),
+            1 + super::super::streaming::RETRY_ATTEMPTS as usize
+        );
+        let (url, seen) = scripted(always).await;
+        worker(
+            &crate::brokers::rmoney::CONFIG,
+            url,
+            vec![cmd(1)],
+            Duration::from_millis(400),
+            Duration::from_millis(150),
+        )
+        .await;
+        let n = seen.lock().len();
+        tokio::time::sleep(Duration::from_millis(700)).await;
+        assert_eq!(n, 1);
+        assert_eq!(seen.lock().len(), 1, "a retry ran after the worker stopped");
     }
 
     #[test]
