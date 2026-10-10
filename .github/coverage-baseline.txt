@@ -4,10 +4,12 @@
 # How the ratchet works:
 # - The job measures line coverage of src-tauri with cargo-llvm-cov.
 # - If coverage drops more than 0.1 points below this number the ratchet step
-#   fails and annotates the run. The step is continue-on-error for now, so it
-#   does not block a merge; it becomes a hard gate once the Wave 1 rewrite of
-#   src-tauri has settled.
+#   fails, and with it the rust-coverage job and ci-ok. It is a hard gate.
 # - When the job reports that coverage is at least 1 point above this number,
-#   raise the number in the same PR. Never lower it without a written reason in
-#   the PR description.
-0.00
+#   raise the number in the same change. Never lower it without a written
+#   reason in the commit message, and never exclude code to meet it.
+#
+# Set on 2026-10-10 from CI run 38020543419 at 87d49f9: 84.17% of lines
+# (120,695 of 143,390), less half a point for run-to-run noise.
+# The frontend has its own thresholds, in vitest.config.ts.
+83.67

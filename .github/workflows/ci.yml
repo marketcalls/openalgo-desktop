@@ -3,9 +3,9 @@ name: CI
 # Job graph
 #
 #   rust-lint --> rust-test (ubuntu x64, ubuntu arm64, macos, windows) --+
-#             \-> rust-coverage (ratchet, not a gate yet)                |
+#             \-> rust-coverage (line-coverage ratchet, a gate)           |
 #   frontend (biome, tsc, vite build) -----------------------------------+--> tauri-build (5 targets)
-#   frontend-test (node 20/22/24) ---------------------------------------+
+#   frontend-test (node 20/22/24, coverage thresholds) ------------------+
 #   e2e (Playwright against vite preview)
 #   secret-scan (gitleaks, full history)
 #
@@ -168,9 +168,8 @@ jobs:
             printf '| Regions | %.2f |\n' "$regions"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Coverage ratchet against .github/coverage-baseline.txt
-        # Not a hard gate yet (see the baseline file). A drop below the
-        # baseline annotates the run with an error but does not fail CI.
-        continue-on-error: true
+        # A hard gate: line coverage more than 0.1 points below the baseline
+        # fails this job and with it ci-ok.
         run: |
           current=$(jq -r '.data[0].totals.lines.percent' src-tauri/coverage-summary.json)
           baseline=$(grep -Ev '^[[:space:]]*(#|$)' .github/coverage-baseline.txt | head -n1 | tr -d '[:space:]')
@@ -237,7 +236,26 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - name: Vitest with coverage
+        # Fails below the coverage thresholds in vitest.config.ts, measured
+        # over every file in src/ (not only the ones tests import).
         run: npx vitest run --coverage
+      - name: Coverage summary
+        if: always() && matrix.node-version == '22'
+        run: |
+          f=coverage/coverage-summary.json
+          if [ ! -f "$f" ]; then
+            echo "No coverage summary was written."
+            exit 0
+          fi
+          {
+            echo "### Frontend coverage (src/, every file)"
+            echo
+            echo "| Metric | Percent |"
+            echo "| --- | --- |"
+            for m in lines statements functions branches; do
+              printf '| %s | %s |\n' "$m" "$(jq -r ".total.${m}.pct" "$f")"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload coverage
         if: always() && matrix.node-version == '22'
         uses: actions/upload-artifact@v6
