@@ -372,3 +372,13 @@ One JSON object per line: `{ts, iso, direction: send|recv|note, message|raw, ...
 
 ### Web broker changes deliberately not copied
 - **Angel daily candles (web 4c8ee632c, #2176, 2026-10-06)**: the web dropped the +05:30 shift on Angel `D` candles, so they are now stamped at IST midnight (18:30 UTC of the previous day). Every other web broker, and `history/nifty_index_D.json` above (`1788220800` = 2026-09-01 00:00 UTC), stamps a daily candle at 00:00 UTC of its date. The desktop keeps 00:00 UTC for Angel (`brokers/angel/data.rs` `parse_candles`). The IST request window from the same commit is ported.
+
+### Web broker behaviour deliberately hardened (Codex evaluation D, 2026-10-10)
+The web shares each of these defects; the desktop answers differently on purpose.
+- **Master contracts are all or nothing (MC-02)**: Kotak (NSE_CM, NSE_FO, BSE_CM, BSE_FO required; CDE_FO and MCX_FO only when listed), Motilal, Nubra and INDmoney keep whatever segments they got on the web; Shoonya, Zebu, TradeSmart and Pocketful fail there too. On the desktop a failed, empty or unreadable segment fails the download by name and the stored master is kept.
+- **The stored master has an owner (MC-01)**: written with the rows; a cache reload of another broker's master answers 409 with the reason, where the web reloads it as the current broker's.
+- **Cancel all and close all never read an unread book as empty (BR-02, BR-03)**: Samco and AliceBlue cancel all (and AliceBlue close all) report an error when the book could not be read, where the web reports success with nothing done; Zerodha's smart-order read, close all and cancel all refuse a success reply without `data.net` (or the order list).
+- **`/api/v1/margin` refuses a basket with a leg missing from the master (BR-01)**: `400 "Position N: Symbol X not found on EX. ..."`; the web's adapters drop the leg and total the rest.
+- **HDFC Sky `user_order_id` (BR-05)**: distinct per order (`max(clock, last + 1)` below 1e9); the web's clock-only id repeats for legs placed in the same millisecond.
+- **XTS subscription batches (BF-03)**: a batch that failed with a server error or rate limit is sent again (1 s doubling to 30 s, five times) for every XTS member, not only RMoney; a refused token reconnects the feed.
+- **Delta Exchange order writes wait at most 10 s for the rate limit (12-U2)**, then are refused, instead of up to about 90 s.
