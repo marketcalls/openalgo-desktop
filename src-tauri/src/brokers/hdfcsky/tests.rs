@@ -876,15 +876,24 @@ fn packets_never_borrow_another_segments_symbol() {
             })
             .collect()
     };
-    let ev = f.parse(&Message::Binary(frame(vec![mbp_packet(35001, pt::NSE_FO_ALL)])));
+    let ev = f.parse(&Message::Binary(frame(vec![mbp_packet(
+        35001,
+        pt::NSE_FO_ALL,
+    )])));
     assert_eq!(
         tick_of(&ev),
         [("NIFTY27OCT2625000CE".to_string(), "NFO".to_string())]
     );
     f.unsubscribe_frames(&[sub("NIFTY27OCT2625000CE", "NFO", "35001", FeedMode::Quote)]);
-    let ev = f.parse(&Message::Binary(frame(vec![mbp_packet(35001, pt::NSE_FO_ALL)])));
+    let ev = f.parse(&Message::Binary(frame(vec![mbp_packet(
+        35001,
+        pt::NSE_FO_ALL,
+    )])));
     assert!(ev.is_empty(), "{:?}", ev);
-    let ev = f.parse(&Message::Binary(frame(vec![mbp_packet(35001, pt::NSE_CM_ALL)])));
+    let ev = f.parse(&Message::Binary(frame(vec![mbp_packet(
+        35001,
+        pt::NSE_CM_ALL,
+    )])));
     assert_eq!(tick_of(&ev), [("SBIN".to_string(), "NSE".to_string())]);
     // An order or trade packet (types 8 and 9) carries no segment.
     for ptype in [8, 9, 42] {

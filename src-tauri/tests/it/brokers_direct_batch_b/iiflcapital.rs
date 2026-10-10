@@ -419,7 +419,8 @@ async fn cancel_all_close_all_and_open_position() {
     let before = fake.calls("POST", "/orders").len();
     let e = b.close_all_positions(&a).await.unwrap_err();
     assert!(
-        e.client_message().contains("could not return your positions"),
+        e.client_message()
+            .contains("could not return your positions"),
         "{}",
         e.client_message()
     );

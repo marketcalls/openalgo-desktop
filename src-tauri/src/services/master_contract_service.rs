@@ -158,7 +158,11 @@ pub fn skip_reason(ctx: &AppState, broker: &str) -> Option<String> {
     if needed {
         return None;
     }
-    let owner = ctx.sqlite.conn().ok().and_then(|c| symbol::owner(&c).ok())??;
+    let owner = ctx
+        .sqlite
+        .conn()
+        .ok()
+        .and_then(|c| symbol::owner(&c).ok())??;
     (owner.broker == broker && owner.rows > 0 && ctx.symbol_count() > 0).then_some(reason)
 }
 
@@ -383,7 +387,11 @@ async fn download_claimed(
     .await
     .map_err(|e| AppError::Internal(format!("symbol store task failed: {}", e)))??;
     // Install it only for the broker whose session this still is.
-    let session = ctx.broker_session.read().as_ref().map(|s| s.broker_id.clone());
+    let session = ctx
+        .broker_session
+        .read()
+        .as_ref()
+        .map(|s| s.broker_id.clone());
     if let Some(other) = session.filter(|b| b != id) {
         tracing::warn!(
             "Master contract for {} downloaded after the session moved to {}; not loaded",

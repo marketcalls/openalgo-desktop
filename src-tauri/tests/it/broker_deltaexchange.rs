@@ -1029,21 +1029,41 @@ async fn an_order_is_refused_rather_than_sent_late() {
     let syms = master();
     let order = resolved(&syms, "BTCUSDFUT", "BUY", "LIMIT", 60000.0);
     let m = Mock::default();
-    m.on_with("POST", "/v2/orders", 429, &[("x-rate-limit-reset", "20")], "{}");
+    m.on_with(
+        "POST",
+        "/v2/orders",
+        429,
+        &[("x-rate-limit-reset", "20")],
+        "{}",
+    );
     m.on("POST", "/v2/orders", 200, fixture("place_order.json"));
     let s = serve(&m).await;
-    let b = broker_with(&s, syms.clone()).with_quota(Quota::new(1_000_000, Duration::from_secs(300)));
+    let b =
+        broker_with(&s, syms.clone()).with_quota(Quota::new(1_000_000, Duration::from_secs(300)));
     assert!(b.place_order(&auth(), &order).await.is_ok());
     assert_eq!(m.calls("POST", "/v2/orders").len(), 2);
 
     let m = Mock::default();
-    m.on_with("POST", "/v2/orders", 429, &[("x-rate-limit-reset", "60000")], "{}");
+    m.on_with(
+        "POST",
+        "/v2/orders",
+        429,
+        &[("x-rate-limit-reset", "60000")],
+        "{}",
+    );
     let s = serve(&m).await;
     let b = broker_with(&s, syms).with_quota(Quota::new(1_000_000, Duration::from_secs(300)));
     let started = std::time::Instant::now();
     let e = b.place_order(&auth(), &order).await.unwrap_err();
-    assert!(started.elapsed() < Duration::from_secs(5), "the order waited");
-    assert!(e.client_message().contains("allowance"), "{}", e.client_message());
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "the order waited"
+    );
+    assert!(
+        e.client_message().contains("allowance"),
+        "{}",
+        e.client_message()
+    );
     assert_eq!(m.calls("POST", "/v2/orders").len(), 1);
 }
 

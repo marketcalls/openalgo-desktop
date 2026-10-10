@@ -406,7 +406,11 @@ async fn empty_books_from_broker_codes() {
 #[tokio::test]
 async fn cancel_all_and_close_all_refuse_an_unread_book() {
     for (status, body, empty) in [
-        (200u16, json!({"status":"Not_Ok","message":"EC915"}).to_string(), false),
+        (
+            200u16,
+            json!({"status":"Not_Ok","message":"EC915"}).to_string(),
+            false,
+        ),
         (
             200,
             json!({"status":"Not_Ok","message":"Failed to retrieve the order book."}).to_string(),
@@ -414,7 +418,11 @@ async fn cancel_all_and_close_all_refuse_an_unread_book() {
         ),
         (500, "<html>Bad gateway</html>".to_string(), false),
         (200, json!({"status":"Ok"}).to_string(), false),
-        (200, json!({"status":"Not_Ok","message":"EC916"}).to_string(), true),
+        (
+            200,
+            json!({"status":"Not_Ok","message":"EC916"}).to_string(),
+            true,
+        ),
         (200, json!({"status":"Ok","result":[]}).to_string(), true),
     ] {
         let body2 = body.clone();
@@ -423,10 +431,13 @@ async fn cancel_all_and_close_all_refuse_an_unread_book() {
                 // The order-book reply, reused for the positions book with
                 // the position codes.
                 let b = if req.path.ends_with("positions") {
-                    body2.replace("EC915", "EC919").replace("EC916", "EC920").replace(
-                        "Failed to retrieve the order book.",
-                        "Failed to retrieve the position book.",
-                    )
+                    body2
+                        .replace("EC915", "EC919")
+                        .replace("EC916", "EC920")
+                        .replace(
+                            "Failed to retrieve the order book.",
+                            "Failed to retrieve the position book.",
+                        )
                 } else {
                     body2.clone()
                 };

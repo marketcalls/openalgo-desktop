@@ -2584,8 +2584,23 @@ async fn cache_reload_and_skip_check_the_stored_master() {
         let mut c = h.ctx().sqlite.conn().unwrap();
         let now = h.ctx().now();
         crate::db::sqlite::symbol::store_symbols(&mut c, "zerodha", now, &[]).unwrap();
-        crate::db::sqlite::master_contract_status::update(&c, "zerodha", "success", "done", Some(1), now).unwrap();
-        crate::db::sqlite::master_contract_status::record_download(&c, "zerodha", 1, &Default::default(), now).unwrap();
+        crate::db::sqlite::master_contract_status::update(
+            &c,
+            "zerodha",
+            "success",
+            "done",
+            Some(1),
+            now,
+        )
+        .unwrap();
+        crate::db::sqlite::master_contract_status::record_download(
+            &c,
+            "zerodha",
+            1,
+            &Default::default(),
+            now,
+        )
+        .unwrap();
     }
     *h.mock.master.lock() = Some(Ok(vec![sbin]));
     let (s, v) = h

@@ -1439,8 +1439,14 @@ mod subscription_batches {
             &crate::brokers::fivepaisaxts::CONFIG,
         ] {
             let (url, seen) = scripted(vec![(2, 500, "{\"type\":\"error\"}")]).await;
-            worker(cfg, url, vec![cmd(51)], Duration::from_millis(20), Duration::from_millis(600))
-                .await;
+            worker(
+                cfg,
+                url,
+                vec![cmd(51)],
+                Duration::from_millis(20),
+                Duration::from_millis(600),
+            )
+            .await;
             let seen = seen.lock().clone();
             assert_eq!(
                 seen.iter().map(Vec::len).collect::<Vec<_>>(),
@@ -1450,11 +1456,20 @@ mod subscription_batches {
             );
             assert_eq!(seen[2], vec![50], "{}", cfg.id);
 
-            let (url, seen) =
-                scripted(vec![(1, 400, "{\"type\":\"error\",\"description\":\"Bad instrument\"}")])
-                    .await;
-            worker(cfg, url, vec![cmd(2)], Duration::from_millis(20), Duration::from_millis(300))
-                .await;
+            let (url, seen) = scripted(vec![(
+                1,
+                400,
+                "{\"type\":\"error\",\"description\":\"Bad instrument\"}",
+            )])
+            .await;
+            worker(
+                cfg,
+                url,
+                vec![cmd(2)],
+                Duration::from_millis(20),
+                Duration::from_millis(300),
+            )
+            .await;
             assert_eq!(seen.lock().len(), 1, "{}: a 400 was retried", cfg.id);
 
             let (url, seen) = scripted(vec![(

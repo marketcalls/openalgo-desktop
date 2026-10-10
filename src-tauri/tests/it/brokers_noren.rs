@@ -582,6 +582,41 @@ async fn shoonya_master_download_reads_the_zips() {
     assert_eq!(rows.iter().filter(|r| r.exchange == "BSE_INDEX").count(), 2);
 }
 
+/// BR-03 sentinels: a position book reply that is not a list (an object,
+/// an `Ok` without rows, text) is never read as flat by the smart-order
+/// read or close all; the broker's own "no data" answer is.
+#[tokio::test]
+async fn a_malformed_position_book_is_never_flat() {
+    for body in [
+        "{}",
+        "{\"stat\":\"Ok\"}",
+        "\"x\"",
+        "{\"stat\":\"Not_Ok\",\"emsg\":\"Session Expired : Invalid Session Key\"}",
+    ] {
+        let (b, fake, auth) = noren(shoonya::config()).await;
+        fake.bodies.lock().push(("PositionBook", body));
+        assert!(
+            b.get_open_position(&auth, "RELIANCE", Exchange::Nse, Product::Mis)
+                .await
+                .is_err(),
+            "{}",
+            body
+        );
+        assert!(b.close_all_positions(&auth).await.is_err(), "{}", body);
+        assert!(fake.calls("/PlaceOrder").is_empty(), "{}", body);
+    }
+    let (b, fake, auth) = noren(shoonya::config()).await;
+    fake.bodies
+        .lock()
+        .push(("PositionBook", "{\"stat\":\"Not_Ok\",\"emsg\":\"no data\"}"));
+    assert_eq!(
+        b.get_open_position(&auth, "RELIANCE", Exchange::Nse, Product::Mis)
+            .await
+            .unwrap(),
+        0
+    );
+}
+
 /// MC-02: Shoonya, Zebu and TradeSmart masters are all or nothing like
 /// Flattrade's (their web download fails too when a file is missing): a
 /// failed or empty file refuses the download by segment, so the stored

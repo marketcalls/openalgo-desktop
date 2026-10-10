@@ -422,10 +422,9 @@ impl Broker for FivepaisaBroker {
     /// Order updates come from polling the order book (5paisa evicts a
     /// second feed connection per token).
     fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
-        Ok(OrderFeed::Stream(self.start_order_updates(
-            auth,
-            order_poll::DEFAULT_INTERVAL,
-        )?))
+        Ok(OrderFeed::Stream(
+            self.start_order_updates(auth, order_poll::DEFAULT_INTERVAL)?,
+        ))
     }
 
     /// Broker logout, the daily boundary and app shutdown stop the poller.

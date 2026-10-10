@@ -494,7 +494,9 @@ pub async fn run_commands(
             );
             continue;
         }
-        let wait = retry_base.saturating_mul(1u32 << attempt.min(16)).min(RETRY_MAX);
+        let wait = retry_base
+            .saturating_mul(1u32 << attempt.min(16))
+            .min(RETRY_MAX);
         let p = Pending {
             cmd: Command {
                 subscribe: cmd.subscribe,
@@ -504,7 +506,10 @@ pub async fn run_commands(
             attempt: attempt + 1,
             due: tokio::time::Instant::now() + wait,
         };
-        let at = pending.iter().position(|q| q.due > p.due).unwrap_or(pending.len());
+        let at = pending
+            .iter()
+            .position(|q| q.due > p.due)
+            .unwrap_or(pending.len());
         pending.insert(at, p);
     }
 }
@@ -715,8 +720,7 @@ impl XtsFeed {
                     broker = self.cfg.id,
                     "Subscription queue full; reconnecting to subscribe again"
                 );
-                self.resync
-                    .store(true, std::sync::atomic::Ordering::SeqCst);
+                self.resync.store(true, std::sync::atomic::Ordering::SeqCst);
             }
         }
     }
@@ -724,8 +728,7 @@ impl XtsFeed {
     /// Whether the feed must reconnect to bring its subscriptions back in
     /// line (clears the request).
     pub(crate) fn take_resync(&self) -> bool {
-        self.resync
-            .swap(false, std::sync::atomic::Ordering::SeqCst)
+        self.resync.swap(false, std::sync::atomic::Ordering::SeqCst)
     }
 
     /// Subscription snapshots received since the last frame.

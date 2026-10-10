@@ -25,8 +25,8 @@ pub mod streaming;
 mod tests;
 
 use crate::brokers::common::http;
-use crate::brokers::common::order_poll;
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::common::order_poll;
 use crate::brokers::common::redact::url_safe_error;
 use crate::brokers::common::streaming::{BrokerFeed, OrderFeed, OrderUpdate};
 use crate::brokers::common::symbols::SymbolResolver;
@@ -535,10 +535,9 @@ impl Broker for GrowwBroker {
         if auth.raw().trim().is_empty() {
             return Err(session_expired());
         }
-        Ok(OrderFeed::Stream(self.start_order_updates(
-            auth,
-            order_poll::DEFAULT_INTERVAL,
-        )?))
+        Ok(OrderFeed::Stream(
+            self.start_order_updates(auth, order_poll::DEFAULT_INTERVAL)?,
+        ))
     }
 
     async fn on_logout(&self) {

@@ -818,7 +818,10 @@ mod http_round_trip {
                 "/portfolio/positions",
                 get(move || async move { Json(r1.lock().clone()) }),
             )
-            .route("/orders", get(move || async move { Json(o1.lock().clone()) }))
+            .route(
+                "/orders",
+                get(move || async move { Json(o1.lock().clone()) }),
+            )
             .route(
                 "/orders/regular",
                 post(move || async move {
@@ -846,9 +849,14 @@ mod http_round_trip {
         ] {
             *reply.lock() = bad.clone();
             assert!(
-                b.get_open_position(&auth, "SBIN", crate::brokers::common::mapping::Exchange::Nse, crate::brokers::common::mapping::Product::Mis)
-                    .await
-                    .is_err(),
+                b.get_open_position(
+                    &auth,
+                    "SBIN",
+                    crate::brokers::common::mapping::Exchange::Nse,
+                    crate::brokers::common::mapping::Product::Mis
+                )
+                .await
+                .is_err(),
                 "{}",
                 bad
             );
@@ -878,14 +886,29 @@ mod http_round_trip {
         // Kite's empty books.
         *reply.lock() = serde_json::from_str(fixture!("positions_empty.json")).unwrap();
         assert_eq!(
-            b.get_open_position(&auth, "SBIN", crate::brokers::common::mapping::Exchange::Nse, crate::brokers::common::mapping::Product::Mis)
-                .await
-                .unwrap(),
+            b.get_open_position(
+                &auth,
+                "SBIN",
+                crate::brokers::common::mapping::Exchange::Nse,
+                crate::brokers::common::mapping::Product::Mis
+            )
+            .await
+            .unwrap(),
             0
         );
-        assert!(b.close_all_positions(&auth).await.unwrap().placed.is_empty());
+        assert!(b
+            .close_all_positions(&auth)
+            .await
+            .unwrap()
+            .placed
+            .is_empty());
         *orders.lock() = serde_json::json!({"status": "success", "data": []});
-        assert!(b.cancel_all_orders(&auth).await.unwrap().cancelled.is_empty());
+        assert!(b
+            .cancel_all_orders(&auth)
+            .await
+            .unwrap()
+            .cancelled
+            .is_empty());
         // The Positions page stays lenient.
         *reply.lock() = serde_json::json!({"status": "success", "data": {"day": []}});
         assert!(b.get_positions(&auth).await.unwrap().is_empty());

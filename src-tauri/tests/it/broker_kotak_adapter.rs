@@ -931,9 +931,17 @@ async fn master_contract_from_file_paths() {
 /// The segment files of the fake listing, by key and path.
 fn listed_segments(s: &Server) -> Vec<(&'static str, String, &'static str)> {
     vec![
-        ("NSE_CM", "/files/transformed-v1/nse_cm-v1.csv", "nse_cm.csv"),
+        (
+            "NSE_CM",
+            "/files/transformed-v1/nse_cm-v1.csv",
+            "nse_cm.csv",
+        ),
         ("NSE_FO", "/files/transformed/nse_fo.csv", "nse_fo.csv"),
-        ("BSE_CM", "/files/transformed-v1/bse_cm-v1.csv", "bse_cm.csv"),
+        (
+            "BSE_CM",
+            "/files/transformed-v1/bse_cm-v1.csv",
+            "bse_cm.csv",
+        ),
         ("BSE_FO", "/files/transformed/bse_fo.csv", "bse_fo.csv"),
         ("CDE_FO", "/files/transformed/cde_fo.csv", "cde_fo.csv"),
         ("MCX_FO", "/files/transformed/mcx_fo.csv", "mcx_fo.csv"),

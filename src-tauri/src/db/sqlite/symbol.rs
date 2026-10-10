@@ -474,7 +474,13 @@ mod tests {
         // Duplicate symbol on one exchange is allowed (no UNIQUE constraint).
         let mut dup = opt.clone();
         dup.token = "3".into();
-        store_symbols(&mut conn, "zerodha", Utc::now(), &[fut.clone(), opt.clone(), dup]).unwrap();
+        store_symbols(
+            &mut conn,
+            "zerodha",
+            Utc::now(),
+            &[fut.clone(), opt.clone(), dup],
+        )
+        .unwrap();
         let rows = load_symbols(&conn).unwrap();
         assert_eq!(rows.len(), 3);
         assert_eq!(rows[0], fut);
@@ -521,7 +527,13 @@ mod tests {
         let conn = legacy_db();
         migrate_symtoken(&conn).unwrap();
         let mut conn = conn;
-        store_symbols(&mut conn, "zerodha", Utc::now(), &[sym("SBIN", "SBIN-EQ", "NSE", "3045")]).unwrap();
+        store_symbols(
+            &mut conn,
+            "zerodha",
+            Utc::now(),
+            &[sym("SBIN", "SBIN-EQ", "NSE", "3045")],
+        )
+        .unwrap();
         assert!(!column_exists(&conn, "contract_value").unwrap());
         assert!(load_contract_values(&conn).unwrap().is_empty());
         migrate_contract_value(&conn).unwrap();
@@ -547,7 +559,13 @@ mod tests {
         assert_eq!(back.rows, master.rows);
         assert_eq!(back.contract_values, master.contract_values);
         // A plain store (Indian broker) clears them with the rows.
-        store_symbols(&mut conn, "zerodha", Utc::now(), &[sym("SBIN", "SBIN-EQ", "NSE", "3045")]).unwrap();
+        store_symbols(
+            &mut conn,
+            "zerodha",
+            Utc::now(),
+            &[sym("SBIN", "SBIN-EQ", "NSE", "3045")],
+        )
+        .unwrap();
         assert!(load_contract_values(&conn).unwrap().is_empty());
     }
 
@@ -647,8 +665,13 @@ mod tests {
         migrate_owner(&conn).unwrap();
         assert_eq!(owner(&conn).unwrap(), None);
         assert_eq!(count_symbols(&conn).unwrap(), 1);
-        store_symbols(&mut conn, "zerodha", Utc::now(), &[sym("SBIN", "SBIN-EQ", "NSE", "3045")])
-            .unwrap();
+        store_symbols(
+            &mut conn,
+            "zerodha",
+            Utc::now(),
+            &[sym("SBIN", "SBIN-EQ", "NSE", "3045")],
+        )
+        .unwrap();
         assert_eq!(owner(&conn).unwrap().unwrap().broker, "zerodha");
     }
 }
