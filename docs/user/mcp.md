@@ -56,10 +56,13 @@ Claude Desktop.
 
 ## 2b. Claude Code
 
-Run the command from the API Key page in a terminal. It looks like this:
+Run the command from the API Key page in a terminal, after replacing
+`<MCP_TOKEN>` with your token. The page leaves the token out of the command
+because your terminal keeps a history of the commands you run; if you prefer,
+add the token to Claude Code's settings yourself instead. It looks like this:
 
 ```bash
-claude mcp add openalgo -e OPENALGO_MCP_TOKEN=<your token> -- "<path to the OpenAlgo Desktop program>" mcp --url http://127.0.0.1:5000
+claude mcp add openalgo -e OPENALGO_MCP_TOKEN=<MCP_TOKEN> -- "<path to the OpenAlgo Desktop program>" mcp --url http://127.0.0.1:5000
 ```
 
 Then check it with `claude mcp list`.
@@ -87,6 +90,10 @@ process passes the client's requests to the running OpenAlgo Desktop over
   broker for market data and orders. If the app is closed, the AI client gets
   "OpenAlgo Desktop is not running, so this request could not be sent".
 - If you changed the app port in Server Settings, change `--url` to match.
+- `--url` may name another computer only with `https://` (for example a
+  tunnel). Plain `http://` is accepted only for this computer
+  (`127.0.0.1`, `localhost`), because the token would otherwise cross the
+  network unencrypted.
 
 ## Managing tokens
 

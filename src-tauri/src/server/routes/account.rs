@@ -4,6 +4,7 @@
 use crate::server::envelope::json_response;
 use crate::server::form::FormData;
 use crate::server::middleware::User;
+use crate::server::routes::webui::no_store;
 use crate::services::apikey_service::ApiKeyService;
 use crate::state::AppState;
 use axum::{
@@ -18,13 +19,14 @@ type Ctx = State<Arc<AppState>>;
 
 /// GET /apikey (Accept: application/json). Returns the key to the signed-in
 /// session only, as the web does: the frontend sends it in `/api/v1` bodies.
+/// Never cached (security review SEC-06).
 pub async fn get_apikey(State(ctx): Ctx, User(u): User) -> Response {
     let key = match ApiKeyService::current(&ctx) {
         Ok(k) => k,
         Err(e) => return e.into_response(),
     };
     let mode = ApiKeyService::order_mode(&ctx).unwrap_or_else(|_| "auto".into());
-    json_response(
+    no_store(json_response(
         StatusCode::OK,
         json!({
             "login_username": u.username,
@@ -32,7 +34,7 @@ pub async fn get_apikey(State(ctx): Ctx, User(u): User) -> Response {
             "api_key": key.as_ref().map(|k| k.expose()),
             "order_mode": mode,
         }),
-    )
+    ))
 }
 
 /// POST /apikey (json: user_id) -> new key.
@@ -48,14 +50,14 @@ pub async fn regenerate(State(ctx): Ctx, User(u): User, form: FormData) -> Respo
     match tokio::task::spawn_blocking(move || ApiKeyService::regenerate(&c2, &name)).await {
         Ok(Ok(key)) => {
             tracing::info!("API key regenerated");
-            json_response(
+            no_store(json_response(
                 StatusCode::OK,
                 json!({
                     "message": "API key updated successfully.",
                     "api_key": key.expose(),
                     "key_id": 1,
                 }),
-            )
+            ))
         }
         _ => json_response(
             StatusCode::INTERNAL_SERVER_ERROR,

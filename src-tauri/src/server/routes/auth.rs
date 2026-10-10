@@ -9,6 +9,7 @@ use crate::server::middleware::{
     with_cookie, Sess, Src, User,
 };
 use crate::server::ratelimit::Bucket;
+use crate::server::routes::webui::no_store;
 use crate::services::apikey_service::ApiKeyService;
 use crate::services::auth_service::{AuthService, LoginOutcome};
 use crate::services::broker_auth_service::BrokerAuthService;
@@ -336,8 +337,13 @@ pub async fn login_totp(
     }
 }
 
-/// GET /auth/session-status
+/// GET /auth/session-status. Carries the API key to the signed-in session
+/// (as on the web), so it is never cached (security review SEC-06).
 pub async fn session_status(State(ctx): Ctx, Sess(sess): Sess) -> Response {
+    no_store(session_status_body(&ctx, sess))
+}
+
+fn session_status_body(ctx: &AppState, sess: Option<crate::session::web::WebSession>) -> Response {
     let key_mode = ctx.security.mode();
     let Some(user) = sess.and_then(|s| s.user) else {
         return ok(json!({
@@ -348,7 +354,7 @@ pub async fn session_status(State(ctx): Ctx, Sess(sess): Sess) -> Response {
     let active = ctx.sessions.authenticated_count();
     match ctx.get_broker_session() {
         Some(b) => {
-            let api_key = ApiKeyService::current(&ctx).ok().flatten();
+            let api_key = ApiKeyService::current(ctx).ok().flatten();
             ok(json!({
                 "status": "success", "authenticated": true, "logged_in": true,
                 "user": user, "broker": b.broker_id,
@@ -356,7 +362,7 @@ pub async fn session_status(State(ctx): Ctx, Sess(sess): Sess) -> Response {
                 "active_sessions": active, "key_mode": key_mode,
             }))
         }
-        None if BrokerAuthService::had_revoked_session(&ctx) => ok(json!({
+        None if BrokerAuthService::had_revoked_session(ctx) => ok(json!({
             "status": "success", "authenticated": true, "logged_in": false,
             "user": user, "broker": Value::Null, "broker_session_expired": true,
             "active_sessions": active, "key_mode": key_mode,
@@ -734,10 +740,12 @@ pub async fn profile_data(State(ctx): Ctx, User(u): User) -> Response {
                 ),
                 None => (None, None),
             };
-            ok(json!({"status": "success", "data": {
+            // The enrollment seed goes to the signed-in session, as on the
+            // web, and is never cached (security review SEC-06).
+            no_store(ok(json!({"status": "success", "data": {
                 "username": row.username, "smtp_settings": Value::Null,
                 "qr_code": qr, "totp_secret": sec,
-            }}))
+            }})))
         }
         Ok(None) => error(StatusCode::NOT_FOUND, "User not found."),
         Err(e) => {

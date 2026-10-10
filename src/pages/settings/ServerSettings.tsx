@@ -219,8 +219,9 @@ export default function ServerSettings() {
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>Anyone on your network can reach the login page</AlertTitle>
                   <AlertDescription>
-                    Use a strong password and turn on two-factor login in your profile. Leave this
-                    off on public or shared networks.
+                    Traffic to other devices is not encrypted: use this only on a network you trust,
+                    or reach OpenAlgo through a tunnel with https. Use a strong password and turn on
+                    two-factor login in your profile. Leave this off on public or shared networks.
                   </AlertDescription>
                 </Alert>
               )}

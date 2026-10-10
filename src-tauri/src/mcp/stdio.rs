@@ -253,6 +253,34 @@ pub fn default_url_for(dev_override: Option<&str>, debug_build: bool) -> String 
     format!("http://127.0.0.1:{}", port)
 }
 
+/// Refused: the bearer token would cross the network unencrypted.
+pub const PLAIN_HTTP_REMOTE: &str = "OpenAlgo Desktop will not send the MCP token to another \
+computer over plain http, where anyone on the network could read it. Use an https address \
+(for example a tunnel), or http://127.0.0.1 for OpenAlgo Desktop on this computer.";
+
+/// Refused: not a web address the bridge can use.
+pub const BAD_URL: &str =
+    "The --url address must start with http:// or https://, for example http://127.0.0.1:5000.";
+
+/// The token travels as a bearer header on every request, so plain http is
+/// allowed only to this computer; any other host needs https (security
+/// review SEC-08). The address is never echoed.
+fn check_url(url: &str) -> Result<(), String> {
+    let u = url::Url::parse(url).map_err(|_| BAD_URL.to_string())?;
+    let loopback = match u.host() {
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        Some(url::Host::Domain(d)) => d.eq_ignore_ascii_case("localhost"),
+        None => return Err(BAD_URL.into()),
+    };
+    match u.scheme() {
+        "https" => Ok(()),
+        "http" if loopback => Ok(()),
+        "http" => Err(PLAIN_HTTP_REMOTE.into()),
+        _ => Err(BAD_URL.into()),
+    }
+}
+
 /// Parse `--url`. Anything else is refused without echoing its value.
 pub fn parse_args(args: &[String]) -> Result<Options, String> {
     let mut url = None;
@@ -271,9 +299,9 @@ pub fn parse_args(args: &[String]) -> Result<Options, String> {
             _ => return Err(format!("Unexpected argument.\n{}", USAGE)),
         }
     }
-    Ok(Options {
-        url: url.unwrap_or_else(default_url),
-    })
+    let url = url.unwrap_or_else(default_url);
+    check_url(&url)?;
+    Ok(Options { url })
 }
 
 /// The token from the environment variable's value; refused when missing.
@@ -347,7 +375,12 @@ mod tests {
     fn arguments_have_no_token_flag() {
         let o = parse_args(&s(&["--url", "http://127.0.0.1:5000"])).unwrap();
         assert_eq!(o.url, "http://127.0.0.1:5000");
-        assert_eq!(parse_args(&s(&["--url=http://x"])).unwrap().url, "http://x");
+        assert_eq!(
+            parse_args(&s(&["--url=http://localhost:5500"]))
+                .unwrap()
+                .url,
+            "http://localhost:5500"
+        );
         assert_eq!(parse_args(&s(&[])).unwrap().url, default_url());
         // A token on the command line is refused and never echoed.
         for bad in [
@@ -357,6 +390,33 @@ mod tests {
         ] {
             let e = parse_args(&s(bad)).unwrap_err();
             assert!(!e.contains("oamcp_secret"), "{}", e);
+        }
+    }
+
+    /// SEC-08: the bearer token never goes to another computer over plain
+    /// http; https anywhere and http to this computer are fine.
+    #[test]
+    fn plain_http_only_to_this_computer() {
+        for remote in [
+            "http://192.168.1.5:5000",
+            "http://example.com/mcp",
+            "http://10.0.0.2",
+        ] {
+            let e = parse_args(&s(&["--url", remote])).unwrap_err();
+            assert_eq!(e, PLAIN_HTTP_REMOTE, "{}", remote);
+            assert!(!e.contains(remote));
+        }
+        for ok in [
+            "https://x.ngrok.app",
+            "https://192.168.1.5:5000",
+            "http://127.0.0.1:5000",
+            "http://localhost:5500",
+            "http://[::1]:5000",
+        ] {
+            assert!(parse_args(&s(&["--url", ok])).is_ok(), "{}", ok);
+        }
+        for bad in ["ftp://127.0.0.1", "127.0.0.1:5000", "not a url"] {
+            assert_eq!(parse_args(&s(&["--url", bad])).unwrap_err(), BAD_URL, "{}", bad);
         }
     }
 

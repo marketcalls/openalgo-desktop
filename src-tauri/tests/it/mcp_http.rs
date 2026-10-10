@@ -445,9 +445,16 @@ async fn admin_and_token_routes() {
     assert_eq!(server["env"]["OPENALGO_MCP_TOKEN"], token);
     assert!(!server["args"].to_string().contains(&token));
     assert_eq!(server["args"][0], "mcp");
+    // SEC-07: the Claude Code command is pasted into a shell, which keeps a
+    // history, so it carries a placeholder and never the token.
     let code = cfg["claude_code"].as_str().unwrap();
     assert!(code.starts_with("claude mcp add openalgo -e "));
-    assert!(!code.split(" -- ").nth(1).unwrap().contains(&token));
+    assert!(!code.contains(&token), "{}", code);
+    assert!(code.contains("OPENALGO_MCP_TOKEN=<MCP_TOKEN>"), "{}", code);
+    assert!(cfg["claude_code_note"]
+        .as_str()
+        .unwrap()
+        .contains("<MCP_TOKEN>"));
     let exe = std::env::current_exe()
         .unwrap()
         .to_string_lossy()

@@ -301,7 +301,9 @@ export interface McpClientConfig {
   server_url: string
   mcp_url: string
   claude_desktop: unknown
+  /** Carries `<MCP_TOKEN>`, never the token: a shell keeps a history. */
   claude_code: string
+  claude_code_note?: string
 }
 
 async function csrfToken(): Promise<string | undefined> {

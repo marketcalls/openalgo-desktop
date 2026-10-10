@@ -104,9 +104,13 @@ arithmetic, and one shared budget reserved before any work starts.
   associated data binding each ciphertext to its row and column
   (`security/crypto.rs` `encrypt(plaintext, &Aad)`). Check a ciphertext
   copied to another row or column fails to decrypt (the crypto tests).
-- **Nothing returns a stored secret.** No endpoint or Tauri command returns
-  a saved broker secret, password or API key in plaintext
-  (`/auth/broker-config` returns `broker_api_key: null`).
+- **Nothing returns a stored secret** except the two the web shows too. No
+  endpoint or Tauri command returns a saved broker secret or password
+  (`/auth/broker-config` returns `broker_api_key: null`; broker keys are
+  masked). The OpenAlgo API key (`/apikey`, `/auth/session-status`,
+  `/playground/api-key`, `/api/websocket/apikey`) and the TOTP enrollment
+  seed (`/auth/profile-data`) go to the signed-in session only, with
+  `Cache-Control: no-store` (`sec06_key_bearing_answers_are_never_cached`).
 - **Logs.** `Secret` (`security/secret.rs`) prints `[REDACTED]`; broker
   errors go through `brokers::common::redact`; request bodies stored in
   `logs.db` go through `db::sqlite::logs::redact`; client-reported URLs

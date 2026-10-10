@@ -145,6 +145,9 @@ export function McpTokens() {
               <pre className="overflow-x-auto rounded bg-muted p-2 text-xs">
                 {created.config.claude_code}
               </pre>
+              {created.config.claude_code_note && (
+                <p className="text-xs text-muted-foreground">{created.config.claude_code_note}</p>
+              )}
             </div>
             <Button size="sm" variant="outline" onClick={() => setCreated(null)}>
               Done

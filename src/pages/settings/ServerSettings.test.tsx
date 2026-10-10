@@ -74,6 +74,15 @@ describe('Server Settings page', () => {
     expect(toast.success).toHaveBeenCalledWith('Saved.')
   })
 
+  // SEC-08: the warning names the missing encryption, not only who can reach it.
+  it('says traffic to other devices is not encrypted when LAN access is on', async () => {
+    const user = userEvent.setup()
+    render(<ServerSettings />)
+    await user.click(await screen.findByRole('switch', { name: /other devices/i }))
+    expect(screen.getByText(/traffic to other devices is not encrypted/i)).toBeInTheDocument()
+    expect(screen.getByText(/tunnel with https/i)).toBeInTheDocument()
+  })
+
   it('warns about broker redirect URLs when the app port changes', async () => {
     const user = userEvent.setup()
     render(<ServerSettings />)

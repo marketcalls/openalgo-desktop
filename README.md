@@ -259,6 +259,13 @@ computer, install OpenAlgo Desktop there, create your account, and add your
 broker again. (A backup made in password mode, with `vault.json`, opens on any
 computer with your OpenAlgo password.)
 
+Resetting your account (Reset account, on the forgotten-password page) replaces
+the key in the keychain. The account and saved credentials in backups made
+before a reset can then no longer be opened, because the key they need is
+gone; make a new backup once you have set OpenAlgo up again. (A password-mode
+backup carries its own `vault.json` and still opens with the password you had
+then.)
+
 ## Supported brokers
 
 All 36 brokers of OpenAlgo web, including Delta Exchange for crypto:

@@ -26,7 +26,8 @@ pub async fn api_key(State(ctx): Ctx, User(_u): User) -> Response {
         .flatten()
         .map(|k| k.expose().to_string())
         .unwrap_or_default();
-    ok(json!({"api_key": key}))
+    // Never cached (security review SEC-06).
+    crate::server::routes::webui::no_store(ok(json!({"api_key": key})))
 }
 
 /// GET /playground/endpoints: grouped endpoints, field order preserved.

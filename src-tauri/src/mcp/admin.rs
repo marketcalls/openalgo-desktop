@@ -23,6 +23,11 @@ type Ctx = State<Arc<AppState>>;
 
 /// Placeholder for the token in the client configuration.
 pub const TOKEN_PLACEHOLDER: &str = "<MCP_TOKEN>";
+
+/// Shown under the Claude Code command, which carries the placeholder.
+pub const CLAUDE_CODE_NOTE: &str = "Replace <MCP_TOKEN> with your token before you run this \
+command. Your terminal keeps a history of the commands you run, so you can instead add the \
+token to Claude Code's settings yourself.";
 const AUDIT_MAX_LIMIT: i64 = 500;
 const KILL_CONFIRM: &str = "REVOKE_ALL_MCP_TOKENS";
 
@@ -350,13 +355,15 @@ pub fn client_config(ctx: &AppState, token: &str) -> Value {
     let exe = mcp_executable(current.as_deref(), appimage.as_deref(), |p| p.is_file());
     let server_url = format!("http://127.0.0.1:{}", ctx.listening_port());
     let mcp_url = format!("{}/mcp", server_url);
-    // The token travels in the client's `env` block, never in the command
-    // line (visible in the process list and shell history).
+    // The token travels in the client's `env` block, never as an argument
+    // of the `mcp` subcommand. The Claude Code command is pasted into a
+    // shell, which keeps a history, so it carries a placeholder instead of
+    // the token (security review SEC-07); the trader puts the token in.
     let env_var = super::stdio::TOKEN_ENV;
     let args = vec!["mcp", "--url", server_url.as_str()];
     let stdio_cmd = format!(
         "claude mcp add openalgo -e {} -- {} {}",
-        shell_quote(&format!("{}={}", env_var, token)),
+        shell_quote(&format!("{}={}", env_var, TOKEN_PLACEHOLDER)),
         shell_quote(&exe),
         args.iter()
             .map(|a| shell_quote(a))
@@ -373,6 +380,7 @@ pub fn client_config(ctx: &AppState, token: &str) -> Value {
             },
         },
         "claude_code": stdio_cmd,
+        "claude_code_note": CLAUDE_CODE_NOTE,
         "http": {
             "type": "http",
             "url": mcp_url,

@@ -56,10 +56,11 @@ pub async fn config(State(ctx): Ctx, headers: HeaderMap) -> Response {
 /// GET /api/websocket/apikey: the key the page authenticates the feed with.
 pub async fn apikey(State(ctx): Ctx, User(_u): User) -> Response {
     match ApiKeyService::current(&ctx) {
-        Ok(Some(k)) => json_response(
+        // Never cached (security review SEC-06).
+        Ok(Some(k)) => crate::server::routes::webui::no_store(json_response(
             StatusCode::OK,
             json!({"status": "success", "api_key": k.expose()}),
-        ),
+        )),
         Ok(None) => error(
             StatusCode::NOT_FOUND,
             "No API key found. Please generate an API key first.",

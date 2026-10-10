@@ -805,3 +805,55 @@ async fn flow03_a_session_and_the_active_broker_are_stored_together() {
     assert!(!stored_session_active(&h), "a half-stored session");
     assert!(!h.ctx().is_broker_connected());
 }
+
+// ------------------------------------- SEC-06 key-bearing responses
+
+/// SEC-06: every answer that carries the API key or the TOTP enrollment
+/// seed to the signed-in session is marked never to be cached.
+#[tokio::test]
+async fn sec06_key_bearing_answers_are_never_cached() {
+    let h = H::new();
+    h.setup();
+    h.connect_broker();
+    let (cookie, csrf) = h.session(true);
+    let json_get = |path: &str| {
+        let mut r = with_session(get(path), &cookie, None);
+        r.headers_mut()
+            .insert(header::ACCEPT, "application/json".parse().unwrap());
+        r
+    };
+    let mut answers = Vec::new();
+    for path in [
+        "/apikey",
+        "/auth/profile-data",
+        "/auth/session-status",
+        "/playground/api-key",
+        "/api/websocket/apikey",
+    ] {
+        let (s, headers, body) = h.send(json_get(path)).await;
+        answers.push((path.to_string(), s, headers, body));
+    }
+    let (s, headers, body) = h
+        .send(with_session(
+            post_json("/apikey", json!({"user_id": USER})),
+            &cookie,
+            Some(&csrf),
+        ))
+        .await;
+    answers.push(("POST /apikey".into(), s, headers, body));
+    for (what, s, headers, body) in answers {
+        assert_eq!(s, StatusCode::OK, "{}", what);
+        let v: Value = serde_json::from_slice(&body).unwrap();
+        assert!(
+            v.to_string().contains("api_key") || v.to_string().contains("totp_secret"),
+            "{}: {}",
+            what,
+            v
+        );
+        let cache = headers
+            .get(header::CACHE_CONTROL)
+            .and_then(|c| c.to_str().ok())
+            .unwrap_or_default();
+        assert!(cache.contains("no-store"), "{}: {:?}", what, cache);
+    }
+}

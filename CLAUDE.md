@@ -237,9 +237,14 @@ anything that is not the signed-in user.
   and say so in the UI. A hard-coded or XOR-obfuscated key is not encryption.
 - Broker credentials and tokens are AES-256-GCM encrypted with associated data
   binding each ciphertext to its row and column.
-- **Secrets never leave Rust.** No command or endpoint returns a stored broker
-  secret, password or API key in plaintext after it is saved. Broker OAuth code
-  exchange happens in Rust inside the callback handler, which verifies `state`.
+- **Secrets never leave Rust**, with two exceptions shared with the web. No
+  command or endpoint returns a stored broker secret or password after it is
+  saved (broker keys come back masked). The OpenAlgo API key and the TOTP
+  enrollment seed (with its QR code) are returned to the signed-in session,
+  as on the web, because the carried-over API Key page and Profile TOTP tab
+  show them; nothing else receives them, and those answers carry
+  `Cache-Control: no-store`. Broker OAuth code exchange happens in Rust
+  inside the callback handler, which verifies `state`.
 - **Every Tauri command and every non-public HTTP route requires the signed-in
   user.** Public routes are the explicit list: `/api/v1/*` (API key), broker
   callbacks (state-verified), webhook endpoints (secret-verified), static
