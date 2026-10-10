@@ -76,3 +76,49 @@ describe('Profile broker tab and restarts', () => {
     expect(await screen.findByText('Restart Required')).toBeInTheDocument()
   })
 })
+
+function serveCredentials(saved: Record<string, unknown>) {
+  client.get.mockImplementation(async (url: string) => {
+    if (url === '/api/broker/credentials') return { data: { status: 'success', data: saved } }
+    if (url === '/auth/profile-data') {
+      return { data: { status: 'success', data: { username: 'trader', smtp_settings: null } } }
+    }
+    return { data: { status: 'success', data: {} } }
+  })
+}
+
+// CFG-01: the tunnel switch alone never saves the automatic addresses shown in
+// the fields as fixed ones, and a saved address can go back to automatic.
+describe('Profile server addresses', () => {
+  it('sends only the tunnel switch when only the switch changed', async () => {
+    client.post.mockResolvedValue({ data: { status: 'success', message: 'Saved' } })
+    render(<Profile />)
+    fireEvent.click(await screen.findByRole('checkbox', { name: /enable ngrok tunnel/i }))
+    fireEvent.click(screen.getByRole('button', { name: /save ngrok settings/i }))
+    await waitFor(() => expect(client.post).toHaveBeenCalled())
+    expect(client.post).toHaveBeenCalledWith('/api/broker/credentials', { ngrok_allow: 'TRUE' })
+  })
+
+  it('goes back to the automatic address on request', async () => {
+    serveCredentials({
+      ...credentials,
+      websocket_url: 'wss://x.ngrok.app/ws',
+      websocket_url_is_default: false,
+      host_server_is_default: true,
+    })
+    client.post.mockResolvedValue({ data: { status: 'success', message: 'Saved' } })
+    render(<Profile />)
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Use the automatic WebSocket address' })
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Use the automatic host server address' })
+    ).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /save ngrok settings/i }))
+    await waitFor(() => expect(client.post).toHaveBeenCalled())
+    expect(client.post).toHaveBeenCalledWith('/api/broker/credentials', {
+      ngrok_allow: 'FALSE',
+      websocket_url: '',
+    })
+  })
+})

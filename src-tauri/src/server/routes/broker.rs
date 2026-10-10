@@ -25,6 +25,20 @@ fn valid_broker(b: &str) -> bool {
     catalog::ALL_BROKERS.contains(&b)
 }
 
+/// A full URL with one of `schemes` and a host (`https://x.ngrok.app`,
+/// `wss://x.ngrok.app/ws`); not `http-not-a-url` or `ws:/x`.
+fn url_with_scheme(v: &str, schemes: &[&str]) -> bool {
+    match url::Url::parse(v) {
+        Ok(u) => {
+            schemes.contains(&u.scheme())
+                && u.host_str().is_some_and(|h| !h.is_empty())
+                && v.to_ascii_lowercase()
+                    .starts_with(&format!("{}://", u.scheme()))
+        }
+        Err(_) => false,
+    }
+}
+
 fn broker_page_with_error(msg: &str) -> Response {
     redirect(&format!("/broker?error={}", urlencoding::encode(msg)))
 }
@@ -375,6 +389,16 @@ pub async fn get_credentials(State(ctx): Ctx) -> Response {
         );
         o.insert("client_id".into(), json!(client_id));
         o.insert("ngrok_allow".into(), json!(cfg.ngrok_allow));
+        // Desktop: whether each address is the automatic one (nothing saved),
+        // so the Profile page can offer to go back to it.
+        o.insert(
+            "host_server_is_default".into(),
+            json!(cfg.host_server.is_none()),
+        );
+        o.insert(
+            "websocket_url_is_default".into(),
+            json!(cfg.websocket_url.is_none()),
+        );
         o.insert(
             "host_server".into(),
             json!(cfg
@@ -455,17 +479,27 @@ pub async fn update_credentials(State(ctx): Ctx, form: FormData) -> Response {
             return error(StatusCode::BAD_REQUEST, fmt);
         }
     }
-    for (k, prefix) in [("host_server", "http"), ("websocket_url", "ws")] {
-        if let Some(v) = form.non_empty(k) {
-            if !v.starts_with(prefix) {
-                return error(
-                    StatusCode::BAD_REQUEST,
-                    if k == "host_server" {
-                        "Invalid HOST_SERVER format. Must start with http:// or https://"
-                    } else {
-                        "Invalid WEBSOCKET_URL format. Must start with ws:// or wss://"
-                    },
-                );
+    // Desktop: an address sent empty means "use the automatic address" (it is
+    // stored empty, which reads back as unset), so a saved tunnel address can
+    // be cleared; the web keeps the old value. A value must be a full URL
+    // with the right scheme and a host (CFG-01, CFG-02).
+    let host_server = form.get("host_server").map(|v| v.trim().to_string());
+    let websocket_url = form.get("websocket_url").map(|v| v.trim().to_string());
+    for (value, schemes, message) in [
+        (
+            &host_server,
+            ["http", "https"],
+            "Invalid HOST_SERVER format. Must start with http:// or https://",
+        ),
+        (
+            &websocket_url,
+            ["ws", "wss"],
+            "Invalid WEBSOCKET_URL format. Must start with ws:// or wss://",
+        ),
+    ] {
+        if let Some(v) = value.as_deref().filter(|v| !v.is_empty()) {
+            if !url_with_scheme(v, &schemes) {
+                return error(StatusCode::BAD_REQUEST, message);
             }
         }
     }
@@ -485,10 +519,12 @@ pub async fn update_credentials(State(ctx): Ctx, form: FormData) -> Response {
             update.api_secret_market.is_some(),
             "BROKER_API_SECRET_MARKET",
         ),
+        // Desktop: the client id some brokers' sign-in is bound to.
+        (update.client_id.is_some(), "CLIENT_ID"),
         (redirect_url.is_some(), "REDIRECT_URL"),
         (form.get("ngrok_allow").is_some(), "NGROK_ALLOW"),
-        (form.non_empty("host_server").is_some(), "HOST_SERVER"),
-        (form.non_empty("websocket_url").is_some(), "WEBSOCKET_URL"),
+        (host_server.is_some(), "HOST_SERVER"),
+        (websocket_url.is_some(), "WEBSOCKET_URL"),
     ] {
         if f {
             updated.push(name);
@@ -502,10 +538,54 @@ pub async fn update_credentials(State(ctx): Ctx, form: FormData) -> Response {
         || update.api_key_market.is_some()
         || update.api_secret_market.is_some()
         || update.client_id.is_some();
-    // Switching the active broker ends the old broker's live session first,
-    // so a session for one broker never runs while another is selected.
     let previous = cfg.active_broker.clone();
     let switched = matches!((&previous, &broker), (Some(p), Some(n)) if p != n);
+    // Credentials and settings are saved together, in one transaction,
+    // before anything else changes: a save that fails leaves the live
+    // session and every setting as they were (FLOW-03).
+    let res = ctx.sqlite.conn().and_then(|mut c| {
+        let tx = c.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        if has_secret_fields {
+            let b = broker.clone().ok_or_else(|| {
+                crate::error::AppError::Validation(
+                    "Choose your broker before saving its API key.".into(),
+                )
+            })?;
+            credentials::save(&tx, &ctx.security, &b, update)?;
+            // Saving the settings again is how a trader switches accounts:
+            // the next sign-in is no longer bound to the last one's.
+            crate::db::sqlite::auth::forget_account(&tx, &b)?;
+        }
+        crate::config::save(
+            &tx,
+            &crate::config::ServerConfigUpdate {
+                active_broker: broker.clone(),
+                redirect_url: redirect_url.clone(),
+                host_server: host_server.clone(),
+                websocket_url: websocket_url.clone(),
+                ngrok_allow: form
+                    .get("ngrok_allow")
+                    .map(|v| v.eq_ignore_ascii_case("true")),
+                ..Default::default()
+            },
+        )?;
+        tx.commit()?;
+        Ok(())
+    });
+    if let Err(e) = res {
+        return match e {
+            crate::error::AppError::Validation(m) => error(StatusCode::BAD_REQUEST, m),
+            crate::error::AppError::Locked => crate::error::AppError::Locked.into_response(),
+            other => crate::server::routes::webui::failed(
+                "Saving broker settings",
+                other,
+                "Your broker settings were not saved, and nothing was changed. Try again.",
+            ),
+        };
+    }
+    let _ = ctx.reload_config();
+    // Switching the active broker then ends the old broker's live session,
+    // so a session for one broker never runs while another is selected.
     let signed_out = match ctx.get_broker_session() {
         Some(s) if switched && broker.as_deref() != Some(s.broker_id.as_str()) => {
             // The session ends in memory whatever the database does; a
@@ -520,39 +600,6 @@ pub async fn update_credentials(State(ctx): Ctx, form: FormData) -> Response {
         }
         _ => None,
     };
-    let res = ctx.sqlite.conn().and_then(|c| {
-        if has_secret_fields {
-            let b = broker.clone().ok_or_else(|| {
-                crate::error::AppError::Validation(
-                    "Choose your broker before saving its API key.".into(),
-                )
-            })?;
-            credentials::save(&c, &ctx.security, &b, update)?;
-            // Saving the settings again is how a trader switches accounts:
-            // the next sign-in is no longer bound to the last one's.
-            crate::db::sqlite::auth::forget_account(&c, &b)?;
-        }
-        crate::config::save(
-            &c,
-            &crate::config::ServerConfigUpdate {
-                active_broker: broker.clone(),
-                redirect_url: redirect_url.clone(),
-                host_server: form.non_empty("host_server"),
-                websocket_url: form.non_empty("websocket_url"),
-                ngrok_allow: form
-                    .get("ngrok_allow")
-                    .map(|v| v.eq_ignore_ascii_case("true")),
-                ..Default::default()
-            },
-        )
-    });
-    if let Err(e) = res {
-        return match e {
-            crate::error::AppError::Validation(m) => error(StatusCode::BAD_REQUEST, m),
-            other => other.into_response(),
-        };
-    }
-    let _ = ctx.reload_config();
     tracing::info!("Broker settings updated: {}", updated.join(", "));
     json_response(
         StatusCode::OK,

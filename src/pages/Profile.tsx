@@ -131,6 +131,9 @@ interface BrokerCredentials {
   ngrok_allow: boolean
   host_server: string
   websocket_url: string
+  // Desktop: true while the address is the automatic one (nothing saved).
+  host_server_is_default?: boolean
+  websocket_url_is_default?: boolean
   server_status?: {
     flask: { host: string; port: string }
     websocket: { host: string; port: string }
@@ -516,10 +519,14 @@ export default function ProfilePage() {
       (selectedBroker && selectedBroker !== brokerCredentials?.current_broker)
   )
 
+  // Desktop: a URL is sent only when the trader edited it, so saving the
+  // tunnel switch never stores the automatic addresses shown in the fields
+  // as fixed ones. An emptied field goes back to the automatic address.
+  const hostServerEdited = hostServer.trim() !== (brokerCredentials?.host_server ?? '')
+  const websocketUrlEdited = websocketUrl.trim() !== (brokerCredentials?.websocket_url ?? '')
+
   const hasNgrokChanges = Boolean(
-    ngrokEnabled !== brokerCredentials?.ngrok_allow ||
-      (hostServer && hostServer !== brokerCredentials?.host_server) ||
-      (websocketUrl && websocketUrl !== brokerCredentials?.websocket_url)
+    ngrokEnabled !== brokerCredentials?.ngrok_allow || hostServerEdited || websocketUrlEdited
   )
 
   const handleNgrokSave = async () => {
@@ -533,11 +540,11 @@ export default function ProfilePage() {
       } = {
         ngrok_allow: ngrokEnabled ? 'TRUE' : 'FALSE',
       }
-      if (hostServer) {
-        payload.host_server = hostServer
+      if (hostServerEdited) {
+        payload.host_server = hostServer.trim()
       }
-      if (websocketUrl) {
-        payload.websocket_url = websocketUrl
+      if (websocketUrlEdited) {
+        payload.websocket_url = websocketUrl.trim()
       }
 
       const response = await webClient.post<{
@@ -548,16 +555,9 @@ export default function ProfilePage() {
 
       if (response.data.status === 'success') {
         showToast.success(response.data.message, 'admin')
-        // Update local brokerCredentials state to reflect saved values
-        // Don't re-fetch from server since env vars won't update until restart
-        if (brokerCredentials) {
-          setBrokerCredentials({
-            ...brokerCredentials,
-            ngrok_allow: ngrokEnabled,
-            host_server: hostServer || brokerCredentials.host_server,
-            websocket_url: websocketUrl || brokerCredentials.websocket_url,
-          })
-        }
+        // Desktop: settings apply at once, so read them back: an emptied
+        // field now shows the automatic address the server works out.
+        await fetchBrokerCredentials()
         // Desktop: settings apply at once; ask for a restart only when the server says so.
         if (response.data.restart_required) setShowRestartDialog(true)
       } else {
@@ -1284,10 +1284,27 @@ export default function ProfilePage() {
                 <p className="text-xs text-muted-foreground">
                   Your ngrok domain or custom domain for receiving webhooks.
                 </p>
-                {hostServer !== brokerCredentials?.host_server && hostServer && (
+                {hostServerEdited && hostServer.trim() && (
                   <Badge variant="outline" className="text-yellow-600">
                     Changed from: {brokerCredentials?.host_server}
                   </Badge>
+                )}
+                {hostServerEdited && !hostServer.trim() && (
+                  <Badge variant="outline" className="text-yellow-600">
+                    Uses the automatic address after saving
+                  </Badge>
+                )}
+                {brokerCredentials?.host_server_is_default === false && hostServer.trim() && (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0"
+                    aria-label="Use the automatic host server address"
+                    onClick={() => setHostServer('')}
+                  >
+                    Use automatic address
+                  </Button>
                 )}
               </div>
 
@@ -1301,10 +1318,27 @@ export default function ProfilePage() {
                 <p className="text-xs text-muted-foreground">
                   WebSocket server URL for real-time market data streaming.
                 </p>
-                {websocketUrl !== brokerCredentials?.websocket_url && websocketUrl && (
+                {websocketUrlEdited && websocketUrl.trim() && (
                   <Badge variant="outline" className="text-yellow-600">
                     Changed from: {brokerCredentials?.websocket_url}
                   </Badge>
+                )}
+                {websocketUrlEdited && !websocketUrl.trim() && (
+                  <Badge variant="outline" className="text-yellow-600">
+                    Uses the automatic address after saving
+                  </Badge>
+                )}
+                {brokerCredentials?.websocket_url_is_default === false && websocketUrl.trim() && (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0"
+                    aria-label="Use the automatic WebSocket address"
+                    onClick={() => setWebsocketUrl('')}
+                  >
+                    Use automatic address
+                  </Button>
                 )}
               </div>
 

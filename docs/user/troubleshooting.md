@@ -140,7 +140,10 @@ device, not this computer.
 **Using a tunnel (ngrok, Cloudflare Tunnel) for TradingView or Chartink
 alerts.** Enter the tunnel's public address as **Host Server URL** under
 **Server Configuration** on the Broker tab in Profile. Requests that arrive
-through a tunnel whose address is not entered there are refused.
+through a tunnel whose address is not entered there are refused. When you
+stop using the tunnel, choose **Use automatic address** under the field (or
+clear it) and save, so OpenAlgo goes back to its own address on this
+computer, including after a later port change.
 
 Everything that arrives through a tunnel or proxy on this computer is treated
 as coming from the internet, never from this computer:

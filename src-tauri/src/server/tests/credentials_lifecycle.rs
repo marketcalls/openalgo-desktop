@@ -625,3 +625,183 @@ async fn sec02_a_completed_change_moves_to_the_new_password() {
     close(ctx).await;
     only_password_signs_in(&dir, NEW_PASSWORD, PASSWORD).await;
 }
+
+// ------------------------------------------ WI-3 broker settings save
+
+async fn post_settings(h: &H, cookie: &str, csrf: &str, body: Value) -> (StatusCode, Value) {
+    h.json(with_session(
+        post_json("/api/broker/credentials", body),
+        cookie,
+        Some(csrf),
+    ))
+    .await
+}
+
+async fn settings(h: &H, cookie: &str) -> Value {
+    let (_, v) = h
+        .json(with_session(get("/api/broker/credentials"), cookie, None))
+        .await;
+    v["data"].clone()
+}
+
+async fn feed_address(h: &H, cookie: &str) -> Value {
+    let (_, v) = h
+        .json(with_session(get("/api/websocket/config"), cookie, None))
+        .await;
+    v["websocket_url"].clone()
+}
+
+/// FLOW-01: correcting only the client id (the account a sign-in is bound
+/// to) is saved.
+#[tokio::test]
+async fn flow01_a_client_id_alone_is_saved() {
+    let h = H::new();
+    h.setup();
+    h.save_broker_credentials();
+    let (cookie, csrf) = h.session(true);
+    let (s, v) = post_settings(&h, &cookie, &csrf, json!({"client_id": "AB9999"})).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    assert!(v["updated_fields"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("CLIENT_ID")));
+    assert_eq!(settings(&h, &cookie).await["client_id"], "AB9999");
+}
+
+/// CFG-02: an address must be a full URL with the right scheme and a host.
+#[tokio::test]
+async fn cfg02_addresses_must_be_full_urls() {
+    let h = H::new();
+    h.setup();
+    h.save_broker_credentials();
+    let (cookie, csrf) = h.session(true);
+    for (field, value) in [
+        ("host_server", "http-not-a-url"),
+        ("host_server", "https//x.ngrok.app"),
+        ("host_server", "ws://x.ngrok.app"),
+        ("host_server", "http://"),
+        ("websocket_url", "ws-not-a-url"),
+        ("websocket_url", "ws:/x.ngrok.app"),
+        ("websocket_url", "https://x.ngrok.app"),
+    ] {
+        let (s, v) = post_settings(&h, &cookie, &csrf, json!({ field: value })).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{} = {}: {}", field, value, v);
+    }
+    for (field, value) in [
+        ("host_server", "https://x.ngrok.app"),
+        ("websocket_url", "wss://x.ngrok.app/ws"),
+    ] {
+        let (s, v) = post_settings(&h, &cookie, &csrf, json!({ field: value })).await;
+        assert_eq!(s, StatusCode::OK, "{} = {}: {}", field, value, v);
+    }
+}
+
+/// CFG-01: a saved address sent back empty returns to the automatic one,
+/// which follows a later port change.
+#[tokio::test]
+async fn cfg01_an_emptied_address_goes_back_to_automatic() {
+    let h = H::new();
+    h.setup();
+    h.save_broker_credentials();
+    let (cookie, csrf) = h.session(true);
+    let body = json!({"websocket_url": "wss://x.ngrok.app/ws", "host_server": "https://x.ngrok.app"});
+    let (s, v) = post_settings(&h, &cookie, &csrf, body).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    assert_eq!(feed_address(&h, &cookie).await, "wss://x.ngrok.app/ws");
+    let saved = settings(&h, &cookie).await;
+    assert_eq!(saved["websocket_url_is_default"], false);
+    assert_eq!(saved["host_server_is_default"], false);
+
+    let body = json!({"websocket_url": "", "host_server": ""});
+    let (s, v) = post_settings(&h, &cookie, &csrf, body).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    let cfg = h.ctx().server_config();
+    assert_eq!(
+        feed_address(&h, &cookie).await,
+        format!("ws://127.0.0.1:{}", cfg.ws_port)
+    );
+    let saved = settings(&h, &cookie).await;
+    assert_eq!(saved["websocket_url_is_default"], true);
+    assert_eq!(saved["host_server_is_default"], true);
+    assert_eq!(
+        saved["host_server"],
+        format!("http://127.0.0.1:{}", cfg.http_port)
+    );
+    // A later port change is followed.
+    h.ctx().pin_listener_ports(cfg.http_port, 18766);
+    assert_eq!(feed_address(&h, &cookie).await, "ws://127.0.0.1:18766");
+}
+
+/// The database refuses every change to the settings row.
+fn fail_settings_writes(h: &H) {
+    h.ctx()
+        .sqlite
+        .conn()
+        .unwrap()
+        .execute_batch(
+            "CREATE TRIGGER test_fail_settings_update BEFORE UPDATE ON settings
+             BEGIN SELECT RAISE(ABORT, 'disk full'); END;",
+        )
+        .unwrap();
+}
+
+/// FLOW-03 (server half): a switch whose save fails changes nothing: the
+/// live session keeps running and the other broker's keys are not stored.
+#[tokio::test]
+async fn flow03_a_failed_switch_save_keeps_the_live_session() {
+    let h = H::new();
+    h.setup();
+    h.save_broker_credentials();
+    connect_and_stream(&h).await;
+    fail_settings_writes(&h);
+    let (cookie, csrf) = h.session(true);
+    let body = json!({"broker": "upstox", "broker_api_key": "upstoxkey"});
+    let (s, v) = post_settings(&h, &cookie, &csrf, body).await;
+    assert_eq!(s, StatusCode::INTERNAL_SERVER_ERROR, "{}", v);
+    assert_eq!(
+        v["message"],
+        "Your broker settings were not saved, and nothing was changed. Try again."
+    );
+    assert_eq!(
+        h.ctx().get_broker_session().map(|s| s.broker_id).as_deref(),
+        Some("zerodha"),
+        "the live session was ended by a save that failed"
+    );
+    assert_eq!(h.ctx().runtime.active_broker().as_deref(), Some("zerodha"));
+    assert_eq!(
+        h.ctx().server_config().active_broker.as_deref(),
+        Some("zerodha")
+    );
+    let conn = h.ctx().sqlite.conn().unwrap();
+    assert!(
+        crate::db::sqlite::credentials::load(&conn, &h.ctx().security, "upstox")
+            .unwrap()
+            .is_none(),
+        "keys saved by a switch that failed"
+    );
+    drop(conn);
+    h.ctx().runtime.teardown(h.ctx()).await;
+}
+
+/// FLOW-03: a new broker session and the active broker are stored together
+/// or not at all.
+#[tokio::test]
+async fn flow03_a_session_and_the_active_broker_are_stored_together() {
+    let h = H::new();
+    h.setup();
+    fail_settings_writes(&h);
+    let r = BrokerAuthService::persist(
+        h.ctx(),
+        &BrokerSession {
+            broker_id: "zerodha".into(),
+            auth_token: "mock-access-token".into(),
+            feed_token: None,
+            user_id: "AB1234".into(),
+            user_name: None,
+            authenticated_at: h.ctx().now(),
+        },
+    );
+    assert!(r.is_err());
+    assert!(!stored_session_active(&h), "a half-stored session");
+    assert!(!h.ctx().is_broker_connected());
+}
