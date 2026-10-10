@@ -38,6 +38,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   acknowledgeAlert,
   type CurrentMetrics,
+  type EmptyHealthStats,
   exportMetricsCSV,
   getActiveAlerts,
   getCurrentMetrics,
@@ -46,6 +47,7 @@ import {
   type HealthAlert,
   type HealthStats,
   type HistoricalMetric,
+  hasHealthSamples,
 } from '@/api/health'
 // Alert components removed - using custom styled divs for theme compatibility
 import { Badge } from '@/components/ui/badge'
@@ -151,7 +153,7 @@ function isDarkMode(): boolean {
 export default function HealthMonitor() {
   const [currentMetrics, setCurrentMetrics] = useState<CurrentMetrics | null>(null)
   const [historicalMetrics, setHistoricalMetrics] = useState<HistoricalMetric[]>([])
-  const [stats, setStats] = useState<HealthStats | null>(null)
+  const [stats, setStats] = useState<HealthStats | EmptyHealthStats | null>(null)
   const [alerts, setAlerts] = useState<HealthAlert[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -567,8 +569,18 @@ export default function HealthMonitor() {
         </Card>
       </div>
 
+      {/* An empty window has no figures to show (the groups come back empty). */}
+      {stats && !hasHealthSamples(stats) && (
+        <Card>
+          <CardContent className="p-4 text-sm text-muted-foreground">
+            No health samples in the last {stats.time_period_hours} hours yet. OpenAlgo records one
+            every minute while it runs; check back shortly.
+          </CardContent>
+        </Card>
+      )}
+
       {/* Statistics - 2x2 grid for balanced layout */}
-      {stats && (
+      {stats && hasHealthSamples(stats) && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="pb-3">

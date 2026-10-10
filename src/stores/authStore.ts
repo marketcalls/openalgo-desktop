@@ -44,6 +44,8 @@ export const useAuthStore = create<AuthStore>()(
 
       logout: () => {
         set({ user: null, isAuthenticated: false, apiKey: null })
+        // The broker's capabilities belong to the session that just ended.
+        useBrokerStore.getState().clearCapabilities()
       },
 
       checkSession: () => {

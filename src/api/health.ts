@@ -136,6 +136,22 @@ export interface HealthStats {
   }
 }
 
+/** The stats answer for a window that holds no samples: every group is empty. */
+export interface EmptyHealthStats {
+  total_samples: 0
+  time_period_hours: number
+  fd: Record<string, never>
+  memory: Record<string, never>
+  database: Record<string, never>
+  websocket: Record<string, never>
+  threads: Record<string, never>
+  status?: Record<string, never>
+}
+
+export function hasHealthSamples(stats: HealthStats | EmptyHealthStats): stats is HealthStats {
+  return stats.total_samples > 0
+}
+
 export interface HealthAlert {
   id: number
   timestamp: string
@@ -191,8 +207,8 @@ export async function getMetricsHistory(hours = 24): Promise<HistoricalMetric[]>
  * Get aggregated statistics
  * Requires authentication
  */
-export async function getHealthStats(hours = 24): Promise<HealthStats> {
-  const response = await webClient.get<HealthStats>('/health/api/stats', {
+export async function getHealthStats(hours = 24): Promise<HealthStats | EmptyHealthStats> {
+  const response = await webClient.get<HealthStats | EmptyHealthStats>('/health/api/stats', {
     params: { hours },
   })
   return response.data

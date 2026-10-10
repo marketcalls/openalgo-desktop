@@ -104,7 +104,9 @@ interface QuotesApiData {
 interface MultiQuotesResult {
   symbol: string
   exchange: string
-  data: QuotesApiData
+  /** Absent on a row the server could not quote; `error` says why. */
+  data?: QuotesApiData
+  error?: string
 }
 
 interface MultiQuotesApiResponse {
@@ -140,6 +142,10 @@ export class MarketDataManager {
   private maxConsecutiveFailures: number = 3 // Switch to fallback after 3 consecutive connection failures
   /** Invalidates REST responses that belong to an earlier fallback session. */
   private fallbackGeneration: number = 0
+  /** The multiquotes call in flight; a poll tick skips while one is running. */
+  private restInFlight: AbortController | null = null
+  /** A call still unanswered after this is abandoned so polling can go on. */
+  private restCallTimeout: number = 30000
 
   private constructor() {
     // Private constructor for singleton pattern
@@ -244,6 +250,13 @@ export class MarketDataManager {
     if (entry.refCount <= 0) {
       this.subscriptions.delete(key)
 
+      // The server holds one subscription per symbol and mode, so release
+      // this mode even when another mode still uses the symbol, and name it:
+      // an unsubscribe without a mode releases Quote only.
+      if (this.connectionState === 'authenticated') {
+        this.sendUnsubscribe([{ symbol, exchange }], mode)
+      }
+
       // Check if any other mode still needs this symbol
       const symbolStillNeeded = Array.from(this.subscriptions.values()).some(
         (e) => e.symbol === symbol && e.exchange === exchange
@@ -253,11 +266,6 @@ export class MarketDataManager {
         // Clean up cache
         const dataKey = `${exchange}:${symbol}`
         this.dataCache.delete(dataKey)
-
-        // Send unsubscribe if connected
-        if (this.connectionState === 'authenticated') {
-          this.sendUnsubscribe([{ symbol, exchange }])
-        }
       }
 
       // Stop fallback polling if no more subscriptions
@@ -645,13 +653,17 @@ export class MarketDataManager {
     )
   }
 
-  private sendUnsubscribe(symbols: Array<{ symbol: string; exchange: string }>): void {
+  private sendUnsubscribe(
+    symbols: Array<{ symbol: string; exchange: string }>,
+    mode: SubscriptionMode
+  ): void {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return
 
     this.socket.send(
       JSON.stringify({
         action: 'unsubscribe',
         symbols,
+        mode,
       })
     )
   }
@@ -771,6 +783,9 @@ export class MarketDataManager {
       clearInterval(this.fallbackPollingInterval)
       this.fallbackPollingInterval = null
     }
+    // The answer to a call still in flight belongs to polling that stopped.
+    this.restInFlight?.abort()
+    this.restInFlight = null
   }
 
   /**
@@ -778,7 +793,13 @@ export class MarketDataManager {
    */
   private async fetchMarketDataViaRest(): Promise<void> {
     if (!this.fallbackMode || !this.apiKey || this.subscriptions.size === 0) return
+    // One call at a time: a poll tick while the last call is still running
+    // skips it, so an older answer can never land after a newer one.
+    if (this.restInFlight) return
     const generation = this.fallbackGeneration
+    const call = new AbortController()
+    this.restInFlight = call
+    const timer = setTimeout(() => call.abort(), this.restCallTimeout)
 
     try {
       // Collect unique symbols from subscriptions
@@ -804,6 +825,7 @@ export class MarketDataManager {
           apikey: this.apiKey,
           symbols: symbolsArray,
         }),
+        signal: call.signal,
       })
 
       const data = (await response.json()) as MultiQuotesApiResponse
@@ -813,6 +835,9 @@ export class MarketDataManager {
       if (data.status === 'success' && data.results) {
         // Process each result and update cache + notify subscribers
         for (const result of data.results) {
+          // A symbol the server could not quote (unknown, or refused by the
+          // broker) comes back with `error` and no data: skip it, keep the rest.
+          if (!result.data) continue
           const symbol = result.symbol.toUpperCase()
           const exchange = result.exchange.toUpperCase()
           const dataKey = `${exchange}:${symbol}`
@@ -851,7 +876,11 @@ export class MarketDataManager {
           })
         }
       }
-    } catch (_err) {}
+    } catch (_err) {
+    } finally {
+      clearTimeout(timer)
+      if (this.restInFlight === call) this.restInFlight = null
+    }
   }
 
   /**
