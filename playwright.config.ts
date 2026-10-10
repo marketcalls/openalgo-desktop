@@ -57,5 +57,12 @@ export default defineConfig({
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
+    // Desktop: vite.config.ts proxies server paths to the development backend
+    // (127.0.0.1:5500), which on the maintainer's Mac may be a running app.
+    // These tests assume no backend, so point the proxy at a closed port
+    // unless OPENALGO_DEV_BACKEND says otherwise.
+    env: {
+      OPENALGO_DEV_BACKEND: process.env.OPENALGO_DEV_BACKEND ?? 'http://127.0.0.1:1',
+    },
   },
 })

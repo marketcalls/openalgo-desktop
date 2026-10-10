@@ -1,4 +1,10 @@
-import { expect, test } from '@playwright/test'
+import { expect, type Page, test } from '@playwright/test'
+
+/**
+ * These run against `vite preview`, which has no backend: every call to the
+ * server is answered with the app's index page, so the app sees no session.
+ * A test that needs a signed-in session stubs `/auth/session-status`.
+ */
 
 test.describe('Authentication Flow', () => {
   test('should show login page', async ({ page }) => {
@@ -17,16 +23,25 @@ test.describe('Authentication Flow', () => {
   })
 
   test('accessing protected routes requires authentication', async ({ page }) => {
-    // Try to access a protected route
     await page.goto('/dashboard')
     await page.waitForLoadState('networkidle')
 
-    // Should not be on dashboard if not authenticated
-    // Could redirect to login, broker, home, or show auth required
-    const url = page.url()
+    // Sent to sign in (or to first-time setup), and the signed-in shell
+    // never rendered.
+    await expect(page).toHaveURL(/\/(login|setup)(\?|$)/)
+    await expect(page.locator('input[type="password"]')).toBeVisible()
+    await expect(page.getByTestId('navbar-row')).toHaveCount(0)
+  })
 
-    // Test that we got some response
-    expect(url).toBeDefined()
+  // The check above must be able to fail: with a signed-in session the same
+  // navigation stays on the dashboard and shows the signed-in shell, which is
+  // exactly what the unauthenticated test asserts does not happen.
+  test('a signed-in session reaches the dashboard', async ({ page }) => {
+    await signedIn(page)
+    await page.goto('/dashboard')
+
+    await expect(page.getByTestId('navbar-row')).toBeVisible()
+    await expect(page).toHaveURL(/\/dashboard$/)
   })
 })
 
@@ -38,3 +53,20 @@ test.describe('Reset Password Flow', () => {
     await expect(page.locator('body')).toBeVisible()
   })
 })
+
+async function signedIn(page: Page) {
+  await page.route('**/auth/session-status', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: 'success',
+        logged_in: true,
+        authenticated: true,
+        broker: 'angel',
+        username: 'e2e',
+        active_sessions: 1,
+      }),
+    })
+  )
+}
