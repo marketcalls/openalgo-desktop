@@ -84,6 +84,12 @@ navigation entry, in one change. Vitest tests carried over with the page live
 next to it, as on the web. Run `npx tsc -b`, `npx vitest run`, and
 `npx biome ci ./src`.
 
+The desktop runs a newer Biome than the web (2.5 against the web's 2.3), which
+sorts export lists and formats `it.each` calls differently, so about 26 files
+under `src/components/ui` and the tests differ from the web in formatting
+only. After applying a web diff to such a file, run `npx biome check --write`
+on it; don't hand-revert the formatting to match the web.
+
 ## 4. API and services: parity plus golden fixtures
 
 1. Read the web change in `restx_api/` (validation), `services/` (the
