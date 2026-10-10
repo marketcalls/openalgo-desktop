@@ -376,8 +376,16 @@ fn foreign(headers: &HeaderMap) -> bool {
         .unwrap_or(false)
 }
 
-/// GET|POST /auth/logout. Revokes the stored broker token, ends every
-/// browser session, tells every window.
+/// What a POST logout answers when the broker session ended in memory but
+/// its stored record could not be updated yet (the session poll retries).
+pub const LOGOUT_REVOKE_PENDING: &str = "Logged out. Your broker session has ended, but \
+OpenAlgo could not record that on this computer yet and will keep trying in the background.";
+
+/// GET|POST /auth/logout. The signed-in trader's logout revokes the broker
+/// session, ends every browser session and tells every window. A caller
+/// without a signed-in session ends only its own browser session: signing
+/// the trader out everywhere needs the trader's own session (security
+/// review SEC-01; the web, too, clears only the caller's session).
 pub async fn logout(
     State(ctx): Ctx,
     Sess(sess): Sess,
@@ -388,20 +396,35 @@ pub async fn logout(
         return error(StatusCode::FORBIDDEN, "Request blocked.");
     }
     let signed_in = sess.as_ref().and_then(|s| s.user.as_ref()).is_some();
-    ctx.sessions.clear();
+    let mut revoke_pending = false;
     if signed_in {
+        ctx.sessions.clear();
         if let Err(e) =
             BrokerAuthService::revoke(&ctx, crate::events::SessionEndReason::Logout).await
         {
-            tracing::error!("Could not revoke the broker session on logout: {}", e);
+            tracing::error!(
+                "Broker session ended on logout; its stored row is still to be revoked: {}",
+                e
+            );
+            revoke_pending = true;
         }
         ctx.bus.publish(Event::ForceLogout {
             message: "You have been logged out from another device.".into(),
         });
         tracing::info!("Signed out");
+    } else if let Some(s) = &sess {
+        ctx.sessions.remove(&s.id);
     }
     let mut resp = if method == Method::POST {
-        ok(json!({"status": "success", "message": "Logged out successfully"}))
+        if revoke_pending {
+            ok(json!({
+                "status": "success",
+                "message": LOGOUT_REVOKE_PENDING,
+                "broker_revoke_pending": true,
+            }))
+        } else {
+            ok(json!({"status": "success", "message": "Logged out successfully"}))
+        }
     } else {
         redirect("/login")
     };

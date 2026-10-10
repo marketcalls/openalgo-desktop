@@ -508,8 +508,13 @@ pub async fn update_credentials(State(ctx): Ctx, form: FormData) -> Response {
     let switched = matches!((&previous, &broker), (Some(p), Some(n)) if p != n);
     let signed_out = match ctx.get_broker_session() {
         Some(s) if switched && broker.as_deref() != Some(s.broker_id.as_str()) => {
+            // The session ends in memory whatever the database does; a
+            // failed write of its stored row is retried by the session poll.
             if let Err(e) = BrokerAuthService::revoke(&ctx, SessionEndReason::Logout).await {
-                return e.into_response();
+                tracing::error!(
+                    "Broker session ended for the switch; its stored row is still to be revoked: {}",
+                    e
+                );
             }
             Some(s.broker_id)
         }

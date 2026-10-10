@@ -73,6 +73,11 @@ pub struct AppState {
     pub limiter: RateLimiter,
     pub api_keys: ApiKeyCache,
     pub broker_session: RwLock<Option<BrokerSession>>,
+    /// A broker session ended in memory whose stored row is still to be
+    /// revoked (the database write failed). While set, no stored session is
+    /// resumed; the session poll and the next sign-in finish the revoke
+    /// (`BrokerAuthService::retry_pending_revoke`).
+    pub revoke_pending: Mutex<bool>,
     pub server_status: RwLock<ServerStatus>,
     /// State of the 8765 market data listener (written by `FeedService`),
     /// shown with the fix when its port is taken.
@@ -279,6 +284,7 @@ impl AppState {
             limiter: RateLimiter::new(),
             api_keys: ApiKeyCache::new(),
             broker_session: RwLock::new(None),
+            revoke_pending: Mutex::new(false),
             server_status: RwLock::new(ServerStatus::Starting),
             feed_status: RwLock::new(ServerStatus::Starting),
             http,

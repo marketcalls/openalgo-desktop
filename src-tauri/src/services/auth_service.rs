@@ -315,6 +315,8 @@ impl AuthService {
                 }
             }
         }
+        // The stored broker sessions are gone, so nothing is left to revoke.
+        *state.revoke_pending.lock() = false;
         state.security.rotate()?;
         state.api_keys.clear();
         state.sessions.clear();
@@ -352,8 +354,9 @@ impl AuthService {
     }
 
     /// The whole account reset as the desktop window runs it: end the live
-    /// broker session and the bots, wipe and rotate (`reset_account`), then
-    /// sign every window out.
+    /// broker session (its streaming always stops, even when the stored row
+    /// cannot be written) and the bots, wipe and rotate (`reset_account`,
+    /// which deletes the stored row), then sign every window out.
     pub async fn reset_account_everywhere(ctx: &std::sync::Arc<AppState>) -> Result<()> {
         if let Err(e) = crate::services::broker_auth_service::BrokerAuthService::revoke(
             ctx,
@@ -362,7 +365,7 @@ impl AuthService {
         .await
         {
             tracing::warn!(
-                "Account reset: the broker session could not be revoked: {}",
+                "Account reset: the broker session ended; its stored row could not be revoked: {}",
                 e
             );
         }

@@ -1023,8 +1023,8 @@ type Ws =
 
 /// The app served on an ephemeral loopback port, as the trader's browser
 /// reaches it. Dropping the handle stops it.
-struct Served {
-    addr: std::net::SocketAddr,
+pub(super) struct Served {
+    pub(super) addr: std::net::SocketAddr,
     task: tokio::task::JoinHandle<()>,
 }
 
@@ -1034,7 +1034,7 @@ impl Drop for Served {
     }
 }
 
-async fn serve(h: &H) -> Served {
+pub(super) async fn serve(h: &H) -> Served {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     *h.ctx().server_status.write() = crate::state::ServerStatus::Running {

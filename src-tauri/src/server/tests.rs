@@ -208,6 +208,8 @@ fn cookie_from(headers: &axum::http::HeaderMap) -> Option<String> {
 mod security;
 // Every catalogue broker's sign-in, started the way the broker page does.
 mod sign_in;
+// Codex review evaluation B: sign-out, revocation, keys, broker settings.
+mod credentials_lifecycle;
 
 // ------------------------------------------------------------------ fixtures
 

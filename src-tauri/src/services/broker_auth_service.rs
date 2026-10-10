@@ -18,7 +18,9 @@
 //! * After a password sign-in, `try_resume` brings back the stored session
 //!   if it was issued after the last 03:00 IST boundary and the broker still
 //!   accepts it (validated with a funds call, like the web).
-//! * Logout and the daily boundary call `revoke`.
+//! * Logout, the daily boundary, a broker switch and account reset call
+//!   `revoke`, which ends the session in memory before it writes the
+//!   stored row, and retries that write while it fails.
 
 use crate::brokers::{catalog, BrokerCredentials};
 use crate::db::sqlite::{auth, credentials, oauth_state};
@@ -484,9 +486,18 @@ impl BrokerAuthService {
     /// Store and activate a session, then announce it.
     pub fn persist(state: &AppState, s: &BrokerSession) -> Result<()> {
         {
-            let conn = state.sqlite.conn()?;
+            // A revoke still pending is written first, in the same
+            // transaction and under the same hold, so a later retry never
+            // revokes this new session's row. The row and the active broker
+            // change together or not at all.
+            let mut pending = state.revoke_pending.lock();
+            let mut conn = state.sqlite.conn()?;
+            let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+            if *pending {
+                auth::revoke_all(&tx)?;
+            }
             auth::upsert(
-                &conn,
+                &tx,
                 &state.security,
                 &auth::StoredBrokerSession {
                     broker_id: s.broker_id.clone(),
@@ -498,12 +509,14 @@ impl BrokerAuthService {
                 },
             )?;
             crate::config::save(
-                &conn,
+                &tx,
                 &crate::config::ServerConfigUpdate {
                     active_broker: Some(s.broker_id.clone()),
                     ..Default::default()
                 },
             )?;
+            tx.commit()?;
+            *pending = false;
         }
         let _ = state.reload_config();
         state.set_broker_session(Some(s.clone()));
@@ -521,6 +534,14 @@ impl BrokerAuthService {
     pub async fn try_resume(state: &AppState) -> Result<Option<BrokerSession>> {
         if let Some(s) = state.get_broker_session() {
             return Ok(Some(s));
+        }
+        // A session the trader ended whose row could not be revoked yet is
+        // never brought back.
+        if Self::revoke_is_pending(state) {
+            if let Err(e) = Self::retry_pending_revoke(state) {
+                tracing::warn!("The ended broker session is still to be revoked: {}", e);
+            }
+            return Ok(None);
         }
         let stored = {
             let conn = state.sqlite.conn()?;
@@ -593,20 +614,46 @@ impl BrokerAuthService {
         Ok(Some(session))
     }
 
-    /// End the broker session everywhere: stored row revoked, memory cleared,
-    /// streaming torn down (feeds closed, subscriptions cleared, owned tasks
-    /// aborted, adapter pollers stopped), symbol cache dropped, subscribers
-    /// told.
+    /// End the broker session everywhere. Memory goes first and the stored
+    /// row last, as on the web (which drops its cache before the database
+    /// write): the in-memory session, the API-key cache, streaming (feeds
+    /// closed, subscriptions cleared, owned tasks aborted, adapter pollers
+    /// stopped) and the symbol cache, then subscribers are told, then the
+    /// row is revoked.
+    ///
+    /// The session is over in this process whatever the database does. If
+    /// the row cannot be written, `revoke_pending` stays set: no stored
+    /// session is resumed until the session poll, a resume or the next
+    /// sign-in writes it (`retry_pending_revoke`). An `Err` means only that
+    /// the stored row is still to be revoked.
     pub async fn revoke(state: &AppState, reason: SessionEndReason) -> Result<()> {
-        {
-            let conn = state.sqlite.conn()?;
-            auth::revoke_all(&conn)?;
-        }
+        // Set before memory is cleared, so a sign-in racing this call
+        // cannot resume the row being revoked.
+        *state.revoke_pending.lock() = true;
         state.set_broker_session(None);
         state.api_keys.clear();
         state.runtime.teardown(state).await;
         state.clear_symbol_cache();
         state.bus.publish(Event::BrokerSessionEnded { reason });
+        Self::retry_pending_revoke(state)
+    }
+
+    /// Whether an ended session's stored row is still to be revoked.
+    pub fn revoke_is_pending(state: &AppState) -> bool {
+        *state.revoke_pending.lock()
+    }
+
+    /// Write a pending revoke; a no-op when none is pending. Run by
+    /// `revoke` itself, by the session poll every 30 seconds and before a
+    /// resume.
+    pub fn retry_pending_revoke(state: &AppState) -> Result<()> {
+        let mut pending = state.revoke_pending.lock();
+        if !*pending {
+            return Ok(());
+        }
+        let conn = state.sqlite.conn()?;
+        auth::revoke_all(&conn)?;
+        *pending = false;
         Ok(())
     }
 
