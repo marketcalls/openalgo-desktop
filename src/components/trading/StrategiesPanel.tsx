@@ -718,6 +718,9 @@ export function StrategiesPanel({ getChartContext }: Props) {
           .map((one) => {
             const file = one.id
             const run = one.run
+            // Desktop: a Stop whose closing order has not finished leaves the
+            // run halted until Stop is pressed again (LOG-02).
+            const closePending = run?.state === 'close_pending'
             const held = one.settings
             const where = run ?? held
             const holding = holdings[one.id]
@@ -729,15 +732,30 @@ export function StrategiesPanel({ getChartContext }: Props) {
                   <span
                     className={cn(
                       'h-1.5 w-1.5 shrink-0 rounded-full',
-                      run ? 'bg-emerald-500' : 'bg-muted-foreground/40'
+                      closePending
+                        ? 'bg-amber-500'
+                        : run
+                          ? 'bg-emerald-500'
+                          : 'bg-muted-foreground/40'
                     )}
                     aria-hidden
                   />
                   <span className="truncate text-xs font-medium" title={one.file}>
                     {one.file}
                   </span>
-                  <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
-                    {run ? `running ${since(run.started_at)}` : 'stopped'}
+                  <span
+                    className="ml-auto shrink-0 text-[10px] text-muted-foreground"
+                    title={
+                      closePending
+                        ? 'Stop sent a closing order that has not finished. Nothing new is sent. Check your orders, then press Stop again.'
+                        : undefined
+                    }
+                  >
+                    {closePending
+                      ? 'close pending'
+                      : run
+                        ? `running ${since(run.started_at)}`
+                        : 'stopped'}
                   </span>
                 </div>
 
