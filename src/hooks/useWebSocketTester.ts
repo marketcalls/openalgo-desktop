@@ -11,6 +11,53 @@ async function fetchCSRFToken(): Promise<string> {
 const MAX_MESSAGES = 1000
 const MAX_LATENCY_SAMPLES = 100
 
+// Desktop change (PG-02), to be offered upstream: the web logs, shows and
+// exports the authenticate frame with the API key in it. The log keeps a
+// redacted copy instead; the socket still sends the real message.
+const REDACTED = '[redacted]'
+// Field names that carry a credential: the API key, tokens, secrets, passwords.
+const SECRET_FIELD = /^(api_?key|.*token|.*secret|.*password)$/i
+// The same names in text that is not JSON: `"api_key": "..."`, `apikey=...`.
+const SECRET_IN_TEXT =
+  /(["']?(?:api_?key|[a-z_]*token|[a-z_]*secret|[a-z_]*password)["']?\s*[:=]\s*)("(?:[^"\\]|\\.)*"|'[^']*'|[^\s,;&}]+)/gi
+
+function redactText(text: string): string {
+  return text.replace(SECRET_IN_TEXT, `$1"${REDACTED}"`)
+}
+
+/**
+ * A copy of `value` with every credential field replaced, at any depth, and
+ * credentials written into text (a frame that is not JSON) masked.
+ */
+export function redactSecrets(value: unknown): unknown {
+  if (typeof value === 'string') return redactText(value)
+  if (Array.isArray(value)) return value.map(redactSecrets)
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, field]) => [
+        key,
+        SECRET_FIELD.test(key) ? REDACTED : redactSecrets(field),
+      ])
+    )
+  }
+  return value
+}
+
+/**
+ * A raw frame with its credentials replaced: parsed and redacted when it is
+ * JSON (left byte for byte when it holds none), otherwise by pattern.
+ */
+export function redactRaw(raw: string): string {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return redactText(raw)
+  }
+  const redacted = JSON.stringify(redactSecrets(parsed))
+  return redacted === JSON.stringify(parsed) ? raw : redacted
+}
+
 interface UseWebSocketTesterReturn {
   // Connection state
   isConnected: boolean
@@ -55,18 +102,22 @@ export function useWebSocketTester(_apiKey?: string): UseWebSocketTesterReturn {
   const latencySamplesRef = useRef<LatencySample[]>([])
   const isReconnectingRef = useRef(false)
   const userInitiatedCloseRef = useRef(false)
+  // Desktop change (PG-01), to be offered upstream: each connect attempt has
+  // an epoch, so a failed or abandoned attempt never leaves Connect latched
+  // and a late completion of an old one is ignored.
+  const attemptRef = useRef(0)
 
   const getCsrfToken = useCallback(async () => fetchCSRFToken(), [])
 
-  // Add message to log
+  // Add message to log (a redacted copy: never the API key, PG-02)
   const addMessage = useCallback(
     (direction: WebSocketMessage['direction'], data: unknown, rawData?: string) => {
       const message: WebSocketMessage = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         direction,
         timestamp: Date.now(),
-        data,
-        rawData,
+        data: redactSecrets(data),
+        rawData: rawData === undefined ? undefined : redactRaw(rawData),
       }
       setMessages((prev) => {
         const updated = [message, ...prev]
@@ -140,7 +191,10 @@ export function useWebSocketTester(_apiKey?: string): UseWebSocketTesterReturn {
       return
     }
 
+    const attempt = ++attemptRef.current
+    const current = () => attempt === attemptRef.current
     isReconnectingRef.current = true
+    userInitiatedCloseRef.current = false
     setIsConnecting(true)
     setError(null)
 
@@ -153,6 +207,8 @@ export function useWebSocketTester(_apiKey?: string): UseWebSocketTesterReturn {
         credentials: 'include',
       })
       const configData = await configResponse.json()
+      // Disconnected, or superseded, while the config was on its way.
+      if (!current()) return
 
       if (configData.status !== 'success') {
         throw new Error('Failed to get WebSocket configuration')
@@ -164,6 +220,11 @@ export function useWebSocketTester(_apiKey?: string): UseWebSocketTesterReturn {
       const socket = new WebSocket(url)
 
       socket.onopen = async () => {
+        if (!current()) {
+          socket.close()
+          return
+        }
+        isReconnectingRef.current = false
         setIsConnected(true)
         setIsConnecting(false)
         addMessage('system', { message: 'Connected to WebSocket server' })
@@ -176,6 +237,7 @@ export function useWebSocketTester(_apiKey?: string): UseWebSocketTesterReturn {
             credentials: 'include',
           })
           const apiKeyData = await apiKeyResponse.json()
+          if (!current()) return
 
           if (apiKeyData.status === 'success' && apiKeyData.api_key) {
             const authMessage = { action: 'authenticate', api_key: apiKeyData.api_key }
@@ -192,6 +254,8 @@ export function useWebSocketTester(_apiKey?: string): UseWebSocketTesterReturn {
       }
 
       socket.onclose = (event) => {
+        // An abandoned attempt's socket: its close belongs to no one now.
+        if (!current()) return
         setIsConnected(false)
         setIsConnecting(false)
         setIsAuthenticated(false)
@@ -214,6 +278,7 @@ export function useWebSocketTester(_apiKey?: string): UseWebSocketTesterReturn {
       }
 
       socket.onerror = () => {
+        if (!current()) return
         setError('WebSocket connection error')
         setIsConnecting(false)
         addMessage('error', { message: 'WebSocket connection error' })
@@ -223,6 +288,9 @@ export function useWebSocketTester(_apiKey?: string): UseWebSocketTesterReturn {
 
       socketRef.current = socket
     } catch (err) {
+      // A failure before the socket exists must not leave Connect latched.
+      if (!current()) return
+      isReconnectingRef.current = false
       setError(`Connection failed: ${err}`)
       setIsConnecting(false)
       addMessage('error', { message: `Connection failed: ${err}` })
@@ -232,6 +300,9 @@ export function useWebSocketTester(_apiKey?: string): UseWebSocketTesterReturn {
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
     userInitiatedCloseRef.current = true
+    // Abandon any attempt still under way; the next Connect starts afresh.
+    attemptRef.current += 1
+    isReconnectingRef.current = false
 
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current)
@@ -242,6 +313,7 @@ export function useWebSocketTester(_apiKey?: string): UseWebSocketTesterReturn {
       socketRef.current = null
     }
     setIsConnected(false)
+    setIsConnecting(false)
     setIsAuthenticated(false)
     addMessage('system', { message: 'Disconnected by user' })
   }, [addMessage])
