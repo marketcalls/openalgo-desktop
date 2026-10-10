@@ -459,6 +459,29 @@ async fn hdfcsky_market_orders_are_sent_as_protected_limits() {
     assert!(e.client_message().contains("only of Limit type"));
 }
 
+/// BR-05: a basket's LIMIT legs placed together (ten at a time, as the
+/// basket service does) each carry their own `user_order_id`.
+#[tokio::test]
+async fn hdfcsky_basket_legs_get_distinct_order_ids() {
+    let (b, fake, auth) = setup().await;
+    let syms = master();
+    let legs: Vec<ResolvedOrder> = (0..10)
+        .map(|i| {
+            let mut lim = order("RELIANCE", "NSE", "BUY", "LIMIT", 1);
+            lim.price = 1400.0 + f64::from(i);
+            ResolvedOrder::resolve(&lim, &syms).unwrap()
+        })
+        .collect();
+    let placed = futures_util::future::join_all(legs.iter().map(|o| b.place_order(&auth, o))).await;
+    assert!(placed.iter().all(Result::is_ok));
+    let ids: std::collections::HashSet<i64> = fake
+        .calls(Method::POST, "/oapi/v1/orders")
+        .iter()
+        .map(|c| c.body["user_order_id"].as_i64().unwrap())
+        .collect();
+    assert_eq!(ids.len(), 10, "{:?}", ids);
+}
+
 #[tokio::test]
 async fn hdfcsky_modify_cancel_and_cancel_all() {
     let (b, fake, auth) = setup().await;

@@ -266,6 +266,42 @@ fn order(symbol: &str, exchange: &str, pricetype: &str) -> ResolvedOrder {
     .unwrap()
 }
 
+/// BR-05: orders placed within the same millisecond (basket legs go ten at
+/// a time) get distinct ids; the clock's id is used once it moves past the
+/// last one, and ids stay below 1e9 across the wrap.
+#[test]
+fn order_ids_are_distinct_within_one_millisecond() {
+    let ids = super::mapping::OrderIds::new();
+    let now = 1_759_650_123_456;
+    let got: Vec<i64> = (0..10).map(|_| ids.next(now)).collect();
+    let distinct: std::collections::HashSet<i64> = got.iter().copied().collect();
+    assert_eq!(distinct.len(), 10, "{:?}", got);
+    assert_eq!(got[0], 650_123_456);
+    assert_eq!(got[9], 650_123_465);
+    // The clock moved on past them: its own id again.
+    assert_eq!(ids.next(now + 100), 650_123_556);
+    // Near the wrap: never 1e9 or more.
+    let wrap = super::mapping::OrderIds::new();
+    let edge = 1_999_999_999;
+    assert_eq!(wrap.next(edge), 999_999_999);
+    assert_eq!(wrap.next(edge), 0);
+    assert_eq!(wrap.next(edge + 5), 4);
+    // Concurrent callers never share one.
+    let shared = std::sync::Arc::new(super::mapping::OrderIds::new());
+    let handles: Vec<_> = (0..8)
+        .map(|_| {
+            let s = shared.clone();
+            std::thread::spawn(move || (0..100).map(|_| s.next(now)).collect::<Vec<_>>())
+        })
+        .collect();
+    let all: Vec<i64> = handles
+        .into_iter()
+        .flat_map(|h| h.join().unwrap())
+        .collect();
+    let unique: std::collections::HashSet<i64> = all.iter().copied().collect();
+    assert_eq!(unique.len(), all.len());
+}
+
 #[test]
 fn place_and_modify_bodies() {
     let o = order("NIFTY27OCT26FUT", "NFO", "LIMIT");
@@ -817,6 +853,44 @@ fn ticks_follow_the_subscribed_mode() {
         panic!()
     };
     assert_eq!((bse.exchange.as_str(), bse.mode), ("BSE", 2));
+}
+
+/// BF-04: a packet is published only under the subscription of its own
+/// segment and token. With NSE and NFO token 35001 both subscribed, an NFO
+/// packet maps to NFO; once NFO is unsubscribed, an NFO packet still in
+/// flight is dropped instead of being published as the NSE instrument; a
+/// packet of a type that carries no segment (an order or trade packet) is
+/// dropped even when only one subscription has its token.
+#[test]
+fn packets_never_borrow_another_segments_symbol() {
+    let mut f = HdfcSkyFeed::new(WS_URL, "K", "T");
+    f.subscribe_frames(&[
+        sub("SBIN", "NSE", "35001", FeedMode::Quote),
+        sub("NIFTY27OCT2625000CE", "NFO", "35001", FeedMode::Quote),
+    ]);
+    let tick_of = |ev: &[FeedEvent]| -> Vec<(String, String)> {
+        ev.iter()
+            .filter_map(|e| match e {
+                FeedEvent::Tick(t) => Some((t.symbol.clone(), t.exchange.clone())),
+                _ => None,
+            })
+            .collect()
+    };
+    let ev = f.parse(&Message::Binary(frame(vec![mbp_packet(35001, pt::NSE_FO_ALL)])));
+    assert_eq!(
+        tick_of(&ev),
+        [("NIFTY27OCT2625000CE".to_string(), "NFO".to_string())]
+    );
+    f.unsubscribe_frames(&[sub("NIFTY27OCT2625000CE", "NFO", "35001", FeedMode::Quote)]);
+    let ev = f.parse(&Message::Binary(frame(vec![mbp_packet(35001, pt::NSE_FO_ALL)])));
+    assert!(ev.is_empty(), "{:?}", ev);
+    let ev = f.parse(&Message::Binary(frame(vec![mbp_packet(35001, pt::NSE_CM_ALL)])));
+    assert_eq!(tick_of(&ev), [("SBIN".to_string(), "NSE".to_string())]);
+    // An order or trade packet (types 8 and 9) carries no segment.
+    for ptype in [8, 9, 42] {
+        let ev = f.parse(&Message::Binary(frame(vec![mbp_packet(35001, ptype)])));
+        assert!(ev.is_empty(), "type {}: {:?}", ptype, ev);
+    }
 }
 
 #[test]

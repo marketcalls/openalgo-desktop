@@ -251,7 +251,10 @@ fn parse_packet(p: &GenericDto) -> Option<RawTick> {
         t.kind = Kind::Greek;
         return Some(t);
     }
-    if is_mbp_packet(p.packet_type) || p.mbp_data.is_some() {
+    // Only the known market-data types (BF-04): an order, trade or unknown
+    // packet carries no segment, so it could be published under another
+    // instrument that shares its token number.
+    if is_mbp_packet(p.packet_type) {
         let m = p.mbp_data.clone().unwrap_or_default();
         t.kind = Kind::Mbp;
         t.ltp = m.last_traded_price;
@@ -288,6 +291,10 @@ fn parse_packet(p: &GenericDto) -> Option<RawTick> {
         t.sell.truncate(5);
         return Some(t);
     }
+    tracing::debug!(
+        packet_type = p.packet_type,
+        "HDFC Sky packet of an unknown type dropped"
+    );
     None
 }
 
@@ -368,16 +375,21 @@ impl HdfcSkyFeed {
             .collect()
     }
 
+    /// The subscription a packet belongs to: exactly its segment and token
+    /// (BF-04). A packet whose segment is not subscribed (an unsubscribe
+    /// still in flight, a token number shared across segments) is dropped,
+    /// never published under another instrument with the same token.
     fn lookup(&self, t: &RawTick) -> Option<&SubInfo> {
-        if let Some(ex) = packet_exchange(t.packet_type) {
-            if let Some(s) = self.subs.get(&(ex.to_string(), t.token)) {
-                return Some(s);
-            }
+        let ex = packet_exchange(t.packet_type)?;
+        let found = self.subs.get(&(ex.to_string(), t.token));
+        if found.is_none() {
+            tracing::debug!(
+                token = t.token,
+                exchange = ex,
+                "HDFC Sky packet for an instrument not subscribed on its segment dropped"
+            );
         }
-        self.subs
-            .iter()
-            .find(|((_, tok), _)| *tok == t.token)
-            .map(|(_, s)| s)
+        found
     }
 
     /// Normalised events for one decoded packet (web `_normalize`).

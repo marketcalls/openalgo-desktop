@@ -55,7 +55,7 @@ pub async fn place_order(
         &sess.client_id,
         order_type,
         price,
-        mapping::user_order_id(now_ms()),
+        mapping::ORDER_IDS.next(now_ms()),
     );
     let (status, v) = b
         .send(

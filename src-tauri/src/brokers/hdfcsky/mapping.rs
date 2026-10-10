@@ -308,6 +308,53 @@ pub fn user_order_id(now_ms: i64) -> i64 {
     now_ms.rem_euclid(1_000_000_000)
 }
 
+/// Distinct `user_order_id`s (BR-05). Basket legs are placed ten at a time,
+/// so several read the same millisecond and the web's scheme alone gives
+/// them one id. Each id is the clock's (`user_order_id`) or, when that is
+/// not past the last one handed out, the last one plus one, kept below
+/// 1e9 like the clock's.
+pub struct OrderIds {
+    last: std::sync::atomic::AtomicI64,
+}
+
+impl Default for OrderIds {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl OrderIds {
+    pub const fn new() -> Self {
+        Self {
+            last: std::sync::atomic::AtomicI64::new(-1),
+        }
+    }
+
+    /// The id for one order placed at `now_ms`.
+    pub fn next(&self, now_ms: i64) -> i64 {
+        use std::sync::atomic::Ordering;
+        let clock = user_order_id(now_ms);
+        let mut prev = self.last.load(Ordering::SeqCst);
+        loop {
+            let id = if clock > prev {
+                clock
+            } else {
+                (prev + 1).rem_euclid(1_000_000_000)
+            };
+            match self
+                .last
+                .compare_exchange_weak(prev, id, Ordering::SeqCst, Ordering::SeqCst)
+            {
+                Ok(_) => return id,
+                Err(p) => prev = p,
+            }
+        }
+    }
+}
+
+/// The process-wide allocator every HDFC Sky order takes its id from.
+pub static ORDER_IDS: OrderIds = OrderIds::new();
+
 /// Margin `segment` per OpenAlgo exchange (proto `Segment`).
 pub fn margin_segment(oa: &str) -> &'static str {
     match oa {
