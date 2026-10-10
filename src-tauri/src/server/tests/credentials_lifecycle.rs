@@ -329,3 +329,138 @@ async fn sec05_a_new_sign_in_finishes_the_pending_revoke_first() {
     assert!(stored_session_active(&h), "the new session's row is kept");
     h.ctx().runtime.teardown(h.ctx()).await;
 }
+
+// ---------------------------------- SEC-03 never new keys for an install
+
+/// The app opened on `dir` with `store` as its keychain, as at a start.
+fn open_at(
+    dir: &std::path::Path,
+    store: Arc<dyn crate::security::keystore::KeyStore>,
+) -> Arc<AppState> {
+    AppState::open(
+        dir,
+        crate::state::OpenOptions {
+            keystore: store,
+            clock: Arc::new(crate::clock::SystemClock),
+            brokers: Arc::new(BrokerRegistry::with(vec![])),
+        },
+    )
+    .unwrap()
+}
+
+/// Close the app as a restart does (DuckDB holds its file exclusively).
+async fn close(ctx: Arc<AppState>) {
+    ctx.shutdown().await;
+    assert_eq!(Arc::strong_count(&ctx), 1, "app state outlives shutdown");
+    drop(ctx);
+}
+
+fn save_kite_key(ctx: &AppState) {
+    let conn = ctx.sqlite.conn().unwrap();
+    crate::db::sqlite::credentials::save(
+        &conn,
+        &ctx.security,
+        "zerodha",
+        crate::db::sqlite::credentials::CredentialUpdate {
+            api_key: Some("kiteapikey".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+}
+
+fn kite_key(ctx: &AppState) -> String {
+    let conn = ctx.sqlite.conn().unwrap();
+    crate::db::sqlite::credentials::load(&conn, &ctx.security, "zerodha")
+        .unwrap()
+        .unwrap()
+        .api_key
+        .expose()
+        .to_string()
+}
+
+fn signs_in(ctx: &AppState, password: &str) -> bool {
+    matches!(
+        AuthService::verify_credentials(ctx, USER, password),
+        Ok(crate::services::auth_service::LoginOutcome::Success(_))
+            | Ok(crate::services::auth_service::LoginOutcome::TotpRequired(_))
+    )
+}
+
+/// SEC-03: the keychain is locked (or access was denied) when the app
+/// starts. Signing in with the right password says so, for any name, and
+/// creates no vault; once the keychain is back the same password signs in
+/// and every saved secret still decrypts.
+#[tokio::test]
+async fn sec03_a_locked_keychain_never_gets_new_keys() {
+    use crate::security::keystore::FaultyKeyStore;
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(FaultyKeyStore::default());
+    let ctx = open_at(dir.path(), store.clone());
+    AuthService::setup(&ctx, USER, EMAIL, PASSWORD).unwrap();
+    save_kite_key(&ctx);
+    close(ctx).await;
+
+    store.set_unavailable(true);
+    let ctx = open_at(dir.path(), store.clone());
+    for name in [USER, "someone-else"] {
+        let r = AuthService::verify_credentials(&ctx, name, PASSWORD);
+        assert!(
+            matches!(r, Err(crate::error::AppError::KeychainUnavailable)),
+            "{}: {:?}",
+            name,
+            r
+        );
+        let (s, _, v) = send_to(
+            &ctx,
+            multipart(
+                "/auth/login",
+                &[("username", name), ("password", PASSWORD)],
+            ),
+        )
+        .await;
+        assert_eq!(s, StatusCode::SERVICE_UNAVAILABLE, "{}", v);
+        assert_eq!(v["message"], crate::error::KEYCHAIN_UNAVAILABLE_MESSAGE);
+    }
+    assert!(
+        !dir.path().join(crate::security::VAULT_FILE).exists(),
+        "a sign-in created new keys"
+    );
+    close(ctx).await;
+
+    store.set_unavailable(false);
+    let ctx = open_at(dir.path(), store);
+    assert!(signs_in(&ctx, PASSWORD));
+    assert_eq!(kite_key(&ctx), "kiteapikey");
+    close(ctx).await;
+}
+
+/// SEC-03: in password mode, keys moved from an old `secrets.dat` are
+/// wrapped into the vault only with a password that was verified; a wrong
+/// password leaves no vault behind for the right one to fail on.
+#[tokio::test]
+async fn sec03_legacy_keys_are_wrapped_only_with_a_verified_password() {
+    use crate::security::keystore::UnavailableKeyStore;
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().join(crate::security::VAULT_FILE);
+    crate::security::legacy::write_for_test(dir.path(), &[5u8; 32], &[6u8; 32]);
+    let ctx = open_at(dir.path(), Arc::new(UnavailableKeyStore));
+    AuthService::setup(&ctx, USER, EMAIL, PASSWORD).unwrap();
+    save_kite_key(&ctx);
+    close(ctx).await;
+    // As a build that had not yet wrapped the moved keys left it.
+    std::fs::remove_file(&vault).unwrap();
+    crate::security::legacy::write_for_test(dir.path(), &[5u8; 32], &[6u8; 32]);
+
+    let ctx = open_at(dir.path(), Arc::new(UnavailableKeyStore));
+    assert!(!signs_in(&ctx, "Wrong@1234"));
+    assert!(!vault.exists(), "wrapped with a wrong password");
+    assert!(signs_in(&ctx, PASSWORD));
+    assert!(vault.exists());
+    close(ctx).await;
+
+    let ctx = open_at(dir.path(), Arc::new(UnavailableKeyStore));
+    assert!(signs_in(&ctx, PASSWORD));
+    assert_eq!(kite_key(&ctx), "kiteapikey");
+    close(ctx).await;
+}

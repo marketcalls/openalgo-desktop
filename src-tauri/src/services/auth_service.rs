@@ -109,8 +109,9 @@ impl AuthService {
             return Err(AppError::Validation("Enter a valid email address.".into()));
         }
         validate_password_strength(password).map_err(|m| AppError::Validation(m.into()))?;
-        // Password mode: the first password creates the key vault.
-        if !state.security.unlock_with_password(password)? {
+        // Password mode: the first password creates the key vault. Only
+        // setup may create one.
+        if !state.security.unlock_with_password(password, true)? {
             return Err(AppError::Auth("Could not open secure storage.".into()));
         }
         let hash = state.security.hash_password(password)?;
@@ -138,6 +139,13 @@ impl AuthService {
         username: &str,
         password: &str,
     ) -> Result<LoginOutcome> {
+        // The account's keys are in a keychain that could not be opened at
+        // startup (locked, or access denied): say so, whatever name was
+        // typed, and never make new keys in their place (SEC-03).
+        if state.security.keys_unreachable() {
+            tracing::warn!("Sign-in refused: the keychain holding the keys could not be opened");
+            return Err(AppError::KeychainUnavailable);
+        }
         let row = {
             let conn = state.sqlite.conn()?;
             user::find_by_username(&conn, username)?
@@ -155,8 +163,10 @@ impl AuthService {
             );
             return Ok(LoginOutcome::Invalid);
         };
-        if state.security.mode() == KeyMode::Password
-            && !state.security.unlock_with_password(password)?
+        let password_mode = state.security.mode() == KeyMode::Password;
+        if password_mode
+            && state.security.has_vault()
+            && !state.security.unlock_with_password(password, false)?
         {
             return Ok(LoginOutcome::Invalid);
         }
@@ -165,6 +175,12 @@ impl AuthService {
             .verify_password(password, &row.password_hash)?
         {
             return Ok(LoginOutcome::Invalid);
+        }
+        // Keys moved from `secrets.dat` and held in memory are wrapped into
+        // the vault only with a password that was just verified; a wrong
+        // one would leave a vault the right password cannot open.
+        if password_mode && !state.security.has_vault() {
+            state.security.unlock_with_password(password, false)?;
         }
         // Now unlocked in password mode: finish any pending re-encryption.
         crate::db::sqlite::data_migrations::run(&state.sqlite, &state.security)?;

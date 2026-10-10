@@ -226,6 +226,7 @@ impl IntoResponse for crate::error::AppError {
                 StatusCode::UNAUTHORIZED
             }
             crate::error::AppError::NotFound(_) => StatusCode::NOT_FOUND,
+            crate::error::AppError::KeychainUnavailable => StatusCode::SERVICE_UNAVAILABLE,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
         if status == StatusCode::INTERNAL_SERVER_ERROR {

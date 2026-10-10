@@ -42,6 +42,12 @@ pub enum AppError {
     #[error("Secure storage is locked")]
     Locked,
 
+    /// The account's keys are kept in the OS keychain, which could not be
+    /// opened when the app started (locked, or access denied). Signing in
+    /// must not create new keys; the trader unlocks it and restarts.
+    #[error("The keychain holding the account's keys could not be opened")]
+    KeychainUnavailable,
+
     #[error("Authentication error: {0}")]
     Auth(String),
 
@@ -107,6 +113,7 @@ impl AppError {
             AppError::Keychain(_) => "KEYCHAIN_ERROR",
             AppError::Encryption(_) => "ENCRYPTION_ERROR",
             AppError::Locked => "LOCKED",
+            AppError::KeychainUnavailable => "KEYCHAIN_UNAVAILABLE",
             AppError::Auth(_) => "AUTH_ERROR",
             AppError::Broker(_) => "BROKER_ERROR",
             AppError::Validation(_) => "VALIDATION_ERROR",
@@ -146,10 +153,17 @@ impl AppError {
                 "OpenAlgo could not use the system keychain. Restart the app and try again."
                     .to_string()
             }
+            AppError::KeychainUnavailable => KEYCHAIN_UNAVAILABLE_MESSAGE.to_string(),
             _ => "An unexpected error occurred".to_string(),
         }
     }
 }
+
+/// What a sign-in answers when the keychain holding the account's keys
+/// could not be opened at startup.
+pub const KEYCHAIN_UNAVAILABLE_MESSAGE: &str = "OpenAlgo cannot open your system keychain, \
+where the keys for your account are kept. Unlock the keychain or allow OpenAlgo to use it, \
+then restart OpenAlgo and sign in. Your account and saved settings are unchanged.";
 
 /// Trader-facing name of an optional broker capability.
 fn unsupported_label(what: &str) -> String {

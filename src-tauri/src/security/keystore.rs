@@ -138,6 +138,65 @@ impl KeyStore for UnavailableKeyStore {
     }
 }
 
+/// A keychain whose faults a test switches on, over an in-memory store:
+/// locked or access denied (every call answers `Unavailable`, as
+/// `classify` maps those platform errors), and writes that start failing
+/// after a number of successful ones (a keychain refusing a write midway).
+#[cfg(test)]
+#[derive(Default)]
+pub struct FaultyKeyStore {
+    pub inner: MemoryKeyStore,
+    pub unavailable: std::sync::atomic::AtomicBool,
+    /// Writes still allowed before every further write fails; `None`
+    /// allows all.
+    pub writes_left: Mutex<Option<usize>>,
+}
+
+#[cfg(test)]
+impl FaultyKeyStore {
+    pub fn set_unavailable(&self, on: bool) {
+        self.unavailable
+            .store(on, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    fn check(&self) -> Result<(), KeyStoreError> {
+        if self.unavailable.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(KeyStoreError::Unavailable(
+                "the keychain is locked".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+impl KeyStore for FaultyKeyStore {
+    fn get(&self, name: &str) -> Result<Option<String>, KeyStoreError> {
+        self.check()?;
+        self.inner.get(name)
+    }
+
+    fn set(&self, name: &str, value: &str) -> Result<(), KeyStoreError> {
+        self.check()?;
+        let mut left = self.writes_left.lock();
+        match left.as_mut() {
+            Some(0) => return Err(KeyStoreError::Failure("write refused".into())),
+            Some(n) => *n -= 1,
+            None => {}
+        }
+        self.inner.set(name, value)
+    }
+
+    fn delete(&self, name: &str) -> Result<(), KeyStoreError> {
+        self.check()?;
+        self.inner.delete(name)
+    }
+
+    fn kind(&self) -> &'static str {
+        "test keychain"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

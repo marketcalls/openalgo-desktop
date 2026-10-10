@@ -18,6 +18,11 @@
 //!   either, because the TOTP secret is itself encrypted with the data key;
 //!   in this mode only "reset account" recovers a forgotten password. The UI
 //!   reads `key_mode` from `/auth/session-status` and says so.
+//! * **A keychain that cannot be opened at startup** (locked, access denied)
+//!   also starts in password mode, with no vault and no keys. Only account
+//!   setup creates keys: a sign-in there is told to unlock the keychain and
+//!   restart (`AppError::KeychainUnavailable`), and never writes a vault
+//!   that would shadow the keys still in the keychain.
 //!
 //! # Migration from `secrets.dat`
 //!
@@ -209,17 +214,33 @@ impl SecurityManager {
         self.vault_path().exists()
     }
 
-    /// Password mode: called at setup (no vault yet) and on every sign-in.
-    /// Creates the vault when missing, otherwise opens it. Returns false when
-    /// the password does not open the vault. Keychain mode: always true.
-    pub fn unlock_with_password(&self, password: &str) -> Result<bool> {
+    /// Whether this install cannot be signed in to until its keychain is
+    /// back: password mode with neither a vault nor keys in memory. On an
+    /// install that has an account this means the keys are in a keychain
+    /// that could not be opened at startup (locked, or access denied).
+    pub fn keys_unreachable(&self) -> bool {
+        self.mode == KeyMode::Password && !self.has_vault() && !self.is_unlocked()
+    }
+
+    /// Password mode: called at setup and on every sign-in. Opens the vault
+    /// with the password; returns false when it does not open. Keychain
+    /// mode: always true.
+    ///
+    /// With no vault, keys already in memory (moved from `secrets.dat`) are
+    /// wrapped into a new one. New random keys are made only when
+    /// `allow_create` is true, which only account setup passes: a sign-in
+    /// on an install whose keys are elsewhere (a keychain that was locked or
+    /// denied at startup) must never replace them, so it gets
+    /// `AppError::KeychainUnavailable` and leaves nothing on disk.
+    pub fn unlock_with_password(&self, password: &str, allow_create: bool) -> Result<bool> {
         if self.mode == KeyMode::Keychain {
             return Ok(true);
         }
         if !self.has_vault() {
             let keys = match self.keys.read().clone() {
                 Some(k) => k,
-                None => Arc::new(Keys::random()?),
+                None if allow_create => Arc::new(Keys::random()?),
+                None => return Err(AppError::KeychainUnavailable),
             };
             self.write_vault(&keys, password)?;
             *self.keys.write() = Some(keys);
@@ -407,22 +428,39 @@ mod tests {
             Err(AppError::Locked)
         ));
         // Setup creates the vault.
-        assert!(m.unlock_with_password("First@123").unwrap());
+        assert!(m.unlock_with_password("First@123", true).unwrap());
         let (ct, n) = m.encrypt("x", &Aad::fixed("x")).unwrap();
         assert!(dir.path().join(VAULT_FILE).exists());
 
         // Next start: locked; wrong password does not open; right one does.
         let m2 = SecurityManager::open(dir.path(), store).unwrap();
         assert!(!m2.is_unlocked());
-        assert!(!m2.unlock_with_password("Wrong@123").unwrap());
-        assert!(m2.unlock_with_password("First@123").unwrap());
+        assert!(!m2.unlock_with_password("Wrong@123", false).unwrap());
+        assert!(m2.unlock_with_password("First@123", false).unwrap());
         assert_eq!(m2.decrypt(&ct, &n, &Aad::fixed("x")).unwrap().expose(), "x");
 
         // Password change re-wraps.
         m2.rewrap("Second@123").unwrap();
         let m3 = SecurityManager::open(dir.path(), Arc::new(UnavailableKeyStore)).unwrap();
-        assert!(!m3.unlock_with_password("First@123").unwrap());
-        assert!(m3.unlock_with_password("Second@123").unwrap());
+        assert!(!m3.unlock_with_password("First@123", false).unwrap());
+        assert!(m3.unlock_with_password("Second@123", false).unwrap());
+    }
+
+    /// SEC-03: only account setup makes new keys; a sign-in with neither a
+    /// vault nor keys in memory is told the keychain is unavailable.
+    #[test]
+    fn only_setup_creates_a_vault() {
+        let dir = tempfile::tempdir().unwrap();
+        let m = SecurityManager::open(dir.path(), Arc::new(UnavailableKeyStore)).unwrap();
+        assert!(m.keys_unreachable());
+        assert!(matches!(
+            m.unlock_with_password("Pw@12345", false),
+            Err(AppError::KeychainUnavailable)
+        ));
+        assert!(!dir.path().join(VAULT_FILE).exists());
+        assert!(m.unlock_with_password("Pw@12345", true).unwrap());
+        assert!(dir.path().join(VAULT_FILE).exists());
+        assert!(!m.keys_unreachable());
     }
 
     #[test]
@@ -436,11 +474,11 @@ mod tests {
             legacy::path(dir.path()).exists(),
             "kept until the vault exists"
         );
-        m.unlock_with_password("Pw@12345").unwrap();
+        m.unlock_with_password("Pw@12345", false).unwrap();
         m.finish_legacy_migration().unwrap();
         assert!(!legacy::path(dir.path()).exists());
         let m2 = SecurityManager::open(dir.path(), Arc::new(UnavailableKeyStore)).unwrap();
-        assert!(m2.unlock_with_password("Pw@12345").unwrap());
+        assert!(m2.unlock_with_password("Pw@12345", false).unwrap());
         let old = DataCipher::new(&[5u8; 32]).unwrap();
         let (ct, n) = old.encrypt(b"v", &Aad::fixed("x")).unwrap();
         assert_eq!(m2.decrypt(&ct, &n, &Aad::fixed("x")).unwrap().expose(), "v");
