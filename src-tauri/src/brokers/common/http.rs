@@ -26,22 +26,32 @@ pub const POOL_MAX_IDLE_PER_HOST: usize = 8;
 static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
 fn build() -> reqwest::Client {
-    reqwest::Client::builder()
-        .connect_timeout(CONNECT_TIMEOUT)
-        .timeout(REQUEST_TIMEOUT)
-        .read_timeout(READ_TIMEOUT)
-        .pool_idle_timeout(POOL_IDLE_TIMEOUT)
-        .pool_max_idle_per_host(POOL_MAX_IDLE_PER_HOST)
-        .tcp_keepalive(Duration::from_secs(60))
-        .user_agent(concat!("openalgo-desktop/", env!("CARGO_PKG_VERSION")))
-        .build()
-        // Only fails when the TLS backend cannot initialise; fall back to the
-        // default client (which still has the request timeout applied per
-        // call by the adapters) rather than panic.
-        .unwrap_or_else(|e| {
+    fail_closed(
+        reqwest::Client::builder()
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(REQUEST_TIMEOUT)
+            .read_timeout(READ_TIMEOUT)
+            .pool_idle_timeout(POOL_IDLE_TIMEOUT)
+            .pool_max_idle_per_host(POOL_MAX_IDLE_PER_HOST)
+            .tcp_keepalive(Duration::from_secs(60))
+            .user_agent(concat!("openalgo-desktop/", env!("CARGO_PKG_VERSION")))
+            .build(),
+    )
+}
+
+/// The configured client, or a stop at start-up (BR-04). The builder only
+/// fails when the TLS backend cannot initialise, and then a default client
+/// fails the same way; a client without these timeouts would let a broker
+/// that stops answering hold an order call indefinitely, so there is no
+/// fallback. Adapters set no timeout of their own on most calls.
+fn fail_closed<C, E: std::fmt::Display>(built: std::result::Result<C, E>) -> C {
+    match built {
+        Ok(c) => c,
+        Err(e) => {
             tracing::error!("Broker HTTP client could not be configured: {}", e);
-            reqwest::Client::new()
-        })
+            panic!("OpenAlgo could not set up its broker connections: {}", e)
+        }
+    }
 }
 
 /// The shared broker HTTP client.
@@ -94,6 +104,14 @@ pub async fn read_json<T: DeserializeOwned>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// BR-04: a client that cannot be configured stops start-up rather than
+    /// falling back to one without the timeouts.
+    #[test]
+    #[should_panic(expected = "could not set up its broker connections")]
+    fn a_client_that_cannot_be_configured_is_not_replaced() {
+        let _: reqwest::Client = fail_closed(Err::<reqwest::Client, _>("no TLS backend"));
+    }
 
     #[test]
     fn one_client_per_process() {

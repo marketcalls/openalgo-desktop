@@ -36,6 +36,15 @@ pub const BASE_BACKOFF: Duration = Duration::from_secs(1);
 pub const MAX_SLEEPS: u32 = 2;
 /// Unlisted endpoints cost one unit.
 pub const DEFAULT_WEIGHT: u32 = 1;
+/// Longest an order placement, change or cancel waits in all for the rate
+/// limit (quota waits and 429 retries together) before it is refused: a
+/// MARKET order sent a minute late is worse than one refused (12-U2).
+pub const ORDER_WAIT_CAP: Duration = Duration::from_secs(10);
+
+/// Whether a call writes orders (and so waits at most `ORDER_WAIT_CAP`).
+pub fn is_order_write(method: &str, path: &str) -> bool {
+    !method.eq_ignore_ascii_case("GET") && path.starts_with("/v2/orders")
+}
 
 /// Which allowance a call draws on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

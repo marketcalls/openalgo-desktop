@@ -92,6 +92,10 @@ fn route(method: &Method, path: &str, body: &Value) -> Response {
         ("POST", "/order/regular") => {
             if body["symbol"] == "INFY-EQ" {
                 json_resp(StatusCode::BAD_REQUEST, fixture("place_failed"))
+            } else if body["price"] == "101" {
+                ok(json!({"status": "success", "data": {"orderNo": false}}))
+            } else if body["price"] == "102" {
+                ok(json!({"status": "success", "data": {"orderNo": "  "}}))
             } else {
                 ok(fixture("place_ok"))
             }
@@ -283,6 +287,20 @@ async fn orders_carry_custom_headers_and_web_bodies() {
         .await
         .unwrap_err();
     assert_eq!(e.client_message(), "RMS: Margin Exceeds");
+
+    // 12-U1: a success without a usable order number (`false`, blanks) is
+    // not an order id.
+    for price in [101.0, 102.0] {
+        let e = b
+            .place_order(&auth, &order("SBIN", "NSE", "LIMIT", price))
+            .await
+            .unwrap_err();
+        assert!(
+            e.client_message().contains("returned no order number"),
+            "{}",
+            e.client_message()
+        );
+    }
 
     let m = ModifyOrderRequest {
         symbol: "INFY".into(),

@@ -138,8 +138,15 @@ impl DeltaBroker {
     }
 
     /// Draw `weight` units from `bucket`, waiting for the window when the
-    /// budget is spent (web `consume`). Runs before signing.
-    pub(crate) async fn consume(&self, bucket: Bucket, path: &str, method: &Method) -> Result<()> {
+    /// budget is spent (web `consume`), but never past `budget`. Runs before
+    /// signing.
+    pub(crate) async fn consume(
+        &self,
+        bucket: Bucket,
+        path: &str,
+        method: &Method,
+        budget: Duration,
+    ) -> Result<()> {
         let weight = ratelimit::endpoint_weight(path, method.as_str());
         let mut probed = false;
         let mut slept = 0;
@@ -158,7 +165,7 @@ impl DeltaBroker {
                     continue;
                 }
             }
-            if wait > ratelimit::MAX_WAIT || slept >= ratelimit::MAX_SLEEPS {
+            if wait > ratelimit::MAX_WAIT.min(budget) || slept >= ratelimit::MAX_SLEEPS {
                 tracing::warn!(
                     ?bucket,
                     "Delta Exchange quota spent; window resets in {}s",
@@ -243,10 +250,23 @@ impl DeltaBroker {
         let body_text = body.map(Value::to_string).unwrap_or_default();
         let url = format!("{}{}{}", self.base_url, path, query);
         let mut attempt = 0;
+        // An order write waits at most ORDER_WAIT_CAP in all (12-U2).
+        let cap = if ratelimit::is_order_write(method.as_str(), path) {
+            ratelimit::ORDER_WAIT_CAP
+        } else {
+            Duration::MAX
+        };
+        let started = tokio::time::Instant::now();
         loop {
             // Quota first, then sign: consume() can wait, and a signature
             // older than 5 seconds is refused ("SignatureExpired").
-            self.consume(Bucket::Private, path, &method).await?;
+            self.consume(
+                Bucket::Private,
+                path,
+                &method,
+                cap.saturating_sub(started.elapsed()),
+            )
+            .await?;
             let ts = self.now().to_string();
             let sig = auth::signature(secret, method.as_str(), &ts, path, &query, &body_text);
             let mut req = self
@@ -269,6 +289,14 @@ impl DeltaBroker {
                     return Err(rate_limited());
                 }
                 let wait = self.jittered(ratelimit::retry_delay(resp.headers(), attempt));
+                if started.elapsed().saturating_add(wait) > cap {
+                    tracing::warn!(
+                        "Delta Exchange rate-limited {}; the order is refused rather than sent {:.0}s late",
+                        path,
+                        wait.as_secs_f64()
+                    );
+                    return Err(rate_limited());
+                }
                 tracing::warn!(
                     "Delta Exchange rate-limited {} (attempt {}/{}); retrying in {:.1}s",
                     path,
@@ -304,7 +332,8 @@ impl DeltaBroker {
         let url = format!("{}{}{}", self.base_url, path, auth::query_string(params));
         let mut attempt = 0;
         loop {
-            self.consume(Bucket::Public, path, &Method::GET).await?;
+            self.consume(Bucket::Public, path, &Method::GET, Duration::MAX)
+                .await?;
             let sent = self
                 .http
                 .get(&url)

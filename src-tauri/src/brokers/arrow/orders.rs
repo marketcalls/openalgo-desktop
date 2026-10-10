@@ -5,7 +5,7 @@ use super::{arrow_error, message_of, session_expired, ArrowBroker, Category};
 use crate::brokers::common::mapping::{Exchange, PriceType, Product};
 use crate::brokers::common::master_contract::format_strike;
 use crate::brokers::types::*;
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use reqwest::{Method, StatusCode};
 use serde_json::{json, Map, Value};
 
@@ -71,11 +71,13 @@ pub fn modify_order_body(m: &ResolvedModify) -> Value {
     Value::Object(b)
 }
 
+/// The order number of an answer: a string (trimmed) or a number; `false`,
+/// an object or anything else is no order number (12-U1).
 fn order_no(data: &Value) -> String {
     match data.get("orderNo") {
-        Some(Value::String(s)) => s.clone(),
-        Some(Value::Null) | None => String::new(),
-        Some(v) => v.to_string(),
+        Some(Value::String(s)) => s.trim().to_string(),
+        Some(Value::Number(n)) => n.to_string(),
+        _ => String::new(),
     }
 }
 
@@ -94,8 +96,16 @@ pub async fn place_order(
             Category::Order,
         )
         .await?;
+    let order_id = order_no(&data);
+    if order_id.is_empty() {
+        tracing::warn!("Arrow answered an order without an order number");
+        return Err(AppError::Broker(
+            "Arrow accepted the request but returned no order number. Check the order book before retrying."
+                .into(),
+        ));
+    }
     Ok(OrderResponse {
-        order_id: order_no(&data),
+        order_id,
         message: None,
     })
 }
