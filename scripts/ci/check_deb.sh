@@ -52,8 +52,9 @@ fi
 echo "== Libraries the binary links against, and the package that provides each"
 needed=$(readelf -d "$work/$binary_path" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p')
 for lib in $needed; do
-  # Owning packages of any installed file with this exact name.
-  owners=$(dpkg -S "/${lib}" 2>/dev/null | cut -d: -f1 | tr ', ' '\n' | grep -v '^$' | sort -u || true)
+  # Owning packages of any installed file with this exact name. The pattern
+  # needs the wildcard: with a slash and none, dpkg -S takes it as a full path.
+  owners=$(dpkg -S "*/${lib}" 2>/dev/null | cut -d: -f1 | tr ', ' '\n' | grep -v '^$' | sort -u || true)
   if [ -z "$owners" ]; then
     echo "::error::${lib}: no installed package provides it on this machine, so the check cannot place it."
     fail=1
