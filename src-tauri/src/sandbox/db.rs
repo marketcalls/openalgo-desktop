@@ -199,9 +199,10 @@ impl SandboxDb {
     /// Open (creating if needed) `sandbox.db` at `path` and migrate it.
     pub fn open(path: &Path) -> rusqlite::Result<Self> {
         let conn = Connection::open(path)?;
-        conn.execute_batch(
-            "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;",
-        )?;
+        conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+        // The per-store durability policy lives with the other stores'.
+        conn.execute_batch(crate::db::sqlite::Durability::SANDBOX.pragma())?;
+        conn.execute_batch("PRAGMA foreign_keys=ON;")?;
         conn.busy_timeout(Duration::from_secs(5))?;
         let db = Self {
             conn: Mutex::new(conn),

@@ -47,13 +47,59 @@ pub use traffic_logs::{IPBan, TrafficLog, TrafficStats};
 
 pub type DbConn = PooledConnection<SqliteConnectionManager>;
 
-/// Build a pool with the pragmas every connection needs.
-pub fn open_pool(path: &Path, max_size: u32) -> Result<Pool<SqliteConnectionManager>> {
-    let manager = SqliteConnectionManager::file(path).with_init(|c| {
-        c.execute_batch(
-            "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; \
-             PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;",
-        )
+/// How far a store's commits are pushed to disk before they return
+/// (`PRAGMA synchronous`). Every SQLite store runs in WAL mode, where an app
+/// crash never loses a committed transaction at either level; the levels
+/// differ only on power loss or an operating-system crash.
+///
+/// The policy is chosen per store, explicitly (ARCH-02):
+///
+/// | Store | Level | Why |
+/// | --- | --- | --- |
+/// | `openalgo.db` ([`Durability::MAIN`]) | `FULL` | Holds the order and obligation journal: strategy runs, orders and the position book, OpenScript and scalping rows, credentials. A committed order intent or fill must survive a power cut, or recovery acts on a past that did not happen. |
+/// | `logs.db` ([`Durability::LOGS`]) | `NORMAL` | Request logs, latency and traffic samples, health history: losing the last commits before a power cut loses only diagnostics. |
+/// | `sandbox.db` ([`Durability::SANDBOX`]) | `NORMAL` | Simulated orders and funds; the sandbox engine replays its catch-up on start. |
+///
+/// `FULL` costs one log sync per commit, small at one trader's write rate;
+/// master contract replacement is one transaction, so it pays one sync. The
+/// web runs every database at `NORMAL`: `openalgo.db` at `FULL` is a
+/// deliberate deviation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Durability {
+    /// `synchronous=FULL`: the log is synced on every commit.
+    Full,
+    /// `synchronous=NORMAL`: the log is synced at checkpoints.
+    Normal,
+}
+
+impl Durability {
+    /// `openalgo.db`, the order and obligation journal.
+    pub const MAIN: Durability = Durability::Full;
+    /// `logs.db`.
+    pub const LOGS: Durability = Durability::Normal;
+    /// `sandbox.db`.
+    pub const SANDBOX: Durability = Durability::Normal;
+
+    /// The statement that applies this level to one connection.
+    pub const fn pragma(self) -> &'static str {
+        match self {
+            Durability::Full => "PRAGMA synchronous=FULL;",
+            Durability::Normal => "PRAGMA synchronous=NORMAL;",
+        }
+    }
+}
+
+/// Build a pool with the pragmas every connection needs, at the store's
+/// [`Durability`] (applied to each connection the pool opens).
+pub fn open_pool(
+    path: &Path,
+    max_size: u32,
+    durability: Durability,
+) -> Result<Pool<SqliteConnectionManager>> {
+    let manager = SqliteConnectionManager::file(path).with_init(move |c| {
+        c.execute_batch("PRAGMA journal_mode=WAL;")?;
+        c.execute_batch(durability.pragma())?;
+        c.execute_batch("PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;")
     });
     let pool = Pool::builder()
         .max_size(max_size)
@@ -74,7 +120,7 @@ impl SqliteDb {
     /// Open (creating if needed) the main database and run schema migrations.
     pub fn new(path: &Path) -> Result<Self> {
         let db = Self {
-            pool: open_pool(path, 8)?,
+            pool: open_pool(path, 8, Durability::MAIN)?,
         };
         db.run_migrations()?;
         crate::security::fsperm::restrict_db_files(path)?;
@@ -840,5 +886,41 @@ impl SqliteDb {
             |row| row.get(0),
         )?;
         Ok(exists)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `PRAGMA synchronous` as SQLite reports it: 1 is NORMAL, 2 is FULL.
+    fn synchronous(c: &rusqlite::Connection) -> rusqlite::Result<i64> {
+        c.query_row("PRAGMA synchronous", [], |r| r.get(0))
+    }
+
+    /// ARCH-02: the order and obligation journal syncs every commit; logs
+    /// and the sandbox stay at NORMAL. Read back from live connections.
+    #[test]
+    fn each_store_runs_at_its_own_durability() {
+        let dir = tempfile::tempdir().unwrap();
+        let main = SqliteDb::new(&dir.path().join("openalgo.db")).unwrap();
+        // Every pooled connection, not only the first one opened.
+        let (a, b) = (main.conn().unwrap(), main.conn().unwrap());
+        assert_eq!(synchronous(&a).unwrap(), 2, "openalgo.db runs at FULL");
+        assert_eq!(synchronous(&b).unwrap(), 2, "openalgo.db runs at FULL");
+
+        let logs = logs::LogsDb::new(&dir.path().join("logs.db")).unwrap();
+        assert_eq!(
+            synchronous(&logs.conn().unwrap()).unwrap(),
+            1,
+            "logs.db stays at NORMAL"
+        );
+
+        let sandbox = crate::sandbox::SandboxDb::open(&dir.path().join("sandbox.db")).unwrap();
+        assert_eq!(
+            sandbox.with_conn(synchronous).unwrap(),
+            1,
+            "sandbox.db stays at NORMAL"
+        );
     }
 }

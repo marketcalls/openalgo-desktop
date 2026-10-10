@@ -515,6 +515,14 @@ Every flaky test found so far was a race, not a slow machine:
   checkpoints, and opening moves an unreplayable log aside, keeps it and
   raises a health alert. Do not remove any of the three.
 - Never hold a pooled SQLite connection across an `.await` on network I/O.
+- Durability is chosen per store in `db::sqlite::Durability`:
+  `openalgo.db`, which holds the order and obligation journal, runs at
+  `synchronous=FULL`; `logs.db` and `sandbox.db` at `NORMAL`. The web runs
+  everything at `NORMAL`; the difference is deliberate (ARCH-02). A new store
+  picks its level there.
+- A fold that writes a position and its watermark (the strategy book)
+  commits both, and the buffered row it drains, in one transaction; a process
+  lock orders callers but does not survive a crash (DB-02).
 
 ### Security work
 

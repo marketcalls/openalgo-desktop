@@ -58,7 +58,7 @@ pub fn redact(mut v: Value) -> Value {
 
 impl LogsDb {
     pub fn new(path: &Path) -> Result<Self> {
-        let pool = super::open_pool(path, 4)?;
+        let pool = super::open_pool(path, 4, super::Durability::LOGS)?;
         pool.get()?.execute_batch(SCHEMA)?;
         super::monitor::migrate(&*pool.get()?)?;
         crate::mcp::store::migrate_audit(&*pool.get()?)?;
