@@ -160,6 +160,17 @@ JSON
 `actor_id` 5 is the built-in `Repository admin` role; `integration_id` 15368
 is the GitHub Actions app, the source of the `ci-ok` check run.
 
+## Install smoke
+
+`.github/workflows/install-smoke.yml` runs after every successful CI push to
+`master`: it installs the `.deb` (x64 and arm64), the AppImage and the
+Windows NSIS setup on fresh runners, starts each installed app with an empty
+home until it serves its HTTP API, checks the packaged `mcp` subcommand over
+piped stdio (also on the macOS `.dmg`), and checks the `.deb` dependency
+list. It is a separate workflow, so it is not part of `ci-ok`. Before
+tagging, open Actions > Install smoke and confirm the run for the commit
+being tagged is green (or run it by hand with that commit's CI run id).
+
 ## Checking that it holds
 
 ```bash

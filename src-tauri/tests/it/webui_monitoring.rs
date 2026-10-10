@@ -781,12 +781,7 @@ async fn health_status_is_unknown_without_a_fresh_sample() {
     assert_eq!(v["overall_status"], "unknown", "{}", v);
     assert_eq!(v["sample_age_s"], 180, "{}", v);
     // The readings are still the sample's own, for the trader to judge.
-    assert_eq!(
-        v["memory"]["rss_mb"].as_f64(),
-        taken.memory_rss_mb,
-        "{}",
-        v
-    );
+    assert_eq!(v["memory"]["rss_mb"].as_f64(), taken.memory_rss_mb, "{}", v);
 
     // Samples that cannot be read.
     h.ctx
