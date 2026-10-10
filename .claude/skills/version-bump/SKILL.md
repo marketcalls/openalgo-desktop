@@ -88,7 +88,13 @@ platform (Windows NSIS, macOS Apple Silicon and Intel `.dmg`, Linux x64 and
 arm64 AppImage and `.deb`), signs when the secrets are configured, and
 attaches the installers and `SHA256SUMS.txt` to a **draft** GitHub release
 that the maintainer reviews and publishes by hand. It does not re-run the
-tests, so a tag goes only on a master commit whose CI is green.
+tests; its first job, `verify`, refuses to build unless the tag points at a
+commit on master whose `ci-ok` check succeeded and `check_versions.py --tag`
+passes (this script, run in CI). Run that gate alone before tagging for
+real: Actions > Release > Run workflow, with the tag name. The release notes
+say per platform whether the installer was found signed; they are generated
+from a check of each installer, not from the presence of secrets. Branch and
+tag protection the maintainer should enable: `docs/release/branch-protection.md`.
 
 An agent never creates or pushes a `v*` tag, and never publishes a release,
 even when asked to "release": prepare the bump commit, run

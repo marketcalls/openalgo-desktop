@@ -10,7 +10,9 @@ name: CI
 #   secret-scan (gitleaks, full history)
 #
 #   ci-ok needs every job above and fails unless all of them succeeded.
-#   Branch protection should require only the "ci-ok" check.
+#   Branch protection should require only the "ci-ok" check
+#   (docs/release/branch-protection.md), and release.yml refuses to build a
+#   tag whose commit has no successful ci-ok.
 
 on:
   push:

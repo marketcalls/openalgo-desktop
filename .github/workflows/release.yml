@@ -2,9 +2,17 @@ name: Release
 
 # Builds OpenAlgo Desktop for every supported platform when a v* tag is pushed
 # and attaches the installers, plus a SHA256SUMS.txt covering them, to a DRAFT
-# GitHub release. A maintainer reviews the draft and publishes it by hand. Tag
-# only commits on master whose CI is green; this workflow does not re-run the
-# test suite.
+# GitHub release. A maintainer reviews the draft and publishes it by hand.
+#
+# Release gate (the `verify` job, which every other job waits for): the tag
+# must point at a commit on master, the CI workflow's `ci-ok` check must have
+# succeeded on that exact commit, and the tag must equal v<version> with the
+# same version in src-tauri/Cargo.toml, src-tauri/tauri.conf.json,
+# package.json, both lockfiles and the newest CHANGELOG.md section
+# (.claude/skills/version-bump/check_versions.py). This workflow does not
+# re-run the test suite; the gate is what ties a release to a green CI run.
+# To run the gate alone, with nothing built or published: Actions > Release >
+# Run workflow, with the tag to check.
 #
 # Installers per platform (the matrix `bundles` below):
 #   Windows x64            NSIS setup .exe (per-user install)
@@ -34,10 +42,23 @@ name: Release
 #
 # Empty secrets are never exported: Tauri treats a present-but-empty
 # APPLE_CERTIFICATE or APPLE_ID as "configured" and would fail the build.
+#
+# After each build the installer's signature is checked on the runner that
+# built it (codesign and the stapled notarization ticket on macOS,
+# Authenticode on Windows). A platform whose signing secrets are configured
+# but whose installer is not signed fails its build. The release notes then
+# state, per platform, what that check found; they never say "signed" for an
+# installer that was not.
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to check (v1.2.3). Runs only the release gate; nothing is built or published."
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -57,8 +78,74 @@ env:
   NODE_VERSION: "22"
 
 jobs:
+  verify:
+    name: verify (tag on master, ci-ok green, version)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: read
+    env:
+      # The pushed tag, or the tag named when the gate is run by hand.
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - name: The tag name is a release tag
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error title=Release gate::'${TAG}' is not a release tag (v<major>.<minor>.<patch>)."
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          # Full history, so reachability from master can be checked.
+          fetch-depth: 0
+      - name: The tag points at a commit on master
+        id: commit
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse "refs/tags/${TAG}^{commit}")
+          if [ "$(git rev-parse HEAD)" != "$sha" ]; then
+            echo "::error title=Release gate::The checked-out commit is not the one ${TAG} points at."
+            exit 1
+          fi
+          git fetch --no-tags origin +refs/heads/master:refs/remotes/origin/master
+          if ! git merge-base --is-ancestor "$sha" origin/master; then
+            echo "::error title=Release gate::${TAG} points at ${sha}, which is not on master. Tag only a commit on master whose CI is green."
+            exit 1
+          fi
+          echo "${TAG} -> ${sha} (on master)"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+      - name: ci-ok succeeded on this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: |
+          set -euo pipefail
+          # Only a check run created by GitHub Actions counts: another app
+          # could post a check that is merely named ci-ok. The newest run
+          # decides, so a failed re-run is not hidden by an older success.
+          latest=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}/check-runs?check_name=ci-ok&per_page=100" \
+            --jq '[.check_runs[] | select(.app.slug == "github-actions")] | sort_by(.started_at) | last // empty | "\(.status) \(.conclusion) \(.html_url)"')
+          if [ -z "$latest" ]; then
+            echo "::error title=Release gate::No ci-ok check has run on ${SHA}. Push the commit to master, wait for CI to finish green, then tag it."
+            exit 1
+          fi
+          read -r status conclusion url <<< "$latest"
+          echo "ci-ok on ${SHA}: ${status} ${conclusion} ${url}"
+          if [ "$status" != "completed" ] || [ "$conclusion" != "success" ]; then
+            echo "::error title=Release gate::ci-ok on ${SHA} is ${status}/${conclusion}, not completed/success: ${url}"
+            exit 1
+          fi
+      - name: The tag equals the app version everywhere
+        run: python3 .claude/skills/version-bump/check_versions.py --tag "$TAG"
+
   create-release:
     name: create draft release
+    needs: verify
+    # A hand-run gate check stops after verify.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -85,7 +172,11 @@ jobs:
             id=$(gh api -X POST "repos/${GITHUB_REPOSITORY}/releases" \
               -f tag_name="$TAG" \
               -f name="OpenAlgo Desktop ${TAG}" \
-              -f body="Installers for Windows, macOS (Apple Silicon and Intel), Linux x64 and Raspberry Pi (Linux arm64). SHA256SUMS.txt lists the checksum of every installer. The installers are not code-signed yet: see the README for how to open the app the first time." \
+              -f body="$(printf '%s\n\n%s\n%s\n%s\n' \
+                'Installers for Windows, macOS (Apple Silicon and Intel), Linux x64 and Raspberry Pi (Linux arm64). SHA256SUMS.txt lists the checksum of every installer.' \
+                '<!-- signing:start -->' \
+                'Code signing: not checked yet. This note is replaced once every installer is built and its signature checked.' \
+                '<!-- signing:end -->')" \
               -F draft=true \
               -F prerelease="$prerelease" \
               -F generate_release_notes=true \
@@ -245,6 +336,82 @@ jobs:
         if: always() && runner.os == 'macOS'
         run: rm -f "${RUNNER_TEMP}"/AuthKey_*.p8
 
+      - name: Check the installer signature
+        # What the release notes say about signing comes from this check, not
+        # from whether secrets exist. Configured signing that produced an
+        # unsigned installer fails the build.
+        env:
+          TARGET: ${{ matrix.target }}
+          NAME: ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          bundle="src-tauri/target/${TARGET}/release/bundle"
+          case "$RUNNER_OS" in
+            macOS)
+              apps=("$bundle"/macos/*.app)
+              if [ "${#apps[@]}" -ne 1 ]; then
+                echo "::error::Expected one .app in ${bundle}/macos, found ${#apps[@]}."
+                exit 1
+              fi
+              app="${apps[0]}"
+              # An ad-hoc (linker) signature also verifies, so the authority
+              # must be a Developer ID.
+              if codesign --verify --deep --strict "$app" 2>/dev/null \
+                && codesign -dvv "$app" 2>&1 | grep -q '^Authority=Developer ID Application'; then
+                if xcrun stapler validate "$app" >/dev/null 2>&1; then
+                  result="signed and notarized"
+                else
+                  result="signed, not notarized"
+                fi
+              else
+                result="not code-signed"
+              fi
+              if [ -n "${APPLE_CERTIFICATE:-}" ] && [ "$result" = "not code-signed" ]; then
+                echo "::error::macOS signing is configured but ${app} carries no Developer ID signature."
+                exit 1
+              fi
+              if { [ -n "${APPLE_ID:-}" ] || [ -n "${APPLE_API_ISSUER:-}" ]; } && [ "$result" != "signed and notarized" ]; then
+                echo "::error::Notarization is configured but ${app} has no stapled notarization ticket."
+                exit 1
+              fi
+              ;;
+            Windows)
+              exes=("$bundle"/nsis/*.exe)
+              if [ "${#exes[@]}" -ne 1 ]; then
+                echo "::error::Expected one installer in ${bundle}/nsis, found ${#exes[@]}."
+                exit 1
+              fi
+              # $env:EXE is PowerShell's, expanded by pwsh, not by bash.
+              # shellcheck disable=SC2016
+              status=$(EXE="${exes[0]}" pwsh -NoProfile -Command '(Get-AuthenticodeSignature -LiteralPath $env:EXE).Status.ToString()' | tr -d '\r')
+              echo "Authenticode status of ${exes[0]}: ${status}"
+              if [ "$status" = "Valid" ]; then
+                result="signed"
+              else
+                result="not code-signed"
+              fi
+              if [ -n "${TAURI_EXTRA_ARGS:-}" ] && [ "$result" != "signed" ]; then
+                echo "::error::Windows signing is configured but the installer's signature is ${status}."
+                exit 1
+              fi
+              ;;
+            *)
+              result="not code-signed; check the download against SHA256SUMS.txt"
+              ;;
+          esac
+          echo "${NAME}: ${result}"
+          mkdir -p signing
+          printf '%s\n' "$result" > "signing/${NAME}.txt"
+
+      - name: Upload the signature check
+        uses: actions/upload-artifact@v6
+        with:
+          name: signing-${{ matrix.name }}
+          path: signing/
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Upload bundles as workflow artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -258,7 +425,7 @@ jobs:
           retention-days: 30
 
   checksums:
-    name: checksums
+    name: checksums and signing notes
     needs: [create-release, build]
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -305,3 +472,57 @@ jobs:
           gh api -X POST "${upload_url}?name=SHA256SUMS.txt" \
             -H "Content-Type: text/plain" \
             --input "${RUNNER_TEMP}/SHA256SUMS.txt" --jq .browser_download_url
+
+      - name: Download the signature checks
+        uses: actions/download-artifact@v7
+        with:
+          pattern: signing-*
+          path: signing
+          merge-multiple: true
+
+      - name: State the code signing of each installer in the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          section="Code signing, as checked on each installer after it was built:"
+          warn=false
+          for row in \
+            "windows-x86_64|Windows x64" \
+            "macos-aarch64|macOS Apple Silicon" \
+            "macos-x86_64|macOS Intel" \
+            "linux-x86_64|Linux x64" \
+            "linux-aarch64|Raspberry Pi (Linux arm64)"; do
+            name="${row%%|*}"
+            label="${row#*|}"
+            if [ -f "signing/${name}.txt" ]; then
+              result=$(head -n1 "signing/${name}.txt")
+            else
+              result="not checked"
+            fi
+            # Gatekeeper also blocks a signed app that is not notarized.
+            case "$name:$result" in
+              "windows-x86_64:signed" | macos-*:"signed and notarized" | linux-*) ;;
+              *) warn=true ;;
+            esac
+            section="${section}"$'\n'"- ${label}: ${result}"
+          done
+          if [ "$warn" = true ]; then
+            section="${section}"$'\n\n'"An installer that is not code-signed (on macOS: not notarized) shows a warning the first time it is opened: see the README for how to open the app the first time."
+          fi
+          echo "$section"
+          body=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" --jq '.body // ""')
+          new_body=$(BODY="$body" SECTION="$section" python3 -c '
+          import os
+          body, section = os.environ["BODY"], os.environ["SECTION"]
+          start, end = "<!-- signing:start -->", "<!-- signing:end -->"
+          block = start + "\n" + section + "\n" + end
+          i, j = body.find(start), body.find(end)
+          if i != -1 and j > i:
+              body = body[:i] + block + body[j + len(end):]
+          else:
+              body = body.rstrip() + "\n\n" + block + "\n"
+          print(body)
+          ')
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" -f body="$new_body" --jq .html_url
