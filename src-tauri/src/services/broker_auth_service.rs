@@ -466,7 +466,7 @@ impl BrokerAuthService {
             feed_token: resp.feed_token.map(Secret::new),
             user_id: resp.user_id,
             user_name: resp.user_name,
-            authenticated_at: state.now(),
+            authenticated_at: state.session_now(),
         };
         Self::persist(state, &session)?;
         Self::activate(state, &session).await;
@@ -534,15 +534,12 @@ impl BrokerAuthService {
         let Some(stored) = stored else {
             return Ok(None);
         };
-        let cfg = state.server_config();
-        // A continuous (crypto) session has no daily boundary (SES-01).
+        // A continuous (crypto) session has no daily boundary (SES-01); the
+        // boundary comes from the session clock, which a clock jumping
+        // backward cannot move back. Either way the broker still checks the
+        // token below.
         if catalog::session_policy(&stored.broker_id) == catalog::SessionPolicy::DailyBoundary
-            && !crate::session::boundary::is_fresh(
-                stored.authenticated_at,
-                state.now(),
-                cfg.session_expiry_hour,
-                cfg.session_expiry_minute,
-            )
+            && stored.authenticated_at < state.session_boundary()
         {
             let conn = state.sqlite.conn()?;
             auth::revoke(&conn, &stored.broker_id)?;

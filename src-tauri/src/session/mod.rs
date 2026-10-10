@@ -18,27 +18,18 @@ use std::time::Duration;
 /// cost nothing.
 pub const EXPIRY_POLL: Duration = Duration::from_secs(30);
 
-/// One step of the expiry task: if a boundary passed after `last_check`,
-/// end what was authenticated before it: the broker session and its stored
-/// row, and the browser sessions (SES-02: a sign-in made after the
-/// boundary, before this poll or right after a wake from sleep, stays). A
-/// continuous (crypto) broker session has no daily boundary, and while it
-/// is the live session the browser sessions stay too, as on a web install
-/// with session expiry disabled (SES-01). Returns whether it fired.
+/// One step of the expiry task: if a boundary passed after `last_check`
+/// (read from the session clock, so a clock jumping backward cannot move
+/// it back), end what was authenticated before it, by the server-recorded
+/// sign-in time: the broker session and its stored row, and the app's
+/// browser sessions (SES-02: a sign-in made after the boundary, before this
+/// poll or right after a wake from sleep, stays). The app's sessions expire
+/// at the boundary for every broker; only the broker session of a
+/// continuous (crypto) broker is exempt (SES-01). Returns whether it fired.
 pub async fn expire_if_crossed(ctx: &AppState, last_check: DateTime<Utc>) -> bool {
-    let now = ctx.now();
-    let cfg = ctx.server_config();
-    let boundary = boundary::last_boundary(now, cfg.session_expiry_hour, cfg.session_expiry_minute);
+    let now = ctx.session_now();
+    let boundary = ctx.session_boundary();
     if !(last_check < boundary && now >= boundary) {
-        return false;
-    }
-    let continuous = ctx
-        .broker_session
-        .read()
-        .as_ref()
-        .is_some_and(|s| catalog::session_policy(&s.broker_id) == SessionPolicy::Continuous);
-    if continuous {
-        tracing::info!("Daily session boundary reached; the crypto session continues");
         return false;
     }
     tracing::info!("Daily session boundary reached; ending sessions from before it");
@@ -56,7 +47,7 @@ pub async fn expire_if_crossed(ctx: &AppState, last_check: DateTime<Utc>) -> boo
 /// of the session, aborted with it. Returns whether a refresh started
 /// (14-N2).
 pub fn refresh_master_if_day_turned(ctx: &AppState, last_check: DateTime<Utc>) -> bool {
-    let now = ctx.now();
+    let now = ctx.session_now();
     if last_check.date_naive() == now.date_naive() {
         return false;
     }
@@ -95,7 +86,7 @@ pub fn spawn_expiry_task(ctx: Arc<AppState>) {
     let token = ctx.shutdown.clone();
     // Weak: the context owns this task, so a strong reference would be a cycle.
     let weak = Arc::downgrade(&ctx);
-    let mut last = ctx.now();
+    let mut last = ctx.session_now();
     ctx.spawn(async move {
         loop {
             tokio::select! {
@@ -104,7 +95,7 @@ pub fn spawn_expiry_task(ctx: Arc<AppState>) {
                     let Some(c) = weak.upgrade() else { break };
                     expire_if_crossed(&c, last).await;
                     refresh_master_if_day_turned(&c, last);
-                    last = c.now();
+                    last = c.session_now();
                 }
             }
         }
@@ -151,7 +142,7 @@ mod tests {
             feed_token: None,
             user_id: "U1".into(),
             user_name: None,
-            authenticated_at: ctx.now(),
+            authenticated_at: ctx.session_now(),
         };
         BrokerAuthService::persist(ctx, &s).unwrap();
         s
@@ -174,35 +165,41 @@ mod tests {
             .map(|s| s.broker_id)
     }
 
-    /// SES-01: a Delta (crypto) session crosses 03:00 IST untouched: still
-    /// connected, its streaming, stored row and the browser sessions kept,
-    /// and after a restart it resumes; an explicit logout still ends it.
-    /// The same steps end a Zerodha session.
+    /// SES-01: a Delta (crypto) broker session crosses 03:00 IST untouched:
+    /// still connected, its streaming and stored row kept, and after a
+    /// restart it resumes once the broker accepts the key; an explicit
+    /// logout still ends it. The app's own sessions expire on schedule
+    /// all the same. The same steps end a Zerodha broker session.
     #[tokio::test]
     async fn a_crypto_session_has_no_daily_boundary() {
-        let (t, _) = harness(ist(5, 2, 0, 0));
+        let (t, delta) = harness(ist(5, 2, 0, 0));
         let ctx = &t.ctx;
         let s = sign_in(ctx, "deltaexchange");
         ctx.runtime.activate(ctx, &s).await;
         let web = browser(ctx);
-        for (last, now) in [
-            (ist(5, 2, 0, 0), ist(5, 2, 59, 0)),
-            (ist(5, 2, 59, 0), ist(5, 3, 0, 0)),
-            (ist(5, 3, 0, 0), ist(5, 3, 1, 0)),
+        for (last, now, fires) in [
+            (ist(5, 2, 0, 0), ist(5, 2, 59, 0), false),
+            (ist(5, 2, 59, 0), ist(5, 3, 0, 0), true),
+            (ist(5, 3, 0, 0), ist(5, 3, 1, 0), false),
         ] {
             t.clock.set(now);
-            assert!(!expire_if_crossed(ctx, last).await, "{}", now);
+            assert_eq!(expire_if_crossed(ctx, last).await, fires, "{}", now);
         }
         assert!(ctx.is_broker_connected());
         assert_eq!(
             ctx.runtime.active_broker().as_deref(),
             Some("deltaexchange")
         );
-        assert!(ctx.sessions.get(&web, ctx.now()).is_some());
         assert_eq!(stored(ctx).as_deref(), Some("deltaexchange"));
-        // A restart after the boundary resumes it.
+        // The app session from before the boundary expired on schedule.
+        assert!(ctx.sessions.get(&web, ctx.now()).is_none());
+        // A restart after the boundary resumes it, but only once the broker
+        // accepts the stored key.
         ctx.runtime.teardown(ctx).await;
         ctx.set_broker_session(None);
+        *delta.funds_ok.lock() = false;
+        assert!(BrokerAuthService::try_resume(ctx).await.unwrap().is_none());
+        *delta.funds_ok.lock() = true;
         let resumed = BrokerAuthService::try_resume(ctx).await.unwrap();
         assert_eq!(
             resumed.map(|s| s.broker_id).as_deref(),
@@ -278,6 +275,32 @@ mod tests {
         assert_eq!(stored(ctx).as_deref(), Some("zerodha"));
         assert!(!expire_if_crossed(ctx, ctx.now()).await);
         ctx.runtime.teardown(ctx).await;
+    }
+
+    /// A system clock that jumps backward cannot revive an expired session:
+    /// once 03:30 has been seen, setting the clock back to 02:00 keeps the
+    /// 03:00 boundary, so the session from the day before stays expired in
+    /// memory and on resume, and the poll does not fire again for it; a
+    /// sign-in made while the clock is behind is stamped with the latest
+    /// time seen and stays usable.
+    #[tokio::test]
+    async fn a_backward_clock_jump_does_not_revive_an_expired_session() {
+        let (t, _) = harness(ist(5, 10, 0, 0));
+        let ctx = &t.ctx;
+        let old = sign_in(ctx, "zerodha");
+        t.clock.set(ist(6, 3, 30, 0));
+        assert!(!ctx.is_broker_connected(), "expired after 03:00");
+        // The clock goes back to before the boundary.
+        t.clock.set(ist(6, 2, 0, 0));
+        ctx.set_broker_session(Some(old.clone()));
+        assert!(!ctx.is_broker_connected(), "revived by the clock");
+        assert!(BrokerAuthService::try_resume(ctx).await.unwrap().is_none());
+        assert_eq!(stored(ctx), None);
+        assert!(!expire_if_crossed(ctx, ist(6, 3, 30, 0)).await);
+        // A sign-in while the clock is behind.
+        let fresh = sign_in(ctx, "zerodha");
+        assert!(fresh.authenticated_at >= ist(6, 3, 30, 0));
+        assert!(ctx.is_broker_connected());
     }
 
     /// 14-N2: a continuous (crypto) session refreshes its master once when

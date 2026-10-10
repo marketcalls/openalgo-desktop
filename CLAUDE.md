@@ -256,10 +256,12 @@ anything that is not the signed-in user.
   `Debug` is redacted. Release log level is `info`.
 - Broker tokens expire around 03:00 IST. The stored session resumes after
   password login until that boundary, then is revoked; the boundary ends
-  only what was authenticated before it. Logout revokes it. A crypto
-  broker (`catalog::session_policy`, Delta Exchange) has no daily
-  boundary, as on a web install with session expiry disabled; its master
-  refreshes when the UTC day turns.
+  only what was authenticated before it, by the server-recorded sign-in
+  time on the session clock (`AppState::session_now`, which never runs
+  backward). Logout revokes it. The broker session of a crypto broker
+  (`catalog::session_policy`, Delta Exchange) has no daily boundary and
+  its master refreshes when the UTC day turns; the app's own sessions
+  expire at the boundary for every broker.
 
 ## Resource hygiene (no leaks)
 

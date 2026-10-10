@@ -73,6 +73,8 @@ pub struct AppState {
     pub limiter: RateLimiter,
     pub api_keys: ApiKeyCache,
     pub broker_session: RwLock<Option<BrokerSession>>,
+    /// The latest time the session clock has returned (`session_now`).
+    session_mark: Mutex<Option<DateTime<Utc>>>,
     pub server_status: RwLock<ServerStatus>,
     /// State of the 8765 market data listener (written by `FeedService`),
     /// shown with the fix when its port is taken.
@@ -279,6 +281,7 @@ impl AppState {
             limiter: RateLimiter::new(),
             api_keys: ApiKeyCache::new(),
             broker_session: RwLock::new(None),
+            session_mark: Mutex::new(None),
             server_status: RwLock::new(ServerStatus::Starting),
             feed_status: RwLock::new(ServerStatus::Starting),
             http,
@@ -356,6 +359,28 @@ impl AppState {
         self.clock.now()
     }
 
+    /// The session clock: the wall clock, but never earlier than a time it
+    /// has already returned. Session sign-in times and the daily boundary
+    /// are read from it, so a system clock that jumps backward (or is set
+    /// wrong for a while) cannot move the boundary back and make an expired
+    /// session fresh again; a sign-in during such a jump is stamped with
+    /// the latest time seen.
+    pub fn session_now(&self) -> DateTime<Utc> {
+        let wall = self.clock.now();
+        let mut mark = self.session_mark.lock();
+        let now = mark.map_or(wall, |m| m.max(wall));
+        *mark = Some(now);
+        now
+    }
+
+    /// The most recent daily boundary on the session clock.
+    pub fn session_boundary(&self) -> DateTime<Utc> {
+        let cfg = self.config.read();
+        let (hour, minute) = (cfg.session_expiry_hour, cfg.session_expiry_minute);
+        drop(cfg);
+        crate::session::boundary::last_boundary(self.session_now(), hour, minute)
+    }
+
     pub fn server_config(&self) -> ServerConfig {
         self.config.read().clone()
     }
@@ -418,20 +443,19 @@ impl AppState {
     /// (SES-01).
     pub fn get_broker_session(&self) -> Option<BrokerSession> {
         let s = self.broker_session.read().clone()?;
-        let cfg = self.config.read();
         if crate::brokers::catalog::session_policy(&s.broker_id)
             == crate::brokers::catalog::SessionPolicy::Continuous
-            || crate::session::boundary::is_fresh(
-                s.authenticated_at,
-                self.clock.now(),
-                cfg.session_expiry_hour,
-                cfg.session_expiry_minute,
-            )
+            || s.authenticated_at >= self.session_boundary()
         {
             Some(s)
         } else {
-            drop(cfg);
-            *self.broker_session.write() = None;
+            // Only this expired session; a newer one set meanwhile stays.
+            let mut live = self.broker_session.write();
+            if live.as_ref().is_some_and(|l| {
+                l.broker_id == s.broker_id && l.authenticated_at == s.authenticated_at
+            }) {
+                *live = None;
+            }
             None
         }
     }
