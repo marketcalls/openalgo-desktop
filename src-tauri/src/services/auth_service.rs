@@ -11,17 +11,31 @@ use crate::state::AppState;
 pub const WRONG_CURRENT_PASSWORD: &str = "Current password is incorrect";
 
 /// Pepper of the stand-in hash checked for a name that is not the
-/// account's (see [`AuthService::verify_credentials`]). Not a secret.
-const STAND_IN_PEPPER: [u8; 32] = [0x5a; 32];
+/// account's (see [`AuthService::verify_credentials`]): random per process,
+/// so no fixed value exists anywhere. It guards nothing; it only makes the
+/// stand-in check cost the same as a real one.
+fn stand_in_pepper() -> &'static [u8; 32] {
+    static PEPPER: std::sync::OnceLock<[u8; 32]> = std::sync::OnceLock::new();
+    PEPPER.get_or_init(|| {
+        use rand::RngCore;
+        let mut p = [0u8; 32];
+        rand::rngs::OsRng.fill_bytes(&mut p);
+        p
+    })
+}
 
-/// A fixed Argon2id hash with the same parameters as the account's, made
-/// once per process, that every password for a name that is not the
-/// account's is checked against: the same work as a wrong password.
+/// An Argon2id hash with the same parameters as the account's, of a random
+/// password nobody knows, made once per process, that every password for a
+/// name that is not the account's is checked against: the same work as a
+/// wrong password.
 fn stand_in_hash() -> &'static str {
     static HASH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     HASH.get_or_init(|| {
-        crate::security::hashing::hash_password(&STAND_IN_PEPPER, "openalgo-no-such-user")
-            .unwrap_or_default()
+        use rand::RngCore;
+        let mut secret = [0u8; 32];
+        rand::rngs::OsRng.fill_bytes(&mut secret);
+        let password: String = secret.iter().map(|b| format!("{:02x}", b)).collect();
+        crate::security::hashing::hash_password(stand_in_pepper(), &password).unwrap_or_default()
     })
 }
 
@@ -135,7 +149,7 @@ impl AuthService {
             // a wrong password, so nothing tells which names exist.
             STAND_IN_CHECKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let _ = crate::security::hashing::verify_password(
-                &STAND_IN_PEPPER,
+                stand_in_pepper(),
                 password,
                 stand_in_hash(),
             );

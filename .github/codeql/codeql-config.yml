@@ -3,13 +3,18 @@
 # Test code is excluded: integration tests, frontend unit tests and the
 # Playwright suite use fixed keys, passwords and payloads on purpose, so the
 # "hard-coded cryptographic value" and similar queries only produce noise
-# there. Unit tests inside #[cfg(test)] modules in src-tauri/src cannot be
-# excluded by path; alerts on those are dismissed as "used in tests" after a
-# check that they really sit in a test module.
+# there. Unit tests that live in their own files inside src-tauri/src
+# (src-tauri/src/server/tests/ and every tests.rs) are excluded too: each is
+# declared `#[cfg(test)] mod tests;` and never compiled into the app. Check
+# that declaration before adding a path here. Inline #[cfg(test)] modules in
+# other files cannot be excluded by path; alerts on those are dismissed as
+# "used in tests" after a check that they really sit in a test module.
 name: openalgo-desktop CodeQL config
 
 paths-ignore:
   - src-tauri/tests/**
+  - src-tauri/src/server/tests/**
+  - "src-tauri/src/**/tests.rs"
   - "**/*.test.ts"
   - "**/*.test.tsx"
   - e2e/**
