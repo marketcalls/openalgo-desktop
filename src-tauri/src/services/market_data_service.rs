@@ -450,18 +450,23 @@ pub async fn margin(ctx: &AppState, positions: &[Value]) -> Reply {
         Ok(h) => h,
         Err(r) => return r,
     };
-    let legs: Vec<MarginLeg> = legs
-        .into_iter()
-        .filter(|l| {
-            ctx.symbols
-                .by_symbol(&l.key.exchange, &l.key.symbol)
-                .is_some()
-        })
-        .collect();
-    if legs.is_empty() {
+    // BR-01: a leg missing from the master refuses the basket by name
+    // instead of being dropped, so a "success" always covers every leg (a
+    // deliberate difference from the web, whose adapters skip such legs and
+    // total the rest).
+    if let Some((i, l)) = legs.iter().enumerate().find(|(_, l)| {
+        ctx.symbols
+            .by_symbol(&l.key.exchange, &l.key.symbol)
+            .is_none()
+    }) {
         return Reply::error(
             400,
-            "No valid positions to calculate margin. Check if symbols are valid.",
+            format!(
+                "Position {}: Symbol {} not found on {}. Check the symbol and exchange, or download the master contract again.",
+                i + 1,
+                l.key.symbol,
+                l.key.exchange
+            ),
         );
     }
     match h.broker.calculate_margin(&h.auth, &legs).await {
@@ -556,5 +561,52 @@ mod tests {
             validate_margin(p("0").as_array().unwrap()).unwrap_err(),
             "Position 1: Quantity must be a positive number"
         );
+    }
+
+    /// BR-01: a basket with a leg missing from the master is refused by
+    /// name before any broker call, never totalled without it; a basket of
+    /// known legs reaches the broker whole.
+    #[tokio::test]
+    async fn margin_refuses_an_unknown_leg_by_name() {
+        use crate::brokers::common::symbols::tests::row;
+        use crate::brokers::mock::{MockBroker, MockCall};
+        use crate::brokers::{Broker, BrokerRegistry};
+        use std::sync::Arc;
+        let mock = Arc::new(MockBroker::new("zerodha"));
+        let t = crate::state::testing::build(
+            BrokerRegistry::with(vec![mock.clone() as Arc<dyn Broker>]),
+            chrono::Utc::now(),
+        );
+        let ctx = &t.ctx;
+        ctx.load_symbol_cache(vec![
+            row("SBIN", "SBIN", "NSE", "779521"),
+            row("INFY", "INFY", "NSE", "408065"),
+        ]);
+        ctx.set_broker_session(Some(crate::state::BrokerSession {
+            broker_id: "zerodha".into(),
+            auth_token: crate::security::Secret::new("t"),
+            feed_token: None,
+            user_id: "AB1".into(),
+            user_name: None,
+            authenticated_at: ctx.now(),
+        }));
+        let leg = |s: &str| {
+            json!({"symbol": s, "exchange": "NSE", "action": "BUY", "quantity": "1",
+                "product": "MIS", "pricetype": "MARKET", "price": "0"})
+        };
+        let r = margin(ctx, &[leg("SBIN"), leg("NOSUCH")]).await;
+        assert_eq!(r.status, 400);
+        assert_eq!(
+            r.message(),
+            "Position 2: Symbol NOSUCH not found on NSE. Check the symbol and exchange, or download the master contract again."
+        );
+        assert!(!mock
+            .calls
+            .lock()
+            .iter()
+            .any(|c| matches!(c, MockCall::Margin(_))));
+        let r = margin(ctx, &[leg("SBIN"), leg("INFY")]).await;
+        assert_eq!(r.status, 200, "{}", r.body);
+        assert!(mock.calls.lock().contains(&MockCall::Margin(2)));
     }
 }
