@@ -1,12 +1,18 @@
 //! Runtime configuration. Every setting lives in the `settings` row of the
 //! main database and is edited in the app; there is no `.env`.
 //!
-//! The one environment variable read anywhere in the app is the development
-//! override `OPENALGO_DESKTOP_DEV_PORTS=1`, which forces the HTTP listener to
-//! 5500 and the WebSocket listener to 8766 without touching the stored
-//! settings. It exists so development on a machine that also runs OpenAlgo
-//! web (5000/8765) never binds those ports. Debug builds use the development
-//! ports unconditionally.
+//! The only setting read from the environment is the development override
+//! `OPENALGO_DESKTOP_DEV_PORTS=1`, which forces the HTTP listener to 5500 and
+//! the WebSocket listener to 8766 without touching the stored settings. It
+//! exists so development on a machine that also runs OpenAlgo web
+//! (5000/8765) never binds those ports. Debug builds use the development
+//! ports unconditionally. The app and the `mcp` subcommand read it through
+//! the one parser here (`dev_ports_from`).
+//!
+//! Two other variables are read, neither a setting: `OPENALGO_MCP_TOKEN`,
+//! by the `mcp` subcommand alone (the AI client sets it; see
+//! `mcp::stdio`), and `APPIMAGE` on Linux, set by the AppImage runtime to
+//! the file being run, so the MCP client configuration names that file.
 
 use crate::error::{AppError, Result};
 use rusqlite::{params, Connection};
@@ -59,11 +65,17 @@ impl Default for ServerConfig {
 /// Development builds always use the development ports; release builds only
 /// when `OPENALGO_DESKTOP_DEV_PORTS=1` is set.
 pub fn dev_ports_enabled() -> bool {
-    cfg!(debug_assertions)
-        || matches!(
-            std::env::var(DEV_PORTS_ENV).as_deref(),
-            Ok("1") | Ok("true") | Ok("TRUE")
-        )
+    dev_ports_from(
+        std::env::var(DEV_PORTS_ENV).ok().as_deref(),
+        cfg!(debug_assertions),
+    )
+}
+
+/// Whether the development ports apply, from the override's value and
+/// whether this is a debug build. The one parser of the override: the app
+/// and the `mcp` subcommand must agree on the port.
+pub fn dev_ports_from(value: Option<&str>, debug_build: bool) -> bool {
+    debug_build || matches!(value, Some("1") | Some("true") | Some("TRUE"))
 }
 
 impl ServerConfig {

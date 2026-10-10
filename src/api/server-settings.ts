@@ -27,6 +27,11 @@ export interface ServerSettingsResponse {
   status: 'success' | 'error'
   message?: string
   data?: ServerSettings
+  /** Settings in use now (the market data feed moves within seconds). */
+  applied?: string[]
+  /** Settings that take effect after OpenAlgo restarts (the app address). */
+  pending?: string[]
+  restart_required?: boolean
 }
 
 export const serverSettingsApi = {

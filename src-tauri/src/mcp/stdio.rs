@@ -236,12 +236,21 @@ pub struct Options {
 
 /// The app's default address (development port in debug builds).
 pub fn default_url() -> String {
-    let dev = cfg!(debug_assertions)
-        || matches!(
-            std::env::var("OPENALGO_DESKTOP_DEV_PORTS").as_deref(),
-            Ok("1")
-        );
-    format!("http://127.0.0.1:{}", if dev { 5500 } else { 5000 })
+    default_url_for(
+        std::env::var(crate::config::DEV_PORTS_ENV).ok().as_deref(),
+        cfg!(debug_assertions),
+    )
+}
+
+/// The default address for a value of the development override, read
+/// with the app's own parser so the bridge and the app pick the same port.
+pub fn default_url_for(dev_override: Option<&str>, debug_build: bool) -> String {
+    let port = if crate::config::dev_ports_from(dev_override, debug_build) {
+        crate::config::DEV_HTTP_PORT
+    } else {
+        crate::config::DEFAULT_HTTP_PORT
+    };
+    format!("http://127.0.0.1:{}", port)
 }
 
 /// Parse `--url`. Anything else is refused without echoing its value.
@@ -348,6 +357,33 @@ mod tests {
         ] {
             let e = parse_args(&s(bad)).unwrap_err();
             assert!(!e.contains("oamcp_secret"), "{}", e);
+        }
+    }
+
+    /// CFG-04: the bridge reads the development override exactly as the app
+    /// does, for every value and build.
+    #[test]
+    fn the_bridge_and_the_app_pick_the_same_port() {
+        for debug in [false, true] {
+            for (value, dev_in_release) in [
+                (None, false),
+                (Some("1"), true),
+                (Some("true"), true),
+                (Some("TRUE"), true),
+                (Some("false"), false),
+                (Some("0"), false),
+            ] {
+                let app_dev = crate::config::dev_ports_from(value, debug);
+                assert_eq!(app_dev, debug || dev_in_release, "{:?} debug={}", value, debug);
+                let port = if app_dev { 5500 } else { 5000 };
+                assert_eq!(
+                    default_url_for(value, debug),
+                    format!("http://127.0.0.1:{}", port),
+                    "{:?} debug={}",
+                    value,
+                    debug
+                );
+            }
         }
     }
 

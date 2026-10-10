@@ -120,8 +120,72 @@ fn parse_port(body: &JsonBody, k: &str, label: &str) -> Result<u16, Response> {
     }
 }
 
+/// What a saved change does and when (security review CFG-03). The market
+/// data feed follows the saved address within seconds (its watcher rebinds
+/// it, closing every streaming connection); the app's own listener moves
+/// only when OpenAlgo restarts.
+#[derive(Debug, PartialEq)]
+pub struct SaveEffect {
+    /// Changes in use within seconds.
+    pub applied: Vec<&'static str>,
+    /// Changes that wait for a restart.
+    pub pending: Vec<&'static str>,
+    pub message: String,
+}
+
+/// The effect of going from `before` to `after` (both as in use, with the
+/// development override applied) while the app listens on `listening`.
+pub fn save_effect(
+    before: &crate::config::ServerConfig,
+    after: &crate::config::ServerConfig,
+    listening: (&str, u16),
+) -> SaveEffect {
+    let feed = |c: &crate::config::ServerConfig| {
+        let host = if c.is_loopback() {
+            "127.0.0.1".to_string()
+        } else {
+            c.bind_host.clone()
+        };
+        (host, c.ws_port)
+    };
+    let (was, now) = (feed(before), feed(after));
+    let mut applied = Vec::new();
+    if was.1 != now.1 {
+        applied.push("ws_port");
+    }
+    if was.0 != now.0 {
+        applied.push("ws_host");
+    }
+    let mut pending = Vec::new();
+    if after.http_port != listening.1 {
+        pending.push("http_port");
+    }
+    if after.bind_host != listening.0 {
+        pending.push("http_host");
+    }
+    let mut message = String::from("Saved.");
+    if !applied.is_empty() {
+        message.push_str(&format!(
+            " Live market data moves to {}:{} within a few seconds: trading platforms and SDK scripts that stream from OpenAlgo are disconnected and must reconnect to the new address.",
+            now.0, now.1
+        ));
+    }
+    if !pending.is_empty() {
+        message.push_str(&format!(
+            " The app address changes to {}:{} when you restart OpenAlgo.",
+            after.bind_host, after.http_port
+        ));
+    }
+    SaveEffect {
+        applied,
+        pending,
+        message,
+    }
+}
+
 /// POST /settings/api/server (json: http_host, http_port, ws_host, ws_port,
-/// lan_enabled). Saved now, used after the app restarts its listeners.
+/// lan_enabled). The market data feed moves at once; the app's listener
+/// after a restart. The answer lists which is which (`applied`, `pending`).
 pub async fn save_server(State(ctx): Ctx, body: JsonBody) -> Response {
     let cfg = ctx.server_config();
     let http_port = match parse_port(&body, "http_port", "an app port") {
@@ -189,11 +253,23 @@ pub async fn save_server(State(ctx): Ctx, body: JsonBody) -> Response {
     match res {
         Ok(()) => {
             let _ = ctx.reload_config();
-            tracing::info!("Server settings saved");
+            let after = ctx.server_config();
+            let listening = match &*ctx.server_status.read() {
+                crate::state::ServerStatus::Running { host, port } => (host.clone(), *port),
+                _ => (cfg.bind_host.clone(), cfg.http_port),
+            };
+            let effect = save_effect(&cfg, &after, (&listening.0, listening.1));
+            tracing::info!(
+                "Server settings saved (in use now: {:?}; after a restart: {:?})",
+                effect.applied,
+                effect.pending
+            );
             ok(json!({
                 "status": "success",
-                "message": "Saved. OpenAlgo will use the new addresses after it restarts.",
-                "restart_required": true,
+                "message": effect.message,
+                "applied": effect.applied,
+                "pending": effect.pending,
+                "restart_required": !effect.pending.is_empty(),
                 "data": server_data(&ctx),
             }))
         }
@@ -209,6 +285,45 @@ pub async fn save_server(State(ctx): Ctx, body: JsonBody) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn cfg(host: &str, http: u16, ws: u16) -> crate::config::ServerConfig {
+        crate::config::ServerConfig {
+            bind_host: host.into(),
+            http_port: http,
+            ws_port: ws,
+            ..Default::default()
+        }
+    }
+
+    /// CFG-03: the answer says what moves now (the feed) and what waits for
+    /// a restart (the app's listener).
+    #[test]
+    fn the_answer_separates_what_applies_now_from_after_a_restart() {
+        let before = cfg("127.0.0.1", 5000, 8765);
+        let listening = ("127.0.0.1", 5000);
+
+        let e = save_effect(&before, &cfg("127.0.0.1", 5000, 8770), listening);
+        assert_eq!((e.applied, e.pending), (vec!["ws_port"], vec![]));
+        assert!(e.message.contains("moves to 127.0.0.1:8770 within a few seconds"));
+        assert!(!e.message.contains("restart"));
+
+        let e = save_effect(&before, &cfg("127.0.0.1", 5100, 8765), listening);
+        assert_eq!((e.applied, e.pending), (vec![], vec!["http_port"]));
+        assert!(e.message.contains("changes to 127.0.0.1:5100 when you restart"));
+
+        let e = save_effect(&before, &cfg("0.0.0.0", 5000, 8765), listening);
+        assert_eq!((e.applied, e.pending), (vec!["ws_host"], vec!["http_host"]));
+
+        let e = save_effect(&before, &before, listening);
+        assert_eq!(
+            e,
+            SaveEffect {
+                applied: vec![],
+                pending: vec![],
+                message: "Saved.".into()
+            }
+        );
+    }
 
     #[test]
     fn a_held_port_is_reported_and_an_own_port_is_not() {

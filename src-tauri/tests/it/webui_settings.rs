@@ -118,7 +118,14 @@ async fn server_settings_read_save_and_refuse() {
         .await;
     assert_eq!(s, StatusCode::OK, "{}", v);
     assert_eq!(v["status"], "success");
-    assert_eq!(v["restart_required"], true);
+    // CFG-03: the answer lists what is in use now and what waits for a
+    // restart, and asks for a restart only for the latter. (This build keeps
+    // its development ports, so the saved ports change neither.)
+    assert!(v["applied"].is_array() && v["pending"].is_array(), "{}", v);
+    assert_eq!(
+        v["restart_required"],
+        !v["pending"].as_array().unwrap().is_empty()
+    );
     let stored: (i64, i64) = h
         .ctx
         .sqlite
@@ -196,6 +203,15 @@ async fn lan_toggle_binds_all_interfaces() {
     assert_eq!(s, StatusCode::OK, "{}", v);
     assert_eq!(v["data"]["lan_enabled"], true);
     assert_eq!(v["data"]["http_host"], "0.0.0.0");
+    // CFG-03: the feed opens to the network within seconds; the app's own
+    // listener after a restart. The answer says so instead of "after it
+    // restarts" for both.
+    assert_eq!(v["applied"], json!(["ws_host"]), "{}", v);
+    assert_eq!(v["pending"], json!(["http_host"]), "{}", v);
+    assert_eq!(v["restart_required"], true);
+    let msg = v["message"].as_str().unwrap();
+    assert!(msg.contains("Live market data moves to 0.0.0.0"), "{}", msg);
+    assert!(msg.contains("when you restart OpenAlgo"), "{}", msg);
 }
 
 #[tokio::test]
