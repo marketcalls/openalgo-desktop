@@ -124,6 +124,20 @@ impl FakeGateway {
             broker_order_id: None,
             response: json!({"status": "error", "message": message}),
             error: Some(message.into()),
+            ..Default::default()
+        });
+    }
+
+    /// The next placement reaches the broker but no definite answer comes
+    /// back (LOG-08): neither accepted nor refused.
+    pub fn uncertain_next(&self, tag: Option<&str>) {
+        self.script.lock().push_back(DispatchResult {
+            ok: false,
+            broker_order_id: None,
+            response: json!({"status": "error", "message": "no answer"}),
+            error: Some("The broker did not confirm whether this order was placed.".into()),
+            uncertain: true,
+            client_tag: tag.map(str::to_string),
         });
     }
 
@@ -152,7 +166,7 @@ impl OrderGateway for FakeGateway {
             ok: true,
             broker_order_id: Some(format!("SB-{}", n)),
             response: json!({"status": "success", "orderid": format!("SB-{}", n)}),
-            error: None,
+            ..Default::default()
         }
     }
 

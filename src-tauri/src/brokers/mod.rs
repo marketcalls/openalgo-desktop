@@ -248,16 +248,22 @@ pub trait Broker: Send + Sync {
                 disclosed_quantity: None,
                 amo: false,
             };
-            let outcome = match ResolvedOrder::resolve(&req, &symbols) {
-                Ok(order) => self.place_order(auth, &order).await,
+            let placed = match ResolvedOrder::resolve(&req, &symbols) {
+                Ok(order) => common::outcome::placing(self.place_order(auth, &order)).await,
                 Err(e) => Err(e),
             };
-            match outcome {
-                Ok(r) if !r.order_id.is_empty() => result.placed.push(r.order_id),
-                Ok(_) => result.failed.push(format!("{}: order was refused", label)),
-                Err(e) => result
-                    .failed
-                    .push(format!("{}: {}", label, e.client_message())),
+            // An exit with no definite answer is reported with the advice to
+            // check the order book, never as refused (LOG-08).
+            match common::outcome::classify(&placed) {
+                common::outcome::PlaceOutcome::Accepted { order_id } => {
+                    result.placed.push(order_id)
+                }
+                common::outcome::PlaceOutcome::Uncertain { reason, .. } => {
+                    result.failed.push(format!("{}: {}", label, reason))
+                }
+                common::outcome::PlaceOutcome::Refused { reason } => {
+                    result.failed.push(format!("{}: {}", label, reason))
+                }
             }
         }
         Ok(result)
@@ -289,6 +295,22 @@ pub trait Broker: Send + Sync {
     async fn get_order_book(&self, auth: &AuthToken) -> Result<Vec<Order>>;
     async fn get_trade_book(&self, auth: &AuthToken) -> Result<Vec<Trade>>;
     async fn get_positions(&self, auth: &AuthToken) -> Result<Vec<Position>>;
+
+    /// The order book with the client tag each order was sent with, for
+    /// adapters that tag their orders and read the tag back; `None` tags
+    /// elsewhere. The order reconciler reads this once per pass to find an
+    /// order whose placement had no definite answer (LOG-08).
+    async fn get_order_book_tagged(&self, auth: &AuthToken) -> Result<Vec<TaggedOrder>> {
+        Ok(self
+            .get_order_book(auth)
+            .await?
+            .into_iter()
+            .map(|order| TaggedOrder {
+                order,
+                client_tag: None,
+            })
+            .collect())
+    }
 
     /// The order book with exact sizes (crypto). Default: the whole-unit
     /// book. Only venues whose `broker_type` is `crypto` are asked.

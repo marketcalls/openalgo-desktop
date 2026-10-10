@@ -183,10 +183,13 @@ pub async fn place_order(
                     })
                 }
                 None => {
+                    // Not proof of absence: the book can lag the order. The
+                    // outcome is unknown and the reconciler keeps looking
+                    // for this tag (LOG-08).
                     tracing::error!("Angel One order with tag {} is unconfirmed", ordertag);
-                    Err(AppError::Broker(
-                        "Angel One did not confirm this order and it was not found in the order book. Check the order book before placing it again."
-                            .into(),
+                    Err(AppError::uncertain(
+                        "Angel One did not confirm this order and it was not found in the order book yet. It may have been placed: check the order book before placing it again.",
+                        Some(ordertag),
                     ))
                 }
             }
@@ -353,6 +356,20 @@ pub async fn get_order_book(b: &AngelBroker, auth: &AuthToken) -> Result<Vec<Ord
         raw_orders(b, auth).await?,
         b.resolver(),
     ))
+}
+
+/// The order book with each row's `ordertag` (the reconciler's lookup).
+pub async fn get_order_book_tagged(b: &AngelBroker, auth: &AuthToken) -> Result<Vec<TaggedOrder>> {
+    let rows = raw_orders(b, auth).await?;
+    let tags: Vec<Option<String>> = rows
+        .iter()
+        .map(|r| Some(r.ordertag.trim().to_string()).filter(|t| !t.is_empty()))
+        .collect();
+    Ok(mapping::map_orders(rows, b.resolver())
+        .into_iter()
+        .zip(tags)
+        .map(|(order, client_tag)| TaggedOrder { order, client_tag })
+        .collect())
 }
 
 pub async fn get_trade_book(b: &AngelBroker, auth: &AuthToken) -> Result<Vec<Trade>> {

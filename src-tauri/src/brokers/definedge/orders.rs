@@ -33,9 +33,9 @@ async fn write(
                 status = status.as_u16(),
                 "Unreadable order response from Definedge"
             );
-            Err(AppError::Broker(
-                "Definedge did not confirm the order request. Check the order book before trying again."
-                    .into(),
+            Err(AppError::uncertain(
+                "Definedge did not confirm the order request. Check the order book before trying again.",
+                None,
             ))
         }
     }

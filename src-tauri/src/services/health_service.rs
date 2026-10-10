@@ -330,6 +330,83 @@ pub fn start(ctx: &Arc<AppState>) {
     });
 }
 
+// ------------------------------------------------------------ order facts
+
+/// Alert type and metric of a possible loss of order facts (EV-03).
+pub const ORDER_FACTS_ALERT: &str = "order_facts_gap";
+pub const ORDER_FACTS_METRIC: &str = "order_facts";
+
+/// The trader-facing alert text for a possible loss of order facts.
+pub fn order_facts_message(cause: crate::services::order_reconciler::GapCause) -> String {
+    use crate::services::order_reconciler::GapCause;
+    let why = match cause {
+        GapCause::RelayLagged => "the broker's order updates arrived faster than OpenAlgo could relay them",
+        GapCause::EventLoss => "an order update could not be delivered inside OpenAlgo",
+        GapCause::OrderFeedReconnected => "the broker's order feed reconnected",
+    };
+    format!(
+        "Some order updates may have been missed: {}. OpenAlgo is re-checking the broker's order book, and new strategy entries wait until it has; stops and exits keep running.",
+        why
+    )
+}
+
+/// Raise or resolve the order-facts alert (the reconciler's sink).
+pub fn order_facts_alert(ctx: &AppState, a: crate::services::order_reconciler::FactAlert) {
+    use crate::services::order_reconciler::FactAlert;
+    let now = ctx.now();
+    let r = ctx.logs.conn().and_then(|c| match a {
+        FactAlert::Raised(cause) => store::raise_alert(
+            &c,
+            &AlertRow {
+                alert_type: ORDER_FACTS_ALERT.into(),
+                severity: "fail".into(),
+                metric_name: ORDER_FACTS_METRIC.into(),
+                metric_value: 1.0,
+                message: order_facts_message(cause),
+                ..Default::default()
+            },
+            now,
+        ),
+        FactAlert::Resolved => store::auto_resolve(&c, ORDER_FACTS_METRIC, now).map(|_| ()),
+    });
+    if let Err(e) = r {
+        tracing::warn!("Order-facts alert not recorded: {}", e);
+    }
+}
+
+/// Order-fact health (EV-01, EV-03): the event bus's loss counters, the
+/// depth of every critical queue, and the order reconciler's open gaps.
+/// `status` is `fail` while a gap is open: management is degraded.
+pub fn order_facts_json(ctx: &AppState) -> Value {
+    use std::sync::atomic::Ordering::Relaxed;
+    let b = ctx.bus.stats();
+    let mut v = ctx.reconciler.health();
+    v["bus"] = json!({
+        "published": b.published.load(Relaxed),
+        "dropped": b.dropped.load(Relaxed),
+        "critical_dropped": b.critical_dropped.load(Relaxed),
+        "closed_sends": b.closed_sends.load(Relaxed),
+        "panics": b.panics.load(Relaxed),
+        "critical_panics": b.critical_panics.load(Relaxed),
+        "stale_dropped": b.stale_dropped.load(Relaxed),
+        "relay_lagged": b.relay_lagged.load(Relaxed),
+    });
+    v["critical_queues"] = Value::Array(
+        ctx.bus
+            .queue_depths()
+            .into_iter()
+            .filter(|q| q.lane == crate::events::Lane::Critical)
+            .map(|q| json!({"name": q.name, "depth": q.depth, "capacity": q.capacity}))
+            .collect(),
+    );
+    v
+}
+
+/// Whether order management is degraded right now (a gap is open).
+pub fn order_facts_failing(ctx: &AppState) -> bool {
+    !ctx.reconciler.open_gaps().is_empty()
+}
+
 // ------------------------------------------------------------ read models
 
 /// IST ISO-8601 timestamp (web `convert_to_ist(...).isoformat()`).

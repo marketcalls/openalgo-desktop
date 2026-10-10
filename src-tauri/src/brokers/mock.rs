@@ -27,6 +27,60 @@ fn out<T: Clone>(slot: &Mutex<Option<Scripted<T>>>, default: impl FnOnce() -> T)
     }
 }
 
+/// A placement that reaches the broker and then loses its answer (LOG-08).
+/// The broker keeps the order: it is added to the mock's order book with
+/// this status and fill, then the HTTP exchange really fails after sending.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AfterSend {
+    /// The connection drops after the request was sent.
+    Dropped,
+    /// No answer within the request timeout.
+    TimedOut,
+}
+
+/// A real transport error that happens after the request was sent: a local
+/// server reads the whole request, then drops the connection or stays
+/// silent past a short timeout.
+pub async fn after_send_error(kind: AfterSend) -> AppError {
+    use tokio::io::AsyncReadExt;
+    let listener = match tokio::net::TcpListener::bind("127.0.0.1:0").await {
+        Ok(l) => l,
+        Err(e) => return AppError::Io(e),
+    };
+    let addr = match listener.local_addr() {
+        Ok(a) => a,
+        Err(e) => return AppError::Io(e),
+    };
+    let server = tokio::spawn(async move {
+        if let Ok((mut s, _)) = listener.accept().await {
+            let mut buf = vec![0u8; 8192];
+            let _ = s.read(&mut buf).await;
+            if kind == AfterSend::TimedOut {
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            }
+            drop(s);
+        }
+    });
+    let client = match reqwest::Client::builder()
+        .no_proxy()
+        .timeout(std::time::Duration::from_millis(300))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => return e.into(),
+    };
+    let r = client
+        .post(format!("http://{}/orders", addr))
+        .body("order")
+        .send()
+        .await;
+    server.abort();
+    match r {
+        Err(e) => e.into(),
+        Ok(_) => AppError::Internal("the after-send fault answered".into()),
+    }
+}
+
 /// Every call the mock received, in order.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MockCall {
@@ -65,6 +119,14 @@ pub struct MockBroker {
     pub calls: Mutex<Vec<MockCall>>,
     /// Order ids handed out by `place_order`, front first (then `MOCK-<n>`).
     pub order_ids: Mutex<VecDeque<Scripted<String>>>,
+    /// Placements that lose their answer after reaching the broker, front
+    /// first, with the status the kept order then has (`complete` fills
+    /// it in full at `after_send_price`).
+    pub after_send: Mutex<VecDeque<(AfterSend, &'static str)>>,
+    pub after_send_price: Mutex<f64>,
+    /// `place_order` records the order, then fails by panicking: a failure
+    /// after the order reached the broker (MCP-01).
+    pub panic_after_place: Mutex<bool>,
     pub modify: Mutex<Option<Scripted<OrderResponse>>>,
     pub cancel: Mutex<Option<Scripted<OrderResponse>>>,
     pub order_book: Mutex<Option<Scripted<Vec<Order>>>>,
@@ -124,6 +186,9 @@ impl MockBroker {
             funds_calls: Mutex::new(0),
             calls: Mutex::new(Vec::new()),
             order_ids: Mutex::new(VecDeque::new()),
+            after_send: Mutex::new(VecDeque::new()),
+            after_send_price: Mutex::new(100.0),
+            panic_after_place: Mutex::new(false),
             modify: Mutex::new(None),
             cancel: Mutex::new(None),
             order_book: Mutex::new(None),
@@ -242,6 +307,58 @@ impl Broker for MockBroker {
 
     async fn place_order(&self, _: &AuthToken, order: &ResolvedOrder) -> Result<OrderResponse> {
         self.record(MockCall::PlaceOrder(order.clone()));
+        if *self.panic_after_place.lock() {
+            panic!("mock broker: failure after the order reached the broker");
+        }
+        let fault = self.after_send.lock().pop_front();
+        if let Some((kind, status)) = fault {
+            // The broker took the order; its answer is lost on the way back.
+            let id = {
+                let mut n = self.next_id.lock();
+                *n += 1;
+                format!("MOCK-{}", *n)
+            };
+            let filled = if status == "complete" {
+                order.quantity as i32
+            } else {
+                0
+            };
+            let row = Order {
+                order_id: id,
+                exchange_order_id: None,
+                symbol: order.symbol.clone(),
+                exchange: order.exchange.as_str().to_string(),
+                side: order.action.as_str().to_string(),
+                quantity: order.quantity as i32,
+                filled_quantity: filled,
+                pending_quantity: order.quantity as i32 - filled,
+                price: 0.0,
+                trigger_price: 0.0,
+                average_price: if filled > 0 {
+                    *self.after_send_price.lock()
+                } else {
+                    0.0
+                },
+                order_type: order.pricetype.as_str().to_string(),
+                product: order.product.as_str().to_string(),
+                status: status.to_string(),
+                validity: "DAY".into(),
+                order_timestamp: String::new(),
+                exchange_timestamp: None,
+                rejection_reason: None,
+                order_tag: None,
+            };
+            {
+                let mut book = self.order_book.lock();
+                let mut rows = match book.take() {
+                    Some(Ok(rows)) => rows,
+                    _ => Vec::new(),
+                };
+                rows.push(row);
+                *book = Some(Ok(rows));
+            }
+            return Err(after_send_error(kind).await);
+        }
         let scripted = self.order_ids.lock().pop_front();
         match scripted {
             Some(Ok(id)) => Ok(OrderResponse {

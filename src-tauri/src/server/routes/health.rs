@@ -26,6 +26,10 @@ fn latest(ctx: &AppState) -> crate::error::Result<Option<store::HealthRow>> {
 }
 
 fn overall(ctx: &AppState) -> String {
+    // A gap in order facts makes management degraded right now (EV-03).
+    if health::order_facts_failing(ctx) {
+        return "fail".into();
+    }
     latest(ctx)
         .ok()
         .flatten()
@@ -118,7 +122,14 @@ pub async fn current(State(ctx): Ctx) -> Response {
     })
     .await;
     match r {
-        Ok(Ok(Some(m))) => ok(health::current_json(&m)),
+        Ok(Ok(Some(m))) => {
+            let mut v = health::current_json(&m);
+            v["order_facts"] = health::order_facts_json(&ctx);
+            if health::order_facts_failing(&ctx) {
+                v["overall_status"] = json!("fail");
+            }
+            ok(v)
+        }
         Ok(Ok(None)) => json_response(
             StatusCode::NOT_FOUND,
             json!({"error": "No metrics available"}),

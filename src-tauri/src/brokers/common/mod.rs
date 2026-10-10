@@ -9,6 +9,7 @@ pub mod mapping;
 pub mod master_contract;
 pub mod mpp;
 pub mod order_poll;
+pub mod outcome;
 pub mod position_read;
 pub mod ratelimit;
 pub mod redact;

@@ -474,6 +474,14 @@ pub struct Order {
     pub order_tag: Option<String>,
 }
 
+/// An order-book row with the client tag it was placed with, when the
+/// broker carries one (never serialised: the books keep the web's keys).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TaggedOrder {
+    pub order: Order,
+    pub client_tag: Option<String>,
+}
+
 /// Trade-book row (web `transform_tradebook_data`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Trade {

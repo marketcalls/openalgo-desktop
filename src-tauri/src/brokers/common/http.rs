@@ -52,12 +52,25 @@ pub fn client() -> reqwest::Client {
 /// Read a response body as JSON. A body that is not JSON (an HTML error
 /// page, a plain-text rate-limit notice) becomes a trader-facing broker
 /// error; the status and a short, secret-free prefix go to the log.
+///
+/// Inside an order placement (`outcome::placing`) a server error, or a body
+/// that cannot be read on anything but a 4xx, means the order may have been
+/// placed: that is [`AppError::Uncertain`], never an ordinary refusal.
 pub async fn read_json<T: DeserializeOwned>(
     broker: &'static str,
     resp: reqwest::Response,
 ) -> Result<(reqwest::StatusCode, T)> {
     let status = resp.status();
     let bytes = resp.bytes().await?;
+    let placing = super::outcome::in_placement();
+    if placing && status.is_server_error() {
+        tracing::warn!(
+            broker,
+            status = status.as_u16(),
+            "Server error in answer to an order; its outcome is unknown"
+        );
+        return Err(AppError::uncertain(super::outcome::UNCERTAIN_MESSAGE, None));
+    }
     match serde_json::from_slice::<T>(&bytes) {
         Ok(v) => Ok((status, v)),
         Err(e) => {
@@ -73,6 +86,9 @@ pub async fn read_json<T: DeserializeOwned>(
                 e,
                 prefix
             );
+            if placing && !status.is_client_error() {
+                return Err(AppError::uncertain(super::outcome::UNCERTAIN_MESSAGE, None));
+            }
             if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
                 return Err(AppError::Broker(
                     "The broker is limiting requests right now. Wait a moment and try again."

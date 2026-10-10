@@ -112,13 +112,34 @@ tokio::task_local! {
 pub struct Raw {
     pub status: u16,
     pub text: String,
+    /// The reply is for an order placement whose outcome at the broker is
+    /// unknown (LOG-08): it may have been placed.
+    pub outcome_unknown: bool,
 }
 
-/// Why no answer arrived.
+impl Raw {
+    pub fn new(status: u16, text: impl Into<String>) -> Self {
+        Self {
+            status,
+            text: text.into(),
+            outcome_unknown: false,
+        }
+    }
+}
+
+/// Why no answer arrived (MCP-01: "never sent" and "sent, no answer" are
+/// different facts).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Transport {
+    /// No answer within the SDK's timeout; the call may have taken effect.
     Timeout,
-    Unavailable,
+    /// The request was never handed to the handlers (it could not be
+    /// built): nothing ran, so nothing changed.
+    NotSent,
+    /// The handlers ran, but no answer came back (the reply could not be
+    /// read, the handler failed, or the call was cut off): it may have
+    /// taken effect.
+    NoReply,
     /// The token's upstream budget for this minute is spent.
     Budget,
 }
@@ -158,9 +179,19 @@ async fn run(
         .with_state(ctx.clone());
     let (tx, rx) = tokio::sync::oneshot::channel();
     ctx.spawn(async move {
-        let out = match router.oneshot(req).await {
-            Ok(resp) => {
+        use futures_util::FutureExt;
+        // From here the request is in the handlers' hands: whatever goes
+        // wrong may come after an order reached the broker (MCP-01).
+        let out = match std::panic::AssertUnwindSafe(router.oneshot(req))
+            .catch_unwind()
+            .await
+        {
+            Ok(Ok(resp)) => {
                 let status = resp.status().as_u16();
+                let outcome_unknown = resp
+                    .extensions()
+                    .get::<crate::brokers::common::outcome::PlaceOutcome>()
+                    .is_some_and(|p| p.is_uncertain());
                 match Limited::new(resp.into_body(), MAX_REPLY_BYTES)
                     .collect()
                     .await
@@ -168,6 +199,7 @@ async fn run(
                     Ok(b) => Some(Raw {
                         status,
                         text: String::from_utf8_lossy(&b.to_bytes()).into_owned(),
+                        outcome_unknown,
                     }),
                     Err(e) => {
                         tracing::error!("MCP could not read an API reply: {}", e);
@@ -175,13 +207,18 @@ async fn run(
                     }
                 }
             }
-            Err(never) => match never {},
+            Ok(Err(never)) => match never {},
+            Err(_) => {
+                tracing::error!("An API handler failed while serving an MCP call");
+                None
+            }
         };
         let _ = tx.send(out);
     });
     match tokio::time::timeout(timeout, rx).await {
         Ok(Ok(Some(raw))) => Ok(raw),
-        Ok(_) => Err(Transport::Unavailable),
+        // The handlers ran (or were cut off running): never "not sent".
+        Ok(_) => Err(Transport::NoReply),
         Err(_) => Err(Transport::Timeout),
     }
 }
@@ -198,7 +235,7 @@ pub async fn post_raw(
         .uri(format!("/api/v1/{}", endpoint))
         .header("content-type", "application/json")
         .body(Body::from(Value::Object(payload).to_string()))
-        .map_err(|_| Transport::Unavailable)?;
+        .map_err(|_| Transport::NotSent)?;
     run(ctx, req, SDK_TIMEOUT).await
 }
 
@@ -216,7 +253,7 @@ pub async fn get_raw(
         .method(Method::GET)
         .uri(format!("/api/v1/{}?{}", endpoint, qs))
         .body(Body::empty())
-        .map_err(|_| Transport::Unavailable)?;
+        .map_err(|_| Transport::NotSent)?;
     run(ctx, req, SDK_TIMEOUT).await
 }
 
@@ -228,10 +265,15 @@ pub fn transport_reply(t: Transport) -> Value {
             "message": "Request timed out. The server took too long to respond.",
             "error_type": "timeout_error",
         }),
-        Transport::Unavailable => json!({
+        Transport::NotSent => json!({
             "status": "error",
             "message": "Failed to connect to the server. Please check if the server is running.",
             "error_type": "connection_error",
+        }),
+        Transport::NoReply => json!({
+            "status": "error",
+            "message": "OpenAlgo received the request, but no answer came back.",
+            "error_type": UNKNOWN_OUTCOME,
         }),
         Transport::Budget => json!({
             "status": "error",
@@ -241,9 +283,28 @@ pub fn transport_reply(t: Transport) -> Value {
     }
 }
 
+/// `error_type` of a call that reached OpenAlgo and whose effect is
+/// unknown: an order placement the broker did not confirm, or a call whose
+/// answer was lost (LOG-08, MCP-01). Never safe to retry blindly.
+pub const UNKNOWN_OUTCOME: &str = "unknown_outcome";
+
 /// The SDK's `_handle_response`: non-200 becomes `HTTP <code>: <body>`, a
 /// 200 error body is reduced to its message, anything else passes through.
+/// An order placement with no definite answer from the broker keeps the
+/// API's message under the `unknown_outcome` type instead.
 pub fn shape(raw: &Raw) -> Value {
+    if raw.outcome_unknown {
+        let message = serde_json::from_str::<Value>(&raw.text)
+            .ok()
+            .and_then(|v| v.get("message").cloned())
+            .unwrap_or_else(|| json!(raw.text));
+        return json!({
+            "status": "error",
+            "message": message,
+            "code": raw.status,
+            "error_type": UNKNOWN_OUTCOME,
+        });
+    }
     if raw.status != 200 {
         return json!({
             "status": "error",
@@ -288,23 +349,20 @@ mod tests {
 
     #[test]
     fn sdk_shapes_replies() {
-        let ok = shape(&Raw {
-            status: 200,
-            text: r#"{"status":"success","orderid":"1"}"#.into(),
-        });
+        let ok = shape(&Raw::new(200, r#"{"status":"success","orderid":"1"}"#));
         assert_eq!(ok["orderid"], "1");
-        let api = shape(&Raw {
-            status: 200,
-            text: r#"{"status":"error","message":"No position"}"#.into(),
-        });
+        let api = shape(&Raw::new(
+            200,
+            r#"{"status":"error","message":"No position"}"#,
+        ));
         assert_eq!(
             api,
             json!({"status": "error", "message": "No position", "code": 200, "error_type": "api_error"})
         );
-        let http = shape(&Raw {
-            status: 403,
-            text: r#"{"message":"Invalid openalgo apikey","status":"error"}"#.into(),
-        });
+        let http = shape(&Raw::new(
+            403,
+            r#"{"message":"Invalid openalgo apikey","status":"error"}"#,
+        ));
         assert_eq!(http["code"], 403);
         assert_eq!(http["error_type"], "http_error");
         assert_eq!(
@@ -314,6 +372,32 @@ mod tests {
         assert_eq!(
             transport_reply(Transport::Timeout)["error_type"],
             "timeout_error"
+        );
+    }
+
+    #[test]
+    fn only_a_request_never_handed_over_reads_as_not_sent() {
+        // MCP-01: before dispatch it is a connection failure ...
+        assert_eq!(
+            transport_reply(Transport::NotSent)["error_type"],
+            "connection_error"
+        );
+        // ... after it, the outcome is unknown.
+        assert_eq!(
+            transport_reply(Transport::NoReply)["error_type"],
+            UNKNOWN_OUTCOME
+        );
+        // An order the broker did not confirm keeps the API's advice.
+        let mut raw = Raw::new(
+            500,
+            r#"{"status":"error","message":"Check the order book before placing it again."}"#,
+        );
+        raw.outcome_unknown = true;
+        let v = shape(&raw);
+        assert_eq!(v["error_type"], UNKNOWN_OUTCOME);
+        assert_eq!(
+            v["message"],
+            "Check the order book before placing it again."
         );
     }
 }

@@ -125,6 +125,10 @@ impl Default for FillOpts {
 }
 
 const UNFILLED_EXIT: &str = "The entry for this leg has been accepted but not filled, so there is no confirmed quantity to exit. Retry once it fills.";
+/// Status of an order row whose placement had no definite answer (LOG-08).
+pub const UNCONFIRMED: &str = "unconfirmed";
+/// The witness event of an unconfirmed placement (carries the client tag).
+pub const ORDER_UNCONFIRMED: &str = "order_unconfirmed";
 const STATE_UNAVAILABLE: &str = "The run remains open because its live state is unavailable";
 
 /// Which order kind a risk breach records.
@@ -241,6 +245,11 @@ impl StrategyModule {
         }
         if let Err(e) = self.gateway.authorised(run_mode) {
             return StartResult::fail(e);
+        }
+        // A gap in order facts is being repaired: no new exposure until the
+        // book has been read (ARCH-01). Exits are never held by this.
+        if let Some(why) = self.entry_refusal(run_mode) {
+            return StartResult::fail(why);
         }
 
         // Resolve everything before claiming anything.
@@ -363,7 +372,12 @@ impl StrategyModule {
             .place_entries(run_id, &strategy, &resolved, run_mode, user_id)
             .await;
 
-        if !placed.iter().any(|l| l["ok"] == json!(true)) {
+        // An unconfirmed entry may be a position: the run stays open and
+        // managed until the order reconciler settles it (LOG-08).
+        if !placed
+            .iter()
+            .any(|l| l["ok"] == json!(true) || l["unconfirmed"] == json!(true))
+        {
             let finalised = self
                 .finalise(
                     run_id,
@@ -556,9 +570,14 @@ impl StrategyModule {
                 if let Some(l) = run.leg_mut(leg.leg_id) {
                     if l.position_ref == leg.position_ref && l.entry_status == "pending" {
                         l.entry_order_id = Some(row_id);
-                        let s = if result.ok { "open" } else { "rejected" };
-                        l.entry_status = s.into();
-                        l.status = s.into();
+                        // An uncertain entry stays pending on its row: it may
+                        // become a position, so it stays managed until the
+                        // order reconciler settles it (LOG-08).
+                        if !result.uncertain {
+                            let s = if result.ok { "open" } else { "rejected" };
+                            l.entry_status = s.into();
+                            l.status = s.into();
+                        }
                     }
                 }
             });
@@ -569,34 +588,37 @@ impl StrategyModule {
                 self.replay_for(result.broker_order_id.as_deref()).await;
             }
 
-            self.emit(
-                strategy.id,
-                user_id,
-                if result.ok {
-                    "leg_entry_placed"
-                } else {
-                    "leg_entry_rejected"
-                },
-                &if result.ok {
-                    format!("Entry {} {} {} placed", action, leg.quantity, leg.symbol)
-                } else {
-                    format!(
-                        "Entry rejected on leg {}: {}",
-                        leg.leg_id,
-                        result.error.clone().unwrap_or_default()
-                    )
-                },
-                ev(
-                    Some(run_id),
-                    Some(leg.leg_id),
-                    if result.ok { "info" } else { "warn" },
-                ),
-            )
-            .await;
+            if !result.uncertain {
+                self.emit(
+                    strategy.id,
+                    user_id,
+                    if result.ok {
+                        "leg_entry_placed"
+                    } else {
+                        "leg_entry_rejected"
+                    },
+                    &if result.ok {
+                        format!("Entry {} {} {} placed", action, leg.quantity, leg.symbol)
+                    } else {
+                        format!(
+                            "Entry rejected on leg {}: {}",
+                            leg.leg_id,
+                            result.error.clone().unwrap_or_default()
+                        )
+                    },
+                    ev(
+                        Some(run_id),
+                        Some(leg.leg_id),
+                        if result.ok { "info" } else { "warn" },
+                    ),
+                )
+                .await;
+            }
 
             outcomes.push(json!({
                 "leg_id": leg.leg_id,
                 "ok": result.ok,
+                "unconfirmed": result.uncertain,
                 "symbol": leg.symbol,
                 "broker_order_id": result.broker_order_id,
                 "error": result.error,
@@ -619,6 +641,11 @@ impl StrategyModule {
         run_id: i64,
         leg_id: i64,
     ) -> bool {
+        if result.uncertain {
+            return self
+                .record_unconfirmed(row_id, result, strategy_id, user_id, run_id, leg_id)
+                .await;
+        }
         let status = if result.ok { "open" } else { "rejected" };
         let reason = if result.ok {
             None
@@ -679,6 +706,57 @@ impl StrategyModule {
         .await;
         let _ = self.reconcile_acks(run_id, false).await;
         false
+    }
+
+    /// An uncertain placement (LOG-08): the order may be at the broker, so
+    /// the row is marked `unconfirmed` (never `rejected`), the claim stays
+    /// with it, and an `order_unconfirmed` witness keeps the client tag the
+    /// order reconciler looks it up by. Returns whether the row moved.
+    async fn record_unconfirmed(
+        &self,
+        row_id: i64,
+        result: &super::dispatch::DispatchResult,
+        strategy_id: i64,
+        user_id: &str,
+        run_id: i64,
+        leg_id: i64,
+    ) -> bool {
+        let write = || {
+            self.store
+                .update_order(row_id, Some(UNCONFIRMED), None, None)
+                .unwrap_or(false)
+        };
+        let written = write() || write();
+        let row = self.store.get_order(row_id).ok().flatten();
+        let what = row
+            .as_ref()
+            .map(|r| format!("{} {} {}", r.action, r.qty, r.symbol))
+            .unwrap_or_else(|| format!("order row {}", row_id));
+        self.emit(
+            strategy_id,
+            user_id,
+            ORDER_UNCONFIRMED,
+            &format!(
+                "{} for leg {} was sent, but the broker did not confirm it. It may have been placed, so it is not sent again; OpenAlgo is checking the order book and keeps the position managed meanwhile.",
+                what, leg_id
+            ),
+            EventFields {
+                run_id: Some(run_id),
+                leg_id: Some(leg_id),
+                severity: Some("critical"),
+                payload: Some(json!({
+                    "version": 1,
+                    "order_id": row_id,
+                    "run_id": run_id,
+                    "leg_id": leg_id,
+                    "client_tag": result.client_tag,
+                    "detail": result.error,
+                    "status_recorded": written,
+                })),
+            },
+        )
+        .await;
+        written
     }
 
     /// Repair every pending row named by an `order_ack_unrecorded` witness.
@@ -1233,6 +1311,34 @@ impl StrategyModule {
                 self.record_acknowledgement(row_id, &result, strategy.id, user_id, run_id, lid)
                     .await;
             }
+            if result.uncertain {
+                // The exit may be at the broker: the claim stays with its row
+                // so no tick, stop retry or close sends a second one. Only the
+                // order reconciler releases it (LOG-08).
+                if row_id.is_none() {
+                    // No row to find it by: say so, and keep the leg claimed.
+                    self.emit(
+                        strategy.id,
+                        user_id,
+                        ORDER_UNCONFIRMED,
+                        &format!(
+                            "Exit {} {} {} for leg {} was sent without an order row, and the broker did not confirm it. Check the order book; the leg is not exited again automatically.",
+                            action, quantity, symbol, lid
+                        ),
+                        ev(Some(run_id), Some(lid), "critical"),
+                    )
+                    .await;
+                }
+                outcomes.push(json!({
+                    "leg_id": lid,
+                    "ok": false,
+                    "unconfirmed": true,
+                    "error": result.error,
+                    "position_ref": position_ref,
+                    "exit_owner": owner,
+                }));
+                continue;
+            }
             if !result.ok {
                 // Release the claim so a later attempt is not mistaken for a
                 // duplicate and the leg skipped for the rest of the session.
@@ -1549,7 +1655,12 @@ impl StrategyModule {
             return StopOutcome::pending(STATE_UNAVAILABLE, exits);
         };
         let still_held = snapshot.requires_management();
-        let refused = exits.iter().filter(|e| e["ok"] != json!(true)).count();
+        // An unconfirmed exit is not a refusal: it may be working at the
+        // broker, and the stop waits for it like any placed exit.
+        let refused = exits
+            .iter()
+            .filter(|e| e["ok"] != json!(true) && e["unconfirmed"] != json!(true))
+            .count();
         if refused > 0 && still_held {
             // The positions are still at the broker: finalising would release
             // the strategy, drop the state and unsubscribe the prices.
@@ -1669,6 +1780,18 @@ impl StrategyModule {
             .await;
         if exits.is_empty() {
             return StopOutcome::err("That leg is not open");
+        }
+        if exits.iter().any(|e| e["unconfirmed"] == json!(true)) {
+            return StopOutcome {
+                ok: false,
+                stop_pending: false,
+                error: Some(
+                    "The exit was sent, but the broker did not confirm it. It may have been placed, so it is not sent again; check the order book. The leg stays managed until the broker's order book settles it."
+                        .into(),
+                ),
+                exits,
+                run_stopped: None,
+            };
         }
         // Non-empty is not success: a refused exit is still a held position.
         if exits.iter().any(|e| e["ok"] != json!(true)) {

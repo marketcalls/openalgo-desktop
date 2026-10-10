@@ -46,6 +46,7 @@ pub mod master_contract_service;
 pub mod monitor;
 pub mod options_order_service;
 pub mod options_service;
+pub mod order_reconciler;
 pub mod order_router;
 pub mod order_service;
 pub mod pnl_tracker_service;

@@ -357,16 +357,25 @@ impl Sandbox {
             )));
         }
         let mut closed = 0i64;
+        let mut pending = 0i64;
         let mut failed = 0i64;
         for p in rows.iter().filter(|p| p.quantity != 0) {
             match positions::close_position(self.core(), &p.symbol, &p.exchange, p.product.as_str())
                 .await
             {
-                Ok(_) => closed += 1,
+                // Closed only once the close filled (SB-05); a close still
+                // waiting for a price is pending.
+                Ok(m) if squareoff::close_filled(self.core(), &m.orderid).await => closed += 1,
+                Ok(_) => pending += 1,
                 Err(_) => failed += 1,
             }
         }
         let mut message = format!("Closed {closed} positions");
+        if pending > 0 {
+            message.push_str(&format!(
+                " ({pending} close orders are waiting for a price and fill when one arrives)"
+            ));
+        }
         if failed > 0 {
             message.push_str(&format!(" (Failed to close {failed} positions)"));
         }

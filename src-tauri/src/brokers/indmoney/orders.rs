@@ -139,9 +139,9 @@ pub fn place_outcome(status: u16, v: &Value) -> Result<String> {
     let st = v.get("status").and_then(Value::as_str);
     if (status == 200 || status == 201) && st == Some("success") {
         return extract_order_id(v).ok_or_else(|| {
-            AppError::Broker(
-                "INDmoney accepted the order but returned no order id. Check the order book."
-                    .into(),
+            AppError::uncertain(
+                "INDmoney accepted the order but returned no order id. Check the order book.",
+                None,
             )
         });
     }

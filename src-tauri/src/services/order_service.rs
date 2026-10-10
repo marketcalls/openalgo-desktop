@@ -13,6 +13,7 @@ use super::core::{
     safe_request, BrokerHandle, Reply,
 };
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::common::outcome::{self, PlaceOutcome};
 use crate::brokers::types::{
     CryptoQuantity, ModifyOrderRequest, OrderRequest, ResolvedModify, ResolvedOrder,
 };
@@ -165,6 +166,9 @@ pub fn semi_auto(ctx: &AppState) -> bool {
 pub fn broker_error_reply(e: &AppError, internal: &str) -> Reply {
     match e {
         AppError::Broker(m) | AppError::Validation(m) => Reply::error(400, m.clone()),
+        // An unconfirmed modify or cancel (a placement is answered by
+        // `placement_reply`): the adapter's own advice to check the book.
+        AppError::Uncertain(u) => Reply::error(400, u.message.clone()),
         AppError::NotFound(m) => Reply::error(404, m.clone()),
         AppError::Auth(m) => Reply::error(403, m.clone()),
         AppError::Unsupported(_) => Reply::error(501, e.client_message()),
@@ -256,24 +260,56 @@ pub async fn place_live(h: &BrokerHandle, ctx: &AppState, req: &Value) -> Reply 
         Err(e) => return broker_error_reply(&e, "Failed to place order due to internal error"),
     };
     apply_leverage(h, ctx, req, &order).await;
-    let placed = if order.exchange == Exchange::Crypto {
+    let crypto = if order.exchange == Exchange::Crypto {
         match crypto_quantity(req) {
-            Ok(q) => h.broker.place_order_exact(&h.auth, &order, &q).await,
-            Err(e) => Err(e),
+            Ok(q) => Some(q),
+            Err(e) => return broker_error_reply(&e, "Failed to place order due to internal error"),
         }
     } else {
-        h.broker.place_order(&h.auth, &order).await
+        None
     };
-    match placed {
-        Ok(r) if !r.order_id.is_empty() => {
-            Reply::ok(json!({"status": "success", "orderid": r.order_id}))
+    // One placement: what happens inside is classified accepted, refused or
+    // uncertain (LOG-08).
+    let placed = outcome::placing(async {
+        match &crypto {
+            Some(q) => h.broker.place_order_exact(&h.auth, &order, q).await,
+            None => h.broker.place_order(&h.auth, &order).await,
         }
-        Ok(r) => Reply::error(
-            400,
-            r.message
-                .unwrap_or_else(|| "Failed to place order".to_string()),
-        ),
-        Err(e) => broker_error_reply(&e, "Failed to place order due to internal error"),
+    })
+    .await;
+    placement_reply(&order, placed)
+}
+
+/// The reply for one live placement, carrying its outcome. An uncertain
+/// placement keeps the web's error shape (500, a message telling the client
+/// to check the order book), while in-process callers read
+/// `Reply::placement` and never take it for a refusal.
+pub fn placement_reply(
+    order: &ResolvedOrder,
+    placed: crate::error::Result<crate::brokers::types::OrderResponse>,
+) -> Reply {
+    let outcome = outcome::classify(&placed);
+    match &outcome {
+        PlaceOutcome::Accepted { order_id } => {
+            Reply::ok(json!({"status": "success", "orderid": order_id})).with_placement(outcome)
+        }
+        PlaceOutcome::Uncertain { client_tag, reason } => {
+            tracing::error!(
+                "Order {} {} {} has no definite answer from the broker (tag {}); it may have been placed and is not sent again",
+                order.action.as_str(),
+                order.quantity,
+                order.symbol,
+                client_tag.as_deref().unwrap_or("none")
+            );
+            Reply::error(500, reason.clone()).with_placement(outcome)
+        }
+        PlaceOutcome::Refused { .. } => {
+            let reply = match &placed {
+                Err(e) => broker_error_reply(e, "Failed to place order due to internal error"),
+                Ok(_) => Reply::error(400, "Failed to place order"),
+            };
+            reply.with_placement(outcome)
+        }
     }
 }
 

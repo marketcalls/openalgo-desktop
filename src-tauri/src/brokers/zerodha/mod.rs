@@ -282,6 +282,10 @@ impl Broker for ZerodhaBroker {
         orders::get_order_book(self, auth).await
     }
 
+    async fn get_order_book_tagged(&self, auth: &AuthToken) -> Result<Vec<TaggedOrder>> {
+        orders::get_order_book_tagged(self, auth).await
+    }
+
     async fn get_trade_book(&self, auth: &AuthToken) -> Result<Vec<Trade>> {
         orders::get_trade_book(self, auth).await
     }

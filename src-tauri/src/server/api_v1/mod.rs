@@ -74,12 +74,18 @@ pub enum Auth {
     Broker401,
 }
 
-/// Send a service reply as is.
+/// Send a service reply as is. A placement's outcome rides along as a
+/// response extension (never on the wire), so the in-process MCP dispatch
+/// can tell an uncertain order from a refused one (LOG-08, MCP-01).
 pub fn send(r: Reply) -> Response {
-    json_response(
+    let mut resp = json_response(
         StatusCode::from_u16(r.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
         r.body,
-    )
+    );
+    if let Some(p) = r.placement {
+        resp.extensions_mut().insert(p);
+    }
+    resp
 }
 
 fn schema_error(

@@ -25,6 +25,60 @@ fn place_calls(m: &M) -> usize {
         .count()
 }
 
+/// The tool's enveloped output, whether or not it reports an error.
+async fn tool_text(m: &M, t: &str, tool: &str, args: Value) -> Value {
+    let v = m.call(t, tool, args).await;
+    let text = v["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{} gave no text: {}", tool, v));
+    serde_json::from_str(text).unwrap_or_else(|_| json!({ "text": text }))
+}
+
+fn assert_verify_first(out: &Value) {
+    let e = &out["data"]["error"];
+    assert_eq!(e["retry_safe"], false, "{}", out);
+    assert_eq!(e["verify_first"], true, "{}", out);
+    assert!(
+        !out.to_string().contains("never submitted"),
+        "an order that may exist is never called unsent: {}",
+        out
+    );
+}
+
+/// MCP-01 and LOG-08: the broker took the order and the answer was lost on
+/// the way back. The AI client is told to check before retrying, never that
+/// retrying is safe.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_lost_broker_answer_is_never_reported_as_safe_to_retry() {
+    use openalgo_desktop_lib::brokers::mock::AfterSend;
+    let m = M::new().await;
+    m.h.analyze(false);
+    let t = m.token(TokenScope::ReadWrite);
+    for kind in [AfterSend::Dropped, AfterSend::TimedOut] {
+        m.h.mock.after_send.lock().push_back((kind, "open"));
+        let out = tool_text(&m, &t, "place_order", order()).await;
+        assert_verify_first(&out);
+        assert_eq!(out["data"]["error"]["error_type"], "unknown_outcome");
+    }
+    assert_eq!(place_calls(&m), 2, "each order reached the broker once");
+    m.h.shutdown().await;
+}
+
+/// MCP-01: a handler that fails after the order reached the broker is an
+/// unknown outcome, not a connection failure.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_failure_after_dispatch_is_an_unknown_outcome() {
+    let m = M::new().await;
+    m.h.analyze(false);
+    let t = m.token(TokenScope::ReadWrite);
+    *m.h.mock.panic_after_place.lock() = true;
+    let out = tool_text(&m, &t, "place_order", order()).await;
+    *m.h.mock.panic_after_place.lock() = false;
+    assert_verify_first(&out);
+    assert_eq!(place_calls(&m), 1);
+    m.h.shutdown().await;
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn missing_or_revoked_tokens_get_the_bearer_challenge() {
     let m = M::new().await;

@@ -303,6 +303,9 @@ pub struct KiteOrder {
     pub filled_quantity: i64,
     #[serde(deserialize_with = "i64_lenient")]
     pub pending_quantity: i64,
+    /// The tag the order was placed with (the reconciler's lookup).
+    #[serde(deserialize_with = "string_lenient")]
+    pub tag: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

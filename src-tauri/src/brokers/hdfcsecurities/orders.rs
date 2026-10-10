@@ -38,9 +38,9 @@ pub async fn place_order(
         .await?;
     let id = order_id_of(&data, "");
     if id.is_empty() {
-        return Err(AppError::Broker(
-            "HDFC Securities accepted the request but returned no order id. Check the order book before retrying."
-                .into(),
+        return Err(AppError::uncertain(
+            "HDFC Securities accepted the request but returned no order id. Check the order book before retrying.",
+            None,
         ));
     }
     Ok(OrderResponse {

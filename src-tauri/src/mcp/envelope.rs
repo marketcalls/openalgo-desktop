@@ -108,6 +108,25 @@ and MAY have taken effect. Do NOT retry blindly: call {} to check whether it wen
                     ],
                 )
             }
+            // MCP-01, LOG-08: the request reached OpenAlgo (and possibly the
+            // broker) and no definite answer came back.
+            Some(super::dispatch::UNKNOWN_OUTCOME) => {
+                return error(
+                    format!(
+                        "No definite answer came back while {}. The request reached OpenAlgo \
+and MAY have taken effect at the broker. Do NOT retry blindly: call {} to check whether it went \
+through, then decide.",
+                        action, verify_with
+                    ),
+                    &[
+                        ("error_type", json!("unknown_outcome")),
+                        ("retry_safe", json!(false)),
+                        ("verify_first", json!(true)),
+                        ("verify_with", json!(verify_with)),
+                        ("detail", detail),
+                    ],
+                )
+            }
             Some("connection_error") => {
                 return error(
                     format!(
@@ -199,6 +218,15 @@ mod tests {
             write_result(plain.clone(), "placing order", DEFAULT_VERIFY_WITH),
             plain
         );
+        // MCP-01: an unknown outcome is never "never submitted".
+        let u = write_result(
+            json!({"status": "error", "message": "lost", "error_type": "unknown_outcome"}),
+            "placing order",
+            DEFAULT_VERIFY_WITH,
+        );
+        assert_eq!(u["error"]["retry_safe"], false);
+        assert_eq!(u["error"]["verify_first"], true);
+        assert!(!u.to_string().contains("never submitted"), "{}", u);
     }
 
     #[test]

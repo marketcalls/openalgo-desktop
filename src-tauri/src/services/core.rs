@@ -2,6 +2,7 @@
 //! JSON body, like the web's `(success, response_data, status_code)`), the
 //! connected broker handle, the analyzer-mode check and event helpers.
 
+use crate::brokers::common::outcome::PlaceOutcome;
 use crate::brokers::types::AuthToken;
 use crate::brokers::Broker;
 use crate::events::{Event, Mode, OrderMeta};
@@ -16,11 +17,33 @@ use std::sync::Arc;
 pub struct Reply {
     pub status: u16,
     pub body: Value,
+    /// What a live placement did at the broker (LOG-08). Never serialised:
+    /// the wire keeps the web's shape, while in-process callers (strategies,
+    /// scalping, OpenScript, MCP) tell an uncertain placement from a
+    /// refusal by this, not by the status code.
+    pub placement: Option<PlaceOutcome>,
 }
 
 impl Reply {
     pub fn new(status: u16, body: Value) -> Self {
-        Self { status, body }
+        Self {
+            status,
+            body,
+            placement: None,
+        }
+    }
+
+    /// This reply carries what a live placement did.
+    pub fn with_placement(mut self, outcome: PlaceOutcome) -> Self {
+        self.placement = Some(outcome);
+        self
+    }
+
+    /// The placement may have reached the broker without a definite answer.
+    pub fn is_uncertain(&self) -> bool {
+        self.placement
+            .as_ref()
+            .is_some_and(PlaceOutcome::is_uncertain)
     }
 
     pub fn ok(body: Value) -> Self {

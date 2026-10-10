@@ -331,3 +331,49 @@ async fn stdio_bridge_reports_a_closed_app_and_a_bad_token() {
     server.abort();
     m.h.shutdown().await;
 }
+
+/// A server that reads one whole request, then answers with `answer` (or
+/// closes the connection when it is empty). Returns its base address.
+async fn after_send_server(answer: &'static str) -> String {
+    use tokio::io::AsyncReadExt;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((mut s, _)) = listener.accept().await {
+            let mut buf = vec![0u8; 16384];
+            let _ = s.read(&mut buf).await;
+            if !answer.is_empty() {
+                let _ = s.write_all(answer.as_bytes()).await;
+            }
+            drop(s);
+        }
+    });
+    format!("http://{}", addr)
+}
+
+/// N-03: once the request was written to the app, a reset connection or a
+/// server error means it may have run; only a connection that never opened
+/// reads as "could not be sent".
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn stdio_bridge_never_calls_a_sent_request_unsent() {
+    for answer in [
+        "",
+        "HTTP/1.1 502 Bad Gateway\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
+        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 40\r\nconnection: close\r\n\r\n{\"jsonrpc\"",
+    ] {
+        let base = after_send_server(answer).await;
+        let bridge = Bridge::new(&base, "oamcp_x").unwrap();
+        let r = bridge
+            .forward(
+                "tools/call",
+                json!({"name": "place_order", "arguments": {}}),
+            )
+            .await;
+        assert_eq!(
+            r,
+            Err(stdio::Failure::Message(stdio::ANSWER_LOST.into())),
+            "answer {:?}",
+            answer
+        );
+    }
+}

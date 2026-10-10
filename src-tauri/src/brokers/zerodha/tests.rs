@@ -422,7 +422,11 @@ fn resolved(symbol: &str, exchange: &str, qty: i32, pricetype: &str) -> Resolved
 
 #[test]
 fn place_order_form_matches_web_payload() {
-    let form = place_order_form(&resolved("CRUDEOIL19OCT26FUT", "MCX", 200, "LIMIT")).unwrap();
+    let form = place_order_form(
+        &resolved("CRUDEOIL19OCT26FUT", "MCX", 200, "LIMIT"),
+        "oa0123456789abcdef",
+    )
+    .unwrap();
     let m: HashMap<_, _> = form.into_iter().collect();
     assert_eq!(m["tradingsymbol"], "CRUDEOIL26OCTFUT");
     assert_eq!(m["exchange"], "MCX");
@@ -431,10 +435,12 @@ fn place_order_form_matches_web_payload() {
     assert_eq!(m["trigger_price"], "0");
     assert_eq!(m["validity"], "DAY");
     assert_eq!(m["market_protection"], "-1");
-    assert_eq!(m["tag"], "openalgo");
+    // Each order carries its own tag (LOG-08), within Kite's 20 characters.
+    assert_eq!(m["tag"], "oa0123456789abcdef");
     assert_eq!(m["order_type"], "LIMIT");
     assert_eq!(m["product"], "NRML");
-    let e = place_order_form(&resolved("CRUDEOIL19OCT26FUT", "MCX", 150, "LIMIT")).unwrap_err();
+    let e = place_order_form(&resolved("CRUDEOIL19OCT26FUT", "MCX", 150, "LIMIT"), "oa1")
+        .unwrap_err();
     assert!(e.client_message().contains("multiples of lot size 100"));
 }
 

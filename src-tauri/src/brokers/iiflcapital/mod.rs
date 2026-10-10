@@ -196,7 +196,7 @@ impl IiflCapitalBroker {
                         "IIFL Capital answered an order write on {} with a throttle reply; not resending it",
                         path.split('?').next().unwrap_or("")
                     );
-                    return Err(AppError::Broker(UNCONFIRMED_WRITE_MESSAGE.into()));
+                    return Err(AppError::uncertain(UNCONFIRMED_WRITE_MESSAGE, None));
                 }
                 if attempt < MAX_RETRIES {
                     let wait = retry_after

@@ -206,31 +206,8 @@ impl RunnerServices for AppServices {
                 .await
             }
         };
-        let orderid = reply.body.get("orderid").and_then(|v| match v {
-            Value::String(s) if !s.is_empty() => Some(s.clone()),
-            Value::Number(n) => Some(n.to_string()),
-            _ => None,
-        });
-        if reply.is_success() {
-            DispatchResult {
-                ok: true,
-                broker_order_id: orderid,
-                response: reply.body,
-                error: None,
-            }
-        } else {
-            let m = reply.message();
-            DispatchResult {
-                ok: false,
-                broker_order_id: orderid,
-                response: reply.body,
-                error: Some(if m.is_empty() {
-                    "Order rejected".into()
-                } else {
-                    m
-                }),
-            }
-        }
+        // Carries an uncertain placement as such, never as a refusal (LOG-08).
+        DispatchResult::from_reply(&reply)
     }
 
     async fn cancel(&self, mode: RunMode, orderid: &str) -> DispatchResult {

@@ -66,9 +66,9 @@ pub async fn place_order(
         .await?;
     let id = order_id_from(&v, "");
     if id.is_empty() {
-        return Err(AppError::Broker(
-            "Pocketful accepted the request but returned no order id. Check the order book before retrying."
-                .into(),
+        return Err(AppError::uncertain(
+            "Pocketful accepted the request but returned no order id. Check the order book before retrying.",
+            None,
         ));
     }
     Ok(OrderResponse {

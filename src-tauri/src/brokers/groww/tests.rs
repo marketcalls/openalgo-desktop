@@ -913,6 +913,8 @@ fn place_replies_report_failures_as_errors() {
         e.client_message(),
         "Groww did not confirm the order. Check the order book before placing it again."
     );
+    // LOG-08: an unknown outcome, never an ordinary refusal.
+    assert_eq!(e.code(), "ORDER_UNCERTAIN");
     // A 403 with its own reason keeps it (only the session's 401/403 is
     // "session expired").
     let e = place_outcome(&reply(

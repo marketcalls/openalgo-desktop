@@ -33,8 +33,25 @@ use std::sync::Arc;
 pub struct SweepReport {
     pub cancelled_orders: usize,
     pub settled_expired: usize,
+    /// Positions whose close order filled.
     pub closed_positions: usize,
+    /// Close orders placed but still waiting for a price (SB-05): not closed.
+    pub pending_closures: usize,
     pub failed_closures: usize,
+}
+
+/// Whether a close order filled when it was placed. A close still waiting
+/// for a price is pending, never counted as closed (SB-05).
+pub(crate) async fn close_filled(core: &Arc<Core>, orderid: &str) -> bool {
+    let id = orderid.to_string();
+    super::core::blocking(core, move |c| {
+        let row = c
+            .db
+            .with_conn(|conn| super::orders::get_by_orderid(conn, c.user(), &id))?;
+        Ok(row.is_some_and(|o| o.order_status == super::types::OrderStatus::Complete))
+    })
+    .await
+    .unwrap_or(false)
 }
 
 /// One square-off sweep.
@@ -107,13 +124,23 @@ pub(crate) async fn sweep(core: &Arc<Core>) -> SbResult<SweepReport> {
     for (symbol, exchange) in to_close {
         match positions::close_position(core, &symbol, &exchange, "MIS").await {
             Ok(m) => {
-                report.closed_positions += 1;
-                tracing::info!(
-                    "Auto square-off of {} {}: order {}",
-                    symbol,
-                    exchange,
-                    m.orderid
-                );
+                if close_filled(core, &m.orderid).await {
+                    report.closed_positions += 1;
+                    tracing::info!(
+                        "Auto square-off of {} {}: order {}",
+                        symbol,
+                        exchange,
+                        m.orderid
+                    );
+                } else {
+                    report.pending_closures += 1;
+                    tracing::warn!(
+                        "Auto square-off of {} {}: order {} is waiting for a price; the position is not closed yet",
+                        symbol,
+                        exchange,
+                        m.orderid
+                    );
+                }
             }
             Err(e) if e.http_status == 404 => {}
             Err(e) => {

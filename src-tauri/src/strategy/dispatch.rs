@@ -17,6 +17,7 @@
 //! * **Broker authorisation is resolved per order**, never cached in run
 //!   state; when it is missing the order is refused and reported.
 
+use crate::brokers::common::outcome::PlaceOutcome;
 use crate::events::{Event, Mode};
 use crate::services::core::{broker_handle, meta, safe_request, Reply};
 use crate::services::order_service::{place_order, sandbox_order, Route};
@@ -146,26 +147,43 @@ pub fn entry_action(position: &str) -> &'static str {
 }
 
 /// What one placement attempt produced. `ok` is whether the order reached
-/// the broker or the sandbox, not whether it filled.
+/// the broker or the sandbox and was acknowledged, not whether it filled.
+///
+/// Three outcomes, never two (LOG-08): accepted (`ok`), refused
+/// ([`DispatchResult::is_refused`]) and uncertain (`uncertain`: the order
+/// may be at the broker although no acknowledgement came back). An
+/// uncertain placement keeps its claim; it is never placed again until the
+/// order reconciler has found it in the broker's order book, or confirmed
+/// by repeated reads that it is not there.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct DispatchResult {
     pub ok: bool,
     pub broker_order_id: Option<String>,
     pub response: Value,
     pub error: Option<String>,
+    /// The broker may hold this order: neither accepted nor refused.
+    pub uncertain: bool,
+    /// The client tag the order was sent with, when the adapter tags orders.
+    pub client_tag: Option<String>,
 }
 
 impl DispatchResult {
     pub fn refused(message: impl Into<String>) -> Self {
         Self {
             ok: false,
-            broker_order_id: None,
-            response: Value::Null,
             error: Some(message.into()),
+            ..Default::default()
         }
     }
 
-    fn from_reply(reply: &Reply) -> Self {
+    /// The order was not placed: safe to release its claim and decide again.
+    pub fn is_refused(&self) -> bool {
+        !self.ok && !self.uncertain
+    }
+
+    /// The dispatch result for a service reply, carrying its placement
+    /// outcome.
+    pub fn from_reply(reply: &Reply) -> Self {
         let orderid = reply.body.get("orderid").and_then(|v| match v {
             Value::String(s) if !s.is_empty() => Some(s.clone()),
             Value::Number(n) => Some(n.to_string()),
@@ -176,10 +194,14 @@ impl DispatchResult {
                 ok: true,
                 broker_order_id: orderid,
                 response: reply.body.clone(),
-                error: None,
+                ..Default::default()
             }
         } else {
             let msg = reply.message();
+            let client_tag = match &reply.placement {
+                Some(PlaceOutcome::Uncertain { client_tag, .. }) => client_tag.clone(),
+                _ => None,
+            };
             Self {
                 ok: false,
                 broker_order_id: orderid,
@@ -189,8 +211,64 @@ impl DispatchResult {
                 } else {
                     msg
                 }),
+                uncertain: reply.is_uncertain(),
+                client_tag,
             }
         }
+    }
+}
+
+/// One order-book row as the order reconciler reads it: one read per pass
+/// per destination, shared by every owner of open orders.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct BookOrder {
+    pub order_id: String,
+    pub symbol: String,
+    pub exchange: String,
+    /// `BUY` / `SELL`.
+    pub action: String,
+    pub quantity: i64,
+    pub product: String,
+    /// Lowercase status.
+    pub status: String,
+    pub filled_quantity: i64,
+    pub average_price: f64,
+    /// The client tag the order was sent with, where the broker reports it.
+    pub client_tag: Option<String>,
+    /// The row in the shape `order_status` returns, for the fill fold.
+    pub row: Value,
+}
+
+impl BookOrder {
+    /// A row from a service order book (`order_row` keys plus fills).
+    pub fn from_row(row: &Value) -> Option<Self> {
+        let s = |k: &str| {
+            row.get(k)
+                .map(|v| match v {
+                    Value::String(s) => s.trim().to_string(),
+                    Value::Null => String::new(),
+                    other => other.to_string(),
+                })
+                .unwrap_or_default()
+        };
+        let n = |k: &str| row.get(k).and_then(crate::risk::value_to_f64).unwrap_or(0.0);
+        let order_id = s("orderid");
+        if order_id.is_empty() {
+            return None;
+        }
+        Some(Self {
+            order_id,
+            symbol: s("symbol"),
+            exchange: s("exchange").to_ascii_uppercase(),
+            action: s("action").to_ascii_uppercase(),
+            quantity: n("quantity") as i64,
+            product: s("product").to_ascii_uppercase(),
+            status: s("order_status").to_ascii_lowercase(),
+            filled_quantity: n("filled_quantity") as i64,
+            average_price: n("average_price"),
+            client_tag: None,
+            row: row.clone(),
+        })
     }
 }
 
@@ -229,6 +307,27 @@ pub trait OrderGateway: Send + Sync {
     async fn book(&self, mode: RunMode, book: Book) -> Result<Value, Value>;
     /// A last price for the underlying an ATM strike is measured against.
     async fn ltp(&self, symbol: &str, exchange: &str) -> Result<f64, String>;
+    /// The whole order book through the run's pipe, one read, for the order
+    /// reconciler. Default: the `Book::Orders` envelope, without tags.
+    async fn order_book_rows(&self, mode: RunMode) -> Result<Vec<BookOrder>, String> {
+        match self.book(mode, Book::Orders).await {
+            Ok(body) => {
+                let data = body.get("data").unwrap_or(&Value::Null);
+                let rows = data
+                    .get("orders")
+                    .or(Some(data))
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                Ok(rows.iter().filter_map(BookOrder::from_row).collect())
+            }
+            Err(body) => Err(body
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("The order book could not be read")
+                .to_string()),
+        }
+    }
 }
 
 pub const NO_BROKER_SESSION: &str =
@@ -328,13 +427,13 @@ impl OrderGateway for AppGateway {
                         ok: true,
                         broker_order_id: Some(broker_order_id.to_string()),
                         response: json!({"status": "success", "orderid": broker_order_id}),
-                        error: None,
+                        ..Default::default()
                     },
                     Err(e) => DispatchResult {
                         ok: false,
                         broker_order_id: Some(broker_order_id.to_string()),
-                        response: Value::Null,
                         error: Some(e.client_message()),
+                        ..Default::default()
                     },
                 }
             }
@@ -477,6 +576,52 @@ impl OrderGateway for AppGateway {
         } else {
             Err(reply.body)
         }
+    }
+
+    async fn order_book_rows(&self, mode: RunMode) -> Result<Vec<BookOrder>, String> {
+        let ctx = self
+            .ctx
+            .upgrade()
+            .ok_or_else(|| "OpenAlgo is shutting down".to_string())?;
+        if mode == RunMode::Sandbox {
+            let body = sandbox_reply(ctx.sandbox.orderbook().await).body;
+            let rows = body["data"]["orders"].as_array().cloned().unwrap_or_default();
+            return Ok(rows.iter().filter_map(BookOrder::from_row).collect());
+        }
+        let h = broker_handle(&ctx).map_err(|_| NO_BROKER_SESSION.to_string())?;
+        let tagged = h
+            .broker
+            .get_order_book_tagged(&h.auth)
+            .await
+            .map_err(|e| e.client_message())?;
+        // A complete order the book reports without a price takes it from
+        // the trade book, read at most once per pass.
+        let needs_trades = tagged
+            .iter()
+            .any(|t| t.order.average_price <= 0.0 && t.order.status.eq_ignore_ascii_case("complete"));
+        let trades = if needs_trades {
+            h.broker.get_trade_book(&h.auth).await.unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        Ok(tagged
+            .into_iter()
+            .filter_map(|t| {
+                let o = &t.order;
+                let mut average_price = o.average_price;
+                if average_price <= 0.0 && o.status.eq_ignore_ascii_case("complete") {
+                    if let Some(tr) = trades.iter().find(|tr| tr.order_id == o.order_id) {
+                        average_price = tr.average_price;
+                    }
+                }
+                let mut row = crate::services::account_service::order_row(o);
+                row["average_price"] = json!(average_price);
+                row["filled_quantity"] = json!(o.filled_quantity);
+                let mut b = BookOrder::from_row(&row)?;
+                b.client_tag = t.client_tag;
+                Some(b)
+            })
+            .collect())
     }
 
     async fn ltp(&self, symbol: &str, exchange: &str) -> Result<f64, String> {

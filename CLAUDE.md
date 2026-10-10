@@ -223,6 +223,17 @@ unchanged:
   position it opened passes `force_live` rather than re-reading the global
   analyzer toggle.
 - A stop whose exit orders were refused leaves the run open and managed.
+- **A placement has three outcomes, never two** (`brokers/common/outcome`):
+  accepted (an order id), refused (provably never sent, or the broker said
+  no), uncertain (sent, and no definite answer: a timeout or a dropped
+  connection after sending, a 5xx, an unreadable reply, a success without
+  an id). An uncertain placement keeps its claim, its row is `unconfirmed`
+  (never `rejected`), and it is never placed again: only the order
+  reconciler (`services/order_reconciler`) settles it from the broker's
+  order book, by client tag where the adapter tags orders, else by its
+  order fields. An adapter that knows more than the transport (a tag, an
+  ambiguous reply) returns `AppError::Uncertain`; never `AppError::Broker`
+  with "check the order book".
 
 ## Security model
 
@@ -495,6 +506,10 @@ Every flaky test found so far was a race, not a slow machine:
   and each SQLite connection holds two descriptors (database and WAL).
 - A test that fails about one run in five is a bug. Run a suspect test 10 to
   30 times before calling it fixed.
+- Every `AppState` runs the order reconciler's task (a pass every 5 s, and at
+  once on a broker session change or a lost order fact). A test that counts
+  order-book reads or depends on a gap staying open makes the book read fail
+  until it has asserted, or drives `ctx.reconciler.pass()` itself.
 
 ### Data and migrations
 

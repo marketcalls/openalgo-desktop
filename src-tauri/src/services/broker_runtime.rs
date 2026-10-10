@@ -106,6 +106,9 @@ impl BrokerRuntime {
             .with_feed(session.feed_token.as_ref().map(|s| s.expose().to_string()))
             .with_user_id(session.user_id.clone());
         *self.active.lock() = Some(broker.clone());
+        // Every order update this session relays carries its generation; one
+        // from an earlier session is never delivered (EV-02).
+        let generation = ctx.bus.begin_session();
 
         // Order updates: subscribe before any socket connects so none is
         // missed. Kite carries them on the market feed.
@@ -116,14 +119,14 @@ impl BrokerRuntime {
             self.order_ws.subscribe_ticks(),
         ] {
             let bus = bus.clone();
-            Self::spawn(&self.tasks, relay_socket_orders(rx, bus, id));
+            Self::spawn(&self.tasks, relay_socket_orders(rx, bus, id, generation));
         }
 
         let weak = Arc::downgrade(ctx);
         let tasks = self.tasks.clone();
         Self::spawn(&self.tasks, async move {
             let Some(ctx) = weak.upgrade() else { return };
-            start_session(ctx, broker, auth, tasks).await;
+            start_session(ctx, broker, auth, tasks, generation).await;
         });
     }
 
@@ -134,6 +137,8 @@ impl BrokerRuntime {
     }
 
     async fn teardown_locked(&self, ctx: &AppState) {
+        // Updates still queued from the ending session are stale from here.
+        ctx.bus.begin_session();
         let mut tasks = std::mem::take(&mut *self.tasks.lock());
         tasks.abort_all();
         while tasks.join_next().await.is_some() {}
@@ -155,6 +160,7 @@ async fn start_session(
     broker: Arc<dyn Broker>,
     auth: AuthToken,
     tasks: Arc<Mutex<JoinSet<()>>>,
+    generation: u64,
 ) {
     let id = broker.id();
     if let Err(e) = master_contract_service::ensure(&ctx, &broker, &auth).await {
@@ -204,7 +210,7 @@ async fn start_session(
         }
         Ok(OrderFeed::Stream(rx)) => {
             let bus = ctx.bus.clone();
-            BrokerRuntime::spawn(&tasks, relay_stream_orders(rx, bus, id));
+            BrokerRuntime::spawn(&tasks, relay_stream_orders(rx, bus, id, generation));
         }
         Err(AppError::Unsupported(_)) => {}
         Err(e) => tracing::warn!("Order updates for {} not started: {}", id, e),
@@ -212,9 +218,10 @@ async fn start_session(
     tracing::info!("Broker session for {} is streaming", id);
 }
 
-/// The web's `OrderUpdateEvent` payload.
-pub fn order_event(u: &OrderUpdate, broker: &str) -> Event {
+/// The web's `OrderUpdateEvent` payload, stamped with its session.
+pub fn order_event(u: &OrderUpdate, broker: &str, generation: u64) -> Event {
     Event::OrderUpdate(events::OrderUpdate {
+        session_generation: generation,
         mode: "live".into(),
         broker: broker.to_string(),
         orderid: u.orderid.clone(),
@@ -238,16 +245,20 @@ async fn relay_socket_orders(
     mut rx: broadcast::Receiver<MarketEvent>,
     bus: Arc<EventBus>,
     broker: &'static str,
+    generation: u64,
 ) {
     loop {
         match rx.recv().await {
             Ok(ev) => {
                 if let FeedEvent::OrderUpdate(u) = &*ev {
-                    bus.publish(order_event(u, broker));
+                    bus.publish(order_event(u, broker, generation));
                 }
             }
             Err(RecvError::Lagged(n)) => {
-                tracing::warn!("Order update relay fell behind; skipped {} events", n)
+                // Skipped events may include order updates: the order
+                // reconciler repairs from the broker's book (ARCH-01).
+                tracing::warn!("Order update relay fell behind; skipped {} events", n);
+                bus.report_relay_lag(n);
             }
             Err(RecvError::Closed) => return,
         }
@@ -258,8 +269,9 @@ async fn relay_stream_orders(
     mut rx: mpsc::Receiver<OrderUpdate>,
     bus: Arc<EventBus>,
     broker: &'static str,
+    generation: u64,
 ) {
     while let Some(u) = rx.recv().await {
-        bus.publish(order_event(&u, broker));
+        bus.publish(order_event(&u, broker, generation));
     }
 }

@@ -136,6 +136,10 @@ pub struct OrderUpdate {
     pub pending_quantity: i64,
     pub average_price: f64,
     pub rejection_reason: String,
+    /// The broker session this update came from (EV-02); 0 for updates not
+    /// tied to a session (the sandbox). The bus does not deliver one from an
+    /// earlier session.
+    pub session_generation: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

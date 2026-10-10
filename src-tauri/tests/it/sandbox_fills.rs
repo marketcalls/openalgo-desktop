@@ -362,6 +362,35 @@ async fn a_market_order_without_a_quote_rests_on_the_last_position_price_and_fil
     env.shutdown().await;
 }
 
+/// SB-05 (reporting): a close that has not filled is pending, never counted
+/// as a closed position; one that filled is.
+#[tokio::test]
+async fn a_close_without_a_price_is_reported_pending_not_closed() {
+    let env = Env::at("2026-10-05 10:00:00");
+    env.ltp("SBIN", "NSE", "100");
+    place(&env, req("SBIN", "NSE", "BUY", 10, "MARKET", "MIS")).await;
+    env.quotes.remove("SBIN", "NSE");
+    let v = serde_json::to_value(env.sb.close_all_positions().await.unwrap()).unwrap();
+    assert_eq!(v["closed_positions"], 0, "{}", v);
+    assert_eq!(v["failed_closures"], 0, "{}", v);
+    assert!(
+        v["message"].as_str().unwrap().contains("waiting for a price"),
+        "{}",
+        v
+    );
+    assert_eq!(env.qty("SBIN", "NSE", "MIS").await, 10, "still held");
+    env.shutdown().await;
+
+    let env = Env::at("2026-10-05 10:00:00");
+    env.ltp("SBIN", "NSE", "100");
+    place(&env, req("SBIN", "NSE", "BUY", 10, "MARKET", "MIS")).await;
+    let v = serde_json::to_value(env.sb.close_all_positions().await.unwrap()).unwrap();
+    assert_eq!(v["closed_positions"], 1, "{}", v);
+    assert_eq!(v["message"], "Closed 1 positions");
+    assert_eq!(env.qty("SBIN", "NSE", "MIS").await, 0);
+    env.shutdown().await;
+}
+
 #[tokio::test]
 async fn a_market_order_with_no_price_anywhere_is_refused() {
     let env = Env::at("2026-10-05 10:00:00");

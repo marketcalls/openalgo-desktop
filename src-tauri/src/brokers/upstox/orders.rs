@@ -66,10 +66,13 @@ fn order_response(data: &Value, what: &str) -> Result<OrderResponse> {
         }),
         None => {
             tracing::error!("Upstox accepted the {} but returned no order id", what);
-            Err(AppError::Broker(format!(
-                "Upstox accepted the {} but did not return an order id. Check the order book.",
-                what
-            )))
+            Err(AppError::uncertain(
+                format!(
+                    "Upstox accepted the {} but did not return an order id. Check the order book.",
+                    what
+                ),
+                None,
+            ))
         }
     }
 }

@@ -36,6 +36,12 @@ pub const BAD_TOKEN: &str =
 Create a new token on the API Key page in OpenAlgo Desktop and update this client's configuration.";
 pub const BUSY: &str =
     "OpenAlgo is receiving too many requests from this AI client. Wait a minute and try again.";
+/// The request reached OpenAlgo Desktop and its answer was lost (N-03):
+/// never "could not be sent".
+pub const ANSWER_LOST: &str =
+    "OpenAlgo Desktop received this request, but its answer was lost. If the request placed, \
+changed or cancelled an order, it may have taken effect: check the order book (get_order_book) \
+before trying again. Do not retry blindly.";
 
 /// The environment variable that carries the MCP token.
 pub const TOKEN_ENV: &str = "OPENALGO_MCP_TOKEN";
@@ -91,13 +97,28 @@ impl Bridge {
             .await;
         let resp = match resp {
             Ok(r) => r,
-            Err(e) => {
+            // Only a connection that never opened proves nothing was sent.
+            Err(e) if e.is_connect() || e.is_builder() => {
                 tracing::warn!("OpenAlgo Desktop not reachable at {}: {}", self.endpoint, e);
                 return Err(Failure::Message(NOT_RUNNING.into()));
             }
+            Err(e) => {
+                tracing::warn!(
+                    "OpenAlgo Desktop's answer to an MCP request was lost: {}",
+                    e
+                );
+                return Err(Failure::Message(ANSWER_LOST.into()));
+            }
         };
         let status = resp.status().as_u16();
-        let value = read_capped(resp).await;
+        let value = match read_capped(resp).await {
+            Some(v) => v,
+            // Sent, and the answer could not be read.
+            None if status == 200 || status >= 500 => {
+                return Err(Failure::Message(ANSWER_LOST.into()))
+            }
+            None => Value::Null,
+        };
         match status {
             200 => Ok(value),
             401 => Err(Failure::Message(BAD_TOKEN.into())),
@@ -111,8 +132,9 @@ impl Bridge {
             )),
             429 => Err(Failure::Message(BUSY.into())),
             other => {
+                // The app answered: the request was sent, and may have run.
                 tracing::warn!("OpenAlgo Desktop answered {} to an MCP request", other);
-                Err(Failure::Message(NOT_RUNNING.into()))
+                Err(Failure::Message(ANSWER_LOST.into()))
             }
         }
     }
@@ -121,23 +143,24 @@ impl Bridge {
 /// Largest reply the bridge reads from the app.
 pub const MAX_REPLY_BYTES: usize = 64 * 1024 * 1024;
 
-/// The reply as JSON, read up to [`MAX_REPLY_BYTES`] (`Null` past it).
-async fn read_capped(mut resp: reqwest::Response) -> Value {
+/// The reply as JSON, read up to [`MAX_REPLY_BYTES`]; `None` when it could
+/// not be read whole (cut off, over the limit, not JSON).
+async fn read_capped(mut resp: reqwest::Response) -> Option<Value> {
     let mut buf: Vec<u8> = Vec::new();
     loop {
         match resp.chunk().await {
             Ok(Some(c)) => {
                 if buf.len() + c.len() > MAX_REPLY_BYTES {
                     tracing::warn!("OpenAlgo Desktop sent an MCP reply over the size limit");
-                    return Value::Null;
+                    return None;
                 }
                 buf.extend_from_slice(&c);
             }
             Ok(None) => break,
-            Err(_) => return Value::Null,
+            Err(_) => return None,
         }
     }
-    serde_json::from_slice(&buf).unwrap_or(Value::Null)
+    serde_json::from_slice(&buf).ok()
 }
 
 fn rpc_error(reply: &Value) -> Option<ErrorData> {

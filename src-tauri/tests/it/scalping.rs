@@ -610,7 +610,7 @@ impl OrderGateway for FakeGateway {
             ok: true,
             broker_order_id: Some("X1".into()),
             response: json!({}),
-            error: None,
+            ..Default::default()
         }
     }
     async fn cancel(&self, _: RunMode, _: &str) -> DispatchResult {

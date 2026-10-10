@@ -41,9 +41,9 @@ pub async fn place_order(
         placed.product_id
     };
     if placed.id.is_empty() {
-        return Err(AppError::Broker(
-            "Delta Exchange accepted the order but returned no order id. Check the order book."
-                .into(),
+        return Err(AppError::uncertain(
+            "Delta Exchange accepted the order but returned no order id. Check the order book.",
+            None,
         ));
     }
     Ok(OrderResponse {

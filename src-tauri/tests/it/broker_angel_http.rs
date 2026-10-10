@@ -577,11 +577,22 @@ async fn unmatched_ambiguous_reply_is_not_reported_as_success() {
         .await
         .unwrap_err();
     assert!(
-        e.client_message().contains("Check the order book"),
+        e.client_message().contains("check the order book"),
         "{}",
         e.client_message()
     );
-    assert_eq!(fake.bodies("placeOrder").len(), 1);
+    let placed = fake.bodies("placeOrder");
+    assert_eq!(placed.len(), 1);
+    // LOG-08: not a refusal. The outcome is unknown, and the tag the order
+    // went out with travels with it so the reconciler can find it.
+    match &e {
+        openalgo_desktop_lib::error::AppError::Uncertain(u) => assert_eq!(
+            u.client_tag.as_deref(),
+            placed[0]["ordertag"].as_str(),
+            "the tag sent is the tag kept"
+        ),
+        other => panic!("an unmatched ambiguous reply is uncertain, got {:?}", other),
+    }
 }
 
 #[tokio::test]

@@ -4,6 +4,7 @@ use super::mapping::{self, KiteHolding, KiteOrder, KitePositions, KiteTrade};
 use super::{Body, Category, ZerodhaBroker};
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::master_contract::format_strike;
+use crate::brokers::common::outcome;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use reqwest::Method;
@@ -24,8 +25,11 @@ fn mcx_lot(inst: &crate::brokers::common::SymToken) -> Option<i64> {
     (inst.lot_size > 0).then_some(i64::from(inst.lot_size))
 }
 
-/// The form `place_order_api` posts (web `transform_data`).
-pub fn place_order_form(o: &ResolvedOrder) -> Result<Vec<(&'static str, String)>> {
+/// The form `place_order_api` posts (web `transform_data`). `tag` is the
+/// order's own client tag. The web sends the constant `openalgo`; a tag per
+/// order is what lets an order whose placement had no definite answer be
+/// found in the order book (LOG-08, a deliberate departure).
+pub fn place_order_form(o: &ResolvedOrder, tag: &str) -> Result<Vec<(&'static str, String)>> {
     let br = o.brsymbol().to_string();
     let ex = o.exchange.as_str();
     let lot = mcx_lot(&o.instrument);
@@ -43,7 +47,7 @@ pub fn place_order_form(o: &ResolvedOrder) -> Result<Vec<(&'static str, String)>
         ("disclosed_quantity", dq.to_string()),
         ("validity", "DAY".to_string()),
         ("market_protection", "-1".to_string()),
-        ("tag", "openalgo".to_string()),
+        ("tag", tag.to_string()),
     ])
 }
 
@@ -79,21 +83,40 @@ pub async fn place_order(
     auth: &AuthToken,
     o: &ResolvedOrder,
 ) -> Result<OrderResponse> {
-    let form = place_order_form(o)?;
+    let tag = outcome::new_client_tag();
+    let form = place_order_form(o, &tag)?;
     let variety = if o.amo { "amo" } else { "regular" };
-    let r: OrderId = b
-        .call(
+    let placed = b
+        .call::<OrderId>(
             Method::POST,
             &format!("/orders/{}", variety),
             auth,
             Body::Form(&form),
             Category::Order,
         )
-        .await?;
-    Ok(OrderResponse {
-        order_id: r.order_id,
-        message: None,
-    })
+        .await
+        .map(|r| OrderResponse {
+            order_id: r.order_id,
+            message: None,
+        });
+    outcome::with_client_tag(placed, &tag)
+}
+
+/// The order book with each order's tag (the reconciler's lookup).
+pub async fn get_order_book_tagged(
+    b: &ZerodhaBroker,
+    auth: &AuthToken,
+) -> Result<Vec<TaggedOrder>> {
+    let rows = raw_orders(b, auth).await?;
+    let tags: Vec<Option<String>> = rows
+        .iter()
+        .map(|r| Some(r.tag.trim().to_string()).filter(|t| !t.is_empty()))
+        .collect();
+    Ok(mapping::map_orders(rows, b.resolver())
+        .into_iter()
+        .zip(tags)
+        .map(|(order, client_tag)| TaggedOrder { order, client_tag })
+        .collect())
 }
 
 pub async fn modify_order(

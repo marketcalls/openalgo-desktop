@@ -356,6 +356,11 @@ impl StrategyModule {
         lid: i64,
         side: &str,
     ) -> SignalResult {
+        // A gap in order facts is being repaired: no new exposure until the
+        // book has been read (ARCH-01). Exit signals are never held by this.
+        if let Some(why) = self.entry_refusal(self.run_mode(run_id)) {
+            return SignalResult::refuse(why, Some(lid), Some(run_id));
+        }
         let claim = match self
             .state
             .claim_signal_entry(run_id, lid, position_of(side))
@@ -556,6 +561,16 @@ impl StrategyModule {
             spec.leg_id,
         )
         .await;
+        if result.uncertain {
+            // The entry may be at the broker: the leg stays pending on its
+            // row and the claim stays, so a repeated alert cannot send a
+            // second entry, until the order reconciler settles it (LOG-08).
+            self.state
+                .hold_signal_entry_claim(run_id, spec.leg_id, &claim.claim_token, row_id);
+            return Err(result.error.unwrap_or_else(|| {
+                crate::brokers::common::outcome::UNCERTAIN_MESSAGE.into()
+            }));
+        }
         self.state.finish_signal_entry(
             run_id,
             spec.leg_id,
@@ -656,11 +671,14 @@ impl StrategyModule {
                             ..Default::default()
                         },
                         Err((e, claim)) => {
-                            if self.state.release_superseded_exit(run_id, lid, &claim) {
-                                self.report_flip_outgoing_exit_rejected(
-                                    run_id, lid, "refused", None,
-                                )
-                                .await;
+                            // `None`: unconfirmed, the claim stays (LOG-08).
+                            if let Some(claim) = claim {
+                                if self.state.release_superseded_exit(run_id, lid, &claim) {
+                                    self.report_flip_outgoing_exit_rejected(
+                                        run_id, lid, "refused", None,
+                                    )
+                                    .await;
+                                }
                             }
                             SignalResult::refuse(e, Some(lid), Some(run_id))
                         }
@@ -711,7 +729,10 @@ impl StrategyModule {
                 Err((e, claim)) => {
                     // Leave the leg exitable: its stop, target and square-off
                     // all skip a leg that looks like it has an exit in flight.
-                    self.state.release_leg_exit(run_id, lid, &claim);
+                    // An unconfirmed exit (`None`) keeps its claim (LOG-08).
+                    if let Some(claim) = claim {
+                        self.state.release_leg_exit(run_id, lid, &claim);
+                    }
                     SignalResult::refuse(e, Some(lid), Some(run_id))
                 }
             }
@@ -731,13 +752,13 @@ impl StrategyModule {
         position_ref: Option<String>,
         claim_token: &str,
         superseded: bool,
-    ) -> Result<(), (String, ClaimId)> {
+    ) -> Result<(), (String, Option<ClaimId>)> {
         let mut claim = ClaimId::Token(claim_token.to_string());
         let mode = self.run_mode(run_id);
         if let Err(e) = self.gateway.authorised(mode) {
-            return Err((e, claim));
+            return Err((e, Some(claim)));
         }
-        let action = exit_action(position).map_err(|e| (e, claim.clone()))?;
+        let action = exit_action(position).map_err(|e| (e, Some(claim.clone())))?;
         let order = build_order(
             symbol,
             exchange,
@@ -791,7 +812,7 @@ impl StrategyModule {
                     );
                     return Err((
                         "The position changed before its exit could be placed".into(),
-                        claim,
+                        Some(claim),
                     ));
                 }
                 claim = ClaimId::Row(row_id);
@@ -839,6 +860,8 @@ impl StrategyModule {
                 symbol,
                 if result.ok {
                     String::new()
+                } else if result.uncertain {
+                    " sent, but not confirmed by the broker; not sent again".to_string()
                 } else {
                     format!(" rejected: {}", result.error.clone().unwrap_or_default())
                 }
@@ -856,10 +879,19 @@ impl StrategyModule {
                 self.replay_for(result.broker_order_id.as_deref()).await;
             }
             Ok(())
+        } else if result.uncertain {
+            // The exit may be at the broker: its claim stays bound to the
+            // row until the order reconciler settles it (LOG-08).
+            Err((
+                result
+                    .error
+                    .unwrap_or_else(|| crate::brokers::common::outcome::UNCERTAIN_MESSAGE.into()),
+                None,
+            ))
         } else {
             Err((
                 result.error.unwrap_or_else(|| "Order rejected".into()),
-                claim,
+                Some(claim),
             ))
         }
     }

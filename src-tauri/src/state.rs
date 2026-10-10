@@ -103,6 +103,9 @@ pub struct AppState {
     pub trading: crate::trading::Trading,
     /// The scalping terminal backend and its risk monitor (`/scalping`).
     pub scalping: Arc<crate::scalping::Scalping>,
+    /// Settles open and unconfirmed orders against the broker's order book
+    /// (LOG-08, ARCH-01).
+    pub reconciler: Arc<crate::services::order_reconciler::OrderReconciler>,
     /// Chartink strategies and their webhook (`/chartink`).
     pub chartink: Arc<crate::chartink::Chartink>,
     /// MCP transport state: per-token rate windows and event-stream slots.
@@ -200,6 +203,8 @@ impl AppState {
         let scalping_feed = websocket.clone();
         let chartink_db = sqlite.clone();
         let chartink_clock = opts.clock.clone();
+        let reconciler_clock = opts.clock.clone();
+        let reconciler_bus = bus.clone();
         let runtime = crate::services::broker_runtime::BrokerRuntime::new();
         let bridge = crate::feed::bridge::BrokerBridge::with_depth_manager(
             websocket.clone(),
@@ -247,6 +252,11 @@ impl AppState {
                 clock: scalping_clock,
                 symbols: scalping_symbols,
             }),
+            reconciler: crate::services::order_reconciler::OrderReconciler::new(
+                Arc::new(crate::strategy::dispatch::AppGateway::new(me.clone())),
+                reconciler_clock,
+                Some(reconciler_bus),
+            ),
             chartink: crate::chartink::Chartink::new(me.clone(), chartink_db, chartink_clock),
             sandbox: crate::sandbox::Sandbox::with_db(
                 sandbox_db,
@@ -294,6 +304,23 @@ impl AppState {
         crate::strategy::register(&ctx);
         crate::trading::register(&ctx);
         crate::scalping::register(&ctx.bus, &ctx.scalping);
+        // One reconciler over every owner of orders; a gap in order facts
+        // pauses new strategy entries until it is repaired.
+        ctx.reconciler
+            .register(Arc::new(crate::strategy::reconcile::StrategyOrders(
+                Arc::downgrade(&ctx.strategy),
+            )));
+        ctx.strategy.set_entry_gate(ctx.reconciler.clone());
+        let alerts = Arc::downgrade(&ctx);
+        ctx.reconciler.set_alert_sink(Arc::new(move |a| {
+            if let Some(ctx) = alerts.upgrade() {
+                crate::services::health_service::order_facts_alert(&ctx, a);
+            }
+        }));
+        ctx.reconciler.watch_feed(ctx.runtime.order_ws.watch_status());
+        ctx.reconciler.watch_feed(ctx.websocket.watch_status());
+        crate::services::order_reconciler::register(&ctx.bus, &ctx.reconciler);
+        ctx.reconciler.start();
         // Analyzer mode survives restarts: resume the sandbox engine.
         if ctx.sqlite.get_analyze_mode().unwrap_or(false) {
             crate::services::analyzer_service::AnalyzerService::spawn_engine_transition(&ctx, true);
@@ -338,6 +365,7 @@ impl AppState {
     /// tasks.
     pub async fn shutdown(&self) {
         self.shutdown.cancel();
+        self.reconciler.stop();
         self.messaging.shutdown().await;
         self.trading.shutdown().await;
         self.strategy.shutdown().await;

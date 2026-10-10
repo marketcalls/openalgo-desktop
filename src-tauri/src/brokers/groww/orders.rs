@@ -148,9 +148,9 @@ pub fn place_outcome(r: &Reply) -> Result<OrderResponse> {
                 "Groww order reply was a server error: {}",
                 m
             );
-            return Err(AppError::Broker(
-                "Groww did not confirm the order. Check the order book before placing it again."
-                    .into(),
+            return Err(AppError::uncertain(
+                "Groww did not confirm the order. Check the order book before placing it again.",
+                None,
             ));
         }
         return Err(groww_error(r));
@@ -169,9 +169,9 @@ pub fn place_outcome(r: &Reply) -> Result<OrderResponse> {
     let id = id_text(p.get("groww_order_id"));
     if id.is_empty() {
         tracing::error!("Groww order reply without groww_order_id: {}", r.body);
-        return Err(AppError::Broker(
-            "Groww did not return an order ID. Check the order book before placing the order again."
-                .into(),
+        return Err(AppError::uncertain(
+            "Groww did not return an order ID. Check the order book before placing the order again.",
+            None,
         ));
     }
     Ok(OrderResponse {

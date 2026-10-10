@@ -166,6 +166,11 @@ pub struct EntryClaim {
     pub position: String,
     pub held_position: Option<String>,
     pub expected_position_ref: Option<String>,
+    /// The order row of an entry whose placement had no definite answer: the
+    /// claim is kept (a repeated alert must not send a second entry) until
+    /// the order reconciler settles that row (LOG-08).
+    #[serde(default)]
+    pub unconfirmed_row: Option<i64>,
 }
 
 /// What `claim_signal_entry` decided.
@@ -639,23 +644,82 @@ impl StateRegistry {
                 position: requested,
                 held_position: live_position,
                 expected_position_ref: leg.and_then(|l| l.position_ref.clone()),
+                unconfirmed_row: None,
             };
             run.signal_entry_claims.insert(key, claim.clone());
             EntryDecision::Claimed(claim)
         })
     }
 
-    /// Release only the signal-entry decision carrying this token.
+    /// Release only the signal-entry decision carrying this token. A claim
+    /// held by an unconfirmed entry is kept: only its settlement releases it.
     pub fn release_signal_entry_claim(&self, run_id: i64, leg_id: i64, claim_token: &str) -> bool {
         self.with_run(run_id, |run| {
             let key = leg_id.to_string();
             match run.signal_entry_claims.get(&key) {
-                Some(c) if c.claim_token == claim_token => {
+                Some(c) if c.claim_token == claim_token && c.unconfirmed_row.is_none() => {
                     run.signal_entry_claims.remove(&key);
                     true
                 }
                 _ => false,
             }
+        })
+        .unwrap_or(false)
+    }
+
+    /// Keep a signal-entry claim for the unconfirmed entry on `row_id`.
+    pub fn hold_signal_entry_claim(
+        &self,
+        run_id: i64,
+        leg_id: i64,
+        claim_token: &str,
+        row_id: i64,
+    ) -> bool {
+        self.with_run(run_id, |run| {
+            match run.signal_entry_claims.get_mut(&leg_id.to_string()) {
+                Some(c) if c.claim_token == claim_token => {
+                    c.unconfirmed_row = Some(row_id);
+                    true
+                }
+                _ => false,
+            }
+        })
+        .unwrap_or(false)
+    }
+
+    /// Settle an entry whose placement had no definite answer, once the
+    /// broker's order book has: `placed` when the order was found (its
+    /// fills then arrive through the fold), otherwise it was never placed.
+    /// Releases a signal-entry claim the row held.
+    pub fn settle_unconfirmed_entry(
+        &self,
+        run_id: i64,
+        leg_id: i64,
+        row_id: i64,
+        placed: bool,
+    ) -> bool {
+        self.with_run(run_id, |run| {
+            let key = leg_id.to_string();
+            if run
+                .signal_entry_claims
+                .get(&key)
+                .is_some_and(|c| c.unconfirmed_row == Some(row_id))
+            {
+                run.signal_entry_claims.remove(&key);
+            }
+            let Some(leg) = run.leg_mut(leg_id) else {
+                return false;
+            };
+            // `open` too: recovery reads an unconfirmed row as working.
+            if leg.entry_order_id != Some(row_id)
+                || !(leg.entry_status == "pending" || leg.entry_status == "open")
+            {
+                return false;
+            }
+            let s = if placed { "open" } else { "rejected" };
+            leg.entry_status = s.into();
+            leg.status = s.into();
+            true
         })
         .unwrap_or(false)
     }
