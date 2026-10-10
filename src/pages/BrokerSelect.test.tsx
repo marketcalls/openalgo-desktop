@@ -117,3 +117,88 @@ describe('BrokerSelect sign-in start', () => {
     expect(posts).toEqual([])
   })
 })
+
+// FLOW-03: picking another broker is the switch, and a switch ends the live
+// session, so it is confirmed first; a refused switch keeps the selection.
+describe('BrokerSelect broker switch', () => {
+  function serveTwo(live: string | null, accept: boolean) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
+        if (url === '/auth/broker-config') {
+          return json({
+            status: 'success',
+            broker_name: 'zerodha',
+            broker_api_key: null,
+            redirect_url: 'http://127.0.0.1:5000/zerodha/callback',
+            sign_in: 'redirect',
+          })
+        }
+        if (url === '/api/broker/configured') {
+          return json({
+            status: 'success',
+            data: {
+              brokers: [
+                { name: 'zerodha', active: true, sign_in: 'redirect' },
+                { name: 'fyers', active: false, sign_in: 'redirect' },
+              ],
+              active: 'zerodha',
+            },
+          })
+        }
+        if (url === '/auth/session-status') {
+          return json({ status: 'success', logged_in: live !== null, broker: live })
+        }
+        if (url === '/auth/csrf-token') return json({ csrf_token: 'tok' })
+        if (init?.method === 'POST') {
+          posts.push(url)
+          return accept
+            ? json({ status: 'success' })
+            : json({ status: 'error', message: 'OpenAlgo could not save the switch.' }, 500)
+        }
+        return json({}, 404)
+      })
+    )
+  }
+
+  async function pick(name: string) {
+    await connectButtonReady()
+    fireEvent.keyDown(screen.getByRole('combobox'), { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('option', { name }))
+  }
+
+  async function connectButtonReady() {
+    const button = await screen.findByRole('button', { name: /connect account/i })
+    await waitFor(() => expect(button).toBeEnabled())
+  }
+
+  it('asks before ending a live session, and Cancel sends nothing', async () => {
+    serveTwo('zerodha', true)
+    render(<BrokerSelect />)
+    await pick('Fyers')
+    expect(await screen.findByText('End your Zerodha session?')).toBeInTheDocument()
+    expect(screen.getByText(/positions and orders stay at Zerodha/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByText('End your Zerodha session?')).toBeNull())
+    expect(posts).toEqual([])
+    expect(screen.getByRole('combobox')).toHaveTextContent('Zerodha')
+  })
+
+  it('switches once the trader confirms', async () => {
+    serveTwo('zerodha', true)
+    render(<BrokerSelect />)
+    await pick('Fyers')
+    fireEvent.click(await screen.findByRole('button', { name: 'End session and switch' }))
+    await waitFor(() => expect(posts).toEqual(['/api/broker/credentials']))
+  })
+
+  it('puts the selection back when the switch is refused', async () => {
+    serveTwo(null, false)
+    render(<BrokerSelect />)
+    await pick('Fyers')
+    expect(await screen.findByText('OpenAlgo could not save the switch.')).toBeInTheDocument()
+    expect(posts).toEqual(['/api/broker/credentials'])
+    expect(screen.getByRole('combobox')).toHaveTextContent('Zerodha')
+  })
+})

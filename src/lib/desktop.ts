@@ -258,6 +258,30 @@ export async function fetchConfiguredBrokers(): Promise<ConfiguredBroker[]> {
 }
 
 /**
+ * The broker whose session is live in OpenAlgo, from a `/auth/session-status`
+ * answer, or null when none is.
+ */
+export function liveBrokerOf(status: unknown): string | null {
+  const s = status as { logged_in?: unknown; broker?: unknown } | null
+  return s?.logged_in === true && typeof s.broker === 'string' && s.broker ? s.broker : null
+}
+
+/**
+ * The broker whose session is live now. A switch to another broker ends it,
+ * so the pages confirm first. When the server cannot be asked, `fallback`
+ * (the active broker) is assumed live, so the trader is still asked.
+ */
+export async function fetchLiveBroker(fallback: string | null): Promise<string | null> {
+  try {
+    const res = await fetch('/auth/session-status', { credentials: 'include' })
+    if (!res.ok) return fallback
+    return liveBrokerOf(await res.json())
+  } catch {
+    return fallback
+  }
+}
+
+/**
  * Make another configured broker the active one. Keys are stored per broker,
  * so only the redirect URL changes; the server ends any live session of the
  * previous broker first. Returns the server's message on refusal.

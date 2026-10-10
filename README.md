@@ -174,7 +174,8 @@ exact redirect URL to use.
 **Switching brokers.** Save credentials for as many brokers as you like. To
 switch, choose the other broker on the Broker tab in Profile and save, or pick
 it on the Broker page, then connect. Switching ends the current broker session
-first, so only one broker is connected at a time. No restart is needed.
+(OpenAlgo asks you to confirm while one is live; open positions stay at the
+broker), so only one broker is connected at a time. No restart is needed.
 
 Sign-in details for each kind of broker are in
 [Broker sign-in](docs/user/brokers.md).

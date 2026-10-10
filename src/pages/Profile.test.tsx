@@ -122,3 +122,54 @@ describe('Profile server addresses', () => {
     })
   })
 })
+
+// FLOW-03: saving another broker as the active one ends the live session, so
+// the trader confirms first.
+describe('Profile broker switch', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  async function chooseAngelAndSave() {
+    render(<Profile />)
+    await screen.findByText(/changes apply as soon as you save/i)
+    const select = screen.getAllByRole('combobox').find((c) => c.textContent === 'Zerodha')
+    if (!select) throw new Error('broker list not found')
+    fireEvent.keyDown(select, { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('option', { name: 'Angel' }))
+    fireEvent.click(screen.getByRole('button', { name: /save broker credentials/i }))
+  }
+
+  it('asks before ending the live session, and Cancel saves nothing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ logged_in: true, broker: 'zerodha' })))
+    )
+    await chooseAngelAndSave()
+    expect(await screen.findByText('End your Zerodha session?')).toBeInTheDocument()
+    expect(screen.getByText(/positions and orders stay at Zerodha/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByText('End your Zerodha session?')).toBeNull())
+    expect(client.post).not.toHaveBeenCalled()
+  })
+
+  it('saves once the trader confirms', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ logged_in: true, broker: 'zerodha' })))
+    )
+    client.post.mockResolvedValue({ data: { status: 'error', message: 'Not now' } })
+    await chooseAngelAndSave()
+    fireEvent.click(await screen.findByRole('button', { name: 'End session and switch' }))
+    await waitFor(() => expect(client.post).toHaveBeenCalledTimes(1))
+  })
+
+  it('saves without asking when no broker session is live', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ logged_in: false, broker: null })))
+    )
+    client.post.mockResolvedValue({ data: { status: 'error', message: 'Not now' } })
+    await chooseAngelAndSave()
+    await waitFor(() => expect(client.post).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText(/End your .* session\?/)).toBeNull()
+  })
+})

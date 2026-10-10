@@ -113,6 +113,11 @@ page. Logging out of OpenAlgo also ends the broker session.
 
 You can save credentials for several brokers. To switch, choose the other
 broker on the Broker tab in Profile and save, or pick it on the Broker page,
-then connect. The current broker session ends first; no restart is needed.
+then connect. While a broker session is live, OpenAlgo asks you to confirm
+first: the switch ends that session in OpenAlgo (stop-loss and target exits
+OpenAlgo places for it stop, and your trading platforms can no longer trade
+through it), while your open positions and orders stay at the broker. If the
+switch cannot be saved, nothing changes and the live session keeps running.
+No restart is needed.
 
 Sign-in failing? See [Troubleshooting](troubleshooting.md#broker-sign-in-fails).

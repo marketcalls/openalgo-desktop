@@ -1,6 +1,7 @@
 import { BookOpen, ExternalLink, Info, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { BrokerAuthSignOut } from '@/components/auth/BrokerAuthSignOut'
+import { BrokerSwitchConfirm } from '@/components/auth/BrokerSwitchConfirm'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,6 +19,7 @@ import {
   DESKTOP_BROKER_SETUP_PATH,
   desktopBrokerLoginUrl,
   fetchConfiguredBrokers,
+  fetchLiveBroker,
   signInWithSavedKeys,
   switchActiveBroker,
 } from '@/lib/desktop'
@@ -99,6 +101,8 @@ export default function BrokerSelect() {
   // Desktop: every broker with saved keys, so the trader can switch here.
   const [configured, setConfigured] = useState<ConfiguredBroker[]>([])
   const [reloadKey, setReloadKey] = useState(0)
+  // Desktop: a switch waiting for the trader to confirm ending a live session.
+  const [pendingSwitch, setPendingSwitch] = useState<{ from: string; to: string } | null>(null)
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: Desktop: refetch after a broker switch.
   useEffect(() => {
@@ -128,20 +132,38 @@ export default function BrokerSelect() {
     fetchConfiguredBrokers().then(setConfigured)
   }, [reloadKey])
 
-  // Desktop: picking another configured broker makes it the active one.
-  const handleBrokerChange = async (broker: string) => {
+  // Desktop: picking another configured broker makes it the active one. A
+  // switch ends the live session of another broker, so it is confirmed
+  // first; the selection changes only once the server accepts the switch.
+  const switchTo = async (broker: string) => {
+    const previous = brokerConfig?.broker_name ?? ''
     setSelectedBroker(broker)
-    if (!broker || broker === brokerConfig?.broker_name) return
     setError(null)
     setIsLoading(true)
     const refusal = await switchActiveBroker(broker)
     if (refusal) {
       setError(refusal)
+      setSelectedBroker(previous)
       setIsLoading(false)
       return
     }
     setReloadKey((k) => k + 1)
   }
+
+  const handleBrokerChange = async (broker: string) => {
+    if (!broker || broker === brokerConfig?.broker_name) {
+      setSelectedBroker(broker)
+      return
+    }
+    const live = await fetchLiveBroker(brokerConfig?.broker_name ?? null)
+    if (live && live !== broker) {
+      setPendingSwitch({ from: live, to: broker })
+      return
+    }
+    await switchTo(broker)
+  }
+
+  const brokerName = (id: string) => allBrokers.find((b) => b.id === id)?.name ?? id
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -399,6 +421,17 @@ export default function BrokerSelect() {
               <div className="mt-6 text-center text-sm">
                 <BrokerAuthSignOut />
               </div>
+
+              <BrokerSwitchConfirm
+                from={pendingSwitch ? brokerName(pendingSwitch.from) : null}
+                to={pendingSwitch ? brokerName(pendingSwitch.to) : ''}
+                onCancel={() => setPendingSwitch(null)}
+                onConfirm={() => {
+                  const to = pendingSwitch?.to
+                  setPendingSwitch(null)
+                  if (to) switchTo(to)
+                }}
+              />
             </CardContent>
           </Card>
 

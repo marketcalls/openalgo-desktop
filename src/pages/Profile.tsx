@@ -29,6 +29,7 @@ import {
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { webClient } from '@/api/client'
+import { BrokerSwitchConfirm } from '@/components/auth/BrokerSwitchConfirm'
 import TwoFactorEnforcement from '@/components/auth/TwoFactorEnforcement'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -56,7 +57,12 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { brokerNeedsClientId, desktopDefaultOrigin, desktopInitialProfileTab } from '@/lib/desktop'
+import {
+  brokerNeedsClientId,
+  desktopDefaultOrigin,
+  desktopInitialProfileTab,
+  fetchLiveBroker,
+} from '@/lib/desktop'
 import { type AlertCategories, type ToastPosition, useAlertStore } from '@/stores/alertStore'
 import { useAuthStore } from '@/stores/authStore'
 import { type ThemeColor, type ThemeMode, useThemeStore } from '@/stores/themeStore'
@@ -112,6 +118,9 @@ interface PasswordRequirements {
   number: boolean
   special: boolean
 }
+
+/** A broker id as the broker list shows it. */
+const displayBroker = (id: string) => (id ? id.charAt(0).toUpperCase() + id.slice(1) : '')
 
 interface BrokerCredentials {
   broker_api_key: string
@@ -315,6 +324,8 @@ export default function ProfilePage() {
   const [isSavingBroker, setIsSavingBroker] = useState(false)
   const [isSavingNgrok, setIsSavingNgrok] = useState(false)
   const [showRestartDialog, setShowRestartDialog] = useState(false)
+  // Desktop: the live broker a save would sign out of, while the trader decides.
+  const [pendingSwitchFrom, setPendingSwitchFrom] = useState<string | null>(null)
 
   // Permissions state
   const [permissionsData, setPermissionsData] = useState<PermissionsData | null>(null)
@@ -433,7 +444,21 @@ export default function ProfilePage() {
     return `${host}/${broker}/callback`
   }
 
+  // Desktop: saving another broker as the active one ends the live session
+  // of the current one, so the trader confirms first.
   const handleBrokerSave = async () => {
+    const current = brokerCredentials?.current_broker ?? null
+    if (selectedBroker && selectedBroker !== current) {
+      const live = await fetchLiveBroker(current)
+      if (live && live !== selectedBroker) {
+        setPendingSwitchFrom(live)
+        return
+      }
+    }
+    await saveBrokerSettings()
+  }
+
+  const saveBrokerSettings = async () => {
     setIsSavingBroker(true)
     try {
       const formData = new FormData()
@@ -2421,6 +2446,16 @@ export default function ProfilePage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <BrokerSwitchConfirm
+        from={pendingSwitchFrom ? displayBroker(pendingSwitchFrom) : null}
+        to={displayBroker(selectedBroker)}
+        onCancel={() => setPendingSwitchFrom(null)}
+        onConfirm={() => {
+          setPendingSwitchFrom(null)
+          saveBrokerSettings()
+        }}
+      />
 
       {/* Restart Required Dialog */}
       <AlertDialog open={showRestartDialog} onOpenChange={setShowRestartDialog}>
