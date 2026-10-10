@@ -5,7 +5,7 @@
 
 use super::core::{float, Reply};
 use crate::brokers::common::master_contract::parse_oa_expiry;
-use crate::brokers::common::symbols::SymToken;
+use crate::brokers::common::symbols::{SymToken, SymbolGeneration};
 use crate::state::AppState;
 use chrono::NaiveDate;
 use serde_json::{json, Value};
@@ -86,8 +86,9 @@ pub fn freeze_qty_for_option(symbol: &str, exchange: &str) -> i64 {
 
 // ------------------------------------------------------------------ rows
 
-/// A master row in the web's `symbol`/`search`/`instruments` shape.
-pub fn row_json(r: &SymToken, with_freeze: bool) -> Value {
+/// A master row of `snap` in the web's `symbol`/`search`/`instruments`
+/// shape (`lotsize` exact for a fractional crypto lot, MC-04).
+pub fn row_json(snap: &SymbolGeneration, r: &SymToken, with_freeze: bool) -> Value {
     let mut v = json!({
         "symbol": r.symbol,
         "brsymbol": r.brsymbol,
@@ -97,7 +98,7 @@ pub fn row_json(r: &SymToken, with_freeze: bool) -> Value {
         "token": r.token,
         "expiry": r.expiry,
         "strike": float(r.strike),
-        "lotsize": r.lot_size,
+        "lotsize": snap.lotsize_json(r),
         "instrumenttype": r.instrument_type,
         "tick_size": float(r.tick_size),
     });
@@ -129,7 +130,7 @@ pub fn symbol(ctx: &AppState, symbol: &str, exchange: &str) -> Reply {
     } else {
         0
     };
-    let mut data = row_json(r, true);
+    let mut data = row_json(&snap, r, true);
     if let Some(m) = data.as_object_mut() {
         m.insert("id".into(), json!(id));
     }
@@ -214,7 +215,7 @@ pub fn search(ctx: &AppState, query: &str, exchange: Option<&str>) -> Reply {
             json!({"status": "success", "message": "No matching symbols found", "data": []}),
         );
     }
-    let data: Vec<Value> = found.iter().map(|r| row_json(r, true)).collect();
+    let data: Vec<Value> = found.iter().map(|r| row_json(&snap, r, true)).collect();
     Reply::ok(json!({
         "status": "success",
         "message": format!("Found {} matching symbols", data.len()),
@@ -383,7 +384,7 @@ pub fn instruments(ctx: &AppState, exchange: &str, csv: bool) -> Instruments {
             body: instruments_csv(&rows),
         };
     }
-    let data: Vec<Value> = rows.iter().map(|r| row_json(r, false)).collect();
+    let data: Vec<Value> = rows.iter().map(|r| row_json(&snap, r, false)).collect();
     Instruments::Json(Reply::ok(json!({
         "status": "success",
         "message": format!("Found {} instruments", data.len()),

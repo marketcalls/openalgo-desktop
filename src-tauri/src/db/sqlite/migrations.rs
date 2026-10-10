@@ -81,6 +81,7 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
     run_rust_migration(conn, "075_scalping", crate::scalping::store::migrate)?;
     run_rust_migration(conn, "076_chartink", crate::chartink::store::migrate)?;
     run_rust_migration(conn, "077_mcp", crate::mcp::store::migrate)?;
+    run_rust_migration(conn, "078_symtoken_owner", super::symbol::migrate_owner)?;
 
     tracing::info!("Database migrations completed");
     Ok(())

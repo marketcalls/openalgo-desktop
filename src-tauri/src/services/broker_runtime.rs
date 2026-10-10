@@ -97,7 +97,13 @@ impl BrokerRuntime {
     /// started; the master contract and the sockets come up in a task).
     pub async fn activate(&self, ctx: &Arc<AppState>, session: &BrokerSession) {
         let _guard = self.lifecycle.lock().await;
-        self.teardown_locked(ctx).await;
+        let previous = self.teardown_locked(ctx).await;
+        // Switching brokers without a logout: the master in memory is the
+        // previous broker's, and its tokens must not reach this session's
+        // feed or orders even if this broker's master fails to load.
+        if previous.is_some_and(|p| p != session.broker_id) {
+            ctx.clear_symbol_cache();
+        }
         let Some(broker) = ctx.brokers.get(&session.broker_id) else {
             tracing::warn!("No adapter for {}; nothing to start", session.broker_id);
             return;
@@ -133,7 +139,8 @@ impl BrokerRuntime {
         self.teardown_locked(ctx).await;
     }
 
-    async fn teardown_locked(&self, ctx: &AppState) {
+    /// Returns the broker whose session was running, if any.
+    async fn teardown_locked(&self, ctx: &AppState) -> Option<&'static str> {
         let mut tasks = std::mem::take(&mut *self.tasks.lock());
         tasks.abort_all();
         while tasks.join_next().await.is_some() {}
@@ -142,10 +149,10 @@ impl BrokerRuntime {
         let _ = self.depth_ws.disconnect().await;
         ctx.bridge.reset();
         let broker = self.active.lock().take();
-        if let Some(b) = broker {
-            b.on_logout().await;
-            tracing::info!("Broker streaming for {} stopped", b.id());
-        }
+        let b = broker?;
+        b.on_logout().await;
+        tracing::info!("Broker streaming for {} stopped", b.id());
+        Some(b.id())
     }
 }
 
@@ -157,9 +164,14 @@ async fn start_session(
     tasks: Arc<Mutex<JoinSet<()>>>,
 ) {
     let id = broker.id();
-    if let Err(e) = master_contract_service::ensure(&ctx, &broker, &auth).await {
-        tracing::error!("Master contract for {} is not available: {}", id, e);
-    }
+    let master_ready = match master_contract_service::ensure(&ctx, &broker, &auth).await {
+        Ok(_) => true,
+        Err(e) => {
+            tracing::error!("Master contract for {} is not available: {}", id, e);
+            master_contract_service::report_unavailable(&ctx, id);
+            false
+        }
+    };
 
     let caps = {
         let b = broker.clone();
@@ -193,8 +205,11 @@ async fn start_session(
         }
     }
     // Feed clients that were already subscribed are applied now that the
-    // master and the sockets are in place.
-    ctx.bridge.resync();
+    // master and the sockets are in place. Without a master they wait: a
+    // later download or cache reload resyncs them.
+    if master_ready {
+        ctx.bridge.resync();
+    }
 
     match broker.create_order_feed(&auth) {
         Ok(OrderFeed::Socket(feed)) => {

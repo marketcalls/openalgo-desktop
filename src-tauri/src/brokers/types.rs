@@ -721,18 +721,22 @@ pub struct Candle {
 
 /// A downloaded master contract: the `SymToken` rows plus, for venues that
 /// quote one (crypto), each row's contract multiplier keyed by token (web
-/// `SymToken.contract_value`). Indian brokers leave the map empty.
+/// `SymToken.contract_value`), and the exact lot size of rows whose
+/// minimum order is not a whole number (crypto spot: 0.0001 BTC; the row's
+/// `lot_size` stays 1 for whole-unit arithmetic). Indian brokers leave
+/// both maps empty.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct MasterContract {
     pub rows: Vec<SymToken>,
     pub contract_values: std::collections::HashMap<String, f64>,
+    pub lot_sizes: std::collections::HashMap<String, f64>,
 }
 
 impl MasterContract {
     pub fn new(rows: Vec<SymToken>) -> Self {
         Self {
             rows,
-            contract_values: Default::default(),
+            ..Default::default()
         }
     }
 }

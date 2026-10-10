@@ -130,6 +130,7 @@ fn num(v: Option<&Value>) -> Option<f64> {
 pub fn parse_products(products: &[Value]) -> MasterContract {
     let mut rows = Vec::new();
     let mut contract_values = HashMap::new();
+    let mut lot_sizes = HashMap::new();
     let mut seen = HashSet::new();
     for p in products {
         if s(p, "state") != "live" || s(p, "trading_status") != "operational" {
@@ -165,13 +166,17 @@ pub fn parse_products(products: &[Value]) -> MasterContract {
                     .unwrap_or(0.0);
             }
         }
-        // `min_order_size` is fractional for spot (0.0001 BTC); the shared
-        // row carries whole lots, so anything below one unit is lot 1.
+        // `min_order_size` is fractional for spot (0.0001 BTC). The shared
+        // row carries whole lots (1 then), and the exact size is kept
+        // beside it so the symbol API serves it as the web does (MC-04).
         let min_size = num(specs.get("min_order_size")).unwrap_or(1.0);
         let lot_size =
             if min_size >= 1.0 && min_size.fract() == 0.0 && min_size <= f64::from(i32::MAX) {
                 min_size as i32
             } else {
+                if min_size.is_finite() && min_size > 0.0 {
+                    lot_sizes.insert(token.clone(), min_size);
+                }
                 1
             };
         let name = p
@@ -204,6 +209,7 @@ pub fn parse_products(products: &[Value]) -> MasterContract {
     MasterContract {
         rows,
         contract_values,
+        lot_sizes,
     }
 }
 

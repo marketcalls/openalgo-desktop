@@ -3,6 +3,7 @@
 
 use crate::brokers::types::AuthToken;
 use crate::db::sqlite::master_contract_status as mcs;
+use crate::error::AppError;
 use crate::server::envelope::json_response;
 use crate::services::master_contract_service::{self, BUSY_MESSAGE};
 use crate::state::{AppState, BrokerSession};
@@ -105,8 +106,10 @@ pub async fn download(State(ctx): Ctx, body: Option<axum::Json<Value>>) -> Respo
         .and_then(|b| b.get("force"))
         .and_then(Value::as_bool)
         .unwrap_or(false);
+    // An unforced request skips only when the smart rule says so and this
+    // broker's stored master is actually there and loaded (MC-03).
     if !force {
-        if let Ok((false, reason)) = master_contract_service::should_download(&ctx, &s.broker_id) {
+        if let Some(reason) = master_contract_service::skip_reason(&ctx, &s.broker_id) {
             return json_response(
                 StatusCode::OK,
                 json!({"status": "skipped", "message": reason, "should_download": false}),
@@ -152,7 +155,9 @@ pub async fn cache_health(State(ctx): Ctx) -> Response {
     json_response(StatusCode::OK, master_contract_service::cache_health(&ctx))
 }
 
-/// POST /api/cache/reload: reload the stored master into memory.
+/// POST /api/cache/reload: reload the stored master into memory. Refused
+/// with 409 and the reason when the stored master is another broker's
+/// (MC-01): loading it would resolve symbols to the wrong instruments.
 pub async fn cache_reload(State(ctx): Ctx) -> Response {
     let Some(s) = ctx.get_broker_session() else {
         return no_broker();
@@ -174,6 +179,10 @@ pub async fn cache_reload(State(ctx): Ctx) -> Response {
                 }),
             )
         }
+        Err(AppError::Validation(message)) => json_response(
+            StatusCode::CONFLICT,
+            json!({"status": "error", "message": message}),
+        ),
         Ok(_) | Err(_) => json_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             json!({"status": "error", "message": "Failed to reload cache"}),

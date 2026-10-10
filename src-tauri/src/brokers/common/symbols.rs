@@ -92,6 +92,9 @@ pub struct SymbolGeneration {
     /// Contract multiplier by `exchange:token` (web `contract_value`), only
     /// for venues that quote one (crypto). Empty for Indian masters.
     contract_values: HashMap<String, f64>,
+    /// Exact lot size by `exchange:token` where it is not a whole number
+    /// (crypto spot minimum order, 0.0001 BTC). Empty for Indian masters.
+    lot_sizes: HashMap<String, f64>,
     id: u64,
 }
 
@@ -152,7 +155,39 @@ impl SymbolGeneration {
             by_underlying,
             sorted,
             contract_values: HashMap::new(),
+            lot_sizes: HashMap::new(),
             id,
+        }
+    }
+
+    /// Attach exact lot sizes keyed by token; values for tokens that are
+    /// not in the master, and non-positive values, are dropped.
+    pub fn with_lot_sizes(mut self, lot_sizes: &HashMap<String, f64>) -> Self {
+        if !lot_sizes.is_empty() {
+            self.lot_sizes = self
+                .rows
+                .iter()
+                .filter_map(|row| {
+                    let v = *lot_sizes.get(&row.token)?;
+                    (v.is_finite() && v > 0.0).then(|| (key(&row.exchange, &row.token), v))
+                })
+                .collect();
+        }
+        self
+    }
+
+    /// The exact lot size of the row `(exchange, token)` when it is not a
+    /// whole number (crypto spot); `None` means the row's `lot_size`.
+    pub fn exact_lot_size(&self, exchange: &str, token: &str) -> Option<f64> {
+        self.lot_sizes.get(&key(exchange, token)).copied()
+    }
+
+    /// The `lotsize` the web serves for a row: the exact size when it is
+    /// fractional (`0.0001`), else the whole lot (`65`, never `65.0`).
+    pub fn lotsize_json(&self, row: &SymToken) -> serde_json::Value {
+        match self.exact_lot_size(&row.exchange, &row.token) {
+            Some(v) => serde_json::json!(v),
+            None => serde_json::json!(row.lot_size),
         }
     }
 
@@ -344,11 +379,14 @@ impl SymbolResolver {
     /// multipliers (crypto). Same swap semantics as `load`.
     pub fn load_master(&self, master: crate::brokers::types::MasterContract) -> usize {
         let next_id = self.current.read().id + 1;
-        let generation = Arc::new(SymbolGeneration::build_with_contract_values(
-            master.rows,
-            &master.contract_values,
-            next_id,
-        ));
+        let generation = Arc::new(
+            SymbolGeneration::build_with_contract_values(
+                master.rows,
+                &master.contract_values,
+                next_id,
+            )
+            .with_lot_sizes(&master.lot_sizes),
+        );
         let n = generation.len();
         *self.current.write() = generation;
         tracing::info!("Symbol master loaded: {} instruments", n);
@@ -660,6 +698,7 @@ pub(crate) mod tests {
                 row("ETHUSDFUT", "ETHUSD", "CRYPTO", "3136"),
             ],
             contract_values: cv,
+            ..Default::default()
         });
         assert_eq!(r.contract_value("BTCUSDFUT", "CRYPTO"), Some(0.001));
         assert_eq!(r.contract_value("ETHUSDFUT", "CRYPTO"), None);

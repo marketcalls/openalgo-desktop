@@ -2541,6 +2541,72 @@ async fn pasted_token_addresses_need_the_signed_in_trader() {
     ctx.runtime.teardown(ctx).await;
 }
 
+/// MC-01 and MC-03: a cache reload refuses another broker's stored master
+/// (409, by name, nothing loaded), and an unforced download is not skipped
+/// on today's history alone when the stored master is empty.
+#[tokio::test]
+async fn cache_reload_and_skip_check_the_stored_master() {
+    let h = H::new();
+    h.setup();
+    let (cookie, csrf) = h.session(true);
+    h.ctx().set_broker_session(Some(BrokerSession {
+        broker_id: "zerodha".into(),
+        auth_token: crate::security::Secret::new("mock-access-token"),
+        feed_token: None,
+        user_id: "AB1234".into(),
+        user_name: None,
+        authenticated_at: h.ctx().now(),
+    }));
+    let sbin = crate::brokers::common::symbols::tests::row("SBIN", "SBIN-EQ", "NSE", "3045");
+    {
+        let mut c = h.ctx().sqlite.conn().unwrap();
+        crate::db::sqlite::symbol::store_symbols(&mut c, "angel", h.ctx().now(), &[sbin.clone()])
+            .unwrap();
+    }
+    let (s, v) = h
+        .json(with_session(
+            post_json("/api/cache/reload", json!({})),
+            &cookie,
+            Some(&csrf),
+        ))
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT, "{}", v);
+    assert_eq!(
+        v,
+        json!({"status": "error",
+               "message": "The stored master contract is for angel. Download the master contract for Mock."})
+    );
+    assert_eq!(h.ctx().symbol_count(), 0);
+
+    // Today's successful download on record, but the stored master is
+    // zerodha's and empty: the smart rule alone would skip.
+    {
+        let mut c = h.ctx().sqlite.conn().unwrap();
+        let now = h.ctx().now();
+        crate::db::sqlite::symbol::store_symbols(&mut c, "zerodha", now, &[]).unwrap();
+        crate::db::sqlite::master_contract_status::update(&c, "zerodha", "success", "done", Some(1), now).unwrap();
+        crate::db::sqlite::master_contract_status::record_download(&c, "zerodha", 1, &Default::default(), now).unwrap();
+    }
+    *h.mock.master.lock() = Some(Ok(vec![sbin]));
+    let (s, v) = h
+        .json(with_session(
+            post_json("/api/master-contract/download", json!({})),
+            &cookie,
+            Some(&csrf),
+        ))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    assert_eq!(v["started"], true, "{}", v);
+    for _ in 0..200 {
+        if h.ctx().symbol_count() == 1 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert_eq!(h.ctx().symbol_count(), 1);
+    h.ctx().runtime.teardown(h.ctx()).await;
+}
+
 #[tokio::test]
 async fn master_contract_routes_and_server_settings_status() {
     let h = H::new();

@@ -130,6 +130,16 @@ fn master_maps_every_contract_type_to_the_crypto_symbology() {
         ),
         ("BTC_INR", "SPOT", 1)
     );
+    // MC-04: the spot minimum (0.0001 BTC) is kept exact beside the whole
+    // lot, and served as the web serves it; whole lots stay integers.
+    let g = r.snapshot();
+    assert_eq!(g.exact_lot_size("CRYPTO", &spot.token), Some(0.0001));
+    assert_eq!(g.lotsize_json(&spot), serde_json::json!(0.0001));
+    let eth = r.by_symbol("CRYPTO", "ETHINR").unwrap();
+    assert_eq!(g.lotsize_json(&eth), serde_json::json!(0.001));
+    let perp = r.by_symbol("CRYPTO", "BTCUSDFUT").unwrap();
+    assert_eq!(g.exact_lot_size("CRYPTO", &perp.token), None);
+    assert_eq!(g.lotsize_json(&perp).to_string(), "1");
     // Move options stay native.
     assert!(r.by_symbol("CRYPTO", "MV-BTC-62000-271126").is_some());
     assert!(r.by_brsymbol("CRYPTO", "SOLUSD").is_none());

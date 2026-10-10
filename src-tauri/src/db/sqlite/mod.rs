@@ -105,10 +105,15 @@ impl SqliteDb {
     }
     // ========== Symbol Methods ==========
 
-    /// Store symbols in database
-    pub fn store_symbols(&self, symbols: &[SymbolInfo]) -> Result<()> {
+    /// Store `broker`'s symbols in database, with their owner.
+    pub fn store_symbols(
+        &self,
+        broker: &str,
+        now: chrono::DateTime<chrono::Utc>,
+        symbols: &[SymbolInfo],
+    ) -> Result<()> {
         let mut conn = self.conn()?;
-        symbol::store_symbols(&mut conn, symbols)
+        symbol::store_symbols(&mut conn, broker, now, symbols)
     }
 
     /// Load all symbols from database
@@ -117,10 +122,16 @@ impl SqliteDb {
         symbol::load_symbols(&conn)
     }
 
-    /// Store a master download with its contract multipliers (crypto).
-    pub fn store_master(&self, master: &crate::brokers::types::MasterContract) -> Result<()> {
+    /// Store `broker`'s master download with its contract multipliers
+    /// (crypto) and its owner.
+    pub fn store_master(
+        &self,
+        broker: &str,
+        now: chrono::DateTime<chrono::Utc>,
+        master: &crate::brokers::types::MasterContract,
+    ) -> Result<()> {
         let mut conn = self.conn()?;
-        symbol::store_master(&mut conn, master)
+        symbol::store_master(&mut conn, broker, now, master)
     }
 
     /// Load the master with its contract multipliers.
