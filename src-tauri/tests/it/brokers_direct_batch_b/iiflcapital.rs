@@ -44,6 +44,8 @@ struct Fake {
     order_posts: AtomicUsize,
     trades_calls: AtomicUsize,
     fail_segment: AtomicBool,
+    /// The position book answers an error page.
+    positions_down: AtomicBool,
 }
 
 impl Fake {
@@ -97,6 +99,12 @@ fn route(fake: &Fake, method: &Method, path: &str, body: &Value) -> Response {
                 ok(fixture!("trade_book.json"))
             }
         }
+        ("GET", "/positions") if fake.positions_down.load(Ordering::SeqCst) => (
+            StatusCode::BAD_GATEWAY,
+            [("content-type", "text/html")],
+            "<html>Bad gateway</html>",
+        )
+            .into_response(),
         ("GET", "/positions") => ok(fixture!("positions.json")),
         ("GET", "/holdings") => ok(fixture!("holdings.json")),
         ("GET", "/limits") => ok(fixture!("limits.json")),
@@ -404,6 +412,19 @@ async fn cancel_all_close_all_and_open_position() {
     assert_eq!(exits[1]["quantity"], "75");
     assert_eq!(exits[1]["product"], "NORMAL");
     assert_eq!(c.message(), "All Open Positions SquaredOff");
+
+    // BR-03: a position book that could not be read is an error, not "no
+    // positions", and no exit is sent.
+    fake.positions_down.store(true, Ordering::SeqCst);
+    let before = fake.calls("POST", "/orders").len();
+    let e = b.close_all_positions(&a).await.unwrap_err();
+    assert!(
+        e.client_message().contains("could not return your positions"),
+        "{}",
+        e.client_message()
+    );
+    assert_eq!(fake.calls("POST", "/orders").len(), before);
+    fake.positions_down.store(false, Ordering::SeqCst);
 
     assert_eq!(
         b.get_open_position(&a, "SBIN", Exchange::Nse, Product::Mis)

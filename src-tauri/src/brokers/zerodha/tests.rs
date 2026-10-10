@@ -803,6 +803,94 @@ mod http_round_trip {
         assert_eq!(seen[1], "i=NSE%3ANIFTY%2050");
     }
 
+    /// BR-03: a position or order book reply that says success but carries
+    /// no net positions (or no order list) was not read: the smart-order
+    /// read, close all and cancel all refuse, and nothing is sent. Kite's
+    /// own empty book (`{"net":[],"day":[]}`, `[]`) is flat and empty.
+    #[tokio::test]
+    async fn a_reply_without_its_book_is_never_flat() {
+        let reply: Arc<Mutex<Value>> = Arc::default();
+        let orders: Arc<Mutex<Value>> = Arc::default();
+        let posts: Arc<Mutex<u32>> = Arc::default();
+        let (r1, o1, p1, p2) = (reply.clone(), orders.clone(), posts.clone(), posts.clone());
+        let app = Router::new()
+            .route(
+                "/portfolio/positions",
+                get(move || async move { Json(r1.lock().clone()) }),
+            )
+            .route("/orders", get(move || async move { Json(o1.lock().clone()) }))
+            .route(
+                "/orders/regular",
+                post(move || async move {
+                    *p1.lock() += 1;
+                    Json(serde_json::json!({"status": "success", "data": {"order_id": "1"}}))
+                }),
+            )
+            .route(
+                "/orders/regular/{id}",
+                axum::routing::delete(move || async move {
+                    *p2.lock() += 1;
+                    Json(serde_json::json!({"status": "success", "data": {"order_id": "1"}}))
+                }),
+            );
+        let base = serve(app).await;
+        let b = ZerodhaBroker::with_base_url(master(), base);
+        let auth = AuthToken::new("kitekey:accesstok");
+        for bad in [
+            serde_json::json!({"status": "success", "data": null}),
+            serde_json::json!({"status": "success"}),
+            serde_json::json!({"status": "success", "data": {}}),
+            serde_json::json!({"status": "success", "data": {"net": null}}),
+            serde_json::json!({"status": "success", "data": {"day": []}}),
+            serde_json::json!({"status": "success", "data": {"net": {}}}),
+        ] {
+            *reply.lock() = bad.clone();
+            assert!(
+                b.get_open_position(&auth, "SBIN", crate::brokers::common::mapping::Exchange::Nse, crate::brokers::common::mapping::Product::Mis)
+                    .await
+                    .is_err(),
+                "{}",
+                bad
+            );
+            assert!(b.close_all_positions(&auth).await.is_err(), "{}", bad);
+        }
+        *reply.lock() = serde_json::json!({"status": "success", "data": {"net": null}});
+        assert_eq!(
+            b.get_open_position(&auth, "SBIN", crate::brokers::common::mapping::Exchange::Nse, crate::brokers::common::mapping::Product::Mis)
+                .await
+                .unwrap_err()
+                .client_message(),
+            "OpenAlgo could not read your open position from Zerodha, so no order was sent. Check your positions and try again."
+        );
+        for bad in [
+            serde_json::json!({"status": "success", "data": null}),
+            serde_json::json!({"status": "success"}),
+        ] {
+            *orders.lock() = bad.clone();
+            let e = b.cancel_all_orders(&auth).await.unwrap_err();
+            assert!(
+                e.client_message().contains("no order was cancelled"),
+                "{}",
+                bad
+            );
+        }
+        assert_eq!(*posts.lock(), 0, "an order was sent on an unread book");
+        // Kite's empty books.
+        *reply.lock() = serde_json::from_str(fixture!("positions_empty.json")).unwrap();
+        assert_eq!(
+            b.get_open_position(&auth, "SBIN", crate::brokers::common::mapping::Exchange::Nse, crate::brokers::common::mapping::Product::Mis)
+                .await
+                .unwrap(),
+            0
+        );
+        assert!(b.close_all_positions(&auth).await.unwrap().placed.is_empty());
+        *orders.lock() = serde_json::json!({"status": "success", "data": []});
+        assert!(b.cancel_all_orders(&auth).await.unwrap().cancelled.is_empty());
+        // The Positions page stays lenient.
+        *reply.lock() = serde_json::json!({"status": "success", "data": {"day": []}});
+        assert!(b.get_positions(&auth).await.unwrap().is_empty());
+    }
+
     #[tokio::test]
     async fn malformed_token_is_refused_before_any_call() {
         let b = ZerodhaBroker::with_base_url(master(), "http://127.0.0.1:9");

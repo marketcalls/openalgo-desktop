@@ -385,9 +385,72 @@ async fn empty_books_from_broker_codes() {
     assert!(err.client_message().contains("EC919"));
     let err = b.get_holdings(&auth()).await.unwrap_err();
     assert!(err.client_message().contains("An error occurred"));
-    // close-all on an unreadable book: nothing to square off.
-    let r = b.close_all_positions(&auth()).await.unwrap();
-    assert_eq!(r.message(), "No Open Positions Found");
+    // BR-02: close all on a book that failed to load (EC919) is an error,
+    // not "no positions" (the web closes nothing and reports success).
+    let err = b.close_all_positions(&auth()).await.unwrap_err();
+    assert!(
+        err.client_message().contains("no position was closed"),
+        "{}",
+        err.client_message()
+    );
+    // AliceBlue's own "no orders" (EC916) is an empty book for cancel all.
+    let r = b.cancel_all_orders(&auth()).await.unwrap();
+    assert!(r.cancelled.is_empty() && r.failed.is_empty());
+}
+
+/// BR-02: cancel all and close all never read a book they could not load
+/// as "nothing to do": a failed read (EC915/EC919, their sentences), an
+/// error page, or an `Ok` without its rows is an error with no cancel or
+/// exit sent; only AliceBlue's own empty answers (EC916/EC920) or an empty
+/// list are empty.
+#[tokio::test]
+async fn cancel_all_and_close_all_refuse_an_unread_book() {
+    for (status, body, empty) in [
+        (200u16, json!({"status":"Not_Ok","message":"EC915"}).to_string(), false),
+        (
+            200,
+            json!({"status":"Not_Ok","message":"Failed to retrieve the order book."}).to_string(),
+            false,
+        ),
+        (500, "<html>Bad gateway</html>".to_string(), false),
+        (200, json!({"status":"Ok"}).to_string(), false),
+        (200, json!({"status":"Not_Ok","message":"EC916"}).to_string(), true),
+        (200, json!({"status":"Ok","result":[]}).to_string(), true),
+    ] {
+        let body2 = body.clone();
+        let fake = Fake::start(move |req: &Req| match req.path.as_str() {
+            "/open-api/od/v1/orders/book" | "/open-api/od/v1/positions" => {
+                // The order-book reply, reused for the positions book with
+                // the position codes.
+                let b = if req.path.ends_with("positions") {
+                    body2.replace("EC915", "EC919").replace("EC916", "EC920").replace(
+                        "Failed to retrieve the order book.",
+                        "Failed to retrieve the position book.",
+                    )
+                } else {
+                    body2.clone()
+                };
+                with_status(StatusCode::from_u16(status).unwrap(), b)
+            }
+            _ => rest(req),
+        })
+        .await;
+        let b = broker(&fake, "ws://127.0.0.1:9");
+        let cancel = b.cancel_all_orders(&auth()).await;
+        let close = b.close_all_positions(&auth()).await;
+        if empty {
+            let c = cancel.unwrap();
+            assert!(c.cancelled.is_empty() && c.failed.is_empty(), "{}", body);
+            assert!(close.unwrap().placed.is_empty(), "{}", body);
+        } else {
+            let e = cancel.unwrap_err().client_message();
+            assert!(e.contains("no order was cancelled"), "{}: {}", body, e);
+            let e = close.unwrap_err().client_message();
+            assert!(e.contains("no position was closed"), "{}: {}", body, e);
+        }
+        assert!(fake.calls("orders/cancel").is_empty(), "{}", body);
+        assert!(fake.calls("placeorder").is_empty(), "{}", body);
+    }
 }
 
 #[tokio::test]

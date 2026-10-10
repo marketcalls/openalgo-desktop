@@ -4,6 +4,7 @@ use super::mapping::{self, KiteHolding, KiteOrder, KitePositions, KiteTrade};
 use super::{Body, Category, ZerodhaBroker};
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::master_contract::format_strike;
+use crate::brokers::common::position_read::unread;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use reqwest::Method;
@@ -137,18 +138,23 @@ pub async fn cancel_order(
     })
 }
 
-async fn raw_orders(b: &ZerodhaBroker, auth: &AuthToken) -> Result<Vec<KiteOrder>> {
+/// The order list; `None` when the answer carried no `data`.
+async fn orders_data(b: &ZerodhaBroker, auth: &AuthToken) -> Result<Option<Vec<KiteOrder>>> {
     let env = b
         .call_raw::<Vec<KiteOrder>>(Method::GET, "/orders", auth, Body::None, Category::Other)
         .await?;
-    Ok(env.data.unwrap_or_default())
+    Ok(env.data)
 }
 
-/// Raw Kite net positions (MCX quantities in contracts).
-pub(crate) async fn raw_positions(
+async fn raw_orders(b: &ZerodhaBroker, auth: &AuthToken) -> Result<Vec<KiteOrder>> {
+    Ok(orders_data(b, auth).await?.unwrap_or_default())
+}
+
+/// Net positions; `None` when the answer carried no `data` or no `net`.
+async fn net_positions(
     b: &ZerodhaBroker,
     auth: &AuthToken,
-) -> Result<Vec<mapping::KitePosition>> {
+) -> Result<Option<Vec<mapping::KitePosition>>> {
     let env = b
         .call_raw::<KitePositions>(
             Method::GET,
@@ -158,12 +164,46 @@ pub(crate) async fn raw_positions(
             Category::Other,
         )
         .await?;
-    Ok(env.data.and_then(|d| d.net).unwrap_or_default())
+    Ok(env.data.and_then(|d| d.net))
 }
 
+/// Raw Kite net positions (MCX quantities in contracts), as the Positions
+/// page reads them: a reply without them reads as no positions.
+pub(crate) async fn raw_positions(
+    b: &ZerodhaBroker,
+    auth: &AuthToken,
+) -> Result<Vec<mapping::KitePosition>> {
+    Ok(net_positions(b, auth).await?.unwrap_or_default())
+}
+
+/// BR-03: net positions for a decision to trade (smart-order sizing, close
+/// all). `data` and `data.net` must both be there: a success reply without
+/// them is a book that was not read, never a flat one (the web raises on a
+/// missing `net` too). Kite sends `{"net": [], "day": []}` for no
+/// positions.
+async fn strict_positions(
+    b: &ZerodhaBroker,
+    auth: &AuthToken,
+) -> Result<Vec<mapping::KitePosition>> {
+    net_positions(b, auth).await?.ok_or_else(|| {
+        tracing::error!("Zerodha answered the position book without its net positions");
+        unread("Zerodha")
+    })
+}
+
+/// web `cancel_all_orders`. BR-03: a success reply without the order list
+/// is an order book that was not read, never "nothing to cancel" (Kite
+/// sends `[]` for no orders).
 pub async fn cancel_all_orders(b: &ZerodhaBroker, auth: &AuthToken) -> Result<CancelAllResult> {
+    let orders = orders_data(b, auth).await?.ok_or_else(|| {
+        tracing::error!("Zerodha answered the order book without its orders");
+        AppError::Broker(
+            "Zerodha did not return your order book, so no order was cancelled. Check your orders and try again."
+                .into(),
+        )
+    })?;
     let mut result = CancelAllResult::default();
-    for o in raw_orders(b, auth).await? {
+    for o in orders {
         // web filters Kite's own strings
         if o.status != "OPEN" && o.status != "TRIGGER PENDING" {
             continue;
@@ -193,7 +233,7 @@ pub async fn get_open_position(
         .map(|r| r.br_symbol().to_string())
         .unwrap_or_else(|| symbol.to_string());
     let lot = row.as_ref().and_then(mcx_lot);
-    for p in raw_positions(b, auth).await? {
+    for p in strict_positions(b, auth).await? {
         if p.tradingsymbol == br && p.exchange == ex && p.product == product.as_str() {
             // This value decides whether to trade, so an unknown MCX size is
             // an error, never a factor of 1.
@@ -212,7 +252,7 @@ pub async fn get_open_position(
 pub async fn close_all_positions(b: &ZerodhaBroker, auth: &AuthToken) -> Result<CloseAllResult> {
     let symbols = b.resolver().clone();
     let mut result = CloseAllResult::default();
-    for p in raw_positions(b, auth).await? {
+    for p in strict_positions(b, auth).await? {
         if p.quantity == 0 {
             continue;
         }

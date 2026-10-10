@@ -202,12 +202,14 @@ pub async fn cancel_all_orders(b: &IiflCapitalBroker, auth: &AuthToken) -> Resul
 }
 
 /// Square off every non-zero position with a MARKET order built from the
-/// position row itself (web `close_all_positions`).
+/// position row itself (web `close_all_positions`). BR-03: the book is
+/// read like the order book, so an error answer, a server error or a page
+/// that is not JSON is an error, never "no positions".
 pub async fn close_all_positions(
     b: &IiflCapitalBroker,
     auth: &AuthToken,
 ) -> Result<CloseAllResult> {
-    let data = b.call(Method::GET, "/positions", auth, None, true).await?.1;
+    let data = read_book(b, auth, "/positions", "positions").await?;
     let mut out = CloseAllResult::default();
     for row in mapping::book_rows(&data) {
         let net = mapping::int(row.get("netQuantity"));

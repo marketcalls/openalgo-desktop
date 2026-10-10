@@ -138,21 +138,33 @@ pub async fn cancel_order(
     Err(samco_error(status, &v, "Failed to cancel order"))
 }
 
-async fn raw_order_book(b: &SamcoBroker, auth: &AuthToken) -> Result<Value> {
-    let (_, v) = b.send(Method::GET, "/order/orderBook", auth, None).await?;
-    Ok(v)
+/// A `Failure` answer whose short `statusMessage` says the book is empty
+/// (`position_read` phrases, or "no order" for the order book). Anything
+/// else, including an empty or unreadable body, is not an empty book.
+fn says_empty_book(v: &Value) -> bool {
+    if says_no_positions(v, &["statusMessage"]) {
+        return true;
+    }
+    let msg = text(v.get("statusMessage"));
+    msg.chars().count() <= 200 && msg.to_ascii_lowercase().contains("no order")
 }
 
-/// Book reads: a `Failure` answer is surfaced unless Samco says the book is
-/// simply empty (no details key).
+/// Book reads (BR-02): a confirmed `Success`, the details array itself, or
+/// a `Failure` that says the book is empty; anything else (an empty or
+/// non-JSON body, an error page, another `Failure`) is an error, never an
+/// empty book.
 fn book_or_error(status: reqwest::StatusCode, v: Value, key: &str) -> Result<Value> {
-    if is_success(&v) || v.get(key).is_some() || v.get("status").is_none() {
+    if is_success(&v) || v.get(key).is_some_and(Value::is_array) {
         return Ok(v);
     }
-    let msg = text(v.get("statusMessage")).to_ascii_lowercase();
-    if msg.contains("no ") || msg.contains("not found") {
+    if says_empty_book(&v) {
         return Ok(Value::Null);
     }
+    tracing::warn!(
+        status = status.as_u16(),
+        "Samco book not confirmed: {}",
+        text(v.get("statusMessage"))
+    );
     Err(samco_error(status, &v, "Samco could not load this book."))
 }
 
@@ -198,29 +210,43 @@ pub async fn get_holdings(b: &SamcoBroker, auth: &AuthToken) -> Result<Vec<Holdi
 }
 
 /// web `cancel_all_orders_api`: every order whose raw status is open,
-/// pending or trigger pending.
+/// pending or trigger pending. BR-02: an order book Samco did not confirm
+/// is an error, never "nothing to cancel" (the web returns no orders and
+/// reports success): only a `Success` with the order list, or a `Failure`
+/// that says the book is empty, is read; an expired session keeps its
+/// sign-in message.
 pub async fn cancel_all_orders(b: &SamcoBroker, auth: &AuthToken) -> Result<CancelAllResult> {
-    let v = raw_order_book(b, auth).await?;
+    let (status, v) = b.send(Method::GET, "/order/orderBook", auth, None).await?;
     let mut result = CancelAllResult::default();
-    if !is_success(&v) {
-        return Ok(result);
-    }
-    let ids: Vec<String> = v
-        .get("orderBookDetails")
-        .and_then(Value::as_array)
-        .map(|a| {
-            a.iter()
-                .filter(|o| {
-                    matches!(
-                        text(o.get("orderStatus")).to_ascii_lowercase().as_str(),
-                        "open" | "pending" | "trigger pending"
-                    )
-                })
-                .map(|o| text(o.get("orderNumber")))
-                .filter(|id| !id.is_empty())
-                .collect()
+    let orders: Vec<Value> = match v.get("orderBookDetails") {
+        Some(Value::Array(a)) if is_success(&v) => a.clone(),
+        _ if !is_success(&v) && says_empty_book(&v) => Vec::new(),
+        _ => {
+            tracing::error!(
+                status = status.as_u16(),
+                "Samco order book not confirmed for cancel all: {}",
+                text(v.get("statusMessage"))
+            );
+            return Err(match samco_error(status, &v, "") {
+                e @ AppError::Auth(_) => e,
+                _ => AppError::Broker(
+                    "Samco could not load the order book, so no order was cancelled. Check your orders on Samco and try again."
+                        .into(),
+                ),
+            });
+        }
+    };
+    let ids: Vec<String> = orders
+        .iter()
+        .filter(|o| {
+            matches!(
+                text(o.get("orderStatus")).to_ascii_lowercase().as_str(),
+                "open" | "pending" | "trigger pending"
+            )
         })
-        .unwrap_or_default();
+        .map(|o| text(o.get("orderNumber")))
+        .filter(|id| !id.trim().is_empty())
+        .collect();
     for id in ids {
         match cancel_order(b, auth, &id).await {
             Ok(_) => result.cancelled.push(id),

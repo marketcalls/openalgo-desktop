@@ -25,6 +25,9 @@ pub const HOLDINGS: &str = "/open-api/od/v1/holdings/CNC";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Book {
     Orders,
+    /// Cancel all (BR-02): only AliceBlue's own "no orders" answer (EC916)
+    /// is an empty book; "Failed to retrieve" (EC915) is a failed read.
+    OrdersStrict,
     Trades,
     /// The Positions page and close-all (`strict=False`).
     Positions,
@@ -46,6 +49,11 @@ pub fn means_empty(book: Book, message: &str) -> bool {
                 || lower.contains("no orders")
                 || has("EC915")
                 || has("EC916")
+        }
+        Book::OrdersStrict => {
+            (lower.contains("no orders") || has("EC916"))
+                && !has("EC915")
+                && !message.contains("Failed to retrieve")
         }
         Book::Trades => {
             message.contains("No trades")
@@ -84,10 +92,19 @@ pub async fn read_book(
 ) -> Result<Vec<Value>> {
     let (_, v) = b.call(Method::GET, path, auth, None, true).await?;
     if status_ok(&v) {
-        return Ok(match v.get("result") {
-            Some(Value::Array(rows)) => rows.clone(),
-            _ => Vec::new(),
-        });
+        return match v.get("result") {
+            Some(Value::Array(rows)) => Ok(rows.clone()),
+            Some(Value::Null) => Ok(Vec::new()),
+            // A strict read (smart order, cancel all, close all) does not
+            // take an `Ok` without its rows as an empty book.
+            _ if matches!(book, Book::OrdersStrict | Book::PositionsStrict) => {
+                tracing::warn!("AliceBlue answered Ok without the book's rows");
+                Err(AppError::Broker(
+                    "AliceBlue could not return the book. Try again shortly.".into(),
+                ))
+            }
+            _ => Ok(Vec::new()),
+        };
     }
     let msg = text(v.get("message"));
     if means_empty(book, &msg) {
@@ -250,17 +267,25 @@ pub async fn get_open_position(
         .unwrap_or(0))
 }
 
-/// web `cancel_all_orders_api`: an unreadable order book cancels nothing.
+/// web `cancel_all_orders_api`, with BR-02: an order book that could not be
+/// read is an error, never "nothing to cancel" (the web reports success
+/// with no orders). Only AliceBlue's own "no orders" answer is empty.
 pub async fn cancel_all_orders(b: &AliceBlueBroker, auth: &AuthToken) -> Result<CancelAllResult> {
-    let book = match get_order_book(b, auth).await {
-        Ok(book) => book,
+    let book: Vec<Order> = match read_book(b, auth, ORDER_BOOK, Book::OrdersStrict).await {
+        Ok(rows) => rows
+            .iter()
+            .map(|r| mapping::order_from(r, &b.symbols))
+            .collect(),
         Err(e @ AppError::Auth(_)) => return Err(e),
         Err(e) => {
             tracing::warn!(
                 "AliceBlue order book unavailable for cancel-all: {}",
                 e.code()
             );
-            return Ok(CancelAllResult::default());
+            return Err(AppError::Broker(
+                "AliceBlue could not load the order book, so no order was cancelled. Check your orders on AliceBlue and try again."
+                    .into(),
+            ));
         }
     };
     let mut out = CancelAllResult::default();
@@ -285,9 +310,11 @@ pub async fn cancel_all_orders(b: &AliceBlueBroker, auth: &AuthToken) -> Result<
 }
 
 /// web `close_all_positions`: one MARKET exit per open position, product
-/// from the position; an unreadable book reads as no positions.
+/// from the position. BR-02: the book is read strictly, so one that could
+/// not be read is an error, never "no positions" (the web closes nothing
+/// and reports success).
 pub async fn close_all_positions(b: &AliceBlueBroker, auth: &AuthToken) -> Result<CloseAllResult> {
-    let book = match get_positions(b, auth).await {
+    let book = match positions(b, auth, Book::PositionsStrict).await {
         Ok(book) => book,
         Err(e @ AppError::Auth(_)) => return Err(e),
         Err(e) => {
@@ -295,7 +322,10 @@ pub async fn close_all_positions(b: &AliceBlueBroker, auth: &AuthToken) -> Resul
                 "AliceBlue position book unavailable for close-all: {}",
                 e.code()
             );
-            return Ok(CloseAllResult::default());
+            return Err(AppError::Broker(
+                "AliceBlue could not load your positions, so no position was closed. Check your positions on AliceBlue and try again."
+                    .into(),
+            ));
         }
     };
     let mut out = CloseAllResult::default();
