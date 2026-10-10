@@ -9,7 +9,7 @@
 //! * The stored session token is the raw Groww access token (no prefix).
 //! * Market data streams over NATS-on-WebSocket with protobuf payloads
 //!   (`streaming.rs`, on the shared feed manager); order updates are a REST
-//!   poll of the order book (`order_poller.rs`), as on the web.
+//!   poll of the order book (`common::order_poll`), as on the web.
 
 mod auth;
 mod data;
@@ -17,7 +17,6 @@ mod funds;
 pub mod mapping;
 pub mod master_contract;
 pub mod nkeys;
-pub mod order_poller;
 mod orders;
 pub mod proto;
 pub mod rate_limiter;
@@ -26,6 +25,7 @@ pub mod streaming;
 mod tests;
 
 use crate::brokers::common::http;
+use crate::brokers::common::order_poll;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::redact::url_safe_error;
 use crate::brokers::common::streaming::{BrokerFeed, OrderFeed, OrderUpdate};
@@ -311,7 +311,7 @@ pub(crate) fn groww_error(r: &Reply) -> AppError {
 pub struct GrowwBroker {
     core: GrowwCore,
     feed: streaming::FeedEndpoints,
-    poller: parking_lot::Mutex<Option<order_poller::OrderPoller>>,
+    poller: parking_lot::Mutex<Option<order_poll::OrderPoller>>,
 }
 
 impl GrowwBroker {
@@ -345,8 +345,17 @@ impl GrowwBroker {
         auth: &AuthToken,
         interval: Duration,
     ) -> Result<mpsc::Receiver<OrderUpdate>> {
-        let (poller, rx) =
-            order_poller::OrderPoller::start(self.core.clone(), auth.clone(), interval)?;
+        let core = self.core.clone();
+        let auth = auth.clone();
+        let (poller, rx) = order_poll::OrderPoller::start(
+            "groww",
+            interval,
+            move || {
+                let (core, auth) = (core.clone(), auth.clone());
+                async move { orders::get_order_book(&core, &auth).await }
+            },
+            order_poll::session_ends_on_auth,
+        )?;
         // Dropping the old poller aborts its task.
         *self.poller.lock() = Some(poller);
         Ok(rx)
@@ -528,7 +537,7 @@ impl Broker for GrowwBroker {
         }
         Ok(OrderFeed::Stream(self.start_order_updates(
             auth,
-            order_poller::DEFAULT_INTERVAL,
+            order_poll::DEFAULT_INTERVAL,
         )?))
     }
 

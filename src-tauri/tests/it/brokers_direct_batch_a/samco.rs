@@ -295,6 +295,77 @@ async fn cancel_all_touches_open_and_trigger_pending() {
     assert_eq!(fake.calls("/order/cancelOrder").len(), 2);
 }
 
+/// BR-02: cancel all never reads an order book Samco did not confirm as
+/// "nothing to cancel" (the web reports success with no orders): an error
+/// page, an empty body, an unknown `Failure` or a `Success` without its
+/// list is an error with no cancel sent, and an expired session keeps its
+/// sign-in message. Only a `Success` list or a `Failure` saying the book is
+/// empty is empty (Samco's exact empty-book sentence needs confirming on a
+/// live account).
+#[tokio::test]
+async fn cancel_all_refuses_an_unread_order_book() {
+    for (status, body, expect) in [
+        (500u16, "<html>Bad gateway</html>".to_string(), "unread"),
+        (200, String::new(), "unread"),
+        (
+            200,
+            json!({"status":"Failure","statusMessage":"Session Expired"}).to_string(),
+            "auth",
+        ),
+        (
+            200,
+            json!({"status":"Failure","statusMessage":"No session"}).to_string(),
+            "unread",
+        ),
+        (200, json!({"status":"Success"}).to_string(), "unread"),
+        (
+            200,
+            json!({"status":"Success","orderBookDetails":[]}).to_string(),
+            "empty",
+        ),
+        (
+            200,
+            json!({"status":"Failure","statusMessage":"No data found"}).to_string(),
+            "empty",
+        ),
+    ] {
+        let reply = body.clone();
+        let fake = Fake::start(move |r: &Req| match r.path.as_str() {
+            "/order/orderBook" => with_status(StatusCode::from_u16(status).unwrap(), &reply),
+            _ => samco_routes(r),
+        })
+        .await;
+        let res = broker(&fake).cancel_all_orders(&auth()).await;
+        match expect {
+            "empty" => {
+                let r = res.unwrap();
+                assert!(r.cancelled.is_empty() && r.failed.is_empty(), "{}", body);
+            }
+            "auth" => {
+                let e = res.unwrap_err();
+                assert!(
+                    matches!(e, openalgo_desktop_lib::error::AppError::Auth(_)),
+                    "{}: {:?}",
+                    body,
+                    e
+                );
+            }
+            _ => {
+                let e = res.unwrap_err().client_message();
+                assert!(e.contains("no order was cancelled"), "{}: {}", body, e);
+            }
+        }
+        assert!(fake.calls("/order/cancelOrder").is_empty(), "{}", body);
+    }
+    // The order book page shows an unreadable book as an error, not empty.
+    let fake = Fake::start(|r: &Req| match r.path.as_str() {
+        "/order/orderBook" => text(""),
+        _ => samco_routes(r),
+    })
+    .await;
+    assert!(broker(&fake).get_order_book(&auth()).await.is_err());
+}
+
 #[tokio::test]
 async fn close_all_merges_day_and_net() {
     let fake = Fake::start(samco_routes).await;
@@ -776,4 +847,139 @@ async fn secrets_stay_out_of_errors_and_logs() {
     }
     assert!(!logs.text().is_empty(), "the log capture saw nothing");
     logs.assert_clean();
+}
+
+/// The recorded order book with `edits` (order id, field, value) applied
+/// and `extra` appended.
+fn book_with(edits: &[(&str, &str, &str)], extra: Option<Value>) -> Value {
+    let mut v: Value = serde_json::from_str(crate::fixture!("samco", "order_book.json")).unwrap();
+    let rows = v["orderBookDetails"].as_array_mut().unwrap();
+    for (id, key, value) in edits {
+        let row = rows.iter_mut().find(|r| r["orderNumber"] == *id).unwrap();
+        row[*key] = json!(value);
+    }
+    if let Some(x) = extra {
+        rows.push(x);
+    }
+    v
+}
+
+/// BF-01: Samco order updates come from polling the order book (web
+/// `_POLLING_BROKERS`). The first poll publishes nothing; each later
+/// change (a partial fill, a cancel, a fill, a new rejected order) is
+/// published once; a failed poll (500) is retried, not the end of updates.
+#[tokio::test]
+async fn order_poller_publishes_each_change_once() {
+    use openalgo_desktop_lib::brokers::common::streaming::OrderFeed;
+    let polls = Arc::new(AtomicUsize::new(0));
+    let seen = polls.clone();
+    let rejected = json!({
+        "orderNumber": "261003000000105", "exchange": "NSE", "tradingSymbol": "SBIN-EQ",
+        "symbol": "3045_NSE", "transactionType": "BUY", "productCode": "MIS", "orderType": "L",
+        "orderPrice": "800", "triggerPrice": "0", "totalQuanity": "1", "filledQuantity": "0",
+        "unfilledQuantity": "0", "orderStatus": "Rejected", "rejectionReason": "RMS: Blocked"
+    });
+    let fake = Fake::start(move |r: &Req| match r.path.as_str() {
+        "/order/orderBook" => match seen.fetch_add(1, Ordering::SeqCst) {
+            0 => ok(crate::fixture!("samco", "order_book.json")),
+            1 => ok(book_with(
+                &[
+                    ("261003000000101", "filledQuantity", "4"),
+                    ("261003000000103", "orderStatus", "Cancelled"),
+                ],
+                None,
+            )),
+            2 => with_status(StatusCode::INTERNAL_SERVER_ERROR, "<html>down</html>"),
+            _ => ok(book_with(
+                &[
+                    ("261003000000101", "filledQuantity", "10"),
+                    ("261003000000101", "orderStatus", "Executed"),
+                    ("261003000000103", "orderStatus", "Cancelled"),
+                ],
+                Some(rejected.clone()),
+            )),
+        },
+        _ => samco_routes(r),
+    })
+    .await;
+    let b = broker(&fake);
+    assert!(b.capabilities().order_feed);
+    let OrderFeed::Stream(mut rx) = Broker::create_order_feed(&b, &auth()).unwrap() else {
+        panic!("expected the poller stream")
+    };
+    let mut got = Vec::new();
+    while got.len() < 4 {
+        let u = tokio::time::timeout(Duration::from_secs(15), rx.recv())
+            .await
+            .expect("an order update")
+            .expect("the poller is running");
+        got.push((u.orderid.clone(), u.order_status.clone(), u.filled_quantity));
+    }
+    assert_eq!(
+        got,
+        vec![
+            ("261003000000101".to_string(), "open".to_string(), 4),
+            ("261003000000103".to_string(), "cancelled".to_string(), 0),
+            ("261003000000101".to_string(), "complete".to_string(), 10),
+            ("261003000000105".to_string(), "rejected".to_string(), 0),
+        ]
+    );
+    // Nothing more once the book stops changing.
+    let n = polls.load(Ordering::SeqCst);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+    while polls.load(Ordering::SeqCst) <= n {
+        assert!(tokio::time::Instant::now() < deadline, "no further poll");
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    assert!(rx.try_recv().is_err());
+    Broker::on_logout(&b).await;
+    assert!(!b.order_updates_running());
+}
+
+/// BF-01: Samco's endpoints are IP-gated, so a 403 (an unregistered IP or
+/// a dead session; Samco does not say which) backs the poller off instead
+/// of ending order updates for good; only a confirmed expired session
+/// (401) stops it. Logout stops it with no late update.
+#[tokio::test]
+async fn order_poller_backs_off_on_ip_refusal_and_stops_on_expiry() {
+    use openalgo_desktop_lib::brokers::common::streaming::OrderFeed;
+    let status = Arc::new(AtomicUsize::new(403));
+    let polls = Arc::new(AtomicUsize::new(0));
+    let (s, p) = (status.clone(), polls.clone());
+    let fake = Fake::start(move |r: &Req| match r.path.as_str() {
+        "/order/orderBook" => {
+            p.fetch_add(1, Ordering::SeqCst);
+            let code = s.load(Ordering::SeqCst) as u16;
+            with_status(StatusCode::from_u16(code).unwrap(), "<html>refused</html>")
+        }
+        _ => samco_routes(r),
+    })
+    .await;
+    let b = broker(&fake);
+    let OrderFeed::Stream(mut rx) = Broker::create_order_feed(&b, &auth()).unwrap() else {
+        panic!("expected the poller stream")
+    };
+    // Two refused polls (then 2 s of back-off): still polling.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+    while polls.load(Ordering::SeqCst) < 2 {
+        assert!(tokio::time::Instant::now() < deadline, "no second poll");
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    assert!(b.order_updates_running());
+    // A confirmed expired session ends the updates.
+    status.store(401, Ordering::SeqCst);
+    let closed = tokio::time::timeout(Duration::from_secs(15), rx.recv()).await;
+    assert!(matches!(closed, Ok(None)), "the poller kept running");
+    assert!(!b.order_updates_running());
+
+    // Logout stops a running poller; its stream ends with no late update.
+    status.store(403, Ordering::SeqCst);
+    let OrderFeed::Stream(mut rx) = Broker::create_order_feed(&b, &auth()).unwrap() else {
+        panic!("expected the poller stream")
+    };
+    assert!(b.order_updates_running());
+    Broker::on_logout(&b).await;
+    assert!(!b.order_updates_running());
+    let closed = tokio::time::timeout(Duration::from_secs(2), rx.recv()).await;
+    assert!(matches!(closed, Ok(None)));
 }

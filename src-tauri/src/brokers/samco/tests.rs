@@ -868,13 +868,15 @@ fn identity_and_capabilities() {
     assert_eq!(b.id(), "samco");
     assert_eq!(b.login_kind(), LoginKind::ApiKeySecret);
     assert!(!b.requires_totp());
-    assert!(b.capabilities().margin && !b.capabilities().order_feed);
+    // BF-01: order updates come from the order-book poller.
+    assert!(b.capabilities().margin && b.capabilities().order_feed);
     assert_eq!(b.timeframe_map().last(), Some(&("D", "DAY")));
     assert!(b.create_feed(&AuthToken::new("")).is_err());
     assert!(b.create_feed(&AuthToken::new("tok")).is_ok());
-    // No order-update socket: the runtime is told so and starts none.
+    // No session, no poller.
     assert!(matches!(
-        b.create_order_feed(&AuthToken::new("tok")),
-        Err(crate::error::AppError::Unsupported(_))
+        b.create_order_feed(&AuthToken::new("")),
+        Err(crate::error::AppError::Auth(_))
     ));
+    assert!(!b.order_updates_running());
 }

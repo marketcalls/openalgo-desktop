@@ -753,7 +753,8 @@ fn capabilities_and_identity() {
     assert_eq!(b.id(), "fivepaisa");
     let c = b.capabilities();
     assert!(c.history && c.streaming && c.multiquotes_batch);
-    assert!(!c.margin && !c.gtt && !c.order_feed);
+    // 13-N1: order updates come from the order-book poller.
+    assert!(!c.margin && !c.gtt && c.order_feed);
     assert!(b.requires_totp());
     assert_eq!(
         b.login_kind(),
@@ -782,6 +783,8 @@ async fn order_feed_is_the_poller_and_logout_stops_it() {
         }
         .encode(),
     );
+    // 13-N1: the capability says what the order path is (the poller).
+    assert!(b.capabilities().order_feed);
     let feed = Broker::create_order_feed(&b, &auth).unwrap();
     assert!(b.order_updates_running());
     Broker::on_logout(&b).await;

@@ -27,8 +27,9 @@ mod tests;
 
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::common::order_poll::{self, PollError};
 use crate::brokers::common::redact;
-use crate::brokers::common::streaming::BrokerFeed;
+use crate::brokers::common::streaming::{BrokerFeed, OrderFeed, OrderUpdate};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
 use crate::brokers::{AuthResponse, Broker, BrokerCredentials};
@@ -120,6 +121,9 @@ impl ListingIds {
     }
 }
 
+/// Cloning shares the HTTP client, symbol master and listing ids (the
+/// order poller's task holds a clone with its own empty poller slot).
+#[derive(Clone)]
 pub struct SamcoBroker {
     pub(crate) http: reqwest::Client,
     pub(crate) base_url: String,
@@ -133,6 +137,8 @@ pub struct SamcoBroker {
     /// Fixed "today" for tests; IST today otherwise.
     pub(crate) today: Option<NaiveDate>,
     pub(crate) listing_ids: Arc<Mutex<ListingIds>>,
+    /// Running order-update poller, aborted on stop, logout or drop.
+    pub(crate) poller: Arc<Mutex<Option<order_poll::OrderPoller>>>,
 }
 
 impl SamcoBroker {
@@ -157,6 +163,7 @@ impl SamcoBroker {
             batch_delay: Duration::from_millis(200),
             today: None,
             listing_ids: Arc::new(Mutex::new(ListingIds::default())),
+            poller: Arc::default(),
         }
     }
 
@@ -313,8 +320,10 @@ impl SamcoBroker {
     }
 }
 
+const SESSION_EXPIRED: &str = "Your Samco session has expired. Connect to Samco again.";
+
 pub(crate) fn session_expired() -> AppError {
-    AppError::Auth("Your Samco session has expired. Connect to Samco again.".into())
+    AppError::Auth(SESSION_EXPIRED.into())
 }
 
 pub(crate) fn ip_or_session_refused() -> AppError {
@@ -397,7 +406,7 @@ impl Broker for SamcoBroker {
             margin: true,
             gtt: false,
             streaming: true,
-            order_feed: false,
+            order_feed: true,
             depth_levels: &[5],
         }
     }
@@ -508,9 +517,74 @@ impl Broker for SamcoBroker {
             self.listing_ids.clone(),
         )))
     }
+
+    /// Order updates come from polling the order book (web
+    /// `_POLLING_BROKERS`: Samco's only socket carries market data); the
+    /// poller replaces a running one and stops in `on_logout`.
+    fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
+        Self::token(auth)?;
+        Ok(OrderFeed::Stream(
+            self.start_order_updates(auth, order_poll::DEFAULT_INTERVAL)?,
+        ))
+    }
+
+    /// Broker logout, the daily boundary and app shutdown stop the poller.
+    async fn on_logout(&self) {
+        self.stop_order_updates();
+    }
+}
+
+/// How a failed order-book poll is read (BF-01). Samco's endpoints are
+/// IP-gated and answer a 403 for an unregistered IP as well as a dead
+/// session, so only a confirmed expired session (a 401, or Samco saying
+/// so) stops the poller; anything else, the ambiguous 403 included, backs
+/// off and keeps polling, so updates resume once the IP is registered.
+pub fn poll_error(e: &AppError) -> PollError {
+    match e {
+        AppError::Auth(m) if m == SESSION_EXPIRED => PollError::SessionEnded,
+        _ => PollError::Retry,
+    }
 }
 
 impl SamcoBroker {
+    /// Start polling the order book for order updates (web
+    /// `PollingOrderUpdateAdapter`). Replaces a running poller; the
+    /// interval is clamped to 1..=60 s.
+    pub fn start_order_updates(
+        &self,
+        auth: &AuthToken,
+        interval: Duration,
+    ) -> Result<tokio::sync::mpsc::Receiver<OrderUpdate>> {
+        // The task's copy gets its own empty poller slot so it never keeps
+        // this poller (and itself) alive.
+        let mut core = self.clone();
+        core.poller = Arc::default();
+        let auth = auth.clone();
+        let (poller, rx) = order_poll::OrderPoller::start(
+            "samco",
+            interval,
+            move || {
+                let (core, auth) = (core.clone(), auth.clone());
+                async move { orders::get_order_book(&core, &auth).await }
+            },
+            poll_error,
+        )?;
+        // Dropping the old poller aborts its task.
+        *self.poller.lock() = Some(poller);
+        Ok(rx)
+    }
+
+    /// Stop the order-update poller (broker logout, session revocation).
+    pub fn stop_order_updates(&self) {
+        if let Some(p) = self.poller.lock().take() {
+            p.stop();
+        }
+    }
+
+    /// Whether an order-update poller is running.
+    pub fn order_updates_running(&self) -> bool {
+        self.poller.lock().as_ref().is_some_and(|p| p.is_running())
+    }
     /// Static IP diagnostic behind the web's `GET /samco/ip-status`.
     pub async fn ip_status(&self, auth: &AuthToken) -> Result<IpStatus> {
         auth::ip_status(self, auth).await

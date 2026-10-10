@@ -20,7 +20,6 @@ pub mod data;
 pub mod funds;
 pub mod mapping;
 pub mod master_contract;
-pub mod order_poller;
 pub mod orders;
 pub mod streaming;
 #[cfg(test)]
@@ -28,6 +27,7 @@ mod tests;
 
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::common::order_poll;
 use crate::brokers::common::ratelimit::Pacer;
 use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::SymbolResolver;
@@ -162,7 +162,7 @@ pub struct FivepaisaBroker {
     pub(crate) batch_pause: Duration,
     pub(crate) pacer: Arc<Pacer>,
     /// Running order-update poller, aborted on stop or drop.
-    pub(crate) poller: Arc<parking_lot::Mutex<Option<order_poller::OrderPoller>>>,
+    pub(crate) poller: Arc<parking_lot::Mutex<Option<order_poll::OrderPoller>>>,
 }
 
 impl FivepaisaBroker {
@@ -309,10 +309,10 @@ impl Broker for FivepaisaBroker {
             margin: false,
             gtt: false,
             streaming: true,
-            // The web's OrderTradeConfirmations adapter is not registered:
-            // 5paisa allows one feed connection per token, so order status
-            // comes from REST polling (`start_order_updates`).
-            order_feed: false,
+            // Order updates come from REST polling (`start_order_updates`),
+            // not the web's unregistered OrderTradeConfirmations socket:
+            // 5paisa allows one feed connection per token.
+            order_feed: true,
             depth_levels: &[5],
         }
     }
@@ -424,7 +424,7 @@ impl Broker for FivepaisaBroker {
     fn create_order_feed(&self, auth: &AuthToken) -> Result<OrderFeed> {
         Ok(OrderFeed::Stream(self.start_order_updates(
             auth,
-            order_poller::DEFAULT_INTERVAL,
+            order_poll::DEFAULT_INTERVAL,
         )?))
     }
 
@@ -462,7 +462,16 @@ impl FivepaisaBroker {
         // this poller (and itself) alive.
         let mut core = self.clone();
         core.poller = Arc::default();
-        let (poller, rx) = order_poller::OrderPoller::start(core, auth.clone(), interval)?;
+        let auth = auth.clone();
+        let (poller, rx) = order_poll::OrderPoller::start(
+            "fivepaisa",
+            interval,
+            move || {
+                let (core, auth) = (core.clone(), auth.clone());
+                async move { orders::get_order_book(&core, &auth).await }
+            },
+            order_poll::session_ends_on_auth,
+        )?;
         // Dropping the old poller aborts its task.
         *self.poller.lock() = Some(poller);
         Ok(rx)
