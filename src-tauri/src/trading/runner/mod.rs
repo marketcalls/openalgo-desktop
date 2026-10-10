@@ -19,6 +19,15 @@
 //! own fills, and a close that did not happen leaves the run open and
 //! managed), the IST schedules, and teardown on logout and shutdown.
 //!
+//! **A deployment keeps its id on both sides, so every read of its orders
+//! names the side.** Started in analyzer mode and again live, its sandbox
+//! and live rows share the id; mixed, a sandbox position left by a Pause was
+//! once sold at the broker by a later live Stop. And a Stop's exit is capped
+//! by what the destination itself holds in the contract (its position book,
+//! plus holdings for delivery): never more than that, never the other way.
+//! The web closes from its in-memory ledger alone; the cap is a deliberate
+//! desktop addition.
+//!
 //! **Every task is owned.** One pump per run (order frames, new bars, the
 //! page's heartbeat) kept in the run's entry and aborted when the run ends,
 //! and one scheduler task kept here and aborted at shutdown. A page that
@@ -37,7 +46,7 @@ pub mod window;
 
 use crate::clock::Clock;
 use crate::db::sqlite::SqliteDb;
-use crate::strategy::dispatch::RunMode;
+use crate::strategy::dispatch::{Book, RunMode};
 use crate::trading::names::{is_script_name, names_something};
 use crate::trading::scripts::ScriptStore;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
@@ -210,6 +219,22 @@ fn random_token() -> String {
     let mut b = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut b);
     hex::encode(b)
+}
+
+/// Where a run's orders go, as a trader reads it.
+fn side_words(mode: RunMode) -> &'static str {
+    match mode {
+        RunMode::Live => "at your broker",
+        RunMode::Sandbox => "in sandbox mode",
+    }
+}
+
+fn side_name(quantity: i64) -> &'static str {
+    if quantity < 0 {
+        "short"
+    } else {
+        "long"
+    }
 }
 
 impl Runner {
@@ -701,7 +726,7 @@ impl Runner {
         self.refresh_orders(entry).await;
 
         // Withdraw what is still working, then square what was filled.
-        let own = self.own_orders(&info.run_id);
+        let own = self.own_orders(&info.run_id, info.mode);
         for o in own
             .iter()
             .filter(|o| !store::TERMINAL.contains(&o.status.as_str()))
@@ -721,14 +746,19 @@ impl Runner {
             }
         }
         self.refresh_orders(entry).await;
-        let held = store::holdings(&self.own_orders(&info.run_id));
+        let held: Vec<store::Holding> =
+            store::holdings(&self.own_orders(&info.run_id, info.mode))
+                .into_iter()
+                .filter(|h| h.quantity != 0)
+                .collect();
+        let sizes = self.exit_sizes(info, &held).await?;
         let mut exits = Vec::new();
-        for h in held.iter().filter(|h| h.quantity != 0) {
+        for (h, units) in sizes {
             let placement = orders::Placement {
                 intent_id: -1,
                 tag: "close".into(),
                 action: if h.quantity > 0 { "SELL" } else { "BUY" },
-                quantity: h.quantity.abs(),
+                quantity: units,
                 pricetype: "MARKET",
                 price: None,
                 trigger_price: None,
@@ -761,7 +791,7 @@ impl Runner {
         let deadline = Instant::now() + wait;
         loop {
             self.refresh_orders(entry).await;
-            let rows = self.own_orders(&info.run_id);
+            let rows = self.own_orders(&info.run_id, info.mode);
             let mine: Vec<&store::OrderRow> =
                 rows.iter().filter(|r| exits.contains(&r.id)).collect();
             if mine.iter().all(|r| r.status == "filled") {
@@ -781,6 +811,102 @@ impl Runner {
             }
             tokio::time::sleep(look).await;
         }
+    }
+
+    /// What a Stop may send for each contract the run's own fills hold: never
+    /// more than, nor against, what the destination itself holds there (its
+    /// position book, plus settled holdings for delivery). Every contract is
+    /// decided before anything is sent, so a conflict on one sends nothing.
+    async fn exit_sizes<'a>(
+        &self,
+        info: &RunInfo,
+        held: &'a [store::Holding],
+    ) -> Result<Vec<(&'a store::Holding, i64)>, String> {
+        if held.is_empty() {
+            return Ok(Vec::new());
+        }
+        let services = self.services();
+        let unread = |what: &str, e: Value| {
+            self.write_log(
+                info,
+                &[format!(
+                    "Your {} {} could not be read: {}",
+                    what,
+                    side_words(info.mode),
+                    e.get("message").and_then(Value::as_str).unwrap_or_default()
+                )],
+            );
+            format!(
+                "Your {} {} could not be read just now, so nothing was sent to close this strategy's position. It is still running and still holding it. Try Stop again in a moment.",
+                what,
+                side_words(info.mode)
+            )
+        };
+        let positions = services
+            .book(info.mode, Book::Positions)
+            .await
+            .map_err(|e| unread("positions", e))?;
+        let holdings = if held.iter().any(|h| h.product.eq_ignore_ascii_case("CNC")) {
+            Some(
+                services
+                    .holdings(info.mode)
+                    .await
+                    .map_err(|e| unread("holdings", e))?,
+            )
+        } else {
+            None
+        };
+        let mut out = Vec::new();
+        for h in held {
+            let actual = books::destination_net(
+                &positions,
+                holdings.as_ref(),
+                &h.symbol,
+                &h.exchange,
+                &h.product,
+            );
+            match orders::exit_cap(h.quantity, actual) {
+                orders::ExitCap::Nothing => {}
+                orders::ExitCap::DestinationFlat => self.write_log(
+                    info,
+                    &[format!(
+                        "Your account {} holds no {} {} position, though this strategy's own orders add up to {}. It may have been closed outside this strategy, so nothing was sent for it.",
+                        side_words(info.mode),
+                        h.product,
+                        h.symbol,
+                        h.quantity
+                    )],
+                ),
+                orders::ExitCap::Opposite => {
+                    return Err(format!(
+                        "This strategy's own orders add up to {} {} {}, but your account {} is {} {}. Nothing was sent, so that position was not added to. It is still running. Check the position and close it yourself if needed, then Stop it again or Pause it.",
+                        side_name(h.quantity),
+                        h.quantity.unsigned_abs(),
+                        h.symbol,
+                        side_words(info.mode),
+                        side_name(actual),
+                        actual.unsigned_abs()
+                    ));
+                }
+                orders::ExitCap::Close { units, capped } => {
+                    if capped {
+                        self.write_log(
+                            info,
+                            &[format!(
+                                "Your account {} holds {} {}, less than the {} this strategy's own orders add up to, so only {} is being closed.",
+                                side_words(info.mode),
+                                actual.unsigned_abs(),
+                                h.symbol,
+                                h.quantity.unsigned_abs(),
+                                units
+                            )],
+                        );
+                    }
+                    out.push((h, units));
+                }
+            }
+        }
+        Ok(out)
     }
 
     /// The page ended by itself (a diagnostic stopped the script) or stopped
@@ -887,17 +1013,17 @@ impl Runner {
 
     // ------------------------------------------------------------- orders
 
-    fn own_orders(&self, run_id: &str) -> Vec<store::OrderRow> {
+    fn own_orders(&self, run_id: &str, mode: RunMode) -> Vec<store::OrderRow> {
         self.db
             .conn()
             .ok()
-            .and_then(|c| store::orders_of(&c, run_id).ok())
+            .and_then(|c| store::orders_of(&c, run_id, mode.as_str()).ok())
             .unwrap_or_default()
     }
 
-    /// The orders a deployment placed (for its books).
-    pub fn orders_of(&self, given: &str) -> Vec<store::OrderRow> {
-        self.own_orders(&self.as_run_id(given))
+    /// The orders a deployment placed on one side (for its books).
+    pub fn orders_of(&self, given: &str, mode: RunMode) -> Vec<store::OrderRow> {
+        self.own_orders(&self.as_run_id(given), mode)
     }
 
     /// Place one order for a run and record it. Answers the row id and the
@@ -990,7 +1116,7 @@ impl Runner {
             .db
             .conn()
             .ok()
-            .and_then(|c| store::open_orders(&c, &entry.info.run_id).ok())
+            .and_then(|c| store::open_orders(&c, &entry.info.run_id, entry.info.mode.as_str()).ok())
             .unwrap_or_default();
         for o in open {
             let Some(oid) = o.orderid.clone() else {
@@ -1245,7 +1371,7 @@ impl Runner {
                 },
                 Planned::Cancel { tag, .. } => {
                     for o in self
-                        .own_orders(run_id)
+                        .own_orders(run_id, info.mode)
                         .into_iter()
                         .filter(|o| o.tag == tag && !store::TERMINAL.contains(&o.status.as_str()))
                     {

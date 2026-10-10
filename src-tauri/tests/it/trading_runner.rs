@@ -20,6 +20,15 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+/// One order the fake destination holds. An id belongs to one side: the
+/// sandbox and the broker number their orders separately, so asking one side
+/// about the other's id finds nothing, as it would in the app.
+struct FakeOrder {
+    mode: RunMode,
+    id: String,
+    status: Value,
+}
+
 #[derive(Default)]
 struct Fake {
     analyzer: AtomicBool,
@@ -28,10 +37,84 @@ struct Fake {
     fill_at_once: AtomicBool,
     closed_market: AtomicBool,
     nobody: AtomicBool,
+    unreadable_positions: AtomicBool,
     next: AtomicU64,
     placed: Mutex<Vec<(RunMode, Value, bool)>>,
-    statuses: Mutex<HashMap<String, Value>>,
-    cancelled: Mutex<Vec<String>>,
+    orders: Mutex<Vec<FakeOrder>>,
+    cancelled: Mutex<Vec<(RunMode, String)>>,
+    /// Size held outside any strategy, per side and symbol (NSE, MIS),
+    /// added to what the position book reports.
+    outside: Mutex<Vec<(RunMode, String, i64)>>,
+}
+
+impl Fake {
+    /// Change what one side says about one of its orders.
+    fn set_status(&self, mode: RunMode, id: &str, fields: Value) {
+        let mut orders = self.orders.lock();
+        let o = orders
+            .iter_mut()
+            .find(|o| o.mode == mode && o.id == id)
+            .expect("no such order on that side");
+        for (k, v) in fields.as_object().unwrap() {
+            o.status[k] = v.clone();
+        }
+    }
+
+    fn hold_outside(&self, mode: RunMode, symbol: &str, quantity: i64) {
+        let mut outside = self.outside.lock();
+        outside.retain(|(m, s, _)| !(*m == mode && s == symbol));
+        outside.push((mode, symbol.to_string(), quantity));
+    }
+
+    fn placed_on(&self, mode: RunMode) -> Vec<Value> {
+        self.placed
+            .lock()
+            .iter()
+            .filter(|(m, _, _)| *m == mode)
+            .map(|(_, r, _)| r.clone())
+            .collect()
+    }
+
+    /// One side's position book: the net of its own fills, plus whatever is
+    /// held there outside any strategy.
+    fn positions(&self, mode: RunMode) -> Vec<Value> {
+        let mut net: HashMap<(String, String, String), i64> = HashMap::new();
+        for o in self.orders.lock().iter().filter(|o| o.mode == mode) {
+            let s = &o.status;
+            let filled = if s["order_status"] == "complete" {
+                s["filled_quantity"]
+                    .as_i64()
+                    .or(s["quantity"].as_i64())
+                    .unwrap_or(0)
+            } else {
+                s["filled_quantity"].as_i64().unwrap_or(0)
+            };
+            let side = if s["action"] == "SELL" { -1 } else { 1 };
+            let key = (
+                s["symbol"].as_str().unwrap_or_default().to_string(),
+                s["exchange"].as_str().unwrap_or_default().to_string(),
+                s["product"].as_str().unwrap_or_default().to_string(),
+            );
+            *net.entry(key).or_default() += side * filled;
+        }
+        for (m, symbol, q) in self.outside.lock().iter() {
+            if *m == mode {
+                *net
+                    .entry((symbol.clone(), "NSE".into(), "MIS".into()))
+                    .or_default() += q;
+            }
+        }
+        net.into_iter()
+            .map(|((symbol, exchange, product), quantity)| {
+                json!({"symbol": symbol, "exchange": exchange, "product": product,
+                       "quantity": quantity, "ltp": 110.0})
+            })
+            // A contract the account holds that no strategy traded.
+            .chain(std::iter::once(
+                json!({"symbol": "INFY", "exchange": "NSE", "product": "MIS", "quantity": 5, "ltp": 1.0}),
+            ))
+            .collect()
+    }
 }
 
 #[async_trait]
@@ -71,12 +154,18 @@ impl RunnerServices for Fake {
             return DispatchResult::refused("Insufficient funds");
         }
         let id = format!("OID{}", self.next.fetch_add(1, Ordering::SeqCst) + 1);
-        let status = if self.fill_at_once.load(Ordering::SeqCst) {
-            json!({"order_status": "complete", "quantity": request["quantity"], "average_price": 100.0})
-        } else {
-            json!({"order_status": "open", "quantity": request["quantity"]})
-        };
-        self.statuses.lock().insert(id.clone(), status);
+        let mut status = json!({"order_status": "open", "quantity": request["quantity"],
+            "action": request["action"], "symbol": request["symbol"],
+            "exchange": request["exchange"], "product": request["product"]});
+        if self.fill_at_once.load(Ordering::SeqCst) {
+            status["order_status"] = json!("complete");
+            status["average_price"] = json!(100.0);
+        }
+        self.orders.lock().push(FakeOrder {
+            mode,
+            id: id.clone(),
+            status,
+        });
         DispatchResult {
             ok: true,
             broker_order_id: Some(id.clone()),
@@ -84,11 +173,16 @@ impl RunnerServices for Fake {
             error: None,
         }
     }
-    async fn cancel(&self, _m: RunMode, orderid: &str) -> DispatchResult {
-        self.cancelled.lock().push(orderid.to_string());
-        if let Some(s) = self.statuses.lock().get_mut(orderid) {
-            s["order_status"] = json!("cancelled");
-        }
+    async fn cancel(&self, mode: RunMode, orderid: &str) -> DispatchResult {
+        self.cancelled.lock().push((mode, orderid.to_string()));
+        let mut orders = self.orders.lock();
+        let Some(o) = orders
+            .iter_mut()
+            .find(|o| o.mode == mode && o.id == orderid)
+        else {
+            return DispatchResult::refused("No such order");
+        };
+        o.status["order_status"] = json!("cancelled");
         DispatchResult {
             ok: true,
             broker_order_id: Some(orderid.into()),
@@ -96,11 +190,16 @@ impl RunnerServices for Fake {
             error: None,
         }
     }
-    async fn order_status(&self, _m: RunMode, orderid: &str) -> OrderStatusResult {
-        match self.statuses.lock().get(orderid) {
-            Some(s) => OrderStatusResult {
+    async fn order_status(&self, mode: RunMode, orderid: &str) -> OrderStatusResult {
+        match self
+            .orders
+            .lock()
+            .iter()
+            .find(|o| o.mode == mode && o.id == orderid)
+        {
+            Some(o) => OrderStatusResult {
                 ok: true,
-                order: s.clone(),
+                order: o.status.clone(),
                 error: None,
             },
             None => OrderStatusResult::default(),
@@ -108,14 +207,13 @@ impl RunnerServices for Fake {
     }
     async fn book(&self, mode: RunMode, book: Book) -> Result<Value, Value> {
         let rows: Vec<Value> = self
-            .placed
+            .orders
             .lock()
             .iter()
-            .enumerate()
-            .filter(|(_, (m, _, _))| *m == mode)
-            .map(|(i, (_, r, _))| {
-                json!({"orderid": format!("OID{}", i + 1), "symbol": r["symbol"], "exchange": r["exchange"],
-                       "action": r["action"], "order_status": "complete", "ltp": 110.0})
+            .filter(|o| o.mode == mode)
+            .map(|o| {
+                json!({"orderid": o.id, "symbol": o.status["symbol"], "exchange": o.status["exchange"],
+                       "action": o.status["action"], "order_status": o.status["order_status"], "ltp": 110.0})
             })
             .chain(std::iter::once(json!({"orderid": "MANUAL", "symbol": "SBIN", "exchange": "NSE", "action": "BUY", "order_status": "complete"})))
             .collect();
@@ -124,10 +222,16 @@ impl RunnerServices for Fake {
                 json!({"status": "success", "data": {"orders": rows, "statistics": {"total_buy_orders": 9}}})
             }
             Book::Trades => json!({"status": "success", "data": rows}),
-            Book::Positions => json!({"status": "success", "total_pnl": 999.0,
-                "data": [{"symbol": "SBIN", "exchange": "NSE", "product": "MIS", "quantity": 1, "ltp": 110.0},
-                         {"symbol": "INFY", "exchange": "NSE", "product": "MIS", "quantity": 5, "ltp": 1.0}]}),
+            Book::Positions => {
+                if self.unreadable_positions.load(Ordering::SeqCst) {
+                    return Err(json!({"status": "error", "message": "Session expired"}));
+                }
+                json!({"status": "success", "total_pnl": 999.0, "data": self.positions(mode)})
+            }
         })
+    }
+    async fn holdings(&self, _mode: RunMode) -> Result<Value, Value> {
+        Ok(json!({"status": "success", "data": {"holdings": [], "statistics": {}}}))
     }
     fn lot_size(&self, _s: &str, _e: &str) -> Option<i64> {
         Some(1)
@@ -247,13 +351,17 @@ impl T {
     }
 
     async fn buy(&self, run: &str, intent: i64, qty: i64) -> Value {
+        self.order(run, intent, "buy", qty).await
+    }
+
+    async fn order(&self, run: &str, intent: i64, side: &str, qty: i64) -> Value {
         let (s, v) = self
             .page(
                 Method::POST,
                 run,
                 "intents",
                 Some(json!({"confirmed": true, "intents": [{
-                    "intentId": intent, "kind": "place", "side": "buy", "qty": qty, "qtyType": "units",
+                    "intentId": intent, "kind": "place", "side": side, "qty": qty, "qtyType": "units",
                     "type": "market", "tag": "long", "instrument": {"symbol": "SBIN", "exchange": "NSE"},
                     "product": "", "positionRef": 1, "bar": {"index": 3, "time": 0}
                 }]})),
@@ -261,6 +369,53 @@ impl T {
             .await;
         assert_eq!(s, StatusCode::OK, "{}", v);
         v
+    }
+
+    async fn start(&self, run: &str) -> Value {
+        let (s, v) = self
+            .call(
+                Method::POST,
+                &format!("/openscript/runner/start/{}", run),
+                None,
+            )
+            .await;
+        assert_eq!(s, StatusCode::ACCEPTED, "{}", v);
+        v
+    }
+
+    async fn close(&self, run: &str) -> (StatusCode, Value) {
+        self.call(
+            Method::POST,
+            &format!("/openscript/runner/close/{}", run),
+            None,
+        )
+        .await
+    }
+
+    /// Run on the sandbox side, trade, let it fill, then end the run in a way
+    /// that leaves the position where it is (Pause, or the pause every run
+    /// gets on logout and on quit).
+    async fn leave_a_sandbox_position(&self, run: &str, side: &str, qty: i64, by_logout: bool) {
+        self.fake.analyzer.store(true, Ordering::SeqCst);
+        self.fake.fill_at_once.store(true, Ordering::SeqCst);
+        assert_eq!(self.start(run).await["run"]["mode"], "sandbox");
+        self.order(run, 1, side, qty).await;
+        let runner = &self.h.ctx.trading.runner;
+        runner.pump_once(run).await;
+        if by_logout {
+            assert_eq!(runner.pause_all("Paused because you signed out").len(), 1);
+        } else {
+            runner.pause(run).unwrap();
+        }
+        assert!(!runner.is_running(run));
+        assert_eq!(self.fake.placed_on(RunMode::Sandbox).len(), 1);
+    }
+
+    /// Switch the platform to live with a broker, and start the run there.
+    async fn go_live(&self, run: &str) {
+        self.fake.analyzer.store(false, Ordering::SeqCst);
+        self.fake.broker.store(true, Ordering::SeqCst);
+        assert_eq!(self.start(run).await["run"]["mode"], "live");
     }
 }
 
@@ -361,9 +516,10 @@ async fn start_page_orders_books_and_pause() {
     assert_eq!(frame["orderRef"], "OID1");
 
     // The pump reads the fill back and tells the page.
-    t.fake.statuses.lock().insert(
-        "OID1".into(),
-        json!({"order_status": "complete", "quantity": 2, "average_price": 100.0}),
+    t.fake.set_status(
+        RunMode::Sandbox,
+        "OID1",
+        json!({"order_status": "complete", "average_price": 100.0}),
     );
     t.h.ctx.trading.runner.pump_once(&id).await;
     let seq = inbox["messages"][0]["seq"].as_u64().unwrap();
@@ -527,6 +683,126 @@ async fn close_squares_the_position_or_stays_running() {
     assert_eq!(exit["strategy"], id);
     assert!(!t.h.ctx.trading.runner.is_running(&id));
     assert_eq!(t.host.open_count(), 0);
+}
+
+/// LOG-01: a deployment keeps its id when it is started on the other side.
+/// A sandbox position left by Pause (or logout, or quit) once made a later
+/// live Stop sell it at the broker: a naked short of the sandbox quantity.
+#[tokio::test]
+async fn stop_after_switching_sides_closes_only_this_side() {
+    for by_logout in [false, true] {
+        let t = setup().await;
+        let id = t.deploy("SBIN").await;
+        t.leave_a_sandbox_position(&id, "buy", 3, by_logout).await;
+        t.go_live(&id).await;
+        let (s, v) = t.close(&id).await;
+        assert_eq!(s, StatusCode::OK, "{}", v);
+        assert_eq!(v["message"], "t.oscript closed and stopped");
+        // Nothing reached the broker: no exit, no cancel, for a sandbox fill.
+        assert!(t.fake.placed_on(RunMode::Live).is_empty());
+        assert!(t
+            .fake
+            .cancelled
+            .lock()
+            .iter()
+            .all(|(m, _)| *m != RunMode::Live));
+        // The sandbox position is still the sandbox's, untouched.
+        assert_eq!(t.fake.placed_on(RunMode::Sandbox).len(), 1);
+    }
+}
+
+#[tokio::test]
+async fn stop_after_switching_sides_closes_the_live_fills_alone() {
+    let t = setup().await;
+    let id = t.deploy("SBIN").await;
+    t.leave_a_sandbox_position(&id, "buy", 3, false).await;
+    t.go_live(&id).await;
+    t.buy(&id, 1, 2).await;
+    t.h.ctx.trading.runner.pump_once(&id).await;
+    let (s, v) = t.close(&id).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    let live = t.fake.placed_on(RunMode::Live);
+    assert_eq!(live.len(), 2, "the live entry and one exit");
+    assert_eq!(live[1]["action"], "SELL");
+    assert_eq!(live[1]["quantity"], 2, "the live fills, never 2 + 3");
+}
+
+#[tokio::test]
+async fn opposite_residuals_on_two_sides_do_not_cancel_out() {
+    let t = setup().await;
+    let id = t.deploy("SBIN").await;
+    // Sandbox short 3 and live long 3 netted to nothing, so Stop reported
+    // "closed" and left the live long with nobody managing it.
+    t.leave_a_sandbox_position(&id, "sell", 3, false).await;
+    t.go_live(&id).await;
+    t.buy(&id, 1, 3).await;
+    t.h.ctx.trading.runner.pump_once(&id).await;
+    let (s, v) = t.close(&id).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    let live = t.fake.placed_on(RunMode::Live);
+    assert_eq!(live.len(), 2);
+    assert_eq!(live[1]["action"], "SELL");
+    assert_eq!(live[1]["quantity"], 3);
+}
+
+/// LOG-01, the cap: a Stop's exit is never larger than, nor opposite to,
+/// what the destination itself holds in the contract.
+#[tokio::test]
+async fn stop_never_closes_more_than_the_destination_holds() {
+    let t = setup().await;
+    let id = t.deploy("SBIN").await;
+    let runner = t.h.ctx.trading.runner.clone();
+    t.fake.fill_at_once.store(true, Ordering::SeqCst);
+    t.start(&id).await;
+    t.buy(&id, 1, 3).await;
+    runner.pump_once(&id).await;
+
+    // Closed outside the strategy (the end-of-day square-off): flat there,
+    // so nothing is sent, which would have opened a short of 3.
+    t.fake.hold_outside(RunMode::Sandbox, "SBIN", -3);
+    let (s, v) = t.close(&id).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    assert_eq!(t.fake.placed_on(RunMode::Sandbox).len(), 1, "no exit sent");
+    let log = std::fs::read_to_string(runner.logs_dir().join(&runner.logs_for(&id)[0])).unwrap();
+    assert!(log.contains("holds no MIS SBIN position"), "{}", log);
+
+    // The account holds less than the run's own fills: only that is closed.
+    t.fake.hold_outside(RunMode::Sandbox, "SBIN", -1);
+    t.start(&id).await;
+    let (s, v) = t.close(&id).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    let sent = t.fake.placed_on(RunMode::Sandbox);
+    assert_eq!(sent.len(), 2);
+    assert_eq!(sent[1]["action"], "SELL");
+    assert_eq!(sent[1]["quantity"], 2);
+
+    // The account holds the other side: refused, nothing sent, still running.
+    t.fake.hold_outside(RunMode::Sandbox, "SBIN", -4);
+    t.start(&id).await;
+    let (s, v) = t.close(&id).await;
+    assert_eq!(s, StatusCode::CONFLICT, "{}", v);
+    assert!(
+        v["message"]
+            .as_str()
+            .unwrap()
+            .contains("your account in sandbox mode is short 3"),
+        "{}",
+        v
+    );
+    assert_eq!(t.fake.placed_on(RunMode::Sandbox).len(), 2);
+    assert!(runner.is_running(&id));
+
+    // The position book cannot be read: refused, nothing sent, still running.
+    t.fake.hold_outside(RunMode::Sandbox, "SBIN", 0);
+    t.fake.unreadable_positions.store(true, Ordering::SeqCst);
+    let (s, v) = t.close(&id).await;
+    assert_eq!(s, StatusCode::CONFLICT, "{}", v);
+    assert!(v["message"]
+        .as_str()
+        .unwrap()
+        .contains("could not be read just now"));
+    assert_eq!(t.fake.placed_on(RunMode::Sandbox).len(), 2);
+    assert!(runner.is_running(&id));
 }
 
 #[tokio::test]

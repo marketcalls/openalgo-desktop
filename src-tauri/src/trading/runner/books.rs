@@ -188,9 +188,83 @@ pub async fn positions(services: &dyn RunnerServices, mode: RunMode, own: &[Orde
     payload
 }
 
+fn signed_units(v: &Value) -> i64 {
+    // Toward zero: a size read here only ever caps an exit, so reading less
+    // than is there errs on the side of closing less.
+    crate::risk::value_to_f64(v)
+        .filter(|q| q.is_finite())
+        .map(|q| q.trunc() as i64)
+        .unwrap_or(0)
+}
+
+fn same_equity(a: &str, b: &str) -> bool {
+    a == b || (matches!(a, "NSE" | "BSE") && matches!(b, "NSE" | "BSE"))
+}
+
+/// What the destination itself holds in one contract, signed: its position
+/// rows for the symbol, exchange and product, plus, for delivery (`CNC`),
+/// the shares already settled into its holdings (T+1 moves a delivery
+/// position there, and selling from holdings is how it is closed). A Stop
+/// caps its exit with this, so it never sells what the account does not hold.
+pub fn destination_net(
+    positions: &Value,
+    holdings: Option<&Value>,
+    symbol: &str,
+    exchange: &str,
+    product: &str,
+) -> i64 {
+    let (rows, _) = rows_and_shape(&positions["data"], "positions");
+    let mut net: i64 = rows
+        .iter()
+        .filter(|r| {
+            text(&r["symbol"]) == symbol
+                && text(&r["exchange"]) == exchange
+                && text(&r["product"]).eq_ignore_ascii_case(product)
+        })
+        .map(|r| signed_units(&r["quantity"]))
+        .fold(0i64, i64::saturating_add);
+    if product.eq_ignore_ascii_case("CNC") {
+        if let Some(h) = holdings {
+            let (rows, _) = rows_and_shape(&h["data"], "holdings");
+            net = rows
+                .iter()
+                .filter(|r| text(&r["symbol"]) == symbol && same_equity(&text(&r["exchange"]), exchange))
+                .map(|r| signed_units(&r["quantity"]))
+                .fold(net, i64::saturating_add);
+        }
+    }
+    net
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_destination_net_is_read_per_contract() {
+        let positions = json!({"status": "success", "data": [
+            {"symbol": "SBIN", "exchange": "NSE", "product": "MIS", "quantity": 7},
+            {"symbol": "SBIN", "exchange": "NSE", "product": "CNC", "quantity": "-2"},
+            {"symbol": "SBIN", "exchange": "BSE", "product": "MIS", "quantity": 50},
+            {"symbol": "INFY", "exchange": "NSE", "product": "MIS", "quantity": 9}
+        ]});
+        let holdings = json!({"status": "success", "data": {"holdings": [
+            {"symbol": "SBIN", "exchange": "BSE", "product": "CNC", "quantity": 10},
+            {"symbol": "INFY", "exchange": "NSE", "product": "CNC", "quantity": 4}
+        ], "statistics": {}}});
+        assert_eq!(
+            destination_net(&positions, Some(&holdings), "SBIN", "NSE", "MIS"),
+            7
+        );
+        // Delivery adds settled shares, on either equity exchange.
+        assert_eq!(
+            destination_net(&positions, Some(&holdings), "SBIN", "NSE", "CNC"),
+            8
+        );
+        assert_eq!(destination_net(&positions, None, "SBIN", "NSE", "CNC"), -2);
+        assert_eq!(destination_net(&positions, None, "TCS", "NSE", "MIS"), 0);
+        assert_eq!(destination_net(&json!({}), None, "SBIN", "NSE", "MIS"), 0);
+    }
 
     #[test]
     fn shapes_are_kept() {

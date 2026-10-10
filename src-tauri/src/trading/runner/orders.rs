@@ -221,6 +221,42 @@ pub fn product_for(saved: &str) -> String {
     }
 }
 
+/// How much of what a run's own fills add up to a Stop may close, given what
+/// the destination itself holds in that contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExitCap {
+    /// The run's own fills hold nothing here.
+    Nothing,
+    /// The destination holds nothing here (closed outside the run, or by the
+    /// end-of-day square-off): an exit would open a new position.
+    DestinationFlat,
+    /// The destination holds the other side: an exit would add to it.
+    Opposite,
+    /// Close this many units, the run's own size or less when the
+    /// destination holds less (`capped`).
+    Close { units: i64, capped: bool },
+}
+
+/// A Stop's exit is never larger than, nor opposite to, what the
+/// destination holds in the contract. `own` is the run's signed size from
+/// its own fills, `actual` the destination's signed net.
+pub fn exit_cap(own: i64, actual: i64) -> ExitCap {
+    if own == 0 {
+        return ExitCap::Nothing;
+    }
+    if actual == 0 {
+        return ExitCap::DestinationFlat;
+    }
+    if actual.signum() != own.signum() {
+        return ExitCap::Opposite;
+    }
+    let units = own.unsigned_abs().min(actual.unsigned_abs());
+    ExitCap::Close {
+        units: i64::try_from(units).unwrap_or(i64::MAX),
+        capped: units < own.unsigned_abs(),
+    }
+}
+
 /// What the platform says about an order now.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Progress {
@@ -345,6 +381,35 @@ mod tests {
             plan(&intent("bracket", "market", 1.0, "units"), None),
             Planned::Unroutable { .. }
         ));
+    }
+
+    #[test]
+    fn a_stop_never_closes_more_than_or_against_what_is_held() {
+        assert_eq!(exit_cap(0, 5), ExitCap::Nothing);
+        assert_eq!(exit_cap(3, 0), ExitCap::DestinationFlat);
+        assert_eq!(exit_cap(3, -2), ExitCap::Opposite);
+        assert_eq!(exit_cap(-3, 4), ExitCap::Opposite);
+        assert_eq!(
+            exit_cap(3, 10),
+            ExitCap::Close {
+                units: 3,
+                capped: false
+            }
+        );
+        assert_eq!(
+            exit_cap(-10, -4),
+            ExitCap::Close {
+                units: 4,
+                capped: true
+            }
+        );
+        assert_eq!(
+            exit_cap(i64::MIN, i64::MIN),
+            ExitCap::Close {
+                units: i64::MAX,
+                capped: false
+            }
+        );
     }
 
     #[test]

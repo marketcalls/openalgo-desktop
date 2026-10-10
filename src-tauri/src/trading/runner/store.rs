@@ -754,21 +754,29 @@ const ORDER_COLUMNS: &str =
     "id, deployment, mode, intent_id, tag, symbol, exchange, action, quantity, \
 pricetype, product, orderid, status, filled_quantity, average_price, message, is_exit";
 
-/// Every order one deployment placed, oldest first.
-pub fn orders_of(conn: &Connection, deployment: &str) -> Result<Vec<OrderRow>> {
+/// Every order one deployment placed on one side (`live` or `sandbox`),
+/// oldest first.
+///
+/// **The side is part of every read.** A deployment keeps its id when it is
+/// started again on the other side, so its rows from both sides share it.
+/// Sandbox fills must never size, cancel or poll a live order, nor the
+/// reverse: a sandbox position left by a Pause once made a later live Stop
+/// sell it at the broker, a naked short. The deployment index narrows the
+/// read to one deployment's rows, which the side then filters.
+pub fn orders_of(conn: &Connection, deployment: &str, mode: &str) -> Result<Vec<OrderRow>> {
     let mut st = conn.prepare_cached(&format!(
-        "SELECT {} FROM openscript_orders WHERE deployment = ?1 ORDER BY id",
+        "SELECT {} FROM openscript_orders WHERE deployment = ?1 AND mode = ?2 ORDER BY id",
         ORDER_COLUMNS
     ))?;
     let rows = st
-        .query_map(params![deployment], order_from_row)?
+        .query_map(params![deployment, mode], order_from_row)?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(rows)
 }
 
-/// The orders of one deployment that may still change.
-pub fn open_orders(conn: &Connection, deployment: &str) -> Result<Vec<OrderRow>> {
-    Ok(orders_of(conn, deployment)?
+/// The orders of one deployment on one side that may still change.
+pub fn open_orders(conn: &Connection, deployment: &str, mode: &str) -> Result<Vec<OrderRow>> {
+    Ok(orders_of(conn, deployment, mode)?
         .into_iter()
         .filter(|o| !TERMINAL.contains(&o.status.as_str()))
         .collect())
@@ -1063,10 +1071,13 @@ mod tests {
         )
         .unwrap();
         placed(&c, id, Some("OID1"), "working", None, now()).unwrap();
-        assert_eq!(open_orders(&c, "d").unwrap().len(), 1);
+        assert_eq!(open_orders(&c, "d", "live").unwrap().len(), 1);
+        // The other side of the same deployment sees none of it.
+        assert!(open_orders(&c, "d", "sandbox").unwrap().is_empty());
+        assert!(orders_of(&c, "d", "sandbox").unwrap().is_empty());
         progressed(&c, id, "filled", 5, Some(101.5), now()).unwrap();
-        assert!(open_orders(&c, "d").unwrap().is_empty());
-        let rows = orders_of(&c, "d").unwrap();
+        assert!(open_orders(&c, "d", "live").unwrap().is_empty());
+        let rows = orders_of(&c, "d", "live").unwrap();
         assert_eq!(rows[0].orderid.as_deref(), Some("OID1"));
         assert_eq!(rows[0].average_price, Some(101.5));
         assert_eq!(

@@ -16,7 +16,7 @@ use crate::services::core::{meta, safe_request, Reply};
 use crate::services::order_service::{place_order, sandbox_order, Route};
 use crate::state::AppState;
 use crate::strategy::dispatch::{
-    AppGateway, Book, DispatchResult, OrderGateway, OrderStatusResult, RunMode,
+    AppGateway, Book, DispatchResult, OrderGateway, OrderStatusResult, RunMode, NO_BROKER_SESSION,
 };
 use async_trait::async_trait;
 use chrono::NaiveDate;
@@ -72,6 +72,10 @@ pub trait RunnerServices: Send + Sync {
     async fn order_status(&self, mode: RunMode, orderid: &str) -> OrderStatusResult;
     /// One account book from the run's side, in the service's own envelope.
     async fn book(&self, mode: RunMode, book: Book) -> Result<Value, Value>;
+    /// The holdings on the run's side, in the `/api/v1/holdings` envelope
+    /// (`data.holdings`). A Stop reads it for a delivery position, which
+    /// settles into holdings the next day.
+    async fn holdings(&self, mode: RunMode) -> Result<Value, Value>;
     /// The master contract's lot size, when it is a positive whole number.
     fn lot_size(&self, symbol: &str, exchange: &str) -> Option<i64>;
     /// Whether the exchange trades on this date (the market calendar).
@@ -243,6 +247,43 @@ impl RunnerServices for AppServices {
 
     async fn book(&self, mode: RunMode, book: Book) -> Result<Value, Value> {
         self.gateway.book(mode, book).await
+    }
+
+    async fn holdings(&self, mode: RunMode) -> Result<Value, Value> {
+        let Some(ctx) = self.ctx.upgrade() else {
+            return Err(json!({"status": "error", "message": SHUTTING_DOWN}));
+        };
+        let reply = match mode {
+            // The sandbox engine directly, never the global toggle.
+            RunMode::Sandbox => match ctx.sandbox.holdings().await {
+                Ok(h) => Reply::from_ser(&h),
+                Err(e) => Reply::sandbox(&e),
+            },
+            RunMode::Live => {
+                let h = match crate::services::core::broker_handle(&ctx) {
+                    Ok(h) => h,
+                    Err(_) => {
+                        return Err(json!({"status": "error", "message": NO_BROKER_SESSION}))
+                    }
+                };
+                match h.broker.get_holdings(&h.auth).await {
+                    Ok(rows) => Reply::ok(json!({"status": "success", "data": {
+                        "holdings": rows.iter()
+                            .map(crate::services::account_service::holding_row)
+                            .collect::<Vec<_>>(),
+                    }})),
+                    Err(e) => {
+                        tracing::error!("Could not read the broker's holdings: {}", e);
+                        Reply::error(500, e.client_message())
+                    }
+                }
+            }
+        };
+        if reply.is_success() {
+            Ok(reply.body)
+        } else {
+            Err(reply.body)
+        }
     }
 
     fn lot_size(&self, symbol: &str, exchange: &str) -> Option<i64> {
