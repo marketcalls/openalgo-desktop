@@ -146,6 +146,14 @@ impl AuthService {
             tracing::warn!("Sign-in refused: the keychain holding the keys could not be opened");
             return Err(AppError::KeychainUnavailable);
         }
+        // The keychain holds other keys than the ones this folder's account
+        // was saved with (a backup restored elsewhere, or from before a
+        // reset): explain it instead of answering "Invalid" for the right
+        // password (SEC-09).
+        if Self::account_saved_with_other_keys(state)? {
+            tracing::warn!("Sign-in refused: the data folder was saved with other keys");
+            return Err(AppError::KeysDoNotMatch);
+        }
         let row = {
             let conn = state.sqlite.conn()?;
             user::find_by_username(&conn, username)?
@@ -182,6 +190,11 @@ impl AuthService {
         if password_mode && !state.security.has_vault() {
             state.security.unlock_with_password(password, false)?;
         }
+        // A password change stopped half way is finished or discarded now
+        // that the password is known to match the stored hash.
+        if let Err(e) = state.security.settle_vault(password) {
+            tracing::warn!("Could not tidy up an unfinished password change: {}", e);
+        }
         // Now unlocked in password mode: finish any pending re-encryption.
         crate::db::sqlite::data_migrations::run(&state.sqlite, &state.security)?;
         Self::ensure_totp_secret(state, &row)?;
@@ -190,6 +203,26 @@ impl AuthService {
         } else {
             Ok(LoginOutcome::Success(row.username))
         }
+    }
+
+    /// Whether the account was saved with other keys than the keychain's.
+    /// Its TOTP secret, encrypted with the data key when the account was
+    /// made, is the witness: it decrypts with the right key and fails the
+    /// authentication tag with any other. Keychain mode only (in password
+    /// mode the vault travels with the folder); an account without a secret
+    /// (made by an early build) cannot tell and passes.
+    fn account_saved_with_other_keys(state: &AppState) -> Result<bool> {
+        if state.security.mode() != KeyMode::Keychain {
+            return Ok(false);
+        }
+        let row = {
+            let conn = state.sqlite.conn()?;
+            user::find_first(&conn)?
+        };
+        Ok(match row {
+            Some(r) => matches!(r.totp_secret(&state.security), Err(AppError::Encryption(_))),
+            None => false,
+        })
     }
 
     /// Accounts created by earlier desktop builds have no TOTP secret.
@@ -249,7 +282,7 @@ impl AuthService {
             return Err(AppError::Validation("New passwords do not match".into()));
         }
         validate_password_strength(new).map_err(|m| AppError::Validation(m.into()))?;
-        Self::set_password(state, row.id, new)
+        Self::set_password(state, row.id, &row.password_hash, new)
     }
 
     /// Reset by email + TOTP (the web's TOTP path; no email step on desktop).
@@ -260,16 +293,22 @@ impl AuthService {
             user::find_by_email(&conn, email)?
         }
         .ok_or_else(|| AppError::Validation("Error resetting password.".into()))?;
-        Self::set_password(state, row.id, new)
+        Self::set_password(state, row.id, &row.password_hash, new)
     }
 
-    fn set_password(state: &AppState, id: i64, new: &str) -> Result<()> {
+    /// Store a new password: the hash in SQLite and, in password mode, the
+    /// vault wrapped with it, as one recoverable change (security review
+    /// SEC-02, `SecurityManager::change_vault_password`). On an error the
+    /// previous hash is put back, so the old password keeps working.
+    fn set_password(state: &AppState, id: i64, old_hash: &str, new: &str) -> Result<()> {
         let hash = state.security.hash_password(new)?;
-        {
+        let store_hash = |h: &str| -> Result<()> {
             let conn = state.sqlite.conn()?;
-            user::update_password_hash(&conn, id, &hash)?;
-        }
-        state.security.rewrap(new)?;
+            user::update_password_hash(&conn, id, h)
+        };
+        state
+            .security
+            .change_vault_password(new, || store_hash(&hash), || store_hash(old_hash))?;
         state.sessions.clear();
         Ok(())
     }

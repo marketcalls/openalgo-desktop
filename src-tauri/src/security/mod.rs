@@ -53,6 +53,8 @@ pub use secret::{Secret, SecretBytes};
 
 const B64: base64::engine::GeneralPurpose = base64::engine::general_purpose::STANDARD;
 pub const VAULT_FILE: &str = "vault.json";
+/// The vault for a new password while a password change is under way.
+pub const VAULT_NEXT_FILE: &str = "vault.next.json";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -100,6 +102,12 @@ pub struct SecurityManager {
     /// True when keys came from `secrets.dat` and stored rows still need
     /// re-encryption with associated data.
     legacy_pending: Mutex<bool>,
+    /// Serialises changes to the vault files (password change, the
+    /// clean-up after a sign-in, account reset).
+    vault_lock: Mutex<()>,
+    /// Test fault: the rename that completes a password change fails.
+    #[cfg(test)]
+    fail_promote: std::sync::atomic::AtomicBool,
 }
 
 impl std::fmt::Debug for SecurityManager {
@@ -137,6 +145,9 @@ impl SecurityManager {
             store: store.clone(),
             data_dir: data_dir.to_path_buf(),
             legacy_pending: Mutex::new(legacy_pending),
+            vault_lock: Mutex::new(()),
+            #[cfg(test)]
+            fail_promote: Default::default(),
         };
 
         match keychain {
@@ -146,25 +157,27 @@ impl SecurityManager {
                 // before the file was removed: still re-encrypt and delete.
                 Ok(mgr(KeyMode::Keychain, Some(keys), legacy.is_some()))
             }
-            Some(_) => {
+            Some((k, p)) => {
                 let (keys, from_legacy) = match legacy {
                     Some((k, p)) => (Keys::new(k, p)?, true),
+                    // One entry of the pair is gone (deleted by hand, a sync
+                    // fault). Its partner still belongs to this install's
+                    // data, so it is left exactly as it is and the app does
+                    // not start on new keys (security review SEC-04).
+                    None if k.is_some() || p.is_some() => {
+                        let missing = if k.is_none() { DATA_KEY } else { PEPPER };
+                        tracing::error!(
+                            "The keychain holds only one of OpenAlgo's two keys ({} is missing)",
+                            missing
+                        );
+                        return Err(AppError::Keychain(format!(
+                            "the keychain entry {} is missing",
+                            missing
+                        )));
+                    }
                     None => (Keys::random()?, false),
                 };
-                store
-                    .set(DATA_KEY, &B64.encode(keys.raw_key.expose()))
-                    .and_then(|_| store.set(PEPPER, &B64.encode(keys.pepper.expose())))
-                    .map_err(|e| AppError::Keychain(e.to_string()))?;
-                // Some secret services accept a write and return nothing on
-                // read; refuse to continue with keys we could not read back.
-                match store.get(DATA_KEY) {
-                    Ok(Some(v)) if v == B64.encode(keys.raw_key.expose()) => {}
-                    _ => {
-                        return Err(AppError::Keychain(
-                            "keychain did not keep the data key".into(),
-                        ))
-                    }
-                }
+                write_key_pair(store.as_ref(), &keys)?;
                 tracing::info!("Data key stored in the {}", store.kind());
                 Ok(mgr(KeyMode::Keychain, Some(keys), from_legacy))
             }
@@ -191,6 +204,9 @@ impl SecurityManager {
             store: Arc::new(keystore::MemoryKeyStore::new()),
             data_dir: std::env::temp_dir(),
             legacy_pending: Mutex::new(false),
+            vault_lock: Mutex::new(()),
+            #[cfg(test)]
+            fail_promote: Default::default(),
         }
     }
 
@@ -242,45 +258,135 @@ impl SecurityManager {
                 None if allow_create => Arc::new(Keys::random()?),
                 None => return Err(AppError::KeychainUnavailable),
             };
-            self.write_vault(&keys, password)?;
+            self.write_vault(&self.vault_path(), &keys, password)?;
             *self.keys.write() = Some(keys);
             return Ok(true);
         }
-        let raw = std::fs::read(self.vault_path())?;
-        let vault: VaultFile = serde_json::from_slice(&raw)
-            .map_err(|_| AppError::Encryption("vault file is damaged".into()))?;
-        let salt = B64
-            .decode(&vault.salt)
-            .map_err(|_| AppError::Encryption("vault file is damaged".into()))?;
-        let kek = hashing::derive_kek(password, &salt)?;
-        let cipher = DataCipher::new(&kek)?;
-        let plain =
-            match cipher.decrypt_bytes(&vault.ciphertext, &vault.nonce, &Aad::fixed("vault")) {
-                Ok(p) => p,
-                Err(_) => return Ok(false),
+        // The vault, then one a password change left half done (stopped
+        // before its last step): whichever opens with this password. The
+        // caller checks the password against the stored hash and then calls
+        // `settle_vault`, so the file that matches the hash is kept.
+        let mut keys = open_vault_file(&self.vault_path(), password)?;
+        if keys.is_none() && self.next_vault_path().exists() {
+            keys = match open_vault_file(&self.next_vault_path(), password) {
+                Ok(k) => k,
+                Err(e) => {
+                    tracing::warn!("Ignoring an unfinished password change: {}", e);
+                    None
+                }
             };
-        let bytes = plain.expose();
-        if bytes.len() != crypto::KEY_SIZE + hashing::PEPPER_SIZE {
-            return Err(AppError::Encryption("vault file is damaged".into()));
         }
-        let keys = Keys::new(
-            SecretBytes::new(bytes[..crypto::KEY_SIZE].to_vec()),
-            SecretBytes::new(bytes[crypto::KEY_SIZE..].to_vec()),
-        )?;
-        *self.keys.write() = Some(Arc::new(keys));
-        Ok(true)
+        match keys {
+            Some(k) => {
+                *self.keys.write() = Some(Arc::new(k));
+                Ok(true)
+            }
+            None => Ok(false),
+        }
     }
 
-    /// Password mode: re-wrap the vault after a password change.
-    pub fn rewrap(&self, new_password: &str) -> Result<()> {
+    fn next_vault_path(&self) -> PathBuf {
+        self.data_dir.join(VAULT_NEXT_FILE)
+    }
+
+    /// Password mode: change the password the vault is wrapped with, in step
+    /// with `commit` (which stores the new password hash). Every point a
+    /// fault or a power cut can stop it at leaves an account that signs in
+    /// (security review SEC-02):
+    ///
+    /// 1. The vault for the new password is written beside the current one
+    ///    (`vault.next.json`, synced). A failure here changes nothing.
+    /// 2. `commit` stores the new hash. If it fails, the new file is removed.
+    /// 3. The new file replaces the vault. If that fails, `rollback` puts the
+    ///    old hash back.
+    ///
+    /// A stop between the steps leaves both files: sign-in opens whichever
+    /// one the typed password opens and keeps the one matching the stored
+    /// hash (`settle_vault`). Keychain mode has no vault: only `commit`
+    /// runs. Changes are serialised.
+    pub fn change_vault_password(
+        &self,
+        new_password: &str,
+        commit: impl FnOnce() -> Result<()>,
+        rollback: impl FnOnce() -> Result<()>,
+    ) -> Result<()> {
+        let _change = self.vault_lock.lock();
+        if self.mode == KeyMode::Keychain {
+            return commit();
+        }
+        let keys = self.keys()?;
+        let next = self.next_vault_path();
+        self.write_vault(&next, &keys, new_password)?;
+        if let Err(e) = commit() {
+            let _ = std::fs::remove_file(&next);
+            return Err(e);
+        }
+        if let Err(e) = self.promote_next_vault() {
+            match rollback() {
+                Ok(()) => {
+                    let _ = std::fs::remove_file(&next);
+                }
+                Err(r) => tracing::error!(
+                    "Password change could not be finished or undone ({}); both vault files are kept and either password signs in: {}",
+                    r,
+                    e
+                ),
+            }
+            return Err(e);
+        }
+        Ok(())
+    }
+
+    fn promote_next_vault(&self) -> Result<()> {
+        #[cfg(test)]
+        if self.fail_promote.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(AppError::Io(std::io::Error::other("test fault")));
+        }
+        std::fs::rename(self.next_vault_path(), self.vault_path())?;
+        fsperm::sync_dir(&self.data_dir);
+        Ok(())
+    }
+
+    /// Password mode, after a sign-in whose password matched the stored
+    /// hash: finish or discard a password change that stopped half way.
+    /// The vault this password opens is the one that matches the hash, so
+    /// it is the one kept. A no-op when no change was left unfinished.
+    pub fn settle_vault(&self, password: &str) -> Result<()> {
         if self.mode == KeyMode::Keychain {
             return Ok(());
         }
-        let keys = self.keys()?;
-        self.write_vault(&keys, new_password)
+        let _change = self.vault_lock.lock();
+        let next = self.next_vault_path();
+        if !next.exists() {
+            return Ok(());
+        }
+        if open_vault_file(&self.vault_path(), password)?.is_some() {
+            // The change never reached the stored hash.
+            std::fs::remove_file(&next)?;
+            tracing::info!("Discarded an unfinished password change");
+        } else if open_vault_file(&next, password)?.is_some() {
+            self.promote_next_vault()?;
+            tracing::info!("Finished an interrupted password change");
+        }
+        Ok(())
     }
 
-    fn write_vault(&self, keys: &Keys, password: &str) -> Result<()> {
+    /// Test fault: the last step of a password change fails.
+    #[cfg(test)]
+    pub fn fail_vault_promote(&self, on: bool) {
+        self.fail_promote
+            .store(on, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Test: the state a stop right after step 1 of a password change
+    /// leaves (the new vault written, nothing else).
+    #[cfg(test)]
+    pub fn stage_vault_for_test(&self, new_password: &str) -> Result<()> {
+        let keys = self.keys()?;
+        self.write_vault(&self.next_vault_path(), &keys, new_password)
+    }
+
+    fn write_vault(&self, path: &Path, keys: &Keys, password: &str) -> Result<()> {
         let salt: [u8; 16] = rand::Rng::gen(&mut rand::rngs::OsRng);
         let kek = hashing::derive_kek(password, &salt)?;
         let cipher = DataCipher::new(&kek)?;
@@ -295,7 +401,8 @@ impl SecurityManager {
             nonce,
             ciphertext: ct,
         };
-        fsperm::write_private_file(&self.vault_path(), &serde_json::to_vec(&vault)?)?;
+        fsperm::write_private_file(path, &serde_json::to_vec(&vault)?)?;
+        fsperm::sync_dir(&self.data_dir);
         Ok(())
     }
 
@@ -305,15 +412,22 @@ impl SecurityManager {
         let keys = Keys::random()?;
         match self.mode {
             KeyMode::Keychain => {
-                self.store
-                    .set(DATA_KEY, &B64.encode(keys.raw_key.expose()))
-                    .and_then(|_| self.store.set(PEPPER, &B64.encode(keys.pepper.expose())))
-                    .map_err(|e| AppError::Keychain(e.to_string()))?;
+                if let Err(e) = write_key_pair(self.store.as_ref(), &keys) {
+                    // The data key is written last, so a refused write leaves
+                    // it as the one in memory; put the old pair back whole
+                    // (best effort) so the pepper matches it again.
+                    if let Some(old) = self.keys.read().clone() {
+                        let _ = write_key_pair(self.store.as_ref(), &old);
+                    }
+                    return Err(e);
+                }
             }
             KeyMode::Password => {
-                let p = self.vault_path();
-                if p.exists() {
-                    std::fs::remove_file(p)?;
+                let _change = self.vault_lock.lock();
+                for p in [self.vault_path(), self.next_vault_path()] {
+                    if p.exists() {
+                        std::fs::remove_file(p)?;
+                    }
                 }
             }
         }
@@ -366,6 +480,55 @@ impl SecurityManager {
     pub fn api_key_lookup(&self, api_key: &str) -> Result<String> {
         Ok(hashing::lookup_hmac(self.keys()?.pepper.expose(), api_key))
     }
+}
+
+/// The keys in the vault file at `path`, or None when `password` does not
+/// open it.
+fn open_vault_file(path: &Path, password: &str) -> Result<Option<Keys>> {
+    let damaged = || AppError::Encryption("vault file is damaged".into());
+    let raw = std::fs::read(path)?;
+    let vault: VaultFile = serde_json::from_slice(&raw).map_err(|_| damaged())?;
+    let salt = B64.decode(&vault.salt).map_err(|_| damaged())?;
+    let kek = hashing::derive_kek(password, &salt)?;
+    let cipher = DataCipher::new(&kek)?;
+    let plain = match cipher.decrypt_bytes(&vault.ciphertext, &vault.nonce, &Aad::fixed("vault"))
+    {
+        Ok(p) => p,
+        Err(_) => return Ok(None),
+    };
+    let bytes = plain.expose();
+    if bytes.len() != crypto::KEY_SIZE + hashing::PEPPER_SIZE {
+        return Err(damaged());
+    }
+    Ok(Some(Keys::new(
+        SecretBytes::new(bytes[..crypto::KEY_SIZE].to_vec()),
+        SecretBytes::new(bytes[crypto::KEY_SIZE..].to_vec()),
+    )?))
+}
+
+/// Store both keys in the keychain: the pepper first and the data key last,
+/// so a refused write leaves the data key that encrypts the stored secrets
+/// as it was (a refused pepper write changes nothing). Both are read back:
+/// some secret services accept a write and return nothing on read.
+fn write_key_pair(store: &dyn KeyStore, keys: &Keys) -> Result<()> {
+    let pepper = B64.encode(keys.pepper.expose());
+    let data_key = B64.encode(keys.raw_key.expose());
+    store
+        .set(PEPPER, &pepper)
+        .and_then(|_| store.set(DATA_KEY, &data_key))
+        .map_err(|e| AppError::Keychain(e.to_string()))?;
+    for (name, want) in [(PEPPER, &pepper), (DATA_KEY, &data_key)] {
+        match store.get(name) {
+            Ok(Some(v)) if &v == want => {}
+            _ => {
+                return Err(AppError::Keychain(format!(
+                    "the keychain did not keep {}",
+                    name
+                )))
+            }
+        }
+    }
+    Ok(())
 }
 
 fn decode_b64(s: &str) -> Result<SecretBytes> {
@@ -440,7 +603,9 @@ mod tests {
         assert_eq!(m2.decrypt(&ct, &n, &Aad::fixed("x")).unwrap().expose(), "x");
 
         // Password change re-wraps.
-        m2.rewrap("Second@123").unwrap();
+        m2.change_vault_password("Second@123", || Ok(()), || Ok(()))
+            .unwrap();
+        assert!(!dir.path().join(VAULT_NEXT_FILE).exists());
         let m3 = SecurityManager::open(dir.path(), Arc::new(UnavailableKeyStore)).unwrap();
         assert!(!m3.unlock_with_password("First@123", false).unwrap());
         assert!(m3.unlock_with_password("Second@123", false).unwrap());
@@ -492,5 +657,115 @@ mod tests {
         let (ct, n) = m.encrypt("v", &aad).unwrap();
         m.rotate().unwrap();
         assert!(m.decrypt(&ct, &n, &aad).is_err());
+    }
+
+    // ------------------------------------- SEC-04 the keychain key pair
+
+    use keystore::FaultyKeyStore;
+
+    /// A populated keychain install: keys stored, one secret encrypted.
+    fn populated() -> (tempfile::TempDir, Arc<FaultyKeyStore>, (String, String)) {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(FaultyKeyStore::default());
+        let m = SecurityManager::open(dir.path(), store.clone()).unwrap();
+        let ct = m.encrypt("broker-secret", &Aad::fixed("x")).unwrap();
+        (dir, store, ct)
+    }
+
+    /// SEC-04: with one of the two entries gone, the app refuses to start
+    /// and leaves the other one exactly as it was.
+    #[test]
+    fn a_partial_key_pair_is_refused_and_kept() {
+        for (gone, kept) in [(PEPPER, DATA_KEY), (DATA_KEY, PEPPER)] {
+            let (dir, store, _) = populated();
+            let survivor = store.get(kept).unwrap().unwrap();
+            store.delete(gone).unwrap();
+            let r = SecurityManager::open(dir.path(), store.clone());
+            assert!(matches!(r, Err(AppError::Keychain(_))), "{} gone", gone);
+            assert_eq!(store.get(kept).unwrap().unwrap(), survivor, "{} gone", gone);
+            assert_eq!(store.get(gone).unwrap(), None, "{} recreated", gone);
+            assert!(!dir.path().join(VAULT_FILE).exists());
+        }
+        // An empty keychain on an empty folder still starts with new keys.
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(FaultyKeyStore::default());
+        let m = SecurityManager::open(dir.path(), store.clone()).unwrap();
+        assert!(m.is_unlocked());
+        assert!(store.get(DATA_KEY).unwrap().is_some() && store.get(PEPPER).unwrap().is_some());
+    }
+
+    /// A secret service that accepts the pepper and returns nothing for it.
+    struct ForgetsPepper(MemoryKeyStore);
+
+    impl KeyStore for ForgetsPepper {
+        fn get(&self, name: &str) -> std::result::Result<Option<String>, KeyStoreError> {
+            if name == PEPPER {
+                return Ok(None);
+            }
+            self.0.get(name)
+        }
+        fn set(&self, name: &str, value: &str) -> std::result::Result<(), KeyStoreError> {
+            self.0.set(name, value)
+        }
+        fn delete(&self, name: &str) -> std::result::Result<(), KeyStoreError> {
+            self.0.delete(name)
+        }
+        fn kind(&self) -> &'static str {
+            "forgetful"
+        }
+    }
+
+    /// SEC-04: both keys are read back after they are written.
+    #[test]
+    fn both_keys_are_read_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let r = SecurityManager::open(dir.path(), Arc::new(ForgetsPepper(MemoryKeyStore::new())));
+        assert!(matches!(r, Err(AppError::Keychain(_))));
+    }
+
+    /// SEC-04: a keychain that refuses a write part way through a rotation
+    /// keeps the data key the stored secrets are encrypted with.
+    #[test]
+    fn a_refused_write_during_rotation_keeps_the_data_key() {
+        for allowed in [0usize, 1] {
+            let (dir, store, (ct, n)) = populated();
+            let data_key = store.get(DATA_KEY).unwrap().unwrap();
+            let m = SecurityManager::open(dir.path(), store.clone()).unwrap();
+            *store.writes_left.lock() = Some(allowed);
+            assert!(m.rotate().is_err(), "{} writes allowed", allowed);
+            *store.writes_left.lock() = None;
+            assert_eq!(
+                store.get(DATA_KEY).unwrap().unwrap(),
+                data_key,
+                "{} writes allowed",
+                allowed
+            );
+            let again = SecurityManager::open(dir.path(), store.clone()).unwrap();
+            assert_eq!(
+                again.decrypt(&ct, &n, &Aad::fixed("x")).unwrap().expose(),
+                "broker-secret"
+            );
+        }
+    }
+
+    /// SEC-03: a keychain that is locked at startup leaves the stored pair
+    /// untouched and starts with no keys.
+    #[test]
+    fn a_locked_keychain_leaves_the_pair_alone() {
+        let (dir, store, (ct, n)) = populated();
+        let pair = (store.get(DATA_KEY).unwrap(), store.get(PEPPER).unwrap());
+        store.set_unavailable(true);
+        let m = SecurityManager::open(dir.path(), store.clone()).unwrap();
+        assert!(m.keys_unreachable());
+        store.set_unavailable(false);
+        assert_eq!(
+            (store.get(DATA_KEY).unwrap(), store.get(PEPPER).unwrap()),
+            pair
+        );
+        let m = SecurityManager::open(dir.path(), store).unwrap();
+        assert_eq!(
+            m.decrypt(&ct, &n, &Aad::fixed("x")).unwrap().expose(),
+            "broker-secret"
+        );
     }
 }

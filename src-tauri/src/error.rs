@@ -48,6 +48,12 @@ pub enum AppError {
     #[error("The keychain holding the account's keys could not be opened")]
     KeychainUnavailable,
 
+    /// The account in the data folder was encrypted with keys this
+    /// computer's keychain does not hold (a folder restored from another
+    /// computer, or from before an account reset).
+    #[error("The data folder belongs to other keys")]
+    KeysDoNotMatch,
+
     #[error("Authentication error: {0}")]
     Auth(String),
 
@@ -114,6 +120,7 @@ impl AppError {
             AppError::Encryption(_) => "ENCRYPTION_ERROR",
             AppError::Locked => "LOCKED",
             AppError::KeychainUnavailable => "KEYCHAIN_UNAVAILABLE",
+            AppError::KeysDoNotMatch => "KEYS_DO_NOT_MATCH",
             AppError::Auth(_) => "AUTH_ERROR",
             AppError::Broker(_) => "BROKER_ERROR",
             AppError::Validation(_) => "VALIDATION_ERROR",
@@ -154,6 +161,7 @@ impl AppError {
                     .to_string()
             }
             AppError::KeychainUnavailable => KEYCHAIN_UNAVAILABLE_MESSAGE.to_string(),
+            AppError::KeysDoNotMatch => KEYS_DO_NOT_MATCH_MESSAGE.to_string(),
             _ => "An unexpected error occurred".to_string(),
         }
     }
@@ -164,6 +172,13 @@ impl AppError {
 pub const KEYCHAIN_UNAVAILABLE_MESSAGE: &str = "OpenAlgo cannot open your system keychain, \
 where the keys for your account are kept. Unlock the keychain or allow OpenAlgo to use it, \
 then restart OpenAlgo and sign in. Your account and saved settings are unchanged.";
+
+/// What a sign-in answers when the account in the data folder was made with
+/// keys this computer's keychain does not hold.
+pub const KEYS_DO_NOT_MATCH_MESSAGE: &str = "OpenAlgo cannot open the account in this data \
+folder: it was saved with keys this computer's keychain does not have, as happens with a backup \
+restored from another computer or from before an account reset. Restore the folder on the \
+computer it came from, or reset the account to start again on this one.";
 
 /// Trader-facing name of an optional broker capability.
 fn unsupported_label(what: &str) -> String {

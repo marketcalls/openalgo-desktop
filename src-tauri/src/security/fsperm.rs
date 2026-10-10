@@ -60,6 +60,18 @@ pub fn write_private_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     restrict_file(path)
 }
 
+/// Make the directory entries of `dir` durable (a rename into it survives
+/// a power cut). Best effort: Unix only (Windows has no directory handle to
+/// sync), and a file system that refuses it is not an error.
+pub fn sync_dir(dir: &Path) {
+    #[cfg(unix)]
+    if let Err(e) = fs::File::open(dir).and_then(|f| f.sync_all()) {
+        tracing::debug!("Could not sync the data folder: {}", e);
+    }
+    #[cfg(not(unix))]
+    let _ = dir;
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;

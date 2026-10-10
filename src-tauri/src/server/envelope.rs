@@ -227,6 +227,7 @@ impl IntoResponse for crate::error::AppError {
             }
             crate::error::AppError::NotFound(_) => StatusCode::NOT_FOUND,
             crate::error::AppError::KeychainUnavailable => StatusCode::SERVICE_UNAVAILABLE,
+            crate::error::AppError::KeysDoNotMatch => StatusCode::CONFLICT,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
         if status == StatusCode::INTERNAL_SERVER_ERROR {

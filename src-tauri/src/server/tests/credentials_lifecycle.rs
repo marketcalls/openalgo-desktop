@@ -349,8 +349,13 @@ fn open_at(
 }
 
 /// Close the app as a restart does (DuckDB holds its file exclusively).
+/// A request's own short task may still hold the state for a moment.
 async fn close(ctx: Arc<AppState>) {
     ctx.shutdown().await;
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+    while Arc::strong_count(&ctx) > 1 && tokio::time::Instant::now() < deadline {
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
     assert_eq!(Arc::strong_count(&ctx), 1, "app state outlives shutdown");
     drop(ctx);
 }
@@ -463,4 +468,160 @@ async fn sec03_legacy_keys_are_wrapped_only_with_a_verified_password() {
     assert!(signs_in(&ctx, PASSWORD));
     assert_eq!(kite_key(&ctx), "kiteapikey");
     close(ctx).await;
+}
+
+/// SEC-09 (and SEC-03's fingerprint): a data folder restored on a computer
+/// whose keychain holds other keys (another computer, or this one after an
+/// account reset) is explained at sign-in instead of "Invalid".
+#[tokio::test]
+async fn sec09_a_folder_saved_with_other_keys_is_explained() {
+    use crate::security::keystore::FaultyKeyStore;
+    let dir = tempfile::tempdir().unwrap();
+    let ctx = open_at(dir.path(), Arc::new(FaultyKeyStore::default()));
+    AuthService::setup(&ctx, USER, EMAIL, PASSWORD).unwrap();
+    close(ctx).await;
+
+    // Another computer: its keychain has never seen this folder.
+    let ctx = open_at(dir.path(), Arc::new(FaultyKeyStore::default()));
+    for name in [USER, "someone-else"] {
+        let r = AuthService::verify_credentials(&ctx, name, PASSWORD);
+        assert!(
+            matches!(r, Err(crate::error::AppError::KeysDoNotMatch)),
+            "{}: {:?}",
+            name,
+            r
+        );
+    }
+    let (s, _, v) = send_to(
+        &ctx,
+        multipart(
+            "/auth/login",
+            &[("username", USER), ("password", PASSWORD)],
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CONFLICT, "{}", v);
+    assert_eq!(v["message"], crate::error::KEYS_DO_NOT_MATCH_MESSAGE);
+    close(ctx).await;
+}
+
+// ------------------------- SEC-02 password change in password mode
+
+const NEW_PASSWORD: &str = "Changed@456";
+
+/// A password-mode install (no keychain) with an account and a saved
+/// broker key.
+async fn password_mode_install() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let ctx = open_at(
+        dir.path(),
+        Arc::new(crate::security::keystore::UnavailableKeyStore),
+    );
+    AuthService::setup(&ctx, USER, EMAIL, PASSWORD).unwrap();
+    save_kite_key(&ctx);
+    close(ctx).await;
+    dir
+}
+
+fn reopen(dir: &tempfile::TempDir) -> Arc<AppState> {
+    open_at(
+        dir.path(),
+        Arc::new(crate::security::keystore::UnavailableKeyStore),
+    )
+}
+
+/// After a restart exactly `works` signs in (not `fails`), the saved key
+/// still decrypts, and no unfinished change is left behind.
+async fn only_password_signs_in(dir: &tempfile::TempDir, works: &str, fails: &str) {
+    let ctx = reopen(dir);
+    assert!(!signs_in(&ctx, fails), "{} signs in", fails);
+    assert!(signs_in(&ctx, works), "{} does not sign in", works);
+    assert_eq!(kite_key(&ctx), "kiteapikey");
+    assert!(!dir
+        .path()
+        .join(crate::security::VAULT_NEXT_FILE)
+        .exists());
+    close(ctx).await;
+    let ctx = reopen(dir);
+    assert!(signs_in(&ctx, works), "{} after a second restart", works);
+    close(ctx).await;
+}
+
+/// SEC-02: the new vault cannot be written (a full disk): the change is
+/// refused and the old password still signs in.
+#[tokio::test]
+async fn sec02_a_failed_vault_write_keeps_the_old_password() {
+    let dir = password_mode_install().await;
+    let ctx = reopen(&dir);
+    assert!(signs_in(&ctx, PASSWORD));
+    // Every file the vault write could use is taken.
+    for name in ["vault.tmp", "vault.next.json", "vault.next.tmp"] {
+        std::fs::create_dir(dir.path().join(name)).unwrap();
+    }
+    assert!(
+        AuthService::change_password(&ctx, USER, PASSWORD, NEW_PASSWORD, NEW_PASSWORD).is_err()
+    );
+    close(ctx).await;
+    for name in ["vault.tmp", "vault.next.json", "vault.next.tmp"] {
+        std::fs::remove_dir(dir.path().join(name)).unwrap();
+    }
+    only_password_signs_in(&dir, PASSWORD, NEW_PASSWORD).await;
+}
+
+/// SEC-02: the last step fails: the stored hash is put back, so the old
+/// password still signs in.
+#[tokio::test]
+async fn sec02_a_failed_last_step_puts_the_old_password_back() {
+    let dir = password_mode_install().await;
+    let ctx = reopen(&dir);
+    assert!(signs_in(&ctx, PASSWORD));
+    ctx.security.fail_vault_promote(true);
+    assert!(
+        AuthService::change_password(&ctx, USER, PASSWORD, NEW_PASSWORD, NEW_PASSWORD).is_err()
+    );
+    close(ctx).await;
+    only_password_signs_in(&dir, PASSWORD, NEW_PASSWORD).await;
+}
+
+/// SEC-02: the app stops after the new vault was written but before the
+/// new hash was stored: the old password signs in.
+#[tokio::test]
+async fn sec02_a_stop_before_the_hash_keeps_the_old_password() {
+    let dir = password_mode_install().await;
+    let ctx = reopen(&dir);
+    assert!(signs_in(&ctx, PASSWORD));
+    ctx.security.stage_vault_for_test(NEW_PASSWORD).unwrap();
+    close(ctx).await;
+    only_password_signs_in(&dir, PASSWORD, NEW_PASSWORD).await;
+}
+
+/// SEC-02: the app stops after the new hash was stored but before the new
+/// vault replaced the old one: the new password signs in.
+#[tokio::test]
+async fn sec02_a_stop_after_the_hash_keeps_the_new_password() {
+    let dir = password_mode_install().await;
+    let ctx = reopen(&dir);
+    assert!(signs_in(&ctx, PASSWORD));
+    ctx.security.stage_vault_for_test(NEW_PASSWORD).unwrap();
+    {
+        let conn = ctx.sqlite.conn().unwrap();
+        let row = crate::db::sqlite::user::find_by_username(&conn, USER)
+            .unwrap()
+            .unwrap();
+        let hash = ctx.security.hash_password(NEW_PASSWORD).unwrap();
+        crate::db::sqlite::user::update_password_hash(&conn, row.id, &hash).unwrap();
+    }
+    close(ctx).await;
+    only_password_signs_in(&dir, NEW_PASSWORD, PASSWORD).await;
+}
+
+/// SEC-02: a change that completes leaves one vault, for the new password.
+#[tokio::test]
+async fn sec02_a_completed_change_moves_to_the_new_password() {
+    let dir = password_mode_install().await;
+    let ctx = reopen(&dir);
+    assert!(signs_in(&ctx, PASSWORD));
+    AuthService::change_password(&ctx, USER, PASSWORD, NEW_PASSWORD, NEW_PASSWORD).unwrap();
+    close(ctx).await;
+    only_password_signs_in(&dir, NEW_PASSWORD, PASSWORD).await;
 }
