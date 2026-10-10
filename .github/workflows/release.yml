@@ -404,6 +404,19 @@ jobs:
           mkdir -p signing
           printf '%s\n' "$result" > "signing/${NAME}.txt"
 
+      - name: The .deb depends on what the binary links
+        if: runner.os == 'Linux'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          shopt -s nullglob
+          debs=(src-tauri/target/"${TARGET}"/release/bundle/deb/*.deb)
+          if [ "${#debs[@]}" -ne 1 ]; then
+            echo "::error::Expected one .deb, found ${#debs[@]}."
+            exit 1
+          fi
+          scripts/ci/check_deb.sh "${debs[0]}"
+
       - name: Upload the signature check
         uses: actions/upload-artifact@v6
         with:

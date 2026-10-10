@@ -22,6 +22,7 @@ keychain.
 ## Contents
 
 - [Works with everything that works with OpenAlgo web](#works-with-everything-that-works-with-openalgo-web)
+- [Supported systems](#supported-systems)
 - [Download and install](#download-and-install)
 - [Opening the app the first time (unsigned installers)](#opening-the-app-the-first-time-unsigned-installers)
 - [First run](#first-run)
@@ -64,6 +65,39 @@ print(client.funds())
 
 Moving over from OpenAlgo web? See
 [Moving from OpenAlgo web](docs/user/moving-from-openalgo-web.md).
+
+## Supported systems
+
+OpenAlgo Desktop is a desktop app: it needs a signed-in user with a graphical
+desktop, and it trades only while it is open.
+
+| System | Support | What it needs |
+| --- | --- | --- |
+| Windows 11, 64-bit (x64) | Supported | Nothing extra: WebView2, which draws the app's window, is part of Windows 11. |
+| Windows 10, 64-bit (x64) | Supported | WebView2. Most Windows 10 PCs already have it; if not, the installer downloads and installs it, which needs an internet connection. |
+| Windows Server 2019, 2022 or 2025 with Desktop Experience | Not tested | May work for a user signed in at the desktop or over Remote Desktop. Server does not ship WebView2, so the installer downloads it. Trading stops when that user signs out. |
+| Windows Server Core, Nano Server | Not supported | No desktop to show the app in. |
+| Windows on ARM, 32-bit Windows, Windows 8.1 and older | Not supported | No installer is built for them. |
+| macOS 10.15 (Catalina) or later, Apple Silicon or Intel | Supported | Pick the `.dmg` for your chip. |
+| Ubuntu 22.04 or later, Debian 12 or later, Linux Mint 21 or later, 64-bit (x64) | Supported | WebKitGTK 4.1 and GTK 3: `sudo apt install ./<file>.deb` installs them. The AppImage needs them and FUSE 2 installed. |
+| Other 64-bit Linux distributions | Not tested | The AppImage may run where WebKitGTK 4.1, GTK 3 and glibc 2.35 or newer are installed. |
+| Raspberry Pi 4 or 5 with 64-bit Raspberry Pi OS (Bookworm or later), desktop edition | Supported | As for Linux above. 4 GB of memory or more is recommended. |
+| Raspberry Pi 3 or Zero 2 W with 64-bit Raspberry Pi OS | Not tested | 1 GB of memory or less is too little for comfortable use. |
+| 32-bit Raspberry Pi OS (any Pi) | Not supported | No 32-bit build. |
+| Headless Linux (no desktop: servers, Raspberry Pi OS Lite, SSH-only), Docker | Not supported | The app opens a window and cannot run without a desktop session. Use [OpenAlgo web](https://github.com/marketcalls/openalgo) for a server. |
+| Running as a background service (Windows service, systemd unit, launchd daemon) | Not supported | The app runs as the signed-in user, with that user's keychain. |
+
+"Supported" means an installer is built for that system and a problem on it
+is a bug to report. The automated tests run on every change on the build
+machines GitHub provides: Ubuntu 22.04 on x64 and on 64-bit ARM, the current
+macOS on Apple Silicon (the Intel Mac installer is built there too, but not
+run), and Windows Server with Desktop Experience. The installers have not
+yet been installed and used by hand on every system in the table.
+
+A computer with no internet connection and no WebView2 (some Windows 10 and
+Windows Server installs) cannot install it from the setup program: install
+the WebView2 "Evergreen Standalone Installer" from Microsoft first, then run
+the OpenAlgo setup.
 
 ## Download and install
 

@@ -416,6 +416,12 @@ same commit as its fix.
   API key generated"; reload it.
 - Never `pkill` by pattern: it kills other agents' test runs. Stop a process by
   the PID you started or checked.
+- `vite` and `vite preview` proxy the server's paths to `OPENALGO_DEV_BACKEND`,
+  by default `127.0.0.1:5500`, the development app. The Playwright suite
+  points that proxy at a closed port (`playwright.config.ts`, `webServer.env`)
+  because it assumes no backend; anything else that starts Vite without a
+  backend sets `OPENALGO_DEV_BACKEND` the same way. `scripts/ci/launch_smoke.py`
+  starts a release build on 5000 and 8765 and refuses to run outside CI.
 - The web repo is read-only. Read upstream changes with `gh api` or `git log`
   in the existing checkout; never pull, check out or edit there.
 

@@ -1,0 +1,207 @@
+name: Install smoke
+
+# Installs the bundles a CI run built, starts the installed app with a fresh
+# home and data folder, and waits until it serves its HTTP API; then checks
+# the packaged binary's `mcp` subcommand over piped stdio, and the .deb's
+# dependency list against what the binary links. A green CI run proves the
+# code builds and its tests pass; this is the first evidence that an
+# installer installs and the installed app starts.
+#
+#   Linux x64, Linux arm64  apt install ./<deb> on a fresh runner, start under
+#                           Xvfb; the AppImage too (extract-and-run, no FUSE)
+#   Windows x64             silent per-user NSIS install, start the installed
+#                           app (a GUI-subsystem executable)
+#   macOS Apple Silicon     the `mcp` check on the binary inside the .dmg
+#                           (no launch: a first start may show a keychain
+#                           prompt that nothing here could answer)
+#
+# Runs after every successful CI run on master, or by hand with the id of a
+# CI run whose bundles to use (Actions > Install smoke > Run workflow).
+# It is not part of ci-ok yet: once it has run green on master for a while,
+# add it to the required checks (docs/release/branch-protection.md).
+#
+# The app binds the shipped ports 5000 and 8765 here, which is fine on a CI
+# runner and is why scripts/ci/launch_smoke.py refuses to run outside CI.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Id of the CI run whose bundles to install"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.id || inputs.run_id }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.run_id || github.event.workflow_run.id }}
+
+jobs:
+  linux:
+    name: linux (${{ matrix.name }})
+    # Only bundles from a successful push to this repository's master: CI
+    # also runs for pull requests, including from forks whose branch may be
+    # called master, and their bundles must never be installed and run here.
+    if: >-
+      github.event_name == 'workflow_dispatch' || (
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: x86_64
+            os: ubuntu-22.04
+          - name: aarch64
+            os: ubuntu-22.04-arm
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The scripts as they were in the run that built the bundles.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - name: Download the bundles
+        uses: actions/download-artifact@v7
+        with:
+          name: bundles-linux-${{ matrix.name }}
+          path: bundles
+          run-id: ${{ env.RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Bound apt network waits
+        run: |
+          printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "5";\n' \
+            | sudo tee /etc/apt/apt.conf.d/99ci-network >/dev/null
+          sudo apt-get update
+      - name: Install the .deb (apt resolves its Depends)
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          debs=(bundles/deb/*.deb)
+          if [ "${#debs[@]}" -ne 1 ]; then
+            echo "::error::Expected one .deb, found ${#debs[@]}."
+            exit 1
+          fi
+          sudo apt-get install -y --no-install-recommends "./${debs[0]}" xvfb
+          dpkg -L open-algo-desktop | grep -E '^/usr/bin/'
+      - name: The .deb depends on what the binary links
+        run: |
+          shopt -s nullglob
+          debs=(bundles/deb/*.deb)
+          scripts/ci/check_deb.sh "${debs[0]}"
+      - name: Start a display
+        run: |
+          Xvfb :99 -screen 0 1280x800x24 >/dev/null 2>&1 &
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+      - name: Launch the installed app
+        run: python3 scripts/ci/launch_smoke.py /usr/bin/openalgo-desktop
+      - name: Launch the AppImage
+        env:
+          # No FUSE on the runner: the AppImage runtime extracts and runs.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          images=(bundles/appimage/*.AppImage)
+          if [ "${#images[@]}" -ne 1 ]; then
+            echo "::error::Expected one AppImage, found ${#images[@]}."
+            exit 1
+          fi
+          chmod +x "${images[0]}"
+          python3 scripts/ci/launch_smoke.py "$(realpath "${images[0]}")"
+      - name: MCP over piped stdio (installed binary)
+        run: python3 scripts/ci/mcp_stdio_smoke.py /usr/bin/openalgo-desktop
+
+  windows:
+    name: windows (x86_64)
+    if: >-
+      github.event_name == 'workflow_dispatch' || (
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - name: Download the bundles
+        uses: actions/download-artifact@v7
+        with:
+          name: bundles-windows-x86_64
+          path: bundles
+          run-id: ${{ env.RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Install silently, per user
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem bundles/nsis/*.exe
+          if (@($setup).Count -ne 1) { throw "Expected one NSIS installer, found $(@($setup).Count)." }
+          $p = Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "The installer exited with $($p.ExitCode)." }
+          $exe = Get-ChildItem -Path $env:LOCALAPPDATA -Recurse -Filter 'openalgo-desktop.exe' -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $exe) { throw "openalgo-desktop.exe was not found under $env:LOCALAPPDATA after the install." }
+          Write-Host "Installed: $($exe.FullName)"
+          "APP_EXE=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Launch the installed app
+        run: python scripts/ci/launch_smoke.py "$APP_EXE"
+      - name: MCP over piped stdio (installed GUI-subsystem executable)
+        run: python scripts/ci/mcp_stdio_smoke.py "$APP_EXE"
+
+  macos:
+    name: macos (aarch64, mcp only)
+    if: >-
+      github.event_name == 'workflow_dispatch' || (
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - name: Download the bundles
+        uses: actions/download-artifact@v7
+        with:
+          name: bundles-macos-aarch64
+          path: bundles
+          run-id: ${{ env.RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: MCP over piped stdio (binary inside the .dmg)
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(bundles/dmg/*.dmg)
+          if [ "${#dmgs[@]}" -ne 1 ]; then
+            echo "::error::Expected one .dmg, found ${#dmgs[@]}."
+            exit 1
+          fi
+          mnt=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "${dmgs[0]}"
+          trap 'hdiutil detach "$mnt" >/dev/null 2>&1 || true' EXIT
+          bins=("$mnt"/*.app/Contents/MacOS/openalgo-desktop)
+          if [ "${#bins[@]}" -ne 1 ]; then
+            echo "::error::Expected one app binary in the .dmg, found ${#bins[@]}."
+            exit 1
+          fi
+          python3 scripts/ci/mcp_stdio_smoke.py "${bins[0]}"
