@@ -22,7 +22,7 @@ use crate::error::Result;
 use crate::events::{Event, Lane, Subscriber, Topic};
 use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
 use std::sync::Arc;
 
@@ -85,6 +85,7 @@ pub struct StrategyBook {
     clock: Arc<dyn crate::clock::Clock>,
     session: (u32, u32),
     /// Serialises the watermark read-modify-write and the tag/drain pair.
+    /// Crash atomicity of each fold comes from its transaction, not this.
     lock: Mutex<()>,
 }
 
@@ -142,7 +143,7 @@ impl StrategyBook {
             return Ok(false);
         }
         let _g = self.lock.lock();
-        let conn = self.db.conn()?;
+        let mut conn = self.db.conn()?;
         conn.execute(
             "INSERT OR IGNORE INTO strategy_order_tags (orderid, user_id, strategy, symbol, \
              exchange, product, applied_quantity, applied_notional, created_at) \
@@ -170,10 +171,13 @@ impl StrategyBook {
             rows
         };
         for (id, qty, price, action) in pending {
-            // Booked first, deleted after: a booked-but-undeleted row is a
-            // no-op on retry thanks to the watermark.
-            self.apply_fill_locked(&conn, orderid, qty, price, &action)?;
-            conn.execute("DELETE FROM strategy_pending_fills WHERE id = ?1", [id])?;
+            // The position, its watermark and the buffered row move together
+            // (DB-02): a failure or crash part-way leaves all three as they
+            // were, so the next drain books the fill once, never twice.
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            self.apply_fill_locked(&tx, orderid, qty, price, &action)?;
+            tx.execute("DELETE FROM strategy_pending_fills WHERE id = ?1", [id])?;
+            tx.commit()?;
         }
         Ok(true)
     }
@@ -188,10 +192,19 @@ impl StrategyBook {
         action: &str,
     ) -> Result<Option<Value>> {
         let _g = self.lock.lock();
-        let conn = self.db.conn()?;
-        self.apply_fill_locked(&conn, orderid, filled_quantity, average_price, action)
+        let mut conn = self.db.conn()?;
+        // One transaction for the position and the watermark (DB-02): the
+        // process lock orders callers, but only the transaction keeps a crash
+        // between the two writes from booking the same fill again on replay.
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let booked =
+            self.apply_fill_locked(&tx, orderid, filled_quantity, average_price, action)?;
+        tx.commit()?;
+        Ok(booked)
     }
 
+    /// Fold one fill. Callers run it inside a transaction: the position
+    /// upsert and the watermark update below must commit together.
     fn apply_fill_locked(
         &self,
         conn: &Connection,
