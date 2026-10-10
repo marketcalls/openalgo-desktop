@@ -54,6 +54,10 @@
       "digestAlgorithm": "sha256",
       "timestampUrl": "",
       "wix": null,
+      "webviewInstallMode": {
+        "type": "embedBootstrapper",
+        "silent": true
+      },
       "nsis": {
         "installMode": "currentUser"
       }

@@ -24,19 +24,18 @@ use openalgo_desktop_lib::brokers::types::{Candle, MarginResult};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 
-/// Fixtures outside this wave, with the reason.
+/// Fixtures not replayed here, each with the reason it still holds.
 const SKIP: &[(&str, &str)] = &[
     (
         "chart/",
-        "chart preferences arrive with the /trading charting wave",
+        "/api/v1/chart (the web's chart preference store) is not served by the desktop: \
+         the /trading terminal keeps its layout in the browser and no page calls it; \
+         the gap is listed in docs/audit/2026-10-03/04-api-parity.md, section 2.6",
     ),
     (
         "portfolio/",
-        "portfolio tools arrive with the portfolio wave",
-    ),
-    (
-        "strategy/",
-        "the strategy module arrives with the strategy wave",
+        "/api/v1/portfolio is the web's Portfolio Backtester, out of scope because it \
+         needs the web's Python backtester (CLAUDE.md, scope decisions, 2026-10-03)",
     ),
     (
         "errors/rate_limit_probe_summary.json",

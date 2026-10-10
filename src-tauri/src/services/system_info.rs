@@ -278,6 +278,9 @@ pub fn system_payload(
     user_logged_in: bool,
 ) -> Value {
     let cfg = ctx.server_config();
+    // The feed's limits: `feed::config_from` builds the running feed on these
+    // defaults and sets only its address and handshake policy.
+    let feed = crate::feed::FeedConfig::default();
     let analyze = ctx.sqlite.get_analyze_mode().ok();
     let distro = if cfg!(target_os = "linux") {
         json!({
@@ -363,8 +366,16 @@ pub fn system_payload(
             "log_dir": "",
             "websocket_host": cfg.bind_host,
             "websocket_port": cfg.ws_port.to_string(),
-            "max_symbols_per_websocket": "1000",
-            "max_websocket_connections": "3",
+            // The web's two keys describe its broker adapter's env defaults
+            // (1000 symbols per upstream socket, 3 sockets). The Diagnostics
+            // page shows them, so they carry what the desktop's feed
+            // enforces: subscriptions (instrument and mode pairs) per client,
+            // and client connections, this computer's pool plus the network's.
+            "max_symbols_per_websocket": feed.max_subscriptions_per_client.to_string(),
+            "max_websocket_connections": (feed.local_connections + feed.max_connections).to_string(),
+            "feed_max_subscriptions_per_client": feed.max_subscriptions_per_client,
+            "feed_max_connections_this_computer": feed.local_connections,
+            "feed_max_connections_network": feed.max_connections,
             "api_rate_limit": "100 per second",
             "flask_debug": false,
             "secrets_present": secrets,

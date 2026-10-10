@@ -115,13 +115,17 @@ fn status_of(v: Option<f64>, (warn, fail): (f64, f64)) -> &'static str {
     }
 }
 
+/// The worst reading; "unknown" when nothing could be measured, never a
+/// "pass" that no reading supports.
 fn worst<'a>(statuses: &[&'a str]) -> &'a str {
     if statuses.contains(&"fail") {
         "fail"
     } else if statuses.contains(&"warn") {
         "warn"
-    } else {
+    } else if statuses.contains(&"pass") {
         "pass"
+    } else {
+        "unknown"
     }
 }
 
@@ -332,6 +336,92 @@ pub fn start(ctx: &Arc<AppState>) {
 
 // ------------------------------------------------------------ read models
 
+/// A sample older than this no longer describes the app: two sampling
+/// periods have passed without a new one, so the sampler stopped or fails.
+pub fn stale_after() -> Duration {
+    Duration::seconds(2 * SAMPLE_EVERY.as_secs() as i64)
+}
+
+/// The overall status the health routes report, and how old its sample is.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Overall {
+    /// "pass", "warn", "fail" or "unknown".
+    pub status: String,
+    /// Seconds since the latest sample was taken, when there is one.
+    pub sample_age_s: Option<i64>,
+    /// Why the status is "unknown", for the trader.
+    pub reason: Option<String>,
+}
+
+fn unknown(sample_age_s: Option<i64>, reason: String) -> Overall {
+    Overall {
+        status: "unknown".into(),
+        sample_age_s,
+        reason: Some(reason),
+    }
+}
+
+fn age_text(seconds: i64) -> String {
+    match seconds {
+        s if s < 120 => format!("{} seconds", s),
+        s if s < 2 * 3600 => format!("{} minutes", s / 60),
+        s => format!("{} hours", s / 3600),
+    }
+}
+
+/// Status from the latest sample (web `get_current_metrics`), except that
+/// no sample, an unreadable one or a stale one is "unknown", never "pass":
+/// a green badge over a sampler that stopped would hide a problem.
+pub fn overall(latest: &Result<Option<HealthRow>>, now: DateTime<Utc>) -> Overall {
+    match latest {
+        Err(_) => unknown(
+            None,
+            "The health samples could not be read, so the state of OpenAlgo is unknown.".into(),
+        ),
+        Ok(None) => unknown(
+            None,
+            "No health sample has been taken yet. OpenAlgo takes one every minute while it runs."
+                .into(),
+        ),
+        Ok(Some(m)) => overall_of(m, now),
+    }
+}
+
+/// [`overall`] for a sample that was read.
+pub fn overall_of(m: &HealthRow, now: DateTime<Utc>) -> Overall {
+    let Some(taken) = store::parse_ts(&m.timestamp) else {
+        return unknown(
+            None,
+            "The latest health sample has no readable time, so the state of OpenAlgo is unknown."
+                .into(),
+        );
+    };
+    let age = (now - taken).num_seconds().max(0);
+    if age > stale_after().num_seconds() {
+        return unknown(
+            Some(age),
+            format!(
+                "The latest health sample is {} old, so the state of OpenAlgo is unknown. \
+                 Health sampling may have stopped; restart OpenAlgo if this continues.",
+                age_text(age)
+            ),
+        );
+    }
+    match m.overall_status.as_deref() {
+        Some(s @ ("pass" | "warn" | "fail")) => Overall {
+            status: s.into(),
+            sample_age_s: Some(age),
+            reason: None,
+        },
+        _ => unknown(
+            Some(age),
+            "The latest health sample could not measure this computer's resources, so the \
+             state of OpenAlgo is unknown."
+                .into(),
+        ),
+    }
+}
+
 /// IST ISO-8601 timestamp (web `convert_to_ist(...).isoformat()`).
 pub fn iso_ist(ts: &str) -> String {
     store::parse_ts(ts)
@@ -510,7 +600,80 @@ mod tests {
         assert_eq!(status_of(Some(6.0), (5.0, 9.0)), "warn");
         assert_eq!(status_of(None, (5.0, 9.0)), "unknown");
         assert_eq!(worst(&["pass", "warn", "unknown"]), "warn");
+        assert_eq!(worst(&["pass", "unknown"]), "pass");
         assert_eq!(clamp_hours(Some("999")), 168);
         assert_eq!(clamp_hours(Some("x")), 24);
+    }
+
+    // Nothing measured is not a pass (DIA-01).
+    #[test]
+    fn worst_of_nothing_measured_is_unknown() {
+        assert_eq!(worst(&["unknown", "unknown", "unknown"]), "unknown");
+        assert_eq!(worst(&[]), "unknown");
+    }
+
+    fn sample(age_s: i64, status: Option<&str>, now: DateTime<Utc>) -> HealthRow {
+        HealthRow {
+            timestamp: store::ts(now - Duration::seconds(age_s)),
+            overall_status: status.map(String::from),
+            ..Default::default()
+        }
+    }
+
+    // DIA-01: a missing, unreadable or stale sample used to report "pass".
+    #[test]
+    fn overall_is_unknown_without_a_fresh_readable_sample() {
+        let now = Utc::now();
+        let none = overall(&Ok(None), now);
+        assert_eq!(none.status, "unknown");
+        assert_eq!(none.sample_age_s, None);
+        assert!(none.reason.unwrap().contains("No health sample"));
+
+        let unreadable = overall(
+            &Err(crate::error::AppError::Internal("no such table".into())),
+            now,
+        );
+        assert_eq!(unreadable.status, "unknown");
+        assert!(unreadable.reason.unwrap().contains("could not be read"));
+
+        let stale = overall(&Ok(Some(sample(180, Some("pass"), now))), now);
+        assert_eq!(stale.status, "unknown");
+        assert_eq!(stale.sample_age_s, Some(180));
+        assert!(stale.reason.unwrap().contains("3 minutes old"));
+
+        let unmeasured = overall_of(&sample(5, Some("unknown"), now), now);
+        assert_eq!(unmeasured.status, "unknown");
+        assert_eq!(unmeasured.sample_age_s, Some(5));
+
+        let mut garbled = sample(5, Some("pass"), now);
+        garbled.timestamp = "yesterday".into();
+        assert_eq!(overall_of(&garbled, now).status, "unknown");
+    }
+
+    #[test]
+    fn a_fresh_sample_keeps_its_own_status() {
+        let now = Utc::now();
+        for s in ["pass", "warn", "fail"] {
+            let o = overall_of(&sample(30, Some(s), now), now);
+            assert_eq!(
+                o,
+                Overall {
+                    status: s.into(),
+                    sample_age_s: Some(30),
+                    reason: None
+                }
+            );
+        }
+        // Exactly two sampling periods old is still current; one second
+        // more is stale.
+        let edge = stale_after().num_seconds();
+        assert_eq!(
+            overall_of(&sample(edge, Some("pass"), now), now).status,
+            "pass"
+        );
+        assert_eq!(
+            overall_of(&sample(edge + 1, Some("pass"), now), now).status,
+            "unknown"
+        );
     }
 }

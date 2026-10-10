@@ -13,7 +13,7 @@ use axum::{
     http::StatusCode,
     response::Response,
 };
-use serde_json::json;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -25,25 +25,42 @@ fn latest(ctx: &AppState) -> crate::error::Result<Option<store::HealthRow>> {
     store::latest_health(&c)
 }
 
-fn overall(ctx: &AppState) -> String {
-    latest(ctx)
-        .ok()
-        .flatten()
-        .and_then(|m| m.overall_status)
-        .unwrap_or_else(|| "pass".into())
+/// The latest sample for a status answer, which reports a read failure as
+/// "unknown" instead of failing: the cause goes to the log here.
+fn latest_for_status(ctx: &AppState) -> crate::error::Result<Option<store::HealthRow>> {
+    let r = latest(ctx);
+    if let Err(e) = &r {
+        tracing::warn!("Reading the latest health sample failed: {}", e);
+    }
+    r
 }
 
-/// GET /health and /health/status: `{status, version, serviceId, description}`.
+/// Adds the sample's age, and the reason when the status is "unknown".
+fn with_freshness(mut body: Value, o: &health::Overall) -> Value {
+    body["sample_age_s"] = json!(o.sample_age_s);
+    if let Some(r) = &o.reason {
+        body["reason"] = json!(r);
+    }
+    body
+}
+
+/// GET /health and /health/status: `{status, version, serviceId, description}`
+/// plus `sample_age_s`, and `reason` when the status is "unknown" (no sample,
+/// an unreadable one, or one older than two sampling periods). Only "fail"
+/// answers 503.
 pub async fn status(State(ctx): Ctx) -> Response {
-    let st = overall(&ctx);
-    let code = if st == "fail" {
+    let o = health::overall(&latest_for_status(&ctx), ctx.now());
+    let code = if o.status == "fail" {
         StatusCode::SERVICE_UNAVAILABLE
     } else {
         StatusCode::OK
     };
     json_response(
         code,
-        json!({"status": st, "version": "1.0", "serviceId": "openalgo", "description": "OpenAlgo Trading Platform"}),
+        with_freshness(
+            json!({"status": o.status, "version": "1.0", "serviceId": "openalgo", "description": "OpenAlgo Trading Platform"}),
+            &o,
+        ),
     )
 }
 
@@ -69,7 +86,9 @@ pub async fn check(State(ctx): Ctx) -> Response {
             {"componentId": "logs", "status": pf(logs_ok), "time": now},
         ]),
     );
-    let m = latest(&ctx).ok().flatten();
+    let sample = latest_for_status(&ctx);
+    let o = health::overall(&sample, ctx.now());
+    let m = sample.ok().flatten();
     if let Some(m) = &m {
         let t = format!("{}Z", m.timestamp.replace(' ', "T"));
         if let Some(fd) = m.fd_count {
@@ -87,15 +106,12 @@ pub async fn check(State(ctx): Ctx) -> Response {
             );
         }
     }
-    let cached = m
-        .and_then(|m| m.overall_status)
-        .unwrap_or_else(|| "pass".into());
-    let st = if !(main_ok && logs_ok) || cached == "fail" {
+    // A database that does not answer is a failure whatever the sample says;
+    // otherwise the sample decides, "unknown" when it is missing or stale.
+    let st = if !(main_ok && logs_ok) {
         "fail"
-    } else if cached == "warn" {
-        "warn"
     } else {
-        "pass"
+        o.status.as_str()
     };
     json_response(
         if st == "fail" {
@@ -103,12 +119,17 @@ pub async fn check(State(ctx): Ctx) -> Response {
         } else {
             StatusCode::OK
         },
-        json!({"status": st, "version": "1.0", "serviceId": "openalgo",
-               "description": "OpenAlgo Trading Platform", "checks": checks}),
+        with_freshness(
+            json!({"status": st, "version": "1.0", "serviceId": "openalgo",
+                   "description": "OpenAlgo Trading Platform", "checks": checks}),
+            &o,
+        ),
     )
 }
 
-/// GET /health/api/current (takes a sample first if none exists yet).
+/// GET /health/api/current (takes a sample first if none exists yet), plus
+/// `sample_age_s`; a stale sample reports `overall_status` "unknown" with a
+/// `reason`, its own readings unchanged.
 pub async fn current(State(ctx): Ctx) -> Response {
     let c = ctx.clone();
     let r = tokio::task::spawn_blocking(move || match latest(&c) {
@@ -118,7 +139,14 @@ pub async fn current(State(ctx): Ctx) -> Response {
     })
     .await;
     match r {
-        Ok(Ok(Some(m))) => ok(health::current_json(&m)),
+        Ok(Ok(Some(m))) => {
+            let o = health::overall_of(&m, ctx.now());
+            let mut v = with_freshness(health::current_json(&m), &o);
+            if o.status == "unknown" {
+                v["overall_status"] = json!("unknown");
+            }
+            ok(v)
+        }
         Ok(Ok(None)) => json_response(
             StatusCode::NOT_FOUND,
             json!({"error": "No metrics available"}),

@@ -45,6 +45,7 @@ import {
   getHealthStats,
   getMetricsHistory,
   type HealthAlert,
+  type HealthLevel,
   type HealthStats,
   type HistoricalMetric,
   hasHealthSamples,
@@ -143,6 +144,23 @@ function formatIstDateTime(timestamp: string, options?: Intl.DateTimeFormatOptio
 
 function formatIstTime(timestamp: string): string {
   return formatIstDateTime(timestamp, { year: undefined, month: undefined, day: undefined })
+}
+
+/** A sample older than two sampling periods no longer describes the app. */
+const SAMPLE_STALE_AFTER_S = 120
+
+/** The sample's age as the server reports it, else from its timestamp. */
+function sampleAgeSeconds(metrics: CurrentMetrics): number | null {
+  if (typeof metrics.sample_age_s === 'number') return metrics.sample_age_s
+  const taken = Date.parse(metrics.timestamp)
+  if (Number.isNaN(taken)) return null
+  return Math.max(0, Math.round((Date.now() - taken) / 1000))
+}
+
+function formatAge(seconds: number): string {
+  if (seconds < 120) return `${seconds} s ago`
+  if (seconds < 7200) return `${Math.floor(seconds / 60)} min ago`
+  return `${Math.floor(seconds / 3600)} h ago`
 }
 
 // Check if dark mode is active
@@ -426,6 +444,22 @@ export default function HealthMonitor() {
     )
   }
 
+  // Desktop: a missing or stale sample is UNKNOWN, never the PASS it last
+  // showed; the readings stay on screen, in neutral colours.
+  const sampleAge = currentMetrics ? sampleAgeSeconds(currentMetrics) : null
+  const stale =
+    currentMetrics !== null &&
+    (currentMetrics.overall_status === 'unknown' ||
+      sampleAge === null ||
+      sampleAge > SAMPLE_STALE_AFTER_S)
+  const overallStatus = stale ? 'unknown' : (currentMetrics?.overall_status ?? 'unknown')
+  const staleReason = stale
+    ? (currentMetrics?.reason ??
+      `No health sample${sampleAge === null ? '' : ` for ${formatAge(sampleAge).replace(' ago', '')}`}. Health sampling may have stopped; restart OpenAlgo if this continues.`)
+    : null
+  const cardStatus = (status: HealthLevel | undefined): HealthLevel =>
+    stale ? 'unknown' : status || 'unknown'
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -461,19 +495,20 @@ export default function HealthMonitor() {
         <div
           className={cn(
             'rounded-lg border p-4 flex items-center gap-4',
-            currentMetrics.overall_status === 'pass' && 'border-green-500/50 bg-green-500/10',
-            currentMetrics.overall_status === 'warn' && 'border-yellow-500/50 bg-yellow-500/10',
-            currentMetrics.overall_status === 'fail' && 'border-red-500/50 bg-red-500/10'
+            overallStatus === 'pass' && 'border-green-500/50 bg-green-500/10',
+            overallStatus === 'warn' && 'border-yellow-500/50 bg-yellow-500/10',
+            overallStatus === 'fail' && 'border-red-500/50 bg-red-500/10',
+            overallStatus === 'unknown' && 'border-muted-foreground/40 bg-muted/40'
           )}
         >
-          <StatusIcon status={currentMetrics.overall_status} />
+          <StatusIcon status={overallStatus} />
           <div>
-            <p className="font-semibold">
-              System Status: {currentMetrics.overall_status.toUpperCase()}
-            </p>
+            <p className="font-semibold">System Status: {overallStatus.toUpperCase()}</p>
             <p className="text-sm text-muted-foreground">
               Last updated (IST): {formatIstDateTime(currentMetrics.timestamp)}
+              {sampleAge !== null && ` (${formatAge(sampleAge)})`}
             </p>
+            {staleReason && <p className="text-sm text-muted-foreground">{staleReason}</p>}
           </div>
         </div>
       )}
@@ -497,7 +532,7 @@ export default function HealthMonitor() {
                 : `threshold: ${currentMetrics.fd.status === 'pass' ? 'OK' : currentMetrics.fd.status}`
               : undefined
           }
-          status={currentMetrics?.fd.status || 'unknown'}
+          status={cardStatus(currentMetrics?.fd.status)}
           loading={!currentMetrics}
         />
         <MetricCard
@@ -509,7 +544,7 @@ export default function HealthMonitor() {
               ? `${(currentMetrics.memory.percent ?? 0).toFixed(1)}% of system`
               : undefined
           }
-          status={currentMetrics?.memory.status || 'unknown'}
+          status={cardStatus(currentMetrics?.memory.status)}
           loading={!currentMetrics}
         />
         <MetricCard
@@ -517,7 +552,7 @@ export default function HealthMonitor() {
           icon={Database}
           value={currentMetrics?.database.total || 0}
           subtitle="Active connections"
-          status={currentMetrics?.database.status || 'unknown'}
+          status={cardStatus(currentMetrics?.database.status)}
           loading={!currentMetrics}
         />
         <MetricCard
@@ -527,7 +562,7 @@ export default function HealthMonitor() {
           subtitle={
             currentMetrics ? `${currentMetrics.websocket.total_symbols} symbols` : undefined
           }
-          status={currentMetrics?.websocket.status || 'unknown'}
+          status={cardStatus(currentMetrics?.websocket.status)}
           loading={!currentMetrics}
         />
         <MetricCard
@@ -539,7 +574,7 @@ export default function HealthMonitor() {
               ? `${currentMetrics.threads.stuck} stuck`
               : 'None stuck'
           }
-          status={currentMetrics?.threads.status || 'unknown'}
+          status={cardStatus(currentMetrics?.threads.status)}
           loading={!currentMetrics}
         />
       </div>

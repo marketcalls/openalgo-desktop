@@ -725,6 +725,93 @@ async fn health_sampler_endpoints_and_alerts() {
         .starts_with("Date & Time (IST),FD Count"));
 }
 
+/// DIA-01: no sample, a stale one or an unreadable one used to answer
+/// "pass". Each is "unknown" (HTTP 200) with the sample's age and a reason;
+/// a fresh sample keeps its own status.
+#[tokio::test]
+async fn health_status_is_unknown_without_a_fresh_sample() {
+    let (h, c, _) = signed_in();
+    let routes = ["/health", "/health/status", "/health/check"];
+
+    // No sample yet.
+    for p in routes {
+        let (s, v) = h.json(with(get(p), &c, None)).await;
+        assert_eq!(s, StatusCode::OK, "{} {}", p, v);
+        assert_eq!(v["status"], "unknown", "{} {}", p, v);
+        assert!(v["sample_age_s"].is_null(), "{} {}", p, v);
+        assert!(
+            v["reason"].as_str().unwrap().contains("No health sample"),
+            "{} {}",
+            p,
+            v
+        );
+    }
+
+    // A fresh sample: its own status, and its age.
+    let taken = openalgo_desktop_lib::services::health_service::sample_once(&h.ctx).unwrap();
+    let own = taken.overall_status.clone().unwrap();
+    assert_ne!(own, "unknown");
+    h.clock.advance(chrono::Duration::seconds(30));
+    for p in routes {
+        let (_, v) = h.json(with(get(p), &c, None)).await;
+        assert_eq!(v["status"], own.as_str(), "{} {}", p, v);
+        assert_eq!(v["sample_age_s"], 30, "{} {}", p, v);
+        assert!(v.get("reason").is_none(), "{} {}", p, v);
+    }
+    let (_, v) = h.json(with(get("/health/api/current"), &c, None)).await;
+    assert_eq!(v["overall_status"], own.as_str(), "{}", v);
+    assert_eq!(v["sample_age_s"], 30, "{}", v);
+
+    // The sampler stops: three minutes later the sample no longer counts.
+    h.clock.advance(chrono::Duration::seconds(150));
+    for p in routes {
+        let (s, v) = h.json(with(get(p), &c, None)).await;
+        assert_eq!(s, StatusCode::OK, "{} {}", p, v);
+        assert_eq!(v["status"], "unknown", "{} {}", p, v);
+        assert_eq!(v["sample_age_s"], 180, "{} {}", p, v);
+        assert!(
+            v["reason"].as_str().unwrap().contains("3 minutes old"),
+            "{} {}",
+            p,
+            v
+        );
+    }
+    let (s, v) = h.json(with(get("/health/api/current"), &c, None)).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(v["overall_status"], "unknown", "{}", v);
+    assert_eq!(v["sample_age_s"], 180, "{}", v);
+    // The readings are still the sample's own, for the trader to judge.
+    assert_eq!(
+        v["memory"]["rss_mb"].as_f64(),
+        taken.memory_rss_mb,
+        "{}",
+        v
+    );
+
+    // Samples that cannot be read.
+    h.ctx
+        .logs
+        .conn()
+        .unwrap()
+        .execute("DROP TABLE health_metrics", [])
+        .unwrap();
+    for p in routes {
+        let (s, v) = h.json(with(get(p), &c, None)).await;
+        assert_eq!(s, StatusCode::OK, "{} {}", p, v);
+        assert_eq!(v["status"], "unknown", "{} {}", p, v);
+        assert!(
+            v["reason"].as_str().unwrap().contains("could not be read"),
+            "{} {}",
+            p,
+            v
+        );
+    }
+    // The databases themselves still answer.
+    let (_, v) = h.json(with(get("/health/check"), &c, None)).await;
+    assert_eq!(v["checks"]["database:connectivity"][0]["status"], "pass");
+    assert_eq!(v["checks"]["database:connectivity"][1]["status"], "pass");
+}
+
 #[tokio::test]
 async fn health_samples_and_traffic_are_bounded_by_retention() {
     let (h, c, _) = signed_in();
