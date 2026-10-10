@@ -62,7 +62,6 @@ pub static CONFIG: NorenConfig = NorenConfig {
     bse_indices: BseIndices::Manual,
     nse_index_brexchange: "NSE_INDEX",
     index_instrument_type: "INDEX",
-    master_all_or_nothing: false,
     bse_drop_without_exchange: false,
     bfo_from_tsym: true,
     timeframes: TIMEFRAMES_WITH_4H,

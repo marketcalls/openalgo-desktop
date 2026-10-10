@@ -124,6 +124,26 @@ fn missing(file: &str) -> AppError {
     )
 }
 
+/// A segment file missing from the archive, empty, or with no instruments.
+fn incomplete(file: &str) -> AppError {
+    tracing::warn!(
+        "Pocketful master file {} is missing or has no instruments",
+        file
+    );
+    AppError::Broker(format!(
+        "Pocketful's instrument list came without its {} segment. Your existing symbols were kept; try downloading the master contract again later.",
+        file.trim_end_matches("CompactScrip.csv")
+    ))
+}
+
+/// `rows` of one segment file, refused when it yielded none.
+fn segment(rows: Vec<SymToken>, file: &str) -> Result<Vec<SymToken>> {
+    if rows.is_empty() {
+        return Err(incomplete(file));
+    }
+    Ok(rows)
+}
+
 fn row_exchange(r: &Row<'_>, default: &str) -> String {
     let e = r.get("exchange");
     if e.is_empty() {
@@ -332,28 +352,36 @@ pub fn parse_derivatives(text: &str, seg: Segment) -> Result<Vec<SymToken>> {
 }
 
 /// Parse the archive's files (web load order), de-duplicated per
-/// (exchange, token), first row wins.
+/// (exchange, token), first row wins. All five files are required, as on
+/// the web (MC-02): a missing or empty one fails the download, so the
+/// stored master is kept rather than replaced by a partial one.
 pub fn parse_archive(files: &[(String, Vec<u8>)]) -> Result<Vec<SymToken>> {
-    let find = |name: &str| -> Option<String> {
+    let find = |name: &'static str| -> Result<String> {
         files
             .iter()
             .find(|(n, _)| n.rsplit('/').next().unwrap_or(n).eq_ignore_ascii_case(name))
             .map(|(_, b)| String::from_utf8_lossy(b).into_owned())
+            .filter(|t| !t.trim().is_empty())
+            .ok_or_else(|| incomplete(name))
     };
-    let nse = find("NSECompactScrip.csv").ok_or_else(|| missing("NSECompactScrip.csv"))?;
-    let mut all = parse_nse(&nse)?;
-    if let Some(bse) = find("BSECompactScrip.csv") {
-        all.extend(parse_bse(&bse)?);
-    }
-    if let Some(nfo) = find("NFOCompactScrip.csv") {
-        all.extend(parse_derivatives(&nfo, Segment::Nfo)?);
-    }
-    if let Some(mcx) = find("MCXCompactScrip.csv") {
-        all.extend(parse_derivatives(&mcx, Segment::Mcx)?);
-    }
-    if let Some(bfo) = find("BFOCompactScrip.csv") {
-        all.extend(parse_derivatives(&bfo, Segment::Bfo)?);
-    }
+    let nse = find("NSECompactScrip.csv")?;
+    let mut all = segment(parse_nse(&nse)?, "NSECompactScrip.csv")?;
+    all.extend(segment(
+        parse_bse(&find("BSECompactScrip.csv")?)?,
+        "BSECompactScrip.csv",
+    )?);
+    all.extend(segment(
+        parse_derivatives(&find("NFOCompactScrip.csv")?, Segment::Nfo)?,
+        "NFOCompactScrip.csv",
+    )?);
+    all.extend(segment(
+        parse_derivatives(&find("MCXCompactScrip.csv")?, Segment::Mcx)?,
+        "MCXCompactScrip.csv",
+    )?);
+    all.extend(segment(
+        parse_derivatives(&find("BFOCompactScrip.csv")?, Segment::Bfo)?,
+        "BFOCompactScrip.csv",
+    )?);
     all.extend(parse_nse_indices(&nse)?);
     let mut seen = HashSet::new();
     all.retain(|r| !r.token.is_empty() && seen.insert((r.exchange.clone(), r.token.clone())));

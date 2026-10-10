@@ -232,11 +232,6 @@ pub struct NorenConfig {
     /// `NSE_INDEX` / `BSE_INDEX` exchange alone mark them (flattrade, web
     /// #2198, QA MC-04).
     pub index_instrument_type: &'static str,
-    /// The master is all or nothing (flattrade, web #2198): a file that
-    /// fails or comes back empty, or a segment that yields no rows, fails
-    /// the download so the stored master is kept. Otherwise a failed file
-    /// is skipped and only every file failing is an error.
-    pub master_all_or_nothing: bool,
     /// Drop BSE master rows whose `Exchange` is blank or NULL (flattrade,
     /// web #2198, QA MC-14): stale scrips the broker refuses, with no name,
     /// some repeating a live scrip under an old token.

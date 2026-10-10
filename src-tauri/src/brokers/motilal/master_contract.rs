@@ -446,27 +446,46 @@ async fn fetch(b: &MotilalBroker, path: &str, name: &str) -> Result<String> {
     resp.text().await.map_err(redact::http)
 }
 
-/// web `master_contract_download`: every file it can get; fails only when
-/// nothing could be downloaded.
+/// web `master_contract_download`, all or nothing (MC-02, a hardening over
+/// the web, which keeps whatever files it got): every scrip and index file
+/// must download and yield instruments, or the download fails naming the
+/// file, so the stored master is kept rather than replaced by a partial one.
 pub async fn download(b: &MotilalBroker) -> Result<Vec<SymToken>> {
     let mut all = Vec::new();
     for ex in SCRIP_EXCHANGES {
-        match fetch(b, super::paths::SCRIP_MASTER, ex).await {
-            Ok(text) => all.extend(parse_scrip_csv(&text, ex)),
-            Err(e) => tracing::warn!("Motilal Oswal {} master download failed: {}", ex, e),
+        let rows = match fetch(b, super::paths::SCRIP_MASTER, ex).await {
+            Ok(text) => parse_scrip_csv(&text, ex),
+            Err(e) => {
+                tracing::warn!("Motilal Oswal {} master download failed: {}", ex, e);
+                return Err(incomplete(ex));
+            }
+        };
+        if rows.is_empty() {
+            tracing::warn!("Motilal Oswal {} master had no instruments", ex);
+            return Err(incomplete(ex));
         }
+        all.extend(rows);
     }
     for ex in INDEX_EXCHANGES {
-        match fetch(b, super::paths::INDEX_MASTER, ex).await {
-            Ok(text) => all.extend(parse_index_csv(&text, ex)),
-            Err(e) => tracing::warn!("Motilal Oswal {} index master download failed: {}", ex, e),
+        let rows = match fetch(b, super::paths::INDEX_MASTER, ex).await {
+            Ok(text) => parse_index_csv(&text, ex),
+            Err(e) => {
+                tracing::warn!("Motilal Oswal {} index master download failed: {}", ex, e);
+                return Err(incomplete(&format!("{} index", ex)));
+            }
+        };
+        if rows.is_empty() {
+            tracing::warn!("Motilal Oswal {} index master had no instruments", ex);
+            return Err(incomplete(&format!("{} index", ex)));
         }
-    }
-    if all.is_empty() {
-        return Err(AppError::Broker(
-            "The Motilal Oswal instrument files could not be downloaded. Check your internet connection and try again."
-                .into(),
-        ));
+        all.extend(rows);
     }
     Ok(dedupe(all))
+}
+
+fn incomplete(file: &str) -> AppError {
+    AppError::Broker(format!(
+        "The Motilal Oswal {} instrument list could not be downloaded. Your existing symbols were kept; try the download again later.",
+        file
+    ))
 }

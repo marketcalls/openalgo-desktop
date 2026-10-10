@@ -48,6 +48,8 @@ struct Fake {
     throttle_orders: AtomicUsize,
     /// Answer /user/profile with this status (0 = 200).
     profile_status: AtomicUsize,
+    /// Answer the F&O instrument list with 500.
+    fno_down: std::sync::atomic::AtomicBool,
 }
 
 impl Fake {
@@ -149,6 +151,11 @@ fn route(fake: &Fake, s: &Seen) -> Response {
         }
         ("GET", p) if p.starts_with("/market/historical/") => pick("history"),
         ("GET", "/market/instruments") => {
+            if s.query.get("source").map(String::as_str) == Some("fno")
+                && fake.fno_down.load(std::sync::atomic::Ordering::SeqCst)
+            {
+                return status(500, json!({"message": "down"}));
+            }
             let csv = match s.query.get("source").map(String::as_str) {
                 Some("equity") => fixture!("equity.csv"),
                 Some("fno") => fixture!("fno.csv"),
@@ -559,4 +566,17 @@ async fn master_contract_downloads_three_sources() {
         .await
         .unwrap_err();
     assert!(e.client_message().contains("session"));
+
+    // MC-02 (a hardening over the web, which keeps the sources it got): a
+    // source that fails refuses the download by name; the stored master is
+    // kept.
+    fake.fno_down
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let msg = b
+        .download_master_contract(&auth)
+        .await
+        .unwrap_err()
+        .client_message();
+    assert!(msg.contains("INDmoney's fno instrument list"), "{}", msg);
+    assert!(msg.contains("existing symbols were kept"), "{}", msg);
 }

@@ -928,6 +928,83 @@ async fn master_contract_from_file_paths() {
     assert!(m.calls("GET", "/files/transformed/nse_com.csv").is_empty());
 }
 
+/// The segment files of the fake listing, by key and path.
+fn listed_segments(s: &Server) -> Vec<(&'static str, String, &'static str)> {
+    vec![
+        ("NSE_CM", "/files/transformed-v1/nse_cm-v1.csv", "nse_cm.csv"),
+        ("NSE_FO", "/files/transformed/nse_fo.csv", "nse_fo.csv"),
+        ("BSE_CM", "/files/transformed-v1/bse_cm-v1.csv", "bse_cm.csv"),
+        ("BSE_FO", "/files/transformed/bse_fo.csv", "bse_fo.csv"),
+        ("CDE_FO", "/files/transformed/cde_fo.csv", "cde_fo.csv"),
+        ("MCX_FO", "/files/transformed/mcx_fo.csv", "mcx_fo.csv"),
+    ]
+    .into_iter()
+    .map(|(k, p, f)| (k, format!("{}{}", s.url, p), f))
+    .collect()
+}
+
+/// MC-02: a Kotak master is all or nothing. A listed segment file that is
+/// refused, has no instruments or cannot be read fails the download by
+/// name, so the stored master is kept; a required segment missing from the
+/// listing fails it too; only the currency and commodity files may be
+/// absent from the day's listing.
+#[tokio::test]
+async fn master_contract_is_all_or_nothing() {
+    async fn run(
+        skip: Option<&str>,
+        replace: Option<(&str, u16, &str)>,
+    ) -> openalgo_desktop_lib::error::Result<Vec<openalgo_desktop_lib::brokers::types::SymbolData>>
+    {
+        let m = Mock::default();
+        let s = serve(&m).await;
+        let files: Vec<_> = listed_segments(&s)
+            .into_iter()
+            .filter(|(k, _, _)| Some(*k) != skip)
+            .collect();
+        let paths = json!({"data": {"filesPaths": files.iter().map(|(_, u, _)| u.clone()).collect::<Vec<_>>()}});
+        m.on(
+            "GET",
+            "/script-details/1.0/masterscrip/file-paths",
+            200,
+            paths.to_string(),
+        );
+        for (k, url, file) in &files {
+            let path = url.strip_prefix(&s.url).unwrap();
+            match replace {
+                Some((key, status, body)) if key == *k => m.on("GET", path, status, body),
+                _ => m.on("GET", path, 200, fixture(file)),
+            }
+        }
+        broker(&s).download_master_contract(&auth(&s)).await
+    }
+    let msg = run(None, Some(("NSE_FO", 500, "{}")))
+        .await
+        .unwrap_err()
+        .client_message();
+    assert!(msg.contains("Kotak's NSE_FO instrument list"), "{}", msg);
+    assert!(msg.contains("existing symbols were kept"), "{}", msg);
+    let msg = run(None, Some(("BSE_FO", 200, "not,a,master\n1,2,3\n")))
+        .await
+        .unwrap_err()
+        .client_message();
+    assert!(msg.contains("BSE_FO"), "{}", msg);
+    let msg = run(None, Some(("CDE_FO", 200, "")))
+        .await
+        .unwrap_err()
+        .client_message();
+    assert!(msg.contains("CDE_FO"), "{}", msg);
+    let msg = run(Some("BSE_CM"), None)
+        .await
+        .unwrap_err()
+        .client_message();
+    assert!(msg.contains("BSE_CM"), "{}", msg);
+    // No commodity file listed today: the rest is a complete master.
+    let rows = run(Some("MCX_FO"), None).await.unwrap();
+    assert!(!rows.is_empty());
+    assert!(!rows.iter().any(|r| r.exchange == "MCX"));
+    assert!(rows.iter().any(|r| r.exchange == "BFO"));
+}
+
 #[tokio::test]
 async fn master_contract_falls_back_to_dated_cdn() {
     let m = Mock::default();
@@ -937,11 +1014,29 @@ async fn master_contract_falls_back_to_dated_cdn() {
         500,
         "{}",
     );
-    m.on("GET", "/cdn/*", 200, fixture("nse_cm.csv"));
+    let today = (chrono::Utc::now() + chrono::Duration::seconds(19_800))
+        .date_naive()
+        .format("%Y-%m-%d")
+        .to_string();
+    for (dir, name, file) in [
+        ("transformed-v1", "nse_cm-v1", "nse_cm.csv"),
+        ("transformed-v1", "bse_cm-v1", "bse_cm.csv"),
+        ("transformed", "nse_fo", "nse_fo.csv"),
+        ("transformed", "bse_fo", "bse_fo.csv"),
+        ("transformed", "cde_fo", "cde_fo.csv"),
+        ("transformed", "mcx_fo", "mcx_fo.csv"),
+    ] {
+        m.on(
+            "GET",
+            &format!("/cdn/{}/{}/{}.csv", today, dir, name),
+            200,
+            fixture(file),
+        );
+    }
     let s = serve(&m).await;
     let rows = broker(&s).download_master_contract(&auth(&s)).await;
-    // Every CDN file answers with the NSE cash sample here.
     let rows = rows.unwrap();
+    assert_eq!(rows.len(), 18);
     assert!(rows
         .iter()
         .any(|r| r.exchange == "NSE" && r.symbol == "SBIN"));

@@ -1,8 +1,9 @@
 //! Nubra master contract (web `database/master_contract_db.py`).
 //!
 //! * Instruments: `GET /refdata/refdata/{YYYY-MM-DD}?exchange={NSE,BSE,MCX}`
-//!   with the session headers (an exchange that fails is skipped, as on the
-//!   web); rows under `refdata`.
+//!   with the session headers; rows under `refdata`. An exchange that fails
+//!   or sends nothing fails the whole download (the web skips it), so the
+//!   stored master is kept rather than replaced by a partial one.
 //! * Indices: `GET /public/indexes?format=csv` (no authentication), columns
 //!   `EXCHANGE, INDEX_SYMBOL, ZANSKAR_INDEX_SYMBOL, INDEX_NAME`.
 //!
@@ -228,6 +229,13 @@ pub fn parse_indexes(csv: &str) -> Vec<SymbolData> {
         .collect()
 }
 
+fn incomplete(exchange: &str) -> AppError {
+    AppError::Broker(format!(
+        "Nubra did not send its {} instruments. Your existing symbols were kept; try downloading the master contract again shortly.",
+        exchange
+    ))
+}
+
 /// Today's date in IST (the refdata snapshot date).
 fn today_ist() -> NaiveDate {
     (chrono::Utc::now() + chrono::Duration::seconds(19_800)).date_naive()
@@ -263,18 +271,19 @@ pub async fn download(b: &NubraBroker, auth: &AuthToken) -> Result<Vec<SymbolDat
                 ex,
                 refused(&v, status)
             );
-            continue;
+            return Err(incomplete(ex));
         }
+        // All or nothing (MC-02, a hardening over the web, which keeps the
+        // exchanges it got): an exchange with no instruments fails the
+        // download, so the stored master is kept.
         let v: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-        if let Some(a) = v.get("refdata").and_then(Value::as_array) {
-            rows.extend(a.iter().cloned());
+        match v.get("refdata").and_then(Value::as_array) {
+            Some(a) if !a.is_empty() => rows.extend(a.iter().cloned()),
+            _ => {
+                tracing::warn!("Nubra instrument list for {} had no instruments", ex);
+                return Err(incomplete(ex));
+            }
         }
-    }
-    if rows.is_empty() {
-        return Err(AppError::Broker(
-            "Nubra did not send any instruments. Try downloading the master contract again shortly."
-                .into(),
-        ));
     }
     let mut out = parse_refdata(&rows);
     drop(rows);

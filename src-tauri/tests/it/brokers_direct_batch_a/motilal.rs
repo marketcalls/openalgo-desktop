@@ -757,27 +757,39 @@ async fn history_is_todays_daily_bar_only() {
     assert!(e.client_message().contains("Only the daily interval"));
 }
 
-#[tokio::test]
-async fn master_contract_download() {
-    let fake = Fake::start(|req: &Req| {
+/// A fake Motilal master server; `down` names one file that answers 502
+/// (`"BSEFO"`, or `"NSE index"` for an index file).
+async fn motilal_master(down: Option<&'static str>) -> Fake {
+    Fake::start(move |req: &Req| {
         let name = req.param("name").unwrap_or_default();
         if req.path.ends_with("/getscripmastercsv") {
+            if down == Some(name.as_str()) {
+                return with_status(StatusCode::BAD_GATEWAY, "{}");
+            }
             return match name.as_str() {
                 "NSE" => text(crate::fixture!("motilal", "scrip_nse.csv")),
                 "BSE" => text(crate::fixture!("motilal", "scrip_bse.csv")),
                 "NSEFO" => text(crate::fixture!("motilal", "scrip_nsefo.csv")),
                 "NSECD" => text(crate::fixture!("motilal", "scrip_nsecd.csv")),
                 "MCX" => text(crate::fixture!("motilal", "scrip_mcx.csv")),
-                // One exchange failing does not fail the download.
-                _ => with_status(StatusCode::BAD_GATEWAY, "{}"),
+                "BSEFO" => text(crate::fixture!("motilal", "scrip_bsefo.csv")),
+                _ => with_status(StatusCode::NOT_FOUND, "{}"),
             };
+        }
+        if down == Some(format!("{} index", name).as_str()) {
+            return text("");
         }
         match name.as_str() {
             "NSE" => text(crate::fixture!("motilal", "index_nse.csv")),
             _ => text(crate::fixture!("motilal", "index_bse.csv")),
         }
     })
-    .await;
+    .await
+}
+
+#[tokio::test]
+async fn master_contract_download() {
+    let fake = motilal_master(None).await;
     let b = broker(&fake.base, "ws://127.0.0.1:9");
     let rows = b.download_master_contract(&auth()).await.unwrap();
     let has = |s: &str, e: &str| rows.iter().any(|r| r.symbol == s && r.exchange == e);
@@ -787,7 +799,7 @@ async fn master_contract_download() {
     assert!(has("CRUDEOIL19OCT26FUT", "MCX"));
     assert!(has("BANKNIFTY", "NSE_INDEX"));
     assert!(has("SENSEX50", "BSE_INDEX"));
-    assert!(!rows.iter().any(|r| r.exchange == "BFO"));
+    assert!(rows.iter().any(|r| r.exchange == "BFO"));
     assert_eq!(
         rows.iter()
             .filter(|r| r.symbol == "NIFTY" && r.exchange == "NSE_INDEX")
@@ -800,6 +812,28 @@ async fn master_contract_download() {
     let dead = Fake::start(|_req: &Req| with_status(StatusCode::BAD_GATEWAY, "{}")).await;
     let b = broker(&dead.base, "ws://127.0.0.1:9");
     assert!(b.download_master_contract(&auth()).await.is_err());
+}
+
+/// MC-02 (a hardening over the web, which keeps whatever files it got):
+/// one scrip or index file failing or empty refuses the whole download,
+/// naming it, so the stored master is kept.
+#[tokio::test]
+async fn master_contract_is_all_or_nothing() {
+    for (down, named) in [("BSEFO", "BSEFO"), ("NSE index", "NSE index")] {
+        let fake = motilal_master(Some(down)).await;
+        let b = broker(&fake.base, "ws://127.0.0.1:9");
+        let msg = b
+            .download_master_contract(&auth())
+            .await
+            .unwrap_err()
+            .client_message();
+        assert!(
+            msg.contains(&format!("Motilal Oswal {} instrument list", named)),
+            "{}",
+            msg
+        );
+        assert!(msg.contains("existing symbols were kept"), "{}", msg);
+    }
 }
 
 /// Sentinel credentials and session through every sign-in and request

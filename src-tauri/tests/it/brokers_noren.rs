@@ -157,7 +157,7 @@ fn route(fake: &Fake, path: &str, body: &Value) -> Response {
         "NSE_symbols.txt.zip" => zipped(fixture!("shoonya", "NSE_symbols.txt"), "NSE_symbols.txt"),
         "BSE_symbols.txt.zip" => zipped(fixture!("shoonya", "BSE_symbols.txt"), "BSE_symbols.txt"),
         "NFO_symbols.txt.zip" => zipped(fixture!("shoonya", "NFO_symbols.txt"), "NFO_symbols.txt"),
-        "CDS_symbols.txt.zip" => (StatusCode::NOT_FOUND, "gone").into_response(),
+        "CDS_symbols.txt.zip" => zipped(fixture!("shoonya", "CDS_symbols.txt"), "CDS_symbols.txt"),
         "MCX_symbols.txt.zip" => zipped(fixture!("shoonya", "MCX_symbols.txt"), "MCX_symbols.txt"),
         "BFO_symbols.txt.zip" => zipped(fixture!("shoonya", "BFO_symbols.txt"), "BFO_symbols.txt"),
         "NSE_Equity.csv" => ok(fixture!("flattrade", "NSE_Equity.csv")),
@@ -571,14 +571,48 @@ async fn shoonya_modify_and_basket_margin() {
 async fn shoonya_master_download_reads_the_zips() {
     let (b, _fake, auth) = noren(shoonya::config()).await;
     let rows = b.download_master_contract(&auth).await.unwrap();
-    // CDS is missing on the fake: skipped, the rest kept.
     assert!(rows
         .iter()
         .any(|r| r.exchange == "NSE_INDEX" && r.symbol == "NIFTY"));
     assert!(rows.iter().any(|r| r.symbol == "CRUDEOIL19OCT26FUT"));
     assert!(rows.iter().any(|r| r.symbol == "SENSEX29OCT2682000CE"));
-    assert!(!rows.iter().any(|r| r.exchange == "CDS"));
+    for ex in ["NSE", "BSE", "NFO", "CDS", "MCX", "BFO"] {
+        assert!(rows.iter().any(|r| r.exchange == ex), "{}", ex);
+    }
     assert_eq!(rows.iter().filter(|r| r.exchange == "BSE_INDEX").count(), 2);
+}
+
+/// MC-02: Shoonya, Zebu and TradeSmart masters are all or nothing like
+/// Flattrade's (their web download fails too when a file is missing): a
+/// failed or empty file refuses the download by segment, so the stored
+/// master is kept instead of being replaced by a partial one.
+#[tokio::test]
+async fn shoonya_family_masters_are_all_or_nothing() {
+    for cfg in [shoonya::config(), zebu::config(), tradesmart::config()] {
+        let (b, fake, auth) = noren(cfg).await;
+        let leaf = cfg
+            .master_files
+            .iter()
+            .find(|f| f.exchange == "BFO")
+            .map(|f| f.url.rsplit('/').next().unwrap())
+            .unwrap();
+        fake.down.lock().push(leaf);
+        let msg = b
+            .download_master_contract(&auth)
+            .await
+            .unwrap_err()
+            .client_message();
+        assert!(msg.contains("symbol files for BFO"), "{}: {}", cfg.id, msg);
+        assert!(msg.contains("existing symbols were kept"), "{}", msg);
+    }
+    let (b, fake, auth) = noren(shoonya::config()).await;
+    fake.bodies.lock().push(("CDS_symbols.txt.zip", " \n"));
+    let msg = b
+        .download_master_contract(&auth)
+        .await
+        .unwrap_err()
+        .client_message();
+    assert!(msg.contains("symbol files for CDS"), "{}", msg);
 }
 
 // ---------------------------------------------------------------------------
@@ -750,8 +784,8 @@ async fn flattrade_master_csvs() {
 
 /// Web #2198: a Flattrade master file that fails, comes back empty, or a
 /// segment that yields no rows refuses the whole download (the stored
-/// master is kept), naming the segment; Shoonya still skips a failed file
-/// (`shoonya_master_download_reads_the_zips`).
+/// master is kept), naming the segment (the other members:
+/// `shoonya_family_masters_are_all_or_nothing`).
 #[tokio::test]
 async fn flattrade_master_is_all_or_nothing() {
     let (b, fake, auth) = noren(flattrade::config()).await;

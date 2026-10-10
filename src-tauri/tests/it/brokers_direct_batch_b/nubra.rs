@@ -47,6 +47,8 @@ struct Fake {
     seen: Mutex<Vec<Seen>>,
     holdings_429: AtomicUsize,
     order_ws: Mutex<String>,
+    /// The BSE instrument list answers 500.
+    bse_down: std::sync::atomic::AtomicBool,
 }
 
 impl Fake {
@@ -193,9 +195,10 @@ fn route(fake: &Fake, s: &Seen) -> Response {
                 ok(fixture!("refdata_nse.json"))
             } else if s.query.contains("exchange=MCX") {
                 ok(fixture!("refdata_mcx.json"))
-            } else {
-                // BSE down: skipped like the web.
+            } else if fake.bse_down.load(Ordering::SeqCst) {
                 reply(StatusCode::INTERNAL_SERVER_ERROR, json!({"error": "down"}))
+            } else {
+                ok(fixture!("refdata_bse.json"))
             }
         }
         _ => reply(StatusCode::NOT_FOUND, json!({"error": "no such endpoint"})),
@@ -1182,8 +1185,9 @@ async fn master_contract_download() {
         .download_master_contract(&AuthToken::new("SESS1"))
         .await
         .unwrap();
-    // NSE 4 + MCX 1 (BSE refused and skipped) + 7 indices.
-    assert_eq!(rows.len(), 12);
+    // NSE 4 + BSE 2 + MCX 1 + 7 indices.
+    assert_eq!(rows.len(), 14);
+    assert!(rows.iter().any(|r| r.exchange == "BFO"), "{:?}", rows);
     assert!(rows
         .iter()
         .any(|r| r.symbol == "NIFTY27OCT2625000CE" && r.exchange == "NFO"));
@@ -1207,6 +1211,18 @@ async fn master_contract_download() {
         .await
         .unwrap_err();
     assert!(e.client_message().contains("expired"));
+
+    // MC-02 (a hardening over the web, which skips the exchange): one
+    // exchange refused fails the download, naming it, so the stored master
+    // is kept.
+    fake.bse_down.store(true, Ordering::SeqCst);
+    let msg = b
+        .download_master_contract(&AuthToken::new("SESS1"))
+        .await
+        .unwrap_err()
+        .client_message();
+    assert!(msg.contains("did not send its BSE instruments"), "{}", msg);
+    assert!(msg.contains("existing symbols were kept"), "{}", msg);
 }
 
 #[tokio::test]

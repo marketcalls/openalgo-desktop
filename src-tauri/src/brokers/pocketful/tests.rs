@@ -151,6 +151,34 @@ fn master_archive_order_and_dedupe() {
     assert!(parse_nse("a,b\n1,2\n").is_err());
 }
 
+/// MC-02: every one of the five files is required, as on the web: a
+/// missing, empty or instrument-less segment refuses the archive by name,
+/// so the stored master is kept rather than replaced by a partial one.
+#[test]
+fn master_archive_is_all_or_nothing() {
+    for (i, seg) in ["NSE", "BSE", "NFO", "BFO", "MCX"].iter().enumerate() {
+        let mut fs = files();
+        fs.remove(i);
+        let msg = parse_archive(&fs).unwrap_err().client_message();
+        assert!(msg.contains(&format!("its {} segment", seg)), "{}", msg);
+        assert!(msg.contains("existing symbols were kept"), "{}", msg);
+    }
+    let mut empty = files();
+    empty[4].1 = b"  \n".to_vec();
+    assert!(parse_archive(&empty)
+        .unwrap_err()
+        .client_message()
+        .contains("its MCX segment"));
+    // The header alone: no instruments in the segment.
+    let mut bare = files();
+    let header = fixture!("NFOCompactScrip.csv").lines().next().unwrap();
+    bare[2].1 = format!("{}\n", header).into_bytes();
+    assert!(parse_archive(&bare)
+        .unwrap_err()
+        .client_message()
+        .contains("its NFO segment"));
+}
+
 #[test]
 fn expiry_encodings() {
     for s in [

@@ -230,10 +230,13 @@ pub fn parse_csv(source: &str, text: &str) -> Vec<SymbolData> {
     out
 }
 
+/// Every source, all or nothing (MC-02, a hardening over the web, which
+/// keeps the sources it got): a source that fails or yields no instruments
+/// fails the download, naming it, so the stored master is kept rather than
+/// replaced by a partial one.
 pub async fn download(b: &IndmoneyBroker, auth: &AuthToken) -> Result<Vec<SymbolData>> {
     let tok = token(auth)?;
     let mut rows = Vec::new();
-    let mut fetched = 0;
     for src in SOURCES {
         b.pace(Bucket::Data).await;
         let resp = b
@@ -256,7 +259,7 @@ pub async fn download(b: &IndmoneyBroker, auth: &AuthToken) -> Result<Vec<Symbol
                         "network error"
                     }
                 );
-                continue;
+                return Err(incomplete(src));
             }
         };
         let status = resp.status().as_u16();
@@ -265,19 +268,22 @@ pub async fn download(b: &IndmoneyBroker, auth: &AuthToken) -> Result<Vec<Symbol
         }
         if status != 200 {
             tracing::error!(status, "INDmoney {} instruments download refused", src);
-            continue;
+            return Err(incomplete(src));
         }
         let text = resp.text().await?;
-        fetched += 1;
         let parsed = parse_csv(src, &text);
         tracing::info!("INDmoney {} instruments: {} rows", src, parsed.len());
+        if parsed.is_empty() {
+            return Err(incomplete(src));
+        }
         rows.extend(parsed);
     }
-    if fetched == 0 || rows.is_empty() {
-        return Err(AppError::Broker(
-            "No data downloaded from INDmoney. Check your connection and log in again if the problem continues."
-                .into(),
-        ));
-    }
     Ok(rows)
+}
+
+fn incomplete(source: &str) -> AppError {
+    AppError::Broker(format!(
+        "INDmoney's {} instrument list could not be downloaded. Your existing symbols were kept; check your connection and try again.",
+        source
+    ))
 }

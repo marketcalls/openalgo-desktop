@@ -404,16 +404,14 @@ fn unique<'a>(names: &[&'a str]) -> Vec<&'a str> {
     out
 }
 
-/// Download and parse every file of the member's set. A file that fails
-/// is logged and skipped (as on the web); all failing is an error. A member
-/// with `master_all_or_nothing` (flattrade, web #2198) refuses the whole
-/// download instead when any file fails or comes back empty, or a segment
-/// yields no rows, so the stored master is kept rather than replaced by a
+/// Download and parse every file of the member's set, all or nothing
+/// (web #2198 for Flattrade; MC-02 for Shoonya, Zebu and TradeSmart, whose
+/// web download fails too when a file is missing): a file that fails or
+/// comes back empty, or a segment that yields no rows, refuses the whole
+/// download, so the stored master is kept rather than replaced by a
 /// partial one.
 pub async fn download(b: &NorenBroker) -> Result<Vec<SymToken>> {
-    let strict = b.cfg.master_all_or_nothing;
     let mut rows = Vec::new();
-    let mut ok = 0usize;
     let mut failed: Vec<&str> = Vec::new();
     // Rows per segment, in file order (NFO and BFO add up over two files).
     let mut segments: Vec<(&str, usize)> = Vec::new();
@@ -423,7 +421,7 @@ pub async fn download(b: &NorenBroker) -> Result<Vec<SymToken>> {
             failed.push(file.exchange);
             continue;
         };
-        if strict && text.trim().is_empty() {
+        if text.trim().is_empty() {
             tracing::warn!(
                 broker = b.cfg.id,
                 "Master file {} came back empty",
@@ -447,22 +445,15 @@ pub async fn download(b: &NorenBroker) -> Result<Vec<SymToken>> {
             None => segments.push((file.exchange, parsed.len())),
         }
         rows.extend(parsed);
-        ok += 1;
     }
-    if strict && !failed.is_empty() {
+    if !failed.is_empty() {
         return Err(AppError::Broker(format!(
             "Could not download the {} symbol files for {}. Your existing symbols were kept; try the download again.",
             b.cfg.name,
             unique(&failed).join(", ")
         )));
     }
-    if ok == 0 {
-        return Err(AppError::Broker(format!(
-            "Could not download the {} instrument list. Check your internet connection and try again.",
-            b.cfg.name
-        )));
-    }
-    if let Some((segment, _)) = segments.iter().find(|(_, n)| strict && *n == 0) {
+    if let Some((segment, _)) = segments.iter().find(|(_, n)| *n == 0) {
         return Err(AppError::Broker(format!(
             "The {} {} symbol file had no usable rows. Your existing symbols were kept; try the download again.",
             b.cfg.name, segment

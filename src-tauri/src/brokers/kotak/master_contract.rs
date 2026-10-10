@@ -383,10 +383,18 @@ pub async fn download(b: &KotakBroker, auth: &AuthToken) -> Result<Vec<SymToken>
                 .into(),
         ));
     }
+    // All or nothing (MC-02, a hardening over the web, which keeps whatever
+    // segments it got): a partial master would replace a complete one and
+    // the smart rule would then skip the download for the rest of the day.
     let mut rows = Vec::new();
     for key in SEGMENT_FILES {
         let Some((_, url)) = paths.iter().find(|(k, _)| k == key) else {
-            tracing::warn!("Kotak scrip master file missing: {}", key);
+            if REQUIRED_SEGMENTS.contains(key) {
+                tracing::warn!("Kotak scrip master file missing: {}", key);
+                return Err(segment_failed(key));
+            }
+            // Kotak lists no currency or commodity file on some days.
+            tracing::info!("Kotak lists no {} file today; skipped", key);
             continue;
         };
         let resp = match b.http.get(url).timeout(DOWNLOAD_TIMEOUT).send().await {
@@ -397,7 +405,7 @@ pub async fn download(b: &KotakBroker, auth: &AuthToken) -> Result<Vec<SymToken>
                     "Kotak {} download refused",
                     key
                 );
-                continue;
+                return Err(segment_failed(key));
             }
             Err(e) => {
                 tracing::warn!(
@@ -405,24 +413,43 @@ pub async fn download(b: &KotakBroker, auth: &AuthToken) -> Result<Vec<SymToken>
                     key,
                     crate::brokers::common::redact::url_safe_error(&e)
                 );
-                continue;
+                return Err(segment_failed(key));
             }
         };
-        let text = resp.text().await?;
+        let text = resp.text().await.map_err(|e| {
+            tracing::warn!(
+                "Kotak {} download failed: {}",
+                key,
+                crate::brokers::common::redact::url_safe_error(&e)
+            );
+            segment_failed(key)
+        })?;
         match parse_file(key, &text) {
-            Ok(r) => {
+            Ok(r) if !r.is_empty() => {
                 tracing::info!("Kotak {}: {} instruments", key, r.len());
                 rows.extend(r);
             }
-            Err(e) => tracing::error!("Kotak {} could not be processed: {}", key, e.code()),
+            Ok(_) => {
+                tracing::warn!("Kotak {} file had no instruments", key);
+                return Err(segment_failed(key));
+            }
+            Err(e) => {
+                tracing::error!("Kotak {} could not be processed: {}", key, e.code());
+                return Err(segment_failed(key));
+            }
         }
-    }
-    if rows.is_empty() {
-        return Err(AppError::Broker(
-            "No instruments could be read from Kotak's lists. Try downloading the master contract again later."
-                .into(),
-        ));
     }
     tracing::info!("Kotak master contract parsed: {} instruments", rows.len());
     Ok(rows)
+}
+
+/// Segments every Kotak master must have; CDE_FO and MCX_FO may be absent
+/// from the day's listing, but once listed they must download and parse.
+pub const REQUIRED_SEGMENTS: &[&str] = &["NSE_CM", "NSE_FO", "BSE_CM", "BSE_FO"];
+
+fn segment_failed(key: &str) -> AppError {
+    AppError::Broker(format!(
+        "Kotak's {} instrument list could not be downloaded. Your existing symbols were kept; try the download again later.",
+        key
+    ))
 }
