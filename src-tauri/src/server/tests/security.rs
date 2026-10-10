@@ -1188,7 +1188,9 @@ async fn s09_reset_password_change_and_expiry_close_connections() {
     // The daily boundary.
     let (cookie, _) = h.session(true);
     let mut ws = live_updates(&s, &cookie).await.expect("connected");
-    let before = h.ctx().now() - chrono::Duration::hours(25);
+    // The boundary ends sessions from before it (SES-02): a day later.
+    let before = h.ctx().now();
+    h.t.clock.set(before + chrono::Duration::hours(24));
     assert!(crate::session::expire_if_crossed(h.ctx(), before).await);
     assert!(closed_within(&mut ws, 10).await, "daily boundary");
 

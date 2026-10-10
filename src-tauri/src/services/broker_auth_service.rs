@@ -27,6 +27,7 @@ use crate::events::{Event, SessionEndReason};
 use crate::security::Secret;
 use crate::session::web::random_token;
 use crate::state::{AppState, BrokerSession};
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -534,12 +535,15 @@ impl BrokerAuthService {
             return Ok(None);
         };
         let cfg = state.server_config();
-        if !crate::session::boundary::is_fresh(
-            stored.authenticated_at,
-            state.now(),
-            cfg.session_expiry_hour,
-            cfg.session_expiry_minute,
-        ) {
+        // A continuous (crypto) session has no daily boundary (SES-01).
+        if catalog::session_policy(&stored.broker_id) == catalog::SessionPolicy::DailyBoundary
+            && !crate::session::boundary::is_fresh(
+                stored.authenticated_at,
+                state.now(),
+                cfg.session_expiry_hour,
+                cfg.session_expiry_minute,
+            )
+        {
             let conn = state.sqlite.conn()?;
             auth::revoke(&conn, &stored.broker_id)?;
             return Ok(None);
@@ -608,6 +612,50 @@ impl BrokerAuthService {
         state.clear_symbol_cache();
         state.bus.publish(Event::BrokerSessionEnded { reason });
         Ok(())
+    }
+
+    /// The daily boundary (SES-02): end only what was authenticated before
+    /// `boundary`, so a sign-in made after it, before the next 30-second
+    /// poll or right after a wake from sleep, keeps its session, its feeds
+    /// and its stored row. Continuous (crypto) sessions are not ended
+    /// (SES-01). The in-memory session is taken only while it is still the
+    /// one from before the boundary (checked and cleared under the session
+    /// lock), and streaming is torn down only while the runtime still runs
+    /// a session from before it (under the runtime's lifecycle lock), so a
+    /// concurrent sign-in cannot be torn down. Returns whether a live
+    /// session ended.
+    pub async fn expire_before(state: &AppState, boundary: DateTime<Utc>) -> Result<bool> {
+        let daily =
+            |broker: &str| catalog::session_policy(broker) == catalog::SessionPolicy::DailyBoundary;
+        let taken = {
+            let mut live = state.broker_session.write();
+            if live
+                .as_ref()
+                .is_some_and(|s| s.authenticated_at < boundary && daily(&s.broker_id))
+            {
+                live.take()
+            } else {
+                None
+            }
+        };
+        if taken.is_some() {
+            state.api_keys.clear();
+        }
+        // The runtime may still stream a session whose memory copy was
+        // already dropped by the freshness check.
+        let torn_down = state.runtime.teardown_started_before(state, boundary).await;
+        if torn_down {
+            state.clear_symbol_cache();
+        }
+        let ended = taken.is_some() || torn_down;
+        if ended {
+            state.bus.publish(Event::BrokerSessionEnded {
+                reason: SessionEndReason::DailyExpiry,
+            });
+        }
+        let conn = state.sqlite.conn()?;
+        auth::revoke_before(&conn, boundary, |b| !daily(b))?;
+        Ok(ended)
     }
 
     /// Whether the stored broker session ended (revoked/expired) rather than

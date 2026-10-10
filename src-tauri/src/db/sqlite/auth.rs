@@ -162,6 +162,32 @@ pub fn revoke_all(conn: &Connection) -> Result<usize> {
     )?)
 }
 
+/// Revoke the stored sessions authenticated before `boundary` (the daily
+/// boundary, SES-02), except those of brokers `keep` names (continuous
+/// crypto sessions, SES-01). A row whose time cannot be read is revoked.
+/// Returns how many were revoked.
+pub fn revoke_before(
+    conn: &Connection,
+    boundary: DateTime<Utc>,
+    keep: impl Fn(&str) -> bool,
+) -> Result<usize> {
+    let rows: Vec<(String, Option<String>)> = conn
+        .prepare("SELECT broker_id, authenticated_at FROM auth WHERE is_revoked = 0")?
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<std::result::Result<_, _>>()?;
+    let mut n = 0;
+    for (broker, at) in rows {
+        let before = at
+            .and_then(|a| DateTime::parse_from_rfc3339(&a).ok())
+            .is_none_or(|a| a.with_timezone(&Utc) < boundary);
+        if before && !keep(&broker) {
+            revoke(conn, &broker)?;
+            n += 1;
+        }
+    }
+    Ok(n)
+}
+
 /// The broker account id of the last session with `broker_id`, revoked or
 /// not (the account a new sign-in is expected to belong to).
 pub fn last_user_id(conn: &Connection, broker_id: &str) -> Result<Option<String>> {

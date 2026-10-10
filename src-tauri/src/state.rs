@@ -414,16 +414,20 @@ impl AppState {
 
     /// The live broker session, or `None` once it has crossed the daily
     /// boundary (it is then dropped from memory; the scheduler revokes the
-    /// stored row).
+    /// stored row). A continuous (crypto) session has no daily boundary
+    /// (SES-01).
     pub fn get_broker_session(&self) -> Option<BrokerSession> {
         let s = self.broker_session.read().clone()?;
         let cfg = self.config.read();
-        if crate::session::boundary::is_fresh(
-            s.authenticated_at,
-            self.clock.now(),
-            cfg.session_expiry_hour,
-            cfg.session_expiry_minute,
-        ) {
+        if crate::brokers::catalog::session_policy(&s.broker_id)
+            == crate::brokers::catalog::SessionPolicy::Continuous
+            || crate::session::boundary::is_fresh(
+                s.authenticated_at,
+                self.clock.now(),
+                cfg.session_expiry_hour,
+                cfg.session_expiry_minute,
+            )
+        {
             Some(s)
         } else {
             drop(cfg);

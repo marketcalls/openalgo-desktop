@@ -174,6 +174,26 @@ impl WebSessionStore {
         self.signal_ended();
     }
 
+    /// End the sessions signed in (or, anonymous, created) before
+    /// `boundary` (the daily boundary, SES-02); a session from after it
+    /// stays. Returns how many ended.
+    pub fn end_before(&self, boundary: DateTime<Utc>) -> usize {
+        let n = {
+            let mut map = self.map.lock();
+            let before = map.len();
+            map.retain(|_, s| {
+                s.authenticated_at
+                    .or(s.created_at)
+                    .is_some_and(|t| t >= boundary)
+            });
+            before - map.len()
+        };
+        if n > 0 {
+            self.signal_ended();
+        }
+        n
+    }
+
     pub fn len(&self) -> usize {
         self.map.lock().len()
     }

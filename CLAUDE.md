@@ -255,7 +255,11 @@ anything that is not the signed-in user.
   full request bodies of authenticated calls. Wrap secrets in a type whose
   `Debug` is redacted. Release log level is `info`.
 - Broker tokens expire around 03:00 IST. The stored session resumes after
-  password login until that boundary, then is revoked. Logout revokes it.
+  password login until that boundary, then is revoked; the boundary ends
+  only what was authenticated before it. Logout revokes it. A crypto
+  broker (`catalog::session_policy`, Delta Exchange) has no daily
+  boundary, as on a web install with session expiry disabled; its master
+  refreshes when the UTC day turns.
 
 ## Resource hygiene (no leaks)
 

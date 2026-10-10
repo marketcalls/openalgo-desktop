@@ -33,9 +33,6 @@ use std::sync::Arc;
 pub const BUSY_MESSAGE: &str =
     "A master contract download is already running. Wait for it to finish, then try again.";
 
-/// Brokers whose master follows the UTC day (web `CRYPTO_BROKERS`).
-const CRYPTO_BROKERS: &[&str] = &["deltaexchange"];
-
 /// Download claims, one per broker.
 #[derive(Default)]
 pub struct DownloadClaims {
@@ -59,7 +56,8 @@ impl DownloadClaims {
 
 /// Cutoff hour, minute and reference zone (web `get_master_contract_cutoff`).
 pub fn cutoff(broker: &str) -> (u32, u32, Tz) {
-    if CRYPTO_BROKERS.contains(&broker) {
+    // Crypto masters follow the UTC day (web `CRYPTO_BROKERS`).
+    if crate::brokers::catalog::is_crypto(broker) {
         (0, 0, chrono_tz::UTC)
     } else {
         (8, 0, chrono_tz::Asia::Kolkata)
