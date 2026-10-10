@@ -29,7 +29,10 @@ use super::dispatch::{build_order, entry_action, exit_action, RunMode, EXIT_PRIC
 use super::resolver::{resolve_leg, Failure};
 use super::risk_adapter;
 use super::state::{new_leg_state, new_position_ref, ClaimId, LegSpec, RunState};
-use super::store::{EventFields, NewOrder, StrategyRow, ORDER_KINDS};
+use super::store::{
+    ClaimOutcome, EventFields, NewOrder, StartClaim, StrategyRow, ALREADY_RUNNING,
+    LIVE_NOT_ENABLED, ORDER_KINDS,
+};
 use super::StrategyModule;
 use crate::risk::BreachReason;
 use futures_util::future::BoxFuture;
@@ -221,7 +224,9 @@ impl StrategyModule {
             Ok(None) => return StartResult::fail("Strategy not found"),
             Err(e) => {
                 tracing::error!("Could not read strategy {}: {}", strategy_id, e);
-                return StartResult::fail("Strategy not found");
+                return StartResult::fail(
+                    "The strategy could not be started because its record could not be read. Try again.",
+                );
             }
         };
         let Some(run_mode) = RunMode::parse(mode) else {
@@ -235,9 +240,7 @@ impl StrategyModule {
         // Live is opt-in per strategy, checked here as the last point before
         // real orders as well as at every caller.
         if run_mode == RunMode::Live && !strategy.live_enabled {
-            return StartResult::fail(
-                "This strategy is not enabled for live trading. Enable it first.",
-            );
+            return StartResult::fail(LIVE_NOT_ENABLED);
         }
         if let Err(e) = self.gateway.authorised(run_mode) {
             return StartResult::fail(e);
@@ -255,13 +258,24 @@ impl StrategyModule {
             };
         }
 
-        // One conditional UPDATE, not a read then a write.
-        match self.store.claim_strategy_for_run(strategy_id) {
-            Ok(true) => {}
-            Ok(false) => return StartResult::fail("This strategy is already running"),
+        // One conditional UPDATE, not a read then a write. It re-checks what
+        // was decided above against the row as it is now: a Live disable, a
+        // kill switch or an edit made while the legs resolved refuses it.
+        let claim = StartClaim {
+            revision: strategy.revision,
+            live: run_mode == RunMode::Live,
+            webhook: trigger_source == "webhook",
+        };
+        match self.store.claim_strategy_for_run(strategy_id, claim) {
+            Ok(ClaimOutcome::Claimed) => {}
+            Ok(refused) => {
+                return StartResult::fail(refused.refusal().unwrap_or(ALREADY_RUNNING));
+            }
             Err(e) => {
                 tracing::error!("Could not claim strategy {}: {}", strategy_id, e);
-                return StartResult::fail("This strategy is already running");
+                return StartResult::fail(
+                    "The strategy could not be started because its record could not be updated. Try again.",
+                );
             }
         }
 

@@ -334,3 +334,109 @@ async fn the_public_webhook_needs_no_session_or_csrf() {
     let (s, _) = a.webhook(&token, &big).await;
     assert_eq!(s, StatusCode::PAYLOAD_TOO_LARGE);
 }
+
+// ------------------------------------------------- SM-02, SM-04
+
+#[tokio::test]
+async fn a_patch_to_a_taken_name_answers_409_and_saves_nothing() {
+    let a = app();
+    a.post("/strategy/api/strategies", create_body()).await;
+    let mut other = create_body();
+    other["name"] = json!("Iron fly");
+    let (_, b) = a.post("/strategy/api/strategies", other).await;
+    let sid = b["data"]["id"].as_i64().unwrap();
+    let path = format!("/strategy/api/strategies/{}", sid);
+    let (_, before) = a.get(&path).await;
+    let (s, b) = a
+        .send(a.req(
+            Method::PATCH,
+            &path,
+            Some(json!({"name": "Short straddle", "overall_sl_mtm": 2500})),
+            true,
+        ))
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT, "{}", b);
+    assert_eq!(b["status"], "error");
+    assert!(b["message"].as_str().unwrap().contains("already exists"));
+    let (_, after) = a.get(&path).await;
+    assert_eq!(after, before);
+}
+
+/// Break one local table, as a corrupt or unreadable database would.
+fn break_table(a: &App, table: &str) {
+    a.ctx
+        .sqlite
+        .conn()
+        .unwrap()
+        .execute_batch(&format!(
+            "ALTER TABLE {table} RENAME TO {table}_unreadable;"
+        ))
+        .unwrap();
+}
+
+async fn assert_unavailable(a: &App, path: &str) {
+    let (s, b) = a.get(path).await;
+    assert!(
+        !s.is_success(),
+        "{} answered {} with {} instead of an error",
+        path,
+        s,
+        b
+    );
+    assert_eq!(b["status"], "error", "{}: {}", path, b);
+}
+
+#[tokio::test]
+async fn unreadable_order_records_answer_an_error_not_an_empty_book() {
+    let a = app();
+    let (_, b) = a.post("/strategy/api/strategies", create_body()).await;
+    let sid = b["data"]["id"].as_i64().unwrap();
+    let (s, b) = a
+        .post(
+            &format!("/strategy/api/strategies/{}/start", sid),
+            json!({"mode": "sandbox"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{}", b);
+    break_table(&a, "sm_strategy_order");
+    for view in ["orders", "orderbook", "tradebook", "positions"] {
+        assert_unavailable(&a, &format!("/strategy/api/strategies/{}/{}", sid, view)).await;
+    }
+    let (s, b) = a
+        .api("/api/v1/strategy/orders", json!({"strategy_id": sid}))
+        .await;
+    assert_eq!(s, StatusCode::INTERNAL_SERVER_ERROR, "{}", b);
+    assert_eq!(b["status"], "error");
+}
+
+#[tokio::test]
+async fn unreadable_run_records_never_read_as_never_run() {
+    let a = app();
+    let (_, b) = a.post("/strategy/api/strategies", create_body()).await;
+    let sid = b["data"]["id"].as_i64().unwrap();
+    break_table(&a, "sm_strategy_run");
+    for view in ["runs", "checkpoints", "orderbook", "tradebook", "positions"] {
+        assert_unavailable(&a, &format!("/strategy/api/strategies/{}/{}", sid, view)).await;
+    }
+    let (s, b) = a
+        .api("/api/v1/strategy/runs", json!({"strategy_id": sid}))
+        .await;
+    assert_eq!(s, StatusCode::INTERNAL_SERVER_ERROR, "{}", b);
+}
+
+#[tokio::test]
+async fn an_unreadable_strategy_is_an_error_not_not_found() {
+    let a = app();
+    let (_, b) = a.post("/strategy/api/strategies", create_body()).await;
+    let sid = b["data"]["id"].as_i64().unwrap();
+    break_table(&a, "sm_strategy");
+    let (s, b) = a.get("/strategy/api/strategies").await;
+    assert_eq!(s, StatusCode::INTERNAL_SERVER_ERROR, "{}", b);
+    assert_eq!(b["status"], "error");
+    // A stop or a kill switch must not be told the strategy does not exist.
+    let (s, b) = a
+        .post(&format!("/strategy/api/strategies/{}/stop", sid), json!({}))
+        .await;
+    assert_eq!(s, StatusCode::INTERNAL_SERVER_ERROR, "{}", b);
+    assert_ne!(b["message"], "Strategy not found");
+}

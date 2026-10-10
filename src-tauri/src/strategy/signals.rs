@@ -283,17 +283,30 @@ impl StrategyModule {
         } else {
             RunMode::Sandbox
         };
-        if !self
-            .store
-            .claim_strategy_for_run(strategy.id)
-            .unwrap_or(false)
-        {
+        // The claim re-checks the revision this mode was decided from, the
+        // Live opt-in and the webhook lock in the same UPDATE (SM-01).
+        let claim = super::store::StartClaim {
+            revision: current.revision,
+            live: mode == RunMode::Live,
+            webhook: true,
+        };
+        let outcome = self.store.claim_strategy_for_run(strategy.id, claim);
+        if !matches!(outcome, Ok(super::store::ClaimOutcome::Claimed)) {
             if let Ok(Some(r)) = self.store.get_strategy_unscoped(strategy.id) {
                 if let Some(id) = r.current_run_id {
                     return Ok(id);
                 }
             }
-            return Err("This strategy is already running".into());
+            return Err(match outcome {
+                Ok(refused) => refused
+                    .refusal()
+                    .unwrap_or(super::store::ALREADY_RUNNING)
+                    .to_string(),
+                Err(e) => {
+                    tracing::error!("Could not claim strategy {}: {}", strategy.id, e);
+                    "The signal run could not be opened because the strategy's record could not be updated".into()
+                }
+            });
         }
         let broker = {
             let b = self.gateway.broker_name(mode);

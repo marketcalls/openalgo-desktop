@@ -523,6 +523,11 @@ Every flaky test found so far was a race, not a slow machine:
 - A fold that writes a position and its watermark (the strategy book)
   commits both, and the buffered row it drains, in one transaction; a process
   lock orders callers but does not survive a crash (DB-02).
+- Every strategy management write (edit, Live opt-in, webhook lock, token)
+  advances `sm_strategy.revision` and checks status in its own UPDATE or
+  `BEGIN IMMEDIATE` transaction. A start's claim and a PATCH compare against
+  the revision they validated (SM-01, SM-02); a new management write must
+  advance it too.
 
 ### Security work
 

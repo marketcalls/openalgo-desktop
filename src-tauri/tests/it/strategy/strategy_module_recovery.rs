@@ -124,7 +124,10 @@ async fn a_working_exit_without_a_confirmed_owner_stays_reserved() {
 async fn recovery_releases_an_empty_claim_when_a_process_dies_before_run_linkage() {
     let t = t();
     let sid = t.default_strategy();
-    assert!(t.m.store.claim_strategy_for_run(sid).unwrap());
+    assert_eq!(
+        t.claim(sid),
+        openalgo_desktop_lib::strategy::store::ClaimOutcome::Claimed
+    );
     let run =
         t.m.store
             .create_run(sid, "sandbox", "sandbox", "manual", None, None)

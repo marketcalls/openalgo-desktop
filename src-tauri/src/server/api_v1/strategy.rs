@@ -16,7 +16,10 @@ use crate::server::middleware::ClientIp;
 use crate::services::core::INVALID_API_KEY;
 use crate::services::schema::{Field, Schema, Validator};
 use crate::state::AppState;
-use crate::strategy::store::{EVENT_KINDS, EVENT_SEVERITIES, RUN_MODES, STRATEGY_STATUSES};
+use crate::strategy::store::{
+    ALREADY_RUNNING, CHANGED_WHILE_STARTING, EVENT_KINDS, EVENT_SEVERITIES, RUN_MODES,
+    STRATEGY_STATUSES,
+};
 use axum::{body::Bytes, extract::State, http::StatusCode, response::Response};
 use serde_json::{json, Map, Value};
 use std::net::IpAddr;
@@ -130,6 +133,19 @@ fn failure(message: impl Into<String>, code: StatusCode, extra: Value) -> Respon
         body.extend(m);
     }
     json_response(code, Value::Object(body))
+}
+
+/// `{"data": rows}`, or the web's unexpected-error answer when the local
+/// read failed (SM-04). The web's store turns that failure into an empty
+/// list and a success; an empty history here would read as "never ran".
+fn history<T: serde::Serialize>(what: &str, sid: i64, read: crate::error::Result<T>) -> Response {
+    match read {
+        Ok(rows) => success(json!({ "data": rows })),
+        Err(e) => {
+            tracing::error!("Could not read the {} of strategy {}: {}", what, sid, e);
+            failure(UNEXPECTED, StatusCode::INTERNAL_SERVER_ERROR, Value::Null)
+        }
+    }
 }
 
 /// `request.get_json(silent=True) or {}`: anything unreadable is an empty
@@ -282,7 +298,7 @@ pub async fn start(State(ctx): Ctx, ClientIp(ip): ClientIp, body: Bytes) -> Resp
         let e = r
             .error
             .unwrap_or_else(|| "Could not start the strategy".into());
-        let code = if e.contains("already running") {
+        let code = if e == ALREADY_RUNNING || e == CHANGED_WHILE_STARTING {
             StatusCode::CONFLICT
         } else {
             StatusCode::BAD_REQUEST
@@ -349,7 +365,7 @@ pub async fn runs(State(ctx): Ctx, ClientIp(ip): ClientIp, body: Bytes) -> Respo
         return failure(NOT_FOUND, StatusCode::NOT_FOUND, Value::Null);
     };
     let limit = data["limit"].as_i64().unwrap_or(RUNS_DEFAULT_LIMIT);
-    success(json!({"data": ctx.strategy.store.list_runs(row.id, limit).unwrap_or_default()}))
+    history("runs", row.id, ctx.strategy.store.list_runs(row.id, limit))
 }
 
 /// POST /api/v1/strategy/orders
@@ -361,15 +377,12 @@ pub async fn orders(State(ctx): Ctx, ClientIp(ip): ClientIp, body: Bytes) -> Res
     let Some(row) = row else {
         return failure(NOT_FOUND, StatusCode::NOT_FOUND, Value::Null);
     };
-    let rows: Vec<Value> = ctx
+    let rows = ctx
         .strategy
         .store
         .list_orders_for_strategy(row.id, data["run_id"].as_i64())
-        .unwrap_or_default()
-        .iter()
-        .map(|o| o.to_dict())
-        .collect();
-    success(json!({"data": rows}))
+        .map(|rows| rows.iter().map(|o| o.to_dict()).collect::<Vec<Value>>());
+    history("orders", row.id, rows)
 }
 
 /// POST /api/v1/strategy/events
@@ -381,16 +394,12 @@ pub async fn events(State(ctx): Ctx, ClientIp(ip): ClientIp, body: Bytes) -> Res
     let Some(row) = row else {
         return failure(NOT_FOUND, StatusCode::NOT_FOUND, Value::Null);
     };
-    let events = ctx
-        .strategy
-        .store
-        .list_events(
-            row.id,
-            data["run_id"].as_i64(),
-            data["kind"].as_str(),
-            data["severity"].as_str(),
-            data["limit"].as_i64().unwrap_or(EVENTS_DEFAULT_LIMIT),
-        )
-        .unwrap_or_default();
-    success(json!({"data": events}))
+    let events = ctx.strategy.store.list_events(
+        row.id,
+        data["run_id"].as_i64(),
+        data["kind"].as_str(),
+        data["severity"].as_str(),
+        data["limit"].as_i64().unwrap_or(EVENTS_DEFAULT_LIMIT),
+    );
+    history("events", row.id, events)
 }

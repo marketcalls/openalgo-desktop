@@ -5,6 +5,9 @@ use super::*;
 use openalgo_desktop_lib::strategy::state::{
     new_leg_state, ClaimId, LegSpec, RunState, StateRegistry,
 };
+use openalgo_desktop_lib::strategy::store::{
+    ClaimOutcome, CHANGED_WHILE_STARTING, LIVE_NOT_ENABLED, WEBHOOK_LOCKED,
+};
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Barrier};
 
@@ -146,4 +149,115 @@ async fn two_alerts_on_one_bar_join_one_signal_run() {
     }
     assert_eq!(t.m.store.list_runs(sid, 10).unwrap().len(), 1);
     assert_eq!(t.gw.placed().len(), 2);
+}
+
+// ------------------------------------------------- management versus start (SM-01)
+
+/// Start in the background and hold it on its leg price, where a real start
+/// waits on the broker. The caller acts, then lets it finish.
+async fn held_start(
+    t: &T,
+    sid: i64,
+    mode: &'static str,
+    trigger: &'static str,
+) -> (
+    Arc<Gate>,
+    tokio::task::JoinHandle<openalgo_desktop_lib::strategy::StartResult>,
+) {
+    let gate = t.gw.gate_ltp();
+    let m = t.m.clone();
+    let start = tokio::spawn(async move { m.start_run(sid, USER, mode, trigger, None).await });
+    gate.entered().await;
+    (gate, start)
+}
+
+/// Nothing was placed and no run exists; the strategy is still stopped.
+fn assert_never_started(t: &T, sid: i64) {
+    assert!(t.gw.placed().is_empty(), "{:?}", t.gw.placed());
+    assert!(t.m.store.list_runs(sid, 10).unwrap().is_empty());
+    let row = t.row(sid);
+    assert_eq!((row.status.as_str(), row.current_run_id), ("stopped", None));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn disabling_live_while_a_live_start_waits_refuses_the_start() {
+    let t = t();
+    let sid = t.default_strategy();
+    t.m.store.set_live_enabled(sid, USER, true).unwrap();
+    let (gate, start) = held_start(&t, sid, "live", "scheduler").await;
+    // The trader clicks "Disable live"; the app confirms it.
+    t.m.store.set_live_enabled(sid, USER, false).unwrap();
+    gate.release();
+    let r = start.await.unwrap();
+    assert!(!r.ok, "{:?}", r);
+    assert_eq!(r.error.as_deref(), Some(LIVE_NOT_ENABLED));
+    assert_never_started(&t, sid);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_edit_while_a_start_waits_refuses_the_start() {
+    let t = t();
+    let sid = t.default_strategy();
+    let (gate, start) = held_start(&t, sid, "sandbox", "manual").await;
+    // The edit lands; the start must not run the old legs.
+    let mut leg = short_call_leg();
+    leg["lots"] = json!(4);
+    let mut ch = serde_json::Map::new();
+    ch.insert("legs".into(), json!([leg]));
+    t.m.store
+        .update_strategy(sid, USER, t.row(sid).revision, &ch)
+        .unwrap();
+    gate.release();
+    let r = start.await.unwrap();
+    assert!(!r.ok, "{:?}", r);
+    assert_eq!(r.error.as_deref(), Some(CHANGED_WHILE_STARTING));
+    assert_never_started(&t, sid);
+    // Started again, it runs the saved legs.
+    *t.gw.ltp_gate.lock() = None;
+    let r = t.start(sid).await;
+    assert!(r.ok, "{:?}", r);
+    assert_eq!(t.gw.placed()[0].quantity, 4 * 65);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_kill_switch_while_a_webhook_start_waits_refuses_the_start() {
+    let t = t();
+    let sid = t.default_strategy();
+    let (gate, start) = held_start(&t, sid, "sandbox", "webhook").await;
+    // The kill switch locks the webhook and finds no run to flatten.
+    t.m.store.set_webhook_locked(sid, USER, true).unwrap();
+    assert!(t.row(sid).current_run_id.is_none());
+    gate.release();
+    let r = start.await.unwrap();
+    assert!(!r.ok, "{:?}", r);
+    assert_eq!(r.error.as_deref(), Some(WEBHOOK_LOCKED));
+    assert_never_started(&t, sid);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_delete_while_a_start_waits_places_nothing() {
+    let t = t();
+    let sid = t.default_strategy();
+    let (gate, start) = held_start(&t, sid, "sandbox", "manual").await;
+    t.m.store.delete_strategy(sid, USER).unwrap();
+    gate.release();
+    let r = start.await.unwrap();
+    assert!(!r.ok, "{:?}", r);
+    assert!(t.gw.placed().is_empty());
+    assert!(t.m.store.get_strategy(sid, USER).unwrap().is_none());
+}
+
+#[test]
+fn a_claimed_strategy_refuses_live_changes_edits_and_deletes() {
+    let t = t();
+    let sid = t.default_strategy();
+    assert_eq!(t.claim(sid), ClaimOutcome::Claimed);
+    let rev = t.row(sid).revision;
+    assert!(t.m.store.set_live_enabled(sid, USER, true).is_err());
+    let mut ch = serde_json::Map::new();
+    ch.insert("overall_sl_mtm".into(), json!(100));
+    assert!(t.m.store.update_strategy(sid, USER, rev, &ch).is_err());
+    assert!(t.m.store.delete_strategy(sid, USER).is_err());
+    let row = t.row(sid);
+    assert_eq!((row.live_enabled, row.revision), (false, rev));
 }

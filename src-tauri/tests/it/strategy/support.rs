@@ -104,6 +104,38 @@ pub fn master() -> Vec<SymToken> {
     rows
 }
 
+/// Holds a price request until the test lets it go, so a test can act
+/// while a start is waiting on its legs.
+pub struct Gate {
+    entered: tokio::sync::Semaphore,
+    release: tokio::sync::Semaphore,
+}
+
+impl Default for Gate {
+    fn default() -> Self {
+        Self {
+            entered: tokio::sync::Semaphore::new(0),
+            release: tokio::sync::Semaphore::new(0),
+        }
+    }
+}
+
+impl Gate {
+    /// Wait (bounded) until a request is held at the gate.
+    pub async fn entered(&self) {
+        let permit = tokio::time::timeout(Duration::from_secs(10), self.entered.acquire())
+            .await
+            .expect("nothing reached the gate")
+            .unwrap();
+        permit.forget();
+    }
+
+    /// Let one held request through.
+    pub fn release(&self) {
+        self.release.add_permits(1);
+    }
+}
+
 /// The outside world, scripted.
 #[derive(Default)]
 pub struct FakeGateway {
@@ -114,7 +146,18 @@ pub struct FakeGateway {
     pub statuses: Mutex<HashMap<String, Value>>,
     pub cancels: Mutex<Vec<String>>,
     pub delay_ms: AtomicU64,
+    /// When set, every price request waits here.
+    pub ltp_gate: Mutex<Option<Arc<Gate>>>,
     n: AtomicU64,
+}
+
+impl FakeGateway {
+    /// Hold price requests at a new gate from now on.
+    pub fn gate_ltp(&self) -> Arc<Gate> {
+        let gate = Arc::new(Gate::default());
+        *self.ltp_gate.lock() = Some(gate.clone());
+        gate
+    }
 }
 
 impl FakeGateway {
@@ -199,6 +242,13 @@ impl OrderGateway for FakeGateway {
     }
 
     async fn ltp(&self, symbol: &str, exchange: &str) -> Result<f64, String> {
+        let gate = self.ltp_gate.lock().clone();
+        if let Some(gate) = gate {
+            gate.entered.add_permits(1);
+            if let Ok(p) = gate.release.acquire().await {
+                p.forget();
+            }
+        }
         self.ltps
             .lock()
             .get(&(symbol.to_string(), exchange.to_string()))
@@ -238,6 +288,8 @@ pub struct T {
     pub rooms: Arc<Rooms>,
     pub clock: Arc<ManualClock>,
     pub symbols: SymbolResolver,
+    /// The module's database, for fault injection.
+    pub db: Arc<SqliteDb>,
     _dir: tempfile::TempDir,
 }
 
@@ -257,7 +309,7 @@ pub fn t_at(now: DateTime<Utc>) -> T {
     let symbols = SymbolResolver::new();
     symbols.load(master());
     let m = StrategyModule::new(Deps {
-        db,
+        db: db.clone(),
         gateway: gw.clone(),
         rooms: rooms.clone(),
         clock: clock.clone(),
@@ -272,6 +324,7 @@ pub fn t_at(now: DateTime<Utc>) -> T {
         rooms,
         clock,
         symbols,
+        db,
         _dir: dir,
     }
 }
@@ -338,6 +391,21 @@ impl T {
 
     pub fn default_strategy(&self) -> i64 {
         self.make(config("Engine test", json!([short_call_leg()]), json!({})))
+    }
+
+    /// The strategy as stored now.
+    pub fn row(&self, sid: i64) -> openalgo_desktop_lib::strategy::store::StrategyRow {
+        self.m.store.get_strategy(sid, USER).unwrap().unwrap()
+    }
+
+    /// A manual Sandbox start's claim at the strategy's current revision.
+    pub fn claim(&self, sid: i64) -> openalgo_desktop_lib::strategy::store::ClaimOutcome {
+        let claim = openalgo_desktop_lib::strategy::store::StartClaim {
+            revision: self.row(sid).revision,
+            live: false,
+            webhook: false,
+        };
+        self.m.store.claim_strategy_for_run(sid, claim).unwrap()
     }
 
     pub async fn start(&self, sid: i64) -> openalgo_desktop_lib::strategy::StartResult {
