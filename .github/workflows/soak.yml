@@ -56,7 +56,7 @@ jobs:
         run: cargo test --locked --test it soak -- --ignored --nocapture --test-threads=1 2>&1 | tee soak.log
       - name: Upload soak log
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: soak-log
           path: src-tauri/soak.log

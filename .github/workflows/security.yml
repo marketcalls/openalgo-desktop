@@ -79,7 +79,7 @@ jobs:
           done < <(grep -vE '^[[:space:]]*#' .github/deny.toml | grep -oE 'RUSTSEC-[0-9]{4}-[0-9]{4}' | sort -u)
           echo "Advisories accepted in deny.toml: $(( ${#ignore_args[@]} / 2 ))"
           cargo audit --file src-tauri/Cargo.lock "${ignore_args[@]}"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: cargo-audit
@@ -139,7 +139,7 @@ jobs:
         run: npm audit --omit=dev --json > npm-audit.json || true
       - name: Fail on high or critical
         run: npm audit --omit=dev --audit-level=high
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: npm-audit
@@ -202,7 +202,7 @@ jobs:
         with:
           sarif_file: trivy.sarif
           category: trivy-fs
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: trivy
