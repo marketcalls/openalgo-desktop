@@ -6,7 +6,10 @@ name: Release
 #
 # Release gate (the `verify` job, which every other job waits for): the tag
 # must point at a commit on master, the CI workflow's `ci-ok` check must have
-# succeeded on that exact commit, and the tag must equal v<version> with the
+# succeeded on that exact commit, the newest Install smoke run of that
+# commit's own bundles (install, start, first sign-in on Linux, Windows
+# Server 2022 and 2025 and macOS) must be green, and the tag must equal
+# v<version> with the
 # same version in src-tauri/Cargo.toml, src-tauri/tauri.conf.json,
 # package.json, both lockfiles and the newest CHANGELOG.md section
 # (.claude/skills/version-bump/check_versions.py). This workflow does not
@@ -79,12 +82,13 @@ env:
 
 jobs:
   verify:
-    name: verify (tag on master, ci-ok green, version)
+    name: verify (tag on master, ci-ok and install smoke green, version)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
       checks: read
+      actions: read
     env:
       # The pushed tag, or the tag named when the gate is run by hand.
       TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
@@ -136,6 +140,43 @@ jobs:
           echo "ci-ok on ${SHA}: ${status} ${conclusion} ${url}"
           if [ "$status" != "completed" ] || [ "$conclusion" != "success" ]; then
             echo "::error title=Release gate::ci-ok on ${SHA} is ${status}/${conclusion}, not completed/success: ${url}"
+            exit 1
+          fi
+      - name: Install smoke passed on this exact commit's bundles
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: |
+          set -euo pipefail
+          # Install smoke runs are named after what they installed: "Install
+          # smoke of <sha>" after CI on master, "Install smoke of CI run <id>"
+          # when run by hand. Of the runs that installed this commit's
+          # bundles, the newest decides, so a later failure is not hidden by
+          # an older success.
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/install-smoke.yml/runs?per_page=100" \
+            --jq '.workflow_runs[] | [.created_at, .display_title, .status, (.conclusion // "none"), .html_url] | @tsv' \
+            > "${RUNNER_TEMP}/smoke-runs.tsv"
+          : > "${RUNNER_TEMP}/smoke-match.tsv"
+          while IFS=$'\t' read -r created title status conclusion url; do
+            tested=""
+            case "$title" in
+              "Install smoke of ${SHA}") tested="$SHA" ;;
+              "Install smoke of CI run "*)
+                tested=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${title#Install smoke of CI run }" --jq .head_sha 2>/dev/null || echo "") ;;
+            esac
+            if [ "$tested" = "$SHA" ]; then
+              printf '%s\t%s\t%s\t%s\n' "$created" "$status" "$conclusion" "$url" >> "${RUNNER_TEMP}/smoke-match.tsv"
+            fi
+          done < "${RUNNER_TEMP}/smoke-runs.tsv"
+          latest=$(sort "${RUNNER_TEMP}/smoke-match.tsv" | tail -n1)
+          if [ -z "$latest" ]; then
+            echo "::error title=Release gate::No Install smoke run installed the bundles of ${SHA}. Wait for the one that follows CI on master, or run it by hand with that commit's CI run id."
+            exit 1
+          fi
+          IFS=$'\t' read -r created status conclusion url <<< "$latest"
+          echo "Install smoke of ${SHA}: ${status} ${conclusion} ${url}"
+          if [ "$status" != "completed" ] || [ "$conclusion" != "success" ]; then
+            echo "::error title=Release gate::The newest Install smoke of ${SHA} is ${status}/${conclusion}, not completed/success: ${url}"
             exit 1
           fi
       - name: The tag equals the app version everywhere

@@ -76,7 +76,8 @@ desktop, and it trades only while it is open.
 | --- | --- | --- |
 | Windows 11, 64-bit (x64) | Supported | Nothing extra: WebView2, which draws the app's window, is part of Windows 11. |
 | Windows 10, 64-bit (x64) | Supported | WebView2. Most Windows 10 PCs already have it; if not, the installer downloads and installs it, which needs an internet connection. |
-| Windows Server 2019, 2022 or 2025 with Desktop Experience | Not tested | May work for a user signed in at the desktop or over Remote Desktop. Server does not ship WebView2, so the installer downloads it. Trading stops when that user signs out. |
+| Windows Server 2022 or 2025 with Desktop Experience | Supported | A user signed in at the desktop or over Remote Desktop. Trading stops when that user signs out. If WebView2 is missing, the installer downloads it. |
+| Windows Server 2019 with Desktop Experience | Not tested | May work as on 2022. |
 | Windows Server Core, Nano Server | Not supported | No desktop to show the app in. |
 | Windows on ARM, 32-bit Windows, Windows 8.1 and older | Not supported | No installer is built for them. |
 | macOS 10.15 (Catalina) or later, Apple Silicon or Intel | Supported | Pick the `.dmg` for your chip. |
@@ -92,8 +93,17 @@ desktop, and it trades only while it is open.
 is a bug to report. The automated tests run on every change on the build
 machines GitHub provides: Ubuntu 22.04 on x64 and on 64-bit ARM, the current
 macOS on Apple Silicon (the Intel Mac installer is built there too, but not
-run), and Windows Server with Desktop Experience. The installers have not
-yet been installed and used by hand on every system in the table.
+run), and Windows Server 2025 with Desktop Experience.
+
+After every change that reaches the main branch, the installers built from
+it are installed on fresh machines and started as a trader would on first
+use, with the account created and signed in: the `.deb` and the AppImage on
+Ubuntu 22.04 (x64 and 64-bit ARM), the setup program on Windows Server 2022
+and Windows Server 2025, and the `.dmg` on Apple Silicon macOS (the "Install
+smoke" checks under the repository's Actions tab). A release is built only
+from a change that passed them. Windows 10 and 11, Intel Macs, Raspberry Pi
+hardware and the other systems in the table have not yet been installed and
+used by hand.
 
 A computer with no internet connection and no WebView2 (some Windows 10 and
 Windows Server installs) cannot install it from the setup program: install

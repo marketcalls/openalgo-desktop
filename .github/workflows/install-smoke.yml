@@ -8,17 +8,25 @@ name: Install smoke
 # installer installs and the installed app starts.
 #
 #   Linux x64, Linux arm64  apt install ./<deb> on a fresh runner, start under
-#                           Xvfb; the AppImage too (extract-and-run, no FUSE)
-#   Windows x64             silent per-user NSIS install, start the installed
-#                           app (a GUI-subsystem executable)
-#   macOS Apple Silicon     the `mcp` check on the binary inside the .dmg
-#                           (no launch: a first start may show a keychain
-#                           prompt that nothing here could answer)
+#                           Xvfb, create the account and sign in; the
+#                           AppImage too (extract-and-run, no FUSE), start only
+#   Windows Server 2022,    silent per-user NSIS install, start the installed
+#   Windows Server 2025     app (a GUI-subsystem executable), create the
+#                           account and sign in
+#   macOS Apple Silicon     the app copied out of the .dmg, started with its
+#                           window, account created and signed in (the
+#                           runner's login keychain, which is unlocked)
+#
+# "Sign in" is the trader's first start through the app's own HTTP on the
+# shipped port: POST /setup, POST /auth/login, GET /auth/session-status,
+# plus a wrong password that must be refused (scripts/ci/launch_smoke.py).
+# Every job also runs the packaged `mcp` subcommand over piped stdio.
 #
 # Runs after every successful CI run on master, or by hand with the id of a
 # CI run whose bundles to use (Actions > Install smoke > Run workflow).
-# It is not part of ci-ok yet: once it has run green on master for a while,
-# add it to the required checks (docs/release/branch-protection.md).
+# release.yml refuses to build a tag whose commit has no green run of this
+# workflow. It is not part of ci-ok: docs/release/branch-protection.md says
+# how to make it a job of CI so that it is.
 #
 # The app binds the shipped ports 5000 and 8765 here, which is fine on a CI
 # runner and is why scripts/ci/launch_smoke.py refuses to run outside CI.
@@ -59,6 +67,29 @@ env:
   RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.run_id || github.event.workflow_run.id }}
 
 jobs:
+  tested:
+    name: tested commit
+    if: >-
+      github.event_name == 'workflow_dispatch' || (
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Name the commit whose bundles are installed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" --jq .head_sha)
+          {
+            echo "### Bundles under test"
+            echo
+            echo "Commit \`${sha}\`, built by CI run [${RUN_ID}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Bundles of ${sha} (CI run ${RUN_ID})"
+
   linux:
     name: linux (${{ matrix.name }})
     # Only bundles from a successful push to this repository's master: CI
@@ -128,8 +159,8 @@ jobs:
             exit 1
           fi
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
-      - name: Launch the installed app
-        run: python3 scripts/ci/launch_smoke.py /usr/bin/openalgo-desktop
+      - name: Launch the installed app, create the account and sign in
+        run: python3 scripts/ci/launch_smoke.py --first-sign-in /usr/bin/openalgo-desktop
       - name: Launch the AppImage
         env:
           # No FUSE on the runner: the AppImage runtime extracts and runs.
@@ -148,14 +179,21 @@ jobs:
         run: python3 scripts/ci/mcp_stdio_smoke.py /usr/bin/openalgo-desktop
 
   windows:
-    name: windows (x86_64)
+    # Windows Server 2022 and 2025 with Desktop Experience are supported
+    # systems (maintainer, 2026-10-12): each is installed, started and
+    # signed in on every run.
+    name: windows (${{ matrix.os }})
     if: >-
       github.event_name == 'workflow_dispatch' || (
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_repository.full_name == github.repository)
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -180,13 +218,18 @@ jobs:
           if (-not $exe) { throw "openalgo-desktop.exe was not found under $env:LOCALAPPDATA after the install." }
           Write-Host "Installed: $($exe.FullName)"
           "APP_EXE=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      - name: Launch the installed app
-        run: python scripts/ci/launch_smoke.py "$APP_EXE"
+      - name: Windows version
+        shell: pwsh
+        run: |
+          $os = Get-CimInstance Win32_OperatingSystem
+          Write-Host "$($os.Caption) $($os.Version), $(Get-ItemPropertyValue 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' InstallationType)"
+      - name: Launch the installed app, create the account and sign in
+        run: python scripts/ci/launch_smoke.py --first-sign-in "$APP_EXE"
       - name: MCP over piped stdio (installed GUI-subsystem executable)
         run: python scripts/ci/mcp_stdio_smoke.py "$APP_EXE"
 
   macos:
-    name: macos (aarch64, mcp only)
+    name: macos (aarch64)
     if: >-
       github.event_name == 'workflow_dispatch' || (
       github.event.workflow_run.conclusion == 'success' &&
@@ -206,7 +249,7 @@ jobs:
           path: bundles
           run-id: ${{ env.RUN_ID }}
           github-token: ${{ github.token }}
-      - name: MCP over piped stdio (binary inside the .dmg)
+      - name: Copy the app out of the .dmg
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -218,9 +261,20 @@ jobs:
           mnt=$(mktemp -d)
           hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "${dmgs[0]}"
           trap 'hdiutil detach "$mnt" >/dev/null 2>&1 || true' EXIT
-          bins=("$mnt"/*.app/Contents/MacOS/openalgo-desktop)
-          if [ "${#bins[@]}" -ne 1 ]; then
-            echo "::error::Expected one app binary in the .dmg, found ${#bins[@]}."
+          apps=("$mnt"/*.app)
+          if [ "${#apps[@]}" -ne 1 ]; then
+            echo "::error::Expected one app in the .dmg, found ${#apps[@]}."
             exit 1
           fi
-          python3 scripts/ci/mcp_stdio_smoke.py "${bins[0]}"
+          # As a trader drags it to Applications.
+          ditto "${apps[0]}" "${RUNNER_TEMP}/Applications/$(basename "${apps[0]}")"
+          bin="${RUNNER_TEMP}/Applications/$(basename "${apps[0]}")/Contents/MacOS/openalgo-desktop"
+          test -x "$bin"
+          echo "APP_BIN=${bin}" >> "$GITHUB_ENV"
+      - name: Start the app (window and all), create the account and sign in
+        # The runner's own home is kept: on macOS the keychain belongs to it,
+        # and the app reads its keys there at start and writes them at
+        # account creation. The runner is fresh, so the data folder is empty.
+        run: python3 scripts/ci/launch_smoke.py --first-sign-in --real-home "$APP_BIN"
+      - name: MCP over piped stdio (installed binary)
+        run: python3 scripts/ci/mcp_stdio_smoke.py "$APP_BIN"
