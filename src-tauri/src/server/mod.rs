@@ -45,9 +45,26 @@ img-src 'self' data: blob:; font-src 'self' data:; \
 connect-src 'self' ws://127.0.0.1:* ws://localhost:* http://127.0.0.1:* http://localhost:*; \
 worker-src 'self' blob:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'";
 
+/// Whether a path is in an API namespace: `/api/...`, or a page's own
+/// `/<area>/api[/...]` (`/scalping/api/...`, `/agent/api/...`).
+///
+/// An unknown path there is a mistyped or removed endpoint, never a page, so
+/// it answers the JSON 404 on every method instead of the app's 404 page: an
+/// API caller gets a body it can parse. The web's 404 handler does this for
+/// `/api/`; the desktop extends it to the per-area API prefixes, where the web
+/// still answers with its page.
+fn is_api_path(path: &str) -> bool {
+    let mut segments = path.strip_prefix('/').unwrap_or(path).split('/');
+    match (segments.next(), segments.next()) {
+        (Some("api"), Some(_)) => true,
+        (Some(area), Some("api")) => !area.is_empty(),
+        _ => false,
+    }
+}
+
 async fn fallback(method: Method, req: Request) -> Response {
     let path = req.uri().path().to_string();
-    if path == "/api/v1" || path.starts_with("/api/v1/") {
+    if is_api_path(&path) {
         return envelope::not_found(&path);
     }
     if method == Method::GET || method == Method::HEAD {

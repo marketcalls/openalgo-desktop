@@ -103,7 +103,11 @@ vi.mock('@/components/trading/DrawingRail', () => ({ DrawingRail: () => null }))
 vi.mock('@/components/trading/IndicatorTemplates', () => ({ IndicatorTemplates: () => null }))
 vi.mock('@/components/trading/WorkspaceMenu', () => ({ WorkspaceMenu: () => null }))
 vi.mock('@/components/trading/dock/TradingDock', () => ({ TradingDock: () => null }))
-vi.mock('@/components/trading/RightRail', () => ({ RightRail: () => null, isPanelId: () => false }))
+// The real `isPanelId`, so a remembered panel is checked against the rail's own list.
+vi.mock('@/components/trading/RightRail', async (importOriginal) => ({
+  RightRail: () => null,
+  isPanelId: (await importOriginal<typeof import('@/components/trading/RightRail')>()).isPanelId,
+}))
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -239,5 +243,23 @@ describe('chart grid dividers', () => {
     render(<Trading />)
     await waitFor(() => expect(screen.getByRole('button', { name: 'Replay p0' })).toBeVisible())
     expect(screen.queryByRole('separator')).toBeNull()
+  })
+})
+
+describe('remembered side panel', () => {
+  it('keeps a remembered panel the rail still has', async () => {
+    localStorage.setItem('oa-trading-panel', 'objects')
+    render(<Trading />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Replay p0' })).toBeVisible())
+    expect(localStorage.getItem('oa-trading-panel')).toBe('objects')
+  })
+
+  it('opens with no panel when the remembered one was the Assistant, and forgets it', async () => {
+    // The Agent is not in this version. A trader who left its panel open in
+    // an earlier build gets the terminal, not a crash or an empty side panel.
+    localStorage.setItem('oa-trading-panel', 'agent')
+    render(<Trading />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Replay p0' })).toBeVisible())
+    expect(localStorage.getItem('oa-trading-panel')).toBeNull()
   })
 })

@@ -2,11 +2,10 @@
  * The equity curve or the drawdown of a backtest, drawn with this platform's
  * own charting engine.
  *
- * **The same engine the terminal draws prices with**, driven the way
- * `CandleViz` drives it for an agent answer: `createChart` on a host div, the
- * app's theme tokens through `buildChartTheme`, and a dynamic import so a
- * trader who never opens the backtest panel never pays for the charting bundle.
- * Nothing here is a second way to drive the library.
+ * **The same engine the terminal draws prices with**: `createChart` on a host
+ * div, the app's theme tokens through `buildChartTheme`, and a dynamic import
+ * so a trader who never opens the backtest panel never pays for the charting
+ * bundle. Nothing here is a second way to drive the library.
  *
  * **One series per chart, one chart per tab.** The panel shows equity and
  * drawdown on tabs of their own, so each gets the panel's full chart height

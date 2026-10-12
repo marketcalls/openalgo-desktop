@@ -544,40 +544,100 @@ async fn every_user_route_rejects_without_a_signed_in_session() {
     assert!(checked >= 18, "only {} user routes", checked);
 }
 
-/// The Agent is deferred (CLAUDE.md): every `/agent/api` call from its pages
-/// gets the web's error envelope with a trader-facing sentence and 503 (the
-/// web's status when it cannot run the agent), never the page's 404, while
-/// the `/agent` pages themselves are still served.
+/// The Agent and the Python Strategy Host are not part of this version
+/// (maintainer, 2026-10-12). No route answers for them: an `/agent/api` call is
+/// an unknown API path and gets the JSON 404 on every method, signed in or
+/// not, and their pages get the app's 404 page.
 #[tokio::test]
-async fn agent_api_says_the_agent_is_not_available_yet() {
+async fn agent_and_python_paths_are_not_found() {
     let h = H::new();
     h.setup();
     let (cookie, csrf) = h.session(true);
-    let want = json!({"status": "error", "message": routes::agent::UNAVAILABLE_MESSAGE});
-    assert!(routes::agent::UNAVAILABLE_MESSAGE.contains("not available in OpenAlgo Desktop yet"));
+    assert!(
+        routes::table()
+            .iter()
+            .all(|r| !r.path.starts_with("/agent") && !r.path.starts_with("/python")),
+        "a route still answers for the Agent or the Python Strategy Host"
+    );
     for (method, path) in [
-        (Method::GET, "/agent/api/status"),
+        (Method::GET, "/agent/api/x"),
         (Method::GET, "/agent/api"),
         (Method::GET, "/agent/api/catalog/models?provider=openai"),
+        (Method::POST, "/agent/api/x"),
         (Method::POST, "/agent/api/chat/stream"),
         (Method::PUT, "/agent/api/settings"),
         (Method::PATCH, "/agent/api/models/1"),
         (Method::DELETE, "/agent/api/conversations/7"),
+        (Method::POST, "/python/start/1"),
     ] {
-        let req = Request::builder()
-            .method(method.clone())
-            .uri(path)
-            .header(header::ACCEPT, "application/json")
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from("{}"))
-            .unwrap();
-        let (s, v) = h.json(with_session(req, &cookie, Some(&csrf))).await;
-        assert_eq!(s, StatusCode::SERVICE_UNAVAILABLE, "{} {}", method, path);
-        assert_eq!(v, want, "{} {}", method, path);
+        let want = json!({
+            "status": "error",
+            "message": "Not found",
+            "path": path.split('?').next().unwrap_or(path),
+        });
+        let request = || {
+            Request::builder()
+                .method(method.clone())
+                .uri(path)
+                .header(header::ACCEPT, "application/json")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{}"))
+                .unwrap()
+        };
+        let (s, v) = h.json(with_session(request(), &cookie, Some(&csrf))).await;
+        assert_eq!(s, StatusCode::NOT_FOUND, "{} {} signed in", method, path);
+        assert_eq!(v, want, "{} {} signed in", method, path);
+        if method == Method::GET {
+            let (s, v) = h.json(request()).await;
+            assert_eq!(s, StatusCode::NOT_FOUND, "{} {} anonymous", method, path);
+            assert_eq!(v, want, "{} {} anonymous", method, path);
+        }
     }
-    let (s, _, body) = h.send(with_session(get("/agent"), &cookie, None)).await;
-    assert_eq!(s, StatusCode::OK);
-    assert!(String::from_utf8_lossy(&body).contains("<!doctype html"));
+    for path in ["/agent", "/agent/config", "/python", "/python/new"] {
+        let (s, headers, body) = h.send(with_session(get(path), &cookie, None)).await;
+        assert_eq!(s, StatusCode::NOT_FOUND, "{}", path);
+        assert!(
+            headers[header::CONTENT_TYPE]
+                .to_str()
+                .unwrap()
+                .starts_with("text/html"),
+            "{}",
+            path
+        );
+        assert!(
+            String::from_utf8_lossy(&body).contains("<!doctype html"),
+            "{}",
+            path
+        );
+    }
+}
+
+/// An unknown path in an API namespace is a JSON 404; a page path never is.
+#[test]
+fn api_namespaces_are_told_apart_from_pages() {
+    for path in [
+        "/api/v1",
+        "/api/v1/nope",
+        "/api/nope",
+        "/agent/api",
+        "/agent/api/x",
+        "/scalping/api/nope",
+    ] {
+        assert!(super::is_api_path(path), "{}", path);
+    }
+    for path in [
+        "/",
+        "/api",
+        "/apikey",
+        "/agent",
+        "/agent/config",
+        "/python",
+        "/trading",
+        "//api",
+        "/a/b/api",
+    ] {
+        assert!(!super::is_api_path(path), "{}", path);
+    }
 }
 
 #[tokio::test]

@@ -5,8 +5,10 @@
 //! * Commands run against this desktop's own services (`messaging::openalgo`);
 //!   the host URL given to `/link` is stored for the pages but never
 //!   contacted, and the link reply says so.
-//! * The desktop has no Python strategy host, so `/stoppython` always
-//!   reports none running.
+//! * The Python Strategy Host is not part of this version of the desktop
+//!   (maintainer, 2026-10-12), so the web's `/stoppython` command, its
+//!   strategy pickers and the "Close all + Stop strategies" choice of
+//!   `/closeall` are left out.
 //! * The web's two `ℹ` characters are dropped (no emojis anywhere).
 
 use super::api::{BotApi, TgError};
@@ -566,7 +568,6 @@ pub const HELP_TEXT: &str = "
 
 *Remote Actions:*
 /closeall - Close all open positions (with confirmation)
-/stoppython - Stop running Python strategies (with confirmation)
 /mode - View or toggle trading mode (Live / Analyze)
 
 *Navigation:*
@@ -618,17 +619,13 @@ pub const LINKED_COMMANDS: &[&str] = &[
     "chart",
     "menu",
     "closeall",
-    "stoppython",
     "mode",
 ];
-/// Every button the bot sends (`spy_` and `csy_` are prefixes); all need a
-/// linked user in a private chat.
+/// Every button the bot sends (an entry ending in `_` is a prefix); all need
+/// a linked user in a private chat.
 pub const CALLBACKS: &[&str] = &[
     "cancel_action",
     "confirm_closeall",
-    "confirm_closeall_with_strategies",
-    "spy_",
-    "csy_",
     "mode_live",
     "mode_analyze",
     "menu",
@@ -903,24 +900,13 @@ impl Bot {
                 }
                 let kb = json!({"inline_keyboard": [
                     [{"text": "Yes, close all", "callback_data": "confirm_closeall"}],
-                    [{"text": "Close all + Stop strategies", "callback_data": "confirm_closeall_with_strategies"}],
                     [{"text": "Cancel", "callback_data": "cancel_action"}],
                 ]});
                 let text = format!(
-                    "*Close All Positions*\n{RULE}\n\nThis will close ALL open positions across all strategies.\n\nChoose *Close all + Stop strategies* to also stop every running Python strategy after closing positions.\n\nAre you sure?"
+                    "*Close All Positions*\n{RULE}\n\nThis will close ALL open positions across all strategies.\n\nAre you sure?"
                 );
                 self.send(chat, &text, true, Some(kb)).await;
                 Self::log(ctx, from.id, "closeall", chat);
-            }
-            "stoppython" => {
-                if Self::user(ctx, from.id).is_none() {
-                    self.send(chat, LINK_FIRST, false, None).await;
-                    return;
-                }
-                // No Python strategy host on the desktop.
-                self.send(chat, "*No Python strategies running.*", true, None)
-                    .await;
-                Self::log(ctx, from.id, "stoppython", chat);
             }
             "mode" => {
                 if Self::user(ctx, from.id).is_none() {
@@ -1356,8 +1342,7 @@ impl Bot {
             "cancel_action" => {
                 self.edit(chat, mid, "Action cancelled.", false, None).await;
             }
-            "confirm_closeall" | "confirm_closeall_with_strategies" => {
-                let with = data == "confirm_closeall_with_strategies";
+            "confirm_closeall" => {
                 if Self::user(ctx, from.id).is_none() {
                     self.edit(chat, mid, LINK_FIRST, false, None).await;
                     return;
@@ -1367,12 +1352,8 @@ impl Bot {
                         .await;
                     return;
                 };
-                let working = if with {
-                    "Closing all positions and stopping strategies..."
-                } else {
-                    "Closing all positions..."
-                };
-                self.edit(chat, mid, working, false, None).await;
+                self.edit(chat, mid, "Closing all positions...", false, None)
+                    .await;
                 let resp = client.closeposition().await;
                 let message = |r: &Option<Value>, d: &str| {
                     r.as_ref()
@@ -1380,23 +1361,7 @@ impl Bot {
                         .map(crate::messaging::format::py_str)
                         .unwrap_or_else(|| d.into())
                 };
-                if with {
-                    let close = if is_success(&resp) {
-                        message(&resp, "All positions closed")
-                    } else {
-                        let err = if resp.is_some() {
-                            message(&resp, "Unknown error")
-                        } else {
-                            "No response".into()
-                        };
-                        format!("Failed to close positions: {}", err)
-                    };
-                    let text = format!(
-                        "*Close All + Stop Strategies*\n{RULE}\n\n{}\n\nNo Python strategies were running.",
-                        close
-                    );
-                    self.send(chat, &text, true, None).await;
-                } else if is_success(&resp) {
+                if is_success(&resp) {
                     let text = format!(
                         "*Positions Closed*\n{RULE}\n\n{}",
                         message(&resp, "All positions closed")
@@ -1417,25 +1382,6 @@ impl Bot {
                     .await;
                 }
                 Self::log(ctx, from.id, &data, chat);
-            }
-            d if d.starts_with("spy_") || d.starts_with("csy_") => {
-                if d == "csy_all" {
-                    self.edit(chat, mid, "Stopping all running strategies...", false, None)
-                        .await;
-                    self.send(chat, "No Python strategies were running.", false, None)
-                        .await;
-                    Self::log(ctx, from.id, "confirm_stoppython_all", chat);
-                } else {
-                    // The selection list is always empty on the desktop.
-                    self.edit(
-                        chat,
-                        mid,
-                        "Selection expired. Please run /stoppython again.",
-                        false,
-                        None,
-                    )
-                    .await;
-                }
             }
             "mode_live" | "mode_analyze" => {
                 // Being linked once is not enough to change the trading mode:
@@ -1579,6 +1525,30 @@ mod tests {
         }
         assert_eq!(gate(Request::Command("nope"), true, 5, 5), Gate::Ignore);
         assert_eq!(gate(Request::Callback("nope"), true, 5, 5), Gate::Ignore);
+    }
+
+    /// The Python Strategy Host is not in this version: the bot neither
+    /// offers nor answers the web's commands and buttons for it.
+    #[test]
+    fn no_python_strategy_commands_or_buttons() {
+        assert!(!HELP_TEXT.contains("stoppython"));
+        assert!(!HELP_TEXT.contains("Python"));
+        assert_eq!(
+            gate(Request::Command("stoppython"), true, 5, 5),
+            Gate::Ignore
+        );
+        for d in ["confirm_closeall_with_strategies", "csy_all", "spy_1"] {
+            assert_eq!(
+                gate(Request::Callback(d), true, 5, 5),
+                Gate::Ignore,
+                "{}",
+                d
+            );
+        }
+        assert_eq!(
+            gate(Request::Callback("confirm_closeall"), true, 5, 5),
+            Gate::Allow
+        );
     }
 
     #[test]

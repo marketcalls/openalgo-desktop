@@ -353,8 +353,8 @@ export function PayoffChart({
         xanchor: 'center',
         // Paper units are a fraction of the plot area, not of the figure, so a
         // constant offset that clears the x-axis title at the default 440px
-        // height lands on top of it at the 300px height the agent's payoff card
-        // uses: "Underlying Price" and "At Expiry" printed through each other.
+        // height lands on top of it at a smaller one such as 300px: "Underlying
+        // Price" and "At Expiry" printed through each other.
         // Deriving the offset from the plot height keeps the gap a fixed number
         // of pixels at every height this component is rendered at.
         y: -AXIS_TITLE_BAND_PX / Math.max(height - 80 - BOTTOM_MARGIN_PX, 1),

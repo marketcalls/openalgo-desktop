@@ -4,19 +4,11 @@ import type { WorkspaceDocument, WorkspacePayload } from 'openalgo-charts/worksp
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navbar } from '@/components/layout/Navbar'
 
-// Lazy, because the panel pulls the markdown renderer and the syntax
-// highlighter's grammars and themes behind it. Statically imported, every
-// trader loading a chart paid for a chat they may never open. The heavy
-// visualization packages inside it are already lazy for the same reason.
-const AgentPanel = lazy(() =>
-  import('@/components/trading/AgentPanel').then((m) => ({ default: m.AgentPanel }))
-)
-
-// The other side panels are lazy for the same reason: each is shown only once
-// its rail button is pressed, and none is needed to paint a chart. Loaded with
-// the page they cost every trader their code before the first candle, and the
-// Strategies panel alone brought the Flow editor's instrument constants with
-// it. A remembered open panel is fetched beside the chart rather than before it.
+// The side panels are lazy: each is shown only once its rail button is
+// pressed, and none is needed to paint a chart. Loaded with the page they cost
+// every trader their code before the first candle, and the Strategies panel
+// alone brought the Flow editor's instrument constants with it. A remembered
+// open panel is fetched beside the chart rather than before it.
 const AlertsPanel = lazy(() =>
   import('@/components/trading/AlertsPanel').then((m) => ({ default: m.AlertsPanel }))
 )
@@ -79,7 +71,6 @@ import { Switch } from '@/components/ui/switch'
 import { useChartWorkspaceCatalog } from '@/hooks/useChartWorkspaceCatalog'
 import { useWorkspaceAutosave } from '@/hooks/useWorkspaceAutosave'
 import { useWorkspaceGridTransition } from '@/hooks/useWorkspaceGridTransition'
-import type { AgentChartCommand } from '@/lib/agent/stream'
 import { LAYOUTS, LayoutIcon, type LayoutPreset } from '@/lib/chart/layouts'
 import { DEFAULT_WEBSOCKET_URL } from '@/lib/desktop'
 import { clearLog, fetchLog, type LoggedFire } from '@/lib/trading/alertLog'
@@ -628,35 +619,15 @@ function TradingWorkspace({ account }: { account: string | null }) {
   )
 
   /**
-   * The agent's two ends, both resolved through `panelTarget` at call time.
+   * The instrument and timeframe a panel acts on, resolved through
+   * `panelTarget` at call time.
    *
-   * That is what makes the chart context fresh: the pane is looked up when the
-   * message is sent, not when the panel mounted, so loading a symbol and then
-   * asking about it asks about the symbol that is there. It also means the
-   * agent follows the focused pane in a grid layout, the same way the
-   * watchlist and the option chain already do.
+   * That is what makes it fresh: the pane is looked up when Run is pressed,
+   * not when the panel mounted, so loading a symbol and then running acts on
+   * the symbol that is there. It also follows the focused pane in a grid
+   * layout, the same way the watchlist and the option chain do.
    */
   const readChartContext = useCallback(() => panelTarget()?.chartContext() ?? null, [panelTarget])
-
-  const applyChartCommands = useCallback(
-    (commands: AgentChartCommand[]) => {
-      stopWorkspaceReplay()
-      void panelTarget()?.applyChartCommands(commands)
-    },
-    [panelTarget, stopWorkspaceReplay]
-  )
-
-  /**
-   * The focused pane as a PNG, for the agent composer's screenshot item.
-   *
-   * The same capture the camera menu's save and copy use, so what the model is
-   * shown is exactly what saving would have produced: the interaction-only
-   * overlays taken down, the OHLC readout painted in.
-   */
-  const captureChart = useCallback(
-    () => panelTarget()?.snapshotPng() ?? Promise.resolve(null),
-    [panelTarget]
-  )
   // The same rule the objects panel follows: the focused pane when it has
   // alerts, else whichever pane does, so the panel is useful before the trader
   // has clicked into a chart.
@@ -1652,15 +1623,6 @@ function TradingWorkspace({ account }: { account: string | null }) {
               />
             </Suspense>
           )}
-          {apiKey && wsUrl && panel === 'agent' && (
-            <Suspense fallback={null}>
-              <AgentPanel
-                getChartContext={readChartContext}
-                onChartCommand={applyChartCommands}
-                onCaptureChart={captureChart}
-              />
-            </Suspense>
-          )}
           {apiKey && wsUrl && panel === 'alerts' && (
             <Suspense fallback={null}>
               <AlertsPanel
@@ -1699,9 +1661,10 @@ function TradingWorkspace({ account }: { account: string | null }) {
           {apiKey && wsUrl && panel === 'backtest' && (
             <BacktestPanel
               apiKey={apiKey}
-              // The same reader the assistant uses, for the same reason: a run
-              // is of the instrument and interval on the chart at the moment
-              // Run is pressed, not of whatever this page last rendered with.
+              // The same reader the Strategies panel uses, for the same reason:
+              // a run is of the instrument and interval on the chart at the
+              // moment Run is pressed, not of whatever this page last rendered
+              // with.
               getChartContext={readChartContext}
               // Bumped when the focused pane, its instrument or its timeframe
               // changes, so the panel re-reads the chart when there is something
@@ -1739,8 +1702,8 @@ function TradingWorkspace({ account }: { account: string | null }) {
                 // until one has been focused, so adding a study did nothing at
                 // all until the trader happened to click the chart first. This is
                 // the helper written for a panel: the focused pane, else any pane
-                // that is up. It is the same one the watchlist and the assistant
-                // use for the same reason.
+                // that is up. It is the same one the watchlist and the option
+                // chain use for the same reason.
                 onAddToChart={(indicatorId) => {
                   const target = panelTarget()
                   if (!target) return false

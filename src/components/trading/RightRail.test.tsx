@@ -9,22 +9,28 @@ function rail(active: PanelId | null = null) {
 }
 
 describe('RightRail', () => {
-  it('opens the assistant panel', async () => {
+  it('opens the watchlist panel', async () => {
     const onSelect = rail()
-    await userEvent.click(screen.getByRole('button', { name: 'Assistant' }))
-    expect(onSelect).toHaveBeenCalledWith('agent')
+    await userEvent.click(screen.getByRole('button', { name: 'Watchlist' }))
+    expect(onSelect).toHaveBeenCalledWith('watchlist')
   })
 
-  it('closes the assistant panel from the button that opened it', async () => {
-    const onSelect = rail('agent')
-    const button = screen.getByRole('button', { name: 'Assistant' })
+  it('closes a panel from the button that opened it', async () => {
+    const onSelect = rail('watchlist')
+    const button = screen.getByRole('button', { name: 'Watchlist' })
     expect(button).toHaveAttribute('aria-expanded', 'true')
     // The rail is the only way back to a full-width chart, so the button that
     // opened a panel has to put it away.
-    expect(button).toHaveAttribute('aria-controls', 'oa-panel-agent')
+    expect(button).toHaveAttribute('aria-controls', 'oa-panel-watchlist')
 
     await userEvent.click(button)
     expect(onSelect).toHaveBeenCalledWith(null)
+  })
+
+  it('has no Assistant (Agent) button: the Agent is not in this version', () => {
+    rail()
+    expect(screen.getAllByRole('button').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: /assistant|agent/i })).toBeNull()
   })
 
   it('leaves the panels that were already there alone', () => {
@@ -71,7 +77,6 @@ describe('RightRail', () => {
       'scripts',
       'backtest',
       'strategies',
-      'agent',
     ]) {
       expect(isPanelId(saved)).toBe(true)
     }
@@ -80,8 +85,9 @@ describe('RightRail', () => {
 
   it('recognises only the panels the rail actually renders', () => {
     // Storage outlives a release. A remembered name that no longer resolves
-    // has to read as "no panel", not as one.
-    expect(isPanelId('agent')).toBe(true)
+    // has to read as "no panel", not as one: a trader who left the Assistant
+    // open in an earlier build reopens the terminal with no panel.
+    expect(isPanelId('agent')).toBe(false)
     expect(isPanelId('watchlist')).toBe(true)
     expect(isPanelId('objects')).toBe(true)
     expect(isPanelId('alerts')).toBe(true)

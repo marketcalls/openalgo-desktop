@@ -47,7 +47,6 @@ const SHARED_PREFIXES = [
   '/arbitrage',
   '/telegram',
   '/whatsapp',
-  '/agent',
   '/close_position',
   '/close_all_positions',
   '/cancel_all_orders',

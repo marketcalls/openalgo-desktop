@@ -2,7 +2,6 @@ import {
   BarChart3,
   Bell,
   BookOpen,
-  Bot,
   Boxes,
   CandlestickChart,
   ClipboardList,
@@ -70,17 +69,13 @@ export const profileMenuItems: NavItem[] = [
   // main navbar on that understanding and a test pins the adjacency, so a new
   // entry goes after it rather than between the two.
   { href: '/action-center', label: 'Action Center', icon: Bell },
-  // Agent Config is NOT here. It lives under /admin with the other
-  // configuration surfaces. The chat header carries its own settings control,
-  // so a configured /agent still has a route back to its settings without this
-  // menu holding one.
-  { href: '/agent', label: 'Agent', icon: Bot },
   { href: '/master-contract', label: 'Master Contract', icon: FileStack },
   { href: '/telegram', label: 'Telegram Bot', icon: MessageSquare },
   { href: '/whatsapp', label: 'WhatsApp Bot', icon: MessageCircle },
   { href: '/holdings', label: 'Holdings', icon: ClipboardList },
   { href: '/scalping', label: 'Scalping', icon: Zap },
-  // Desktop: Flow Editor and Python Strategies entries removed (out of scope).
+  // Desktop: Flow Editor, Python Strategies and Agent entries removed (not in
+  // this version).
   { href: '/pnl-tracker', label: 'PnL Tracker', icon: BarChart3 },
   { href: '/historify', label: 'Historify', icon: Database },
   { href: '/search/token', label: 'Search', icon: Search },
