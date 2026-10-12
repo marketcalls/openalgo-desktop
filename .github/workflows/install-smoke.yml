@@ -4,8 +4,8 @@ name: Install smoke
 # home and data folder, and waits until it serves its HTTP API; then checks
 # the packaged binary's `mcp` subcommand over piped stdio, and the .deb's
 # dependency list against what the binary links. A green CI run proves the
-# code builds and its tests pass; this is the first evidence that an
-# installer installs and the installed app starts.
+# code builds and its tests pass; this is the evidence that an installer
+# installs and the installed app starts and signs a trader in.
 #
 #   Linux x64, Linux arm64  apt install ./<deb> on a fresh runner, start under
 #                           Xvfb, create the account and sign in; the
@@ -22,22 +22,26 @@ name: Install smoke
 # plus a wrong password that must be refused (scripts/ci/launch_smoke.py).
 # Every job also runs the packaged `mcp` subcommand over piped stdio.
 #
-# Runs after every successful CI run on master, or by hand with the id of a
-# CI run whose bundles to use (Actions > Install smoke > Run workflow).
-# release.yml refuses to build a tag whose commit has no green run of this
-# workflow. It is not part of ci-ok: docs/release/branch-protection.md says
-# how to make it a job of CI so that it is.
+# Runs after every successful CI push to master, or by hand with the id of
+# such a CI run (Actions > Install smoke > Run workflow). Either way the
+# `source` job first checks, through the API, that the run is a successful
+# push to this repository's master (scripts/ci/smoke_gate.py source); a pull
+# request's or a fork's bundles are never installed. release.yml refuses to
+# build a tag unless the newest run of this workflow on master that installed
+# that commit's bundles passed on every platform (smoke_gate.py release). It
+# is not part of ci-ok: docs/release/branch-protection.md says how to make
+# it a job of CI so that it is.
 #
 # The app binds the shipped ports 5000 and 8765 here, which is fine on a CI
 # runner and is why scripts/ci/launch_smoke.py refuses to run outside CI.
 
-# The run is named after the commit whose bundles it installs: a workflow_run
-# run is otherwise listed under master's head at the time it started, which
-# need not be the commit that was tested.
+# Named after the CI run whose bundles are installed (and its commit when
+# known at start): the release gate reads only the run id from the name and
+# checks that CI run through the API, so the name is a pointer, not proof.
 run-name: >-
   Install smoke of ${{ github.event_name == 'workflow_dispatch'
   && format('CI run {0}', inputs.run_id)
-  || github.event.workflow_run.head_sha }}
+  || format('{0} (CI run {1})', github.event.workflow_run.head_sha, github.event.workflow_run.id) }}
 
 on:
   workflow_run:
@@ -47,7 +51,7 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: "Id of the CI run whose bundles to install"
+        description: "Id of a successful CI run on master whose bundles to install"
         required: true
         type: string
 
@@ -63,12 +67,11 @@ defaults:
   run:
     shell: bash
 
-env:
-  RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.run_id || github.event.workflow_run.id }}
-
 jobs:
-  tested:
-    name: tested commit
+  source:
+    name: source (the CI run whose bundles are installed)
+    # For workflow_run, cheap filters first; smoke_gate.py source then checks
+    # every case, a hand-run one included, against the API.
     if: >-
       github.event_name == 'workflow_dispatch' || (
       github.event.workflow_run.conclusion == 'success' &&
@@ -76,30 +79,23 @@ jobs:
       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.check.outputs.sha }}
+      run_id: ${{ steps.check.outputs.run_id }}
     steps:
-      - name: Name the commit whose bundles are installed
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: The CI run is a successful push to master in this repository
+        id: check
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          sha=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" --jq .head_sha)
-          {
-            echo "### Bundles under test"
-            echo
-            echo "Commit \`${sha}\`, built by CI run [${RUN_ID}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})."
-          } >> "$GITHUB_STEP_SUMMARY"
-          echo "Bundles of ${sha} (CI run ${RUN_ID})"
+          RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.run_id || github.event.workflow_run.id }}
+        run: python3 scripts/ci/smoke_gate.py source "$RUN_ID"
 
   linux:
     name: linux (${{ matrix.name }})
-    # Only bundles from a successful push to this repository's master: CI
-    # also runs for pull requests, including from forks whose branch may be
-    # called master, and their bundles must never be installed and run here.
-    if: >-
-      github.event_name == 'workflow_dispatch' || (
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_repository.full_name == github.repository)
+    needs: source
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -113,15 +109,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # The scripts as they were in the run that built the bundles.
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # After CI: the scripts as they were in the commit under test.
+          ref: ${{ github.event_name == 'workflow_run' && needs.source.outputs.sha || github.sha }}
           persist-credentials: false
       - name: Download the bundles
         uses: actions/download-artifact@v7
         with:
           name: bundles-linux-${{ matrix.name }}
           path: bundles
-          run-id: ${{ env.RUN_ID }}
+          run-id: ${{ needs.source.outputs.run_id }}
           github-token: ${{ github.token }}
       - name: Bound apt network waits
         run: |
@@ -181,13 +177,9 @@ jobs:
   windows:
     # Windows Server 2022 and 2025 with Desktop Experience are supported
     # systems (maintainer, 2026-10-12): each is installed, started and
-    # signed in on every run.
+    # signed in on every run. The job names are in smoke_gate.py too.
     name: windows (${{ matrix.os }})
-    if: >-
-      github.event_name == 'workflow_dispatch' || (
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_repository.full_name == github.repository)
+    needs: source
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -197,14 +189,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.event_name == 'workflow_run' && needs.source.outputs.sha || github.sha }}
           persist-credentials: false
       - name: Download the bundles
         uses: actions/download-artifact@v7
         with:
           name: bundles-windows-x86_64
           path: bundles
-          run-id: ${{ env.RUN_ID }}
+          run-id: ${{ needs.source.outputs.run_id }}
           github-token: ${{ github.token }}
       - name: Install silently, per user
         shell: pwsh
@@ -230,24 +222,20 @@ jobs:
 
   macos:
     name: macos (aarch64)
-    if: >-
-      github.event_name == 'workflow_dispatch' || (
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_repository.full_name == github.repository)
+    needs: source
     runs-on: macos-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.event_name == 'workflow_run' && needs.source.outputs.sha || github.sha }}
           persist-credentials: false
       - name: Download the bundles
         uses: actions/download-artifact@v7
         with:
           name: bundles-macos-aarch64
           path: bundles
-          run-id: ${{ env.RUN_ID }}
+          run-id: ${{ needs.source.outputs.run_id }}
           github-token: ${{ github.token }}
       - name: Copy the app out of the .dmg
         run: |

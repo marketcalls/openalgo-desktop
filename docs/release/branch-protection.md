@@ -23,8 +23,9 @@ job waits for. On a pushed `v*` tag it refuses to build unless:
 - the tag points at a commit reachable from `master`;
 - the newest `ci-ok` check run created by GitHub Actions on that exact commit
   is `completed` with conclusion `success`;
-- the newest Install smoke run that installed that exact commit's bundles
-  (see below) is `completed` with conclusion `success`;
+- the newest Install smoke run on `master` that installed the bundles of a
+  successful CI push of that exact commit (see below) completed with
+  success, with every platform's job succeeded (none skipped);
 - the tag equals `v<version>` and every version location agrees
   (`.claude/skills/version-bump/check_versions.py --tag <tag>`), including a
   `## <version>` section at the top of `CHANGELOG.md`.
@@ -178,9 +179,27 @@ macOS); starts each installed app with an empty data folder until it serves
 its HTTP API; creates the account and signs in through that HTTP on the
 shipped port, and checks that a wrong password is refused (not for the
 AppImage, which is started only); runs the packaged `mcp` subcommand over
-piped stdio; and checks the `.deb` dependency list. Each run is named after
-the commit it installed ("Install smoke of <sha>", or "of CI run <id>" when
-run by hand), which is how the release gate above finds it.
+piped stdio; and checks the `.deb` dependency list.
+
+Which bundles it may install, and which runs a release may rely on, is
+decided by `scripts/ci/smoke_gate.py`, never by a run's name alone:
+
+- Before anything is downloaded, the `source` job checks through the API
+  that the CI run is a successful run of `ci.yml` for a push to `master` of
+  this repository (digits-only id). A pull request's, another branch's or a
+  fork's bundles are refused, also for a run started by hand.
+- Each run is named "Install smoke of <sha> (CI run <id>)", or "Install
+  smoke of CI run <id>" when run by hand. The release gate takes only the
+  digits-only CI run id from the name, checks that CI run the same way and
+  that it built the tagged commit, considers only runs of `install-smoke.yml`
+  on `master`, and requires the newest such run to have succeeded with every
+  platform's job (Linux x64 and arm64, Windows Server 2022 and 2025, macOS)
+  succeeded.
+
+The security review of 2026-10-12 found a bypass in the first draft of this
+gate (never merged): it trusted the run's name, which a hand-run sets from
+free text, passed the id from it into an API path unchecked, and accepted
+any CI run with the right commit, a pull request's included.
 
 ### Making it part of `ci-ok`
 

@@ -142,43 +142,16 @@ jobs:
             echo "::error title=Release gate::ci-ok on ${SHA} is ${status}/${conclusion}, not completed/success: ${url}"
             exit 1
           fi
-      - name: Install smoke passed on this exact commit's bundles
+      - name: Install smoke passed on every platform for this commit's bundles
+        # Only Install smoke runs of this repository's install-smoke.yml on
+        # master count, named after a CI run that the API confirms is a
+        # successful push to master of this exact commit; the newest decides
+        # and needs every platform's job to have succeeded
+        # (scripts/ci/smoke_gate.py, tested by test_smoke_gate.py in CI).
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ steps.commit.outputs.sha }}
-        run: |
-          set -euo pipefail
-          # Install smoke runs are named after what they installed: "Install
-          # smoke of <sha>" after CI on master, "Install smoke of CI run <id>"
-          # when run by hand. Of the runs that installed this commit's
-          # bundles, the newest decides, so a later failure is not hidden by
-          # an older success.
-          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/install-smoke.yml/runs?per_page=100" \
-            --jq '.workflow_runs[] | [.created_at, .display_title, .status, (.conclusion // "none"), .html_url] | @tsv' \
-            > "${RUNNER_TEMP}/smoke-runs.tsv"
-          : > "${RUNNER_TEMP}/smoke-match.tsv"
-          while IFS=$'\t' read -r created title status conclusion url; do
-            tested=""
-            case "$title" in
-              "Install smoke of ${SHA}") tested="$SHA" ;;
-              "Install smoke of CI run "*)
-                tested=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${title#Install smoke of CI run }" --jq .head_sha 2>/dev/null || echo "") ;;
-            esac
-            if [ "$tested" = "$SHA" ]; then
-              printf '%s\t%s\t%s\t%s\n' "$created" "$status" "$conclusion" "$url" >> "${RUNNER_TEMP}/smoke-match.tsv"
-            fi
-          done < "${RUNNER_TEMP}/smoke-runs.tsv"
-          latest=$(sort "${RUNNER_TEMP}/smoke-match.tsv" | tail -n1)
-          if [ -z "$latest" ]; then
-            echo "::error title=Release gate::No Install smoke run installed the bundles of ${SHA}. Wait for the one that follows CI on master, or run it by hand with that commit's CI run id."
-            exit 1
-          fi
-          IFS=$'\t' read -r created status conclusion url <<< "$latest"
-          echo "Install smoke of ${SHA}: ${status} ${conclusion} ${url}"
-          if [ "$status" != "completed" ] || [ "$conclusion" != "success" ]; then
-            echo "::error title=Release gate::The newest Install smoke of ${SHA} is ${status}/${conclusion}, not completed/success: ${url}"
-            exit 1
-          fi
+        run: python3 scripts/ci/smoke_gate.py release "$SHA"
       - name: The tag equals the app version everywhere
         run: python3 .claude/skills/version-bump/check_versions.py --tag "$TAG"
 

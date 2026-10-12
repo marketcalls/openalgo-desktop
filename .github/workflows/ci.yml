@@ -206,6 +206,10 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - name: Release and install-smoke gate tests
+        # scripts/ci/smoke_gate.py decides which install smoke runs a
+        # release may rely on; its tests use fabricated API answers.
+        run: python3 scripts/ci/test_smoke_gate.py
       - name: Biome (lint, format, import order)
         run: npx biome ci --reporter=github ./src
       - name: Type check
