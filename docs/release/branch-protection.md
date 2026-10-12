@@ -5,9 +5,15 @@ release can only be built from a commit whose CI passed, and so that history
 on `master` cannot be rewritten. Agents never change these settings; they are
 the maintainer's to apply (Settings needs the repository admin role).
 
-State on 2026-10-10 (queried read-only): `master` is not protected
-(`GET /repos/marketcalls/openalgo-desktop/branches/master/protection` returns
-404 "Branch not protected"), and there are no rulesets, tags or releases.
+State on 2026-10-12: the three rulesets below were applied with the
+maintainer's approval, through the API commands at the end of this page:
+`master history` (no bypass), `master ci-ok` in the transitional profile
+(repository admins bypass) and `release tags`.
+`GET /repos/marketcalls/openalgo-desktop/rules/branches/master` lists
+`required_status_checks`, `deletion` and `non_fast_forward`. `master ci-ok`
+moves to the strict profile (empty bypass list, work lands through pull
+requests) once the current audit fix wave has merged; `CLAUDE.md` changes in
+the same step. There are no tags or releases yet.
 
 ## What already holds without these settings
 
