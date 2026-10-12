@@ -5,8 +5,22 @@
 
 import { webClient } from './client'
 
-export interface HealthStatus {
-  status: 'pass' | 'warn' | 'fail'
+/**
+ * "unknown": nothing measured it, or the latest sample is missing, unreadable
+ * or older than two sampling periods. Never shown as a pass.
+ */
+export type HealthLevel = 'pass' | 'warn' | 'fail' | 'unknown'
+
+/** How fresh the sample behind a status is (desktop server). */
+export interface SampleFreshness {
+  /** Seconds since the latest sample was taken; null when there is none. */
+  sample_age_s?: number | null
+  /** Why the status is "unknown". */
+  reason?: string
+}
+
+export interface HealthStatus extends SampleFreshness {
+  status: HealthLevel
   version?: string
   serviceId?: string
   description?: string
@@ -36,13 +50,13 @@ export interface HealthCheck extends HealthStatus {
   }
 }
 
-export interface CurrentMetrics {
+export interface CurrentMetrics extends SampleFreshness {
   timestamp: string
   fd: {
     count: number
     limit: number
     usage_percent: number
-    status: 'pass' | 'warn' | 'fail'
+    status: HealthLevel
   }
   memory: {
     rss_mb: number
@@ -50,24 +64,24 @@ export interface CurrentMetrics {
     percent: number
     available_mb: number
     swap_mb: number
-    status: 'pass' | 'warn' | 'fail'
+    status: HealthLevel
   }
   database: {
     total: number
     connections: Record<string, number>
-    status: 'pass' | 'warn' | 'fail'
+    status: HealthLevel
   }
   websocket: {
     total: number
     connections: Record<string, { count: number; symbols: number }>
     total_symbols: number
-    status: 'pass' | 'warn' | 'fail'
+    status: HealthLevel
   }
   threads: {
     count: number
     stuck: number
     details?: Array<{ id: number | null; name: string; daemon: boolean; alive: boolean }>
-    status: 'pass' | 'warn' | 'fail'
+    status: HealthLevel
   }
   processes?: Array<{
     pid: number | null
@@ -76,7 +90,7 @@ export interface CurrentMetrics {
     vms_mb: number
     memory_percent: number
   }>
-  overall_status: 'pass' | 'warn' | 'fail'
+  overall_status: HealthLevel
 }
 
 export interface HistoricalMetric {
@@ -86,7 +100,7 @@ export interface HistoricalMetric {
   db_connections: number
   ws_connections: number
   threads: number
-  overall_status: 'pass' | 'warn' | 'fail'
+  overall_status: HealthLevel
 }
 
 export interface HealthStats {

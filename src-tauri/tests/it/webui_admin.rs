@@ -538,6 +538,28 @@ async fn system_info_diagnostics_and_report_have_no_secrets() {
     assert!(d["config"]["secrets_present"].is_object());
     assert!(!v.to_string().contains(&key));
 
+    // DIA-02: the feed limits shown are the ones the running feed is built
+    // with, not the web adapter's 1000 symbols and 3 sockets.
+    let feed = openalgo_desktop_lib::feed::config_from(&h.ctx);
+    let cfg = &d["config"];
+    assert_eq!(
+        cfg["feed_max_subscriptions_per_client"],
+        feed.max_subscriptions_per_client
+    );
+    assert_eq!(
+        cfg["feed_max_connections_this_computer"],
+        feed.local_connections
+    );
+    assert_eq!(cfg["feed_max_connections_network"], feed.max_connections);
+    assert_eq!(
+        cfg["max_symbols_per_websocket"],
+        feed.max_subscriptions_per_client.to_string()
+    );
+    assert_eq!(
+        cfg["max_websocket_connections"],
+        (feed.local_connections + feed.max_connections).to_string()
+    );
+
     let (s, v) = h
         .json(with(
             req(Method::POST, "/admin/api/system/diagnostics", None),

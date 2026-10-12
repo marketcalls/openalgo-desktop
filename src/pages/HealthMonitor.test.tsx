@@ -71,6 +71,44 @@ describe('Health Monitor', () => {
     expect(screen.getByText(/System Status: PASS/)).toBeInTheDocument()
   })
 
+  // DIA-01: the banner said PASS over a sample that was minutes old, or
+  // over no measurement at all.
+  it('shows UNKNOWN with the reason and the age when the server says the sample is stale', async () => {
+    api.getCurrentMetrics.mockResolvedValue(
+      metrics({
+        overall_status: 'unknown',
+        sample_age_s: 180,
+        reason: 'The latest health sample is 3 minutes old, so the state of OpenAlgo is unknown.',
+      })
+    )
+    render(<HealthMonitor />)
+
+    expect(await screen.findByText(/System Status: UNKNOWN/)).toBeInTheDocument()
+    expect(screen.getByText(/The latest health sample is 3 minutes old/)).toBeInTheDocument()
+    expect(screen.getByText(/3 min ago/)).toBeInTheDocument()
+    expect(screen.queryByText(/System Status: PASS/)).not.toBeInTheDocument()
+  })
+
+  it('treats an old sample as UNKNOWN even when the server does not report its age', async () => {
+    api.getCurrentMetrics.mockResolvedValue(
+      metrics({ timestamp: new Date(Date.now() - 10 * 60_000).toISOString() })
+    )
+    render(<HealthMonitor />)
+
+    expect(await screen.findByText(/System Status: UNKNOWN/)).toBeInTheDocument()
+    expect(screen.getByText(/Health sampling may have stopped/)).toBeInTheDocument()
+    expect(screen.getByText(/10 min ago/)).toBeInTheDocument()
+  })
+
+  it('keeps the sample status while the sample is fresh, with its age', async () => {
+    api.getCurrentMetrics.mockResolvedValue(metrics({ overall_status: 'warn', sample_age_s: 30 }))
+    render(<HealthMonitor />)
+
+    expect(await screen.findByText(/System Status: WARN/)).toBeInTheDocument()
+    expect(screen.getByText(/30 s ago/)).toBeInTheDocument()
+    expect(screen.queryByText(/Health sampling may have stopped/)).not.toBeInTheDocument()
+  })
+
   it('shows the statistics when the window has samples', async () => {
     const group = { current: 3, avg: 2.5, min: 2, max: 3 }
     api.getHealthStats.mockResolvedValue({
