@@ -538,12 +538,14 @@ async fn search_expiries_and_underlyings_have_the_web_shapes() {
         v,
         json!({"status": "success", "expiries": ["27-OCT-26", "03-NOV-26"]})
     );
+    // The September option expired before this clock (5 October): a live
+    // dropdown never offers it, typed or not (TOOLS-03).
     let (_, v) = h
         .get("/search/api/expiries?exchange=NFO&underlying=NIFTY&instrumenttype=options")
         .await;
     assert_eq!(
-        v["expiries"],
-        json!(["29-SEP-26", "27-OCT-26", "03-NOV-26"])
+        v,
+        json!({"status": "success", "expiries": ["27-OCT-26", "03-NOV-26"]})
     );
     let (_, v) = h.get("/search/api/underlyings?exchange=NFO").await;
     assert_eq!(v, json!({"status": "success", "underlyings": ["NIFTY"]}));

@@ -2,7 +2,6 @@
 //! the pages, over the shared symbol master.
 
 use crate::server::routes::webui::ok;
-use crate::services::options_service::today_ist;
 use crate::services::search_ui_service::{self as svc, FnoFilter};
 use crate::state::AppState;
 use axum::{
@@ -43,15 +42,30 @@ pub async fn api_search(State(ctx): Ctx, Query(q): Q) -> Response {
     ))
 }
 
-/// GET /search/api/expiries
+/// The answer while no master contract is loaded (none downloaded yet, a
+/// download still running, or no broker connected): an expiry list would
+/// look empty for every underlying, which is not what is wrong.
+pub const MASTER_NOT_READY: &str = "Expiry dates are not available until the master contract is loaded. Open Master Contract to download it, then retry.";
+
+/// GET /search/api/expiries: the live expiries (web `api_expiries`). With
+/// no master loaded the answer says so (`master_ready: false`), so the page
+/// can tell that apart from an underlying with no live expiry.
 pub async fn api_expiries(State(ctx): Ctx, Query(q): Q) -> Response {
     let snap = ctx.symbols.snapshot();
+    if snap.is_empty() {
+        return ok(json!({
+            "status": "error",
+            "message": MASTER_NOT_READY,
+            "master_ready": false,
+            "expiries": [],
+        }));
+    }
     let expiries = svc::expiries(
         snap.rows(),
         arg(&q, "exchange"),
         arg(&q, "underlying"),
         arg(&q, "instrumenttype"),
-        today_ist(&ctx),
+        ctx.now(),
     );
     ok(json!({"status": "success", "expiries": expiries}))
 }
@@ -63,11 +77,6 @@ pub async fn api_underlyings(State(ctx): Ctx, Query(q): Q) -> Response {
         Some("1" | "true" | "yes")
     );
     let snap = ctx.symbols.snapshot();
-    let list = svc::underlyings(
-        snap.rows(),
-        arg(&q, "exchange"),
-        include_futures,
-        today_ist(&ctx),
-    );
+    let list = svc::underlyings(snap.rows(), arg(&q, "exchange"), include_futures, ctx.now());
     ok(json!({"status": "success", "underlyings": list}))
 }

@@ -4,91 +4,21 @@
 //! over one generation of the shared symbol master.
 
 use super::core::float;
+use super::options_service::listed_live;
 use super::symbol_service::freeze_qty_for_option;
 use crate::brokers::common::master_contract::parse_oa_expiry;
 use crate::brokers::common::symbols::SymToken;
-use chrono::NaiveDate;
+use crate::brokers::common::underlying::{
+    contract_kind, is_derivative_of, row_underlying, ContractKind,
+};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde_json::{json, Value};
 use std::collections::{BTreeSet, HashSet};
 
-/// Web `FNO_EXCHANGES` (F&O plus crypto).
-pub const FNO_EXCHANGES: &[&str] = &["NFO", "BFO", "MCX", "CDS", "BCD", "NCDEX", "NCO", "CRYPTO"];
-const MONTHS: [&str; 12] = [
-    "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
-];
+pub use crate::brokers::common::underlying::{extract_underlying, is_fno, FNO_EXCHANGES};
+
 /// Web `fno_search_symbols` default limit.
 pub const FNO_LIMIT: usize = 10_000;
-
-pub fn is_fno(exchange: &str) -> bool {
-    FNO_EXCHANGES.contains(&exchange)
-}
-
-/// `DDMMMYY` at the start of `s` (bytes, upper case).
-fn date_at(s: &[u8]) -> bool {
-    s.len() >= 7
-        && s[0].is_ascii_digit()
-        && s[1].is_ascii_digit()
-        && std::str::from_utf8(&s[2..5])
-            .map(|m| MONTHS.contains(&m))
-            .unwrap_or(false)
-        && s[5].is_ascii_digit()
-        && s[6].is_ascii_digit()
-}
-
-/// `(\d+(\.\d+)?)?(FUT|CE|PE)?$` over the whole tail.
-fn strike_suffix(tail: &str) -> bool {
-    let rest = tail
-        .strip_suffix("FUT")
-        .or_else(|| tail.strip_suffix("CE"))
-        .or_else(|| tail.strip_suffix("PE"))
-        .unwrap_or(tail);
-    if rest.is_empty() {
-        return true;
-    }
-    let mut parts = rest.splitn(2, '.');
-    let int = parts.next().unwrap_or_default();
-    let ok_int = !int.is_empty() && int.bytes().all(|b| b.is_ascii_digit());
-    match parts.next() {
-        None => ok_int,
-        Some(frac) => ok_int && !frac.is_empty() && frac.bytes().all(|b| b.is_ascii_digit()),
-    }
-}
-
-/// Web `extract_underlying_from_symbol`.
-pub fn extract_underlying(symbol: &str, exchange: &str) -> Option<String> {
-    if symbol.is_empty() || !is_fno(exchange) {
-        return None;
-    }
-    let up = symbol.to_uppercase();
-    let b = up.as_bytes();
-    if exchange == "CRYPTO" {
-        for i in 1..b.len() {
-            if !b[i - 1].is_ascii_alphanumeric() {
-                break;
-            }
-            if date_at(&b[i..]) {
-                return Some(up[..i].to_string());
-            }
-        }
-        let mut s = up.strip_suffix(".P").unwrap_or(&up).to_string();
-        for suf in ["USDT", "USD", "_INR", "INR"] {
-            if s.ends_with(suf) && s.len() > suf.len() {
-                s.truncate(s.len() - suf.len());
-                return Some(s);
-            }
-        }
-        return Some(s);
-    }
-    for i in 1..b.len() {
-        if !up.is_char_boundary(i) {
-            continue;
-        }
-        if date_at(&b[i..]) && strike_suffix(&up[i + 7..]) {
-            return Some(up[..i].to_string());
-        }
-    }
-    None
-}
 
 /// The public row shape of `/search/api/search`.
 pub fn api_row(r: &SymToken) -> Value {
@@ -178,7 +108,7 @@ pub fn fno_search<'a>(rows: &'a [SymToken], f: &FnoFilter<'_>) -> Vec<&'a SymTok
         if f.exchange.is_some_and(|e| r.exchange != e) {
             continue;
         }
-        let und = extract_underlying(&r.symbol, &r.exchange);
+        let und = row_underlying(r);
         if let Some(u) = &underlying {
             if und.as_deref() != Some(u.as_str()) {
                 continue;
@@ -310,108 +240,79 @@ pub fn api_search_with(
     json!({"results": out, "total": total})
 }
 
-fn expiry_date(e: &str) -> NaiveDate {
-    parse_oa_expiry(e)
-        .or_else(|| NaiveDate::parse_from_str(&title(e), "%d-%b-%Y").ok())
-        .unwrap_or(NaiveDate::MAX)
-}
-
-fn title(e: &str) -> String {
-    e.split('-')
-        .map(|p| {
-            let mut c = p.chars();
-            match c.next() {
-                Some(f) => f.to_uppercase().collect::<String>() + &c.as_str().to_lowercase(),
-                None => String::new(),
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("-")
-}
-
-fn sorted_expiries(set: BTreeSet<String>) -> Vec<String> {
-    let mut v: Vec<(NaiveDate, String)> = set.into_iter().map(|e| (expiry_date(&e), e)).collect();
-    v.sort();
-    v.into_iter().map(|(_, e)| e).collect()
-}
-
-/// `/search/api/expiries`. With `instrumenttype` the web reads the table
-/// (underlying by `name`, options or futures, expired dates kept); without
-/// it the cache (underlying from the symbol, live dates only).
+/// `/search/api/expiries`: the live expiries of an underlying, earliest
+/// first, for the option tools' dropdowns.
+///
+/// One rule for every request, typed or not: a contract belongs to the
+/// underlying read from its canonical symbol (never the broker's `name`
+/// text, which is a description on Fyers), `instrumenttype` keeps options
+/// (`CE`/`PE`) or futures (`FUT`) as the symbol says, so MCX's separate
+/// option and future calendars stay apart, and a date is listed until the
+/// venue's expiry cut-off on that day. Expired and unreadable dates are
+/// never listed: the page selects the first date. The web reads `name`
+/// and keeps expired dates on the typed path (CLAUDE.md, known pitfalls).
 pub fn expiries(
     rows: &[SymToken],
     exchange: Option<&str>,
     underlying: Option<&str>,
     instrumenttype: Option<&str>,
-    today: NaiveDate,
+    now: DateTime<Utc>,
 ) -> Vec<String> {
-    let und = underlying.map(|u| u.trim().to_uppercase());
-    let mut set = BTreeSet::new();
-    if let Some(it) = instrumenttype {
-        let wanted = it.trim().to_lowercase();
-        for r in rows {
-            if exchange.is_some_and(|e| r.exchange != e) || r.expiry.is_empty() {
-                continue;
-            }
-            if und
-                .as_deref()
-                .is_some_and(|u| !r.name.eq_ignore_ascii_case(u))
-            {
-                continue;
-            }
-            let keep = match wanted.as_str() {
-                "options" | "option" => r.instrument_type == "CE" || r.instrument_type == "PE",
-                "futures" | "future" | "fut" => r.instrument_type == "FUT",
-                _ => true,
-            };
-            if keep {
-                set.insert(r.expiry.clone());
-            }
-        }
-        return sorted_expiries(set);
-    }
+    let und = underlying
+        .map(|u| u.trim().to_uppercase())
+        .filter(|u| !u.is_empty());
+    let wanted = instrumenttype.map(|t| t.trim().to_lowercase());
+    let mut set: BTreeSet<(&str, &str)> = BTreeSet::new();
     for r in rows {
         if r.expiry.is_empty() || exchange.is_some_and(|e| r.exchange != e) {
             continue;
         }
-        if let Some(u) = &und {
-            if exchange.is_some()
-                && extract_underlying(&r.symbol, &r.exchange).as_deref() != Some(u.as_str())
-            {
-                continue;
-            }
+        if und.as_deref().is_some_and(|u| !is_derivative_of(r, u)) {
+            continue;
         }
-        set.insert(r.expiry.clone());
+        let kind = contract_kind(&r.symbol);
+        let keep = match wanted.as_deref() {
+            Some("options" | "option") => kind.is_some_and(ContractKind::is_option),
+            Some("futures" | "future" | "fut") => kind == Some(ContractKind::Future),
+            _ => true,
+        };
+        if keep {
+            set.insert((r.expiry.as_str(), r.exchange.as_str()));
+        }
     }
-    sorted_expiries(set)
+    let mut live: Vec<(NaiveDate, &str)> = set
         .into_iter()
-        .filter(|e| expiry_date(e) >= today)
-        .collect()
+        .filter(|(e, x)| listed_live(e, x, now))
+        .filter_map(|(e, _)| parse_oa_expiry(e).map(|d| (d, e)))
+        .collect();
+    live.sort();
+    live.dedup();
+    live.into_iter().map(|(_, e)| e.to_string()).collect()
 }
 
-/// `/search/api/underlyings`: options-bearing underlyings, or with
+/// `/search/api/underlyings`: underlyings with a live option, or with
 /// `include_futures` also those with a live future; exchange test symbols
 /// removed; sorted.
 pub fn underlyings(
     rows: &[SymToken],
     exchange: Option<&str>,
     include_futures: bool,
-    today: NaiveDate,
+    now: DateTime<Utc>,
 ) -> Vec<String> {
     let mut set = BTreeSet::new();
     for r in rows {
         if exchange.is_some_and(|e| r.exchange != e) {
             continue;
         }
-        let Some(u) = extract_underlying(&r.symbol, &r.exchange) else {
-            continue;
+        let wanted = match contract_kind(&r.symbol) {
+            Some(k) if k.is_option() => true,
+            Some(ContractKind::Future) => include_futures,
+            _ => false,
         };
-        let su = r.symbol.to_uppercase();
-        let option = su.ends_with("CE") || su.ends_with("PE");
-        let live_future = include_futures
-            && su.ends_with("FUT")
-            && parse_oa_expiry(&r.expiry).is_some_and(|d| d >= today);
-        if option || live_future {
+        if !wanted || !listed_live(&r.expiry, &r.exchange, now) {
+            continue;
+        }
+        if let Some(u) = row_underlying(r) {
             set.insert(u);
         }
     }
@@ -484,40 +385,6 @@ mod tests {
     }
 
     #[test]
-    fn underlying_extraction_matches_the_web_regexes() {
-        assert_eq!(
-            extract_underlying("NIFTY28MAR2420800CE", "NFO").as_deref(),
-            Some("NIFTY")
-        );
-        assert_eq!(
-            extract_underlying("BANKNIFTY24APR24FUT", "NFO").as_deref(),
-            Some("BANKNIFTY")
-        );
-        assert_eq!(
-            extract_underlying("M&M28MAR24FUT", "NFO").as_deref(),
-            Some("M&M")
-        );
-        assert_eq!(
-            extract_underlying("USDINR28MAR2483.25CE", "CDS").as_deref(),
-            Some("USDINR")
-        );
-        assert_eq!(
-            extract_underlying("BTC28FEB2580000CE", "CRYPTO").as_deref(),
-            Some("BTC")
-        );
-        assert_eq!(
-            extract_underlying("1INCH28FEB25FUT", "CRYPTO").as_deref(),
-            Some("1INCH")
-        );
-        assert_eq!(
-            extract_underlying("BTCUSD.P", "CRYPTO").as_deref(),
-            Some("BTC")
-        );
-        assert_eq!(extract_underlying("SBIN", "NSE"), None);
-        assert_eq!(extract_underlying("SBIN", "NFO"), None);
-    }
-
-    #[test]
     fn searches_filter_and_rank() {
         let rows = vec![
             row(
@@ -579,19 +446,324 @@ mod tests {
             v["total"], 4,
             "NSE has no NIFTY row; NFO goes through the F&O search"
         );
-        let today = NaiveDate::from_ymd_opt(2026, 10, 5).unwrap();
+        let now = ist(5, 10, 0);
         assert_eq!(
-            expiries(&rows, Some("NFO"), Some("nifty"), None, today),
+            expiries(&rows, Some("NFO"), Some("nifty"), None, now),
             vec!["27-OCT-26"]
         );
+        // The January 2025 future has expired: a live dropdown never lists
+        // it, typed or not (the page would select it first).
         assert_eq!(
-            expiries(&rows, Some("NFO"), Some("NIFTY"), Some("futures"), today),
-            vec!["01-JAN-25", "27-OCT-26"]
+            expiries(&rows, Some("NFO"), Some("NIFTY"), Some("futures"), now),
+            vec!["27-OCT-26"]
         );
-        assert_eq!(underlyings(&rows, Some("NFO"), false, today), vec!["NIFTY"]);
+        assert_eq!(underlyings(&rows, Some("NFO"), false, now), vec!["NIFTY"]);
         assert_eq!(
-            underlyings(&rows, Some("NFO"), true, today),
+            underlyings(&rows, Some("NFO"), true, now),
             vec!["BANKNIFTY", "NIFTY"]
+        );
+    }
+
+    /// 2026-10-`d` at `h:m` IST.
+    fn ist(d: u32, h: u32, m: u32) -> DateTime<Utc> {
+        use chrono::TimeZone;
+        chrono_tz::Asia::Kolkata
+            .with_ymd_and_hms(2026, 10, d, h, m, 0)
+            .single()
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    /// TOOLS-01: Fyers stores the contract description in `name`. Typed
+    /// discovery compared it with the underlying and found nothing, so the
+    /// Option Chain had no expiry to select.
+    #[test]
+    fn typed_discovery_reads_the_underlying_from_the_symbol_not_the_name() {
+        let rows = vec![
+            row(
+                "NIFTY13OCT2625000CE",
+                "NFO",
+                "NIFTY 13 Oct 26 25000 CE",
+                "13-OCT-26",
+                25000.0,
+                "CE",
+            ),
+            row(
+                "NIFTY20OCT2625000PE",
+                "NFO",
+                "NIFTY 20 Oct 26 25000 PE",
+                "20-OCT-26",
+                25000.0,
+                "PE",
+            ),
+            row(
+                "NIFTY27OCT26FUT",
+                "NFO",
+                "NIFTY 27 Oct 26 FUT",
+                "27-OCT-26",
+                0.0,
+                "FUT",
+            ),
+            // Upstox stores the company name.
+            row(
+                "VEDL27OCT26292.5CE",
+                "NFO",
+                "VEDANTA LIMITED",
+                "27-OCT-26",
+                292.5,
+                "CE",
+            ),
+        ];
+        let now = ist(12, 10, 0);
+        assert_eq!(
+            expiries(&rows, Some("NFO"), Some("NIFTY"), Some("options"), now),
+            ["13-OCT-26", "20-OCT-26"]
+        );
+        assert_eq!(
+            expiries(&rows, Some("NFO"), Some("NIFTY"), Some("futures"), now),
+            ["27-OCT-26"]
+        );
+        assert_eq!(
+            expiries(&rows, Some("NFO"), Some("VEDL"), Some("options"), now),
+            ["27-OCT-26"]
+        );
+        // The description itself is not an underlying.
+        assert!(expiries(
+            &rows,
+            Some("NFO"),
+            Some("NIFTY 13 Oct 26 25000 CE"),
+            Some("options"),
+            now
+        )
+        .is_empty());
+    }
+
+    /// TOOLS-01/T02: the identity is exact (no prefix or wildcard), keeps
+    /// digits, `&` and `-`, and each venue's calendar is its own.
+    #[test]
+    fn discovery_keeps_underlyings_and_venues_apart() {
+        let o = |sym: &str, ex: &str, exp: &str| {
+            let it = &sym[sym.len() - 2..];
+            row(sym, ex, "SAME NAME FOR EVERY ROW", exp, 1.0, it)
+        };
+        let rows = vec![
+            o("NIFTY13OCT2625000CE", "NFO", "13-OCT-26"),
+            o("NIFTYNXT5027OCT2668000CE", "NFO", "27-OCT-26"),
+            o("BANKNIFTY28OCT2651000PE", "NFO", "28-OCT-26"),
+            o("FINNIFTY27OCT2623000CE", "NFO", "27-OCT-26"),
+            o("M&M27OCT263000CE", "NFO", "27-OCT-26"),
+            o("M27OCT2610CE", "NFO", "29-OCT-26"),
+            o("BAJAJ-AUTO27OCT269000PE", "NFO", "27-OCT-26"),
+            o("360ONE27OCT261200CE", "NFO", "27-OCT-26"),
+            o("SENSEX15OCT2682000CE", "BFO", "15-OCT-26"),
+            o("SENSEX5016OCT2627000PE", "BFO", "16-OCT-26"),
+            o("USDINR28OCT2687.5CE", "CDS", "28-OCT-26"),
+        ];
+        let now = ist(12, 10, 0);
+        let opts = |ex: &str, u: &str| expiries(&rows, Some(ex), Some(u), Some("options"), now);
+        assert_eq!(opts("NFO", "NIFTY"), ["13-OCT-26"]);
+        assert_eq!(opts("NFO", "NIFTYNXT50"), ["27-OCT-26"]);
+        assert_eq!(opts("NFO", "BANKNIFTY"), ["28-OCT-26"]);
+        assert_eq!(opts("NFO", "FINNIFTY"), ["27-OCT-26"]);
+        assert_eq!(opts("NFO", "M&M"), ["27-OCT-26"]);
+        assert_eq!(opts("NFO", "m"), ["29-OCT-26"]);
+        assert_eq!(opts("NFO", "BAJAJ-AUTO"), ["27-OCT-26"]);
+        assert_eq!(opts("NFO", "360ONE"), ["27-OCT-26"]);
+        assert!(opts("NFO", "NIFT").is_empty());
+        assert!(opts("NFO", "NIFTY%").is_empty());
+        assert!(opts("NFO", "SENSEX").is_empty(), "SENSEX lists on BFO");
+        assert_eq!(opts("BFO", "SENSEX"), ["15-OCT-26"]);
+        assert_eq!(opts("BFO", "SENSEX50"), ["16-OCT-26"]);
+        assert_eq!(opts("CDS", "USDINR"), ["28-OCT-26"]);
+        let mut under = underlyings(&rows, Some("NFO"), false, now);
+        under.sort();
+        assert_eq!(
+            under,
+            [
+                "360ONE",
+                "BAJAJ-AUTO",
+                "BANKNIFTY",
+                "FINNIFTY",
+                "M",
+                "M&M",
+                "NIFTY",
+                "NIFTYNXT50"
+            ]
+        );
+    }
+
+    /// MCX lists options and futures on different days (GOLDM futures
+    /// expire on the 5th, its options weeks earlier): each request gets
+    /// its own calendar.
+    #[test]
+    fn option_and_future_calendars_stay_separate() {
+        let rows = vec![
+            row("GOLDM05NOV26FUT", "MCX", "GOLDM", "05-NOV-26", 0.0, "FUT"),
+            row("GOLDM05DEC26FUT", "MCX", "GOLDM", "05-DEC-26", 0.0, "FUT"),
+            row(
+                "GOLDM27OCT26120000CE",
+                "MCX",
+                "GOLDM",
+                "27-OCT-26",
+                120000.0,
+                "CE",
+            ),
+            row(
+                "GOLDM25NOV26120000PE",
+                "MCX",
+                "GOLDM",
+                "25-NOV-26",
+                120000.0,
+                "OPTFUT",
+            ),
+        ];
+        let now = ist(12, 10, 0);
+        assert_eq!(
+            expiries(&rows, Some("MCX"), Some("GOLDM"), Some("options"), now),
+            ["27-OCT-26", "25-NOV-26"],
+            "options are read from the symbol, whatever the broker's type"
+        );
+        assert_eq!(
+            expiries(&rows, Some("MCX"), Some("GOLDM"), Some("futures"), now),
+            ["05-NOV-26", "05-DEC-26"]
+        );
+        assert_eq!(
+            expiries(&rows, Some("MCX"), Some("GOLDM"), None, now),
+            ["27-OCT-26", "05-NOV-26", "25-NOV-26", "05-DEC-26"]
+        );
+    }
+
+    /// TOOLS-03/T04: expired and unreadable dates are never listed; a
+    /// contract expiring today stays until its venue's cut-off (NFO 15:30,
+    /// CDS 12:30, MCX 23:30, crypto 17:30 IST), and the next day's first
+    /// request no longer lists it without any restart.
+    #[test]
+    fn live_discovery_drops_expired_and_unreadable_dates_at_the_venue_cutoff() {
+        let rows = vec![
+            row(
+                "NIFTY06OCT2622400PE",
+                "NFO",
+                "NIFTY",
+                "06-OCT-26",
+                1.0,
+                "PE",
+            ),
+            row(
+                "NIFTY13OCT2622400PE",
+                "NFO",
+                "NIFTY",
+                "13-OCT-26",
+                1.0,
+                "PE",
+            ),
+            row(
+                "NIFTY20OCT2622400PE",
+                "NFO",
+                "NIFTY",
+                "20-OCT-26",
+                1.0,
+                "PE",
+            ),
+            row(
+                "NIFTY99XYZ2622400PE",
+                "NFO",
+                "NIFTY",
+                "99-XYZ-26",
+                1.0,
+                "PE",
+            ),
+            row(
+                "NIFTY31FEB2722400PE",
+                "NFO",
+                "NIFTY",
+                "31-FEB-27",
+                1.0,
+                "PE",
+            ),
+            row("NIFTY10NOV2622400CE", "NFO", "NIFTY", "garbage", 1.0, "CE"),
+            row(
+                "USDINR13OCT2687.5CE",
+                "CDS",
+                "USDINR",
+                "13-OCT-26",
+                1.0,
+                "CE",
+            ),
+            row(
+                "USDINR27OCT2687.5CE",
+                "CDS",
+                "USDINR",
+                "27-OCT-26",
+                1.0,
+                "CE",
+            ),
+            row(
+                "CRUDEOIL13OCT266000CE",
+                "MCX",
+                "CRUDEOIL",
+                "13-OCT-26",
+                1.0,
+                "CE",
+            ),
+            row(
+                "CRUDEOIL16NOV266000CE",
+                "MCX",
+                "CRUDEOIL",
+                "16-NOV-26",
+                1.0,
+                "CE",
+            ),
+            row(
+                "BTC13OCT26100000CE",
+                "CRYPTO",
+                "BTC",
+                "13-OCT-26",
+                1.0,
+                "CE",
+            ),
+            row(
+                "BTC14OCT26100000CE",
+                "CRYPTO",
+                "BTC",
+                "14-OCT-26",
+                1.0,
+                "CE",
+            ),
+        ];
+        let at = |ex: &str, u: &str, now| expiries(&rows, Some(ex), Some(u), Some("options"), now);
+        // The day before: only the 6th is gone.
+        assert_eq!(
+            at("NFO", "NIFTY", ist(12, 10, 0)),
+            ["13-OCT-26", "20-OCT-26"]
+        );
+        // Expiry day, before and after each venue's cut-off.
+        assert_eq!(
+            at("NFO", "NIFTY", ist(13, 15, 29)),
+            ["13-OCT-26", "20-OCT-26"]
+        );
+        assert_eq!(at("NFO", "NIFTY", ist(13, 15, 30)), ["20-OCT-26"]);
+        assert_eq!(
+            at("CDS", "USDINR", ist(13, 12, 29)),
+            ["13-OCT-26", "27-OCT-26"]
+        );
+        assert_eq!(at("CDS", "USDINR", ist(13, 12, 30)), ["27-OCT-26"]);
+        assert_eq!(
+            at("MCX", "CRUDEOIL", ist(13, 23, 29)),
+            ["13-OCT-26", "16-NOV-26"]
+        );
+        assert_eq!(at("MCX", "CRUDEOIL", ist(13, 23, 30)), ["16-NOV-26"]);
+        assert_eq!(
+            at("CRYPTO", "BTC", ist(13, 17, 29)),
+            ["13-OCT-26", "14-OCT-26"]
+        );
+        assert_eq!(at("CRYPTO", "BTC", ist(13, 17, 30)), ["14-OCT-26"]);
+        // Overnight: the first request after midnight no longer lists it.
+        assert_eq!(at("NFO", "NIFTY", ist(14, 0, 1)), ["20-OCT-26"]);
+        assert_eq!(at("MCX", "CRUDEOIL", ist(14, 0, 1)), ["16-NOV-26"]);
+        // Untyped discovery follows the same rule.
+        assert_eq!(
+            expiries(&rows, Some("NFO"), Some("NIFTY"), None, ist(13, 15, 30)),
+            ["20-OCT-26"]
         );
     }
 }

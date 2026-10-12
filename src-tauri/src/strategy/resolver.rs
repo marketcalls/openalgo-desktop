@@ -49,8 +49,8 @@ pub fn derivatives_exchange(exchange: &str) -> String {
 
 /// The contract lot size for a base or an exact symbol on an exchange, or
 /// `None` when it cannot be said (cash venue, no master, no match). Matched
-/// on `name` first, then on the symbol anchored at the root: `GOLD` must not
-/// borrow `GOLDM`'s lot size.
+/// on the underlying read from each contract's symbol first, then on the
+/// symbol anchored at the root: `GOLD` must not borrow `GOLDM`'s lot size.
 pub fn lot_size_for(g: &SymbolGeneration, symbol: &str, exchange: &str) -> Option<i64> {
     let venue = exchange.to_ascii_uppercase();
     if !DERIVATIVE_EXCHANGES.contains(&venue.as_str()) || symbol.is_empty() {
@@ -318,7 +318,11 @@ fn quote_target(
         let mut futs: Vec<(NaiveDate, String)> = g
             .rows()
             .iter()
-            .filter(|r| r.exchange == ex && r.instrument_type == "FUT" && r.name == base)
+            .filter(|r| {
+                r.exchange == ex
+                    && crate::brokers::common::underlying::type_matches(r, "FUT")
+                    && crate::brokers::common::underlying::is_derivative_of(r, base)
+            })
             .filter_map(|r| parse_oa_expiry(&r.expiry).map(|d| (d, r.symbol.clone())))
             .filter(|(d, _)| *d >= today)
             .collect();

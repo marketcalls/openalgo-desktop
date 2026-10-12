@@ -42,11 +42,19 @@ pub fn parse_underlying(underlying: &str) -> (String, Option<String>) {
     }
 }
 
-/// `DDMMMYY` -> date.
+/// `DDMMMYY` -> date (month in any case): exactly seven ASCII bytes, two
+/// digits, a month name and two digits, naming a real calendar day.
+/// Anything else, multibyte text included, is `None`; never a panic.
 pub fn parse_compact_expiry(e: &str) -> Option<NaiveDate> {
-    if e.len() != 7 {
+    let b = e.as_bytes();
+    if b.len() != 7
+        || !b[..2].iter().all(u8::is_ascii_digit)
+        || !b[2..5].iter().all(u8::is_ascii_alphabetic)
+        || !b[5..].iter().all(u8::is_ascii_digit)
+    {
         return None;
     }
+    // All seven bytes are ASCII, so these slices fall on char boundaries.
     let day: u32 = e[0..2].parse().ok()?;
     let mon = MONTHS
         .iter()
@@ -54,6 +62,53 @@ pub fn parse_compact_expiry(e: &str) -> Option<NaiveDate> {
         + 1;
     let yy: i32 = e[5..7].parse().ok()?;
     NaiveDate::from_ymd_opt(2000 + yy, mon, day)
+}
+
+/// An expiry a caller sent: upper-case `DDMMMYY` that names a real day.
+/// Every API, page and MCP boundary that takes an expiry reads it through
+/// [`Expiry::parse`] before any master or broker lookup.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Expiry {
+    compact: String,
+    date: NaiveDate,
+}
+
+impl Expiry {
+    /// Trimmed and upper-cased; `None` unless it is a valid `DDMMMYY`.
+    pub fn parse(raw: &str) -> Option<Self> {
+        let compact = raw.trim().to_ascii_uppercase();
+        let date = parse_compact_expiry(&compact)?;
+        Some(Self { compact, date })
+    }
+
+    /// `DDMMMYY`, upper case.
+    pub fn compact(&self) -> &str {
+        &self.compact
+    }
+
+    /// The master's `DD-MMM-YY`.
+    pub fn master(&self) -> String {
+        format!(
+            "{}-{}-{}",
+            &self.compact[..2],
+            &self.compact[2..5],
+            &self.compact[5..]
+        )
+    }
+
+    pub fn date(&self) -> NaiveDate {
+        self.date
+    }
+}
+
+/// `DDMMMYY` -> the master's `DD-MMM-YY` (web: by position). Text that is
+/// not seven ASCII characters comes back upper-cased and unchanged, so it
+/// matches no contract instead of splitting a character.
+pub fn master_expiry(expiry: &str) -> String {
+    match Expiry::parse(expiry) {
+        Some(e) => e.master(),
+        None => expiry.to_ascii_uppercase(),
+    }
 }
 
 /// Expiry cut-off time (IST) per exchange.
@@ -64,6 +119,31 @@ pub fn cutoff(exchange: &str) -> NaiveTime {
         _ => (15, 30),
     };
     NaiveTime::from_hms_opt(h, m, 0).unwrap_or_default()
+}
+
+/// The time on its expiry day until which a contract is still listed live
+/// in the option tools: the venue's expiry cut-off (IST). Delta Exchange
+/// settles crypto contracts at 12:00 UTC (17:30 IST, the product master's
+/// `settlement_time`); BSE currency options expire at 12:30 like CDS.
+fn listing_cutoff(exchange: &str) -> NaiveTime {
+    match exchange.to_ascii_uppercase().as_str() {
+        "CRYPTO" => NaiveTime::from_hms_opt(17, 30, 0).unwrap_or_default(),
+        "BCD" => cutoff("CDS"),
+        other => cutoff(other),
+    }
+}
+
+/// Whether a master expiry (`DD-MMM-YY`) is still live at `now`: before the
+/// venue's cut-off on its expiry day, so a contract expiring today stays
+/// listed until then. An unreadable date is never live.
+pub fn listed_live(expiry: &str, exchange: &str, now: DateTime<Utc>) -> bool {
+    let Some(d) = parse_oa_expiry(expiry) else {
+        return false;
+    };
+    Kolkata
+        .from_local_datetime(&NaiveDateTime::new(d, listing_cutoff(exchange)))
+        .single()
+        .is_some_and(|t| t.with_timezone(&Utc) > now)
 }
 
 /// Expiry instant: the date at the exchange cut-off, IST.
@@ -174,11 +254,7 @@ pub fn available_strikes(
     exchange: &str,
 ) -> Vec<f64> {
     // The web converts DDMMMYY to the DB's DD-MMM-YY by position.
-    let db_expiry = if expiry.len() >= 5 {
-        format!("{}-{}-{}", &expiry[..2], &expiry[2..5], &expiry[5..]).to_ascii_uppercase()
-    } else {
-        expiry.to_ascii_uppercase()
-    };
+    let db_expiry = master_expiry(expiry);
     let prefix = format!("{}{}", base, expiry.to_ascii_uppercase());
     let mut v: Vec<f64> = rows
         .iter()
@@ -267,6 +343,17 @@ impl ResolvedOption {
     }
 }
 
+/// Web `get_available_strikes` came back empty (404).
+fn no_strikes(base: &str, expiry: &str) -> Reply {
+    Reply::error(
+        404,
+        format!(
+            "No strikes found for {} expiring {}. Please check expiry date or update master contract.",
+            base, expiry
+        ),
+    )
+}
+
 /// Where the underlying is quoted and the expiry to use.
 struct Underlying {
     base: String,
@@ -301,6 +388,12 @@ fn resolve_underlying(
             },
         ));
     };
+    // An expiry that names no real DDMMMYY day matches no contract. Answer
+    // as the web does once its strike lookup comes back empty, but before
+    // any master or broker lookup (the web fetches the LTP first).
+    if parse_compact_expiry(&expiry).is_none() {
+        return Err(no_strikes(&base, &expiry));
+    }
     let qx = quote_exchange(&base, exchange);
     let ex_up = exchange.to_ascii_uppercase();
     let snap = ctx.symbols.snapshot();
@@ -427,10 +520,7 @@ pub async fn resolve_option(
         None => {
             let strikes = available_strikes(snap.rows(), &u.base, &u.expiry, &ot, &opt_ex);
             if strikes.is_empty() {
-                return Err(Reply::error(404, format!(
-                    "No strikes found for {} expiring {}. Please check expiry date or update master contract.",
-                    u.base, u.expiry
-                )));
+                return Err(no_strikes(&u.base, &u.expiry));
             }
             let Some(atm) = atm_index(&strikes, ltp) else {
                 return Err(Reply::error(
@@ -725,10 +815,7 @@ pub async fn option_chain(
     let snap = ctx.symbols.snapshot();
     let strikes = available_strikes(snap.rows(), &u.base, &u.expiry, "CE", &opt_ex);
     if strikes.is_empty() {
-        return Reply::error(404, format!(
-            "No strikes found for {} expiring {}. Please check expiry date or update master contract.",
-            u.base, u.expiry
-        ));
+        return no_strikes(&u.base, &u.expiry);
     }
     let Some(atm) = atm_index(&strikes, uq.ltp) else {
         return Reply::error(500, "Failed to determine ATM strike");
@@ -1546,5 +1633,87 @@ mod tests {
         let deep = calculate_greeks("X", "NFO", &c, 23000.0, 590.0, None, None, now);
         assert_eq!(deep.body["implied_volatility"], json!(0));
         assert_eq!(deep.body["greeks"]["delta"], json!(1.0));
+    }
+
+    /// TOOLS-06: an expiry is checked byte by byte before any slice, so
+    /// multibyte text is refused instead of splitting a character.
+    #[test]
+    fn expiry_parsing_refuses_what_is_not_a_real_ddmmmyy_day() {
+        for bad in [
+            "1\u{e9}CT26",
+            "30\u{d4}CT26",
+            "\u{ff13}0OCT26",
+            "30OCT2\u{e9}",
+            "",
+            "30OC",
+            "30OCT2026",
+            "30-OCT-26",
+            "31FEB26",
+            "29FEB27",
+            "00OCT26",
+            "32OCT26",
+            "30XYZ26",
+            "3OOCT26",
+        ] {
+            assert_eq!(parse_compact_expiry(bad), None, "{:?}", bad);
+            assert_eq!(Expiry::parse(bad), None, "{:?}", bad);
+            assert!(
+                available_strikes(&[], "NIFTY", bad, "CE", "NFO").is_empty(),
+                "{:?}",
+                bad
+            );
+            assert!(!listed_live(bad, "NFO", Utc::now()), "{:?}", bad);
+        }
+        assert_eq!(master_expiry("1\u{e9}ct26"), "1\u{e9}CT26");
+        let e = Expiry::parse(" 29feb28 ").unwrap();
+        assert_eq!(e.compact(), "29FEB28");
+        assert_eq!(e.master(), "29-FEB-28");
+        assert_eq!(e.date(), NaiveDate::from_ymd_opt(2028, 2, 29).unwrap());
+        assert_eq!(master_expiry("30oct26"), "30-OCT-26");
+        assert_eq!(
+            parse_compact_expiry("27Oct26"),
+            NaiveDate::from_ymd_opt(2026, 10, 27)
+        );
+    }
+
+    mod expiry_props {
+        use super::super::*;
+        use proptest::prelude::*;
+
+        proptest! {
+            /// No text, however malformed, panics an expiry helper; what
+            /// parses is seven ASCII bytes naming a real day, and it
+            /// round-trips through the master's `DD-MMM-YY`.
+            #[test]
+            fn expiry_helpers_never_panic(
+                s in prop_oneof![
+                    any::<String>(),
+                    "[0-9\u{e9}\u{ff13}]{2}[A-Za-z\u{e9}\u{d4}]{3}[0-9\u{e9}\n]{2}",
+                ]
+            ) {
+                let parsed = parse_compact_expiry(&s);
+                let _ = master_expiry(&s);
+                let _ = available_strikes(&[], "NIFTY", &s, "CE", "NFO");
+                let _ = expiry_datetime(&s, "NFO", None);
+                let _ = listed_live(&s, "MCX", Utc::now());
+                if let Some(d) = parsed {
+                    prop_assert!(s.len() == 7 && s.is_ascii());
+                    let e = Expiry::parse(&s).unwrap();
+                    prop_assert_eq!(e.date(), d);
+                    prop_assert_eq!(parse_oa_expiry(&e.master()), Some(d));
+                }
+            }
+
+            /// Every real day in DDMMMYY form parses to itself.
+            #[test]
+            fn every_real_day_parses(days in 0i64..36_500) {
+                let d = NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()
+                    + chrono::Duration::days(days);
+                let compact = crate::brokers::common::master_contract::format_expiry(d)
+                    .replace('-', "");
+                prop_assert_eq!(parse_compact_expiry(&compact), Some(d));
+                prop_assert_eq!(Expiry::parse(&compact).map(|e| e.date()), Some(d));
+            }
+        }
     }
 }

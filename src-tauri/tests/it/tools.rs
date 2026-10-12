@@ -488,6 +488,136 @@ async fn history_tools_validate_like_the_web() {
     assert!(h.calls(|c| matches!(c, MockCall::History(_))) == 0);
 }
 
+/// Expiries that are not a real `DDMMMYY` day: multibyte (one split a
+/// character in the strike lookup and panicked the request), short, long,
+/// control characters, embedded or trailing text, impossible days.
+const BAD_EXPIRIES: &[&str] = &[
+    "1\u{e9}CT26",
+    "\u{e9}0OCT26",
+    "30OCT2\u{e9}",
+    "30\u{d4}CT26",
+    "\u{ff13}0OCT26",
+    "30OC",
+    "3",
+    "30OCT2026",
+    "30OCT26X",
+    "30OCT26\n1",
+    "30\u{7}CT26",
+    "30 OCT26",
+    "30-OC-26",
+    "31FEB26",
+    "29FEB27",
+    "00OCT26",
+    "32OCT26",
+    "30XYZ26",
+];
+
+fn query_escape(s: &str) -> String {
+    s.bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() {
+                (b as char).to_string()
+            } else {
+                format!("%{:02X}", b)
+            }
+        })
+        .collect()
+}
+
+/// TOOLS-06/T16: every option, history, scalping and public options route
+/// refuses such an expiry with its documented answer before any master or
+/// broker lookup, sends nothing to the broker, and keeps serving. MCP's
+/// option tools post to the same `/api/v1` handlers.
+#[tokio::test]
+async fn malformed_expiries_are_refused_before_any_broker_request() {
+    use openalgo_desktop_lib::services::apikey_service::ApiKeyService;
+    let h = H::new(true);
+    let key = ApiKeyService::current(&h.ctx)
+        .unwrap()
+        .unwrap()
+        .expose()
+        .to_string();
+    let bad_format =
+        json!({"status": "error", "message": "Invalid expiry_date format. Expected DDMMMYY"});
+    for x in BAD_EXPIRIES {
+        let body = json!({"underlying": "NIFTY", "exchange": "NFO", "expiry_date": x});
+        for p in [
+            "/oitracker/api/oi-data",
+            "/oitracker/api/maxpain",
+            "/gex/api/gex-data",
+            "/ivsmile/api/iv-smile-data",
+            "/gammadensity/api/gamma-data",
+            "/oiprofile/api/profile-data",
+            "/ivchart/api/iv-data",
+            "/ivchart/api/default-symbols",
+            "/straddle/api/straddle-data",
+            "/straddlepnl/api/simulate",
+        ] {
+            let (s, v) = h.post(p, body.clone()).await;
+            assert_eq!(s, StatusCode::BAD_REQUEST, "{} {:?}", p, x);
+            assert_eq!(v, bad_format, "{} {:?}", p, x);
+        }
+        let (s, v) = h
+            .post(
+                "/volsurface/api/surface-data",
+                json!({"underlying": "NIFTY", "exchange": "NFO", "expiry_dates": ["30OCT26", x]}),
+            )
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "volsurface {:?}", x);
+        assert_eq!(v, bad_format, "volsurface {:?}", x);
+        let (s, v) = h
+            .get(&format!(
+                "/scalping/api/strikes?underlying=NIFTY&exchange=NFO&expiry={}",
+                query_escape(x)
+            ))
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "scalping {:?} {}", x, v);
+        // The public API answers as the web does for a date no contract
+        // has (its strike lookup comes back empty), without the LTP fetch
+        // the web makes first.
+        let no_strikes = format!(
+            "No strikes found for NIFTY expiring {}. Please check expiry date or update master contract.",
+            x
+        );
+        for (p, mut b) in [
+            (
+                "/api/v1/optionchain",
+                json!({"underlying": "NIFTY", "exchange": "NSE_INDEX", "expiry_date": x}),
+            ),
+            (
+                "/api/v1/optionsymbol",
+                json!({"underlying": "NIFTY", "exchange": "NSE_INDEX", "expiry_date": x, "offset": "ATM", "option_type": "CE"}),
+            ),
+            (
+                "/api/v1/syntheticfuture",
+                json!({"underlying": "NIFTY", "exchange": "NSE_INDEX", "expiry_date": x}),
+            ),
+        ] {
+            b["apikey"] = json!(key);
+            let (s, v) = h.post(p, b).await;
+            assert_eq!(s, StatusCode::NOT_FOUND, "{} {:?} {}", p, x, v);
+            assert_eq!(v["status"], "error", "{} {:?}", p, x);
+            assert_eq!(v["message"], no_strikes.as_str(), "{} {:?}", p, x);
+        }
+    }
+    assert!(
+        h.mock.calls().is_empty(),
+        "a refused expiry reached the broker: {:?}",
+        h.mock.calls()
+    );
+    // Still serving, and a real leap day is a valid expiry (not refused
+    // for its format).
+    let (s, _) = h.post("/oitracker/api/oi-data", nifty()).await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, v) = h
+        .post(
+            "/ivchart/api/default-symbols",
+            json!({"underlying": "NIFTY", "exchange": "NFO", "expiry_date": "29feb28"}),
+        )
+        .await;
+    assert_ne!(v, bad_format);
+}
+
 #[tokio::test]
 async fn tools_ask_for_a_broker_connection_first() {
     let h = H::new(false);

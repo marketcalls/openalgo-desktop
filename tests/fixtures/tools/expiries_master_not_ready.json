@@ -1,0 +1,6 @@
+{
+  "status": "error",
+  "message": "Expiry dates are not available until the master contract is loaded. Open Master Contract to download it, then retry.",
+  "master_ready": false,
+  "expiries": []
+}

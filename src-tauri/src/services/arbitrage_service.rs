@@ -3,8 +3,10 @@
 //! pairs. A pure master-contract read; live prices come from the feed.
 
 use super::core::{float, Reply};
+use super::options_service::listed_live;
 use crate::brokers::common::master_contract::parse_oa_expiry;
 use crate::brokers::common::symbols::SymToken;
+use crate::brokers::common::underlying::row_underlying;
 use chrono::{DateTime, NaiveDate, Utc};
 use chrono_tz::Asia::Kolkata;
 use serde_json::{json, Value};
@@ -24,20 +26,29 @@ fn leg(r: &SymToken) -> Value {
     })
 }
 
-/// Per underlying (in first-seen order), its futures nearest first, at
-/// most [`MAX_LEGS`]. Unparseable expiries sort last.
-fn nearest_futures<'a>(rows: &'a [SymToken], exchange: &str) -> Vec<(String, Vec<&'a SymToken>)> {
+/// Per underlying (in first-seen order), its live futures nearest first,
+/// at most [`MAX_LEGS`]. The underlying is read from the contract's
+/// symbol, not the broker's `name` text (a description on Fyers, where
+/// grouping by it left every future alone and the universe empty); an
+/// expired or unreadable expiry is not a leg.
+fn nearest_futures<'a>(
+    rows: &'a [SymToken],
+    exchange: &str,
+    now: DateTime<Utc>,
+) -> Vec<(String, Vec<&'a SymToken>)> {
     let mut order: Vec<String> = Vec::new();
     let mut groups: HashMap<String, Vec<&'a SymToken>> = HashMap::new();
     for r in rows.iter().filter(|r| r.exchange == exchange) {
         if !r.symbol.to_ascii_uppercase().ends_with("FUT")
-            || r.name.is_empty()
-            || r.expiry.is_empty()
+            || !listed_live(&r.expiry, &r.exchange, now)
         {
             continue;
         }
-        let g = groups.entry(r.name.clone()).or_insert_with(|| {
-            order.push(r.name.clone());
+        let Some(underlying) = row_underlying(r) else {
+            continue;
+        };
+        let g = groups.entry(underlying.clone()).or_insert_with(|| {
+            order.push(underlying);
             Vec::new()
         });
         let sym = r.symbol.to_ascii_uppercase();
@@ -95,7 +106,7 @@ pub fn universe(rows: &[SymToken], exchanges: &[String], now: DateTime<Utc>) -> 
     let mut seen: Vec<String> = Vec::new();
     let mut underlyings = 0;
     for ex in &scan {
-        for (name, c) in nearest_futures(rows, ex) {
+        for (name, c) in nearest_futures(rows, ex, now) {
             if c.len() < 2 {
                 continue;
             }
@@ -173,7 +184,7 @@ mod tests {
         let r = universe(
             &rows,
             &["nfo".into(), "MCX".into(), "XYZ".into()],
-            Utc::now(),
+            ist_noon_12_oct(),
         );
         assert_eq!(r.status, 200);
         let d = &r.body["data"];
@@ -191,6 +202,42 @@ mod tests {
             r.body["message"],
             "Found 3 calendar pairs across 5 futures in NFO, MCX"
         );
+    }
+
+    fn ist_noon_12_oct() -> DateTime<Utc> {
+        use chrono::TimeZone;
+        Kolkata
+            .with_ymd_and_hms(2026, 10, 12, 12, 0, 0)
+            .single()
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    /// TOOLS-01: Fyers names every future by its description, so grouping
+    /// by `name` paired nothing. The symbol decides; an expired future is
+    /// never the near leg.
+    #[test]
+    fn pairs_futures_by_the_underlying_in_their_symbol() {
+        let mut rows = vec![
+            fut("NIFTY", "NFO", "27-OCT-26"),
+            fut("NIFTY", "NFO", "24-NOV-26"),
+            fut("NIFTY", "NFO", "29-SEP-26"),
+            fut("NIFTYNXT50", "NFO", "27-OCT-26"),
+            fut("NIFTYNXT50", "NFO", "24-NOV-26"),
+        ];
+        for r in &mut rows {
+            r.name = format!("{} {} FUT", r.name, r.expiry);
+        }
+        let r = universe(&rows, &["NFO".into()], ist_noon_12_oct());
+        let d = &r.body["data"];
+        assert_eq!(
+            d["counts"],
+            json!({"underlyings": 2, "pairs": 2, "symbols": 4})
+        );
+        assert_eq!(d["pairs"][0]["id"], "NFO:NIFTY:near-next");
+        assert_eq!(d["pairs"][0]["near"]["symbol"], "NIFTY27OCT26FUT");
+        assert_eq!(d["pairs"][0]["far"]["symbol"], "NIFTY24NOV26FUT");
+        assert_eq!(d["pairs"][1]["underlying"], "NIFTYNXT50");
     }
 
     #[test]

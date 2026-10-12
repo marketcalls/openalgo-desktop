@@ -16,6 +16,7 @@ pub mod redact;
 pub mod relay;
 pub mod streaming;
 pub mod symbols;
+pub mod underlying;
 
 pub use mapping::{Action, Exchange, InvalidConstant, OrderStatus, PriceType, Product, Validity};
 pub use streaming::{

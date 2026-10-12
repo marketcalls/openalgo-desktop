@@ -6,6 +6,7 @@
 use super::core::{float, Reply};
 use crate::brokers::common::master_contract::parse_oa_expiry;
 use crate::brokers::common::symbols::SymToken;
+use crate::brokers::common::underlying::is_derivative_of;
 use crate::state::AppState;
 use chrono::NaiveDate;
 use serde_json::{json, Value};
@@ -238,21 +239,9 @@ fn type_filter(exchange: &str, futures: bool) -> Option<&'static [&'static str]>
     }
 }
 
-/// `SYMBOL` followed by `DDMMMYY`.
-fn has_date_after(sym: &str, base: &str) -> bool {
-    let Some(rest) = sym.strip_prefix(base) else {
-        return false;
-    };
-    let b = rest.as_bytes();
-    b.len() >= 7
-        && b[0].is_ascii_digit()
-        && b[1].is_ascii_digit()
-        && b[2..5].iter().all(u8::is_ascii_uppercase)
-        && b[5].is_ascii_digit()
-        && b[6].is_ascii_digit()
-}
-
 /// Distinct expiries for an underlying, today or later, earliest first.
+/// A contract belongs to the underlying read from its symbol (the web's
+/// `^SYMBOL DDMMMYY` match), the same identity the pages' discovery uses.
 pub fn expiry_dates(
     rows: &[SymToken],
     symbol: &str,
@@ -262,16 +251,12 @@ pub fn expiry_dates(
 ) -> Vec<String> {
     let base = symbol.trim().to_ascii_uppercase();
     let filter = type_filter(exchange, futures);
-    let candidates: Vec<&SymToken> = rows
+    let mut seen: Vec<String> = Vec::new();
+    for r in rows
         .iter()
         .filter(|r| r.exchange == exchange && !r.expiry.is_empty())
-        .filter(|r| r.symbol.to_ascii_uppercase().starts_with(&base))
         .filter(|r| filter.is_none_or(|f| f.contains(&r.instrument_type.as_str())))
-        .collect();
-    let mut seen: Vec<String> = Vec::new();
-    for r in candidates
-        .iter()
-        .filter(|r| has_date_after(&r.symbol.to_ascii_uppercase(), &base))
+        .filter(|r| is_derivative_of(r, &base))
     {
         if !seen.contains(&r.expiry) {
             seen.push(r.expiry.clone());

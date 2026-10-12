@@ -315,13 +315,12 @@ pub fn all_underlyings(ctx: &AppState, exchange: &str, instrumenttype: &str) -> 
         instrumenttype.trim().to_lowercase()
     };
     let include_futures = it == "futures" || exchange == "MCX" || exchange == "CDS";
-    let today = crate::services::options_service::today_ist(ctx);
     let snap = ctx.symbols.snapshot();
     let names = crate::services::search_ui_service::underlyings(
         snap.rows(),
         Some(&exchange),
         include_futures,
-        today,
+        ctx.now(),
     );
     let is_index =
         |u: &str| NSE_INDEX_UNDERLYINGS.contains(&u) || BSE_INDEX_UNDERLYINGS.contains(&u);
@@ -385,6 +384,10 @@ pub async fn strikes(
     if expiry.is_empty() {
         return err(400, "expiry parameter is required");
     }
+    // A real DDMMMYY day before any master or broker lookup.
+    if crate::services::options_service::Expiry::parse(&expiry).is_none() {
+        return err(400, "Invalid expiry format. Expected DDMMMYY");
+    }
     let count = strike_count
         .and_then(|s| s.trim().parse::<i64>().ok())
         .unwrap_or(10)
@@ -428,11 +431,14 @@ async fn mcx_cds_chain(
     expiry: &str,
     count: i64,
 ) -> Reply {
+    use crate::brokers::common::underlying::{is_derivative_of, type_matches};
     let snap = ctx.symbols.snapshot();
     let mut futs: Vec<&SymToken> = snap
         .rows()
         .iter()
-        .filter(|r| r.exchange == exchange && r.name == underlying && r.instrument_type == "FUT")
+        .filter(|r| {
+            r.exchange == exchange && is_derivative_of(r, underlying) && type_matches(r, "FUT")
+        })
         .collect();
     futs.sort_by_key(|r| parse_expiry(&r.expiry));
     let Some(fut) = futs.first() else {
@@ -459,14 +465,14 @@ async fn mcx_cds_chain(
     let mut by_strike: BTreeMap<i64, (f64, Option<&SymToken>, Option<&SymToken>)> = BTreeMap::new();
     for r in snap.rows().iter().filter(|r| {
         r.exchange == exchange
-            && r.name == underlying
-            && (r.instrument_type == "CE" || r.instrument_type == "PE")
+            && is_derivative_of(r, underlying)
+            && (type_matches(r, "CE") || type_matches(r, "PE"))
             && normalize_expiry(&r.expiry) == expiry
     }) {
         // Strikes keyed exactly (to the paisa) so float noise cannot split one.
         let k = (r.strike * 100.0).round() as i64;
         let e = by_strike.entry(k).or_insert((r.strike, None, None));
-        if r.instrument_type == "CE" {
+        if type_matches(r, "CE") {
             e.1 = Some(r);
         } else {
             e.2 = Some(r);
@@ -536,11 +542,14 @@ pub fn futures(ctx: &AppState, underlying: &str, exchange: &str) -> Reply {
     if !LEG_EXCHANGES.contains(&exchange.as_str()) {
         return err(400, format!("Invalid exchange: {}", exchange));
     }
+    use crate::brokers::common::underlying::{is_derivative_of, type_matches};
     let snap = ctx.symbols.snapshot();
     let mut rows: Vec<&SymToken> = snap
         .rows()
         .iter()
-        .filter(|r| r.exchange == exchange && r.name == underlying && r.instrument_type == "FUT")
+        .filter(|r| {
+            r.exchange == exchange && is_derivative_of(r, &underlying) && type_matches(r, "FUT")
+        })
         .collect();
     rows.sort_by_key(|r| parse_expiry(&r.expiry));
     let data: Vec<Value> = rows

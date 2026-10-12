@@ -227,11 +227,7 @@ pub fn strategy_reference(
 
 /// `DDMMMYY` -> the master's `DD-MMM-YY`.
 pub fn db_expiry(expiry: &str) -> String {
-    if expiry.len() >= 5 {
-        format!("{}-{}-{}", &expiry[..2], &expiry[2..5], &expiry[5..]).to_ascii_uppercase()
-    } else {
-        expiry.to_ascii_uppercase()
-    }
+    super::options_service::master_expiry(expiry)
 }
 
 /// Web `_find_futures_symbol` / `_get_nearest_futures_price` lookup: the

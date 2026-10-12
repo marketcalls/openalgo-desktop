@@ -10,6 +10,7 @@ use crate::server::routes::webui::{ok, JsonBody};
 use crate::services::apikey_service::ApiKeyService;
 use crate::services::chain_tools_service as chain;
 use crate::services::history_tools_service::{self as hist, ChartRequest, SimParams};
+use crate::services::options_service::Expiry;
 use crate::services::{arbitrage_service, market_data_service};
 use crate::state::AppState;
 use axum::{
@@ -69,12 +70,27 @@ fn upper_alnum(s: &str, underscore: bool) -> bool {
             .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || (underscore && c == b'_'))
 }
 
+/// Web `^\d{2}[A-Z]{3}\d{2}$`, and a real calendar day (the web lets
+/// `31FEB26` through to an empty lookup).
 fn is_ddmmmyy(s: &str) -> bool {
     let b = s.as_bytes();
     b.len() == 7
         && b[..2].iter().all(u8::is_ascii_digit)
         && b[2..5].iter().all(u8::is_ascii_uppercase)
         && b[5..].iter().all(u8::is_ascii_digit)
+        && Expiry::parse(s).is_some()
+}
+
+pub const BAD_EXPIRY: &str = "Invalid expiry_date format. Expected DDMMMYY";
+
+/// A history tool's expiry, checked before any master or broker lookup
+/// (the web passes it on unchecked; a multibyte one split a character in
+/// the strike lookup). Upper-cased like the chain tools'.
+#[allow(clippy::result_large_err)]
+fn history_expiry(raw: &str) -> Result<String, Response> {
+    Expiry::parse(raw)
+        .map(|e| e.compact().to_string())
+        .ok_or_else(|| error(StatusCode::BAD_REQUEST, BAD_EXPIRY))
 }
 
 /// The chain tools' shared request: underlying (20), exchange (20) and a
@@ -96,10 +112,7 @@ fn chain_request(b: &JsonBody) -> Result<(String, String, String), Response> {
         return Err(error(StatusCode::BAD_REQUEST, "Invalid input format"));
     }
     if !is_ddmmmyy(&x) {
-        return Err(error(
-            StatusCode::BAD_REQUEST,
-            "Invalid expiry_date format. Expected DDMMMYY",
-        ));
+        return Err(error(StatusCode::BAD_REQUEST, BAD_EXPIRY));
     }
     Ok((u, e, x))
 }
@@ -223,7 +236,8 @@ pub async fn all_intervals(State(ctx): Ctx) -> Response {
     }
 }
 
-/// Underlying, exchange, expiry of the history tools (no format rules).
+/// Underlying, exchange, expiry of the history tools; the expiry must be a
+/// real `DDMMMYY` day.
 #[allow(clippy::result_large_err)]
 fn history_prologue(ctx: &AppState, b: &JsonBody) -> Result<(String, String, String), Response> {
     if let Some(r) = need_broker(ctx) {
@@ -243,7 +257,7 @@ fn history_prologue(ctx: &AppState, b: &JsonBody) -> Result<(String, String, Str
             "underlying, exchange, and expiry_date are required",
         ));
     }
-    Ok((u, e, x))
+    Ok((u, e, history_expiry(&x)?))
 }
 
 fn interval_or(b: &JsonBody, default: &str) -> String {
@@ -289,6 +303,10 @@ pub async fn default_symbols(State(ctx): Ctx, body: JsonBody) -> Response {
             "underlying, exchange, and expiry_date are required",
         );
     }
+    let x = match history_expiry(&x) {
+        Ok(x) => x,
+        Err(r) => return r,
+    };
     if let Some(r) = need_broker(&ctx) {
         return r;
     }
@@ -397,6 +415,14 @@ pub async fn surface_data(State(ctx): Ctx, body: JsonBody) -> Response {
                 "expiry_dates must be a non-empty list",
             )
         }
+    };
+    let expiries = match expiries
+        .iter()
+        .map(|x| history_expiry(x))
+        .collect::<Result<Vec<String>, Response>>()
+    {
+        Ok(v) => v,
+        Err(r) => return r,
     };
     send(hist::vol_surface(&ctx, &u, &e, &expiries, strike_count).await)
 }

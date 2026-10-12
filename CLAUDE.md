@@ -621,6 +621,33 @@ and add each new one here.
   MIS sweep and no leftover-MIS settlement at the 03:00 boundary touches a
   crypto position.
 
+### Symbol master and the option tools
+
+- **The master's `name` column is not an identity.** Brokers fill it
+  differently: Fyers stores the contract description (`NIFTY 13 Oct 26
+  25000 CE`), Upstox a company name (`VEDANTA LIMITED`), Shoonya and Zebu
+  BFO the leading letters (`SENSEX` for SENSEX50, `M` for M&M). Comparing
+  it with an underlying left the Option Chain without expiries on Fyers
+  (October 2026). Expiry, chain, futures and calendar lookups key on
+  `brokers::common::underlying` (`row_underlying`, `is_derivative_of`,
+  `contract_kind`): the underlying read from the canonical symbol, else the
+  `name` the symbol starts with (AliceBlue futures carry no `DDMMMYY`).
+  `name` is for display and text search only. The web compares `name`
+  (`database/symbol.py`, `blueprints/scalping.py`,
+  `services/arbitrage_service.py`) and needs the same fix: a recorded
+  deviation.
+- **A live dropdown lists live contracts only.** `/search/api/expiries`,
+  typed or not, drops expired and unreadable dates at the venue's cut-off
+  (`options_service::listed_live`); the web keeps expired dates on the
+  typed path and its pages then select a dead expiry. A tool that needs
+  expired contracts asks for them deliberately, never through this lookup.
+  With no master loaded it answers `master_ready: false`, and the tool
+  pages show every outcome with Retry (`useExpiryLookup`).
+- **Never slice an expiry before checking it.** A multibyte `expiry_date`
+  split a character in `&expiry[..2]` and panicked the request. Read it
+  through `options_service::Expiry::parse` or `parse_compact_expiry`, at
+  every API, page and MCP boundary, before any master or broker lookup.
+
 ### Security work
 
 - **Broker sessions change under one lock.** Completing a sign-in, resuming

@@ -69,13 +69,16 @@ impl SymToken {
 #[derive(Debug, Clone, Default)]
 pub struct ContractQuery<'a> {
     pub exchange: &'a str,
-    /// Underlying (`name` column), exact match.
+    /// Underlying, exact match: on an F&O venue the one read from the
+    /// canonical symbol (`underlying::extract_underlying`), never the
+    /// broker's `name` text; elsewhere the `name` column.
     pub underlying: &'a str,
     /// `DD-MMM-YY`; `None` matches every expiry.
     pub expiry: Option<&'a str>,
     /// Exact strike; `None` matches every strike.
     pub strike: Option<f64>,
-    /// `FUT`, `CE`, `PE`, ...; `None` matches all.
+    /// `FUT`, `CE`, `PE` (read from the symbol), or another
+    /// `instrumenttype` value matched exactly; `None` matches all.
     pub instrument_type: Option<&'a str>,
 }
 
@@ -129,9 +132,15 @@ impl SymbolGeneration {
             by_brsymbol
                 .entry(key(&row.exchange, row.br_symbol()))
                 .or_insert(i);
-            if !row.name.is_empty() {
+            // F&O rows by the underlying in their symbol: `name` is a
+            // description on some masters (Fyers) and must not decide
+            // which contracts belong to an underlying. Rows without a
+            // dated symbol (cash, indices) keep `name`.
+            let identity = super::underlying::row_underlying(row)
+                .or_else(|| (!row.name.is_empty()).then(|| row.name.clone()));
+            if let Some(u) = identity {
                 by_underlying
-                    .entry(key(&row.exchange, &row.name))
+                    .entry(key(&row.exchange, &u))
                     .or_default()
                     .push(i);
             }
@@ -257,7 +266,10 @@ impl SymbolGeneration {
             .map(|i| &self.rows[*i as usize])
             .filter(|r| q.expiry.is_none_or(|e| r.expiry == e))
             .filter(|r| q.strike.is_none_or(|s| (r.strike - s).abs() < 1e-9))
-            .filter(|r| q.instrument_type.is_none_or(|t| r.instrument_type == t))
+            .filter(|r| {
+                q.instrument_type
+                    .is_none_or(|t| super::underlying::type_matches(r, t))
+            })
             .collect()
     }
 
@@ -298,7 +310,10 @@ impl SymbolGeneration {
         let mut v: Vec<f64> = self
             .contracts(&q)
             .into_iter()
-            .filter(|r| r.instrument_type == "CE" || r.instrument_type == "PE")
+            .filter(|r| {
+                super::underlying::contract_kind(&r.symbol)
+                    .is_some_and(super::underlying::ContractKind::is_option)
+            })
             .map(|r| r.strike)
             .collect();
         v.sort_by(|a, b| a.total_cmp(b));

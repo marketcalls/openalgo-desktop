@@ -93,6 +93,7 @@ mod scalping;
 mod soak;
 mod strategy;
 mod tools;
+mod tools_discovery;
 mod trading_files;
 mod trading_runner;
 mod webui2;
