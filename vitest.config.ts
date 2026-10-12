@@ -28,44 +28,50 @@ export default defineConfig({
       // executable helpers (strategy_module.ts, option-chain.ts), and the
       // rest are type-only, which adds nothing to either side of the ratio.
       exclude: ['node_modules/', 'src/test/', '**/*.d.ts', '**/*.config.*'],
-      // Desktop: a ratchet, set half a point under the coverage measured on
-      // 2026-10-12 (rounded down), so CI fails when it drops. Raise these as
-      // coverage rises; never lower one, and never exclude a file to meet it.
-      // The trading areas have floors of their own, so a drop there cannot
-      // hide behind a rise elsewhere.
+      // Desktop: a ratchet, so CI fails when coverage drops. Set from what
+      // CI itself measured on 2026-10-12 (PR #42, run 38272962752), rounded
+      // down: the totals and directories 1 point under it, the trading
+      // areas 2 points under the lowest of CI's Node 22 run and a Node 24
+      // run. V8's counts move by up to about a point between Node versions
+      // and runs on these small groups (functions on the book pages: 48.55
+      // on Node 22, 47.82 on CI's Node 24), and a floor at the measured
+      // value fails at random. Raise these as coverage rises; never lower
+      // one, and never exclude a file to meet it. The trading areas have
+      // floors of their own, so a drop there cannot hide behind a rise
+      // elsewhere.
       thresholds: {
         lines: 54,
         statements: 53,
-        functions: 49,
+        functions: 48,
         branches: 48,
-        'src/lib/**': { lines: 82, statements: 79, functions: 83, branches: 72 },
-        'src/stores/**': { lines: 32, statements: 32, functions: 40, branches: 22 },
-        'src/hooks/**': { lines: 72, statements: 71, functions: 70, branches: 59 },
-        'src/types/**': { lines: 92, statements: 90, functions: 93, branches: 84 },
+        'src/lib/**': { lines: 82, statements: 78, functions: 82, branches: 72 },
+        'src/stores/**': { lines: 31, statements: 31, functions: 39, branches: 21 },
+        'src/hooks/**': { lines: 72, statements: 70, functions: 70, branches: 58 },
+        'src/types/**': { lines: 92, statements: 90, functions: 92, branches: 83 },
         // Orders: the book pages, order entry and the terminal's order dock.
         'src/pages/{OrderBook,TradeBook,Positions}.tsx': {
-          lines: 52,
-          statements: 50,
-          functions: 48,
-          branches: 42,
+          lines: 51,
+          statements: 49,
+          functions: 46,
+          branches: 41,
         },
         'src/components/trading/{PlaceOrderDialog,ExecuteBasketDialog,GttTab,dock/*}.{ts,tsx}': {
-          lines: 57,
-          statements: 55,
-          functions: 47,
-          branches: 51,
+          lines: 55,
+          statements: 53,
+          functions: 45,
+          branches: 49,
         },
         // Strategies: the strategy module and the strategy builder.
         'src/{pages/strategy/*,api/strategy_module,types/strategy_module,lib/trading/strategy*}.{ts,tsx}':
-          { lines: 57, statements: 56, functions: 46, branches: 44 },
+          { lines: 55, statements: 54, functions: 45, branches: 43 },
         'src/{pages/StrategyBuilder,components/strategy-builder/*,lib/strategyMath,lib/strategyTemplates}.{ts,tsx}':
-          { lines: 88, statements: 86, functions: 82, branches: 78 },
+          { lines: 87, statements: 84, functions: 81, branches: 77 },
         // Scalping and its protection (stop-loss, target, trailing).
         'src/{pages/Scalping,components/scalping/*,hooks/useTrailingSL,lib/scalping*,api/scalping}.{ts,tsx}':
-          { lines: 9, statements: 8, functions: 3, branches: 11 },
+          { lines: 7, statements: 7, functions: 1, branches: 9 },
         // Broker connection pages.
         'src/{pages/BrokerSelect,pages/BrokerTOTP,components/auth/Broker*,stores/brokerStore}.{ts,tsx}':
-          { lines: 59, statements: 59, functions: 70, branches: 57 },
+          { lines: 58, statements: 58, functions: 69, branches: 56 },
       },
     },
     css: true,
