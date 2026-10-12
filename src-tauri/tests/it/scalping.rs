@@ -1063,3 +1063,53 @@ async fn post_sl_reaches_the_running_monitor() {
     assert_eq!(mon.task_count(), 0, "app shutdown stops the monitor");
     assert!(mon.subscribed().is_empty());
 }
+
+/// LOG-09: the side an entry goes to is decided once, before it is sent,
+/// and the scalping list names that side. Read again after the order came
+/// back, a toggle flipped while it was in flight tagged a live entry as a
+/// sandbox one, so the live list (and Close All) lost it.
+#[tokio::test]
+async fn an_entry_is_tracked_on_the_side_it_was_sent_to() {
+    let h = H::new().await;
+    let (cookie, csrf) = session(&h);
+    let gate = Arc::new(openalgo_desktop_lib::brokers::mock::PlaceGate::default());
+    *h.mock.place_gate.lock() = Some(gate.clone());
+    let body = json!({"symbol": OPT, "exchange": "NFO", "action": "BUY", "product": "NRML", "quantity": 130, "lots": 2});
+    let flip = async {
+        // The order is at the broker: the trader switches to analyzer mode.
+        gate.entered.notified().await;
+        h.analyze(true);
+        gate.release.notify_one();
+    };
+    let ((s, b), ()) = tokio::join!(
+        call(
+            &h,
+            req(
+                Method::POST,
+                "/scalping/api/order",
+                Some(body),
+                Some(&cookie),
+                Some(&csrf),
+            ),
+        ),
+        flip
+    );
+    assert_eq!(s, StatusCode::OK, "{}", b);
+    assert_eq!(placed(&h), vec![("BUY".to_string(), 130)], "it went live");
+    h.analyze(false);
+    let (_, b) = call(
+        &h,
+        req(
+            Method::GET,
+            "/scalping/api/tracked",
+            None,
+            Some(&cookie),
+            None,
+        ),
+    )
+    .await;
+    assert_eq!(
+        b["data"],
+        json!([{"symbol": OPT, "exchange": "NFO", "product": "NRML", "mode": "live"}])
+    );
+}

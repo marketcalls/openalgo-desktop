@@ -333,6 +333,19 @@ pub async fn place_order_with(ctx: &AppState, req: &Value, route: Route, emit: b
         Ok(a) => a,
         Err(r) => return r,
     };
+    place_order_decided(ctx, req, route, analyze, emit).await
+}
+
+/// `placeorder` to a destination the caller decided once (`analyze`: the
+/// sandbox), so what it records beside the order names the side the order
+/// really went to, whatever the toggle does while it is in flight.
+pub async fn place_order_decided(
+    ctx: &AppState,
+    req: &Value,
+    route: Route,
+    analyze: bool,
+    emit: bool,
+) -> Reply {
     if let Some(r) = route_to_pending(ctx, "placeorder", req, route)
         .or_else(|| fractional_refusal_for(req, analyze))
     {

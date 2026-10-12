@@ -11,7 +11,7 @@
 use super::monitor::{exit_chunk, LEG_EXCHANGES, MAX_LOTS, SCALPING_STRATEGY};
 use super::store::{SlUpsert, MODE_ANALYZE, MODE_LIVE};
 use crate::brokers::common::symbols::SymToken;
-use crate::services::core::{broker_handle, is_analyze, Reply};
+use crate::services::core::{analyze_mode, broker_handle, Reply};
 use crate::services::order_service::Route;
 use crate::state::AppState;
 use chrono::{NaiveDate, TimeZone, Utc};
@@ -68,13 +68,20 @@ fn err(status: u16, msg: impl Into<String>) -> Reply {
     Reply::error(status, msg)
 }
 
-/// `analyze` or `live`: segregates the list and the stops by mode.
-pub fn current_mode(ctx: &AppState) -> &'static str {
-    if is_analyze(ctx) {
+/// `analyze` or `live` for a side already decided (`analyze`: the sandbox).
+pub fn mode_name(analyze: bool) -> &'static str {
+    if analyze {
         MODE_ANALYZE
     } else {
         MODE_LIVE
     }
+}
+
+/// `analyze` or `live`: segregates the list and the stops by mode. Read
+/// once per request, and the refusal when it cannot be read: never taken as
+/// live (LOG-09).
+pub fn current_mode(ctx: &AppState) -> Result<&'static str, Reply> {
+    analyze_mode(ctx).map(mode_name)
 }
 
 /// `(data.get(k) or "").strip()`.
@@ -676,9 +683,23 @@ pub async fn place(ctx: &AppState, body: &Map<String, Value>) -> Reply {
         "trigger_price": 0,
         "disclosed_quantity": 0,
     });
-    let r = crate::services::order_service::place_order(ctx, &req, Route::INTERNAL).await;
+    // The side is decided once, before the order goes out, and the list row
+    // names that side: read after the await, a toggle flipped while the
+    // order was in flight tagged a live entry as a sandbox one (LOG-09).
+    let analyze = match analyze_mode(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    let r = crate::services::order_service::place_order_decided(
+        ctx,
+        &req,
+        Route::INTERNAL,
+        analyze,
+        true,
+    )
+    .await;
     if accepted(&r) {
-        let mode = current_mode(ctx);
+        let mode = mode_name(analyze);
         if let Err(e) = ctx
             .scalping
             .store
@@ -690,9 +711,11 @@ pub async fn place(ctx: &AppState, body: &Map<String, Value>) -> Reply {
     r
 }
 
-/// The freeze-safe, whole-lot risk-reducing exit (web `_reducing_exit`).
+/// The freeze-safe, whole-lot risk-reducing exit (web `_reducing_exit`), to
+/// the side the caller decided (`analyze`: the sandbox).
 pub async fn reducing_exit(
     ctx: &AppState,
+    analyze: bool,
     symbol: &str,
     exchange: &str,
     product: &str,
@@ -714,7 +737,13 @@ pub async fn reducing_exit(
             "pricetype": "MARKET",
             "product": product,
         });
-        return crate::services::batch_order_service::split_order(ctx, &req, Route::INTERNAL).await;
+        return crate::services::batch_order_service::split_order_decided(
+            ctx,
+            &req,
+            Route::INTERNAL,
+            analyze,
+        )
+        .await;
     }
     let req = json!({
         "strategy": SCALPING_STRATEGY,
@@ -728,7 +757,8 @@ pub async fn reducing_exit(
         "trigger_price": 0,
         "disclosed_quantity": 0,
     });
-    crate::services::order_service::place_order(ctx, &req, Route::INTERNAL).await
+    crate::services::order_service::place_order_decided(ctx, &req, Route::INTERNAL, analyze, true)
+        .await
 }
 
 /// `POST /scalping/api/close_leg`.
@@ -737,8 +767,13 @@ pub async fn close_leg(ctx: &AppState, body: &Map<String, Value>) -> Reply {
         Ok(f) => f,
         Err(r) => return r,
     };
+    let analyze = match analyze_mode(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
     reducing_exit(
         ctx,
+        analyze,
         &f.symbol,
         &f.exchange,
         &f.product,
@@ -750,7 +785,12 @@ pub async fn close_leg(ctx: &AppState, body: &Map<String, Value>) -> Reply {
 
 /// `POST /scalping/api/close_all`: only the scalping list's open positions.
 pub async fn close_all(ctx: &AppState) -> Reply {
-    let mode = current_mode(ctx);
+    // One side for the list, the position book and every exit.
+    let analyze = match analyze_mode(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    let mode = mode_name(analyze);
     let tracked = ctx.scalping.store.tracked(Some(mode)).unwrap_or_else(|e| {
         tracing::error!("Scalping list could not be read: {}", e);
         Vec::new()
@@ -762,7 +802,7 @@ pub async fn close_all(ctx: &AppState) -> Reply {
             "results": [],
         }));
     }
-    let book = crate::services::account_service::positionbook(ctx).await;
+    let book = crate::services::account_service::positionbook_on(ctx, analyze).await;
     if !accepted(&book) {
         let msg = book.message();
         let msg = if msg.is_empty() {
@@ -780,7 +820,16 @@ pub async fn close_all(ctx: &AppState) -> Reply {
             continue;
         }
         let action = if net > 0 { "SELL" } else { "BUY" };
-        let r = reducing_exit(ctx, &t.symbol, &t.exchange, &t.product, action, net.abs()).await;
+        let r = reducing_exit(
+            ctx,
+            analyze,
+            &t.symbol,
+            &t.exchange,
+            &t.product,
+            action,
+            net.abs(),
+        )
+        .await;
         let ok = accepted(&r);
         results.push(json!({
             "symbol": t.symbol,
@@ -806,7 +855,11 @@ pub async fn cancel_all(ctx: &AppState) -> Reply {
 // ------------------------------------------------------------------ list and stops
 
 pub fn tracked(ctx: &AppState) -> Reply {
-    match ctx.scalping.store.tracked(Some(current_mode(ctx))) {
+    let mode = match current_mode(ctx) {
+        Ok(m) => m,
+        Err(r) => return r,
+    };
+    match ctx.scalping.store.tracked(Some(mode)) {
         Ok(rows) => Reply::ok(json!({
             "status": "success",
             "data": rows.iter().map(|t| t.to_dict()).collect::<Vec<_>>(),
@@ -819,7 +872,11 @@ pub fn tracked(ctx: &AppState) -> Reply {
 }
 
 pub fn reset_tracked(ctx: &AppState) -> Reply {
-    let cleared = match ctx.scalping.store.clear_tracked(Some(current_mode(ctx))) {
+    let mode = match current_mode(ctx) {
+        Ok(m) => m,
+        Err(r) => return r,
+    };
+    let cleared = match ctx.scalping.store.clear_tracked(Some(mode)) {
         Ok(()) => true,
         Err(e) => {
             tracing::error!("Scalping list could not be cleared: {}", e);
@@ -830,7 +887,11 @@ pub fn reset_tracked(ctx: &AppState) -> Reply {
 }
 
 pub fn get_sl(ctx: &AppState) -> Reply {
-    match ctx.scalping.store.active_sl(Some(current_mode(ctx))) {
+    let mode = match current_mode(ctx) {
+        Ok(m) => m,
+        Err(r) => return r,
+    };
+    match ctx.scalping.store.active_sl(Some(mode)) {
         Ok(rows) => Reply::ok(json!({
             "status": "success",
             "data": rows.iter().map(|s| s.to_dict()).collect::<Vec<_>>(),
@@ -885,7 +946,10 @@ pub fn upsert_sl(ctx: &AppState, body: &Map<String, Value>) -> Reply {
         symbol,
         exchange,
         product,
-        mode: current_mode(ctx).to_string(),
+        mode: match current_mode(ctx) {
+            Ok(m) => m.to_string(),
+            Err(r) => return r,
+        },
         side: Some(side),
         quantity: Some(quantity),
         ..Default::default()
@@ -940,18 +1004,21 @@ pub fn delete_sl(ctx: &AppState, body: &Map<String, Value>) -> Reply {
     {
         return err(400, "Invalid symbol/exchange/product");
     }
-    let deleted =
-        match ctx
-            .scalping
-            .store
-            .delete_sl(&symbol, &exchange, &product, Some(current_mode(ctx)))
-        {
-            Ok(d) => d,
-            Err(e) => {
-                tracing::error!("Scalping stop for {} could not be removed: {}", symbol, e);
-                false
-            }
-        };
+    let mode = match current_mode(ctx) {
+        Ok(m) => m,
+        Err(r) => return r,
+    };
+    let deleted = match ctx
+        .scalping
+        .store
+        .delete_sl(&symbol, &exchange, &product, Some(mode))
+    {
+        Ok(d) => d,
+        Err(e) => {
+            tracing::error!("Scalping stop for {} could not be removed: {}", symbol, e);
+            false
+        }
+    };
     ctx.scalping.monitor.request_sync();
     Reply::ok(json!({"status": "success", "deleted": deleted}))
 }

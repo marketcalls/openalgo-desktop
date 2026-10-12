@@ -289,6 +289,12 @@ pub async fn positionbook(ctx: &AppState) -> Reply {
         Ok(a) => a,
         Err(r) => return r,
     };
+    positionbook_on(ctx, analyze).await
+}
+
+/// `positionbook` from a side the caller decided once (`analyze`: the
+/// sandbox), so a caller sizing orders from it sends them to the same side.
+pub async fn positionbook_on(ctx: &AppState, analyze: bool) -> Reply {
     if analyze {
         return sandbox(ctx.sandbox.positionbook().await);
     }

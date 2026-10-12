@@ -81,6 +81,14 @@ pub async fn after_send_error(kind: AfterSend) -> AppError {
     }
 }
 
+/// A pause inside `place_order`: `entered` fires when an order arrives, and
+/// the order goes on once `release` fires.
+#[derive(Default)]
+pub struct PlaceGate {
+    pub entered: tokio::sync::Notify,
+    pub release: tokio::sync::Notify,
+}
+
 /// Every call the mock received, in order.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MockCall {
@@ -156,6 +164,9 @@ pub struct MockBroker {
     pub logouts: Mutex<u32>,
     /// Contract multipliers by token sent with the master.
     pub contract_values: Mutex<HashMap<String, f64>>,
+    /// Holds `place_order` while set, so a test can act while an order is
+    /// in flight.
+    pub place_gate: Mutex<Option<std::sync::Arc<PlaceGate>>>,
     /// What `carries_stored` answers.
     pub carry: Mutex<Option<&'static str>>,
     /// The stored rows the last `download_master_carrying` was given.
@@ -216,6 +227,7 @@ impl MockBroker {
             restored: Mutex::new(None),
             saved_keys_sign_in: Mutex::new(false),
             next_id: Mutex::new(0),
+            place_gate: Mutex::new(None),
         }
     }
 
@@ -306,6 +318,11 @@ impl Broker for MockBroker {
     }
 
     async fn place_order(&self, _: &AuthToken, order: &ResolvedOrder) -> Result<OrderResponse> {
+        let gate = self.place_gate.lock().clone();
+        if let Some(g) = gate {
+            g.entered.notify_one();
+            g.release.notified().await;
+        }
         self.record(MockCall::PlaceOrder(order.clone()));
         if *self.panic_after_place.lock() {
             panic!("mock broker: failure after the order reached the broker");

@@ -227,15 +227,27 @@ fn split_event(mode: Mode, request: Value, reply: &Reply, req: &Value) -> Event 
 
 /// `splitorder`.
 pub async fn split_order(ctx: &AppState, req: &Value, route: Route) -> Reply {
+    let analyze = match route.analyze(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    split_order_decided(ctx, req, route, analyze).await
+}
+
+/// `splitorder` to a destination the caller decided once (`analyze`: the
+/// sandbox), so every chunk goes to that side whatever the toggle does
+/// while they are sent.
+pub async fn split_order_decided(
+    ctx: &AppState,
+    req: &Value,
+    route: Route,
+    analyze: bool,
+) -> Reply {
     if let Some(r) =
         route_to_pending(ctx, "splitorder", req, route).or_else(|| fractional_refusal(req))
     {
         return r;
     }
-    let analyze = match route.analyze(ctx) {
-        Ok(a) => a,
-        Err(r) => return r,
-    };
     let size = i(req, "splitsize");
     let total = i(req, "quantity");
     let fail = |msg: &str| {
