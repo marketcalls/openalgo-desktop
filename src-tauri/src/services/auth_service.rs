@@ -10,6 +10,27 @@ use crate::state::AppState;
 /// The answer to a wrong current password on a password change.
 pub const WRONG_CURRENT_PASSWORD: &str = "Current password is incorrect";
 
+/// The answer when another password change finished first.
+pub const PASSWORD_CHANGED_MEANWHILE: &str =
+    "Your password was changed while this change was being saved. Sign in with the new password and try again.";
+
+/// Run `f` on `conn` with `synchronous=FULL`, so the statement it commits is
+/// on disk when it returns (WAL with NORMAL may lose the last commits at a
+/// power cut), then put the connection's own setting back. For the password
+/// hash, whose old value must not come back beside a new key file.
+pub(crate) fn with_full_sync<T>(
+    conn: &rusqlite::Connection,
+    f: impl FnOnce() -> Result<T>,
+) -> Result<T> {
+    let before: i64 = conn.query_row("PRAGMA synchronous", [], |r| r.get(0))?;
+    conn.execute_batch("PRAGMA synchronous = FULL")?;
+    let out = f();
+    if let Err(e) = conn.execute_batch(&format!("PRAGMA synchronous = {}", before)) {
+        tracing::warn!("Could not restore the database sync setting: {}", e);
+    }
+    out
+}
+
 /// Pepper of the stand-in hash checked for a name that is not the
 /// account's (see [`AuthService::verify_credentials`]): random per process,
 /// so no fixed value exists anywhere. It guards nothing; it only makes the
@@ -301,15 +322,38 @@ impl AuthService {
     /// vault wrapped with it, as one recoverable change (security review
     /// SEC-02, `SecurityManager::change_vault_password`). On an error the
     /// previous hash is put back, so the old password keeps working.
-    fn set_password(state: &AppState, id: i64, old_hash: &str, new: &str) -> Result<()> {
+    ///
+    /// `old_hash` is the hash the caller checked the request against. The
+    /// change applies only while it is still the stored one, checked in the
+    /// same statement that writes the new hash, under the vault lock: a
+    /// second change validated against the same old password, finishing
+    /// after the first, is refused instead of overwriting it or, when its
+    /// own last step fails, restoring a hash that matches no key file
+    /// (SEC-02b). Both writes reach the disk before the key file is
+    /// replaced (`with_full_sync`), so a power cut cannot leave the old hash
+    /// beside the new key file.
+    pub(crate) fn set_password(state: &AppState, id: i64, old_hash: &str, new: &str) -> Result<()> {
         let hash = state.security.hash_password(new)?;
-        let store_hash = |h: &str| -> Result<()> {
+        let swap = |from: &str, to: &str| -> Result<()> {
             let conn = state.sqlite.conn()?;
-            user::update_password_hash(&conn, id, h)
+            with_full_sync(&conn, || {
+                let n = conn.execute(
+                    "UPDATE users SET password_hash = ?1, updated_at = datetime('now')
+                     WHERE id = ?2 AND password_hash = ?3",
+                    rusqlite::params![to, id, from],
+                )?;
+                if n == 1 {
+                    Ok(())
+                } else {
+                    Err(AppError::Validation(PASSWORD_CHANGED_MEANWHILE.into()))
+                }
+            })
         };
-        state
-            .security
-            .change_vault_password(new, || store_hash(&hash), || store_hash(old_hash))?;
+        state.security.change_vault_password(
+            new,
+            || swap(old_hash, &hash),
+            || swap(&hash, old_hash),
+        )?;
         state.sessions.clear();
         Ok(())
     }
@@ -478,5 +522,26 @@ mod tests {
         assert!(valid_email("a@b.co"));
         assert!(!valid_email("ab.co"));
         assert!(!valid_email("a@b"));
+    }
+
+    /// SEC-02b: the password hash is written with the database's full sync
+    /// (on disk before the key file is replaced), and the connection's own
+    /// setting comes back afterwards.
+    #[test]
+    fn the_password_hash_is_written_with_full_sync() {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = rusqlite::Connection::open(dir.path().join("x.db")).unwrap();
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
+            .unwrap();
+        let sync = |c: &rusqlite::Connection| -> i64 {
+            c.query_row("PRAGMA synchronous", [], |r| r.get(0)).unwrap()
+        };
+        let inside = with_full_sync(&conn, || Ok(sync(&conn))).unwrap();
+        assert_eq!(inside, 2, "FULL while the hash is written");
+        assert_eq!(sync(&conn), 1, "NORMAL again afterwards");
+        // An error inside still restores the setting.
+        let r: Result<()> = with_full_sync(&conn, || Err(AppError::Validation("x".into())));
+        assert!(r.is_err());
+        assert_eq!(sync(&conn), 1);
     }
 }

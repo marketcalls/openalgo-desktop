@@ -705,6 +705,42 @@ async fn sec02_a_completed_change_moves_to_the_new_password() {
     only_password_signs_in(&dir, NEW_PASSWORD, PASSWORD).await;
 }
 
+/// SEC-02b: two password changes both validated against the old password.
+/// The first finishes; the second, whose last step then fails, must not
+/// overwrite it or put back the hash both started from (which no key file
+/// matches any more). Only the first change's password signs in.
+#[tokio::test]
+async fn sec02b_a_second_change_validated_against_a_stale_hash_is_refused() {
+    let dir = password_mode_install().await;
+    let ctx = reopen(&dir);
+    assert!(signs_in(&ctx, PASSWORD));
+    let (id, original): (i64, String) = ctx
+        .sqlite
+        .conn()
+        .unwrap()
+        .query_row("SELECT id, password_hash FROM users", [], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
+        .unwrap();
+    // A: validated and finished.
+    AuthService::set_password(&ctx, id, &original, NEW_PASSWORD).unwrap();
+    // B: validated against the same old password, finishes second, and its
+    // last step fails.
+    ctx.security.fail_vault_promote(true);
+    let r = AuthService::set_password(&ctx, id, &original, "Other@789");
+    assert!(
+        matches!(&r, Err(crate::error::AppError::Validation(m))
+            if m == crate::services::auth_service::PASSWORD_CHANGED_MEANWHILE),
+        "{:?}",
+        r
+    );
+    close(ctx).await;
+    only_password_signs_in(&dir, NEW_PASSWORD, PASSWORD).await;
+    let ctx = reopen(&dir);
+    assert!(!signs_in(&ctx, "Other@789"));
+    close(ctx).await;
+}
+
 /// SEC-02: the last step fails and the old hash cannot be put back either
 /// (the database refuses it). The new hash stands, so the change is
 /// reported done, only the new password signs in, and the old one, which
