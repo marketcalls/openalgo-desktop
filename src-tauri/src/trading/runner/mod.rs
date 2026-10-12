@@ -389,12 +389,11 @@ impl Runner {
             .and_then(|c| store::read(&c, &id).ok().flatten())
             .and_then(|d| d.mode)
             .and_then(|m| RunMode::parse(&m));
-        recorded.unwrap_or_else(|| {
-            if self.services().analyzer_on() {
-                RunMode::Sandbox
-            } else {
-                RunMode::Live
-            }
+        // Never started: it has no rows on either side, so this only picks
+        // which empty book to show.
+        recorded.unwrap_or_else(|| match self.services().analyzer_on() {
+            Ok(true) => RunMode::Sandbox,
+            Ok(false) | Err(_) => RunMode::Live,
         })
     }
 
@@ -532,10 +531,21 @@ impl Runner {
             ));
         }
         // The side is decided here, once, and kept for the life of the run.
-        let mode = if services.analyzer_on() {
-            RunMode::Sandbox
-        } else {
-            RunMode::Live
+        // A mode that cannot be read refuses the start (LOG-09): taken as
+        // off, a deployment meant for the sandbox would start live.
+        let mode = match services.analyzer_on() {
+            Ok(true) => RunMode::Sandbox,
+            Ok(false) => RunMode::Live,
+            Err(why) => {
+                tracing::error!("{} was not started: {}", run_id, why);
+                return Err(Refusal::new(
+                    409,
+                    format!(
+                        "{} was not started, because OpenAlgo could not read whether analyzer mode is on. Restart OpenAlgo, then start it again.",
+                        saved.script
+                    ),
+                ));
+            }
         };
         if let Err(why) = services.authorised(mode) {
             return Err(Refusal::new(

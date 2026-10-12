@@ -7,7 +7,7 @@
 //! README).
 
 use super::core::{
-    analyzer_request, broker_handle, f, i, is_analyze, meta, mode_of, publish, s, safe_request,
+    analyze_mode, analyzer_request, broker_handle, f, i, meta, mode_of, publish, s, safe_request,
     Reply,
 };
 use super::order_service::{route_to_pending, Route};
@@ -133,7 +133,10 @@ pub async fn place_gtt_with(ctx: &AppState, req: &Value, route: Route) -> Reply 
     if let Some(r) = route_to_pending(ctx, "placegttorder", req, route) {
         return r;
     }
-    let analyze = is_analyze(ctx);
+    let analyze = match analyze_mode(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
     if analyze {
         let reply = match ctx.sandbox.place_gtt(sandbox_gtt(req)).await {
             Ok(r) => Reply::from_ser(&r),
@@ -193,7 +196,10 @@ pub async fn modify_gtt(ctx: &AppState, req: &Value) -> Reply {
 /// the Semi-Auto block.
 pub async fn modify_gtt_with(ctx: &AppState, req: &Value, route: Route) -> Reply {
     let trigger_id = s(req, "trigger_id");
-    let analyze = is_analyze(ctx);
+    let analyze = match analyze_mode(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
     if !analyze && route.semi_auto(ctx) {
         let reply = Reply::error(
             403,
@@ -277,7 +283,10 @@ pub async fn cancel_gtt(ctx: &AppState, req: &Value) -> Reply {
 /// the Semi-Auto block.
 pub async fn cancel_gtt_with(ctx: &AppState, req: &Value, route: Route) -> Reply {
     let trigger_id = s(req, "trigger_id");
-    let analyze = is_analyze(ctx);
+    let analyze = match analyze_mode(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
     if trigger_id.is_empty() {
         return Reply::error(400, "trigger_id is missing");
     }
@@ -382,7 +391,11 @@ pub fn active_first(rows: &mut [Value]) {
 /// `gttorderbook`.
 pub async fn gtt_orderbook(ctx: &AppState, status: &str) -> Reply {
     let all = status.eq_ignore_ascii_case("all");
-    if is_analyze(ctx) {
+    let analyze = match analyze_mode(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    if analyze {
         let mut reply = match ctx
             .sandbox
             .gtt_orderbook(if all { None } else { Some("active") })

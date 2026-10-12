@@ -68,7 +68,11 @@ pub async fn close_position(ctx: &AppState, symbol: &str, exchange: &str, produc
         "disclosed_quantity": 0,
         "position_size": 0,
     });
-    if super::core::is_analyze(ctx) {
+    let analyze = match super::core::analyze_mode(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    if analyze {
         // Web: the sandbox smart order with quantity 0 and position size 0.
         return orders::place_smart_order(ctx, &order, Route::INTERNAL).await;
     }

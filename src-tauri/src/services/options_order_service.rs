@@ -69,7 +69,10 @@ pub async fn options_order(ctx: &AppState, req: &Value, route: Route) -> Reply {
         Ok(h) => h,
         Err(r) => return r,
     };
-    let analyze = route.analyze(ctx);
+    let analyze = match route.analyze(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
     let opt = match resolve_option(
         ctx,
         &h,
@@ -168,7 +171,10 @@ pub async fn options_multi_order(ctx: &AppState, req: &Value, route: Route) -> R
         Ok(h) => h,
         Err(r) => return r,
     };
-    let analyze = route.analyze(ctx);
+    let analyze = match route.analyze(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
     let legs: Vec<Value> = req
         .get("legs")
         .and_then(Value::as_array)

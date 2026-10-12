@@ -38,6 +38,7 @@ struct Fake {
     closed_market: AtomicBool,
     nobody: AtomicBool,
     unreadable_positions: AtomicBool,
+    unreadable_mode: AtomicBool,
     next: AtomicU64,
     placed: Mutex<Vec<(RunMode, Value, bool)>>,
     orders: Mutex<Vec<FakeOrder>>,
@@ -118,8 +119,11 @@ impl Fake {
 
 #[async_trait]
 impl RunnerServices for Fake {
-    fn analyzer_on(&self) -> bool {
-        self.analyzer.load(Ordering::SeqCst)
+    fn analyzer_on(&self) -> Result<bool, String> {
+        if self.unreadable_mode.load(Ordering::SeqCst) {
+            return Err("database is locked".into());
+        }
+        Ok(self.analyzer.load(Ordering::SeqCst))
     }
     fn authorised(&self, mode: RunMode) -> Result<(), String> {
         if mode == RunMode::Live && !self.broker.load(Ordering::SeqCst) {
@@ -833,6 +837,31 @@ async fn close_times_out_and_leaves_the_run_holding() {
     // And it trades on: the halt was lifted.
     let v = t.buy(&id, 2, 1).await;
     assert_eq!(v["sent"], 1);
+}
+
+/// LOG-09: a start decides its side from analyzer mode. Unreadable, it was
+/// taken as off, so a deployment meant for the sandbox started live while a
+/// broker was connected.
+#[tokio::test]
+async fn a_start_refuses_when_analyzer_mode_cannot_be_read() {
+    let t = setup().await;
+    let id = t.deploy("SBIN").await;
+    t.fake.broker.store(true, Ordering::SeqCst);
+    t.fake.unreadable_mode.store(true, Ordering::SeqCst);
+    let (s, v) = t
+        .call(
+            Method::POST,
+            &format!("/openscript/runner/start/{}", id),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT, "{}", v);
+    assert!(v["message"]
+        .as_str()
+        .unwrap()
+        .contains("could not read whether analyzer mode is on"));
+    assert!(!t.h.ctx.trading.runner.is_running(&id));
+    assert_eq!(t.host.open_count(), 0);
 }
 
 #[tokio::test]

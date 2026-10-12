@@ -9,7 +9,7 @@
 //! Side effects (logs, Socket.IO, alerts) are subscribers on the bus.
 
 use super::core::{
-    analyzer_request, broker_handle, f, i, is_analyze, meta, mode_of, order_failed, publish, s,
+    analyze_mode, analyzer_request, broker_handle, f, i, meta, mode_of, order_failed, publish, s,
     safe_request, BrokerHandle, Reply,
 };
 use crate::brokers::common::mapping::{Exchange, Product};
@@ -51,8 +51,15 @@ impl Route {
         internal: true,
     };
 
-    pub fn analyze(&self, ctx: &AppState) -> bool {
-        !self.force_live && is_analyze(ctx)
+    /// Whether this call goes to the sandbox: analyzer mode, unless the
+    /// caller already decided live. Read once per request and passed down;
+    /// a mode that cannot be read refuses the request instead of sending it
+    /// live.
+    pub fn analyze(&self, ctx: &AppState) -> Result<bool, Reply> {
+        if self.force_live {
+            return Ok(false);
+        }
+        analyze_mode(ctx)
     }
 
     /// Semi-Auto applies to this call (an API-key client in Semi-Auto mode).
@@ -321,12 +328,17 @@ pub async fn place_order(ctx: &AppState, req: &Value, route: Route) -> Reply {
 /// `placeorder`, optionally without the `order.placed` / `order.failed`
 /// event (split legs of an options order report one completion event).
 pub async fn place_order_with(ctx: &AppState, req: &Value, route: Route, emit: bool) -> Reply {
+    // One read decides both the fractional check and the destination.
+    let analyze = match route.analyze(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
     if let Some(r) = route_to_pending(ctx, "placeorder", req, route)
-        .or_else(|| fractional_refusal_for(req, route.analyze(ctx)))
+        .or_else(|| fractional_refusal_for(req, analyze))
     {
         return r;
     }
-    if route.analyze(ctx) {
+    if analyze {
         let reply = match ctx.sandbox.place_order(sandbox_order(req)).await {
             Ok(p) => Reply::from_ser(&p),
             Err(e) => Reply::sandbox(&e),
@@ -441,7 +453,11 @@ pub async fn place_smart_order(ctx: &AppState, req: &Value, route: Route) -> Rep
         return r;
     }
     let target = f(req, "position_size").trunc() as i64;
-    if route.analyze(ctx) {
+    let analyze = match route.analyze(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    if analyze {
         let sreq = crate::sandbox::SmartOrderRequest {
             symbol: s(req, "symbol"),
             exchange: s(req, "exchange"),
@@ -560,7 +576,10 @@ pub async fn place_smart_order(ctx: &AppState, req: &Value, route: Route) -> Rep
 pub async fn modify_order(ctx: &AppState, req: &Value, route: Route) -> Reply {
     let orderid = s(req, "orderid");
     let symbol = s(req, "symbol");
-    let analyze = route.analyze(ctx);
+    let analyze = match route.analyze(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
     let modify_failed = |mode: Mode, request: Value, reply: &Reply| Event::OrderModifyFailed {
         meta: meta(mode, "modifyorder", request, &reply.body),
         symbol: symbol.clone(),
@@ -658,7 +677,10 @@ pub async fn modify_order(ctx: &AppState, req: &Value, route: Route) -> Reply {
 /// `cancelorder`.
 pub async fn cancel_order(ctx: &AppState, req: &Value, route: Route) -> Reply {
     let orderid = s(req, "orderid");
-    let analyze = route.analyze(ctx);
+    let analyze = match route.analyze(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
     let failed = |mode: Mode, request: Value, reply: &Reply| Event::OrderCancelFailed {
         meta: meta(mode, "cancelorder", request, &reply.body),
         orderid: orderid.clone(),
@@ -740,7 +762,10 @@ fn all_cancelled_event(mode: Mode, request: Value, reply: &Reply) -> Event {
 
 /// `cancelallorder`.
 pub async fn cancel_all_orders(ctx: &AppState, req: &Value, route: Route) -> Reply {
-    let analyze = route.analyze(ctx);
+    let analyze = match route.analyze(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
     if !analyze && route.semi_auto(ctx) {
         let reply = Reply::error(
             403,
@@ -799,7 +824,10 @@ pub async fn cancel_all_orders(ctx: &AppState, req: &Value, route: Route) -> Rep
 
 /// `closeposition`.
 pub async fn close_position(ctx: &AppState, req: &Value, route: Route) -> Reply {
-    let analyze = route.analyze(ctx);
+    let analyze = match route.analyze(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
     let closed = |mode: Mode, request: Value, reply: &Reply| Event::PositionClosed {
         meta: meta(mode, "closeposition", request, &reply.body),
         message: Some(reply.message()),

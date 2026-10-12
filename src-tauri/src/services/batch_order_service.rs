@@ -122,7 +122,11 @@ pub async fn basket_order(ctx: &AppState, req: &Value, route: Route) -> Reply {
             o
         })
         .collect();
-    if route.analyze(ctx) {
+    let analyze = match route.analyze(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    if analyze {
         let keys: Vec<(String, String)> = sorted
             .iter()
             .map(|o| (s(o, "symbol"), s(o, "exchange")))
@@ -228,7 +232,10 @@ pub async fn split_order(ctx: &AppState, req: &Value, route: Route) -> Reply {
     {
         return r;
     }
-    let analyze = route.analyze(ctx);
+    let analyze = match route.analyze(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
     let size = i(req, "splitsize");
     let total = i(req, "quantity");
     let fail = |msg: &str| {

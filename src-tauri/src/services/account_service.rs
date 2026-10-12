@@ -7,7 +7,7 @@
 //! are shaped like the web's broker `transform_*` functions. Books always
 //! carry OpenAlgo symbols (the adapters translate).
 
-use super::core::{broker_handle, float, is_analyze, round2, s, BrokerHandle, Reply, UNEXPECTED};
+use super::core::{analyze_mode, broker_handle, float, round2, s, BrokerHandle, Reply, UNEXPECTED};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::{ExactRow, Funds, Holding, Order, Position, Trade};
 use crate::state::AppState;
@@ -224,7 +224,11 @@ pub fn exact_position_row(e: &ExactRow<Position>, symbols: &SymbolResolver) -> V
 
 /// `orderbook`.
 pub async fn orderbook(ctx: &AppState) -> Reply {
-    if is_analyze(ctx) {
+    let analyze = match analyze_mode(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    if analyze {
         return sandbox(ctx.sandbox.orderbook().await);
     }
     let h = match handle(ctx) {
@@ -254,7 +258,11 @@ pub async fn orderbook(ctx: &AppState) -> Reply {
 
 /// `tradebook`.
 pub async fn tradebook(ctx: &AppState) -> Reply {
-    if is_analyze(ctx) {
+    let analyze = match analyze_mode(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    if analyze {
         return sandbox(ctx.sandbox.tradebook().await);
     }
     let h = match handle(ctx) {
@@ -277,7 +285,11 @@ pub async fn tradebook(ctx: &AppState) -> Reply {
 
 /// `positionbook`.
 pub async fn positionbook(ctx: &AppState) -> Reply {
-    if is_analyze(ctx) {
+    let analyze = match analyze_mode(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    if analyze {
         return sandbox(ctx.sandbox.positionbook().await);
     }
     let h = match handle(ctx) {
@@ -300,7 +312,11 @@ pub async fn positionbook(ctx: &AppState) -> Reply {
 
 /// `holdings`.
 pub async fn holdings(ctx: &AppState) -> Reply {
-    if is_analyze(ctx) {
+    let analyze = match analyze_mode(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    if analyze {
         return sandbox(ctx.sandbox.holdings().await);
     }
     let h = match handle(ctx) {
@@ -318,7 +334,11 @@ pub async fn holdings(ctx: &AppState) -> Reply {
 
 /// `funds`.
 pub async fn funds(ctx: &AppState) -> Reply {
-    if is_analyze(ctx) {
+    let analyze = match analyze_mode(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    if analyze {
         return sandbox(ctx.sandbox.funds().await);
     }
     let h = match handle(ctx) {
@@ -337,7 +357,11 @@ pub async fn funds(ctx: &AppState) -> Reply {
 /// `orderstatus`.
 pub async fn order_status(ctx: &AppState, req: &Value) -> Reply {
     let orderid = s(req, "orderid");
-    if is_analyze(ctx) && !orderid.is_empty() {
+    let analyze = match analyze_mode(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    if analyze && !orderid.is_empty() {
         return sandbox(ctx.sandbox.order_status(&orderid).await);
     }
     let h = match handle(ctx) {
@@ -369,7 +393,11 @@ pub async fn order_status(ctx: &AppState, req: &Value) -> Reply {
 /// `openposition`.
 pub async fn open_position(ctx: &AppState, req: &Value) -> Reply {
     let (symbol, exchange, product) = (s(req, "symbol"), s(req, "exchange"), s(req, "product"));
-    if is_analyze(ctx) {
+    let analyze = match analyze_mode(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    if analyze {
         return sandbox(
             ctx.sandbox
                 .open_position(&symbol, &exchange, &product)

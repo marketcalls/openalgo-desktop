@@ -417,7 +417,14 @@ pub struct H {
 impl H {
     /// A signed-in user with an API key and the mock broker connected.
     pub async fn new() -> Self {
+        Self::new_with(|_| {}).await
+    }
+
+    /// [`H::new`], with `prepare` run on the empty data folder before the
+    /// app opens it (a database an earlier run left behind).
+    pub async fn new_with(prepare: impl FnOnce(&std::path::Path)) -> Self {
         let dir = tempfile::tempdir().unwrap();
+        prepare(dir.path());
         let symbols = SymbolResolver::new();
         let mock = Arc::new(MockBroker::with_symbols("zerodha", symbols.clone()));
         let clock = ManualClock::new(session_time());

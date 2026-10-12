@@ -414,3 +414,40 @@ async fn holdings_statistics_use_the_brokers_own_totals() {
     assert_eq!(v["data"]["holdings"][0]["symbol"], "SBIN");
     h.shutdown().await;
 }
+
+/// LOG-09: analyzer mode that cannot be read refuses every order path, with a
+/// sentence for the trader, instead of reading "off" and sending to the live
+/// broker. The settings row here cannot be read from the moment the app
+/// opens, so the mode is never known.
+#[tokio::test]
+async fn an_unreadable_analyzer_mode_refuses_orders_and_sends_nothing_live() {
+    let h = H::new_with(|dir| {
+        let db = openalgo_desktop_lib::db::sqlite::SqliteDb::new(&dir.join("openalgo.db")).unwrap();
+        db.set_analyze_mode(true).unwrap();
+        db.conn()
+            .unwrap()
+            .execute_batch("UPDATE settings SET sound_enabled = 'unreadable' WHERE id = 1")
+            .unwrap();
+    })
+    .await;
+    let mut smart = order_body();
+    smart["position_size"] = json!(1);
+    for (path, body) in [
+        ("/api/v1/placeorder", order_body()),
+        ("/api/v1/placesmartorder", smart),
+        ("/api/v1/closeposition", json!({"strategy": "t"})),
+        ("/api/v1/cancelallorder", json!({"strategy": "t"})),
+        ("/api/v1/positionbook", json!({})),
+    ] {
+        let (s, v) = call(&h, path, body).await;
+        assert_eq!(s, 500, "{}: {}", path, v);
+        assert_eq!(v["status"], "error");
+        assert_eq!(
+            v["message"],
+            openalgo_desktop_lib::services::core::ANALYZE_MODE_UNREADABLE,
+            "{}",
+            path
+        );
+    }
+    assert!(h.mock.calls().is_empty(), "{:?}", h.mock.calls());
+}

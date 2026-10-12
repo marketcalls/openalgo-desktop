@@ -5,7 +5,7 @@ use super::{load, send, Auth, Style};
 use crate::server::envelope::{json_response, read_json_object};
 use crate::server::middleware::ClientIp;
 use crate::services::account_service as account;
-use crate::services::core::{is_analyze, Reply};
+use crate::services::core::{analyze_mode, Reply};
 use crate::services::schemas;
 use crate::services::AnalyzerService;
 use crate::state::AppState;
@@ -125,8 +125,10 @@ pub async fn openposition(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request)
 /// POST /api/v1/pnl/symbols: sandbox only. The mode is checked before the
 /// body, as on the web; the key is checked without a broker session.
 pub async fn pnl_symbols(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
-    if !is_analyze(&ctx) {
-        return send(Reply::error(400, account::PNL_LIVE_MESSAGE));
+    match analyze_mode(&ctx) {
+        Ok(true) => {}
+        Ok(false) => return send(Reply::error(400, account::PNL_LIVE_MESSAGE)),
+        Err(r) => return send(r),
     }
     let body = match read_json_object(req, &()).await {
         Ok(b) => b,

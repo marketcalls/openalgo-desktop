@@ -68,6 +68,10 @@ pub fn open_pool(path: &Path, max_size: u32) -> Result<Pool<SqliteConnectionMana
 /// SQLite database wrapper
 pub struct SqliteDb {
     pool: Pool<SqliteConnectionManager>,
+    /// Analyzer mode as last read or written here, its only writer. Every
+    /// order path routes on it, so it is kept in memory: a busy pool must not
+    /// turn the read into a default. `None` until the database has answered.
+    analyze_mode: parking_lot::Mutex<Option<bool>>,
 }
 
 impl SqliteDb {
@@ -75,9 +79,15 @@ impl SqliteDb {
     pub fn new(path: &Path) -> Result<Self> {
         let db = Self {
             pool: open_pool(path, 8)?,
+            analyze_mode: parking_lot::Mutex::new(None),
         };
         db.run_migrations()?;
         crate::security::fsperm::restrict_db_files(path)?;
+        // Read once now, so no order waits on the pool for it later. A
+        // failure leaves it unknown, and order paths refuse until it is read.
+        if let Err(e) = db.get_analyze_mode() {
+            tracing::error!("Could not read analyzer mode at start-up: {}", e);
+        }
         Ok(db)
     }
 
@@ -511,16 +521,27 @@ impl SqliteDb {
 
     // ========== Analyze Mode Methods ==========
 
-    /// Get analyze mode (sandbox/paper trading mode)
+    /// Whether analyzer (sandbox) mode is on: the value held in memory, read
+    /// from the database only until it has answered once. An error means it
+    /// has never been readable, and callers that route orders refuse on it.
     pub fn get_analyze_mode(&self) -> Result<bool> {
-        let settings = self.get_settings()?;
-        Ok(settings.analyze_mode.unwrap_or(false))
+        let mut known = self.analyze_mode.lock();
+        if let Some(on) = *known {
+            return Ok(on);
+        }
+        let on = self.get_settings()?.analyze_mode.unwrap_or(false);
+        *known = Some(on);
+        Ok(on)
     }
 
-    /// Set analyze mode
+    /// Set analyzer mode. The write and the value in memory change under one
+    /// lock, after the database has taken it, so a reader never sees a mode
+    /// the database does not hold.
     pub fn set_analyze_mode(&self, enabled: bool) -> Result<()> {
+        let mut known = self.analyze_mode.lock();
         let conn = self.conn()?;
         conn.execute("UPDATE settings SET analyze_mode = ?1", [enabled])?;
+        *known = Some(enabled);
         Ok(())
     }
 

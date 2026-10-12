@@ -51,8 +51,9 @@ impl Bar {
 
 #[async_trait]
 pub trait RunnerServices: Send + Sync {
-    /// Whether analyzer (sandbox) mode is on right now.
-    fn analyzer_on(&self) -> bool;
+    /// Whether analyzer (sandbox) mode is on right now, or why that cannot
+    /// be read. Never a default: a run's side is decided from this.
+    fn analyzer_on(&self) -> Result<bool, String>;
     /// Whether an order can be sent to this destination now.
     fn authorised(&self, mode: RunMode) -> Result<(), String>;
     /// History for one instrument, oldest first.
@@ -129,10 +130,9 @@ fn parse_bars(body: &Value) -> Vec<Bar> {
 
 #[async_trait]
 impl RunnerServices for AppServices {
-    fn analyzer_on(&self) -> bool {
-        self.ctx
-            .upgrade()
-            .is_some_and(|c| crate::services::core::is_analyze(&c))
+    fn analyzer_on(&self) -> Result<bool, String> {
+        let ctx = self.ctx.upgrade().ok_or(SHUTTING_DOWN)?;
+        crate::services::core::analyze_mode(&ctx).map_err(|r| r.message())
     }
 
     fn authorised(&self, mode: RunMode) -> Result<(), String> {

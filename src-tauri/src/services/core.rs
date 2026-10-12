@@ -130,15 +130,27 @@ pub fn broker_handle(ctx: &AppState) -> Result<BrokerHandle, Reply> {
     })
 }
 
-/// Analyzer (sandbox) mode is on.
+/// What a trader is told when an order path cannot tell whether analyzer
+/// mode is on.
+pub const ANALYZE_MODE_UNREADABLE: &str = "OpenAlgo could not read whether analyzer mode is on, so nothing was sent. Restart OpenAlgo, then try again.";
+
+/// Whether analyzer (sandbox) mode is on, for a path that sends, changes or
+/// reads orders: the refusal when it cannot be known. Never a default. A
+/// failed read taken as "off" sent sandbox orders to the live broker
+/// (LOG-09). The mode is held in memory once read (`SqliteDb`), so after
+/// start-up this cannot fail; a caller reads it once per request.
+pub fn analyze_mode(ctx: &AppState) -> Result<bool, Reply> {
+    ctx.sqlite.get_analyze_mode().map_err(|e| {
+        tracing::error!("Could not read analyzer mode: {}", e);
+        Reply::error(500, ANALYZE_MODE_UNREADABLE)
+    })
+}
+
+/// Analyzer mode for a path that routes nothing (an event's label, a
+/// sandbox-only endpoint's gate). Every order path uses [`analyze_mode`],
+/// which refuses where this would answer "off".
 pub fn is_analyze(ctx: &AppState) -> bool {
-    match ctx.sqlite.get_analyze_mode() {
-        Ok(m) => m,
-        Err(e) => {
-            tracing::error!("Could not read analyzer mode: {}", e);
-            false
-        }
-    }
+    analyze_mode(ctx).unwrap_or(false)
 }
 
 pub fn mode_of(analyze: bool) -> Mode {
