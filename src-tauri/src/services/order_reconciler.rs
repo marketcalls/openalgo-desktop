@@ -685,6 +685,8 @@ pub struct OrderReconciler {
     alerting: std::sync::atomic::AtomicBool,
     /// A held-order alert is raised and not yet resolved.
     held_alerting: Arc<std::sync::atomic::AtomicBool>,
+    /// The bus's fact-loss count already acted on (survives a restart).
+    gaps_seen: AtomicU64,
 }
 
 impl OrderReconciler {
@@ -708,6 +710,7 @@ impl OrderReconciler {
             alert_sink: std::sync::OnceLock::new(),
             alerting: std::sync::atomic::AtomicBool::new(false),
             held_alerting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            gaps_seen: AtomicU64::new(0),
         })
     }
 
@@ -982,7 +985,6 @@ impl OrderReconciler {
         *task = Some(tokio::spawn(async move {
             let mut tick = tokio::time::interval(PASS_INTERVAL);
             tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-            let mut seen_gaps = bus.as_ref().map(|b| b.gap_count()).unwrap_or(0);
             loop {
                 let Some(me) = weak.upgrade() else { break };
                 let lost = async {
@@ -1001,9 +1003,10 @@ impl OrderReconciler {
                     }
                 }
                 if let Some(b) = &bus {
+                    // Kept on the reconciler, not in this task: a loss
+                    // reported while a restart was under way is still seen.
                     let now = b.gap_count();
-                    if now != seen_gaps {
-                        seen_gaps = now;
+                    if me.gaps_seen.swap(now, Ordering::SeqCst) != now {
                         me.report_fact_loss(b.last_loss_was_relay());
                     }
                 }
@@ -1318,6 +1321,31 @@ mod tests {
         assert!(!r.gap_open(RunMode::Live));
         r.stop();
         assert!(until(|| !r.is_running()).await);
+    }
+
+    /// A fact loss reported while the reconciler's task is being restarted
+    /// (a broker session change) is still acted on by the new task.
+    #[tokio::test]
+    async fn a_loss_reported_across_a_restart_still_opens_a_gap() {
+        let gw = Arc::new(Gw::default());
+        let clock =
+            crate::clock::ManualClock::new(Utc.with_ymd_and_hms(2026, 10, 7, 4, 30, 0).unwrap());
+        let bus = Arc::new(EventBus::new());
+        let r = OrderReconciler::new(gw, clock, Some(bus.clone()));
+        let a = Arc::new(Holder::default());
+        a.holds.store(true, Ordering::SeqCst);
+        r.register(a);
+        r.start();
+        assert!(until(|| r.stats.passes.load(Ordering::SeqCst) >= 1).await);
+        // The task is stopped (a restart under way) when the loss arrives.
+        r.stop();
+        bus.report_fact_loss(crate::events::bus::FactLoss::Event);
+        r.start();
+        assert!(
+            until(|| r.stats.gaps_opened.load(Ordering::SeqCst) >= 1).await,
+            "the new task acts on the loss"
+        );
+        r.stop();
     }
 
     #[tokio::test]

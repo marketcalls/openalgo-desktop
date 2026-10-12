@@ -9,6 +9,7 @@ use openalgo_desktop_lib::brokers::mock::MockCall;
 use openalgo_desktop_lib::brokers::types::Order;
 use openalgo_desktop_lib::services::order_reconciler::ENTRIES_PAUSED;
 use openalgo_desktop_lib::strategy::dispatch::RunMode;
+use std::time::Duration;
 
 fn broker_order(id: &str, action: &str, qty: i32, status: &str, price: f64) -> Order {
     Order {
@@ -65,6 +66,10 @@ fn order_fact_alerts(a: &App) -> usize {
 #[tokio::test]
 async fn a_lost_fill_is_applied_once_and_health_shows_the_gap_until_then() {
     let a = app();
+    // Passes run by hand: the reconciler's own task would also open a gap
+    // when the market feed connects for the new runs, at a time the test
+    // does not control.
+    a.ctx.reconciler.stop();
     a.ctx.sqlite.set_analyze_mode(false).unwrap();
     // A live run holding a filled leg (it can exit), and a second one whose
     // entry is working at the broker.
@@ -167,7 +172,21 @@ async fn a_lost_fill_is_applied_once_and_health_shows_the_gap_until_then() {
 
     // Health is back, the alert resolved.
     let (s, v) = a.get("/health/status").await;
-    assert_eq!(s, StatusCode::OK, "{}", v);
+    assert_eq!(
+        s,
+        StatusCode::OK,
+        "{} reconciler {} orders {:?}",
+        v,
+        a.ctx.reconciler.health(),
+        a.ctx
+            .strategy
+            .store
+            .list_orders(held_run)
+            .unwrap()
+            .iter()
+            .map(|o| (o.kind.clone(), o.status.clone()))
+            .collect::<Vec<_>>()
+    );
     assert_eq!(order_fact_alerts(&a), 0);
 }
 
@@ -182,12 +201,36 @@ async fn a_relay_that_fell_behind_opens_a_live_gap() {
         .start_run(sid, USER, "live", "manual", None)
         .await;
     assert!(r.ok, "{:?}", r);
+    // The market feed connects for the new run, and the reconciler repairs
+    // the gap that opens (a readable book) before the scenario starts.
+    let mut feed = a.ctx.websocket.watch_status();
+    let _ = tokio::time::timeout(
+        Duration::from_secs(2),
+        feed.wait_for(|s| {
+            matches!(
+                s,
+                openalgo_desktop_lib::websocket::FeedStatus::Connected { .. }
+            )
+        }),
+    )
+    .await;
+    a.until(|| !a.ctx.reconciler.gap_open(RunMode::Live)).await;
     *a.mock.order_book.lock() = Some(Err("The broker is busy".into()));
     // The broker relay skipped updates; the reconciler's own task notices.
     a.ctx.bus.report_relay_lag(3);
     assert!(
         a.until(|| a.ctx.reconciler.gap_open(RunMode::Live)).await,
-        "the relay's lag opens a live gap"
+        "the relay's lag opens a live gap: reconciler {} bus gaps {} orders {:?}",
+        a.ctx.reconciler.health(),
+        a.ctx.bus.gap_count(),
+        a.ctx
+            .strategy
+            .store
+            .list_orders(r.run_id.unwrap())
+            .unwrap()
+            .iter()
+            .map(|o| (o.kind.clone(), o.status.clone(), o.broker_order_id.clone()))
+            .collect::<Vec<_>>()
     );
     assert!(!a.ctx.reconciler.gap_open(RunMode::Sandbox));
     let (_, v) = a.get("/health/api/current").await;
