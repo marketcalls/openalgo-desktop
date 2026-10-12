@@ -1,0 +1,189 @@
+name: Native E2E
+
+# The installed release app driven through its own window by WebDriver
+# (tauri-driver), against its real Rust server, sign-in and session cookie:
+# first-start account creation, a refused wrong password, sign-in, the
+# signed-in shell, and sign-out (scripts/ci/native_e2e.py). This is what the
+# Playwright suite cannot show: it runs a browser against `vite preview`
+# with stubbed answers (COV-03, COV-04).
+#
+#   Linux x64   the .deb, WebKitGTK's WebKitWebDriver, under Xvfb
+#   Windows     the NSIS setup on Windows Server 2025; msedgedriver of the
+#               installed WebView2's version, attached to the app's webview
+#
+# macOS has no WebDriver for WKWebView; the install smoke's HTTP sign-in is
+# what covers it there.
+#
+# Runs after every successful CI push to master, or by hand with the id of
+# such a CI run. Like the install smoke, the `source` job checks that run
+# through the API before anything is downloaded. Not yet part of the release
+# gate or ci-ok: once it has stayed green, add its jobs to
+# scripts/ci/smoke_gate.py or make it a job of CI
+# (docs/release/branch-protection.md).
+#
+# Next step (needs a Rust change): a test-only build with a scripted broker,
+# so one order can be placed in sandbox mode through the UI and seen in the
+# order book; the release app has no broker to quote from in CI.
+
+run-name: >-
+  Native E2E of ${{ github.event_name == 'workflow_dispatch'
+  && format('CI run {0}', inputs.run_id)
+  || format('{0} (CI run {1})', github.event.workflow_run.head_sha, github.event.workflow_run.id) }}
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Id of a successful CI run on master whose bundles to test"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.id || inputs.run_id }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  source:
+    name: source (the CI run whose bundles are tested)
+    if: >-
+      github.event_name == 'workflow_dispatch' || (
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.check.outputs.sha }}
+      run_id: ${{ steps.check.outputs.run_id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: The CI run is a successful push to master in this repository
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.run_id || github.event.workflow_run.id }}
+        run: python3 scripts/ci/smoke_gate.py source "$RUN_ID"
+
+  linux:
+    name: native e2e (linux x86_64)
+    needs: source
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && needs.source.outputs.sha || github.sha }}
+          persist-credentials: false
+      - name: Download the bundles
+        uses: actions/download-artifact@v7
+        with:
+          name: bundles-linux-x86_64
+          path: bundles
+          run-id: ${{ needs.source.outputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Install the .deb, Xvfb and WebKitWebDriver
+        run: |
+          set -euo pipefail
+          printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "5";\n' \
+            | sudo tee /etc/apt/apt.conf.d/99ci-network >/dev/null
+          sudo apt-get update
+          shopt -s nullglob
+          debs=(bundles/deb/*.deb)
+          if [ "${#debs[@]}" -ne 1 ]; then
+            echo "::error::Expected one .deb, found ${#debs[@]}."
+            exit 1
+          fi
+          sudo apt-get install -y --no-install-recommends "./${debs[0]}" xvfb webkit2gtk-driver
+          command -v WebKitWebDriver
+      - name: Install tauri-driver and selenium
+        run: |
+          cargo install tauri-driver --locked
+          python3 -m pip install --user selenium==4.27.1
+      - name: Start a display
+        run: |
+          Xvfb :99 -screen 0 1280x800x24 >/dev/null 2>&1 &
+          for _ in $(seq 1 100); do
+            [ -S /tmp/.X11-unix/X99 ] && break
+            sleep 0.1
+          done
+          if [ ! -S /tmp/.X11-unix/X99 ]; then
+            echo "::error::Xvfb did not start within 10 s."
+            exit 1
+          fi
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+      - name: Set up, sign in and sign out in the app's window
+        run: python3 scripts/ci/native_e2e.py /usr/bin/openalgo-desktop
+
+  windows:
+    name: native e2e (windows-2025)
+    needs: source
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && needs.source.outputs.sha || github.sha }}
+          persist-credentials: false
+      - name: Download the bundles
+        uses: actions/download-artifact@v7
+        with:
+          name: bundles-windows-x86_64
+          path: bundles
+          run-id: ${{ needs.source.outputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Install silently, per user
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem bundles/nsis/*.exe
+          if (@($setup).Count -ne 1) { throw "Expected one NSIS installer, found $(@($setup).Count)." }
+          $p = Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "The installer exited with $($p.ExitCode)." }
+          $exe = Get-ChildItem -Path $env:LOCALAPPDATA -Recurse -Filter 'openalgo-desktop.exe' -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $exe) { throw "openalgo-desktop.exe was not found under $env:LOCALAPPDATA after the install." }
+          "APP_EXE=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: The Edge WebDriver of the installed WebView2's version
+        # msedgedriver must match the WebView2 runtime the app runs in.
+        shell: pwsh
+        run: |
+          $keys = @(
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+            'HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+            'HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          )
+          $version = $null
+          foreach ($k in $keys) {
+            if (Test-Path $k) { $version = (Get-ItemProperty $k).pv; if ($version) { break } }
+          }
+          if (-not $version) { throw "The WebView2 runtime version was not found in the registry." }
+          Write-Host "WebView2 runtime $version"
+          $dir = Join-Path $env:RUNNER_TEMP 'edgedriver'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $zip = Join-Path $dir 'edgedriver.zip'
+          Invoke-WebRequest -Uri "https://msedgedriver.microsoft.com/$version/edgedriver_win64.zip" -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath $dir -Force
+          $driver = Get-ChildItem -Path $dir -Recurse -Filter 'msedgedriver.exe' | Select-Object -First 1
+          if (-not $driver) { throw "msedgedriver.exe was not in the download." }
+          & $driver.FullName --version
+          # The script attaches it to the app's webview (debuggerAddress):
+          # launched through tauri-driver, the webview never left the port
+          # file msedgedriver waits for.
+          "MSEDGEDRIVER=$($driver.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Install selenium
+        run: python -m pip install selenium==4.27.1
+      - name: Set up, sign in and sign out in the app's window
+        run: python scripts/ci/native_e2e.py "$APP_EXE"
