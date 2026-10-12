@@ -846,13 +846,23 @@ pub async fn option_chain(
 
 // ------------------------------------------------------------------ greeks
 
-/// A parsed option symbol: `([A-Z]+)(\d{2})([A-Z]{3})(\d{2})([\d.]+)(CE|PE)`.
+/// A parsed option symbol, as the web's
+/// `^([A-Z0-9&-]+?)(\d{2})([A-Z]{3})(\d{2})([\d.]+)(CE|PE)\Z` (#2206).
 #[derive(Debug, Clone, PartialEq)]
 pub struct OptionContract {
     pub base: String,
     pub expiry: String,
     pub strike: f64,
     pub option_type: String,
+}
+
+/// `DDMMMYY` followed by a strike of digits and dots, nothing else.
+fn is_expiry_and_strike(b: &[u8]) -> bool {
+    b.len() > 7
+        && b[0..2].iter().all(u8::is_ascii_digit)
+        && b[2..5].iter().all(u8::is_ascii_uppercase)
+        && b[5..7].iter().all(u8::is_ascii_digit)
+        && b[7..].iter().all(|c| c.is_ascii_digit() || *c == b'.')
 }
 
 pub fn parse_option_symbol(symbol: &str) -> Result<OptionContract, String> {
@@ -863,37 +873,36 @@ pub fn parse_option_symbol(symbol: &str) -> Result<OptionContract, String> {
             symbol, symbol
         )
     };
-    let base: String = up.chars().take_while(|c| c.is_ascii_uppercase()).collect();
-    if base.is_empty() {
-        return Err(fail());
-    }
-    let rest = &up[base.len()..];
-    let b = rest.as_bytes();
-    if b.len() < 9
-        || !b[0..2].iter().all(u8::is_ascii_digit)
-        || !b[2..5].iter().all(u8::is_ascii_uppercase)
-        || !b[5..7].iter().all(u8::is_ascii_digit)
-    {
-        return Err(fail());
-    }
-    let expiry = rest[..7].to_string();
-    let tail = &rest[7..];
-    let num_len = tail
-        .bytes()
-        .take_while(|c| c.is_ascii_digit() || *c == b'.')
-        .count();
-    if num_len == 0 {
-        return Err(fail());
-    }
-    let ot = &tail[num_len..];
-    let option_type = if ot.starts_with("CE") {
+    // The type closes the symbol: trailing text, a newline included, is
+    // refused rather than ignored.
+    let option_type = if up.ends_with("CE") {
         "CE"
-    } else if ot.starts_with("PE") {
+    } else if up.ends_with("PE") {
         "PE"
     } else {
         return Err(fail());
     };
-    let strike: f64 = tail[..num_len].parse().map_err(|_| fail())?;
+    let body = &up.as_bytes()[..up.len() - 2];
+    // The underlying may hold digits, `&` and `-` (M&M, BAJAJ-AUTO, 360ONE);
+    // like the web's lazy group, the shortest one that leaves a valid expiry
+    // and strike wins.
+    let mut split = None;
+    for i in 1..body.len() {
+        if !matches!(body[i - 1], b'A'..=b'Z' | b'0'..=b'9' | b'&' | b'-') {
+            break;
+        }
+        if is_expiry_and_strike(&body[i..]) {
+            split = Some(i);
+            break;
+        }
+    }
+    let Some(split) = split else {
+        return Err(fail());
+    };
+    // Every byte up to the strike's end is ASCII, so these are char boundaries.
+    let base = up[..split].to_string();
+    let expiry = up[split..split + 7].to_string();
+    let strike: f64 = up[split + 7..up.len() - 2].parse().map_err(|_| fail())?;
     if parse_compact_expiry(&expiry).is_none() {
         return Err(format!(
             "Failed to parse option symbol {}: Invalid month in option symbol: {}",
@@ -1437,6 +1446,81 @@ mod tests {
             292.5
         );
         assert!(parse_option_symbol("NIFTY27OCT26FUT").is_err());
+    }
+
+    /// Web test/test_option_expiry_timezone_contract.py::
+    /// test_parse_option_symbols_with_punctuation_and_digits_in_underlying
+    #[test]
+    fn option_symbols_with_punctuation_and_digits_in_underlying() {
+        let cases = [
+            ("M&M27OCT262800CE", "M&M", (2026, 10, 27), 2800.0, "CE"),
+            ("GVT&D27OCT264200PE", "GVT&D", (2026, 10, 27), 4200.0, "PE"),
+            (
+                "NAM-INDIA27OCT261040CE",
+                "NAM-INDIA",
+                (2026, 10, 27),
+                1040.0,
+                "CE",
+            ),
+            (
+                "BAJAJ-AUTO27OCT2610000CE",
+                "BAJAJ-AUTO",
+                (2026, 10, 27),
+                10000.0,
+                "CE",
+            ),
+            (
+                "360ONE27OCT261040CE",
+                "360ONE",
+                (2026, 10, 27),
+                1040.0,
+                "CE",
+            ),
+            (
+                "NIFTY28NOV2424000CE",
+                "NIFTY",
+                (2024, 11, 28),
+                24000.0,
+                "CE",
+            ),
+            (
+                "SENSEX28NOV24100000PE",
+                "SENSEX",
+                (2024, 11, 28),
+                100000.0,
+                "PE",
+            ),
+            ("USDINR28NOV2483.50CE", "USDINR", (2024, 11, 28), 83.5, "CE"),
+        ];
+        for (symbol, underlying, (y, m, d), strike, option_type) in cases {
+            let c = parse_option_symbol(symbol).unwrap_or_else(|e| panic!("{symbol}: {e}"));
+            assert_eq!(c.base, underlying, "{symbol}");
+            assert_eq!(
+                parse_compact_expiry(&c.expiry),
+                NaiveDate::from_ymd_opt(y, m, d),
+                "{symbol}"
+            );
+            assert_eq!(c.strike, strike, "{symbol}");
+            assert_eq!(c.option_type, option_type, "{symbol}");
+        }
+    }
+
+    /// Web test/test_option_expiry_timezone_contract.py::
+    /// test_parse_option_symbol_rejects_trailing_newline, plus other text
+    /// after the type, which the anchored pattern also refuses.
+    #[test]
+    fn option_symbol_rejects_trailing_text() {
+        for symbol in [
+            "NIFTY11AUG2624600CE\n",
+            "NIFTY11AUG2624600CEX",
+            "NIFTY11AUG2624600PE ",
+        ] {
+            let err = parse_option_symbol(symbol).unwrap_err();
+            assert!(
+                err.contains("Invalid option symbol format"),
+                "{symbol:?}: {err}"
+            );
+        }
     }
 
     #[test]
