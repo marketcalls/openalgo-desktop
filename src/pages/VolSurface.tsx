@@ -3,6 +3,7 @@ import type * as PlotlyTypes from 'plotly.js'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { oiProfileApi } from '@/api/oi-profile'
 import { type VolSurfaceData, volSurfaceApi } from '@/api/vol-surface'
+import { ExpiryLookupNotice } from '@/components/tools/ExpiryLookupNotice'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -22,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useExpiryLookup } from '@/hooks/useExpiryLookup'
 import { useSupportedExchanges } from '@/hooks/useSupportedExchanges'
 import Plot from '@/lib/Plot3D'
 import { serverSentence } from '@/lib/serverSentence'
@@ -126,33 +128,25 @@ export default function VolSurface() {
     }
   }, [selectedExchange, defaultUnderlyings[selectedExchange]])
 
-  // Fetch expiries when underlying changes
-  useEffect(() => {
-    if (!selectedUnderlying) return
-    setExpiries([])
-    setSelectedExpiries([])
-    setSurfaceData(null)
-
-    let cancelled = false
-    const fetchExpiries = async () => {
-      try {
-        const response = await oiProfileApi.getExpiries(selectedExchange, selectedUnderlying)
-        if (cancelled) return
-        if (response.status === 'success' && response.expiries.length > 0) {
-          setExpiries(response.expiries)
-          // Auto-select first 4 expiries
-          setSelectedExpiries(response.expiries.slice(0, 4))
-        }
-      } catch (error) {
-        if (cancelled) return
-        showToast.error(serverSentence(error, 'Failed to fetch expiry dates'))
-      }
+  // Fetch expiries when underlying changes. Desktop: every outcome is a
+  // state the page shows, with Retry (TOOLS-02).
+  const expiryLookup = useExpiryLookup(
+    selectedExchange,
+    selectedUnderlying,
+    oiProfileApi.getExpiries,
+    {
+      onReset: () => {
+        setExpiries([])
+        setSelectedExpiries([])
+        setSurfaceData(null)
+      },
+      onReady: (list) => {
+        setExpiries(list)
+        // Auto-select first 4 expiries
+        setSelectedExpiries(list.slice(0, 4))
+      },
     }
-    fetchExpiries()
-    return () => {
-      cancelled = true
-    }
-  }, [selectedUnderlying, selectedExchange])
+  )
 
   // Toggle an expiry selection
   const toggleExpiry = useCallback((expiry: string) => {
@@ -366,6 +360,8 @@ export default function VolSurface() {
           </Button>
         </div>
       </div>
+
+      <ExpiryLookupNotice lookup={expiryLookup} />
 
       {/* Expiry selection */}
       {expiries.length > 0 && (

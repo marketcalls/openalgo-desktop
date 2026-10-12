@@ -2,6 +2,7 @@ import { Check, ChevronsUpDown } from 'lucide-react'
 import type * as PlotlyTypes from 'plotly.js'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type CandleData, type OIProfileDataResponse, oiProfileApi } from '@/api/oi-profile'
+import { ExpiryLookupNotice } from '@/components/tools/ExpiryLookupNotice'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -21,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useExpiryLookup } from '@/hooks/useExpiryLookup'
 import { useSupportedExchanges } from '@/hooks/useSupportedExchanges'
 import Plot from '@/lib/Plot2D'
 import { serverSentence } from '@/lib/serverSentence'
@@ -150,36 +152,24 @@ export default function OIProfile() {
     }
   }, [selectedExchange, defaultUnderlyings[selectedExchange]])
 
-  // Fetch expiries when underlying changes
-  useEffect(() => {
-    if (!selectedUnderlying) return
-    setExpiries([])
-    setSelectedExpiry('')
-    setProfileData(null)
-
-    let cancelled = false
-    const fetchExpiries = async () => {
-      try {
-        const response = await oiProfileApi.getExpiries(selectedExchange, selectedUnderlying)
-        if (cancelled) return
-        if (response.status === 'success' && response.expiries.length > 0) {
-          setExpiries(response.expiries)
-          setSelectedExpiry(response.expiries[0])
-        } else {
-          setExpiries([])
-          setSelectedExpiry('')
-        }
-      } catch {
-        if (cancelled) return
+  // Fetch expiries when underlying changes. Desktop: every outcome is a
+  // state the page shows, with Retry (TOOLS-02).
+  const expiryLookup = useExpiryLookup(
+    selectedExchange,
+    selectedUnderlying,
+    oiProfileApi.getExpiries,
+    {
+      onReset: () => {
         setExpiries([])
         setSelectedExpiry('')
-      }
+        setProfileData(null)
+      },
+      onReady: (list) => {
+        setExpiries(list)
+        setSelectedExpiry(list[0])
+      },
     }
-    fetchExpiries()
-    return () => {
-      cancelled = true
-    }
-  }, [selectedUnderlying, selectedExchange])
+  )
 
   // Fetch profile data
   const fetchProfileData = useCallback(async () => {
@@ -565,6 +555,8 @@ export default function OIProfile() {
           </Button>
         </div>
       </div>
+
+      <ExpiryLookupNotice lookup={expiryLookup} />
 
       {/* Info badges */}
       {profileData && profileData.status === 'success' && (

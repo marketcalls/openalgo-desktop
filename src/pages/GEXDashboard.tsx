@@ -2,6 +2,7 @@ import { Check, ChevronsUpDown } from 'lucide-react'
 import type * as PlotlyTypes from 'plotly.js'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type GEXDataResponse, gexApi } from '@/api/gex'
+import { ExpiryLookupNotice } from '@/components/tools/ExpiryLookupNotice'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -21,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useExpiryLookup } from '@/hooks/useExpiryLookup'
 import { useSupportedExchanges } from '@/hooks/useSupportedExchanges'
 import Plot from '@/lib/Plot2D'
 import { serverSentence } from '@/lib/serverSentence'
@@ -108,36 +110,19 @@ export default function GEXDashboard() {
     }
   }, [selectedExchange, defaultUnderlyings])
 
-  // Fetch expiries when underlying changes
-  useEffect(() => {
-    if (!selectedUnderlying) return
-    setExpiries([])
-    setSelectedExpiry('')
-    setGexData(null)
-
-    let cancelled = false
-    const fetchExpiries = async () => {
-      try {
-        const response = await gexApi.getExpiries(selectedExchange, selectedUnderlying)
-        if (cancelled) return
-        if (response.status === 'success' && response.expiries.length > 0) {
-          setExpiries(response.expiries)
-          setSelectedExpiry(response.expiries[0])
-        } else {
-          setExpiries([])
-          setSelectedExpiry('')
-        }
-      } catch {
-        if (cancelled) return
-        setExpiries([])
-        setSelectedExpiry('')
-      }
-    }
-    fetchExpiries()
-    return () => {
-      cancelled = true
-    }
-  }, [selectedUnderlying, selectedExchange])
+  // Fetch expiries when underlying changes. Desktop: every outcome is a
+  // state the page shows, with Retry (TOOLS-02).
+  const expiryLookup = useExpiryLookup(selectedExchange, selectedUnderlying, gexApi.getExpiries, {
+    onReset: () => {
+      setExpiries([])
+      setSelectedExpiry('')
+      setGexData(null)
+    },
+    onReady: (list) => {
+      setExpiries(list)
+      setSelectedExpiry(list[0])
+    },
+  })
 
   // Fetch GEX data
   const fetchGEXData = useCallback(async () => {
@@ -578,6 +563,8 @@ export default function GEXDashboard() {
           </Button>
         </div>
       </div>
+
+      <ExpiryLookupNotice lookup={expiryLookup} />
 
       {/* Info badges */}
       {gexData && gexData.status === 'success' && (

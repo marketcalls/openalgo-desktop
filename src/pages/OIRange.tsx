@@ -2,6 +2,7 @@ import { Check, ChevronsUpDown, Minus, Plus, RotateCcw } from 'lucide-react'
 import type * as PlotlyTypes from 'plotly.js'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type OIDataResponse, oiTrackerApi } from '@/api/oi-tracker'
+import { ExpiryLookupNotice } from '@/components/tools/ExpiryLookupNotice'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -23,6 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { useExpiryLookup } from '@/hooks/useExpiryLookup'
 import { useSupportedExchanges } from '@/hooks/useSupportedExchanges'
 import Plot from '@/lib/Plot2D'
 import { serverSentence } from '@/lib/serverSentence'
@@ -123,38 +125,26 @@ export default function OIRange() {
     }
   }, [selectedExchange, defaultUnderlyings[selectedExchange]])
 
-  // Fetch expiries when underlying changes
-  useEffect(() => {
-    if (!selectedUnderlying) return
-    setExpiries([])
-    setSelectedExpiry('')
-    setOiData(null)
-    setMinStrike(null)
-    setMaxStrike(null)
-
-    let cancelled = false
-    const fetchExpiries = async () => {
-      try {
-        const response = await oiTrackerApi.getExpiries(selectedExchange, selectedUnderlying)
-        if (cancelled) return
-        if (response.status === 'success' && response.expiries.length > 0) {
-          setExpiries(response.expiries)
-          setSelectedExpiry(response.expiries[0])
-        } else {
-          setExpiries([])
-          setSelectedExpiry('')
-        }
-      } catch {
-        if (cancelled) return
+  // Fetch expiries when underlying changes. Desktop: every outcome is a
+  // state the page shows, with Retry (TOOLS-02).
+  const expiryLookup = useExpiryLookup(
+    selectedExchange,
+    selectedUnderlying,
+    oiTrackerApi.getExpiries,
+    {
+      onReset: () => {
         setExpiries([])
         setSelectedExpiry('')
-      }
+        setOiData(null)
+        setMinStrike(null)
+        setMaxStrike(null)
+      },
+      onReady: (list) => {
+        setExpiries(list)
+        setSelectedExpiry(list[0])
+      },
     }
-    fetchExpiries()
-    return () => {
-      cancelled = true
-    }
-  }, [selectedUnderlying, selectedExchange])
+  )
 
   // Fetch OI data - uses requestIdRef to discard stale responses
   const fetchOIData = useCallback(async () => {
@@ -573,6 +563,8 @@ export default function OIRange() {
           </div>
         </div>
       </div>
+
+      <ExpiryLookupNotice lookup={expiryLookup} />
 
       {/* Strike range controls */}
       <Card>

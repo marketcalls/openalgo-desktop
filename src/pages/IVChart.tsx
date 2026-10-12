@@ -9,6 +9,7 @@ import {
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type IVChartData, ivChartApi } from '@/api/iv-chart'
+import { ExpiryLookupNotice } from '@/components/tools/ExpiryLookupNotice'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -28,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useExpiryLookup } from '@/hooks/useExpiryLookup'
 import { useSupportedExchanges } from '@/hooks/useSupportedExchanges'
 import { serverSentence } from '@/lib/serverSentence'
 import { useThemeStore } from '@/stores/themeStore'
@@ -360,36 +362,25 @@ export default function IVChart() {
     }
   }, [selectedExchange, defaultUnderlyings])
 
-  // Fetch expiries when underlying changes
-  useEffect(() => {
-    if (!selectedUnderlying) return
-    setExpiries([])
-    setSelectedExpiry('')
-    setChartData(null)
-    chartDataRef.current = null
-
-    let cancelled = false
-    const fetchExpiries = async () => {
-      try {
-        const response = await ivChartApi.getExpiries(selectedExchange, selectedUnderlying)
-        if (cancelled) return
-        if (response.status === 'success' && response.expiries.length > 0) {
-          setExpiries(response.expiries)
-          setSelectedExpiry(response.expiries[0])
-        } else {
-          setExpiries([])
-          setSelectedExpiry('')
-        }
-      } catch (error) {
-        if (cancelled) return
-        showToast.error(serverSentence(error, 'Failed to fetch expiry dates'), 'positions')
-      }
+  // Fetch expiries when underlying changes. Desktop: every outcome is a
+  // state the page shows, with Retry (TOOLS-02).
+  const expiryLookup = useExpiryLookup(
+    selectedExchange,
+    selectedUnderlying,
+    ivChartApi.getExpiries,
+    {
+      onReset: () => {
+        setExpiries([])
+        setSelectedExpiry('')
+        setChartData(null)
+        chartDataRef.current = null
+      },
+      onReady: (list) => {
+        setExpiries(list)
+        setSelectedExpiry(list[0])
+      },
     }
-    fetchExpiries()
-    return () => {
-      cancelled = true
-    }
-  }, [selectedUnderlying, selectedExchange])
+  )
 
   // ── Load IV + Greeks data ───────────────────────────────────────
 
@@ -565,6 +556,8 @@ export default function IVChart() {
               {isLoading ? 'Loading...' : 'Refresh'}
             </Button>
           </div>
+
+          <ExpiryLookupNotice lookup={expiryLookup} className="mb-4" />
 
           {/* Info bar */}
           {chartData && (

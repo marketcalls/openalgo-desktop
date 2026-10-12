@@ -193,7 +193,7 @@ export default function Token() {
     const fetchExpiriesForUnderlying = async () => {
       try {
         const response = await fetch(
-          `/search/api/expiries?exchange=${exchange}&underlying=${underlying}`,
+          `/search/api/expiries?exchange=${encodeURIComponent(exchange)}&underlying=${encodeURIComponent(underlying)}`,
           { credentials: 'include' }
         )
         if (response.ok) {

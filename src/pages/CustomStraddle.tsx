@@ -17,6 +17,7 @@ import {
   type TradeEntry,
 } from '@/api/custom-straddle'
 import { oiProfileApi } from '@/api/oi-profile'
+import { ExpiryLookupNotice } from '@/components/tools/ExpiryLookupNotice'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -36,8 +37,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useExpiryLookup } from '@/hooks/useExpiryLookup'
 import { useSupportedExchanges } from '@/hooks/useSupportedExchanges'
-import { serverSentence } from '@/lib/serverSentence'
 import { useThemeStore } from '@/stores/themeStore'
 import { showToast } from '@/utils/toast'
 
@@ -596,36 +597,25 @@ export default function CustomStraddle() {
     }
   }, [selectedUnderlying, selectedExchange])
 
-  // Fetch expiries when underlying changes
-  useEffect(() => {
-    if (!selectedUnderlying) return
-    setExpiries([])
-    setSelectedExpiry('')
-    setChartData(null)
-    chartDataRef.current = null
-
-    let cancelled = false
-    const fetchExpiries = async () => {
-      try {
-        const response = await oiProfileApi.getExpiries(selectedExchange, selectedUnderlying)
-        if (cancelled) return
-        if (response.status === 'success' && response.expiries.length > 0) {
-          setExpiries(response.expiries)
-          setSelectedExpiry(response.expiries[0])
-        } else {
-          setExpiries([])
-          setSelectedExpiry('')
-        }
-      } catch (error) {
-        if (!cancelled)
-          showToast.error(serverSentence(error, 'Failed to fetch expiry dates'), 'positions')
-      }
+  // Fetch expiries when underlying changes. Desktop: every outcome is a
+  // state the page shows, with Retry (TOOLS-02).
+  const expiryLookup = useExpiryLookup(
+    selectedExchange,
+    selectedUnderlying,
+    oiProfileApi.getExpiries,
+    {
+      onReset: () => {
+        setExpiries([])
+        setSelectedExpiry('')
+        setChartData(null)
+        chartDataRef.current = null
+      },
+      onReady: (list) => {
+        setExpiries(list)
+        setSelectedExpiry(list[0])
+      },
     }
-    fetchExpiries()
-    return () => {
-      cancelled = true
-    }
-  }, [selectedUnderlying, selectedExchange])
+  )
 
   // ── Load simulation data ─────────────────────────────────────
 
@@ -822,6 +812,8 @@ export default function CustomStraddle() {
               {isLoading ? 'Simulating...' : 'Simulate'}
             </Button>
           </div>
+
+          <ExpiryLookupNotice lookup={expiryLookup} className="mb-4" />
 
           {/* Summary bar */}
           {summary && latestPoint && (

@@ -7,6 +7,7 @@ import {
   ColumnReorderPanel,
   ViewModeToggle,
 } from '@/components/option-chain'
+import { ApiKeyNotice, ExpiryLookupNotice } from '@/components/tools/ExpiryLookupNotice'
 import { PlaceOrderDialog } from '@/components/trading'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -35,15 +36,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useExpiryLookup } from '@/hooks/useExpiryLookup'
 import { useOptionChainLive } from '@/hooks/useOptionChainLive'
 import { useOptionChainPreferences } from '@/hooks/useOptionChainPreferences'
 import { useSupportedExchanges } from '@/hooks/useSupportedExchanges'
-import { serverSentence } from '@/lib/serverSentence'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import type { BarDataSource, BarStyle, ColumnKey, OptionStrike } from '@/types/option-chain'
 import { COLUMN_DEFINITIONS } from '@/types/option-chain'
-import { showToast } from '@/utils/toast'
 
 // FNO_EXCHANGES and DEFAULT_UNDERLYINGS are now provided by useSupportedExchanges() hook
 
@@ -643,34 +643,23 @@ export default function OptionChain() {
     }
   }, [selectedExchange, defaultUnderlyings[selectedExchange], setSelectedUnderlying])
 
-  // Fetch expiries when underlying changes
-  useEffect(() => {
-    if (!selectedUnderlying) return
-    setExpiries([])
-    setSelectedExpiry('')
-
-    let cancelled = false
-    const fetchExpiries = async () => {
-      try {
-        const response = await oiProfileApi.getExpiries(selectedExchange, selectedUnderlying)
-        if (cancelled) return
-        if (response.status === 'success' && response.expiries.length > 0) {
-          setExpiries(response.expiries)
-          setSelectedExpiry(response.expiries[0])
-        } else {
-          setExpiries([])
-          setSelectedExpiry('')
-        }
-      } catch (error) {
-        if (cancelled) return
-        showToast.error(serverSentence(error, 'Failed to load expiry dates'))
-      }
+  // Fetch expiries when underlying changes. Desktop: every outcome is a
+  // state the page shows, with Retry (TOOLS-02).
+  const expiryLookup = useExpiryLookup(
+    selectedExchange,
+    selectedUnderlying,
+    oiProfileApi.getExpiries,
+    {
+      onReset: () => {
+        setExpiries([])
+        setSelectedExpiry('')
+      },
+      onReady: (list) => {
+        setExpiries(list)
+        setSelectedExpiry(list[0])
+      },
     }
-    fetchExpiries()
-    return () => {
-      cancelled = true
-    }
-  }, [selectedUnderlying, selectedExchange])
+  )
 
   // Update previous data ref after render (for flash animation)
   // Using useEffect to update AFTER the current data is rendered
@@ -1083,11 +1072,23 @@ export default function OptionChain() {
         </>
       )}
 
-      {!data && !error && (
-        <div className="flex items-center justify-center py-16">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      )}
+      {/* Desktop: spin only while the chain is actually on its way;
+          otherwise say what is missing (TOOLS-02). */}
+      {!data &&
+        !error &&
+        (!apiKey ? (
+          <ApiKeyNotice />
+        ) : expiryLookup.phase === 'ready' && selectedExpiry ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        ) : expiryLookup.phase === 'idle' ? (
+          <div className="py-16 text-center text-muted-foreground">
+            Select an underlying to load its expiry dates.
+          </div>
+        ) : (
+          <ExpiryLookupNotice lookup={expiryLookup} />
+        ))}
 
       {/* Place Order Dialog */}
       <PlaceOrderDialog
