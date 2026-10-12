@@ -43,11 +43,30 @@ body (the broker's text with 400, an internal failure with 500). The
 outcome travels beside the reply for in-process callers (strategies,
 scalping, OpenScript, MCP).
 
-An uncertain placement is never placed again. The order reconciler looks it
-up in the broker's order book: by client tag when the adapter reports tags
-(`Broker::get_order_book_tagged`), otherwise by symbol, exchange, side,
-quantity and product among orders nobody owns, never earlier than the
-placement, and never by guessing between several candidates.
+An uncertain placement is never placed again (and is announced as
+`order.unconfirmed`, never `order.failed`); the reconciler is woken at once.
+It looks the order up in the broker's order book (`find_placed`, P1-4):
+
+- by client tag only, when the broker reports every order's tag
+  (`Broker::reports_order_tags`, today Zerodha and Angel: a capability,
+  never guessed from the rows) and the placement carried one;
+- otherwise by symbol, exchange, side, quantity, product and shape (price
+  type, where a MARKET order may show as LIMIT and an SL-M as SL after
+  market price protection; limit and trigger prices) among orders nobody
+  owns and that carry no other order's tag, whose own timestamp is readable
+  and no more than 60 seconds before the placement. A row whose time cannot
+  be read is never taken. Several candidates are never guessed between.
+
+Multi-order replies (close-all, basket, split) carry "some order has no
+definite answer" beside the web's wire shape (P1-5). Every close-all override
+runs each exit inside `outcome::placing` and records it with
+`CloseAllResult::record`. A split stops at the first chunk whose answer was
+lost and reports the rest as not sent (the web keeps sending). An Action
+Center approval whose answer was lost stays `submitting` (unconfirmed): never
+marked rejected, never sent again.
+
+A strategy exit whose order row cannot be written is not sent (P2-6): it
+could not be found again if its answer were lost.
 
 ## When the book does not show it (P0-3)
 

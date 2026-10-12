@@ -412,11 +412,35 @@ pub struct CancelAllResult {
 pub struct CloseAllResult {
     /// Order ids of the exit orders the broker accepted.
     pub placed: Vec<String>,
-    /// `SYMBOL (EXCHANGE): reason` for each position still open.
+    /// `SYMBOL (EXCHANGE): reason` for each position still open, or whose
+    /// exit had no definite answer.
     pub failed: Vec<String>,
+    /// `SYMBOL (EXCHANGE)` of each exit sent with no definite answer: it may
+    /// be at the broker (LOG-08). Not on the wire.
+    #[serde(skip)]
+    pub uncertain: Vec<String>,
 }
 
 impl CloseAllResult {
+    /// Record one exit order of a close-all, run inside
+    /// `outcome::placing`: accepted, refused, or uncertain (reported with
+    /// the advice to check the order book, never as refused).
+    pub fn record(&mut self, label: &str, placed: crate::error::Result<OrderResponse>) {
+        use crate::brokers::common::outcome::{classify, PlaceOutcome};
+        match classify(&placed) {
+            PlaceOutcome::Accepted { order_id } => self.placed.push(order_id),
+            PlaceOutcome::Uncertain { reason, .. } => {
+                tracing::error!("Square-off of {} has no definite answer", label);
+                self.failed.push(format!("{}: {}", label, reason));
+                self.uncertain.push(label.to_string());
+            }
+            PlaceOutcome::Refused { reason } => {
+                tracing::warn!("Square-off of {} was refused", label);
+                self.failed.push(format!("{}: {}", label, reason));
+            }
+        }
+    }
+
     /// The web's message for this outcome.
     pub fn message(&self) -> String {
         if self.failed.is_empty() {
@@ -904,11 +928,13 @@ mod tests {
         let ok = CloseAllResult {
             placed: vec!["1".into()],
             failed: vec![],
+            uncertain: vec![],
         };
         assert_eq!(ok.message(), "All Open Positions SquaredOff");
         let bad = CloseAllResult {
             placed: vec![],
             failed: vec!["SBIN (NSE): margin".into()],
+            uncertain: vec![],
         };
         assert!(bad
             .message()

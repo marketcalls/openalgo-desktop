@@ -135,12 +135,8 @@ pub(crate) async fn close_all_positions(b: &XtsBroker, auth: &AuthToken) -> Resu
             format!("{} ({})", sym, ex)
         };
         b.order_pacer.acquire().await;
-        match place_raw(b, auth, &payload).await {
-            Ok(r) => out.placed.push(r.order_id),
-            Err(e) => out
-                .failed
-                .push(format!("{}: {}", label, e.client_message())),
-        }
+        let placed = crate::brokers::common::outcome::placing(place_raw(b, auth, &payload)).await;
+        out.record(&label, placed);
     }
     Ok(out)
 }

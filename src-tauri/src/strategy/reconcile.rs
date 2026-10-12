@@ -28,7 +28,7 @@ use super::engine::{ORDER_UNCONFIRMED, UNCONFIRMED};
 use super::store::{EventFields, OrderRow, RunRow};
 use super::StrategyModule;
 use crate::services::order_reconciler::{
-    find_placed, held_message, Absence, BookSnapshot, Found, HeldOrder, OrderOwner, Unconfirmed,
+    held_message, Absence, BookSnapshot, Found, HeldOrder, OrderOwner, Unconfirmed,
 };
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -166,9 +166,12 @@ impl StrategyModule {
                     client_tag: tags.get(&o.id).map(String::as_str),
                     placed_at: placed_at(o),
                     net_before: Some(net_before(o)),
+                    pricetype: Some(&o.pricetype),
+                    price: Some(o.price),
+                    trigger_price: Some(o.trigger_price),
                 };
                 let bound = |id: &str| claimed.contains(id) || book.owned(id);
-                match find_placed(&book.rows, &u, &bound) {
+                match book.find(&u, &bound) {
                     Found::Order(b) => {
                         self.reconcile_absence.forget(&key);
                         claimed.insert(b.order_id.clone());

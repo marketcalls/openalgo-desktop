@@ -258,6 +258,10 @@ unchanged:
   order fields. An adapter that knows more than the transport (a tag, an
   ambiguous reply) returns `AppError::Uncertain`; never `AppError::Broker`
   with "check the order book".
+- **An unconfirmed order is found by tag only when the broker reports
+  tags** (`Broker::reports_order_tags`); otherwise by its fields and shape,
+  and never from a book row whose time cannot be read. An exit whose order
+  row cannot be written is not sent.
 - **Inside a placement an unmarked error is uncertain.** An adapter marks
   a readable "not placed" with `outcome::refusal` / `refusal_with_status` /
   `definite` (`AppError::Refused`); a refusal after a 5xx in the same

@@ -344,15 +344,10 @@ pub async fn close_all_positions(b: &SamcoBroker, auth: &AuthToken) -> Result<Cl
             amo: false,
         };
         let outcome = match ResolvedOrder::resolve(&req, b.resolver()) {
-            Ok(o) => place_order(b, auth, &o).await,
+            Ok(o) => crate::brokers::common::outcome::placing(place_order(b, auth, &o)).await,
             Err(e) => Err(e),
         };
-        match outcome {
-            Ok(r) => result.placed.push(r.order_id),
-            Err(e) => result
-                .failed
-                .push(format!("{}: {}", label, e.client_message())),
-        }
+        result.record(&label, outcome);
     }
     Ok(result)
 }

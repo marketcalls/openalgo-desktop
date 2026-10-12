@@ -25,6 +25,7 @@ impl Subscriber for LogSubscriber {
         vec![
             Topic::OrderPlaced,
             Topic::OrderFailed,
+            Topic::OrderUnconfirmed,
             Topic::OrderNoAction,
             Topic::OrderModified,
             Topic::OrderModifyFailed,

@@ -834,7 +834,7 @@ fn order_row(id: &str, action: &str, qty: i64, status: &str) -> Value {
         "orderid": id, "symbol": OPT, "exchange": "NFO", "action": action,
         "quantity": qty, "product": "MIS", "order_status": status,
         "filled_quantity": if status == "complete" { qty } else { 0 },
-        "average_price": 94.5, "timestamp": "",
+        "average_price": 94.5, "timestamp": "2026-10-05 10:30:05",
     })
 }
 
@@ -973,7 +973,7 @@ async fn a_partly_refused_split_exit_retries_only_what_is_not_working() {
                 vec![json!({
                     "orderid": "X1", "symbol": OPT, "exchange": "NFO", "action": "SELL",
                     "quantity": f, "product": "MIS", "order_status": "open",
-                    "filled_quantity": 1000, "average_price": 94.5, "timestamp": "",
+                    "filled_quantity": 1000, "average_price": 94.5, "timestamp": "2026-10-05 10:30:05",
                 })],
                 m.clock.now(),
             ),

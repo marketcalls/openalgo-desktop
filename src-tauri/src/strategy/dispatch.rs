@@ -233,6 +233,10 @@ pub struct BookOrder {
     pub status: String,
     pub filled_quantity: i64,
     pub average_price: f64,
+    /// `MARKET`, `LIMIT`, `SL`, `SL-M` (uppercase; empty when unknown).
+    pub pricetype: String,
+    pub price: f64,
+    pub trigger_price: f64,
     /// The client tag the order was sent with, where the broker reports it.
     pub client_tag: Option<String>,
     /// The row in the shape `order_status` returns, for the fill fold.
@@ -270,6 +274,9 @@ impl BookOrder {
             status: s("order_status").to_ascii_lowercase(),
             filled_quantity: n("filled_quantity") as i64,
             average_price: n("average_price"),
+            pricetype: s("pricetype").to_ascii_uppercase(),
+            price: n("price"),
+            trigger_price: n("trigger_price"),
             client_tag: None,
             row: row.clone(),
         })
@@ -311,6 +318,11 @@ pub trait OrderGateway: Send + Sync {
     async fn book(&self, mode: RunMode, book: Book) -> Result<Value, Value>;
     /// A last price for the underlying an ATM strike is measured against.
     async fn ltp(&self, symbol: &str, exchange: &str) -> Result<f64, String>;
+    /// Whether `order_book_rows` carries the client tag every order was sent
+    /// with (the broker's capability, never inferred from rows).
+    fn reports_order_tags(&self, _mode: RunMode) -> bool {
+        false
+    }
     /// The whole order book through the run's pipe, one read, for the order
     /// reconciler. Default: the `Book::Orders` envelope, without tags.
     async fn order_book_rows(&self, mode: RunMode) -> Result<Vec<BookOrder>, String> {
@@ -580,6 +592,15 @@ impl OrderGateway for AppGateway {
         } else {
             Err(reply.body)
         }
+    }
+
+    fn reports_order_tags(&self, mode: RunMode) -> bool {
+        mode == RunMode::Live
+            && self
+                .ctx
+                .upgrade()
+                .and_then(|ctx| broker_handle(&ctx).ok())
+                .is_some_and(|h| h.broker.reports_order_tags())
     }
 
     async fn order_book_rows(&self, mode: RunMode) -> Result<Vec<BookOrder>, String> {

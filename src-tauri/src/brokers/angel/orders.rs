@@ -348,18 +348,10 @@ pub async fn close_all_positions(b: &AngelBroker, auth: &AuthToken) -> Result<Cl
             amo: false,
         };
         let placed = match ResolvedOrder::resolve(&req, &symbols) {
-            Ok(o) => place_order(b, auth, &o).await,
+            Ok(o) => crate::brokers::common::outcome::placing(place_order(b, auth, &o)).await,
             Err(e) => Err(e),
         };
-        match placed {
-            Ok(r) => result.placed.push(r.order_id),
-            Err(e) => {
-                tracing::error!("Square-off failed for {}: {}", label, e.code());
-                result
-                    .failed
-                    .push(format!("{}: {}", label, e.client_message()))
-            }
-        }
+        result.record(&label, placed);
     }
     Ok(result)
 }

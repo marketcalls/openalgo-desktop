@@ -11,7 +11,8 @@ use super::core::{
     safe_request, BrokerHandle, Reply,
 };
 use super::order_service::{
-    fractional_refusal, place_live, route_to_pending, sandbox_order, Route, FRACTIONAL_REFUSED,
+    fractional_refusal, place_live, route_to_pending, sandbox_order, uncertain_legs, Route,
+    FRACTIONAL_REFUSED,
 };
 use crate::brokers::types::QuoteKey;
 use crate::events::{Event, Mode};
@@ -29,6 +30,8 @@ pub const BASKET_BATCH: usize = 10;
 pub const BASKET_BATCH_PAUSE: Duration = Duration::from_secs(1);
 /// Pause between live split chunks (1 / ORDER_RATE_LIMIT).
 pub const SPLIT_PAUSE: Duration = Duration::from_millis(100);
+/// A split chunk not sent because an earlier one has no definite answer.
+pub const SPLIT_HELD: &str = "Not sent: an earlier order of this split has no definite answer from the broker and may have been placed. Check the order book before sending the rest.";
 
 /// BUY legs first, then SELL, each group in request order.
 pub fn buy_then_sell(orders: &[Value]) -> Vec<Value> {
@@ -165,15 +168,21 @@ pub async fn basket_order(ctx: &AppState, req: &Value, route: Route) -> Reply {
         Err(r) => return r,
     };
     let mut results = Vec::with_capacity(sorted.len());
+    let mut uncertain = Vec::new();
     for (b, batch) in sorted.chunks(BASKET_BATCH).enumerate() {
         if b > 0 {
             tokio::time::sleep(BASKET_BATCH_PAUSE).await;
         }
         let placed =
             futures_util::future::join_all(batch.iter().map(|leg| live_leg(&h, ctx, leg))).await;
-        results.extend(placed);
+        for (result, unknown) in placed {
+            results.push(result);
+            uncertain.extend(unknown);
+        }
     }
-    let reply = Reply::ok(json!({"status": "success", "results": results}));
+    let mut reply = Reply::ok(json!({"status": "success", "results": results}));
+    // Legs with no definite answer travel beside the web's shape (P1-5).
+    reply.placement = uncertain_legs(&uncertain);
     let n = reply.body["results"].as_array().map(Vec::len).unwrap_or(0);
     publish(
         ctx,
@@ -182,12 +191,26 @@ pub async fn basket_order(ctx: &AppState, req: &Value, route: Route) -> Reply {
     reply
 }
 
-async fn live_leg(h: &BrokerHandle, ctx: &AppState, leg: &Value) -> Value {
+/// One live basket leg: its result row, and its label when the broker gave
+/// no definite answer (it may have been placed).
+async fn live_leg(h: &BrokerHandle, ctx: &AppState, leg: &Value) -> (Value, Option<String>) {
     let r = match fractional_refusal(leg) {
         Some(r) => r,
         None => place_live(h, ctx, leg).await,
     };
-    if r.is_success() {
+    let unknown = r
+        .placement
+        .as_ref()
+        .is_some_and(|p| p.is_uncertain())
+        .then(|| {
+            format!(
+                "{} {} ({})",
+                s(leg, "action"),
+                s(leg, "symbol"),
+                s(leg, "exchange")
+            )
+        });
+    let row = if r.is_success() {
         json!({
             "symbol": s(leg, "symbol"), "exchange": s(leg, "exchange"),
             "product": s(leg, "product"), "status": "success",
@@ -195,7 +218,8 @@ async fn live_leg(h: &BrokerHandle, ctx: &AppState, leg: &Value) -> Value {
         })
     } else {
         json!({"symbol": s(leg, "symbol"), "status": "error", "message": r.message()})
-    }
+    };
+    (row, unknown)
 }
 
 fn successes(reply: &Reply) -> i64 {
@@ -319,13 +343,28 @@ pub async fn split_order_decided(
         Err(r) => return r,
     };
     let mut results = Vec::with_capacity(n_orders);
+    let mut uncertain: Vec<String> = Vec::new();
     for (k, qty) in chunks.iter().enumerate() {
+        // The remainder chunk is numbered total_orders, as on the web.
+        let order_num = k + 1;
+        if !uncertain.is_empty() {
+            // An earlier chunk may have been placed: nothing more is sent
+            // until the order book says (LOG-08 P1-5; the web keeps
+            // sending). Each unsent chunk is reported, so the result keeps
+            // one row per chunk.
+            results.push(
+                json!({"order_num": order_num, "quantity": qty, "status": "error",
+                "message": SPLIT_HELD}),
+            );
+            continue;
+        }
         if k > 0 {
             tokio::time::sleep(SPLIT_PAUSE).await;
         }
         let r = place_live(&h, ctx, &leg(*qty)).await;
-        // The remainder chunk is numbered total_orders, as on the web.
-        let order_num = k + 1;
+        if r.placement.as_ref().is_some_and(|p| p.is_uncertain()) {
+            uncertain.push(format!("order {} of {} ({})", order_num, n_orders, qty));
+        }
         if r.is_success() {
             results.push(
                 json!({"order_num": order_num, "quantity": qty, "status": "success",
@@ -335,9 +374,10 @@ pub async fn split_order_decided(
             results.push(json!({"order_num": order_num, "quantity": qty, "status": "error", "message": r.message()}));
         }
     }
-    let reply = Reply::ok(json!({
+    let mut reply = Reply::ok(json!({
         "status": "success", "total_quantity": total, "split_size": size, "results": results,
     }));
+    reply.placement = uncertain_legs(&uncertain);
     publish(ctx, split_event(Mode::Live, safe_request(req), &reply, req));
     reply
 }

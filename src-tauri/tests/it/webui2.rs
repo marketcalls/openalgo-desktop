@@ -866,6 +866,37 @@ async fn racing_approvals_dispatch_once() {
     assert_eq!(h.places(), 2);
 }
 
+/// LOG-08 P1-5: an approved order whose answer was lost on the way back may
+/// be at the broker. It stays unconfirmed (never marked rejected, never
+/// sent again), unlike a refusal.
+#[tokio::test]
+async fn an_approved_order_with_a_lost_answer_stays_unconfirmed() {
+    use openalgo_desktop_lib::brokers::mock::AfterSend;
+    let h = H::new(true).await;
+    h.semi_auto();
+    h.api("/api/v1/placeorder", place_body()).await;
+    h.mock
+        .after_send
+        .lock()
+        .push_back((AfterSend::Dropped, "open"));
+    let _ = h.post("/action-center/approve/1", json!({})).await;
+    assert_eq!(h.places(), 1);
+    let row = action_center::get(&h.ctx.sqlite.conn().unwrap(), 1)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        row.broker_status.as_deref(),
+        Some(action_center::SUBMITTING),
+        "{:?}",
+        row
+    );
+    assert!(action_center_service::is_unconfirmed(&row));
+    // It is not sent again.
+    let ex = action_center_service::execute_approved(&h.ctx, 1).await;
+    assert!(!ex.success);
+    assert_eq!(h.places(), 1);
+}
+
 #[tokio::test]
 async fn rejected_orders_never_execute() {
     let h = H::new(true).await;

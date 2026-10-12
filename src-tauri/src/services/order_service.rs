@@ -290,7 +290,13 @@ pub async fn place_live(h: &BrokerHandle, ctx: &AppState, req: &Value) -> Reply 
         }
     })
     .await;
-    placement_reply(&order, placed)
+    let reply = placement_reply(&order, placed);
+    if reply.placement.as_ref().is_some_and(|p| p.is_uncertain()) {
+        // Look for it in the broker's order book now, not at the next
+        // tick of the reconciler (P2-11).
+        ctx.reconciler.request_pass();
+    }
+    reply
 }
 
 /// The reply for one live placement, carrying its outcome. An uncertain
@@ -326,6 +332,22 @@ pub fn placement_reply(
         (_, Err(e)) => broker_error_reply(e, "Failed to place order due to internal error"),
     };
     wire.with_placement(outcome)
+}
+
+/// The outcome a multi-order reply carries when some of its orders have no
+/// definite answer (close-all, basket, split): uncertain, naming them.
+pub fn uncertain_legs(labels: &[String]) -> Option<PlaceOutcome> {
+    if labels.is_empty() {
+        return None;
+    }
+    Some(PlaceOutcome::Uncertain {
+        client_tag: None,
+        reason: format!(
+            "{} order(s) have no definite answer from the broker and may have been placed: {}. Check the order book before sending them again.",
+            labels.len(),
+            labels.join(", ")
+        ),
+    })
 }
 
 /// `placeorder`.
@@ -884,7 +906,14 @@ pub async fn close_position(ctx: &AppState, req: &Value, route: Route) -> Reply 
         Ok(r) if r.failed.is_empty() => {
             Reply::ok(json!({"status": "success", "message": "All Open Positions Squared Off"}))
         }
-        Ok(r) => Reply::error(500, r.message()),
+        Ok(r) => {
+            let mut reply = Reply::error(500, r.message());
+            // Exits with no definite answer: in-process callers must not
+            // read this as "nothing was sent" (LOG-08 P1-5). The wire keeps
+            // the web's shape.
+            reply.placement = uncertain_legs(&r.uncertain);
+            reply
+        }
         Err(e) => broker_error_reply(&e, "Failed to close positions due to internal error"),
     };
     publish(ctx, closed(Mode::Live, safe_request(req), &reply));

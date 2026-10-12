@@ -181,16 +181,12 @@ pub async fn close_all_positions(b: &NubraBroker, auth: &AuthToken) -> Result<Cl
         };
         b.loop_pacer.acquire().await;
         let outcome = match ResolvedOrder::resolve(&req, &symbols) {
-            Ok(order) => place_order(b, auth, &order).await,
+            Ok(order) => {
+                crate::brokers::common::outcome::placing(place_order(b, auth, &order)).await
+            }
             Err(e) => Err(e),
         };
-        match outcome {
-            Ok(r) => out.placed.push(r.order_id),
-            Err(e @ AppError::Auth(_)) => return Err(e),
-            Err(e) => out
-                .failed
-                .push(format!("{}: {}", label, e.client_message())),
-        }
+        out.record(&label, outcome);
     }
     Ok(out)
 }

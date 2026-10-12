@@ -133,6 +133,9 @@ pub struct MockBroker {
     /// it in full at `after_send_price`).
     pub after_send: Mutex<VecDeque<(AfterSend, &'static str)>>,
     pub after_send_price: Mutex<f64>,
+    /// The order time (IST, `YYYY-MM-DD HH:MM:SS`) such an order shows in
+    /// the book; empty by default.
+    pub after_send_time: Mutex<String>,
     /// `place_order` records the order, then fails by panicking: a failure
     /// after the order reached the broker (MCP-01).
     pub panic_after_place: Mutex<bool>,
@@ -206,6 +209,7 @@ impl MockBroker {
             order_ids: Mutex::new(VecDeque::new()),
             after_send: Mutex::new(VecDeque::new()),
             after_send_price: Mutex::new(100.0),
+            after_send_time: Mutex::new(String::new()),
             panic_after_place: Mutex::new(false),
             modify: Mutex::new(None),
             cancel: Mutex::new(None),
@@ -373,7 +377,7 @@ impl Broker for MockBroker {
                 product: order.product.as_str().to_string(),
                 status: status.to_string(),
                 validity: "DAY".into(),
-                order_timestamp: String::new(),
+                order_timestamp: self.after_send_time.lock().clone(),
                 exchange_timestamp: None,
                 rejection_reason: None,
                 order_tag: None,
@@ -459,18 +463,10 @@ impl Broker for MockBroker {
                 amo: false,
             };
             let placed = match ResolvedOrder::resolve(&req, &self.symbols) {
-                Ok(o) => self.place_order(auth, &o).await,
+                Ok(o) => crate::brokers::common::outcome::placing(self.place_order(auth, &o)).await,
                 Err(e) => Err(e),
             };
-            match placed {
-                Ok(o) => r.placed.push(o.order_id),
-                Err(e) => r.failed.push(format!(
-                    "{} ({}): {}",
-                    p.symbol,
-                    p.exchange,
-                    e.client_message()
-                )),
-            }
+            r.record(&format!("{} ({})", p.symbol, p.exchange), placed);
         }
         Ok(r)
     }

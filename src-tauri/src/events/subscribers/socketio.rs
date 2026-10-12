@@ -169,6 +169,12 @@ pub fn translate(event: &Event) -> Option<(&'static str, Value)> {
             "order_notification",
             json!({"symbol": symbol, "status": "info", "message": message}),
         )),
+        Event::OrderUnconfirmed {
+            symbol, message, ..
+        } => Some((
+            "order_notification",
+            json!({"symbol": symbol, "status": "warning", "message": message}),
+        )),
         Event::OrderModified { orderid, .. } => Some((
             "modify_order_event",
             json!({"status": "success", "orderid": orderid, "mode": "live"}),
@@ -344,6 +350,7 @@ impl Subscriber for SocketIoSubscriber {
         vec![
             Topic::OrderPlaced,
             Topic::OrderFailed,
+            Topic::OrderUnconfirmed,
             Topic::OrderNoAction,
             Topic::OrderModified,
             Topic::OrderModifyFailed,

@@ -354,6 +354,7 @@ impl Subscriber for Recorder {
         vec![
             Topic::OrderPlaced,
             Topic::OrderFailed,
+            Topic::OrderUnconfirmed,
             Topic::OrderNoAction,
             Topic::OrderModified,
             Topic::OrderModifyFailed,

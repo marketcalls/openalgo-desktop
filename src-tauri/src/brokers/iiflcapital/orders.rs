@@ -266,12 +266,13 @@ pub async fn close_all_positions(
             mapping::resolve_symbol(&row, &exchange, b.resolver()),
             exchange
         );
-        match send_order(b, auth, payload).await {
-            Ok(id) => out.placed.push(id),
-            Err(e) => out
-                .failed
-                .push(format!("{}: {}", label, e.client_message())),
-        }
+        let placed = crate::brokers::common::outcome::placing(send_order(b, auth, payload))
+            .await
+            .map(|order_id| OrderResponse {
+                order_id,
+                message: None,
+            });
+        out.record(&label, placed);
     }
     Ok(out)
 }

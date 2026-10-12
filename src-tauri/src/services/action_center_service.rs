@@ -453,11 +453,22 @@ pub async fn execute_approved(ctx: &AppState, id: i64) -> Execution {
         mark(ctx, id, None, "rejected");
         return Execution::fail(400, &format!("Unknown order type: {}", row.api_type));
     };
+    // An order (or a leg of a basket or split) with no definite answer may
+    // be at the broker: the claim's `submitting` mark stays, so the order is
+    // shown unconfirmed and never sent again (LOG-08 P1-5).
+    let uncertain = reply.placement.as_ref().is_some_and(|p| p.is_uncertain());
     let mut ex = Execution {
         success: reply.is_success(),
         body: reply.body,
         status: reply.status,
     };
+    if !ex.success && uncertain {
+        tracing::error!(
+            "Approved order {} has no definite answer from the broker; it stays unconfirmed and is not sent again",
+            id
+        );
+        return ex;
+    }
     if !ex.success {
         mark(ctx, id, None, "rejected");
         tracing::warn!("Approved order {} was refused: {}", id, ex.message());
@@ -502,6 +513,20 @@ pub async fn execute_approved(ctx: &AppState, id: i64) -> Execution {
                 other => other.to_string(),
             })
             .collect();
+        if uncertain {
+            tracing::error!(
+                "Approved order {} has legs with no definite answer; it stays unconfirmed and is not sent again",
+                id
+            );
+            let summary = summarize_ids(&ids);
+            mark(
+                ctx,
+                id,
+                (!ids.is_empty()).then_some(summary.as_str()),
+                SUBMITTING,
+            );
+            return ex;
+        }
         if ids.is_empty() {
             mark(ctx, id, None, "rejected");
             if let Some(m) = ex.body.as_object_mut() {

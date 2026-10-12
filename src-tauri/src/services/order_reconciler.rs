@@ -67,7 +67,10 @@ pub const ABSENT_SPAN_SECS: i64 = 20;
 /// only after this long, and only with corroboration (P0-3).
 pub const LIVE_RELEASE_SECS: i64 = 600;
 /// A book row timestamped this long before the placement cannot be it.
-const TIMESTAMP_SLACK_SECS: i64 = 120;
+/// A book row timestamped more than this before the placement cannot be it
+/// (clock skew between the broker and this computer; P1-4 tightened it from
+/// 120 s).
+pub const TIMESTAMP_SLACK_SECS: i64 = 60;
 
 /// What a trader reads when a new entry waits for a reconcile.
 pub const ENTRIES_PAUSED: &str = "New entries are paused for a moment while OpenAlgo re-checks \
@@ -208,6 +211,8 @@ pub struct BookSnapshot {
     pub read_at: DateTime<Utc>,
     /// Every owner, asked whether a book order already belongs to it.
     pub owners: Vec<Arc<dyn OrderOwner>>,
+    /// The broker reports every order's client tag (its capability).
+    pub tags_reported: bool,
     /// Where the corroborating books are read from, on demand.
     source: Option<(Arc<dyn OrderGateway>, RunMode)>,
     corroboration: Arc<tokio::sync::OnceCell<Option<Arc<Corroboration>>>>,
@@ -220,10 +225,24 @@ impl BookSnapshot {
             rows,
             read_at,
             owners: Vec::new(),
+            tags_reported: false,
             source: None,
             corroboration: Arc::new(tokio::sync::OnceCell::new()),
             held_alert: None,
         }
+    }
+
+    /// A read from a broker that reports every order's client tag.
+    pub fn with_tags(self, tags_reported: bool) -> Self {
+        Self {
+            tags_reported,
+            ..self
+        }
+    }
+
+    /// Find an unconfirmed placement in this read ([`find_placed`]).
+    pub fn find<'a>(&'a self, u: &Unconfirmed<'_>, bound: &dyn Fn(&str) -> bool) -> Found<'a> {
+        find_placed(&self.rows, u, bound, self.tags_reported)
     }
 
     /// A read whose trade book and positions are already known (tests).
@@ -358,6 +377,10 @@ impl HeldOrder {
             client_tag: self.client_tag.as_deref(),
             placed_at: self.placed_at,
             net_before: None,
+            // Not kept: any shape matches, so the re-check is the stricter.
+            pricetype: None,
+            price: None,
+            trigger_price: None,
         }
     }
 }
@@ -407,6 +430,14 @@ pub struct Unconfirmed<'a> {
     /// only while the broker still shows exactly this (review P1-2);
     /// `None` never releases.
     pub net_before: Option<i64>,
+    /// `MARKET`, `LIMIT`, `SL`, `SL-M` as sent (P1-4). A MARKET order may
+    /// show as LIMIT and an SL-M as SL (market price protection).
+    pub pricetype: Option<&'a str>,
+    /// The limit price, compared for LIMIT and SL orders when both sides
+    /// carry one.
+    pub price: Option<f64>,
+    /// The trigger price, compared for SL and SL-M orders.
+    pub trigger_price: Option<f64>,
 }
 
 /// What the book says about an unconfirmed placement.
@@ -447,16 +478,66 @@ pub fn book_time(row: &Value) -> Option<DateTime<Utc>> {
     None
 }
 
-/// Find an unconfirmed placement in one book read.
+/// `SL-M`, `SL_M`, `slm` -> `SLM`.
+fn price_kind(t: &str) -> String {
+    t.trim()
+        .chars()
+        .filter(|c| !matches!(c, '-' | '_' | ' '))
+        .collect::<String>()
+        .to_ascii_uppercase()
+}
+
+/// Whether a book row has the order's shape: the price type it was sent
+/// with (a MARKET order may show as LIMIT, an SL-M as SL, after market
+/// price protection), and its limit and trigger prices where they apply.
+/// A side that does not say is not compared.
+fn same_shape(u: &Unconfirmed<'_>, r: &BookOrder) -> bool {
+    let Some(sent) = u.pricetype.map(price_kind).filter(|k| !k.is_empty()) else {
+        return true;
+    };
+    let shown = price_kind(&r.pricetype);
+    if shown.is_empty() {
+        return true;
+    }
+    let compatible =
+        sent == shown || (sent == "MARKET" && shown == "LIMIT") || (sent == "SLM" && shown == "SL");
+    if !compatible {
+        return false;
+    }
+    let close = |a: f64, b: f64| (a - b).abs() <= 1e-6 * a.abs().max(b.abs()).max(1.0);
+    if sent == shown && (sent == "LIMIT" || sent == "SL") {
+        if let Some(p) = u.price.filter(|p| *p > 0.0) {
+            if r.price > 0.0 && !close(r.price, p) {
+                return false;
+            }
+        }
+    }
+    if sent == "SL" || sent == "SLM" {
+        if let Some(t) = u.trigger_price.filter(|t| *t > 0.0) {
+            if r.trigger_price > 0.0 && !close(r.trigger_price, t) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// Find an unconfirmed placement in one book read (P1-4).
 ///
-/// * With a client tag and a book that reports tags, only that tag matches.
-/// * Otherwise the order's symbol, exchange, side, quantity and product must
-///   match, the row must not already belong to anyone (`bound`), and its own
-///   timestamp, when readable, must not predate the placement.
+/// * When the broker reports the client tag of every order
+///   (`tags_reported`, its capability, never inferred from the rows) and
+///   the placement carried one, only that tag matches.
+/// * Otherwise the order's symbol, exchange, side, quantity, product and
+///   shape (price type, limit and trigger prices) must match; the row must
+///   not already belong to anyone (`bound`) nor carry another order's tag;
+///   and its own timestamp must be readable and no more than
+///   [`TIMESTAMP_SLACK_SECS`] before the placement. A row whose time
+///   cannot be read is never taken: it could be any earlier order.
 pub fn find_placed<'a>(
     book: &'a [BookOrder],
     u: &Unconfirmed<'_>,
     bound: &dyn Fn(&str) -> bool,
+    tags_reported: bool,
 ) -> Found<'a> {
     let same = |a: &str, b: &str| a.trim().eq_ignore_ascii_case(b.trim());
     let fields = |r: &&BookOrder| {
@@ -468,37 +549,47 @@ pub fn find_placed<'a>(
                 (Some(p), rp) if !p.trim().is_empty() && !rp.is_empty() => same(p, rp),
                 _ => true,
             }
+            && same_shape(u, r)
     };
-    let tags_reported = book.iter().any(|r| r.client_tag.is_some());
-    if let (Some(tag), true) = (u.client_tag.filter(|t| !t.is_empty()), tags_reported) {
-        let hits: Vec<&BookOrder> = book
-            .iter()
-            .filter(|r| r.client_tag.as_deref() == Some(tag))
-            .filter(fields)
-            .collect();
-        return match hits.len() {
-            0 => Found::Absent,
-            1 => Found::Order(hits[0]),
-            n => Found::Ambiguous(n),
-        };
+    let tag = u.client_tag.map(str::trim).filter(|t| !t.is_empty());
+    let count = |hits: Vec<&'a BookOrder>| match hits.len() {
+        0 => Found::Absent,
+        1 => Found::Order(hits[0]),
+        n => Found::Ambiguous(n),
+    };
+    if let (Some(tag), true) = (tag, tags_reported) {
+        return count(
+            book.iter()
+                .filter(|r| r.client_tag.as_deref().map(str::trim) == Some(tag))
+                .filter(fields)
+                .collect(),
+        );
     }
     let earliest = u
         .placed_at
         .map(|t| t - chrono::Duration::seconds(TIMESTAMP_SLACK_SECS));
-    let hits: Vec<&BookOrder> = book
-        .iter()
-        .filter(fields)
-        .filter(|r| !bound(&r.order_id))
-        .filter(|r| match (earliest, book_time(&r.row)) {
-            (Some(e), Some(t)) => t >= e,
-            _ => true,
-        })
-        .collect();
-    match hits.len() {
-        0 => Found::Absent,
-        1 => Found::Order(hits[0]),
-        n => Found::Ambiguous(n),
-    }
+    count(
+        book.iter()
+            .filter(fields)
+            .filter(|r| !bound(&r.order_id))
+            // Another order's tag is never this one's.
+            .filter(|r| {
+                match r
+                    .client_tag
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|t| !t.is_empty())
+                {
+                    Some(t) => Some(t) == tag,
+                    None => true,
+                }
+            })
+            .filter(|r| match book_time(&r.row) {
+                Some(t) => earliest.is_none_or(|e| t >= e),
+                None => false,
+            })
+            .collect(),
+    )
 }
 
 /// One unconfirmed placement the book has not shown.
@@ -846,7 +937,8 @@ impl OrderReconciler {
                 "OpenAlgo could not read the broker's order book to check this order. Nothing was changed. Try again.".to_string()
             })?;
         let bound = |oid: &str| owners.iter().any(|o| o.owns_order(oid));
-        if !matches!(find_placed(&rows, &u, &bound), Found::Absent) {
+        // Tags are not relied on here: any row of the same order counts.
+        if !matches!(find_placed(&rows, &u, &bound, false), Found::Absent) {
             return Err("The broker's order book now shows an order that matches it, so it was not marked. OpenAlgo picks it up from the book; check the order book.".into());
         }
         let trades = self
@@ -980,9 +1072,11 @@ impl OrderReconciler {
                 true
             } else {
                 self.stats.book_reads.fetch_add(1, Ordering::Relaxed);
+                let tags = self.gateway.reports_order_tags(mode);
                 match self.gateway.order_book_rows(mode).await {
                     Ok(rows) => {
                         let mut book = BookSnapshot::new(rows, self.clock.now())
+                            .with_tags(tags)
                             .with_source(self.gateway.clone(), mode)
                             .with_held_alert(self.held_alert());
                         book.owners = owners.clone();
@@ -1248,6 +1342,7 @@ mod tests {
             average_price: 100.0,
             client_tag: tag.map(str::to_string),
             row: json!({"orderid": id, "timestamp": ts}),
+            ..Default::default()
         }
     }
 
@@ -1260,7 +1355,7 @@ mod tests {
             product: Some("NRML"),
             client_tag: tag,
             placed_at: Some(Utc.with_ymd_and_hms(2026, 10, 7, 4, 30, 0).unwrap()),
-            net_before: None,
+            ..Default::default()
         }
     }
 
@@ -1271,13 +1366,134 @@ mod tests {
             row("2", "NIFTY24500CE", "BUY", 75, Some("oamine"), ""),
         ];
         assert_eq!(
-            find_placed(&book, &u(Some("oamine")), &|_| false),
+            find_placed(&book, &u(Some("oamine")), &|_| false, true),
             Found::Order(&book[1])
         );
         assert_eq!(
-            find_placed(&book, &u(Some("oamissing")), &|_| false),
+            find_placed(&book, &u(Some("oamissing")), &|_| false, true),
             Found::Absent
         );
+    }
+
+    /// P1-4: whether tags decide is the broker's capability, never the
+    /// rows'. A broker that reports tags: only the tag matches, even when
+    /// the rows carry none. One that does not: the order fields decide,
+    /// and a row with another order's tag is never taken.
+    #[test]
+    fn tags_follow_the_broker_capability_not_the_rows() {
+        let untagged = vec![row(
+            "1",
+            "NIFTY24500CE",
+            "BUY",
+            75,
+            None,
+            "2026-10-07 10:00:02",
+        )];
+        assert_eq!(
+            find_placed(&untagged, &u(Some("oamine")), &|_| false, true),
+            Found::Absent,
+            "a tagging broker's untagged row is not this order"
+        );
+        assert_eq!(
+            find_placed(&untagged, &u(Some("oamine")), &|_| false, false),
+            Found::Order(&untagged[0]),
+            "a broker without tags: the fields decide"
+        );
+        let foreign = vec![row(
+            "2",
+            "NIFTY24500CE",
+            "BUY",
+            75,
+            Some("oaother"),
+            "2026-10-07 10:00:02",
+        )];
+        assert_eq!(
+            find_placed(&foreign, &u(None), &|_| false, false),
+            Found::Absent,
+            "another order's tag"
+        );
+        assert_eq!(
+            find_placed(&foreign, &u(Some("oamine")), &|_| false, false),
+            Found::Absent
+        );
+    }
+
+    /// P1-4: a row whose time cannot be read could be any earlier order of
+    /// the same fields; it is never bound to an unconfirmed placement.
+    #[test]
+    fn a_row_with_an_unreadable_time_is_never_taken() {
+        for ts in ["", "10:00:03", "not a time"] {
+            let book = vec![row("1", "NIFTY24500CE", "BUY", 75, None, ts)];
+            assert_eq!(
+                find_placed(&book, &u(None), &|_| false, false),
+                Found::Absent,
+                "timestamp {:?}",
+                ts
+            );
+        }
+    }
+
+    /// P1-4: a row more than TIMESTAMP_SLACK_SECS before the placement is
+    /// an earlier order (the slack was 120 s).
+    #[test]
+    fn an_earlier_order_inside_the_old_slack_is_not_taken() {
+        // Placed at 10:00:00 IST; this row is from 09:58:30.
+        let book = vec![row(
+            "1",
+            "NIFTY24500CE",
+            "BUY",
+            75,
+            None,
+            "2026-10-07 09:58:30",
+        )];
+        assert_eq!(
+            find_placed(&book, &u(None), &|_| false, false),
+            Found::Absent
+        );
+    }
+
+    /// P1-4: the order's shape must match: price type (a MARKET order may
+    /// show as LIMIT after market protection, an SL-M as SL), limit price
+    /// and trigger price.
+    #[test]
+    fn the_order_shape_must_match() {
+        let shaped = |pricetype: &str, price: f64, trigger: f64| {
+            let mut r = row("1", "NIFTY24500CE", "BUY", 75, None, "2026-10-07 10:00:02");
+            r.pricetype = pricetype.into();
+            r.price = price;
+            r.trigger_price = trigger;
+            vec![r]
+        };
+        let sent = |pricetype: &'static str, price: f64, trigger: f64| Unconfirmed {
+            pricetype: Some(pricetype),
+            price: Some(price),
+            trigger_price: Some(trigger),
+            ..u(None)
+        };
+        let found = |book: &[BookOrder], s: &Unconfirmed<'_>| {
+            matches!(find_placed(book, s, &|_| false, false), Found::Order(_))
+        };
+        assert!(found(
+            &shaped("LIMIT", 100.0, 0.0),
+            &sent("LIMIT", 100.0, 0.0)
+        ));
+        assert!(!found(
+            &shaped("LIMIT", 101.0, 0.0),
+            &sent("LIMIT", 100.0, 0.0)
+        ));
+        assert!(!found(&shaped("SL", 99.0, 98.0), &sent("MARKET", 0.0, 0.0)));
+        assert!(found(
+            &shaped("LIMIT", 104.5, 0.0),
+            &sent("MARKET", 0.0, 0.0)
+        ));
+        assert!(found(&shaped("SL", 99.0, 98.0), &sent("SL-M", 0.0, 98.0)));
+        assert!(!found(&shaped("SL-M", 0.0, 97.0), &sent("SL-M", 0.0, 98.0)));
+        assert!(!found(
+            &shaped("LIMIT", 100.0, 0.0),
+            &sent("SL", 100.0, 98.0)
+        ));
+        // A book that does not say the type is not compared.
+        assert!(found(&shaped("", 0.0, 0.0), &sent("LIMIT", 100.0, 0.0)));
     }
 
     #[test]
@@ -1317,10 +1533,10 @@ mod tests {
                 "2026-10-07 10:00:02",
             ),
         ];
-        let found = find_placed(&book, &u(None), &|id| id == "owned");
+        let found = find_placed(&book, &u(None), &|id| id == "owned", false);
         assert_eq!(found, Found::Order(&book[2]));
         // Two unowned candidates: never a guess.
-        let found = find_placed(&book, &u(None), &|_| false);
+        let found = find_placed(&book, &u(None), &|_| false, false);
         assert_eq!(found, Found::Ambiguous(2));
     }
 

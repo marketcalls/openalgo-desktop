@@ -248,6 +248,8 @@ impl RoomEmitter for Rooms {
 
 pub struct T {
     pub m: Arc<StrategyModule>,
+    /// The database under the module (fault injection in tests).
+    pub db: Arc<SqliteDb>,
     pub gw: Arc<FakeGateway>,
     pub rooms: Arc<Rooms>,
     pub clock: Arc<ManualClock>,
@@ -271,7 +273,7 @@ pub fn t_at(now: DateTime<Utc>) -> T {
     let symbols = SymbolResolver::new();
     symbols.load(master());
     let m = StrategyModule::new(Deps {
-        db,
+        db: db.clone(),
         gateway: gw.clone(),
         rooms: rooms.clone(),
         clock: clock.clone(),
@@ -282,6 +284,7 @@ pub fn t_at(now: DateTime<Utc>) -> T {
     });
     T {
         m,
+        db,
         gw,
         rooms,
         clock,

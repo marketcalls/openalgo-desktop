@@ -184,14 +184,10 @@ pub async fn close_all_positions(b: &FirstockBroker, auth: &AuthToken) -> Result
             amo: false,
         };
         let placed = match ResolvedOrder::resolve(&req, &symbols) {
-            Ok(o) => place_order(b, auth, &o).await,
+            Ok(o) => crate::brokers::common::outcome::placing(place_order(b, auth, &o)).await,
             Err(e) => Err(e),
         };
-        match placed {
-            Ok(o) if !o.order_id.is_empty() => r.placed.push(o.order_id),
-            Ok(_) => r.failed.push(format!("{}: order was refused", label)),
-            Err(e) => r.failed.push(format!("{}: {}", label, e.client_message())),
-        }
+        r.record(&label, placed);
     }
     Ok(r)
 }

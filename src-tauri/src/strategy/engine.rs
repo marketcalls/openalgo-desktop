@@ -1237,21 +1237,32 @@ impl StrategyModule {
             let row_id = match row {
                 Ok(id) => Some(id),
                 Err(e) => {
-                    // Placed anyway: an exit that cannot be recorded still
-                    // goes out, because getting flat wins.
+                    // Not sent (P2-6): an exit with no row cannot be found
+                    // again if its answer is lost, so it could be sent twice.
+                    // The claim is released and the leg stays managed: the
+                    // next breach, stop retry or close tries again.
                     tracing::error!("Exit row for run {} leg {} not written: {}", run_id, lid, e);
+                    let claim = ClaimId::Token(token.clone());
+                    if owner == "superseded" {
+                        self.state.release_superseded_exit(run_id, lid, &claim);
+                    } else {
+                        self.state.release_leg_exit(run_id, lid, &claim);
+                    }
                     self.emit(
                         strategy.id,
                         user_id,
-                        "leg_exit_placed",
+                        "leg_exit_rejected",
                         &format!(
-                            "Exit for leg {} is being placed without an order row: it could not be written",
+                            "Exit for leg {} was not sent: its order could not be recorded. The leg stays managed and the exit is tried again; check the disk and the app's data folder.",
                             lid
                         ),
                         ev(Some(run_id), Some(lid), "critical"),
                     )
                     .await;
-                    None
+                    outcomes.push(json!({"leg_id": lid, "ok": false,
+                        "position_ref": position_ref, "exit_owner": owner,
+                        "error": "The exit could not be recorded, so it was not sent"}));
+                    continue;
                 }
             };
             let mut claim = ClaimId::Token(token.clone());

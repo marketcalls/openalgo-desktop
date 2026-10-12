@@ -321,15 +321,10 @@ pub async fn close_all_positions(b: &MotilalBroker, auth: &AuthToken) -> Result<
         };
         let label = format!("{} ({})", row.symbol, exchange);
         let outcome = match ResolvedOrder::resolve(&req, b.resolver()) {
-            Ok(o) => place_order(b, auth, &o).await,
+            Ok(o) => crate::brokers::common::outcome::placing(place_order(b, auth, &o)).await,
             Err(e) => Err(e),
         };
-        match outcome {
-            Ok(r) => out.placed.push(r.order_id),
-            Err(e) => out
-                .failed
-                .push(format!("{}: {}", label, e.client_message())),
-        }
+        out.record(&label, outcome);
     }
     Ok(out)
 }

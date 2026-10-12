@@ -17,6 +17,9 @@ pub use bus::{BusStats, EventBus, Lane, Subscriber};
 pub enum Topic {
     OrderPlaced,
     OrderFailed,
+    /// A live placement with no definite answer from the broker (LOG-08,
+    /// desktop only: the web reports it as failed).
+    OrderUnconfirmed,
     OrderNoAction,
     OrderModified,
     OrderModifyFailed,
@@ -57,6 +60,7 @@ impl Topic {
         match self {
             Topic::OrderPlaced => "order.placed",
             Topic::OrderFailed => "order.failed",
+            Topic::OrderUnconfirmed => "order.unconfirmed",
             Topic::OrderNoAction => "order.no_action",
             Topic::OrderModified => "order.modified",
             Topic::OrderModifyFailed => "order.modify_failed",
@@ -195,6 +199,14 @@ pub enum Event {
         exchange: String,
         error_message: String,
     },
+    /// The broker gave no definite answer: the order may exist. Never
+    /// "failed": a client acting on that could place it twice.
+    OrderUnconfirmed {
+        meta: OrderMeta,
+        symbol: String,
+        exchange: String,
+        message: String,
+    },
     OrderNoAction {
         meta: OrderMeta,
         symbol: String,
@@ -329,6 +341,7 @@ impl Event {
         match self {
             Event::OrderPlaced { .. } => Topic::OrderPlaced,
             Event::OrderFailed { .. } => Topic::OrderFailed,
+            Event::OrderUnconfirmed { .. } => Topic::OrderUnconfirmed,
             Event::OrderNoAction { .. } => Topic::OrderNoAction,
             Event::OrderModified { .. } => Topic::OrderModified,
             Event::OrderModifyFailed { .. } => Topic::OrderModifyFailed,
@@ -371,6 +384,7 @@ impl Event {
         match self {
             Event::OrderPlaced { meta, .. }
             | Event::OrderFailed { meta, .. }
+            | Event::OrderUnconfirmed { meta, .. }
             | Event::OrderNoAction { meta, .. }
             | Event::OrderModified { meta, .. }
             | Event::OrderModifyFailed { meta, .. }

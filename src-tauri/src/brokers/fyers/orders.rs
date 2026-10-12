@@ -151,9 +151,42 @@ pub async fn close_all_positions(b: &FyersBroker, auth: &AuthToken) -> Result<Cl
         return Ok(result);
     }
     let body = json!({ "exit_all": 1 });
-    let (status, v) = b
-        .raw(Method::DELETE, "/api/v3/positions", auth, Some(&body))
-        .await?;
+    // One request exits everything: an answer lost after sending, or a
+    // server error, leaves every position's exit unknown (LOG-08 P1-5).
+    let unknown = |result: &mut CloseAllResult, open: Vec<String>| {
+        for l in open {
+            result.failed.push(format!(
+                "{}: {}",
+                l,
+                crate::brokers::common::outcome::UNCERTAIN_MESSAGE
+            ));
+            result.uncertain.push(l);
+        }
+    };
+    let sent = crate::brokers::common::outcome::placing(b.raw(
+        Method::DELETE,
+        "/api/v3/positions",
+        auth,
+        Some(&body),
+    ))
+    .await;
+    let (status, v) = match sent {
+        Ok(x) => x,
+        Err(e) if crate::brokers::common::outcome::uncertain_cause(&e).is_some() => {
+            tracing::error!("Fyers exit-all has no definite answer: {}", e.code());
+            unknown(&mut result, open);
+            return Ok(result);
+        }
+        Err(e) => return Err(e),
+    };
+    if status.is_server_error() {
+        tracing::error!(
+            status = status.as_u16(),
+            "Fyers exit-all answered a server error"
+        );
+        unknown(&mut result, open);
+        return Ok(result);
+    }
     if is_ok(&v) {
         result.placed = open;
     } else {

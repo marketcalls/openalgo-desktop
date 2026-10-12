@@ -225,6 +225,21 @@ pub fn order_failed(
     symbol: &str,
     exchange: &str,
 ) {
+    // No definite answer is not a failure: the order may exist (P2-9).
+    if let Some(crate::brokers::common::outcome::PlaceOutcome::Uncertain { reason, .. }) =
+        &reply.placement
+    {
+        publish(
+            ctx,
+            Event::OrderUnconfirmed {
+                meta: meta(Mode::Live, api_type, safe_request(request), &reply.body),
+                symbol: symbol.to_string(),
+                exchange: exchange.to_string(),
+                message: reason.clone(),
+            },
+        );
+        return;
+    }
     publish(
         ctx,
         Event::OrderFailed {

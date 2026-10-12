@@ -253,18 +253,23 @@ pub async fn close_all_positions(b: &PaytmBroker, auth: &AuthToken) -> Result<Cl
                 .push(format!("{}: the position has no instrument id", label));
             continue;
         };
-        match b.call(Method::POST, PLACE, auth, Some(&body)).await {
-            Ok(env) => match order_no(&env.data) {
-                Some(id) => result.placed.push(id),
-                None => result.failed.push(format!("{}: order was refused", label)),
-            },
-            Err(e) => {
-                tracing::error!("Square-off failed for {}: {}", label, e.code());
-                result
-                    .failed
-                    .push(format!("{}: {}", label, e.client_message()))
-            }
-        }
+        let placed = crate::brokers::common::outcome::placing(async {
+            let env = b.call(Method::POST, PLACE, auth, Some(&body)).await?;
+            // Accepted without a number: the exit may exist (LOG-08).
+            order_no(&env.data)
+                .map(|order_id| OrderResponse {
+                    order_id,
+                    message: None,
+                })
+                .ok_or_else(|| {
+                    AppError::uncertain(
+                        "Paytm Money accepted the exit but returned no order number. Check the order book.",
+                        None,
+                    )
+                })
+        })
+        .await;
+        result.record(&label, placed);
     }
     Ok(result)
 }

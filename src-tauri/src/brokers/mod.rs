@@ -255,17 +255,7 @@ pub trait Broker: Send + Sync {
             };
             // An exit with no definite answer is reported with the advice to
             // check the order book, never as refused (LOG-08).
-            match common::outcome::classify(&placed) {
-                common::outcome::PlaceOutcome::Accepted { order_id } => {
-                    result.placed.push(order_id)
-                }
-                common::outcome::PlaceOutcome::Uncertain { reason, .. } => {
-                    result.failed.push(format!("{}: {}", label, reason))
-                }
-                common::outcome::PlaceOutcome::Refused { reason } => {
-                    result.failed.push(format!("{}: {}", label, reason))
-                }
-            }
+            result.record(&label, placed);
         }
         Ok(result)
     }
@@ -301,6 +291,14 @@ pub trait Broker: Send + Sync {
     /// adapters that tag their orders and read the tag back; `None` tags
     /// elsewhere. The order reconciler reads this once per pass to find an
     /// order whose placement had no definite answer (LOG-08).
+    /// Whether this adapter tags every order with its own client tag and
+    /// reads it back in `get_order_book_tagged`. Only then is a tag the way
+    /// to find an unconfirmed order (LOG-08 P1-4); rows' contents never
+    /// decide it.
+    fn reports_order_tags(&self) -> bool {
+        false
+    }
+
     async fn get_order_book_tagged(&self, auth: &AuthToken) -> Result<Vec<TaggedOrder>> {
         Ok(self
             .get_order_book(auth)

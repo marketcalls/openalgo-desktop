@@ -21,7 +21,7 @@ fn broker_row(id: &str, action: &str, qty: i64, status: &str, price: f64) -> Val
         "orderid": id, "symbol": ATM_CE, "exchange": "NFO", "action": action,
         "quantity": qty, "product": "NRML", "order_status": status,
         "filled_quantity": if status == "complete" { qty } else { 0 },
-        "average_price": price, "timestamp": "",
+        "average_price": price, "timestamp": "2026-10-07 10:00:05",
     })
 }
 
@@ -247,6 +247,39 @@ async fn a_live_absence_is_released_only_with_corroboration() {
     assert!(t.leg(run, 1).exit_order_id.is_none());
 }
 
+/// P2-6: an exit whose order row cannot be written is not sent: if its
+/// answer were lost it could not be found again, and would be sent twice.
+/// The claim is released, the leg stays managed, and the exit goes out once
+/// the row can be written.
+#[tokio::test]
+async fn an_exit_that_cannot_be_recorded_is_not_sent() {
+    let t = t();
+    let sid = t.default_strategy();
+    let run = t.start_filled(sid, 100.0).await;
+    t.db.conn()
+        .unwrap()
+        .execute_batch(
+            "CREATE TRIGGER no_exit_row BEFORE INSERT ON sm_strategy_order
+             WHEN NEW.kind <> 'entry'
+             BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END;",
+        )
+        .unwrap();
+    t.m.process_tick(ATM_CE, "NFO", 121.0).await;
+    assert_eq!(t.gw.actions(), vec!["SELL"], "not sent without a row");
+    let leg = t.leg(run, 1);
+    assert!(
+        leg.exit_order_id.is_none() && leg.exit_claim_token.is_none(),
+        "the claim is released: {:?}",
+        leg
+    );
+    t.db.conn()
+        .unwrap()
+        .execute_batch("DROP TRIGGER no_exit_row;")
+        .unwrap();
+    t.m.process_tick(ATM_CE, "NFO", 122.0).await;
+    assert_eq!(t.gw.actions(), vec!["SELL", "BUY"]);
+}
+
 #[tokio::test]
 async fn an_uncertain_exit_keeps_its_claim_across_a_restart() {
     let t = t();
@@ -324,6 +357,7 @@ async fn live_run_with_lost_exit(kind: AfterSend) {
     // The broker takes the exit and fills it, but the HTTP exchange fails
     // after the request was sent.
     *a.mock.after_send_price.lock() = 121.0;
+    *a.mock.after_send_time.lock() = "2026-10-07 10:00:05".into();
     a.mock.after_send.lock().push_back((kind, "complete"));
     a.ctx.strategy.process_tick(ATM_CE, "NFO", 121.0).await;
     for p in 122..130 {

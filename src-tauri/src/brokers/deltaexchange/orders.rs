@@ -362,12 +362,9 @@ pub async fn close_all_positions(b: &DeltaBroker, auth: &AuthToken) -> Result<Cl
             amo: false,
             instrument: row,
         };
-        match place_order(b, auth, &order, &q).await {
-            Ok(r) => result.placed.push(r.order_id),
-            Err(e) => result
-                .failed
-                .push(format!("{}: {}", label, e.client_message())),
-        }
+        let placed =
+            crate::brokers::common::outcome::placing(place_order(b, auth, &order, &q)).await;
+        result.record(&label, placed);
     }
     Ok(result)
 }

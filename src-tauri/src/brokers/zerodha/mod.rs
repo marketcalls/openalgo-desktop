@@ -289,6 +289,10 @@ impl Broker for ZerodhaBroker {
         orders::get_order_book(self, auth).await
     }
 
+    fn reports_order_tags(&self) -> bool {
+        true
+    }
+
     async fn get_order_book_tagged(&self, auth: &AuthToken) -> Result<Vec<TaggedOrder>> {
         orders::get_order_book_tagged(self, auth).await
     }

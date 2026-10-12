@@ -784,7 +784,7 @@ impl StrategyModule {
                 broker_order_id: None,
             },
         );
-        let row_id = row.ok();
+        let row_id = row.as_ref().ok().copied();
         match row_id {
             Some(row_id) => {
                 let bound = if superseded {
@@ -818,13 +818,23 @@ impl StrategyModule {
                 claim = ClaimId::Row(row_id);
             }
             None => {
-                // Placed anyway: getting flat wins over the audit row.
+                // Not sent (P2-6): an exit with no row cannot be found again
+                // if its answer is lost. The caller releases the claim; the
+                // leg stays managed and the exit is tried again.
+                if let Err(e) = &row {
+                    tracing::error!(
+                        "Signal exit row for run {} leg {} not written: {}",
+                        run_id,
+                        lid,
+                        e
+                    );
+                }
                 self.emit(
                     strategy.id,
                     &strategy.user_id,
-                    "leg_exit_placed",
+                    "leg_exit_rejected",
                     &format!(
-                        "Signal exit for leg {} is being placed without an order row: it could not be written",
+                        "Signal exit for leg {} was not sent: its order could not be recorded. The leg stays managed; check the disk and the app's data folder.",
                         lid
                     ),
                     EventFields {
@@ -835,6 +845,10 @@ impl StrategyModule {
                     },
                 )
                 .await;
+                return Err((
+                    "The exit could not be recorded, so it was not sent".into(),
+                    Some(claim),
+                ));
             }
         }
         let result = self.gateway.place(mode, &order).await;
