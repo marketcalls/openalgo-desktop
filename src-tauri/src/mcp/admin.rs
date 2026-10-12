@@ -264,12 +264,13 @@ pub async fn tokens_create(State(ctx): Ctx, body: Bytes) -> Response {
     {
         Ok((row, token)) => {
             tracing::info!("MCP token {} created ({})", row.id, scope.as_str());
-            ok(json!({
+            // The token, shown once: never cached (security review SEC-06).
+            crate::server::routes::webui::no_store(ok(json!({
                 "status": "success",
                 "token": token,
                 "data": row.to_json(),
                 "client_config": client_config(&ctx, &token),
-            }))
+            })))
         }
         Err(e) => failed(
             e,

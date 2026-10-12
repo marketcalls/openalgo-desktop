@@ -5,8 +5,8 @@ use crate::security::{totp, Secret};
 use crate::server::envelope::{error, json_response};
 use crate::server::form::FormData;
 use crate::server::middleware::{
-    claim_sign_in, clear_session_cookie, login_limited, redirect, sign_in_refused, sign_in_source,
-    with_cookie, Sess, Src, User,
+    claim_sign_in, clear_session_cookie, login_limited, redirect, same_origin_navigation,
+    sign_in_refused, sign_in_source, with_cookie, Sess, Src, User,
 };
 use crate::server::ratelimit::Bucket;
 use crate::server::routes::webui::no_store;
@@ -406,6 +406,15 @@ pub async fn logout(
         return error(StatusCode::FORBIDDEN, "Request blocked.");
     }
     let signed_in = sess.as_ref().and_then(|s| s.user.as_ref()).is_some();
+    // The session cookie is SameSite=Lax, so a link on another site opened
+    // in a browser without Fetch Metadata carries it on this GET. Ending
+    // every session and the broker's from a GET therefore needs proof the
+    // navigation came from OpenAlgo itself (or was typed); the app's own
+    // sign-out is a CSRF-checked POST.
+    if signed_in && method == Method::GET && !same_origin_navigation(&ctx, &headers) {
+        tracing::warn!("Sign-out link not opened from OpenAlgo; nothing was ended");
+        return redirect("/");
+    }
     let mut revoke_pending = false;
     if signed_in {
         ctx.sessions.clear();
@@ -510,7 +519,9 @@ pub async fn reset_password(
                         x.reset_token_hash = Some(h);
                         x.reset_email = Some(email.clone());
                     });
-                    ok(json!({"status": "success", "message": "TOTP verified", "token": token}))
+                    no_store(ok(
+                        json!({"status": "success", "message": "TOTP verified", "token": token}),
+                    ))
                 }
                 _ => error(
                     StatusCode::BAD_REQUEST,

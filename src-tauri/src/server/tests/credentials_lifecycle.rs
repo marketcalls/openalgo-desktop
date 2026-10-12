@@ -356,6 +356,38 @@ async fn sec05_a_new_sign_in_finishes_the_pending_revoke_first() {
     h.ctx().runtime.teardown(h.ctx()).await;
 }
 
+/// SEC-01: a signed-in browser's cookie rides on a GET from a link on
+/// another site (SameSite=Lax), and a browser without Fetch Metadata does
+/// not say so. Such a GET ends nothing; the app's own sign-out (a page of
+/// OpenAlgo, or the address typed in) still does.
+#[tokio::test]
+async fn sec01_a_logout_link_from_elsewhere_ends_nothing() {
+    let h = H::new();
+    h.setup();
+    h.connect_broker();
+    let (trader, _) = h.session(true);
+    for r in [with_session(get("/auth/logout"), &trader, None), {
+        let mut r = with_session(get("/auth/logout"), &trader, None);
+        r.headers_mut().insert(
+            header::REFERER,
+            "https://evil.example/page".parse().unwrap(),
+        );
+        r
+    }] {
+        let (s, _, _) = h.send(r).await;
+        assert_eq!(s, StatusCode::FOUND);
+        assert!(signed_in(&h, &trader).await, "signed out by a link");
+        assert!(h.ctx().is_broker_connected(), "broker ended by a link");
+    }
+    let (s, headers, _) = h
+        .send(in_app(with_session(get("/auth/logout"), &trader, None)))
+        .await;
+    assert_eq!(s, StatusCode::FOUND);
+    assert_eq!(headers[header::LOCATION], "/login");
+    assert!(!signed_in(&h, &trader).await);
+    assert!(!h.ctx().is_broker_connected());
+}
+
 // ---------------------------------- SEC-03 never new keys for an install
 
 /// The app opened on `dir` with `store` as its keychain, as at a start.
@@ -496,6 +528,30 @@ async fn sec03_legacy_keys_are_wrapped_only_with_a_verified_password() {
     close(ctx).await;
 }
 
+/// SEC-04: an account reset whose new keys the keychain refuses still
+/// signs every window out: the account is already gone, so no session may
+/// outlive it because the last step failed.
+#[tokio::test]
+async fn sec04_a_reset_the_keychain_refuses_still_signs_everyone_out() {
+    use crate::security::keystore::FaultyKeyStore;
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(FaultyKeyStore::default());
+    let ctx = open_at(dir.path(), store.clone());
+    AuthService::setup(&ctx, USER, EMAIL, PASSWORD).unwrap();
+    let s = ctx.sessions.create(ctx.now());
+    ctx.sessions.update(&s.id, |x| x.user = Some(USER.into()));
+    assert_eq!(ctx.sessions.authenticated_count(), 1);
+    *store.writes_left.lock() = Some(0);
+    assert!(AuthService::reset_account_everywhere(&ctx).await.is_err());
+    assert!(AuthService::needs_setup(&ctx).unwrap(), "account removed");
+    assert_eq!(
+        ctx.sessions.authenticated_count(),
+        0,
+        "a window stayed signed in to a removed account"
+    );
+    close(ctx).await;
+}
+
 /// SEC-09 (and SEC-03's fingerprint): a data folder restored on a computer
 /// whose keychain holds other keys (another computer, or this one after an
 /// account reset) is explained at sign-in instead of "Invalid".
@@ -558,6 +614,9 @@ fn reopen(dir: &tempfile::TempDir) -> Arc<AppState> {
 async fn only_password_signs_in(dir: &tempfile::TempDir, works: &str, fails: &str) {
     let ctx = reopen(dir);
     assert!(!signs_in(&ctx, fails), "{} signs in", fails);
+    // A password that is not the account's unlocks nothing either, even
+    // one that opens a key file a password change left behind.
+    assert!(!ctx.security.is_unlocked(), "{} unlocked the keys", fails);
     assert!(signs_in(&ctx, works), "{} does not sign in", works);
     assert_eq!(kite_key(&ctx), "kiteapikey");
     assert!(!dir.path().join(crate::security::VAULT_NEXT_FILE).exists());
@@ -641,6 +700,33 @@ async fn sec02_a_completed_change_moves_to_the_new_password() {
     let dir = password_mode_install().await;
     let ctx = reopen(&dir);
     assert!(signs_in(&ctx, PASSWORD));
+    AuthService::change_password(&ctx, USER, PASSWORD, NEW_PASSWORD, NEW_PASSWORD).unwrap();
+    close(ctx).await;
+    only_password_signs_in(&dir, NEW_PASSWORD, PASSWORD).await;
+}
+
+/// SEC-02: the last step fails and the old hash cannot be put back either
+/// (the database refuses it). The new hash stands, so the change is
+/// reported done, only the new password signs in, and the old one, which
+/// still opens the old key file, unlocks nothing.
+#[tokio::test]
+async fn sec02_when_the_old_password_cannot_come_back_only_the_new_one_works() {
+    let dir = password_mode_install().await;
+    let ctx = reopen(&dir);
+    assert!(signs_in(&ctx, PASSWORD));
+    {
+        let conn = ctx.sqlite.conn().unwrap();
+        let old: String = conn
+            .query_row("SELECT password_hash FROM users", [], |r| r.get(0))
+            .unwrap();
+        conn.execute_batch(&format!(
+            "CREATE TRIGGER test_no_rollback BEFORE UPDATE ON users
+             WHEN NEW.password_hash = '{}' BEGIN SELECT RAISE(ABORT, 'disk full'); END;",
+            old
+        ))
+        .unwrap();
+    }
+    ctx.security.fail_vault_promote(true);
     AuthService::change_password(&ctx, USER, PASSWORD, NEW_PASSWORD, NEW_PASSWORD).unwrap();
     close(ctx).await;
     only_password_signs_in(&dir, NEW_PASSWORD, PASSWORD).await;
@@ -882,11 +968,25 @@ async fn sec06_key_bearing_answers_are_never_cached() {
         ))
         .await;
     answers.push(("POST /apikey".into(), s, headers, body));
+    // The AI-client token, shown once when it is created.
+    let (s, headers, body) = h
+        .send(with_session(
+            post_json(
+                "/api/mcp/tokens",
+                json!({"name": "Claude", "scope": "read"}),
+            ),
+            &cookie,
+            Some(&csrf),
+        ))
+        .await;
+    answers.push(("POST /api/mcp/tokens".into(), s, headers, body));
     for (what, s, headers, body) in answers {
         assert_eq!(s, StatusCode::OK, "{}", what);
         let v: Value = serde_json::from_slice(&body).unwrap();
         assert!(
-            v.to_string().contains("api_key") || v.to_string().contains("totp_secret"),
+            v.to_string().contains("api_key")
+                || v.to_string().contains("totp_secret")
+                || v.to_string().contains("oamcp_"),
             "{}: {}",
             what,
             v

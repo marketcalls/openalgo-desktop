@@ -1192,12 +1192,18 @@ async fn password_reset_with_totp_like_the_web() {
         ))
         .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
-    let (s, v) = h
-        .json(post(
+    let (s, headers, body) = h
+        .send(post(
             json!({"step": "totp", "email": EMAIL, "totp_code": code}),
         ))
         .await;
     assert_eq!(s, StatusCode::OK);
+    // The reset token is a secret: never cached (SEC-06).
+    assert!(headers[header::CACHE_CONTROL]
+        .to_str()
+        .unwrap()
+        .contains("no-store"));
+    let v: Value = serde_json::from_slice(&body).unwrap();
     let token = v["token"].as_str().unwrap().to_string();
     let (s, _) = h
         .json(post(

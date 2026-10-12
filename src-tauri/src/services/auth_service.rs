@@ -172,9 +172,15 @@ impl AuthService {
             return Ok(LoginOutcome::Invalid);
         };
         let password_mode = state.security.mode() == KeyMode::Password;
+        // Password mode: the vault's keys are taken only when the password
+        // also matches the stored hash, so a password that opens a key file
+        // but is not the account's (the old one around a password change)
+        // unlocks nothing (SEC-02).
         if password_mode
             && state.security.has_vault()
-            && !state.security.unlock_with_password(password, false)?
+            && !state.security.unlock_for_sign_in(password, |pepper| {
+                crate::security::hashing::verify_password(pepper, password, &row.password_hash)
+            })?
         {
             return Ok(LoginOutcome::Invalid);
         }
@@ -189,11 +195,6 @@ impl AuthService {
         // one would leave a vault the right password cannot open.
         if password_mode && !state.security.has_vault() {
             state.security.unlock_with_password(password, false)?;
-        }
-        // A password change stopped half way is finished or discarded now
-        // that the password is known to match the stored hash.
-        if let Err(e) = state.security.settle_vault(password) {
-            tracing::warn!("Could not tidy up an unfinished password change: {}", e);
         }
         // Now unlocked in password mode: finish any pending re-encryption.
         crate::db::sqlite::data_migrations::run(&state.sqlite, &state.security)?;
@@ -372,11 +373,14 @@ impl AuthService {
         }
         // The stored broker sessions are gone, so nothing is left to revoke.
         *state.revoke_pending.lock() = false;
-        state.security.rotate()?;
+        // The account is gone whatever the key rotation does: every window
+        // is signed out and nothing cached survives, even when the keychain
+        // refuses the new keys (the error is still returned).
+        let rotated = state.security.rotate();
         state.api_keys.clear();
         state.sessions.clear();
         state.set_broker_session(None);
-        Ok(())
+        rotated
     }
 
     /// New, unpublished secrets for every strategy webhook (only the digest

@@ -55,6 +55,8 @@ const B64: base64::engine::GeneralPurpose = base64::engine::general_purpose::STA
 pub const VAULT_FILE: &str = "vault.json";
 /// The vault for a new password while a password change is under way.
 pub const VAULT_NEXT_FILE: &str = "vault.next.json";
+/// The main database: a folder that has it holds data the keys protect.
+const MAIN_DB_FILE: &str = "openalgo.db";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -123,6 +125,7 @@ impl SecurityManager {
     /// Load or create key material for `data_dir` using `store`.
     pub fn open(data_dir: &Path, store: Arc<dyn KeyStore>) -> Result<Self> {
         let vault_exists = data_dir.join(VAULT_FILE).exists();
+        let holds_data = data_dir.join(MAIN_DB_FILE).exists();
         let legacy = legacy::read(data_dir)?;
 
         let keychain = if vault_exists {
@@ -161,10 +164,13 @@ impl SecurityManager {
                 let (keys, from_legacy) = match legacy {
                     Some((k, p)) => (Keys::new(k, p)?, true),
                     // One entry of the pair is gone (deleted by hand, a sync
-                    // fault). Its partner still belongs to this install's
-                    // data, so it is left exactly as it is and the app does
-                    // not start on new keys (security review SEC-04).
-                    None if k.is_some() || p.is_some() => {
+                    // fault). On a folder that holds data its partner still
+                    // belongs to that data, so it is left exactly as it is
+                    // and the app does not start on new keys (security
+                    // review SEC-04). A first start that stopped half way
+                    // through writing the pair has nothing encrypted yet and
+                    // simply starts again with new keys.
+                    None if (k.is_some() || p.is_some()) && holds_data => {
                         let missing = if k.is_none() { DATA_KEY } else { PEPPER };
                         tracing::error!(
                             "The keychain holds only one of OpenAlgo's two keys ({} is missing)",
@@ -238,9 +244,11 @@ impl SecurityManager {
         self.mode == KeyMode::Password && !self.has_vault() && !self.is_unlocked()
     }
 
-    /// Password mode: called at setup and on every sign-in. Opens the vault
-    /// with the password; returns false when it does not open. Keychain
-    /// mode: always true.
+    /// Password mode: called at setup (and when keys moved from
+    /// `secrets.dat` are first wrapped). Opens the vault with the password;
+    /// returns false when it does not open. Keychain mode: always true.
+    /// A sign-in uses `unlock_for_sign_in`, which also checks the stored
+    /// password hash.
     ///
     /// With no vault, keys already in memory (moved from `secrets.dat`) are
     /// wrapped into a new one. New random keys are made only when
@@ -262,27 +270,71 @@ impl SecurityManager {
             *self.keys.write() = Some(keys);
             return Ok(true);
         }
-        // The vault, then one a password change left half done (stopped
-        // before its last step): whichever opens with this password. The
-        // caller checks the password against the stored hash and then calls
-        // `settle_vault`, so the file that matches the hash is kept.
-        let mut keys = open_vault_file(&self.vault_path(), password)?;
-        if keys.is_none() && self.next_vault_path().exists() {
-            keys = match open_vault_file(&self.next_vault_path(), password) {
-                Ok(k) => k,
-                Err(e) => {
-                    tracing::warn!("Ignoring an unfinished password change: {}", e);
-                    None
-                }
-            };
-        }
-        match keys {
+        match open_vault_file(&self.vault_path(), password)? {
             Some(k) => {
                 *self.keys.write() = Some(Arc::new(k));
                 Ok(true)
             }
             None => Ok(false),
         }
+    }
+
+    /// Password mode, at sign-in: open the vault with `password` and keep
+    /// the keys only when `matches_hash` accepts the pepper they carry (the
+    /// stored password hash verifies with it). The vault is tried first,
+    /// then one a password change left half done (`vault.next.json`); the
+    /// file whose password matches the stored hash is kept and the other is
+    /// finished or discarded. A password that opens a file but does not
+    /// match the hash unlocks nothing, so after a change only the password
+    /// the stored hash names works: the old one after a failed change, the
+    /// new one after a completed change (security review SEC-02).
+    /// Keychain mode: always true. Returns whether the keys are in memory.
+    pub fn unlock_for_sign_in(
+        &self,
+        password: &str,
+        matches_hash: impl Fn(&[u8]) -> Result<bool>,
+    ) -> Result<bool> {
+        if self.mode == KeyMode::Keychain {
+            return Ok(true);
+        }
+        let _change = self.vault_lock.lock();
+        let next = self.next_vault_path();
+        if let Some(keys) = open_vault_file(&self.vault_path(), password)? {
+            if matches_hash(keys.pepper.expose())? {
+                *self.keys.write() = Some(Arc::new(keys));
+                if next.exists() {
+                    // A change that never reached the stored hash.
+                    if let Err(e) = std::fs::remove_file(&next) {
+                        tracing::warn!("Could not discard an unfinished password change: {}", e);
+                    } else {
+                        tracing::info!("Discarded an unfinished password change");
+                    }
+                }
+                return Ok(true);
+            }
+        }
+        if !next.exists() {
+            return Ok(false);
+        }
+        let keys = match open_vault_file(&next, password) {
+            Ok(Some(k)) => k,
+            Ok(None) => return Ok(false),
+            Err(e) => {
+                tracing::warn!("Ignoring an unfinished password change: {}", e);
+                return Ok(false);
+            }
+        };
+        if !matches_hash(keys.pepper.expose())? {
+            return Ok(false);
+        }
+        // The change reached the stored hash but stopped before its last
+        // step: finish it.
+        match self.promote_next_vault() {
+            Ok(()) => tracing::info!("Finished an interrupted password change"),
+            Err(e) => tracing::warn!("Could not finish an interrupted password change: {}", e),
+        }
+        *self.keys.write() = Some(Arc::new(keys));
+        Ok(true)
     }
 
     fn next_vault_path(&self) -> PathBuf {
@@ -298,11 +350,14 @@ impl SecurityManager {
     ///    (`vault.next.json`, synced). A failure here changes nothing.
     /// 2. `commit` stores the new hash. If it fails, the new file is removed.
     /// 3. The new file replaces the vault. If that fails, `rollback` puts the
-    ///    old hash back.
+    ///    old hash back and the change is refused; if even that fails, the
+    ///    new hash stands, so the change is reported done and the next
+    ///    sign-in finishes the rename.
     ///
-    /// A stop between the steps leaves both files: sign-in opens whichever
-    /// one the typed password opens and keeps the one matching the stored
-    /// hash (`settle_vault`). Keychain mode has no vault: only `commit`
+    /// `Err` therefore always means the old password is still the one, and
+    /// `Ok` the new one. A stop between the steps leaves both files; sign-in
+    /// keeps the one whose password matches the stored hash
+    /// (`unlock_for_sign_in`). Keychain mode has no vault: only `commit`
     /// runs. Changes are serialised.
     pub fn change_vault_password(
         &self,
@@ -325,14 +380,19 @@ impl SecurityManager {
             match rollback() {
                 Ok(()) => {
                     let _ = std::fs::remove_file(&next);
+                    return Err(e);
                 }
-                Err(r) => tracing::error!(
-                    "Password change could not be finished or undone ({}); both vault files are kept and either password signs in: {}",
-                    r,
-                    e
-                ),
+                Err(r) => {
+                    // The new hash could not be taken back, so the new
+                    // password is the one: the new vault stays beside the
+                    // old and the next sign-in with it finishes the rename.
+                    tracing::error!(
+                        "Password change: the key file could not be renamed ({}) and the old password could not be restored ({}); the new password is in use",
+                        e,
+                        r
+                    );
+                }
             }
-            return Err(e);
         }
         Ok(())
     }
@@ -344,30 +404,6 @@ impl SecurityManager {
         }
         std::fs::rename(self.next_vault_path(), self.vault_path())?;
         fsperm::sync_dir(&self.data_dir);
-        Ok(())
-    }
-
-    /// Password mode, after a sign-in whose password matched the stored
-    /// hash: finish or discard a password change that stopped half way.
-    /// The vault this password opens is the one that matches the hash, so
-    /// it is the one kept. A no-op when no change was left unfinished.
-    pub fn settle_vault(&self, password: &str) -> Result<()> {
-        if self.mode == KeyMode::Keychain {
-            return Ok(());
-        }
-        let _change = self.vault_lock.lock();
-        let next = self.next_vault_path();
-        if !next.exists() {
-            return Ok(());
-        }
-        if open_vault_file(&self.vault_path(), password)?.is_some() {
-            // The change never reached the stored hash.
-            std::fs::remove_file(&next)?;
-            tracing::info!("Discarded an unfinished password change");
-        } else if open_vault_file(&next, password)?.is_some() {
-            self.promote_next_vault()?;
-            tracing::info!("Finished an interrupted password change");
-        }
         Ok(())
     }
 
@@ -662,13 +698,28 @@ mod tests {
 
     use keystore::FaultyKeyStore;
 
-    /// A populated keychain install: keys stored, one secret encrypted.
+    /// A populated keychain install: keys stored, the main database there,
+    /// one secret encrypted.
     fn populated() -> (tempfile::TempDir, Arc<FaultyKeyStore>, (String, String)) {
         let dir = tempfile::tempdir().unwrap();
         let store = Arc::new(FaultyKeyStore::default());
         let m = SecurityManager::open(dir.path(), store.clone()).unwrap();
+        std::fs::write(dir.path().join(MAIN_DB_FILE), b"").unwrap();
         let ct = m.encrypt("broker-secret", &Aad::fixed("x")).unwrap();
         (dir, store, ct)
+    }
+
+    /// SEC-04: a first start that wrote only one key (nothing encrypted
+    /// yet, no database) starts again with a new pair instead of refusing
+    /// for ever.
+    #[test]
+    fn a_partial_pair_on_a_new_folder_starts_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(FaultyKeyStore::default());
+        store.set(DATA_KEY, &B64.encode([7u8; 32])).unwrap();
+        let m = SecurityManager::open(dir.path(), store.clone()).unwrap();
+        assert!(m.is_unlocked());
+        assert!(store.get(PEPPER).unwrap().is_some());
     }
 
     /// SEC-04: with one of the two entries gone, the app refuses to start

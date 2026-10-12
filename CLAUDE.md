@@ -715,6 +715,13 @@ and add each new one here.
   session that trades behind a "Logged out". The failure sets
   `revoke_pending`, which blocks resume until the session poll or the next
   sign-in writes it.
+- A GET with a global effect (`/auth/logout` ending every session) runs
+  only for a same-origin navigation: the Lax cookie rides on a link from
+  another site in browsers without Fetch Metadata.
+- A key file opened by a password is trusted only once the password also
+  matches the stored hash (`SecurityManager::unlock_for_sign_in`); around a
+  password change an old or uncommitted password opens a file but must
+  unlock nothing.
 - Only account setup creates key material. A keychain that is locked or
   denies access at startup looks like no keychain at all
   (`KeyStoreError::Unavailable`); a sign-in that then wrote a vault with new
