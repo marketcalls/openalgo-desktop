@@ -23,7 +23,7 @@ const BASE = '/openscript/runner'
 // having no instrument set. webClient is the client for exactly this: a
 // session route, with the CSRF token a POST here needs.
 
-/** One process the server is running. `state` is always running: see below. */
+/** One process the server is running. `state` is running or close pending: see below. */
 export interface RunningStrategy {
   id: string
   /**
@@ -38,7 +38,9 @@ export interface RunningStrategy {
   /** The script this deployment runs, which is what a trader reads. */
   file: string
   /**
-   * Always `running`.
+   * `running`, or (desktop) `close_pending`: a Stop sent a closing order, or
+   * found an order of the run still working, that had not finished in time.
+   * Such a run sends nothing new until Stop is pressed again or it is paused.
    *
    * The service drops a run whose process has gone before it copies anything
    * out, so a finished run is absent from these answers entirely rather than

@@ -1,0 +1,8 @@
+{
+  "status": "success",
+  "messages": [
+    { "seq": 1, "kind": "halt" },
+    { "seq": 2, "kind": "resume" }
+  ],
+  "stop": false
+}

@@ -40,10 +40,20 @@ export interface RunSpec {
   facts: { instrument?: Record<string, unknown> } | null
 }
 
+/**
+ * `halt` and `resume` are the two halves of a Stop. The app halts the page
+ * before it closes the position, so the script sends nothing beside the
+ * close. A close that did not happen and left nothing of its own working
+ * resumes the page: the run is still holding its position, and its script is
+ * what manages it, so it must be able to send its own exits again. A close
+ * that left an order working sends no resume: the run stays halted (close
+ * pending) until Stop is pressed again or the run is paused.
+ */
 export type InboxMessage =
   | { seq: number; kind: 'bars'; bars: HostBar[] }
   | { seq: number; kind: 'frame'; frame: OrderFrame }
   | { seq: number; kind: 'halt' }
+  | { seq: number; kind: 'resume' }
 
 /** The page's channel to the app. Every call is the run's own. */
 export interface Transport {
@@ -287,6 +297,14 @@ export class Driver {
     this.halted = true
   }
 
+  /** The close did not happen: the script sends its own orders again. */
+  resume(): void {
+    if (this.halted) {
+      this.say('The position was not closed, so this run carries on and sends its orders again.')
+    }
+    this.halted = false
+  }
+
   /** Read the inbox until the app says stop. */
   async run(): Promise<void> {
     let after = 0
@@ -307,6 +325,7 @@ export class Driver {
         if (m.kind === 'bars') await this.onBars(m.bars)
         else if (m.kind === 'frame') this.deliver(m.frame)
         else if (m.kind === 'halt') this.halt()
+        else if (m.kind === 'resume') this.resume()
       }
       await this.onClock()
       await this.flush()

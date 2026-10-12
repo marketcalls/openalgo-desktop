@@ -24,11 +24,23 @@ pub fn price_type(engine_type: &str) -> Option<&'static str> {
 }
 
 /// The platform's word for an order, as the engine's status vocabulary.
-/// A word outside it is `None`, which leaves the engine's row alone.
+/// A word outside it is `None`, which leaves the engine's row alone. A
+/// broker's in-between states (an order the exchange has not taken yet, a
+/// cancel or a change still being processed) are named as working: such an
+/// order may still fill, and a Stop waits for it.
 pub fn status_word(platform: &str) -> Option<&'static str> {
     match platform.trim().to_ascii_lowercase().as_str() {
         "complete" | "filled" => Some("filled"),
-        "open" => Some("working"),
+        "open"
+        | "pending"
+        | "open pending"
+        | "validation pending"
+        | "put order req received"
+        | "after market order req received"
+        | "modify pending"
+        | "modify validation pending"
+        | "modified"
+        | "cancel pending" => Some("working"),
         "trigger pending" | "trigger_pending" => Some("triggerPending"),
         "rejected" => Some("rejected"),
         "cancelled" | "canceled" => Some("cancelled"),
@@ -424,7 +436,12 @@ mod tests {
         assert_eq!(p.average_price, Some(101.25));
         let p = progress(&json!({"order_status": "open", "filled_quantity": 3}), 10).unwrap();
         assert_eq!((p.status, p.filled), ("working", 3));
-        assert!(progress(&json!({"order_status": "validation pending"}), 1).is_none());
+        // In-between broker states are working, so a Stop waits on them.
+        for word in ["validation pending", "Cancel Pending", "open pending"] {
+            let p = progress(&json!({"order_status": word, "filled_quantity": 2}), 5).unwrap();
+            assert_eq!((p.status, p.filled), ("working", 2), "{}", word);
+        }
+        assert!(progress(&json!({"order_status": "a word nobody uses"}), 1).is_none());
         let f = frame(4, "filled", 10, Some(1.0), Some("OID"), None, 5);
         assert_eq!(f["intentId"], 4);
         assert_eq!(f["filledQty"], 10);

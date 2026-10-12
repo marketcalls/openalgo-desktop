@@ -188,17 +188,50 @@ pub async fn positions(services: &dyn RunnerServices, mode: RunMode, own: &[Orde
     payload
 }
 
-fn signed_units(v: &Value) -> i64 {
+/// A row's quantity in whole units, or `None` when it is not a number.
+fn signed_units(v: &Value) -> Option<i64> {
     // Toward zero: a size read here only ever caps an exit, so reading less
     // than is there errs on the side of closing less.
     crate::risk::value_to_f64(v)
         .filter(|q| q.is_finite())
         .map(|q| q.trunc() as i64)
-        .unwrap_or(0)
 }
 
 fn same_equity(a: &str, b: &str) -> bool {
     a == b || (matches!(a, "NSE" | "BSE") && matches!(b, "NSE" | "BSE"))
+}
+
+/// The list of rows a book answered, or `None` when it answered none.
+fn row_list(data: &Value, key: &str) -> Option<Vec<Value>> {
+    let list = if data.is_array() {
+        data
+    } else {
+        data.get(key).filter(|v| v.is_array())?
+    };
+    Some(
+        list.as_array()?
+            .iter()
+            .filter(|r| r.is_object())
+            .cloned()
+            .collect(),
+    )
+}
+
+/// Adds one book's rows for a contract to `net`. `None` when the book has no
+/// list of rows or a matching row's quantity is not a number; otherwise
+/// whether any row matched.
+fn add_rows(
+    data: &Value,
+    key: &str,
+    matches: impl Fn(&Value) -> bool,
+    net: &mut i64,
+) -> Option<bool> {
+    let mut seen = false;
+    for r in row_list(data, key)?.iter().filter(|r| matches(r)) {
+        *net = net.saturating_add(signed_units(&r["quantity"])?);
+        seen = true;
+    }
+    Some(seen)
 }
 
 /// What the destination itself holds in one contract, signed: its position
@@ -206,36 +239,41 @@ fn same_equity(a: &str, b: &str) -> bool {
 /// the shares already settled into its holdings (T+1 moves a delivery
 /// position there, and selling from holdings is how it is closed). A Stop
 /// caps its exit with this, so it never sells what the account does not hold.
+///
+/// **Unknown is not flat.** `None` when the books do not say: no row for the
+/// contract at all (a book that has not caught up with a fill yet, or one cut
+/// short), a payload with no list of rows, or a quantity that is not a
+/// number. Only a row the destination answered for this contract, quantity
+/// zero included, says it is flat.
 pub fn destination_net(
     positions: &Value,
     holdings: Option<&Value>,
     symbol: &str,
     exchange: &str,
     product: &str,
-) -> i64 {
-    let (rows, _) = rows_and_shape(&positions["data"], "positions");
-    let mut net: i64 = rows
-        .iter()
-        .filter(|r| {
+) -> Option<i64> {
+    let mut net: i64 = 0;
+    let mut seen = add_rows(
+        &positions["data"],
+        "positions",
+        |r| {
             text(&r["symbol"]) == symbol
                 && text(&r["exchange"]) == exchange
                 && text(&r["product"]).eq_ignore_ascii_case(product)
-        })
-        .map(|r| signed_units(&r["quantity"]))
-        .fold(0i64, i64::saturating_add);
+        },
+        &mut net,
+    )?;
     if product.eq_ignore_ascii_case("CNC") {
         if let Some(h) = holdings {
-            let (rows, _) = rows_and_shape(&h["data"], "holdings");
-            net = rows
-                .iter()
-                .filter(|r| {
-                    text(&r["symbol"]) == symbol && same_equity(&text(&r["exchange"]), exchange)
-                })
-                .map(|r| signed_units(&r["quantity"]))
-                .fold(net, i64::saturating_add);
+            seen |= add_rows(
+                &h["data"],
+                "holdings",
+                |r| text(&r["symbol"]) == symbol && same_equity(&text(&r["exchange"]), exchange),
+                &mut net,
+            )?;
         }
     }
-    net
+    seen.then_some(net)
 }
 
 #[cfg(test)]
@@ -248,7 +286,8 @@ mod tests {
             {"symbol": "SBIN", "exchange": "NSE", "product": "MIS", "quantity": 7},
             {"symbol": "SBIN", "exchange": "NSE", "product": "CNC", "quantity": "-2"},
             {"symbol": "SBIN", "exchange": "BSE", "product": "MIS", "quantity": 50},
-            {"symbol": "INFY", "exchange": "NSE", "product": "MIS", "quantity": 9}
+            {"symbol": "INFY", "exchange": "NSE", "product": "MIS", "quantity": 9},
+            {"symbol": "TCS", "exchange": "NSE", "product": "MIS", "quantity": 0}
         ]});
         let holdings = json!({"status": "success", "data": {"holdings": [
             {"symbol": "SBIN", "exchange": "BSE", "product": "CNC", "quantity": 10},
@@ -256,16 +295,57 @@ mod tests {
         ], "statistics": {}}});
         assert_eq!(
             destination_net(&positions, Some(&holdings), "SBIN", "NSE", "MIS"),
-            7
+            Some(7)
         );
         // Delivery adds settled shares, on either equity exchange.
         assert_eq!(
             destination_net(&positions, Some(&holdings), "SBIN", "NSE", "CNC"),
-            8
+            Some(8)
         );
-        assert_eq!(destination_net(&positions, None, "SBIN", "NSE", "CNC"), -2);
-        assert_eq!(destination_net(&positions, None, "TCS", "NSE", "MIS"), 0);
-        assert_eq!(destination_net(&json!({}), None, "SBIN", "NSE", "MIS"), 0);
+        assert_eq!(
+            destination_net(&positions, None, "SBIN", "NSE", "CNC"),
+            Some(-2)
+        );
+        // A row answered with zero is flat.
+        assert_eq!(
+            destination_net(&positions, None, "TCS", "NSE", "MIS"),
+            Some(0)
+        );
+        // A delivery position already settled: holdings alone say what is held.
+        assert_eq!(
+            destination_net(&positions, Some(&holdings), "INFY", "BSE", "CNC"),
+            Some(4)
+        );
+    }
+
+    /// LOG-04b: a book that does not mention the contract, answers no rows,
+    /// or answers a quantity that is not a number, is unknown, never flat.
+    #[test]
+    fn a_book_that_does_not_say_is_not_flat() {
+        let positions = json!({"status": "success", "data": [
+            {"symbol": "SBIN", "exchange": "NSE", "product": "MIS", "quantity": "n/a"}
+        ]});
+        assert_eq!(
+            destination_net(&positions, None, "SBIN", "NSE", "MIS"),
+            None
+        );
+        assert_eq!(
+            destination_net(&positions, None, "WIPRO", "NSE", "MIS"),
+            None
+        );
+        let empty = json!({"status": "success", "data": []});
+        assert_eq!(destination_net(&empty, None, "SBIN", "NSE", "MIS"), None);
+        assert_eq!(
+            destination_net(&json!({}), None, "SBIN", "NSE", "MIS"),
+            None
+        );
+        let no_list = json!({"status": "success", "data": {"note": "busy"}});
+        assert_eq!(destination_net(&no_list, None, "SBIN", "NSE", "MIS"), None);
+        // Holdings that cannot be read leave a delivery position unknown.
+        assert_eq!(
+            destination_net(&empty, Some(&json!({"data": null})), "SBIN", "NSE", "CNC"),
+            None
+        );
     }
 
     #[test]

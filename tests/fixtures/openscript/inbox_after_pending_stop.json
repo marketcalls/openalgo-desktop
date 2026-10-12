@@ -1,0 +1,5 @@
+{
+  "status": "success",
+  "messages": [{ "seq": 1, "kind": "halt" }],
+  "stop": false
+}

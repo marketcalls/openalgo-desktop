@@ -524,7 +524,11 @@ async fn book(ctx: &AppState, name: &str, which: &str) -> Response {
     };
     // One side, read once: the rows and the book it filters are the same side.
     let mode: RunMode = runner.mode_for(name);
-    let own = runner.orders_of(name, mode);
+    // A ledger that cannot be read is said so, never shown as an empty book.
+    let own = match runner.orders_of(name, mode) {
+        Ok(own) => own,
+        Err(why) => return err(500, why),
+    };
     let services = runner_services(ctx);
     let answer = match which {
         "orderbook" => books::orderbook(services.as_ref(), &tag, mode, &own).await,

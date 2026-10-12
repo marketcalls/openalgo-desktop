@@ -26,6 +26,9 @@ pub enum Message {
     Frame { intent_id: i64, frame: Value },
     /// Stop sending orders: the run is being closed or paused.
     Halt,
+    /// Send orders again: a close did not happen and left nothing of its
+    /// own working, so the run's script manages its position again.
+    Resume,
 }
 
 impl Message {
@@ -34,6 +37,7 @@ impl Message {
             Message::Bars(bars) => json!({"seq": seq, "kind": "bars", "bars": bars}),
             Message::Frame { frame, .. } => json!({"seq": seq, "kind": "frame", "frame": frame}),
             Message::Halt => json!({"seq": seq, "kind": "halt"}),
+            Message::Resume => json!({"seq": seq, "kind": "resume"}),
         }
     }
 }

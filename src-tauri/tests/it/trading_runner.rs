@@ -13,6 +13,7 @@ use openalgo_desktop_lib::trading::runner::host::{fragment_of, RecordingHost, Ru
 use openalgo_desktop_lib::trading::runner::services::{Bar, RunnerServices};
 use openalgo_desktop_lib::trading::runner::RunnerOptions;
 use openalgo_desktop_lib::trading::scripts::source_hash;
+use openalgo_desktop_lib::trading::Trading;
 use parking_lot::Mutex;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -39,6 +40,7 @@ struct Fake {
     nobody: AtomicBool,
     unreadable_positions: AtomicBool,
     unreadable_mode: AtomicBool,
+    lagging_positions: AtomicBool,
     next: AtomicU64,
     placed: Mutex<Vec<(RunMode, Value, bool)>>,
     orders: Mutex<Vec<FakeOrder>>,
@@ -46,6 +48,22 @@ struct Fake {
     /// Size held outside any strategy, per side and symbol (NSE, MIS),
     /// added to what the position book reports.
     outside: Mutex<Vec<(RunMode, String, i64)>>,
+    /// What the destination does with a cancel. A cancel is a request: the
+    /// order may stay open, or fill partly before it ends.
+    cancel_mode: Mutex<CancelMode>,
+}
+
+#[derive(Default, Clone, Copy)]
+enum CancelMode {
+    /// Cancelled at once, nothing more filled.
+    #[default]
+    Accept,
+    /// Refused (a rate limit, the network).
+    Refuse,
+    /// Accepted, but the order stays open.
+    StayOpen,
+    /// Accepted; the order ends cancelled after this many filled.
+    FilledThenCancelled(i64),
 }
 
 impl Fake {
@@ -185,7 +203,16 @@ impl RunnerServices for Fake {
         else {
             return DispatchResult::refused("No such order");
         };
-        o.status["order_status"] = json!("cancelled");
+        match *self.cancel_mode.lock() {
+            CancelMode::Accept => o.status["order_status"] = json!("cancelled"),
+            CancelMode::Refuse => return DispatchResult::refused("Too many requests"),
+            CancelMode::StayOpen => {}
+            CancelMode::FilledThenCancelled(n) => {
+                o.status["order_status"] = json!("cancelled");
+                o.status["filled_quantity"] = json!(n);
+                o.status["average_price"] = json!(100.0);
+            }
+        }
         DispatchResult {
             ok: true,
             broker_order_id: Some(orderid.into()),
@@ -227,6 +254,10 @@ impl RunnerServices for Fake {
             Book::Positions => {
                 if self.unreadable_positions.load(Ordering::SeqCst) {
                     return Err(json!({"status": "error", "message": "Session expired"}));
+                }
+                if self.lagging_positions.load(Ordering::SeqCst) {
+                    // A successful answer that has not caught up with a fill.
+                    return Ok(json!({"status": "success", "data": []}));
                 }
                 json!({"status": "success", "total_pnl": 999.0, "data": self.positions(mode)})
             }
@@ -411,6 +442,22 @@ impl T {
         }
         assert!(!runner.is_running(run));
         assert_eq!(self.fake.placed_on(RunMode::Sandbox).len(), 1);
+    }
+
+    /// Quit and reopen the runner on the same database, as an app restart
+    /// does: every run is paused on the way out, and only what the database
+    /// holds carries over. The reopened runner is driven directly.
+    async fn restart(&self) -> Trading {
+        self.h.ctx.trading.runner.shutdown().await;
+        let trading = Trading::new(
+            self.h.dir.path(),
+            self.h.ctx.sqlite.clone(),
+            self.h.clock.clone(),
+            self.fake.clone(),
+        );
+        trading.runner.set_host(self.host.clone());
+        trading.runner.set_options(fast());
+        trading
     }
 
     /// Switch the platform to live with a broker, and start the run there.
@@ -807,36 +854,372 @@ async fn stop_never_closes_more_than_the_destination_holds() {
     assert!(runner.is_running(&id));
 }
 
+/// The page channel's answer as the page reads it, with `seq` renumbered
+/// from 1 so it can be compared with a recorded answer.
+fn on_the_wire(answer: &Value) -> Value {
+    let mut a = answer.clone();
+    if let Some(messages) = a["messages"].as_array_mut() {
+        for (n, m) in messages.iter_mut().enumerate() {
+            m["seq"] = json!(n as u64 + 1);
+        }
+    }
+    a
+}
+
+/// A recorded page-channel answer, shared with the runner page's own test
+/// (`src/runner/handshake.test.ts`), which replays it through the real
+/// transport and Driver. What Rust answers and what the page acts on are
+/// held to the same file.
+fn page_fixture(name: &str) -> Value {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../tests/fixtures/openscript")
+        .join(name);
+    serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap()
+}
+
+impl T {
+    /// The highest `seq` the page has been answered so far.
+    async fn inbox_seen(&self, run: &str) -> u64 {
+        let (_, inbox) = self.page(Method::GET, run, "inbox?after=0", None).await;
+        inbox["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|m| m["seq"].as_u64())
+            .max()
+            .unwrap_or(0)
+    }
+}
+
+/// LOG-02: Stop halts the page before it closes. A close that did not
+/// happen and left nothing working resumes the page, which the page needs to
+/// send its script's own exits again. Before, only Rust lifted its own halt,
+/// and the page refused every later order for good.
 #[tokio::test]
-async fn close_times_out_and_leaves_the_run_holding() {
+async fn a_refused_close_resumes_the_page() {
     let t = setup().await;
     let id = t.deploy("SBIN").await;
     t.fake.fill_at_once.store(true, Ordering::SeqCst);
-    t.call(
-        Method::POST,
-        &format!("/openscript/runner/start/{}", id),
-        None,
-    )
-    .await;
+    t.start(&id).await;
+    t.buy(&id, 1, 3).await;
+    t.h.ctx.trading.runner.pump_once(&id).await;
+    let seen = t.inbox_seen(&id).await;
+
+    t.fake.refuse_orders.store(true, Ordering::SeqCst);
+    let (s, v) = t.close(&id).await;
+    assert_eq!(s, StatusCode::CONFLICT, "{}", v);
+    assert!(v["message"].as_str().unwrap().contains("still running"));
+    let (_, inbox) = t
+        .page(Method::GET, &id, &format!("inbox?after={}", seen), None)
+        .await;
+    assert_eq!(
+        on_the_wire(&inbox),
+        page_fixture("inbox_after_refused_stop.json")
+    );
+    let (_, st) = t.call(Method::GET, "/openscript/runner/status", None).await;
+    assert_eq!(st["running"][0]["state"], "running");
+
+    // The script's own exit goes out again.
+    t.fake.refuse_orders.store(false, Ordering::SeqCst);
+    let v = t.order(&id, 2, "sell", 3).await;
+    assert_eq!(v["sent"], 1);
+}
+
+/// LOG-02 (replaces `close_times_out_and_leaves_the_run_holding`, which
+/// proved only that Rust lifted its own halt): an exit that has not filled
+/// may still fill, so the run is close pending, not resumed. It sends
+/// nothing, says so in its state, and a second Stop after the exit filled
+/// sends no second exit.
+#[tokio::test]
+async fn an_unfilled_exit_leaves_the_close_pending_and_halted() {
+    let t = setup().await;
+    let id = t.deploy("SBIN").await;
+    t.fake.fill_at_once.store(true, Ordering::SeqCst);
+    t.start(&id).await;
     t.buy(&id, 1, 1).await;
     t.h.ctx.trading.runner.pump_once(&id).await;
+    let seen = t.inbox_seen(&id).await;
     t.fake.fill_at_once.store(false, Ordering::SeqCst);
-    let (s, v) = t
-        .call(
-            Method::POST,
-            &format!("/openscript/runner/close/{}", id),
-            None,
-        )
-        .await;
+    let (s, v) = t.close(&id).await;
     assert_eq!(s, StatusCode::CONFLICT);
+    let message = v["message"].as_str().unwrap();
+    assert!(message.contains("has not filled yet"), "{}", message);
+    assert!(message.contains("close is pending"), "{}", message);
+    assert!(!message.contains("still running and still holding"));
+    assert!(t.h.ctx.trading.runner.is_running(&id));
+    let (_, st) = t.call(Method::GET, "/openscript/runner/status", None).await;
+    assert_eq!(st["running"][0]["state"], "close_pending");
+
+    // No resume reaches the page, and nothing new is sent.
+    let (_, inbox) = t
+        .page(Method::GET, &id, &format!("inbox?after={}", seen), None)
+        .await;
+    assert_eq!(
+        on_the_wire(&inbox),
+        page_fixture("inbox_after_pending_stop.json")
+    );
+    let v = t.buy(&id, 2, 1).await;
+    assert_eq!(v["sent"], 0);
+    assert_eq!(v["halted"], true);
+
+    // The exit fills; Stop again counts it and sends no second exit.
+    t.fake.set_status(
+        RunMode::Sandbox,
+        "OID2",
+        json!({"order_status": "complete", "average_price": 100.0}),
+    );
+    let (s, v) = t.close(&id).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    assert_eq!(t.fake.placed_on(RunMode::Sandbox).len(), 2);
+    assert!(!t.h.ctx.trading.runner.is_running(&id));
+}
+
+/// LOG-03: a cancel is a request, not proof. Stop waits until the
+/// destination says each working order of the run is finished, and measures
+/// the position only then.
+#[tokio::test]
+async fn a_stop_waits_for_working_orders_to_finish() {
+    let t = setup().await;
+    let id = t.deploy("SBIN").await;
+    t.start(&id).await;
+    t.buy(&id, 1, 10).await; // working, nothing filled
+
+    // The cancel is refused: the order may still fill, so nothing is closed.
+    *t.fake.cancel_mode.lock() = CancelMode::Refuse;
+    let (s, v) = t.close(&id).await;
+    assert_eq!(s, StatusCode::CONFLICT, "{}", v);
     assert!(v["message"]
         .as_str()
         .unwrap()
-        .contains("did not close its position in time"));
+        .contains("Order OID1 of this strategy is still working"));
+    assert_eq!(t.fake.placed_on(RunMode::Sandbox).len(), 1, "no exit");
     assert!(t.h.ctx.trading.runner.is_running(&id));
-    // And it trades on: the halt was lifted.
+
+    // Accepted, but the order is still open at the deadline: the same.
+    *t.fake.cancel_mode.lock() = CancelMode::StayOpen;
+    let (s, _) = t.close(&id).await;
+    assert_eq!(s, StatusCode::CONFLICT);
+    assert_eq!(t.fake.placed_on(RunMode::Sandbox).len(), 1, "no exit");
+    assert!(t.h.ctx.trading.runner.is_running(&id));
+
+    // Cancelled after 4 of 10 filled: exactly those 4 are closed.
+    *t.fake.cancel_mode.lock() = CancelMode::FilledThenCancelled(4);
+    t.fake.fill_at_once.store(true, Ordering::SeqCst);
+    let (s, v) = t.close(&id).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    let sent = t.fake.placed_on(RunMode::Sandbox);
+    assert_eq!(sent.len(), 2);
+    assert_eq!(sent[1]["action"], "SELL");
+    assert_eq!(sent[1]["quantity"], 4);
+}
+
+/// LOG-04b: the cap reads the destination's position book, and a book that
+/// has not caught up with a fill answers successfully with no row for the
+/// contract. Read as zero, an owned BUY 3 was treated as already flat and
+/// the run torn down as closed. Unknown is not flat: nothing is sent, the run
+/// stays running and managed, and Stop works once the book shows it.
+#[tokio::test]
+async fn a_lagging_empty_position_book_is_not_flat() {
+    let t = setup().await;
+    let id = t.deploy("SBIN").await;
+    t.fake.fill_at_once.store(true, Ordering::SeqCst);
+    t.start(&id).await;
+    t.buy(&id, 1, 3).await;
+    t.h.ctx.trading.runner.pump_once(&id).await;
+
+    t.fake.lagging_positions.store(true, Ordering::SeqCst);
+    let (s, v) = t.close(&id).await;
+    assert_eq!(s, StatusCode::CONFLICT, "{}", v);
+    let message = v["message"].as_str().unwrap();
+    assert!(message.contains("do not show SBIN yet"), "{}", message);
+    assert!(message.contains("still running"), "{}", message);
+    assert_eq!(t.fake.placed_on(RunMode::Sandbox).len(), 1, "no exit");
+    assert!(t.h.ctx.trading.runner.is_running(&id));
+    let (_, st) = t.call(Method::GET, "/openscript/runner/status", None).await;
+    assert_eq!(st["running"][0]["state"], "running", "managed, not halted");
+
+    // The book catches up: the same Stop closes exactly the 3.
+    t.fake.lagging_positions.store(false, Ordering::SeqCst);
+    let (s, v) = t.close(&id).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    let sent = t.fake.placed_on(RunMode::Sandbox);
+    assert_eq!(sent.len(), 2);
+    assert_eq!(sent[1]["action"], "SELL");
+    assert_eq!(sent[1]["quantity"], 3);
+}
+
+/// LOG-04: the broker's answer to a placement is what lets the run follow
+/// the order. Its write was ignored on failure, so the row kept no order id,
+/// was never polled, its fill never counted, and Stop reported closed while
+/// the account held it. Now the answer is kept on the run until it is saved:
+/// nothing new is sent, Stop does not report closed, the run says so, and
+/// once it is saved the fill is counted and Stop closes it.
+#[tokio::test]
+async fn an_answer_that_cannot_be_saved_is_kept_until_it_is() {
+    let t = setup().await;
+    let id = t.deploy("SBIN").await;
+    let runner = t.h.ctx.trading.runner.clone();
+    t.fake.fill_at_once.store(true, Ordering::SeqCst);
+    t.start(&id).await;
+    let sql = |s: &str| t.h.ctx.sqlite.conn().unwrap().execute_batch(s).unwrap();
+    sql(
+        "CREATE TRIGGER no_ack BEFORE UPDATE OF orderid ON openscript_orders
+         BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END;",
+    );
+    let v = t.buy(&id, 1, 3).await;
+    assert_eq!(v["sent"], 1, "the order went out");
+    runner.pump_once(&id).await;
+    let (_, st) = t.call(Method::GET, "/openscript/runner/status", None).await;
+    assert_eq!(st["running"][0]["unsaved_orders"], 1);
+
+    // Nothing new is sent while the answer is unsaved.
     let v = t.buy(&id, 2, 1).await;
-    assert_eq!(v["sent"], 1);
+    assert_eq!(v["sent"], 0);
+    assert_eq!(t.fake.placed_on(RunMode::Sandbox).len(), 1);
+    // Stop does not report closed: the order may have filled.
+    let (s, v) = t.close(&id).await;
+    assert_eq!(s, StatusCode::CONFLICT, "{}", v);
+    assert!(v["message"]
+        .as_str()
+        .unwrap()
+        .contains("has not been saved yet"));
+    assert_eq!(t.fake.placed_on(RunMode::Sandbox).len(), 1, "no exit");
+    assert!(runner.is_running(&id));
+
+    // Saved at last: the fill is counted and Stop closes exactly it.
+    sql("DROP TRIGGER no_ack;");
+    runner.pump_once(&id).await;
+    let (_, st) = t.call(Method::GET, "/openscript/runner/status", None).await;
+    assert_eq!(st["running"][0]["unsaved_orders"], 0);
+    let (s, v) = t.close(&id).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    let sent = t.fake.placed_on(RunMode::Sandbox);
+    assert_eq!(sent.len(), 2);
+    assert_eq!(sent[1]["action"], "SELL");
+    assert_eq!(sent[1]["quantity"], 3);
+}
+
+/// LOG-04: a ledger that cannot be read is not a flat one.
+#[tokio::test]
+async fn a_stop_that_cannot_read_its_orders_closes_nothing() {
+    let t = setup().await;
+    let id = t.deploy("SBIN").await;
+    t.fake.fill_at_once.store(true, Ordering::SeqCst);
+    t.start(&id).await;
+    t.buy(&id, 1, 3).await;
+    t.h.ctx.trading.runner.pump_once(&id).await;
+    let rename = |from: &str, to: &str| {
+        t.h.ctx
+            .sqlite
+            .conn()
+            .unwrap()
+            .execute_batch(&format!("ALTER TABLE {} RENAME TO {}", from, to))
+            .unwrap();
+    };
+    rename("openscript_orders", "openscript_orders_unreadable");
+    let (s, v) = t.close(&id).await;
+    assert_eq!(s, StatusCode::CONFLICT, "{}", v);
+    assert!(v["message"].as_str().unwrap().contains("could not be read"));
+    assert_eq!(t.fake.placed_on(RunMode::Sandbox).len(), 1, "no exit");
+    assert!(t.h.ctx.trading.runner.is_running(&id));
+    // Its books say so too, instead of an empty book.
+    let (s, _) = t
+        .call(
+            Method::GET,
+            &format!("/openscript/runner/positions/{}", id),
+            None,
+        )
+        .await;
+    assert!(!s.is_success());
+
+    rename("openscript_orders_unreadable", "openscript_orders");
+    let (s, v) = t.close(&id).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    let sent = t.fake.placed_on(RunMode::Sandbox);
+    assert_eq!(sent.len(), 2);
+    assert_eq!(sent[1]["quantity"], 3);
+}
+
+/// LOG-02 and LOG-03 across a restart: a close left pending (its exit still
+/// open) is in the ledger. If the exit fills while the app is closed, the
+/// next Stop counts that fill and sends no second exit; if it is still open,
+/// the next Stop cancels it before measuring, so two exits never work at once.
+#[tokio::test]
+async fn a_pending_close_survives_a_restart_without_a_second_exit() {
+    for fills_while_closed in [true, false] {
+        let t = setup().await;
+        let id = t.deploy("SBIN").await;
+        t.fake.fill_at_once.store(true, Ordering::SeqCst);
+        t.start(&id).await;
+        t.buy(&id, 1, 1).await;
+        t.h.ctx.trading.runner.pump_once(&id).await;
+        t.fake.fill_at_once.store(false, Ordering::SeqCst);
+        let (s, _) = t.close(&id).await;
+        assert_eq!(s, StatusCode::CONFLICT, "the exit OID2 is still open");
+
+        let trading = t.restart().await;
+        let runner = trading.runner.clone();
+        if fills_while_closed {
+            t.fake.set_status(
+                RunMode::Sandbox,
+                "OID2",
+                json!({"order_status": "complete", "average_price": 100.0}),
+            );
+        }
+        t.fake.fill_at_once.store(true, Ordering::SeqCst);
+        runner.start(&id).unwrap();
+        runner.close(&id).await.unwrap();
+        let sent = t.fake.placed_on(RunMode::Sandbox);
+        if fills_while_closed {
+            assert_eq!(sent.len(), 2, "no second exit");
+        } else {
+            assert_eq!(sent.len(), 3, "the open exit was replaced, not doubled");
+            assert!(t
+                .fake
+                .cancelled
+                .lock()
+                .contains(&(RunMode::Sandbox, "OID2".to_string())));
+            assert_eq!(sent[2]["quantity"], 1);
+        }
+        trading.shutdown().await;
+    }
+}
+
+/// LOG-04 across a restart: the answer kept on the run is lost when the app
+/// stops, and the row is left open with no order number. The ledger still
+/// shows it, so after the restart the run says it cannot follow that order
+/// and Stop does not report closed (before, it closed nothing and reported
+/// success while the broker may hold the fill).
+#[tokio::test]
+async fn an_order_with_no_number_blocks_stop_after_a_restart() {
+    let t = setup().await;
+    let id = t.deploy("SBIN").await;
+    t.fake.fill_at_once.store(true, Ordering::SeqCst);
+    t.start(&id).await;
+    let sql = |s: &str| t.h.ctx.sqlite.conn().unwrap().execute_batch(s).unwrap();
+    sql(
+        "CREATE TRIGGER no_ack BEFORE UPDATE OF orderid ON openscript_orders
+         BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END;",
+    );
+    t.buy(&id, 1, 3).await;
+
+    let trading = t.restart().await;
+    sql("DROP TRIGGER no_ack;");
+    let runner = trading.runner.clone();
+    runner.start(&id).unwrap();
+    runner.pump_once(&id).await;
+    assert_eq!(runner.status_of(&id).unwrap().unresolved_orders, 1);
+    let refused = runner.close(&id).await.unwrap_err();
+    assert_eq!(refused.status, 409);
+    assert!(
+        refused.message.contains("has no order number"),
+        "{}",
+        refused.message
+    );
+    assert_eq!(t.fake.placed_on(RunMode::Sandbox).len(), 1, "no exit");
+    assert!(runner.is_running(&id));
+    assert!(runner.status_of(&id).unwrap().close_pending);
+    trading.shutdown().await;
 }
 
 /// LOG-09: a start decides its side from analyzer mode. Unreadable, it was

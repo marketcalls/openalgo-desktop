@@ -10,7 +10,14 @@ import {
   sourceFile,
 } from 'openalgo-script'
 import { describe, expect, it } from 'vitest'
-import { Driver, intervalMs, REPLAY_REFUSAL, type RunSpec, type Transport } from './driver'
+import {
+  Driver,
+  type InboxMessage,
+  intervalMs,
+  REPLAY_REFUSAL,
+  type RunSpec,
+  type Transport,
+} from './driver'
 import { readFragment } from './transport'
 
 const SOURCE = `version 1
@@ -84,7 +91,7 @@ function harness() {
   const setNow = (t: number) => {
     now = t
   }
-  return { driver, sent, logs, ended, setNow }
+  return { driver, sent, logs, ended, setNow, transport }
 }
 
 describe('runner driver', () => {
@@ -138,6 +145,33 @@ describe('runner driver', () => {
     h.setNow(T0 + 4 * MIN + 1)
     await h.driver.onClock()
     expect(h.sent).toHaveLength(1)
+  })
+
+  it('a close that did not happen resumes the run, so its script trades again', async () => {
+    // LOG-02: the app halts the page before a Stop closes the position. A
+    // close that was refused left the page halted for good, so the script's
+    // own stop loss was answered here and never reached the app.
+    const run = async (resume: boolean) => {
+      const h = harness()
+      h.driver.load()
+      await h.driver.begin([bar(0, false), bar(1, false), bar(2, false)])
+      const control: InboxMessage[] = [{ seq: 1, kind: 'halt' }]
+      if (resume) control.push({ seq: 2, kind: 'resume' })
+      const answers: { messages: InboxMessage[]; stop: boolean }[] = [
+        { messages: control, stop: false },
+        // Bar 3 closes up as bar 4 begins: the script buys on bar 3.
+        { messages: [{ seq: 3, kind: 'bars', bars: [bar(3, true), bar(4, false)] }], stop: false },
+        { messages: [], stop: true },
+      ]
+      h.transport.inbox = async () => answers.shift() ?? { messages: [], stop: true }
+      h.setNow(T0 + 4 * MIN + 10_000)
+      await h.driver.run()
+      return h.sent
+    }
+    expect(await run(false)).toHaveLength(0)
+    const sent = await run(true)
+    expect(sent).toHaveLength(1)
+    expect(sent[0][0]).toMatchObject({ kind: 'place', side: 'buy' })
   })
 
   it('a program the engine refuses ends the run with the reason', async () => {

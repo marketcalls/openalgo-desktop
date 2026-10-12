@@ -28,6 +28,17 @@
 //! The web closes from its in-memory ledger alone; the cap is a deliberate
 //! desktop addition.
 //!
+//! **A Stop is a lifecycle, shared with the page.** It halts the page, then
+//! cancels the run's working orders and waits until the destination says
+//! each is finished (a cancel is a request, not proof), and only then
+//! measures the position from its own fills and sends the exit, watched to
+//! a fill. A close that did not happen and left nothing of its own working
+//! resumes the page, so the script manages its position again (as the web
+//! keeps cycling a script whose flatten failed). One that left an order
+//! working is close pending: halted, reported as such, until Stop is pressed
+//! again or the run is paused. A ledger that cannot be read is never taken
+//! as flat.
+//!
 //! **Every task is owned.** One pump per run (order frames, new bars, the
 //! page's heartbeat) kept in the run's entry and aborted when the run ends,
 //! and one scheduler task kept here and aborted at shutdown. A page that
@@ -60,7 +71,7 @@ use services::RunnerServices;
 use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
 use tokio::task::JoinHandle;
@@ -78,8 +89,16 @@ pub const BUSY_DELETE_REFUSAL: &str =
     "This strategy is still being stopped or removed. Try again in a moment.";
 /// What a start is told when this copy of the app cannot open runner pages.
 pub const NO_HOST_MESSAGE: &str = "Strategies cannot be run in this copy of OpenAlgo because it has no window to run them in. Start OpenAlgo Desktop normally and try again.";
-/// A Stop whose exit did not complete in time.
-pub const CLOSE_TIMEOUT_MESSAGE: &str = "This strategy did not close its position in time, so it is still running and still holding it. Its own log says what happened. Deal with the position and stop it again, or use Pause to end the strategy and keep the position.";
+/// The end of every answer that leaves a close pending: what the run is
+/// doing and what the trader does next. It never says the run manages the
+/// position, because a close-pending run sends nothing.
+pub const CLOSE_PENDING_TAIL: &str = "This strategy has stopped sending orders and its close is pending. Check your orders and positions, then press Stop again, or Pause it to keep the position as it is.";
+/// A Stop whose exit did not fill in time.
+pub const CLOSE_TIMEOUT_MESSAGE: &str = "The order closing this strategy's position has not filled yet, so the position may still be open. This strategy has stopped sending orders and its close is pending. Check your orders and positions, then press Stop again, or Pause it to keep the position as it is.";
+/// A Stop that could not read the run's own orders.
+pub const ORDERS_UNREADABLE: &str = "This strategy's own orders could not be read just now.";
+/// The end of an answer for a Stop that sent nothing and resumed the run.
+pub const NOTHING_CLOSED: &str = "Nothing was closed. It is still running and still holding its position. Try Stop again in a moment.";
 /// The most log lines one write takes, and the largest a run's log grows.
 const MAX_LOG_LINES: usize = 200;
 const MAX_LOG_BYTES: u64 = 5 * 1024 * 1024;
@@ -133,18 +152,29 @@ pub struct RunInfo {
     pub mode: RunMode,
     pub started_at: DateTime<Utc>,
     pub log_file: PathBuf,
+    /// A Stop left an order of this run working: it sends nothing until
+    /// Stop is pressed again or it is paused.
+    pub close_pending: bool,
+    /// Placement answers the run could not save yet (it sends nothing new
+    /// until they are saved).
+    pub unsaved_orders: usize,
+    /// Open orders of this run with no number from the destination, which
+    /// it cannot follow (a Stop does not go ahead while there are any).
+    pub unresolved_orders: usize,
 }
 
 impl RunInfo {
-    /// One run as the routes report it (web `_run_answer`). `state` is always
-    /// running: a run that has ended is not in the registry at all. There is
-    /// no process, so `pid` is null.
+    /// One run as the routes report it (web `_run_answer`). `state` is
+    /// `running`, or (desktop) `close_pending`: a run that has ended is not
+    /// in the registry at all. There is no process, so `pid` is null.
     pub fn answer(&self) -> Value {
         json!({
             "id": self.run_id,
             "deployment": self.run_id,
             "file": self.script,
-            "state": "running",
+            "state": if self.close_pending { "close_pending" } else { "running" },
+            "unsaved_orders": self.unsaved_orders,
+            "unresolved_orders": self.unresolved_orders,
             "symbol": self.symbol,
             "exchange": self.exchange,
             "interval": self.interval,
@@ -162,6 +192,12 @@ struct RunEntry {
     token: String,
     inbox: Inbox,
     halted: AtomicBool,
+    /// A Stop left an order of this run working (see [`RunInfo::close_pending`]).
+    close_pending: AtomicBool,
+    /// Placement answers not yet written to their rows.
+    unsaved: Mutex<Vec<Unsaved>>,
+    /// Open orders with no number, as of the last refresh.
+    unresolved: AtomicUsize,
     last_seen: Mutex<Instant>,
     /// Bars at or after this open time are pushed (set by the page's first
     /// history read), and the last bar pushed.
@@ -171,6 +207,58 @@ struct RunEntry {
     cancel: CancellationToken,
     /// Intents and a close never interleave for one run.
     order_lock: tokio::sync::Mutex<()>,
+}
+
+impl RunEntry {
+    /// The run as it stands now, its close-pending state and unsaved
+    /// answers included.
+    fn snapshot(&self) -> RunInfo {
+        let mut info = self.info.clone();
+        info.close_pending = self.close_pending.load(Ordering::SeqCst);
+        info.unsaved_orders = self.unsaved.lock().len();
+        info.unresolved_orders = self.unresolved.load(Ordering::SeqCst);
+        info
+    }
+}
+
+/// How many times a placement's answer is written before it is kept on the
+/// run to be written later.
+const ACK_ATTEMPTS: u32 = 3;
+
+/// A destination's answer to a placement that could not be written to the
+/// order's row yet (LOG-04). Kept on the run and written again on every
+/// refresh; until it is, the run sends nothing new and a Stop does not
+/// report closed.
+#[derive(Debug, Clone)]
+struct Unsaved {
+    row_id: i64,
+    orderid: Option<String>,
+    status: &'static str,
+    message: Option<String>,
+}
+
+/// Why a Stop did not close, and whether anything of it may still fill.
+struct CloseFailure {
+    message: String,
+    /// An order of this run may still be working: the run stays halted.
+    /// Otherwise its page is resumed and its script trades on.
+    pending: bool,
+}
+
+impl CloseFailure {
+    fn resume(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            pending: false,
+        }
+    }
+
+    fn pending(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            pending: true,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -312,7 +400,7 @@ impl Runner {
     /// The run of a deployment (or of a script deployed once), if running.
     pub fn status_of(&self, given: &str) -> Option<RunInfo> {
         let id = self.as_run_id(given);
-        self.reg.lock().runs.get(&id).map(|e| e.info.clone())
+        self.reg.lock().runs.get(&id).map(|e| e.snapshot())
     }
 
     pub fn is_running(&self, given: &str) -> bool {
@@ -331,7 +419,7 @@ impl Runner {
             .lock()
             .runs
             .values()
-            .map(|e| e.info.clone())
+            .map(|e| e.snapshot())
             .collect();
         all.sort_by(|a, b| (&a.script, &a.run_id).cmp(&(&b.script, &b.run_id)));
         all
@@ -579,12 +667,18 @@ impl Runner {
             mode,
             started_at: started,
             log_file,
+            close_pending: false,
+            unsaved_orders: 0,
+            unresolved_orders: 0,
         };
         let entry = Arc::new(RunEntry {
             info: info.clone(),
             token: random_token(),
             inbox: Inbox::new(),
             halted: AtomicBool::new(false),
+            close_pending: AtomicBool::new(false),
+            unsaved: Mutex::new(Vec::new()),
+            unresolved: AtomicUsize::new(0),
             last_seen: Mutex::new(Instant::now()),
             anchor: Mutex::new(None),
             last_bar: Mutex::new(None),
@@ -685,7 +779,12 @@ impl Runner {
     }
 
     /// Close what the run holds, then end it. A close that did not happen
-    /// leaves the run running and managed.
+    /// leaves the run running and managed: its page is resumed, so the
+    /// script sends its own exits again. A close that left an order of this
+    /// run working (an exit not yet filled, an entry whose cancel the broker
+    /// has not confirmed) leaves the run close pending instead: halted, so
+    /// nothing new is sent beside an order that may still fill, until Stop is
+    /// pressed again or the run is paused.
     pub async fn close(&self, given: &str) -> Result<String, Refusal> {
         let run_id = self.as_run_id(given);
         let entry = {
@@ -714,53 +813,52 @@ impl Runner {
                 tracing::info!("Closed and stopped the OpenScript run {}", run_id);
                 Ok(format!("{} closed and stopped", entry.info.script))
             }
-            Err(why) => {
+            Err(failed) => {
                 drop(reg);
-                entry.halted.store(false, Ordering::SeqCst);
+                if failed.pending {
+                    entry.close_pending.store(true, Ordering::SeqCst);
+                } else {
+                    entry.close_pending.store(false, Ordering::SeqCst);
+                    entry.halted.store(false, Ordering::SeqCst);
+                    entry.inbox.push(Message::Resume);
+                }
                 self.write_log(
                     &entry.info,
-                    &[format!("The close did not complete: {}", why)],
+                    &[format!("The close did not complete: {}", failed.message)],
                 );
-                Err(Refusal::new(409, why))
+                Err(Refusal::new(409, failed.message))
             }
         }
     }
 
-    async fn close_claimed(&self, entry: &Arc<RunEntry>) -> Result<(), String> {
+    async fn close_claimed(&self, entry: &Arc<RunEntry>) -> Result<(), CloseFailure> {
         // Nothing new is sent from here on.
         entry.halted.store(true, Ordering::SeqCst);
         entry.inbox.push(Message::Halt);
         let _held = entry.order_lock.lock().await;
-        let services = self.services();
         let info = &entry.info;
-        self.refresh_orders(entry).await;
+        let (wait, look) = {
+            let o = self.options.read();
+            (o.close_wait, o.close_look)
+        };
+        let deadline = Instant::now() + wait;
 
-        // Withdraw what is still working, then square what was filled.
-        let own = self.own_orders(&info.run_id, info.mode);
-        for o in own
-            .iter()
-            .filter(|o| !store::TERMINAL.contains(&o.status.as_str()))
-        {
-            if let Some(oid) = o.orderid.as_deref() {
-                let r = services.cancel(info.mode, oid).await;
-                if !r.ok {
-                    self.write_log(
-                        info,
-                        &[format!(
-                            "Order {} could not be cancelled: {}",
-                            oid,
-                            r.error.unwrap_or_default()
-                        )],
-                    );
-                }
-            }
-        }
-        self.refresh_orders(entry).await;
-        let held: Vec<store::Holding> = store::holdings(&self.own_orders(&info.run_id, info.mode))
-            .into_iter()
-            .filter(|h| h.quantity != 0)
-            .collect();
-        let sizes = self.exit_sizes(info, &held).await?;
+        // Nothing of this run may still be working when it measures itself.
+        self.settle(entry, deadline, look).await?;
+
+        // What its own fills add up to, capped by what the destination holds.
+        let held: Vec<store::Holding> = store::holdings(
+            &self
+                .read_own(info)
+                .map_err(|m| CloseFailure::resume(format!("{} {}", m, NOTHING_CLOSED)))?,
+        )
+        .into_iter()
+        .filter(|h| h.quantity != 0)
+        .collect();
+        let sizes = self
+            .exit_sizes(info, &held, deadline, look)
+            .await
+            .map_err(CloseFailure::resume)?;
         let mut exits = Vec::new();
         for (h, units) in sizes {
             let placement = orders::Placement {
@@ -778,29 +876,52 @@ impl Runner {
                 exchange: &h.exchange,
                 product: &h.product,
             };
-            let (id, result) = self
-                .send(info, &target, &placement, None, true)
+            // An exit already out may still fill: the run waits, it does not resume.
+            let failed = |m: String| {
+                if exits.is_empty() {
+                    CloseFailure::resume(m)
+                } else {
+                    CloseFailure::pending(format!("{} {}", m, CLOSE_PENDING_TAIL))
+                }
+            };
+            let (id, result) = match self
+                .send(info, &target, &placement, Some(entry.as_ref()), true)
                 .await
-                .map_err(|e| format!("This strategy's position could not be closed: {}", e))?;
+            {
+                Ok(sent) => sent,
+                Err(e) => {
+                    return Err(failed(format!(
+                        "This strategy's position could not be closed: {}.",
+                        e
+                    )))
+                }
+            };
             if !result.ok {
-                return Err(format!(
-                    "This strategy's position could not be closed: {}. It is still running and still holding it. Close the position yourself, or try again.",
-                    result.error.unwrap_or_else(|| "the order was refused".into())
-                ));
+                return Err(failed(format!(
+                    "This strategy's position could not be closed: {}.{}",
+                    result
+                        .error
+                        .unwrap_or_else(|| "the order was refused".into()),
+                    if exits.is_empty() {
+                        " It is still running and still holding it. Close the position yourself, or try again."
+                    } else {
+                        ""
+                    }
+                )));
             }
             exits.push(id);
         }
         if exits.is_empty() {
             return Ok(());
         }
-        let (wait, look) = {
-            let o = self.options.read();
-            (o.close_wait, o.close_look)
-        };
-        let deadline = Instant::now() + wait;
+        // Watched to a fill, not sent and forgotten: an exit accepted here
+        // and rejected at the destination leaves the very position Stop was
+        // pressed to be rid of.
         loop {
             self.refresh_orders(entry).await;
-            let rows = self.own_orders(&info.run_id, info.mode);
+            let rows = self
+                .read_own(info)
+                .map_err(|m| CloseFailure::pending(format!("{} {}", m, CLOSE_PENDING_TAIL)))?;
             let mine: Vec<&store::OrderRow> =
                 rows.iter().filter(|r| exits.contains(&r.id)).collect();
             if mine.iter().all(|r| r.status == "filled") {
@@ -810,13 +931,243 @@ impl Runner {
                 .iter()
                 .find(|r| matches!(r.status.as_str(), "rejected" | "cancelled" | "expired"))
             {
-                return Err(format!(
+                let working = mine
+                    .iter()
+                    .any(|o| !store::TERMINAL.contains(&o.status.as_str()));
+                let filled_some = mine.iter().any(|o| o.filled_quantity > 0);
+                if working || filled_some {
+                    // Part of the close happened, or may still: the position
+                    // is no longer what the script believes it holds.
+                    return Err(CloseFailure::pending(format!(
+                        "The order closing this strategy's position was {} after {} of {} filled. {}",
+                        r.status, r.filled_quantity, r.quantity, CLOSE_PENDING_TAIL
+                    )));
+                }
+                return Err(CloseFailure::resume(format!(
                     "The order closing this strategy's position was {}. It is still running and still holding it. Close the position yourself, or try again.",
                     r.status
-                ));
+                )));
             }
             if Instant::now() >= deadline {
-                return Err(CLOSE_TIMEOUT_MESSAGE.into());
+                return Err(CloseFailure::pending(CLOSE_TIMEOUT_MESSAGE));
+            }
+            tokio::time::sleep(look).await;
+        }
+    }
+
+    /// Cancel every order of this run still working, then wait until the
+    /// destination says each is finished, folding what came of it, so a
+    /// fill that lands during the Stop is counted. A cancel request is
+    /// intent, not proof. An order still working, or unreadable, at the
+    /// deadline leaves the run close pending, because its fill may still
+    /// come and the size to close is not known.
+    ///
+    /// **An order this run cannot follow blocks the close.** A row still
+    /// open with no number from the destination (its answer could not be
+    /// saved, the app stopped between sending it and saving the answer, or
+    /// Semi-Auto holds it for approval) may fill, and its fill would never
+    /// be counted, so the close does not go ahead, before anything is
+    /// cancelled. The row is in the ledger, so this holds across a restart.
+    async fn settle(
+        &self,
+        entry: &RunEntry,
+        deadline: Instant,
+        look: Duration,
+    ) -> Result<(), CloseFailure> {
+        let info = &entry.info;
+        let services = self.services();
+        self.refresh_orders(entry).await;
+        // An order whose answer is not saved cannot be followed, so its fill
+        // could not be counted: nothing is measured until it is saved.
+        let unsaved: Vec<String> = entry
+            .unsaved
+            .lock()
+            .iter()
+            .map(|a| {
+                a.orderid
+                    .clone()
+                    .unwrap_or_else(|| "without a number".into())
+            })
+            .collect();
+        if !unsaved.is_empty() {
+            return Err(CloseFailure::pending(format!(
+                "The answer for order {} of this strategy has not been saved yet, so its fill cannot be counted and nothing was closed. {}",
+                unsaved.join(", "),
+                CLOSE_PENDING_TAIL
+            )));
+        }
+        let rows = self
+            .read_own(info)
+            .map_err(|m| CloseFailure::resume(format!("{} {}", m, NOTHING_CLOSED)))?;
+        let working: Vec<&store::OrderRow> = rows
+            .iter()
+            .filter(|o| !store::TERMINAL.contains(&o.status.as_str()))
+            .collect();
+        let unnumbered: Vec<String> = working
+            .iter()
+            .filter(|o| o.orderid.is_none())
+            .map(|o| format!("{} {} {}", o.action, o.quantity, o.symbol))
+            .collect();
+        if !unnumbered.is_empty() {
+            let from = if info.mode == RunMode::Live {
+                "your broker"
+            } else {
+                "the sandbox"
+            };
+            self.write_log(
+                info,
+                &[format!(
+                    "Not closed: {} of this strategy {} no order number from {}, so {} cannot be followed.",
+                    unnumbered.join(", "),
+                    if unnumbered.len() == 1 { "has" } else { "have" },
+                    from,
+                    if unnumbered.len() == 1 { "it" } else { "they" }
+                )],
+            );
+            return Err(CloseFailure::pending(format!(
+                "The order {} of this strategy has no order number from {} (its answer was not saved, or it is waiting for approval in the Action Center), so this close cannot follow it and nothing was closed. {}",
+                unnumbered.join(", "),
+                from,
+                CLOSE_PENDING_TAIL
+            )));
+        }
+        for o in &working {
+            if let Some(oid) = o.orderid.as_deref() {
+                let r = services.cancel(info.mode, oid).await;
+                self.write_log(
+                    info,
+                    &[if r.ok {
+                        format!("Asked for order {} to be cancelled before closing.", oid)
+                    } else {
+                        format!(
+                            "Order {} could not be cancelled this time: {}",
+                            oid,
+                            r.error.unwrap_or_default()
+                        )
+                    }],
+                );
+            }
+        }
+        if working.is_empty() {
+            return Ok(());
+        }
+        loop {
+            self.refresh_orders(entry).await;
+            let still: Vec<String> = self
+                .read_own(info)
+                .map_err(|m| CloseFailure::pending(format!("{} {}", m, CLOSE_PENDING_TAIL)))?
+                .into_iter()
+                .filter(|o| !store::TERMINAL.contains(&o.status.as_str()))
+                .filter_map(|o| o.orderid)
+                .collect();
+            if still.is_empty() {
+                return Ok(());
+            }
+            if Instant::now() >= deadline {
+                return Err(CloseFailure::pending(format!(
+                    "{} {} of this strategy {} still working or could not be read, so {} may still come and nothing was closed. {}",
+                    if still.len() == 1 { "Order" } else { "Orders" },
+                    still.join(", "),
+                    if still.len() == 1 { "is" } else { "are" },
+                    if still.len() == 1 { "its fill" } else { "their fills" },
+                    CLOSE_PENDING_TAIL
+                )));
+            }
+            tokio::time::sleep(look).await;
+        }
+    }
+
+    /// What the destination itself holds in each contract the run's own fills
+    /// hold, in `held`'s order. Read again until the close deadline while a
+    /// book cannot be read or does not mention a contract: a book that has
+    /// not caught up with a fill is not a flat account (LOG-04b). Still
+    /// unknown at the deadline, nothing is sent and the run resumes.
+    async fn destination_sizes(
+        &self,
+        info: &RunInfo,
+        held: &[store::Holding],
+        deadline: Instant,
+        look: Duration,
+    ) -> Result<Vec<i64>, String> {
+        let services = self.services();
+        let delivery = held.iter().any(|h| h.product.eq_ignore_ascii_case("CNC"));
+        loop {
+            let read = async {
+                let positions = services
+                    .book(info.mode, Book::Positions)
+                    .await
+                    .map_err(|e| ("positions", e))?;
+                let holdings = if delivery {
+                    Some(
+                        services
+                            .holdings(info.mode)
+                            .await
+                            .map_err(|e| ("holdings", e))?,
+                    )
+                } else {
+                    None
+                };
+                Ok::<_, (&str, Value)>((positions, holdings))
+            }
+            .await;
+            let last_try = Instant::now() >= deadline;
+            match read {
+                Ok((positions, holdings)) => {
+                    let sizes: Vec<Option<i64>> = held
+                        .iter()
+                        .map(|h| {
+                            books::destination_net(
+                                &positions,
+                                holdings.as_ref(),
+                                &h.symbol,
+                                &h.exchange,
+                                &h.product,
+                            )
+                        })
+                        .collect();
+                    match sizes.iter().position(Option::is_none) {
+                        None => return Ok(sizes.into_iter().flatten().collect()),
+                        Some(n) if last_try => {
+                            let h = &held[n];
+                            self.write_log(
+                                info,
+                                &[format!(
+                                    "Your positions {} do not show {} {} {}, though this strategy's own orders add up to {}. Nothing was sent.",
+                                    side_words(info.mode),
+                                    h.product,
+                                    h.symbol,
+                                    h.exchange,
+                                    h.quantity
+                                )],
+                            );
+                            return Err(format!(
+                                "Your positions {} do not show {} yet, though this strategy's own orders hold {} {}, so nothing was sent and nothing was closed. It is still running and still holding its position. Try Stop again in a moment. If you have already closed it yourself, Pause the strategy instead.",
+                                side_words(info.mode),
+                                h.symbol,
+                                side_name(h.quantity),
+                                h.quantity.unsigned_abs()
+                            ));
+                        }
+                        Some(_) => {}
+                    }
+                }
+                Err((what, e)) if last_try => {
+                    self.write_log(
+                        info,
+                        &[format!(
+                            "Your {} {} could not be read: {}",
+                            what,
+                            side_words(info.mode),
+                            e.get("message").and_then(Value::as_str).unwrap_or_default()
+                        )],
+                    );
+                    return Err(format!(
+                        "Your {} {} could not be read just now, so nothing was sent to close this strategy's position. It is still running and still holding it. Try Stop again in a moment.",
+                        what,
+                        side_words(info.mode)
+                    ));
+                }
+                Err(_) => {}
             }
             tokio::time::sleep(look).await;
         }
@@ -830,50 +1181,15 @@ impl Runner {
         &self,
         info: &RunInfo,
         held: &'a [store::Holding],
+        deadline: Instant,
+        look: Duration,
     ) -> Result<Vec<(&'a store::Holding, i64)>, String> {
         if held.is_empty() {
             return Ok(Vec::new());
         }
-        let services = self.services();
-        let unread = |what: &str, e: Value| {
-            self.write_log(
-                info,
-                &[format!(
-                    "Your {} {} could not be read: {}",
-                    what,
-                    side_words(info.mode),
-                    e.get("message").and_then(Value::as_str).unwrap_or_default()
-                )],
-            );
-            format!(
-                "Your {} {} could not be read just now, so nothing was sent to close this strategy's position. It is still running and still holding it. Try Stop again in a moment.",
-                what,
-                side_words(info.mode)
-            )
-        };
-        let positions = services
-            .book(info.mode, Book::Positions)
-            .await
-            .map_err(|e| unread("positions", e))?;
-        let holdings = if held.iter().any(|h| h.product.eq_ignore_ascii_case("CNC")) {
-            Some(
-                services
-                    .holdings(info.mode)
-                    .await
-                    .map_err(|e| unread("holdings", e))?,
-            )
-        } else {
-            None
-        };
+        let actuals = self.destination_sizes(info, held, deadline, look).await?;
         let mut out = Vec::new();
-        for h in held {
-            let actual = books::destination_net(
-                &positions,
-                holdings.as_ref(),
-                &h.symbol,
-                &h.exchange,
-                &h.product,
-            );
+        for (h, actual) in held.iter().zip(actuals) {
             match orders::exit_cap(h.quantity, actual) {
                 orders::ExitCap::Nothing => {}
                 orders::ExitCap::DestinationFlat => self.write_log(
@@ -1022,16 +1338,25 @@ impl Runner {
 
     // ------------------------------------------------------------- orders
 
-    fn own_orders(&self, run_id: &str, mode: RunMode) -> Vec<store::OrderRow> {
+    /// A deployment's own orders on one side, or the sentence saying they
+    /// could not be read. Never an empty list on a failure: a ledger that
+    /// cannot be read is not a flat one (LOG-04).
+    fn own_orders(&self, run_id: &str, mode: RunMode) -> Result<Vec<store::OrderRow>, String> {
         self.db
             .conn()
-            .ok()
-            .and_then(|c| store::orders_of(&c, run_id, mode.as_str()).ok())
-            .unwrap_or_default()
+            .and_then(|c| store::orders_of(&c, run_id, mode.as_str()))
+            .map_err(|e| {
+                tracing::error!("Could not read the orders of {}: {}", run_id, e);
+                ORDERS_UNREADABLE.to_string()
+            })
+    }
+
+    fn read_own(&self, info: &RunInfo) -> Result<Vec<store::OrderRow>, String> {
+        self.own_orders(&info.run_id, info.mode)
     }
 
     /// The orders a deployment placed on one side (for its books).
-    pub fn orders_of(&self, given: &str, mode: RunMode) -> Vec<store::OrderRow> {
+    pub fn orders_of(&self, given: &str, mode: RunMode) -> Result<Vec<store::OrderRow>, String> {
         self.own_orders(&self.as_run_id(given), mode)
     }
 
@@ -1071,15 +1396,25 @@ impl Runner {
             .place(info.mode, &target.request(p), internal)
             .await;
         let status = if result.ok { "working" } else { "rejected" };
-        if let Ok(conn) = self.db.conn() {
-            let _ = store::placed(
-                &conn,
-                row_id,
-                result.broker_order_id.as_deref(),
-                status,
-                result.error.as_deref(),
-                self.clock.now(),
+        // The destination's answer is what lets this run follow the order:
+        // unsaved, its row has no id, so its fill would never be counted.
+        let ack = Unsaved {
+            row_id,
+            orderid: result.broker_order_id.clone(),
+            status,
+            message: result.error.clone(),
+        };
+        if !self.save_ack(&ack).await {
+            self.write_log(
+                info,
+                &[format!(
+                    "The answer for order {} could not be saved, so nothing new is sent and Stop waits until it is.",
+                    ack.orderid.as_deref().unwrap_or("without a number")
+                )],
             );
+            if let Some(e) = entry {
+                e.unsaved.lock().push(ack);
+            }
         }
         let line = if result.ok {
             format!(
@@ -1118,15 +1453,94 @@ impl Runner {
         Ok((row_id, result))
     }
 
+    fn try_save(&self, ack: &Unsaved) -> crate::error::Result<()> {
+        let conn = self.db.conn()?;
+        store::placed(
+            &conn,
+            ack.row_id,
+            ack.orderid.as_deref(),
+            ack.status,
+            ack.message.as_deref(),
+            self.clock.now(),
+        )
+    }
+
+    /// Save a placement's answer, trying a few times. False when it could
+    /// not be saved.
+    async fn save_ack(&self, ack: &Unsaved) -> bool {
+        for attempt in 1..=ACK_ATTEMPTS {
+            match self.try_save(ack) {
+                Ok(()) => return true,
+                Err(e) => {
+                    tracing::error!(
+                        "Could not save the answer for OpenScript order row {} (attempt {}): {}",
+                        ack.row_id,
+                        attempt,
+                        e
+                    );
+                    if attempt < ACK_ATTEMPTS {
+                        tokio::time::sleep(Duration::from_millis(50)).await;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    /// Save the answers a run could not save before. What still cannot be
+    /// saved stays on the run.
+    fn flush_unsaved(&self, entry: &RunEntry) {
+        let pending = std::mem::take(&mut *entry.unsaved.lock());
+        if pending.is_empty() {
+            return;
+        }
+        let mut left = Vec::new();
+        for ack in pending {
+            match self.try_save(&ack) {
+                Ok(()) => self.write_log(
+                    &entry.info,
+                    &[format!(
+                        "The answer for order {} is saved now.",
+                        ack.orderid.as_deref().unwrap_or("without a number")
+                    )],
+                ),
+                Err(e) => {
+                    tracing::warn!(
+                        "Still cannot save OpenScript order row {}: {}",
+                        ack.row_id,
+                        e
+                    );
+                    left.push(ack);
+                }
+            }
+        }
+        entry.unsaved.lock().extend(left);
+    }
+
     /// Read back every open order of a run and tell the page what changed.
     async fn refresh_orders(&self, entry: &RunEntry) {
+        self.flush_unsaved(entry);
         let services = self.services();
-        let open = self
+        let read = self
             .db
             .conn()
-            .ok()
-            .and_then(|c| store::open_orders(&c, &entry.info.run_id, entry.info.mode.as_str()).ok())
-            .unwrap_or_default();
+            .and_then(|c| store::open_orders(&c, &entry.info.run_id, entry.info.mode.as_str()));
+        let open = match read {
+            Ok(rows) => rows,
+            Err(e) => {
+                // Whoever needs the rows reads them again and says so.
+                tracing::warn!(
+                    "Could not read the open orders of {}: {}",
+                    entry.info.run_id,
+                    e
+                );
+                return;
+            }
+        };
+        entry.unresolved.store(
+            open.iter().filter(|o| o.orderid.is_none()).count(),
+            Ordering::SeqCst,
+        );
         for o in open {
             let Some(oid) = o.orderid.clone() else {
                 continue;
@@ -1337,6 +1751,18 @@ impl Runner {
             }
             return Some(json!({"status": "success", "sent": 0, "halted": true}));
         }
+        // An earlier order's answer not yet saved: its fill cannot be
+        // counted, so a new order would be sized and sent blind.
+        self.flush_unsaved(&entry);
+        if !entry.unsaved.lock().is_empty() {
+            for i in intents {
+                reject(
+                    i.get("intentId").and_then(Value::as_i64).unwrap_or(-1),
+                    "an earlier order of this run could not be recorded yet, so nothing new is sent",
+                );
+            }
+            return Some(json!({"status": "success", "sent": 0, "unsaved": true}));
+        }
         let services = self.services();
         let lot = services.lot_size(&info.symbol, &info.exchange);
         let planned: Vec<Planned> = intents.iter().map(|i| orders::plan(i, lot)).collect();
@@ -1379,8 +1805,20 @@ impl Runner {
                     }
                 },
                 Planned::Cancel { tag, .. } => {
-                    for o in self
-                        .own_orders(run_id, info.mode)
+                    let rows = match self.read_own(&info) {
+                        Ok(rows) => rows,
+                        Err(why) => {
+                            self.write_log(
+                                &info,
+                                &[format!(
+                                    "The orders tagged {} were not cancelled: {}",
+                                    tag, why
+                                )],
+                            );
+                            Vec::new()
+                        }
+                    };
+                    for o in rows
                         .into_iter()
                         .filter(|o| o.tag == tag && !store::TERMINAL.contains(&o.status.as_str()))
                     {
