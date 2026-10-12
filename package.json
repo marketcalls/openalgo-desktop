@@ -90,7 +90,7 @@
     "@axe-core/playwright": "^4.13.0",
     "@axe-core/react": "^4.13.0",
     "@biomejs/biome": "^2.5.15",
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2.0.0",
