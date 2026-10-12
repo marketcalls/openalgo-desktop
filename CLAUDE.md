@@ -258,6 +258,12 @@ unchanged:
   order fields. An adapter that knows more than the transport (a tag, an
   ambiguous reply) returns `AppError::Uncertain`; never `AppError::Broker`
   with "check the order book".
+- **An accepted exit is not a flat position.** Scalping protection stays
+  until every exit order has ended and the position book shows flat; a
+  retry sends only what is neither filled nor still working (the web clears
+  on acceptance; a deliberate departure). A decision is acted on only for
+  the stop it was made on: the stop's row and version are checked before
+  placing and before clearing.
 
 ## Security model
 
@@ -556,8 +562,9 @@ Every flaky test found so far was a race, not a slow machine:
 - A test that fails about one run in five is a bug. Run a suspect test 10 to
   30 times before calling it fixed.
 - Every `AppState` runs the order reconciler's task (a pass every 5 s while
-  an owner holds an open order, and at once on a broker session change). A
-  test that counts order-book reads accounts for it, or drives
+  an owner holds an open order, and at once on a broker session change or a
+  lost order fact). A test that counts order-book reads, or needs a gap to
+  stay open, makes the book read fail until it has asserted, or drives
   `ctx.reconciler.pass()` itself.
 
 ### Data and migrations

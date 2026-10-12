@@ -246,6 +246,11 @@ impl StrategyModule {
         if let Err(e) = self.gateway.authorised(run_mode) {
             return StartResult::fail(e);
         }
+        // A gap in order facts is being repaired: no new exposure until the
+        // book has been read (ARCH-01). Exits are never held by this.
+        if let Some(why) = self.entry_refusal(run_mode) {
+            return StartResult::fail(why);
+        }
 
         // Resolve everything before claiming anything.
         let (resolved, failures) = self.resolve_all_legs(&strategy).await;

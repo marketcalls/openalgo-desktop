@@ -217,6 +217,7 @@ impl AppState {
         let chartink_db = sqlite.clone();
         let chartink_clock = opts.clock.clone();
         let reconciler_clock = opts.clock.clone();
+        let reconciler_bus = bus.clone();
         let runtime = crate::services::broker_runtime::BrokerRuntime::new();
         let bridge = crate::feed::bridge::BrokerBridge::with_depth_manager(
             websocket.clone(),
@@ -267,6 +268,7 @@ impl AppState {
             reconciler: crate::services::order_reconciler::OrderReconciler::new(
                 Arc::new(crate::strategy::dispatch::AppGateway::new(me.clone())),
                 reconciler_clock,
+                Some(reconciler_bus),
             ),
             chartink: crate::chartink::Chartink::new(me.clone(), chartink_db, chartink_clock),
             sandbox: crate::sandbox::Sandbox::with_db(
@@ -318,11 +320,26 @@ impl AppState {
         crate::strategy::register(&ctx);
         crate::trading::register(&ctx);
         crate::scalping::register(&ctx.bus, &ctx.scalping);
-        // One reconciler over every owner of orders (LOG-08).
+        // One reconciler over every owner of orders (LOG-08, ARCH-01). A gap
+        // in order facts pauses new strategy entries until it is repaired.
         ctx.reconciler
             .register(Arc::new(crate::strategy::reconcile::StrategyOrders(
                 Arc::downgrade(&ctx.strategy),
             )));
+        ctx.reconciler
+            .register(Arc::new(crate::scalping::monitor::ScalpingOrders(
+                Arc::downgrade(&ctx.scalping.monitor),
+            )));
+        ctx.strategy.set_entry_gate(ctx.reconciler.clone());
+        let alerts = Arc::downgrade(&ctx);
+        ctx.reconciler.set_alert_sink(Arc::new(move |a| {
+            if let Some(ctx) = alerts.upgrade() {
+                crate::services::health_service::order_facts_alert(&ctx, a);
+            }
+        }));
+        ctx.reconciler
+            .watch_feed(ctx.runtime.order_ws.watch_status());
+        ctx.reconciler.watch_feed(ctx.websocket.watch_status());
         crate::services::order_reconciler::register(&ctx.bus, &ctx.reconciler);
         ctx.reconciler.start();
         // Analyzer mode survives restarts: resume the sandbox engine.

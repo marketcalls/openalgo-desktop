@@ -18,6 +18,7 @@ use support::*;
 mod concurrency;
 mod hygiene;
 mod live_mode;
+mod order_facts;
 mod risk_vectors;
 mod strategy_book;
 mod strategy_module_api;

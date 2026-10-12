@@ -124,6 +124,9 @@ pub struct StrategyModule {
     pub(crate) reconcile_absence: crate::services::order_reconciler::AbsenceTracker,
     /// Unconfirmed rows already reported as ambiguous (pruned every pass).
     pub(crate) reconcile_ambiguous: Mutex<HashSet<String>>,
+    /// What decides whether new entries may be placed now (the order
+    /// reconciler while a gap in order facts is open).
+    entry_gate: std::sync::OnceLock<Arc<dyn crate::services::order_reconciler::EntryGate>>,
 }
 
 impl StrategyModule {
@@ -153,7 +156,18 @@ impl StrategyModule {
             shutdown: CancellationToken::new(),
             reconcile_absence: crate::services::order_reconciler::AbsenceTracker::new(),
             reconcile_ambiguous: Mutex::new(HashSet::new()),
+            entry_gate: std::sync::OnceLock::new(),
         })
+    }
+
+    /// Gate new entries on `gate` (set once, by the app).
+    pub fn set_entry_gate(&self, gate: Arc<dyn crate::services::order_reconciler::EntryGate>) {
+        let _ = self.entry_gate.set(gate);
+    }
+
+    /// Why a new entry in `mode` must wait right now, if it must.
+    pub fn entry_refusal(&self, mode: RunMode) -> Option<String> {
+        self.entry_gate.get().and_then(|g| g.entry_refusal(mode))
     }
 
     /// Record one audit event and push the stored row. Never fails the caller:

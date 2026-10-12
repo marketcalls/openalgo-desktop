@@ -356,6 +356,11 @@ impl StrategyModule {
         lid: i64,
         side: &str,
     ) -> SignalResult {
+        // A gap in order facts is being repaired: no new exposure until the
+        // book has been read (ARCH-01). Exit signals are never held by this.
+        if let Some(why) = self.entry_refusal(self.run_mode(run_id)) {
+            return SignalResult::refuse(why, Some(lid), Some(run_id));
+        }
         let claim = match self
             .state
             .claim_signal_entry(run_id, lid, position_of(side))

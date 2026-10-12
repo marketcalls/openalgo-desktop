@@ -1,27 +1,37 @@
-//! The order reconciler: one service that settles, from the broker's order
-//! book, what an order answer or update did not (Codex LOG-08).
+//! The order reconciler: one service that settles what an order update did
+//! not (Codex LOG-08, ARCH-01, EV-01, EV-03).
 //!
+//! Order updates are events, and events can be lost: a placement whose
+//! answer never came back, a critical queue that was full, a relay that fell
+//! behind the feed, an order socket that reconnected while an order filled.
 //! The broker's order book is the authority. Every [`PASS_INTERVAL`], and at
-//! once when asked, the reconciler reads it **once per destination** (Live
-//! through the broker session, Sandbox through the sandbox engine), and only
-//! when an owner holds an open order there, and hands that one read to every
-//! owner of orders (strategies, scalping, OpenScript) to fold:
+//! once after a gap, the reconciler reads it **once per destination** (Live
+//! through the broker session, Sandbox through the sandbox engine) and
+//! hands that one read to every owner of open orders (strategies, scalping,
+//! OpenScript) to fold:
 //!
 //! * **an order with a broker id** is folded through the owner's own fill
 //!   path, which is idempotent on cumulative quantities, so a fill applied
 //!   twice is booked once;
-//! * **an unconfirmed placement** (sent, no definite answer from the
-//!   broker) is looked up by its client tag where the broker reports one,
-//!   else by its order fields among the orders nobody owns
-//!   ([`find_placed`]). Found, it is bound and folded. Only an absence
-//!   confirmed by [`ABSENT_READS`] reads over at least [`ABSENT_SPAN_SECS`]
-//!   seconds releases the owner's claim: until then nothing is placed again.
+//! * **an unconfirmed placement** (no definite answer from the broker) is
+//!   looked up by its client tag where the broker reports one, else by its
+//!   order fields among the orders nobody owns ([`find_placed`]). Found, it
+//!   is bound and folded. Only an absence confirmed by [`ABSENT_READS`]
+//!   reads over at least [`ABSENT_SPAN_SECS`] seconds releases the owner's
+//!   claim: until then nothing is placed again.
+//!
+//! **Gaps.** A lost order fact opens a gap for the destination: a critical
+//! bus delivery dropped, a critical subscriber failed, the order relay
+//! lagged, the order feed (re)connected, a broker session started. While a
+//! gap is open, new entries are refused ([`OrderReconciler::entry_refusal`])
+//! and risk-reducing exits still run. A pass that read the book after the
+//! gap opened closes it. Health shows open gaps and the counters behind
+//! them.
 //!
 //! Hygiene: one owned task (a `JoinHandle`), aborted on shutdown and
 //! restarted on every broker session change (logout, switch), so a pass
-//! never applies one session's facts after another began. Owners hold their
-//! module weakly. Every per-order map is pruned to the orders still
-//! unconfirmed.
+//! never applies one session's facts after another began. Owners are held
+//! weakly. Every per-order map is pruned to the orders still unconfirmed.
 
 use crate::clock::Clock;
 use crate::events::{Event, EventBus, Lane, Subscriber, Topic};
@@ -45,6 +55,48 @@ pub const ABSENT_READS: u32 = 4;
 pub const ABSENT_SPAN_SECS: i64 = 20;
 /// A book row timestamped this long before the placement cannot be it.
 const TIMESTAMP_SLACK_SECS: i64 = 120;
+
+/// What a trader reads when a new entry waits for a reconcile.
+pub const ENTRIES_PAUSED: &str = "New entries are paused for a moment while OpenAlgo re-checks \
+the broker's order book after a gap in order updates. Stops and exits keep running. Try again in \
+a few seconds.";
+
+/// Why a destination's order facts may be incomplete.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum GapCause {
+    /// A critical bus delivery was dropped or its consumer failed.
+    EventLoss,
+    /// The broker order relay fell behind the feed and skipped updates.
+    RelayLagged,
+    /// The order feed connected or reconnected: updates in between are lost.
+    OrderFeedReconnected,
+}
+
+impl GapCause {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            GapCause::EventLoss => "event_loss",
+            GapCause::RelayLagged => "relay_lagged",
+            GapCause::OrderFeedReconnected => "order_feed_reconnected",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct Gap {
+    cause: GapCause,
+    since: DateTime<Utc>,
+    /// The gap sequence number when it opened; a pass that started after
+    /// it closes it.
+    seq: u64,
+}
+
+fn slot(mode: RunMode) -> usize {
+    match mode {
+        RunMode::Live => 0,
+        RunMode::Sandbox => 1,
+    }
+}
 
 const MODES: [RunMode; 2] = [RunMode::Live, RunMode::Sandbox];
 
@@ -89,6 +141,12 @@ pub trait OrderOwner: Send + Sync {
     /// Fold one book read. Returns how many unconfirmed placements are
     /// still unresolved.
     async fn reconcile(&self, mode: RunMode, book: &BookSnapshot) -> usize;
+}
+
+/// Who may open new exposure right now.
+pub trait EntryGate: Send + Sync {
+    /// A trader-facing refusal while new entries must wait.
+    fn entry_refusal(&self, mode: RunMode) -> Option<String>;
 }
 
 // ------------------------------------------------------------ matching
@@ -249,37 +307,97 @@ impl AbsenceTracker {
 
 // ------------------------------------------------------------ the service
 
+/// What the health alert for lost order facts should do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FactAlert {
+    /// An order fact may have been lost (a critical delivery dropped or
+    /// failed, the relay fell behind).
+    Raised(GapCause),
+    /// Every gap is repaired.
+    Resolved,
+}
+
+/// Where fact alerts go (the health alert table in the app).
+pub type AlertSink = Arc<dyn Fn(FactAlert) + Send + Sync>;
+
 /// Counters health reads.
 #[derive(Debug, Default)]
 pub struct ReconcileStats {
     pub passes: AtomicU64,
     pub book_reads: AtomicU64,
     pub book_read_failures: AtomicU64,
+    pub gaps_opened: AtomicU64,
+    pub gaps_closed: AtomicU64,
     pub unresolved: AtomicU64,
 }
 
 pub struct OrderReconciler {
     gateway: Arc<dyn OrderGateway>,
     clock: Arc<dyn Clock>,
+    bus: Option<Arc<EventBus>>,
     owners: RwLock<Vec<Arc<dyn OrderOwner>>>,
+    gaps: Mutex<[Option<Gap>; 2]>,
+    gap_seq: AtomicU64,
     wake: Notify,
     task: Mutex<Option<JoinHandle<()>>>,
     /// One pass at a time.
     pass_lock: tokio::sync::Mutex<()>,
     pub stats: ReconcileStats,
+    /// Order-feed status streams a reconnect is detected on.
+    feeds: Mutex<Vec<tokio::sync::watch::Receiver<crate::websocket::FeedStatus>>>,
+    alert_sink: std::sync::OnceLock<AlertSink>,
+    /// A fact-loss alert is raised and not yet resolved.
+    alerting: std::sync::atomic::AtomicBool,
 }
 
 impl OrderReconciler {
-    pub fn new(gateway: Arc<dyn OrderGateway>, clock: Arc<dyn Clock>) -> Arc<Self> {
+    pub fn new(
+        gateway: Arc<dyn OrderGateway>,
+        clock: Arc<dyn Clock>,
+        bus: Option<Arc<EventBus>>,
+    ) -> Arc<Self> {
         Arc::new(Self {
             gateway,
             clock,
+            bus,
             owners: RwLock::new(Vec::new()),
+            gaps: Mutex::new([None, None]),
+            gap_seq: AtomicU64::new(0),
             wake: Notify::new(),
             task: Mutex::new(None),
             pass_lock: tokio::sync::Mutex::new(()),
             stats: ReconcileStats::default(),
+            feeds: Mutex::new(Vec::new()),
+            alert_sink: std::sync::OnceLock::new(),
+            alerting: std::sync::atomic::AtomicBool::new(false),
         })
+    }
+
+    /// Send fact-loss alerts here (set once, by the app).
+    pub fn set_alert_sink(&self, sink: AlertSink) {
+        let _ = self.alert_sink.set(sink);
+    }
+
+    /// An order fact may have been lost: raise the health alert and open a
+    /// gap for each destination someone holds orders in.
+    pub fn report_fact_loss(&self, relay: bool) {
+        let cause = if relay {
+            GapCause::RelayLagged
+        } else {
+            GapCause::EventLoss
+        };
+        if let Some(sink) = self.alert_sink.get() {
+            self.alerting.store(true, Ordering::SeqCst);
+            sink(FactAlert::Raised(cause));
+        }
+        if relay {
+            // The broker relay carries Live updates only.
+            self.open_gap(RunMode::Live, cause);
+        } else {
+            for m in MODES {
+                self.open_gap(m, cause);
+            }
+        }
     }
 
     /// Add an owner of orders. Owners hold their module weakly, so this
@@ -288,30 +406,86 @@ impl OrderReconciler {
         self.owners.write().push(owner);
     }
 
+    /// Watch an order-carrying feed: every connect opens a Live gap.
+    pub fn watch_feed(&self, rx: tokio::sync::watch::Receiver<crate::websocket::FeedStatus>) {
+        self.feeds.lock().push(rx);
+    }
+
     fn owners(&self) -> Vec<Arc<dyn OrderOwner>> {
         self.owners.read().clone()
     }
 
-    /// Ask for a pass now (an uncertain placement was just recorded, a
-    /// broker session started).
+    /// Open a gap for one destination (or keep the open one) and reconcile
+    /// at once. A destination where nobody holds a working or unconfirmed
+    /// order has nothing a lost fact could belong to: no gap, only a pass.
+    pub fn open_gap(&self, mode: RunMode, cause: GapCause) {
+        if !self.owners().iter().any(|o| o.has_open_orders(mode)) {
+            self.wake.notify_one();
+            return;
+        }
+        let seq = self.gap_seq.fetch_add(1, Ordering::SeqCst) + 1;
+        let now = self.clock.now();
+        {
+            let mut g = self.gaps.lock();
+            let s = &mut g[slot(mode)];
+            match s {
+                Some(open) => {
+                    // A later fault: the pass that closes it must start after.
+                    open.seq = seq;
+                }
+                None => {
+                    self.stats.gaps_opened.fetch_add(1, Ordering::Relaxed);
+                    tracing::warn!(
+                        "Order facts for {} may be incomplete ({}); reconciling with the broker's order book",
+                        mode.as_str(),
+                        cause.as_str()
+                    );
+                    *s = Some(Gap {
+                        cause,
+                        since: now,
+                        seq,
+                    });
+                }
+            }
+        }
+        self.wake.notify_one();
+    }
+
+    /// Open gaps, for health: `(mode, cause, since)`.
+    pub fn open_gaps(&self) -> Vec<(RunMode, GapCause, DateTime<Utc>)> {
+        let g = self.gaps.lock();
+        MODES
+            .iter()
+            .filter_map(|m| g[slot(*m)].as_ref().map(|x| (*m, x.cause, x.since)))
+            .collect()
+    }
+
+    pub fn gap_open(&self, mode: RunMode) -> bool {
+        self.gaps.lock()[slot(mode)].is_some()
+    }
+
+    /// Ask for a pass now (an uncertain placement was just recorded).
     pub fn request_pass(&self) {
         self.wake.notify_one();
     }
 
     /// One pass: per destination with open orders, one book read, folded
-    /// by every owner.
+    /// by every owner. Closes a destination's gap when its read succeeded
+    /// (or nobody held anything there).
     pub async fn pass(&self) -> Value {
         let _one = self.pass_lock.lock().await;
+        let seq_at_start = self.gap_seq.load(Ordering::SeqCst);
         self.stats.passes.fetch_add(1, Ordering::Relaxed);
         let owners = self.owners();
         let mut report = serde_json::Map::new();
         let mut unresolved_total = 0usize;
         for mode in MODES {
-            let holders: Vec<Arc<dyn OrderOwner>> = owners
-                .iter()
-                .filter(|o| o.has_open_orders(mode))
-                .cloned()
-                .collect();
+            let mut holders = Vec::new();
+            for o in &owners {
+                if o.has_open_orders(mode) {
+                    holders.push(o.clone());
+                }
+            }
             let read_ok = if holders.is_empty() {
                 true
             } else {
@@ -329,9 +503,7 @@ impl OrderReconciler {
                         true
                     }
                     Err(e) => {
-                        self.stats
-                            .book_read_failures
-                            .fetch_add(1, Ordering::Relaxed);
+                        self.stats.book_read_failures.fetch_add(1, Ordering::Relaxed);
                         tracing::warn!(
                             "Order book for {} could not be read to reconcile open orders: {}",
                             mode.as_str(),
@@ -341,6 +513,26 @@ impl OrderReconciler {
                     }
                 }
             };
+            if read_ok {
+                let closed = {
+                    let mut g = self.gaps.lock();
+                    let s = &mut g[slot(mode)];
+                    if s.as_ref().is_some_and(|x| x.seq <= seq_at_start) {
+                        s.take()
+                    } else {
+                        None
+                    }
+                };
+                if let Some(gap) = closed {
+                    self.stats.gaps_closed.fetch_add(1, Ordering::Relaxed);
+                    tracing::info!(
+                        "Order facts for {} reconciled after {} (open {} s)",
+                        mode.as_str(),
+                        gap.cause.as_str(),
+                        (self.clock.now() - gap.since).num_seconds()
+                    );
+                }
+            }
             report.insert(
                 mode.as_str().into(),
                 json!({"owners": holders.len(), "read": read_ok}),
@@ -350,7 +542,37 @@ impl OrderReconciler {
             .unresolved
             .store(unresolved_total as u64, Ordering::Relaxed);
         report.insert("unresolved".into(), json!(unresolved_total));
+        let all_closed = self.gaps.lock().iter().all(Option::is_none);
+        if all_closed && self.alerting.swap(false, Ordering::SeqCst) {
+            if let Some(sink) = self.alert_sink.get() {
+                sink(FactAlert::Resolved);
+            }
+        }
         Value::Object(report)
+    }
+
+    /// Health's view: open gaps, the counters, and whether management is
+    /// degraded right now.
+    pub fn health(&self) -> Value {
+        let gaps: Vec<Value> = self
+            .open_gaps()
+            .into_iter()
+            .map(|(m, c, since)| {
+                json!({"mode": m.as_str(), "cause": c.as_str(), "since": since.to_rfc3339()})
+            })
+            .collect();
+        let s = &self.stats;
+        json!({
+            "status": if gaps.is_empty() { "pass" } else { "fail" },
+            "gaps": gaps,
+            "running": self.is_running(),
+            "passes": s.passes.load(Ordering::Relaxed),
+            "book_reads": s.book_reads.load(Ordering::Relaxed),
+            "book_read_failures": s.book_read_failures.load(Ordering::Relaxed),
+            "gaps_opened": s.gaps_opened.load(Ordering::Relaxed),
+            "gaps_closed": s.gaps_closed.load(Ordering::Relaxed),
+            "unconfirmed_orders": s.unresolved.load(Ordering::Relaxed),
+        })
     }
 
     // ------------------------------------------------------------ lifecycle
@@ -362,14 +584,36 @@ impl OrderReconciler {
             return;
         }
         let weak = Arc::downgrade(self);
+        let bus = self.bus.clone();
+        // Clones: the feeds outlive a restart.
+        let mut feeds: Vec<_> = self.feeds.lock().iter().cloned().collect();
         *task = Some(tokio::spawn(async move {
             let mut tick = tokio::time::interval(PASS_INTERVAL);
             tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+            let mut seen_gaps = bus.as_ref().map(|b| b.gap_count()).unwrap_or(0);
             loop {
                 let Some(me) = weak.upgrade() else { break };
+                let lost = async {
+                    match &bus {
+                        Some(b) => b.gap_notified().await,
+                        None => std::future::pending().await,
+                    }
+                };
+                let reconnect = feed_connected(&mut feeds);
                 tokio::select! {
                     _ = tick.tick() => {}
                     _ = me.wake.notified() => {}
+                    _ = lost => {}
+                    _ = reconnect => {
+                        me.open_gap(RunMode::Live, GapCause::OrderFeedReconnected);
+                    }
+                }
+                if let Some(b) = &bus {
+                    let now = b.gap_count();
+                    if now != seen_gaps {
+                        seen_gaps = now;
+                        me.report_fact_loss(b.last_loss_was_relay());
+                    }
                 }
                 me.pass().await;
                 drop(me);
@@ -396,8 +640,37 @@ impl OrderReconciler {
     }
 }
 
-/// Restarts the reconciler on broker session changes, and reads the book at
-/// once when a session starts (fills may have happened while signed out).
+impl EntryGate for OrderReconciler {
+    fn entry_refusal(&self, mode: RunMode) -> Option<String> {
+        self.gap_open(mode).then(|| ENTRIES_PAUSED.to_string())
+    }
+}
+
+/// Resolves when any watched feed reports Connected; pending otherwise.
+async fn feed_connected(feeds: &mut [tokio::sync::watch::Receiver<crate::websocket::FeedStatus>]) {
+    if feeds.is_empty() {
+        return std::future::pending().await;
+    }
+    let futs = feeds.iter_mut().map(|rx| {
+        Box::pin(async move {
+            loop {
+                if rx.changed().await.is_err() {
+                    return std::future::pending::<()>().await;
+                }
+                if matches!(
+                    *rx.borrow_and_update(),
+                    crate::websocket::FeedStatus::Connected { .. }
+                ) {
+                    return;
+                }
+            }
+        })
+    });
+    futures_util::future::select_all(futs).await;
+}
+
+/// Restarts the reconciler on broker session changes and opens a Live gap
+/// when a session starts.
 struct Lifecycle {
     reconciler: Weak<OrderReconciler>,
 }
@@ -418,6 +691,9 @@ impl Subscriber for Lifecycle {
         };
         match event.as_ref() {
             Event::BrokerConnected { .. } => {
+                // Fills may have happened while signed out: read the book
+                // now. The order feed's own connect opens a gap if anything
+                // is held.
                 r.restart();
                 r.request_pass();
             }
@@ -442,14 +718,7 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
 
-    fn row(
-        id: &str,
-        symbol: &str,
-        action: &str,
-        qty: i64,
-        tag: Option<&str>,
-        ts: &str,
-    ) -> BookOrder {
+    fn row(id: &str, symbol: &str, action: &str, qty: i64, tag: Option<&str>, ts: &str) -> BookOrder {
         BookOrder {
             order_id: id.into(),
             symbol: symbol.into(),
@@ -497,44 +766,143 @@ mod tests {
     fn without_a_tag_owned_and_older_orders_are_never_taken() {
         // 10:00 IST is 04:30 UTC: the placement time.
         let book = vec![
-            row(
-                "old",
-                "NIFTY24500CE",
-                "BUY",
-                75,
-                None,
-                "2026-10-07 09:15:00",
-            ),
-            row(
-                "owned",
-                "NIFTY24500CE",
-                "BUY",
-                75,
-                None,
-                "2026-10-07 10:00:01",
-            ),
-            row(
-                "new",
-                "NIFTY24500CE",
-                "BUY",
-                75,
-                None,
-                "2026-10-07 10:00:02",
-            ),
-            row(
-                "other",
-                "NIFTY24500CE",
-                "SELL",
-                75,
-                None,
-                "2026-10-07 10:00:02",
-            ),
+            row("old", "NIFTY24500CE", "BUY", 75, None, "2026-10-07 09:15:00"),
+            row("owned", "NIFTY24500CE", "BUY", 75, None, "2026-10-07 10:00:01"),
+            row("new", "NIFTY24500CE", "BUY", 75, None, "2026-10-07 10:00:02"),
+            row("other", "NIFTY24500CE", "SELL", 75, None, "2026-10-07 10:00:02"),
         ];
         let found = find_placed(&book, &u(None), &|id| id == "owned");
         assert_eq!(found, Found::Order(&book[2]));
         // Two unowned candidates: never a guess.
         let found = find_placed(&book, &u(None), &|_| false);
         assert_eq!(found, Found::Ambiguous(2));
+    }
+
+    // ------------------------------------------------------------ service
+
+    use crate::strategy::dispatch::{Book, DispatchResult, OrderPayload, OrderStatusResult};
+    use std::sync::atomic::AtomicBool;
+
+    #[derive(Default)]
+    struct Gw {
+        reads: AtomicU64,
+    }
+
+    #[async_trait::async_trait]
+    impl OrderGateway for Gw {
+        async fn place(&self, _: RunMode, _: &OrderPayload) -> DispatchResult {
+            DispatchResult::refused("unused")
+        }
+        async fn cancel(&self, _: RunMode, _: &str) -> DispatchResult {
+            DispatchResult::refused("unused")
+        }
+        async fn order_status(&self, _: RunMode, _: &str) -> OrderStatusResult {
+            OrderStatusResult::default()
+        }
+        fn authorised(&self, _: RunMode) -> Result<(), String> {
+            Ok(())
+        }
+        fn broker_name(&self, _: RunMode) -> String {
+            "fake".into()
+        }
+        async fn book(&self, _: RunMode, _: Book) -> Result<Value, Value> {
+            self.reads.fetch_add(1, Ordering::SeqCst);
+            Ok(json!({"status": "success", "data": {"orders": []}}))
+        }
+        async fn ltp(&self, _: &str, _: &str) -> Result<f64, String> {
+            Err("unused".into())
+        }
+    }
+
+    #[derive(Default)]
+    struct Holder {
+        holds: AtomicBool,
+        folds: AtomicU64,
+    }
+
+    #[async_trait::async_trait]
+    impl OrderOwner for Holder {
+        fn name(&self) -> &'static str {
+            "holder"
+        }
+        fn has_open_orders(&self, mode: RunMode) -> bool {
+            mode == RunMode::Live && self.holds.load(Ordering::SeqCst)
+        }
+        fn owns_order(&self, _: &str) -> bool {
+            false
+        }
+        async fn reconcile(&self, _: RunMode, _: &BookSnapshot) -> usize {
+            self.folds.fetch_add(1, Ordering::SeqCst);
+            0
+        }
+    }
+
+    async fn until(f: impl Fn() -> bool) -> bool {
+        for _ in 0..400 {
+            if f() {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        false
+    }
+
+    /// ARCH-01: an order feed that reconnects may have missed fills: the
+    /// destination is reconciled at once (one book read for every owner),
+    /// and the gap closes with that read.
+    #[tokio::test]
+    async fn an_order_feed_reconnect_triggers_one_book_read_for_every_owner() {
+        let gw = Arc::new(Gw::default());
+        let clock = crate::clock::ManualClock::new(Utc.with_ymd_and_hms(2026, 10, 7, 4, 30, 0).unwrap());
+        let r = OrderReconciler::new(gw.clone(), clock, None);
+        let a = Arc::new(Holder::default());
+        let b = Arc::new(Holder::default());
+        a.holds.store(true, Ordering::SeqCst);
+        b.holds.store(true, Ordering::SeqCst);
+        r.register(a.clone());
+        r.register(b.clone());
+        let (tx, rx) = tokio::sync::watch::channel(crate::websocket::FeedStatus::Disconnected);
+        r.watch_feed(rx);
+        r.start();
+        // The task's first pass (the interval's first tick).
+        assert!(until(|| r.stats.passes.load(Ordering::SeqCst) >= 1).await);
+        let reads = gw.reads.load(Ordering::SeqCst);
+        let opened = r.stats.gaps_opened.load(Ordering::SeqCst);
+        tx.send(crate::websocket::FeedStatus::Connected {
+            broker: "zerodha".into(),
+        })
+        .unwrap();
+        assert!(
+            until(|| r.stats.gaps_closed.load(Ordering::SeqCst) > 0).await,
+            "the reconnect's gap is repaired"
+        );
+        assert_eq!(r.stats.gaps_opened.load(Ordering::SeqCst), opened + 1);
+        assert!(gw.reads.load(Ordering::SeqCst) > reads);
+        // One read per pass, shared: both owners folded every read.
+        assert_eq!(
+            a.folds.load(Ordering::SeqCst),
+            gw.reads.load(Ordering::SeqCst)
+        );
+        assert_eq!(
+            b.folds.load(Ordering::SeqCst),
+            gw.reads.load(Ordering::SeqCst)
+        );
+        assert!(!r.gap_open(RunMode::Live));
+        r.stop();
+        assert!(until(|| !r.is_running()).await);
+    }
+
+    #[tokio::test]
+    async fn nothing_held_means_no_gap_and_no_book_read() {
+        let gw = Arc::new(Gw::default());
+        let clock = crate::clock::ManualClock::new(Utc.with_ymd_and_hms(2026, 10, 7, 4, 30, 0).unwrap());
+        let r = OrderReconciler::new(gw.clone(), clock, None);
+        r.register(Arc::new(Holder::default()));
+        r.open_gap(RunMode::Live, GapCause::EventLoss);
+        assert!(!r.gap_open(RunMode::Live));
+        assert!(r.entry_refusal(RunMode::Live).is_none());
+        r.pass().await;
+        assert_eq!(gw.reads.load(Ordering::SeqCst), 0);
     }
 
     #[test]

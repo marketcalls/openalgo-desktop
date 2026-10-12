@@ -106,6 +106,7 @@ pub fn order_update(orderid: &str) -> OrderUpdate {
         pending_quantity: 0,
         average_price: 24077.8,
         rejection_reason: String::new(),
+        session_generation: 0,
     }
 }
 

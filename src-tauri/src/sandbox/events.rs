@@ -92,6 +92,7 @@ pub fn order_update(order: &OrderRow, status: OrderStatus, rejection_reason: &st
         pending_quantity: pending,
         average_price: avg,
         rejection_reason: rejection_reason.to_string(),
+        session_generation: 0,
     })
 }
 
@@ -127,6 +128,7 @@ pub fn fill_events(order: &OrderRow, tradeid: &str, price: Decimal) -> [Event; 2
         pending_quantity: 0,
         average_price: float(price),
         rejection_reason: String::new(),
+        session_generation: 0,
     });
     [filled, update]
 }

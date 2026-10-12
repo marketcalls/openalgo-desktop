@@ -35,6 +35,17 @@ fn latest_for_status(ctx: &AppState) -> crate::error::Result<Option<store::Healt
     r
 }
 
+/// The overall status, "fail" while a gap in order facts is open: management
+/// is degraded right now whatever the last sample says (EV-03).
+fn overall(ctx: &AppState) -> health::Overall {
+    let mut o = health::overall(&latest_for_status(ctx), ctx.now());
+    if health::order_facts_failing(ctx) {
+        o.status = "fail".into();
+        o.reason = None;
+    }
+    o
+}
+
 /// Adds the sample's age, and the reason when the status is "unknown".
 fn with_freshness(mut body: Value, o: &health::Overall) -> Value {
     body["sample_age_s"] = json!(o.sample_age_s);
@@ -49,7 +60,7 @@ fn with_freshness(mut body: Value, o: &health::Overall) -> Value {
 /// an unreadable one, or one older than two sampling periods). Only "fail"
 /// answers 503.
 pub async fn status(State(ctx): Ctx) -> Response {
-    let o = health::overall(&latest_for_status(&ctx), ctx.now());
+    let o = overall(&ctx);
     let code = if o.status == "fail" {
         StatusCode::SERVICE_UNAVAILABLE
     } else {
@@ -142,7 +153,10 @@ pub async fn current(State(ctx): Ctx) -> Response {
         Ok(Ok(Some(m))) => {
             let o = health::overall_of(&m, ctx.now());
             let mut v = with_freshness(health::current_json(&m), &o);
-            if o.status == "unknown" {
+            v["order_facts"] = health::order_facts_json(&ctx);
+            if health::order_facts_failing(&ctx) {
+                v["overall_status"] = json!("fail");
+            } else if o.status == "unknown" {
                 v["overall_status"] = json!("unknown");
             }
             ok(v)
