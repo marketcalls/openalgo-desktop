@@ -16,8 +16,10 @@ use openalgo_desktop_lib::db::sqlite::SqliteDb;
 use openalgo_desktop_lib::events::subscribers::socketio::UiEmitter;
 use openalgo_desktop_lib::scalping::monitor::{chunks, MonitorDeps, RiskMonitor};
 use openalgo_desktop_lib::scalping::store::{SlUpsert, Store};
+use openalgo_desktop_lib::clock::Clock;
+use openalgo_desktop_lib::services::order_reconciler::BookSnapshot;
 use openalgo_desktop_lib::strategy::dispatch::{
-    Book, DispatchResult, OrderGateway, OrderPayload, OrderStatusResult, RunMode,
+    Book, BookOrder, DispatchResult, OrderGateway, OrderPayload, OrderStatusResult, RunMode,
 };
 use openalgo_desktop_lib::strategy::tick_feed::{Key, PriceSource};
 use parking_lot::Mutex;
@@ -589,10 +591,29 @@ async fn stop_loss_states_round_trip_with_validation() {
 #[derive(Default)]
 struct FakeGateway {
     refuse: Mutex<bool>,
+    /// Placements answer with no definite outcome (LOG-08).
+    uncertain: Mutex<bool>,
+    /// Per placement, front first: `None` accepts, `Some(reason)` refuses.
+    script: Mutex<std::collections::VecDeque<Option<&'static str>>>,
     delay_ms: Mutex<u64>,
     net: Mutex<i64>,
     placed: Mutex<Vec<(RunMode, OrderPayload)>>,
     books: Mutex<Vec<RunMode>>,
+    /// While set, every position-book read waits on it (barrier).
+    gate: Mutex<Option<Arc<tokio::sync::Notify>>>,
+    entered: tokio::sync::Notify,
+}
+
+impl FakeGateway {
+    fn gate(&self) -> Arc<tokio::sync::Notify> {
+        let g = Arc::new(tokio::sync::Notify::new());
+        *self.gate.lock() = Some(g.clone());
+        g
+    }
+
+    fn release(&self) {
+        *self.gate.lock() = None;
+    }
 }
 
 #[async_trait]
@@ -602,13 +623,28 @@ impl OrderGateway for FakeGateway {
         if d > 0 {
             tokio::time::sleep(Duration::from_millis(d)).await;
         }
-        self.placed.lock().push((mode, order.clone()));
+        let n = {
+            let mut p = self.placed.lock();
+            p.push((mode, order.clone()));
+            p.len()
+        };
         if *self.refuse.lock() {
             return DispatchResult::refused("Broker rejected the order");
         }
+        if *self.uncertain.lock() {
+            return DispatchResult {
+                ok: false,
+                error: Some("The broker did not confirm whether this order was placed.".into()),
+                uncertain: true,
+                ..Default::default()
+            };
+        }
+        if let Some(Some(reason)) = self.script.lock().pop_front() {
+            return DispatchResult::refused(reason);
+        }
         DispatchResult {
             ok: true,
-            broker_order_id: Some("X1".into()),
+            broker_order_id: Some(format!("X{}", n)),
             response: json!({}),
             ..Default::default()
         }
@@ -627,6 +663,11 @@ impl OrderGateway for FakeGateway {
     }
     async fn book(&self, mode: RunMode, _: Book) -> Result<Value, Value> {
         self.books.lock().push(mode);
+        let gate = self.gate.lock().clone();
+        if let Some(g) = gate {
+            self.entered.notify_one();
+            g.notified().await;
+        }
         Ok(json!({"status": "success", "data": [
             {"symbol": OPT, "exchange": "NFO", "product": "MIS", "quantity": *self.net.lock()}
         ]}))
@@ -735,8 +776,32 @@ fn leg(mode: &str) -> SlUpsert {
 
 // ------------------------------------------------------------------ monitor
 
+fn book(rows: Vec<Value>, now: chrono::DateTime<chrono::Utc>) -> BookSnapshot {
+    BookSnapshot::new(rows.iter().filter_map(BookOrder::from_row).collect(), now)
+}
+
+fn order_row(id: &str, action: &str, qty: i64, status: &str) -> Value {
+    json!({
+        "orderid": id, "symbol": OPT, "exchange": "NFO", "action": action,
+        "quantity": qty, "product": "MIS", "order_status": status,
+        "filled_quantity": if status == "complete" { qty } else { 0 },
+        "average_price": 94.5, "timestamp": "",
+    })
+}
+
+fn cleared(m: &M) -> bool {
+    m.ui
+        .events
+        .lock()
+        .iter()
+        .any(|(_, p)| p["cleared"] == json!(true))
+}
+
+/// Replaces `stop_loss_exits_once_and_clears_the_leg` (LOG-05): an
+/// accepted exit is not a flat position. The stop, its row and its price
+/// subscription stay until the exit has filled and the book shows flat.
 #[tokio::test]
-async fn stop_loss_exits_once_and_clears_the_leg() {
+async fn stop_loss_exit_keeps_protection_until_it_fills_and_the_leg_is_flat() {
     let m = monitor();
     m.store.upsert_sl(&leg("live")).unwrap();
     m.mon.sync().await;
@@ -761,6 +826,30 @@ async fn stop_loss_exits_once_and_clears_the_leg() {
         ("SELL", 65)
     );
     assert_eq!(placed[0].1.strategy, "Scalping");
+    // Accepted, not filled: still protected.
+    assert_eq!(m.mon.leg_count(), 1);
+    assert_eq!(m.store.active_sl(None).unwrap().len(), 1);
+    assert_eq!(m.mon.subscribed().len(), 1);
+    assert!(!cleared(&m), "no clear on acceptance");
+    let a = m.mon.exit_attempt("live", OPT, "NFO", "MIS").unwrap();
+    assert_eq!(a.children[0].order_id.as_deref(), Some("X1"));
+    assert!(
+        m.store.active_sl(None).unwrap()[0].exit_attempt.is_some(),
+        "the attempt is on the row (survives a restart)"
+    );
+    // The exit covers the position: more breaching ticks send nothing.
+    m.clock.advance(chrono::Duration::seconds(10));
+    m.mon.process_tick(OPT, "NFO", 90.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.gw.placed.lock().len(), 1);
+    // The order book shows it filled and the position book flat: cleared.
+    *m.gw.net.lock() = 0;
+    m.mon
+        .reconcile_book(
+            RunMode::Live,
+            &book(vec![order_row("X1", "SELL", 65, "complete")], m.clock.now()),
+        )
+        .await;
     assert_eq!(m.mon.leg_count(), 0);
     assert!(m.store.active_sl(None).unwrap().is_empty());
     assert!(
@@ -776,6 +865,215 @@ async fn stop_loss_exits_once_and_clears_the_leg() {
         )
     );
     assert_eq!(m.mon.tracked_entries(), 0);
+}
+
+/// LOG-05 trigger A: accepted, then rejected by the exchange. The leg stays
+/// protected and the stop exits again after the cooldown.
+#[tokio::test]
+async fn an_exit_rejected_after_acceptance_keeps_the_leg_and_exits_again() {
+    let m = monitor();
+    m.store.upsert_sl(&leg("live")).unwrap();
+    m.mon.sync().await;
+    m.mon.process_tick(OPT, "NFO", 94.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.gw.placed.lock().len(), 1);
+    m.mon
+        .reconcile_book(
+            RunMode::Live,
+            &book(vec![order_row("X1", "SELL", 65, "rejected")], m.clock.now()),
+        )
+        .await;
+    assert_eq!(m.mon.leg_count(), 1, "still managed");
+    assert_eq!(m.store.active_sl(None).unwrap().len(), 1);
+    assert!(!cleared(&m));
+    m.clock.advance(chrono::Duration::seconds(4));
+    m.mon.process_tick(OPT, "NFO", 93.0).await;
+    m.mon.wait_idle().await;
+    let placed = m.gw.placed.lock().clone();
+    assert_eq!(placed.len(), 2);
+    assert_eq!(placed[1].1.quantity, 65, "the whole position, again");
+}
+
+/// LOG-05 trigger B: a freeze-split exit whose first chunk is working and
+/// second refused, with the position book unchanged. The retry sends only
+/// the refused part, never the whole position again.
+#[tokio::test]
+async fn a_partly_refused_split_exit_retries_only_what_is_not_working() {
+    let m = monitor();
+    *m.gw.net.lock() = 1950;
+    let mut l = leg("live");
+    l.quantity = Some(1950);
+    m.store.upsert_sl(&l).unwrap();
+    m.mon.sync().await;
+    // First chunk accepted, second refused.
+    m.gw.script.lock().push_back(None);
+    m.gw.script.lock().push_back(Some("Exchange busy"));
+    m.mon.process_tick(OPT, "NFO", 94.0).await;
+    m.mon.wait_idle().await;
+    let placed = m.gw.placed.lock().clone();
+    assert_eq!(
+        placed.iter().map(|p| p.1.quantity).collect::<Vec<_>>(),
+        vec![1755, 195]
+    );
+    // A delayed partial fill of the first chunk, and the book follows it.
+    *m.gw.net.lock() = 950;
+    m.mon
+        .reconcile_book(
+            RunMode::Live,
+            &book(
+                vec![json!({
+                    "orderid": "X1", "symbol": OPT, "exchange": "NFO", "action": "SELL",
+                    "quantity": 1755, "product": "MIS", "order_status": "open",
+                    "filled_quantity": 1000, "average_price": 94.5, "timestamp": "",
+                })],
+                m.clock.now(),
+            ),
+        )
+        .await;
+    assert_eq!(m.mon.leg_count(), 1, "partly filled: still protected");
+    m.clock.advance(chrono::Duration::seconds(4));
+    m.mon.process_tick(OPT, "NFO", 93.0).await;
+    m.mon.wait_idle().await;
+    let placed = m.gw.placed.lock().clone();
+    assert_eq!(placed.len(), 3);
+    assert_eq!(
+        placed[2].1.quantity, 195,
+        "1950 less 1000 filled less the 755 still working"
+    );
+    // Total exit quantity sent never exceeds the position.
+    let accepted: i64 = [placed[0].1.quantity, placed[2].1.quantity].iter().sum();
+    assert_eq!(accepted, 1950);
+    // The working chunk covers the rest: further breaches send nothing.
+    m.clock.advance(chrono::Duration::seconds(4));
+    m.mon.process_tick(OPT, "NFO", 92.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.gw.placed.lock().len(), 3);
+    // Both fill; the book catches up: flat and cleared, nothing more sent.
+    *m.gw.net.lock() = 0;
+    m.mon
+        .reconcile_book(
+            RunMode::Live,
+            &book(
+                vec![
+                    order_row("X1", "SELL", 1755, "complete"),
+                    order_row("X3", "SELL", 195, "complete"),
+                ],
+                m.clock.now(),
+            ),
+        )
+        .await;
+    assert_eq!(m.mon.leg_count(), 0);
+    assert_eq!(m.gw.placed.lock().len(), 3);
+}
+
+/// LOG-08: an exit whose answer was lost is not sent again; the book
+/// settles it.
+#[tokio::test]
+async fn an_uncertain_scalping_exit_is_not_sent_again_until_the_book_settles_it() {
+    let m = monitor();
+    m.store.upsert_sl(&leg("live")).unwrap();
+    m.mon.sync().await;
+    *m.gw.uncertain.lock() = true;
+    m.mon.process_tick(OPT, "NFO", 94.0).await;
+    m.mon.wait_idle().await;
+    *m.gw.uncertain.lock() = false;
+    for s in 0..5 {
+        m.clock.advance(chrono::Duration::seconds(4));
+        m.mon.process_tick(OPT, "NFO", 93.0 - s as f64).await;
+        m.mon.wait_idle().await;
+    }
+    assert_eq!(m.gw.placed.lock().len(), 1, "never a second exit");
+    // The broker had it, filled.
+    *m.gw.net.lock() = 0;
+    m.mon
+        .reconcile_book(
+            RunMode::Live,
+            &book(vec![order_row("BRK-7", "SELL", 65, "complete")], m.clock.now()),
+        )
+        .await;
+    assert_eq!(m.mon.leg_count(), 0);
+    assert_eq!(m.gw.placed.lock().len(), 1);
+}
+
+/// LOG-05: a restart while an exit is pending reloads its orders from the
+/// stop's row: no second exit, and the book still settles it.
+#[tokio::test]
+async fn a_restart_while_an_exit_is_pending_sends_no_second_exit() {
+    let m = monitor();
+    m.store.upsert_sl(&leg("live")).unwrap();
+    m.mon.sync().await;
+    m.mon.process_tick(OPT, "NFO", 94.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.gw.placed.lock().len(), 1);
+    // The app stops (memory gone) and starts again (rows reloaded).
+    m.mon.stop().await;
+    assert_eq!(m.mon.leg_count(), 0);
+    m.mon.sync().await;
+    let a = m.mon.exit_attempt("live", OPT, "NFO", "MIS").unwrap();
+    assert_eq!(a.children[0].order_id.as_deref(), Some("X1"));
+    m.clock.advance(chrono::Duration::seconds(10));
+    m.mon.process_tick(OPT, "NFO", 93.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.gw.placed.lock().len(), 1, "no second exit after a restart");
+    *m.gw.net.lock() = 0;
+    m.mon
+        .reconcile_book(
+            RunMode::Live,
+            &book(vec![order_row("X1", "SELL", 65, "complete")], m.clock.now()),
+        )
+        .await;
+    assert_eq!(m.mon.leg_count(), 0);
+    assert!(m.store.active_sl(None).unwrap().is_empty());
+}
+
+/// LOG-06: an exit decided on a stop that is edited while the exit reads
+/// the position book sends nothing, and never deletes the edited stop.
+#[tokio::test]
+async fn an_edit_during_an_exit_keeps_the_new_stop() {
+    let m = monitor();
+    m.store.upsert_sl(&leg("live")).unwrap();
+    m.mon.sync().await;
+    let gate = m.gw.gate();
+    m.mon.process_tick(OPT, "NFO", 94.0).await;
+    m.gw.entered.notified().await;
+    // The trader moves the stop while the exit is in flight.
+    let mut edit = leg("live");
+    edit.initial_sl = Some(90.0);
+    edit.current_sl = Some(90.0);
+    m.store.upsert_sl(&edit).unwrap();
+    m.mon.sync().await;
+    gate.notify_one();
+    m.mon.wait_idle().await;
+    assert!(m.gw.placed.lock().is_empty(), "a stale decision sends nothing");
+    let rows = m.store.active_sl(None).unwrap();
+    assert_eq!(rows.len(), 1, "the new stop survives");
+    assert_eq!(rows[0].current_sl, Some(90.0));
+}
+
+/// LOG-06: delete and re-add a stop while its exit is in flight: the old
+/// worker sends nothing, no second worker starts beside it, and the next
+/// breach sends exactly one exit.
+#[tokio::test]
+async fn delete_and_re_add_during_an_exit_sends_exactly_one_exit() {
+    let m = monitor();
+    m.store.upsert_sl(&leg("live")).unwrap();
+    m.mon.sync().await;
+    let gate = m.gw.gate();
+    m.mon.process_tick(OPT, "NFO", 94.0).await;
+    m.gw.entered.notified().await;
+    m.store.delete_sl(OPT, "NFO", "MIS", Some("live")).unwrap();
+    m.mon.sync().await;
+    m.store.upsert_sl(&leg("live")).unwrap();
+    m.mon.sync().await;
+    // A breach while the old worker is still in flight starts no second one.
+    m.mon.process_tick(OPT, "NFO", 93.0).await;
+    m.gw.release();
+    gate.notify_one();
+    m.mon.wait_idle().await;
+    assert!(m.gw.placed.lock().is_empty());
+    m.mon.process_tick(OPT, "NFO", 93.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.gw.placed.lock().len(), 1, "exactly one exit");
 }
 
 #[tokio::test]
@@ -858,7 +1156,7 @@ async fn concurrent_ticks_send_exactly_one_exit() {
     }
     while set.join_next().await.is_some() {}
     m.mon.wait_idle().await;
-    // Ticks after the exit find nothing to manage.
+    // Ticks after the exit find it covered by the working exit order.
     m.mon.process_tick(OPT, "NFO", 80.0).await;
     m.mon.wait_idle().await;
     assert_eq!(m.gw.placed.lock().len(), 1);
@@ -886,7 +1184,11 @@ async fn a_refused_exit_keeps_the_leg_managed_and_retries_after_cooldown() {
     m.mon.process_tick(OPT, "NFO", 93.0).await;
     m.mon.wait_idle().await;
     assert_eq!(m.gw.placed.lock().len(), 2);
-    assert_eq!(m.mon.leg_count(), 0);
+    // Accepted is not flat: still protected until the exit fills (LOG-05).
+    assert_eq!(m.mon.leg_count(), 1);
+    let a = m.mon.exit_attempt("live", OPT, "NFO", "MIS").unwrap();
+    assert_eq!(a.children.len(), 1, "the refused exit left no child");
+    assert_eq!(a.children[0].order_id.as_deref(), Some("X2"));
 }
 
 #[tokio::test]
@@ -938,8 +1240,10 @@ async fn ticks_flow_through_the_owned_task_and_stop_releases_everything() {
 
     m.store.upsert_sl(&leg("analyze")).unwrap();
     m.mon.request_sync();
+    // The live leg stays protected (its exit has not filled) beside the new
+    // sandbox one.
     for _ in 0..200 {
-        if m.mon.leg_count() == 1 {
+        if m.mon.leg_count() == 2 {
             break;
         }
         tokio::time::sleep(Duration::from_millis(5)).await;
@@ -1004,7 +1308,8 @@ async fn analyzer_toggle_mid_session_does_not_send_a_live_exit_to_the_sandbox() 
         "{}",
         sb
     );
-    assert_eq!(h.ctx.scalping.monitor.leg_count(), 0);
+    // Accepted, not yet filled: the leg stays protected (LOG-05).
+    assert_eq!(h.ctx.scalping.monitor.leg_count(), 1);
     h.shutdown().await;
 }
 

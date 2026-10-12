@@ -17,6 +17,9 @@
 //! * A position book that cannot be read refuses the exit (the leg stays
 //!   managed); the web read it as flat and cleared the stop.
 //! * Monitor exits never wait in the Action Center.
+//! * A stop is cleared when its position is flat, not when its exit is
+//!   accepted (LOG-05): the web clears on acceptance, which removes the
+//!   protection of a position whose exit is then rejected.
 //!
 //! Lifecycle: the monitor starts when a broker session starts and stops
 //! (task aborted, subscriptions released, legs forgotten) when it ends, by a

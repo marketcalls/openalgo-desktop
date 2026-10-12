@@ -56,6 +56,35 @@ pub fn migrate(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// Migration `078_scalping_exit_attempts` (LOG-05, LOG-06): the exit attempt
+/// a leg has in flight (its child orders), and a version that changes on
+/// every edit of the stop, so a decision made on an older stop, or a clear
+/// of it, never touches its replacement. Checks before altering; existing
+/// rows start at version 0 with no attempt.
+pub fn migrate_exit_attempts(conn: &Connection) -> Result<()> {
+    let has = |col: &str| -> Result<bool> {
+        let n: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('scalping_sl_state') WHERE name = ?1",
+            [col],
+            |r| r.get(0),
+        )?;
+        Ok(n > 0)
+    };
+    if !has("version")? {
+        conn.execute(
+            "ALTER TABLE scalping_sl_state ADD COLUMN version INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+    }
+    if !has("exit_attempt")? {
+        conn.execute(
+            "ALTER TABLE scalping_sl_state ADD COLUMN exit_attempt TEXT",
+            [],
+        )?;
+    }
+    Ok(())
+}
+
 /// One managed leg (the web's `_to_dict`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct SlState {
@@ -74,6 +103,12 @@ pub struct SlState {
     pub current_sl: Option<f64>,
     pub target: Option<f64>,
     pub is_active: bool,
+    /// Row identity (never sent to the terminal).
+    pub id: i64,
+    /// Changes on every edit of the stop.
+    pub version: i64,
+    /// The exit attempt in flight, as stored (JSON).
+    pub exit_attempt: Option<String>,
 }
 
 impl SlState {
@@ -116,6 +151,9 @@ impl SlState {
             current_sl: r.get("current_sl")?,
             target: r.get("target")?,
             is_active: r.get::<_, Option<bool>>("is_active")?.unwrap_or(true),
+            id: r.get("id")?,
+            version: r.get::<_, Option<i64>>("version")?.unwrap_or(0),
+            exit_attempt: r.get("exit_attempt")?,
         })
     }
 }
@@ -163,7 +201,7 @@ impl Tracked {
 
 const SL_COLUMNS: &str = "symbol, exchange, product, mode, side, entry_price, quantity, \
      initial_sl, trailing_enabled, trailing_step, highest_price, lowest_price, current_sl, \
-     target, is_active";
+     target, is_active, id, version, exit_attempt";
 
 #[derive(Clone)]
 pub struct Store {
@@ -211,6 +249,7 @@ impl Store {
                 current_sl = COALESCE(?10, current_sl),
                 target = COALESCE(?11, target),
                 is_active = COALESCE(?12, is_active),
+                version = version + 1,
                 updated_at = datetime('now')
              WHERE id = ?1",
             params![
@@ -265,6 +304,28 @@ impl Store {
             "DELETE FROM scalping_sl_state
              WHERE symbol = ?1 AND exchange = ?2 AND product = ?3 AND (?4 IS NULL OR mode = ?4)",
             params![symbol, exchange, product, mode],
+        )?;
+        Ok(n > 0)
+    }
+
+    /// Remove exactly this row at this version: a stop edited or replaced
+    /// meanwhile is never deleted by a clear of the old one (LOG-06).
+    pub fn delete_sl_exact(&self, id: i64, version: i64) -> Result<bool> {
+        let conn = self.db.conn()?;
+        let n = conn.execute(
+            "DELETE FROM scalping_sl_state WHERE id = ?1 AND version = ?2",
+            params![id, version],
+        )?;
+        Ok(n > 0)
+    }
+
+    /// Record the exit attempt a leg has in flight (`None` clears it). By
+    /// row id only: the child orders are real whatever the stop now says.
+    pub fn set_exit_attempt(&self, id: i64, attempt: Option<&str>) -> Result<bool> {
+        let conn = self.db.conn()?;
+        let n = conn.execute(
+            "UPDATE scalping_sl_state SET exit_attempt = ?2 WHERE id = ?1",
+            params![id, attempt],
         )?;
         Ok(n > 0)
     }

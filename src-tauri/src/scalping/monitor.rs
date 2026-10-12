@@ -12,6 +12,19 @@
 //!   in-flight marker and the retry clock) in the same hold that found it, so
 //!   concurrent ticks produce exactly one exit. A refused exit releases the
 //!   claim and leaves the leg managed; it is retried after a short cooldown.
+//! * **Protection stays until the position is flat** (LOG-05, a deliberate
+//!   departure: the web clears on acceptance). An exit is an attempt with
+//!   child orders, recorded in memory and on the stop's row. The stop, its
+//!   row and its price subscription stay while any child works; the order
+//!   reconciler follows the children in the broker's order book, and the leg
+//!   is cleared only once every child has ended and the position book shows
+//!   it flat. A child that was rejected or cancelled leaves the leg managed,
+//!   and a retry sends only what was neither filled nor is still working, so
+//!   a partly refused or lagging exit never doubles up.
+//! * **A decision is only acted on for the stop it was made on** (LOG-06).
+//!   Each installed stop carries its row identity and version; an exit worker
+//!   re-checks it before placing and before clearing, and never deletes a
+//!   replacement. A running worker keeps its claim until it ends.
 //! * **A leg's destination is the mode it was opened in.** A live leg exits
 //!   to the broker with `force_live`; a sandbox leg exits to the sandbox. The
 //!   analyzer toggle is never re-read for an exit, so switching analyzer mode
@@ -32,13 +45,17 @@ use crate::brokers::common::symbols::SymbolResolver;
 use crate::clock::Clock;
 use crate::events::subscribers::socketio::UiEmitter;
 use crate::risk::{evaluate_position, BreachReason, PositionRisk, Side, TrailMode};
-use crate::strategy::dispatch::{Book, OrderGateway, OrderPayload, RunMode};
+use crate::services::order_reconciler::{
+    find_placed, AbsenceTracker, BookSnapshot, Found, OrderOwner, Unconfirmed,
+};
+use crate::strategy::dispatch::{Book, BookOrder, OrderGateway, OrderPayload, RunMode};
 use crate::strategy::tick_feed::{Key, PriceSource};
 use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use tokio::sync::{broadcast, Notify};
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
@@ -49,6 +66,9 @@ pub const PERSIST_THROTTLE_MS: i64 = 1500;
 pub const EMIT_THROTTLE_MS: i64 = 1000;
 /// Retry spacing for a leg whose exit keeps being refused.
 pub const EXIT_RETRY_COOLDOWN_MS: i64 = 3000;
+/// How long a leg whose exit orders have all filled waits for the position
+/// book to show it before the book is taken as it stands.
+pub const BOOK_LAG_GRACE_MS: i64 = 30_000;
 /// Strategy tag on every scalping order.
 pub const SCALPING_STRATEGY: &str = "Scalping";
 /// Most lots one manual order may carry (and the exit chunk when the
@@ -63,6 +83,14 @@ pub const LEG_EXCHANGES: &[&str] = &["NFO", "BFO", "MCX", "CDS"];
 
 pub fn slkey(mode: &str, symbol: &str, exchange: &str, product: &str) -> String {
     format!("{}:{}:{}:{}", mode, exchange, symbol, product)
+}
+
+fn run_mode(mode: &str) -> RunMode {
+    if mode == MODE_LIVE {
+        RunMode::Live
+    } else {
+        RunMode::Sandbox
+    }
 }
 
 /// The risk core's input for one leg.
@@ -156,15 +184,106 @@ pub fn net_quantity(book: &Value, symbol: &str, exchange: &str, product: &str) -
     0
 }
 
+// ------------------------------------------------------------ exit attempts
+
+/// Where one exit order stands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChildState {
+    /// Acknowledged by the broker, not yet ended.
+    Working,
+    /// Sent with no definite answer: it may be at the broker (LOG-08).
+    Unconfirmed,
+    /// Completely filled.
+    Filled,
+    /// Rejected or cancelled (possibly after a partial fill), or confirmed
+    /// never placed.
+    Dead,
+}
+
+/// One exit order of an attempt.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ExitChild {
+    pub order_id: Option<String>,
+    #[serde(default)]
+    pub client_tag: Option<String>,
+    /// `BUY` / `SELL`.
+    pub action: String,
+    pub qty: i64,
+    #[serde(default)]
+    pub filled: i64,
+    pub state: ChildState,
+    pub placed_at: DateTime<Utc>,
+}
+
+impl ExitChild {
+    pub fn terminal(&self) -> bool {
+        matches!(self.state, ChildState::Filled | ChildState::Dead)
+    }
+
+    /// Quantity that may still fill.
+    pub fn open_qty(&self) -> i64 {
+        if self.terminal() {
+            0
+        } else {
+            (self.qty - self.filled).max(0)
+        }
+    }
+}
+
+/// The exit of one leg: every order sent to flatten it, since the first.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ExitAttempt {
+    pub id: String,
+    /// The signed net position when the first exit went out.
+    pub net0: i64,
+    pub children: Vec<ExitChild>,
+    /// When every child had ended.
+    #[serde(default)]
+    pub settled_at: Option<DateTime<Utc>>,
+}
+
+impl ExitAttempt {
+    /// Some child may still fill.
+    pub fn working(&self) -> bool {
+        self.children.iter().any(|c| !c.terminal())
+    }
+
+    pub fn filled(&self) -> i64 {
+        self.children.iter().map(|c| c.filled.max(0)).sum()
+    }
+
+    pub fn open(&self) -> i64 {
+        self.children.iter().map(ExitChild::open_qty).sum()
+    }
+
+    /// What may still be sent: the position the attempt started from, less
+    /// what filled and what is still working.
+    pub fn unexited(&self) -> i64 {
+        (self.net0.abs() - self.filled() - self.open()).max(0)
+    }
+
+    fn to_json(&self) -> Option<String> {
+        serde_json::to_string(self).ok()
+    }
+}
+
 /// What one exit attempt came to.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExitOutcome {
-    /// The leg was already flat; nothing was sent.
+    /// The leg is flat and nothing of it is working: cleared.
     Flat,
-    /// Every exit order was accepted.
-    Closed { orders: usize },
+    /// Exit orders went out; the leg stays protected until they end and the
+    /// position is flat.
+    Placed { orders: usize, unconfirmed: usize },
+    /// Earlier exit orders still cover the position (or the position book
+    /// has not caught up with their fills): nothing more is sent now.
+    Waiting,
     /// Refused: the leg stays managed. Trader-facing reason.
     Refused(String),
+    /// The stop was edited or replaced while this exit was being decided:
+    /// nothing was sent, the next tick decides on the new stop.
+    Stale,
 }
 
 /// Everything the monitor needs from the app, injectable for tests.
@@ -177,19 +296,24 @@ pub struct MonitorDeps {
     pub symbols: SymbolResolver,
 }
 
+/// A stop's identity: its row and the version of its settings. A decision
+/// made on one is never acted on for another (LOG-06).
+type Gen = (i64, i64);
+
 struct Leg {
-    /// Changes whenever a sync installs the leg, so a decision made on an
-    /// older copy is recognised as stale.
-    gen: u64,
+    gen: Gen,
     sl: SlState,
 }
 
 #[derive(Default)]
 struct Inner {
     states: HashMap<String, Leg>,
-    next_gen: u64,
     subscribed: HashSet<Key>,
+    /// Exit workers running. Only a worker removes its own marker: a sync
+    /// that drops or replaces the stop never frees it.
     inflight: HashSet<String>,
+    /// The exit attempt each leg has in flight.
+    attempts: HashMap<String, ExitAttempt>,
     last_exit: HashMap<String, DateTime<Utc>>,
     last_persist: HashMap<String, DateTime<Utc>>,
     last_emit: HashMap<String, DateTime<Utc>>,
@@ -205,6 +329,7 @@ impl Inner {
 
     fn prune(&mut self) {
         let keys: HashSet<String> = self.states.keys().cloned().collect();
+        self.attempts.retain(|k, _| keys.contains(k));
         self.last_exit.retain(|k, _| keys.contains(k));
         self.last_persist.retain(|k, _| keys.contains(k));
         self.last_emit.retain(|k, _| keys.contains(k));
@@ -224,11 +349,30 @@ pub struct RiskMonitor {
     running: Mutex<Option<CancellationToken>>,
     /// Serialises syncs so subscription diffs never interleave.
     sync_lock: tokio::sync::Mutex<()>,
+    /// Reads that missed an unconfirmed exit order (pruned every pass).
+    absence: AbsenceTracker,
 }
 
 fn elapsed_ms(now: DateTime<Utc>, then: Option<&DateTime<Utc>>) -> i64 {
     then.map(|t| (now - *t).num_milliseconds())
         .unwrap_or(i64::MAX)
+}
+
+/// Fold one book row into a child order.
+fn fold_child(child: &mut ExitChild, b: &BookOrder) {
+    let status = b.status.trim().to_ascii_lowercase().replace('_', " ");
+    let filled = b.filled_quantity.max(0).min(child.qty);
+    child.filled = child.filled.max(filled);
+    match status.as_str() {
+        "complete" | "completed" | "filled" | "executed" | "traded" => {
+            child.state = ChildState::Filled;
+            if child.filled == 0 {
+                child.filled = child.qty;
+            }
+        }
+        "rejected" | "cancelled" | "canceled" => child.state = ChildState::Dead,
+        _ => child.state = ChildState::Working,
+    }
 }
 
 impl RiskMonitor {
@@ -245,6 +389,7 @@ impl RiskMonitor {
             tasks: Mutex::new(JoinSet::new()),
             running: Mutex::new(None),
             sync_lock: tokio::sync::Mutex::new(()),
+            absence: AbsenceTracker::new(),
         })
     }
 
@@ -300,8 +445,8 @@ impl RiskMonitor {
     }
 
     /// Stop every owned task, release every price subscription and forget
-    /// the in-memory legs (the stored rows stay; the next start reloads
-    /// them). Idempotent.
+    /// the in-memory legs (the stored rows, exit attempts included, stay;
+    /// the next start reloads them). Idempotent.
     pub async fn stop(&self) {
         if let Some(t) = self.running.lock().take() {
             t.cancel();
@@ -316,6 +461,7 @@ impl RiskMonitor {
             inner.prune();
             inner.subscribed.drain().collect()
         };
+        self.absence.retain(&HashSet::new());
         if let (Some(src), false) = (&self.prices, held.is_empty()) {
             src.unsubscribe(&held).await;
         }
@@ -372,14 +518,31 @@ impl RiskMonitor {
             .map(|l| l.sl.clone())
     }
 
+    /// One leg's exit attempt in flight.
+    pub fn exit_attempt(
+        &self,
+        mode: &str,
+        symbol: &str,
+        exchange: &str,
+        product: &str,
+    ) -> Option<ExitAttempt> {
+        self.inner
+            .lock()
+            .attempts
+            .get(&slkey(mode, symbol, exchange, product))
+            .cloned()
+    }
+
     /// Entries across every per-leg map (bounded by the managed legs).
     pub fn tracked_entries(&self) -> usize {
         let i = self.inner.lock();
         i.states.len()
             + i.inflight.len()
+            + i.attempts.len()
             + i.last_exit.len()
             + i.last_persist.len()
             + i.last_emit.len()
+            + self.absence.len()
     }
 
     /// Wait until no exit is in flight (tests).
@@ -413,14 +576,28 @@ impl RiskMonitor {
             };
             let mut states = HashMap::with_capacity(rows.len());
             for sl in rows {
-                inner.next_gen += 1;
-                let gen = inner.next_gen;
                 let key = slkey(&sl.mode, &sl.symbol, &sl.exchange, &sl.product);
-                states.insert(key, Leg { gen, sl });
+                // An attempt survives a restart on its row; the one in memory
+                // is newer while the monitor runs.
+                if !inner.attempts.contains_key(&key) {
+                    if let Some(a) = sl
+                        .exit_attempt
+                        .as_deref()
+                        .and_then(|t| serde_json::from_str::<ExitAttempt>(t).ok())
+                    {
+                        inner.attempts.insert(key.clone(), a);
+                    }
+                }
+                states.insert(
+                    key,
+                    Leg {
+                        gen: (sl.id, sl.version),
+                        sl,
+                    },
+                );
             }
             inner.states = states;
-            let keep: HashSet<String> = inner.states.keys().cloned().collect();
-            inner.inflight.retain(|k| keep.contains(k));
+            // `inflight` is the workers' own: never pruned here (LOG-06).
             inner.prune();
             let wanted = inner.wanted();
             let add: Vec<Key> = wanted.difference(&inner.subscribed).cloned().collect();
@@ -451,7 +628,7 @@ impl RiskMonitor {
             return;
         }
         let now = self.clock.now();
-        let mut exits: Vec<(String, u64, SlState, Option<BreachReason>)> = Vec::new();
+        let mut exits: Vec<(String, Gen, SlState, Option<BreachReason>)> = Vec::new();
         let mut persists: Vec<(String, SlState, bool)> = Vec::new();
         {
             let mut guard = self.inner.lock();
@@ -473,6 +650,15 @@ impl RiskMonitor {
                     // The claim: in-flight marker and retry clock, written in
                     // the same hold as the check.
                     if inner.inflight.contains(key) {
+                        continue;
+                    }
+                    // Exit orders already cover the whole position: nothing
+                    // to decide until they end.
+                    if inner
+                        .attempts
+                        .get(key)
+                        .is_some_and(|a| a.working() && a.unexited() == 0)
+                    {
                         continue;
                     }
                     if elapsed_ms(now, inner.last_exit.get(key)) < EXIT_RETRY_COOLDOWN_MS {
@@ -525,12 +711,12 @@ impl RiskMonitor {
     async fn run_exit(
         self: Arc<Self>,
         key: String,
-        gen: u64,
+        gen: Gen,
         sl: SlState,
         reason: Option<BreachReason>,
         ltp: f64,
     ) {
-        let outcome = self.execute_exit(&sl).await;
+        let outcome = self.execute_exit(&key, gen, &sl).await;
         let why = match reason {
             Some(BreachReason::Target) => "target",
             _ => "stop loss",
@@ -544,15 +730,25 @@ impl RiskMonitor {
                 );
                 self.clear(&key, gen, &sl).await;
             }
-            ExitOutcome::Closed { orders } => {
+            ExitOutcome::Placed {
+                orders,
+                unconfirmed,
+            } => {
                 tracing::info!(
-                    "Scalping {} exit for {} sent in {} order(s) near {:.2}",
+                    "Scalping {} exit for {} sent in {} order(s) near {:.2} ({} unconfirmed); the stop stays until the position is flat",
                     why,
                     sl.symbol,
-                    orders,
-                    ltp
+                    orders + unconfirmed,
+                    ltp,
+                    unconfirmed
                 );
-                self.clear(&key, gen, &sl).await;
+            }
+            ExitOutcome::Waiting => {
+                tracing::debug!(
+                    "Scalping {} for {}: exit orders already cover the position",
+                    why,
+                    sl.symbol
+                );
             }
             ExitOutcome::Refused(msg) => {
                 tracing::error!(
@@ -562,6 +758,15 @@ impl RiskMonitor {
                     msg
                 );
             }
+            ExitOutcome::Stale => {
+                tracing::info!(
+                    "Scalping {} for {} was changed while its exit was being decided; nothing was sent",
+                    why,
+                    sl.symbol
+                );
+                // Nothing went out: the new stop decides without a cooldown.
+                self.inner.lock().last_exit.remove(&key);
+            }
         }
         // Release the claim only after the clear, so no tick in between can
         // send a second exit for a leg that was just closed.
@@ -569,13 +774,10 @@ impl RiskMonitor {
     }
 
     /// Exit one leg in the mode it was opened in: read its net position,
-    /// then send whole-lot, freeze-safe MARKET orders that flatten it.
-    pub async fn execute_exit(&self, sl: &SlState) -> ExitOutcome {
-        let mode = if sl.mode == MODE_LIVE {
-            RunMode::Live
-        } else {
-            RunMode::Sandbox
-        };
+    /// then send whole-lot, freeze-safe MARKET orders for what is neither
+    /// filled nor still working from earlier exits of this leg.
+    pub async fn execute_exit(&self, key: &str, gen: Gen, sl: &SlState) -> ExitOutcome {
+        let mode = run_mode(&sl.mode);
         if let Err(e) = self.gateway.authorised(mode) {
             return ExitOutcome::Refused(e);
         }
@@ -593,18 +795,67 @@ impl RiskMonitor {
             }
         };
         let net = net_quantity(&book, &sl.symbol, &sl.exchange, &sl.product);
-        if net == 0 {
-            return ExitOutcome::Flat;
-        }
+        let now = self.clock.now();
+        // Decided on the stop this exit was claimed for, and only that one
+        // (LOG-06): the trader may have edited or replaced it meanwhile.
+        let attempt = {
+            let inner = self.inner.lock();
+            if inner.states.get(key).map(|l| l.gen) != Some(gen) {
+                return ExitOutcome::Stale;
+            }
+            inner.attempts.get(key).cloned()
+        };
+        let (qty, attempt) = match attempt {
+            Some(a) => {
+                let same_side = a.net0.signum() == net.signum();
+                if net == 0 {
+                    if a.working() {
+                        // The book is ahead of the order book: let the
+                        // reconciler see the children end.
+                        return ExitOutcome::Waiting;
+                    }
+                    return ExitOutcome::Flat;
+                }
+                let left = a.unexited();
+                if left > 0 && same_side {
+                    (left.min(net.abs()), Some(a))
+                } else if a.working() {
+                    return ExitOutcome::Waiting;
+                } else if same_side
+                    && a.settled_at.is_some_and(|t| {
+                        (now - t).num_milliseconds() < BOOK_LAG_GRACE_MS
+                    })
+                {
+                    // Every exit filled; the position book has not caught up.
+                    return ExitOutcome::Waiting;
+                } else {
+                    // The book has had time (or the position changed side):
+                    // it is the position to protect now.
+                    (net.abs(), None)
+                }
+            }
+            None => {
+                if net == 0 {
+                    return ExitOutcome::Flat;
+                }
+                (net.abs(), None)
+            }
+        };
         let action = if net > 0 { "SELL" } else { "BUY" };
-        let qty = net.abs();
         let chunk = match exit_chunk(&self.symbols, &sl.symbol, &sl.exchange, qty) {
             Ok(c) => c,
             Err(e) => return ExitOutcome::Refused(e),
         };
-        let parts = chunks(qty, chunk);
-        let n = parts.len();
-        for q in parts {
+        let mut a = attempt.unwrap_or_else(|| ExitAttempt {
+            id: crate::strategy::state::new_position_ref(),
+            net0: net,
+            children: Vec::new(),
+            settled_at: None,
+        });
+        let before = a.children.len();
+        let mut refused: Option<String> = None;
+        let (mut accepted, mut unconfirmed) = (0usize, 0usize);
+        for q in chunks(qty, chunk) {
             let order = OrderPayload {
                 symbol: sl.symbol.clone(),
                 exchange: sl.exchange.clone(),
@@ -615,33 +866,85 @@ impl RiskMonitor {
                 strategy: SCALPING_STRATEGY.into(),
             };
             let r = self.gateway.place(mode, &order).await;
-            if !r.ok {
-                return ExitOutcome::Refused(
+            let state = if r.ok {
+                accepted += 1;
+                ChildState::Working
+            } else if r.uncertain {
+                // It may be at the broker: recorded, never sent again until
+                // the order reconciler settles it (LOG-08).
+                unconfirmed += 1;
+                ChildState::Unconfirmed
+            } else {
+                refused = Some(
                     r.error
                         .unwrap_or_else(|| "The exit order was rejected".into()),
                 );
-            }
+                break;
+            };
+            a.children.push(ExitChild {
+                order_id: r.broker_order_id.filter(|i| !i.is_empty()),
+                client_tag: r.client_tag,
+                action: action.to_string(),
+                qty: q,
+                filled: 0,
+                state,
+                placed_at: self.clock.now(),
+            });
         }
-        ExitOutcome::Closed { orders: n }
+        if a.children.len() > before {
+            a.settled_at = None;
+            self.record_attempt(key, sl.id, &a);
+        }
+        match refused {
+            Some(msg) => ExitOutcome::Refused(msg),
+            None => ExitOutcome::Placed {
+                orders: accepted,
+                unconfirmed,
+            },
+        }
+    }
+
+    /// Keep a leg's attempt in memory and on its row.
+    fn record_attempt(&self, key: &str, row_id: i64, a: &ExitAttempt) {
+        self.inner.lock().attempts.insert(key.to_string(), a.clone());
+        if let Err(e) = self.store.set_exit_attempt(row_id, a.to_json().as_deref()) {
+            tracing::error!(
+                "Scalping exit orders for a leg could not be saved ({}); they are followed in memory",
+                e
+            );
+        }
     }
 
     /// Forget a closed leg: its row, its state, its subscription when no
-    /// other leg needs the instrument, then tell the terminal.
-    async fn clear(&self, key: &str, _gen: u64, sl: &SlState) {
-        if let Err(e) = self
-            .store
-            .delete_sl(&sl.symbol, &sl.exchange, &sl.product, Some(&sl.mode))
+    /// other leg needs the instrument, then tell the terminal. Only for the
+    /// stop the exit was decided on: a replacement is never touched.
+    async fn clear(&self, key: &str, gen: Gen, sl: &SlState) -> bool {
         {
-            tracing::error!(
-                "Scalping stop for {} could not be removed: {}",
-                sl.symbol,
-                e
-            );
+            let inner = self.inner.lock();
+            if inner.states.get(key).map(|l| l.gen) != Some(gen) {
+                return false;
+            }
+        }
+        match self.store.delete_sl_exact(gen.0, gen.1) {
+            Ok(true) => {}
+            Ok(false) => {
+                // Edited since: the new stop stays, and decides next tick.
+                return false;
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Scalping stop for {} could not be removed: {}",
+                    sl.symbol,
+                    e
+                );
+            }
         }
         let symkey: Key = (sl.symbol.clone(), sl.exchange.clone());
         let unsub = {
             let mut inner = self.inner.lock();
-            inner.states.remove(key);
+            if inner.states.get(key).map(|l| l.gen) == Some(gen) {
+                inner.states.remove(key);
+            }
             inner.prune();
             let needed = inner.wanted().contains(&symkey);
             if !needed && inner.subscribed.remove(&symkey) {
@@ -664,6 +967,204 @@ impl RiskMonitor {
                 }),
             )
             .await;
+        true
+    }
+
+    // ------------------------------------------------------------ reconcile
+
+    /// An attempt the reconciler still follows: an order of it may still
+    /// fill, or every order ended a moment ago and the position book may
+    /// not show it yet.
+    fn followed(&self, a: &ExitAttempt, now: DateTime<Utc>) -> bool {
+        a.working()
+            || a.settled_at
+                .is_some_and(|t| (now - t).num_milliseconds() < BOOK_LAG_GRACE_MS)
+    }
+
+    /// Whether a leg of this mode has an exit the reconciler follows.
+    pub fn has_working_exits(&self, mode: RunMode) -> bool {
+        let now = self.clock.now();
+        let inner = self.inner.lock();
+        inner.attempts.iter().any(|(k, a)| {
+            self.followed(a, now)
+                && inner
+                    .states
+                    .get(k)
+                    .is_some_and(|l| run_mode(&l.sl.mode) == mode)
+        })
+    }
+
+    /// Whether a broker order id is one of this monitor's exit orders.
+    pub fn owns_order(&self, order_id: &str) -> bool {
+        self.inner.lock().attempts.values().any(|a| {
+            a.children
+                .iter()
+                .any(|c| c.order_id.as_deref() == Some(order_id))
+        })
+    }
+
+    /// Follow every working exit order of `mode` in one order-book read
+    /// (the order reconciler's pass). A leg whose exit orders have all
+    /// ended is cleared once the position book shows it flat. Returns how
+    /// many unconfirmed orders are still unresolved.
+    pub async fn reconcile_book(&self, mode: RunMode, book: &BookSnapshot) -> usize {
+        let now = self.clock.now();
+        let pending: Vec<(String, Gen, SlState, ExitAttempt)> = {
+            let inner = self.inner.lock();
+            inner
+                .attempts
+                .iter()
+                .filter(|(_, a)| self.followed(a, now))
+                .filter_map(|(k, a)| {
+                    let l = inner.states.get(k)?;
+                    (run_mode(&l.sl.mode) == mode)
+                        .then(|| (k.clone(), l.gen, l.sl.clone(), a.clone()))
+                })
+                .collect()
+        };
+        let mut unresolved = 0;
+        let mut live = HashSet::new();
+        let mut claimed: HashSet<String> = HashSet::new();
+        for (key, gen, sl, mut a) in pending {
+            if !a.working() {
+                // Every order ended: the position book may only now show
+                // the leg flat.
+                self.settle(&key, gen, &sl, mode).await;
+                continue;
+            }
+            let mut changed = false;
+            for (i, child) in a.children.iter_mut().enumerate() {
+                if child.terminal() {
+                    continue;
+                }
+                match (child.state, child.order_id.clone()) {
+                    (ChildState::Working, Some(id)) => {
+                        if let Some(b) = book.by_id(&id) {
+                            let before = child.clone();
+                            fold_child(child, b);
+                            changed |= *child != before;
+                        }
+                    }
+                    _ => {
+                        let akey = format!("{}#{}#{}", key, a.id, i);
+                        live.insert(akey.clone());
+                        let u = Unconfirmed {
+                            symbol: &sl.symbol,
+                            exchange: &sl.exchange,
+                            action: &child.action,
+                            quantity: child.qty,
+                            product: Some(&sl.product),
+                            client_tag: child.client_tag.as_deref(),
+                            placed_at: Some(child.placed_at),
+                        };
+                        let bound = |id: &str| claimed.contains(id) || book.owned(id);
+                        match find_placed(&book.rows, &u, &bound) {
+                            Found::Order(b) => {
+                                self.absence.forget(&akey);
+                                claimed.insert(b.order_id.clone());
+                                child.order_id = Some(b.order_id.clone());
+                                fold_child(child, b);
+                                changed = true;
+                            }
+                            Found::Absent => {
+                                if self.absence.absent(&akey, book.read_at) {
+                                    self.absence.forget(&akey);
+                                    tracing::warn!(
+                                        "Unconfirmed scalping exit for {} is not in the broker's order book after repeated checks: it was not placed",
+                                        sl.symbol
+                                    );
+                                    child.state = ChildState::Dead;
+                                    changed = true;
+                                } else {
+                                    unresolved += 1;
+                                }
+                            }
+                            Found::Ambiguous(n) => {
+                                unresolved += 1;
+                                tracing::error!(
+                                    "{} orders in the broker's order book match an unconfirmed scalping exit for {}; it is not sent again. Check the order book.",
+                                    n,
+                                    sl.symbol
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            if !changed {
+                continue;
+            }
+            if !a.working() {
+                a.settled_at = Some(book.read_at);
+            }
+            // Only for the stop these orders belong to.
+            if self.inner.lock().states.get(&key).map(|l| l.gen.0) != Some(gen.0) {
+                continue;
+            }
+            self.record_attempt(&key, sl.id, &a);
+            if !a.working() {
+                self.settle(&key, gen, &sl, mode).await;
+            }
+        }
+        // This destination's keys only: the other's pass keeps its own.
+        let scope = format!(
+            "{}:",
+            if mode == RunMode::Live {
+                MODE_LIVE
+            } else {
+                super::store::MODE_ANALYZE
+            }
+        );
+        self.absence.retain_scope(&scope, &live);
+        unresolved
+    }
+
+    /// Every exit order of a leg has ended: clear it if the position book
+    /// shows it flat; otherwise it stays protected, and its next breach
+    /// sends only what was not filled.
+    async fn settle(&self, key: &str, gen: Gen, sl: &SlState, mode: RunMode) {
+        let Ok(book) = self.gateway.book(mode, Book::Positions).await else {
+            return;
+        };
+        if net_quantity(&book, &sl.symbol, &sl.exchange, &sl.product) != 0 {
+            return;
+        }
+        // The installed stop may have been edited meanwhile (same row, new
+        // version): clear that one, the position it protects is flat.
+        let current = self.inner.lock().states.get(key).map(|l| l.gen);
+        if let Some(g) = current.filter(|g| g.0 == gen.0) {
+            if self.clear(key, g, sl).await {
+                tracing::info!(
+                    "Scalping exit for {} filled and the position is flat; cleared",
+                    sl.symbol
+                );
+            }
+        }
+    }
+}
+
+/// The scalping monitor as an owner of orders (its exit orders).
+pub struct ScalpingOrders(pub Weak<RiskMonitor>);
+
+#[async_trait::async_trait]
+impl OrderOwner for ScalpingOrders {
+    fn name(&self) -> &'static str {
+        "scalping"
+    }
+
+    fn has_open_orders(&self, mode: RunMode) -> bool {
+        self.0.upgrade().is_some_and(|m| m.has_working_exits(mode))
+    }
+
+    fn owns_order(&self, order_id: &str) -> bool {
+        self.0.upgrade().is_some_and(|m| m.owns_order(order_id))
+    }
+
+    async fn reconcile(&self, mode: RunMode, book: &BookSnapshot) -> usize {
+        match self.0.upgrade() {
+            Some(m) => m.reconcile_book(mode, book).await,
+            None => 0,
+        }
     }
 }
 
