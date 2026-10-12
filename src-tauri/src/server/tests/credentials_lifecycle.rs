@@ -705,6 +705,62 @@ async fn sec02_a_completed_change_moves_to_the_new_password() {
     only_password_signs_in(&dir, NEW_PASSWORD, PASSWORD).await;
 }
 
+/// SEC-02 (review): the trader changes a leaked password while someone
+/// signs in with the old one. That sign-in read the account (and the old
+/// hash) just before the change, and checks the password after the change
+/// signed every window out: it must not get a session.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn sec02_a_sign_in_racing_a_password_change_gets_no_session() {
+    let h = H::new();
+    h.setup();
+    let (reached, release) = crate::services::auth_service::test_hooks::pause_next_sign_in(h.ctx());
+    let ctx = h.ctx().clone();
+    let old_password_sign_in = tokio::spawn(async move {
+        send_to(
+            &ctx,
+            multipart("/auth/login", &[("username", USER), ("password", PASSWORD)]),
+        )
+        .await
+    });
+    // It has read the account, with the old hash.
+    tokio::task::spawn_blocking(move || {
+        reached
+            .recv_timeout(std::time::Duration::from_secs(60))
+            .expect("the sign-in reached the account read")
+    })
+    .await
+    .unwrap();
+    let ctx = h.ctx().clone();
+    tokio::task::spawn_blocking(move || {
+        AuthService::change_password(&ctx, USER, PASSWORD, NEW_PASSWORD, NEW_PASSWORD)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    release.send(()).unwrap();
+    let (s, _, v) = old_password_sign_in.await.unwrap();
+    assert_eq!(s, StatusCode::UNAUTHORIZED, "{}", v);
+    assert_eq!(
+        v["message"],
+        crate::server::routes::auth::PASSWORD_CHANGED_DURING_SIGN_IN
+    );
+    assert_eq!(
+        h.ctx().sessions.authenticated_count(),
+        0,
+        "a session was issued for the old password"
+    );
+    // The new password signs in as usual.
+    let (s, _, v) = send_to(
+        h.ctx(),
+        multipart(
+            "/auth/login",
+            &[("username", USER), ("password", NEW_PASSWORD)],
+        ),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+}
+
 /// SEC-02b: two password changes both validated against the old password.
 /// The first finishes; the second, whose last step then fails, must not
 /// overwrite it or put back the hash both started from (which no key file

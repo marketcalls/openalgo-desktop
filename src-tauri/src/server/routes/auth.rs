@@ -101,22 +101,44 @@ pub async fn setup(State(ctx): Ctx, Src(source): Src, form: FormData) -> Respons
     }
 }
 
+/// What a sign-in answers when the password was changed while it was being
+/// checked.
+pub const PASSWORD_CHANGED_DURING_SIGN_IN: &str =
+    "Your password was just changed. Sign in again with the new password.";
+
+/// Issue the signed-in session. `epoch` is the credentials generation read
+/// before the account was read: if a password change or reset (or an
+/// account reset) happened since, no session is issued, even though the
+/// password checked out against the hash read before the change
+/// (`SecurityManager::issue_if_current`; security review of SEC-02).
 async fn finish_sign_in(
     ctx: &Arc<AppState>,
     old_session: Option<&str>,
     username: &str,
+    epoch: u64,
 ) -> Response {
     let now = ctx.now();
-    let s = match old_session {
-        Some(id) => ctx.sessions.rotate(id, now),
-        None => ctx.sessions.create(now),
-    };
-    ctx.sessions.update(&s.id, |x| {
-        x.user = Some(username.to_string());
-        x.authenticated_at = Some(now);
-        x.pending_totp_user = None;
-        x.pending_totp_started = None;
+    let issued = ctx.security.issue_if_current(epoch, || {
+        let s = match old_session {
+            Some(id) => ctx.sessions.rotate(id, now),
+            None => ctx.sessions.create(now),
+        };
+        ctx.sessions.update(&s.id, |x| {
+            x.user = Some(username.to_string());
+            x.authenticated_at = Some(now);
+            x.pending_totp_user = None;
+            x.pending_totp_started = None;
+            x.pending_epoch = None;
+        });
+        s
     });
+    let Some(s) = issued else {
+        tracing::warn!("Sign-in refused: the password changed while it was being checked");
+        if let Some(id) = old_session {
+            ctx.sessions.remove(id);
+        }
+        return error(StatusCode::UNAUTHORIZED, PASSWORD_CHANGED_DURING_SIGN_IN);
+    };
     // The one routing rule after a sign-in: the dashboard when the saved
     // broker session was resumed, otherwise Select Broker. The web leaves
     // the second implied (its page defaults to /broker); the desktop says
@@ -187,6 +209,9 @@ pub async fn login(
         Err(r) => return r,
     };
     let password = Secret::new(form.get("password").unwrap_or_default());
+    // Read before the account is: a password change that lands while the
+    // password is checked voids this sign-in (`finish_sign_in`).
+    let epoch = ctx.security.credentials_epoch();
     let c2 = ctx.clone();
     let u2 = username.clone();
     let outcome = tokio::task::spawn_blocking(move || {
@@ -200,7 +225,7 @@ pub async fn login(
             crate::services::security_service::record_login(
                 &ctx, &user, ip, "success", "password", None,
             );
-            finish_sign_in(&ctx, sess.as_ref().map(|s| s.id.as_str()), &user).await
+            finish_sign_in(&ctx, sess.as_ref().map(|s| s.id.as_str()), &user, epoch).await
         }
         Ok(Ok(LoginOutcome::TotpRequired(user))) => {
             // The password was right, so this attempt is given back; earlier
@@ -216,6 +241,9 @@ pub async fn login(
                 x.user = None;
                 x.pending_totp_user = Some(user);
                 x.pending_totp_started = Some(now);
+                // The code step issues the session only if the password is
+                // still the one checked here.
+                x.pending_epoch = Some(epoch);
             });
             with_cookie(
                 ok(
@@ -293,6 +321,7 @@ pub async fn login_totp(
         ctx.sessions.update(&s.id, |x| {
             x.pending_totp_user = None;
             x.pending_totp_started = None;
+            x.pending_epoch = None;
         });
         return json_response(
             StatusCode::UNAUTHORIZED,
@@ -320,7 +349,11 @@ pub async fn login_totp(
             crate::services::security_service::record_login(
                 &ctx, &user, ip, "success", "totp", None,
             );
-            finish_sign_in(&ctx, Some(&s.id), &user).await
+            // The generation read at the password step: a password change
+            // since then voids this sign-in. A pending sign-in without one
+            // never issues a session.
+            let epoch = s.pending_epoch.unwrap_or(u64::MAX);
+            finish_sign_in(&ctx, Some(&s.id), &user, epoch).await
         }
         Ok(false) => {
             attempt.failed();

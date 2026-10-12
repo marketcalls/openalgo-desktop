@@ -107,6 +107,11 @@ pub struct SecurityManager {
     /// Serialises changes to the vault files (password change, the
     /// clean-up after a sign-in, account reset).
     vault_lock: Mutex<()>,
+    /// The credentials generation: bumped, under `vault_lock`, whenever the
+    /// stored password hash or the keys change (password change or reset,
+    /// account reset). A sign-in captures it before it reads the account
+    /// and issues its session only if it is unchanged (`issue_if_current`).
+    credentials_epoch: std::sync::atomic::AtomicU64,
     /// Test fault: the rename that completes a password change fails.
     #[cfg(test)]
     fail_promote: std::sync::atomic::AtomicBool,
@@ -149,6 +154,7 @@ impl SecurityManager {
             data_dir: data_dir.to_path_buf(),
             legacy_pending: Mutex::new(legacy_pending),
             vault_lock: Mutex::new(()),
+            credentials_epoch: Default::default(),
             #[cfg(test)]
             fail_promote: Default::default(),
         };
@@ -211,6 +217,7 @@ impl SecurityManager {
             data_dir: std::env::temp_dir(),
             legacy_pending: Mutex::new(false),
             vault_lock: Mutex::new(()),
+            credentials_epoch: Default::default(),
             #[cfg(test)]
             fail_promote: Default::default(),
         }
@@ -242,6 +249,31 @@ impl SecurityManager {
     /// that could not be opened at startup (locked, or access denied).
     pub fn keys_unreachable(&self) -> bool {
         self.mode == KeyMode::Password && !self.has_vault() && !self.is_unlocked()
+    }
+
+    /// The credentials generation now. A sign-in reads it before it reads
+    /// the account, and passes it to `issue_if_current`.
+    pub fn credentials_epoch(&self) -> u64 {
+        self.credentials_epoch
+            .load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    fn bump_credentials_epoch(&self) {
+        self.credentials_epoch
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Run `issue` (which creates the signed-in session) only if no password
+    /// or key change happened since `epoch` was read, holding the lock every
+    /// such change holds: a sign-in that checked the password a change then
+    /// replaced (an old, leaked password) gets no session, even when its
+    /// check finished after the change signed every window out.
+    pub fn issue_if_current<T>(&self, epoch: u64, issue: impl FnOnce() -> T) -> Option<T> {
+        let _change = self.vault_lock.lock();
+        if self.credentials_epoch() != epoch {
+            return None;
+        }
+        Some(issue())
     }
 
     /// Password mode: called at setup (and when keys moved from
@@ -367,7 +399,9 @@ impl SecurityManager {
     ) -> Result<()> {
         let _change = self.vault_lock.lock();
         if self.mode == KeyMode::Keychain {
-            return commit();
+            commit()?;
+            self.bump_credentials_epoch();
+            return Ok(());
         }
         let keys = self.keys()?;
         let next = self.next_vault_path();
@@ -376,6 +410,9 @@ impl SecurityManager {
             let _ = std::fs::remove_file(&next);
             return Err(e);
         }
+        // The stored hash changed: a sign-in that read the account before
+        // this point issues no session.
+        self.bump_credentials_epoch();
         if let Err(e) = self.promote_next_vault() {
             match rollback() {
                 Ok(()) => {
@@ -446,6 +483,8 @@ impl SecurityManager {
     /// ciphertext and password hash becomes unusable, which is the point.
     pub fn rotate(&self) -> Result<()> {
         let keys = Keys::random()?;
+        let _change = self.vault_lock.lock();
+        self.bump_credentials_epoch();
         match self.mode {
             KeyMode::Keychain => {
                 if let Err(e) = write_key_pair(self.store.as_ref(), &keys) {
@@ -459,7 +498,6 @@ impl SecurityManager {
                 }
             }
             KeyMode::Password => {
-                let _change = self.vault_lock.lock();
                 for p in [self.vault_path(), self.next_vault_path()] {
                     if p.exists() {
                         std::fs::remove_file(p)?;

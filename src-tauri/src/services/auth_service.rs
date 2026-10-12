@@ -192,15 +192,31 @@ impl AuthService {
             );
             return Ok(LoginOutcome::Invalid);
         };
+        #[cfg(test)]
+        test_hooks::after_account_read(state);
         let password_mode = state.security.mode() == KeyMode::Password;
         // Password mode: the vault's keys are taken only when the password
-        // also matches the stored hash, so a password that opens a key file
-        // but is not the account's (the old one around a password change)
-        // unlocks nothing (SEC-02).
+        // also matches the stored hash, read again under the lock a password
+        // change holds, so a password that opens a key file but is not the
+        // account's (the old one around a password change) unlocks nothing
+        // (SEC-02). The session itself is issued only if no change happened
+        // since the caller read the credentials generation (the route's
+        // `issue_if_current`).
         if password_mode
             && state.security.has_vault()
             && !state.security.unlock_for_sign_in(password, |pepper| {
-                crate::security::hashing::verify_password(pepper, password, &row.password_hash)
+                let current = {
+                    let conn = state.sqlite.conn()?;
+                    user::find_by_username(&conn, &row.username)?
+                };
+                match current {
+                    Some(r) => crate::security::hashing::verify_password(
+                        pepper,
+                        password,
+                        &r.password_hash,
+                    ),
+                    None => Ok(false),
+                }
             })?
         {
             return Ok(LoginOutcome::Invalid);
@@ -484,6 +500,51 @@ impl AuthService {
         });
         tracing::info!("Account reset from the desktop window");
         Ok(())
+    }
+}
+
+/// Test hooks: stop one app state's next sign-in right after it read the
+/// account, so a test can run a password change in between.
+#[cfg(test)]
+pub(crate) mod test_hooks {
+    use crate::state::AppState;
+    use std::sync::mpsc::{channel, Receiver, Sender};
+    use std::sync::Mutex;
+
+    struct Pause {
+        state: usize,
+        reached: Sender<()>,
+        release: Receiver<()>,
+    }
+
+    static PAUSE: Mutex<Option<Pause>> = Mutex::new(None);
+
+    /// Arm the pause for `state`: the returned receiver fires when its next
+    /// sign-in has read the account, and the sign-in goes on once the
+    /// returned sender sends.
+    pub(crate) fn pause_next_sign_in(state: &AppState) -> (Receiver<()>, Sender<()>) {
+        let (reached_tx, reached_rx) = channel();
+        let (release_tx, release_rx) = channel();
+        *PAUSE.lock().unwrap() = Some(Pause {
+            state: state as *const AppState as usize,
+            reached: reached_tx,
+            release: release_rx,
+        });
+        (reached_rx, release_tx)
+    }
+
+    pub(super) fn after_account_read(state: &AppState) {
+        let pause = {
+            let mut p = PAUSE.lock().unwrap();
+            match p.as_ref() {
+                Some(x) if x.state == state as *const AppState as usize => p.take(),
+                _ => None,
+            }
+        };
+        if let Some(p) = pause {
+            let _ = p.reached.send(());
+            let _ = p.release.recv();
+        }
     }
 }
 

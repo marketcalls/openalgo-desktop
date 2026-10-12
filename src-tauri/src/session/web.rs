@@ -27,6 +27,9 @@ pub struct WebSession {
     pub authenticated_at: Option<DateTime<Utc>>,
     pub pending_totp_user: Option<String>,
     pub pending_totp_started: Option<DateTime<Utc>>,
+    /// The credentials generation read at the password step of a sign-in
+    /// waiting for its code (`SecurityManager::credentials_epoch`).
+    pub pending_epoch: Option<u64>,
     pub totp_verified_at: Option<DateTime<Utc>>,
     /// SHA-256 of the password-reset token (the raw token is never stored).
     pub reset_token_hash: Option<String>,
