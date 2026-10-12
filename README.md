@@ -358,16 +358,19 @@ builder); Historify; OpenScript; the Playground; API key management; logs,
 latency and traffic monitoring; Telegram and WhatsApp alerts and bots; sandbox
 mode; and an MCP server for AI clients.
 
-Not included, because they need a Python runtime that the desktop does not
-ship:
+Not included in this version:
 
 - the Python Strategy Host (`/python`)
+- the **Agent** (`/agent`, its settings page, and the Assistant panel in the
+  `/trading` terminal)
 - Flow (`/flow`)
 - the pandas-based backtesters: Portfolio Backtester, SIP Backtester and
   Portfolio Analyzer
 
-Coming later: the **Agent**. Its pages are present but say it is not available
-in the desktop yet.
+The app has no pages, menu entries or buttons for them. Python strategies
+still run as ordinary scripts with the OpenAlgo Python SDK against the
+desktop's API, and AI clients such as Claude Desktop connect through the MCP
+server.
 
 Other differences from the web: one user per installation, and one broker
 connected at a time.

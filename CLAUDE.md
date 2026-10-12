@@ -324,6 +324,15 @@ no Python runtime:
 - pandas-based backtesters: Portfolio Backtester, SIP Backtester, Portfolio
   Analyzer
 
+**Removed from this version** (maintainer, 2026-10-12): the Python Strategy
+Host and the Agent. No code for either ships, and nothing in the UI leads to
+them: no route, navigation or menu entry, Admin card, `/trading` side panel
+or button, Telegram command. `/python` and `/agent` are unknown pages (the
+app's 404 page), `/agent/api/*` is an unknown API path (the JSON 404), and a
+saved terminal layout that still names the Agent panel opens with no panel.
+A later version that brings either back adds it as a new page, with its
+route, SPA path and navigation entry in one change.
+
 Decided:
 
 - **OpenScript** runs on the existing TypeScript engine (`openalgo-script`).
@@ -336,24 +345,29 @@ Decided:
   and are pinned by a contract test. Full OAuth for remote connectors comes
   later; first version uses a scoped token from the API key page.
 
-- **Telegram, WhatsApp and the Agent are native Rust** (maintainer decision
+- **Telegram and WhatsApp are native Rust** (maintainer decision
   2026-10-07), so they too need no Python runtime:
-  - Telegram: the Bot API over the shared HTTP client, same commands,
-    alerts and analytics as the web's `python-telegram-bot` service.
+  - Telegram: the Bot API over the shared HTTP client, same commands (less
+    the Python Strategy Host's `/stoppython`), alerts and analytics as the
+    web's `python-telegram-bot` service.
   - WhatsApp: depends directly on `marketcalls/whatsapp-rust` (MIT), the Rust
     crate that the web's `wars` package wraps with PyO3. Same pairing (QR and
     pair code), session export/import as an encrypted blob, alerts and bot
     commands as the web. The web's notes on `wars` threading do not apply.
-  - Agent: **deferred** (maintainer, 2026-10-07). It needs more study and
-    design work before it is built, so no wave starts it by default. Until
-    then the Agent pages stay in the frontend and their routes answer with a
-    trader-facing "not available in the desktop yet" message. Working notes
-    for when it starts: a native provider layer of our own (OpenAI chat and
-    Responses, Anthropic Messages, Gemini; Ollama and OpenAI-compatible
-    providers through the OpenAI format), model list and pricing from
-    LiteLLM's public catalogue with a bundled fallback, tools calling desktop
-    services directly. Do not depend on `LiteLLM-Labs/litellm-rust`, a proof
-    of concept; revisit if BerriAI ships an official Rust crate.
+- **Agent: not in this version** (maintainer, 2026-10-12, replacing the
+  2026-10-07 deferral that kept its pages with a "not available" message).
+  Its pages, the Assistant panel in `/trading`, the `@openuidev` packages and
+  the `/agent/api` route group were removed. Working notes for a future
+  version, which would be a native Rust Agent with no Python runtime: a
+  provider layer of our own (OpenAI chat and Responses, Anthropic Messages,
+  Gemini; Ollama and OpenAI-compatible providers through the OpenAI format),
+  model list and pricing from LiteLLM's public catalogue with a bundled
+  fallback, tools calling desktop services directly. Do not depend on
+  `LiteLLM-Labs/litellm-rust`, a proof of concept; revisit if BerriAI ships an
+  official Rust crate. The web's frontend for it (`pages/agent`,
+  `components/agent`, `lib/agent`, `api/agent.ts`,
+  `components/trading/AgentPanel.tsx`, `lib/trading/chartContract.ts`) is the
+  starting point to carry over.
 
 ## Testing
 

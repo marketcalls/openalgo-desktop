@@ -13,6 +13,10 @@ The raw market data WebSocket is separate: the market data manager,
 `websocket_url` from `/api/websocket/config` and speak the protocol recorded in
 `tests/fixtures/web/websocket/`.
 
+The Python Strategy Host and the Agent are not part of this version
+(maintainer, 2026-10-12), so their pages and routes (`/python/*`,
+`/agent/api/*`) are not listed.
+
 ## Shared shell
 
 Used by main, App, layouts, Navbar, providers, AuthSync, SocketProvider,
@@ -65,11 +69,11 @@ which order events it listens to.
 **api/auth.ts** (Login, ResetPassword, Profile)
 - `/auth/login` POST :276; `/auth/reset-password` POST :578; `/auth/change-password` POST :1422 (blueprints/auth.py)
 
-**api/trading.ts** (Positions, OrderBook, TradeBook, Holdings, OptionChain, Scalping, StrategyBuilder, Arbitrage, AgentIndex, Trading)
+**api/trading.ts** (Positions, OrderBook, TradeBook, Holdings, OptionChain, Scalping, StrategyBuilder, Arbitrage, Trading)
 - `/api/v1/` placeorder :22, basketorder :26, quotes :23, multiquotes :23, depth :23, funds :24, orderbook :23, tradebook :23, positionbook :23, holdings :23, gttorderbook :19, all POST (restx_api/*)
 - `/close_position` :504, `/close_all_positions` :650, `/cancel_all_orders` :696, `/cancel_order` :752, `/modify_gtt_order` :795, `/cancel_gtt_order` :853, `/modify_order` :890, all POST (blueprints/orders.py)
 
-**hooks/useMarketStatus.ts** (Positions, Holdings, OptionChain, AgentIndex, Trading)
+**hooks/useMarketStatus.ts** (Positions, Holdings, OptionChain, Trading)
 - `/admin/api/holidays` GET :312; `/admin/api/timings` GET :476 (blueprints/admin.py)
 
 **hooks/useOptionChainPolling.ts, api/option-chain.ts** (OptionChain, StrategyBuilder, Trading, strategy pages)
@@ -84,15 +88,6 @@ which order events it listens to.
 - `/admin/api/system` GET :1690; `/admin/api/system/diagnostics` POST :1873; `/admin/api/system/report` GET :2081
 - `/admin/api/oauth/clients` GET :2198; `/admin/api/oauth/clients/<client_id>/approve` POST :2242; `.../revoke` POST :2282
 - `/admin/api/mcp/audit` GET :2337; `/admin/api/mcp/kill-switch` POST :2437; `/admin/api/mcp/settings` GET :2574, PUT :2586
-
-**api/agent.ts, lib/agent/stream.ts, lib/agent/voice.ts** (all blueprints/agent.py)
-- status :456; catalog/providers :516; catalog/models :534; models GET :564, POST :577; models/<id> PATCH :671, DELETE :750; models/<id>/test :767; models/<id>/default :899
-- settings GET :954, PUT :975; websearch GET :1013, PUT :1036; websearch/providers/<p>/key PUT :1065, DELETE :1112; .../test :1138
-- chatgpt/status :1212; chatgpt/login :1241; chatgpt/cancel :1291; chatgpt/session DELETE :1317
-- voice GET :1364, PUT :1382; voice/key PUT :1411, DELETE :1451; voice/test :1470; voice/transcript :1513; voice/approve :1575; voice/session :1615
-- conversations GET :1672, POST :1699; conversations/<id> GET :1727, DELETE :1842; .../messages/<mid> DELETE :1744
-- chat/stream POST :2549 (streamed); chat/confirm POST :2700; chat/<run_id>/cancel POST :2869
-- (all prefixed `/agent/api/`)
 
 **api/scalping.ts** (all blueprints/scalping.py, prefixed `/scalping/api/`)
 - underlyings GET :134; history GET :149; all_underlyings GET :268; expiry GET :300; strikes GET :433; search GET :488; futures GET :511
@@ -134,7 +129,6 @@ Calls beyond the shell and shared modules.
 - **/search/token**: `/search/api/search` GET :133, expiries :227, underlyings :248 (search.py)
 - **/search**: `/search/api/search` GET :133
 - **/apikey**: `/apikey` GET/POST :45; `/apikey/mode` POST :103 (apikey.py)
-- **/agent/config**: `/settings/analyze-mode` GET :16 (settings.py)
 - **/profile**: `/auth/profile-data` GET :1357; `/auth/2fa/status` GET :476; `/auth/2fa/configure` POST :495; `/auth/smtp-config` POST :848; `/auth/test-smtp` POST :913; `/auth/debug-smtp` POST :951 (auth.py); `/api/broker/credentials` GET :70, POST :132 (broker_credentials.py); `/api/system/permissions` GET :238; `/api/system/permissions/fix` POST :274 (system_permissions.py)
 - **/master-contract**: `/api/cache/health` GET :96; `/api/cache/reload` POST :125; `/api/master-contract/download` POST :185; `/api/master-contract/smart-status` GET :233 (master_contract_status.py)
 - **/action-center**: `/action-center/approve/<id>` POST :1021; `/action-center/reject/<id>` POST :1098; `/action-center/delete/<id>` DELETE :1124; `/action-center/approve-all` POST :1161; `/action-center/api/data` GET :1262 (orders.py)

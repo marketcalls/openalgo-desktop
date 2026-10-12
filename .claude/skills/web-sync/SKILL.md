@@ -54,9 +54,9 @@ next sync does not re-read them.
 | `test/test_*.py`, `test/risk/vectors.json` | Rust tests (below) | port the cases |
 | `docs/api/**`, `docs/prompt/**` | nothing to copy; they are the contract source | re-read when the change touches a wire format |
 | `pyproject.toml`, `uv.lock`, `requirements*.txt` | skip | Python dependencies |
-| the Agent (`blueprints/agent*`, `services/agent*`, `frontend/src/pages/agent/**`) | skip, unless it changes the page shells the desktop keeps | Agent deferred (maintainer, 2026-10-07) |
+| the Agent (`blueprints/agent*`, `services/agent*`, `frontend/src/{pages,components,lib}/agent/**`, `frontend/src/api/agent.ts`, `frontend/src/components/trading/AgentPanel*`, `frontend/src/lib/trading/chartContract.ts`, the Assistant entry in `RightRail.tsx`) | skip | not in this version (maintainer, 2026-10-12) |
 | Flow (`/flow`, `flow/**`, `frontend/src/**/flow*`) | skip | out of scope |
-| Python Strategy Host (`/python`, `blueprints/python_strategy.py`) | skip | out of scope |
+| Python Strategy Host (`/python`, `blueprints/python_strategy.py`, the Telegram bot's `/stoppython`) | skip | not in this version (maintainer, 2026-10-12) |
 | pandas backtesters (Portfolio Backtester, SIP Backtester, Portfolio Analyzer) | skip | out of scope |
 | `.github/**`, Docker, install scripts, `upgrade/**` | skip (read for intent only) | web deployment |
 | `frontend/dist` auto-build commits (`github-actions[bot]`) | skip | build output |

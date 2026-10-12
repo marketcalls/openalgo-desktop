@@ -104,7 +104,8 @@ up, no Python runtime and no `.env` file.
 
 ### Not included
 
-- Python Strategy Host, Flow, and the pandas backtesters (Portfolio
-  Backtester, SIP Backtester, Portfolio Analyzer), which need a Python
-  runtime.
-- The Agent, planned for a later release.
+- The Python Strategy Host and the Agent (including the Assistant panel in
+  the `/trading` terminal). They are not part of this version: the app has no
+  pages, menu entries or buttons for them.
+- Flow and the pandas backtesters (Portfolio Backtester, SIP Backtester,
+  Portfolio Analyzer), which need a Python runtime.
