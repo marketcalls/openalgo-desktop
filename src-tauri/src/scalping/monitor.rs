@@ -46,7 +46,8 @@ use crate::clock::Clock;
 use crate::events::subscribers::socketio::UiEmitter;
 use crate::risk::{evaluate_position, BreachReason, PositionRisk, Side, TrailMode};
 use crate::services::order_reconciler::{
-    find_placed, AbsenceTracker, BookSnapshot, Found, OrderOwner, Unconfirmed,
+    find_placed, held_message, Absence, AbsenceTracker, BookSnapshot, Found, HeldOrder, OrderOwner,
+    Unconfirmed,
 };
 use crate::strategy::dispatch::{Book, BookOrder, OrderGateway, OrderPayload, RunMode};
 use crate::strategy::tick_feed::{Key, PriceSource};
@@ -156,8 +157,20 @@ pub fn chunks(quantity: i64, chunk: Option<i64>) -> Vec<i64> {
     }
 }
 
-/// The net quantity of one leg in a position book body.
-pub fn net_quantity(book: &Value, symbol: &str, exchange: &str, product: &str) -> i64 {
+/// What a position book says about one leg.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LegPosition {
+    /// A row for the leg with this net quantity (0: positively flat).
+    Net(i64),
+    /// No row for the leg: an empty or lagging book (right after an entry),
+    /// or a broker that drops closed rows. Never read as flat on its own.
+    Missing,
+    /// A row whose quantity cannot be read.
+    Unreadable,
+}
+
+/// One leg in a position book body.
+pub fn leg_position(book: &Value, symbol: &str, exchange: &str, product: &str) -> LegPosition {
     let rows = book
         .get("data")
         .and_then(Value::as_array)
@@ -174,15 +187,68 @@ pub fn net_quantity(book: &Value, symbol: &str, exchange: &str, product: &str) -
             && field("exchange") == exchange.to_ascii_uppercase()
             && field("product") == product.to_ascii_uppercase()
         {
-            return match p.get("quantity") {
-                Some(Value::Number(n)) => n.as_f64().unwrap_or(0.0) as i64,
-                Some(Value::String(s)) => s.trim().parse::<f64>().unwrap_or(0.0) as i64,
-                _ => 0,
+            let q = match p.get("quantity") {
+                Some(Value::Number(n)) => n.as_f64(),
+                Some(Value::String(s)) => s.trim().parse::<f64>().ok(),
+                _ => None,
+            };
+            return match q.filter(|q| q.is_finite()) {
+                Some(q) => LegPosition::Net(q as i64),
+                None => LegPosition::Unreadable,
             };
         }
     }
-    0
+    LegPosition::Missing
 }
+
+/// The net quantity of one leg in a position book body (0 when the book has
+/// no readable row; never use it to decide a leg is flat).
+pub fn net_quantity(book: &Value, symbol: &str, exchange: &str, product: &str) -> i64 {
+    match leg_position(book, symbol, exchange, product) {
+        LegPosition::Net(n) => n,
+        _ => 0,
+    }
+}
+
+/// What the position book and a leg's exit orders together prove.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Flatness {
+    /// The leg is flat: it may be cleared.
+    Flat,
+    /// Open with this signed net quantity.
+    Open(i64),
+    /// Nothing proves it either way: it stays protected.
+    Unknown,
+}
+
+/// Whether a leg is flat (the monitor's fail-closed rule):
+///
+/// * a row at quantity 0 is flat, unless every exit order of the leg ended
+///   with nothing filled (then the zero is not the exit's doing: a lagging
+///   or stale row is never taken for it);
+/// * a missing row is flat only when the leg's own exit orders filled the
+///   whole position they were sent for;
+/// * an unreadable row is never flat.
+pub fn flatness(pos: LegPosition, attempt: Option<&ExitAttempt>) -> Flatness {
+    let none_filled =
+        attempt.is_some_and(|a| !a.children.is_empty() && !a.working() && a.filled() == 0);
+    match pos {
+        LegPosition::Net(0) if none_filled => Flatness::Unknown,
+        LegPosition::Net(0) => Flatness::Flat,
+        LegPosition::Net(n) => Flatness::Open(n),
+        LegPosition::Missing => match attempt {
+            Some(a) if a.net0 != 0 && !a.working() && a.filled() >= a.net0.abs() => Flatness::Flat,
+            _ => Flatness::Unknown,
+        },
+        LegPosition::Unreadable => Flatness::Unknown,
+    }
+}
+
+/// Extra position-book reads before a leg the book does not show is left
+/// protected and the trader alerted.
+pub const POSITION_REREADS: u32 = 2;
+/// Spacing of those reads.
+pub const POSITION_REREAD_MS: u64 = 300;
 
 // ------------------------------------------------------------ exit attempts
 
@@ -317,6 +383,11 @@ struct Inner {
     last_exit: HashMap<String, DateTime<Utc>>,
     last_persist: HashMap<String, DateTime<Utc>>,
     last_emit: HashMap<String, DateTime<Utc>>,
+    /// Legs whose stored exit orders could not be read: no exit is sent
+    /// until the trader reconciles them (fail closed).
+    broken: HashSet<String>,
+    /// Alerts already raised, per leg and reason (once each).
+    alerted: HashSet<String>,
 }
 
 impl Inner {
@@ -333,8 +404,14 @@ impl Inner {
         self.last_exit.retain(|k, _| keys.contains(k));
         self.last_persist.retain(|k, _| keys.contains(k));
         self.last_emit.retain(|k, _| keys.contains(k));
+        self.broken.retain(|k| keys.contains(k));
+        self.alerted
+            .retain(|k| keys.contains(k.split('|').next().unwrap_or_default()));
     }
 }
+
+/// Where the monitor's trader alerts go (the Health page in the app).
+pub type MonitorAlert = Arc<dyn Fn(String) + Send + Sync>;
 
 pub struct RiskMonitor {
     store: Store,
@@ -351,6 +428,7 @@ pub struct RiskMonitor {
     sync_lock: tokio::sync::Mutex<()>,
     /// Reads that missed an unconfirmed exit order (pruned every pass).
     absence: AbsenceTracker,
+    alert: std::sync::OnceLock<MonitorAlert>,
 }
 
 fn elapsed_ms(now: DateTime<Utc>, then: Option<&DateTime<Utc>>) -> i64 {
@@ -390,7 +468,84 @@ impl RiskMonitor {
             running: Mutex::new(None),
             sync_lock: tokio::sync::Mutex::new(()),
             absence: AbsenceTracker::new(),
+            alert: std::sync::OnceLock::new(),
         })
+    }
+
+    /// Send trader alerts here (set once, by the app).
+    pub fn set_alert_sink(&self, sink: MonitorAlert) {
+        let _ = self.alert.set(sink);
+    }
+
+    /// Raise a trader alert once per leg and reason.
+    fn alert_once(&self, key: &str, reason: &str, message: String) {
+        if !self
+            .inner
+            .lock()
+            .alerted
+            .insert(format!("{}|{}", key, reason))
+        {
+            return;
+        }
+        tracing::error!("{}", message);
+        if let Some(a) = self.alert.get() {
+            a(message);
+        }
+    }
+
+    /// The position book for `mode`, read again (bounded) while it does
+    /// not prove the leg either open or flat.
+    async fn read_leg(
+        &self,
+        mode: RunMode,
+        sl: &SlState,
+        attempt: Option<&ExitAttempt>,
+    ) -> Result<(LegPosition, Flatness), String> {
+        let mut reads = 0;
+        loop {
+            let book = match self.gateway.book(mode, Book::Positions).await {
+                Ok(b) => b,
+                Err(body) => {
+                    // Never treated as flat: an unreadable book is not a
+                    // closed position.
+                    return Err(body
+                        .get("message")
+                        .and_then(Value::as_str)
+                        .unwrap_or("The position book could not be read")
+                        .to_string());
+                }
+            };
+            let pos = leg_position(&book, &sl.symbol, &sl.exchange, &sl.product);
+            let f = flatness(pos, attempt);
+            if f != Flatness::Unknown || reads >= POSITION_REREADS {
+                return Ok((pos, f));
+            }
+            reads += 1;
+            tokio::time::sleep(std::time::Duration::from_millis(POSITION_REREAD_MS)).await;
+        }
+    }
+
+    /// Write a leg's attempt to its row; false when it could not be saved
+    /// (then no further exit order is sent for it).
+    fn persist_attempt(&self, row_id: i64, a: &ExitAttempt) -> bool {
+        let Some(text) = a.to_json() else {
+            tracing::error!("Scalping exit orders for a leg could not be encoded");
+            return false;
+        };
+        match self.store.set_exit_attempt(row_id, Some(&text)) {
+            Ok(true) => true,
+            Ok(false) => {
+                tracing::warn!(
+                    "Scalping stop row {} is gone; its exit orders were not saved",
+                    row_id
+                );
+                false
+            }
+            Err(e) => {
+                tracing::error!("Scalping exit orders for a leg could not be saved: {}", e);
+                false
+            }
+        }
     }
 
     // ------------------------------------------------------------ lifecycle
@@ -562,7 +717,7 @@ impl RiskMonitor {
     /// mode is on, and the other way round).
     pub async fn sync(&self) {
         let _serial = self.sync_lock.lock().await;
-        let (to_add, to_remove) = {
+        let (to_add, to_remove, unreadable) = {
             let mut inner = self.inner.lock();
             // The read happens under the lock: an exit that clears a leg
             // deletes its row first and then takes this lock, so a stale
@@ -575,17 +730,34 @@ impl RiskMonitor {
                 }
             };
             let mut states = HashMap::with_capacity(rows.len());
+            let mut unreadable = Vec::new();
             for sl in rows {
                 let key = slkey(&sl.mode, &sl.symbol, &sl.exchange, &sl.product);
                 // An attempt survives a restart on its row; the one in memory
                 // is newer while the monitor runs.
                 if !inner.attempts.contains_key(&key) {
-                    if let Some(a) = sl
-                        .exit_attempt
-                        .as_deref()
-                        .and_then(|t| serde_json::from_str::<ExitAttempt>(t).ok())
-                    {
-                        inner.attempts.insert(key.clone(), a);
+                    match sl.exit_attempt.as_deref().filter(|t| !t.trim().is_empty()) {
+                        None => {
+                            inner.broken.remove(&key);
+                        }
+                        Some(t) => match serde_json::from_str::<ExitAttempt>(t) {
+                            Ok(a) => {
+                                inner.broken.remove(&key);
+                                inner.attempts.insert(key.clone(), a);
+                            }
+                            Err(e) => {
+                                // Exit orders were sent and cannot be read
+                                // back: never assume none (fail closed).
+                                tracing::error!(
+                                    "Stored scalping exit orders for {} could not be read: {}",
+                                    sl.symbol,
+                                    e
+                                );
+                                if inner.broken.insert(key.clone()) {
+                                    unreadable.push((key.clone(), sl.symbol.clone()));
+                                }
+                            }
+                        },
                     }
                 }
                 states.insert(
@@ -608,8 +780,18 @@ impl RiskMonitor {
             for k in &remove {
                 inner.subscribed.remove(k);
             }
-            (add, remove)
+            (add, remove, unreadable)
         };
+        for (key, symbol) in unreadable {
+            self.alert_once(
+                &key,
+                "unreadable",
+                format!(
+                    "Scalping stop for {}: the exit orders sent for it earlier could not be read back. No further exit is sent for it automatically. Check the position and the order book at the broker, then remove and set the stop again.",
+                    symbol
+                ),
+            );
+        }
         if let Some(src) = &self.prices {
             if !to_add.is_empty() {
                 src.subscribe(&to_add).await;
@@ -650,6 +832,11 @@ impl RiskMonitor {
                     // The claim: in-flight marker and retry clock, written in
                     // the same hold as the check.
                     if inner.inflight.contains(key) {
+                        continue;
+                    }
+                    // Its earlier exit orders cannot be read: never sent
+                    // again blindly (the trader was alerted).
+                    if inner.broken.contains(key) {
                         continue;
                     }
                     // Exit orders already cover the whole position: nothing
@@ -781,20 +968,42 @@ impl RiskMonitor {
         if let Err(e) = self.gateway.authorised(mode) {
             return ExitOutcome::Refused(e);
         }
-        let book = match self.gateway.book(mode, Book::Positions).await {
-            Ok(b) => b,
-            Err(body) => {
-                let msg = body
-                    .get("message")
-                    .and_then(Value::as_str)
-                    .unwrap_or("The position book could not be read")
-                    .to_string();
-                // Never treated as flat: an unreadable book is not a closed
-                // position.
-                return ExitOutcome::Refused(msg);
+        if self.inner.lock().broken.contains(key) {
+            return ExitOutcome::Refused(
+                "The exit orders sent earlier for this stop could not be read back".into(),
+            );
+        }
+        let known = self.inner.lock().attempts.get(key).cloned();
+        let (pos, flat) = match self.read_leg(mode, sl, known.as_ref()).await {
+            Ok(r) => r,
+            Err(msg) => return ExitOutcome::Refused(msg),
+        };
+        let net = match flat {
+            Flatness::Open(n) => n,
+            Flatness::Flat => 0,
+            Flatness::Unknown => {
+                if known.as_ref().is_some_and(ExitAttempt::working) {
+                    // Exit orders still working: the reconciler follows them.
+                    return ExitOutcome::Waiting;
+                }
+                // Not flat on the book's word alone (an empty or lagging
+                // book right after an entry, a stale zero row, an
+                // unreadable row): the leg stays protected.
+                self.alert_once(
+                    key,
+                    "unknown_position",
+                    format!(
+                        "Scalping stop for {} {}: the broker's position book does not show this position{}, so OpenAlgo cannot tell whether it is still open. The stop stays and no exit is sent until the book shows it. Check the position at the broker.",
+                        sl.symbol,
+                        sl.exchange,
+                        if pos == LegPosition::Unreadable { " with a readable quantity" } else { "" }
+                    ),
+                );
+                return ExitOutcome::Refused(
+                    "The position book does not show this position yet".into(),
+                );
             }
         };
-        let net = net_quantity(&book, &sl.symbol, &sl.exchange, &sl.product);
         let now = self.clock.now();
         // Decided on the stop this exit was claimed for, and only that one
         // (LOG-06): the trader may have edited or replaced it meanwhile.
@@ -814,6 +1023,8 @@ impl RiskMonitor {
                         // reconciler see the children end.
                         return ExitOutcome::Waiting;
                     }
+                    // `flatness` already refused a zero that the exit
+                    // orders did not make.
                     return ExitOutcome::Flat;
                 }
                 let left = a.unexited();
@@ -822,9 +1033,8 @@ impl RiskMonitor {
                 } else if a.working() {
                     return ExitOutcome::Waiting;
                 } else if same_side
-                    && a.settled_at.is_some_and(|t| {
-                        (now - t).num_milliseconds() < BOOK_LAG_GRACE_MS
-                    })
+                    && a.settled_at
+                        .is_some_and(|t| (now - t).num_milliseconds() < BOOK_LAG_GRACE_MS)
                 {
                     // Every exit filled; the position book has not caught up.
                     return ExitOutcome::Waiting;
@@ -852,10 +1062,24 @@ impl RiskMonitor {
             children: Vec::new(),
             settled_at: None,
         });
-        let before = a.children.len();
+        // Saved before anything is sent: an exit whose orders could not be
+        // remembered across a restart is never started (fail closed).
+        if !self.persist_attempt(sl.id, &a) {
+            self.alert_once(
+                key,
+                "persist",
+                format!(
+                    "Scalping stop for {}: its exit could not be saved, so no exit order was sent. The stop stays; check the disk and the app's data folder, then try again.",
+                    sl.symbol
+                ),
+            );
+            return ExitOutcome::Refused("The exit could not be saved before sending".into());
+        }
         let mut refused: Option<String> = None;
         let (mut accepted, mut unconfirmed) = (0usize, 0usize);
-        for q in chunks(qty, chunk) {
+        let parts = chunks(qty, chunk);
+        let last = parts.len().saturating_sub(1);
+        for (i, q) in parts.into_iter().enumerate() {
             let order = OrderPayload {
                 symbol: sl.symbol.clone(),
                 exchange: sl.exchange.clone(),
@@ -890,10 +1114,25 @@ impl RiskMonitor {
                 state,
                 placed_at: self.clock.now(),
             });
-        }
-        if a.children.len() > before {
             a.settled_at = None;
-            self.record_attempt(key, sl.id, &a);
+            // Every order sent is remembered before the next goes out.
+            if !self.record_attempt(key, sl.id, &a) {
+                // The orders already sent are followed in memory; no more
+                // are sent while they cannot be saved.
+                self.alert_once(
+                    key,
+                    "persist",
+                    format!(
+                        "Scalping stop for {}: exit orders were sent but could not be saved{}. The stop stays; check the order book at the broker.",
+                        sl.symbol,
+                        if i < last { ", so the rest of the exit was not sent" } else { "" }
+                    ),
+                );
+                if i < last {
+                    refused = Some("The exit orders could not be saved".into());
+                }
+                break;
+            }
         }
         match refused {
             Some(msg) => ExitOutcome::Refused(msg),
@@ -904,15 +1143,14 @@ impl RiskMonitor {
         }
     }
 
-    /// Keep a leg's attempt in memory and on its row.
-    fn record_attempt(&self, key: &str, row_id: i64, a: &ExitAttempt) {
-        self.inner.lock().attempts.insert(key.to_string(), a.clone());
-        if let Err(e) = self.store.set_exit_attempt(row_id, a.to_json().as_deref()) {
-            tracing::error!(
-                "Scalping exit orders for a leg could not be saved ({}); they are followed in memory",
-                e
-            );
-        }
+    /// Keep a leg's attempt in memory and on its row. False when the row
+    /// could not be written (it is still followed in memory).
+    fn record_attempt(&self, key: &str, row_id: i64, a: &ExitAttempt) -> bool {
+        self.inner
+            .lock()
+            .attempts
+            .insert(key.to_string(), a.clone());
+        self.persist_attempt(row_id, a)
     }
 
     /// Forget a closed leg: its row, its state, its subscription when no
@@ -1067,16 +1305,31 @@ impl RiskMonitor {
                                 changed = true;
                             }
                             Found::Absent => {
-                                if self.absence.absent(&akey, book.read_at) {
-                                    self.absence.forget(&akey);
-                                    tracing::warn!(
-                                        "Unconfirmed scalping exit for {} is not in the broker's order book after repeated checks: it was not placed",
-                                        sl.symbol
-                                    );
-                                    child.state = ChildState::Dead;
-                                    changed = true;
-                                } else {
-                                    unresolved += 1;
+                                match self.absence.judge(&akey, &akey, mode, book, &u).await {
+                                    Absence::NotPlaced => {
+                                        self.absence.forget(&akey);
+                                        tracing::warn!(
+                                            "Unconfirmed scalping exit for {} is not in the broker's books after repeated checks: it was not placed",
+                                            sl.symbol
+                                        );
+                                        child.state = ChildState::Dead;
+                                        changed = true;
+                                    }
+                                    Absence::Wait => unresolved += 1,
+                                    Absence::Hold { alert } => {
+                                        // Live: never on absence alone
+                                        // (P0-3). The leg stays protected and
+                                        // nothing more is sent for it.
+                                        unresolved += 1;
+                                        if alert {
+                                            let msg = held_message(
+                                                &format!("Scalping exit for {}", sl.symbol),
+                                                &u,
+                                            );
+                                            self.absence.describe(&akey, &msg);
+                                            book.alert_held(msg);
+                                        }
+                                    }
                                 }
                             }
                             Found::Ambiguous(n) => {
@@ -1119,6 +1372,61 @@ impl RiskMonitor {
         unresolved
     }
 
+    /// Live exit orders held for the trader (P0-3).
+    pub fn held_orders(&self) -> Vec<HeldOrder> {
+        self.absence.held()
+    }
+
+    /// The trader checked the broker's books: the held exit order `id` was
+    /// not placed. It ends as never placed; the leg stays protected and its
+    /// next breach sends what is not covered.
+    pub async fn confirm_not_placed(&self, id: &str) -> Result<bool, String> {
+        if self.absence.held_key(id).is_none() {
+            return Ok(false);
+        }
+        let mut parts = id.rsplitn(3, '#');
+        let (Some(idx), Some(attempt_id), Some(key)) = (
+            parts.next().and_then(|i| i.parse::<usize>().ok()),
+            parts.next(),
+            parts.next(),
+        ) else {
+            return Ok(false);
+        };
+        let now = self.clock.now();
+        let found = {
+            let mut guard = self.inner.lock();
+            let inner = &mut *guard;
+            match (inner.states.get(key), inner.attempts.get_mut(key)) {
+                (Some(leg), Some(a)) if a.id == attempt_id => {
+                    match a.children.get_mut(idx).filter(|c| !c.terminal()) {
+                        Some(c) => {
+                            c.state = ChildState::Dead;
+                            if !a.working() {
+                                a.settled_at = Some(now);
+                            }
+                            Some((leg.gen, leg.sl.clone(), a.clone()))
+                        }
+                        None => None,
+                    }
+                }
+                _ => None,
+            }
+        };
+        self.absence.forget(id);
+        let Some((gen, sl, a)) = found else {
+            return Ok(false);
+        };
+        tracing::warn!(
+            "Trader marked an unconfirmed scalping exit for {} as not placed",
+            sl.symbol
+        );
+        self.record_attempt(key, sl.id, &a);
+        if !a.working() {
+            self.settle(key, gen, &sl, run_mode(&sl.mode)).await;
+        }
+        Ok(true)
+    }
+
     /// Every exit order of a leg has ended: clear it if the position book
     /// shows it flat; otherwise it stays protected, and its next breach
     /// sends only what was not filled.
@@ -1126,7 +1434,14 @@ impl RiskMonitor {
         let Ok(book) = self.gateway.book(mode, Book::Positions).await else {
             return;
         };
-        if net_quantity(&book, &sl.symbol, &sl.exchange, &sl.product) != 0 {
+        let attempt = self.inner.lock().attempts.get(key).cloned();
+        // Flat only on proof (a zero row the exits made, or exits that
+        // filled the whole position): a missing row is not flat.
+        if flatness(
+            leg_position(&book, &sl.symbol, &sl.exchange, &sl.product),
+            attempt.as_ref(),
+        ) != Flatness::Flat
+        {
             return;
         }
         // The installed stop may have been edited meanwhile (same row, new
@@ -1164,6 +1479,20 @@ impl OrderOwner for ScalpingOrders {
         match self.0.upgrade() {
             Some(m) => m.reconcile_book(mode, book).await,
             None => 0,
+        }
+    }
+
+    fn held_orders(&self) -> Vec<HeldOrder> {
+        self.0
+            .upgrade()
+            .map(|m| m.held_orders())
+            .unwrap_or_default()
+    }
+
+    async fn confirm_not_placed(&self, id: &str) -> Result<bool, String> {
+        match self.0.upgrade() {
+            Some(m) => m.confirm_not_placed(id).await,
+            None => Ok(false),
         }
     }
 }

@@ -398,6 +398,13 @@ pub fn table() -> Vec<RouteSpec> {
             User,
             health::resolve
         ),
+        r!(GET, "/health/api/held-orders", User, health::held_orders),
+        r!(
+            POST,
+            "/health/api/held-orders/not-placed",
+            User,
+            health::held_not_placed
+        ),
         r!(GET, "/health/export", User, health::export),
         r!(GET, "/playground/api-key", User, playground::api_key),
         r!(GET, "/playground/endpoints", User, playground::endpoints),

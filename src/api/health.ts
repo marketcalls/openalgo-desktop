@@ -253,6 +253,37 @@ export async function resolveAlert(alertId: number): Promise<void> {
   await webClient.post(`/health/api/alerts/${alertId}/resolve`)
 }
 
+/** A live order the broker did not confirm and does not show: held for the trader. */
+export interface HeldOrder {
+  owner: string
+  id: string
+  symbol: string
+  exchange: string
+  action: string
+  quantity: number
+  since: string
+  message: string
+}
+
+/**
+ * Live orders held for the trader's decision (desktop only)
+ * Requires authentication
+ */
+export async function getHeldOrders(): Promise<HeldOrder[]> {
+  const response = await webClient.get<{ status: string; data?: HeldOrder[] }>(
+    '/health/api/held-orders'
+  )
+  return response.data.data ?? []
+}
+
+/**
+ * The trader checked the broker's books: this held order was not placed
+ * Requires authentication
+ */
+export async function markHeldOrderNotPlaced(owner: string, id: string): Promise<void> {
+  await webClient.post('/health/api/held-orders/not-placed', { owner, id })
+}
+
 /**
  * Export metrics to CSV
  * Requires authentication

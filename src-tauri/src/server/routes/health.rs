@@ -252,6 +252,51 @@ pub async fn resolve(State(ctx): Ctx, Path(id): Path<i64>) -> Response {
     alert_action(&ctx, id, true)
 }
 
+/// GET /health/api/held-orders: Live orders the broker did not confirm and
+/// does not show, held for the trader's decision (P0-3).
+pub async fn held_orders(State(ctx): Ctx) -> Response {
+    let rows: Vec<serde_json::Value> = ctx
+        .reconciler
+        .held_orders()
+        .into_iter()
+        .map(|h| {
+            json!({
+                "owner": h.owner,
+                "id": h.id,
+                "symbol": h.symbol,
+                "exchange": h.exchange,
+                "action": h.action,
+                "quantity": h.quantity,
+                "since": h.since.with_timezone(&chrono_tz::Asia::Kolkata).format("%Y-%m-%d %H:%M:%S").to_string(),
+                "message": h.message,
+            })
+        })
+        .collect();
+    ok(json!({"status": "success", "data": rows}))
+}
+
+#[derive(serde::Deserialize)]
+pub struct NotPlaced {
+    owner: String,
+    id: String,
+}
+
+/// POST /health/api/held-orders/not-placed `{owner, id}`: the trader checked
+/// the broker's books and the order is not there; release it and resume.
+pub async fn held_not_placed(State(ctx): Ctx, axum::Json(body): axum::Json<NotPlaced>) -> Response {
+    match ctx
+        .reconciler
+        .confirm_not_placed(body.owner.trim(), body.id.trim())
+        .await
+    {
+        Ok(()) => ok(json!({
+            "status": "success",
+            "message": "Marked as not placed. The position is managed again."
+        })),
+        Err(msg) => crate::server::envelope::error(StatusCode::BAD_REQUEST, msg),
+    }
+}
+
 /// GET /health/export?hours=
 pub async fn export(State(ctx): Ctx, Query(q): Q) -> Response {
     let hours = health::clamp_hours(q.get("hours").map(|s| s.as_str()));

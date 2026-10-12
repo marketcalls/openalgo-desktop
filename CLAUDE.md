@@ -258,12 +258,27 @@ unchanged:
   order fields. An adapter that knows more than the transport (a tag, an
   ambiguous reply) returns `AppError::Uncertain`; never `AppError::Broker`
   with "check the order book".
+- **Inside a placement an unmarked error is uncertain.** An adapter marks
+  a readable "not placed" with `outcome::refusal` / `refusal_with_status` /
+  `definite` (`AppError::Refused`); a refusal after a 5xx in the same
+  placement stays uncertain; reads before the send (a quote for market
+  protection) go through `outcome::before_send`. See
+  `docs/port/order-outcomes.md`.
+- **Live never releases an unconfirmed order on absence alone.** The claim
+  is held and the trader alerted; it is released by the trader's "not
+  placed" action on the Health page, or with corroboration (long absence, no
+  matching trade, position unchanged). Sandbox releases on a confirmed
+  absence. Owners decide through `AbsenceTracker::judge`.
 - **An accepted exit is not a flat position.** Scalping protection stays
   until every exit order has ended and the position book shows flat; a
   retry sends only what is neither filled nor still working (the web clears
   on acceptance; a deliberate departure). A decision is acted on only for
   the stop it was made on: the stop's row and version are checked before
   placing and before clearing.
+- **A leg the position book does not show is not flat.** A missing row, an
+  unreadable quantity, or a zero row after exits that all ended unfilled
+  keeps the stop (and alerts once); exit orders that cannot be saved, or
+  were saved in a form that cannot be read back, stop further exits.
 
 ## Security model
 

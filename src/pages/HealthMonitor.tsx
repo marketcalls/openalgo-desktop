@@ -43,12 +43,15 @@ import {
   getActiveAlerts,
   getCurrentMetrics,
   getHealthStats,
+  getHeldOrders,
   getMetricsHistory,
   type HealthAlert,
   type HealthLevel,
   type HealthStats,
+  type HeldOrder,
   type HistoricalMetric,
   hasHealthSamples,
+  markHeldOrderNotPlaced,
 } from '@/api/health'
 // Alert components removed - using custom styled divs for theme compatibility
 import { Badge } from '@/components/ui/badge'
@@ -173,6 +176,8 @@ export default function HealthMonitor() {
   const [historicalMetrics, setHistoricalMetrics] = useState<HistoricalMetric[]>([])
   const [stats, setStats] = useState<HealthStats | EmptyHealthStats | null>(null)
   const [alerts, setAlerts] = useState<HealthAlert[]>([])
+  const [heldOrders, setHeldOrders] = useState<HeldOrder[]>([])
+  const [confirmingHeld, setConfirmingHeld] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(true)
@@ -191,17 +196,19 @@ export default function HealthMonitor() {
     try {
       setRefreshing(true)
 
-      const [metricsData, historyData, statsData, alertsData] = await Promise.all([
+      const [metricsData, historyData, statsData, alertsData, heldData] = await Promise.all([
         getCurrentMetrics(),
         getMetricsHistory(CHART_HOURS),
         getHealthStats(HISTORY_HOURS),
         getActiveAlerts(),
+        getHeldOrders().catch(() => [] as HeldOrder[]),
       ])
 
       setCurrentMetrics(metricsData)
       setHistoricalMetrics(historyData)
       setStats(statsData)
       setAlerts(alertsData)
+      setHeldOrders(heldData)
 
       if (displayToast) {
         showToast.success('Metrics refreshed', 'monitoring')
@@ -428,6 +435,22 @@ export default function HealthMonitor() {
       fetchData()
     } catch (_error) {
       showToast.error('Failed to acknowledge alert', 'monitoring')
+    }
+  }
+
+  const heldKey = (order: HeldOrder) => `${order.owner}:${order.id}`
+
+  const handleNotPlaced = async (order: HeldOrder) => {
+    try {
+      await markHeldOrderNotPlaced(order.owner, order.id)
+      showToast.success('Marked as not placed. The position is managed again.', 'monitoring')
+      setConfirmingHeld(null)
+      fetchData()
+    } catch (_error) {
+      showToast.error(
+        'Could not mark the order as not placed. Refresh the page and try again.',
+        'monitoring'
+      )
     }
   }
 
@@ -836,6 +859,62 @@ export default function HealthMonitor() {
           )}
         </CardContent>
       </Card>
+
+      {/* Unconfirmed live orders held for the trader */}
+      {heldOrders.length > 0 && (
+        <Card className="border-destructive/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              Unconfirmed Orders ({heldOrders.length})
+            </CardTitle>
+            <CardDescription>
+              The broker did not confirm these orders and does not show them. They are not sent
+              again. Check the broker's order book and trade book; if an order is not there, mark it
+              as not placed to resume.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {heldOrders.map((order) => (
+                <div
+                  key={heldKey(order)}
+                  className="rounded-lg border border-red-500/50 bg-red-500/10 p-3 flex items-start justify-between gap-4"
+                >
+                  <div>
+                    <p className="font-medium">
+                      {order.action} {order.quantity} {order.symbol} ({order.exchange})
+                    </p>
+                    <p className="text-sm text-muted-foreground">{order.message}</p>
+                    <p className="text-xs text-muted-foreground">Since {order.since}</p>
+                  </div>
+                  {confirmingHeld === heldKey(order) ? (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleNotPlaced(order)}
+                      >
+                        Confirm not placed
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setConfirmingHeld(null)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setConfirmingHeld(heldKey(order))}
+                    >
+                      Not placed
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Active Alerts */}
       {alerts.length > 0 && (

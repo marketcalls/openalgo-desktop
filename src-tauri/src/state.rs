@@ -337,6 +337,16 @@ impl AppState {
                 crate::services::health_service::order_facts_alert(&ctx, a);
             }
         }));
+        // A scalping stop that cannot be judged safely is left in place and
+        // the trader told on the Health page.
+        let alerts = Arc::downgrade(&ctx);
+        ctx.scalping
+            .monitor
+            .set_alert_sink(Arc::new(move |message: String| {
+                if let Some(ctx) = alerts.upgrade() {
+                    crate::services::health_service::scalping_alert(&ctx, message);
+                }
+            }));
         ctx.reconciler
             .watch_feed(ctx.runtime.order_ws.watch_status());
         ctx.reconciler.watch_feed(ctx.websocket.watch_status());

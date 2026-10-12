@@ -340,11 +340,18 @@ pub fn start(ctx: &Arc<AppState>) {
 pub const ORDER_FACTS_ALERT: &str = "order_facts_gap";
 pub const ORDER_FACTS_METRIC: &str = "order_facts";
 
+/// Alert type and metric of a Live order held for the trader (P0-3).
+pub const ORDER_HELD_ALERT: &str = "order_unconfirmed_held";
+pub const ORDER_HELD_METRIC: &str = "order_unconfirmed";
+pub const ORDER_HELD_MESSAGE: &str = "An order the broker did not confirm is not in its order book, and it may still be at the broker. It is not sent again and its position stays managed as it is. Check the broker's order book and trade book, then mark each order listed under Unconfirmed orders as not placed to resume.";
+
 /// The trader-facing alert text for a possible loss of order facts.
 pub fn order_facts_message(cause: crate::services::order_reconciler::GapCause) -> String {
     use crate::services::order_reconciler::GapCause;
     let why = match cause {
-        GapCause::RelayLagged => "the broker's order updates arrived faster than OpenAlgo could relay them",
+        GapCause::RelayLagged => {
+            "the broker's order updates arrived faster than OpenAlgo could relay them"
+        }
         GapCause::EventLoss => "an order update could not be delivered inside OpenAlgo",
         GapCause::OrderFeedReconnected => "the broker's order feed reconnected",
     };
@@ -372,9 +379,49 @@ pub fn order_facts_alert(ctx: &AppState, a: crate::services::order_reconciler::F
             now,
         ),
         FactAlert::Resolved => store::auto_resolve(&c, ORDER_FACTS_METRIC, now).map(|_| ()),
+        FactAlert::Held(_) => store::raise_alert(
+            &c,
+            &AlertRow {
+                alert_type: ORDER_HELD_ALERT.into(),
+                severity: "fail".into(),
+                metric_name: ORDER_HELD_METRIC.into(),
+                metric_value: 1.0,
+                message: ORDER_HELD_MESSAGE.into(),
+                ..Default::default()
+            },
+            now,
+        ),
+        FactAlert::HeldResolved => store::auto_resolve(&c, ORDER_HELD_METRIC, now).map(|_| ()),
     });
     if let Err(e) = r {
         tracing::warn!("Order-facts alert not recorded: {}", e);
+    }
+}
+
+/// Alert type and metric of a scalping stop left in place because its
+/// position or exit orders could not be judged safely.
+pub const SCALPING_ALERT: &str = "scalping_protection";
+pub const SCALPING_METRIC: &str = "scalping_protection";
+
+/// Raise the scalping protection alert with the monitor's trader text.
+pub fn scalping_alert(ctx: &AppState, message: String) {
+    let now = ctx.now();
+    let r = ctx.logs.conn().and_then(|c| {
+        store::raise_alert(
+            &c,
+            &AlertRow {
+                alert_type: SCALPING_ALERT.into(),
+                severity: "fail".into(),
+                metric_name: SCALPING_METRIC.into(),
+                metric_value: 1.0,
+                message,
+                ..Default::default()
+            },
+            now,
+        )
+    });
+    if let Err(e) = r {
+        tracing::warn!("Scalping alert not recorded: {}", e);
     }
 }
 

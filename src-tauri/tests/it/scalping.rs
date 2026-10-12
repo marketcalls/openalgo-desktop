@@ -11,12 +11,12 @@ use openalgo_desktop_lib::brokers::common::streaming::MarketEvent;
 use openalgo_desktop_lib::brokers::common::symbols::SymbolResolver;
 use openalgo_desktop_lib::brokers::mock::MockCall;
 use openalgo_desktop_lib::brokers::types::Position;
+use openalgo_desktop_lib::clock::Clock;
 use openalgo_desktop_lib::clock::ManualClock;
 use openalgo_desktop_lib::db::sqlite::SqliteDb;
 use openalgo_desktop_lib::events::subscribers::socketio::UiEmitter;
 use openalgo_desktop_lib::scalping::monitor::{chunks, MonitorDeps, RiskMonitor};
 use openalgo_desktop_lib::scalping::store::{SlUpsert, Store};
-use openalgo_desktop_lib::clock::Clock;
 use openalgo_desktop_lib::services::order_reconciler::BookSnapshot;
 use openalgo_desktop_lib::strategy::dispatch::{
     Book, BookOrder, DispatchResult, OrderGateway, OrderPayload, OrderStatusResult, RunMode,
@@ -597,6 +597,8 @@ struct FakeGateway {
     script: Mutex<std::collections::VecDeque<Option<&'static str>>>,
     delay_ms: Mutex<u64>,
     net: Mutex<i64>,
+    /// The position book has no row for the leg (empty or lagging).
+    empty: Mutex<bool>,
     placed: Mutex<Vec<(RunMode, OrderPayload)>>,
     books: Mutex<Vec<RunMode>>,
     /// While set, every position-book read waits on it (barrier).
@@ -668,6 +670,9 @@ impl OrderGateway for FakeGateway {
             self.entered.notify_one();
             g.notified().await;
         }
+        if *self.empty.lock() {
+            return Ok(json!({"status": "success", "data": []}));
+        }
         Ok(json!({"status": "success", "data": [
             {"symbol": OPT, "exchange": "NFO", "product": "MIS", "quantity": *self.net.lock()}
         ]}))
@@ -722,6 +727,9 @@ impl UiEmitter for Ui {
 struct M {
     mon: Arc<RiskMonitor>,
     store: Store,
+    db: Arc<SqliteDb>,
+    /// Trader alerts the monitor raised.
+    alerts: Arc<Mutex<Vec<String>>>,
     gw: Arc<FakeGateway>,
     prices: Arc<FakePrices>,
     ui: Arc<Ui>,
@@ -732,7 +740,7 @@ struct M {
 fn monitor() -> M {
     let dir = tempfile::tempdir().unwrap();
     let db = Arc::new(SqliteDb::new(&dir.path().join("t.db")).unwrap());
-    let store = Store::new(db);
+    let store = Store::new(db.clone());
     let symbols = SymbolResolver::new();
     symbols.load(crate::api_v1_support::master());
     let gw = Arc::new(FakeGateway::default());
@@ -748,9 +756,14 @@ fn monitor() -> M {
         clock: clock.clone(),
         symbols,
     });
+    let alerts = Arc::new(Mutex::new(Vec::new()));
+    let sink = alerts.clone();
+    mon.set_alert_sink(Arc::new(move |m: String| sink.lock().push(m)));
     M {
         mon,
         store,
+        db,
+        alerts,
         gw,
         prices,
         ui,
@@ -790,8 +803,7 @@ fn order_row(id: &str, action: &str, qty: i64, status: &str) -> Value {
 }
 
 fn cleared(m: &M) -> bool {
-    m.ui
-        .events
+    m.ui.events
         .lock()
         .iter()
         .any(|(_, p)| p["cleared"] == json!(true))
@@ -988,7 +1000,10 @@ async fn an_uncertain_scalping_exit_is_not_sent_again_until_the_book_settles_it(
     m.mon
         .reconcile_book(
             RunMode::Live,
-            &book(vec![order_row("BRK-7", "SELL", 65, "complete")], m.clock.now()),
+            &book(
+                vec![order_row("BRK-7", "SELL", 65, "complete")],
+                m.clock.now(),
+            ),
         )
         .await;
     assert_eq!(m.mon.leg_count(), 0);
@@ -1014,7 +1029,11 @@ async fn a_restart_while_an_exit_is_pending_sends_no_second_exit() {
     m.clock.advance(chrono::Duration::seconds(10));
     m.mon.process_tick(OPT, "NFO", 93.0).await;
     m.mon.wait_idle().await;
-    assert_eq!(m.gw.placed.lock().len(), 1, "no second exit after a restart");
+    assert_eq!(
+        m.gw.placed.lock().len(),
+        1,
+        "no second exit after a restart"
+    );
     *m.gw.net.lock() = 0;
     m.mon
         .reconcile_book(
@@ -1044,7 +1063,10 @@ async fn an_edit_during_an_exit_keeps_the_new_stop() {
     m.mon.sync().await;
     gate.notify_one();
     m.mon.wait_idle().await;
-    assert!(m.gw.placed.lock().is_empty(), "a stale decision sends nothing");
+    assert!(
+        m.gw.placed.lock().is_empty(),
+        "a stale decision sends nothing"
+    );
     let rows = m.store.active_sl(None).unwrap();
     assert_eq!(rows.len(), 1, "the new stop survives");
     assert_eq!(rows[0].current_sl, Some(90.0));
@@ -1201,6 +1223,206 @@ async fn an_already_flat_leg_is_cleared_without_an_order() {
     m.mon.wait_idle().await;
     assert!(m.gw.placed.lock().is_empty());
     assert_eq!(m.mon.leg_count(), 0);
+}
+
+/// Monitor fail-open review, 1: a position book without the leg's row
+/// (empty or lagging right after an entry) is not a flat position. The
+/// stop stays, nothing is sent, and the trader is alerted once.
+#[tokio::test]
+async fn an_empty_position_book_right_after_entry_keeps_protection() {
+    let m = monitor();
+    *m.gw.empty.lock() = true;
+    m.store.upsert_sl(&leg("live")).unwrap();
+    m.mon.sync().await;
+    m.mon.process_tick(OPT, "NFO", 90.0).await;
+    m.mon.wait_idle().await;
+    assert!(
+        m.gw.placed.lock().is_empty(),
+        "no quantity to exit is known"
+    );
+    assert_eq!(m.mon.leg_count(), 1, "still protected");
+    assert_eq!(m.store.active_sl(None).unwrap().len(), 1);
+    assert!(!cleared(&m));
+    assert_eq!(m.alerts.lock().len(), 1);
+    // The book catches up with the entry: the next breach exits it.
+    *m.gw.empty.lock() = false;
+    m.clock.advance(chrono::Duration::seconds(4));
+    m.mon.process_tick(OPT, "NFO", 89.0).await;
+    m.mon.wait_idle().await;
+    let placed = m.gw.placed.lock().clone();
+    assert_eq!(placed.len(), 1);
+    assert_eq!(placed[0].1.quantity, 65);
+    assert_eq!(m.alerts.lock().len(), 1, "alerted once");
+}
+
+/// Monitor fail-open review, 1: exit orders that were all rejected, with
+/// a position book that does not show the leg (or shows a zero the exits
+/// did not make), never clear the stop.
+#[tokio::test]
+async fn rejected_exit_orders_and_an_empty_book_keep_protection() {
+    let m = monitor();
+    m.store.upsert_sl(&leg("live")).unwrap();
+    m.mon.sync().await;
+    m.mon.process_tick(OPT, "NFO", 94.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.gw.placed.lock().len(), 1);
+    *m.gw.empty.lock() = true;
+    m.mon
+        .reconcile_book(
+            RunMode::Live,
+            &book(vec![order_row("X1", "SELL", 65, "rejected")], m.clock.now()),
+        )
+        .await;
+    assert_eq!(m.mon.leg_count(), 1, "an empty book is not flat");
+    assert!(!cleared(&m));
+    // A zero row the rejected exit cannot have made: still not flat.
+    *m.gw.empty.lock() = false;
+    *m.gw.net.lock() = 0;
+    m.clock.advance(chrono::Duration::seconds(4));
+    m.mon.process_tick(OPT, "NFO", 93.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.mon.leg_count(), 1);
+    assert!(!cleared(&m));
+    assert_eq!(m.gw.placed.lock().len(), 1, "nothing to exit is shown");
+    // The book shows the position again: the stop exits it.
+    *m.gw.net.lock() = 65;
+    m.clock.advance(chrono::Duration::seconds(4));
+    m.mon.process_tick(OPT, "NFO", 92.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.gw.placed.lock().len(), 2);
+}
+
+/// Monitor fail-open review, 2: exit orders stored on the stop's row that
+/// cannot be read back are never taken as "no exit sent". No exit goes
+/// out and the trader is alerted.
+#[tokio::test]
+async fn an_unreadable_stored_exit_attempt_fails_closed() {
+    let m = monitor();
+    m.store.upsert_sl(&leg("live")).unwrap();
+    let id = m.store.active_sl(None).unwrap()[0].id;
+    m.store
+        .set_exit_attempt(
+            id,
+            Some("{\"id\":\"a1\",\"net0\":65,\"children\":[{\"order_id\""),
+        )
+        .unwrap();
+    m.mon.sync().await;
+    assert_eq!(m.mon.leg_count(), 1);
+    m.mon.process_tick(OPT, "NFO", 90.0).await;
+    m.mon.wait_idle().await;
+    assert!(m.gw.placed.lock().is_empty(), "never a blind exit");
+    assert_eq!(m.mon.leg_count(), 1, "still protected");
+    let alerts = m.alerts.lock().clone();
+    assert_eq!(alerts.len(), 1);
+    assert!(
+        alerts[0].contains("could not be read back"),
+        "{}",
+        alerts[0]
+    );
+    // Another sync does not alert again.
+    m.mon.sync().await;
+    assert_eq!(m.alerts.lock().len(), 1);
+}
+
+/// Monitor fail-open review, 3: an exit whose orders cannot be saved is
+/// not started, and a split exit stops after the first order it could not
+/// save.
+#[tokio::test]
+async fn an_exit_that_cannot_be_saved_is_not_sent() {
+    let m = monitor();
+    m.store.upsert_sl(&leg("live")).unwrap();
+    m.mon.sync().await;
+    m.db.conn()
+        .unwrap()
+        .execute_batch(
+            "CREATE TRIGGER no_attempt BEFORE UPDATE OF exit_attempt ON scalping_sl_state
+             BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END;",
+        )
+        .unwrap();
+    m.mon.process_tick(OPT, "NFO", 90.0).await;
+    m.mon.wait_idle().await;
+    assert!(m.gw.placed.lock().is_empty());
+    assert_eq!(m.mon.leg_count(), 1);
+    assert_eq!(m.alerts.lock().len(), 1);
+}
+
+#[tokio::test]
+async fn a_split_exit_stops_at_the_first_order_it_cannot_save() {
+    let m = monitor();
+    *m.gw.net.lock() = 1950;
+    let mut l = leg("live");
+    l.quantity = Some(1950);
+    m.store.upsert_sl(&l).unwrap();
+    m.mon.sync().await;
+    // The empty attempt saves; one that records a sent order does not.
+    m.db.conn()
+        .unwrap()
+        .execute_batch(
+            "CREATE TRIGGER no_child BEFORE UPDATE OF exit_attempt ON scalping_sl_state
+             WHEN NEW.exit_attempt LIKE '%order_id%'
+             BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END;",
+        )
+        .unwrap();
+    m.mon.process_tick(OPT, "NFO", 90.0).await;
+    m.mon.wait_idle().await;
+    let placed = m.gw.placed.lock().clone();
+    assert_eq!(
+        placed.iter().map(|p| p.1.quantity).collect::<Vec<_>>(),
+        vec![1755],
+        "the second chunk is not sent while the first cannot be saved"
+    );
+    assert_eq!(m.mon.leg_count(), 1);
+    // The sent order is still followed in memory.
+    let a = m.mon.exit_attempt("live", OPT, "NFO", "MIS").unwrap();
+    assert_eq!(a.children.len(), 1);
+    assert_eq!(m.alerts.lock().len(), 1);
+}
+
+/// P0-3: a Live exit with no definite answer that the order book does not
+/// show is never released on absence alone. It stays unconfirmed (nothing
+/// is sent again) until the trader marks it not placed; then the stop
+/// exits again.
+#[tokio::test]
+async fn a_live_unconfirmed_exit_absent_from_the_book_is_held_for_the_trader() {
+    use openalgo_desktop_lib::services::order_reconciler::{ABSENT_READS, ABSENT_SPAN_SECS};
+    let m = monitor();
+    m.store.upsert_sl(&leg("live")).unwrap();
+    m.mon.sync().await;
+    *m.gw.uncertain.lock() = true;
+    m.mon.process_tick(OPT, "NFO", 94.0).await;
+    m.mon.wait_idle().await;
+    *m.gw.uncertain.lock() = false;
+    let start = m.clock.now();
+    for i in 0..(ABSENT_READS * 4) {
+        let at = start + chrono::Duration::seconds(i64::from(i) * ABSENT_SPAN_SECS);
+        assert_eq!(
+            m.mon.reconcile_book(RunMode::Live, &book(vec![], at)).await,
+            1
+        );
+    }
+    let held = m.mon.held_orders();
+    assert_eq!(held.len(), 1, "held for the trader");
+    assert_eq!(held[0].action, "SELL");
+    assert!(
+        held[0].message.contains("not placed"),
+        "{}",
+        held[0].message
+    );
+    for s in 0..3 {
+        m.clock.advance(chrono::Duration::seconds(4));
+        m.mon.process_tick(OPT, "NFO", 93.0 - s as f64).await;
+        m.mon.wait_idle().await;
+    }
+    assert_eq!(m.gw.placed.lock().len(), 1, "never sent again on absence");
+    assert_eq!(m.mon.leg_count(), 1);
+    // The trader checked the broker: not placed. The leg is exitable again.
+    assert_eq!(m.mon.confirm_not_placed(&held[0].id).await, Ok(true));
+    assert!(m.mon.held_orders().is_empty());
+    assert_eq!(m.mon.confirm_not_placed(&held[0].id).await, Ok(false));
+    m.clock.advance(chrono::Duration::seconds(4));
+    m.mon.process_tick(OPT, "NFO", 90.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.gw.placed.lock().len(), 2);
 }
 
 #[tokio::test]

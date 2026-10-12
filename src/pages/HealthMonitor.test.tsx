@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CurrentMetrics, EmptyHealthStats } from '@/api/health'
-import { render, screen } from '@/test/test-utils'
+import { render, screen, userEvent } from '@/test/test-utils'
 import HealthMonitor from './HealthMonitor'
 
 const api = vi.hoisted(() => ({
@@ -8,6 +8,8 @@ const api = vi.hoisted(() => ({
   getMetricsHistory: vi.fn(),
   getHealthStats: vi.fn(),
   getActiveAlerts: vi.fn(),
+  getHeldOrders: vi.fn(),
+  markHeldOrderNotPlaced: vi.fn(),
 }))
 
 vi.mock('@/api/health', async (importOriginal) => ({
@@ -54,6 +56,8 @@ describe('Health Monitor', () => {
     api.getMetricsHistory.mockResolvedValue([])
     api.getHealthStats.mockResolvedValue(NO_SAMPLES)
     api.getActiveAlerts.mockResolvedValue([])
+    api.getHeldOrders.mockResolvedValue([])
+    api.markHeldOrderNotPlaced.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -134,5 +138,30 @@ describe('Health Monitor', () => {
     expect(screen.getByText('118.5')).toBeInTheDocument()
     expect(screen.getByText('2/0/0')).toBeInTheDocument()
     expect(screen.queryByText(/No health samples/)).not.toBeInTheDocument()
+  })
+
+  // P0-3: a live order held for the trader is listed with a two-step
+  // "not placed" action that names the order's owner and id.
+  it('lists held orders and marks one not placed after confirmation', async () => {
+    api.getHeldOrders.mockResolvedValue([
+      {
+        owner: 'strategy',
+        id: '42',
+        symbol: 'NIFTY07OCT2624500CE',
+        exchange: 'NFO',
+        action: 'BUY',
+        quantity: 65,
+        since: '2026-10-07 10:00:20',
+        message: 'It may still be at the broker.',
+      },
+    ])
+    render(<HealthMonitor />)
+
+    expect(await screen.findByText('Unconfirmed Orders (1)')).toBeInTheDocument()
+    expect(screen.getByText('BUY 65 NIFTY07OCT2624500CE (NFO)')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Not placed' }))
+    expect(api.markHeldOrderNotPlaced).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm not placed' }))
+    expect(api.markHeldOrderNotPlaced).toHaveBeenCalledWith('strategy', '42')
   })
 })

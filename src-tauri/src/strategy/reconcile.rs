@@ -8,11 +8,17 @@
 //! * **Unconfirmed placements** (rows marked `unconfirmed`: sent, no
 //!   definite answer) keep their claim until settled here. Found in the
 //!   book, the row is bound to that order and folded; an entry becomes
-//!   accepted. Absent from [`ABSENT_READS`] reads over at least
-//!   [`ABSENT_SPAN_SECS`] seconds, the row is rejected as never placed and
-//!   the claim released, so the leg is managed (and exitable) again.
-//!   Several matching orders are never guessed between: the trader is told
-//!   and the claim stays.
+//!   accepted. Absent, [`AbsenceTracker::judge`] decides: in Sandbox an
+//!   absence confirmed by [`ABSENT_READS`] reads over [`ABSENT_SPAN_SECS`]
+//!   seconds rejects the row as never placed and releases the claim, so
+//!   the leg is managed (and exitable) again. In Live absence alone never
+//!   does (P0-3): the claim is held, a critical event and a Health alert
+//!   are raised once, and the row is released when the trader marks it
+//!   not placed (Health page, [`StrategyModule::confirm_not_placed`]) or
+//!   when corroboration does. Several matching orders are never guessed
+//!   between: the trader is told and the claim stays.
+//!
+//! [`AbsenceTracker::judge`]: crate::services::order_reconciler::AbsenceTracker::judge
 //!
 //! [`ABSENT_READS`]: crate::services::order_reconciler::ABSENT_READS
 //! [`ABSENT_SPAN_SECS`]: crate::services::order_reconciler::ABSENT_SPAN_SECS
@@ -22,7 +28,7 @@ use super::engine::{ORDER_UNCONFIRMED, UNCONFIRMED};
 use super::store::{EventFields, OrderRow, RunRow};
 use super::StrategyModule;
 use crate::services::order_reconciler::{
-    find_placed, BookSnapshot, Found, OrderOwner, Unconfirmed,
+    find_placed, held_message, Absence, BookSnapshot, Found, HeldOrder, OrderOwner, Unconfirmed,
 };
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -157,12 +163,44 @@ impl StrategyModule {
                             .await;
                     }
                     Found::Absent => {
-                        if self.reconcile_absence.absent(&key, book.read_at) {
-                            self.reconcile_absence.forget(&key);
-                            self.settle_never_placed(o, strategy.id, &strategy.user_id)
-                                .await;
-                        } else {
-                            unresolved += 1;
+                        let id = o.id.to_string();
+                        match self
+                            .reconcile_absence
+                            .judge(&key, &id, mode, book, &u)
+                            .await
+                        {
+                            Absence::NotPlaced => {
+                                self.reconcile_absence.forget(&key);
+                                self.settle_never_placed(o, strategy.id, &strategy.user_id)
+                                    .await;
+                            }
+                            Absence::Wait => unresolved += 1,
+                            Absence::Hold { alert } => {
+                                // Live: never released on absence alone
+                                // (P0-3). The claim stays; the trader
+                                // decides, or corroboration releases it.
+                                unresolved += 1;
+                                if alert {
+                                    let what =
+                                        format!("Strategy {}, leg {}", strategy.name, o.leg_id);
+                                    let msg = held_message(&what, &u);
+                                    self.reconcile_absence.describe(&key, &msg);
+                                    book.alert_held(msg.clone());
+                                    self.emit(
+                                        strategy.id,
+                                        &strategy.user_id,
+                                        "order_unconfirmed_held",
+                                        &msg,
+                                        EventFields {
+                                            run_id: Some(o.run_id),
+                                            leg_id: Some(o.leg_id),
+                                            severity: Some("critical"),
+                                            payload: Some(json!({"order_id": o.id})),
+                                        },
+                                    )
+                                    .await;
+                                }
+                            }
                         }
                     }
                     Found::Ambiguous(n) => {
@@ -269,7 +307,64 @@ impl StrategyModule {
         self.apply_order_snapshot(broker_order_id, row).await;
     }
 
+    /// Live orders held for the trader (P0-3).
+    pub fn held_orders(&self) -> Vec<HeldOrder> {
+        self.reconcile_absence.held()
+    }
+
+    /// The trader checked the broker's books: the held order `id` (the
+    /// strategy order row) was not placed. Releases it as the reconciler
+    /// would. Run under the reconciler's pass lock, so no pass binds it
+    /// meanwhile.
+    pub async fn confirm_not_placed(&self, id: &str) -> Result<bool, String> {
+        let Some(key) = self.reconcile_absence.held_key(id) else {
+            return Ok(false);
+        };
+        let Ok(order_id) = id.parse::<i64>() else {
+            return Ok(false);
+        };
+        let o = match self.store.get_order(order_id) {
+            Ok(Some(o)) => o,
+            Ok(None) => {
+                self.reconcile_absence.forget(&key);
+                return Ok(false);
+            }
+            Err(e) => {
+                tracing::error!("Held strategy order {} could not be read: {}", id, e);
+                return Err("The order could not be read. Try again.".into());
+            }
+        };
+        if !unconfirmed(&o) {
+            // Found or settled since the page was loaded.
+            self.reconcile_absence.forget(&key);
+            return Ok(false);
+        }
+        let strategy = self.store.get_run(o.run_id).ok().flatten().and_then(|run| {
+            self.store
+                .get_strategy_unscoped(run.strategy_id)
+                .ok()
+                .flatten()
+        });
+        let Some(strategy) = strategy else {
+            return Err("The strategy of this order could not be read. Try again.".into());
+        };
+        self.reconcile_absence.forget(&key);
+        self.settle_not_placed(&o, strategy.id, &strategy.user_id, true)
+            .await;
+        Ok(true)
+    }
+
     async fn settle_never_placed(&self, o: &OrderRow, strategy_id: i64, user_id: &str) {
+        self.settle_not_placed(o, strategy_id, user_id, false).await
+    }
+
+    async fn settle_not_placed(
+        &self,
+        o: &OrderRow,
+        strategy_id: i64,
+        user_id: &str,
+        by_trader: bool,
+    ) {
         let _ = self
             .store
             .update_order(o.id, Some("rejected"), None, Some(NOT_PLACED));
@@ -280,16 +375,22 @@ impl StrategyModule {
             self.state
                 .release_order_exit(o.run_id, o.leg_id, o.id, o.position_ref.as_deref());
         }
+        let why = if by_trader {
+            "You marked it as not placed"
+        } else {
+            "The broker has no record of it after repeated checks"
+        };
         self.emit(
             strategy_id,
             user_id,
             "order_unconfirmed_absent",
             &format!(
-                "The unconfirmed {} {} {} for leg {} is not in the broker's order book after repeated checks, so it was not placed. The leg is managed again{}.",
+                "The unconfirmed {} {} {} for leg {} was not placed. {}. The leg is managed again{}.",
                 o.action,
                 o.qty,
                 o.symbol,
                 o.leg_id,
+                why,
                 if o.kind == "entry" { "" } else { " and can be exited" }
             ),
             EventFields {
@@ -326,6 +427,20 @@ impl OrderOwner for StrategyOrders {
         match self.0.upgrade() {
             Some(m) => m.reconcile_book(mode, book).await,
             None => 0,
+        }
+    }
+
+    fn held_orders(&self) -> Vec<HeldOrder> {
+        self.0
+            .upgrade()
+            .map(|m| m.held_orders())
+            .unwrap_or_default()
+    }
+
+    async fn confirm_not_placed(&self, id: &str) -> Result<bool, String> {
+        match self.0.upgrade() {
+            Some(m) => m.confirm_not_placed(id).await,
+            None => Ok(false),
         }
     }
 }

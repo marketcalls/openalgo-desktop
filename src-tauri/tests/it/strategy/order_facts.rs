@@ -133,7 +133,15 @@ async fn a_lost_fill_is_applied_once_and_health_shows_the_gap_until_then() {
     *a.mock.order_book.lock() = Some(Ok(vec![broker_order(&bid, "SELL", 65, "complete", 100.0)]));
     a.ctx.reconciler.pass().await;
     assert!(!a.ctx.reconciler.gap_open(RunMode::Live));
-    let leg = a.ctx.strategy.state.snapshot(run).unwrap().leg(1).unwrap().clone();
+    let leg = a
+        .ctx
+        .strategy
+        .state
+        .snapshot(run)
+        .unwrap()
+        .leg(1)
+        .unwrap()
+        .clone();
     assert_eq!(leg.entry_status, "complete");
     assert_eq!(leg.status, "open");
     assert_eq!(leg.qty, 65);
@@ -141,7 +149,15 @@ async fn a_lost_fill_is_applied_once_and_health_shows_the_gap_until_then() {
     assert_eq!(leg.sl_pts, Some(20.0), "the stop is in place");
     // A second read of the same fact books nothing more.
     a.ctx.reconciler.pass().await;
-    let leg2 = a.ctx.strategy.state.snapshot(run).unwrap().leg(1).unwrap().clone();
+    let leg2 = a
+        .ctx
+        .strategy
+        .state
+        .snapshot(run)
+        .unwrap()
+        .leg(1)
+        .unwrap()
+        .clone();
     assert_eq!(leg2.qty, 65);
     assert_eq!(
         a.ctx.strategy.store.list_orders(run).unwrap()[0].filled_qty,

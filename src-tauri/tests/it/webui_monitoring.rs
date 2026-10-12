@@ -35,6 +35,8 @@ const USER_ROUTES: &[(&str, &str)] = &[
     ("GET", "/health/api/alerts"),
     ("POST", "/health/api/alerts/1/acknowledge"),
     ("POST", "/health/api/alerts/1/resolve"),
+    ("GET", "/health/api/held-orders"),
+    ("POST", "/health/api/held-orders/not-placed"),
     ("GET", "/health/export"),
 ];
 
