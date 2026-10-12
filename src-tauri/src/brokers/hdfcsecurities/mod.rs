@@ -161,9 +161,9 @@ impl HdfcSecuritiesBroker {
                     None,
                 );
             }
-            AppError::Broker(
-                "Could not reach HDFC Securities. Check your internet connection and try again."
-                    .into(),
+            // Never sent: inside a placement a definite "not placed".
+            crate::brokers::common::outcome::refusal(
+                "Could not reach HDFC Securities. Check your internet connection and try again.",
             )
         })
     }
@@ -212,7 +212,9 @@ impl HdfcSecuritiesBroker {
             path,
             error_message(&v)
         );
-        Err(broker_error(&v))
+        // A readable refusal inside a placement (LOG-08); unknown after a
+        // server error.
+        Err(crate::brokers::common::outcome::definite(broker_error(&v)))
     }
 }
 

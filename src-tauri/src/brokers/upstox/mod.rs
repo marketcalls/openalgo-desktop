@@ -264,11 +264,12 @@ fn non_json_error(status: StatusCode) -> AppError {
         return session_expired();
     }
     if status == StatusCode::TOO_MANY_REQUESTS {
-        return AppError::Broker(
-            "Upstox is limiting requests right now. Wait a moment and try again.".into(),
+        return crate::brokers::common::outcome::refusal(
+            "Upstox is limiting requests right now. Wait a moment and try again.",
         );
     }
     if status.is_server_error() {
+        crate::brokers::common::outcome::note_server_error();
         return AppError::Broker(
             "Upstox's servers are not responding normally. Try again shortly.".into(),
         );
@@ -289,7 +290,14 @@ pub(crate) fn envelope_data(status: StatusCode, v: Value, url: &str) -> Result<V
         path_of(url),
         err.client_message()
     );
-    Err(err)
+    // A readable Upstox error envelope is a definite refusal (LOG-08); with
+    // a server error it stays uncertain.
+    Err(match err {
+        AppError::Broker(m) => {
+            crate::brokers::common::outcome::refusal_with_status(status.as_u16(), m)
+        }
+        other => other,
+    })
 }
 
 pub(crate) fn session_expired() -> AppError {

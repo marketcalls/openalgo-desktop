@@ -5,9 +5,10 @@ use super::mapping::{self, s, to_oa_exchange, unwrap_rows};
 use super::{broker_error, message_of, HdfcSkyBroker};
 use crate::brokers::common::mapping::{Exchange, PriceType, Product};
 use crate::brokers::common::mpp::{instrument_type_from_symbol, protected_price};
+use crate::brokers::common::outcome;
 use crate::brokers::common::streaming::now_ms;
 use crate::brokers::types::*;
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use reqwest::{Method, StatusCode};
 use serde_json::Value;
 
@@ -48,7 +49,9 @@ pub async fn place_order(
     auth: &AuthToken,
     o: &ResolvedOrder,
 ) -> Result<OrderResponse> {
-    let (order_type, price) = protected_order(b, auth, o).await?;
+    // The reference-price read comes before the order is sent: its failure
+    // is "not placed" (LOG-08).
+    let (order_type, price) = outcome::before_send(protected_order(b, auth, o)).await?;
     let sess = HdfcSkyBroker::session(auth)?;
     let body = mapping::place_body(
         o,
@@ -69,19 +72,31 @@ pub async fn place_order(
         .await?;
     if v.get("status").and_then(Value::as_str) == Some("success") {
         let id = s(v.get("data").unwrap_or(&Value::Null), "oms_order_id");
+        if id.is_empty() {
+            // Accepted without an id: the order may exist (LOG-08).
+            tracing::warn!("HDFC Sky accepted an order without an id");
+            return Err(AppError::uncertain(
+                "HDFC Sky accepted the order but returned no order id. Check the order book before placing it again.",
+                None,
+            ));
+        }
         return Ok(OrderResponse {
             order_id: id,
             message: None,
         });
     }
-    // HDFC Sky can refuse with HTTP 200; that is still a refusal.
+    // HDFC Sky can refuse with HTTP 200; that is still a refusal (LOG-08),
+    // unless the status was a server error.
     let msg = message_of(&v);
     tracing::warn!(
         status = status.as_u16(),
         "HDFC Sky refused the order: {}",
         msg
     );
-    Err(broker_error(&msg))
+    Err(outcome::refusal_with_status(
+        status.as_u16(),
+        broker_error(&msg).client_message(),
+    ))
 }
 
 pub async fn modify_order(

@@ -25,6 +25,7 @@ mod tests;
 
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::common::outcome;
 use crate::brokers::common::streaming::BrokerFeed;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
@@ -387,9 +388,8 @@ async fn read_envelope(resp: reqwest::Response, path: &str) -> Result<Envelope> 
         }
         (StatusCode::FORBIDDEN, parsed) if parsed.as_ref().map_or(true, |e| e.error.is_null()) => {
             tracing::warn!("Delta Exchange answered 403 on {}", path);
-            Err(AppError::Broker(
-                "Delta Exchange blocked this request. Whitelist this computer's IP address for the API key in your Delta Exchange account, then try again."
-                    .into(),
+            Err(outcome::refusal(
+                "Delta Exchange blocked this request. Whitelist this computer's IP address for the API key in your Delta Exchange account, then try again.",
             ))
         }
         (_, Ok(env)) => {
@@ -450,18 +450,21 @@ pub(crate) fn envelope_error(err: &Value, status: StatusCode, path: &str) -> App
         path,
         if code.is_empty() { "unknown" } else { &code }
     );
+    // A readable `success: false` is a definite refusal inside a placement
+    // (LOG-08), unless the status was a server error.
+    let refused = |m: String| outcome::refusal_with_status(status.as_u16(), m);
     if matches!(
         code.as_str(),
         "SignatureExpired" | "expired_signature" | "Signature Expired"
     ) {
-        return AppError::Broker(
+        return refused(
             "Delta Exchange refused the request because the signature arrived late. Check that your computer's clock is set automatically, then try again."
                 .into(),
         );
     }
     match message.or_else(|| (!code.is_empty()).then(|| code.replace('_', " "))) {
-        Some(m) => AppError::Broker(m),
-        None => AppError::Broker("Delta Exchange refused the request.".into()),
+        Some(m) => refused(m),
+        None => refused("Delta Exchange refused the request.".into()),
     }
 }
 
@@ -474,10 +477,11 @@ fn decode_result<T: DeserializeOwned>(env: Envelope, path: &str) -> Result<T> {
     })
 }
 
+/// Refused before Delta processed anything (a spent quota or repeated 429s):
+/// inside a placement a definite "not placed" (LOG-08).
 pub(crate) fn rate_limited() -> AppError {
-    AppError::Broker(
-        "Delta Exchange's request allowance is used up for the next few minutes. Wait a moment and try again."
-            .into(),
+    crate::brokers::common::outcome::refusal(
+        "Delta Exchange's request allowance is used up for the next few minutes. Wait a moment and try again.",
     )
 }
 

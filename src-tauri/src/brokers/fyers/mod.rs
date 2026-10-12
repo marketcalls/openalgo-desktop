@@ -226,7 +226,14 @@ impl FyersBroker {
             path_and_query.split('?').next().unwrap_or(""),
             message
         );
-        Err(fyers_error(status.as_u16(), code, &message))
+        // A readable Fyers error body is a definite refusal (LOG-08); with
+        // a server error it stays uncertain.
+        Err(match fyers_error(status.as_u16(), code, &message) {
+            AppError::Broker(m) => {
+                crate::brokers::common::outcome::refusal_with_status(status.as_u16(), m)
+            }
+            other => other,
+        })
     }
 }
 

@@ -278,7 +278,14 @@ pub(crate) fn envelope(status: StatusCode, mut v: Value, what: &str) -> Result<V
         what.split('?').next().unwrap_or(""),
         msg
     );
-    Err(arrow_error(&msg))
+    // A readable refusal inside a placement (LOG-08); unknown after a
+    // server error.
+    Err(match arrow_error(&msg) {
+        AppError::Broker(m) => {
+            crate::brokers::common::outcome::refusal_with_status(status.as_u16(), m)
+        }
+        other => other,
+    })
 }
 
 /// The broker's `message` text, if any.

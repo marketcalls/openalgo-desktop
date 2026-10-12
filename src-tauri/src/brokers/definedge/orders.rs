@@ -1,13 +1,15 @@
 //! Orders and books (web `api/order_api.py`).
 //!
 //! * place `POST /placeorder` -> `{"status":"SUCCESS","order_id"}` (or the
-//!   Noren `stat/norenordno`); HTTP 200 without an order id is a refusal.
+//!   Noren `stat/norenordno`); a success without an order id leaves the
+//!   order unknown (LOG-08).
 //! * modify `POST /modify`, cancel `GET /cancel/{orderid}`.
 //! * books `GET /orders`, `/trades`, `/positions`, `/holdings`.
 
 use super::mapping::{self, rows};
 use super::{broker_error, is_success, text, DefinedgeBroker, DefinedgeSession};
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::common::outcome;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use reqwest::Method;
@@ -24,6 +26,9 @@ async fn write(
     let (status, txt) = b.send(method, &url, &s.api_session_key, body, true).await?;
     if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
         return Err(super::session_expired());
+    }
+    if status.is_server_error() {
+        outcome::note_server_error();
     }
     match serde_json::from_str::<Value>(&txt) {
         Ok(v) => Ok(v),
@@ -49,15 +54,24 @@ pub async fn place_order(
     let s = DefinedgeSession::parse(auth)?;
     let body = mapping::place_body(o);
     let v = write(b, &s, Method::POST, "/placeorder", Some(&body)).await?;
-    let id = if is_success(&v) {
-        Some(text(&v, "norenordno"))
-            .filter(|x| !x.is_empty())
-            .unwrap_or_else(|| text(&v, "order_id"))
-    } else {
-        String::new()
-    };
+    if !is_success(&v) {
+        // A readable refusal (LOG-08); after a server error it stays
+        // unknown.
+        return Err(outcome::definite(broker_error(
+            &v,
+            "Definedge did not accept the order.",
+        )));
+    }
+    let id = Some(text(&v, "norenordno"))
+        .filter(|x| !x.is_empty())
+        .unwrap_or_else(|| text(&v, "order_id"));
     if id.is_empty() {
-        return Err(broker_error(&v, "Definedge did not accept the order."));
+        // Accepted without an id: the order may exist.
+        tracing::warn!("Definedge accepted an order without an id");
+        return Err(AppError::uncertain(
+            "Definedge accepted the order but returned no order id. Check the order book before placing it again.",
+            None,
+        ));
     }
     Ok(OrderResponse {
         order_id: id,

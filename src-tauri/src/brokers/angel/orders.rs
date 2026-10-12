@@ -113,6 +113,9 @@ pub async fn place_order(
     let outcome = match sent {
         Ok(resp) => {
             let status = resp.status();
+            if status.is_server_error() {
+                crate::brokers::common::outcome::note_server_error();
+            }
             match resp.bytes().await {
                 Ok(bytes) => match classify_place_reply(&bytes) {
                     PlaceOutcome::Ambiguous
@@ -156,7 +159,11 @@ pub async fn place_order(
         }),
         PlaceOutcome::Refused { errorcode, message } => {
             tracing::warn!(code = %errorcode, "Angel One refused the order: {}", message);
-            Err(angel_error(&errorcode, &message))
+            // `status: false` is Angel's definite refusal (LOG-08), unless
+            // it came with a server error.
+            Err(crate::brokers::common::outcome::definite(angel_error(
+                &errorcode, &message,
+            )))
         }
         PlaceOutcome::Ambiguous => {
             let rows = match raw_orders(b, auth).await {

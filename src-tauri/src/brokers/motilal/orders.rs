@@ -94,9 +94,11 @@ pub async fn place_order(
         o.instrument.lot_size,
     )?;
     let ltp = if o.pricetype == PriceType::Market {
-        match b
-            .get_quote(auth, &QuoteKey::new(o.exchange.as_str(), &o.symbol))
-            .await
+        // Before the order is sent: never counts against its answer.
+        match crate::brokers::common::outcome::before_send(
+            b.get_quote(auth, &QuoteKey::new(o.exchange.as_str(), &o.symbol)),
+        )
+        .await
         {
             Ok(q) => Some(q.ltp),
             Err(e) => {

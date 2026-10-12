@@ -315,13 +315,18 @@ impl XtsBroker {
         if matches!(status.as_u16(), 401 | 403) || mapping::is_token_error(&description) {
             return Err(self.session_expired());
         }
+        // A readable refusal inside a placement (LOG-08); unknown after a
+        // server error.
         if description.is_empty() {
-            return Err(AppError::Broker(format!(
-                "{} refused the request.",
-                self.cfg.name
-            )));
+            return Err(crate::brokers::common::outcome::refusal_with_status(
+                status.as_u16(),
+                format!("{} refused the request.", self.cfg.name),
+            ));
         }
-        Err(AppError::Broker(description))
+        Err(crate::brokers::common::outcome::refusal_with_status(
+            status.as_u16(),
+            description,
+        ))
     }
 
     /// One market-data call, refreshing the feed token once on

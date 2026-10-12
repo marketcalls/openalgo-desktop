@@ -175,7 +175,11 @@ impl PocketfulBroker {
             path,
             message
         );
-        Err(broker_error(&message))
+        // A readable refusal inside a placement (LOG-08); unknown after a
+        // server error.
+        Err(crate::brokers::common::outcome::definite(broker_error(
+            &message,
+        )))
     }
 
     /// The trading client id: from the session, else `trading_info`

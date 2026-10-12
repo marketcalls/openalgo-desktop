@@ -398,6 +398,13 @@ fn placement_acceptance_needs_status_and_order_id() {
         placed_order_id(&no_id),
         Err("Order rejected by 5Paisa".into())
     );
+    // LOG-08: a success without an id is not a refusal; the order may
+    // exist.
+    assert!(super::mapping::accepted_without_id(&no_id));
+    assert!(!super::mapping::accepted_without_id(&resp(
+        "place_rejected"
+    )));
+    assert!(!super::mapping::accepted_without_id(&resp("place_ok")));
     let string_status =
         json!({"head":{"statusDescription":"Success"},"body":{"Status":"0","BrokerOrderID":"77"}});
     assert_eq!(placed_order_id(&string_status), Ok("77".into()));

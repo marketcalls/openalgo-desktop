@@ -113,7 +113,9 @@ fn gtt_event(
 fn live_error(e: &AppError, internal: &str, broker: &str) -> Reply {
     match e {
         AppError::Unsupported(_) => not_supported(broker),
-        AppError::Broker(m) | AppError::Validation(m) => Reply::error(400, m.clone()),
+        AppError::Broker(m) | AppError::Refused(m) | AppError::Validation(m) => {
+            Reply::error(400, m.clone())
+        }
         AppError::NotFound(m) => Reply::error(404, m.clone()),
         _ => {
             tracing::error!("GTT call failed: {}", e);

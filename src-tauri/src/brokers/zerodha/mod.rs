@@ -161,7 +161,14 @@ impl ZerodhaBroker {
             path_and_query.split('?').next().unwrap_or(""),
             env.message
         );
-        Err(kite_error(&env.error_type, &env.message))
+        // A readable Kite error envelope is a definite refusal (LOG-08);
+        // on a 5xx it stays uncertain.
+        Err(match kite_error(&env.error_type, &env.message) {
+            AppError::Broker(m) => {
+                crate::brokers::common::outcome::refusal_with_status(status.as_u16(), m)
+            }
+            other => other,
+        })
     }
 }
 

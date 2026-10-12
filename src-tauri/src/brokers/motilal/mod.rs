@@ -345,11 +345,16 @@ impl MotilalBroker {
         if is_success(&v) {
             return Ok(v);
         }
-        Err(motilal_error(
-            status,
-            &v,
-            "Motilal Oswal could not complete the request.",
-        ))
+        // A readable FAILURE envelope: a definite refusal inside a
+        // placement (LOG-08), unknown after a server error.
+        Err(
+            match motilal_error(status, &v, "Motilal Oswal could not complete the request.") {
+                AppError::Broker(m) => {
+                    crate::brokers::common::outcome::refusal_with_status(status.as_u16(), m)
+                }
+                other => other,
+            },
+        )
     }
 }
 

@@ -172,9 +172,15 @@ pub fn semi_auto(ctx: &AppState) -> bool {
 /// The web's status for a broker-side failure.
 pub fn broker_error_reply(e: &AppError, internal: &str) -> Reply {
     match e {
-        AppError::Broker(m) | AppError::Validation(m) => Reply::error(400, m.clone()),
-        // An unconfirmed modify or cancel (a placement is answered by
-        // `placement_reply`): the adapter's own advice to check the book.
+        AppError::Broker(m) | AppError::Refused(m) | AppError::Validation(m) => {
+            Reply::error(400, m.clone())
+        }
+        // The wire never says "uncertain": a broker's text keeps its 400, a
+        // transport failure its 500 (LOG-08).
+        AppError::Uncertain(u) if u.internal => {
+            tracing::error!("Broker call failed with no definite answer: {}", e);
+            Reply::error(500, internal)
+        }
         AppError::Uncertain(u) => Reply::error(400, u.message.clone()),
         AppError::NotFound(m) => Reply::error(404, m.clone()),
         AppError::Auth(m) => Reply::error(403, m.clone()),
@@ -296,28 +302,30 @@ pub fn placement_reply(
     placed: crate::error::Result<crate::brokers::types::OrderResponse>,
 ) -> Reply {
     let outcome = outcome::classify(&placed);
-    match &outcome {
-        PlaceOutcome::Accepted { order_id } => {
-            Reply::ok(json!({"status": "success", "orderid": order_id})).with_placement(outcome)
-        }
-        PlaceOutcome::Uncertain { client_tag, reason } => {
-            tracing::error!(
-                "Order {} {} {} has no definite answer from the broker (tag {}); it may have been placed and is not sent again",
-                order.action.as_str(),
-                order.quantity,
-                order.symbol,
-                client_tag.as_deref().unwrap_or("none")
-            );
-            Reply::error(500, reason.clone()).with_placement(outcome)
-        }
-        PlaceOutcome::Refused { .. } => {
-            let reply = match &placed {
-                Err(e) => broker_error_reply(e, "Failed to place order due to internal error"),
-                Ok(_) => Reply::error(400, "Failed to place order"),
-            };
-            reply.with_placement(outcome)
-        }
+    if let PlaceOutcome::Uncertain { client_tag, .. } = &outcome {
+        tracing::error!(
+            "Order {} {} {} has no definite answer from the broker (tag {}); it may have been placed and is not sent again",
+            order.action.as_str(),
+            order.quantity,
+            order.symbol,
+            client_tag.as_deref().unwrap_or("none")
+        );
     }
+    // The wire answer is the web's, exactly as before LOG-08; the outcome
+    // travels beside it.
+    let wire = match (&outcome, &placed) {
+        (PlaceOutcome::Accepted { order_id }, _) => {
+            Reply::ok(json!({"status": "success", "orderid": order_id}))
+        }
+        (_, Ok(r)) => Reply::error(
+            400,
+            r.message
+                .clone()
+                .unwrap_or_else(|| "Failed to place order".to_string()),
+        ),
+        (_, Err(e)) => broker_error_reply(e, "Failed to place order due to internal error"),
+    };
+    wire.with_placement(outcome)
 }
 
 /// `placeorder`.

@@ -6,6 +6,7 @@ use super::mapping::{
 };
 use super::{error_message, groww_error, in_transit, Category, GrowwCore, Reply};
 use crate::brokers::common::mapping::{Exchange, PriceType, Product};
+use crate::brokers::common::outcome;
 use crate::brokers::common::redact::url_safe_error;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
@@ -133,19 +134,24 @@ fn id_text(v: Option<&Value>) -> String {
 pub fn place_outcome(r: &Reply) -> Result<OrderResponse> {
     if !r.is_success() {
         let m = r.error_message();
-        if r.status.is_success() || (r.status.is_client_error() && r.status.as_u16() != 429) {
-            return Err(AppError::Broker(if m.is_empty() {
-                "Groww did not accept the order.".into()
+        // A success status whose body could not be read says nothing about
+        // the order: it stays unknown (LOG-08).
+        let readable = r.status.is_success() && r.body.is_object();
+        if readable || (r.status.is_client_error() && r.status.as_u16() != 429) {
+            // A readable refusal: the order was not placed (LOG-08).
+            return Err(outcome::refusal(if m.is_empty() {
+                "Groww did not accept the order.".to_string()
             } else {
                 m
             }));
         }
-        if r.status.is_server_error() {
-            // A failure on Groww's side does not say the order was not
-            // taken: never invite a blind retry.
+        if r.status.is_server_error() || r.status.is_success() {
+            // A failure on Groww's side, or an answer that could not be
+            // read, does not say the order was not taken: never invite a
+            // blind retry.
             tracing::error!(
                 status = r.status.as_u16(),
-                "Groww order reply was a server error: {}",
+                "Groww order reply was a server error or unreadable: {}",
                 m
             );
             return Err(AppError::uncertain(
@@ -160,8 +166,8 @@ pub fn place_outcome(r: &Reply) -> Result<OrderResponse> {
     if status == "FAILED" || status == "REJECTED" {
         tracing::warn!("Groww {} the order: {}", status, r.body);
         let remark = id_text(p.get("remark"));
-        return Err(AppError::Broker(if remark.is_empty() {
-            "Groww rejected the order".into()
+        return Err(outcome::refusal(if remark.is_empty() {
+            "Groww rejected the order".to_string()
         } else {
             remark
         }));

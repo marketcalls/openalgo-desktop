@@ -13,6 +13,7 @@ use super::mapping::{self, text};
 use super::{data, token, unwrap_account, IndmoneyBroker};
 use crate::brokers::common::mapping::{Action, Exchange, PriceType, Product, Validity};
 use crate::brokers::common::mpp::{instrument_type_from_symbol, protected_price, py_round};
+use crate::brokers::common::outcome;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use reqwest::Method;
@@ -171,9 +172,18 @@ pub fn place_outcome(status: u16, v: &Value) -> Result<String> {
             "INDmoney is limiting orders right now. The order was not resent; check the order book before trying again.".into(),
         ));
     }
-    Err(AppError::Broker(
-        super::error_message(v).unwrap_or_else(|| "INDmoney rejected the order.".into()),
-    ))
+    let message = super::error_message(v).unwrap_or_else(|| "INDmoney rejected the order.".into());
+    if !v.is_object() {
+        // An answer that could not be read says nothing about the order
+        // (LOG-08).
+        tracing::warn!(status, "INDmoney order answer was unreadable");
+        return Err(AppError::uncertain(
+            "INDmoney did not confirm the order. Check the order book before placing it again.",
+            None,
+        ));
+    }
+    // A readable refusal (LOG-08); unknown after a server error.
+    Err(outcome::refusal_with_status(status, message))
 }
 
 pub async fn place_order(
@@ -183,7 +193,14 @@ pub async fn place_order(
 ) -> Result<OrderResponse> {
     let tok = token(auth)?;
     let ltp = if o.pricetype == PriceType::Market && mapping::exchange_is_placeable(o.exchange) {
-        match data::get_quote(b, auth, &QuoteKey::new(o.exchange.as_str(), &o.symbol)).await {
+        // Before the order is sent: never counts against its answer.
+        match outcome::before_send(data::get_quote(
+            b,
+            auth,
+            &QuoteKey::new(o.exchange.as_str(), &o.symbol),
+        ))
+        .await
+        {
             Ok(q) => Some(q.ltp),
             Err(e) => {
                 tracing::warn!("Quote for MARKET order pricing failed: {}", e.code());

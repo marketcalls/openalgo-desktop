@@ -59,7 +59,14 @@ pub async fn place_order(
         ));
     }
     tracing::warn!(status = status.as_u16(), "Dhan refused an order");
-    Err(refused(&v, "accept the order"))
+    // A readable error answer is a definite refusal (LOG-08); with a server
+    // error it stays uncertain.
+    Err(match refused(&v, "accept the order") {
+        AppError::Broker(m) => {
+            crate::brokers::common::outcome::refusal_with_status(status.as_u16(), m)
+        }
+        other => other,
+    })
 }
 
 pub async fn modify_order(

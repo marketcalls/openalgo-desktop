@@ -3,6 +3,7 @@
 use super::mapping::{self, text, Resolved};
 use super::{data, is_success, samco_error, SamcoBroker};
 use crate::brokers::common::mapping::{Exchange, PriceType, Product};
+use crate::brokers::common::outcome;
 use crate::brokers::common::position_read::{says_no_positions, unread};
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
@@ -56,7 +57,10 @@ pub async fn place_order(
     o: &ResolvedOrder,
 ) -> Result<OrderResponse> {
     let key = QuoteKey::new(o.exchange.as_str(), &o.symbol);
-    let r = resolve(
+    // The price-protection quote comes before the order is sent: its
+    // failure is "not placed", and a server error it meets never counts
+    // against the order's own answer (LOG-08).
+    let r = outcome::before_send(resolve(
         b,
         auth,
         &key,
@@ -65,13 +69,15 @@ pub async fn place_order(
         o.action,
         o.price,
         o.trigger_price,
-    )
+    ))
     .await?;
     let body = mapping::place_body(o, &r);
     let (status, v) = b
         .send(Method::POST, "/order/placeOrder", auth, Some(&body))
         .await?;
-    if is_success(&v) {
+    // `send` reads an empty or unreadable body as `{}`.
+    let blank = v.as_object().is_some_and(|m| m.is_empty());
+    if is_success(&v) || (blank && !status.is_client_error()) {
         let id = text(v.get("orderNumber"));
         if !id.is_empty() {
             return Ok(OrderResponse {
@@ -79,9 +85,25 @@ pub async fn place_order(
                 message: None,
             });
         }
+        // A success without an order number, or an answer that could not
+        // be read: the order may exist.
+        tracing::warn!(
+            status = status.as_u16(),
+            "Samco did not return an order number for an order"
+        );
+        return Err(AppError::uncertain(
+            "Samco did not confirm the order. Check the order book before placing it again.",
+            None,
+        ));
     }
     tracing::warn!(status = status.as_u16(), "Samco refused an order");
-    Err(samco_error(status, &v, "Samco did not accept the order."))
+    // A readable refusal (LOG-08); unknown after a server error.
+    Err(
+        match samco_error(status, &v, "Samco did not accept the order.") {
+            AppError::Broker(m) => outcome::refusal_with_status(status.as_u16(), m),
+            other => other,
+        },
+    )
 }
 
 pub async fn modify_order(

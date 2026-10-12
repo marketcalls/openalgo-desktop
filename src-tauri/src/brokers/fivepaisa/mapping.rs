@@ -263,14 +263,26 @@ pub fn modify_body(m: &ResolvedModify, exch_order_id: &str) -> Value {
 /// The order id of an accepted placement: `head.statusDescription ==
 /// "Success"`, `body.Status == 0` and a non-zero `BrokerOrderID`; otherwise
 /// the broker's reason.
-pub fn placed_order_id(v: &Value) -> std::result::Result<String, String> {
-    let body = v.get("body").cloned().unwrap_or(Value::Null);
-    let id = text(&body, "BrokerOrderID");
-    let status_ok = match body.get("Status") {
+fn place_status_ok(body: &Value) -> bool {
+    match body.get("Status") {
         Some(Value::Number(n)) => n.as_i64() == Some(0),
         Some(Value::String(s)) => s.trim().parse::<i64>().ok() == Some(0),
         _ => false,
-    };
+    }
+}
+
+/// A placement reply that says success (head and `Status` 0) but carries
+/// no usable `BrokerOrderID`: the order may exist (LOG-08).
+pub fn accepted_without_id(v: &Value) -> bool {
+    let body = v.get("body").cloned().unwrap_or(Value::Null);
+    let id = text(&body, "BrokerOrderID");
+    super::head_success(v) && place_status_ok(&body) && (id.is_empty() || id == "0")
+}
+
+pub fn placed_order_id(v: &Value) -> std::result::Result<String, String> {
+    let body = v.get("body").cloned().unwrap_or(Value::Null);
+    let id = text(&body, "BrokerOrderID");
+    let status_ok = place_status_ok(&body);
     if super::head_success(v) && status_ok && !id.is_empty() && id != "0" {
         Ok(id)
     } else {

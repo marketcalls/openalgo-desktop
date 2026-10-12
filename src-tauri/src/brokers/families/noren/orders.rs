@@ -80,17 +80,37 @@ pub async fn place_order(
     o: &ResolvedOrder,
 ) -> Result<OrderResponse> {
     let s = session(b.cfg, auth)?;
-    let body = place_body(b, &s, o).await;
+    // The price-protection quote comes before the order is sent: a server
+    // error it meets never counts against the order's answer (LOG-08).
+    let body = crate::brokers::common::outcome::before_send(async {
+        Ok::<_, crate::error::AppError>(place_body(b, &s, o).await)
+    })
+    .await?;
     let v = b.post_raw("/PlaceOrder", body, &s, Category::Order).await?;
     if stat_ok(&v) {
+        let id = text(&v, "norenordno");
+        if id.is_empty() {
+            // Accepted without an order number: the order may exist.
+            tracing::warn!(broker = b.cfg.id, "Order accepted without an order number");
+            return Err(crate::error::AppError::uncertain(
+                format!(
+                    "{} accepted the order but returned no order number. Check the order book before placing it again.",
+                    b.cfg.name
+                ),
+                None,
+            ));
+        }
         return Ok(OrderResponse {
-            order_id: text(&v, "norenordno"),
+            order_id: id,
             message: None,
         });
     }
     let e = super::transport::emsg(&v);
     tracing::warn!(broker = b.cfg.id, "Order refused: {}", e);
-    Err(noren_error(b.cfg.name, &e))
+    // A readable refusal (LOG-08); unknown after a server error.
+    Err(crate::brokers::common::outcome::definite(noren_error(
+        b.cfg.name, &e,
+    )))
 }
 
 pub async fn modify_order(

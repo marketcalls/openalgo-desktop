@@ -3,9 +3,10 @@
 use super::mapping::{self, s};
 use super::{is_success, message, refusal, MstockBroker};
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::common::outcome;
 use crate::brokers::common::position_read::{says_no_positions, unread};
 use crate::brokers::types::*;
-use crate::error::Result;
+use crate::error::{AppError, Result};
 use reqwest::Method;
 use serde_json::Value;
 
@@ -30,9 +31,22 @@ pub async fn place_order(
             order_id: id,
             message: None,
         }),
+        // A success without an order id, or an empty answer: the order may
+        // exist (LOG-08).
+        None if is_success(&v) || v.as_object().is_some_and(|o| o.is_empty()) => {
+            tracing::warn!("mStock did not return an order id for an order");
+            Err(AppError::uncertain(
+                "mStock did not confirm the order. Check the order book before placing it again.",
+                None,
+            ))
+        }
         None => {
             tracing::warn!("mStock refused the order: {}", message(&v));
-            Err(refusal(&v, "mStock did not accept the order."))
+            // A readable refusal (LOG-08); unknown after a server error.
+            Err(outcome::definite(refusal(
+                &v,
+                "mStock did not accept the order.",
+            )))
         }
     }
 }

@@ -111,7 +111,12 @@ pub async fn place_order(
     let body = place_order_body(o);
     let env = b.call(Method::POST, PLACE, auth, Some(&body)).await?;
     let id = order_no(&env.data).ok_or_else(|| {
-        AppError::Broker("Paytm Money accepted the order but returned no order number.".into())
+        // Accepted without a number: the order may exist (LOG-08).
+        tracing::warn!("Paytm Money accepted an order without an order number");
+        AppError::uncertain(
+            "Paytm Money accepted the order but returned no order number. Check the order book before placing it again.",
+            None,
+        )
     })?;
     Ok(OrderResponse {
         order_id: id,

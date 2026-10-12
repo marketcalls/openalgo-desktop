@@ -4,6 +4,7 @@ use super::mapping::{self, text, text_any};
 use super::{data, PocketfulBroker};
 use crate::brokers::common::mapping::{Exchange, PriceType, Product};
 use crate::brokers::common::mpp::{instrument_type_from_symbol, protected_price};
+use crate::brokers::common::outcome;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use reqwest::Method;
@@ -45,9 +46,16 @@ pub async fn place_order(
     auth: &AuthToken,
     o: &ResolvedOrder,
 ) -> Result<OrderResponse> {
-    let client_id = b.client_id(auth).await?;
+    // The account and price reads come before the order is sent: they
+    // never count against its answer (LOG-08).
+    let client_id = outcome::before_send(b.client_id(auth)).await?;
     let ltp = if o.pricetype == PriceType::Market {
-        let ltp = data::ltp(b, auth, &o.instrument).await;
+        let ltp = outcome::before_send(async {
+            Ok::<_, AppError>(data::ltp(b, auth, &o.instrument).await)
+        })
+        .await
+        .ok()
+        .flatten();
         if ltp.is_none() {
             tracing::warn!(
                 "No live price for {} {}; sending a plain market order",

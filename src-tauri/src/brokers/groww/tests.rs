@@ -915,6 +915,10 @@ fn place_replies_report_failures_as_errors() {
     );
     // LOG-08: an unknown outcome, never an ordinary refusal.
     assert_eq!(e.code(), "ORDER_UNCERTAIN");
+    // A 200 whose body could not be read (truncated, not JSON) is unknown
+    // too, never "not accepted".
+    let e = place_outcome(&reply(200, Value::Null)).unwrap_err();
+    assert_eq!(e.code(), "ORDER_UNCERTAIN");
     // A 403 with its own reason keeps it (only the session's 401/403 is
     // "session expired").
     let e = place_outcome(&reply(

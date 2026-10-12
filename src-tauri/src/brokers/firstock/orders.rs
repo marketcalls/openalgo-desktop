@@ -55,11 +55,20 @@ pub async fn place_order(
     let v = b
         .call_ok("/placeOrder", mapping::place_body(o, quote), &s)
         .await?;
+    let id = v
+        .get("data")
+        .map(|d| text(d, "orderNumber"))
+        .unwrap_or_default();
+    if id.is_empty() {
+        // Accepted without an order number: the order may exist (LOG-08).
+        tracing::warn!("Firstock accepted an order without an order number");
+        return Err(AppError::uncertain(
+            "Firstock accepted the order but returned no order number. Check the order book before placing it again.",
+            None,
+        ));
+    }
     Ok(OrderResponse {
-        order_id: v
-            .get("data")
-            .map(|d| text(d, "orderNumber"))
-            .unwrap_or_default(),
+        order_id: id,
         message: None,
     })
 }

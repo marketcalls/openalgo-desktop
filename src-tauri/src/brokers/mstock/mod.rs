@@ -233,6 +233,9 @@ pub(crate) async fn read_payload(resp: reqwest::Response) -> Result<Value> {
         tracing::warn!(status = status.as_u16(), "mStock refused the session");
         return Err(session_expired());
     }
+    if status.is_server_error() {
+        crate::brokers::common::outcome::note_server_error();
+    }
     let bytes = resp.bytes().await.map_err(redact::http)?;
     if bytes.iter().all(u8::is_ascii_whitespace) {
         if status.is_server_error() {

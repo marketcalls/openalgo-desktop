@@ -182,13 +182,25 @@ pub async fn place_order(
             order_id: id,
             message: None,
         }),
+        Err(_) if mapping::accepted_without_id(&v) => {
+            // Success without an order id: the order may exist (LOG-08).
+            tracing::warn!(
+                broker = "fivepaisa",
+                "5paisa accepted an order without an order id"
+            );
+            Err(AppError::uncertain(
+                "5paisa accepted the order but returned no order id. Check the order book before placing it again.",
+                None,
+            ))
+        }
         Err(reason) => {
             tracing::warn!(
                 broker = "fivepaisa",
                 "5paisa rejected the order: {}",
                 reason
             );
-            Err(AppError::Broker(reason))
+            // A readable refusal (LOG-08).
+            Err(crate::brokers::common::outcome::refusal(reason))
         }
     }
 }

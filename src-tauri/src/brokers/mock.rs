@@ -391,7 +391,8 @@ impl Broker for MockBroker {
                 order_id: id,
                 message: None,
             }),
-            Some(Err(m)) => Err(AppError::Broker(m)),
+            // A scripted error is the broker's stated refusal.
+            Some(Err(m)) => Err(super::common::outcome::refusal(m)),
             None => {
                 let mut n = self.next_id.lock();
                 *n += 1;

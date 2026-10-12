@@ -180,7 +180,10 @@ impl TradejiniBroker {
                     path,
                     msg.as_deref().unwrap_or("no message")
                 );
-                Err(AppError::Broker(
+                // A readable refusal inside a placement (LOG-08); unknown
+                // after a server error.
+                Err(crate::brokers::common::outcome::refusal_with_status(
+                    status.as_u16(),
                     msg.unwrap_or_else(|| "Tradejini refused the request.".into()),
                 ))
             }

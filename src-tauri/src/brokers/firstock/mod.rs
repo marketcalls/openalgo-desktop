@@ -22,6 +22,7 @@ mod tests;
 
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::common::outcome;
 use crate::brokers::common::streaming::BrokerFeed;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::families::noren::auth::sha256_hex;
@@ -185,6 +186,9 @@ impl FirstockBroker {
                 .send()
                 .await?;
             let status = resp.status();
+            if status.is_server_error() {
+                outcome::note_server_error();
+            }
             let bytes = resp.bytes().await?;
             let text = String::from_utf8_lossy(&bytes);
             if text.to_ascii_lowercase().contains("rate limit")
@@ -194,8 +198,9 @@ impl FirstockBroker {
                     tokio::time::sleep(Duration::from_secs(1)).await;
                     continue;
                 }
-                return Err(AppError::Broker(
-                    "Firstock is limiting requests right now. Wait a moment and try again.".into(),
+                // Turned away before processing: not placed (LOG-08).
+                return Err(outcome::refusal(
+                    "Firstock is limiting requests right now. Wait a moment and try again.",
                 ));
             }
             return match serde_json::from_slice::<Value>(&bytes) {
@@ -232,7 +237,9 @@ impl FirstockBroker {
                 endpoint,
                 error_message(&v)
             );
-            Err(firstock_error(&v))
+            // A readable failure: a definite refusal inside a placement
+            // (LOG-08), unknown after a server error.
+            Err(outcome::definite(firstock_error(&v)))
         }
     }
 }

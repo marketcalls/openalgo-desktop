@@ -68,8 +68,21 @@ pub(super) async fn send_order(
         .and_then(Value::as_str)
         .map(|s| matches!(s.to_ascii_lowercase().as_str(), "success" | "ok"))
         .unwrap_or(false);
-    if status == StatusCode::OK && mapping::is_ok(&data) && first_ok && !order_id.is_empty() {
+    let accepted = status.is_success() && mapping::is_ok(&data) && first_ok;
+    if accepted && !order_id.is_empty() {
         return Ok(order_id);
+    }
+    if accepted || data.get(super::UNREADABLE).is_some() {
+        // A success without an order id, or an answer that could not be
+        // read: the order may exist (LOG-08).
+        tracing::warn!(
+            status = status.as_u16(),
+            "IIFL Capital did not confirm an order (no order id or unreadable answer)"
+        );
+        return Err(AppError::uncertain(
+            "IIFL Capital did not confirm the order. Check the order book before placing it again.",
+            None,
+        ));
     }
     let why = mapping::message_of(&data).unwrap_or_else(|| "Failed to place order".into());
     tracing::warn!(
@@ -77,7 +90,11 @@ pub(super) async fn send_order(
         "IIFL Capital refused an order: {}",
         why
     );
-    Err(AppError::Broker(why))
+    // A readable refusal (LOG-08); unknown after a server error.
+    Err(crate::brokers::common::outcome::refusal_with_status(
+        status.as_u16(),
+        why,
+    ))
 }
 
 pub async fn place_order(

@@ -137,7 +137,7 @@ impl PaytmBroker {
         path: &str,
         auth: &AuthToken,
         body: Option<&serde_json::Value>,
-    ) -> Result<(reqwest::StatusCode, PaytmEnvelope)> {
+    ) -> Result<(reqwest::StatusCode, Option<PaytmEnvelope>)> {
         let url = format!("{}{}", self.urls.api, path);
         let mut req = self
             .http
@@ -151,7 +151,8 @@ impl PaytmBroker {
         let resp = req.send().await.map_err(|e| redact(e.into()))?;
         let status = resp.status();
         let bytes = resp.bytes().await.map_err(|e| redact(e.into()))?;
-        let env = serde_json::from_slice::<PaytmEnvelope>(&bytes).unwrap_or_default();
+        // `None`: the answer could not be read.
+        let env = serde_json::from_slice::<PaytmEnvelope>(&bytes).ok();
         Ok((status, env))
     }
 
@@ -189,7 +190,21 @@ impl PaytmBroker {
                             .into(),
                     ));
                 }
+                Ok((status, None)) if status.is_success() => {
+                    // A success status whose answer could not be read says
+                    // nothing about an order (LOG-08).
+                    tracing::warn!(
+                        status = status.as_u16(),
+                        "Paytm Money answered {} with an unreadable body",
+                        leaf
+                    );
+                    return Err(AppError::Broker(
+                        "Paytm Money sent a response OpenAlgo could not read. Try again shortly."
+                            .into(),
+                    ));
+                }
                 Ok((status, env)) => {
+                    let env = env.unwrap_or_default();
                     if status.is_success() && env.is_success() {
                         return Ok(env);
                     }
@@ -200,7 +215,11 @@ impl PaytmBroker {
                         leaf,
                         msg
                     );
-                    return Err(paytm_error(status.as_u16(), &msg));
+                    // A refusal: definite inside a placement (LOG-08).
+                    return Err(match paytm_error(status.as_u16(), &msg) {
+                        AppError::Broker(m) => crate::brokers::common::outcome::refusal(m),
+                        other => other,
+                    });
                 }
                 Err(e) => {
                     tracing::warn!(

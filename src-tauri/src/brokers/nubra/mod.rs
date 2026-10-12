@@ -230,8 +230,9 @@ impl NubraBroker {
                     tokio::time::sleep(delay).await;
                     continue;
                 }
-                return Err(AppError::Broker(
-                    "Nubra is limiting requests right now. Wait a moment and try again.".into(),
+                // Turned away before processing: not placed (LOG-08).
+                return Err(crate::brokers::common::outcome::refusal(
+                    "Nubra is limiting requests right now. Wait a moment and try again.",
                 ));
             }
             if status == SESSION_EXPIRED_STATUS {

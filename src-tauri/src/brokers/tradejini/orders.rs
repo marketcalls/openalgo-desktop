@@ -104,8 +104,12 @@ pub async fn place_order(
         )
         .await?;
     let id = d_order_id(&v).ok_or_else(|| {
+        // Accepted without an id: the order may exist (LOG-08).
         tracing::warn!("Tradejini accepted an order without an order id");
-        AppError::Broker("Tradejini did not return an order id for this order.".into())
+        AppError::uncertain(
+            "Tradejini accepted the order but returned no order id. Check the order book before placing it again.",
+            None,
+        )
     })?;
     let msg = v.get("d").map(|d| mapping::s(d, "msg"));
     Ok(OrderResponse {

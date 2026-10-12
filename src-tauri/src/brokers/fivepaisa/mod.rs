@@ -268,11 +268,16 @@ impl FivepaisaBroker {
                 path
             );
             let m = message(&v);
-            return Err(AppError::Broker(if m.is_empty() {
-                "5paisa refused the request. Try again shortly.".into()
-            } else {
-                m
-            }));
+            // A readable error answer: a refusal inside a placement unless
+            // the status was a server error (LOG-08).
+            return Err(crate::brokers::common::outcome::refusal_with_status(
+                status.as_u16(),
+                if m.is_empty() {
+                    "5paisa refused the request. Try again shortly.".to_string()
+                } else {
+                    m
+                },
+            ));
         }
         Ok(v)
     }

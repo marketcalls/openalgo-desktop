@@ -94,8 +94,17 @@ pub async fn place_order(
             Category::Order,
         )
         .await?;
+    let id = order_no(&data);
+    if id.is_empty() {
+        // Accepted without an order number: the order may exist (LOG-08).
+        tracing::warn!("Arrow accepted an order without an order number");
+        return Err(crate::error::AppError::uncertain(
+            "Arrow accepted the order but returned no order number. Check the order book before placing it again.",
+            None,
+        ));
+    }
     Ok(OrderResponse {
-        order_id: order_no(&data),
+        order_id: id,
         message: None,
     })
 }

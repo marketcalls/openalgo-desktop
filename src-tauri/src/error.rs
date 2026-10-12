@@ -60,6 +60,14 @@ pub enum AppError {
     #[error("Broker error: {0}")]
     Broker(String),
 
+    /// The broker answered, readably, that it did not place the order (or
+    /// the adapter refused it before sending). Inside an order placement
+    /// this is the only broker error that reads as "not placed"; any other
+    /// broker error leaves the outcome uncertain (LOG-08). Built with
+    /// `brokers::common::outcome::refusal`.
+    #[error("Order refused: {0}")]
+    Refused(String),
+
     /// An order request reached the broker, or may have, and no definite
     /// answer came back (a timeout or a dropped connection after sending, a
     /// server error, an unreadable reply, a success without an order id).
@@ -96,6 +104,11 @@ pub struct UncertainOrder {
     /// The client tag the order was sent with, when the adapter tags its
     /// orders, so it can be found in the broker's order book.
     pub client_tag: Option<String>,
+    /// It came from a transport or parsing failure, which the order
+    /// service answers on the wire as before (500, its internal-error
+    /// text); otherwise the wire carries `message` with 400, as a broker
+    /// error always has. The uncertainty itself never reaches the wire.
+    pub internal: bool,
 }
 
 impl AppError {
@@ -104,6 +117,7 @@ impl AppError {
         AppError::Uncertain(Box::new(UncertainOrder {
             message: message.into(),
             client_tag,
+            internal: false,
         }))
     }
 }
@@ -149,7 +163,7 @@ impl AppError {
             AppError::KeychainUnavailable => "KEYCHAIN_UNAVAILABLE",
             AppError::KeysDoNotMatch => "KEYS_DO_NOT_MATCH",
             AppError::Auth(_) => "AUTH_ERROR",
-            AppError::Broker(_) => "BROKER_ERROR",
+            AppError::Broker(_) | AppError::Refused(_) => "BROKER_ERROR",
             AppError::Uncertain(_) => "ORDER_UNCERTAIN",
             AppError::Validation(_) => "VALIDATION_ERROR",
             AppError::NotFound(_) => "NOT_FOUND",
@@ -169,6 +183,7 @@ impl AppError {
         match self {
             AppError::Auth(m)
             | AppError::Broker(m)
+            | AppError::Refused(m)
             | AppError::Validation(m)
             | AppError::NotFound(m) => m.clone(),
             AppError::Uncertain(u) => u.message.clone(),

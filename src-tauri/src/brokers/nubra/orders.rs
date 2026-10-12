@@ -8,6 +8,7 @@
 use super::mapping;
 use super::{refused, NubraBroker};
 use crate::brokers::common::mapping::{Exchange, PriceType, Product};
+use crate::brokers::common::outcome;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
 use reqwest::Method;
@@ -60,9 +61,22 @@ pub async fn place_order(
             order_id: id,
             message: None,
         }),
+        // A success without an order id, or one whose body could not be
+        // read: the order may exist (LOG-08).
+        _ if (200..300).contains(&status) => {
+            tracing::warn!(status, "Nubra did not return an order id for an order");
+            Err(AppError::uncertain(
+                "Nubra did not confirm the order. Check the order book before placing it again.",
+                None,
+            ))
+        }
         _ => {
             tracing::warn!(status, "Nubra refused an order");
-            Err(refused(&v, status))
+            // A refusal (LOG-08); a server error leaves it unknown.
+            Err(match refused(&v, status) {
+                AppError::Broker(m) => outcome::refusal_with_status(status, m),
+                other => other,
+            })
         }
     }
 }

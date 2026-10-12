@@ -115,7 +115,10 @@ pub async fn place_order(
             "AliceBlue refused an order: {}",
             mapping::describe(&s(&v, "message"))
         );
-        return Err(broker_error(&v, "AliceBlue did not accept the order."));
+        return Err(crate::brokers::common::outcome::definite(broker_error(
+            &v,
+            "AliceBlue did not accept the order.",
+        )));
     }
     let first = v
         .get("result")
@@ -131,7 +134,10 @@ pub async fn place_order(
             result_status,
             mapping::describe(&s(&first, "message"))
         );
-        return Err(broker_error(&first, "AliceBlue did not accept the order."));
+        return Err(crate::brokers::common::outcome::definite(broker_error(
+            &first,
+            "AliceBlue did not accept the order.",
+        )));
     }
     if order_id.is_empty() {
         return Err(AppError::uncertain(

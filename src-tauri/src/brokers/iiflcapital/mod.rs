@@ -83,6 +83,10 @@ const MAX_RETRY_WAIT: Duration = Duration::from_secs(10);
 /// (web `order_api._UNCONFIRMED_WRITE_MESSAGE`).
 pub const UNCONFIRMED_WRITE_MESSAGE: &str = "IIFL Capital did not confirm this request and asked for it to be tried again later. OpenAlgo did not send it again, because the first one may already have reached IIFL Capital. Check the order book before sending it again.";
 
+/// Marks the stand-in body `call` builds for an answer that was not JSON:
+/// such an answer says nothing about an order (LOG-08).
+pub(crate) const UNREADABLE: &str = "openalgo_unreadable";
+
 pub struct IiflCapitalBroker {
     http: reqwest::Client,
     base_url: String,
@@ -181,12 +185,17 @@ impl IiflCapitalBroker {
                 .get("retry-after")
                 .and_then(|v| v.to_str().ok())
                 .and_then(|v| v.trim().parse::<f64>().ok());
+            if status.is_server_error() {
+                crate::brokers::common::outcome::note_server_error();
+            }
             let bytes = resp.bytes().await?;
             let data: Value = serde_json::from_slice(&bytes).unwrap_or_else(|_| {
-                serde_json::json!({
+                let mut v = serde_json::json!({
                     "status": "error",
                     "message": String::from_utf8_lossy(&bytes[..bytes.len().min(300)]).to_string()
-                })
+                });
+                v[UNREADABLE] = Value::Bool(true);
+                v
             });
             let message = mapping::message_of(&data).unwrap_or_default();
             if mapping::is_rate_limited(status.as_u16(), &message) {

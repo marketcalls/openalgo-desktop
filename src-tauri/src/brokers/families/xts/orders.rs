@@ -36,10 +36,15 @@ async fn place_raw(b: &XtsBroker, auth: &AuthToken, payload: &Value) -> Result<O
         .await?;
     let id = mapping::order_id(result(&v).get("AppOrderID"));
     if id.is_empty() {
-        return Err(AppError::Broker(format!(
-            "{} accepted the order but returned no order id. Check the order book.",
-            b.cfg.name
-        )));
+        // Accepted without an id: the order may exist (LOG-08).
+        tracing::warn!(broker = b.cfg.id, "Order accepted without an order id");
+        return Err(AppError::uncertain(
+            format!(
+                "{} accepted the order but returned no order id. Check the order book before placing it again.",
+                b.cfg.name
+            ),
+            None,
+        ));
     }
     Ok(OrderResponse {
         order_id: id,
