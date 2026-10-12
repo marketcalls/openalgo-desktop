@@ -4,11 +4,9 @@
     python3 scripts/ci/native_e2e.py <installed app binary>
 
 CI only (.github/workflows/native-e2e.yml): the app binds the shipped ports
-5000 and 8765, the WebDriver server 4444 and on Windows the webview's
-debugging port 9222. Needs `selenium` and, on Linux, `tauri-driver` on PATH
-with WebKitWebDriver; on Windows, MSEDGEDRIVER naming the msedgedriver of
-the installed WebView2's version, which the script attaches to the app's
-webview.
+5000 and 8765 and tauri-driver binds 4444. Needs `tauri-driver` on PATH,
+WebKitWebDriver (Linux) and `selenium`. Windows needs a test build of the
+app first (see the workflow); macOS has no WebDriver for WKWebView.
 
 Unlike the Playwright suite (a browser against `vite preview` with stubbed
 answers), this drives the native webview of the installed release build,
@@ -78,37 +76,16 @@ def main(argv: list[str]) -> int:
     home = tempfile.mkdtemp(prefix="openalgo-e2e-")
     log_path = os.path.join(home, "driver-and-app.log")
     log = open(log_path, "wb")
-    env = fresh_env(home)
-    # Windows: attach msedgedriver to the app's WebView2 through a fixed
-    # remote debugging port. Launched by msedgedriver (tauri-driver's way),
-    # the app's webview, whose user data folder the app sets itself, never
-    # left the port file the driver waits for.
-    edge = os.environ.get("MSEDGEDRIVER")
-    app_proc = None
-    if edge:
-        app_env = dict(env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9222")
-        app_proc = subprocess.Popen([app], env=app_env, stdout=log, stderr=subprocess.STDOUT)
-        driver_proc = subprocess.Popen([edge, "--port=4444"], env=env, stdout=log, stderr=subprocess.STDOUT)
-    else:
-        cmd = ["tauri-driver"]
-        native = os.environ.get("TAURI_NATIVE_DRIVER")
-        if native:
-            cmd += ["--native-driver", native]
-        driver_proc = subprocess.Popen(cmd, env=env, stdout=log, stderr=subprocess.STDOUT)
+    # tauri-driver starts the app (and the platform's WebDriver) itself.
+    driver_proc = subprocess.Popen(["tauri-driver"], env=fresh_env(home), stdout=log, stderr=subprocess.STDOUT)
     problems: list[str] = []
     session = None
     try:
         if not wait_http(DRIVER_URL + "/status", 30):
-            raise RuntimeError("the WebDriver server did not answer on 4444")
+            raise RuntimeError("tauri-driver did not answer on 4444")
         options = ArgOptions()
-        if edge:
-            if not wait_http("http://127.0.0.1:9222/json/version", WAIT_S):
-                raise RuntimeError("the app's webview did not open its debugging port")
-            options.set_capability("browserName", "webview2")
-            options.set_capability("ms:edgeOptions", {"debuggerAddress": "127.0.0.1:9222"})
-        else:
-            options.set_capability("browserName", "wry")
-            options.set_capability("tauri:options", {"application": app})
+        options.set_capability("browserName", "wry")
+        options.set_capability("tauri:options", {"application": app})
         session = webdriver.Remote(command_executor=DRIVER_URL, options=options)
         wait = WebDriverWait(session, WAIT_S)
         if not wait_http(BASE + "/auth/csrf-token", WAIT_S):
@@ -178,19 +155,17 @@ def main(argv: list[str]) -> int:
                 session.quit()
             except Exception:  # noqa: BLE001
                 pass
-        for proc in (driver_proc, app_proc):
-            if proc is None or proc.poll() is not None:
-                continue
-            proc.terminate()
+        if driver_proc.poll() is None:
+            driver_proc.terminate()
             try:
-                proc.wait(timeout=15)
+                driver_proc.wait(timeout=15)
             except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait(timeout=15)
+                driver_proc.kill()
+                driver_proc.wait(timeout=15)
         log.close()
         with open(log_path, "rb") as f:
             lines = f.read().decode("utf-8", "replace").splitlines()
-        print("---- WebDriver server and app output (last 60 lines)")
+        print("---- tauri-driver and app output (last 60 lines)")
         print("\n".join(lines[-60:]))
         print("----")
     for p in problems:

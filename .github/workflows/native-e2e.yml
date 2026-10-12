@@ -8,8 +8,15 @@ name: Native E2E
 # with stubbed answers (COV-03, COV-04).
 #
 #   Linux x64   the .deb, WebKitGTK's WebKitWebDriver, under Xvfb
-#   Windows     the NSIS setup on Windows Server 2025; msedgedriver of the
-#               installed WebView2's version, attached to the app's webview
+#
+# Windows needs a test build. msedgedriver drives WebView2 through its
+# remote debugging port, which it asks for through the environment
+# (WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS). The release app's webview does
+# not take that switch from the environment: on Windows Server 2025 the
+# WebView2 processes ran and loaded the app, but no debugging port opened,
+# launched by msedgedriver or by hand (2026-10-12, runs 38275143364 and
+# 38280440540). That is right for a release build; a test-only build that
+# opens the port itself comes with the scripted-broker build below.
 #
 # macOS has no WebDriver for WKWebView; the install smoke's HTTP sign-in is
 # what covers it there.
@@ -127,63 +134,3 @@ jobs:
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
       - name: Set up, sign in and sign out in the app's window
         run: python3 scripts/ci/native_e2e.py /usr/bin/openalgo-desktop
-
-  windows:
-    name: native e2e (windows-2025)
-    needs: source
-    runs-on: windows-2025
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event_name == 'workflow_run' && needs.source.outputs.sha || github.sha }}
-          persist-credentials: false
-      - name: Download the bundles
-        uses: actions/download-artifact@v7
-        with:
-          name: bundles-windows-x86_64
-          path: bundles
-          run-id: ${{ needs.source.outputs.run_id }}
-          github-token: ${{ github.token }}
-      - name: Install silently, per user
-        shell: pwsh
-        run: |
-          $setup = Get-ChildItem bundles/nsis/*.exe
-          if (@($setup).Count -ne 1) { throw "Expected one NSIS installer, found $(@($setup).Count)." }
-          $p = Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "The installer exited with $($p.ExitCode)." }
-          $exe = Get-ChildItem -Path $env:LOCALAPPDATA -Recurse -Filter 'openalgo-desktop.exe' -ErrorAction SilentlyContinue |
-            Select-Object -First 1
-          if (-not $exe) { throw "openalgo-desktop.exe was not found under $env:LOCALAPPDATA after the install." }
-          "APP_EXE=$($exe.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      - name: The Edge WebDriver of the installed WebView2's version
-        # msedgedriver must match the WebView2 runtime the app runs in.
-        shell: pwsh
-        run: |
-          $keys = @(
-            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
-            'HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
-            'HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
-          )
-          $version = $null
-          foreach ($k in $keys) {
-            if (Test-Path $k) { $version = (Get-ItemProperty $k).pv; if ($version) { break } }
-          }
-          if (-not $version) { throw "The WebView2 runtime version was not found in the registry." }
-          Write-Host "WebView2 runtime $version"
-          $dir = Join-Path $env:RUNNER_TEMP 'edgedriver'
-          New-Item -ItemType Directory -Force -Path $dir | Out-Null
-          $zip = Join-Path $dir 'edgedriver.zip'
-          Invoke-WebRequest -Uri "https://msedgedriver.microsoft.com/$version/edgedriver_win64.zip" -OutFile $zip
-          Expand-Archive -Path $zip -DestinationPath $dir -Force
-          $driver = Get-ChildItem -Path $dir -Recurse -Filter 'msedgedriver.exe' | Select-Object -First 1
-          if (-not $driver) { throw "msedgedriver.exe was not in the download." }
-          & $driver.FullName --version
-          # The script attaches it to the app's webview (debuggerAddress):
-          # launched through tauri-driver, the webview never left the port
-          # file msedgedriver waits for.
-          "MSEDGEDRIVER=$($driver.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      - name: Install selenium
-        run: python -m pip install selenium==4.27.1
-      - name: Set up, sign in and sign out in the app's window
-        run: python scripts/ci/native_e2e.py "$APP_EXE"
