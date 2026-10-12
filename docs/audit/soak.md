@@ -9,6 +9,17 @@ cd src-tauri
 cargo test --test it soak -- --ignored --nocapture
 ```
 
+## Results per commit
+
+Every soak run that measured a commit, newest first. A release cites the
+row for its commit (or the nearest earlier one, with the commits between
+named). Each scheduled run uploads its log as the `soak-log` artifact.
+
+| Date | Commit | Where | Session soak (150 cycles) | Feed soak (1000 clients) | Run |
+| --- | --- | --- | --- | --- | --- |
+| 2026-10-11 | `272d460` | CI, ubuntu-22.04, debug build | pass: descriptors 31 -> 30, pool 3 -> 3, RSS 265,180 -> 305,952 KiB (plateau from cycle 40), tasks 21 -> 22 | pass: descriptors 11 -> 11, RSS +2,416 KiB | [38106625181](https://github.com/marketcalls/openalgo-desktop/actions/runs/38106625181) |
+| 2026-10-08 | not recorded | macOS 14 (Apple Silicon), debug build | pass (below) | not recorded | local |
+
 ## Broker session soak (`tests/it/soak.rs`)
 
 One cycle, on the real `AppState`, HTTP server with Socket.IO, and 8765 feed
@@ -45,6 +56,23 @@ the resident set on Linux and Windows and the physical footprint on macOS
 (`proc_pid_rusage`, resident plus compressed): macOS compresses idle pages,
 so its resident set alone falls and rises with no change in use, and an
 earlier run asserting on it failed on that noise.
+
+### 2026-10-11, CI (ubuntu-22.04), debug build, commit 272d460
+
+Scheduled run 38106625181. 150 measured cycles after 10 warm-up cycles,
+334 s.
+
+| Cycle | Descriptors | Pool | RSS (KiB) | Live tasks |
+| --- | --- | --- | --- | --- |
+| 10 | 31 | 3 | 265,180 | 21 |
+| 40 | 31 | 3 | 305,204 | 22 |
+| 80 | 31 | 3 | 305,328 | 22 |
+| 120 | 31 | 3 | 285,920 | 22 |
+| 160 | 30 | 3 | 305,952 | 22 |
+
+Resident memory rose 40 MiB in the first 30 cycles and then held between
+285 and 306 MiB to the end: a plateau, not a line. Descriptors, pool
+connections and live tasks stayed flat.
 
 ### 2026-10-08, macOS 14 (Apple Silicon), debug build
 
