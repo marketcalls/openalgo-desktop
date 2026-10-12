@@ -1140,6 +1140,35 @@ async fn a_stop_that_cannot_read_its_orders_closes_nothing() {
     assert_eq!(sent[1]["quantity"], 3);
 }
 
+/// DB-04: the prune runs when the app starts. It deleted every row older
+/// than 180 days, so a position held that long vanished from the ledger and
+/// Stop had nothing to close. Reopened on the same database, the old
+/// position survives the start-up prune and Stop closes it.
+#[tokio::test]
+async fn an_old_position_survives_the_prune_and_stop_closes_it() {
+    let t = setup().await;
+    let id = t.deploy("SBIN").await;
+    let today = t.h.ctx.now();
+    t.h.clock.set(today - chrono::Duration::days(200));
+    t.fake.fill_at_once.store(true, Ordering::SeqCst);
+    t.start(&id).await;
+    t.buy(&id, 1, 3).await;
+    t.h.ctx.trading.runner.pump_once(&id).await;
+    t.h.clock.set(today);
+
+    // The app restarts 200 days later: its start prunes old rows.
+    let trading = t.restart().await;
+    trading.start(today, &t.h.ctx.sqlite);
+    let runner = trading.runner.clone();
+    runner.start(&id).unwrap();
+    runner.close(&id).await.unwrap();
+    let sent = t.fake.placed_on(RunMode::Sandbox);
+    assert_eq!(sent.len(), 2);
+    assert_eq!(sent[1]["action"], "SELL");
+    assert_eq!(sent[1]["quantity"], 3);
+    trading.shutdown().await;
+}
+
 /// LOG-02 and LOG-03 across a restart: a close left pending (its exit still
 /// open) is in the ledger. If the exit fills while the app is closed, the
 /// next Stop counts that fill and sends no second exit; if it is still open,

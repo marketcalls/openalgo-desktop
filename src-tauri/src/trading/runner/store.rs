@@ -844,13 +844,70 @@ pub fn holdings(orders: &[OrderRow]) -> Vec<Holding> {
     book.into_values().collect()
 }
 
-/// Drop order rows older than the retention.
+/// Drop old order rows, but never an obligation (DB-04).
+///
+/// A deployment's position is what its own rows add up to, so deleting rows
+/// by age alone invents or erases a position: a BUY 100 from 200 days ago
+/// pruned beside a SELL 50 kept from 100 days ago reads as short 50, and Stop
+/// would then buy 50 more. So, for each contract a deployment traded on each
+/// side, only its oldest rows go, and only up to the last point at which every
+/// one of them was finished (filled, cancelled, rejected or expired), older
+/// than the retention, and the contract was flat. A position still held, an
+/// order still working and everything after either stay, so what is left adds
+/// up to exactly what it did before. Read and delete are one immediate
+/// transaction.
 pub fn prune_orders(conn: &Connection, now: DateTime<Utc>) -> Result<usize> {
+    type Key = (String, String, String, String, String);
     let cutoff = (now - chrono::Duration::days(ORDER_RETENTION_DAYS)).to_rfc3339();
-    Ok(conn.execute(
-        "DELETE FROM openscript_orders WHERE placed_at < ?1",
-        params![cutoff],
-    )?)
+    let tx = rusqlite::Transaction::new_unchecked(conn, TransactionBehavior::Immediate)?;
+    let mut groups: BTreeMap<Key, Vec<(i64, i64, bool)>> = BTreeMap::new();
+    {
+        let mut st = tx.prepare(
+            "SELECT id, deployment, mode, symbol, exchange, product, action, filled_quantity,
+                    status, placed_at
+             FROM openscript_orders ORDER BY id",
+        )?;
+        let mut rows = st.query([])?;
+        while let Some(r) = rows.next()? {
+            let key: Key = (r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?);
+            let filled = r.get::<_, i64>(7)?.max(0);
+            let signed = match r.get::<_, String>(6)?.as_str() {
+                "BUY" => filled,
+                "SELL" => -filled,
+                _ => 0,
+            };
+            let status: String = r.get(8)?;
+            let placed_at: String = r.get(9)?;
+            let finished = TERMINAL.contains(&status.as_str()) && placed_at < cutoff;
+            groups
+                .entry(key)
+                .or_default()
+                .push((r.get(0)?, signed, finished));
+        }
+    }
+    let mut gone = Vec::new();
+    for rows in groups.values() {
+        let mut net: i64 = 0;
+        let mut flat_through = 0;
+        for (n, (_, signed, finished)) in rows.iter().enumerate() {
+            if !finished {
+                break;
+            }
+            net = net.saturating_add(*signed);
+            if net == 0 {
+                flat_through = n + 1;
+            }
+        }
+        gone.extend(rows[..flat_through].iter().map(|(id, _, _)| *id));
+    }
+    {
+        let mut del = tx.prepare_cached("DELETE FROM openscript_orders WHERE id = ?1")?;
+        for id in &gone {
+            del.execute(params![id])?;
+        }
+    }
+    tx.commit()?;
+    Ok(gone.len())
 }
 
 #[cfg(test)]
@@ -1080,9 +1137,100 @@ mod tests {
         let rows = orders_of(&c, "d", "live").unwrap();
         assert_eq!(rows[0].orderid.as_deref(), Some("OID1"));
         assert_eq!(rows[0].average_price, Some(101.5));
+        // A filled BUY 5 with nothing after it is a position still held:
+        // however old, it is never pruned (DB-04).
         assert_eq!(
             prune_orders(&c, now() + chrono::Duration::days(181)).unwrap(),
-            1
+            0
         );
+        assert_eq!(orders_of(&c, "d", "live").unwrap().len(), 1);
+    }
+
+    /// One row of deployment `d` on the live side, placed at `at`.
+    fn row(
+        c: &Connection,
+        symbol: &str,
+        action: &str,
+        qty: i64,
+        status: &str,
+        at: DateTime<Utc>,
+    ) -> i64 {
+        let id = insert_order(
+            c,
+            &NewOrder {
+                deployment: "d".into(),
+                mode: "live".into(),
+                symbol: symbol.into(),
+                exchange: "NSE".into(),
+                action: action.into(),
+                quantity: qty,
+                pricetype: "MARKET".into(),
+                product: "MIS".into(),
+                ..Default::default()
+            },
+            at,
+        )
+        .unwrap();
+        placed(c, id, Some(&format!("O{}", id)), "working", None, at).unwrap();
+        let filled = if status == "filled" { qty } else { 0 };
+        progressed(c, id, status, filled, Some(100.0), at).unwrap();
+        id
+    }
+
+    fn held(c: &Connection, symbol: &str) -> i64 {
+        holdings(&orders_of(c, "d", "live").unwrap())
+            .iter()
+            .filter(|h| h.symbol == symbol)
+            .map(|h| h.quantity)
+            .sum()
+    }
+
+    /// DB-04: pruning by age alone once turned a long into a short (a BUY 100
+    /// pruned, the SELL 50 after it kept), so Stop would buy more.
+    #[test]
+    fn pruning_never_removes_what_is_still_held() {
+        let c = db();
+        let ago = |days: i64| now() - chrono::Duration::days(days);
+        // Still long 50: nothing of it goes, however old.
+        row(&c, "SBIN", "BUY", 100, "filled", ago(200));
+        row(&c, "SBIN", "SELL", 50, "filled", ago(100));
+        // An old position never closed stays.
+        row(&c, "INFY", "BUY", 10, "filled", ago(300));
+        // Flat long ago, then a new position: the flat part goes.
+        row(&c, "TCS", "BUY", 5, "filled", ago(250));
+        row(&c, "TCS", "SELL", 5, "filled", ago(240));
+        let tcs_new = row(&c, "TCS", "BUY", 2, "filled", ago(10));
+        // An old order still working stays, and so does everything after it.
+        row(&c, "HDFC", "BUY", 3, "filled", ago(260));
+        row(&c, "HDFC", "SELL", 3, "filled", ago(255));
+        row(&c, "HDFC", "BUY", 7, "working", ago(250));
+        row(&c, "HDFC", "SELL", 0, "rejected", ago(249));
+        // Old and finished, never filled: gone.
+        row(&c, "WIPRO", "BUY", 4, "rejected", ago(200));
+        let before: Vec<i64> = ["SBIN", "INFY", "TCS", "HDFC"]
+            .iter()
+            .map(|s| held(&c, s))
+            .collect();
+
+        assert_eq!(prune_orders(&c, now()).unwrap(), 5);
+        let after: Vec<i64> = ["SBIN", "INFY", "TCS", "HDFC"]
+            .iter()
+            .map(|s| held(&c, s))
+            .collect();
+        assert_eq!(after, before);
+        assert_eq!(after, vec![50, 10, 2, 0]);
+        let left = orders_of(&c, "d", "live").unwrap();
+        assert_eq!(left.iter().filter(|o| o.symbol == "SBIN").count(), 2);
+        assert_eq!(left.iter().filter(|o| o.symbol == "INFY").count(), 1);
+        let tcs: Vec<i64> = left
+            .iter()
+            .filter(|o| o.symbol == "TCS")
+            .map(|o| o.id)
+            .collect();
+        assert_eq!(tcs, vec![tcs_new]);
+        assert_eq!(left.iter().filter(|o| o.symbol == "HDFC").count(), 2);
+        assert!(left.iter().all(|o| o.symbol != "WIPRO"));
+        // Pruning again finds nothing more to remove.
+        assert_eq!(prune_orders(&c, now()).unwrap(), 0);
     }
 }
