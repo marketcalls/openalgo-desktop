@@ -595,38 +595,29 @@ async fn basket_and_close_all_carry_a_lost_answer_as_unknown() {
 }
 
 /// LOG-08 P2-11: a placement with no definite answer has the broker's order
-/// book read for it at once, not at the reconciler's next 5-second tick.
+/// book read for it at once, not at the reconciler's next 5-second tick; a
+/// refusal does not ask for a read.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_lost_answer_has_the_order_book_read_at_once() {
     use openalgo_desktop_lib::brokers::mock::AfterSend;
+    use std::sync::atomic::Ordering;
     let h = H::new().await;
     h.analyze(false);
-    let passes = || {
-        h.ctx
-            .reconciler
-            .stats
-            .passes
-            .load(std::sync::atomic::Ordering::SeqCst)
-    };
-    // The reconciler's own first pass (its first tick) has run.
-    for _ in 0..400 {
-        if passes() > 0 {
-            break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-    }
-    let before = passes();
+    let requested = || h.ctx.reconciler.stats.requested.load(Ordering::SeqCst);
+    let before = requested();
+    h.mock
+        .order_ids
+        .lock()
+        .push_back(Err("RMS: margin exceeds".into()));
+    let (s, _) = call(&h, "/api/v1/placeorder", order_body()).await;
+    assert_eq!(s, 400);
+    assert_eq!(requested(), before, "a refusal needs no read");
     h.mock
         .after_send
         .lock()
         .push_back((AfterSend::Dropped, "open"));
     let (s, _) = call(&h, "/api/v1/placeorder", order_body()).await;
     assert_eq!(s, 500);
-    let mut waited = 0;
-    while passes() == before && waited < 1500 {
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        waited += 10;
-    }
-    assert!(passes() > before, "a pass right after the lost answer");
+    assert_eq!(requested(), before + 1, "a pass is asked for at once");
     h.shutdown().await;
 }
