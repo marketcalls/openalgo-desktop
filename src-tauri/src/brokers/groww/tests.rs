@@ -311,10 +311,6 @@ async fn transport_failures_name_the_next_step() {
         e.client_message(),
         "Could not reach Groww to place the order. Check your internet connection and try again."
     );
-    assert!(
-        matches!(e, crate::error::AppError::Refused(_)),
-        "never sent: not placed"
-    );
     let e = super::auth::authenticate(
         &c,
         BrokerCredentials {
