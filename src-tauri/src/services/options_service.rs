@@ -1662,7 +1662,10 @@ mod tests {
                 "{:?}",
                 bad
             );
-            assert!(!listed_live(bad, "NFO", Utc::now()), "{:?}", bad);
+            // `listed_live` reads the master's DD-MMM-YY, which "30-OCT-26" is.
+            if bad != "30-OCT-26" {
+                assert!(!listed_live(bad, "NFO", Utc::now()), "{:?}", bad);
+            }
         }
         assert_eq!(master_expiry("1\u{e9}ct26"), "1\u{e9}CT26");
         let e = Expiry::parse(" 29feb28 ").unwrap();

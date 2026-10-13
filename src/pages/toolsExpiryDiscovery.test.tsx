@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import axios from 'axios'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import axios from 'axios'
 import type { ComponentType } from 'react'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -255,10 +255,11 @@ describe.each(PAGES)('$name', ({ load, listing, data }) => {
     const lookups = listing.getExpiries.mock.calls.length
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    // The notice leaves while the retry runs; wait for the dates themselves.
+    await waitFor(() => expect(screen.getAllByText(EXPIRY).length).toBeGreaterThan(0))
+    expect(screen.queryByRole('alert')).toBeNull()
     expect(listing.getExpiries.mock.calls.length).toBe(lookups + 1)
     expect(listing.getExpiries).toHaveBeenLastCalledWith('NFO', 'NIFTY')
-    expect(screen.getAllByText(EXPIRY).length).toBeGreaterThan(0)
     if (data) await waitFor(() => expect(data()).toHaveBeenCalled())
   })
 })

@@ -531,6 +531,7 @@ fn query_escape(s: &str) -> String {
 #[tokio::test]
 async fn malformed_expiries_are_refused_before_any_broker_request() {
     use openalgo_desktop_lib::services::apikey_service::ApiKeyService;
+    use openalgo_desktop_lib::services::options_service::Expiry;
     let h = H::new(true);
     let key = ApiKeyService::current(&h.ctx)
         .unwrap()
@@ -565,13 +566,18 @@ async fn malformed_expiries_are_refused_before_any_broker_request() {
             .await;
         assert_eq!(s, StatusCode::BAD_REQUEST, "volsurface {:?}", x);
         assert_eq!(v, bad_format, "volsurface {:?}", x);
-        let (s, v) = h
-            .get(&format!(
-                "/scalping/api/strikes?underlying=NIFTY&exchange=NFO&expiry={}",
-                query_escape(x)
-            ))
-            .await;
-        assert_eq!(s, StatusCode::BAD_REQUEST, "scalping {:?} {}", x, v);
+        // The scalping ladder accepts the web's spellings with `-` or a
+        // space ("30 OCT26" is 30OCT26); anything else is refused.
+        let spelled = x.replace(['-', ' '], "");
+        if Expiry::parse(&spelled).is_none() {
+            let (s, v) = h
+                .get(&format!(
+                    "/scalping/api/strikes?underlying=NIFTY&exchange=NFO&expiry={}",
+                    query_escape(x)
+                ))
+                .await;
+            assert_eq!(s, StatusCode::BAD_REQUEST, "scalping {:?} {}", x, v);
+        }
         // The public API answers as the web does for a date no contract
         // has (its strike lookup comes back empty), without the LTP fetch
         // the web makes first.
