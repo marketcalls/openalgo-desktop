@@ -207,7 +207,7 @@ export default function TradeBook() {
 
   // Refresh on order events instead of polling
   useOrderEventRefresh(fetchTrades, {
-    events: ['order_event', 'analyzer_update'],
+    events: ['order_event', 'analyzer_update', 'order_update'],
   })
 
   // Listen for mode changes (live/analyze) and refresh data

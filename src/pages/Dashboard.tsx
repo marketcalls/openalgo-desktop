@@ -111,7 +111,7 @@ export default function Dashboard() {
 
   // Refresh funds when an order is placed (via SocketIO event)
   useOrderEventRefresh(fetchFundsData, {
-    events: ['order_event', 'analyzer_update', 'close_position_event'],
+    events: ['order_event', 'analyzer_update', 'close_position_event', 'order_update'],
   })
 
   // Listen for mode changes and refresh data

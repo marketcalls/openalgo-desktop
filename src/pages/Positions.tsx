@@ -249,7 +249,7 @@ export default function Positions() {
 
   // Refresh on order events instead of polling
   useOrderEventRefresh(fetchPositions, {
-    events: ['order_event', 'analyzer_update', 'close_position_event'],
+    events: ['order_event', 'analyzer_update', 'close_position_event', 'order_update'],
   })
 
   // Refresh data when tab becomes visible after being hidden

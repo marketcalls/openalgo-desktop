@@ -158,6 +158,7 @@ export function StrategyBooks({ deployment, revision = 0 }: Props) {
       'close_position_event',
       'cancel_order_event',
       'modify_order_event',
+      'order_update',
       // Where orders go changes what book they are in, so the books are read
       // again rather than left showing the other destination's.
       'analyzer_update',

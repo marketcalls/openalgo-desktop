@@ -47,7 +47,10 @@ vi.mock('@/hooks/useLivePrice', () => ({
   }),
 }))
 
-vi.mock('@/hooks/useOrderEventRefresh', () => ({ useOrderEventRefresh: () => {} }))
+const eventRefresh = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/useOrderEventRefresh', () => ({
+  useOrderEventRefresh: (...args: unknown[]) => eventRefresh(...args),
+}))
 vi.mock('@/hooks/usePageVisibility', () => ({
   usePageVisibility: () => ({ isVisible: true, wasHidden: false, timeSinceHidden: 0 }),
 }))
@@ -88,6 +91,14 @@ describe('Positions close button', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+  })
+
+  it("refreshes on the broker's later status for a resting order (order_update)", async () => {
+    await renderPositions([OPEN_POSITION])
+    expect(eventRefresh).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ events: expect.arrayContaining(['order_update']) })
+    )
   })
 
   it('offers Close on a position that is still open', async () => {

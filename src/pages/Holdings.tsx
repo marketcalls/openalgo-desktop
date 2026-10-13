@@ -133,7 +133,7 @@ export default function Holdings() {
 
   // Refresh on order events instead of polling
   useOrderEventRefresh(fetchHoldings, {
-    events: ['order_event', 'analyzer_update'],
+    events: ['order_event', 'analyzer_update', 'order_update'],
   })
 
   // Refresh data when tab becomes visible after being hidden

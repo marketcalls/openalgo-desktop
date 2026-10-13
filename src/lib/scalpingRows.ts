@@ -29,6 +29,17 @@ interface Agg {
 
 const keyOf = (s: string, e: string, p: string) => `${e}:${s}:${p}`
 
+// Order/position events that should refresh the books (event-driven, no polling).
+export const BOOK_EVENTS = [
+  'order_event',
+  'analyzer_update',
+  'close_position_event',
+  'cancel_order_event',
+  'modify_order_event',
+  // The broker's later status for a resting order (filled, rejected, cancelled).
+  'order_update',
+] as const
+
 export function buildPositionRows(
   positions: Position[],
   trades: Trade[],

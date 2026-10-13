@@ -30,7 +30,7 @@ import { useMarketData } from '@/hooks/useMarketData'
 import { useOrderEventRefresh } from '@/hooks/useOrderEventRefresh'
 import { findLegSL, type SLState, useTrailingSL } from '@/hooks/useTrailingSL'
 import { priceDecimals } from '@/lib/scalpingPrice'
-import { buildPositionRows } from '@/lib/scalpingRows'
+import { BOOK_EVENTS, buildPositionRows } from '@/lib/scalpingRows'
 import { mergeTick, type TickView } from '@/lib/scalpingTick'
 import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
@@ -83,15 +83,6 @@ const isTodayTs = (ts?: string): boolean => {
   if (Number.isNaN(d.getTime())) return true
   return d.toLocaleDateString('en-CA') === todayKey
 }
-
-// Order/position events that should refresh the books (event-driven, no polling).
-const BOOK_EVENTS = [
-  'order_event',
-  'analyzer_update',
-  'close_position_event',
-  'cancel_order_event',
-  'modify_order_event',
-] as const
 
 // A WebSocket tick considered stale after this -> fall back to MultiQuotes.
 const TICK_STALE_MS = 5000

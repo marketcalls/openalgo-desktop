@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Position, Trade } from '@/types/trading'
-import { buildPositionRows } from './scalpingRows'
+import { BOOK_EVENTS, buildPositionRows } from './scalpingRows'
 
 const SYM = 'NIFTY16JUN2623600CE'
 
@@ -123,5 +123,11 @@ describe('buildPositionRows', () => {
     expect(r.unrealizedPnl).toBe((110.25 - 90.5) * 65)
     expect(() => r.avgPrice.toFixed(2)).not.toThrow()
     expect(r.avgPrice.toFixed(2)).toBe('90.50')
+  })
+})
+
+describe('BOOK_EVENTS', () => {
+  it("includes the broker's later status for a resting order, so a fill or a rejection refreshes the books", () => {
+    expect(BOOK_EVENTS).toContain('order_update')
   })
 })

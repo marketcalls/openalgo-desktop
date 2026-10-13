@@ -73,6 +73,7 @@ const ORDER_BOOK_EVENTS: OrderEventType[] = [
   'analyzer_update',
   'cancel_order_event',
   'modify_order_event',
+  'order_update',
 ]
 
 /**

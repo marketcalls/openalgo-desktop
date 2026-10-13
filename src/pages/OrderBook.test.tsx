@@ -24,7 +24,10 @@ vi.mock('@/stores/authStore', () => ({
   useAuthStore: () => ({ apiKey: 'test-api-key', user: { broker: 'zerodha' } }),
 }))
 vi.mock('@/stores/themeStore', () => ({ onModeChange: () => () => {} }))
-vi.mock('@/hooks/useOrderEventRefresh', () => ({ useOrderEventRefresh: () => {} }))
+const eventRefresh = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/useOrderEventRefresh', () => ({
+  useOrderEventRefresh: (...args: unknown[]) => eventRefresh(...args),
+}))
 vi.mock('@/hooks/useSupportedExchanges', () => ({
   useSupportedExchanges: () => ({ isCrypto: false }),
 }))
@@ -89,6 +92,14 @@ describe('Order book', () => {
     mocks.cancelOrder.mockResolvedValue({ status: 'success' })
     mocks.cancelAllOrders.mockResolvedValue({ status: 'success', message: 'All orders cancelled' })
     mocks.modifyOrder.mockResolvedValue({ status: 'success' })
+  })
+
+  it("refreshes on the broker's later status for a resting order (order_update)", async () => {
+    await renderBook([OPEN_LIMIT])
+    expect(eventRefresh).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ events: expect.arrayContaining(['order_update']) })
+    )
   })
 
   it('offers Cancel and Modify on open orders only', async () => {

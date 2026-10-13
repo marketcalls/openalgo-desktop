@@ -40,6 +40,7 @@ const BOOK_EVENTS: OrderEventType[] = [
   'close_position_event',
   'cancel_order_event',
   'modify_order_event',
+  'order_update',
 ]
 
 /**

@@ -13,6 +13,10 @@ export type OrderEventType =
   | 'modify_order_event'
   // Pushed by the server-side scalping risk monitor when it trails/clears an SL.
   | 'scalping_sl_update'
+  // Pushed when the broker reports an order's status after it was placed: a
+  // resting order filled, was rejected at the exchange, or was cancelled
+  // outside OpenAlgo. None of the events above fire for those.
+  | 'order_update'
 
 /**
  * Configuration options for useOrderEventRefresh hook
@@ -24,6 +28,11 @@ export interface UseOrderEventRefreshOptions {
   delay?: number
   /** Whether the hook is enabled (default: true) */
   enabled?: boolean
+  /**
+   * Refresh once when the connection comes back after a drop (default: true).
+   * Events sent while it was down are lost, so the page reads its data again.
+   */
+  refreshOnReconnect?: boolean
 }
 
 /**
@@ -57,7 +66,12 @@ export function useOrderEventRefresh(
   refreshFn: () => void,
   options: UseOrderEventRefreshOptions = {}
 ): void {
-  const { events = ['order_event', 'analyzer_update'], delay = 500, enabled = true } = options
+  const {
+    events = ['order_event', 'analyzer_update'],
+    delay = 500,
+    enabled = true,
+    refreshOnReconnect = true,
+  } = options
 
   const refreshFnRef = useRef(refreshFn)
   const eventsRef = useRef(events)
@@ -82,23 +96,35 @@ export function useOrderEventRefresh(
   useEffect(() => {
     if (!enabled || !socket) return
 
+    // One refresh pending at a time, after a short delay that lets the server
+    // finish persisting. A burst of events (a basket's legs, each status of one
+    // order) collapses into a single refetch; an event after it fired schedules
+    // the next one.
+    let timer: ReturnType<typeof setTimeout> | null = null
     const handleEvent = () => {
-      // Delay slightly to allow server to process the event
-      setTimeout(() => refreshFnRef.current(), delay)
+      if (timer !== null) return
+      timer = setTimeout(() => {
+        timer = null
+        refreshFnRef.current()
+      }, delay)
     }
 
     const subscribed = eventsRef.current
     subscribed.forEach((event) => {
       socket.on(event, handleEvent)
     })
+    // 'connect' fires again on every reconnect.
+    if (refreshOnReconnect) socket.on('connect', handleEvent)
 
     // Only remove OUR listeners — never disconnect the shared connection.
     return () => {
       subscribed.forEach((event) => {
         socket.off(event, handleEvent)
       })
+      if (refreshOnReconnect) socket.off('connect', handleEvent)
+      if (timer !== null) clearTimeout(timer)
     }
-  }, [socket, eventsKey, delay, enabled])
+  }, [socket, eventsKey, delay, enabled, refreshOnReconnect])
 }
 
 /**

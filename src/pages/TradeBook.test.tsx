@@ -14,7 +14,10 @@ vi.mock('@/stores/authStore', () => ({
   useAuthStore: () => ({ apiKey: 'test-api-key', user: { broker: 'zerodha' } }),
 }))
 vi.mock('@/stores/themeStore', () => ({ onModeChange: () => () => {} }))
-vi.mock('@/hooks/useOrderEventRefresh', () => ({ useOrderEventRefresh: () => {} }))
+const eventRefresh = vi.hoisted(() => vi.fn())
+vi.mock('@/hooks/useOrderEventRefresh', () => ({
+  useOrderEventRefresh: (...args: unknown[]) => eventRefresh(...args),
+}))
 vi.mock('@/hooks/useSupportedExchanges', () => ({
   useSupportedExchanges: () => ({ isCrypto: false }),
 }))
@@ -54,6 +57,16 @@ function count(label: string): string {
 describe('Trade book', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it("refreshes on the broker's later status for a resting order (order_update)", async () => {
+    mocks.getTrades.mockResolvedValue({ status: 'success', data: TRADES })
+    render(<TradeBook />)
+    await screen.findByText('RELIANCE')
+    expect(eventRefresh).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ events: expect.arrayContaining(['order_update']) })
+    )
   })
 
   it('lists the fills and counts buys and sells', async () => {
