@@ -297,9 +297,9 @@ async fn pacing_refusals_pass_through_orders_and_data() {
     held.iter().for_each(|h| h.abort());
 }
 
-/// A call that fails in transit: an order call says to check the order
-/// book before retrying (the order may have reached Groww), a login says
-/// Groww could not be reached.
+/// A call whose connection never opened: an order call was not sent, so it
+/// says to check the connection and try again; a login says Groww could not
+/// be reached.
 #[tokio::test]
 async fn transport_failures_name_the_next_step() {
     // Port 9 on loopback is closed: every call fails in transit.
@@ -309,7 +309,11 @@ async fn transport_failures_name_the_next_step() {
     let e = super::orders::place_order(&c, &auth, &o).await.unwrap_err();
     assert_eq!(
         e.client_message(),
-        "Could not reach Groww to place the order. Check the order book before retrying."
+        "Could not reach Groww to place the order. Check your internet connection and try again."
+    );
+    assert!(
+        matches!(e, crate::error::AppError::Refused(_)),
+        "never sent: not placed"
     );
     let e = super::auth::authenticate(
         &c,

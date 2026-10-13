@@ -15,7 +15,9 @@ use openalgo_desktop_lib::clock::Clock;
 use openalgo_desktop_lib::clock::ManualClock;
 use openalgo_desktop_lib::db::sqlite::SqliteDb;
 use openalgo_desktop_lib::events::subscribers::socketio::UiEmitter;
-use openalgo_desktop_lib::scalping::monitor::{chunks, MonitorDeps, RiskMonitor};
+use openalgo_desktop_lib::scalping::monitor::{
+    chunks, MonitorDeps, RiskMonitor, BOOK_LAG_GRACE_MS,
+};
 use openalgo_desktop_lib::scalping::store::{SlUpsert, Store};
 use openalgo_desktop_lib::services::order_reconciler::BookSnapshot;
 use openalgo_desktop_lib::strategy::dispatch::{
@@ -1245,7 +1247,127 @@ async fn an_already_flat_leg_is_cleared_without_an_order() {
     m.mon.process_tick(OPT, "NFO", 90.0).await;
     m.mon.wait_idle().await;
     assert!(m.gw.placed.lock().is_empty());
+    assert_eq!(
+        m.mon.leg_count(),
+        1,
+        "one zero read is not proof (review P1-4)"
+    );
+    // Zero for as long as the book can lag an entry: flat.
+    m.clock
+        .advance(chrono::Duration::milliseconds(BOOK_LAG_GRACE_MS + 1000));
+    m.mon.process_tick(OPT, "NFO", 89.0).await;
+    m.mon.wait_idle().await;
+    assert!(m.gw.placed.lock().is_empty());
     assert_eq!(m.mon.leg_count(), 0);
+}
+
+/// Review P1-4: right after an entry the position book can still show an
+/// earlier, closed row of the same contract at zero. A breach then sends
+/// nothing and keeps the stop; when the book catches up, the exit goes out.
+#[tokio::test]
+async fn a_stale_zero_row_right_after_entry_keeps_protection() {
+    let m = monitor();
+    *m.gw.net.lock() = 0;
+    m.store.upsert_sl(&leg("live")).unwrap();
+    m.mon.sync().await;
+    m.mon.process_tick(OPT, "NFO", 90.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.mon.leg_count(), 1, "not cleared on a stale zero");
+    assert!(!cleared(&m));
+    // A few seconds on, the book shows the new position.
+    *m.gw.net.lock() = 65;
+    m.clock.advance(chrono::Duration::seconds(4));
+    m.mon.process_tick(OPT, "NFO", 89.0).await;
+    m.mon.wait_idle().await;
+    let placed = m.gw.placed.lock().clone();
+    assert_eq!(placed.len(), 1);
+    assert_eq!(placed[0].1.quantity, 65);
+}
+
+/// Review P2-5: an exit order is written before it is sent, so quitting
+/// while it is in flight leaves it unconfirmed on the stop's row. After a
+/// restart it is looked up in the book, never sent again blindly.
+#[tokio::test]
+async fn quitting_while_an_exit_is_in_flight_never_sends_it_again() {
+    let m = monitor();
+    m.store.upsert_sl(&leg("live")).unwrap();
+    m.mon.sync().await;
+    *m.gw.delay_ms.lock() = 5_000;
+    m.mon.process_tick(OPT, "NFO", 94.0).await;
+    // The exit is in flight at the broker when the app quits.
+    for _ in 0..200 {
+        let pending = m
+            .mon
+            .exit_attempt("live", OPT, "NFO", "MIS")
+            .is_some_and(|a| !a.children.is_empty());
+        if pending {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    m.mon.stop().await;
+    *m.gw.delay_ms.lock() = 0;
+    // Started again from the rows.
+    m.mon.sync().await;
+    let a = m.mon.exit_attempt("live", OPT, "NFO", "MIS").unwrap();
+    assert_eq!(a.children.len(), 1, "{:?}", a);
+    assert_eq!(a.children[0].qty, 65);
+    m.clock.advance(chrono::Duration::seconds(10));
+    m.mon.process_tick(OPT, "NFO", 93.0).await;
+    m.mon.wait_idle().await;
+    assert!(
+        m.gw.placed.lock().is_empty(),
+        "never sent again while its outcome is unknown"
+    );
+}
+
+/// Review P1-5: an exit the broker accepted that its order book no longer
+/// shows is never left working silently: in Live it is held for the trader
+/// and alerted, and marking it not placed lets the stop exit again.
+#[tokio::test]
+async fn an_accepted_exit_the_book_no_longer_shows_is_held_for_the_trader() {
+    use openalgo_desktop_lib::services::order_reconciler::{ABSENT_READS, ABSENT_SPAN_SECS};
+    let m = monitor();
+    m.store.upsert_sl(&leg("live")).unwrap();
+    m.mon.sync().await;
+    m.mon.process_tick(OPT, "NFO", 94.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.gw.placed.lock().len(), 1);
+    let start = m.clock.now();
+    for i in 0..=ABSENT_READS {
+        let at = start + chrono::Duration::seconds(i64::from(i) * ABSENT_SPAN_SECS);
+        m.mon.reconcile_book(RunMode::Live, &book(vec![], at)).await;
+    }
+    let held = m.mon.held_orders();
+    assert_eq!(held.len(), 1, "held for the trader");
+    assert!(held[0].message.contains("X1"), "{}", held[0].message);
+    assert_eq!(m.mon.confirm_not_placed(&held[0].id).await, Ok(true));
+    m.clock.advance(chrono::Duration::seconds(10));
+    m.mon.process_tick(OPT, "NFO", 93.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.gw.placed.lock().len(), 2, "the stop exits again");
+}
+
+/// Review P1-5: exit orders from an earlier trading session cannot still
+/// be working. On start they are ended, and the stop protects the position
+/// again instead of waiting on them forever.
+#[tokio::test]
+async fn exit_orders_from_an_earlier_session_are_ended_on_start() {
+    let m = monitor();
+    m.store.upsert_sl(&leg("live")).unwrap();
+    m.mon.sync().await;
+    m.mon.process_tick(OPT, "NFO", 94.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.gw.placed.lock().len(), 1);
+    // The app is closed overnight; the order expired with the session.
+    m.mon.stop().await;
+    m.clock.advance(chrono::Duration::days(1));
+    m.mon.sync().await;
+    let a = m.mon.exit_attempt("live", OPT, "NFO", "MIS").unwrap();
+    assert!(a.children.iter().all(|c| c.terminal()), "{:?}", a);
+    m.mon.process_tick(OPT, "NFO", 93.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.gw.placed.lock().len(), 2, "protected again");
 }
 
 /// Monitor fail-open review, 1: a position book without the leg's row
@@ -1381,9 +1503,9 @@ async fn a_split_exit_stops_at_the_first_order_it_cannot_save() {
     m.db.conn()
         .unwrap()
         .execute_batch(
-            "CREATE TRIGGER no_child BEFORE UPDATE OF exit_attempt ON scalping_sl_state
-             WHEN NEW.exit_attempt LIKE '%order_id%'
-             BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END;",
+            r#"CREATE TRIGGER no_child BEFORE UPDATE OF exit_attempt ON scalping_sl_state
+             WHEN NEW.exit_attempt LIKE '%"order_id":"%'
+             BEGIN SELECT RAISE(ABORT, 'disk I/O error'); END;"#,
         )
         .unwrap();
     m.mon.process_tick(OPT, "NFO", 90.0).await;
@@ -1455,7 +1577,9 @@ async fn a_live_unconfirmed_exit_absent_from_the_book_is_held_for_the_trader() {
 #[tokio::test]
 async fn a_reconcile_pass_never_drops_orders_an_exit_sent_meanwhile() {
     use openalgo_desktop_lib::scalping::monitor::ScalpingOrders;
-    use openalgo_desktop_lib::services::order_reconciler::{ABSENT_READS, ABSENT_SPAN_SECS};
+    use openalgo_desktop_lib::services::order_reconciler::{
+        ABSENT_READS, ABSENT_SPAN_SECS, LIVE_RELEASE_SECS,
+    };
     let m = monitor();
     *m.gw.net.lock() = 3705;
     let mut l = leg("live");
@@ -1485,8 +1609,8 @@ async fn a_reconcile_pass_never_drops_orders_an_exit_sent_meanwhile() {
         let at = start + chrono::Duration::seconds(i64::from(i) * ABSENT_SPAN_SECS);
         m.mon.reconcile_book(RunMode::Live, &book(vec![], at)).await;
     }
-    // A pass that reads the trade book for it and waits at the broker,
-    // while X2 is partly filled.
+    // Ten minutes on, a pass reads the trade book for it (the automatic
+    // release check) and waits at the broker, while X2 is partly filled.
     let gate = Arc::new(tokio::sync::Notify::new());
     *m.gw.trades_gate.lock() = Some(gate.clone());
     let mut partly = book(
@@ -1495,7 +1619,7 @@ async fn a_reconcile_pass_never_drops_orders_an_exit_sent_meanwhile() {
             "quantity": 1755, "product": "MIS", "order_status": "open",
             "filled_quantity": 1000, "average_price": 94.5, "timestamp": "2026-10-05 10:30:05",
         })],
-        start + chrono::Duration::seconds(200),
+        start + chrono::Duration::seconds(LIVE_RELEASE_SECS + 1),
     )
     .with_source(m.gw.clone(), RunMode::Live);
     partly.owners = vec![Arc::new(ScalpingOrders(Arc::downgrade(&m.mon)))];
@@ -1507,6 +1631,9 @@ async fn a_reconcile_pass_never_drops_orders_an_exit_sent_meanwhile() {
     m.mon.process_tick(OPT, "NFO", 89.0).await;
     m.mon.wait_idle().await;
     assert_eq!(m.gw.placed.lock().len(), 4);
+    // X2's 1000 shows in the position: the unconfirmed order is not
+    // released (the position is not what it was before sending).
+    *m.gw.net.lock() = 2705;
     *m.gw.trades_gate.lock() = None;
     gate.notify_one();
     pass.await.unwrap();

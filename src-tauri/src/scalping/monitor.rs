@@ -157,6 +157,27 @@ pub fn chunks(quantity: i64, chunk: Option<i64>) -> Vec<i64> {
     }
 }
 
+/// When the current trading session began: the 03:00 IST boundary at or
+/// before `now`.
+pub fn session_start(now: DateTime<Utc>) -> DateTime<Utc> {
+    use chrono::TimeZone;
+    let ist = now.with_timezone(&chrono_tz::Asia::Kolkata);
+    let boundary = |d: chrono::NaiveDate| {
+        chrono_tz::Asia::Kolkata
+            .from_local_datetime(&d.and_hms_opt(3, 0, 0).unwrap_or_default())
+            .single()
+            .map(|t| t.with_timezone(&Utc))
+    };
+    let today = ist.date_naive();
+    match boundary(today) {
+        Some(b) if now >= b => b,
+        _ => today
+            .pred_opt()
+            .and_then(boundary)
+            .unwrap_or(now - chrono::Duration::days(1)),
+    }
+}
+
 /// What a position book says about one leg.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LegPosition {
@@ -280,6 +301,11 @@ pub struct ExitChild {
     pub filled: i64,
     pub state: ChildState,
     pub placed_at: DateTime<Utc>,
+    /// The leg's signed net position just before this order was sent: a
+    /// Live absence is released without the trader only while the broker
+    /// still shows exactly this (review P1-2).
+    #[serde(default)]
+    pub net_before: Option<i64>,
 }
 
 impl ExitChild {
@@ -388,6 +414,10 @@ struct Inner {
     broken: HashSet<String>,
     /// Alerts already raised, per leg and reason (once each).
     alerted: HashSet<String>,
+    /// When a leg with no exit orders first read as a zero row: a fresh
+    /// entry's row can lag the book, so zero is flat only after
+    /// BOOK_LAG_GRACE_MS of zero reads (review P1-4).
+    zero_since: HashMap<String, DateTime<Utc>>,
 }
 
 impl Inner {
@@ -405,6 +435,7 @@ impl Inner {
         self.last_persist.retain(|k, _| keys.contains(k));
         self.last_emit.retain(|k, _| keys.contains(k));
         self.broken.retain(|k| keys.contains(k));
+        self.zero_since.retain(|k, _| keys.contains(k));
         self.alerted
             .retain(|k| keys.contains(k.split('|').next().unwrap_or_default()));
     }
@@ -741,8 +772,28 @@ impl RiskMonitor {
                             inner.broken.remove(&key);
                         }
                         Some(t) => match serde_json::from_str::<ExitAttempt>(t) {
-                            Ok(a) => {
+                            Ok(mut a) => {
                                 inner.broken.remove(&key);
+                                // A day order from an earlier session cannot
+                                // still be working (review P1-5).
+                                let since = session_start(self.clock.now());
+                                let mut ended = false;
+                                for c in a.children.iter_mut().filter(|c| !c.terminal()) {
+                                    if c.placed_at < since {
+                                        c.state = ChildState::Dead;
+                                        ended = true;
+                                    }
+                                }
+                                if ended {
+                                    tracing::warn!(
+                                        "Scalping exit orders for {} from an earlier session were ended",
+                                        sl.symbol
+                                    );
+                                    if !a.working() && a.settled_at.is_none() {
+                                        a.settled_at = Some(self.clock.now());
+                                    }
+                                    self.persist_attempt(sl.id, &a);
+                                }
                                 inner.attempts.insert(key.clone(), a);
                             }
                             Err(e) => {
@@ -985,6 +1036,24 @@ impl RiskMonitor {
             Ok(r) => r,
             Err(msg) => return ExitOutcome::Refused(msg),
         };
+        // A zero row with no exit orders of this leg: flat only once the
+        // book has shown zero for BOOK_LAG_GRACE_MS. Right after an entry
+        // the book can still carry an earlier, closed row of the same
+        // contract at zero (review P1-4).
+        if pos == LegPosition::Net(0) && known.is_none() {
+            let now = self.clock.now();
+            let first = *self
+                .inner
+                .lock()
+                .zero_since
+                .entry(key.to_string())
+                .or_insert(now);
+            if (now - first).num_milliseconds() < BOOK_LAG_GRACE_MS {
+                return ExitOutcome::Waiting;
+            }
+        } else {
+            self.inner.lock().zero_since.remove(key);
+        }
         let net = match flat {
             Flatness::Open(n) => n,
             Flatness::Flat => 0,
@@ -1069,24 +1138,6 @@ impl RiskMonitor {
             children: Vec::new(),
             settled_at: None,
         });
-        // Saved before anything is sent: an exit whose orders could not be
-        // remembered across a restart is never started (fail closed).
-        let (_, saved) = self.update_attempt(key, sl.id, |slot| {
-            if slot.as_ref().map(|c| c.id.as_str()) != Some(a.id.as_str()) {
-                *slot = Some(a.clone());
-            }
-        });
-        if !saved {
-            self.alert_once(
-                key,
-                "persist",
-                format!(
-                    "Scalping stop for {}: its exit could not be saved, so no exit order was sent. The stop stays; check the disk and the app's data folder, then try again.",
-                    sl.symbol
-                ),
-            );
-            return ExitOutcome::Refused("The exit could not be saved before sending".into());
-        }
         let mut refused: Option<String> = None;
         let (mut accepted, mut unconfirmed) = (0usize, 0usize);
         let parts = chunks(qty, chunk);
@@ -1101,43 +1152,114 @@ impl RiskMonitor {
                 pricetype: "MARKET".into(),
                 strategy: SCALPING_STRATEGY.into(),
             };
-            let r = self.gateway.place(mode, &order).await;
-            let state = if r.ok {
-                accepted += 1;
-                ChildState::Working
-            } else if r.uncertain {
-                // It may be at the broker: recorded, never sent again until
-                // the order reconciler settles it (LOG-08).
-                unconfirmed += 1;
-                ChildState::Unconfirmed
-            } else {
-                refused = Some(
-                    r.error
-                        .unwrap_or_else(|| "The exit order was rejected".into()),
-                );
-                break;
-            };
-            let child = ExitChild {
-                order_id: r.broker_order_id.filter(|i| !i.is_empty()),
-                client_tag: r.client_tag,
+            // Written before it is sent, as an order with no answer yet: a
+            // quit or crash while it is in flight leaves it unconfirmed and
+            // looked up in the book, never forgotten and sent again
+            // (review P2-5).
+            let pending = ExitChild {
+                order_id: None,
+                client_tag: None,
                 action: action.to_string(),
                 qty: q,
                 filled: 0,
-                state,
+                state: ChildState::Unconfirmed,
                 placed_at: self.clock.now(),
+                net_before: Some(net),
             };
-            a.children.push(child.clone());
+            a.children.push(pending.clone());
             a.settled_at = None;
-            // Every order sent is remembered before the next goes out, added
-            // to the attempt as it stands now (a reconcile pass may have
-            // folded fills into it meanwhile).
+            let idx = a.children.len() - 1;
             let (_, saved) = self.update_attempt(key, sl.id, |slot| match slot {
                 Some(c) if c.id == a.id => {
-                    c.children.push(child);
+                    c.children.push(pending);
                     c.settled_at = None;
                 }
                 _ => *slot = Some(a.clone()),
             });
+            if !saved {
+                // Not sent: it could not be remembered.
+                a.children.pop();
+                self.update_attempt(key, sl.id, |slot| {
+                    if let Some(c) = slot.as_mut().filter(|c| c.id == a.id) {
+                        if c.children.len() == idx + 1 && c.children[idx].order_id.is_none() {
+                            c.children.pop();
+                        }
+                    }
+                });
+                self.alert_once(
+                    key,
+                    "persist",
+                    format!(
+                        "Scalping stop for {}: its exit could not be saved, so {} was not sent. The stop stays; check the disk and the app's data folder, then check the order book at the broker.",
+                        sl.symbol,
+                        if i == 0 { "it" } else { "the rest of it" }
+                    ),
+                );
+                refused = Some("The exit could not be saved before sending".into());
+                break;
+            }
+            let r = self.gateway.place(mode, &order).await;
+            let state = if r.ok {
+                accepted += 1;
+                Some(ChildState::Working)
+            } else if r.uncertain {
+                // It may be at the broker: it stays unconfirmed, never sent
+                // again until the order reconciler settles it (LOG-08).
+                unconfirmed += 1;
+                Some(ChildState::Unconfirmed)
+            } else {
+                None
+            };
+            let order_id = r.broker_order_id.clone().filter(|i| !i.is_empty());
+            let tag = r.client_tag.clone();
+            // The answer goes onto that order, as it stands now (a reconcile
+            // pass may already have found it in the book).
+            let apply = |ch: &mut ExitChild| {
+                let Some(st) = state else {
+                    return;
+                };
+                if ch.order_id.is_none() {
+                    ch.order_id = order_id.clone();
+                }
+                if ch.client_tag.is_none() {
+                    ch.client_tag = tag.clone();
+                }
+                if ch.state == ChildState::Unconfirmed && ch.order_id.is_some() {
+                    ch.state = st;
+                }
+            };
+            let (_, saved) = self.update_attempt(key, sl.id, |slot| {
+                if let Some(c) = slot.as_mut().filter(|c| c.id == a.id) {
+                    match state {
+                        // A definite refusal never reached the broker.
+                        None => {
+                            if c.children.len() == idx + 1 && c.children[idx].order_id.is_none() {
+                                c.children.pop();
+                            }
+                        }
+                        Some(_) => {
+                            if let Some(ch) = c.children.get_mut(idx) {
+                                apply(ch);
+                            }
+                        }
+                    }
+                }
+            });
+            match state {
+                None => {
+                    a.children.pop();
+                    refused = Some(
+                        r.error
+                            .unwrap_or_else(|| "The exit order was rejected".into()),
+                    );
+                    break;
+                }
+                Some(_) => {
+                    if let Some(ch) = a.children.get_mut(idx) {
+                        apply(ch);
+                    }
+                }
+            }
             if !saved {
                 // The orders already sent are followed in memory; no more
                 // are sent while they cannot be saved.
@@ -1307,16 +1429,62 @@ impl RiskMonitor {
                 continue;
             }
             let mut changed = false;
+            let mut touched: Vec<usize> = Vec::new();
             for (i, child) in a.children.iter_mut().enumerate() {
                 if child.terminal() {
                     continue;
                 }
                 match (child.state, child.order_id.clone()) {
                     (ChildState::Working, Some(id)) => {
+                        let akey = format!("{}#{}#{}", key, a.id, i);
                         if let Some(b) = book.by_id(&id) {
+                            self.absence.forget(&akey);
                             let before = child.clone();
                             fold_child(child, b);
-                            changed |= *child != before;
+                            if *child != before {
+                                changed = true;
+                                touched.push(i);
+                            }
+                            continue;
+                        }
+                        // Accepted, and the book no longer shows it (a day
+                        // order past the session, a book that dropped it):
+                        // never left working silently (review P1-5).
+                        live.insert(akey.clone());
+                        let u = Unconfirmed {
+                            symbol: &sl.symbol,
+                            exchange: &sl.exchange,
+                            action: &child.action,
+                            quantity: child.qty,
+                            product: Some(&sl.product),
+                            client_tag: child.client_tag.as_deref(),
+                            placed_at: Some(child.placed_at),
+                            net_before: child.net_before,
+                        };
+                        match self.absence.judge(&akey, &akey, mode, book, &u).await {
+                            Absence::NotPlaced => {
+                                self.absence.forget(&akey);
+                                tracing::warn!(
+                                    "Scalping exit order {} for {} is no longer in the broker's books; it ended",
+                                    id,
+                                    sl.symbol
+                                );
+                                child.state = ChildState::Dead;
+                                changed = true;
+                                touched.push(i);
+                            }
+                            Absence::Wait => {}
+                            Absence::Hold { alert } => {
+                                unresolved += 1;
+                                if alert {
+                                    let msg = format!(
+                                        "Scalping stop for {}: exit order {} ({} {}) was accepted, but the broker's order book no longer shows it. It is not sent again. Check the order book and trade book; if it is not there, mark it as not placed on the Health page to resume protection.",
+                                        sl.symbol, id, child.action, child.qty
+                                    );
+                                    self.absence.describe(&akey, &msg);
+                                    book.alert_held(msg);
+                                }
+                            }
                         }
                     }
                     _ => {
@@ -1330,6 +1498,7 @@ impl RiskMonitor {
                             product: Some(&sl.product),
                             client_tag: child.client_tag.as_deref(),
                             placed_at: Some(child.placed_at),
+                            net_before: child.net_before,
                         };
                         let bound = |id: &str| claimed.contains(id) || book.owned(id);
                         match find_placed(&book.rows, &u, &bound) {
@@ -1339,6 +1508,7 @@ impl RiskMonitor {
                                 child.order_id = Some(b.order_id.clone());
                                 fold_child(child, b);
                                 changed = true;
+                                touched.push(i);
                             }
                             Found::Absent => {
                                 match self.absence.judge(&akey, &akey, mode, book, &u).await {
@@ -1350,6 +1520,7 @@ impl RiskMonitor {
                                         );
                                         child.state = ChildState::Dead;
                                         changed = true;
+                                        touched.push(i);
                                     }
                                     Absence::Wait => unresolved += 1,
                                     Absence::Hold { alert } => {
@@ -1394,8 +1565,12 @@ impl RiskMonitor {
             // exit may have added orders since the snapshot (they are kept).
             let (now_attempt, _) = self.update_attempt(&key, sl.id, |slot| {
                 if let Some(c) = slot.as_mut().filter(|c| c.id == a.id) {
-                    for (i, folded) in a.children.iter().enumerate() {
-                        if let Some(cur) = c.children.get_mut(i) {
+                    // Only the orders this pass learned about: an exit may
+                    // have recorded answers on others meanwhile.
+                    for &i in &touched {
+                        if let (Some(cur), Some(folded)) =
+                            (c.children.get_mut(i), a.children.get(i))
+                        {
                             *cur = folded.clone();
                         }
                     }

@@ -25,6 +25,11 @@ Every adapter `place_order` runs inside `outcome::placing`. In there:
   with their own transport, through `outcome::note_server_error`) record a
   5xx; a `refusal` after it in the same placement stays uncertain, so an
   error body on a 5xx never reads as "not placed".
+- **A success status (2xx) is a refusal only with the broker's explicit
+  failure marker.** `outcome::not_accepted` decides an answer without an
+  order id: 5xx uncertain, 4xx refused, 2xx refused only when the adapter
+  read a failure status or error field; `{}`, `null` or a body without the
+  success marker are uncertain.
 - **Steps before the send do not count against the order.**
   `outcome::before_send` wraps a quote read for market protection, a
   client-id lookup and similar: its failure is a refusal (nothing was sent)
@@ -53,10 +58,18 @@ placement, and never by guessing between several candidates.
   listed under Unconfirmed Orders on the Health page
   (`GET /health/api/held-orders`). It is released when the trader marks it
   not placed there (`POST /health/api/held-orders/not-placed`, which calls
-  `OrderOwner::confirm_not_placed` under the reconciler's pass lock), or
-  automatically only with corroboration: absent for 10 minutes, no matching
-  trade in the trade book, and the net position unchanged since the absence
-  was confirmed. Owners decide through `AbsenceTracker::judge`.
+  `OrderOwner::confirm_not_placed` under the reconciler's pass lock, after
+  reading the order book and the trade book once more: an order or a trade
+  that matches it, or a book that cannot be read, keeps it held), or
+  automatically only with corroboration: absent for 10 minutes, no working
+  order of the same instrument and side that nobody owns, no matching trade
+  in the trade book, and the net position exactly what the owner had before
+  sending (`Unconfirmed::net_before`; an owner that does not know it never
+  releases automatically). Owners decide through `AbsenceTracker::judge`.
+- **A scalping exit the broker accepted** that the order book no longer
+  shows is judged the same way, so it is never left working silently. Exit
+  orders placed before the current session (the 03:00 IST boundary) are
+  ended when the monitor starts.
 
 ## Per adapter
 

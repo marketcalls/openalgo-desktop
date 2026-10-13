@@ -423,6 +423,17 @@ async fn a_held_live_exit_is_listed_on_the_health_page_and_released_by_the_trade
         "{}",
         alerts
     );
+    // A pass whose book read fails settles nothing: the alert stays
+    // (review P2-1).
+    *a.mock.order_book.lock() = Some(Err("The broker is busy".into()));
+    a.ctx.reconciler.pass().await;
+    let (_, alerts) = a.get("/health/api/alerts").await;
+    assert!(
+        alerts.to_string().contains("order_unconfirmed_held"),
+        "a failed read is not a resolution: {}",
+        alerts
+    );
+    *a.mock.order_book.lock() = Some(Ok(Vec::new()));
     let confirm = json!({"owner": "strategy", "id": rows[0]["id"]});
     let (s, b) = a
         .post("/health/api/held-orders/not-placed", confirm.clone())
@@ -450,4 +461,127 @@ async fn a_held_live_exit_is_listed_on_the_health_page_and_released_by_the_trade
     // Nothing is held any more.
     let (s, _) = a.post("/health/api/held-orders/not-placed", confirm).await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
+}
+
+/// Review P1-3: the trader's "not placed" is checked against the broker's
+/// books once more. An order that now shows in the order book, a matching
+/// trade, or a book that cannot be read keeps it held.
+#[tokio::test]
+async fn not_placed_is_refused_while_the_books_show_the_order() {
+    use axum::http::StatusCode;
+    use openalgo_desktop_lib::brokers::types::{Order, Trade};
+    let a = app();
+    a.ctx.reconciler.stop();
+    let cfg = config("Live", json!([short_call_leg()]), json!({}));
+    let (row, _) = a.ctx.strategy.store.create_strategy(USER, &cfg).unwrap();
+    a.ctx
+        .strategy
+        .store
+        .set_live_enabled(row.id, USER, true)
+        .unwrap();
+    a.ctx.sqlite.set_analyze_mode(false).unwrap();
+    let r = a
+        .ctx
+        .strategy
+        .start_run(row.id, USER, "live", "manual", None)
+        .await;
+    assert!(r.ok, "{:?}", r);
+    let run = r.run_id.unwrap();
+    a.ctx
+        .strategy
+        .apply_fill(run, 1, Some(100.0), true, FillOpts::default())
+        .await;
+    a.mock
+        .after_send
+        .lock()
+        .push_back((AfterSend::Dropped, "open"));
+    a.ctx.strategy.process_tick(ATM_CE, "NFO", 121.0).await;
+    *a.mock.order_book.lock() = Some(Ok(Vec::new()));
+    for _ in 0..=ABSENT_READS {
+        a.clock.advance(chrono::Duration::seconds(ABSENT_SPAN_SECS));
+        a.ctx.reconciler.pass().await;
+    }
+    let (_, body) = a.get("/health/api/held-orders").await;
+    let id = body["data"][0]["id"].clone();
+    assert!(id.is_string(), "{}", body);
+    let confirm = json!({"owner": "strategy", "id": id});
+    let path = "/health/api/held-orders/not-placed";
+
+    // The order now shows in the book.
+    *a.mock.order_book.lock() = Some(Ok(vec![Order {
+        order_id: "BRK-9".into(),
+        exchange_order_id: None,
+        symbol: ATM_CE.into(),
+        exchange: "NFO".into(),
+        side: "BUY".into(),
+        quantity: 65,
+        filled_quantity: 0,
+        pending_quantity: 65,
+        price: 0.0,
+        trigger_price: 0.0,
+        average_price: 0.0,
+        order_type: "MARKET".into(),
+        product: "NRML".into(),
+        status: "open".into(),
+        validity: "DAY".into(),
+        order_timestamp: "2026-10-07 10:00:05".into(),
+        exchange_timestamp: None,
+        rejection_reason: None,
+        order_tag: None,
+    }]));
+    let (s, v) = a.post(path, confirm.clone()).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{}", v);
+    assert!(
+        v["message"].as_str().unwrap().contains("order book"),
+        "{}",
+        v
+    );
+
+    // The book cannot be read.
+    *a.mock.order_book.lock() = Some(Err("The broker is busy".into()));
+    let (s, v) = a.post(path, confirm.clone()).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{}", v);
+    assert!(
+        v["message"].as_str().unwrap().contains("could not read"),
+        "{}",
+        v
+    );
+
+    // No order, but a matching trade.
+    *a.mock.order_book.lock() = Some(Ok(Vec::new()));
+    *a.mock.trade_book.lock() = Some(Ok(vec![Trade {
+        order_id: "BRK-9".into(),
+        trade_id: "T1".into(),
+        symbol: ATM_CE.into(),
+        exchange: "NFO".into(),
+        product: "NRML".into(),
+        side: "BUY".into(),
+        quantity: 65,
+        average_price: 121.0,
+        trade_value: 7865.0,
+        timestamp: String::new(),
+        order_tag: None,
+    }]));
+    let (s, v) = a.post(path, confirm.clone()).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{}", v);
+    assert!(
+        v["message"].as_str().unwrap().contains("trade book"),
+        "{}",
+        v
+    );
+
+    // Nothing at the broker: accepted.
+    *a.mock.trade_book.lock() = Some(Ok(Vec::new()));
+    let (s, v) = a.post(path, confirm.clone()).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    let exit = a
+        .ctx
+        .strategy
+        .store
+        .list_orders(run)
+        .unwrap()
+        .into_iter()
+        .find(|o| o.kind != "entry")
+        .unwrap();
+    assert_eq!(exit.status, "rejected");
 }

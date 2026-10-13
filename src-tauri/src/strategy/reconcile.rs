@@ -51,6 +51,20 @@ fn unconfirmed(o: &OrderRow) -> bool {
     !has_broker_id(o) && o.status.eq_ignore_ascii_case(UNCONFIRMED)
 }
 
+/// The leg's net position just before this order was sent: flat before an
+/// entry; before an exit, the position it closes (a BUY exit closes a
+/// short). The broker's net must still show exactly this for a Live
+/// absence to be released without the trader (review P1-2).
+fn net_before(o: &OrderRow) -> i64 {
+    if o.kind == "entry" {
+        0
+    } else if o.action.eq_ignore_ascii_case("BUY") {
+        -o.qty
+    } else {
+        o.qty
+    }
+}
+
 fn placed_at(o: &OrderRow) -> Option<chrono::DateTime<chrono::Utc>> {
     for f in ["%Y-%m-%d %H:%M:%S%.f", "%Y-%m-%d %H:%M:%S"] {
         if let Ok(n) = chrono::NaiveDateTime::parse_from_str(&o.placed_at, f) {
@@ -151,6 +165,7 @@ impl StrategyModule {
                     product: o.product.as_deref(),
                     client_tag: tags.get(&o.id).map(String::as_str),
                     placed_at: placed_at(o),
+                    net_before: Some(net_before(o)),
                 };
                 let bound = |id: &str| claimed.contains(id) || book.owned(id);
                 match find_placed(&book.rows, &u, &bound) {

@@ -336,6 +336,30 @@ pub struct HeldOrder {
     pub since: DateTime<Utc>,
     /// Trader-facing description.
     pub message: String,
+    /// The rest of the order, for re-checking the broker's books before
+    /// the trader's "not placed" is accepted (review P1-3). Not shown.
+    #[serde(skip)]
+    pub product: Option<String>,
+    #[serde(skip)]
+    pub client_tag: Option<String>,
+    #[serde(skip)]
+    pub placed_at: Option<DateTime<Utc>>,
+}
+
+impl HeldOrder {
+    /// The order as the matcher reads it.
+    pub fn unconfirmed(&self) -> Unconfirmed<'_> {
+        Unconfirmed {
+            symbol: &self.symbol,
+            exchange: &self.exchange,
+            action: &self.action,
+            quantity: self.quantity,
+            product: self.product.as_deref(),
+            client_tag: self.client_tag.as_deref(),
+            placed_at: self.placed_at,
+            net_before: None,
+        }
+    }
 }
 
 /// What a confirmed absence lets the owner do.
@@ -367,7 +391,7 @@ pub trait EntryGate: Send + Sync {
 // ------------------------------------------------------------ matching
 
 /// An unconfirmed placement, as its owner recorded it.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Unconfirmed<'a> {
     pub symbol: &'a str,
     pub exchange: &'a str,
@@ -378,6 +402,11 @@ pub struct Unconfirmed<'a> {
     pub product: Option<&'a str>,
     pub client_tag: Option<&'a str>,
     pub placed_at: Option<DateTime<Utc>>,
+    /// The owner's net position on this instrument just before the order
+    /// was sent (signed). A Live absence is released without the trader
+    /// only while the broker still shows exactly this (review P1-2);
+    /// `None` never releases.
+    pub net_before: Option<i64>,
 }
 
 /// What the book says about an unconfirmed placement.
@@ -476,8 +505,6 @@ pub fn find_placed<'a>(
 struct Miss {
     since: DateTime<Utc>,
     reads: u32,
-    /// Live: the net position when its absence was first confirmed.
-    baseline: Option<i64>,
     /// Live: held for the trader, with its description.
     held: Option<HeldOrder>,
 }
@@ -503,7 +530,6 @@ impl AbsenceTracker {
         let e = m.entry(key.to_string()).or_insert(Miss {
             since: now,
             reads: 0,
-            baseline: None,
             held: None,
         });
         e.reads += 1;
@@ -515,9 +541,11 @@ impl AbsenceTracker {
     ///
     /// * Sandbox: [`Absence::NotPlaced`] once the absence is confirmed.
     /// * Live: never on absence alone. [`Absence::Hold`] (alert once), and
-    ///   [`Absence::NotPlaced`] only after [`LIVE_RELEASE_SECS`] with no
-    ///   matching trade in the trade book and the net position unchanged
-    ///   since the absence was first confirmed.
+    ///   [`Absence::NotPlaced`] only after [`LIVE_RELEASE_SECS`], with no
+    ///   working look-alike in the order book, no matching trade in the
+    ///   trade book, and the net position still exactly what the owner had
+    ///   before sending (`u.net_before`). The trade book and positions are
+    ///   read only then, not on every pass.
     ///
     /// The owner forgets the key once it settles the order.
     pub async fn judge(
@@ -535,22 +563,13 @@ impl AbsenceTracker {
         if mode == RunMode::Sandbox {
             return Absence::NotPlaced;
         }
-        // Read without holding the lock (a network read).
-        let corr = book.corroboration().await;
-        let net_now = corr
-            .as_ref()
-            .and_then(|c| c.net(u.symbol, u.exchange, u.product));
-        let traded = corr.as_ref().map(|c| c.trade_seen(u));
-        let mut m = self.misses.lock();
-        let Some(e) = m.get_mut(key) else {
+        let Some(since) = self.misses.lock().get(key).map(|e| e.since) else {
             return Absence::Wait;
         };
-        if e.baseline.is_none() {
-            e.baseline = net_now;
-        }
-        let long = (now - e.since).num_seconds() >= LIVE_RELEASE_SECS;
+        let long = (now - since).num_seconds() >= LIVE_RELEASE_SECS;
         // A working order of the same instrument and side that was not
         // matched (an unreadable time, a changed price) could be this one.
+        // A row another order already owns is accounted for.
         let lookalike = book.rows.iter().any(|r| {
             r.symbol.trim().eq_ignore_ascii_case(u.symbol.trim())
                 && r.exchange.trim().eq_ignore_ascii_case(u.exchange.trim())
@@ -565,19 +584,31 @@ impl AbsenceTracker {
                         | "canceled"
                         | "expired"
                 )
+                && !book.owned(&r.order_id)
         });
-        if long && !lookalike && traded == Some(false) && net_now.is_some() && net_now == e.baseline
-        {
-            tracing::warn!(
-                "Unconfirmed {} {} {} on {}: absent for {} s, no matching trade, position unchanged; released as not placed",
-                u.action,
-                u.quantity,
-                u.symbol,
-                u.exchange,
-                (now - e.since).num_seconds()
-            );
-            return Absence::NotPlaced;
+        if long && !lookalike && u.net_before.is_some() {
+            // Read without holding the lock (a network read), and only now.
+            let corr = book.corroboration().await;
+            let net_now = corr
+                .as_ref()
+                .and_then(|c| c.net(u.symbol, u.exchange, u.product));
+            let traded = corr.as_ref().map(|c| c.trade_seen(u));
+            if traded == Some(false) && net_now.is_some() && net_now == u.net_before {
+                tracing::warn!(
+                    "Unconfirmed {} {} {} on {}: absent for {} s, no matching trade, position as before sending; released as not placed",
+                    u.action,
+                    u.quantity,
+                    u.symbol,
+                    u.exchange,
+                    (now - since).num_seconds()
+                );
+                return Absence::NotPlaced;
+            }
         }
+        let mut m = self.misses.lock();
+        let Some(e) = m.get_mut(key) else {
+            return Absence::Wait;
+        };
         let alert = e.held.is_none();
         if alert {
             e.held = Some(HeldOrder {
@@ -589,6 +620,9 @@ impl AbsenceTracker {
                 quantity: u.quantity,
                 since: e.since,
                 message: String::new(),
+                product: u.product.map(str::to_string),
+                client_tag: u.client_tag.map(str::to_string),
+                placed_at: u.placed_at,
             });
         }
         Absence::Hold { alert }
@@ -777,6 +811,13 @@ impl OrderReconciler {
         // Under the pass lock: no pass binds the order while it is released.
         let decided = {
             let _one = self.pass_lock.lock().await;
+            let Some(held) = o.held_orders().into_iter().find(|h| h.id == id) else {
+                return Err("That order is no longer held. Refresh the page.".into());
+            };
+            // The trader's word is checked against the broker's books once
+            // more: an order or a trade that has turned up since keeps it
+            // held (review P1-3).
+            self.recheck_not_placed(&held).await?;
             o.confirm_not_placed(id).await
         };
         match decided {
@@ -788,6 +829,37 @@ impl OrderReconciler {
             Ok(false) => Err("That order is no longer held. Refresh the page.".into()),
             Err(e) => Err(e),
         }
+    }
+
+    /// Read the order book and the trade book once, and refuse "not placed"
+    /// when either shows the held order (a matching order, several, or a
+    /// matching trade) or cannot be read.
+    async fn recheck_not_placed(&self, held: &HeldOrder) -> Result<(), String> {
+        let u = held.unconfirmed();
+        let owners = self.owners();
+        let rows = self
+            .gateway
+            .order_book_rows(RunMode::Live)
+            .await
+            .map_err(|e| {
+                tracing::warn!("Order book unreadable while checking a held order: {}", e);
+                "OpenAlgo could not read the broker's order book to check this order. Nothing was changed. Try again.".to_string()
+            })?;
+        let bound = |oid: &str| owners.iter().any(|o| o.owns_order(oid));
+        if !matches!(find_placed(&rows, &u, &bound), Found::Absent) {
+            return Err("The broker's order book now shows an order that matches it, so it was not marked. OpenAlgo picks it up from the book; check the order book.".into());
+        }
+        let trades = self
+            .gateway
+            .book(RunMode::Live, crate::strategy::dispatch::Book::Trades)
+            .await
+            .map_err(|_| {
+                "OpenAlgo could not read the broker's trade book to check this order. Nothing was changed. Try again.".to_string()
+            })?;
+        if Corroboration::from_books(&trades, &Value::Null).trade_seen(&u) {
+            return Err("The broker's trade book shows a matching trade, so it was not marked. Check the position at the broker.".into());
+        }
+        Ok(())
     }
 
     /// Send fact-loss alerts here (set once, by the app).
@@ -967,8 +1039,10 @@ impl OrderReconciler {
                 sink(FactAlert::Resolved);
             }
         }
-        // Every held order settled (found, released or confirmed).
-        if unresolved_total == 0 && self.held_alerting.swap(false, Ordering::SeqCst) {
+        // Every held order settled (found, released or confirmed). Read
+        // from the owners, never from this pass's count: a pass whose book
+        // read failed settled nothing (review P2-1).
+        if self.held_orders().is_empty() && self.held_alerting.swap(false, Ordering::SeqCst) {
             if let Some(sink) = self.alert_sink.get() {
                 sink(FactAlert::HeldResolved);
             }
@@ -1186,6 +1260,7 @@ mod tests {
             product: Some("NRML"),
             client_tag: tag,
             placed_at: Some(Utc.with_ymd_and_hms(2026, 10, 7, 4, 30, 0).unwrap()),
+            net_before: None,
         }
     }
 
@@ -1488,7 +1563,11 @@ mod tests {
         let mut working = row("9", "NIFTY24500CE", "BUY", 75, None, "");
         working.status = "open".into();
         let live = AbsenceTracker::new();
-        let order = u(None);
+        // Flat before the order was sent, flat now.
+        let order = Unconfirmed {
+            net_before: Some(0),
+            ..u(None)
+        };
         for i in 0..=ABSENT_READS {
             let b = at(i64::from(i) * ABSENT_SPAN_SECS, vec![]);
             live.judge("l", "7", RunMode::Live, &b, &order).await;
@@ -1503,6 +1582,83 @@ mod tests {
             live.judge("l", "7", RunMode::Live, &at(late + 30, vec![]), &order)
                 .await,
             Absence::NotPlaced
+        );
+    }
+
+    /// Review P1-2: a Live release needs the broker's position to be what
+    /// the owner had before sending. An exit that filled before the first
+    /// read (the position already moved) is never released, however long
+    /// it stays absent and whatever the later reads show.
+    #[tokio::test]
+    async fn a_live_release_compares_with_the_position_before_sending() {
+        let t0 = Utc.with_ymd_and_hms(2026, 10, 7, 4, 30, 0).unwrap();
+        let positions = |q: i64| {
+            Corroboration::from_books(
+                &json!({"data": []}),
+                &json!({"data": [{"symbol": "NIFTY24500CE", "exchange": "NFO", "product": "NRML", "quantity": q}]}),
+            )
+        };
+        // Long 75 before a SELL 75 whose answer was lost; it filled, so the
+        // book shows 0 from the first read on.
+        let order = Unconfirmed {
+            action: "SELL",
+            net_before: Some(75),
+            ..u(None)
+        };
+        let live = AbsenceTracker::new();
+        let at = |s: i64, q: i64| {
+            BookSnapshot::new(vec![], t0 + chrono::Duration::seconds(s))
+                .with_corroboration(positions(q))
+        };
+        for i in 0..=ABSENT_READS {
+            let b = at(i64::from(i) * ABSENT_SPAN_SECS, 0);
+            live.judge("l", "7", RunMode::Live, &b, &order).await;
+        }
+        assert_eq!(
+            live.judge(
+                "l",
+                "7",
+                RunMode::Live,
+                &at(LIVE_RELEASE_SECS + 60, 0),
+                &order
+            )
+            .await,
+            Absence::Hold { alert: false },
+            "the position moved: never released without the trader"
+        );
+        // The position as it was before sending, nothing traded: released.
+        assert_eq!(
+            live.judge(
+                "l",
+                "7",
+                RunMode::Live,
+                &at(LIVE_RELEASE_SECS + 90, 75),
+                &order
+            )
+            .await,
+            Absence::NotPlaced
+        );
+        // Without the position before sending, never.
+        let unknown = AbsenceTracker::new();
+        let blind = Unconfirmed {
+            net_before: None,
+            ..order
+        };
+        for i in 0..=ABSENT_READS {
+            let b = at(i64::from(i) * ABSENT_SPAN_SECS, 75);
+            unknown.judge("u", "8", RunMode::Live, &b, &blind).await;
+        }
+        assert_eq!(
+            unknown
+                .judge(
+                    "u",
+                    "8",
+                    RunMode::Live,
+                    &at(LIVE_RELEASE_SECS * 2, 75),
+                    &blind
+                )
+                .await,
+            Absence::Hold { alert: false }
         );
     }
 
