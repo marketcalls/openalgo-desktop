@@ -184,6 +184,9 @@ pub struct MockBroker {
     /// Sign-ins wait here once the broker has answered, so a test can make
     /// two of them complete at the same moment.
     pub auth_gate: Mutex<Option<Arc<tokio::sync::Barrier>>>,
+    /// `get_funds` waits for a permit here before it answers, so a test can
+    /// hold a session check (a resume) while something else happens.
+    pub funds_gate: Mutex<Option<Arc<tokio::sync::Semaphore>>>,
     next_id: Mutex<u64>,
 }
 
@@ -231,6 +234,7 @@ impl MockBroker {
             restored: Mutex::new(None),
             saved_keys_sign_in: Mutex::new(false),
             auth_gate: Mutex::new(None),
+            funds_gate: Mutex::new(None),
             next_id: Mutex::new(0),
             place_gate: Mutex::new(None),
         }
@@ -521,6 +525,10 @@ impl Broker for MockBroker {
     async fn get_funds(&self, auth: &AuthToken) -> Result<Funds> {
         self.record(MockCall::Funds);
         *self.funds_calls.lock() += 1;
+        let gate = self.funds_gate.lock().clone();
+        if let Some(g) = gate {
+            let _released = g.acquire().await;
+        }
         if !*self.funds_ok.lock() || auth.raw() != "mock-access-token" {
             return Err(AppError::Broker(
                 "Incorrect `api_key` or `access_token`.".into(),

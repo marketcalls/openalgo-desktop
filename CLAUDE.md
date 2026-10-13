@@ -719,9 +719,11 @@ and add each new one here.
   signed out.
 - End a session in memory before writing that to the database
   (`BrokerAuthService::revoke`): a failed write must never leave a broker
-  session that trades behind a "Logged out". The failure sets
-  `revoke_pending`, which blocks resume until the session poll or the next
-  sign-in writes it.
+  session that trades behind a "Logged out". A revoke is marked pending in
+  memory and in a marker file in the data folder
+  (`broker_auth_service::REVOKE_MARKER`) before memory is cleared, so
+  neither a failed write nor a restart before the retry lets the session
+  resume; the session poll, a resume or the next sign-in writes it.
 - A GET with a global effect (`/auth/logout` ending every session) runs
   only for a same-origin navigation: the Lax cookie rides on a link from
   another site in browsers without Fetch Metadata.

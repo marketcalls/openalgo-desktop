@@ -432,7 +432,7 @@ impl AuthService {
             }
         }
         // The stored broker sessions are gone, so nothing is left to revoke.
-        *state.revoke_pending.lock() = false;
+        crate::services::broker_auth_service::BrokerAuthService::clear_pending_revoke(state);
         // The account is gone whatever the key rotation does: every window
         // is signed out and nothing cached survives, even when the keychain
         // refuses the new keys (the error is still returned).

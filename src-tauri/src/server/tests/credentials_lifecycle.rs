@@ -388,6 +388,130 @@ async fn sec01_a_logout_link_from_elsewhere_ends_nothing() {
     assert!(!h.ctx().is_broker_connected());
 }
 
+/// SEC-05b: the trader logs out while the database refuses the write, then
+/// OpenAlgo is closed and opened again on the same data folder before the
+/// retry ran. The process's memory of the pending revoke is gone, but the
+/// stored session must still not come back: neither a resume nor a sign-in
+/// brings it back, and the first poll after the database recovers revokes
+/// it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn sec05b_a_failed_revoke_survives_a_restart() {
+    use crate::services::broker_auth_service::REVOKE_MARKER;
+    let dir = tempfile::tempdir().unwrap();
+    let store: Arc<dyn crate::security::keystore::KeyStore> =
+        Arc::new(crate::security::keystore::MemoryKeyStore::new());
+    let open = || {
+        AppState::open(
+            dir.path(),
+            crate::state::OpenOptions {
+                keystore: store.clone(),
+                clock: Arc::new(crate::clock::SystemClock),
+                brokers: Arc::new(BrokerRegistry::with(vec![
+                    Arc::new(MockBroker::new("zerodha")) as Arc<dyn crate::brokers::Broker>,
+                ])),
+            },
+        )
+        .unwrap()
+    };
+    let active = |ctx: &AppState| {
+        let conn = ctx.sqlite.conn().unwrap();
+        crate::db::sqlite::auth::latest_active(&conn, &ctx.security)
+            .unwrap()
+            .is_some()
+    };
+
+    let ctx = open();
+    AuthService::setup(&ctx, USER, EMAIL, PASSWORD).unwrap();
+    BrokerAuthService::persist(
+        &ctx,
+        &BrokerSession {
+            broker_id: "zerodha".into(),
+            auth_token: "mock-access-token".into(),
+            feed_token: None,
+            user_id: "AB1234".into(),
+            user_name: None,
+            authenticated_at: ctx.now(),
+        },
+    )
+    .unwrap();
+    ctx.sqlite
+        .conn()
+        .unwrap()
+        .execute_batch(
+            "CREATE TRIGGER test_fail_auth_update BEFORE UPDATE ON auth
+             BEGIN SELECT RAISE(ABORT, 'disk full'); END;",
+        )
+        .unwrap();
+    BrokerAuthService::revoke(&ctx, SessionEndReason::Logout)
+        .await
+        .unwrap_err();
+    assert!(active(&ctx), "the write really failed");
+    assert!(dir.path().join(REVOKE_MARKER).exists());
+    close(ctx).await;
+
+    // The next start, the database still refusing.
+    let ctx = open();
+    assert!(BrokerAuthService::try_resume(&ctx).await.unwrap().is_none());
+    let (s, _, v) = send_to(
+        &ctx,
+        multipart("/auth/login", &[("username", USER), ("password", PASSWORD)]),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    assert_ne!(
+        v["redirect"], "/dashboard",
+        "resumed after a restart: {}",
+        v
+    );
+    assert!(ctx.get_broker_session().is_none());
+    assert!(active(&ctx));
+
+    // The database recovers: one poll tick writes the revoke.
+    ctx.sqlite
+        .conn()
+        .unwrap()
+        .execute_batch("DROP TRIGGER test_fail_auth_update")
+        .unwrap();
+    crate::session::poll_tick(&ctx, ctx.now()).await;
+    assert!(!active(&ctx));
+    assert!(!BrokerAuthService::revoke_is_pending(&ctx));
+    assert!(!dir.path().join(REVOKE_MARKER).exists());
+    close(ctx).await;
+}
+
+/// SEC-05c: a resume waiting on the broker's session check while the
+/// trader logs out. When the check answers, the ended session must not be
+/// installed.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn sec05c_a_resume_racing_a_logout_installs_nothing() {
+    let h = H::new();
+    h.setup();
+    h.connect_broker();
+    // As after a restart: the stored row only.
+    h.ctx().set_broker_session(None);
+    let gate = Arc::new(tokio::sync::Semaphore::new(0));
+    *h.mock.funds_gate.lock() = Some(gate.clone());
+    let calls_before = *h.mock.funds_calls.lock();
+    let ctx = h.ctx().clone();
+    let resume = tokio::spawn(async move { BrokerAuthService::try_resume(&ctx).await });
+    // The resume is waiting on the broker's answer.
+    let mut waited = 0;
+    while *h.mock.funds_calls.lock() == calls_before {
+        assert!(waited < 500, "the resume never asked the broker");
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        waited += 1;
+    }
+    BrokerAuthService::revoke(h.ctx(), SessionEndReason::Logout)
+        .await
+        .unwrap();
+    gate.add_permits(1);
+    let resumed = resume.await.unwrap().unwrap();
+    assert!(resumed.is_none(), "a resume brought an ended session back");
+    assert!(h.ctx().get_broker_session().is_none());
+    assert!(h.ctx().runtime.active_broker().is_none());
+    assert!(!stored_session_active(&h));
+}
+
 // ---------------------------------- SEC-03 never new keys for an install
 
 /// The app opened on `dir` with `store` as its keychain, as at a start.
