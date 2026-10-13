@@ -4,9 +4,11 @@
 //!
 //! * a server error (503, with a JSON error body),
 //! * a success status whose body is cut off (not JSON),
-//! * a success that carries no order id
+//! * a success that carries no order id,
+//! * a success status with `{}` or `null` (no failure marker)
 //!
-//! are uncertain (the order may exist); a readable refusal is refused.
+//! are uncertain (the order may exist); only the broker's explicit failure
+//! is refused.
 
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -137,6 +139,10 @@ async fn check(b: &dyn Broker, auth: &AuthToken, f: &Fake, c: &Case) {
         ),
         ("a cut-off 200", 200, r#"{"status":"succ"#),
         ("a 200 without an order id", 200, c.no_id),
+        // A success status without the broker's failure marker is never a
+        // refusal, however little it says (review P1-1).
+        ("a 200 with an empty object", 200, "{}"),
+        ("a 200 with null", 200, "null"),
     ];
     for (what, status, body) in lost {
         let r = attempt(b, auth, f, status, body).await;
@@ -334,6 +340,91 @@ async fn fivepaisa_lost_answers_are_uncertain() {
                 200,
                 r#"{"head":{"statusDescription":"Success"},"body":{"Status":1,"Message":"Insufficient funds"}}"#,
             ),
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn zerodha_lost_answers_are_uncertain() {
+    use openalgo_desktop_lib::brokers::zerodha::ZerodhaBroker;
+    let f = fake().await;
+    let b = ZerodhaBroker::with_base_url(symbols(), &f.base);
+    check(
+        &b,
+        &AuthToken::new("kitekey:accesstok"),
+        &f,
+        &Case {
+            name: "zerodha",
+            no_id: r#"{"status":"success","data":{"order_id":""}}"#,
+            refusal: (
+                400,
+                r#"{"status":"error","message":"Insufficient funds","error_type":"InputException"}"#,
+            ),
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn iiflcapital_lost_answers_are_uncertain() {
+    use openalgo_desktop_lib::brokers::iiflcapital::IiflCapitalBroker;
+    let f = fake().await;
+    let b = IiflCapitalBroker::with_base_url(symbols(), &f.base);
+    check(
+        &b,
+        &AuthToken::new("eyJhbGciOiJIUzI1NiJ9.e30.sig"),
+        &f,
+        &Case {
+            name: "iiflcapital",
+            no_id: r#"{"status":"Ok","result":[{"status":"Ok"}]}"#,
+            refusal: (200, r#"{"status":"error","message":"RMS: margin exceeds"}"#),
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn hdfcsecurities_lost_answers_are_uncertain() {
+    use openalgo_desktop_lib::brokers::hdfcsecurities::HdfcSecuritiesBroker;
+    let f = fake().await;
+    let b = HdfcSecuritiesBroker::with_base_url(
+        symbols(),
+        &f.base,
+        format!("{}/master", f.base),
+        "ws://127.0.0.1:1",
+    );
+    check(
+        &b,
+        &AuthToken::new("APIKEY1:acc-tok"),
+        &f,
+        &Case {
+            name: "hdfcsecurities",
+            no_id: r#"{"status":"success","data":{}}"#,
+            refusal: (200, r#"{"status":"error","message":"RMS: margin exceeds"}"#),
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn pocketful_lost_answers_are_uncertain() {
+    use openalgo_desktop_lib::brokers::pocketful::PocketfulBroker;
+    let f = fake().await;
+    let b = PocketfulBroker::with_base_url(
+        symbols(),
+        &f.base,
+        "ws://127.0.0.1:1",
+        format!("{}/master", f.base),
+    );
+    check(
+        &b,
+        &AuthToken::new("acc-pf-1").with_user_id("AB1234"),
+        &f,
+        &Case {
+            name: "pocketful",
+            no_id: r#"{"status":"success","data":{}}"#,
+            refusal: (200, r#"{"status":"error","message":"RMS: margin exceeds"}"#),
         },
     )
     .await;

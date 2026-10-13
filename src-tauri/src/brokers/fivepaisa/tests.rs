@@ -401,6 +401,14 @@ fn placement_acceptance_needs_status_and_order_id() {
     // LOG-08: a success without an id is not a refusal; the order may
     // exist.
     assert!(super::mapping::accepted_without_id(&no_id));
+    // Review P1-1: only an explicit failure is a refusal. A missing Status
+    // with an order id, or a bare object, is not.
+    assert!(super::mapping::explicit_failure(&resp("place_rejected")));
+    assert!(!super::mapping::explicit_failure(&no_id));
+    assert!(!super::mapping::explicit_failure(
+        &json!({"head":{"statusDescription":"Success"},"body":{"BrokerOrderID":77}})
+    ));
+    assert!(!super::mapping::explicit_failure(&json!({})));
     assert!(!super::mapping::accepted_without_id(&resp(
         "place_rejected"
     )));

@@ -279,6 +279,23 @@ pub fn accepted_without_id(v: &Value) -> bool {
     super::head_success(v) && place_status_ok(&body) && (id.is_empty() || id == "0")
 }
 
+/// 5paisa's explicit failure: a non-zero `body.Status`, or a head status
+/// other than Success. Anything else is not a refusal (LOG-08).
+pub fn explicit_failure(v: &Value) -> bool {
+    let body = v.get("body").cloned().unwrap_or(Value::Null);
+    let status_failed = match body.get("Status") {
+        Some(Value::Number(n)) => n.as_i64().is_some_and(|x| x != 0),
+        Some(Value::String(s)) => s.trim().parse::<i64>().is_ok_and(|x| x != 0),
+        _ => false,
+    };
+    let head_failed = v
+        .get("head")
+        .and_then(|h| h.get("statusDescription"))
+        .and_then(Value::as_str)
+        .is_some_and(|d| !d.trim().is_empty() && d.trim() != "Success");
+    status_failed || head_failed
+}
+
 pub fn placed_order_id(v: &Value) -> std::result::Result<String, String> {
     let body = v.get("body").cloned().unwrap_or(Value::Null);
     let id = text(&body, "BrokerOrderID");

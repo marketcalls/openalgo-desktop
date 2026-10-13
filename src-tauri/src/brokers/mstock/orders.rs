@@ -17,6 +17,18 @@ pub const TRADE_BOOK_PATH: &str = "/tradebook";
 pub const POSITIONS_PATH: &str = "/portfolio/positions";
 pub const HOLDINGS_PATH: &str = "/portfolio/holdings";
 
+/// mStock's explicit failure: `status` false, or an error code.
+fn explicit_failure(v: &Value) -> bool {
+    let status_false = match v.get("status") {
+        Some(Value::Bool(b)) => !*b,
+        Some(Value::String(s)) => s.trim().eq_ignore_ascii_case("false"),
+        _ => false,
+    };
+    status_false
+        || v.get("errorcode").is_some_and(|e| !e.is_null() && e != "")
+        || v.get("error_code").is_some_and(|e| !e.is_null() && e != "")
+}
+
 /// web `place_order_api`: success only when the payload says so and carries
 /// an order id (mStock answers HTTP 200 for RMS rejections too).
 pub async fn place_order(
@@ -31,9 +43,10 @@ pub async fn place_order(
             order_id: id,
             message: None,
         }),
-        // A success without an order id, or an empty answer: the order may
-        // exist (LOG-08).
-        None if is_success(&v) || v.as_object().is_some_and(|o| o.is_empty()) => {
+        // Anything but mStock's explicit failure (`status: false`, an error
+        // code) without an order id may be a placed order (LOG-08): a
+        // success without an id, `{}`, `null`.
+        None if !explicit_failure(&v) => {
             tracing::warn!("mStock did not return an order id for an order");
             Err(AppError::uncertain(
                 "mStock did not confirm the order. Check the order book before placing it again.",

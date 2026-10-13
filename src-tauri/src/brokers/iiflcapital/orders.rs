@@ -84,15 +84,31 @@ pub(super) async fn send_order(
             None,
         ));
     }
+    // Only IIFL Capital's explicit failure (a failure status at the top or
+    // on the order's row) is a refusal (LOG-08).
+    let failure = |v: Option<&Value>| {
+        v.and_then(Value::as_str).is_some_and(|s| {
+            matches!(
+                s.trim().to_ascii_lowercase().as_str(),
+                "error" | "failure" | "failed" | "fail" | "not ok" | "not_ok" | "rejected"
+            )
+        })
+    };
+    let failed = failure(data.get("status")) || failure(first.get("status"));
+    if !failed && status.is_success() && !order_id.is_empty() {
+        // An order id and no failure: IIFL Capital took the order.
+        tracing::warn!("IIFL Capital order answer carried an id without a success status");
+        return Ok(order_id);
+    }
     let why = mapping::message_of(&data).unwrap_or_else(|| "Failed to place order".into());
     tracing::warn!(
         status = status.as_u16(),
         "IIFL Capital refused an order: {}",
         why
     );
-    // A readable refusal (LOG-08); unknown after a server error.
-    Err(crate::brokers::common::outcome::refusal_with_status(
+    Err(crate::brokers::common::outcome::not_accepted(
         status.as_u16(),
+        failed,
         why,
     ))
 }

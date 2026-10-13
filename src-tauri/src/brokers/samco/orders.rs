@@ -97,13 +97,17 @@ pub async fn place_order(
         ));
     }
     tracing::warn!(status = status.as_u16(), "Samco refused an order");
-    // A readable refusal (LOG-08); unknown after a server error.
-    Err(
-        match samco_error(status, &v, "Samco did not accept the order.") {
-            AppError::Broker(m) => outcome::refusal_with_status(status.as_u16(), m),
-            other => other,
-        },
-    )
+    // Only Samco's explicit `Failure` is a refusal (LOG-08); a 2xx without
+    // it (`null`, another shape) and a 5xx leave the order unknown.
+    let failed = v
+        .get("status")
+        .and_then(Value::as_str)
+        .is_some_and(|s| s.trim().eq_ignore_ascii_case("failure"));
+    Err(outcome::not_accepted_err(
+        status.as_u16(),
+        failed,
+        samco_error(status, &v, "Samco did not accept the order."),
+    ))
 }
 
 pub async fn modify_order(

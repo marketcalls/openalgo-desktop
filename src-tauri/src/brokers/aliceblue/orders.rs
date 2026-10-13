@@ -107,7 +107,7 @@ pub async fn place_order(
     o: &ResolvedOrder,
 ) -> Result<OrderResponse> {
     let body = json!([mapping::place_payload(o)]);
-    let (_, v) = b
+    let (status, v) = b
         .call(Method::POST, PLACE, auth, Some(&body), false)
         .await?;
     if !status_ok(&v) {
@@ -115,10 +115,15 @@ pub async fn place_order(
             "AliceBlue refused an order: {}",
             mapping::describe(&s(&v, "message"))
         );
-        return Err(crate::brokers::common::outcome::definite(broker_error(
-            &v,
-            "AliceBlue did not accept the order.",
-        )));
+        // Only a status that says not ok is a refusal; a 2xx without one
+        // (`{}`) may be a placed order (LOG-08).
+        let st = s(&v, "status");
+        let failed = !st.is_empty() && !st.eq_ignore_ascii_case("ok");
+        return Err(crate::brokers::common::outcome::not_accepted_err(
+            status.as_u16(),
+            failed,
+            broker_error(&v, "AliceBlue did not accept the order."),
+        ));
     }
     let first = v
         .get("result")

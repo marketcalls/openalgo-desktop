@@ -180,10 +180,19 @@ impl TradejiniBroker {
                     path,
                     msg.as_deref().unwrap_or("no message")
                 );
-                // A readable refusal inside a placement (LOG-08); unknown
-                // after a server error.
-                Err(crate::brokers::common::outcome::refusal_with_status(
+                // Only Tradejini's explicit failure (`s: error|not_ok`, a
+                // message) is a refusal inside a placement (LOG-08); a 2xx
+                // without one (`{}`, `null`) and a 5xx leave the order
+                // unknown.
+                let failed = v.get("s").and_then(Value::as_str).is_some_and(|s| {
+                    matches!(
+                        s.to_ascii_lowercase().as_str(),
+                        "error" | "not_ok" | "failed"
+                    )
+                }) || msg.is_some();
+                Err(crate::brokers::common::outcome::not_accepted(
                     status.as_u16(),
+                    failed,
                     msg.unwrap_or_else(|| "Tradejini refused the request.".into()),
                 ))
             }

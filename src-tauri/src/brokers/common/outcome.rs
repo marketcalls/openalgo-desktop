@@ -124,6 +124,42 @@ pub fn refusal_with_status(status: u16, message: impl Into<String>) -> AppError 
     refusal(message)
 }
 
+/// A placement answer that does not carry an order id, by HTTP status:
+///
+/// * a server error (5xx) leaves the order unknown;
+/// * a client error (4xx) is the broker's refusal;
+/// * a success status (2xx) is a refusal only when the body carries the
+///   broker's explicit failure (`failed`: a parsed failure status or error
+///   field). Anything else on a 2xx (`{}`, `null`, a body without the
+///   success marker) may be a placed order: unknown, keeping the broker's
+///   text for the wire.
+pub fn not_accepted(status: u16, failed: bool, message: impl Into<String>) -> AppError {
+    let message = message.into();
+    match status {
+        500..=599 => {
+            note_server_error();
+            AppError::Broker(message)
+        }
+        200..=299 if !failed => {
+            tracing::warn!(
+                status,
+                "A placement answer carried neither an order id nor a failure; it may have been placed"
+            );
+            AppError::uncertain(message, None)
+        }
+        _ => refusal(message),
+    }
+}
+
+/// [`not_accepted`] for an adapter's own error: its broker-text error is
+/// judged by status and failure marker; anything else passes through.
+pub fn not_accepted_err(status: u16, failed: bool, e: AppError) -> AppError {
+    match e {
+        AppError::Broker(m) => not_accepted(status, failed, m),
+        other => other,
+    }
+}
+
 /// Mark an adapter's own error as a definite refusal: its broker-text error
 /// becomes [`refusal`]; anything else passes through.
 pub fn definite(e: AppError) -> AppError {

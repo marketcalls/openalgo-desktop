@@ -107,10 +107,16 @@ pub async fn place_order(
     }
     let e = super::transport::emsg(&v);
     tracing::warn!(broker = b.cfg.id, "Order refused: {}", e);
-    // A readable refusal (LOG-08); unknown after a server error.
-    Err(crate::brokers::common::outcome::definite(noren_error(
-        b.cfg.name, &e,
-    )))
+    // Only Noren's explicit failure (`stat: Not_Ok`, an `emsg`) is a
+    // refusal (LOG-08), never after a server error; a body without one
+    // (`{}`) may be a placed order and stays unmarked (unknown).
+    let failed = text(&v, "stat").eq_ignore_ascii_case("not_ok") || !e.trim().is_empty();
+    let err = noren_error(b.cfg.name, &e);
+    if failed {
+        Err(crate::brokers::common::outcome::definite(err))
+    } else {
+        Err(err)
+    }
 }
 
 pub async fn modify_order(

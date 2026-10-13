@@ -215,11 +215,18 @@ impl PaytmBroker {
                         leaf,
                         msg
                     );
-                    // A refusal: definite inside a placement (LOG-08).
-                    return Err(match paytm_error(status.as_u16(), &msg) {
-                        AppError::Broker(m) => crate::brokers::common::outcome::refusal(m),
-                        other => other,
-                    });
+                    // Only Paytm Money's explicit failure (`status: error`,
+                    // an `errors` list) is a refusal on a success status
+                    // (LOG-08); `{}` may be a placed order.
+                    let failed = matches!(
+                        env.status.trim().to_ascii_lowercase().as_str(),
+                        "error" | "failure" | "failed"
+                    ) || env.errors.as_array().is_some_and(|a| !a.is_empty());
+                    return Err(crate::brokers::common::outcome::not_accepted_err(
+                        status.as_u16(),
+                        failed,
+                        paytm_error(status.as_u16(), &msg),
+                    ));
                 }
                 Err(e) => {
                     tracing::warn!(

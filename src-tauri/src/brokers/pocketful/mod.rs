@@ -175,11 +175,20 @@ impl PocketfulBroker {
             path,
             message
         );
-        // A readable refusal inside a placement (LOG-08); unknown after a
-        // server error.
-        Err(crate::brokers::common::outcome::definite(broker_error(
-            &message,
-        )))
+        // Only Pocketful's explicit failure (`status: error|failure`) is a
+        // refusal inside a placement (LOG-08); a 2xx without it (`{}`) and
+        // a 5xx leave the order unknown.
+        let failed = v.get("status").and_then(Value::as_str).is_some_and(|s| {
+            matches!(
+                s.to_ascii_lowercase().as_str(),
+                "error" | "failure" | "failed"
+            )
+        });
+        Err(crate::brokers::common::outcome::not_accepted_err(
+            status.as_u16(),
+            failed,
+            broker_error(&message),
+        ))
     }
 
     /// The trading client id: from the session, else `trading_info`

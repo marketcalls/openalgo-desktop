@@ -193,14 +193,27 @@ pub async fn place_order(
                 None,
             ))
         }
-        Err(reason) => {
+        Err(reason) if mapping::explicit_failure(&v) => {
             tracing::warn!(
                 broker = "fivepaisa",
                 "5paisa rejected the order: {}",
                 reason
             );
-            // A readable refusal (LOG-08).
+            // 5paisa's explicit failure (LOG-08).
             Err(crate::brokers::common::outcome::refusal(reason))
+        }
+        Err(reason) => {
+            // Neither an order id nor a failure (a missing `Status`, `{}`):
+            // the order may exist (LOG-08).
+            tracing::warn!(
+                broker = "fivepaisa",
+                "5paisa order answer carried neither an order id nor a failure: {}",
+                reason
+            );
+            Err(AppError::uncertain(
+                "5paisa did not confirm the order. Check the order book before placing it again.",
+                None,
+            ))
         }
     }
 }

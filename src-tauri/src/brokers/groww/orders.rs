@@ -134,10 +134,17 @@ fn id_text(v: Option<&Value>) -> String {
 pub fn place_outcome(r: &Reply) -> Result<OrderResponse> {
     if !r.is_success() {
         let m = r.error_message();
-        // A success status whose body could not be read says nothing about
-        // the order: it stays unknown (LOG-08).
-        let readable = r.status.is_success() && r.body.is_object();
-        if readable || (r.status.is_client_error() && r.status.as_u16() != 429) {
+        // On a success status only Groww's explicit failure (`FAILURE`, an
+        // error object) is a refusal; a body without one (`{}`) or one
+        // that could not be read says nothing about the order (LOG-08).
+        let failed = r
+            .body
+            .get("status")
+            .and_then(Value::as_str)
+            .is_some_and(|s| s.eq_ignore_ascii_case("FAILURE"))
+            || r.body.get("error").is_some_and(|e| !e.is_null());
+        let explicit = r.status.is_success() && failed;
+        if explicit || (r.status.is_client_error() && r.status.as_u16() != 429) {
             // A readable refusal: the order was not placed (LOG-08).
             return Err(outcome::refusal(if m.is_empty() {
                 "Groww did not accept the order.".to_string()

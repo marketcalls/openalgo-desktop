@@ -503,6 +503,11 @@ fn placement_answers_and_write_bodies() {
     assert_eq!(e.client_message(), "Insufficient funds");
     // An unreadable answer (truncated, not JSON) is unknown.
     assert_eq!(
+        place_outcome(200, &json!({})).unwrap_err().code(),
+        "ORDER_UNCERTAIN",
+        "review P1-1: no failure marker is not a refusal"
+    );
+    assert_eq!(
         place_outcome(200, &Value::Null).unwrap_err().code(),
         "ORDER_UNCERTAIN"
     );

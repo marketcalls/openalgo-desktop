@@ -93,8 +93,18 @@ pub async fn place_order(
         "HDFC Sky refused the order: {}",
         msg
     );
-    Err(outcome::refusal_with_status(
+    // Only an explicit failure (`status: error|failure`, an error field)
+    // is a refusal; a 2xx without one (`{}`) and a 5xx leave the order
+    // unknown.
+    let failed = v.get("status").and_then(Value::as_str).is_some_and(|s| {
+        matches!(
+            s.to_ascii_lowercase().as_str(),
+            "error" | "failure" | "failed"
+        )
+    }) || v.get("error").is_some_and(|e| !e.is_null());
+    Err(outcome::not_accepted(
         status.as_u16(),
+        failed,
         broker_error(&msg).client_message(),
     ))
 }

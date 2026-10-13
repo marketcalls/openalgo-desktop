@@ -59,14 +59,14 @@ pub async fn place_order(
         ));
     }
     tracing::warn!(status = status.as_u16(), "Dhan refused an order");
-    // A readable error answer is a definite refusal (LOG-08); with a server
-    // error it stays uncertain.
-    Err(match refused(&v, "accept the order") {
-        AppError::Broker(m) => {
-            crate::brokers::common::outcome::refusal_with_status(status.as_u16(), m)
-        }
-        other => other,
-    })
+    // Only Dhan's error body is a refusal (LOG-08); a 2xx such as 202
+    // without one, and a 5xx, leave the order unknown.
+    let failed = super::dhan_error(&v).is_some();
+    Err(crate::brokers::common::outcome::not_accepted_err(
+        status.as_u16(),
+        failed,
+        refused(&v, "accept the order"),
+    ))
 }
 
 pub async fn modify_order(

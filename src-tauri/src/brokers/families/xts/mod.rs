@@ -315,17 +315,22 @@ impl XtsBroker {
         if matches!(status.as_u16(), 401 | 403) || mapping::is_token_error(&description) {
             return Err(self.session_expired());
         }
-        // A readable refusal inside a placement (LOG-08); unknown after a
-        // server error.
-        if description.is_empty() {
-            return Err(crate::brokers::common::outcome::refusal_with_status(
-                status.as_u16(),
-                format!("{} refused the request.", self.cfg.name),
-            ));
-        }
-        Err(crate::brokers::common::outcome::refusal_with_status(
+        // Only XTS's explicit failure (`type: error`) is a refusal inside a
+        // placement (LOG-08); a 2xx without one (`{}`) and a 5xx leave the
+        // order unknown.
+        let failed = v
+            .get("type")
+            .and_then(Value::as_str)
+            .is_some_and(|t| t.eq_ignore_ascii_case("error"));
+        let message = if description.is_empty() {
+            format!("{} refused the request.", self.cfg.name)
+        } else {
+            description
+        };
+        Err(crate::brokers::common::outcome::not_accepted(
             status.as_u16(),
-            description,
+            failed,
+            message,
         ))
     }
 

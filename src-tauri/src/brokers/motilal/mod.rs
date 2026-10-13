@@ -345,16 +345,19 @@ impl MotilalBroker {
         if is_success(&v) {
             return Ok(v);
         }
-        // A readable FAILURE envelope: a definite refusal inside a
-        // placement (LOG-08), unknown after a server error.
-        Err(
-            match motilal_error(status, &v, "Motilal Oswal could not complete the request.") {
-                AppError::Broker(m) => {
-                    crate::brokers::common::outcome::refusal_with_status(status.as_u16(), m)
-                }
-                other => other,
-            },
-        )
+        // Motilal's FAILURE envelope (or an error code) is a definite
+        // refusal inside a placement (LOG-08); a 2xx without one and a 5xx
+        // leave the order unknown.
+        let failed = v
+            .get("status")
+            .and_then(Value::as_str)
+            .is_some_and(|s| s.trim().eq_ignore_ascii_case("FAILURE"))
+            || !error_code(&v).is_empty();
+        Err(crate::brokers::common::outcome::not_accepted_err(
+            status.as_u16(),
+            failed,
+            motilal_error(status, &v, "Motilal Oswal could not complete the request."),
+        ))
     }
 }
 

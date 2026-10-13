@@ -939,6 +939,9 @@ fn place_replies_report_failures_as_errors() {
     assert_eq!(e.code(), "ORDER_UNCERTAIN");
     // A 200 whose body could not be read (truncated, not JSON) is unknown
     // too, never "not accepted".
+    // Review P1-1: a 200 without Groww's failure marker is not a refusal.
+    let e = place_outcome(&reply(200, json!({}))).unwrap_err();
+    assert_eq!(e.code(), "ORDER_UNCERTAIN");
     let e = place_outcome(&reply(200, Value::Null)).unwrap_err();
     assert_eq!(e.code(), "ORDER_UNCERTAIN");
     // A 403 with its own reason keeps it (only the session's 401/403 is

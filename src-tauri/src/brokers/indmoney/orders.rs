@@ -182,8 +182,13 @@ pub fn place_outcome(status: u16, v: &Value) -> Result<String> {
             None,
         ));
     }
-    // A readable refusal (LOG-08); unknown after a server error.
-    Err(outcome::refusal_with_status(status, message))
+    // Only INDmoney's explicit failure (`status: failure`, an error
+    // object) is a refusal (LOG-08); a 2xx without one and a 5xx leave the
+    // order unknown.
+    let failed = st
+        .is_some_and(|s| s.eq_ignore_ascii_case("failure") || s.eq_ignore_ascii_case("error"))
+        || v.get("error").is_some_and(|e| !e.is_null());
+    Err(outcome::not_accepted(status, failed, message))
 }
 
 pub async fn place_order(

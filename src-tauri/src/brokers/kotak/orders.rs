@@ -36,16 +36,17 @@ pub async fn place_order(
         ));
     }
     tracing::warn!(status = status.as_u16(), "Kotak refused an order");
-    // A readable error answer is a definite refusal (LOG-08); with a server
-    // error it stays uncertain.
-    Err(
-        match kotak_error(status, &v, "Kotak did not accept the order.") {
-            AppError::Broker(m) => {
-                crate::brokers::common::outcome::refusal_with_status(status.as_u16(), m)
-            }
-            other => other,
-        },
-    )
+    // Kotak's explicit failure (`stat: Not_Ok`, an error message) is a
+    // definite refusal (LOG-08); a 2xx without one and a 5xx leave the
+    // order unknown.
+    let failed = s(&v, "stat").eq_ignore_ascii_case("not_ok")
+        || !s(&v, "errMsg").is_empty()
+        || !s(&v, "emsg").is_empty();
+    Err(crate::brokers::common::outcome::not_accepted_err(
+        status.as_u16(),
+        failed,
+        kotak_error(status, &v, "Kotak did not accept the order."),
+    ))
 }
 
 pub async fn modify_order(

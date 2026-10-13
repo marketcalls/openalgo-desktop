@@ -290,14 +290,19 @@ pub(crate) fn envelope_data(status: StatusCode, v: Value, url: &str) -> Result<V
         path_of(url),
         err.client_message()
     );
-    // A readable Upstox error envelope is a definite refusal (LOG-08); with
-    // a server error it stays uncertain.
-    Err(match err {
-        AppError::Broker(m) => {
-            crate::brokers::common::outcome::refusal_with_status(status.as_u16(), m)
-        }
-        other => other,
-    })
+    // Only Upstox's error envelope (`status: error`, an `errors` list) is
+    // a definite refusal (LOG-08); a 2xx without one (`{}`) and a 5xx leave
+    // the order unknown.
+    let failed = v
+        .get("status")
+        .and_then(Value::as_str)
+        .is_some_and(|s| s.eq_ignore_ascii_case("error"))
+        || v.get("errors").is_some_and(|e| !e.is_null());
+    Err(crate::brokers::common::outcome::not_accepted_err(
+        status.as_u16(),
+        failed,
+        err,
+    ))
 }
 
 pub(crate) fn session_expired() -> AppError {

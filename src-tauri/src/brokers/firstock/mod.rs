@@ -237,9 +237,21 @@ impl FirstockBroker {
                 endpoint,
                 error_message(&v)
             );
-            // A readable failure: a definite refusal inside a placement
-            // (LOG-08), unknown after a server error.
-            Err(outcome::definite(firstock_error(&v)))
+            // Firstock's explicit failure (a failure status, an error
+            // object) is a definite refusal inside a placement (LOG-08),
+            // unknown after a server error. Anything else (`{}`, `null`)
+            // stays unmarked, so a placement reads it as unknown.
+            let failed = v.get("status").and_then(Value::as_str).is_some_and(|s| {
+                matches!(
+                    s.to_ascii_lowercase().as_str(),
+                    "failed" | "failure" | "error"
+                )
+            }) || v.get("error").is_some_and(|e| !e.is_null());
+            if failed {
+                Err(outcome::definite(firstock_error(&v)))
+            } else {
+                Err(firstock_error(&v))
+            }
         }
     }
 }

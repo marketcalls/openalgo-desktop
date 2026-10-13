@@ -395,6 +395,17 @@ async fn read_envelope(resp: reqwest::Response, path: &str) -> Result<Envelope> 
         (_, Ok(env)) => {
             if env.success {
                 Ok(env)
+            } else if status.is_success() && env.error.is_null() {
+                // Neither `success` nor an error: not a refusal, the answer
+                // says nothing (LOG-08).
+                tracing::warn!(
+                    "Delta Exchange answered {} without success or an error",
+                    path
+                );
+                Err(AppError::uncertain(
+                    "Delta Exchange sent an answer without a result. Check the order book before trying again.",
+                    None,
+                ))
             } else {
                 Err(envelope_error(&env.error, status, path))
             }

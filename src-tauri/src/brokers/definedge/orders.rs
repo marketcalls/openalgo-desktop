@@ -55,12 +55,24 @@ pub async fn place_order(
     let body = mapping::place_body(o);
     let v = write(b, &s, Method::POST, "/placeorder", Some(&body)).await?;
     if !is_success(&v) {
-        // A readable refusal (LOG-08); after a server error it stays
-        // unknown.
-        return Err(outcome::definite(broker_error(
-            &v,
-            "Definedge did not accept the order.",
-        )));
+        // Only Definedge's explicit failure is a refusal (LOG-08), and
+        // never after a server error; a body without one (`{}`) may be a
+        // placed order.
+        let failed = text(&v, "stat").eq_ignore_ascii_case("not_ok")
+            || matches!(
+                text(&v, "status").to_ascii_uppercase().as_str(),
+                "ERROR" | "FAILURE" | "FAILED"
+            )
+            || !text(&v, "emsg").is_empty();
+        let e = broker_error(&v, "Definedge did not accept the order.");
+        if !failed {
+            tracing::warn!("Definedge order answer carried neither an id nor a failure");
+            return Err(match e {
+                AppError::Broker(m) => AppError::uncertain(m, None),
+                other => other,
+            });
+        }
+        return Err(outcome::definite(e));
     }
     let id = Some(text(&v, "norenordno"))
         .filter(|x| !x.is_empty())
