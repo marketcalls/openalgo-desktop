@@ -874,6 +874,28 @@ fn unsupported_order_inputs_are_refused_before_sending() {
     assert!(validate(&c, &resolved("IMC2", "NSE", "MARKET", 0.0, 0.0)).is_ok());
 }
 
+/// LOG-08 review: a placement whose connection never opened sent nothing,
+/// and a 429 was turned away before processing: both are refusals, never
+/// "may have been placed" (which would hold a stop-loss exit back).
+#[tokio::test]
+async fn a_place_that_never_reached_groww_is_refused() {
+    use crate::brokers::common::outcome::placing;
+    let err = reqwest::Client::new()
+        .post("http://127.0.0.1:9/v1/order/create")
+        .send()
+        .await
+        .unwrap_err();
+    assert!(err.is_connect(), "{:?}", err);
+    let e = placing(async { in_transit(AppError::Http(Box::new(err)), "place") }).await;
+    assert!(matches!(e, AppError::Refused(_)), "{:?}", e);
+    let throttled = Reply {
+        status: reqwest::StatusCode::TOO_MANY_REQUESTS,
+        body: Value::Null,
+    };
+    let r = placing(async { place_outcome(&throttled) }).await;
+    assert!(matches!(r, Err(AppError::Refused(_))), "{:?}", r);
+}
+
 #[test]
 fn place_replies_report_failures_as_errors() {
     let reply = |status: u16, body: Value| Reply {

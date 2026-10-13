@@ -91,6 +91,8 @@ pub struct EventBus {
     /// Faults that may have lost an order fact; the order reconciler wakes
     /// on `fact_loss` and repairs from the broker's order book.
     fact_losses: Arc<AtomicU64>,
+    /// Of those, the relay falling behind.
+    relay_losses: Arc<AtomicU64>,
     last_loss_relay: Arc<std::sync::atomic::AtomicBool>,
     fact_loss: Arc<tokio::sync::Notify>,
     /// The current broker session's generation (EV-02). An order update
@@ -118,6 +120,7 @@ impl EventBus {
             best_effort_cap: best_effort_cap.max(1),
             critical_cap: critical_cap.max(1),
             fact_losses: Arc::new(AtomicU64::new(0)),
+            relay_losses: Arc::new(AtomicU64::new(0)),
             last_loss_relay: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             fact_loss: Arc::new(tokio::sync::Notify::new()),
             session_generation: Arc::new(AtomicU64::new(0)),
@@ -131,6 +134,9 @@ impl EventBus {
     /// Record a fault that may have lost an order fact and wake whoever
     /// repairs it.
     pub fn report_fact_loss(&self, kind: FactLoss) {
+        if kind == FactLoss::Relay {
+            self.relay_losses.fetch_add(1, Ordering::SeqCst);
+        }
         note_loss(
             &self.fact_losses,
             &self.last_loss_relay,
@@ -148,6 +154,11 @@ impl EventBus {
     /// Faults that may have lost an order fact, since start.
     pub fn gap_count(&self) -> u64 {
         self.fact_losses.load(Ordering::SeqCst)
+    }
+
+    /// Of `gap_count`, the faults that were the relay falling behind.
+    pub fn relay_loss_count(&self) -> u64 {
+        self.relay_losses.load(Ordering::SeqCst)
     }
 
     /// Whether the latest such fault was the relay falling behind.

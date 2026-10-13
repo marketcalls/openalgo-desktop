@@ -782,6 +782,13 @@ impl RiskMonitor {
             }
             (add, remove, unreadable)
         };
+        // Held exits of a stop that is gone are no longer the trader's to
+        // decide here.
+        {
+            let legs: HashSet<String> = self.inner.lock().states.keys().cloned().collect();
+            self.absence
+                .retain_by(|k| legs.contains(k.split('#').next().unwrap_or_default()));
+        }
         for (key, symbol) in unreadable {
             self.alert_once(
                 &key,
@@ -1064,7 +1071,12 @@ impl RiskMonitor {
         });
         // Saved before anything is sent: an exit whose orders could not be
         // remembered across a restart is never started (fail closed).
-        if !self.persist_attempt(sl.id, &a) {
+        let (_, saved) = self.update_attempt(key, sl.id, |slot| {
+            if slot.as_ref().map(|c| c.id.as_str()) != Some(a.id.as_str()) {
+                *slot = Some(a.clone());
+            }
+        });
+        if !saved {
             self.alert_once(
                 key,
                 "persist",
@@ -1105,7 +1117,7 @@ impl RiskMonitor {
                 );
                 break;
             };
-            a.children.push(ExitChild {
+            let child = ExitChild {
                 order_id: r.broker_order_id.filter(|i| !i.is_empty()),
                 client_tag: r.client_tag,
                 action: action.to_string(),
@@ -1113,10 +1125,20 @@ impl RiskMonitor {
                 filled: 0,
                 state,
                 placed_at: self.clock.now(),
-            });
+            };
+            a.children.push(child.clone());
             a.settled_at = None;
-            // Every order sent is remembered before the next goes out.
-            if !self.record_attempt(key, sl.id, &a) {
+            // Every order sent is remembered before the next goes out, added
+            // to the attempt as it stands now (a reconcile pass may have
+            // folded fills into it meanwhile).
+            let (_, saved) = self.update_attempt(key, sl.id, |slot| match slot {
+                Some(c) if c.id == a.id => {
+                    c.children.push(child);
+                    c.settled_at = None;
+                }
+                _ => *slot = Some(a.clone()),
+            });
+            if !saved {
                 // The orders already sent are followed in memory; no more
                 // are sent while they cannot be saved.
                 self.alert_once(
@@ -1143,14 +1165,28 @@ impl RiskMonitor {
         }
     }
 
-    /// Keep a leg's attempt in memory and on its row. False when the row
-    /// could not be written (it is still followed in memory).
-    fn record_attempt(&self, key: &str, row_id: i64, a: &ExitAttempt) -> bool {
-        self.inner
-            .lock()
-            .attempts
-            .insert(key.to_string(), a.clone());
-        self.persist_attempt(row_id, a)
+    /// Change a leg's attempt in memory and write it to the stop's row in
+    /// the same hold, so two writers (a reconcile pass folding fills, an
+    /// exit adding an order, the trader's "not placed") never overwrite
+    /// each other's orders. Answers the attempt as it now stands and
+    /// whether the row was written (memory has the change either way).
+    fn update_attempt(
+        &self,
+        key: &str,
+        row_id: i64,
+        change: impl FnOnce(&mut Option<ExitAttempt>),
+    ) -> (Option<ExitAttempt>, bool) {
+        let mut inner = self.inner.lock();
+        let mut slot = inner.attempts.remove(key);
+        change(&mut slot);
+        let saved = match &slot {
+            Some(a) => {
+                inner.attempts.insert(key.to_string(), a.clone());
+                self.persist_attempt(row_id, a)
+            }
+            None => true,
+        };
+        (slot, saved)
     }
 
     /// Forget a closed leg: its row, its state, its subscription when no
@@ -1334,10 +1370,13 @@ impl RiskMonitor {
                             }
                             Found::Ambiguous(n) => {
                                 unresolved += 1;
-                                tracing::error!(
-                                    "{} orders in the broker's order book match an unconfirmed scalping exit for {}; it is not sent again. Check the order book.",
-                                    n,
-                                    sl.symbol
+                                self.alert_once(
+                                    &key,
+                                    "ambiguous",
+                                    format!(
+                                        "Scalping stop for {}: {} orders in the broker's order book match an exit order the broker did not confirm, and nothing tells them apart. It is not sent again and the stop stays; check the order book at the broker.",
+                                        sl.symbol, n
+                                    ),
                                 );
                             }
                         }
@@ -1347,15 +1386,25 @@ impl RiskMonitor {
             if !changed {
                 continue;
             }
-            if !a.working() {
-                a.settled_at = Some(book.read_at);
-            }
             // Only for the stop these orders belong to.
             if self.inner.lock().states.get(&key).map(|l| l.gen.0) != Some(gen.0) {
                 continue;
             }
-            self.record_attempt(&key, sl.id, &a);
-            if !a.working() {
+            // Fold this pass's facts into the attempt as it stands now: an
+            // exit may have added orders since the snapshot (they are kept).
+            let (now_attempt, _) = self.update_attempt(&key, sl.id, |slot| {
+                if let Some(c) = slot.as_mut().filter(|c| c.id == a.id) {
+                    for (i, folded) in a.children.iter().enumerate() {
+                        if let Some(cur) = c.children.get_mut(i) {
+                            *cur = folded.clone();
+                        }
+                    }
+                    if !c.working() && c.settled_at.is_none() {
+                        c.settled_at = Some(book.read_at);
+                    }
+                }
+            });
+            if now_attempt.is_some_and(|c| c.id == a.id && !c.working()) {
                 self.settle(&key, gen, &sl, mode).await;
             }
         }
@@ -1393,35 +1442,34 @@ impl RiskMonitor {
             return Ok(false);
         };
         let now = self.clock.now();
-        let found = {
-            let mut guard = self.inner.lock();
-            let inner = &mut *guard;
-            match (inner.states.get(key), inner.attempts.get_mut(key)) {
-                (Some(leg), Some(a)) if a.id == attempt_id => {
-                    match a.children.get_mut(idx).filter(|c| !c.terminal()) {
-                        Some(c) => {
-                            c.state = ChildState::Dead;
-                            if !a.working() {
-                                a.settled_at = Some(now);
-                            }
-                            Some((leg.gen, leg.sl.clone(), a.clone()))
-                        }
-                        None => None,
-                    }
-                }
-                _ => None,
-            }
-        };
         self.absence.forget(id);
-        let Some((gen, sl, a)) = found else {
+        let leg = {
+            let inner = self.inner.lock();
+            inner.states.get(key).map(|l| (l.gen, l.sl.clone()))
+        };
+        let Some((gen, sl)) = leg else {
             return Ok(false);
         };
+        let mut hit = false;
+        let (now_attempt, _) = self.update_attempt(key, sl.id, |slot| {
+            if let Some(a) = slot.as_mut().filter(|a| a.id == attempt_id) {
+                if let Some(c) = a.children.get_mut(idx).filter(|c| !c.terminal()) {
+                    c.state = ChildState::Dead;
+                    hit = true;
+                    if !a.working() {
+                        a.settled_at = Some(now);
+                    }
+                }
+            }
+        });
+        if !hit {
+            return Ok(false);
+        }
         tracing::warn!(
             "Trader marked an unconfirmed scalping exit for {} as not placed",
             sl.symbol
         );
-        self.record_attempt(key, sl.id, &a);
-        if !a.working() {
+        if now_attempt.is_some_and(|a| !a.working()) {
             self.settle(key, gen, &sl, run_mode(&sl.mode)).await;
         }
         Ok(true)

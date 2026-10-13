@@ -549,7 +549,25 @@ impl AbsenceTracker {
             e.baseline = net_now;
         }
         let long = (now - e.since).num_seconds() >= LIVE_RELEASE_SECS;
-        if long && traded == Some(false) && net_now.is_some() && net_now == e.baseline {
+        // A working order of the same instrument and side that was not
+        // matched (an unreadable time, a changed price) could be this one.
+        let lookalike = book.rows.iter().any(|r| {
+            r.symbol.trim().eq_ignore_ascii_case(u.symbol.trim())
+                && r.exchange.trim().eq_ignore_ascii_case(u.exchange.trim())
+                && r.action.trim().eq_ignore_ascii_case(u.action.trim())
+                && !matches!(
+                    r.status.trim(),
+                    "complete"
+                        | "completed"
+                        | "filled"
+                        | "rejected"
+                        | "cancelled"
+                        | "canceled"
+                        | "expired"
+                )
+        });
+        if long && !lookalike && traded == Some(false) && net_now.is_some() && net_now == e.baseline
+        {
             tracing::warn!(
                 "Unconfirmed {} {} {} on {}: absent for {} s, no matching trade, position unchanged; released as not placed",
                 u.action,
@@ -598,6 +616,12 @@ impl AbsenceTracker {
             .collect();
         v.sort_by(|a, b| a.since.cmp(&b.since).then_with(|| a.id.cmp(&b.id)));
         v
+    }
+
+    /// Keep only the keys `keep` accepts (an owner pruning entries whose
+    /// orders are gone).
+    pub fn retain_by(&self, keep: impl Fn(&str) -> bool) {
+        self.misses.lock().retain(|k, _| keep(k));
     }
 
     /// The owner key of the held order with this trader-facing id.
@@ -664,6 +688,8 @@ pub struct ReconcileStats {
     pub gaps_opened: AtomicU64,
     pub gaps_closed: AtomicU64,
     pub unresolved: AtomicU64,
+    /// Passes asked for at once (an uncertain placement was just recorded).
+    pub requested: AtomicU64,
 }
 
 pub struct OrderReconciler {
@@ -687,6 +713,8 @@ pub struct OrderReconciler {
     held_alerting: Arc<std::sync::atomic::AtomicBool>,
     /// The bus's fact-loss count already acted on (survives a restart).
     gaps_seen: AtomicU64,
+    /// Of those, the relay's.
+    relays_seen: AtomicU64,
 }
 
 impl OrderReconciler {
@@ -711,6 +739,7 @@ impl OrderReconciler {
             alerting: std::sync::atomic::AtomicBool::new(false),
             held_alerting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             gaps_seen: AtomicU64::new(0),
+            relays_seen: AtomicU64::new(0),
         })
     }
 
@@ -854,6 +883,7 @@ impl OrderReconciler {
 
     /// Ask for a pass now (an uncertain placement was just recorded).
     pub fn request_pass(&self) {
+        self.stats.requested.fetch_add(1, Ordering::Relaxed);
         self.wake.notify_one();
     }
 
@@ -1005,9 +1035,20 @@ impl OrderReconciler {
                 if let Some(b) = &bus {
                     // Kept on the reconciler, not in this task: a loss
                     // reported while a restart was under way is still seen.
-                    let now = b.gap_count();
-                    if me.gaps_seen.swap(now, Ordering::SeqCst) != now {
-                        me.report_fact_loss(b.last_loss_was_relay());
+                    // The relay count is read first: a loss counted in the
+                    // total but not yet as relay reads as an event loss,
+                    // which opens both destinations' gaps.
+                    let relay = b.relay_loss_count();
+                    let total = b.gap_count();
+                    let new_relay =
+                        relay.saturating_sub(me.relays_seen.swap(relay, Ordering::SeqCst));
+                    let new_total =
+                        total.saturating_sub(me.gaps_seen.swap(total, Ordering::SeqCst));
+                    if new_total > new_relay {
+                        me.report_fact_loss(false);
+                    }
+                    if new_relay > 0 {
+                        me.report_fact_loss(true);
                     }
                 }
                 me.pass().await;
@@ -1090,7 +1131,7 @@ impl Subscriber for Lifecycle {
                 // now. The order feed's own connect opens a gap if anything
                 // is held.
                 r.restart();
-                r.request_pass();
+                r.wake.notify_one();
             }
             Event::BrokerSessionEnded { .. } => r.restart(),
             _ => {}
@@ -1247,6 +1288,8 @@ mod tests {
     #[derive(Default)]
     struct Holder {
         holds: AtomicBool,
+        /// Also holds Sandbox orders.
+        sandbox: AtomicBool,
         folds: AtomicU64,
     }
 
@@ -1256,7 +1299,10 @@ mod tests {
             "holder"
         }
         fn has_open_orders(&self, mode: RunMode) -> bool {
-            mode == RunMode::Live && self.holds.load(Ordering::SeqCst)
+            match mode {
+                RunMode::Live => self.holds.load(Ordering::SeqCst),
+                RunMode::Sandbox => self.sandbox.load(Ordering::SeqCst),
+            }
         }
         fn owns_order(&self, _: &str) -> bool {
             false
@@ -1348,6 +1394,31 @@ mod tests {
         r.stop();
     }
 
+    /// Review: an event loss and a relay lag seen in the same pass open
+    /// both destinations' gaps (a relay lag alone opens Live only).
+    #[tokio::test]
+    async fn an_event_loss_and_a_relay_lag_in_one_pass_open_both_gaps() {
+        let gw = Arc::new(Gw::default());
+        let clock =
+            crate::clock::ManualClock::new(Utc.with_ymd_and_hms(2026, 10, 7, 4, 30, 0).unwrap());
+        let bus = Arc::new(EventBus::new());
+        let r = OrderReconciler::new(gw, clock, Some(bus.clone()));
+        let a = Arc::new(Holder::default());
+        a.holds.store(true, Ordering::SeqCst);
+        a.sandbox.store(true, Ordering::SeqCst);
+        r.register(a);
+        // Both reported before the task looks.
+        bus.report_fact_loss(crate::events::bus::FactLoss::Event);
+        bus.report_relay_lag(1);
+        r.start();
+        assert!(
+            until(|| r.stats.gaps_opened.load(Ordering::SeqCst) >= 2).await,
+            "Live and Sandbox gaps: {}",
+            r.stats.gaps_opened.load(Ordering::SeqCst)
+        );
+        r.stop();
+    }
+
     #[tokio::test]
     async fn nothing_held_means_no_gap_and_no_book_read() {
         let gw = Arc::new(Gw::default());
@@ -1398,6 +1469,41 @@ mod tests {
         assert!(sandbox.held().is_empty());
         live.forget("l");
         assert!(live.held().is_empty());
+    }
+
+    /// Review: a working order of the same instrument and side that the
+    /// matcher did not take (its time cannot be read) blocks the automatic
+    /// release, even with no trade and an unchanged position.
+    #[tokio::test]
+    async fn a_working_lookalike_in_the_book_blocks_the_automatic_release() {
+        let t0 = Utc.with_ymd_and_hms(2026, 10, 7, 4, 30, 0).unwrap();
+        let corr = Corroboration::from_books(
+            &json!({"data": []}),
+            &json!({"data": [{"symbol": "NIFTY24500CE", "exchange": "NFO", "product": "NRML", "quantity": 0}]}),
+        );
+        let at = |s: i64, rows: Vec<BookOrder>| {
+            BookSnapshot::new(rows, t0 + chrono::Duration::seconds(s))
+                .with_corroboration(corr.clone())
+        };
+        let mut working = row("9", "NIFTY24500CE", "BUY", 75, None, "");
+        working.status = "open".into();
+        let live = AbsenceTracker::new();
+        let order = u(None);
+        for i in 0..=ABSENT_READS {
+            let b = at(i64::from(i) * ABSENT_SPAN_SECS, vec![]);
+            live.judge("l", "7", RunMode::Live, &b, &order).await;
+        }
+        let late = LIVE_RELEASE_SECS + 60;
+        assert_eq!(
+            live.judge("l", "7", RunMode::Live, &at(late, vec![working]), &order)
+                .await,
+            Absence::Hold { alert: false }
+        );
+        assert_eq!(
+            live.judge("l", "7", RunMode::Live, &at(late + 30, vec![]), &order)
+                .await,
+            Absence::NotPlaced
+        );
     }
 
     #[test]

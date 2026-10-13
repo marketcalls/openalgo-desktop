@@ -588,13 +588,19 @@ async fn stop_loss_states_round_trip_with_validation() {
 
 // ------------------------------------------------------------------ monitor fakes
 
+/// A scripted placement with no definite answer.
+const UNCERTAIN: &str = "uncertain";
+
 #[derive(Default)]
 struct FakeGateway {
     refuse: Mutex<bool>,
     /// Placements answer with no definite outcome (LOG-08).
     uncertain: Mutex<bool>,
-    /// Per placement, front first: `None` accepts, `Some(reason)` refuses.
+    /// Per placement, front first: `None` accepts, `Some(reason)` refuses,
+    /// `Some(UNCERTAIN)` answers with no definite outcome.
     script: Mutex<std::collections::VecDeque<Option<&'static str>>>,
+    /// While set, trade-book reads (and only those) wait on it.
+    trades_gate: Mutex<Option<Arc<tokio::sync::Notify>>>,
     delay_ms: Mutex<u64>,
     net: Mutex<i64>,
     /// The position book has no row for the leg (empty or lagging).
@@ -641,8 +647,17 @@ impl OrderGateway for FakeGateway {
                 ..Default::default()
             };
         }
-        if let Some(Some(reason)) = self.script.lock().pop_front() {
-            return DispatchResult::refused(reason);
+        match self.script.lock().pop_front() {
+            Some(Some(UNCERTAIN)) => {
+                return DispatchResult {
+                    ok: false,
+                    error: Some("The broker did not confirm whether this order was placed.".into()),
+                    uncertain: true,
+                    ..Default::default()
+                }
+            }
+            Some(Some(reason)) => return DispatchResult::refused(reason),
+            _ => {}
         }
         DispatchResult {
             ok: true,
@@ -663,7 +678,15 @@ impl OrderGateway for FakeGateway {
     fn broker_name(&self, _: RunMode) -> String {
         "fake".into()
     }
-    async fn book(&self, mode: RunMode, _: Book) -> Result<Value, Value> {
+    async fn book(&self, mode: RunMode, which: Book) -> Result<Value, Value> {
+        if which == Book::Trades {
+            let gate = self.trades_gate.lock().clone();
+            if let Some(g) = gate {
+                self.entered.notify_one();
+                g.notified().await;
+            }
+            return Ok(json!({"status": "success", "data": []}));
+        }
         self.books.lock().push(mode);
         let gate = self.gate.lock().clone();
         if let Some(g) = gate {
@@ -1423,6 +1446,141 @@ async fn a_live_unconfirmed_exit_absent_from_the_book_is_held_for_the_trader() {
     m.mon.process_tick(OPT, "NFO", 90.0).await;
     m.mon.wait_idle().await;
     assert_eq!(m.gw.placed.lock().len(), 2);
+}
+
+/// LOG-08 review: a reconcile pass that waits on the broker (reading the
+/// trade book for a held exit) while an exit sends more orders keeps those
+/// orders. The pass folds its facts into the attempt as it stands; it does
+/// not write back its older copy, which made the next breach send again.
+#[tokio::test]
+async fn a_reconcile_pass_never_drops_orders_an_exit_sent_meanwhile() {
+    use openalgo_desktop_lib::scalping::monitor::ScalpingOrders;
+    use openalgo_desktop_lib::services::order_reconciler::{ABSENT_READS, ABSENT_SPAN_SECS};
+    let m = monitor();
+    *m.gw.net.lock() = 3705;
+    let mut l = leg("live");
+    l.quantity = Some(3705);
+    m.store.upsert_sl(&l).unwrap();
+    m.mon.sync().await;
+    // 1755 unconfirmed, 1755 accepted (X2), 195 refused.
+    {
+        let mut s = m.gw.script.lock();
+        s.push_back(Some(UNCERTAIN));
+        s.push_back(None);
+        s.push_back(Some("Exchange busy"));
+    }
+    m.mon.process_tick(OPT, "NFO", 90.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(
+        m.gw.placed
+            .lock()
+            .iter()
+            .map(|p| p.1.quantity)
+            .collect::<Vec<_>>(),
+        vec![1755, 1755, 195]
+    );
+    // The unconfirmed order's absence is confirmed: held (Live).
+    let start = m.clock.now();
+    for i in 0..=ABSENT_READS {
+        let at = start + chrono::Duration::seconds(i64::from(i) * ABSENT_SPAN_SECS);
+        m.mon.reconcile_book(RunMode::Live, &book(vec![], at)).await;
+    }
+    // A pass that reads the trade book for it and waits at the broker,
+    // while X2 is partly filled.
+    let gate = Arc::new(tokio::sync::Notify::new());
+    *m.gw.trades_gate.lock() = Some(gate.clone());
+    let mut partly = book(
+        vec![json!({
+            "orderid": "X2", "symbol": OPT, "exchange": "NFO", "action": "SELL",
+            "quantity": 1755, "product": "MIS", "order_status": "open",
+            "filled_quantity": 1000, "average_price": 94.5, "timestamp": "2026-10-05 10:30:05",
+        })],
+        start + chrono::Duration::seconds(200),
+    )
+    .with_source(m.gw.clone(), RunMode::Live);
+    partly.owners = vec![Arc::new(ScalpingOrders(Arc::downgrade(&m.mon)))];
+    let mon = m.mon.clone();
+    let pass = tokio::spawn(async move { mon.reconcile_book(RunMode::Live, &partly).await });
+    m.gw.entered.notified().await;
+    // Meanwhile the stop breaches again: the refused 195 goes out (X4).
+    m.clock.advance(chrono::Duration::seconds(4));
+    m.mon.process_tick(OPT, "NFO", 89.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.gw.placed.lock().len(), 4);
+    *m.gw.trades_gate.lock() = None;
+    gate.notify_one();
+    pass.await.unwrap();
+    let a = m.mon.exit_attempt("live", OPT, "NFO", "MIS").unwrap();
+    assert_eq!(
+        a.children.len(),
+        3,
+        "the order sent meanwhile is kept: {:?}",
+        a
+    );
+    assert_eq!(a.children[1].filled, 1000, "and the pass's fill is folded");
+    // Everything is covered: the next breach sends nothing.
+    m.clock.advance(chrono::Duration::seconds(4));
+    m.mon.process_tick(OPT, "NFO", 88.0).await;
+    m.mon.wait_idle().await;
+    assert_eq!(m.gw.placed.lock().len(), 4, "never a second 195");
+}
+
+/// LOG-08 review: when several book orders match an unconfirmed scalping
+/// exit and nothing tells them apart, the trader is alerted, once (it was
+/// only logged).
+#[tokio::test]
+async fn an_ambiguous_unconfirmed_exit_alerts_the_trader_once() {
+    let m = monitor();
+    m.store.upsert_sl(&leg("live")).unwrap();
+    m.mon.sync().await;
+    *m.gw.uncertain.lock() = true;
+    m.mon.process_tick(OPT, "NFO", 94.0).await;
+    m.mon.wait_idle().await;
+    *m.gw.uncertain.lock() = false;
+    let rows = vec![
+        order_row("B1", "SELL", 65, "open"),
+        order_row("B2", "SELL", 65, "open"),
+    ];
+    for s in 0..2 {
+        let at = m.clock.now() + chrono::Duration::seconds(s);
+        m.mon
+            .reconcile_book(RunMode::Live, &book(rows.clone(), at))
+            .await;
+    }
+    let alerts = m.alerts.lock().clone();
+    assert_eq!(
+        alerts
+            .iter()
+            .filter(|a| a.contains("nothing tells them apart"))
+            .count(),
+        1,
+        "{:?}",
+        alerts
+    );
+    assert_eq!(m.gw.placed.lock().len(), 1, "never sent again");
+}
+
+/// LOG-08 review: a stop the trader removes takes its held exits with it,
+/// so the Health page does not keep offering them.
+#[tokio::test]
+async fn a_removed_stop_takes_its_held_exits_with_it() {
+    use openalgo_desktop_lib::services::order_reconciler::{ABSENT_READS, ABSENT_SPAN_SECS};
+    let m = monitor();
+    m.store.upsert_sl(&leg("live")).unwrap();
+    m.mon.sync().await;
+    *m.gw.uncertain.lock() = true;
+    m.mon.process_tick(OPT, "NFO", 94.0).await;
+    m.mon.wait_idle().await;
+    *m.gw.uncertain.lock() = false;
+    let start = m.clock.now();
+    for i in 0..=ABSENT_READS {
+        let at = start + chrono::Duration::seconds(i64::from(i) * ABSENT_SPAN_SECS);
+        m.mon.reconcile_book(RunMode::Live, &book(vec![], at)).await;
+    }
+    assert_eq!(m.mon.held_orders().len(), 1);
+    m.store.delete_sl(OPT, "NFO", "MIS", Some("live")).unwrap();
+    m.mon.sync().await;
+    assert!(m.mon.held_orders().is_empty());
 }
 
 #[tokio::test]

@@ -275,10 +275,16 @@ pub(crate) fn in_transit(e: AppError, what: &str) -> AppError {
             );
             // Sent and then lost: the order may be at Groww. Its outcome is
             // unknown, never a refusal (LOG-08).
-            if what == "place" && crate::brokers::common::outcome::after_send(err) {
-                return AppError::uncertain(
-                    "Groww did not answer after the order was sent. It may have been placed: check the order book before placing it again.",
-                    None,
+            if what == "place" {
+                if crate::brokers::common::outcome::after_send(err) {
+                    return AppError::uncertain(
+                        "Groww did not answer after the order was sent. It may have been placed: check the order book before placing it again.",
+                        None,
+                    );
+                }
+                // The connection never opened: nothing was sent.
+                return crate::brokers::common::outcome::refusal(
+                    "Could not reach Groww to place the order. Check your internet connection and try again.",
                 );
             }
             AppError::Broker(match what {

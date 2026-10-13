@@ -151,6 +151,23 @@ async fn check(b: &dyn Broker, auth: &AuthToken, f: &Fake, c: &Case) {
     assert!(wrong.is_empty(), "{}: {:#?}", c.name, wrong);
 }
 
+/// LOG-08 review: Angel One's placement whose connection never opened sent
+/// nothing: a refusal, not "may have been placed" (which would hold a
+/// stop-loss exit for the trader during an outage).
+#[tokio::test]
+async fn angel_a_connection_that_never_opened_is_a_refusal() {
+    use openalgo_desktop_lib::brokers::angel::AngelBroker;
+    let b = AngelBroker::with_base_url(symbols(), "http://127.0.0.1:9");
+    let o = order(&symbols());
+    let auth = AuthToken::new("myapikey:jwt.token.sig");
+    match classify(&placing(b.place_order(&auth, &o)).await) {
+        PlaceOutcome::Refused { reason } => {
+            assert!(reason.contains("Could not reach Angel One"), "{}", reason)
+        }
+        other => panic!("{:?}", other),
+    }
+}
+
 #[tokio::test]
 async fn paytm_lost_answers_are_uncertain() {
     use openalgo_desktop_lib::brokers::paytm::PaytmBroker;

@@ -149,6 +149,12 @@ pub async fn place_order(
                 "Angel One order request failed in transit: {}",
                 url_safe_error(&e)
             );
+            if !crate::brokers::common::outcome::after_send(&e) {
+                // The connection never opened: nothing was sent.
+                return Err(crate::brokers::common::outcome::refusal(
+                    "Could not reach Angel One to place the order. Check your internet connection and try again.",
+                ));
+            }
             PlaceOutcome::Ambiguous
         }
     };

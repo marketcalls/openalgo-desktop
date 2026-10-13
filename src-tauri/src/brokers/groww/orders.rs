@@ -145,6 +145,10 @@ pub fn place_outcome(r: &Reply) -> Result<OrderResponse> {
                 m
             }));
         }
+        if r.status.as_u16() == 429 {
+            // Turned away before processing: not placed.
+            return Err(outcome::refusal(groww_error(r).client_message()));
+        }
         if r.status.is_server_error() || r.status.is_success() {
             // A failure on Groww's side, or an answer that could not be
             // read, does not say the order was not taken: never invite a
