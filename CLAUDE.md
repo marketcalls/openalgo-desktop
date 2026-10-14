@@ -459,7 +459,9 @@ Never commit an API key, account id or email into a fixture; use the
   skill's prose from the upstream changelog (SKILL.md's recent changes and
   the pin in its desktop section, the table in `reference/api.md`), and run
   `npx tsc -b` so the desktop-only chart code is checked against the new
-  build.
+  build. Never edit the two generated files by hand and never run a
+  formatter over them: `biome.json` leaves them out, because `--check`
+  compares the generator's exact output and a reformatted file fails it.
 
 ## Known pitfalls for agents
 

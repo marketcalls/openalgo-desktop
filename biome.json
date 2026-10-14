@@ -12,6 +12,7 @@
       "src/**/*.tsx",
       "src/**/*.js",
       "src/**/*.jsx",
+      "!src/lib/trading/chromeIcons.ts",
       "!src/lib/trading/drawingToolMetadata.ts"
     ]
   },
