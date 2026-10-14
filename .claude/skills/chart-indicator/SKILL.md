@@ -22,7 +22,7 @@ runtime; that path exists only on the web).
 
 This skill is the web repository's `chart-indicator` skill, carried over for
 OpenAlgo Desktop. The desktop pins the same `openalgo-charts` version as the
-web (`package.json` at the repository root, currently 2.6.0) and loads custom
+web (`package.json` at the repository root, currently 2.6.2) and loads custom
 indicators with the same loader (`src/lib/trading/customIndicators.ts`, the
 same file as the web's `frontend/src/lib/trading/customIndicators.ts`), so the
 contract, pitfalls, cookbook and examples apply unchanged. What differs:
@@ -92,6 +92,23 @@ when the indicator loads. Do not silently skip validation.
 The descriptor contract has only gained optional fields since this skill was
 written, so an existing indicator keeps working on the pinned build. What
 changed, newest first:
+
+- **2.6.2: nothing for a descriptor to change.** A fix in the widget tier:
+  the bottom bar's ranges and Go to no longer report missing history across a
+  gap no session trades in. The registry stays at 112, the index below at 433
+  names, and all thirteen examples pass the validator on 2.6.2 unchanged.
+
+- **2.6.1: nothing for a descriptor to change.** No built-in was added or
+  removed (the registry stays at 112, so pitfall 13's collision list is
+  unchanged), the export index below still lists 433 names, and all thirteen
+  examples pass the validator on 2.6.1 unchanged. The release is host-side:
+  the footprint gains order flow analytics, and Renko and point and figure
+  gain sizing methods. A study computed on the elements of a Renko chart
+  (`IndicatorCalcContext.transformed` set) can now see bricks sized as a
+  percent of price or from the ATR, and built from each bar's high and low
+  rather than its close, when the trader chooses those in `/trading`'s Renko
+  settings. The bricks are still elements with `open`, `high`, `low` and
+  `close`, so nothing a descriptor reads changes shape.
 
 - **2.5.2 to 2.6.0: seven more built-ins, a timeframe on 29 of them, and a
   wider descriptor.** Every existing descriptor keeps working, and all twelve
