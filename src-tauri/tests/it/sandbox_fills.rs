@@ -504,6 +504,100 @@ async fn a_modify_after_the_decision_is_not_filled_at_the_old_terms() {
 }
 
 // ---------------------------------------------------------------------------
+// A cancel releases exactly the margin the order reserved (openalgo#2207)
+// ---------------------------------------------------------------------------
+
+/// Web test/test_gthread_sandbox_fills.py::test_cancel_closing_mis_order_does_not_release_unreserved_margin
+/// and ::test_cancel_pre_marker_zero_margin_closing_order_preserves_position_margin.
+///
+/// A resting order that closes an open position reserves nothing, so its
+/// cancel releases nothing: the position's margin stays blocked. The web
+/// recalculated a margin for any order recorded with zero and released it,
+/// freeing margin the position still held. The desktop records the exact
+/// reservation on every order (no legacy rows without one), so the web's
+/// NULL-versus-zero marker has no counterpart and both web cases are this
+/// one row.
+#[tokio::test]
+async fn cancel_of_a_closing_mis_order_releases_no_margin() {
+    let env = Env::at("2026-10-05 14:00:00");
+    env.ltp("RELIANCE", "NSE", "2600");
+    // Open a long MIS position, then leave a SELL limit resting to close it.
+    place(&env, req("RELIANCE", "NSE", "BUY", 10, "MARKET", "MIS")).await;
+    assert_eq!(env.qty("RELIANCE", "NSE", "MIS").await, 10);
+    let closing = place(
+        &env,
+        limit(req("RELIANCE", "NSE", "SELL", 10, "LIMIT", "MIS"), "2700"),
+    )
+    .await;
+    let row = env.sb.order_row(&closing).await.unwrap().unwrap();
+    assert_eq!(row.order_status.as_str(), "open");
+    assert_eq!(
+        row.margin_blocked,
+        Decimal::ZERO,
+        "a closing order reserves nothing"
+    );
+    let used_before_cancel = env.used().await;
+    assert_eq!(
+        used_before_cancel,
+        d("5200"),
+        "the position's MIS margin, 26000 / 5"
+    );
+
+    env.sb.cancel_order(&closing).await.unwrap();
+
+    assert_eq!(env.status(&closing).await, "cancelled");
+    assert_eq!(
+        env.used().await,
+        used_before_cancel,
+        "the position's margin stays blocked"
+    );
+    env.assert_margin_consistent().await;
+
+    // An order that closes and then reverses reserves only the reversal,
+    // and a cancel gives back exactly that.
+    let reversing = place(
+        &env,
+        limit(req("RELIANCE", "NSE", "SELL", 15, "LIMIT", "MIS"), "2700"),
+    )
+    .await;
+    let row = env.sb.order_row(&reversing).await.unwrap().unwrap();
+    assert_eq!(row.margin_blocked, d("2700"), "5 short at 2700 / 5");
+    assert_eq!(env.used().await, d("7900"));
+    env.sb.cancel_order(&reversing).await.unwrap();
+    assert_eq!(env.used().await, used_before_cancel);
+    env.assert_margin_consistent().await;
+    env.shutdown().await;
+}
+
+/// Web test/test_gthread_sandbox_fills.py::test_cancel_legacy_zero_margin_field_recalculates_opening_order_reservation.
+///
+/// The web case is a legacy row whose margin column was migrated in as zero
+/// while the order held margin; the web recalculates and releases it. The
+/// desktop has no such rows, so the port checks the outcome the web test
+/// asserts: cancelling a resting opening order gives back everything it
+/// reserved.
+#[tokio::test]
+async fn cancel_of_an_opening_mis_order_releases_its_reservation() {
+    let env = Env::at("2026-10-05 14:00:00");
+    env.ltp("RELIANCE", "NSE", "2600");
+    let id = place(
+        &env,
+        limit(req("RELIANCE", "NSE", "BUY", 10, "LIMIT", "MIS"), "2500"),
+    )
+    .await;
+    assert_eq!(env.status(&id).await, "open");
+    assert_eq!(env.used().await, d("5000"), "25000 / 5 reserved");
+
+    env.sb.cancel_order(&id).await.unwrap();
+
+    assert_eq!(env.status(&id).await, "cancelled");
+    assert_eq!(env.used().await, d("0"));
+    assert_eq!(env.available().await, d("10000000"));
+    env.assert_margin_consistent().await;
+    env.shutdown().await;
+}
+
+// ---------------------------------------------------------------------------
 // A fill is all or nothing: no order completes without its trade row
 // ---------------------------------------------------------------------------
 
