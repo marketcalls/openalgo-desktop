@@ -24,30 +24,45 @@ interface BrokerStore {
   sessionChanged: (live: boolean) => Promise<void>
 }
 
+// The navbar and its account controls both ask at mount, before either has an
+// answer; they share the request in flight instead of sending two.
+// Desktop: shared within one epoch only, so a fetch after a clear (a broker
+// session change) asks the server again instead of waiting on an answer for
+// the session that ended, which the epoch check would then discard.
+let inflight: { epoch: number; done: Promise<void> } | null = null
+
 export const useBrokerStore = create<BrokerStore>()((set, get) => ({
   capabilities: null,
   isLoaded: false,
   epoch: 0,
 
-  fetchCapabilities: async () => {
+  fetchCapabilities: () => {
     const epoch = get().epoch
-    try {
-      const response = await fetch('/api/broker/capabilities', {
-        credentials: 'include',
-      })
+    if (inflight?.epoch === epoch) return inflight.done
+    const request = { epoch, done: Promise.resolve() }
+    request.done = (async () => {
+      try {
+        const response = await fetch('/api/broker/capabilities', {
+          credentials: 'include',
+        })
 
-      if (response.ok) {
-        const data = await response.json()
-        // Cleared (logout, broker change) while this was in flight: the
-        // answer describes a session that has ended.
-        if (get().epoch !== epoch) return
-        if (data.status === 'success' && data.data) {
-          set({ capabilities: data.data, isLoaded: true })
+        if (response.ok) {
+          const data = await response.json()
+          // Cleared (logout, broker change) while this was in flight: the
+          // answer describes a session that has ended.
+          if (get().epoch !== epoch) return
+          if (data.status === 'success' && data.data) {
+            set({ capabilities: data.data, isLoaded: true })
+          }
         }
+      } catch {
+        // Silently fail — capabilities will be null, pages fall back to showing all exchanges
+      } finally {
+        if (inflight === request) inflight = null
       }
-    } catch {
-      // Silently fail — capabilities will be null, pages fall back to showing all exchanges
-    }
+    })()
+    inflight = request
+    return request.done
   },
 
   clearCapabilities: () =>

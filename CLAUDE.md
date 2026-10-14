@@ -442,6 +442,24 @@ Never commit an API key, account id or email into a fixture; use the
   data rather than a default.
 - **Adding a page**: the route in the frontend router, the same path served by
   the Rust server's SPA fallback, and the navigation entry, in one change.
+- **/trading is a full-screen terminal**, as on the web: no app navbar there.
+  The navbar and the terminal's toolbar both render
+  `src/components/layout/AccountControls.tsx` (broker, Live or Analyze, mode
+  switch, theme, profile menu); never fork that logic into the terminal. Every
+  toolbar and rail glyph comes from the chart engine through the generated
+  `src/lib/trading/chromeIcons.ts` and `drawingToolMetadata.ts` and
+  `src/lib/trading/glyphs.tsx`.
+- **Bumping `openalgo-charts` is one change** with the `chart-indicator`
+  skill and the generated glyph modules. Pin the exact version in
+  `package.json` and the lockfile, then run
+  `node .claude/skills/chart-indicator/generate-api-index.mjs`,
+  `node .claude/skills/chart-indicator/coverage.mjs` (must print COVERAGE
+  COMPLETE), `node scripts/generate-drawing-tools.mjs` and
+  `node scripts/generate-chrome-icons.mjs` (each takes `--check`), update the
+  skill's prose from the upstream changelog (SKILL.md's recent changes and
+  the pin in its desktop section, the table in `reference/api.md`), and run
+  `npx tsc -b` so the desktop-only chart code is checked against the new
+  build.
 
 ## Known pitfalls for agents
 
