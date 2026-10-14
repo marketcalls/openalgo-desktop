@@ -407,9 +407,10 @@ async fn close_all_flattens_only_the_scalping_list_freeze_safe() {
         .store
         .track(OPT, "NFO", "NRML", "live")
         .unwrap();
-    // 30 lots: above the NIFTY freeze (1800 -> 27 whole lots = 1755).
+    // 60 lots: above the NIFTY freeze from 5 October 2026 (3510 = 54 whole
+    // lots of 65; openalgo#2218).
     *h.mock.positions.lock() = Some(Ok(vec![
-        pos(OPT, "NFO", "NRML", 65 * 30),
+        pos(OPT, "NFO", "NRML", 65 * 60),
         pos("SBIN", "NSE", "MIS", 10),
     ]));
     let (s, b) = call(
@@ -429,7 +430,7 @@ async fn close_all_flattens_only_the_scalping_list_freeze_safe() {
     assert_eq!(b["results"][0]["status"], "success");
     assert_eq!(
         placed(&h),
-        vec![("SELL".to_string(), 1755), ("SELL".to_string(), 195)],
+        vec![("SELL".to_string(), 3510), ("SELL".to_string(), 390)],
         "split into freeze-sized whole-lot chunks; SBIN untouched"
     );
     h.shutdown().await;

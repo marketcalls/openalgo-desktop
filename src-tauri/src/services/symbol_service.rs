@@ -57,6 +57,11 @@ pub fn freeze_qty(symbol: &str, exchange: &str) -> i64 {
 }
 
 /// Web `get_freeze_qty_for_option`: the underlying from an F&O symbol.
+///
+/// Index names are matched longest-prefix-first, so NIFTYNXT50 and NIFTYFPI
+/// are not shadowed by NIFTY, and SENSEX50 is not shadowed by SENSEX.
+/// NIFTYFPI's limit (53,900) is fifteen times NIFTY's, so falling through to
+/// NIFTY split its orders into far more slices than the exchange requires.
 pub fn freeze_qty_for_option(symbol: &str, exchange: &str) -> i64 {
     let up = symbol.to_ascii_uppercase();
     for idx in [
@@ -64,6 +69,7 @@ pub fn freeze_qty_for_option(symbol: &str, exchange: &str) -> i64 {
         "FINNIFTY",
         "MIDCPNIFTY",
         "NIFTYNXT50",
+        "NIFTYFPI",
         "NIFTY",
         "SENSEX50",
         "BANKEX",
@@ -413,7 +419,7 @@ mod tests {
 
     #[test]
     fn freeze_quantities_come_from_the_nse_table() {
-        assert_eq!(freeze_qty_for_option("NIFTY06OCT2622400CE", "NFO"), 1800);
+        assert_eq!(freeze_qty_for_option("NIFTY06OCT2622400CE", "NFO"), 3510);
         assert_eq!(
             freeze_qty_for_option("NIFTYNXT5027OCT26FUT", "NFO"),
             freeze_qty("NIFTYNXT50", "NFO")
@@ -421,6 +427,36 @@ mod tests {
         assert_eq!(freeze_qty_for_option("NIFTY", "NSE_INDEX"), 0);
         assert_eq!(freeze_qty_for_option("CRUDEOIL19OCT26FUT", "MCX"), 0);
         assert!(freeze_qty("RELIANCE", "NFO") > 0);
+    }
+
+    /// Web test/test_migrate_qty_freeze_oct_2026.py::test_the_seed_csv_carries_the_same_limits:
+    /// the NSE index limits in force from 5 October 2026 (NSE/FAOP/76693).
+    #[test]
+    fn index_freeze_limits_from_5_october_2026() {
+        for (index, limit) in [
+            ("NIFTY", 3510),
+            ("BANKNIFTY", 1440),
+            ("FINNIFTY", 3240),
+            ("MIDCPNIFTY", 5760),
+            ("NIFTYNXT50", 1125),
+            ("NIFTYFPI", 53900),
+        ] {
+            assert_eq!(freeze_qty(index, "NFO"), limit, "{index}");
+        }
+        // Stock rows are untouched by the revision.
+        assert_eq!(freeze_qty("RELIANCE", "NFO"), 15000);
+    }
+
+    /// Web test/test_migrate_qty_freeze_oct_2026.py::test_niftyfpi_options_resolve_their_own_limit:
+    /// NIFTYFPI starts with NIFTY, so it must be matched before NIFTY.
+    #[test]
+    fn niftyfpi_options_resolve_their_own_limit() {
+        assert_eq!(
+            freeze_qty_for_option("NIFTYFPI27OCT2618000CE", "NFO"),
+            53900
+        );
+        assert_eq!(freeze_qty_for_option("NIFTYFPI27OCT26FUT", "NFO"), 53900);
+        assert_eq!(freeze_qty_for_option("NIFTY27OCT2625000CE", "NFO"), 3510);
     }
 
     #[test]
