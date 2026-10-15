@@ -16,29 +16,56 @@ pub struct Warning {
     pub advice: String,
 }
 
+/// The words that change with what ends OpenAlgo for a while.
+struct Wording {
+    /// When a paused OpenScript run can be started again.
+    resume: &'static str,
+    /// When to check what OpenAlgo could not read.
+    before: &'static str,
+    live_intro: &'static str,
+    live_advice: &'static str,
+    sandbox_intro: &'static str,
+}
+
+/// An update's restart.
+const UPDATE: Wording = Wording {
+    resume: "after the update",
+    before: "before you update",
+    live_intro: "Updating restarts OpenAlgo. Until it opens again (usually within a minute) and you sign in, nothing watches your Live trades:",
+    live_advice: "Update now only if that is acceptable. Otherwise choose Later and update after the market closes.",
+    sandbox_intro: "Updating restarts OpenAlgo. Your sandbox activity pauses until it opens again:",
+};
+
 impl Activity {
     /// What the trader is told before a restart, or `None` when nothing
     /// runs. `broker` is the logged-in broker's display name.
     pub fn warning(&self, broker: Option<&str>) -> Option<Warning> {
+        self.warning_in(&UPDATE, broker)
+    }
+
+    /// The warning in `words`, or `None` when nothing runs.
+    fn warning_in(&self, words: &Wording, broker: Option<&str>) -> Option<Warning> {
         if self.is_quiet() {
             return None;
         }
-        let sandbox = self.sandbox_items();
-        if !self.has_live() {
-            return Some(sandbox_warning(sandbox));
-        }
-        let mut items = self.live_items(broker);
-        if !sandbox.is_empty() {
-            items.push(format!(
-                "Sandbox: {}. Nothing there is sent to your broker.",
-                join_list(&sandbox)
-            ));
-        }
-        Some(live_warning(items))
+        let sandbox = self.sandbox_items(words);
+        let warning = if self.has_live() {
+            let mut items = self.live_items(words, broker);
+            if !sandbox.is_empty() {
+                items.push(format!(
+                    "Sandbox: {}. Nothing there is sent to your broker.",
+                    join_list(&sandbox)
+                ));
+            }
+            live_warning(words, items)
+        } else {
+            sandbox_warning(words, sandbox)
+        };
+        Some(warning)
     }
 
     /// One sentence per kind of Live work a restart leaves unwatched.
-    fn live_items(&self, broker: Option<&str>) -> Vec<String> {
+    fn live_items(&self, words: &Wording, broker: Option<&str>) -> Vec<String> {
         let at = broker.map(|b| format!(" at {}", b)).unwrap_or_default();
         let mut items = Vec::new();
         let n = self.live_strategies;
@@ -57,7 +84,7 @@ impl Activity {
         let n = self.live_openscript_runs;
         if n > 0 {
             items.push(format!(
-                "{}. {} paused when OpenAlgo closes; start {} again after the update.",
+                "{}. {} paused when OpenAlgo closes; start {} again {}.",
                 count(
                     n,
                     "running Live OpenScript run",
@@ -65,6 +92,7 @@ impl Activity {
                 ),
                 pick(n, "It is", "They are"),
                 pick(n, "it", "them"),
+                words.resume,
             ));
         }
         let n = self.live_scalping_stops;
@@ -78,18 +106,19 @@ impl Activity {
                 ),
             ));
         }
-        items.extend(self.order_items(&at));
+        items.extend(self.order_items(words, &at));
         if self.checks_failed {
-            items.push(
-                "OpenAlgo could not check everything that is running. Check your strategies and positions before you update.".into(),
-            );
+            items.push(format!(
+                "OpenAlgo could not check everything that is running. Check your strategies and positions {}.",
+                words.before
+            ));
         }
         items
     }
 
     /// Orders at the broker: open ones, an unreadable book, and placements
     /// whose outcome is not known yet.
-    fn order_items(&self, at: &str) -> Vec<String> {
+    fn order_items(&self, words: &Wording, at: &str) -> Vec<String> {
         let mut items = Vec::new();
         let n = self.live_open_orders;
         if n > 0 {
@@ -103,8 +132,8 @@ impl Activity {
         }
         if self.live_orders_unknown {
             items.push(format!(
-                "OpenAlgo could not read your open orders{}. Check your order book before you update.",
-                at
+                "OpenAlgo could not read your open orders{}. Check your order book {}.",
+                at, words.before
             ));
         }
         let n = self.unsettled_orders;
@@ -123,7 +152,7 @@ impl Activity {
     }
 
     /// The sandbox work a restart pauses, as list entries.
-    fn sandbox_items(&self) -> Vec<String> {
+    fn sandbox_items(&self, words: &Wording) -> Vec<String> {
         let mut items = Vec::new();
         if self.sandbox_strategies > 0 {
             items.push(count(
@@ -135,9 +164,10 @@ impl Activity {
         let n = self.sandbox_openscript_runs;
         if n > 0 {
             items.push(format!(
-                "{} (paused; start {} again after the update)",
+                "{} (paused; start {} again {})",
                 count(n, "sandbox OpenScript run", "sandbox OpenScript runs"),
                 pick(n, "it", "them"),
+                words.resume,
             ));
         }
         if self.sandbox_scalping_stops > 0 {
@@ -158,22 +188,21 @@ impl Activity {
     }
 }
 
-fn live_warning(items: Vec<String>) -> Warning {
+fn live_warning(words: &Wording, items: Vec<String>) -> Warning {
     Warning {
         level: "live",
         title: "Live trading is running".into(),
-        intro: "Updating restarts OpenAlgo. Until it opens again (usually within a minute) and you sign in, nothing watches your Live trades:".into(),
+        intro: words.live_intro.into(),
         items,
-        advice: "Update now only if that is acceptable. Otherwise choose Later and update after the market closes.".into(),
+        advice: words.live_advice.into(),
     }
 }
 
-fn sandbox_warning(sandbox: Vec<String>) -> Warning {
+fn sandbox_warning(words: &Wording, sandbox: Vec<String>) -> Warning {
     Warning {
         level: "sandbox",
         title: "Sandbox activity is running".into(),
-        intro: "Updating restarts OpenAlgo. Your sandbox activity pauses until it opens again:"
-            .into(),
+        intro: words.sandbox_intro.into(),
         items: sandbox
             .into_iter()
             .map(|s| format!("{}.", capitalise(&s)))
