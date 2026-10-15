@@ -91,6 +91,15 @@ The bypass list decides how work lands on `master`:
 Choosing the strict profile means changing that instruction to "push a
 branch, open a pull request, merge when `ci-ok` is green" in the same change.
 
+### Merge queue (applied 2026-10-15 with the maintainer's approval)
+
+`master ci-ok` also requires the merge queue: a PR merges only after `ci-ok`
+passes on a temporary branch holding the latest master plus the PRs queued
+ahead of it. Two PRs that were each green on their own base can therefore no
+longer break master together (as #44 and #63 did on 2026-10-15). CI runs on
+the `merge_group` event for this. Merge with `gh pr merge <n> --auto`; the
+queue rebases and merges when its run is green.
+
 ### 3. `v*` tags
 
 | Field | Value |
