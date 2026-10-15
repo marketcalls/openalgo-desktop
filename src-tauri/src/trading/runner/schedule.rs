@@ -7,8 +7,8 @@
 //! so tests drive a schedule by moving the clock.
 
 use super::store::Schedule;
-use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveTime, TimeZone, Utc};
-use chrono_tz::Asia::Kolkata;
+use crate::clock::ist_slots_between;
+use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveTime, Utc};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
@@ -108,14 +108,6 @@ fn weekday_name(d: NaiveDate) -> &'static str {
     DAYS[d.weekday().num_days_from_monday() as usize]
 }
 
-fn instant(date: NaiveDate, at: &str) -> Option<DateTime<Utc>> {
-    let t = hhmm(at)?;
-    Kolkata
-        .from_local_datetime(&date.and_time(t))
-        .single()
-        .map(|d| d.with_timezone(&Utc))
-}
-
 /// The starts and stops that fell in `(from, to]`, stops first, each once.
 /// The date it fell on is returned with it, for the trading calendar.
 pub fn due(
@@ -123,32 +115,19 @@ pub fn due(
     from: DateTime<Utc>,
     to: DateTime<Utc>,
 ) -> Vec<(String, Action, NaiveDate)> {
-    if to <= from {
-        return Vec::new();
-    }
-    // Never look further back than two days, whatever the gap.
-    let from = from.max(to - Duration::days(2));
-    let first = from.with_timezone(&Kolkata).date_naive();
-    let last = to.with_timezone(&Kolkata).date_naive();
     let mut out: BTreeMap<(String, Action), NaiveDate> = BTreeMap::new();
     for (name, s) in schedules {
-        let mut d = first;
-        while d <= last {
-            if s.days.iter().any(|x| x == weekday_name(d)) {
-                if let Some(at) = instant(d, &s.start_time) {
-                    if at > from && at <= to && to - at <= START_GRACE {
-                        out.insert((name.clone(), Action::Start), d);
-                    }
-                }
-                if let Some(at) = s.stop_time.as_deref().and_then(|t| instant(d, t)) {
-                    if at > from && at <= to {
-                        out.insert((name.clone(), Action::Stop), d);
-                    }
+        let on = |d: NaiveDate| s.days.iter().any(|x| x == weekday_name(d));
+        if let Some(t) = hhmm(&s.start_time) {
+            for (d, at) in ist_slots_between(from, to, t, on) {
+                if to - at <= START_GRACE {
+                    out.insert((name.clone(), Action::Start), d);
                 }
             }
-            match d.succ_opt() {
-                Some(n) => d = n,
-                None => break,
+        }
+        if let Some(t) = s.stop_time.as_deref().and_then(hhmm) {
+            for (d, _) in ist_slots_between(from, to, t, on) {
+                out.insert((name.clone(), Action::Stop), d);
             }
         }
     }
@@ -161,6 +140,8 @@ pub fn due(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+    use chrono_tz::Asia::Kolkata;
     use serde_json::json;
 
     fn body(v: Value) -> Map<String, Value> {
