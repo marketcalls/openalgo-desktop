@@ -28,7 +28,7 @@ pub use auth::redirect_uri;
 
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
-use crate::brokers::common::ratelimit::Pacer;
+use crate::brokers::common::ratelimit::{Pacer, ORDERS_PER_SECOND};
 use crate::brokers::common::streaming::BrokerFeed;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
@@ -85,7 +85,11 @@ pub struct PocketfulBroker {
     /// The client id fetched for the current token when the session did not
     /// carry one: one entry keyed by a digest of the token (bounded).
     client_id_cache: Mutex<Option<([u8; 32], String)>>,
+    /// Data and account calls.
     pacer: Pacer,
+    /// Places, modifies and cancels, apart from the data calls so none
+    /// queues ahead of an exit (RATE-02).
+    order_pacer: Pacer,
 }
 
 fn digest(token: &str) -> [u8; 32] {
@@ -121,6 +125,7 @@ impl PocketfulBroker {
             symbols,
             client_id_cache: Mutex::new(None),
             pacer: Pacer::per_second(10.0),
+            order_pacer: Pacer::per_second(ORDERS_PER_SECOND),
         }
     }
 
@@ -137,8 +142,9 @@ impl PocketfulBroker {
         }
     }
 
-    /// One REST call. Answers the decoded JSON body when Pocketful says
-    /// `status: success`; anything else becomes a trader-facing error.
+    /// One REST call on the data lane. Answers the decoded JSON body when
+    /// Pocketful says `status: success`; anything else becomes a
+    /// trader-facing error.
     pub(crate) async fn call(
         &self,
         method: Method,
@@ -146,8 +152,32 @@ impl PocketfulBroker {
         auth: &AuthToken,
         body: Option<&Value>,
     ) -> Result<Value> {
+        self.call_on(&self.pacer, method, path_and_query, auth, body)
+            .await
+    }
+
+    /// [`Self::call`] for a place, modify or cancel, on the order lane.
+    pub(crate) async fn call_order(
+        &self,
+        method: Method,
+        path_and_query: &str,
+        auth: &AuthToken,
+        body: Option<&Value>,
+    ) -> Result<Value> {
+        self.call_on(&self.order_pacer, method, path_and_query, auth, body)
+            .await
+    }
+
+    async fn call_on(
+        &self,
+        lane: &Pacer,
+        method: Method,
+        path_and_query: &str,
+        auth: &AuthToken,
+        body: Option<&Value>,
+    ) -> Result<Value> {
         let token = Self::token(auth)?;
-        self.pacer.acquire().await?;
+        lane.acquire().await?;
         let url = format!("{}{}", self.urls.rest, path_and_query);
         let mut req = self
             .http

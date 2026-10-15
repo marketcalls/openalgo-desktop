@@ -83,6 +83,8 @@ pub async fn place_order(
     ))
     .await?;
     let body = mapping::place_body(o, &r);
+    // Orders take their own turn (RATE-03); refused before sending past it.
+    b.order_pacer.acquire().await?;
     let (status, v) = b
         .send(Method::POST, "/order/placeOrder", auth, Some(&body))
         .await?;
@@ -142,6 +144,7 @@ pub async fn modify_order(
     .await?;
     let body = mapping::modify_body(m, &r);
     let path = format!("/order/modifyOrder/{}", super::url_quote(m.order_id.trim()));
+    b.order_pacer.acquire().await?;
     let (status, v) = b.send(Method::PUT, &path, auth, Some(&body)).await?;
     if is_success(&v) {
         // The documented key is `orderNumber`; the actual body says
@@ -167,6 +170,7 @@ pub async fn cancel_order(
         "/order/cancelOrder?orderNumber={}",
         super::url_quote(order_id.trim())
     );
+    b.order_pacer.acquire().await?;
     let (status, v) = b.send(Method::DELETE, &path, auth, None).await?;
     if is_success(&v) {
         return Ok(OrderResponse {

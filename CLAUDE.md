@@ -945,6 +945,13 @@ and add each new one here.
   `acquire_unbounded`; a new call site decides which it is.
   The web bounds the wait only under its gthread worker: a recorded
   deviation.
+- **Orders take their own lane.** A broker that publishes no order rate
+  paces places, modifies and cancels at `ratelimit::ORDERS_PER_SECOND`
+  (10 a second, the exchanges' threshold above which a retail API
+  client's algorithm must be registered) on a pacer apart from its data
+  calls, so a queue of quotes or history never holds an exit back
+  (RATE-02, RATE-03). The web paces none of these brokers' orders: a
+  recorded deviation (maintainer decision 2026-10-16).
 - **A missing open interest is not a zero.** Chains are quoted through
   `Broker::get_chain_quotes`, which says which legs came back without OI
   (`ChainQuotes::oi_missing`). Fyers answers from its native

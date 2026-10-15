@@ -179,7 +179,7 @@ pub async fn place_order(
     let s = session(auth)?;
     let price = order_price(b, auth, o).await?;
     let body = mapping::place_body(o, price);
-    let v = b.post(PLACE, body, &s).await?;
+    let v = b.post_order(PLACE, body, &s).await?;
     match mapping::placed_order_id(&v) {
         Ok(id) => Ok(OrderResponse {
             order_id: id,
@@ -241,7 +241,7 @@ pub async fn modify_order(
         ));
     }
     let v = b
-        .post(MODIFY, mapping::modify_body(m, &exch_id), &s)
+        .post_order(MODIFY, mapping::modify_body(m, &exch_id), &s)
         .await?;
     let head_status = v.get("head").map(|h| text(h, "status")).unwrap_or_default();
     if head_status == "0" {
@@ -293,7 +293,9 @@ async fn cancel_in_book(
                 .into(),
         ));
     }
-    let v = b.post(CANCEL, json!({"ExchOrderID": exch_id}), s).await?;
+    let v = b
+        .post_order(CANCEL, json!({"ExchOrderID": exch_id}), s)
+        .await?;
     if super::head_success(&v) {
         Ok(OrderResponse {
             order_id: order_id.to_string(),
