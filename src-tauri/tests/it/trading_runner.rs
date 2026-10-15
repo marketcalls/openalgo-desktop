@@ -66,6 +66,8 @@ struct Fake {
     /// Who decides whether new entries wait (the app's order reconciler in
     /// the tests that set it).
     gate: Mutex<Option<Arc<dyn EntryGate>>>,
+    /// Order status reads that never answer (TIME-03).
+    status_hangs: AtomicBool,
 }
 
 /// A placement the destination neither accepted nor refused.
@@ -301,6 +303,9 @@ impl RunnerServices for Fake {
         }
     }
     async fn order_status(&self, mode: RunMode, orderid: &str) -> OrderStatusResult {
+        if self.status_hangs.load(Ordering::SeqCst) {
+            std::future::pending::<()>().await;
+        }
         match self
             .orders
             .lock()
@@ -1105,6 +1110,34 @@ async fn a_stop_waits_for_working_orders_to_finish() {
     assert_eq!(sent.len(), 2);
     assert_eq!(sent[1]["action"], "SELL");
     assert_eq!(sent[1]["quantity"], 4);
+}
+
+/// TIME-03: the close budget bounds the whole close. Each open order's
+/// status was read one after another before the deadline was ever checked,
+/// so three reads that never answer held Stop forever. Now no read outlasts
+/// the deadline: Stop answers within it, sends no exit, and says the orders
+/// are still working, with the position still held.
+#[tokio::test]
+async fn a_stop_answers_within_its_budget_when_status_reads_hang() {
+    let t = setup().await;
+    let id = t.deploy("SBIN").await;
+    t.start(&id).await;
+    for intent in 1..=3 {
+        t.buy(&id, intent, 1).await; // working, nothing filled
+    }
+    *t.fake.cancel_mode.lock() = CancelMode::StayOpen;
+    t.fake.status_hangs.store(true, Ordering::SeqCst);
+    let closed = tokio::time::timeout(Duration::from_secs(10), t.close(&id)).await;
+    let (s, v) = closed.expect("Stop must answer within its close budget");
+    assert_eq!(s, StatusCode::CONFLICT, "{}", v);
+    let message = v["message"].as_str().unwrap();
+    assert!(
+        message.contains("Orders OID1, OID2, OID3 of this strategy are still working"),
+        "{}",
+        message
+    );
+    assert_eq!(t.fake.placed_on(RunMode::Sandbox).len(), 3, "no exit");
+    assert!(t.h.ctx.trading.runner.is_running(&id));
 }
 
 /// LOG-04b: the cap reads the destination's position book, and a book that
