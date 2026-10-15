@@ -114,7 +114,7 @@ jobs:
           ref: ${{ github.event_name == 'workflow_run' && needs.source.outputs.sha || github.sha }}
           persist-credentials: false
       - name: Download the bundles
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: bundles-linux-${{ matrix.name }}
           path: bundles
@@ -193,7 +193,7 @@ jobs:
           ref: ${{ github.event_name == 'workflow_run' && needs.source.outputs.sha || github.sha }}
           persist-credentials: false
       - name: Download the bundles
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: bundles-windows-x86_64
           path: bundles
@@ -232,7 +232,7 @@ jobs:
           ref: ${{ github.event_name == 'workflow_run' && needs.source.outputs.sha || github.sha }}
           persist-credentials: false
       - name: Download the bundles
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: bundles-macos-aarch64
           path: bundles

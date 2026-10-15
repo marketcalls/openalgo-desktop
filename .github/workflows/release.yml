@@ -480,7 +480,7 @@ jobs:
           scripts/ci/check_deb.sh "${debs[0]}"
 
       - name: Upload the signature check
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: signing-${{ matrix.name }}
           path: signing/
@@ -488,7 +488,7 @@ jobs:
           retention-days: 30
 
       - name: Upload bundles as workflow artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-${{ matrix.name }}
           path: |
@@ -592,7 +592,7 @@ jobs:
             --input "${RUNNER_TEMP}/SHA256SUMS.txt" --jq .browser_download_url
 
       - name: Download the signature checks
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: signing-*
           path: signing
