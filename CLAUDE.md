@@ -956,6 +956,23 @@ and add each new one here.
   previous day could not be read is null, never the whole OI. The
   `/api/v1/optionchain` body keeps the web's zeros.
 
+### Time, sleep and quitting
+
+- **The monotonic clock stops while the computer sleeps; the wall clock
+  does not.** A scheduler acts on every slot since its last look
+  (`clock::ist_slots_between`), never on a window around now, or a laptop
+  that slept across 15:15 wakes past its square-off (ARCH-03). A square-off
+  passed over runs late in its own session; a start that late, or a
+  square-off from an earlier session, is reported, not run.
+  `services::lifecycle::wake` notices a wake from the gap between the two
+  clocks and reconnects the feeds, asks the order reconciler for a pass and
+  catches the sandbox up; something new that a sleep leaves stale is redone
+  there too.
+- **Quitting asks first while work runs** (`services::lifecycle::quit`,
+  `commands::quit`), reading the update's inventory
+  (`services::update::activity`): a new kind of Live obligation goes into
+  `Activity`, so the update and the quit warnings both name it.
+
 ### Security work
 
 - **Broker sessions change under one lock.** Completing a sign-in, resuming
