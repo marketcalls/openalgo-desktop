@@ -110,6 +110,7 @@ mod feed_hygiene;
 mod feed_soak;
 mod freeze_limits;
 mod historify;
+mod lifecycle;
 mod mcp_caps;
 mod mcp_contract;
 mod mcp_http;

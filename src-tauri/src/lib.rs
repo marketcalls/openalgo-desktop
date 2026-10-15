@@ -201,6 +201,8 @@ async fn start_services(
     services::system_info::mark_start();
     services::monitor::start(ctx);
     services::health_service::start(ctx);
+    // Sleep and wake: feeds reconnect and orders are checked (owned task).
+    services::lifecycle::wake::start(ctx);
     let server = server::start(ctx.clone()).await.ok();
     // Recovery, prices, checkpoints and the IST scheduler (owned
     // tasks, stopped by `AppState::shutdown`).

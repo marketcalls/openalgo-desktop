@@ -122,6 +122,14 @@ pub fn due(
             for (d, at) in ist_slots_between(from, to, t, on) {
                 if to - at <= START_GRACE {
                     out.insert((name.clone(), Action::Start), d);
+                } else {
+                    // Passed over while the computer slept (ARCH-03): said,
+                    // never skipped silently.
+                    tracing::warn!(
+                        "OpenScript {}: the scheduled start at {} was missed because OpenAlgo was not running then (the computer was asleep). Start it yourself if it should still run today.",
+                        name,
+                        at.with_timezone(&crate::clock::ist_offset()).format("%H:%M on %d %b")
+                    );
                 }
             }
         }

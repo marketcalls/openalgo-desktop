@@ -122,6 +122,8 @@ enum Delta {
 
 enum Command {
     Apply(Vec<Delta>),
+    /// Drop the socket and connect again (after the computer slept).
+    Reconnect,
     Stop,
 }
 
@@ -247,6 +249,17 @@ impl WebSocketManager {
         let task = tokio::spawn(ctx.run());
         *self.running.lock() = Some(Running { cmd: tx, task });
         Ok(())
+    }
+
+    /// Drop the socket and connect again at once, keeping every
+    /// subscription: after the computer slept the socket is likely dead
+    /// though no error has come yet (ARCH-03). Nothing when no feed runs,
+    /// or when the command queue is full (the session is busy with commands
+    /// and will notice a dead socket itself).
+    pub fn reconnect(&self) {
+        if let Some(r) = self.running.lock().as_ref() {
+            let _ = r.cmd.try_send(Command::Reconnect);
+        }
     }
 
     /// Stop the feed and forget every subscription (logout, broker switch).
@@ -465,6 +478,8 @@ impl Supervisor {
                             self.status.send_replace(FeedStatus::Disconnected);
                             return;
                         }
+                        // Connect now rather than at the end of the backoff.
+                        Some(Command::Reconnect) => break,
                         Some(Command::Apply(_)) => {}
                     }
                 }
@@ -631,16 +646,27 @@ impl Supervisor {
     }
 
     /// Coalesces the commands already waiting into `deltas`, so a burst of
-    /// subscribe calls reaches the broker as batches. True when a stop was
-    /// among them.
-    fn coalesce(&mut self, deltas: &mut Vec<Delta>) -> bool {
+    /// subscribe calls reaches the broker as batches. The end of the session
+    /// when a stop or a reconnect was among them.
+    fn coalesce(&mut self, deltas: &mut Vec<Delta>) -> Option<SessionEnd> {
         while let Ok(more) = self.cmd.try_recv() {
             match more {
                 Command::Apply(d) => deltas.extend(d),
-                Command::Stop => return true,
+                Command::Reconnect => return Some(self.reconnecting()),
+                Command::Stop => return Some(SessionEnd::Stopped),
             }
         }
-        false
+        None
+    }
+
+    /// A reconnect was asked for: the session ends as lost, and the
+    /// registry is sent again on the new socket.
+    fn reconnecting(&self) -> SessionEnd {
+        tracing::info!(
+            broker = self.feed.broker(),
+            "Market data feed reconnecting after the computer slept"
+        );
+        SessionEnd::Lost
     }
 
     /// Whether the feed stalled: nothing received within the stall timeout,
@@ -789,11 +815,13 @@ impl Supervisor {
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
     {
-        let Some(Command::Apply(mut deltas)) = cmd else {
-            return Err(SessionEnd::Stopped);
+        let mut deltas = match cmd {
+            Some(Command::Apply(d)) => d,
+            Some(Command::Reconnect) => return Err(self.reconnecting()),
+            None | Some(Command::Stop) => return Err(SessionEnd::Stopped),
         };
-        if self.coalesce(&mut deltas) {
-            return Err(SessionEnd::Stopped);
+        if let Some(end) = self.coalesce(&mut deltas) {
+            return Err(end);
         }
         if !subscribed {
             return Ok(());

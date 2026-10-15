@@ -135,6 +135,32 @@ async fn resubscribes_after_reconnect_and_publishes_ticks() {
     srv.abort();
 }
 
+/// ARCH-03: after a sleep the socket is likely dead though no error has
+/// come yet. `reconnect` replaces it at once and sends every subscription
+/// again on the new one; with no feed running it does nothing.
+#[tokio::test]
+async fn reconnect_replaces_the_socket_and_resubscribes() {
+    let (url, seen, srv) = server(|_| (vec![], false)).await;
+    let m = WebSocketManager::with_config(fast());
+    m.reconnect(); // nothing runs yet
+    m.subscribe(vec![sub("SBIN", FeedMode::Quote)])
+        .await
+        .unwrap();
+    m.connect(Box::new(MockFeed::new(url))).await.unwrap();
+    wait_for(|| seen.lock().iter().any(|(i, _)| *i == 0)).await;
+    m.reconnect();
+    wait_for(|| {
+        seen.lock()
+            .iter()
+            .any(|(i, f)| *i == 1 && f.contains("NSE:SBIN:2"))
+    })
+    .await;
+    assert_eq!(m.stats().connects.load(Ordering::Relaxed), 2);
+    assert_eq!(m.stats().stalls.load(Ordering::Relaxed), 0);
+    m.disconnect().await.unwrap();
+    srv.abort();
+}
+
 #[tokio::test]
 async fn subscriptions_are_reference_counted_with_effective_mode() {
     let (url, seen, srv) = server(|_| (vec![], false)).await;
