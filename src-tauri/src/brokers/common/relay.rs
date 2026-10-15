@@ -24,6 +24,7 @@
 //! mid-handshake; more are dropped. Every socket is closed (bounded) on
 //! every exit path, so another local process cannot ride on the session.
 
+use super::streaming::AUTH_ACK_DEADLINE;
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
 use futures_util::stream::SplitSink;
@@ -51,6 +52,15 @@ const MAX_PENDING: usize = 8;
 pub const OPEN_TIMEOUT: Duration = Duration::from_secs(25);
 /// Budget for closing a socket on the way out.
 const CLOSE_TIMEOUT: Duration = Duration::from_secs(2);
+/// Longest one batch of frames may take to reach either socket (TIME-02):
+/// a side that stops reading ends the session instead of holding it.
+const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
+/// Longest a feed behind a relay waits for its ready frame
+/// (`BrokerFeed::auth_ack_deadline`): the relay may take `OPEN_TIMEOUT` to
+/// open the broker side (the MQTT relay twice: its authorize call, then the
+/// CONNACK) before the broker confirms the login.
+pub const READY_DEADLINE: Duration =
+    Duration::from_secs(2 * OPEN_TIMEOUT.as_secs() + AUTH_ACK_DEADLINE.as_secs());
 
 /// Outcome of opening the broker socket.
 pub enum Open {
@@ -289,6 +299,29 @@ async fn open_or_close(
     }
 }
 
+/// Send `frames` in order, all within [`WRITE_TIMEOUT`]; false when the
+/// socket failed or did not take them in time.
+pub(crate) async fn send_within<S>(sink: &mut S, frames: Vec<Message>) -> bool
+where
+    S: futures_util::Sink<Message> + Unpin,
+{
+    let send = async {
+        for f in frames {
+            if sink.send(f).await.is_err() {
+                return false;
+            }
+        }
+        true
+    };
+    tokio::time::timeout(WRITE_TIMEOUT, send)
+        .await
+        .unwrap_or(false)
+}
+
+fn ready_frame() -> Vec<Message> {
+    vec![Message::Text(READY.into())]
+}
+
 async fn serve(down: WebSocketStream<TcpStream>, upstream: Arc<dyn Upstream>) {
     let (mut dw, mut dr) = down.split();
     let Some(up) = open_or_close(&*upstream, &mut dw).await else {
@@ -296,17 +329,11 @@ async fn serve(down: WebSocketStream<TcpStream>, upstream: Arc<dyn Upstream>) {
     };
     let (mut uw, mut ur) = up.split();
     let mut session = upstream.session();
-    let mut ok = true;
-    for f in session.on_open() {
-        if uw.send(f).await.is_err() {
-            ok = false;
-            break;
-        }
-    }
+    let mut ok = send_within(&mut uw, session.on_open()).await;
     let mut ready = false;
     if ok && session.ready_on_open() {
         ready = true;
-        ok = dw.send(Message::Text(READY.into())).await.is_ok();
+        ok = send_within(&mut dw, ready_frame()).await;
     }
     let keepalive = session.keepalive();
     let period = keepalive
@@ -323,54 +350,32 @@ async fn serve(down: WebSocketStream<TcpStream>, upstream: Arc<dyn Upstream>) {
         tokio::select! {
             m = dr.next() => match m {
                 Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
-                Some(Ok(m)) => {
-                    for f in session.on_downstream(m) {
-                        if uw.send(f).await.is_err() {
-                            ok = false;
-                            break;
-                        }
-                    }
-                }
+                Some(Ok(m)) => ok = send_within(&mut uw, session.on_downstream(m)).await,
             },
             m = ur.next() => match m {
                 Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
                 Some(Ok(m)) => {
                     let step = session.on_upstream(m);
-                    for f in step.up {
-                        if uw.send(f).await.is_err() {
-                            ok = false;
-                        }
-                    }
+                    ok = send_within(&mut uw, step.up).await;
                     if let Some(message) = step.auth_failed {
-                        let _ = dw.send(auth_failed_frame(&message)).await;
+                        let _ = send_within(&mut dw, vec![auth_failed_frame(&message)]).await;
                         break;
                     }
                     if step.ready && !ready {
                         ready = true;
-                        if dw.send(Message::Text(READY.into())).await.is_err() {
-                            ok = false;
-                        }
+                        ok = ok && send_within(&mut dw, ready_frame()).await;
                     }
-                    for f in step.down {
-                        if dw.send(f).await.is_err() {
-                            ok = false;
-                            break;
-                        }
-                    }
+                    ok = ok && send_within(&mut dw, step.down).await;
                 }
             },
             _ = ka.tick(), if keepalive.is_some() => {
                 if let Some((_, m)) = &keepalive {
-                    if uw.send(m.clone()).await.is_err() {
-                        ok = false;
-                    }
+                    ok = send_within(&mut uw, vec![m.clone()]).await;
                 }
             }
             _ = &mut ready_deadline, if !ready => {
                 ready = true;
-                if dw.send(Message::Text(READY.into())).await.is_err() {
-                    ok = false;
-                }
+                ok = send_within(&mut dw, ready_frame()).await;
             }
         }
     }
@@ -383,6 +388,57 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tokio::net::TcpListener;
+
+    /// Takes one frame, then never another (a peer that stopped reading).
+    struct Stuck(usize);
+
+    impl futures_util::Sink<Message> for Stuck {
+        type Error = ();
+        fn poll_ready(
+            self: std::pin::Pin<&mut Self>,
+            _: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<std::result::Result<(), ()>> {
+            if self.0 == 0 {
+                std::task::Poll::Ready(Ok(()))
+            } else {
+                std::task::Poll::Pending
+            }
+        }
+        fn start_send(
+            mut self: std::pin::Pin<&mut Self>,
+            _: Message,
+        ) -> std::result::Result<(), ()> {
+            self.0 += 1;
+            Ok(())
+        }
+        fn poll_flush(
+            self: std::pin::Pin<&mut Self>,
+            _: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<std::result::Result<(), ()>> {
+            std::task::Poll::Ready(Ok(()))
+        }
+        fn poll_close(
+            self: std::pin::Pin<&mut Self>,
+            _: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<std::result::Result<(), ()>> {
+            std::task::Poll::Ready(Ok(()))
+        }
+    }
+
+    /// TIME-02: a socket that stops taking frames fails the send at the
+    /// write timeout instead of holding the session forever.
+    #[tokio::test(start_paused = true)]
+    async fn a_send_the_peer_never_takes_fails_at_the_write_timeout() {
+        let start = tokio::time::Instant::now();
+        let frames = vec![Message::Text("a".into()), Message::Text("b".into())];
+        let sent =
+            tokio::time::timeout(Duration::from_secs(120), send_within(&mut Stuck(0), frames))
+                .await;
+        assert_eq!(sent, Ok(false));
+        assert_eq!(start.elapsed(), WRITE_TIMEOUT);
+        // Relay feeds wait long enough for the relay to open the broker side.
+        assert!(READY_DEADLINE > 2 * OPEN_TIMEOUT);
+    }
 
     struct Echo {
         url: String,

@@ -12,6 +12,7 @@ fn fast() -> FeedConfig {
         backoff_max: Duration::from_millis(20),
         stall_timeout: Duration::from_secs(5),
         connect_timeout: Duration::from_secs(2),
+        write_timeout: Duration::from_secs(2),
         stable_after: Duration::from_secs(60),
         max_instruments: 3,
         command_capacity: 16,
