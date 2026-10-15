@@ -25,6 +25,8 @@ struct Wording {
     live_intro: &'static str,
     live_advice: &'static str,
     sandbox_intro: &'static str,
+    /// Said last, whatever runs.
+    closing_note: Option<&'static str>,
 }
 
 /// An update's restart.
@@ -34,7 +36,28 @@ const UPDATE: Wording = Wording {
     live_intro: "Updating restarts OpenAlgo. Until it opens again (usually within a minute) and you sign in, nothing watches your Live trades:",
     live_advice: "Update now only if that is acceptable. Otherwise choose Later and update after the market closes.",
     sandbox_intro: "Updating restarts OpenAlgo. Your sandbox activity pauses until it opens again:",
+    closing_note: None,
 };
+
+/// Quitting (ARCH-03). The keys are wiped at quit (KEY-01), so nothing
+/// that signs its requests is served until the next sign-in.
+const QUIT: Wording = Wording {
+    resume: "after you open OpenAlgo again",
+    before: "before you quit",
+    live_intro: "Quitting closes OpenAlgo. Until you open it again and sign in, nothing watches your Live trades:",
+    live_advice: "Quit now only if that is acceptable. Otherwise keep OpenAlgo open.",
+    sandbox_intro: "Quitting closes OpenAlgo. Your sandbox activity pauses until you open it again:",
+    closing_note: Some("OpenAlgo locks its keys when it closes: orders and data requests from your API clients, AI clients and webhook alerts (TradingView, Chartink and others) are refused until you open OpenAlgo and sign in again."),
+};
+
+impl Warning {
+    /// The warning as the text of a native dialog: the introduction, one
+    /// line per item, then the advice.
+    pub fn dialog_text(&self) -> String {
+        let items: Vec<String> = self.items.iter().map(|i| format!("- {}", i)).collect();
+        format!("{}\n\n{}\n\n{}", self.intro, items.join("\n"), self.advice)
+    }
+}
 
 impl Activity {
     /// What the trader is told before a restart, or `None` when nothing
@@ -43,13 +66,18 @@ impl Activity {
         self.warning_in(&UPDATE, broker)
     }
 
+    /// What the trader is told before quitting, or `None` when nothing runs.
+    pub fn quit_warning(&self, broker: Option<&str>) -> Option<Warning> {
+        self.warning_in(&QUIT, broker)
+    }
+
     /// The warning in `words`, or `None` when nothing runs.
     fn warning_in(&self, words: &Wording, broker: Option<&str>) -> Option<Warning> {
         if self.is_quiet() {
             return None;
         }
         let sandbox = self.sandbox_items(words);
-        let warning = if self.has_live() {
+        let mut warning = if self.has_live() {
             let mut items = self.live_items(words, broker);
             if !sandbox.is_empty() {
                 items.push(format!(
@@ -61,6 +89,7 @@ impl Activity {
         } else {
             sandbox_warning(words, sandbox)
         };
+        warning.items.extend(words.closing_note.map(String::from));
         Some(warning)
     }
 
@@ -299,5 +328,58 @@ mod tests {
         );
         assert!(w.advice.starts_with("Nothing is sent to your broker."));
         assert_eq!(Activity::default().warning(None), None);
+    }
+
+    /// ARCH-03: quitting names the same inventory as an update's restart,
+    /// in quitting's words, and says that the keys lock until the next
+    /// sign-in (KEY-01).
+    #[test]
+    fn the_quit_warning_names_what_stops_and_that_the_keys_lock() {
+        let a = Activity {
+            live_strategies: 1,
+            live_openscript_runs: 2,
+            live_open_orders: 1,
+            checks_failed: true,
+            sandbox_scalping_stops: 1,
+            ..Default::default()
+        };
+        let w = a.quit_warning(Some("Zerodha")).unwrap();
+        assert_eq!(w.level, "live");
+        assert!(w.intro.starts_with("Quitting closes OpenAlgo."));
+        assert_eq!(
+            w.items,
+            vec![
+                "1 running Live strategy. Its stops, targets and exits are not checked until OpenAlgo opens again; then it will resume.",
+                "2 running Live OpenScript runs. They are paused when OpenAlgo closes; start them again after you open OpenAlgo again.",
+                "1 open order at Zerodha. It stays at your broker; OpenAlgo follows it again once it opens.",
+                "OpenAlgo could not check everything that is running. Check your strategies and positions before you quit.",
+                "Sandbox: 1 sandbox position under scalping protection. Nothing there is sent to your broker.",
+                "OpenAlgo locks its keys when it closes: orders and data requests from your API clients, AI clients and webhook alerts (TradingView, Chartink and others) are refused until you open OpenAlgo and sign in again.",
+            ]
+        );
+        let text = w.dialog_text();
+        assert!(text.starts_with("Quitting closes OpenAlgo."));
+        assert!(text.contains("\n- 1 running Live strategy."));
+        assert!(text.ends_with("Otherwise keep OpenAlgo open."));
+
+        let sandbox = Activity {
+            sandbox_openscript_runs: 1,
+            ..Default::default()
+        };
+        let w = sandbox.quit_warning(None).unwrap();
+        assert_eq!(w.level, "sandbox");
+        assert_eq!(
+            w.items[0],
+            "1 sandbox OpenScript run (paused; start it again after you open OpenAlgo again)."
+        );
+        assert!(w.items[1].starts_with("OpenAlgo locks its keys when it closes"));
+        assert_eq!(Activity::default().quit_warning(None), None);
+        // The update's restart is worded as before, without the note.
+        assert!(a
+            .warning(Some("Zerodha"))
+            .unwrap()
+            .items
+            .iter()
+            .all(|i| !i.contains("locks its keys")));
     }
 }
