@@ -63,17 +63,25 @@ impl Activity {
     /// What the trader is told before a restart, or `None` when nothing
     /// runs. `broker` is the logged-in broker's display name.
     pub fn warning(&self, broker: Option<&str>) -> Option<Warning> {
-        self.warning_in(&UPDATE, broker)
+        self.warning_in(&UPDATE, broker, Vec::new())
     }
 
-    /// What the trader is told before quitting, or `None` when nothing runs.
-    pub fn quit_warning(&self, broker: Option<&str>) -> Option<Warning> {
-        self.warning_in(&QUIT, broker)
+    /// What the trader is told before quitting, or `None` when nothing runs
+    /// and nothing waits. `waiting` names what waits for an alert or a
+    /// schedule while OpenAlgo is closed (`services::lifecycle::quit`).
+    pub fn quit_warning(&self, broker: Option<&str>, waiting: Vec<String>) -> Option<Warning> {
+        self.warning_in(&QUIT, broker, waiting)
     }
 
-    /// The warning in `words`, or `None` when nothing runs.
-    fn warning_in(&self, words: &Wording, broker: Option<&str>) -> Option<Warning> {
-        if self.is_quiet() {
+    /// The warning in `words`, or `None` when nothing runs and nothing
+    /// waits.
+    fn warning_in(
+        &self,
+        words: &Wording,
+        broker: Option<&str>,
+        waiting: Vec<String>,
+    ) -> Option<Warning> {
+        if self.is_quiet() && waiting.is_empty() {
             return None;
         }
         let sandbox = self.sandbox_items(words);
@@ -86,9 +94,12 @@ impl Activity {
                 ));
             }
             live_warning(words, items)
-        } else {
+        } else if self.has_sandbox() {
             sandbox_warning(words, sandbox)
+        } else {
+            waiting_warning()
         };
+        warning.items.extend(waiting);
         warning.items.extend(words.closing_note.map(String::from));
         Some(warning)
     }
@@ -240,6 +251,18 @@ fn sandbox_warning(words: &Wording, sandbox: Vec<String>) -> Warning {
     }
 }
 
+/// Nothing OpenAlgo watches is open, but strategies wait for alerts or
+/// schedules (quitting only).
+fn waiting_warning() -> Warning {
+    Warning {
+        level: "waiting",
+        title: "Strategies are waiting for alerts".into(),
+        intro: "Quitting closes OpenAlgo. Nothing it watches is open now, but until you open it again and sign in:".into(),
+        items: Vec::new(),
+        advice: "Quit now if these can wait. Otherwise keep OpenAlgo open.".into(),
+    }
+}
+
 /// "1 open order", "3 open orders".
 fn count(n: u32, one: &str, many: &str) -> String {
     format!("{} {}", n, pick(n, one, many))
@@ -343,7 +366,7 @@ mod tests {
             sandbox_scalping_stops: 1,
             ..Default::default()
         };
-        let w = a.quit_warning(Some("Zerodha")).unwrap();
+        let w = a.quit_warning(Some("Zerodha"), Vec::new()).unwrap();
         assert_eq!(w.level, "live");
         assert!(w.intro.starts_with("Quitting closes OpenAlgo."));
         assert_eq!(
@@ -366,14 +389,14 @@ mod tests {
             sandbox_openscript_runs: 1,
             ..Default::default()
         };
-        let w = sandbox.quit_warning(None).unwrap();
+        let w = sandbox.quit_warning(None, Vec::new()).unwrap();
         assert_eq!(w.level, "sandbox");
         assert_eq!(
             w.items[0],
             "1 sandbox OpenScript run (paused; start it again after you open OpenAlgo again)."
         );
         assert!(w.items[1].starts_with("OpenAlgo locks its keys when it closes"));
-        assert_eq!(Activity::default().quit_warning(None), None);
+        assert_eq!(Activity::default().quit_warning(None, Vec::new()), None);
         // The update's restart is worded as before, without the note.
         assert!(a
             .warning(Some("Zerodha"))
@@ -381,5 +404,30 @@ mod tests {
             .items
             .iter()
             .all(|i| !i.contains("locks its keys")));
+    }
+
+    /// What waits for an alert or a schedule is listed before the key
+    /// note, and alone it still gets a warning (quitting only).
+    #[test]
+    fn the_quit_warning_lists_what_waits_for_alerts() {
+        let waiting = vec![
+            "Chartink alerts for Breakout are refused until you open OpenAlgo and sign in again."
+                .to_string(),
+        ];
+        let w = Activity::default()
+            .quit_warning(None, waiting.clone())
+            .unwrap();
+        assert_eq!(w.level, "waiting");
+        assert_eq!(w.title, "Strategies are waiting for alerts");
+        assert_eq!(w.items[0], waiting[0]);
+        assert!(w.items[1].starts_with("OpenAlgo locks its keys"));
+        let live = Activity {
+            live_scalping_stops: 1,
+            ..Default::default()
+        };
+        let w = live.quit_warning(None, waiting.clone()).unwrap();
+        assert_eq!(w.level, "live");
+        assert_eq!(w.items.len(), 3);
+        assert_eq!(w.items[1], waiting[0]);
     }
 }

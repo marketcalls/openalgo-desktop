@@ -3,7 +3,7 @@
 //! at once (keeping its subscriptions) and asks the order reconciler for a
 //! pass, instead of waiting for the stall watchdog's awake time.
 
-use crate::webui_support::H;
+use crate::webui_support::{H, USER};
 use futures_util::StreamExt;
 use openalgo_desktop_lib::brokers::mock::MockFeed;
 use openalgo_desktop_lib::services::lifecycle::wake;
@@ -80,4 +80,41 @@ async fn the_watch_notices_the_wall_clock_running_ahead() {
     until("the reconnection", || connects(&h) == 2).await;
     h.ctx.websocket.disconnect().await.unwrap();
     srv.abort();
+}
+
+/// ARCH-03: with nothing running, strategies that wait for alerts are still
+/// named when quitting: the keys lock at quit (KEY-01), so their alerts are
+/// refused until the next sign-in.
+#[tokio::test]
+async fn quitting_names_the_strategies_waiting_for_alerts() {
+    use openalgo_desktop_lib::chartink::store::NewStrategy;
+    use openalgo_desktop_lib::services::lifecycle::quit::quit_warning;
+    let h = H::new();
+    h.setup();
+    assert_eq!(quit_warning(&h.ctx).await, None, "nothing runs or waits");
+    h.ctx
+        .strategy
+        .store
+        .create_strategy(USER, &serde_json::json!({"name": "Breakout"}))
+        .unwrap();
+    let momentum = NewStrategy {
+        name: "Momentum".into(),
+        webhook_id: "wh-momentum".into(),
+        user_id: USER.into(),
+        is_intraday: true,
+        start_time: Some("09:15".into()),
+        end_time: Some("15:00".into()),
+        squareoff_time: Some("15:15".into()),
+    };
+    h.ctx.chartink.store.create(&momentum, h.ctx.now()).unwrap();
+    let w = quit_warning(&h.ctx).await.unwrap();
+    assert_eq!(w.level, "waiting");
+    assert_eq!(
+        w.items[..2],
+        [
+            "Webhook alerts for Breakout (TradingView and other senders) are refused until you open OpenAlgo and sign in again.",
+            "Chartink alerts for Momentum are refused until you open OpenAlgo and sign in again.",
+        ]
+    );
+    assert!(w.items[2].starts_with("OpenAlgo locks its keys"));
 }

@@ -968,10 +968,13 @@ and add each new one here.
   clocks and reconnects the feeds, asks the order reconciler for a pass and
   catches the sandbox up; something new that a sleep leaves stale is redone
   there too.
-- **Quitting asks first while work runs** (`services::lifecycle::quit`,
-  `commands::quit`), reading the update's inventory
-  (`services::update::activity`): a new kind of Live obligation goes into
-  `Activity`, so the update and the quit warnings both name it.
+- **Quitting asks first while work runs or waits** (maintainer decision
+  2026-10-16; `services::lifecycle::quit`, `commands::quit`), reading the
+  update's inventory (`services::update::activity`) plus what waits for
+  alerts or schedules, and saying that the keys lock at quit (KEY-01): a
+  new kind of Live obligation goes into `Activity`, so the update and the
+  quit warnings both name it. Quit from the Dock, an OS shutdown and a
+  forced quit cannot be asked about (`docs/user/troubleshooting.md`).
 
 ### Security work
 
