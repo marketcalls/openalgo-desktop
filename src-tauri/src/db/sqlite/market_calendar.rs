@@ -316,6 +316,21 @@ pub fn holidays_by_year(conn: &Connection, year: i32) -> Result<Vec<Holiday>> {
         .collect()
 }
 
+/// Whether `date` is a market holiday for the market as a whole (web
+/// `is_market_holiday(date)` with no exchange). A special session such as
+/// Muhurat trading is not one, even at a weekend; otherwise a weekend is,
+/// and so is any listed holiday, whichever exchanges it leaves open.
+pub fn is_market_holiday(conn: &Connection, date: NaiveDate) -> Result<bool> {
+    let holiday = holiday_on(conn, date)?;
+    if holiday
+        .as_ref()
+        .is_some_and(|h| h.holiday_type == "SPECIAL_SESSION")
+    {
+        return Ok(false);
+    }
+    Ok(holiday.is_some() || matches!(date.weekday(), Weekday::Sat | Weekday::Sun))
+}
+
 fn holiday_on(conn: &Connection, date: NaiveDate) -> Result<Option<Holiday>> {
     let row = conn
         .query_row(
@@ -642,6 +657,25 @@ mod tests {
         assert_eq!(get("MCX").end_time, "23:55");
         assert_eq!(get("CRYPTO").end_offset, 86_399_000);
         assert_eq!(t.len(), 9);
+    }
+
+    /// Web test/test_sandbox_pnl_snapshot_days.py (its Indian-market cases)
+    /// and `is_market_holiday`'s special-session rule.
+    #[test]
+    fn market_holidays_as_the_web_reads_them() {
+        let c = legacy_db();
+        migrate(&c).unwrap();
+        let day = |m, d| NaiveDate::from_ymd_opt(2026, m, d).unwrap();
+        // The dates reported in web issue #876: Friday trades, the weekend
+        // does not.
+        assert!(!is_market_holiday(&c, day(2, 6)).unwrap());
+        assert!(is_market_holiday(&c, day(2, 7)).unwrap());
+        assert!(is_market_holiday(&c, day(2, 8)).unwrap());
+        // Weekday holidays, including one that keeps MCX's evening session.
+        assert!(is_market_holiday(&c, day(1, 26)).unwrap());
+        assert!(is_market_holiday(&c, day(10, 20)).unwrap());
+        // Muhurat trading on a Sunday is a special session, not a holiday.
+        assert!(!is_market_holiday(&c, day(11, 8)).unwrap());
     }
 
     #[test]

@@ -1627,6 +1627,13 @@ async fn spa_routes_and_security_headers() {
     assert_eq!(headers[header::X_FRAME_OPTIONS], "DENY");
     let (s, _, _) = h.send(get("/no-such-page")).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
+    // UI-08: a reload of the server settings page is a known page.
+    let (s, headers, _) = h.send(get("/settings/server")).await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(headers[header::CONTENT_TYPE]
+        .to_str()
+        .unwrap()
+        .starts_with("text/html"));
 }
 
 #[tokio::test]

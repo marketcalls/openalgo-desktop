@@ -232,3 +232,54 @@ async fn pending_stops_are_retried_by_the_reconcile_pass() {
     assert_eq!(r["examined"], 1);
     assert_eq!(t.gw.actions(), vec!["SELL", "BUY", "BUY"]);
 }
+
+/// ARCH-03: the computer slept from 15:00 to 16:30. A running strategy's
+/// 15:10 square-off was passed over: it runs late, once, in the same
+/// session (it used to be dropped past the 60 s grace, leaving the run
+/// open). A stopped strategy's 15:05 start, that late, is not run but
+/// recorded in its events.
+#[tokio::test]
+async fn slots_passed_over_in_sleep_square_off_late_and_report_a_missed_start() {
+    let t = t_at(ist(2026, 10, 7, 15, 0));
+    let held = make(
+        &t,
+        json!({"name": "Held", "scheduler": scheduler(true, None, Some("15:10"))}),
+    );
+    let idle = make(
+        &t,
+        json!({"name": "Idle", "scheduler": scheduler(true, Some("15:05"), None)}),
+    );
+    t.m.sync_all_jobs();
+    let run = t.start_filled(held, 100.0).await;
+    assert!(t.m.run_due_jobs().await.is_empty());
+
+    t.clock.set(ist(2026, 10, 7, 16, 30));
+    assert_eq!(t.m.run_due_jobs().await, vec![stop_job_id(held)]);
+    assert_eq!(
+        t.run(run).stop_requested_reason.as_deref(),
+        Some("scheduler")
+    );
+    assert!(t.event_kinds(idle).contains(&"schedule_missed".to_string()));
+    assert_ne!(
+        t.m.store.get_strategy(idle, USER).unwrap().unwrap().status,
+        "running"
+    );
+    assert!(t.m.run_due_jobs().await.is_empty(), "each slot once");
+}
+
+/// A square-off from an earlier session is not run the next morning (it
+/// would stop the new day's run): it is reported instead.
+#[tokio::test]
+async fn a_square_off_from_an_earlier_session_is_reported_not_run() {
+    let t = t_at(ist(2026, 10, 7, 15, 0));
+    let held = make(
+        &t,
+        json!({"scheduler": scheduler(true, None, Some("15:10"))}),
+    );
+    t.m.sync_all_jobs();
+    t.start_filled(held, 100.0).await;
+    assert!(t.m.run_due_jobs().await.is_empty());
+    t.clock.set(ist(2026, 10, 8, 9, 30));
+    assert!(t.m.run_due_jobs().await.is_empty());
+    assert!(t.event_kinds(held).contains(&"schedule_missed".to_string()));
+}

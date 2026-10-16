@@ -253,9 +253,13 @@ fn crypto_active_on(conn: &Connection, user: &str, date: NaiveDate) -> rusqlite:
 }
 
 /// Whether `user`'s book gets a P&L snapshot for `date`: every day of the
-/// configured trading calendar (the Indian exchanges'), and any other day
-/// on which the user held or traded crypto, which trades every day. (The
-/// web applies the trading calendar to every book.)
+/// configured trading calendar (the Indian market calendar in the app,
+/// `market_calendar_service::sandbox_trading_day`), and any other day on
+/// which the user held or traded crypto, which trades every day. The web
+/// (`is_pnl_snapshot_day`, openalgo cced84316) snapshots every day on a
+/// 24/7 crypto install and follows the calendar otherwise; the desktop has
+/// no install-wide 24/7 switch, so it asks the book instead, which covers
+/// every day with crypto P&L without writing rows for idle ones.
 pub(crate) fn snapshot_day(
     conn: &Connection,
     core: &Core,

@@ -23,6 +23,7 @@ mod tests;
 
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::common::ratelimit::{Pacer, ORDERS_PER_SECOND};
 use crate::brokers::common::streaming::BrokerFeed;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
@@ -100,6 +101,8 @@ pub struct HdfcSkyBroker {
     chart_symbols: Mutex<HashMap<(String, String), String>>,
     /// Retry and pacing delays (shortened in tests).
     pub(crate) delays: Delays,
+    /// Places, modifies and cancels (RATE-03: HDFC Sky publishes no rate).
+    pub(crate) order_pacer: Pacer,
 }
 
 /// Web sleeps and backoffs.
@@ -162,6 +165,7 @@ impl HdfcSkyBroker {
             symbols,
             chart_symbols: Mutex::new(HashMap::new()),
             delays: Delays::default(),
+            order_pacer: Pacer::per_second(ORDERS_PER_SECOND),
         }
     }
 

@@ -38,7 +38,8 @@ const OPT: &str = "NIFTY06OCT2622000CE";
 /// sizes from it, so a new NSE freeze table (as on 5 October 2026, web
 /// #2218) does not break them.
 fn freeze_chunk() -> i64 {
-    let raw = openalgo_desktop_lib::services::symbol_service::freeze_qty_for_option(OPT, "NFO");
+    let raw = openalgo_desktop_lib::services::freeze_qty_service::FreezeLimits::default()
+        .for_option(OPT, "NFO");
     assert!(raw >= 65, "no freeze limit for {}", OPT);
     (raw / 65) * 65
 }
@@ -791,6 +792,7 @@ fn monitor() -> M {
         ui: ui.clone(),
         clock: clock.clone(),
         symbols,
+        freeze: Default::default(),
     });
     let alerts = Arc::new(Mutex::new(Vec::new()));
     let sink = alerts.clone();
@@ -2247,4 +2249,31 @@ async fn a_split_exit_records_the_chunk_the_broker_did_not_confirm() {
     );
     let (s, b) = call(&h, close()).await;
     assert_eq!(s, StatusCode::OK, "{}", b);
+}
+
+/// DB-01: a tick that moves a trailing stop saves it off the async
+/// workers. While another writer holds the database for 400 ms, the
+/// runtime is not held, and the stop is saved once the database is free.
+#[tokio::test]
+async fn a_trailing_stop_save_never_holds_the_runtime() {
+    let m = monitor();
+    let mut l = leg("analyze");
+    l.trailing_enabled = Some(true);
+    l.trailing_step = Some(5.0);
+    m.store.upsert_sl(&l).unwrap();
+    m.mon.sync().await;
+    let writer = m.db.conn().unwrap();
+    writer.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(400));
+        writer.execute_batch("COMMIT").unwrap();
+    });
+    let ((), stall) = crate::runtime_stall(m.mon.process_tick(OPT, "NFO", 110.0)).await;
+    release.join().unwrap();
+    assert!(
+        stall < Duration::from_millis(150),
+        "the runtime was held {:?}",
+        stall
+    );
+    assert_eq!(m.store.active_sl(None).unwrap()[0].current_sl, Some(105.0));
 }

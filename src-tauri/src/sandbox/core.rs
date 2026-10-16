@@ -34,7 +34,8 @@ pub struct SandboxOptions {
     /// Waits between quote attempts when pricing a MARKET order (web: 0.3 s
     /// then 0.6 s, three attempts in all).
     pub quote_retry_delays: Vec<Duration>,
-    /// Trading-day calendar (weekdays by default).
+    /// Trading-day calendar (weekdays by default; the app passes the market
+    /// calendar, `market_calendar_service::sandbox_trading_day`).
     pub trading_day: TradingDayFn,
     /// A symbol whose feed has been silent this long counts as stale and
     /// the polling fallback quotes it.

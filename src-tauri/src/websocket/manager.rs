@@ -51,6 +51,10 @@ pub struct FeedConfig {
     /// No frame (data or heartbeat) for this long means the socket is dead.
     pub stall_timeout: Duration,
     pub connect_timeout: Duration,
+    /// Longest one batch of frames may take to reach the socket (TIME-02).
+    /// A peer that stops reading would otherwise hold this loop inside the
+    /// send, where its own stall watchdog cannot run.
+    pub write_timeout: Duration,
     /// A connection that lived this long resets the backoff.
     pub stable_after: Duration,
     /// Most instruments one connection may carry (Kite: 3000).
@@ -66,6 +70,7 @@ impl Default for FeedConfig {
             backoff_max: Duration::from_secs(30),
             stall_timeout: Duration::from_secs(90),
             connect_timeout: Duration::from_secs(15),
+            write_timeout: Duration::from_secs(10),
             stable_after: Duration::from_secs(30),
             max_instruments: 3000,
             command_capacity: 256,
@@ -117,6 +122,8 @@ enum Delta {
 
 enum Command {
     Apply(Vec<Delta>),
+    /// Drop the socket and connect again (after the computer slept).
+    Reconnect,
     Stop,
 }
 
@@ -242,6 +249,17 @@ impl WebSocketManager {
         let task = tokio::spawn(ctx.run());
         *self.running.lock() = Some(Running { cmd: tx, task });
         Ok(())
+    }
+
+    /// Drop the socket and connect again at once, keeping every
+    /// subscription: after the computer slept the socket is likely dead
+    /// though no error has come yet (ARCH-03). Nothing when no feed runs,
+    /// or when the command queue is full (the session is busy with commands
+    /// and will notice a dead socket itself).
+    pub fn reconnect(&self) {
+        if let Some(r) = self.running.lock().as_ref() {
+            let _ = r.cmd.try_send(Command::Reconnect);
+        }
     }
 
     /// Stop the feed and forget every subscription (logout, broker switch).
@@ -384,6 +402,15 @@ enum SessionEnd {
     AuthFailed(String),
 }
 
+/// What a login acknowledgement that did not come in time means.
+#[derive(Debug, Clone, Copy)]
+enum AckLapse {
+    /// It is optional: take the session as accepted.
+    Assume,
+    /// It is required: the session is lost.
+    Refuse,
+}
+
 struct Supervisor {
     feed: Box<dyn BrokerFeed>,
     cmd: mpsc::Receiver<Command>,
@@ -451,6 +478,8 @@ impl Supervisor {
                             self.status.send_replace(FeedStatus::Disconnected);
                             return;
                         }
+                        // Connect now rather than at the end of the backoff.
+                        Some(Command::Reconnect) => break,
                         Some(Command::Apply(_)) => {}
                     }
                 }
@@ -530,16 +559,32 @@ impl Supervisor {
         end
     }
 
-    async fn send_all<S>(write: &mut S, frames: Vec<Message>) -> bool
+    /// Send `frames` in order, all within the write timeout. False when the
+    /// socket failed or did not take them in time (TIME-02): the session
+    /// then ends as lost and the socket is replaced.
+    async fn send_all<S>(&self, write: &mut S, frames: Vec<Message>) -> bool
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
     {
-        for f in frames {
-            if write.send(f).await.is_err() {
-                return false;
+        if frames.is_empty() {
+            return true;
+        }
+        let send = async {
+            for f in frames {
+                write.send(f).await?;
+            }
+            Ok::<(), WsError>(())
+        };
+        match tokio::time::timeout(self.config.write_timeout, send).await {
+            Ok(sent) => sent.is_ok(),
+            Err(_) => {
+                tracing::warn!(
+                    broker = self.feed.broker(),
+                    "Market data feed stopped taking frames; reconnecting"
+                );
+                false
             }
         }
-        true
     }
 
     /// Sends the full subscription set and reports the feed connected;
@@ -586,7 +631,7 @@ impl Supervisor {
                 }
                 FeedEvent::Heartbeat => {}
                 FeedEvent::Reply(m) => {
-                    if write.send(m).await.is_err() {
+                    if !self.send_all(write, vec![m]).await {
                         return Err(SessionEnd::Lost);
                     }
                 }
@@ -601,16 +646,27 @@ impl Supervisor {
     }
 
     /// Coalesces the commands already waiting into `deltas`, so a burst of
-    /// subscribe calls reaches the broker as batches. True when a stop was
-    /// among them.
-    fn coalesce(&mut self, deltas: &mut Vec<Delta>) -> bool {
+    /// subscribe calls reaches the broker as batches. The end of the session
+    /// when a stop or a reconnect was among them.
+    fn coalesce(&mut self, deltas: &mut Vec<Delta>) -> Option<SessionEnd> {
         while let Ok(more) = self.cmd.try_recv() {
             match more {
                 Command::Apply(d) => deltas.extend(d),
-                Command::Stop => return true,
+                Command::Reconnect => return Some(self.reconnecting()),
+                Command::Stop => return Some(SessionEnd::Stopped),
             }
         }
-        false
+        None
+    }
+
+    /// A reconnect was asked for: the session ends as lost, and the
+    /// registry is sent again on the new socket.
+    fn reconnecting(&self) -> SessionEnd {
+        tracing::info!(
+            broker = self.feed.broker(),
+            "Market data feed reconnecting after the computer slept"
+        );
+        SessionEnd::Lost
     }
 
     /// Whether the feed stalled: nothing received within the stall timeout,
@@ -637,7 +693,8 @@ impl Supervisor {
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
         R: futures_util::Stream<Item = std::result::Result<Message, WsError>> + Unpin,
     {
-        if !Self::send_all(write, self.feed.on_connected()).await {
+        let hello = self.feed.on_connected();
+        if !self.send_all(write, hello).await {
             return SessionEnd::Lost;
         }
         let mut subscribed = false;
@@ -656,16 +713,10 @@ impl Supervisor {
         let check = (self.config.stall_timeout / 4).max(Duration::from_millis(10));
         let mut watchdog = tokio::time::interval_at(Instant::now() + check, check);
         let mut last_rx = Instant::now();
-        // A broker that may never acknowledge is taken as accepted after
-        // `auth_ack_timeout` (Groww: 2 s, like the web).
-        let ack_after = self
-            .feed
-            .auth_ack_timeout()
-            .filter(|_| !subscribed)
-            .unwrap_or(Duration::from_secs(3600));
-        let ack_deadline = tokio::time::sleep(ack_after);
+        let ack = self.ack_wait(subscribed);
+        let ack_deadline =
+            tokio::time::sleep(ack.map_or(Duration::from_secs(3600), |(after, _)| after));
         tokio::pin!(ack_deadline);
-        let mut ack_pending = !subscribed && self.feed.auth_ack_timeout().is_some();
         loop {
             tokio::select! {
                 msg = read.next() => {
@@ -682,36 +733,24 @@ impl Supervisor {
                         return end;
                     }
                 }
-                cmd = self.cmd.recv() => match cmd {
-                    None | Some(Command::Stop) => return SessionEnd::Stopped,
-                    Some(Command::Apply(mut deltas)) => {
-                        if self.coalesce(&mut deltas) {
-                            return SessionEnd::Stopped;
-                        }
-                        if !subscribed {
-                            continue; // sent with the full set after the ack
-                        }
-                        let frames = self.delta_frames(deltas);
-                        if !Self::send_all(write, frames).await {
-                            return SessionEnd::Lost;
-                        }
+                cmd = self.cmd.recv() => {
+                    if let Err(end) = self.on_command(write, cmd, subscribed).await {
+                        return end;
                     }
-                },
+                }
                 _ = hb.tick(), if heartbeat.is_some() => {
                     if let Some((_, m)) = &heartbeat {
-                        if write.send(m.clone()).await.is_err() {
+                        if !self.send_all(write, vec![m.clone()]).await {
                             return SessionEnd::Lost;
                         }
                     }
                 }
-                _ = &mut ack_deadline, if ack_pending => {
-                    ack_pending = false;
-                    if !subscribed {
-                        if !self.subscribe_all(broker, write).await {
-                            return SessionEnd::Lost;
-                        }
-                        subscribed = true;
+                _ = &mut ack_deadline, if ack.is_some() && !subscribed => {
+                    let lapse = ack.map_or(AckLapse::Refuse, |(_, lapse)| lapse);
+                    if let Err(end) = self.on_ack_lapse(broker, write, lapse).await {
+                        return end;
                     }
+                    subscribed = true;
                 }
                 _ = watchdog.tick() => {
                     if self.stalled(broker, last_rx) {
@@ -719,6 +758,79 @@ impl Supervisor {
                     }
                 }
             }
+        }
+    }
+
+    /// The login acknowledgement this session still waits for, and what
+    /// its absence means once the wait is over; `None` when nothing is
+    /// awaited.
+    fn ack_wait(&self, subscribed: bool) -> Option<(Duration, AckLapse)> {
+        if subscribed {
+            return None;
+        }
+        // An optional acknowledgement (Groww: 2 s, like the web).
+        if let Some(after) = self.feed.auth_ack_timeout() {
+            return Some((after, AckLapse::Assume));
+        }
+        self.feed
+            .auth_ack_deadline()
+            .map(|after| (after, AckLapse::Refuse))
+    }
+
+    /// The broker did not acknowledge the login in time: take the session
+    /// as accepted when the acknowledgement is optional, else end it so the
+    /// capped backoff reconnects (TIME-05). Frames that keep arriving
+    /// without an acknowledgement (heartbeats) must not keep a socket that
+    /// never streams.
+    async fn on_ack_lapse<S>(
+        &mut self,
+        broker: &str,
+        write: &mut S,
+        lapse: AckLapse,
+    ) -> std::result::Result<(), SessionEnd>
+    where
+        S: futures_util::Sink<Message, Error = WsError> + Unpin,
+    {
+        match lapse {
+            AckLapse::Assume if self.subscribe_all(broker, write).await => Ok(()),
+            AckLapse::Assume => Err(SessionEnd::Lost),
+            AckLapse::Refuse => {
+                tracing::warn!(
+                    broker,
+                    "The broker did not confirm the market data login in time; reconnecting"
+                );
+                Err(SessionEnd::Lost)
+            }
+        }
+    }
+
+    /// One command from the manager; subscription changes wait for the
+    /// login acknowledgement (they go out with the full set after it).
+    async fn on_command<S>(
+        &mut self,
+        write: &mut S,
+        cmd: Option<Command>,
+        subscribed: bool,
+    ) -> std::result::Result<(), SessionEnd>
+    where
+        S: futures_util::Sink<Message, Error = WsError> + Unpin,
+    {
+        let mut deltas = match cmd {
+            Some(Command::Apply(d)) => d,
+            Some(Command::Reconnect) => return Err(self.reconnecting()),
+            None | Some(Command::Stop) => return Err(SessionEnd::Stopped),
+        };
+        if let Some(end) = self.coalesce(&mut deltas) {
+            return Err(end);
+        }
+        if !subscribed {
+            return Ok(());
+        }
+        let frames = self.delta_frames(deltas);
+        if self.send_all(write, frames).await {
+            Ok(())
+        } else {
+            Err(SessionEnd::Lost)
         }
     }
 
@@ -774,9 +886,11 @@ impl Supervisor {
         if !subs.is_empty() {
             frames.extend(self.feed.subscribe_frames(&subs));
         }
-        Self::send_all(write, frames).await
+        self.send_all(write, frames).await
     }
 }
 
+#[cfg(test)]
+mod deadline_tests;
 #[cfg(test)]
 mod tests;

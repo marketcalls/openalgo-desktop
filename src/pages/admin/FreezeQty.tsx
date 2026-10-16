@@ -2,6 +2,7 @@ import { ArrowLeft, Pencil, Plus, Save, Search, Snowflake, Trash2, Upload, X } f
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { adminApi } from '@/api/admin'
+import { FreezeQtyDesktopNote } from '@/components/desktop/FreezeQtyDesktopNote'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -248,6 +249,9 @@ export default function FreezeQtyPage() {
           </Button>
         </div>
       </div>
+
+      {/* Desktop: NSE's limits are built in; this list is the trader's own. */}
+      <FreezeQtyDesktopNote />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

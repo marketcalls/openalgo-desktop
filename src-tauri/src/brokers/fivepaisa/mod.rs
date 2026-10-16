@@ -28,7 +28,7 @@ mod tests;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::order_poll;
-use crate::brokers::common::ratelimit::Pacer;
+use crate::brokers::common::ratelimit::{Pacer, ORDERS_PER_SECOND};
 use crate::brokers::common::streaming::{BrokerFeed, OrderFeed};
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
@@ -160,7 +160,11 @@ pub struct FivepaisaBroker {
     pub(crate) symbols: SymbolResolver,
     /// web multiquotes pause between batches (500 ms).
     pub(crate) batch_pause: Duration,
+    /// Data and account calls.
     pub(crate) pacer: Arc<Pacer>,
+    /// Places, modifies and cancels, apart from the data calls so none
+    /// queues ahead of an exit (RATE-02).
+    pub(crate) order_pacer: Arc<Pacer>,
     /// Running order-update poller, aborted on stop or drop.
     pub(crate) poller: Arc<parking_lot::Mutex<Option<order_poll::OrderPoller>>>,
 }
@@ -184,6 +188,7 @@ impl FivepaisaBroker {
             symbols,
             batch_pause: Duration::from_millis(500),
             pacer: Arc::new(Pacer::per_second(20.0)),
+            order_pacer: Arc::new(Pacer::per_second(ORDERS_PER_SECOND)),
             poller: Arc::default(),
         }
     }
@@ -217,6 +222,22 @@ impl FivepaisaBroker {
         timeout: Duration,
     ) -> Result<Value> {
         self.pacer.acquire().await?;
+        self.send_post(path, body, s, timeout).await
+    }
+
+    /// [`Self::post`] for a place, modify or cancel, on the order lane.
+    pub(crate) async fn post_order(&self, path: &str, body: Value, s: &Session) -> Result<Value> {
+        self.order_pacer.acquire().await?;
+        self.send_post(path, body, s, http::REQUEST_TIMEOUT).await
+    }
+
+    async fn send_post(
+        &self,
+        path: &str,
+        body: Value,
+        s: &Session,
+        timeout: Duration,
+    ) -> Result<Value> {
         let resp = self
             .http
             .post(format!("{}{}", self.base_url, path))

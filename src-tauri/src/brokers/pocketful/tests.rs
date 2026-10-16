@@ -948,3 +948,27 @@ async fn logout_clears_the_client_id_cache() {
     b.on_logout().await;
     assert!(b.client_id_cache.lock().is_none());
 }
+
+/// Nothing listens here: a request that went out fails to connect.
+const CLOSED: &str = "http://127.0.0.1:9";
+
+/// RATE-02: orders and data no longer share one lane. Data calls queued
+/// past the ten-second bound do not hold an order back (it goes out and
+/// meets the network), and orders have their own bound (RATE-03).
+#[tokio::test]
+async fn data_calls_never_queue_ahead_of_an_order() {
+    use crate::brokers::common::ratelimit::{crowd, BUSY_MESSAGE};
+    let b = PocketfulBroker::with_base_url(master(), CLOSED, CLOSED, CLOSED);
+    let auth = AuthToken::new("tok").with_user_id("<USER_ID>");
+    let data = crowd(&b.pacer);
+    let e = super::orders::cancel_order(&b, &auth, "1")
+        .await
+        .unwrap_err();
+    assert_ne!(e.client_message(), BUSY_MESSAGE, "the order was sent");
+    drop(data);
+    let _orders = crowd(&b.order_pacer);
+    let e = super::orders::cancel_order(&b, &auth, "1")
+        .await
+        .unwrap_err();
+    assert_eq!(e.client_message(), BUSY_MESSAGE);
+}
