@@ -6,8 +6,13 @@
 //!   2.0 (`initialize`, `ping`, `tools/list`, `tools/call`), a bearer token
 //!   with scopes, 401 / 403 challenges, per-token rate limits, an audit table
 //!   and a kill switch.
-//! * **stdio**, as `openalgo-desktop mcp --url <app> --token <token>`
-//!   ([`stdio`]), for Claude Desktop, Claude Code, Cursor and the like.
+//! * **stdio**, as `openalgo-desktop mcp --url <app>` ([`stdio`]), for
+//!   Claude Desktop, Claude Code, Cursor and the like. The token comes from
+//!   the `OPENALGO_MCP_TOKEN` environment variable the client's
+//!   configuration sets, never from an argument.
+//!
+//! Both answer `initialize` with [`instructions`]: the indicators and
+//! limits where the desktop differs from the web.
 //!
 //! # One process writes the databases
 //!
@@ -39,6 +44,7 @@ pub mod catalog;
 pub mod dispatch;
 pub mod envelope;
 pub mod http;
+mod instructions;
 pub mod research;
 pub mod schema;
 pub mod stdio;
