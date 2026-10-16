@@ -13,8 +13,8 @@
 
 OpenAlgo Desktop is a single-user desktop version of
 [OpenAlgo web](https://github.com/marketcalls/openalgo). It runs on Windows,
-macOS, Linux and Raspberry Pi, with the same screens, the same API and the same
-market data feed as the web version. There is no server to set up, no Python to
+macOS and Linux (x64 or ARM64), with the same screens, the same API and the
+same market data feed as the web version. There is no server to set up, no Python to
 install and no `.env` file: every setting and credential is entered inside the
 app, and secrets are kept encrypted with a key locked by your OpenAlgo password.
 
@@ -82,11 +82,10 @@ desktop, and it trades only while it is open.
 | Windows on ARM, 32-bit Windows, Windows 8.1 and older | Not supported | No installer is built for them. |
 | macOS 10.15 (Catalina) or later, Apple Silicon or Intel | Supported | Pick the `.dmg` for your chip. |
 | Ubuntu 22.04 or later, Debian 12 or later, Linux Mint 21 or later, 64-bit (x64) | Supported | WebKitGTK 4.1 and GTK 3: `sudo apt install ./<file>.deb` installs them. The AppImage needs them and FUSE 2 installed. |
-| Other 64-bit Linux distributions | Not tested | The AppImage may run where WebKitGTK 4.1, GTK 3 and glibc 2.35 or newer are installed. |
-| Raspberry Pi 4 or 5 with 64-bit Raspberry Pi OS (Bookworm or later), desktop edition | Supported | As for Linux above. 4 GB of memory or more is recommended. |
-| Raspberry Pi 3 or Zero 2 W with 64-bit Raspberry Pi OS | Not tested | 1 GB of memory or less is too little for comfortable use. |
-| 32-bit Raspberry Pi OS (any Pi) | Not supported | No 32-bit build. |
-| Headless Linux (no desktop: servers, Raspberry Pi OS Lite, SSH-only), Docker | Not supported | The app opens a window and cannot run without a desktop session. Use [OpenAlgo web](https://github.com/marketcalls/openalgo) for a server. |
+| Ubuntu 22.04 or later, Debian 12 or later, 64-bit ARM (ARM64), for example an ARM laptop or virtual machine | Supported | As for x64 Linux above. |
+| Other 64-bit Linux distributions (x64 or ARM64) | Not tested | The AppImage may run where WebKitGTK 4.1, GTK 3 and glibc 2.35 or newer are installed. |
+| Raspberry Pi (any model) | Not supported | Use [OpenAlgo web](https://github.com/marketcalls/openalgo) on a Pi ([docs](https://docs.openalgo.in)). |
+| Headless Linux (no desktop: servers, SSH-only), Docker | Not supported | The app opens a window and cannot run without a desktop session. Use [OpenAlgo web](https://github.com/marketcalls/openalgo) for a server. |
 | Running as a background service (Windows service, systemd unit, launchd daemon) | Not supported | The app runs as the signed-in user, and its keys stay locked until that user signs in to OpenAlgo. |
 
 "Supported" means an installer is built for that system and a problem on it
@@ -101,8 +100,8 @@ use, with the account created and signed in: the `.deb` and the AppImage on
 Ubuntu 22.04 (x64 and 64-bit ARM), the setup program on Windows Server 2022
 and Windows Server 2025, and the `.dmg` on Apple Silicon macOS (the "Install
 smoke" checks under the repository's Actions tab). A release is built only
-from a change that passed them. Windows 10 and 11, Intel Macs, Raspberry Pi
-hardware and the other systems in the table have not yet been installed and
+from a change that passed them. Windows 10 and 11, Intel Macs, ARM64 Linux
+computers and the other systems in the table have not yet been installed and
 used by hand.
 
 A computer with no internet connection and no WebView2 (some Windows 10 and
@@ -122,14 +121,15 @@ Each release lists a `SHA256SUMS.txt` file so you can check a download.
 | Mac with Apple Silicon (M1 and later) | ends in `_aarch64.dmg` | Open it and drag OpenAlgo Desktop to Applications. |
 | Mac with an Intel processor | ends in `_x64.dmg` | Open it and drag OpenAlgo Desktop to Applications. |
 | Linux, 64-bit PC (Ubuntu, Debian, Mint) | ends in `_amd64.deb` or `_amd64.AppImage` | `.deb`: `sudo apt install ./<file>.deb`. AppImage: see below. |
-| Raspberry Pi 4 or 5, 64-bit Raspberry Pi OS | ends in `_arm64.deb` or `_aarch64.AppImage` | `.deb`: `sudo apt install ./<file>.deb`. AppImage: see below. |
+| Linux, 64-bit ARM (ARM64) | ends in `_arm64.deb` or `_aarch64.AppImage` | `.deb`: `sudo apt install ./<file>.deb`. AppImage: see below. |
 
 Not sure which Mac you have? Open the Apple menu, then About This Mac. "Chip:
 Apple M..." means Apple Silicon; "Processor: Intel" means Intel.
 
-Raspberry Pi needs the 64-bit Raspberry Pi OS. The 32-bit image cannot run it.
+OpenAlgo Desktop does not support Raspberry Pi. On a Pi, run
+[OpenAlgo web](https://github.com/marketcalls/openalgo) instead.
 
-To run an AppImage on Linux or Raspberry Pi, make it executable and start it:
+To run an AppImage on Linux (x64 or ARM64), make it executable and start it:
 
 ```bash
 chmod +x OpenAlgo*.AppImage
@@ -146,7 +146,7 @@ To check a download, compare its checksum with the line for that file in
 | --- | --- |
 | Windows (PowerShell) | `Get-FileHash .\<file> -Algorithm SHA256` |
 | macOS | `shasum -a 256 <file>` |
-| Linux, Raspberry Pi | `sha256sum <file>` |
+| Linux (x64 or ARM64) | `sha256sum <file>` |
 
 ## Opening the app the first time (unsigned installers)
 
@@ -174,7 +174,7 @@ opened", it is the same check; in Terminal run
 `xattr -dr com.apple.quarantine "/Applications/OpenAlgo Desktop.app"` and open
 it again.
 
-**Linux and Raspberry Pi** show no warning.
+**Linux** (x64 or ARM64) shows no warning.
 
 ## Running the app
 
@@ -188,7 +188,7 @@ server.
 | Windows 10 or 11 | **Start** menu, then **OpenAlgo Desktop** (or the desktop shortcut) | Close the window, or right-click its taskbar icon and choose **Close window** |
 | macOS | **Applications** folder or **Launchpad**, then **OpenAlgo Desktop** | **OpenAlgo Desktop** menu, then **Quit** (Cmd+Q). Closing the window also quits it |
 | Linux (`.deb`) | Your desktop's app menu, then **OpenAlgo Desktop**, or run `openalgo-desktop` in a terminal | Close the window |
-| Linux or Raspberry Pi (AppImage) | `./OpenAlgo*.AppImage` from the folder you saved it to | Close the window |
+| Linux (AppImage, x64 or ARM64) | `./OpenAlgo*.AppImage` from the folder you saved it to | Close the window |
 
 What to know while it runs:
 
@@ -331,7 +331,7 @@ Everything OpenAlgo Desktop stores is in one folder:
 | --- | --- |
 | Windows | `%APPDATA%\com.openalgo.desktop` |
 | macOS | `~/Library/Application Support/com.openalgo.desktop` |
-| Linux and Raspberry Pi | `~/.local/share/com.openalgo.desktop` |
+| Linux (x64 or ARM64) | `~/.local/share/com.openalgo.desktop` |
 
 Inside it: `openalgo.db` (account, settings, strategies, encrypted broker
 credentials and the locked keys), `sandbox.db` (sandbox mode), `logs.db`
@@ -342,7 +342,7 @@ Broker credentials, tokens, your API key and your two-factor login secret are
 encrypted. The encryption key is itself locked with your OpenAlgo password
 (Argon2id) and kept in `openalgo.db`. OpenAlgo Desktop does not use your
 operating system's keychain on any platform: not the macOS Keychain, not the
-Windows Credential Manager, not the Secret Service of Linux or Raspberry Pi.
+Windows Credential Manager, not the Secret Service of Linux.
 A copy of the folder is useless to anyone without your password.
 
 What this means day to day:
@@ -380,8 +380,7 @@ the account and its keys; make a new backup once you have set OpenAlgo up
 again. Backups made before a reset still open with the password you had then.
 
 **Upgrading from an earlier build** that kept the keys in the system keychain
-(macOS Keychain, Windows Credential Manager, or the Secret Service on Linux and
-Raspberry Pi):
+(macOS Keychain, Windows Credential Manager, or the Secret Service on Linux):
 the first time you sign in in the OpenAlgo Desktop window, OpenAlgo reads them
 from the keychain one last time (allow it when your computer asks), moves them
 into `openalgo.db`, checks them, and deletes the keychain entries. After that
@@ -415,8 +414,8 @@ sandbox-only activity gets a lighter warning. It never restarts on its own.
 | --- | --- |
 | macOS `.dmg` | In the app: replaces OpenAlgo Desktop |
 | Windows setup `.exe` | In the app: runs the new installer (passive, for your user only) |
-| Linux or Raspberry Pi AppImage | In the app: replaces the `.AppImage` file |
-| Linux or Raspberry Pi `.deb` | The app tells you and links to the release page; download the new `.deb` there and install it over the old one |
+| Linux (x64 or ARM64) AppImage | In the app: replaces the `.AppImage` file |
+| Linux (x64 or ARM64) `.deb` | The app tells you and links to the release page; download the new `.deb` there and install it over the old one |
 
 You can always install a newer version by hand over the old one from
 [Releases](https://github.com/marketcalls/openalgo-desktop/releases). Your
@@ -523,7 +522,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh   # Rust
 brew install node@22                                             # or use nvm
 ```
 
-**Linux (Ubuntu 22.04+, Debian 12+, Linux Mint 21+) and Raspberry Pi OS 64-bit**
+**Linux, x64 or ARM64 (Ubuntu 22.04+, Debian 12+, Linux Mint 21+)**
 
 ```bash
 sudo apt update
@@ -536,8 +535,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Then install Node.js 22 from [nodejs.org](https://nodejs.org/) or with `nvm`
 (the version in the distribution's own `apt` repository is usually too old).
 This package list is the one CI builds with
-(`.github/actions/linux-tauri-deps`). Building on a Raspberry Pi works but is
-slow; a Pi 5 with 8 GB of memory is the practical minimum.
+(`.github/actions/linux-tauri-deps`).
 
 ### Run it in development
 
@@ -587,7 +585,7 @@ project's GitHub Actions, which build all five installers. Output folders, in
 | --- | --- |
 | Windows | `nsis/OpenAlgo Desktop_<version>_x64-setup.exe` |
 | macOS | `dmg/OpenAlgo Desktop_<version>_<arch>.dmg` and `macos/OpenAlgo Desktop.app` |
-| Linux, Raspberry Pi | `deb/*.deb` and `appimage/*.AppImage` |
+| Linux (x64 or ARM64) | `deb/*.deb` and `appimage/*.AppImage` |
 
 Installers you build yourself are unsigned, like the published ones; see
 [Opening the app the first time](#opening-the-app-the-first-time-unsigned-installers).

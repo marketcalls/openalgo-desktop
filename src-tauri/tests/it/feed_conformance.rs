@@ -39,12 +39,20 @@ fn load(name: &str) -> Vec<Value> {
 }
 
 fn substitute(v: &Value) -> Value {
+    replace_strings(v, &[("<APIKEY>", API_KEY)])
+}
+
+/// `v` with every string equal to a placeholder replaced by its value.
+fn replace_strings(v: &Value, with: &[(&str, &str)]) -> Value {
     match v {
-        Value::String(s) if s == "<APIKEY>" => Value::String(API_KEY.into()),
-        Value::Array(a) => Value::Array(a.iter().map(substitute).collect()),
+        Value::String(s) => match with.iter().find(|(from, _)| s == from) {
+            Some((_, to)) => Value::String((*to).into()),
+            None => v.clone(),
+        },
+        Value::Array(a) => Value::Array(a.iter().map(|x| replace_strings(x, with)).collect()),
         Value::Object(o) => Value::Object(
             o.iter()
-                .map(|(k, v)| (k.clone(), substitute(v)))
+                .map(|(k, x)| (k.clone(), replace_strings(x, with)))
                 .collect::<Map<_, _>>(),
         ),
         other => other.clone(),
@@ -405,4 +413,110 @@ async fn auth_timer_stops_only_on_successful_auth() {
     let pong = ok.request(serde_json::json!({"action": "ping"})).await;
     assert_eq!(pong["type"], "pong");
     h.handle.stop().await;
+}
+
+/// A broker feed socket that accepts the app's market data connections and
+/// never sends a tick.
+async fn silent_broker() -> (String, tokio::task::JoinHandle<()>) {
+    use futures_util::StreamExt;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+    let task = tokio::spawn(async move {
+        let mut held = tokio::task::JoinSet::new();
+        while let Ok((tcp, _)) = listener.accept().await {
+            held.spawn(async move {
+                if let Ok(mut ws) = tokio_tungstenite::accept_async(tcp).await {
+                    while let Some(Ok(_)) = ws.next().await {}
+                }
+            });
+        }
+    });
+    (url, task)
+}
+
+/// Replays a transcript's control frames against a feed at `url`: every
+/// acknowledgment, error, pong and broker answer must match the recording
+/// (with the key and user put in), and nothing unsolicited may arrive.
+/// Market data lines are skipped: the app's broker socket sends no tick.
+async fn replay_control(url: &str, name: &str, key: &str, user: &str) -> usize {
+    let with = [("<APIKEY>", key), ("<USER_ID>", user)];
+    let mut c = Client::connect(url).await;
+    let mut compared = 0;
+    for line in load(name) {
+        match line["direction"].as_str() {
+            Some("send") => match line.get("raw").and_then(Value::as_str) {
+                Some(raw) => c.send_raw(raw).await,
+                None if line["raw_text"] == true => c.send_raw(&line["message"].to_string()).await,
+                None => c.send(&replace_strings(&line["message"], &with)).await,
+            },
+            Some("recv") if is_market(&line) => {}
+            Some("recv") => {
+                let expected = replace_strings(&line["message"], &with);
+                let got = c.recv().await;
+                compare_control(&expected, &got);
+                compared += 1;
+            }
+            Some("note") if line.get("market_data_total") == Some(&Value::from(0)) => {
+                assert_eq!(c.recv_within(Duration::from_millis(150)).await, None);
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(c.recv_within(Duration::from_millis(150)).await, None);
+    compared
+}
+
+/// The subscribe, acknowledgment, mode and authentication transcripts
+/// against the running app instead of a `FakeSource`: `AppState` with the
+/// mock Zerodha session, its symbol master and its streaming capability,
+/// the production bridge and manager connected to a broker socket,
+/// `FeedService` on an ephemeral port and the app's own API key check.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn transcripts_against_the_running_app() {
+    use openalgo_desktop_lib::brokers::Broker;
+    use openalgo_desktop_lib::feed::FeedService;
+    use openalgo_desktop_lib::state::ServerStatus;
+    let h = crate::api_v1_support::H::new().await;
+    let (broker_url, broker_task) = silent_broker().await;
+    *h.mock.feed_url.lock() = Some(broker_url);
+    // Start the session again so its live feed connects to the socket.
+    let session = h.ctx.get_broker_session().expect("the mock session");
+    h.ctx.runtime.activate(&h.ctx, &session).await;
+    assert!(
+        eventually(Duration::from_secs(10), || h.ctx.websocket.is_connected()).await,
+        "the session's market data feed connects"
+    );
+    let free = || {
+        std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port()
+    };
+    h.ctx.pin_listener_ports(free(), free());
+    let feed = FeedService::new(h.ctx.clone());
+    assert!(matches!(feed.start().await, ServerStatus::Running { .. }));
+    let url = format!("ws://{}", feed.local_addr().await.unwrap());
+    // The mock broker streams 5 levels, as Kite does; the Depth 20 and 50
+    // subscribes are still acknowledged with 20 and 50, as recorded
+    // (maintainer decision 2026-10-16: echo like the web).
+    assert_eq!(h.mock.feed_depth_levels("NSE"), vec![5]);
+
+    let mut compared = 0;
+    for name in [
+        "01_connect_auth_subscribe_flow.jsonl",
+        "02_subscribe_before_auth.jsonl",
+        "03_invalid_apikey_auth.jsonl",
+        "05_auth_alias_forms_and_mode_labels.jsonl",
+    ] {
+        compared += replay_control(&url, name, &h.key, "trader").await;
+    }
+    assert_eq!(compared, 26 + 5 + 4 + 8);
+    assert!(
+        eventually(Duration::from_secs(5), || h.ctx.bridge.applied().is_empty()).await,
+        "every subscription released at the broker"
+    );
+    feed.stop().await;
+    broker_task.abort();
+    h.shutdown().await;
 }
