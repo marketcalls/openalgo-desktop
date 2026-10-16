@@ -248,6 +248,7 @@ export function useWebSocketTester(_apiKey?: string): UseWebSocketTesterReturn {
             addMessage('error', { message: 'No API key found' })
           }
         } catch (err) {
+          if (!current()) return
           setError(`Authentication error: ${err}`)
           addMessage('error', { message: `Authentication error: ${err}` })
         }
@@ -284,7 +285,11 @@ export function useWebSocketTester(_apiKey?: string): UseWebSocketTesterReturn {
         addMessage('error', { message: 'WebSocket connection error' })
       }
 
-      socket.onmessage = handleMessage
+      // Frames a socket received before its close completed belong to the
+      // connection the trader ended, not to the one on screen now.
+      socket.onmessage = (event) => {
+        if (current()) handleMessage(event)
+      }
 
       socketRef.current = socket
     } catch (err) {
@@ -388,9 +393,13 @@ export function useWebSocketTester(_apiKey?: string): UseWebSocketTesterReturn {
     URL.revokeObjectURL(url)
   }, [messages])
 
-  // Cleanup on unmount
+  // Cleanup on unmount. Desktop change, to be offered upstream: leaving the
+  // page ends every attempt, so an address still on its way opens no socket
+  // and the close below schedules no reconnect.
   useEffect(() => {
     return () => {
+      userInitiatedCloseRef.current = true
+      attemptRef.current += 1
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
       }

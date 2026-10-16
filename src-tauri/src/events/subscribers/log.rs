@@ -5,6 +5,9 @@ use crate::db::sqlite::logs::LogsDb;
 use crate::events::{Event, Mode, Subscriber, Topic};
 use std::sync::Arc;
 
+/// The subscriber's name on the bus; health reads its queue by it.
+pub const NAME: &str = "log";
+
 pub struct LogSubscriber {
     logs: Arc<LogsDb>,
 }
@@ -18,7 +21,7 @@ impl LogSubscriber {
 #[async_trait::async_trait]
 impl Subscriber for LogSubscriber {
     fn name(&self) -> &'static str {
-        "log"
+        NAME
     }
 
     fn topics(&self) -> Vec<Topic> {
@@ -65,10 +68,17 @@ impl Subscriber for LogSubscriber {
             }
         })
         .await;
+        // A lost entry is counted for health and the system report (OBS-01).
         match res {
             Ok(Ok(())) => {}
-            Ok(Err(e)) => tracing::error!("Could not write order log: {}", e),
-            Err(e) => tracing::error!("Order log task failed: {}", e),
+            Ok(Err(e)) => {
+                self.logs.note_failed_log_write();
+                tracing::error!("Could not write order log: {}", e)
+            }
+            Err(e) => {
+                self.logs.note_failed_log_write();
+                tracing::error!("Order log task failed: {}", e)
+            }
         }
     }
 }

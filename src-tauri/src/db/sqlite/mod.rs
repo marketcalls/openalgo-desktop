@@ -8,6 +8,7 @@ pub mod action_center;
 pub mod alert_log;
 pub mod api_keys;
 pub mod auth;
+pub mod chart_prefs;
 pub mod credentials;
 pub mod data_migrations;
 mod durability;
