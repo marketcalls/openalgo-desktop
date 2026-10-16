@@ -15,11 +15,18 @@
 //! | `options.rs` | optionsymbol, optionchain, syntheticfuture, optiongreeks, multioptiongreeks |
 //! | `gtt.rs` | placegttorder, modifygttorder, cancelgttorder, gttorderbook |
 //!
+//! | `chart.rs` | chart (GET and POST) |
+//! | `notify.rs` | telegram/notify, whatsapp/notify |
+//! | `strategy.rs` | strategy/* |
+//!
 //! `market/holidays` and `market/timings` are served by
-//! `crate::server::routes::market_calendar` and mounted here; Telegram, WhatsApp, strategy, chart, portfolio and SIP endpoints
-//! arrive with their own waves.
+//! `crate::server::routes::market_calendar` and mounted here. Not served:
+//! portfolio and SIP (the web's pandas backtesters, out of scope) and the
+//! Telegram bot management endpoints; `tests/it/api_v1_inventory.rs` holds
+//! the router to the web's list with those exceptions named.
 
 mod account;
+mod chart;
 mod data;
 mod gtt;
 mod notify;
@@ -250,6 +257,19 @@ pub async fn load(
     check(ctx, ip, &body, schema, style, auth).map_err(|r| *r)
 }
 
+/// Query string as the web's `request.args` (`None` for absent keys).
+fn query_map(raw: Option<String>) -> Map<String, Value> {
+    let pairs: Vec<(String, String)> = raw
+        .as_deref()
+        .and_then(|q| serde_urlencoded::from_str(q).ok())
+        .unwrap_or_default();
+    let mut m = Map::new();
+    for (k, v) in pairs {
+        m.entry(k).or_insert(Value::String(v));
+    }
+    m
+}
+
 /// 404 JSON for unknown `/api/v1` paths and wrong methods (web contract:
 /// wrong method is 404, not 405).
 pub async fn api_not_found(req: Request) -> Response {
@@ -315,6 +335,11 @@ pub fn router() -> Router<Arc<AppState>> {
         .route(
             "/api/v1/multioptiongreeks",
             post(options::multioptiongreeks),
+        )
+        // chart preferences (web restx_api/chart_api.py)
+        .route(
+            "/api/v1/chart",
+            get(chart::get_preferences).post(chart::update_preferences),
         )
         // Telegram and WhatsApp
         .route("/api/v1/telegram/notify", post(notify::telegram_notify))
