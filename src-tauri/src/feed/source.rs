@@ -168,8 +168,10 @@ impl MarketUpdate {
 ///
 /// `subscribe` / `unsubscribe` must not block: they are called while the
 /// server holds its subscription lock, so an implementation hands the
-/// request to its own task. There is no reply; a failure shows up as
-/// missing ticks and in the source's own log.
+/// request to its own task. There is no reply: a subscribe acknowledged
+/// with success means "accepted into the desired set", applied to the
+/// broker now or as soon as its feed (re)connects. The one failure known
+/// up front is [`unavailable`](MarketDataSource::unavailable).
 pub trait MarketDataSource: Send + Sync + 'static {
     /// Start streaming `key` at `mode`. `depth` is the order-book depth for
     /// `Mode::Depth` and [`DEFAULT_DEPTH`] otherwise.
@@ -189,6 +191,16 @@ pub trait MarketDataSource: Send + Sync + 'static {
     /// Depth levels the connected broker streams for `exchange`.
     fn supported_depths(&self, _exchange: &str) -> Vec<u8> {
         vec![DEFAULT_DEPTH]
+    }
+
+    /// Why nothing subscribed now would stream, when that is known (WS-01):
+    /// the broker refused the live feed, or it has none or it did not
+    /// start for this session. Each subscribe item is then answered with
+    /// this as its error, as the web answers when its adapter is not
+    /// running. `None` while the feed streams or may yet (connecting,
+    /// reconnecting).
+    fn unavailable(&self) -> Option<String> {
+        None
     }
 }
 

@@ -110,7 +110,19 @@ fn positive_quantity(msg: &'static str) -> Field {
         .validate(Validator::gt(0.0, Some(msg)))
 }
 
+/// The largest whole-number quantity a broker takes (a 32-bit integer).
+pub(crate) const MAX_BROKER_QUANTITY: i64 = i32::MAX as i64;
+
+/// The refusal for a quantity above [`MAX_BROKER_QUANTITY`].
+pub(crate) const QUANTITY_TOO_LARGE: &str = "Quantity is larger than any exchange accepts.";
+
 /// `_coerce_quantity_to_int`: fractional quantities only on crypto.
+///
+/// Desktop addition (API-02): a quantity or disclosed quantity above
+/// [`MAX_BROKER_QUANTITY`] is refused here, before anything is dispatched,
+/// simulated or logged. Brokers take a 32-bit quantity, and the desktop
+/// used to clamp a larger one silently at the broker boundary, so the
+/// broker, the sandbox and the order log saw three different quantities.
 pub fn coerce_quantity(m: &mut Map<String, Value>) -> Result<(), FieldErrors> {
     let exchange = m.get("exchange").and_then(Value::as_str).unwrap_or("");
     if CRYPTO_EXCHANGES.contains(&exchange) {
@@ -126,7 +138,17 @@ pub fn coerce_quantity(m: &mut Map<String, Value>) -> Result<(), FieldErrors> {
                 ),
             ));
         }
+        if q > MAX_BROKER_QUANTITY as f64 {
+            return Err(FieldErrors::single("quantity", QUANTITY_TOO_LARGE));
+        }
         m.insert("quantity".into(), json!(q as i64));
+    }
+    let disclosed = m.get("disclosed_quantity").and_then(Value::as_f64);
+    if disclosed.is_some_and(|d| d > MAX_BROKER_QUANTITY as f64) {
+        return Err(FieldErrors::single(
+            "disclosed_quantity",
+            "Disclosed quantity is larger than any exchange accepts.",
+        ));
     }
     Ok(())
 }
