@@ -12,16 +12,19 @@ use axum::{
 };
 use chrono::NaiveDate;
 use chrono_tz::Asia::Kolkata;
-use serde_json::{json, Value};
+use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 type Ctx = State<Arc<AppState>>;
 type Q = Query<HashMap<String, String>>;
 
-/// The logged requests in the asked date range, or the error reply (boxed:
-/// a reply is large).
-fn requests(ctx: &AppState, q: &HashMap<String, String>) -> Result<Vec<Value>, Box<Response>> {
+/// The asked IST date range as stored UTC bounds (today when none is
+/// given), or the error reply (boxed: a reply is large).
+fn asked_range(
+    ctx: &AppState,
+    q: &HashMap<String, String>,
+) -> Result<(String, String), Box<Response>> {
     let parse = |k: &str| -> Result<Option<NaiveDate>, Box<Response>> {
         match q.get(k).map(|s| s.trim()).filter(|s| !s.is_empty()) {
             None => Ok(None),
@@ -36,41 +39,40 @@ fn requests(ctx: &AppState, q: &HashMap<String, String>) -> Result<Vec<Value>, B
         }
     };
     let today = ctx.now().with_timezone(&Kolkata).date_naive();
-    let (from, to) = svc::range(today, parse("start_date")?, parse("end_date")?);
-    svc::rows_between(ctx, &from, &to)
-        .map(|rows| rows.iter().map(svc::format_request).collect())
-        .map_err(|e| {
-            Box::new(failed(
-                "Reading analyzer logs",
-                e,
-                "Could not load the analyzer logs. Try again.",
-            ))
-        })
+    Ok(svc::range(today, parse("start_date")?, parse("end_date")?))
+}
+
+fn read_failed(e: crate::error::AppError) -> Response {
+    failed(
+        "Reading analyzer logs",
+        e,
+        "Could not load the analyzer logs. Try again.",
+    )
 }
 
 /// GET /analyzer/api/data
 pub async fn data(State(ctx): Ctx, Query(q): Q) -> Response {
-    let reqs = match requests(&ctx, &q) {
+    let (from, to) = match asked_range(&ctx, &q) {
         Ok(r) => r,
         Err(r) => return *r,
     };
-    let stats = match svc::stats(&ctx, ctx.now()) {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::error!("Analyzer stats failed: {}", e);
-            json!({"total_requests": 0, "issues": {"total": 0, "by_type": {
-                "rate_limit": 0, "invalid_symbol": 0, "missing_quantity": 0,
-                "invalid_exchange": 0, "other": 0}}, "symbols": [], "sources": []})
+    match svc::page(&ctx, from, to).await {
+        Ok((reqs, stats)) => {
+            ok(json!({"status": "success", "data": {"stats": stats, "requests": reqs}}))
         }
-    };
-    ok(json!({"status": "success", "data": {"stats": stats, "requests": reqs}}))
+        Err(e) => read_failed(e),
+    }
 }
 
 /// GET /analyzer/export
 pub async fn export(State(ctx): Ctx, Query(q): Q) -> Response {
-    let reqs = match requests(&ctx, &q) {
+    let (from, to) = match asked_range(&ctx, &q) {
         Ok(r) => r,
         Err(r) => return *r,
+    };
+    let reqs = match svc::requests(&ctx, from, to).await {
+        Ok(r) => r,
+        Err(e) => return read_failed(e),
     };
     let stamp = ctx.now().with_timezone(&Kolkata).format("%Y%m%d_%H%M%S");
     download(

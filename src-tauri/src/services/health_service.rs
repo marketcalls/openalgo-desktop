@@ -221,6 +221,7 @@ pub fn sample_once(ctx: &AppState) -> Result<HealthRow> {
     let conn = ctx.logs.conn()?;
     let id = store::insert_health(&conn, &row)?;
     sample_alerts(&conn, now, &row, fd_levels)?;
+    crate::services::record_loss::alert(&conn, ctx, now)?;
     Ok(HealthRow { id, ..row })
 }
 

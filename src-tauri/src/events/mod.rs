@@ -39,6 +39,9 @@ pub enum Topic {
     SandboxOrderFilled,
     SandboxAutoSquareoff,
     SandboxT1Settlement,
+    /// Analyzer (sandbox) mode was changed, by any path: the app, the API,
+    /// MCP or Telegram (desktop topic, UI-01; the web has no such event).
+    AnalyzerModeChanged,
     GttPlaced,
     GttFailed,
     GttModified,
@@ -81,6 +84,7 @@ impl Topic {
             Topic::SandboxOrderFilled => "sandbox.order_filled",
             Topic::SandboxAutoSquareoff => "sandbox.auto_squareoff",
             Topic::SandboxT1Settlement => "sandbox.t1_settlement",
+            Topic::AnalyzerModeChanged => "analyzer.mode_changed",
             Topic::GttPlaced => "gtt.placed",
             Topic::GttFailed => "gtt.failed",
             Topic::GttModified => "gtt.modified",
@@ -301,6 +305,12 @@ pub enum Event {
     SandboxT1Settlement {
         meta: OrderMeta,
     },
+    /// The analyzer mode now stored, published after every change under the
+    /// change's own lock (`AnalyzerService`), so the last event names the
+    /// mode that holds.
+    AnalyzerModeChanged {
+        analyze_mode: bool,
+    },
     Gtt {
         kind: GttKind,
         meta: OrderMeta,
@@ -368,6 +378,7 @@ impl Event {
             Event::SandboxOrderFilled { .. } => Topic::SandboxOrderFilled,
             Event::SandboxAutoSquareoff { .. } => Topic::SandboxAutoSquareoff,
             Event::SandboxT1Settlement { .. } => Topic::SandboxT1Settlement,
+            Event::AnalyzerModeChanged { .. } => Topic::AnalyzerModeChanged,
             Event::Gtt { kind, .. } => match kind {
                 GttKind::Placed => Topic::GttPlaced,
                 GttKind::Failed => Topic::GttFailed,

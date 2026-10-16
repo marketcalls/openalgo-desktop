@@ -36,14 +36,47 @@ pub fn with_host(
     }
 }
 
+/// Run `fut` with a 10 ms timer beside it on this test's runtime and
+/// return how late the timer ran at worst: how long `fut` held the runtime
+/// thread (`#[tokio::test]` runs on one thread), so blocking work it should
+/// have moved off the async workers shows (DB-01, DB-03).
+pub async fn runtime_stall<F: std::future::Future>(fut: F) -> (F::Output, std::time::Duration) {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    let worst_us = std::sync::Arc::new(AtomicU64::new(0));
+    let w = worst_us.clone();
+    let ticker = tokio::spawn(async move {
+        let tick = std::time::Duration::from_millis(10);
+        loop {
+            let t = std::time::Instant::now();
+            tokio::time::sleep(tick).await;
+            let late = t.elapsed().saturating_sub(tick).as_micros() as u64;
+            w.fetch_max(late, Ordering::Relaxed);
+        }
+    });
+    // Let the timer start before `fut` runs.
+    tokio::task::yield_now().await;
+    let out = fut.await;
+    // Give the timer a turn: a `fut` that blocked and then returned at
+    // once has not let it see how late it is yet.
+    tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+    ticker.abort();
+    let worst = std::time::Duration::from_micros(worst_us.load(Ordering::Relaxed));
+    (out, worst)
+}
+
 mod api_v1_support;
 mod feed_support;
 mod mcp_support;
 mod sandbox_support;
 mod webui_support;
 
+mod analyzer_mode;
+mod api_v1_chart;
 mod api_v1_contract;
 mod api_v1_events;
+mod api_v1_inventory;
+mod api_v1_quantity;
+mod api_v1_telegram;
 mod broker_angel_http;
 mod broker_contract;
 mod broker_deltaexchange;
@@ -70,13 +103,16 @@ mod data_upgrade;
 mod feed_app;
 mod feed_behaviour;
 mod feed_bridge;
+mod feed_budget;
 mod feed_conformance;
 mod feed_hygiene;
 mod feed_soak;
+mod freeze_limits;
 mod historify;
 mod mcp_caps;
 mod mcp_contract;
 mod mcp_http;
+mod mcp_outputs;
 mod mcp_research;
 mod mcp_security;
 mod mcp_subcommand;
@@ -102,5 +138,7 @@ mod webui2;
 mod webui_admin;
 mod webui_market;
 mod webui_monitoring;
+mod webui_record_loss;
+mod webui_reports;
 mod webui_settings;
 mod webui_update;

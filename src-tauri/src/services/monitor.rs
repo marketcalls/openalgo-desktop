@@ -41,6 +41,8 @@ const MAX_SCAN_BYTES: u64 = 256 * 1024;
 /// How often the writer purges old rows and refreshes the ban list.
 const HOUSEKEEPING: Duration = Duration::from_secs(600);
 const BAN_REFRESH: Duration = Duration::from_secs(30);
+/// How long the writer's last save at shutdown may take.
+const FINAL_SAVE: Duration = Duration::from_secs(2);
 
 #[derive(Debug)]
 pub enum Record {
@@ -61,7 +63,18 @@ pub struct Monitor {
     rx: Mutex<Option<mpsc::Receiver<Record>>>,
     bans: RwLock<BanCache>,
     settings: RwLock<Option<SecuritySettings>>,
+    /// Records shed because the queue was full or already closed.
     dropped: AtomicU64,
+    /// Records the writer could not save: a batch that failed twice, or a
+    /// single record the database refused (OBS-02).
+    lost: AtomicU64,
+    /// Batches whose first save failed and were tried again.
+    retried: AtomicU64,
+    /// The record losses the last "records not saved" alert covered
+    /// (`services::record_loss`).
+    pub(crate) loss_alerted: AtomicU64,
+    /// The writer task, owned here so shutdown can wait for its last save.
+    writer: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 impl Default for Monitor {
@@ -79,6 +92,10 @@ impl Monitor {
             bans: RwLock::new(BanCache::default()),
             settings: RwLock::new(None),
             dropped: AtomicU64::new(0),
+            lost: AtomicU64::new(0),
+            retried: AtomicU64::new(0),
+            loss_alerted: AtomicU64::new(0),
+            writer: Mutex::new(None),
         }
     }
 
@@ -90,6 +107,16 @@ impl Monitor {
 
     pub fn dropped(&self) -> u64 {
         self.dropped.load(Ordering::Relaxed)
+    }
+
+    /// Records the writer could not save, since start.
+    pub fn lost(&self) -> u64 {
+        self.lost.load(Ordering::Relaxed)
+    }
+
+    /// Batches saved only on their second try, or not at all, since start.
+    pub fn retried(&self) -> u64 {
+        self.retried.load(Ordering::Relaxed)
     }
 
     /// Whether `ip`, in any spelling, is banned. Bans are held and looked up
@@ -176,52 +203,91 @@ impl Monitor {
         }
         drop(guard);
         let n = batch.len();
-        write_batch(ctx, batch);
+        save_batch(ctx, batch);
         n
+    }
+
+    /// Wait up to `grace` for the writer's last save after shutdown was
+    /// signalled, then stop it.
+    pub async fn stop(&self, grace: Duration) {
+        let Some(mut writer) = self.writer.lock().take() else {
+            return;
+        };
+        if tokio::time::timeout(grace, &mut writer).await.is_err() {
+            tracing::warn!("Monitoring records were still being saved at exit");
+            writer.abort();
+        }
     }
 }
 
-/// Start the writer task (once). It is owned by the context and stops on
-/// shutdown.
+/// Start the writer task (once). It is owned by the monitor; on shutdown it
+/// saves what is still queued, then stops (`Monitor::stop`).
 pub fn start(ctx: &Arc<AppState>) {
-    let Some(mut rx) = ctx.monitor.rx.lock().take() else {
+    let Some(rx) = ctx.monitor.rx.lock().take() else {
         return;
     };
     ctx.monitor.reload_bans(ctx);
-    let c = ctx.clone();
-    let token = ctx.shutdown.child_token();
-    ctx.spawn(async move {
-        let mut housekeeping = tokio::time::interval(HOUSEKEEPING);
-        let mut bans = tokio::time::interval(BAN_REFRESH);
-        let mut buf = Vec::with_capacity(256);
-        loop {
-            tokio::select! {
-                _ = token.cancelled() => break,
-                n = rx.recv_many(&mut buf, 256) => {
-                    if n == 0 {
-                        break;
+    let writer = tokio::spawn(write_until_shutdown(ctx.clone(), rx));
+    *ctx.monitor.writer.lock() = Some(writer);
+}
+
+async fn write_until_shutdown(c: Arc<AppState>, mut rx: mpsc::Receiver<Record>) {
+    let token = c.shutdown.child_token();
+    let mut housekeeping = tokio::time::interval(HOUSEKEEPING);
+    let mut bans = tokio::time::interval(BAN_REFRESH);
+    let mut buf = Vec::with_capacity(256);
+    loop {
+        tokio::select! {
+            // Shutdown first, so what is queued then is saved below and not
+            // left to whichever branch the select happens to pick.
+            biased;
+            _ = token.cancelled() => {
+                save_rest(&c, rx).await;
+                break;
+            }
+            n = rx.recv_many(&mut buf, 256) => {
+                if n == 0 {
+                    break;
+                }
+                let batch = std::mem::take(&mut buf);
+                let c2 = c.clone();
+                let _ = tokio::task::spawn_blocking(move || save_batch(&c2, batch)).await;
+            }
+            _ = housekeeping.tick() => {
+                let c2 = c.clone();
+                let _ = tokio::task::spawn_blocking(move || housekeep(&c2)).await;
+            }
+            _ = bans.tick() => {
+                let c2 = c.clone();
+                let _ = tokio::task::spawn_blocking(move || {
+                    if let Err(e) = crate::services::error_log::flush_queue(&c2) {
+                        tracing::debug!("Error log flush failed: {}", e);
                     }
-                    let batch = std::mem::take(&mut buf);
-                    let c2 = c.clone();
-                    let _ = tokio::task::spawn_blocking(move || write_batch(&c2, batch)).await;
-                }
-                _ = housekeeping.tick() => {
-                    let c2 = c.clone();
-                    let _ = tokio::task::spawn_blocking(move || housekeep(&c2)).await;
-                }
-                _ = bans.tick() => {
-                    let c2 = c.clone();
-                    let _ = tokio::task::spawn_blocking(move || {
-                        if let Err(e) = crate::services::error_log::flush_queue(&c2) {
-                            tracing::debug!("Error log flush failed: {}", e);
-                        }
-                        c2.monitor.reload_bans(&c2);
-                    })
-                    .await;
-                }
+                    c2.monitor.reload_bans(&c2);
+                })
+                .await;
             }
         }
-    });
+    }
+}
+
+/// At shutdown: close the queue (later records are counted as dropped)
+/// and save what it still holds, within `FINAL_SAVE` (OBS-02). The queue
+/// holds at most `CHANNEL_CAP` records, so this is one bounded write.
+async fn save_rest(c: &Arc<AppState>, mut rx: mpsc::Receiver<Record>) {
+    rx.close();
+    let mut rest = Vec::new();
+    while let Ok(r) = rx.try_recv() {
+        rest.push(r);
+    }
+    if rest.is_empty() {
+        return;
+    }
+    let c2 = c.clone();
+    let save = tokio::task::spawn_blocking(move || save_batch(&c2, rest));
+    if tokio::time::timeout(FINAL_SAVE, save).await.is_err() {
+        tracing::warn!("Saving the last monitoring records took too long at exit");
+    }
 }
 
 /// Purge old rows (bounded tables) and persist queued server errors.
@@ -237,67 +303,107 @@ pub fn housekeep(ctx: &AppState) {
     }
 }
 
-fn write_batch(ctx: &AppState, batch: Vec<Record>) {
+/// Save one batch, and once more if the whole batch failed (a busy or
+/// unreadable database); what still fails is counted as lost (OBS-02).
+fn save_batch(ctx: &AppState, batch: Vec<Record>) {
     if batch.is_empty() {
         return;
     }
+    let m = &ctx.monitor;
+    let saved = save_with_retry(m, batch.len(), || write_batch(ctx, &batch));
+    if saved.is_some_and(|bans_changed| bans_changed) {
+        m.reload_bans(ctx);
+    }
+}
+
+/// Run `write` (one batch of `n` records); a failure is retried once and
+/// counted. `Some(bans_changed)` when the batch was saved.
+fn save_with_retry(
+    m: &Monitor,
+    n: usize,
+    mut write: impl FnMut() -> crate::error::Result<WriteOutcome>,
+) -> Option<bool> {
+    let outcome = match write() {
+        Ok(o) => o,
+        Err(first) => {
+            m.retried.fetch_add(1, Ordering::Relaxed);
+            tracing::debug!("Saving monitoring records failed, trying again: {}", first);
+            match write() {
+                Ok(o) => o,
+                Err(e) => {
+                    m.lost.fetch_add(n as u64, Ordering::Relaxed);
+                    tracing::warn!("Could not save {} monitoring records: {}", n, e);
+                    return None;
+                }
+            }
+        }
+    };
+    m.lost.fetch_add(outcome.refused, Ordering::Relaxed);
+    Some(outcome.bans_changed)
+}
+
+/// What a saved batch did besides saving.
+struct WriteOutcome {
+    bans_changed: bool,
+    /// Records the database refused one by one; the rest were saved.
+    refused: u64,
+}
+
+/// One batch in one transaction, taken at `BEGIN IMMEDIATE` so a busy
+/// database fails the batch as a whole (and it is retried) instead of
+/// each record waiting out the busy timeout in turn.
+fn write_batch(ctx: &AppState, batch: &[Record]) -> crate::error::Result<WriteOutcome> {
     let now = ctx.now();
     let settings = ctx.monitor.security_settings(ctx);
-    let mut bans_changed = false;
+    let mut out = WriteOutcome {
+        bans_changed: false,
+        refused: 0,
+    };
     // This machine's own addresses, read only when a ban is due: an
     // automatic ban never covers one of them.
     let mut own: Option<Vec<std::net::IpAddr>> = None;
-    let res = ctx.logs.conn().and_then(|conn| {
-        conn.execute_batch("BEGIN")?;
-        for r in batch {
-            let step = match r {
-                Record::Traffic(t) => store::insert_traffic(&conn, &t),
-                Record::Latency(l) => store::insert_latency(&conn, &l),
-                Record::NotFound { ip, path } => {
-                    store::track_404(&conn, &ip, &path, now).and_then(|n| {
-                        if settings.auto_ban_enabled && n >= settings.threshold_404 {
-                            bans_changed |= store::auto_ban(
-                                &conn,
-                                &ip,
-                                &format!("Too many missing pages ({} in a day)", n),
-                                hours(settings.ban_duration_404),
-                                now,
-                                own.get_or_insert_with(crate::server::addr::own_addresses),
-                                store::AUTO_BAN_CAP,
-                            )?;
-                        }
-                        Ok(())
-                    })
+    let mut conn = ctx.logs.conn()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    for r in batch {
+        let step = match r {
+            Record::Traffic(t) => store::insert_traffic(&tx, t),
+            Record::Latency(l) => store::insert_latency(&tx, l),
+            Record::NotFound { ip, path } => store::track_404(&tx, ip, path, now).and_then(|n| {
+                if settings.auto_ban_enabled && n >= settings.threshold_404 {
+                    out.bans_changed |= store::auto_ban(
+                        &tx,
+                        ip,
+                        &format!("Too many missing pages ({} in a day)", n),
+                        hours(settings.ban_duration_404),
+                        now,
+                        own.get_or_insert_with(crate::server::addr::own_addresses),
+                        store::AUTO_BAN_CAP,
+                    )?;
                 }
-                Record::InvalidKey { ip } => store::track_invalid_api_key(&conn, &ip, now)
-                    .and_then(|n| {
-                        if settings.auto_ban_enabled && n >= settings.api_threshold {
-                            bans_changed |= store::auto_ban(
-                                &conn,
-                                &ip,
-                                &format!("Too many invalid API key attempts ({} in a day)", n),
-                                hours(settings.api_ban_duration),
-                                now,
-                                own.get_or_insert_with(crate::server::addr::own_addresses),
-                                store::AUTO_BAN_CAP,
-                            )?;
-                        }
-                        Ok(())
-                    }),
-            };
-            if let Err(e) = step {
-                tracing::debug!("Monitoring record skipped: {}", e);
-            }
+                Ok(())
+            }),
+            Record::InvalidKey { ip } => store::track_invalid_api_key(&tx, ip, now).and_then(|n| {
+                if settings.auto_ban_enabled && n >= settings.api_threshold {
+                    out.bans_changed |= store::auto_ban(
+                        &tx,
+                        ip,
+                        &format!("Too many invalid API key attempts ({} in a day)", n),
+                        hours(settings.api_ban_duration),
+                        now,
+                        own.get_or_insert_with(crate::server::addr::own_addresses),
+                        store::AUTO_BAN_CAP,
+                    )?;
+                }
+                Ok(())
+            }),
+        };
+        if let Err(e) = step {
+            out.refused += 1;
+            tracing::debug!("Monitoring record skipped: {}", e);
         }
-        conn.execute_batch("COMMIT")?;
-        Ok(())
-    });
-    if let Err(e) = res {
-        tracing::warn!("Could not save monitoring records: {}", e);
     }
-    if bans_changed {
-        ctx.monitor.reload_bans(ctx);
-    }
+    tx.commit()?;
+    Ok(out)
 }
 
 /// Web convention: 0 hours means permanent.
@@ -591,6 +697,41 @@ mod tests {
         assert_eq!(api_type("/api/v1/market/holidays"), "MARKET_HOLIDAYS");
         assert_eq!(api_type("/api/v1/ticker/NSE:SBIN"), "TICKER");
         assert_eq!(api_type("/api/v1/newthing"), "NEWTHING");
+    }
+
+    /// OBS-02: a batch that fails as a whole is tried once more; a second
+    /// failure, and each record refused on its own, are counted as lost.
+    #[test]
+    fn a_failed_batch_is_tried_again_and_what_still_fails_is_counted() {
+        let m = Monitor::new();
+        let busy = || {
+            Err(crate::error::AppError::Internal(
+                "database is locked".into(),
+            ))
+        };
+        let saved = |refused| {
+            Ok(WriteOutcome {
+                bans_changed: true,
+                refused,
+            })
+        };
+        let mut calls = 0;
+        let r = save_with_retry(&m, 7, || {
+            calls += 1;
+            if calls == 1 {
+                busy()
+            } else {
+                saved(0)
+            }
+        });
+        assert_eq!((r, calls), (Some(true), 2));
+        assert_eq!((m.retried(), m.lost()), (1, 0));
+
+        assert_eq!(save_with_retry(&m, 7, busy), None);
+        assert_eq!((m.retried(), m.lost()), (2, 7));
+
+        assert_eq!(save_with_retry(&m, 3, || saved(1)), Some(true));
+        assert_eq!((m.retried(), m.lost()), (2, 8));
     }
 
     #[test]

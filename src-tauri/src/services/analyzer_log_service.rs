@@ -9,6 +9,8 @@ use chrono::{DateTime, Duration, NaiveDate, TimeZone, Utc};
 use chrono_tz::Asia::Kolkata;
 use rusqlite::params;
 use serde_json::{json, Map, Value};
+use std::collections::HashSet;
+use std::sync::Arc;
 
 /// Rows one page or export reads at most (newest first).
 pub const MAX_ROWS: i64 = 10_000;
@@ -42,7 +44,7 @@ pub fn range(
     )
 }
 
-pub fn rows_between(ctx: &AppState, from: &str, to: &str) -> Result<Vec<LogRow>> {
+fn rows_between(ctx: &AppState, from: &str, to: &str) -> Result<Vec<LogRow>> {
     let conn = ctx.logs.conn()?;
     let mut stmt = conn.prepare(
         "SELECT api_type, request_data, response_data, created_at FROM analyzer_logs
@@ -68,7 +70,7 @@ fn get_or(v: &Value, k: &str, d: Value) -> Value {
 }
 
 /// Web `format_request`.
-pub fn format_request(row: &LogRow) -> Value {
+fn format_request(row: &LogRow) -> Value {
     let (api_type, req, resp, created) = row;
     let request = redact(parse_obj(req));
     let response = parse_obj(resp);
@@ -134,68 +136,132 @@ pub fn format_request(row: &LogRow) -> Value {
     out
 }
 
-/// Web `get_analyzer_stats` (last 24 hours) as the page consumes it.
-pub fn stats(ctx: &AppState, now: DateTime<Utc>) -> Result<Value> {
+/// The issue kinds, in the order the web counts them.
+const ISSUE_KINDS: [&str; 5] = [
+    "rate_limit",
+    "invalid_symbol",
+    "missing_quantity",
+    "invalid_exchange",
+    "other",
+];
+
+/// Web `get_analyzer_stats` over the last 24 hours as the page consumes it:
+/// every request in the window, read row by row, not only the newest
+/// `MAX_ROWS` the page lists (OBS-05).
+fn stats(ctx: &AppState, now: DateTime<Utc>) -> Result<Value> {
     let from = (now - Duration::hours(24)).format(TS).to_string();
-    let rows = rows_between(ctx, &from, "9999")?;
-    let mut sources: Vec<String> = Vec::new();
-    let mut symbols: Vec<Value> = Vec::new();
-    let mut by_type: Map<String, Value> = Map::new();
-    let kinds = [
-        "rate_limit",
-        "invalid_symbol",
-        "missing_quantity",
-        "invalid_exchange",
-        "other",
-    ];
-    let mut counts = [0i64; 5];
-    let mut total_issues = 0i64;
-    for (_, req, resp, _) in &rows {
-        let request = parse_obj(req);
-        let response = parse_obj(resp);
+    let conn = ctx.logs.conn()?;
+    let mut stmt = conn.prepare(
+        "SELECT request_data, response_data FROM analyzer_logs
+         WHERE created_at >= ?1 ORDER BY created_at DESC, id DESC",
+    )?;
+    let mut acc = StatsAcc::default();
+    let mut rows = stmt.query([&from])?;
+    while let Some(r) = rows.next()? {
+        acc.add(
+            &parse_obj(&r.get::<_, String>(0)?),
+            &parse_obj(&r.get::<_, String>(1)?),
+        );
+    }
+    Ok(acc.into_json())
+}
+
+/// The running totals of [`stats`]. Sources and symbols keep the order
+/// they were first seen in (newest first), each listed once.
+#[derive(Default)]
+struct StatsAcc {
+    total: usize,
+    sources: Vec<String>,
+    seen_sources: HashSet<String>,
+    symbols: Vec<Value>,
+    seen_symbols: HashSet<String>,
+    issues: [i64; 5],
+}
+
+impl StatsAcc {
+    fn add(&mut self, request: &Value, response: &Value) {
+        self.total += 1;
         let source = match request.get("strategy") {
             Some(Value::String(s)) => s.clone(),
             Some(other) => other.to_string(),
             None => "Unknown".into(),
         };
-        if !sources.contains(&source) {
-            sources.push(source);
+        if self.seen_sources.insert(source.clone()) {
+            self.sources.push(source);
         }
         if let Some(sym) = request.get("symbol") {
-            if !symbols.contains(sym) {
-                symbols.push(sym.clone());
+            if self.seen_symbols.insert(sym.to_string()) {
+                self.symbols.push(sym.clone());
             }
         }
         if response.get("status").and_then(Value::as_str) == Some("error") {
-            total_issues += 1;
             let msg = response
                 .get("message")
                 .and_then(Value::as_str)
                 .unwrap_or_default()
                 .to_lowercase();
-            let i = if msg.contains("rate limit") {
-                0
-            } else if msg.contains("invalid symbol") {
-                1
-            } else if msg.contains("quantity") {
-                2
-            } else if msg.contains("exchange") {
-                3
-            } else {
-                4
-            };
-            counts[i] += 1;
+            self.issues[issue_kind(&msg)] += 1;
         }
     }
-    for (k, c) in kinds.iter().zip(counts) {
-        by_type.insert((*k).into(), json!(c));
+
+    fn into_json(self) -> Value {
+        let by_type: Map<String, Value> = ISSUE_KINDS
+            .iter()
+            .zip(self.issues)
+            .map(|(k, c)| ((*k).to_string(), json!(c)))
+            .collect();
+        json!({
+            "total_requests": self.total,
+            "issues": {"total": self.issues.iter().sum::<i64>(), "by_type": by_type},
+            "symbols": self.symbols,
+            "sources": self.sources,
+        })
     }
-    Ok(json!({
-        "total_requests": rows.len(),
-        "issues": {"total": total_issues, "by_type": by_type},
-        "symbols": symbols,
-        "sources": sources,
-    }))
+}
+
+/// Web `get_analyzer_stats`'s classification of an error message.
+fn issue_kind(lowercase_message: &str) -> usize {
+    let m = lowercase_message;
+    if m.contains("rate limit") {
+        0
+    } else if m.contains("invalid symbol") {
+        1
+    } else if m.contains("quantity") {
+        2
+    } else if m.contains("exchange") {
+        3
+    } else {
+        4
+    }
+}
+
+/// The Analyzer page's data: the requests in `from..to` (newest
+/// `MAX_ROWS`) and the last 24 hours' statistics, read off the async
+/// workers. Statistics that cannot be read are empty, as on the web.
+pub async fn page(ctx: &Arc<AppState>, from: String, to: String) -> Result<(Vec<Value>, Value)> {
+    ctx.blocking(move |c| {
+        let requests = rows_between(c, &from, &to)?
+            .iter()
+            .map(format_request)
+            .collect();
+        let stats = stats(c, c.now()).unwrap_or_else(|e| {
+            tracing::error!("Analyzer stats failed: {}", e);
+            StatsAcc::default().into_json()
+        });
+        Ok((requests, stats))
+    })
+    .await
+}
+
+/// The requests in `from..to` for the export, read off the async workers.
+pub async fn requests(ctx: &Arc<AppState>, from: String, to: String) -> Result<Vec<Value>> {
+    ctx.blocking(move |c| {
+        Ok(rows_between(c, &from, &to)?
+            .iter()
+            .map(format_request)
+            .collect())
+    })
+    .await
 }
 
 /// Python `str()` of a value for the CSV.

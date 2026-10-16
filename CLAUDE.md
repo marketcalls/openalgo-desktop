@@ -1001,7 +1001,9 @@ and add each new one here.
   (`availability_guarantees_hold_on_every_surface`): this computer (a
   loopback peer, never one granted by a list of interfaces) with a valid
   credential or session is never refused by a ban, budget, overflow or
-  monitor rule, though it keeps its resource caps; a valid credential from
+  monitor rule, though it keeps its resource caps (the feed's 1 MiB
+  message size and its per-connection message budget, which no other
+  caller can spend); a valid credential from
   any source is never refused because of other callers (check it first);
   bans apply only to devices on the network, never to this computer, the
   tunnel identity or exactly the machine's own addresses, and are capped
