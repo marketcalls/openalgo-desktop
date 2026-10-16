@@ -96,7 +96,7 @@ jobs:
           ref: ${{ github.event_name == 'workflow_run' && needs.source.outputs.sha || github.sha }}
           persist-credentials: false
       - name: Download the bundles
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: bundles-linux-x86_64
           path: bundles
