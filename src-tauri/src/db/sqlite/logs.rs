@@ -10,9 +10,13 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, Connection};
 use serde_json::Value;
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 pub struct LogsDb {
     pool: Pool<SqliteConnectionManager>,
+    /// Order and analyzer log entries that could not be written, since
+    /// start (OBS-01).
+    failed_log_writes: AtomicU64,
 }
 
 const SCHEMA: &str = "
@@ -62,7 +66,21 @@ impl LogsDb {
         pool.get()?.execute_batch(SCHEMA)?;
         super::monitor::migrate(&*pool.get()?)?;
         crate::mcp::store::migrate_audit(&*pool.get()?)?;
-        Ok(Self { pool })
+        Ok(Self {
+            pool,
+            failed_log_writes: AtomicU64::new(0),
+        })
+    }
+
+    /// An order or analyzer log entry could not be written.
+    pub fn note_failed_log_write(&self) {
+        self.failed_log_writes.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Order and analyzer log entries that could not be written, since
+    /// start.
+    pub fn failed_log_writes(&self) -> u64 {
+        self.failed_log_writes.load(Ordering::Relaxed)
     }
 
     /// Check out a pooled connection (monitoring tables). Drop it before any

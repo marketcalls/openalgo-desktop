@@ -23,6 +23,7 @@
 
 use super::store::StrategyRow;
 use super::StrategyModule;
+use crate::clock::ist_slots_between;
 use chrono::{DateTime, Datelike, NaiveDate, NaiveTime, TimeZone, Utc, Weekday};
 use chrono_tz::Asia::Kolkata;
 use parking_lot::Mutex;
@@ -234,11 +235,24 @@ pub fn planned_jobs(row: &StrategyRow) -> Vec<Job> {
     planned
 }
 
-/// The installed job table and when each job last fired.
+/// The installed job table, the IST day each job last fired for, and the
+/// time of the last pass.
 #[derive(Default)]
 pub struct Scheduler {
     jobs: Mutex<BTreeMap<String, Job>>,
     fired: Mutex<HashMap<String, NaiveDate>>,
+    last_pass: Mutex<Option<DateTime<Utc>>>,
+}
+
+/// What one scheduler pass found.
+#[derive(Debug, Default)]
+pub struct Due {
+    /// Jobs to run now.
+    pub fire: Vec<Job>,
+    /// Slots passed over since the last pass (the computer slept) that are
+    /// not run late: a start past its grace, or a square-off from an earlier
+    /// session. Each with the slot it missed.
+    pub missed: Vec<(Job, DateTime<Utc>)>,
 }
 
 impl Scheduler {
@@ -262,38 +276,42 @@ impl Scheduler {
         self.len() == 0
     }
 
-    /// Jobs due at `now`: inside their slot plus the misfire grace, and not
-    /// yet fired for that IST day (coalesced: once per slot).
-    pub fn due(&self, now: DateTime<Utc>) -> Vec<Job> {
-        let ist = now.with_timezone(&Kolkata);
-        let today = ist.date_naive();
+    /// The jobs whose slot fell since the last pass (the first pass looks
+    /// back over the misfire grace only), once per slot (coalesced: the
+    /// latest slot of a span). A slot within the grace runs; one passed over
+    /// while the computer slept runs late only when it is a square-off in
+    /// the current session (`session_start` on), since closing late is the
+    /// protection and a start that late is not what the schedule asked
+    /// for (ARCH-03). The rest are returned as missed, never dropped
+    /// silently.
+    pub fn due(&self, now: DateTime<Utc>, session_start: DateTime<Utc>) -> Due {
+        let last = self.last_pass.lock().replace(now);
         let jobs = self.jobs.lock().clone();
         let mut fired = self.fired.lock();
         fired.retain(|id, _| jobs.contains_key(id));
-        let mut out = Vec::new();
+        let mut due = Due::default();
         for job in jobs.values() {
-            if !job.days.contains(&today.weekday()) {
-                continue;
-            }
-            let Some(at) = NaiveTime::from_hms_opt(job.hour, job.minute, 0)
-                .and_then(|t| Kolkata.from_local_datetime(&today.and_time(t)).single())
-                .map(|d| d.with_timezone(&Utc))
-            else {
+            let grace = chrono::Duration::from_std(job.misfire_grace).unwrap_or_default();
+            let Some(at) = NaiveTime::from_hms_opt(job.hour, job.minute, 0) else {
                 continue;
             };
-            let late = now.signed_duration_since(at);
-            if late < chrono::Duration::zero()
-                || late >= chrono::Duration::from_std(job.misfire_grace).unwrap_or_default()
-            {
+            let from = last.unwrap_or(now - grace);
+            let slots = ist_slots_between(from, now, at, |d| job.days.contains(&d.weekday()));
+            let Some(&(day, slot)) = slots.last() else {
+                continue;
+            };
+            if fired.insert(job.id.clone(), day) == Some(day) {
                 continue;
             }
-            if fired.get(&job.id) == Some(&today) {
-                continue;
+            let on_time = now.signed_duration_since(slot) < grace;
+            let late_square_off = job.func == JobFunc::RunScheduledStop && slot >= session_start;
+            if on_time || late_square_off {
+                due.fire.push(job.clone());
+            } else {
+                due.missed.push((job.clone(), slot));
             }
-            fired.insert(job.id.clone(), today);
-            out.push(job.clone());
         }
-        out
+        due
     }
 }
 
@@ -447,10 +465,17 @@ impl StrategyModule {
         json!({"examined": counts.0, "pending": counts.1, "finalised": counts.2, "failed": counts.3})
     }
 
-    /// Fire every job due at the clock's now (one scheduler pass).
+    /// Fire every job due at the clock's now (one scheduler pass), and say
+    /// which slots were missed.
     pub async fn run_due_jobs(&self) -> Vec<String> {
+        let now = self.clock.now();
+        let session_start = super::session::session_started_at(now, self.session.0, self.session.1);
+        let due = self.scheduler.due(now, session_start);
+        for (job, slot) in &due.missed {
+            self.report_missed(job, *slot).await;
+        }
         let mut fired = Vec::new();
-        for job in self.scheduler.due(self.clock.now()) {
+        for job in due.fire {
             match job.func {
                 JobFunc::RunScheduledStart => self.run_scheduled_start(job.strategy_id).await,
                 JobFunc::RunScheduledStop => self.run_scheduled_stop(job.strategy_id).await,
@@ -458,6 +483,47 @@ impl StrategyModule {
             fired.push(job.id);
         }
         fired
+    }
+}
+
+impl StrategyModule {
+    /// A slot passed over while OpenAlgo was not running (the computer
+    /// slept), in the strategy's events and the log (ARCH-03).
+    async fn report_missed(&self, job: &Job, slot: DateTime<Utc>) {
+        let at = slot.with_timezone(&Kolkata).format("%H:%M on %d %b");
+        let message = match job.func {
+            JobFunc::RunScheduledStart => format!(
+                "The scheduled start at {} was missed because OpenAlgo was not running then (the computer was asleep). Start the strategy yourself if it should still run today.",
+                at
+            ),
+            JobFunc::RunScheduledStop => format!(
+                "The scheduled square-off at {} was missed because OpenAlgo was not running then (the computer was asleep), and a new session has begun since. Check this strategy's positions and stop it yourself if it is still running.",
+                at
+            ),
+        };
+        let Ok(Some(row)) = self.store.get_strategy_unscoped(job.strategy_id) else {
+            return;
+        };
+        // A start missed while it runs anyway, or a square-off missed after
+        // it stopped, changed nothing.
+        let running = row.status == "running";
+        if running == (job.func == JobFunc::RunScheduledStart) {
+            return;
+        }
+        tracing::warn!("Strategy {}: {}", job.strategy_id, message);
+        let fields = super::store::EventFields {
+            severity: Some("warn"),
+            payload: Some(json!({"trigger_source": "scheduler", "job": job.id})),
+            ..Default::default()
+        };
+        self.emit(
+            job.strategy_id,
+            &row.user_id,
+            "schedule_missed",
+            &message,
+            fields,
+        )
+        .await;
     }
 }
 

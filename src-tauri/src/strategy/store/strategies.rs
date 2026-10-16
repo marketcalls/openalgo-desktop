@@ -161,6 +161,18 @@ impl Store {
             .optional()?)
     }
 
+    /// The names of the strategies whose webhook takes alerts (not
+    /// locked), by name: what quitting leaves refusing them (ARCH-03).
+    pub fn alert_strategy_names(&self) -> Result<Vec<String>> {
+        let conn = self.conn()?;
+        let mut stmt =
+            conn.prepare("SELECT name FROM sm_strategy WHERE webhook_locked = 0 ORDER BY name")?;
+        let names = stmt
+            .query_map([], |r| r.get(0))?
+            .collect::<rusqlite::Result<Vec<String>>>()?;
+        Ok(names)
+    }
+
     /// Every strategy id (scheduler sync).
     pub fn all_strategy_ids(&self) -> Result<Vec<i64>> {
         let conn = self.conn()?;

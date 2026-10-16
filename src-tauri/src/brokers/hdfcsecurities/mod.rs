@@ -26,6 +26,7 @@ mod tests;
 
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::common::ratelimit::{Pacer, ORDERS_PER_SECOND};
 use crate::brokers::common::streaming::BrokerFeed;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
@@ -81,6 +82,9 @@ pub struct HdfcSecuritiesBroker {
     http: reqwest::Client,
     urls: Urls,
     symbols: SymbolResolver,
+    /// Places, modifies and cancels (RATE-03: HDFC Securities publishes
+    /// no rate).
+    pub(crate) order_pacer: Pacer,
 }
 
 /// `api_key` and access token from the stored `api_key:access_token`.
@@ -116,6 +120,7 @@ impl HdfcSecuritiesBroker {
             http: http::client(),
             urls,
             symbols,
+            order_pacer: Pacer::per_second(ORDERS_PER_SECOND),
         }
     }
 

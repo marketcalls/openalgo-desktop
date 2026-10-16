@@ -926,3 +926,22 @@ fn adapter_identity_and_capabilities() {
     assert!(b.create_feed(&AuthToken::new("nocolon")).is_err());
     assert!(b.create_feed(&AuthToken::new("k:t")).is_ok());
 }
+
+/// Nothing listens here: a request that went out fails to connect.
+const CLOSED: &str = "http://127.0.0.1:9";
+
+/// RATE-03: places, modifies and cancels take turns on their own lane at the
+/// exchanges' 10 a second. One whose turn is more than ten seconds away is
+/// refused before anything is sent (it never reaches the network).
+#[tokio::test]
+async fn an_order_whose_turn_is_too_far_away_is_refused_before_sending() {
+    let b = TradejiniBroker::with_urls(master(), CLOSED, CLOSED);
+    let _queue = crate::brokers::common::ratelimit::crowd(&b.order_pacer);
+    let e = super::orders::cancel_order(&b, &AuthToken::new("k:t"), "1")
+        .await
+        .unwrap_err();
+    assert_eq!(
+        e.client_message(),
+        crate::brokers::common::ratelimit::BUSY_MESSAGE
+    );
+}

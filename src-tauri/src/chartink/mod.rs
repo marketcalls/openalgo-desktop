@@ -22,7 +22,7 @@ pub mod service;
 pub mod store;
 pub mod webhook;
 
-use crate::clock::Clock;
+use crate::clock::{ist_slots_between, Clock};
 use crate::services::order_service::Route;
 use crate::state::AppState;
 use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
@@ -69,6 +69,8 @@ pub struct Chartink {
     queues: Mutex<Option<Queues>>,
     /// Square-offs done, by strategy, with the IST day (bounded by strategies).
     squared: Mutex<HashMap<i64, NaiveDate>>,
+    /// When the square-off scheduler last looked at the clock.
+    last_look: Mutex<Option<DateTime<Utc>>>,
     tasks: Mutex<JoinSet<()>>,
     shutdown: CancellationToken,
     scheduler_started: Mutex<bool>,
@@ -87,6 +89,7 @@ impl Chartink {
             clock,
             queues: Mutex::new(None),
             squared: Mutex::new(HashMap::new()),
+            last_look: Mutex::new(None),
             tasks: Mutex::new(JoinSet::new()),
             shutdown: CancellationToken::new(),
             scheduler_started: Mutex::new(false),
@@ -229,12 +232,15 @@ impl Chartink {
 
     // ------------------------------------------------------------ square-off
 
-    /// Square off every active intraday strategy whose time has come today
-    /// (within the grace), once per IST day. Returns the strategies done.
+    /// Square off every active intraday strategy whose time fell since the
+    /// last look (the first look goes back over the grace only), once per
+    /// slot. A square-off passed over while the computer slept still runs,
+    /// late, in its own session; one from an earlier session is reported,
+    /// not sent, since it would close the new day's positions (ARCH-03).
+    /// Returns the strategies done.
     pub fn run_due_squareoffs(self: &Arc<Self>, now: DateTime<Utc>) -> Vec<i64> {
-        let ist = now.with_timezone(&Kolkata);
-        let today = ist.date_naive();
-        let t = ist.time();
+        let grace = chrono::Duration::minutes(SQUAREOFF_GRACE_MINUTES);
+        let from = self.last_look.lock().replace(now).unwrap_or(now - grace);
         let strategies = match self.store.all() {
             Ok(s) => s,
             Err(e) => {
@@ -245,11 +251,11 @@ impl Chartink {
                 return vec![];
             }
         };
+        self.squared
+            .lock()
+            .retain(|id, _| strategies.iter().any(|s| s.id == *id));
+        let session_start = self.session_start(now);
         let mut done = Vec::new();
-        {
-            let mut squared = self.squared.lock();
-            squared.retain(|id, _| strategies.iter().any(|s| s.id == *id));
-        }
         for s in strategies {
             if !s.is_active || !s.is_intraday {
                 continue;
@@ -261,37 +267,21 @@ impl Chartink {
             else {
                 continue;
             };
-            let late = (t - at).num_minutes();
-            if t < at || late > SQUAREOFF_GRACE_MINUTES {
+            let Some(&(day, slot)) = ist_slots_between(from, now, at, |_| true).last() else {
+                continue;
+            };
+            if self.squared.lock().insert(s.id, day) == Some(day) {
                 continue;
             }
-            {
-                let mut squared = self.squared.lock();
-                if squared.get(&s.id) == Some(&today) {
-                    continue;
-                }
-                squared.insert(s.id, today);
+            if now - slot > grace && slot < session_start {
+                tracing::warn!(
+                    "Chartink strategy {}: its square-off at {} was missed while the computer was asleep, and a new session has begun since; nothing was sent. Check its positions.",
+                    s.id,
+                    slot.with_timezone(&Kolkata).format("%H:%M on %d %b")
+                );
+                continue;
             }
-            let mappings = self.store.mappings(s.id).unwrap_or_default();
-            let orders: Vec<Queued> = mappings
-                .iter()
-                .map(|m| Queued {
-                    smart: true,
-                    request: json!({
-                        "strategy": s.name,
-                        "symbol": m.chartink_symbol,
-                        "exchange": m.exchange,
-                        "action": "SELL",
-                        "product": m.product_type,
-                        "pricetype": "MARKET",
-                        "quantity": 0,
-                        "position_size": 0,
-                        "price": 0,
-                        "trigger_price": 0,
-                        "disclosed_quantity": 0,
-                    }),
-                })
-                .collect();
+            let orders = self.squareoff_orders(&s);
             tracing::info!(
                 "Squaring off Chartink strategy {} ({} symbols)",
                 s.id,
@@ -301,6 +291,46 @@ impl Chartink {
             done.push(s.id);
         }
         done
+    }
+
+    /// Where the trading session that holds `now` began (the daily
+    /// boundary, 03:00 IST by default).
+    fn session_start(&self, now: DateTime<Utc>) -> DateTime<Utc> {
+        let cfg = self
+            .ctx
+            .upgrade()
+            .map(|c| c.server_config())
+            .unwrap_or_default();
+        crate::session::boundary::last_boundary(
+            now,
+            cfg.session_expiry_hour,
+            cfg.session_expiry_minute,
+        )
+    }
+
+    /// One closing smart order per mapped symbol.
+    fn squareoff_orders(&self, s: &store::Strategy) -> Vec<Queued> {
+        self.store
+            .mappings(s.id)
+            .unwrap_or_default()
+            .iter()
+            .map(|m| Queued {
+                smart: true,
+                request: json!({
+                    "strategy": s.name,
+                    "symbol": m.chartink_symbol,
+                    "exchange": m.exchange,
+                    "action": "SELL",
+                    "product": m.product_type,
+                    "pricetype": "MARKET",
+                    "quantity": 0,
+                    "position_size": 0,
+                    "price": 0,
+                    "trigger_price": 0,
+                    "disclosed_quantity": 0,
+                }),
+            })
+            .collect()
     }
 }
 

@@ -11,9 +11,9 @@ use crate::brokers::common::symbols::{SymToken, SymbolResolver};
 pub use crate::db::duckdb::STORE_UNAVAILABLE;
 use crate::error::AppError;
 use crate::services::core::Reply;
+use crate::services::freeze_qty_service::FreezeLimits;
 use crate::services::market_data_service::candle_json;
 use crate::services::search_ui_service::FNO_EXCHANGES;
-use crate::services::symbol_service::freeze_qty_for_option;
 use chrono::{DateTime, NaiveDate, Utc};
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
@@ -741,12 +741,12 @@ pub fn parse_symbol_reqs(v: Option<&Value>) -> Vec<SymbolReq> {
 
 // ----------------------------------------------------------------- F&O
 
-fn fno_row(r: &SymToken) -> Value {
+fn fno_row(r: &SymToken, freeze: &FreezeLimits) -> Value {
     json!({
         "symbol": r.symbol, "brsymbol": r.brsymbol, "name": r.name, "exchange": r.exchange,
         "brexchange": r.brexchange, "token": r.token, "expiry": r.expiry, "strike": r.strike,
         "lotsize": r.lot_size, "instrumenttype": r.instrument_type, "tick_size": r.tick_size,
-        "freeze_qty": freeze_qty_for_option(&r.symbol, &r.exchange),
+        "freeze_qty": freeze.for_option(&r.symbol, &r.exchange),
     })
 }
 
@@ -834,13 +834,13 @@ fn chain_rows<'a>(rows: &'a [SymToken], q: &ChainQuery, inst: Option<&str>) -> V
 }
 
 /// Web `get_fno_chain`.
-pub fn fno_chain(rows: &[SymToken], q: &ChainQuery) -> Reply {
+pub fn fno_chain(rows: &[SymToken], q: &ChainQuery, freeze: &FreezeLimits) -> Reply {
     if !FNO_EXCHANGES.contains(&q.exchange.as_str()) {
         return invalid_fno();
     }
     let data: Vec<Value> = chain_rows(rows, q, q.instrumenttype.as_deref())
         .into_iter()
-        .map(fno_row)
+        .map(|r| fno_row(r, freeze))
         .collect();
     Reply::ok(json!({
         "status": "success", "count": data.len(), "data": data,
@@ -850,7 +850,7 @@ pub fn fno_chain(rows: &[SymToken], q: &ChainQuery) -> Reply {
 }
 
 /// Web `get_option_chain_symbols`: calls then puts.
-pub fn fno_options(rows: &[SymToken], q: &ChainQuery) -> Reply {
+pub fn fno_options(rows: &[SymToken], q: &ChainQuery, freeze: &FreezeLimits) -> Reply {
     if !FNO_EXCHANGES.contains(&q.exchange.as_str()) {
         return invalid_fno();
     }
@@ -860,11 +860,11 @@ pub fn fno_options(rows: &[SymToken], q: &ChainQuery) -> Reply {
     };
     let ce: Vec<Value> = chain_rows(rows, &q, Some("CE"))
         .into_iter()
-        .map(fno_row)
+        .map(|r| fno_row(r, freeze))
         .collect();
     let pe: Vec<Value> = chain_rows(rows, &q, Some("PE"))
         .into_iter()
-        .map(fno_row)
+        .map(|r| fno_row(r, freeze))
         .collect();
     let (nc, np) = (ce.len(), pe.len());
     let mut all = ce;

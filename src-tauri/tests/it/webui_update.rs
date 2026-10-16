@@ -256,6 +256,31 @@ async fn update_asks_first_while_live_trading_runs() {
     }
 }
 
+/// ARCH-03: quitting reads the same inventory as an update's restart and
+/// names it in quitting's words, with the key lock last (KEY-01).
+#[tokio::test]
+async fn quitting_names_the_protection_that_stops() {
+    use openalgo_desktop_lib::services::lifecycle::quit::quit_warning;
+    let (h, _, _) = signed_in();
+    assert_eq!(quit_warning(&h.ctx).await, None, "nothing runs");
+    add_stop(&h, "SBIN", "live");
+    add_stop(&h, "INFY", "analyze");
+    let w = quit_warning(&h.ctx).await.unwrap();
+    assert_eq!(w.level, "live");
+    assert!(
+        w.intro.starts_with("Quitting closes OpenAlgo."),
+        "{}",
+        w.intro
+    );
+    assert!(
+        w.items[0].starts_with("1 Live position under scalping protection."),
+        "{:?}",
+        w.items
+    );
+    assert!(w.items[1].starts_with("Sandbox: 1 sandbox position under scalping protection"));
+    assert!(w.items[2].starts_with("OpenAlgo locks its keys when it closes"));
+}
+
 #[tokio::test]
 async fn sandbox_only_activity_gets_the_lighter_warning() {
     let (h, c, t) = signed_in();

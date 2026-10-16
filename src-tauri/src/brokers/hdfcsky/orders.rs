@@ -60,6 +60,8 @@ pub async fn place_order(
         price,
         mapping::ORDER_IDS.next(now_ms()),
     );
+    // Orders take their own turn (RATE-03); refused before sending past it.
+    b.order_pacer.acquire().await?;
     let (status, v) = b
         .send(
             Method::POST,
@@ -116,6 +118,7 @@ pub async fn modify_order(
 ) -> Result<OrderResponse> {
     let sess = HdfcSkyBroker::session(auth)?;
     let body = mapping::modify_body(m, &sess.client_id);
+    b.order_pacer.acquire().await?;
     let v = b
         .call(
             Method::PUT,
@@ -142,6 +145,7 @@ pub async fn cancel_order(
     auth: &AuthToken,
     order_id: &str,
 ) -> Result<OrderResponse> {
+    b.order_pacer.acquire().await?;
     b.call(
         Method::DELETE,
         &format!("/oapi/v1/orders/{}", urlencoding::encode(order_id)),

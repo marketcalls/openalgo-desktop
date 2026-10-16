@@ -177,7 +177,7 @@ pub async fn activity(ctx: &AppState) -> Activity {
 }
 
 /// The logged-in broker's display name, for the warning.
-pub(super) fn broker_name(ctx: &AppState) -> Option<String> {
+pub(crate) fn broker_name(ctx: &AppState) -> Option<String> {
     ctx.get_broker_session()
         .map(|s| crate::brokers::setup_guide::display_name(&s.broker_id))
 }

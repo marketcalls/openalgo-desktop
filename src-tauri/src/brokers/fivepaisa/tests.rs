@@ -865,3 +865,29 @@ fn candles_outside_the_requested_chunk_are_dropped() {
         d(2027, 1, 1)
     ));
 }
+
+/// RATE-02: orders and data no longer share one lane. Data calls queued
+/// past the ten-second bound do not hold an order back (it goes out and
+/// meets the network), and orders have their own bound (RATE-03).
+#[tokio::test]
+async fn data_calls_never_queue_ahead_of_an_order() {
+    use crate::brokers::common::ratelimit::{crowd, BUSY_MESSAGE};
+    // Nothing listens here: a request that went out fails to connect.
+    let b = FivepaisaBroker::with_urls(master(), "http://127.0.0.1:9", "http://127.0.0.1:9");
+    let auth = AuthToken::new(
+        Session {
+            api_key: "K".into(),
+            client_code: "5000".into(),
+            access_token: JWT.into(),
+        }
+        .encode(),
+    );
+    let o = order("SBIN", "NSE", "LIMIT", "MIS");
+    let data = crowd(&b.pacer);
+    let e = super::orders::place_order(&b, &auth, &o).await.unwrap_err();
+    assert_ne!(e.client_message(), BUSY_MESSAGE, "the order was sent");
+    drop(data);
+    let _orders = crowd(&b.order_pacer);
+    let e = super::orders::place_order(&b, &auth, &o).await.unwrap_err();
+    assert_eq!(e.client_message(), BUSY_MESSAGE);
+}

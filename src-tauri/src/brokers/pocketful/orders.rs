@@ -70,7 +70,7 @@ pub async fn place_order(
     let (order_type, price) = market_protection(o, ltp);
     let body = mapping::place_payload(o, &client_id, order_type, price);
     let v = b
-        .call(Method::POST, "/api/v1/orders", auth, Some(&body))
+        .call_order(Method::POST, "/api/v1/orders", auth, Some(&body))
         .await?;
     let id = order_id_from(&v, "");
     if id.is_empty() {
@@ -93,7 +93,7 @@ pub async fn modify_order(
     let client_id = b.client_id(auth).await?;
     let body = mapping::modify_payload(m, &client_id);
     let v = b
-        .call(Method::PUT, "/api/v1/orders", auth, Some(&body))
+        .call_order(Method::PUT, "/api/v1/orders", auth, Some(&body))
         .await?;
     Ok(OrderResponse {
         order_id: order_id_from(&v, ""),
@@ -108,7 +108,7 @@ pub async fn cancel_order(
 ) -> Result<OrderResponse> {
     let client_id = b.client_id(auth).await?;
     let v = b
-        .call(
+        .call_order(
             Method::DELETE,
             &format!(
                 "/api/v1/orders/{}?client_id={}",

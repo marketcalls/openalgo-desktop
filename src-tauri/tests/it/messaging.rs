@@ -509,7 +509,9 @@ async fn telegram_polls_answers_commands_links_and_stops_cleanly() {
         "the linked host was contacted"
     );
 
-    // Analytics see the commands.
+    // Analytics see the commands: each is logged before its reply goes
+    // out, so the /help seen above is already counted (read at once, not
+    // waited for).
     let (s, a) = h.get("/telegram/api/analytics").await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(a["data"]["total_users"], 1);

@@ -20,6 +20,7 @@ mod tests;
 
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
+use crate::brokers::common::ratelimit::{Pacer, ORDERS_PER_SECOND};
 use crate::brokers::common::streaming::BrokerFeed;
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::*;
@@ -94,6 +95,8 @@ pub struct TradejiniBroker {
     stream_url: String,
     symbols: SymbolResolver,
     timings: WsTimings,
+    /// Places, modifies and cancels (RATE-03: Tradejini publishes no rate).
+    pub(crate) order_pacer: Pacer,
 }
 
 /// Request body of an OMS call.
@@ -121,6 +124,7 @@ impl TradejiniBroker {
             stream_url: stream_url.into(),
             symbols,
             timings: WsTimings::default(),
+            order_pacer: Pacer::per_second(ORDERS_PER_SECOND),
         }
     }
 
