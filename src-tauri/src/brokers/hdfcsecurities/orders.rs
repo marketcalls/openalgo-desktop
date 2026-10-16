@@ -33,6 +33,8 @@ pub async fn place_order(
     o: &ResolvedOrder,
 ) -> Result<OrderResponse> {
     let body = mapping::place_payload(o, b.resolver());
+    // Orders take their own turn (RATE-03); refused before sending past it.
+    b.order_pacer.acquire().await?;
     let data = b
         .call(Method::POST, "/oapi/v1/orders/regular", auth, Some(&body))
         .await?;
@@ -55,6 +57,7 @@ pub async fn modify_order(
     m: &ResolvedModify,
 ) -> Result<OrderResponse> {
     let body = mapping::modify_payload(m);
+    b.order_pacer.acquire().await?;
     let data = b
         .call(
             Method::PUT,
@@ -77,6 +80,7 @@ pub async fn cancel_order(
     auth: &AuthToken,
     order_id: &str,
 ) -> Result<OrderResponse> {
+    b.order_pacer.acquire().await?;
     let data = b
         .call(
             Method::DELETE,

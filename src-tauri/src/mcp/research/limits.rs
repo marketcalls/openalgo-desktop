@@ -54,6 +54,50 @@ pub const SLOT_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
 /// Longest a research call may run in all (its `/api/v1` calls each have
 /// their own 120 s limit).
 pub const RESEARCH_DEADLINE: std::time::Duration = std::time::Duration::from_secs(300);
+/// Longest an admitted call can take from its arrival: the wait for a slot,
+/// then its deadline. The stdio bridge waits at least this long for one
+/// (TIME-04).
+pub const LONGEST_RUN: std::time::Duration =
+    std::time::Duration::from_secs(SLOT_WAIT.as_secs() + RESEARCH_DEADLINE.as_secs());
+
+/// The research tools (`mcpserver.py` "RESEARCH TOOLS").
+pub const RESEARCH_TOOLS: &[&str] = &[
+    "get_historical_data",
+    "calculate_indicator",
+    "get_trend_snapshot",
+    "get_momentum_snapshot",
+    "get_volatility_snapshot",
+    "get_support_resistance",
+    "detect_signals",
+    "screen_instruments",
+    "multi_timeframe_analysis",
+    "correlation_beta",
+];
+
+/// Whether a tool is admitted and bounded like a research call (the
+/// research tools and `get_instruments`), so it may take up to
+/// [`LONGEST_RUN`].
+pub fn runs_long(tool: &str) -> bool {
+    tool == "get_instruments" || RESEARCH_TOOLS.contains(&tool)
+}
+
+/// Run an admitted call to [`RESEARCH_DEADLINE`]; past it, the timeout
+/// error with `message`.
+pub async fn within_deadline(
+    work: impl std::future::Future<Output = Value>,
+    message: &str,
+) -> Value {
+    match tokio::time::timeout(RESEARCH_DEADLINE, work).await {
+        Ok(v) => v,
+        Err(_) => error(
+            message,
+            &[
+                ("error_type", json!("timeout")),
+                ("retry_safe", json!(true)),
+            ],
+        ),
+    }
+}
 
 /// Every exchange `get_instruments` reads when none is given.
 pub const ALL_INSTRUMENT_EXCHANGES: usize = 9;

@@ -28,6 +28,7 @@ mod tests;
 use crate::brokers::common::http;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::order_poll::{self, PollError};
+use crate::brokers::common::ratelimit::{Pacer, ORDERS_PER_SECOND};
 use crate::brokers::common::redact;
 use crate::brokers::common::streaming::{BrokerFeed, OrderFeed, OrderUpdate};
 use crate::brokers::common::symbols::SymbolResolver;
@@ -139,6 +140,8 @@ pub struct SamcoBroker {
     pub(crate) listing_ids: Arc<Mutex<ListingIds>>,
     /// Running order-update poller, aborted on stop, logout or drop.
     pub(crate) poller: Arc<Mutex<Option<order_poll::OrderPoller>>>,
+    /// Places, modifies and cancels (RATE-03: Samco publishes no rate).
+    pub(crate) order_pacer: Arc<Pacer>,
 }
 
 impl SamcoBroker {
@@ -164,6 +167,7 @@ impl SamcoBroker {
             today: None,
             listing_ids: Arc::new(Mutex::new(ListingIds::default())),
             poller: Arc::default(),
+            order_pacer: Arc::new(Pacer::per_second(ORDERS_PER_SECOND)),
         }
     }
 

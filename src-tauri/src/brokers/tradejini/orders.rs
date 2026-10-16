@@ -94,6 +94,8 @@ pub async fn place_order(
     o: &ResolvedOrder,
 ) -> Result<OrderResponse> {
     let form = place_order_form(o);
+    // Orders take their own turn (RATE-03); refused before sending past it.
+    b.order_pacer.acquire().await?;
     let v = b
         .call(
             Method::POST,
@@ -124,6 +126,7 @@ pub async fn modify_order(
     m: &ResolvedModify,
 ) -> Result<OrderResponse> {
     let form = modify_order_form(m);
+    b.order_pacer.acquire().await?;
     let v = b
         .call(
             Method::PUT,
@@ -144,6 +147,7 @@ pub async fn cancel_order(
     auth: &AuthToken,
     order_id: &str,
 ) -> Result<OrderResponse> {
+    b.order_pacer.acquire().await?;
     let v = b
         .call(
             Method::DELETE,

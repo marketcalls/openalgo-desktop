@@ -11,8 +11,11 @@
 //! | `window_proof`   | the main window on the app's own page | the proof its sign-in carries, so only the app window moves an earlier build's keys and hears why keys could not be opened (KEY-01) |
 //! | `restart_to_update` | signed-in user, the main window on the app's own page | install the downloaded, verified update and restart (`services::update` decides; it asks again if new activity appeared) |
 
+pub mod quit;
+
 use crate::error::{AppError, Result};
 use crate::server::{self, ServerHandle};
+use crate::services::lifecycle::quit::QuitGate;
 use crate::services::update::{Activity, Decision, Warning};
 use crate::state::{AppState, ServerStatus};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -25,6 +28,10 @@ pub struct ShellState {
     /// Everything was stopped (`stop_app` ran): on exit, or before the
     /// Windows installer replaces the app.
     pub stopped: AtomicBool,
+    /// Closing the main window asks first while work runs (ARCH-03).
+    pub quit: QuitGate,
+    /// The quit check waiting for the trader's answer.
+    quit_check: parking_lot::Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
 }
 
 impl ShellState {
@@ -33,6 +40,8 @@ impl ShellState {
             ctx,
             server: tokio::sync::Mutex::new(server),
             stopped: AtomicBool::new(false),
+            quit: QuitGate::default(),
+            quit_check: parking_lot::Mutex::new(None),
         }
     }
 }
@@ -46,6 +55,7 @@ pub async fn stop_app(handle: &AppHandle) {
     if shell.stopped.swap(true, Ordering::SeqCst) {
         return;
     }
+    quit::stop(&shell);
     if let Some(f) = handle.try_state::<Arc<crate::feed::FeedService>>() {
         f.stop().await;
     }
@@ -331,15 +341,15 @@ fn require_app_window(
 
 /// A question the trader answers in a native dialog, which page scripts
 /// cannot click.
-struct Question {
-    title: &'static str,
-    message: &'static str,
-    yes: &'static str,
-    no: &'static str,
+struct Question<'a> {
+    title: &'a str,
+    message: &'a str,
+    yes: &'a str,
+    no: &'a str,
 }
 
 /// Whether the trader chose `yes` (closing the dialog is a no).
-async fn confirmed(app: &AppHandle, window: &tauri::WebviewWindow, q: Question) -> bool {
+async fn confirmed(app: &AppHandle, window: &tauri::WebviewWindow, q: Question<'_>) -> bool {
     use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
     let (tx, rx) = tokio::sync::oneshot::channel();
     app.dialog()
@@ -437,7 +447,7 @@ pub struct StartFreshOutcome {
 
 /// What the trader confirms before a fresh start: for a forgotten password
 /// (`forgot`) or for an earlier build's keys that cannot be read.
-fn start_fresh_question(forgot: bool) -> Question {
+fn start_fresh_question(forgot: bool) -> Question<'static> {
     Question {
         title: if forgot {
             "Set a new password?"

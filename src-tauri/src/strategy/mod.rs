@@ -247,6 +247,9 @@ impl StrategyModule {
                 HashMap::new()
             }
         };
+        if !recovered.is_empty() {
+            tracing::info!("Strategy module recovered {} run(s)", recovered.len());
+        }
         for (run_id, symbols) in &recovered {
             self.feed.add_run(*run_id, symbols).await;
         }

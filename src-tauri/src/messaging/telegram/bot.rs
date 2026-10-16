@@ -202,6 +202,10 @@ impl Bot {
         }
     }
 
+    /// Record a command for the analytics, before its reply goes out: a
+    /// trader who sees the reply and opens the analytics finds it counted.
+    /// The web logs after replying, a race its tests do not hit; the
+    /// WhatsApp bot here logs first as well.
     fn log(ctx: &AppState, telegram_id: i64, command: &str, chat: i64) {
         let r = ctx
             .sqlite
@@ -310,8 +314,8 @@ impl Bot {
         match cmd {
             "start" => self.cmd_start(ctx, chat, from).await,
             "help" => {
-                self.send(chat, HELP_TEXT, true, None).await;
                 Self::log(ctx, from.id, "help", chat);
+                self.send(chat, HELP_TEXT, true, None).await;
             }
             "link" => self.cmd_link(ctx, args, chat, from).await,
             "unlink" => self.cmd_unlink(ctx, chat, from).await,
@@ -341,8 +345,8 @@ impl Bot {
                 from.first_name
             )
         };
-        self.send(chat, &text, true, None).await;
         Self::log(ctx, from.id, "start", chat);
+        self.send(chat, &text, true, None).await;
     }
 
     /// `/unlink`: remove the linked account.
@@ -357,8 +361,8 @@ impl Bot {
         } else {
             "No linked account found."
         };
-        self.send(chat, text, true, None).await;
         Self::log(ctx, from.id, "unlink", chat);
+        self.send(chat, text, true, None).await;
     }
 
     /// `/menu`: the buttons of the trading menu.
@@ -367,6 +371,7 @@ impl Bot {
             self.send(chat, LINK_FIRST, false, None).await;
             return;
         }
+        Self::log(ctx, from.id, "menu", chat);
         self.send(
             chat,
             "*OpenAlgo Trading Menu*\nSelect an option below:",
@@ -374,7 +379,6 @@ impl Bot {
             Some(menu_keyboard()),
         )
         .await;
-        Self::log(ctx, from.id, "menu", chat);
     }
 
     /// `/closeall`: ask to confirm closing every open position.
@@ -390,8 +394,8 @@ impl Bot {
         let text = format!(
             "*Close All Positions*\n{RULE}\n\nThis will close ALL open positions across all strategies.\n\nAre you sure?"
         );
-        self.send(chat, &text, true, Some(kb)).await;
         Self::log(ctx, from.id, "closeall", chat);
+        self.send(chat, &text, true, Some(kb)).await;
     }
 
     /// `/mode`: the trading mode, with a button to switch it.
@@ -409,6 +413,7 @@ impl Bot {
         let text = format!(
             "*Trading Mode*\n{RULE}\n\nCurrent: {current}\n\n• *Live Mode* — Orders execute with real broker\n• *Analyze Mode* — Sandbox mode (no real orders)\n"
         );
+        Self::log(ctx, from.id, "mode", chat);
         self.send(
             chat,
             &text,
@@ -416,7 +421,6 @@ impl Bot {
             Some(json!({"inline_keyboard": [[{"text": label, "callback_data": data}]]})),
         )
         .await;
-        Self::log(ctx, from.id, "mode", chat);
     }
 
     async fn cmd_link(&self, ctx: &Arc<AppState>, args: &[String], chat: i64, from: &From) {
@@ -439,9 +443,9 @@ impl Bot {
         let who = format!("tg:{}", from.id);
         if !ctx.messaging.link_throttle.allowed(&who, ctx.now()) {
             tracing::warn!("Telegram link attempts throttled for a sender");
+            Self::log(ctx, from.id, "link", chat);
             self.send(chat, crate::messaging::TOO_MANY_LINK_ATTEMPTS, false, None)
                 .await;
-            Self::log(ctx, from.id, "link", chat);
             return;
         }
         let client = OpenAlgoClient::new(ctx.clone(), api_key.clone());
@@ -449,6 +453,7 @@ impl Bot {
         if !is_success(&resp) {
             ctx.messaging.link_throttle.fail(&who, ctx.now());
             tracing::warn!("Telegram link attempt with an API key that did not validate");
+            Self::log(ctx, from.id, "link", chat);
             self.send(
                 chat,
                 "Failed to validate API key.\nPlease check your credentials and try again.",
@@ -456,7 +461,6 @@ impl Bot {
                 None,
             )
             .await;
-            Self::log(ctx, from.id, "link", chat);
             return;
         }
         ctx.messaging.link_throttle.clear(&who);
@@ -485,6 +489,7 @@ impl Bot {
                 ctx.now(),
             )
         });
+        Self::log(ctx, from.id, "link", chat);
         match res {
             Ok(()) => {
                 tracing::info!("Telegram user linked to the OpenAlgo account");
@@ -507,11 +512,11 @@ impl Bot {
                 .await;
             }
         }
-        Self::log(ctx, from.id, "link", chat);
     }
 
     async fn cmd_status(&self, ctx: &Arc<AppState>, chat: i64, from: &From) {
         let Some(user) = Self::user(ctx, from.id) else {
+            Self::log(ctx, from.id, "status", chat);
             self.send(
                 chat,
                 "No linked account found.\nUse /link to connect your OpenAlgo account.",
@@ -519,7 +524,6 @@ impl Bot {
                 None,
             )
             .await;
-            Self::log(ctx, from.id, "status", chat);
             return;
         };
         let status = match Self::client(ctx, from.id) {
@@ -548,8 +552,8 @@ impl Bot {
                 .unwrap_or_else(|| "N/A".into()),
             user.created_at.clone().unwrap_or_else(|| "N/A".into()),
         );
-        self.send(chat, &text, true, None).await;
         Self::log(ctx, from.id, "status", chat);
+        self.send(chat, &text, true, None).await;
     }
 
     async fn cmd_book(&self, ctx: &Arc<AppState>, cmd: &str, chat: i64, from: &From) {
@@ -585,8 +589,8 @@ impl Bot {
             "funds" => format_funds_full(&r, cs),
             _ => format_pnl_funds(&resp, cs),
         };
-        self.send(chat, &text, true, None).await;
         Self::log(ctx, from.id, cmd, chat);
+        self.send(chat, &text, true, None).await;
     }
 
     async fn cmd_quote(&self, ctx: &Arc<AppState>, args: &[String], chat: i64, from: &From) {
@@ -627,8 +631,8 @@ impl Bot {
             return;
         }
         let text = format_quote(&symbol, resp.as_ref().unwrap_or(&Value::Null), cs);
-        self.send(chat, &text, true, None).await;
         Self::log(ctx, from.id, "quote", chat);
+        self.send(chat, &text, true, None).await;
     }
 
     async fn chart_png(
@@ -751,8 +755,8 @@ impl Bot {
         {
             let _ = self.api.delete_message(chat, mid).await;
         }
-        self.send_charts(chat, &symbol, photos).await;
         Self::log(ctx, from.id, "chart", chat);
+        self.send_charts(chat, &symbol, photos).await;
     }
 
     /// Send the charts made: one photo, an album, or why there is none.
@@ -873,6 +877,7 @@ impl Bot {
         self.edit(chat, mid, "Closing all positions...", false, None)
             .await;
         let resp = client.closeposition().await;
+        Self::log(ctx, from.id, data, chat);
         let message = |r: &Option<Value>, d: &str| {
             r.as_ref()
                 .and_then(|v| v.get("message"))
@@ -899,7 +904,6 @@ impl Bot {
             )
             .await;
         }
-        Self::log(ctx, from.id, data, chat);
     }
 
     /// The mode buttons: switch analyze mode, with a key that is still
@@ -924,7 +928,9 @@ impl Bot {
             return;
         }
         let requested = data == "mode_analyze";
-        match crate::services::AnalyzerService::set_mode(ctx, requested).await {
+        let changed = crate::services::AnalyzerService::set_mode(ctx, requested).await;
+        Self::log(ctx, from.id, data, chat);
+        match changed {
             Ok(s) => {
                 crate::messaging::emit(
                     ctx,
@@ -958,7 +964,6 @@ impl Bot {
                 .await;
             }
         }
-        Self::log(ctx, from.id, data, chat);
     }
 
     /// A book, funds or P&L button: the short text for it.
@@ -982,8 +987,8 @@ impl Bot {
             "pnl" => format_pnl_funds(&client.funds().await, cs),
             _ => "Unknown command".into(),
         };
-        self.send(chat, &text, true, None).await;
         Self::log(ctx, from.id, other, chat);
+        self.send(chat, &text, true, None).await;
     }
 }
 

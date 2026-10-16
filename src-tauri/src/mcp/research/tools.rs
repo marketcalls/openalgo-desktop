@@ -7,7 +7,7 @@ use super::args::{
 use super::history::{
     f64_col, load_history, opt, plan, records, resolve, tail_start, Frame, Interval,
 };
-use super::limits::{admit, RESEARCH_DEADLINE};
+use super::limits::{admit, within_deadline};
 use crate::mcp::envelope::{error, fail};
 use crate::mcp::ta::{self, Out, PyErr};
 use crate::state::AppState;
@@ -23,13 +23,11 @@ pub async fn run(ctx: &Arc<AppState>, tool: &str, a: &Map<String, Value>) -> Val
         Err(refused) => return refused,
     };
     let (a, today) = (&admission.args, admission.today);
-    match tokio::time::timeout(RESEARCH_DEADLINE, run_inner(ctx, tool, a, today)).await {
-        Ok(v) => v,
-        Err(_) => error(
-            "This analysis took too long and was stopped. Use a shorter date range or fewer symbols.",
-            &[("error_type", json!("timeout")), ("retry_safe", json!(true))],
-        ),
-    }
+    within_deadline(
+        run_inner(ctx, tool, a, today),
+        "This analysis took too long and was stopped. Use a shorter date range or fewer symbols.",
+    )
+    .await
 }
 
 async fn run_inner(

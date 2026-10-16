@@ -113,6 +113,36 @@ changes are kept, not deleted, in a file named
 `historify.duckdb.wal.unreplayable-<date and time>` in your data folder; you
 can delete it once you are satisfied nothing is missing.
 
+## Quitting OpenAlgo, and when the computer sleeps
+
+- **Quitting asks first.** When you close the OpenAlgo window, or choose
+  **Quit OpenAlgo Desktop** in the macOS menu (Cmd+Q), while something is
+  running (Live or sandbox strategies, OpenScript runs, scalping stops and
+  targets, open orders at your broker, orders whose outcome is not known
+  yet) or waiting for an alert or a schedule, OpenAlgo lists it and asks.
+  **Quit** closes OpenAlgo; **Keep OpenAlgo Open** cancels. Nothing is
+  closed at your broker either way: your positions and orders stay as they
+  are.
+- **What stops while OpenAlgo is closed.** The stops, targets and exits
+  OpenAlgo checks itself (strategies, OpenScript, scalping) are not checked.
+  OpenAlgo locks its keys when it quits, so your API clients, AI clients
+  (MCP) and TradingView and Chartink alerts are refused until you open
+  OpenAlgo and sign in again. Live strategies are managed again after you
+  sign in; OpenScript runs stay paused until you start them.
+- **Quitting without the question.** Quit from the Dock (macOS), shutting
+  down or logging out of the computer, and a forced quit end OpenAlgo at
+  once, without the list: the operating system gives no chance to ask. The
+  same things stop as above, and the keys are locked. When something runs,
+  quit from the OpenAlgo window or its menu instead.
+- **When the computer sleeps** (a laptop lid closed), OpenAlgo sleeps with
+  it and checks nothing meanwhile. When it wakes, OpenAlgo reconnects market
+  data at once, checks your orders with your broker and catches up. A
+  strategy or Chartink square-off whose time passed during the sleep runs
+  then, late, if it is still the same trading day; a scheduled start that
+  passed is not run, and a square-off from an earlier day is not run: both
+  are noted in the strategy's events (and in the log). Keep the computer
+  awake during market hours while strategies hold positions.
+
 ## Another device, a firewall, or a tunnel
 
 **Using OpenAlgo from another device on your network.**

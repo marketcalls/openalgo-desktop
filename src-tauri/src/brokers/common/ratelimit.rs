@@ -21,6 +21,16 @@ use tokio::time::Instant;
 /// trader can retry.
 pub const MAX_QUEUE_WAIT: Duration = Duration::from_secs(10);
 
+/// Order pacing for a broker that publishes no order rate (RATE-03): the
+/// exchanges' threshold of 10 orders a second per client, above which a
+/// retail API client's algorithm must be registered (SEBI's 2025 retail
+/// algo framework), and the rate the other adapters' order pacers use.
+/// Orders get their own lane, so data calls never queue ahead of an exit
+/// (RATE-02). The web paces orders on none of the brokers that use this
+/// (Samco, Tradejini, HDFC Sky, HDFC Securities, Pocketful, 5paisa): a
+/// deliberate desktop deviation (maintainer decision 2026-10-16).
+pub const ORDERS_PER_SECOND: f64 = 10.0;
+
 /// What the trader reads when a request is refused before sending because
 /// its turn was too far away (web `BROKER_BUSY_MESSAGE`).
 pub const BUSY_MESSAGE: &str = "OpenAlgo is pacing requests to stay within your broker's rate limit, and this one would have had to wait too long for its turn. Try again in a few seconds.";
@@ -381,6 +391,25 @@ pub fn backoff_delay(attempt: u32, base: Duration, max: Duration) -> Duration {
     let capped = exp.min(max);
     let jitter = rand::random::<f64>() * 0.5;
     capped.mul_f64(1.0 - jitter)
+}
+
+/// Test support: enough callers queued on `pacer` that the next one's turn
+/// is further than [`MAX_QUEUE_WAIT`] away. Keep the returned queue alive
+/// while asserting; dropping it lets every caller go.
+#[cfg(test)]
+pub(crate) fn crowd(
+    pacer: &Pacer,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + '_>> {
+    let n = (MAX_QUEUE_WAIT.as_nanos() / pacer.interval().as_nanos().max(1)) as usize + 10;
+    let mut queue: std::pin::Pin<Box<dyn std::future::Future<Output = ()> + '_>> =
+        Box::pin(async move {
+            futures_util::future::join_all((0..n).map(|_| pacer.acquire())).await;
+        });
+    // One poll puts every caller in line.
+    let waker = futures_util::task::noop_waker();
+    let mut cx = std::task::Context::from_waker(&waker);
+    let _ = std::future::Future::poll(queue.as_mut(), &mut cx);
+    queue
 }
 
 #[cfg(test)]

@@ -30,6 +30,7 @@ mod release;
 mod service;
 mod warning;
 
+pub(crate) use activity::broker_name;
 pub use activity::{activity, Activity};
 pub use release::{is_newer, Offer, Package, ProgressFn, UpdateBackend, UpdateFailure};
 pub use service::{Decision, Progress, UpdateService, UpdateStatus};

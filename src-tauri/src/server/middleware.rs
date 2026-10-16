@@ -622,6 +622,7 @@ pub async fn require_user(req: Request, next: Next) -> Response {
         .and_then(|s| s.user.clone().map(|u| (u, s.id.clone())));
     match user {
         Some((username, session_id)) => {
+            crate::services::latency_probe::signed_in();
             let mut req = req;
             req.extensions_mut().insert(AuthedUser {
                 username,

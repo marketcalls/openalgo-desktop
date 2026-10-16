@@ -587,7 +587,7 @@ pub async fn fno_chain(State(ctx): Ctx, Query(q): Q) -> Response {
         return error(StatusCode::BAD_REQUEST, "Underlying is required");
     };
     let snap = ctx.symbols.snapshot();
-    send(svc::fno_chain(snap.rows(), &cq))
+    send(svc::fno_chain(snap.rows(), &cq, &ctx.freeze))
 }
 
 /// GET /historify/api/fno/futures
@@ -601,7 +601,7 @@ pub async fn fno_futures(State(ctx): Ctx, Query(q): Q) -> Response {
     cq.strike_max = None;
     cq.limit = 500;
     let snap = ctx.symbols.snapshot();
-    send(svc::fno_chain(snap.rows(), &cq))
+    send(svc::fno_chain(snap.rows(), &cq, &ctx.freeze))
 }
 
 /// GET /historify/api/fno/options
@@ -610,7 +610,7 @@ pub async fn fno_options(State(ctx): Ctx, Query(q): Q) -> Response {
         return error(StatusCode::BAD_REQUEST, "Underlying is required");
     };
     let snap = ctx.symbols.snapshot();
-    send(svc::fno_options(snap.rows(), &cq))
+    send(svc::fno_options(snap.rows(), &cq, &ctx.freeze))
 }
 
 // ------------------------------------------------------------------- jobs
