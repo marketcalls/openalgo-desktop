@@ -11,6 +11,9 @@ body:
         this form, including logs and screenshots. Replace them with
         `<APIKEY>`, `<USER_ID>` and `<EMAIL>`.
 
+        OpenAlgo Desktop does not support Raspberry Pi. On a Pi, run
+        [OpenAlgo web](https://github.com/marketcalls/openalgo) instead.
+
   - type: input
     id: app-version
     attributes:
@@ -31,7 +34,6 @@ body:
         - macOS (Intel)
         - Linux (Ubuntu / Debian)
         - Linux (other distribution)
-        - Raspberry Pi OS
         - Other
     validations:
       required: true
@@ -40,7 +42,7 @@ body:
     id: os-version
     attributes:
       label: OS version
-      placeholder: "Windows 11 23H2, macOS 15.1, Ubuntu 24.04, Raspberry Pi OS Bookworm 64-bit"
+      placeholder: "Windows 11 23H2, macOS 15.1, Ubuntu 24.04"
     validations:
       required: true
 
@@ -50,18 +52,10 @@ body:
       label: Architecture
       options:
         - x86_64 (Intel / AMD 64-bit)
-        - aarch64 / arm64 (Apple Silicon, Raspberry Pi 64-bit, other ARM)
-        - armv7 (32-bit ARM)
+        - aarch64 / arm64 (Apple Silicon, other ARM)
         - Not sure
     validations:
       required: true
-
-  - type: input
-    id: device
-    attributes:
-      label: Raspberry Pi model or device
-      description: Required for Raspberry Pi and other single-board computers. Include RAM size.
-      placeholder: "Raspberry Pi 5, 8 GB"
 
   - type: dropdown
     id: install

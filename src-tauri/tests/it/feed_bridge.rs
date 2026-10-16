@@ -183,3 +183,87 @@ async fn feed_client_to_broker_and_back_through_the_manager() {
     manager.disconnect().await.unwrap();
     broker_task.abort();
 }
+
+/// WS-01: once the broker refuses the live feed (the manager stops until
+/// the trader signs in again), a subscribe is not acknowledged as success:
+/// every item is answered with the reason, the answer carries the request
+/// id, and nothing is held for the client. The web answers the same way
+/// when its adapter is not running.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_refused_broker_feed_answers_each_item_with_the_reason() {
+    use openalgo_desktop_lib::websocket::FeedStatus;
+    let (broker_url, _seen, push, broker_task) = fake_broker().await;
+    let manager = Arc::new(WebSocketManager::new());
+    manager
+        .connect(Box::new(MockFeed::new(broker_url)))
+        .await
+        .unwrap();
+    let symbols = SymbolResolver::new();
+    symbols.load(vec![
+        row("RELIANCE", "NSE", "738561"),
+        row("SBIN", "NSE", "779521"),
+    ]);
+    let bridge = BrokerBridge::new(manager.clone(), symbols);
+    bridge.start();
+    let h = start(
+        FeedConfig {
+            port: 0,
+            ..FeedConfig::default()
+        },
+        FeedDeps {
+            source: bridge.clone(),
+            auth: Arc::new(StaticAuth {
+                api_key: API_KEY.into(),
+                user_id: USER_ID.into(),
+                broker: Some(BROKER.into()),
+            }),
+            orders: None,
+            supported_brokers: brokers(),
+        },
+    )
+    .await
+    .unwrap();
+    let mut c = Client::connect(&format!("ws://{}", h.local_addr())).await;
+    c.auth().await;
+
+    assert!(eventually(Duration::from_secs(5), || manager.is_connected()).await);
+    push.send(json!({"auth": "denied"}).to_string())
+        .await
+        .unwrap();
+    assert!(
+        eventually(Duration::from_secs(5), || matches!(
+            manager.status(),
+            FeedStatus::AuthFailed { .. }
+        ))
+        .await,
+        "{:?}",
+        manager.status()
+    );
+
+    let ack = c
+        .request(
+            json!({"action": "subscribe", "request_id": "r-down", "mode": 1,
+            "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"},
+                        {"symbol": "SBIN", "exchange": "NSE"}]}),
+        )
+        .await;
+    assert_eq!(ack["type"], "subscribe");
+    assert_eq!(ack["status"], "partial", "{}", ack);
+    assert_eq!(ack["request_id"], "r-down");
+    let items = ack["subscriptions"].as_array().unwrap();
+    assert_eq!(items.len(), 2);
+    for item in items {
+        assert_eq!(item["status"], "error", "{}", item);
+        assert_eq!(item["message"], "denied", "{}", item);
+        assert_eq!(item["broker"], BROKER);
+    }
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(bridge.applied().is_empty());
+    assert_eq!(manager.instrument_count(), 0);
+    assert_eq!(h.stats().client_subscriptions, 0);
+
+    h.stop().await;
+    bridge.stop().await;
+    manager.disconnect().await.unwrap();
+    broker_task.abort();
+}

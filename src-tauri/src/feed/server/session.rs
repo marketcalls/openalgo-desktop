@@ -28,6 +28,8 @@ pub(super) struct Session {
     pub(super) outbox: Arc<Outbox>,
     pub(super) user_id: Option<String>,
     pub(super) broker: Option<String>,
+    /// What the client may still send before it is closed (RATE-01).
+    pub(super) meter: super::budget::Meter,
 }
 
 fn now_ms() -> i64 {
@@ -229,7 +231,9 @@ impl Session {
     }
 
     /// Subscribes one instrument: the depth it got (the largest the broker
-    /// supports up to the one asked for, in depth mode), or why not.
+    /// supports up to the one asked for, in depth mode), or why not. A
+    /// feed known not to stream refuses first, as the web's adapter does
+    /// before it looks the symbol up (WS-01).
     fn subscribe_key(
         &self,
         source: &Arc<dyn MarketDataSource>,
@@ -237,7 +241,9 @@ impl Session {
         mode: Mode,
         requested_depth: i64,
     ) -> Result<i64, String> {
-        if !source.resolve(key) {
+        if let Some(reason) = source.unavailable() {
+            Err(reason)
+        } else if !source.resolve(key) {
             Err(format!(
                 "Token not found for {} on {}",
                 key.symbol, key.exchange

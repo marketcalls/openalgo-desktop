@@ -143,3 +143,34 @@ impl M {
         .0
     }
 }
+
+/// MCP-03: the `initialize` instructions name every indicator the desktop
+/// computes and the research limits, so a client can plan within them.
+pub fn assert_initialize_discloses_limits(init: &Value) {
+    use openalgo_desktop_lib::mcp::research;
+    let text = init["result"]["instructions"]
+        .as_str()
+        .unwrap_or_else(|| panic!("initialize gave no instructions: {}", init));
+    for name in openalgo_desktop_lib::mcp::ta::supported() {
+        assert!(
+            text.contains(name),
+            "indicator {} not named: {}",
+            name,
+            text
+        );
+    }
+    for limit in [
+        format!("at most {} symbols", research::MAX_SCREEN_SYMBOLS),
+        format!("at most {} intervals", research::MAX_TIMEFRAMES),
+        format!("at most {}", research::MAX_BARS),
+        format!("at most {} days", research::MAX_DAYS),
+        format!(
+            "stops after {} seconds",
+            research::RESEARCH_DEADLINE.as_secs()
+        ),
+        "not_available".to_string(),
+        "limit_exceeded".to_string(),
+    ] {
+        assert!(text.contains(&limit), "'{}' not stated: {}", limit, text);
+    }
+}

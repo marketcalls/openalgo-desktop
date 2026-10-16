@@ -7,6 +7,7 @@
 //! JSON values the way Python's `str()` / `repr()` would so those texts are
 //! byte-identical.
 
+use super::dialect::{aliases, Aliases, Canonical};
 use super::source::{DepthLevel, InstrumentKey, MarketUpdate, Mode};
 use serde::Serialize;
 use serde_json::Value;
@@ -395,6 +396,9 @@ struct DataOut<'a> {
     open_interest: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     depth: Option<BookOut>,
+    /// The broker's web names for the same values (WS-05).
+    #[serde(flatten)]
+    aliases: Aliases,
 }
 
 #[derive(Serialize)]
@@ -434,6 +438,7 @@ pub fn market_data(update: &MarketUpdate, mode: Mode, depth: u8, broker: &str) -
         oi: None,
         open_interest: None,
         depth: None,
+        aliases: Aliases::default(),
     };
     if mode >= Mode::Quote {
         let q = update.quote.clone().unwrap_or_default();
@@ -465,6 +470,15 @@ pub fn market_data(update: &MarketUpdate, mode: Mode, depth: u8, broker: &str) -
             d.open_interest = Some(0);
         }
     }
+    d.aliases = aliases(
+        broker,
+        Canonical {
+            last_quantity: d.last_quantity,
+            average_price: d.average_price,
+            price_change: d.price_change,
+            price_change_percent: d.price_change_percent,
+        },
+    );
     if mode == Mode::Depth && !index {
         let n = depth as usize;
         let book = update.depth.as_ref();
