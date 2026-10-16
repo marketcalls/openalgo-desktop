@@ -16,6 +16,7 @@ pub mod key_vault;
 pub mod logs;
 pub mod market_calendar;
 pub mod master_contract_status;
+mod master_swap;
 pub(crate) mod migrations;
 pub mod models;
 pub mod monitor;

@@ -4,18 +4,19 @@
 //! wholesale on every download and read once at start-up into the
 //! in-memory `SymbolResolver`. Runtime lookups never touch SQLite.
 
+use super::master_swap::{create_indexes, replace, MasterRows};
 use crate::brokers::types::MasterContract;
 use crate::error::Result;
 use crate::state::SymbolInfo;
 use chrono::{DateTime, Utc};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension};
 use std::collections::HashMap;
 
 /// Columns, in the web's order.
-const COLUMNS: &str =
+pub(super) const COLUMNS: &str =
     "symbol, brsymbol, name, exchange, brexchange, token, expiry, strike, lotsize, instrumenttype, tick_size";
 
-const CREATE_TABLE: &str = r#"
+pub(super) const CREATE_TABLE: &str = r#"
 CREATE TABLE symtoken (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     symbol TEXT NOT NULL,
@@ -31,15 +32,7 @@ CREATE TABLE symtoken (
     tick_size REAL
 )"#;
 
-const CREATE_INDEXES: &str = r#"
-CREATE INDEX IF NOT EXISTS idx_symtoken_symbol_exchange ON symtoken(symbol, exchange);
-CREATE INDEX IF NOT EXISTS idx_symtoken_brsymbol_exchange ON symtoken(brsymbol, exchange);
-CREATE INDEX IF NOT EXISTS idx_symtoken_token ON symtoken(token);
-CREATE INDEX IF NOT EXISTS idx_symtoken_exchange ON symtoken(exchange);
-CREATE INDEX IF NOT EXISTS idx_symtoken_name_exchange ON symtoken(name, exchange);
-"#;
-
-fn column_exists(conn: &Connection, column: &str) -> Result<bool> {
+pub(super) fn column_exists(conn: &Connection, column: &str) -> Result<bool> {
     let mut stmt = conn.prepare("PRAGMA table_info(symtoken)")?;
     let names = stmt
         .query_map([], |row| row.get::<_, String>(1))?
@@ -64,13 +57,11 @@ fn table_exists(conn: &Connection) -> Result<bool> {
 /// from what is there) so a populated master survives the upgrade.
 pub fn migrate_symtoken(conn: &Connection) -> Result<()> {
     if table_exists(conn)? && column_exists(conn, "lotsize")? {
-        conn.execute_batch(CREATE_INDEXES)?;
-        return Ok(());
+        return create_indexes(conn, "symtoken", "");
     }
     if !table_exists(conn)? {
         conn.execute_batch(CREATE_TABLE)?;
-        conn.execute_batch(CREATE_INDEXES)?;
-        return Ok(());
+        return create_indexes(conn, "symtoken", "");
     }
     let has = |c: &str| column_exists(conn, c);
     let brsymbol = if has("brsymbol")? {
@@ -122,8 +113,7 @@ pub fn migrate_symtoken(conn: &Connection) -> Result<()> {
         cols = COLUMNS,
     ))?;
     conn.execute_batch("DROP TABLE symtoken_old")?;
-    conn.execute_batch(CREATE_INDEXES)?;
-    Ok(())
+    create_indexes(conn, "symtoken", "")
 }
 
 /// Which broker the stored master belongs to, written in the same
@@ -187,17 +177,22 @@ pub fn owner(conn: &Connection) -> Result<Option<MasterOwner>> {
     }))
 }
 
-/// Replace the whole master in one transaction, recording `broker` as its
-/// owner in the same transaction. Indexes are dropped for the bulk insert
-/// and rebuilt once at the end, which is several times faster than
-/// maintaining them per row on a 100k-row master.
+/// Replace the whole master, recording `broker` as its owner with the rows
+/// (`master_swap`: staged in short transactions, then swapped in at once).
+/// Blocking.
 pub fn store_symbols(
     conn: &mut Connection,
     broker: &str,
     now: DateTime<Utc>,
     symbols: &[SymbolInfo],
 ) -> Result<()> {
-    store_rows(conn, broker, now, symbols, &HashMap::new(), &HashMap::new())
+    let none = HashMap::new();
+    let rows = MasterRows {
+        rows: symbols,
+        contract_values: &none,
+        lot_sizes: &none,
+    };
+    replace(conn, broker, now, &rows)
 }
 
 /// Migration 065 (web `upgrade/migrate_contract_value.py`): the
@@ -214,22 +209,19 @@ pub fn migrate_contract_value(conn: &Connection) -> Result<()> {
 }
 
 /// Replace the whole master with `broker`'s download, contract multipliers
-/// (crypto) included, in one transaction with its owner like
-/// `store_symbols`.
+/// (crypto) included, with its owner like `store_symbols`. Blocking.
 pub fn store_master(
     conn: &mut Connection,
     broker: &str,
     now: DateTime<Utc>,
     master: &MasterContract,
 ) -> Result<()> {
-    store_rows(
-        conn,
-        broker,
-        now,
-        &master.rows,
-        &master.contract_values,
-        &master.lot_sizes,
-    )
+    let rows = MasterRows {
+        rows: &master.rows,
+        contract_values: &master.contract_values,
+        lot_sizes: &master.lot_sizes,
+    };
+    replace(conn, broker, now, &rows)
 }
 
 /// Contract multipliers by token (rows that have one).
@@ -266,84 +258,6 @@ pub fn load_master(conn: &Connection) -> Result<MasterContract> {
         contract_values: load_contract_values(conn)?,
         lot_sizes: load_lot_sizes(conn)?,
     })
-}
-
-fn store_rows(
-    conn: &mut Connection,
-    broker: &str,
-    now: DateTime<Utc>,
-    symbols: &[SymbolInfo],
-    contract_values: &HashMap<String, f64>,
-    lot_sizes: &HashMap<String, f64>,
-) -> Result<()> {
-    let start = std::time::Instant::now();
-    let with_cv = column_exists(conn, "contract_value")?;
-    let tx = conn.transaction()?;
-    tx.execute("DELETE FROM symtoken", [])?;
-    tx.execute_batch(
-        "DROP INDEX IF EXISTS idx_symtoken_symbol_exchange;
-         DROP INDEX IF EXISTS idx_symtoken_brsymbol_exchange;
-         DROP INDEX IF EXISTS idx_symtoken_token;
-         DROP INDEX IF EXISTS idx_symtoken_exchange;
-         DROP INDEX IF EXISTS idx_symtoken_name_exchange;",
-    )?;
-    {
-        let sql = if with_cv {
-            format!(
-                "INSERT INTO symtoken ({}, contract_value) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-                COLUMNS
-            )
-        } else {
-            format!(
-                "INSERT INTO symtoken ({}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-                COLUMNS
-            )
-        };
-        let mut stmt = tx.prepare(&sql)?;
-        for s in symbols {
-            // A fractional lot (crypto spot) is stored as the web stores
-            // it: a REAL in the `lotsize` column.
-            let lot = match lot_sizes.get(&s.token) {
-                Some(v) => rusqlite::types::Value::Real(*v),
-                None => rusqlite::types::Value::Integer(i64::from(s.lot_size)),
-            };
-            let base = params![
-                s.symbol,
-                s.brsymbol,
-                s.name,
-                s.exchange,
-                s.brexchange,
-                s.token,
-                s.expiry,
-                s.strike,
-                lot,
-                s.instrument_type,
-                s.tick_size,
-            ];
-            if with_cv {
-                let cv = contract_values.get(&s.token).copied();
-                let mut all: Vec<&dyn rusqlite::ToSql> = base.to_vec();
-                all.push(&cv);
-                stmt.execute(all.as_slice())?;
-            } else {
-                stmt.execute(base)?;
-            }
-        }
-    }
-    tx.execute_batch(CREATE_INDEXES)?;
-    migrate_owner(&tx)?;
-    tx.execute(
-        "INSERT INTO symtoken_owner (id, broker, row_count, stored_at) VALUES (1, ?1, ?2, ?3)
-         ON CONFLICT(id) DO UPDATE SET broker = ?1, row_count = ?2, stored_at = ?3",
-        params![broker, symbols.len() as i64, now.to_rfc3339()],
-    )?;
-    tx.commit()?;
-    tracing::info!(
-        "Stored {} instruments in {:.2}s",
-        symbols.len(),
-        start.elapsed().as_secs_f64()
-    );
-    Ok(())
 }
 
 fn row(r: &rusqlite::Row<'_>) -> rusqlite::Result<SymbolInfo> {
@@ -613,8 +527,8 @@ mod tests {
         assert_eq!(back.rows[2].lot_size, 65);
     }
 
-    /// MC-01: the owner is written with the rows, in one transaction; a
-    /// store that fails keeps both the previous rows and their owner.
+    /// MC-01: the owner is written with the rows, in the swap's one
+    /// transaction.
     #[test]
     fn the_owner_travels_with_the_rows() {
         let mut conn = Connection::open_in_memory().unwrap();
@@ -635,16 +549,8 @@ mod tests {
         .unwrap();
         assert_eq!(owner(&conn).unwrap().unwrap().broker, "angel");
         assert_eq!(owner(&conn).unwrap().unwrap().rows, 2);
-        // A failing insert rolls back the rows and the owner together.
-        conn.execute_batch(
-            "CREATE TRIGGER refuse BEFORE INSERT ON symtoken WHEN NEW.symbol = 'BAD'
-             BEGIN SELECT RAISE(ABORT, 'refused'); END;",
-        )
-        .unwrap();
-        let bad = sym("BAD", "BAD-EQ", "NSE", "1");
-        assert!(store_symbols(&mut conn, "upstox", t0, &[sbin, bad]).is_err());
-        assert_eq!(owner(&conn).unwrap().unwrap().broker, "angel");
-        assert_eq!(count_symbols(&conn).unwrap(), 2);
+        // A store that fails keeps the rows and the owner together:
+        // `master_swap::tests::a_failed_staging_keeps_the_master_and_its_owner`.
     }
 
     /// Migration 083 on a populated master: no owner is invented, so the

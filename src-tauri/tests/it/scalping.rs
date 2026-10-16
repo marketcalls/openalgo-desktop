@@ -2250,3 +2250,30 @@ async fn a_split_exit_records_the_chunk_the_broker_did_not_confirm() {
     let (s, b) = call(&h, close()).await;
     assert_eq!(s, StatusCode::OK, "{}", b);
 }
+
+/// DB-01: a tick that moves a trailing stop saves it off the async
+/// workers. While another writer holds the database for 400 ms, the
+/// runtime is not held, and the stop is saved once the database is free.
+#[tokio::test]
+async fn a_trailing_stop_save_never_holds_the_runtime() {
+    let m = monitor();
+    let mut l = leg("analyze");
+    l.trailing_enabled = Some(true);
+    l.trailing_step = Some(5.0);
+    m.store.upsert_sl(&l).unwrap();
+    m.mon.sync().await;
+    let writer = m.db.conn().unwrap();
+    writer.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(400));
+        writer.execute_batch("COMMIT").unwrap();
+    });
+    let ((), stall) = crate::runtime_stall(m.mon.process_tick(OPT, "NFO", 110.0)).await;
+    release.join().unwrap();
+    assert!(
+        stall < Duration::from_millis(150),
+        "the runtime was held {:?}",
+        stall
+    );
+    assert_eq!(m.store.active_sl(None).unwrap()[0].current_sl, Some(105.0));
+}

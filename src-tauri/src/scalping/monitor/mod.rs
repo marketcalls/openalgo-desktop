@@ -770,8 +770,13 @@ impl RiskMonitor {
             });
         }
         for (_key, sl, emit) in persists {
-            if let Err(e) = self.store.update_trail(&sl) {
-                tracing::debug!("Trailing stop for {} not saved: {}", sl.symbol, e);
+            // Off the async workers (DB-01): this runs on a tick, and a write
+            // waits for any other writer of the database.
+            let (store, row) = (self.store.clone(), sl.clone());
+            match tokio::task::spawn_blocking(move || store.update_trail(&row)).await {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => tracing::debug!("Trailing stop for {} not saved: {}", sl.symbol, e),
+                Err(e) => tracing::debug!("Trailing stop for {} not saved: {}", sl.symbol, e),
             }
             if emit {
                 self.ui.emit(SL_UPDATE_EVENT, update_payload(&sl)).await;

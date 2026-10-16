@@ -765,6 +765,18 @@ Every flaky test found so far was a race, not a slow machine:
   `synchronous=FULL`; `logs.db` and `sandbox.db` at `NORMAL`. The web runs
   everything at `NORMAL`; the difference is deliberate (ARCH-02). A new store
   picks its level there.
+- The symbol master is replaced in stages (`db::sqlite::master_swap`,
+  DB-01): `symtoken_next` filled in short transactions with a pause after
+  each, one transaction that renames both tables and writes the owner, then
+  the old table dropped. In one transaction a 200,000-row download held
+  `openalgo.db`'s write lock for about 2.5 s on an M1, and every order
+  journal write waited. Pooled connections retry a busy database every
+  millisecond (`db::sqlite::retry_busy`, 5 s in all): SQLite's own
+  `busy_timeout` backs off to 100 ms and kept missing the pauses between
+  the short transactions. `symtoken`'s index names alternate between two sets,
+  so a migration that changes its indexes goes through
+  `master_swap::create_indexes`; a view or trigger on `symtoken` would follow
+  the rename to the dropped table, so add none.
 - A fold that writes a position and its watermark (the strategy book)
   commits both, and the buffered row it drains, in one transaction; a process
   lock orders callers but does not survive a crash (DB-02).
