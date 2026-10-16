@@ -24,9 +24,26 @@ use rmcp::{RoleServer, ServerHandler, ServiceExt};
 use serde_json::{json, Value};
 use std::time::Duration;
 
-/// Longer than a tool's own limit (120 s for an `/api/v1` call), so the app
-/// answers first.
-const CALL_TIMEOUT: Duration = Duration::from_secs(150);
+/// How long the bridge waits for the app's answer (TIME-04). A wait that
+/// ends first reports the answer lost although the app is still working.
+#[derive(Debug, Clone, Copy)]
+struct Waits {
+    /// Every request but a long tool call: longer than a tool's own limit
+    /// (120 s for an `/api/v1` call), so the app answers first.
+    call: Duration,
+    /// A research call or `get_instruments`: it may wait for a slot and
+    /// then run to its deadline (`research::LONGEST_RUN`).
+    long: Duration,
+}
+
+impl Default for Waits {
+    fn default() -> Self {
+        Self {
+            call: Duration::from_secs(150),
+            long: crate::mcp::research::LONGEST_RUN + Duration::from_secs(10),
+        }
+    }
+}
 
 pub const NOT_RUNNING: &str =
     "OpenAlgo Desktop is not running, so this request could not be sent. \
@@ -65,6 +82,7 @@ pub struct Bridge {
     http: reqwest::Client,
     endpoint: String,
     token: String,
+    waits: Waits,
 }
 
 /// Why a forwarded request got no JSON-RPC answer.
@@ -76,8 +94,11 @@ pub enum Failure {
 
 impl Bridge {
     pub fn new(base_url: &str, token: &str) -> Result<Self, reqwest::Error> {
+        Self::with_waits(base_url, token, Waits::default())
+    }
+
+    fn with_waits(base_url: &str, token: &str, waits: Waits) -> Result<Self, reqwest::Error> {
         let http = reqwest::Client::builder()
-            .timeout(CALL_TIMEOUT)
             .connect_timeout(Duration::from_secs(5))
             .no_proxy()
             .build()?;
@@ -85,16 +106,32 @@ impl Bridge {
             http,
             endpoint: format!("{}/mcp", base_url.trim_end_matches('/')),
             token: token.to_string(),
+            waits,
         })
+    }
+
+    /// How long to wait for the answer to this request.
+    fn wait_for(&self, method: &str, params: &Value) -> Duration {
+        let tool = params
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if method == "tools/call" && crate::mcp::research::runs_long(tool) {
+            self.waits.long
+        } else {
+            self.waits.call
+        }
     }
 
     /// One JSON-RPC request to the app; `Ok` carries the JSON-RPC reply.
     pub async fn forward(&self, method: &str, params: Value) -> Result<Value, Failure> {
+        let wait = self.wait_for(method, &params);
         let body = json!({"jsonrpc": "2.0", "id": 1, "method": method, "params": params});
         let resp = self
             .http
             .post(&self.endpoint)
             .bearer_auth(&self.token)
+            .timeout(wait)
             .json(&body)
             .send()
             .await;
@@ -193,6 +230,7 @@ impl ServerHandler for Bridge {
     fn get_info(&self) -> ServerConfig {
         ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new("openalgo", env!("CARGO_PKG_VERSION")))
+            .with_instructions(super::instructions::instructions())
     }
 
     async fn list_tools(
@@ -493,6 +531,66 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// TIME-04: a research call or get_instruments is waited for as long as
+    /// it may run; every other request gets the short wait. Scaled down:
+    /// the stub app answers after 300 ms, the short wait is 100 ms and the
+    /// long one 5 s.
+    #[tokio::test]
+    async fn a_long_tool_call_is_waited_for_and_a_short_one_is_not() {
+        let app = axum::Router::new().route(
+            "/mcp",
+            axum::routing::post(|| async {
+                tokio::time::sleep(Duration::from_millis(300)).await;
+                axum::Json(json!({"jsonrpc": "2.0", "id": 1,
+                    "result": {"content": [], "isError": false}}))
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let _ = axum::serve(listener, app).await;
+        });
+        let waits = Waits {
+            call: Duration::from_millis(100),
+            long: Duration::from_secs(5),
+        };
+        let bridge = Bridge::with_waits(&url, "oamcp_test", waits).unwrap();
+        for tool in [
+            "screen_instruments",
+            "calculate_indicator",
+            "get_instruments",
+        ] {
+            let params = json!({"name": tool, "arguments": {}});
+            let got = bridge.forward("tools/call", params).await;
+            assert!(got.is_ok(), "{}: {:?}", tool, got);
+        }
+        for (method, params) in [
+            ("tools/call", json!({"name": "get_quote", "arguments": {}})),
+            ("tools/list", json!({})),
+        ] {
+            assert_eq!(
+                bridge.forward(method, params).await,
+                Err(Failure::Message(ANSWER_LOST.into())),
+                "{}",
+                method
+            );
+        }
+        server.abort();
+    }
+
+    #[test]
+    fn the_waits_outlast_what_the_app_allows() {
+        use crate::mcp::research::{runs_long, RESEARCH_DEADLINE, RESEARCH_TOOLS, SLOT_WAIT};
+        let w = Waits::default();
+        assert!(w.long > SLOT_WAIT + RESEARCH_DEADLINE);
+        assert!(w.call > crate::mcp::dispatch::SDK_TIMEOUT);
+        for tool in RESEARCH_TOOLS.iter().chain(["get_instruments"].iter()) {
+            assert!(runs_long(tool), "{}", tool);
+        }
+        assert!(!runs_long("get_quote"));
+        assert!(!runs_long("place_order"));
     }
 
     #[test]

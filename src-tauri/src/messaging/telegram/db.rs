@@ -585,6 +585,96 @@ pub fn command_stats(conn: &Connection, days: i64, now: DateTime<Utc>) -> Result
     })
 }
 
+/// `created_at` and `updated_at` of the `bot_config` row, as stored.
+pub fn bot_config_times(conn: &Connection) -> Result<(Option<String>, Option<String>)> {
+    Ok(conn
+        .query_row(
+            "SELECT created_at, updated_at FROM bot_config WHERE id = 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?
+        .unwrap_or((None, None)))
+}
+
+/// The yes/no preferences of `user_preferences` (web `UserPreference`).
+pub const PREFERENCE_FLAGS: [&str; 4] = [
+    "order_notifications",
+    "trade_notifications",
+    "pnl_notifications",
+    "daily_summary",
+];
+/// Its text preferences.
+pub const PREFERENCE_TEXTS: [&str; 3] = ["summary_time", "language", "timezone"];
+
+/// Web `get_user_preferences`: the saved preferences, or the defaults.
+pub fn get_preferences(conn: &Connection, telegram_id: i64) -> Result<Value> {
+    let row = conn
+        .query_row(
+            "SELECT order_notifications, trade_notifications, pnl_notifications,
+                    daily_summary, summary_time, language, timezone
+             FROM user_preferences WHERE telegram_id = ?1",
+            params![telegram_id],
+            |r| {
+                Ok(json!({
+                    "order_notifications": r.get::<_, Option<bool>>(0)?,
+                    "trade_notifications": r.get::<_, Option<bool>>(1)?,
+                    "pnl_notifications": r.get::<_, Option<bool>>(2)?,
+                    "daily_summary": r.get::<_, Option<bool>>(3)?,
+                    "summary_time": r.get::<_, Option<String>>(4)?,
+                    "language": r.get::<_, Option<String>>(5)?,
+                    "timezone": r.get::<_, Option<String>>(6)?,
+                }))
+            },
+        )
+        .optional()?;
+    Ok(row.unwrap_or_else(|| {
+        json!({
+            "order_notifications": true,
+            "trade_notifications": true,
+            "pnl_notifications": true,
+            "daily_summary": true,
+            "summary_time": "18:00",
+            "language": "en",
+            "timezone": "Asia/Kolkata",
+        })
+    }))
+}
+
+/// Web `update_user_preferences`: create the row when missing, then set
+/// each preference given. `prefs` holds only names from
+/// [`PREFERENCE_FLAGS`] and [`PREFERENCE_TEXTS`], with values of their type.
+pub fn update_preferences(
+    conn: &mut Connection,
+    telegram_id: i64,
+    prefs: &[(&'static str, Value)],
+    now: DateTime<Utc>,
+) -> Result<()> {
+    let tx = conn.transaction()?;
+    tx.execute(
+        "INSERT OR IGNORE INTO user_preferences (telegram_id) VALUES (?1)",
+        params![telegram_id],
+    )?;
+    for (name, value) in prefs {
+        // Column names come from the two lists above, never from a request.
+        if !PREFERENCE_FLAGS.contains(name) && !PREFERENCE_TEXTS.contains(name) {
+            continue;
+        }
+        let sql = format!("UPDATE user_preferences SET {name} = ?1 WHERE telegram_id = ?2");
+        match value {
+            Value::Bool(b) => tx.execute(&sql, params![b, telegram_id])?,
+            Value::String(t) => tx.execute(&sql, params![t, telegram_id])?,
+            _ => continue,
+        };
+    }
+    tx.execute(
+        "UPDATE user_preferences SET updated_at = ?1 WHERE telegram_id = ?2",
+        params![db_time(now), telegram_id],
+    )?;
+    tx.commit()?;
+    Ok(())
+}
+
 /// Queue a message whose delivery failed (web `add_notification`). The web
 /// never drains this table; here it is capped so it cannot grow forever.
 pub fn add_notification(

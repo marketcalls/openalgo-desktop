@@ -12,6 +12,7 @@ use super::core::{
     analyze_mode, analyzer_request, broker_handle, f, i, meta, mode_of, order_failed, publish, s,
     safe_request, BrokerHandle, Reply,
 };
+use super::schemas::QUANTITY_TOO_LARGE;
 use crate::brokers::common::mapping::{Exchange, Product};
 use crate::brokers::common::outcome::{self, PlaceOutcome};
 use crate::brokers::types::{
@@ -200,13 +201,20 @@ fn action(req: &Value) -> String {
     s(req, "action").to_ascii_uppercase()
 }
 
+/// A whole-number quantity as a broker takes it (API-02): a larger one is
+/// refused before dispatch, never clamped. The `/api/v1` schemas refuse it
+/// first (`schemas::coerce_quantity`); this holds for every other caller.
+fn broker_quantity(req: &Value, key: &str) -> Result<i32, Reply> {
+    i32::try_from(i(req, key).max(0)).map_err(|_| Reply::error(400, QUANTITY_TOO_LARGE))
+}
+
 /// The broker order request for a loaded place-order body.
-pub fn broker_order(req: &Value) -> OrderRequest {
-    OrderRequest {
+pub fn broker_order(req: &Value) -> Result<OrderRequest, Reply> {
+    Ok(OrderRequest {
         symbol: s(req, "symbol"),
         exchange: s(req, "exchange"),
         side: action(req),
-        quantity: i(req, "quantity").clamp(0, i64::from(i32::MAX)) as i32,
+        quantity: broker_quantity(req, "quantity")?,
         price: f(req, "price"),
         order_type: {
             let p = s(req, "pricetype");
@@ -226,9 +234,24 @@ pub fn broker_order(req: &Value) -> OrderRequest {
         },
         validity: "DAY".into(),
         trigger_price: Some(f(req, "trigger_price")),
-        disclosed_quantity: Some(i(req, "disclosed_quantity").clamp(0, i64::from(i32::MAX)) as i32),
+        disclosed_quantity: Some(broker_quantity(req, "disclosed_quantity")?),
         amo: false,
-    }
+    })
+}
+
+/// The broker modify request for a loaded modify body.
+fn broker_modify(req: &Value) -> Result<ModifyOrderRequest, Reply> {
+    Ok(ModifyOrderRequest {
+        symbol: s(req, "symbol"),
+        exchange: s(req, "exchange"),
+        action: action(req),
+        product: s(req, "product"),
+        pricetype: s(req, "pricetype"),
+        quantity: broker_quantity(req, "quantity")?,
+        price: f(req, "price"),
+        trigger_price: f(req, "trigger_price"),
+        disclosed_quantity: broker_quantity(req, "disclosed_quantity")?,
+    })
 }
 
 fn opt_dec(x: f64) -> Option<rust_decimal::Decimal> {
@@ -271,9 +294,10 @@ fn placed_event(mode: Mode, api_type: &str, req: &Value, request: Value, reply: 
 
 /// Place one order on the live broker, resolving the OpenAlgo symbol once.
 pub async fn place_live(h: &BrokerHandle, ctx: &AppState, req: &Value) -> Reply {
-    let order = match ResolvedOrder::resolve(&broker_order(req), &ctx.symbols) {
-        Ok(o) => o,
-        Err(e) => return broker_error_reply(&e, "Failed to place order due to internal error"),
+    let order = match broker_order(req).map(|o| ResolvedOrder::resolve(&o, &ctx.symbols)) {
+        Ok(Ok(o)) => o,
+        Ok(Err(e)) => return broker_error_reply(&e, "Failed to place order due to internal error"),
+        Err(refused) => return refused,
     };
     apply_leverage(h, ctx, req, &order).await;
     let crypto = if order.exchange == Exchange::Crypto {
@@ -687,16 +711,12 @@ pub async fn modify_order(ctx: &AppState, req: &Value, route: Route) -> Reply {
         Ok(h) => h,
         Err(r) => return r,
     };
-    let m = ModifyOrderRequest {
-        symbol: symbol.clone(),
-        exchange: s(req, "exchange"),
-        action: action(req),
-        product: s(req, "product"),
-        pricetype: s(req, "pricetype"),
-        quantity: i(req, "quantity").clamp(0, i64::from(i32::MAX)) as i32,
-        price: f(req, "price"),
-        trigger_price: f(req, "trigger_price"),
-        disclosed_quantity: i(req, "disclosed_quantity").clamp(0, i64::from(i32::MAX)) as i32,
+    let m = match broker_modify(req) {
+        Ok(m) => m,
+        Err(reply) => {
+            publish(ctx, modify_failed(Mode::Live, safe_request(req), &reply));
+            return reply;
+        }
     };
     let result = match ResolvedModify::resolve(&orderid, &m, &ctx.symbols) {
         Ok(r) if r.exchange == Exchange::Crypto => match crypto_quantity(req) {
@@ -932,6 +952,28 @@ pub async fn close_position(ctx: &AppState, req: &Value, route: Route) -> Reply 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// API-02: whatever reaches dispatch without the `/api/v1` schemas (an
+    /// options leg, an internal caller) is refused above a 32-bit quantity,
+    /// never clamped to it.
+    #[test]
+    fn a_quantity_no_broker_takes_is_refused_not_clamped() {
+        for key in ["quantity", "disclosed_quantity"] {
+            for q in [json!(2_147_483_648u64), json!(3e12)] {
+                let mut req = json!({"symbol": "SBIN", "exchange": "NSE", "action": "BUY",
+                    "quantity": 1, "disclosed_quantity": 0});
+                req[key] = q;
+                let refused = broker_order(&req).unwrap_err();
+                assert_eq!(refused.status, 400, "{}", req);
+                assert_eq!(refused.message(), QUANTITY_TOO_LARGE);
+                let refused = broker_modify(&req).unwrap_err();
+                assert_eq!(refused.status, 400, "{}", req);
+            }
+        }
+        let largest = json!({"quantity": 2_147_483_647u64, "disclosed_quantity": 0});
+        assert_eq!(broker_order(&largest).unwrap().quantity, i32::MAX);
+        assert_eq!(broker_modify(&largest).unwrap().quantity, i32::MAX);
+    }
 
     fn place(a: &str, q: i64) -> SmartDecision {
         SmartDecision::Place {
