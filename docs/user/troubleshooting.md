@@ -218,7 +218,7 @@ OpenAlgo password. Nothing is kept in your computer's keychain.
   the keys in your computer's keychain. The first sign-in in the OpenAlgo
   Desktop window reads them from there one last time, moves them into
   OpenAlgo's own database, checks them and deletes the keychain entries. On a Mac, choose **Allow** (or **Always
-  Allow**) when macOS asks; on Linux and Raspberry Pi, unlock your keyring if
+  Allow**) when macOS asks; on Linux, unlock your keyring if
   asked; on Windows, the Credential Manager does not usually ask. After this
   OpenAlgo never uses the keychain again.
 - **"OpenAlgo needs to read your keys from the system keychain one last

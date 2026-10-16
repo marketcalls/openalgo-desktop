@@ -16,6 +16,10 @@ checks on a debug build:
 It never contacts an app: --url points at a closed port. Every run gets an
 empty, temporary home and data folder, and checks the bridge wrote nothing
 there. It binds no port. CI runs it (.github/workflows/install-smoke.yml).
+
+`against_app` drives the same binary against the running packaged app
+(PLATFORM-07, MCP-04); scripts/ci/launch_smoke.py --mcp-bridge calls it
+once the trader has signed in, with a token it created on the app.
 """
 
 from __future__ import annotations
@@ -135,6 +139,141 @@ def handshake(exe: str) -> None:
     if os.listdir(home):
         fail(f"the bridge wrote under its home: {os.listdir(home)}", code, first, err)
     print("OK: initialize answered over piped stdio; exit 0 at end of input.")
+
+
+class Bridge:
+    """One `mcp` process with piped stdio, read on a thread."""
+
+    def __init__(self, exe: str, url: str, token: str) -> None:
+        self.home = tempfile.mkdtemp(prefix="openalgo-mcp-smoke-")
+        self.token = token
+        self.proc = subprocess.Popen(
+            [exe, "mcp", "--url", url],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=isolated_env(self.home, token),
+        )
+        self.lines: queue.Queue[str] = queue.Queue()
+        self.stdout: list[str] = []
+        self.errors: list[bytes] = []
+        self.next_id = 0
+        threading.Thread(target=self._read_stdout, daemon=True).start()
+        threading.Thread(target=self._read_stderr, daemon=True).start()
+
+    def _read_stdout(self) -> None:
+        assert self.proc.stdout is not None
+        for raw in self.proc.stdout:
+            line = raw.decode("utf-8", "replace")
+            self.stdout.append(line)
+            self.lines.put(line)
+
+    def _read_stderr(self) -> None:
+        assert self.proc.stderr is not None
+        self.errors.append(self.proc.stderr.read())
+
+    def send(self, message: dict) -> None:
+        assert self.proc.stdin is not None
+        self.proc.stdin.write((json.dumps(message) + "\n").encode("utf-8"))
+        self.proc.stdin.flush()
+
+    def request(self, method: str, params: dict) -> dict:
+        self.next_id += 1
+        self.send({"jsonrpc": "2.0", "id": self.next_id, "method": method, "params": params})
+        try:
+            reply = json.loads(self.lines.get(timeout=WAIT_S))
+        except (queue.Empty, ValueError):
+            reply = {}
+        if reply.get("id") != self.next_id:
+            raise RuntimeError(f"no answer to {method}: {reply}")
+        return reply
+
+    def initialize(self, version: str) -> dict:
+        reply = self.request("initialize", {
+            "protocolVersion": version,
+            "capabilities": {},
+            "clientInfo": {"name": "ci-smoke", "version": "1"},
+        })
+        self.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        return reply
+
+    def call(self, tool: str, arguments: dict) -> tuple[bool, str]:
+        """(isError, the text) of a tools/call."""
+        result = self.request("tools/call", {"name": tool, "arguments": arguments}).get("result") or {}
+        content = result.get("content") or [{}]
+        return bool(result.get("isError")), str(content[0].get("text", ""))
+
+    def close(self) -> list[str]:
+        """Ends the session; what went wrong with how the process behaved."""
+        problems: list[str] = []
+        assert self.proc.stdin is not None
+        self.proc.stdin.close()
+        try:
+            code = self.proc.wait(timeout=WAIT_S)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+            self.proc.wait(timeout=WAIT_S)
+            code = None
+        err = b"".join(self.errors).decode("utf-8", "replace")
+        if code != 0:
+            problems.append(f"closing stdin should end the bridge with code 0, got {code}: {err[-400:]}")
+        for line in self.stdout:
+            try:
+                ok = json.loads(line).get("jsonrpc") == "2.0"
+            except ValueError:
+                ok = False
+            if not ok:
+                problems.append(f"stdout carried something other than JSON-RPC: {line[:200]!r}")
+        if any(self.token in x for x in self.stdout) or self.token in err:
+            problems.append("the token was echoed")
+        if os.listdir(self.home):
+            problems.append(f"the bridge wrote under its home: {os.listdir(self.home)}")
+        return problems
+
+
+def against_app(exe: str, url: str, token: str, revoke) -> list[str]:
+    """The packaged bridge against the running app (PLATFORM-07, MCP-04).
+
+    initialize answers with the server's own protocol version, also for one
+    it does not speak; tools/list lists the 49 tools; two tools that need no
+    broker answer through the app; after `revoke()` the next call says the
+    token was not accepted. Returns what went wrong.
+    """
+    problems: list[str] = []
+    odd = Bridge(exe, url, token)
+    try:
+        agreed = (odd.initialize("1999-01-01").get("result") or {}).get("protocolVersion")
+        if not agreed or agreed == "1999-01-01":
+            problems.append(f"an unknown protocol version was not answered with a supported one: {agreed}")
+    except RuntimeError as e:
+        problems.append(str(e))
+    problems += odd.close()
+
+    b = Bridge(exe, url, token)
+    try:
+        init = b.initialize("2025-06-18").get("result") or {}
+        if (init.get("serverInfo") or {}).get("name") != "openalgo" or not init.get("instructions"):
+            problems.append(f"initialize did not come from openalgo with its instructions: {init}")
+        tools = (b.request("tools/list", {}).get("result") or {}).get("tools") or []
+        print(f"tools/list through the packaged bridge: {len(tools)} tools")
+        if len(tools) != 49:
+            problems.append(f"tools/list gave {len(tools)} tools, not 49")
+        failed, text = b.call("get_openalgo_version", {})
+        if failed or "OpenAlgo version" not in text:
+            problems.append(f"get_openalgo_version was not answered by the app: {text[:300]}")
+        failed, text = b.call("validate_order_constants", {})
+        if failed or "exchanges" not in text:
+            problems.append(f"validate_order_constants was not answered by the app: {text[:300]}")
+        revoke()
+        failed, text = b.call("get_funds", {})
+        if not failed or "did not accept this AI client's token" not in text:
+            problems.append(f"a revoked token was not told so: {text[:300]}")
+    except RuntimeError as e:
+        problems.append(str(e))
+    problems += b.close()
+    if not problems:
+        print("OK: the packaged bridge served the running app: protocol versions, 49 tools, two calls, a revoked token.")
+    return problems
 
 
 def main(argv: list[str]) -> int:
