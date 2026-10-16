@@ -22,10 +22,15 @@ Target platforms, all first-class:
 | Windows 10/11 x64 | NSIS installer, per-user install |
 | macOS Intel and Apple Silicon | `.dmg` |
 | Linux x64 | AppImage and `.deb` |
-| Raspberry Pi (Linux aarch64) | AppImage and `.deb`. Every native dependency must compile on ARM64 Linux; CI builds it. |
+| Linux ARM64 (aarch64) | AppImage and `.deb`. Every native dependency must compile on ARM64 Linux; CI builds it. |
 
-OpenAlgo web users run on desktops, Raspberry Pi, Linux servers and Macs. A
-change that only works on the machine it was written on is not done.
+Raspberry Pi is not supported (maintainer, 2026-10-16): it is not a tested or
+targeted device, and Pi users run OpenAlgo web, which supports the Pi. The
+Linux ARM64 build stays for ARM laptops, desktops and VMs.
+
+OpenAlgo Desktop users run on Windows PCs, Macs, and x64 and ARM64 Linux
+machines. A change that only works on the machine it was written on is not
+done.
 
 ## Skills
 
