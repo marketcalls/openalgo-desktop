@@ -3,6 +3,14 @@
 All notable changes to OpenAlgo Desktop are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Platforms
+
+- Raspberry Pi is no longer a supported device for the desktop app; use
+  OpenAlgo web on a Pi. Linux ARM64 builds continue. On a Pi, the Diagnostics
+  page now says so.
+
 ## 1.0.0
 
 The first release of OpenAlgo Desktop: a single-user desktop version of

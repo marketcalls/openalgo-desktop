@@ -291,7 +291,26 @@ export default function Diagnostics() {
             />
             <KV label="In Docker" value={info?.host.in_docker} />
             {info?.host.is_raspberry_pi ? (
-              <KV label="Raspberry Pi" value={info.host.rpi_model} />
+              <>
+                <KV label="Raspberry Pi" value={info.host.rpi_model} />
+                {/* Desktop: the app does not support the Pi; OpenAlgo web does. */}
+                <div
+                  role="note"
+                  aria-label="Raspberry Pi not supported"
+                  className="mt-2 rounded-md border border-amber-500/60 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
+                >
+                  OpenAlgo Desktop does not support Raspberry Pi. Run{' '}
+                  <a
+                    href="https://github.com/marketcalls/openalgo"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium underline"
+                  >
+                    OpenAlgo web
+                  </a>{' '}
+                  on your Pi instead.
+                </div>
+              </>
             ) : null}
             {info?.host.is_termux ? <KV label="Termux" value={true} /> : null}
             {info?.host.is_android ? <KV label="Android" value={true} /> : null}
