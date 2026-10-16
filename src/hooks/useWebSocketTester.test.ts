@@ -3,7 +3,9 @@
  *
  * PG-02: the log, the screen and the export never hold the API key, while the
  * socket still sends it. PG-01: a connect that fails, or is abandoned, before
- * its socket exists never leaves the Connect button latched.
+ * its socket exists never leaves the Connect button latched. The Playground
+ * residuals of the 2026-10-12 re-audit: leaving the page ends every attempt,
+ * and nothing from an earlier attempt's socket reaches the panel.
  */
 
 import { act, renderHook, waitFor } from '@testing-library/react'
@@ -197,5 +199,105 @@ describe('useWebSocketTester', () => {
       await result.current.connect()
     })
     expect(FakeSocket.instances).toHaveLength(1)
+  })
+
+  it('opens no socket when the page is left while the address is on its way', async () => {
+    let finish: (r: Response) => void = () => {}
+    routes['/api/websocket/config'] = () =>
+      new Promise<Response>((resolve) => {
+        finish = resolve
+      })
+    const { result, unmount } = renderHook(() => useWebSocketTester())
+    let first: Promise<void> = Promise.resolve()
+    act(() => {
+      first = result.current.connect()
+    })
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith('/api/websocket/config', expect.anything())
+    )
+    unmount()
+    await act(async () => {
+      finish({
+        json: () => Promise.resolve({ status: 'success', websocket_url: 'ws://127.0.0.1:8765' }),
+      } as Response)
+      await first
+    })
+    expect(FakeSocket.instances).toHaveLength(0)
+  })
+
+  it('does not reconnect after the page is left', async () => {
+    vi.useFakeTimers()
+    try {
+      const { result, unmount } = renderHook(() => useWebSocketTester())
+      await act(async () => {
+        await result.current.connect()
+      })
+      const socket = FakeSocket.instances[0]
+      await act(async () => {
+        socket.open()
+      })
+      unmount()
+      expect(socket.close).toHaveBeenCalled()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000)
+      })
+      expect(FakeSocket.instances).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("ignores a frame from an earlier connection's socket", async () => {
+    // A browser can still deliver frames a socket received before its close
+    // completed; they belong to the connection the trader ended.
+    const { result } = renderHook(() => useWebSocketTester())
+    await act(async () => {
+      await result.current.connect()
+    })
+    const old = FakeSocket.instances[0]
+    await act(async () => {
+      old.open()
+    })
+    act(() => {
+      result.current.disconnect()
+    })
+    await act(async () => {
+      await result.current.connect()
+    })
+    expect(FakeSocket.instances).toHaveLength(2)
+    const before = result.current.messages.length
+    act(() => {
+      old.receive(JSON.stringify({ type: 'auth', status: 'error', message: 'Invalid API key' }))
+      old.receive(JSON.stringify({ type: 'market_data', symbol: 'SBIN' }))
+    })
+    expect(result.current.error).toBeNull()
+    expect(result.current.messages.length).toBe(before)
+  })
+
+  it("ignores an abandoned attempt's failure to read the API key", async () => {
+    let fail: (e: Error) => void = () => {}
+    routes['/api/websocket/apikey'] = () =>
+      new Promise<Response>((_resolve, reject) => {
+        fail = reject
+      })
+    const { result } = renderHook(() => useWebSocketTester())
+    await act(async () => {
+      await result.current.connect()
+    })
+    const socket = FakeSocket.instances[0]
+    await act(async () => {
+      socket.open()
+    })
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith('/api/websocket/apikey', expect.anything())
+    )
+    act(() => {
+      result.current.disconnect()
+    })
+    await act(async () => {
+      fail(new Error('offline'))
+    })
+    expect(result.current.error).toBeNull()
+    expect(JSON.stringify(result.current.messages)).not.toContain('Authentication error')
   })
 })

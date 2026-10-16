@@ -434,3 +434,49 @@ async fn service_moves_on_port_change_and_reports_a_taken_port() {
         .is_ok());
     ctx.shutdown().await;
 }
+
+/// WS-01: a broker session whose live feed cannot stream (here the broker
+/// has none) answers each subscribe item with why, with the request id,
+/// instead of a success that never streams.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_session_without_a_live_feed_says_so_for_each_item() {
+    use openalgo_desktop_lib::feed::bridge::NO_LIVE_FEED;
+    use openalgo_desktop_lib::feed::MarketDataSource;
+    let h = crate::api_v1_support::H::new().await;
+    // Start the session's streaming, as a sign-in does. The mock broker has
+    // no feed address, so it starts without a live feed.
+    let session = h.ctx.get_broker_session().expect("the mock session");
+    h.ctx.runtime.activate(&h.ctx, &session).await;
+    assert!(
+        crate::feed_support::eventually(Duration::from_secs(10), || h
+            .ctx
+            .bridge
+            .unavailable()
+            .is_some())
+        .await,
+        "the session start records that nothing can stream"
+    );
+    h.ctx
+        .pin_listener_ports(free_port().await, free_port().await);
+    let feed = FeedService::new(h.ctx.clone());
+    assert!(matches!(feed.start().await, ServerStatus::Running { .. }));
+    let mut c = Client::connect(&format!("ws://{}", feed.local_addr().await.unwrap())).await;
+    let v = c
+        .request(json!({"action": "authenticate", "api_key": h.key}))
+        .await;
+    assert_eq!(v["status"], "success", "{}", v);
+    let ack = c
+        .request(
+            json!({"action": "subscribe", "request_id": 9, "mode": "Quote",
+            "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}]}),
+        )
+        .await;
+    assert_eq!(ack["status"], "partial", "{}", ack);
+    assert_eq!(ack["request_id"], 9);
+    assert_eq!(ack["subscriptions"][0]["status"], "error");
+    assert_eq!(ack["subscriptions"][0]["message"], NO_LIVE_FEED);
+
+    drop(c);
+    feed.stop().await;
+    h.shutdown().await;
+}
