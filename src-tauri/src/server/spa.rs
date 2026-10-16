@@ -91,6 +91,7 @@ pub const SPA_ROUTES: &[&str] = &[
     "/scalping",
     "/search",
     "/search/token",
+    "/settings/server",
     "/setup",
     "/straddle",
     "/straddlepnl",
@@ -214,5 +215,35 @@ mod tests {
         assert!(!is_spa_route("/agent"));
         assert!(!is_spa_route("/agent/config"));
         assert!(!is_spa_route("/broker/angel/totp/x"));
+    }
+
+    /// Every page the frontend router knows is served here, and nothing
+    /// else (CLAUDE.md "Adding a page"; UI-08: `/settings/server` was a
+    /// route only the router knew, so a reload of it answered 404).
+    #[test]
+    fn routes_follow_the_frontend_router() {
+        let app = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("src")
+            .join("App.tsx");
+        let source = std::fs::read_to_string(&app).unwrap();
+        let mut router: Vec<&str> = source
+            .split("path=\"")
+            .skip(1)
+            .filter_map(|rest| rest.split('"').next())
+            // The catch-all is the app's 404 page.
+            .filter(|p| *p != "*")
+            .collect();
+        router.sort_unstable();
+        router.dedup();
+        assert!(
+            router.len() > 50,
+            "read {} routes from {:?}",
+            router.len(),
+            app
+        );
+        let mut served: Vec<&str> = SPA_ROUTES.to_vec();
+        served.sort_unstable();
+        assert_eq!(router, served);
     }
 }

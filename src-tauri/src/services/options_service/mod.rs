@@ -4,7 +4,6 @@
 
 use super::core::{broker_handle, float, num, BrokerHandle, Reply};
 use super::market_data_service::fetch_quote;
-use super::symbol_service::freeze_qty_for_option;
 use crate::analytics::black76::{self as bs, Flag};
 use crate::brokers::common::master_contract::{format_strike, parse_oa_expiry};
 use crate::brokers::common::symbols::SymToken;
@@ -643,7 +642,7 @@ pub async fn resolve_option(
         exchange: row.exchange.clone(),
         lotsize: i64::from(row.lot_size),
         tick_size: row.tick_size,
-        freeze_qty: freeze_qty_for_option(&row.symbol, &row.exchange),
+        freeze_qty: ctx.freeze.for_option(&row.symbol, &row.exchange),
         underlying_ltp: ltp,
         strike,
     })

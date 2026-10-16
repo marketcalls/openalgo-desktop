@@ -738,12 +738,18 @@ impl Sandbox {
     /// Analyzer mode toggled: on starts the engine (after a catch-up), off
     /// stops it. One transition at a time.
     pub async fn set_analyzer_mode(&self, on: bool, ticks: Arc<dyn TickSource>) -> SbResult<()> {
-        let _mode = self.core().mode_lock.lock().await;
-        if on {
-            self.start_engine_locked(ticks).await
-        } else {
-            self.stop_engine_locked().await;
-            Ok(())
+        self.begin_mode_change().await.follow(on, ticks).await
+    }
+
+    /// Hold the mode lock for one whole analyzer mode change: the caller
+    /// writes the mode, then has the engine follow the mode actually stored
+    /// ([`ModeTransition::follow`]), so two changes can never leave the
+    /// engine following a mode that is no longer stored (N-02; web
+    /// `services/analyzer_service.py` `apply_analyze_mode`).
+    pub async fn begin_mode_change(&self) -> ModeTransition<'_> {
+        ModeTransition {
+            sandbox: self,
+            _held: self.core().mode_lock.lock().await,
         }
     }
 
@@ -887,6 +893,25 @@ impl Sandbox {
             Ok(c.db.with_conn(|conn| orders::get_by_orderid(conn, c.user(), &id))?)
         })
         .await
+    }
+}
+
+/// One analyzer mode change in progress, holding the mode lock
+/// ([`Sandbox::begin_mode_change`]).
+pub struct ModeTransition<'a> {
+    sandbox: &'a Sandbox,
+    _held: tokio::sync::MutexGuard<'a, ()>,
+}
+
+impl ModeTransition<'_> {
+    /// Start the engine (after its catch-up) or stop it, to match `on`.
+    pub async fn follow(&self, on: bool, ticks: Arc<dyn TickSource>) -> SbResult<()> {
+        if on {
+            self.sandbox.start_engine_locked(ticks).await
+        } else {
+            self.sandbox.stop_engine_locked().await;
+            Ok(())
+        }
     }
 }
 
