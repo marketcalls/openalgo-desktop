@@ -22,7 +22,8 @@ import { showToast } from '@/utils/toast'
 import { useOrderEventRefresh } from './useOrderEventRefresh'
 
 const MIN_TRAIL_PROFIT = 1 // don't trail until >= 1 rupee in profit
-const PERSIST_THROTTLE_MS = 2000
+const SL_NOT_SAVED = 'Stop-loss not saved. This position is not protected. Try again.'
+const SL_NOT_REMOVED = 'Stop-loss not removed. It is still active. Try again.'
 
 export interface SLState {
   symbol: string
@@ -144,7 +145,6 @@ export function evaluateTrail(
 // it changes, so the displayed SLs match the active trading mode.
 export function useTrailingSL(reloadSignal?: unknown) {
   const [slMap, setSlMap] = useState<Record<string, SLState>>({})
-  const lastPersistRef = useRef<Record<string, number>>({})
 
   const warnedRef = useRef(false)
   // Load active SL states for display. Fully event-driven — refreshed when the
@@ -181,34 +181,45 @@ export function useTrailingSL(reloadSignal?: unknown) {
     delay: 200,
   })
 
-  const persist = useCallback((sl: SLState, force = false) => {
-    const key = slKey(sl.symbol, sl.exchange, sl.product)
-    const now = Date.now()
-    if (!force && now - (lastPersistRef.current[key] ?? 0) < PERSIST_THROTTLE_MS) return
-    lastPersistRef.current[key] = now
-    scalpingApi.saveSL(toBackend(sl)).catch(() => {})
+  // Desktop change (UI-02), to be offered upstream: a stop shows once the
+  // server has saved it, and a save or a removal that fails says so. The web
+  // showed the stop first and dropped the error, so a trader could watch a
+  // stop that nothing enforced. The promise tells the dialog whether to close.
+  const setSL = useCallback(async (sl: SLState): Promise<boolean> => {
+    try {
+      const resp = await scalpingApi.saveSL(toBackend(sl))
+      if (resp.status !== 'success') throw new Error(resp.message)
+      const saved = resp.data ? fromBackend(resp.data) : sl
+      setSlMap((prev) => ({ ...prev, [slKey(sl.symbol, sl.exchange, sl.product)]: saved }))
+      return true
+    } catch {
+      showToast.error(SL_NOT_SAVED, undefined, { duration: Number.POSITIVE_INFINITY })
+      return false
+    }
   }, [])
 
-  // Save SL config. The server-side monitor enforces it on the next poll; we
-  // also reflect it locally immediately for a responsive UI.
-  const setSL = useCallback(
-    (sl: SLState) => {
-      setSlMap((prev) => ({ ...prev, [slKey(sl.symbol, sl.exchange, sl.product)]: sl }))
-      persist(sl, true)
+  const clearSL = useCallback(
+    async (symbol: string, exchange: string, product: string): Promise<boolean> => {
+      try {
+        const resp = await scalpingApi.deleteSL(symbol, exchange, product)
+        if (resp.status !== 'success') throw new Error('not removed')
+      } catch {
+        showToast.error(SL_NOT_REMOVED, undefined, { duration: Number.POSITIVE_INFINITY })
+        return false
+      }
+      const key = slKey(symbol, exchange, product)
+      setSlMap((prev) => {
+        const next = { ...prev }
+        delete next[key]
+        return next
+      })
+      // The server also answers success when it could not remove the row, so
+      // read the stops back: one it still enforces shows again.
+      loadStates()
+      return true
     },
-    [persist]
+    [loadStates]
   )
-
-  const clearSL = useCallback((symbol: string, exchange: string, product: string) => {
-    const key = slKey(symbol, exchange, product)
-    setSlMap((prev) => {
-      const next = { ...prev }
-      delete next[key]
-      return next
-    })
-    delete lastPersistRef.current[key]
-    scalpingApi.deleteSL(symbol, exchange, product).catch(() => {})
-  }, [])
 
   return { slMap, setSL, clearSL }
 }

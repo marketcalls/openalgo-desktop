@@ -40,7 +40,7 @@ pub fn validate_quantity(
     if quantity > MAX_LOTS * lot {
         return Some(format!("quantity exceeds the {}-lot cap", MAX_LOTS));
     }
-    let freeze = crate::services::symbol_service::freeze_qty_for_option(symbol, exchange);
+    let freeze = ctx.freeze.for_option(symbol, exchange);
     if freeze > 0 && quantity > freeze {
         return Some(format!(
             "quantity exceeds the exchange freeze limit ({})",
@@ -209,7 +209,7 @@ pub async fn reducing_exit(
         quantity,
         client_tag,
     };
-    let chunk = match exit_chunk(&ctx.symbols, symbol, exchange, quantity) {
+    let chunk = match exit_chunk(&ctx.symbols, &ctx.freeze, symbol, exchange, quantity) {
         Ok(c) => c,
         Err(e) => return err(400, e),
     };

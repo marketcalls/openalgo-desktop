@@ -7,6 +7,7 @@
 use super::core::{Reply, UNEXPECTED};
 use super::sandbox_feed::FeedTicks;
 use crate::error::Result;
+use crate::events::Event;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -22,6 +23,13 @@ pub struct AnalyzerStatus {
 
 pub struct AnalyzerService;
 
+/// How a caller changes the mode.
+#[derive(Debug, Clone, Copy)]
+enum ModeChange {
+    Toggle,
+    Set(bool),
+}
+
 impl AnalyzerService {
     /// Current analyzer status.
     pub fn get_status(state: &AppState) -> Result<AnalyzerStatus> {
@@ -34,33 +42,66 @@ impl AnalyzerService {
         })
     }
 
-    /// Persist the mode and start or stop the engine in the background
-    /// (callers that cannot await: the session route).
-    pub fn toggle_mode(state: &AppState, enable: bool) -> Result<AnalyzerStatus> {
-        state.sqlite.set_analyze_mode(enable)?;
-        Self::spawn_engine_transition(state, enable);
-        Self::get_status(state)
+    /// Flip the mode (the app's Live/Analyze switch). The current mode is
+    /// read under the change's lock, so two clicks cannot both flip from
+    /// the same value.
+    pub async fn toggle_mode(state: &AppState) -> Result<AnalyzerStatus> {
+        Self::change_mode(state, ModeChange::Toggle).await
     }
 
-    /// Start or stop the sandbox engine on a task owned by the context.
-    pub fn spawn_engine_transition(state: &AppState, on: bool) {
-        let sandbox = state.sandbox.clone();
-        let ticks: Arc<dyn crate::sandbox::TickSource> = FeedTicks::start(state);
-        state.spawn(async move {
-            if let Err(e) = sandbox.set_analyzer_mode(on, ticks).await {
+    /// Set the mode (`/api/v1/analyzer/toggle`, MCP, Telegram).
+    pub async fn set_mode(state: &AppState, enable: bool) -> Result<AnalyzerStatus> {
+        Self::change_mode(state, ModeChange::Set(enable)).await
+    }
+
+    /// Every mode change, as one step under the sandbox's mode lock (N-02;
+    /// web `services/analyzer_service.py` `apply_analyze_mode`): write, read
+    /// back, have the engine follow the mode actually stored (also when the
+    /// write failed), and announce that mode (UI-01), so the store, the
+    /// engine and every open page end on the same mode whichever path
+    /// changed it.
+    async fn change_mode(state: &AppState, change: ModeChange) -> Result<AnalyzerStatus> {
+        let transition = state.sandbox.begin_mode_change().await;
+        let written = match change {
+            ModeChange::Toggle => state
+                .sqlite
+                .get_analyze_mode()
+                .and_then(|on| state.sqlite.set_analyze_mode(!on)),
+            ModeChange::Set(on) => state.sqlite.set_analyze_mode(on),
+        };
+        let stored = state.sqlite.get_analyze_mode();
+        if let Ok(on) = stored {
+            let ticks: Arc<dyn crate::sandbox::TickSource> = FeedTicks::start(state);
+            if let Err(e) = transition.follow(on, ticks).await {
                 tracing::error!("Sandbox engine transition failed: {}", e.message);
             }
-        });
+            state
+                .bus
+                .publish(Event::AnalyzerModeChanged { analyze_mode: on });
+        }
+        drop(transition);
+        written?;
+        stored?;
+        Self::get_status(state)
     }
 
-    /// Persist the mode and wait for the engine to start or stop.
-    pub async fn set_mode(state: &AppState, enable: bool) -> Result<AnalyzerStatus> {
-        state.sqlite.set_analyze_mode(enable)?;
+    /// At startup: the engine follows the stored mode, on a task owned by
+    /// the context.
+    pub fn spawn_resume(state: &AppState) {
+        let sandbox = state.sandbox.clone();
+        let sqlite = state.sqlite.clone();
         let ticks: Arc<dyn crate::sandbox::TickSource> = FeedTicks::start(state);
-        if let Err(e) = state.sandbox.set_analyzer_mode(enable, ticks).await {
-            tracing::error!("Sandbox engine transition failed: {}", e.message);
-        }
-        Self::get_status(state)
+        state.spawn(async move {
+            let transition = sandbox.begin_mode_change().await;
+            match sqlite.get_analyze_mode() {
+                Ok(on) => {
+                    if let Err(e) = transition.follow(on, ticks).await {
+                        tracing::error!("Sandbox engine transition failed: {}", e.message);
+                    }
+                }
+                Err(e) => tracing::error!("Analyzer mode could not be read: {}", e),
+            }
+        });
     }
 
     /// `POST /api/v1/analyzer`.

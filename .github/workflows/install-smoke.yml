@@ -21,7 +21,10 @@ name: Install smoke
 # plus a wrong password that must be refused (scripts/ci/launch_smoke.py).
 # No OS keychain is used on any system (KEY-01): session-status must say the
 # keys are locked until the sign-in and open after it.
-# Every job also runs the packaged `mcp` subcommand over piped stdio.
+# Every job also runs the packaged `mcp` subcommand over piped stdio: with
+# no app (a closed port), and, after the sign-in, against the running app
+# with an MCP token created on it (protocol versions, the 49 tools, two
+# calls, a token revoked midway; launch_smoke.py --mcp-bridge).
 #
 # Runs after every successful CI push to master, or by hand with the id of
 # such a CI run (Actions > Install smoke > Run workflow). Either way the
@@ -157,7 +160,7 @@ jobs:
           fi
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
       - name: Launch the installed app, create the account and sign in
-        run: python3 scripts/ci/launch_smoke.py --first-sign-in /usr/bin/openalgo-desktop
+        run: python3 scripts/ci/launch_smoke.py --first-sign-in --mcp-bridge /usr/bin/openalgo-desktop
       - name: Launch the AppImage
         env:
           # No FUSE on the runner: the AppImage runtime extracts and runs.
@@ -217,7 +220,7 @@ jobs:
           $os = Get-CimInstance Win32_OperatingSystem
           Write-Host "$($os.Caption) $($os.Version), $(Get-ItemPropertyValue 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' InstallationType)"
       - name: Launch the installed app, create the account and sign in
-        run: python scripts/ci/launch_smoke.py --first-sign-in "$APP_EXE"
+        run: python scripts/ci/launch_smoke.py --first-sign-in --mcp-bridge "$APP_EXE"
       - name: MCP over piped stdio (installed GUI-subsystem executable)
         run: python scripts/ci/mcp_stdio_smoke.py "$APP_EXE"
 
@@ -264,6 +267,6 @@ jobs:
         # The runner's own home is kept (the runner is fresh, so the data
         # folder is empty). The app makes no keychain call (KEY-01): its keys
         # are locked with the password in openalgo.db.
-        run: python3 scripts/ci/launch_smoke.py --first-sign-in --real-home "$APP_BIN"
+        run: python3 scripts/ci/launch_smoke.py --first-sign-in --real-home --mcp-bridge "$APP_BIN"
       - name: MCP over piped stdio (installed binary)
         run: python3 scripts/ci/mcp_stdio_smoke.py "$APP_BIN"

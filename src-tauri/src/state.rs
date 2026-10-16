@@ -102,6 +102,8 @@ pub struct AppState {
     tasks: Mutex<JoinSet<()>>,
     /// The symbol master, shared with every broker adapter in `brokers`.
     pub symbols: SymbolResolver,
+    /// Freeze limits: the trader's entries over NSE's built-in table.
+    pub freeze: crate::services::freeze_qty_service::FreezeLimits,
     pub data_dir: PathBuf,
     /// Traffic, latency and security monitoring (bounded queue + writer).
     pub monitor: crate::services::monitor::Monitor,
@@ -221,6 +223,7 @@ struct Parts<'a> {
     http: reqwest::Client,
     sandbox_db: Arc<crate::sandbox::SandboxDb>,
     symbols: SymbolResolver,
+    freeze: crate::services::freeze_qty_service::FreezeLimits,
     websocket: Arc<WebSocketManager>,
     runtime: crate::services::broker_runtime::BrokerRuntime,
     bridge: Arc<crate::feed::bridge::BrokerBridge>,
@@ -267,6 +270,7 @@ impl Parts<'_> {
             ui: self.ui.clone(),
             clock: self.opts.clock.clone(),
             symbols: self.symbols.clone(),
+            freeze: self.freeze.clone(),
         })
     }
 
@@ -308,6 +312,7 @@ impl AppState {
         )?);
         crate::security::fsperm::restrict_db_files(&data_dir.join("sandbox.db"))?;
         let symbols = opts.brokers.symbols();
+        let freeze = crate::services::freeze_qty_service::FreezeLimits::loaded(&stores.sqlite);
         let websocket = Arc::new(WebSocketManager::new());
         let runtime = crate::services::broker_runtime::BrokerRuntime::new();
         let bridge = crate::feed::bridge::BrokerBridge::with_depth_manager(
@@ -324,6 +329,7 @@ impl AppState {
             http,
             sandbox_db,
             symbols,
+            freeze,
             websocket,
             runtime,
             bridge,
@@ -366,6 +372,7 @@ impl AppState {
             bus,
             http,
             symbols,
+            freeze,
             websocket,
             runtime,
             bridge,
@@ -384,6 +391,7 @@ impl AppState {
             duckdb: stores.duckdb,
             security: stores.security,
             symbols,
+            freeze,
             brokers: opts.brokers,
             websocket,
             bridge,
@@ -467,7 +475,7 @@ impl AppState {
         crate::services::broker_config_service::BrokerConfigService::apply_rate_plans(ctx);
         // Analyzer mode survives restarts: resume the sandbox engine.
         if ctx.sqlite.get_analyze_mode().unwrap_or(false) {
-            crate::services::analyzer_service::AnalyzerService::spawn_engine_transition(ctx, true);
+            crate::services::analyzer_service::AnalyzerService::spawn_resume(ctx);
         }
     }
 

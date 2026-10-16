@@ -38,7 +38,8 @@ const OPT: &str = "NIFTY06OCT2622000CE";
 /// sizes from it, so a new NSE freeze table (as on 5 October 2026, web
 /// #2218) does not break them.
 fn freeze_chunk() -> i64 {
-    let raw = openalgo_desktop_lib::services::symbol_service::freeze_qty_for_option(OPT, "NFO");
+    let raw = openalgo_desktop_lib::services::freeze_qty_service::FreezeLimits::default()
+        .for_option(OPT, "NFO");
     assert!(raw >= 65, "no freeze limit for {}", OPT);
     (raw / 65) * 65
 }
@@ -791,6 +792,7 @@ fn monitor() -> M {
         ui: ui.clone(),
         clock: clock.clone(),
         symbols,
+        freeze: Default::default(),
     });
     let alerts = Arc::new(Mutex::new(Vec::new()));
     let sink = alerts.clone();
