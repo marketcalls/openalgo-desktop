@@ -207,7 +207,7 @@ async fn start_services(
     // Recovery, prices, checkpoints and the IST scheduler (owned
     // tasks, stopped by `AppState::shutdown`).
     let started = ctx.strategy.start().await;
-    tracing::info!("Strategy module started: {}", started);
+    tracing::debug!("Strategy module started: {}", started);
     // OpenScript schedules (an owned task, stopped at shutdown).
     ctx.trading.start(ctx.now(), &ctx.sqlite);
     // Chartink intraday square-offs (owned task).
