@@ -27,7 +27,7 @@
 //! a task aborted by a drop guard when the session ends or is aborted, so the
 //! broker socket is closed on every exit path. Channels are bounded.
 
-use crate::brokers::common::relay::READY;
+use crate::brokers::common::relay::{send_within, READY};
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
 use futures_util::stream::SplitSink;
@@ -503,7 +503,7 @@ async fn serve(tcp: TcpStream, path: String, upstream: Arc<dyn MqttUpstream>) {
 
     let mut ok = subscribe(&client, &prepared.topics);
     if ok {
-        ok = dw.send(Message::Text(READY.into())).await.is_ok();
+        ok = send_within(&mut dw, vec![Message::Text(READY.into())]).await;
     }
     while ok {
         tokio::select! {
@@ -519,9 +519,7 @@ async fn serve(tcp: TcpStream, path: String, upstream: Arc<dyn MqttUpstream>) {
             ev = events.recv() => match ev {
                 Some(Ok(Event::Incoming(Packet::Publish(p)))) => {
                     let frame = encode_publish(&p.topic, &p.payload);
-                    if dw.send(Message::Binary(frame)).await.is_err() {
-                        ok = false;
-                    }
+                    ok = send_within(&mut dw, vec![Message::Binary(frame)]).await;
                 }
                 Some(Ok(Event::Incoming(Packet::SubAck(ack)))) => {
                     log_refused_topics(broker, &ack.return_codes);

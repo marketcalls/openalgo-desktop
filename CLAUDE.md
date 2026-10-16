@@ -765,6 +765,18 @@ Every flaky test found so far was a race, not a slow machine:
   `synchronous=FULL`; `logs.db` and `sandbox.db` at `NORMAL`. The web runs
   everything at `NORMAL`; the difference is deliberate (ARCH-02). A new store
   picks its level there.
+- The symbol master is replaced in stages (`db::sqlite::master_swap`,
+  DB-01): `symtoken_next` filled in short transactions with a pause after
+  each, one transaction that renames both tables and writes the owner, then
+  the old table dropped. In one transaction a 200,000-row download held
+  `openalgo.db`'s write lock for about 2.5 s on an M1, and every order
+  journal write waited. Pooled connections retry a busy database every
+  millisecond (`db::sqlite::retry_busy`, 5 s in all): SQLite's own
+  `busy_timeout` backs off to 100 ms and kept missing the pauses between
+  the short transactions. `symtoken`'s index names alternate between two sets,
+  so a migration that changes its indexes goes through
+  `master_swap::create_indexes`; a view or trigger on `symtoken` would follow
+  the rename to the dropped table, so add none.
 - A fold that writes a position and its watermark (the strategy book)
   commits both, and the buffered row it drains, in one transaction; a process
   lock orders callers but does not survive a crash (DB-02).
@@ -944,6 +956,26 @@ and add each new one here.
   previous day could not be read is null, never the whole OI. The
   `/api/v1/optionchain` body keeps the web's zeros.
 
+### Time, sleep and quitting
+
+- **The monotonic clock stops while the computer sleeps; the wall clock
+  does not.** A scheduler acts on every slot since its last look
+  (`clock::ist_slots_between`), never on a window around now, or a laptop
+  that slept across 15:15 wakes past its square-off (ARCH-03). A square-off
+  passed over runs late in its own session; a start that late, or a
+  square-off from an earlier session, is reported, not run.
+  `services::lifecycle::wake` notices a wake from the gap between the two
+  clocks and reconnects the feeds, asks the order reconciler for a pass and
+  catches the sandbox up; something new that a sleep leaves stale is redone
+  there too.
+- **Quitting asks first while work runs or waits** (maintainer decision
+  2026-10-16; `services::lifecycle::quit`, `commands::quit`), reading the
+  update's inventory (`services::update::activity`) plus what waits for
+  alerts or schedules, and saying that the keys lock at quit (KEY-01): a
+  new kind of Live obligation goes into `Activity`, so the update and the
+  quit warnings both name it. Quit from the Dock, an OS shutdown and a
+  forced quit cannot be asked about (`docs/user/troubleshooting.md`).
+
 ### Security work
 
 - **Broker sessions change under one lock.** Completing a sign-in, resuming
@@ -1001,7 +1033,9 @@ and add each new one here.
   (`availability_guarantees_hold_on_every_surface`): this computer (a
   loopback peer, never one granted by a list of interfaces) with a valid
   credential or session is never refused by a ban, budget, overflow or
-  monitor rule, though it keeps its resource caps; a valid credential from
+  monitor rule, though it keeps its resource caps (the feed's 1 MiB
+  message size and its per-connection message budget, which no other
+  caller can spend); a valid credential from
   any source is never refused because of other callers (check it first);
   bans apply only to devices on the network, never to this computer, the
   tunnel identity or exactly the machine's own addresses, and are capped

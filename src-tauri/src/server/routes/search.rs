@@ -39,6 +39,7 @@ pub async fn api_search(State(ctx): Ctx, Query(q): Q) -> Response {
         &exchanges,
         &insts,
         &|r| snap.contract_value(&r.exchange, &r.token),
+        &ctx.freeze,
     ))
 }
 

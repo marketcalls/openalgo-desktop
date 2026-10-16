@@ -24,6 +24,7 @@ use crate::brokers::types::AuthToken;
 use crate::brokers::Broker;
 use crate::error::AppError;
 use crate::events::{self, Event, EventBus};
+use crate::feed::bridge;
 use crate::services::master_contract_service::{self, DownloadClaims};
 use crate::state::{AppState, BrokerSession};
 use crate::websocket::WebSocketManager;
@@ -214,16 +215,22 @@ async fn start_session(
     };
     ctx.bridge.set_depth_capability(caps);
 
+    // A feed that cannot stream makes feed subscribes say why (WS-01).
     match broker.create_feed(&auth) {
         Ok(feed) => {
             if let Err(e) = ctx.websocket.connect(feed).await {
                 tracing::error!("Market data feed for {} did not start: {}", id, e);
+                ctx.bridge.set_unavailable(bridge::FEED_NOT_STARTED);
             }
         }
         Err(AppError::Unsupported(_)) => {
-            tracing::info!("{} has no live market data feed in OpenAlgo Desktop", id)
+            tracing::info!("{} has no live market data feed in OpenAlgo Desktop", id);
+            ctx.bridge.set_unavailable(bridge::NO_LIVE_FEED);
         }
-        Err(e) => tracing::warn!("Market data feed for {} not started: {}", id, e),
+        Err(e) => {
+            tracing::warn!("Market data feed for {} not started: {}", id, e);
+            ctx.bridge.set_unavailable(bridge::FEED_NOT_STARTED);
+        }
     }
 
     let deep = broker

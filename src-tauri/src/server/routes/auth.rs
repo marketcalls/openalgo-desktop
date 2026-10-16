@@ -686,18 +686,14 @@ pub async fn analyzer_toggle(State(ctx): Ctx) -> Response {
     if !ctx.is_broker_connected() {
         return error(StatusCode::UNAUTHORIZED, "Broker not connected");
     }
-    let new_mode = match ctx.sqlite.get_analyze_mode() {
-        Ok(m) => !m,
-        Err(e) => return e.into_response(),
-    };
-    if let Err(e) = crate::services::AnalyzerService::toggle_mode(&ctx, new_mode) {
-        return e.into_response();
+    match crate::services::AnalyzerService::toggle_mode(&ctx).await {
+        Ok(s) => ok(json!({"status": "success", "data": {
+            "mode": s.mode,
+            "analyze_mode": s.analyze_mode,
+            "message": format!("Switched to {} mode", if s.analyze_mode {"Analyze"} else {"Live"}),
+        }})),
+        Err(e) => e.into_response(),
     }
-    ok(json!({"status": "success", "data": {
-        "mode": if new_mode {"analyze"} else {"live"},
-        "analyze_mode": new_mode,
-        "message": format!("Switched to {} mode", if new_mode {"Analyze"} else {"Live"}),
-    }}))
 }
 
 /// GET /auth/dashboard-data

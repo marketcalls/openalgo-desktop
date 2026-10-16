@@ -23,9 +23,12 @@ use std::sync::Arc;
 
 type Ctx = State<Arc<AppState>>;
 
-const BAD_KEY: &str = "Invalid or missing API key";
+/// The Telegram and WhatsApp namespaces' answer to a bad or missing key.
+pub(super) const BAD_KEY: &str = "Invalid or missing API key";
 
-async fn body_and_key(
+/// The JSON body of a POST in these namespaces, its key taken from the
+/// body or the `X-API-KEY` header and checked (401 otherwise).
+pub(super) async fn body_and_key(
     ctx: &AppState,
     ip: IpAddr,
     req: Request,

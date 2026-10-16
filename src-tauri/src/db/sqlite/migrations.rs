@@ -73,6 +73,7 @@ const RUST_MIGRATIONS: &[(&str, Step)] = &[
         "086_strategy_revision",
         crate::strategy::store::migrate_revision,
     ),
+    ("087_chart_prefs", super::chart_prefs::migrate),
 ];
 
 /// Run all database migrations

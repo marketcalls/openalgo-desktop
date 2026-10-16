@@ -322,6 +322,15 @@ fn other_event(event: &Event) -> Option<(&'static str, Value)> {
         )),
         Event::CacheLoaded { payload } => Some(("cache_loaded", payload.clone())),
         Event::ForceLogout { message } => Some(("force_logout", json!({"message": message}))),
+        // Desktop addition (UI-01): the web emits nothing when the mode
+        // changes. Pages that do not listen for it ignore it.
+        Event::AnalyzerModeChanged { analyze_mode } => Some((
+            "analyzer_mode_changed",
+            json!({
+                "analyze_mode": analyze_mode,
+                "mode": if *analyze_mode { "analyze" } else { "live" },
+            }),
+        )),
         Event::PendingOrderCreated { payload } => Some(("pending_order_created", payload.clone())),
         Event::PendingOrderUpdated { payload } => Some(("pending_order_updated", payload.clone())),
         Event::Historify { event, payload } => Some((event, payload.clone())),
@@ -391,6 +400,7 @@ impl Subscriber for SocketIoSubscriber {
             Topic::SandboxOrderFilled,
             Topic::SandboxAutoSquareoff,
             Topic::SandboxT1Settlement,
+            Topic::AnalyzerModeChanged,
             Topic::GttPlaced,
             Topic::GttFailed,
             Topic::GttModified,
@@ -522,5 +532,18 @@ mod tests {
             meta: meta(Mode::Live),
         };
         assert_eq!(translate(&e).unwrap().0, "analyzer_update");
+    }
+
+    #[test]
+    fn a_mode_change_reaches_every_page() {
+        // UI-01: desktop event; the pages resync their Live/Analyze mode.
+        let sub = SocketIoSubscriber::new(Arc::new(SocketEmitter::default()));
+        assert!(sub.topics().contains(&Topic::AnalyzerModeChanged));
+        for (on, mode) in [(true, "analyze"), (false, "live")] {
+            let e = Event::AnalyzerModeChanged { analyze_mode: on };
+            let (name, p) = translate(&e).unwrap();
+            assert_eq!(name, "analyzer_mode_changed");
+            assert_eq!(p, json!({"analyze_mode": on, "mode": mode}));
+        }
     }
 }
