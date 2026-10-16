@@ -242,11 +242,34 @@ where
 }
 
 /// Whether a transport error may have happened after the request reached
-/// the broker. Only a request that could not be built or a connection that
+/// the broker. Only a request that could not be built, a connection that
 /// could not be opened (a refused, unreachable or timed-out connect, a TLS
-/// failure) proves that no byte of the order was sent.
+/// failure), or an HTTP/2 request the server says it never processed
+/// proves that the order was not taken.
 pub fn after_send(e: &reqwest::Error) -> bool {
-    !(e.is_builder() || e.is_connect())
+    !(e.is_builder() || e.is_connect() || not_processed(e))
+}
+
+/// The broker's HTTP/2 server said it did not process this request (RFC
+/// 9113 section 8.7): it reset the stream with REFUSED_STREAM, or closed
+/// the connection with a GOAWAY whose last stream id is below this one.
+///
+/// h2 gives the server's GOAWAY error only to streams above that id and to
+/// requests not yet sent; a stream at or below it that loses its answer
+/// gets an I/O error, which stays uncertain. reqwest sends a refused
+/// request again (on a new stream, or a new connection after a graceful
+/// GOAWAY), twice, so what reaches here is a refusal that outlasted those
+/// retries, or a GOAWAY that carried an error code.
+fn not_processed(e: &reqwest::Error) -> bool {
+    let mut cause = std::error::Error::source(e);
+    while let Some(c) = cause {
+        if let Some(h2) = c.downcast_ref::<h2::Error>() {
+            let refused = h2.is_reset() && h2.reason() == Some(h2::Reason::REFUSED_STREAM);
+            return h2.is_remote() && (refused || h2.is_go_away());
+        }
+        cause = c.source();
+    }
+    false
 }
 
 /// Whether this error, returned by a placement, leaves the order's outcome
@@ -359,6 +382,9 @@ pub fn new_client_tag() -> String {
     let hex = uuid::Uuid::new_v4().simple().to_string();
     format!("oa{}", &hex[..16])
 }
+
+#[cfg(test)]
+mod h2_tests;
 
 #[cfg(test)]
 mod tests {

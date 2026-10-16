@@ -23,7 +23,7 @@ visible, and how the signing key is handled.
    | macOS Intel | `OpenAlgo.Desktop_<v>_x64.app.tar.gz` | replaces the `.app` |
    | Windows x64 | `OpenAlgo.Desktop_<v>_x64-setup.exe` | NSIS installer, passive mode, per-user |
    | Linux x64 | `OpenAlgo.Desktop_<v>_amd64.AppImage` | replaces the AppImage file |
-   | Raspberry Pi (arm64) | `OpenAlgo.Desktop_<v>_aarch64.AppImage` | replaces the AppImage file |
+   | Linux arm64 | `OpenAlgo.Desktop_<v>_aarch64.AppImage` | replaces the AppImage file |
 
    A `.deb` is never updated in place: the app tells a `.deb` install that a
    new version exists and links to the release page.
