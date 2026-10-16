@@ -241,7 +241,7 @@ impl Runner {
     ) -> Result<(), CloseFailure> {
         let info = &entry.info;
         loop {
-            self.refresh_orders(entry).await;
+            self.refresh_orders_until(entry, Some(deadline)).await;
             let rows = self
                 .read_own(info)
                 .map_err(|m| CloseFailure::pending(format!("{} {}", m, CLOSE_PENDING_TAIL)))?;
@@ -299,7 +299,7 @@ impl Runner {
     ) -> Result<(), CloseFailure> {
         let info = &entry.info;
         let services = self.services();
-        self.refresh_orders(entry).await;
+        self.refresh_orders_until(entry, Some(deadline)).await;
         // An order whose answer is not saved cannot be followed, so its fill
         // could not be counted: nothing is measured until it is saved.
         let unsaved: Vec<String> = entry
@@ -387,7 +387,7 @@ impl Runner {
     ) -> Result<(), CloseFailure> {
         let info = &entry.info;
         loop {
-            self.refresh_orders(entry).await;
+            self.refresh_orders_until(entry, Some(deadline)).await;
             let still: Vec<String> = self
                 .read_own(info)
                 .map_err(|m| CloseFailure::pending(format!("{} {}", m, CLOSE_PENDING_TAIL)))?

@@ -239,17 +239,15 @@ impl Drop for StreamGuard {
 // ----------------------------------------------------------------------
 
 /// RFC 6750 challenge (web `_unauthorized`): 401 for `invalid_token`, 403
-/// otherwise.
-pub fn unauthorized(ctx: &AppState, code: &str, description: &str) -> Response {
-    let base = public_url(ctx);
+/// otherwise. Unlike the web it names no `resource_metadata` (MCP-02): the
+/// desktop takes only tokens from the API Key page and serves no OAuth
+/// discovery, so a client following that link found the app's HTML page
+/// instead of "this token is not valid".
+pub fn unauthorized(code: &str, description: &str) -> Response {
     let mut challenge = format!("Bearer realm=\"openalgo-mcp\", error=\"{}\"", code);
     if !description.is_empty() {
         challenge.push_str(&format!(", error_description=\"{}\"", description));
     }
-    challenge.push_str(&format!(
-        ", resource_metadata=\"{}/.well-known/oauth-protected-resource\"",
-        base
-    ));
     let status = if code == "invalid_token" {
         StatusCode::UNAUTHORIZED
     } else {
@@ -264,15 +262,6 @@ pub fn unauthorized(ctx: &AppState, code: &str, description: &str) -> Response {
         resp.headers_mut().insert(header::WWW_AUTHENTICATE, v);
     }
     resp
-}
-
-fn public_url(ctx: &AppState) -> String {
-    ctx.sqlite
-        .conn()
-        .ok()
-        .and_then(|c| store::settings(&c).ok())
-        .map(|s| s.public_url.trim_end_matches('/').to_string())
-        .unwrap_or_default()
 }
 
 /// 503 with the token-error shape: the token was accepted, OpenAlgo is
@@ -405,7 +394,7 @@ fn token(
     use crate::server::middleware::{count_failure, failures_exhausted};
     use crate::server::ratelimit::Bucket;
     let Some(t) = bearer(headers) else {
-        return Err(unauthorized(ctx, "invalid_token", "Missing Bearer token.").into());
+        return Err(unauthorized("invalid_token", "Missing Bearer token.").into());
     };
     let found = ctx.sqlite.conn().and_then(|c| store::find_token(&c, &t));
     if !matches!(found, Ok(Some(_))) {
@@ -423,10 +412,10 @@ fn token(
             }
             Ok(row)
         }
-        Ok(None) => Err(unauthorized(ctx, "invalid_token", "").into()),
+        Ok(None) => Err(unauthorized("invalid_token", "").into()),
         Err(e) => {
             tracing::error!("MCP token check failed: {}", e);
-            Err(unauthorized(ctx, "invalid_token", "").into())
+            Err(unauthorized("invalid_token", "").into())
         }
     }
 }
@@ -585,6 +574,7 @@ pub async fn post(
                 "protocolVersion": PROTOCOL_VERSION,
                 "serverInfo": {"name": "openalgo", "version": env!("CARGO_PKG_VERSION")},
                 "capabilities": {"tools": {"listChanged": false}},
+                "instructions": super::instructions::instructions(),
             }),
         ),
         "ping" => rpc_result(&id, json!({})),
@@ -702,7 +692,6 @@ fn admit(call: &Call<'_>, tool: &ToolDef, scopes: &[Scope], id: &Value) -> Resul
         if !writes_on {
             call.audit("writes_disabled", 0);
             return Err(Box::new(unauthorized(
-                call.ctx,
                 "insufficient_scope",
                 WRITES_DISABLED_MESSAGE,
             )));

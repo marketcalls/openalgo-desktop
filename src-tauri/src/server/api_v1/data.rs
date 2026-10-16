@@ -1,6 +1,6 @@
 //! Market data and symbol endpoints.
 
-use super::{authorize, check, load, send, Auth, Style};
+use super::{authorize, check, load, query_map, send, Auth, Style};
 use crate::server::envelope::json_response;
 use crate::server::middleware::ClientIp;
 use crate::services::market_data_service as market;
@@ -112,19 +112,6 @@ pub async fn margin(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Re
         }
         Err(r) => r,
     }
-}
-
-/// Query string as the web's `request.args` (`None` for absent keys).
-fn query_map(raw: Option<String>) -> Map<String, Value> {
-    let pairs: Vec<(String, String)> = raw
-        .as_deref()
-        .and_then(|q| serde_urlencoded::from_str(q).ok())
-        .unwrap_or_default();
-    let mut m = Map::new();
-    for (k, v) in pairs {
-        m.entry(k).or_insert(Value::String(v));
-    }
-    m
 }
 
 fn text(status: StatusCode, content_type: &'static str, body: String) -> Response {

@@ -50,6 +50,17 @@ mod tests {
         );
     }
 
+    /// An admitted call that runs past RESEARCH_DEADLINE is stopped with
+    /// the timeout error (the research tools and get_instruments share it).
+    #[tokio::test(start_paused = true)]
+    async fn an_admitted_call_stops_at_its_deadline() {
+        let started = tokio::time::Instant::now();
+        let v = within_deadline(std::future::pending::<Value>(), "Stopped.").await;
+        assert_eq!(v["error"]["error_type"], "timeout");
+        assert_eq!(v["error"]["message"], "Stopped.");
+        assert_eq!(started.elapsed(), RESEARCH_DEADLINE);
+    }
+
     #[test]
     fn python_tail_slices() {
         assert_eq!(tail_start(5, 2), 3);

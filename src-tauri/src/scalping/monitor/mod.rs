@@ -49,6 +49,7 @@ use crate::brokers::common::symbols::SymbolResolver;
 use crate::clock::Clock;
 use crate::events::subscribers::socketio::UiEmitter;
 use crate::risk::{evaluate_position, BreachReason, PositionRisk, Side, TrailMode};
+use crate::services::freeze_qty_service::FreezeLimits;
 use crate::services::order_reconciler::AbsenceTracker;
 use crate::strategy::dispatch::{Book, BookOrder, OrderGateway, RunMode};
 use crate::strategy::tick_feed::{Key, PriceSource};
@@ -130,6 +131,7 @@ pub fn leg_risk(key: &str, s: &SlState) -> PositionRisk {
 /// chunking (cash venues). `Err` is a trader-facing refusal.
 pub fn exit_chunk(
     symbols: &SymbolResolver,
+    freeze: &FreezeLimits,
     symbol: &str,
     exchange: &str,
     quantity: i64,
@@ -145,9 +147,15 @@ pub fn exit_chunk(
     if quantity % lot != 0 {
         return Err(format!("quantity must be a whole number of lots ({})", lot));
     }
-    let raw = crate::services::symbol_service::freeze_qty_for_option(symbol, exchange);
-    let freeze = if raw > 0 { (raw / lot) * lot } else { 0 };
-    Ok(Some(if freeze > 0 { freeze } else { MAX_LOTS * lot }))
+    // A known limit is never exceeded by more than the exchange forces:
+    // one lot when the limit is below a lot (a trader's entry can be).
+    // `MAX_LOTS` lots only when no limit is known (web `split_chunk`).
+    let raw = freeze.for_option(symbol, exchange);
+    Ok(Some(if raw > 0 {
+        ((raw / lot) * lot).max(lot)
+    } else {
+        MAX_LOTS * lot
+    }))
 }
 
 /// Split `quantity` into orders of at most `chunk` (the last one smaller).
@@ -193,6 +201,8 @@ pub struct MonitorDeps {
     pub ui: Arc<dyn UiEmitter>,
     pub clock: Arc<dyn Clock>,
     pub symbols: SymbolResolver,
+    /// The freeze limits exits are split by.
+    pub freeze: FreezeLimits,
 }
 
 /// A stop's identity: its row and the version of its settings. A decision
@@ -258,6 +268,7 @@ pub struct RiskMonitor {
     ui: Arc<dyn UiEmitter>,
     clock: Arc<dyn Clock>,
     symbols: SymbolResolver,
+    freeze: FreezeLimits,
     inner: Mutex<Inner>,
     sync_wanted: Notify,
     tasks: Mutex<JoinSet<()>>,
@@ -300,6 +311,7 @@ impl RiskMonitor {
             ui: deps.ui,
             clock: deps.clock,
             symbols: deps.symbols,
+            freeze: deps.freeze,
             inner: Mutex::new(Inner::default()),
             sync_wanted: Notify::new(),
             tasks: Mutex::new(JoinSet::new()),
@@ -758,8 +770,13 @@ impl RiskMonitor {
             });
         }
         for (_key, sl, emit) in persists {
-            if let Err(e) = self.store.update_trail(&sl) {
-                tracing::debug!("Trailing stop for {} not saved: {}", sl.symbol, e);
+            // Off the async workers (DB-01): this runs on a tick, and a write
+            // waits for any other writer of the database.
+            let (store, row) = (self.store.clone(), sl.clone());
+            match tokio::task::spawn_blocking(move || store.update_trail(&row)).await {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => tracing::debug!("Trailing stop for {} not saved: {}", sl.symbol, e),
+                Err(e) => tracing::debug!("Trailing stop for {} not saved: {}", sl.symbol, e),
             }
             if emit {
                 self.ui.emit(SL_UPDATE_EVENT, update_payload(&sl)).await;

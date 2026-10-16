@@ -313,6 +313,7 @@ pub fn system_payload(
             "user_logged_in": user_logged_in,
         },
         "databases": db_snapshot(ctx),
+        "records": crate::services::record_loss::json(ctx),
         "time": {
             "server_time": chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             "server_tz": chrono::Local::now().format("%:z").to_string(),
@@ -568,6 +569,16 @@ const REPORT_SECTIONS: &[Section<'static>] = &[
         &[
             ("Active broker", "active_broker"),
             ("User logged in", "user_logged_in"),
+        ],
+    ),
+    (
+        "Records not saved since start",
+        "records",
+        &[
+            ("Order log entries dropped", "order_logs_dropped"),
+            ("Order log entries not written", "order_logs_failed"),
+            ("Monitoring records dropped", "monitoring_dropped"),
+            ("Monitoring records not saved", "monitoring_lost"),
         ],
     ),
     (

@@ -20,6 +20,7 @@
 
 pub mod auth;
 pub mod bridge;
+mod dialect;
 pub mod orders;
 pub mod outbox;
 pub mod protocol;

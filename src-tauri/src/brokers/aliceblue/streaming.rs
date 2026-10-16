@@ -725,6 +725,11 @@ impl BrokerFeed for AliceBlueFeed {
         true
     }
 
+    /// The relay opens the broker side before its ready frame comes.
+    fn auth_ack_deadline(&self) -> Option<Duration> {
+        Some(relay::READY_DEADLINE)
+    }
+
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
         for s in subs {
             self.subs.insert(

@@ -771,6 +771,36 @@ async fn intraday_strategies_are_squared_off_once_per_day() {
     assert_eq!(chartink.task_count(), 0, "worker and scheduler stopped");
 }
 
+/// ARCH-03: the computer slept across the square-off time. The square-off
+/// passed over still runs, late, in its own session (it was dropped past the
+/// five-minute grace, leaving the intraday positions open); one from an
+/// earlier session is not sent the next morning.
+#[tokio::test]
+async fn a_square_off_passed_over_in_sleep_runs_late_in_its_own_session() {
+    let h = H::new().await;
+    let (id, _) = strategy(&h, json!({"name": "intra", "start_time": "09:15", "end_time": "09:30", "squareoff_time": "09:40"})).await;
+    *h.mock.positions.lock() = Some(Ok(vec![position("SBIN", 10)]));
+    let now = h.ctx.now(); // 09:42 IST
+    let asleep = now - chrono::Duration::minutes(12);
+    assert!(h.ctx.chartink.run_due_squareoffs(asleep).is_empty());
+    let woke = now + chrono::Duration::minutes(50);
+    assert_eq!(h.ctx.chartink.run_due_squareoffs(woke), vec![id]);
+    assert_eq!(
+        wait_orders(&h, 1).await,
+        vec![("SBIN".into(), "SELL".into(), 10)]
+    );
+    assert!(h.ctx.chartink.run_due_squareoffs(woke).is_empty(), "once");
+    h.shutdown().await;
+
+    let h = H::new().await;
+    strategy(&h, json!({"name": "intra", "start_time": "09:15", "end_time": "09:30", "squareoff_time": "09:40"})).await;
+    let asleep = h.ctx.now() - chrono::Duration::minutes(12);
+    assert!(h.ctx.chartink.run_due_squareoffs(asleep).is_empty());
+    let next_morning = asleep + chrono::Duration::hours(24);
+    assert!(h.ctx.chartink.run_due_squareoffs(next_morning).is_empty());
+    h.shutdown().await;
+}
+
 #[tokio::test]
 async fn migration_backfills_legacy_rows() {
     let dir = tempfile::tempdir().unwrap();

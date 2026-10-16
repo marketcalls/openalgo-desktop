@@ -67,7 +67,7 @@ pub mod window;
 
 use crate::clock::Clock;
 use crate::db::sqlite::SqliteDb;
-use crate::strategy::dispatch::RunMode;
+use crate::strategy::dispatch::{OrderStatusResult, RunMode};
 use crate::trading::names::is_script_name;
 use crate::trading::scripts::ScriptStore;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
@@ -668,8 +668,33 @@ impl Runner {
 
     /// Read back every open order of a run and tell the page what changed.
     async fn refresh_orders(&self, entry: &RunEntry) {
-        self.flush_unsaved(entry);
+        self.refresh_orders_until(entry, None).await;
+    }
+
+    /// One order's status, or `None` when it could not be read before
+    /// `deadline`.
+    async fn status_until(
+        &self,
+        mode: RunMode,
+        oid: &str,
+        deadline: Option<Instant>,
+    ) -> Option<OrderStatusResult> {
         let services = self.services();
+        let read = services.order_status(mode, oid);
+        let Some(d) = deadline else {
+            return Some(read.await);
+        };
+        tokio::time::timeout(d.saturating_duration_since(Instant::now()), read)
+            .await
+            .ok()
+    }
+
+    /// [`Self::refresh_orders`], making no read past `deadline` (TIME-03): a
+    /// Stop's close budget bounds the whole close, not one pass of serial
+    /// status reads. The rows left unread stay as they were, which the close
+    /// reads as still working.
+    async fn refresh_orders_until(&self, entry: &RunEntry, deadline: Option<Instant>) {
+        self.flush_unsaved(entry);
         let read = self
             .db
             .conn()
@@ -694,7 +719,13 @@ impl Runner {
             let Some(oid) = o.orderid.clone() else {
                 continue;
             };
-            let read = services.order_status(entry.info.mode, &oid).await;
+            let Some(read) = self.status_until(entry.info.mode, &oid, deadline).await else {
+                tracing::info!(
+                    "The close of {} ran out of time while reading its orders",
+                    entry.info.run_id
+                );
+                return;
+            };
             if !read.ok {
                 continue;
             }

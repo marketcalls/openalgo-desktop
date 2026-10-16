@@ -1,6 +1,7 @@
 //! Web `blueprints/websocket_example.py`: what the in-app market data pages
 //! need to open their own connection to the feed server.
 
+use crate::config::ServerConfig;
 use crate::server::envelope::{error, json_response};
 use crate::server::middleware::User;
 use crate::server::routes::webui::{failed, ok};
@@ -20,13 +21,17 @@ type Ctx = State<Arc<AppState>>;
 /// otherwise the configured port on loopback, or, when the trader allowed
 /// other devices, on the host the page was loaded from.
 pub fn websocket_url(ctx: &AppState, headers: &HeaderMap) -> String {
-    let cfg = ctx.server_config();
+    let host = headers.get(header::HOST).and_then(|h| h.to_str().ok());
+    feed_url(&ctx.server_config(), host)
+}
+
+/// [`websocket_url`] from the settings and the page's `Host` header; also
+/// what the served Content Security Policy admits (`server::csp`, UI-07).
+pub(crate) fn feed_url(cfg: &ServerConfig, host_header: Option<&str>) -> String {
     if let Some(u) = cfg.websocket_url.clone() {
         return u;
     }
-    let host = headers
-        .get(header::HOST)
-        .and_then(|h| h.to_str().ok())
+    let host = host_header
         .map(|h| {
             if let Some(rest) = h.strip_prefix('[') {
                 rest.split(']')

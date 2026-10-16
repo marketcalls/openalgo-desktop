@@ -174,6 +174,10 @@ fn setup(app: &mut tauri::App) -> std::result::Result<(), Box<dyn std::error::Er
     }
 
     updater::start(app, &ctx);
+    #[cfg(target_os = "macos")]
+    if let Err(e) = commands::quit::route_menu_quit(app) {
+        tracing::warn!("Quit in the app menu will not ask first: {}", e);
+    }
 
     let url = main_window_url(&ctx, server.is_some());
     open_main_window(app, &ctx, url)?;
@@ -197,6 +201,8 @@ async fn start_services(
     services::system_info::mark_start();
     services::monitor::start(ctx);
     services::health_service::start(ctx);
+    // Sleep and wake: feeds reconnect and orders are checked (owned task).
+    services::lifecycle::wake::start(ctx);
     let server = server::start(ctx.clone()).await.ok();
     // Recovery, prices, checkpoints and the IST scheduler (owned
     // tasks, stopped by `AppState::shutdown`).
@@ -277,10 +283,22 @@ fn set_runner_host(app: &tauri::App, ctx: &Arc<AppState>) {
         )));
 }
 
-/// Hidden runner windows would keep the app alive after the trader closes
-/// the main window: pause the runs (closing their windows) so the app exits
-/// as it always has. On exit, stop everything.
+/// Closing the main window first asks the trader when Live or sandbox
+/// work would stop being watched (ARCH-03). Hidden runner windows would
+/// keep the app alive after the trader closes the main window: pause the
+/// runs (closing their windows) so the app exits as it always has. On
+/// exit, stop everything.
 fn on_run_event(handle: &tauri::AppHandle, event: RunEvent) {
+    if let RunEvent::WindowEvent {
+        label,
+        event: tauri::WindowEvent::CloseRequested { api, .. },
+        ..
+    } = &event
+    {
+        if label == "main" && commands::quit::hold_close(handle) {
+            api.prevent_close();
+        }
+    }
     if let RunEvent::WindowEvent {
         label,
         event: tauri::WindowEvent::Destroyed,
