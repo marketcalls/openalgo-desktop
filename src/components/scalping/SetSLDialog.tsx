@@ -28,8 +28,10 @@ interface SetSLDialogProps {
   quantity: number
   ltp?: number
   existing?: SLState
-  onSave: (sl: SLState) => void
-  onClear?: () => void
+  // Desktop change (UI-02): the dialog stays open until the save or the
+  // removal is acknowledged; `false` means it failed and the trader was told.
+  onSave: (sl: SLState) => Promise<boolean>
+  onClear?: () => Promise<boolean>
 }
 
 export function SetSLDialog({
@@ -49,6 +51,7 @@ export function SetSLDialog({
   const [trailingEnabled, setTrailingEnabled] = useState(false)
   const [trailingStep, setTrailingStep] = useState('')
   const [targetPrice, setTargetPrice] = useState('')
+  const [saving, setSaving] = useState(false)
 
   // Seed fields when the dialog opens.
   useEffect(() => {
@@ -99,7 +102,7 @@ export function SetSLDialog({
       ? 'Trailing step must be greater than 0'
       : ''
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!leg) return
     const sl = Number(stoploss)
     if (!Number.isFinite(sl) || sl <= 0) return
@@ -109,7 +112,8 @@ export function SetSLDialog({
     const step = Number(trailingStep)
     const tgt = Number(targetPrice)
     const entry = entryPrice > 0 ? entryPrice : (ltp ?? 0)
-    onSave({
+    setSaving(true)
+    const saved = await onSave({
       symbol: leg.symbol,
       exchange: leg.exchange,
       product,
@@ -125,7 +129,8 @@ export function SetSLDialog({
       target: Number.isFinite(tgt) && tgt > 0 ? tgt : 0,
       active: true,
     })
-    onOpenChange(false)
+    setSaving(false)
+    if (saved) onOpenChange(false)
   }
 
   return (
@@ -219,9 +224,12 @@ export function SetSLDialog({
           {existing && onClear && (
             <Button
               variant="outline"
-              onClick={() => {
-                onClear()
-                onOpenChange(false)
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true)
+                const cleared = await onClear()
+                setSaving(false)
+                if (cleared) onOpenChange(false)
               }}
             >
               Clear SL
@@ -233,7 +241,12 @@ export function SetSLDialog({
           <Button
             onClick={handleSave}
             disabled={
-              quantity <= 0 || !stoploss || !!directionError || !!targetError || !!trailingError
+              saving ||
+              quantity <= 0 ||
+              !stoploss ||
+              !!directionError ||
+              !!targetError ||
+              !!trailingError
             }
           >
             Save

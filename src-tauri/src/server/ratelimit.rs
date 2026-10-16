@@ -59,6 +59,8 @@ fn request_window(bucket: Bucket, ip: &IpAddr) -> bool {
                     | Bucket::Guard
                     | Bucket::StrategyWebhook
                     | Bucket::ChartinkWebhook
+                    | Bucket::Telegram
+                    | Bucket::TelegramBroadcast
             ))
 }
 
@@ -108,6 +110,12 @@ pub enum Bucket {
     /// address, caller outside the allowlist) by caller. Spent, it refuses
     /// further invalid attempts early; never a valid webhook address.
     WebhookFail,
+    /// `/api/v1/telegram/*` but the webhook and broadcast (web
+    /// `TELEGRAM_RATE_LIMIT`, 30 per minute).
+    Telegram,
+    /// `/api/v1/telegram/broadcast` (web, 5 per minute): a script cannot
+    /// flood the linked chats.
+    TelegramBroadcast,
 }
 
 impl Bucket {
@@ -121,6 +129,8 @@ impl Bucket {
             Bucket::Guard => (1000, Duration::from_secs(1)),
             Bucket::StrategyWebhook | Bucket::ChartinkWebhook => (100, Duration::from_secs(60)),
             Bucket::WebhookFail => (10, Duration::from_secs(60)),
+            Bucket::Telegram => (30, Duration::from_secs(60)),
+            Bucket::TelegramBroadcast => (5, Duration::from_secs(60)),
         }
     }
 
@@ -143,6 +153,10 @@ impl Bucket {
             | "placegttorder" | "modifygttorder" | "cancelgttorder" => Bucket::Order,
             // Web `API_RATE_LIMIT` (10 per second) on the strategy routes.
             p if p.starts_with("strategy/") => Bucket::Order,
+            // Web `restx_api/telegram_bot.py`; the webhook has no limit there.
+            "telegram/broadcast" => Bucket::TelegramBroadcast,
+            "telegram/webhook" => Bucket::Api,
+            p if p.starts_with("telegram/") => Bucket::Telegram,
             _ => Bucket::Api,
         }
     }
@@ -752,6 +766,20 @@ mod tests {
             Bucket::SmartOrder
         );
         assert_eq!(Bucket::for_api_path("/api/v1/funds"), Bucket::Api);
+        assert_eq!(
+            Bucket::for_api_path("/api/v1/telegram/notify"),
+            Bucket::Telegram
+        );
+        assert_eq!(
+            Bucket::for_api_path("/api/v1/telegram/broadcast"),
+            Bucket::TelegramBroadcast
+        );
+        assert_eq!(
+            Bucket::for_api_path("/api/v1/telegram/webhook"),
+            Bucket::Api
+        );
+        assert_eq!(Bucket::Telegram.describe(), "30 per 1 minute");
+        assert_eq!(Bucket::TelegramBroadcast.describe(), "5 per 1 minute");
         assert_eq!(Bucket::Order.describe(), "10 per 1 second");
         assert_eq!(Bucket::Api.describe(), "100 per 1 second");
     }

@@ -202,19 +202,10 @@ async fn run(ctx: &Arc<AppState>, name: &str, a: &Args) -> Output {
     if let Some(out) = run_utility(name) {
         return out;
     }
-    match name {
-        "get_historical_data"
-        | "calculate_indicator"
-        | "get_trend_snapshot"
-        | "get_momentum_snapshot"
-        | "get_volatility_snapshot"
-        | "get_support_resistance"
-        | "detect_signals"
-        | "screen_instruments"
-        | "multi_timeframe_analysis"
-        | "correlation_beta" => research::run(ctx, name, a).await.into(),
-        other => error(format!("unknown tool '{}'", other), &[]).into(),
+    if research::RESEARCH_TOOLS.contains(&name) {
+        return research::run(ctx, name, a).await.into();
     }
+    error(format!("unknown tool '{}'", name), &[]).into()
 }
 
 /// Placing orders: regular, smart, basket and split; `None` for a tool of
@@ -697,10 +688,16 @@ async fn run_calendar(ctx: &Arc<AppState>, name: &str, a: &Args) -> Option<Outpu
             present(a, "exchange").map(|_| st(a, "exchange")),
         )
         .into(),
-        // Up to nine large fetches: admitted like a research call.
+        // Up to nine large fetches: admitted and bounded like a research
+        // call, so it ends within research::LONGEST_RUN (TIME-04).
         "get_instruments" => match research::admit(ctx, name, a).await {
             // The canonical arguments the limits were checked on.
-            Ok(admission) => instruments(ctx, &admission.args).await.into(),
+            Ok(admission) => research::within_deadline(
+                instruments(ctx, &admission.args),
+                "Listing instruments took too long and was stopped. Ask for one exchange at a time.",
+            )
+            .await
+            .into(),
             Err(refused) => refused.into(),
         },
         _ => return None,

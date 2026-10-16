@@ -15,6 +15,7 @@ use crate::brokers::types::{GttOrder, GttRequest, GttTriggerType, QuoteKey};
 use crate::error::AppError;
 use crate::events::{Event, GttKind};
 use crate::sandbox::types::dec_from_f64;
+use crate::services::latency_probe::broker_call;
 use crate::state::AppState;
 use serde_json::{json, Value};
 
@@ -169,7 +170,7 @@ pub async fn place_gtt_with(ctx: &AppState, req: &Value, route: Route) -> Reply 
         return reply;
     }
     let result = match broker_gtt(req) {
-        Ok(g) => h.broker.place_gtt(&h.auth, &g).await,
+        Ok(g) => broker_call(&h.id, h.broker.place_gtt(&h.auth, &g)).await,
         Err(e) => Err(e),
     };
     let reply = match result {
@@ -256,7 +257,7 @@ pub async fn modify_gtt_with(ctx: &AppState, req: &Value, route: Route) -> Reply
         return reply;
     }
     let result = match broker_gtt(req) {
-        Ok(g) => h.broker.modify_gtt(&h.auth, &trigger_id, &g).await,
+        Ok(g) => broker_call(&h.id, h.broker.modify_gtt(&h.auth, &trigger_id, &g)).await,
         Err(e) => Err(e),
     };
     let reply = match result {
@@ -345,7 +346,7 @@ pub async fn cancel_gtt_with(ctx: &AppState, req: &Value, route: Route) -> Reply
         );
         return reply;
     }
-    let reply = match h.broker.cancel_gtt(&h.auth, &trigger_id).await {
+    let reply = match broker_call(&h.id, h.broker.cancel_gtt(&h.auth, &trigger_id)).await {
         Ok(_) => Reply::ok(json!({"status": "success", "trigger_id": trigger_id})),
         Err(e) => live_error(&e, "Failed to cancel GTT due to internal error", &h.id),
     };

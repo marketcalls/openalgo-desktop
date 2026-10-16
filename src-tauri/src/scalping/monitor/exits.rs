@@ -363,7 +363,7 @@ impl RiskMonitor {
             Err(outcome) => return outcome,
         };
         let action = if net > 0 { "SELL" } else { "BUY" };
-        let chunk = match exit_chunk(&self.symbols, &sl.symbol, &sl.exchange, qty) {
+        let chunk = match exit_chunk(&self.symbols, &self.freeze, &sl.symbol, &sl.exchange, qty) {
             Ok(c) => c,
             Err(e) => return ExitOutcome::Refused(e),
         };

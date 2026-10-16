@@ -44,6 +44,9 @@ struct Registered {
     topics: HashSet<Topic>,
     lane: Lane,
     tx: mpsc::Sender<Arc<Event>>,
+    /// Events this subscriber never received because its queue was full
+    /// (OBS-01: the log subscriber's are order log entries never written).
+    dropped: AtomicU64,
 }
 
 #[derive(Debug, Default)]
@@ -80,6 +83,8 @@ pub struct QueueDepth {
     pub lane: Lane,
     pub depth: usize,
     pub capacity: usize,
+    /// Events shed because this queue was full, since start.
+    pub dropped: u64,
 }
 
 pub struct EventBus {
@@ -191,6 +196,7 @@ impl EventBus {
                 lane: s.lane,
                 depth: s.tx.max_capacity() - s.tx.capacity(),
                 capacity: s.tx.max_capacity(),
+                dropped: s.dropped.load(Ordering::Relaxed),
             })
             .collect()
     }
@@ -246,6 +252,7 @@ impl EventBus {
             topics: sub.topics().into_iter().collect(),
             lane,
             tx,
+            dropped: AtomicU64::new(0),
         });
         tracing::debug!("EventBus: subscribed '{}' ({:?} lane)", name, lane);
     }
@@ -260,29 +267,7 @@ impl EventBus {
         for s in subs.iter().filter(|s| s.topics.contains(&topic)) {
             match s.tx.try_send(ev.clone()) {
                 Ok(()) => delivered += 1,
-                Err(mpsc::error::TrySendError::Full(_)) => match s.lane {
-                    Lane::BestEffort => {
-                        let n = self.stats.dropped.fetch_add(1, Ordering::Relaxed) + 1;
-                        if n == 1 || n.is_multiple_of(100) {
-                            tracing::warn!(
-                                "EventBus at capacity; dropped '{}' for '{}'. {} dropped since start.",
-                                topic.as_str(),
-                                s.name,
-                                n
-                            );
-                        }
-                    }
-                    Lane::Critical => {
-                        let n = self.stats.critical_dropped.fetch_add(1, Ordering::Relaxed) + 1;
-                        tracing::error!(
-                            "EventBus critical lane full; '{}' did not receive '{}'. {} critical drops since start.",
-                            s.name,
-                            topic.as_str(),
-                            n
-                        );
-                        self.report_fact_loss(FactLoss::Event);
-                    }
-                },
+                Err(mpsc::error::TrySendError::Full(_)) => self.shed(s, topic),
                 Err(mpsc::error::TrySendError::Closed(_)) => {
                     self.stats.closed_sends.fetch_add(1, Ordering::Relaxed);
                     if s.lane == Lane::Critical {
@@ -297,6 +282,35 @@ impl EventBus {
             }
         }
         delivered
+    }
+
+    /// `s`'s queue is full: the event is shed and counted, for the
+    /// subscriber and its lane. A critical drop may have lost an order fact.
+    fn shed(&self, s: &Registered, topic: Topic) {
+        s.dropped.fetch_add(1, Ordering::Relaxed);
+        match s.lane {
+            Lane::BestEffort => {
+                let n = self.stats.dropped.fetch_add(1, Ordering::Relaxed) + 1;
+                if n == 1 || n.is_multiple_of(100) {
+                    tracing::warn!(
+                        "EventBus at capacity; dropped '{}' for '{}'. {} dropped since start.",
+                        topic.as_str(),
+                        s.name,
+                        n
+                    );
+                }
+            }
+            Lane::Critical => {
+                let n = self.stats.critical_dropped.fetch_add(1, Ordering::Relaxed) + 1;
+                tracing::error!(
+                    "EventBus critical lane full; '{}' did not receive '{}'. {} critical drops since start.",
+                    s.name,
+                    topic.as_str(),
+                    n
+                );
+                self.report_fact_loss(FactLoss::Event);
+            }
+        }
     }
 
     /// Close every queue, give workers `grace` to drain, abort the rest.
@@ -395,6 +409,42 @@ mod tests {
         );
         assert_eq!(bus.publish(ev(1)), 1);
         bus.shutdown(Duration::from_secs(5)).await;
+    }
+
+    struct Named(&'static str);
+
+    #[async_trait::async_trait]
+    impl Subscriber for Named {
+        fn name(&self) -> &'static str {
+            self.0
+        }
+        fn topics(&self) -> Vec<Topic> {
+            vec![Topic::ForceLogout]
+        }
+        async fn handle(&self, _event: Arc<Event>) {}
+    }
+
+    /// OBS-01: each subscriber's shed events are counted on their own, so
+    /// health can say whose events (the order log's) were lost.
+    #[tokio::test]
+    async fn shed_events_are_counted_per_subscriber() {
+        let bus = EventBus::with_caps(4, 100);
+        bus.subscribe(Arc::new(Named("log")), Lane::BestEffort);
+        bus.subscribe(Arc::new(Named("socketio")), Lane::Critical);
+        // No await between publishes: the workers have not run, so the
+        // best-effort queue holds 4 and sheds the other 6.
+        for i in 0..10 {
+            bus.publish(ev(i));
+        }
+        let by_name: std::collections::HashMap<_, _> = bus
+            .queue_depths()
+            .into_iter()
+            .map(|q| (q.name, q.dropped))
+            .collect();
+        assert_eq!(by_name["log"], 6);
+        assert_eq!(by_name["socketio"], 0);
+        assert_eq!(bus.stats().dropped.load(Ordering::Relaxed), 6);
+        bus.shutdown(Duration::from_secs(1)).await;
     }
 
     #[tokio::test]

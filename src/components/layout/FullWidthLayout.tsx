@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router'
+import { ModeSync } from '@/components/desktop/ModeSync'
 import { UpdateNotice } from '@/components/desktop/UpdateNotice'
 import { SocketProvider } from '@/components/socket/SocketProvider'
 import { layoutRedirect } from '@/lib/desktop'
@@ -25,6 +26,8 @@ export function FullWidthLayout() {
         <Outlet />
         {/* Desktop: the in-app update banner and dialog. */}
         <UpdateNotice />
+        {/* Desktop: the Live/Analyze mode follows the server's (UI-01). */}
+        <ModeSync />
       </div>
     </SocketProvider>
   )
