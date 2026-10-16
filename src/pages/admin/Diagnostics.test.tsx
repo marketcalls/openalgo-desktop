@@ -7,7 +7,7 @@ import {
   EVENTLET_DEFAULT,
   GTHREAD_BUSY,
 } from '@/test/runtimeReports'
-import type { SystemInfo, SystemRuntime } from '@/types/admin'
+import type { SystemHost, SystemInfo, SystemRuntime } from '@/types/admin'
 
 const api = vi.hoisted(() => ({
   getSystemInfo: vi.fn(),
@@ -51,17 +51,22 @@ function systemInfo(runtime: SystemRuntime): SystemInfo {
   }
 }
 
-async function renderWith(runtime: SystemRuntime) {
-  api.getSystemInfo.mockResolvedValue(systemInfo(runtime))
+/** Renders the page on `info` and returns the card with this title. */
+async function renderCard(info: SystemInfo, title: string) {
+  api.getSystemInfo.mockResolvedValue(info)
   render(
     <MemoryRouter>
       <Diagnostics />
     </MemoryRouter>
   )
-  const title = await screen.findByText('Web server', { selector: '[data-slot="card-title"]' })
-  const card = title.closest<HTMLElement>('[data-slot="card"]')
-  if (!card) throw new Error('Web server card not found')
+  const heading = await screen.findByText(title, { selector: '[data-slot="card-title"]' })
+  const card = heading.closest<HTMLElement>('[data-slot="card"]')
+  if (!card) throw new Error(`${title} card not found`)
   return within(card)
+}
+
+function renderWith(runtime: SystemRuntime) {
+  return renderCard(systemInfo(runtime), 'Web server')
 }
 
 /** The value shown beside a label in the card. */
@@ -127,5 +132,42 @@ describe('Diagnostics web server card', () => {
     await renderWith(GTHREAD_BUSY)
     const label = screen.getByText('Process uptime', { selector: 'span' })
     expect(label.nextElementSibling?.textContent).toBe('5 h 12 min')
+  })
+})
+
+describe('Diagnostics host card', () => {
+  const hostCard = (host: SystemHost) =>
+    renderCard({ ...systemInfo(EVENTLET_DEFAULT), host }, 'Host')
+
+  it('tells a Raspberry Pi user the desktop app does not support it and to use OpenAlgo web', async () => {
+    const card = await hostCard({
+      system: 'Linux',
+      machine: 'aarch64',
+      in_docker: false,
+      is_raspberry_pi: true,
+      rpi_model: 'Raspberry Pi 5 Model B Rev 1.0',
+    })
+    // The model stays on the page and in a support request.
+    expect(shownFor(card, 'Raspberry Pi')).toBe('Raspberry Pi 5 Model B Rev 1.0')
+    const note = card.getByRole('note', { name: 'Raspberry Pi not supported' })
+    expect(note).toHaveTextContent(
+      'OpenAlgo Desktop does not support Raspberry Pi. Run OpenAlgo web on your Pi instead.'
+    )
+    expect(within(note).getByRole('link', { name: 'OpenAlgo web' })).toHaveAttribute(
+      'href',
+      'https://github.com/marketcalls/openalgo'
+    )
+  })
+
+  it('says nothing about a Raspberry Pi on other ARM64 Linux', async () => {
+    const card = await hostCard({
+      system: 'Linux',
+      machine: 'aarch64',
+      in_docker: false,
+      is_raspberry_pi: false,
+      rpi_model: null,
+    })
+    expect(card.queryByText('Raspberry Pi', { selector: 'span' })).toBeNull()
+    expect(card.queryByRole('note')).toBeNull()
   })
 })

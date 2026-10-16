@@ -1,6 +1,7 @@
 //! One client connection: the handshake, its place in a connection pool, the
 //! session loop and the close (web `websocket_proxy/server.py`).
 
+use super::budget::Meter;
 use super::session::Session;
 use super::{
     credentials_moved, handshake_source, release_connection, ws_config, Shared, AUTH_TIMEOUT_CODE,
@@ -198,9 +199,11 @@ async fn take_pool_place(
     true
 }
 
-/// One frame from the client: an oversized one closes with 1009, the
-/// rest are handled by the session. A client that authenticates while the
-/// credentials change is closed. True when the connection is now closing.
+/// One frame from the client: an oversized one closes with 1009, one over
+/// the connection's budget with 1008 (RATE-01), both before it is parsed;
+/// the rest are handled by the session. A client that authenticates while
+/// the credentials change is closed. True when the connection is now
+/// closing.
 async fn on_frame(
     session: &mut Session,
     msg: Message,
@@ -211,6 +214,14 @@ async fn on_frame(
     if msg.len() > max_message_bytes {
         // Over the message size limit: close 1009 as the web does.
         outbox.close(1009, "message too big");
+        return true;
+    }
+    if !session.meter.admit(msg.len(), Instant::now()) {
+        tracing::warn!(
+            "Feed client {} sent more messages than it may; closing",
+            session.id
+        );
+        outbox.close(1008, "too many messages");
         return true;
     }
     // What the credentials were before this message: a client
@@ -321,6 +332,7 @@ fn new_session(
         outbox: outbox.clone(),
         user_id: None,
         broker: None,
+        meter: Meter::new(shared.cfg.frame_budget, Instant::now()),
     }
 }
 

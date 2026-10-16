@@ -103,6 +103,17 @@ strong password and turn on two-factor login on the **TOTP** tab in Profile.
 
 Your own scripts, Amibroker and Excel on the same computer need no tunnel.
 
+## The market data feed
+
+The feed on port 8765 speaks the web's protocol. Where it behaves
+differently, it is on purpose:
+
+- **A message budget.** A connection that sends thousands of messages a
+  second, or megabytes of them, is closed (code 1008) before they are
+  read. Subscribing every instrument in one message, or one per message
+  as a script loop does, stays far inside it. The web reads without a
+  limit.
+
 ## What OpenAlgo Desktop does not have
 
 - The Python Strategy Host. Python strategies still work as ordinary scripts

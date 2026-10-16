@@ -37,7 +37,7 @@ Choose **Update** in the update window. OpenAlgo then:
 | --- | --- |
 | macOS | Replaces OpenAlgo Desktop in your Applications folder. If it lives where your account cannot write, macOS asks for an administrator password. |
 | Windows | Runs the new installer in passive mode (a progress window, no questions) for your user only, then starts OpenAlgo again. |
-| Linux AppImage, Raspberry Pi | Replaces the `.AppImage` file you started, then starts it again. |
+| Linux AppImage (x64 or ARM64) | Replaces the `.AppImage` file you started, then starts it again. |
 | Linux `.deb` | Not updated in place; see below. |
 
 Your account, settings, broker keys, strategies, sandbox data and Historify

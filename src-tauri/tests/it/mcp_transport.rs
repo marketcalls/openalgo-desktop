@@ -183,6 +183,7 @@ async fn stdio_bridge_speaks_mcp_to_the_running_app() {
     let init = line(&mut cr).await;
     assert_eq!(init["result"]["serverInfo"]["name"], "openalgo", "{}", init);
     assert!(init["result"]["capabilities"]["tools"].is_object());
+    crate::mcp_support::assert_initialize_discloses_limits(&init);
     send(
         &mut cw,
         json!({"jsonrpc": "2.0", "method": "notifications/initialized"}),

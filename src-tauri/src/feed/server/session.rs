@@ -28,6 +28,8 @@ pub(super) struct Session {
     pub(super) outbox: Arc<Outbox>,
     pub(super) user_id: Option<String>,
     pub(super) broker: Option<String>,
+    /// What the client may still send before it is closed (RATE-01).
+    pub(super) meter: super::budget::Meter,
 }
 
 fn now_ms() -> i64 {

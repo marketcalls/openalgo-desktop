@@ -239,6 +239,9 @@ fn hardware(ctx: &AppState) -> Value {
     })
 }
 
+/// The Raspberry Pi model from the device tree, or `None` on anything else.
+/// The desktop app does not support the Pi (Pi users run OpenAlgo web); the
+/// model is still detected so Diagnostics can say so and a report shows it.
 fn is_raspberry_pi() -> Option<String> {
     if !cfg!(target_os = "linux") {
         return None;
