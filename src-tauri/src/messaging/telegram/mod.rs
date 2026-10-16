@@ -17,6 +17,7 @@ pub mod api;
 pub mod bot;
 pub mod chart;
 pub mod db;
+pub mod manage;
 pub mod page;
 mod texts;
 

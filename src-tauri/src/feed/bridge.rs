@@ -36,7 +36,7 @@ use crate::brokers::common::streaming::{
     FeedEvent, FeedMode, FeedSubscription, MarketEvent, NormalizedDepth, NormalizedTick,
 };
 use crate::brokers::common::symbols::SymbolResolver;
-use crate::websocket::WebSocketManager;
+use crate::websocket::{FeedStatus, WebSocketManager};
 use parking_lot::Mutex;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -46,6 +46,14 @@ use tokio::task::JoinSet;
 
 /// Capacity of the update channel between the bridge and feed servers.
 pub const BRIDGE_UPDATE_CAP: usize = 8192;
+
+/// A subscribe item's error when the session's broker has no live feed in
+/// the desktop (WS-01).
+pub const NO_LIVE_FEED: &str =
+    "This broker has no live market data feed in OpenAlgo Desktop, so nothing can be streamed.";
+/// A subscribe item's error when the session's live feed did not start.
+pub const FEED_NOT_STARTED: &str = "The live market data feed did not start for this broker \
+session. Log in to your broker again to resume streaming.";
 
 /// One desired manager reference.
 pub type DesiredKey = (InstrumentKey, Mode, u8);
@@ -99,6 +107,9 @@ pub struct BrokerBridge {
     state: Arc<Mutex<State>>,
     changed: Arc<Notify>,
     depths: Mutex<DepthCapability>,
+    /// Why this session's feed cannot stream (it has none, or it did not
+    /// start); cleared by `reset`.
+    unavailable: Mutex<Option<&'static str>>,
     tasks: Mutex<Option<JoinSet<()>>>,
 }
 
@@ -131,6 +142,7 @@ impl BrokerBridge {
             state: Arc::new(Mutex::new(State::default())),
             changed: Arc::new(Notify::new()),
             depths: Mutex::new(Arc::new(|_| vec![DEFAULT_DEPTH])),
+            unavailable: Mutex::new(None),
             tasks: Mutex::new(None),
         })
     }
@@ -139,6 +151,12 @@ impl BrokerBridge {
     /// login; the default is 5 levels everywhere, as on the web).
     pub fn set_depth_capability(&self, f: DepthCapability) {
         *self.depths.lock() = f;
+    }
+
+    /// Record that this session's feed cannot stream ([`NO_LIVE_FEED`],
+    /// [`FEED_NOT_STARTED`]): subscribes are refused with it until `reset`.
+    pub fn set_unavailable(&self, reason: &'static str) {
+        *self.unavailable.lock() = Some(reason);
     }
 
     /// Route Depth subscriptions for `levels` to the depth manager (`None`:
@@ -181,6 +199,7 @@ impl BrokerBridge {
             st.last_tick.clear();
         }
         *self.deep.lock() = None;
+        *self.unavailable.lock() = None;
         self.set_depth_capability(Arc::new(|_| vec![DEFAULT_DEPTH]));
     }
 
@@ -523,6 +542,16 @@ impl MarketDataSource for BrokerBridge {
         let f = self.depths.lock().clone();
         f(exchange)
     }
+
+    /// The broker refused the feed (it stays down until the next sign-in,
+    /// which closes every authenticated feed client anyway), or this
+    /// session's feed has none or did not start.
+    fn unavailable(&self) -> Option<String> {
+        if let FeedStatus::AuthFailed { message, .. } = self.manager.status() {
+            return Some(message);
+        }
+        self.unavailable.lock().map(String::from)
+    }
 }
 
 #[cfg(test)]
@@ -570,6 +599,18 @@ mod tests {
         assert_eq!((q.total_buy_quantity, q.volume), (7, 10));
         assert_eq!(u.ltt, Some(1_791_000_000_000));
         assert_eq!(u.depth.unwrap().buy.len(), 5);
+    }
+
+    /// WS-01: a session's "cannot stream" lasts until the session ends
+    /// (`reset`), and a refused broker feed reads from the manager.
+    #[test]
+    fn unavailable_until_the_session_is_reset() {
+        let bridge = BrokerBridge::new(Arc::new(WebSocketManager::new()), SymbolResolver::new());
+        assert_eq!(bridge.unavailable(), None);
+        bridge.set_unavailable(NO_LIVE_FEED);
+        assert_eq!(bridge.unavailable().as_deref(), Some(NO_LIVE_FEED));
+        bridge.reset();
+        assert_eq!(bridge.unavailable(), None);
     }
 
     #[test]

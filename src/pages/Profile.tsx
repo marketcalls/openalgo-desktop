@@ -3,34 +3,28 @@ import {
   AlertTriangle,
   ArrowLeft,
   Bell,
-  Bug,
   Check,
-  CheckCircle2,
   Copy,
-  FileWarning,
-  FolderCheck,
   Key,
   Lock,
-  Mail,
   Moon,
   Palette,
   RefreshCw,
   RotateCcw,
-  Send,
   Shield,
   Sun,
   User,
   Volume2,
   VolumeX,
-  Wrench,
   X,
-  XCircle,
 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { type BrokerList, brokerConfigApi } from '@/api/broker-config'
 import { webClient } from '@/api/client'
 import TwoFactorEnforcement from '@/components/auth/TwoFactorEnforcement'
+// Desktop: where the web's SMTP and System tabs are answered instead.
+import { ProfileDesktopNote } from '@/components/desktop/ProfileDesktopNote'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -140,30 +134,6 @@ interface BrokerCredentials {
     websocket: { host: string; port: string }
     zmq: { host: string; port: string }
   }
-}
-
-interface PermissionCheck {
-  path: string
-  full_path: string
-  description: string
-  exists: boolean
-  expected_mode: string
-  expected_rwx: string
-  actual_mode: string | null
-  actual_rwx: string | null
-  is_correct: boolean
-  is_sensitive: boolean
-  is_directory?: boolean
-  issue: string | null
-  warning: string | null
-}
-
-interface PermissionsData {
-  platform: string
-  base_path: string
-  is_windows: boolean
-  all_correct: boolean
-  checks: PermissionCheck[]
 }
 
 // Toast position options
@@ -283,24 +253,6 @@ export default function ProfilePage() {
   })
   const [isChangingPassword, setIsChangingPassword] = useState(false)
 
-  // SMTP form state
-  const [smtpServer, setSmtpServer] = useState('smtp.gmail.com')
-  const [smtpPort, setSmtpPort] = useState('587')
-  const [smtpUsername, setSmtpUsername] = useState('')
-  const [smtpPassword, setSmtpPassword] = useState('')
-  const [smtpFromEmail, setSmtpFromEmail] = useState('')
-  const [smtpHeloHostname, setSmtpHeloHostname] = useState('smtp.gmail.com')
-  const [smtpUseTls, setSmtpUseTls] = useState(true)
-  const [isSavingSmtp, setIsSavingSmtp] = useState(false)
-  const [testEmail, setTestEmail] = useState('')
-  const [isSendingTest, setIsSendingTest] = useState(false)
-  const [isDebugging, setIsDebugging] = useState(false)
-  const [debugResult, setDebugResult] = useState<{
-    success: boolean
-    message: string
-    details?: string[]
-  } | null>(null)
-
   // Broker credentials state
   const [brokerCredentials, setBrokerCredentials] = useState<BrokerCredentials | null>(null)
   // Desktop: the brokers with saved keys and the one logged in, for the
@@ -312,11 +264,6 @@ export default function ProfilePage() {
   const [websocketUrl, setWebsocketUrl] = useState('')
   const [isSavingNgrok, setIsSavingNgrok] = useState(false)
   const [showRestartDialog, setShowRestartDialog] = useState(false)
-
-  // Permissions state
-  const [permissionsData, setPermissionsData] = useState<PermissionsData | null>(null)
-  const [isLoadingPermissions, setIsLoadingPermissions] = useState(false)
-  const [isFixingPermissions, setIsFixingPermissions] = useState(false)
 
   // Check if in analyzer mode (theme changes blocked)
   const isAnalyzerMode = appMode === 'analyzer'
@@ -336,18 +283,6 @@ export default function ProfilePage() {
       )
       if (response.data.status === 'success') {
         setProfileData(response.data.data)
-
-        // Populate SMTP form with existing settings
-        const smtp = response.data.data.smtp_settings
-        if (smtp) {
-          setSmtpServer(smtp.smtp_server || 'smtp.gmail.com')
-          setSmtpPort(String(smtp.smtp_port || 587))
-          setSmtpUsername(smtp.smtp_username || '')
-          setSmtpFromEmail(smtp.smtp_from_email || '')
-          setSmtpHeloHostname(smtp.smtp_helo_hostname || 'smtp.gmail.com')
-          setSmtpUseTls(smtp.smtp_use_tls !== false)
-          setTestEmail(smtp.smtp_username || '')
-        }
       }
     } catch (_error) {
       showToast.error('Failed to load profile data', 'admin')
@@ -376,57 +311,6 @@ export default function ProfilePage() {
       setBrokerListError(null)
     } catch (e) {
       setBrokerListError(e instanceof Error ? e.message : 'Could not load your brokers.')
-    }
-  }
-
-  const fetchPermissions = async () => {
-    setIsLoadingPermissions(true)
-    try {
-      const response = await webClient.get<{ status: string; data: PermissionsData }>(
-        '/api/system/permissions'
-      )
-      if (response.data.status === 'success') {
-        setPermissionsData(response.data.data)
-      }
-    } catch (_error) {
-      showToast.error('Failed to load permission status', 'admin')
-    } finally {
-      setIsLoadingPermissions(false)
-    }
-  }
-
-  const handleFixPermissions = async () => {
-    setIsFixingPermissions(true)
-    try {
-      const response = await webClient.post<{
-        status: string
-        data: {
-          fixed: Array<{ path: string; action: string }>
-          failed: Array<{ path: string; error: string }>
-          message: string
-        }
-      }>('/api/system/permissions/fix')
-
-      if (response.data.status === 'success') {
-        const { fixed, failed, message } = response.data.data
-        if (fixed.length > 0) {
-          showToast.success(`Fixed ${fixed.length} permission issues`, 'admin')
-        }
-        if (failed.length > 0) {
-          showToast.warning(`${failed.length} issues could not be fixed automatically`, 'admin')
-        }
-        if (fixed.length === 0 && failed.length === 0) {
-          showToast.info(message, 'admin')
-        }
-        // Refresh permissions after fix
-        await fetchPermissions()
-      } else {
-        showToast.error('Failed to fix permissions', 'admin')
-      }
-    } catch (_error) {
-      showToast.error('Failed to fix permissions', 'admin')
-    } finally {
-      setIsFixingPermissions(false)
     }
   }
 
@@ -544,94 +428,6 @@ export default function ProfilePage() {
     }
   }
 
-  const handleSaveSmtp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSavingSmtp(true)
-    try {
-      const formData = new FormData()
-      formData.append('smtp_server', smtpServer)
-      formData.append('smtp_port', smtpPort)
-      formData.append('smtp_username', smtpUsername)
-      if (smtpPassword) {
-        formData.append('smtp_password', smtpPassword)
-      }
-      formData.append('smtp_from_email', smtpFromEmail)
-      formData.append('smtp_helo_hostname', smtpHeloHostname)
-      if (smtpUseTls) {
-        formData.append('smtp_use_tls', 'on')
-      }
-
-      const response = await webClient.post<{ status: string; message: string }>(
-        '/auth/smtp-config',
-        formData
-      )
-
-      if (response.data.status === 'success') {
-        showToast.success(response.data.message || 'SMTP settings saved successfully', 'admin')
-        setSmtpPassword('') // Clear password field after save
-      } else {
-        showToast.error(response.data.message || 'Failed to save SMTP settings', 'admin')
-      }
-    } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } }
-      showToast.error(err.response?.data?.message || 'Failed to save SMTP settings', 'admin')
-    } finally {
-      setIsSavingSmtp(false)
-    }
-  }
-
-  const handleTestEmail = async () => {
-    if (!testEmail) {
-      showToast.error('Please enter an email address to test', 'admin')
-      return
-    }
-
-    setIsSendingTest(true)
-    setDebugResult(null)
-    try {
-      const formData = new FormData()
-      formData.append('test_email', testEmail)
-
-      const response = await webClient.post<{ success: boolean; message: string }>(
-        '/auth/test-smtp',
-        formData
-      )
-
-      if (response.data.success) {
-        showToast.success(response.data.message || 'Test email sent successfully', 'admin')
-      } else {
-        showToast.error(response.data.message || 'Failed to send test email', 'admin')
-      }
-    } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } }
-      showToast.error(err.response?.data?.message || 'Failed to send test email', 'admin')
-    } finally {
-      setIsSendingTest(false)
-    }
-  }
-
-  const handleDebugSmtp = async () => {
-    setIsDebugging(true)
-    setDebugResult(null)
-    try {
-      const response = await webClient.post<{
-        success: boolean
-        message: string
-        details?: string[]
-      }>('/auth/debug-smtp', {})
-      setDebugResult(response.data)
-    } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } }
-      setDebugResult({
-        success: false,
-        message: err.response?.data?.message || 'Failed to debug SMTP',
-        details: [],
-      })
-    } finally {
-      setIsDebugging(false)
-    }
-  }
-
   const handleThemeModeChange = (newMode: ThemeMode) => {
     if (isAnalyzerMode) {
       showToast.error('Cannot change theme while in Analyzer Mode', 'system')
@@ -700,17 +496,9 @@ export default function ProfilePage() {
       </div>
 
       {/* Tabs */}
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => {
-          setActiveTab(value)
-          // Fetch permissions when tab is selected
-          if (value === 'permissions' && !permissionsData) {
-            fetchPermissions()
-          }
-        }}
-      >
-        <TabsList className="grid w-full grid-cols-7">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        {/* Desktop: no SMTP or System tab (UI-05, UI-06; see ProfileDesktopNote). */}
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="account" className="gap-1">
             <Lock className="h-4 w-4" />
             <span className="hidden sm:inline">Account</span>
@@ -723,17 +511,9 @@ export default function ProfilePage() {
             <Bell className="h-4 w-4" />
             <span className="hidden sm:inline">Alerts</span>
           </TabsTrigger>
-          <TabsTrigger value="permissions" className="gap-1">
-            <FolderCheck className="h-4 w-4" />
-            <span className="hidden sm:inline">System</span>
-          </TabsTrigger>
           <TabsTrigger value="theme" className="gap-1">
             <Palette className="h-4 w-4" />
             <span className="hidden sm:inline">Theme</span>
-          </TabsTrigger>
-          <TabsTrigger value="smtp" className="gap-1">
-            <Mail className="h-4 w-4" />
-            <span className="hidden sm:inline">SMTP</span>
           </TabsTrigger>
           <TabsTrigger value="totp" className="gap-1">
             <Shield className="h-4 w-4" />
@@ -851,6 +631,7 @@ export default function ProfilePage() {
               </form>
             </CardContent>
           </Card>
+          <ProfileDesktopNote />
         </TabsContent>
 
         {/* Broker Tab */}
@@ -1476,249 +1257,6 @@ export default function ProfilePage() {
           </Card>
         </TabsContent>
 
-        {/* Permissions Tab */}
-        <TabsContent value="permissions" className="space-y-6">
-          <Alert>
-            <FolderCheck className="h-4 w-4" />
-            <AlertTitle>File Permissions Monitor</AlertTitle>
-            <AlertDescription>
-              Check file and directory permissions for OpenAlgo components. Incorrect permissions
-              may cause the application to malfunction.
-            </AlertDescription>
-          </Alert>
-
-          {/* System Info */}
-          {permissionsData && (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      System Status
-                      {permissionsData.all_correct ? (
-                        <Badge className="bg-green-500">All OK</Badge>
-                      ) : (
-                        <Badge variant="destructive">Issues Found</Badge>
-                      )}
-                    </CardTitle>
-                    <CardDescription>
-                      Platform: {permissionsData.platform}
-                      {permissionsData.is_windows && ' (Windows uses access-based checks)'}
-                    </CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={fetchPermissions}
-                      disabled={isLoadingPermissions}
-                    >
-                      {isLoadingPermissions ? (
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Refresh
-                        </>
-                      )}
-                    </Button>
-                    {!permissionsData.all_correct && !permissionsData.is_windows && (
-                      <Button
-                        size="sm"
-                        onClick={handleFixPermissions}
-                        disabled={isFixingPermissions}
-                      >
-                        {isFixingPermissions ? (
-                          <RefreshCw className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <>
-                            <Wrench className="h-4 w-4 mr-2" />
-                            Fix Issues
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          )}
-
-          {/* Loading State */}
-          {isLoadingPermissions && !permissionsData && (
-            <Card>
-              <CardContent className="py-12 flex items-center justify-center">
-                <div className="flex items-center gap-2">
-                  <RefreshCw className="h-5 w-5 animate-spin" />
-                  <span>Checking permissions...</span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Permissions List */}
-          {permissionsData && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Permission Details</CardTitle>
-                <CardDescription>
-                  Click on items with issues to see recommended fixes
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {permissionsData.checks.map((check) => (
-                    <div
-                      key={check.path}
-                      className={`flex items-start gap-3 p-3 rounded-lg border ${
-                        check.is_correct
-                          ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800'
-                          : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'
-                      }`}
-                    >
-                      {/* Status Icon */}
-                      <div className="mt-0.5">
-                        {check.is_correct ? (
-                          <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-                        ) : check.exists ? (
-                          <FileWarning className="h-5 w-5 text-red-600 dark:text-red-400" />
-                        ) : (
-                          <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-                        )}
-                      </div>
-
-                      {/* Details */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium font-mono text-sm">{check.path}</span>
-                          {check.is_sensitive && (
-                            <Badge variant="outline" className="text-xs">
-                              <Lock className="h-3 w-3 mr-1" />
-                              Sensitive
-                            </Badge>
-                          )}
-                          {check.is_directory && (
-                            <Badge variant="outline" className="text-xs">
-                              Directory
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-0.5">{check.description}</p>
-
-                        {/* Permission Details */}
-                        <div className="flex items-center gap-4 mt-2 text-xs">
-                          <span className="text-muted-foreground">
-                            Expected:{' '}
-                            <code className="bg-muted px-1 rounded">{check.expected_mode}</code>
-                            <span className="ml-1 text-muted-foreground/70">
-                              ({check.expected_rwx})
-                            </span>
-                          </span>
-                          {check.exists && check.actual_mode && (
-                            <span
-                              className={
-                                check.is_correct
-                                  ? 'text-green-600 dark:text-green-400'
-                                  : 'text-red-600 dark:text-red-400'
-                              }
-                            >
-                              Actual:{' '}
-                              <code
-                                className={`px-1 rounded ${check.is_correct ? 'bg-green-100 dark:bg-green-900' : 'bg-red-100 dark:bg-red-900'}`}
-                              >
-                                {check.actual_mode}
-                              </code>
-                              <span className="ml-1 opacity-70">({check.actual_rwx})</span>
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Issue Message */}
-                        {check.issue && (
-                          <div className="mt-2 p-2 bg-red-100 dark:bg-red-900/30 rounded text-sm">
-                            <p className="text-red-700 dark:text-red-300 font-medium">
-                              {check.issue}
-                            </p>
-                            {!permissionsData.is_windows && !check.exists && (
-                              <p className="text-red-600 dark:text-red-400 text-xs mt-1">
-                                Fix: Create the directory or file
-                              </p>
-                            )}
-                            {!permissionsData.is_windows &&
-                              check.exists &&
-                              check.actual_mode !== check.expected_mode && (
-                                <p className="text-red-600 dark:text-red-400 text-xs mt-1">
-                                  Fix:{' '}
-                                  <code className="bg-red-200 dark:bg-red-800 px-1 rounded">
-                                    chmod {check.expected_mode} {check.path}
-                                  </code>
-                                </p>
-                              )}
-                          </div>
-                        )}
-
-                        {/* Warning Message (doesn't affect is_correct status) */}
-                        {check.warning && !check.issue && (
-                          <div className="mt-2 p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded text-sm">
-                            <p className="text-yellow-700 dark:text-yellow-300 font-medium">
-                              {check.warning}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Help Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Understanding Permissions</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground space-y-3">
-              <div>
-                <p className="font-medium text-foreground">Permission Format (Unix/Linux/macOS)</p>
-                <p>Permissions are shown as a 3-digit number (e.g., 755) where:</p>
-                <ul className="list-disc list-inside mt-1 space-y-1 ml-2">
-                  <li>
-                    <code className="bg-muted px-1 rounded">7</code> = Read + Write + Execute (rwx)
-                  </li>
-                  <li>
-                    <code className="bg-muted px-1 rounded">5</code> = Read + Execute (r-x)
-                  </li>
-                  <li>
-                    <code className="bg-muted px-1 rounded">6</code> = Read + Write (rw-)
-                  </li>
-                  <li>
-                    <code className="bg-muted px-1 rounded">4</code> = Read only (r--)
-                  </li>
-                  <li>
-                    <code className="bg-muted px-1 rounded">0</code> = No permission (---)
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <p className="font-medium text-foreground">Sensitive Files</p>
-                {/* Desktop: there is no .env file; the keys are in openalgo.db, locked with the password. */}
-                <p>
-                  Files marked as sensitive should have restricted permissions (600 or 700) to
-                  prevent unauthorized access.
-                </p>
-              </div>
-              <div>
-                <p className="font-medium text-foreground">Windows</p>
-                <p>
-                  On Windows, the system checks if files/directories are readable and writable
-                  instead of Unix-style permissions.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         {/* Theme Tab */}
         <TabsContent value="theme" className="space-y-6">
           {/* Analyzer Mode Warning */}
@@ -1864,194 +1402,6 @@ export default function ProfilePage() {
                 theme is applied automatically to clearly indicate you are not trading with real
                 funds.
               </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* SMTP Tab */}
-        <TabsContent value="smtp" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>SMTP Configuration</CardTitle>
-              <CardDescription>
-                Configure email settings for password reset notifications
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Alert className="mb-6">
-                <Mail className="h-4 w-4" />
-                <AlertTitle>Gmail Configuration Tips</AlertTitle>
-                <AlertDescription>
-                  <ul className="text-sm list-disc list-inside mt-1 space-y-1">
-                    <li>
-                      <strong>Personal Gmail:</strong> Server: smtp.gmail.com:587
-                    </li>
-                    <li>
-                      <strong>Password:</strong> Use App Password (not your regular password)
-                    </li>
-                    <li>
-                      <strong>Setup:</strong> Google Account - Security - 2-Step Verification - App
-                      passwords
-                    </li>
-                  </ul>
-                </AlertDescription>
-              </Alert>
-
-              <form onSubmit={handleSaveSmtp} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>SMTP Server</Label>
-                    <Input
-                      value={smtpServer}
-                      onChange={(e) => setSmtpServer(e.target.value)}
-                      placeholder="smtp.gmail.com"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>SMTP Port</Label>
-                    <Input
-                      type="number"
-                      value={smtpPort}
-                      onChange={(e) => setSmtpPort(e.target.value)}
-                      placeholder="587"
-                    />
-                    <p className="text-xs text-muted-foreground">587 (STARTTLS) or 465 (SSL/TLS)</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Username/Email</Label>
-                  <Input
-                    type="email"
-                    value={smtpUsername}
-                    onChange={(e) => setSmtpUsername(e.target.value)}
-                    placeholder="your-email@gmail.com"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Password/App Password</Label>
-                  <Input
-                    type="password"
-                    value={smtpPassword}
-                    onChange={(e) => setSmtpPassword(e.target.value)}
-                    placeholder={
-                      profileData?.smtp_settings?.smtp_password
-                        ? 'Password is set (enter new to change)'
-                        : 'Enter your App Password'
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>From Email</Label>
-                  <Input
-                    type="email"
-                    value={smtpFromEmail}
-                    onChange={(e) => setSmtpFromEmail(e.target.value)}
-                    placeholder="your-email@gmail.com"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>HELO Hostname</Label>
-                  <Input
-                    value={smtpHeloHostname}
-                    onChange={(e) => setSmtpHeloHostname(e.target.value)}
-                    placeholder="smtp.gmail.com"
-                  />
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="smtp_tls"
-                    checked={smtpUseTls}
-                    onCheckedChange={(checked) => setSmtpUseTls(checked === true)}
-                  />
-                  <Label htmlFor="smtp_tls">Use TLS/SSL</Label>
-                </div>
-
-                <Button type="submit" disabled={isSavingSmtp}>
-                  {isSavingSmtp ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Mail className="h-4 w-4 mr-2" />
-                      Save SMTP Settings
-                    </>
-                  )}
-                </Button>
-
-                {/* Test Configuration */}
-                <div className="border-t pt-4 mt-4">
-                  <h4 className="font-medium mb-3">Test Configuration</h4>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Send a test email to verify your SMTP settings.
-                  </p>
-                  <div className="flex gap-2">
-                    <Input
-                      type="email"
-                      value={testEmail}
-                      onChange={(e) => setTestEmail(e.target.value)}
-                      placeholder="Enter email address to test"
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleTestEmail}
-                      disabled={isSendingTest}
-                    >
-                      {isSendingTest ? (
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Send className="h-4 w-4 mr-1" />
-                          Send Test
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={handleDebugSmtp}
-                      disabled={isDebugging}
-                    >
-                      {isDebugging ? (
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Bug className="h-4 w-4 mr-1" />
-                          Debug
-                        </>
-                      )}
-                    </Button>
-                  </div>
-
-                  {debugResult && (
-                    <Alert
-                      className={`mt-4 ${debugResult.success ? 'border-green-500' : 'border-yellow-500'}`}
-                    >
-                      <AlertTitle>
-                        {debugResult.success ? 'SMTP Debug Complete' : 'SMTP Connection Issues'}
-                      </AlertTitle>
-                      <AlertDescription>
-                        <p>{debugResult.message}</p>
-                        {debugResult.details && debugResult.details.length > 0 && (
-                          <ul className="text-xs mt-2 list-disc list-inside">
-                            {debugResult.details.map((detail, i) => (
-                              <li key={i}>{detail}</li>
-                            ))}
-                          </ul>
-                        )}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-              </form>
             </CardContent>
           </Card>
         </TabsContent>

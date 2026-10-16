@@ -29,12 +29,6 @@ use std::collections::BTreeMap;
 /// Fixtures not replayed here, each with the reason it still holds.
 const SKIP: &[(&str, &str)] = &[
     (
-        "chart/",
-        "/api/v1/chart (the web's chart preference store) is not served by the desktop \
-         yet: finding API-01 adds it, with its own key/value table, and removes this \
-         entry; the gap is listed in docs/audit/2026-10-03/04-api-parity.md, section 2.6",
-    ),
-    (
         "portfolio/",
         "/api/v1/portfolio is the web's Portfolio Backtester, out of scope because it \
          needs the web's Python backtester (CLAUDE.md, scope decisions, 2026-10-03)",

@@ -7,6 +7,7 @@
 
 pub mod addr;
 pub mod api_v1;
+mod csp;
 pub mod envelope;
 pub mod form;
 pub mod middleware;
@@ -38,12 +39,6 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::normalize_path::{NormalizePath, NormalizePathLayer};
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
-
-/// Content Security Policy for every page the server sends.
-pub const CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; \
-img-src 'self' data: blob:; font-src 'self' data:; \
-connect-src 'self' ws://127.0.0.1:* ws://localhost:* http://127.0.0.1:* http://localhost:*; \
-worker-src 'self' blob:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'";
 
 /// Whether a path is in an API namespace: `/api/...`, or a page's own
 /// `/<area>/api[/...]` (`/scalping/api/...`, `/agent/api/...`).
@@ -145,10 +140,8 @@ pub fn router(ctx: Arc<AppState>) -> (Router, socketioxide::SocketIo) {
         // tunnel caller), classified once before every per-caller control
         // (security review S-03).
         .layer(mw::from_fn_with_state(ctx.clone(), middleware::peer_layer))
-        .layer(SetResponseHeaderLayer::if_not_present(
-            header::CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static(CSP),
-        ))
+        // Content Security Policy, naming the feed's origin (`csp`).
+        .layer(mw::from_fn_with_state(ctx.clone(), csp::layer))
         .layer(SetResponseHeaderLayer::if_not_present(
             header::X_CONTENT_TYPE_OPTIONS,
             HeaderValue::from_static("nosniff"),

@@ -173,3 +173,28 @@ describe('Profile broker summary', () => {
     await waitFor(() => expect(screen.getByTestId('broker-configured')).toHaveTextContent('Fyers'))
   })
 })
+
+// UI-05, UI-06: the desktop server has no SMTP settings and no file-permission
+// check of a server install, so the web's SMTP and System tabs are left out and
+// a note says where those needs are met.
+describe('Profile tabs the desktop can serve', () => {
+  it('offers no SMTP or System tab and never asks for system permissions', async () => {
+    window.history.pushState({}, '', '/profile')
+    render(<Profile />)
+    const tabs = await screen.findAllByRole('tab')
+    expect(tabs.map((t) => t.textContent?.trim())).toEqual([
+      'Account',
+      'Broker',
+      'Alerts',
+      'Theme',
+      'TOTP',
+    ])
+    expect(screen.getByRole('link', { name: 'Diagnostics' })).toHaveAttribute(
+      'href',
+      '/admin/diagnostics'
+    )
+    expect(screen.getByText(/sends no email/)).toBeInTheDocument()
+    const asked = client.get.mock.calls.map((c) => String(c[0]))
+    expect(asked.some((u) => u.includes('/api/system/permissions'))).toBe(false)
+  })
+})
