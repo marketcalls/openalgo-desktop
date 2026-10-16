@@ -210,7 +210,7 @@ jobs:
               -f tag_name="$TAG" \
               -f name="OpenAlgo Desktop ${TAG}" \
               -f body="$(printf '%s\n\n%s\n%s\n%s\n' \
-                'Installers for Windows, macOS (Apple Silicon and Intel), Linux x64 and Raspberry Pi (Linux arm64). SHA256SUMS.txt lists the checksum of every file. Installed copies of OpenAlgo Desktop offer this version as an in-app update once the release is published (latest.json).' \
+                'Installers for Windows, macOS (Apple Silicon and Intel), Linux x64 and Linux arm64. SHA256SUMS.txt lists the checksum of every file. Installed copies of OpenAlgo Desktop offer this version as an in-app update once the release is published (latest.json).' \
                 '<!-- signing:start -->' \
                 'Code signing: not checked yet. This note is replaced once every installer is built and its signature checked.' \
                 '<!-- signing:end -->')" \
@@ -238,7 +238,7 @@ jobs:
             target: x86_64-unknown-linux-gnu
             bundles: appimage,deb
           - name: linux-aarch64
-            # Raspberry Pi 4/5, 64-bit Raspberry Pi OS.
+            # ARM64 Linux laptops, desktops and VMs (not Raspberry Pi).
             os: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
             bundles: appimage,deb
@@ -611,7 +611,7 @@ jobs:
             "macos-aarch64|macOS Apple Silicon" \
             "macos-x86_64|macOS Intel" \
             "linux-x86_64|Linux x64" \
-            "linux-aarch64|Raspberry Pi (Linux arm64)"; do
+            "linux-aarch64|Linux arm64"; do
             name="${row%%|*}"
             label="${row#*|}"
             if [ -f "signing/${name}.txt" ]; then

@@ -73,7 +73,7 @@ The `command` is the OpenAlgo Desktop program itself, started with `mcp`. The
 API Key page fills in the real path on this computer, so copy the
 configuration from there rather than typing the path.
 
-If you run the AppImage on Linux or Raspberry Pi, change that path to the
+If you run the AppImage on Linux (x64 or ARM64), change that path to the
 location of your `.AppImage` file. The page shows a temporary path that
 changes every time the AppImage starts.
 
@@ -108,6 +108,17 @@ client's configuration.
 Each token is limited in how fast it can call tools (order placement more
 tightly than reading). A client that goes over the limit is asked to wait a
 minute.
+
+## What the analysis tools cover
+
+The tools are the same 49 as on OpenAlgo web. The analysis tools
+(`calculate_indicator`, the snapshots, `detect_signals`,
+`screen_instruments`, `multi_timeframe_analysis`, `correlation_beta`)
+compute 27 of the web's indicators, and limit how much one call may ask
+for: at most 25 symbols in a screen, 8 intervals, 5,000 bars, 3,660 days.
+OpenAlgo tells the AI client both when it connects, so the client can plan
+its calls; a request for another indicator or for more than a limit is
+refused with a message saying so, before any data is fetched.
 
 ## AI clients on another computer
 

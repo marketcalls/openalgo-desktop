@@ -13,7 +13,7 @@ no restart point. Audit **the change you made**, not the whole repo.
 | | Symptom | Ceiling |
 | --- | --- | --- |
 | Descriptors | `Too many open files`, refused database connections, a feed that stops reconnecting | `ulimit -n` (often 256 for a macOS app) |
-| Memory | rising RSS, a slow UI, OOM | host RAM (a Raspberry Pi has little) |
+| Memory | rising RSS, a slow UI, OOM | host RAM (a low-memory laptop or small VM has little) |
 | Tasks | CPU and memory creep, work continuing after logout | none until the others hit theirs |
 
 ## Step 1: scope
@@ -75,9 +75,9 @@ a new line stands out:
 ## Step 3: descriptor conventions
 
 - **HTTP.** One shared client: `brokers::common::http::client()` for broker
-  calls (connect 10 s, request 30 s, read 30 s, pool idle 90 s, 8 idle per
-  host; `DOWNLOAD_TIMEOUT` 180 s for masters) and `AppState`'s client for the
-  rest. Never a client per call; a per-call client is a pool per call.
+  calls (HTTP/2 by ALPN with HTTP/1.1 fallback; connect 10 s, request 30 s,
+  read 30 s, pool idle 30 s, 16 idle per host; `DOWNLOAD_TIMEOUT` 180 s for
+  masters) and `AppState`'s client for the rest. Never a client per call; a per-call client is a pool per call.
 - **SQLite.** Through the pool (`max_size`, `min_idle(1)`, idle timeout
   300 s in `db::sqlite::open_pool`). Take a connection, use it, let it drop
   before any `.await` on network I/O; inside `async fn`, scope it in a block

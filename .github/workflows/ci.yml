@@ -115,8 +115,8 @@ jobs:
         run: cargo test --locked --doc
       - name: KEY-01 keys without the OS keychain, on this system
         # Maintainer decision 2026-10-13: no OS keychain on any platform
-        # (macOS Keychain, Windows Credential Manager, Linux and Raspberry Pi
-        # Secret Service alike). The key vault's acceptance tests by name,
+        # (macOS Keychain, Windows Credential Manager, Linux Secret Service
+        # alike). The key vault's acceptance tests by name,
         # each listed in the log; the step fails if none match. They use an
         # in-memory stand-in for the keychain that counts every call; no
         # test touches the runner's real keychain.
@@ -384,8 +384,9 @@ jobs:
             os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
           - name: linux-aarch64
-            # Raspberry Pi 4/5 on 64-bit Raspberry Pi OS (Bookworm, glibc 2.36).
-            # Native arm64 runner, no QEMU.
+            # ARM64 Linux laptops, desktops and VMs: glibc 2.35 and WebKitGTK
+            # 4.1, as for x64. Native arm64 runner, no QEMU. Raspberry Pi is
+            # not supported (Pi users run OpenAlgo web).
             os: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
           - name: windows-x86_64

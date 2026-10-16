@@ -103,6 +103,26 @@ strong password and turn on two-factor login on the **TOTP** tab in Profile.
 
 Your own scripts, Amibroker and Excel on the same computer need no tunnel.
 
+## The market data feed
+
+The feed on port 8765 speaks the web's protocol. Where it behaves
+differently, it is on purpose:
+
+- **Subscribe answers.** "success" for an instrument means it will be
+  streamed: now, or as soon as the broker's feed connects again. When the
+  broker refused the live feed, or has none, each instrument is answered
+  with an error that says so, as the web answers when its broker adapter
+  is not running.
+- **Sign-outs close the feed.** A client that authenticated before you
+  signed out, switched brokers or made a new API key is closed (code
+  4401) and connects and authenticates again. The web keeps it
+  connected.
+- **A message budget.** A connection that sends thousands of messages a
+  second, or megabytes of them, is closed (code 1008) before they are
+  read. Subscribing every instrument in one message, or one per message
+  as a script loop does, stays far inside it. The web reads without a
+  limit.
+
 ## What OpenAlgo Desktop does not have
 
 - The Python Strategy Host. Python strategies still work as ordinary scripts
@@ -114,5 +134,9 @@ Your own scripts, Amibroker and Excel on the same computer need no tunnel.
   [Connecting Claude Desktop and Claude Code](mcp.md)).
 - Flow, and the pandas backtesters (Portfolio Backtester, SIP Backtester,
   Portfolio Analyzer).
+- The Socket.IO `/market` namespace of the web's WebSocket example page.
+  It needs a signed-in browser session and no SDK, trading platform or
+  page of the app uses it; the market data feed on port 8765 serves the
+  same data.
 - More than one user, or more than one broker connected at the same time. You
   can save credentials for several brokers and switch between them.
