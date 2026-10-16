@@ -46,6 +46,7 @@ useSocket, MarketDataManager, errorReporter and Footer.
 | `close_position_event` | listen | subscribers/socketio_subscriber.py:122 | shell, order refresh hook |
 | `analyzer_update` | listen | subscribers/socketio_subscriber.py:273; services/orderstatus_service.py:27; services/openposition_service.py:26 | shell, order refresh hook |
 | `order_update` | listen | subscribers/socketio_subscriber.py:248; websocket_proxy/server.py:1874 | /trading blotter |
+| `analyzer_mode_changed` | listen | none: desktop only (UI-01), `{analyze_mode, mode}` after every analyzer mode change from the app, `/api/v1/analyzer/toggle`, MCP or Telegram | shell (`components/desktop/ModeSync`) |
 | `force_logout` | listen | blueprints/auth.py:728, :832, :1336, :1463; utils/session.py:276 | shell |
 | `active_sessions_update` | listen | blueprints/auth.py:1341; utils/session.py:285; utils/auth_utils.py:496 | shell |
 | `master_contract_download` | listen | broker/*/database/master_contract_db.py (zerodha :443) | shell |
@@ -129,7 +130,7 @@ Calls beyond the shell and shared modules.
 - **/search/token**: `/search/api/search` GET :133, expiries :227, underlyings :248 (search.py)
 - **/search**: `/search/api/search` GET :133
 - **/apikey**: `/apikey` GET/POST :45; `/apikey/mode` POST :103 (apikey.py)
-- **/profile**: `/auth/profile-data` GET :1357; `/auth/2fa/status` GET :476; `/auth/2fa/configure` POST :495; `/auth/smtp-config` POST :848; `/auth/test-smtp` POST :913; `/auth/debug-smtp` POST :951 (auth.py); `/api/broker/credentials` GET :70, POST :132 (broker_credentials.py); `/api/system/permissions` GET :238; `/api/system/permissions/fix` POST :274 (system_permissions.py)
+- **/profile**: `/auth/profile-data` GET :1357; `/auth/2fa/status` GET :476; `/auth/2fa/configure` POST :495 (auth.py); `/api/broker/credentials` GET :70, POST :132 (broker_credentials.py). Not on the desktop: the web's SMTP tab (`/auth/smtp-config` POST :848, `/auth/test-smtp` POST :913, `/auth/debug-smtp` POST :951) and System tab (`/api/system/permissions` GET :238, `/api/system/permissions/fix` POST :274, system_permissions.py) are left out of the page (UI-05, UI-06): the desktop sends no email and has no server install whose file permissions could be checked; a note on the Account tab points to the sign-in page and Admin, Diagnostics.
 - **/master-contract**: `/api/cache/health` GET :96; `/api/cache/reload` POST :125; `/api/master-contract/download` POST :185; `/api/master-contract/smart-status` GET :233 (master_contract_status.py)
 - **/action-center**: `/action-center/approve/<id>` POST :1021; `/action-center/reject/<id>` POST :1098; `/action-center/delete/<id>` DELETE :1124; `/action-center/approve-all` POST :1161; `/action-center/api/data` GET :1262 (orders.py)
 - **/tradingview, /gocharting**: `/api/config/host` GET :680 (app.py); `/playground/api-key` GET :299 (playground.py); `/search/api/search` GET :133

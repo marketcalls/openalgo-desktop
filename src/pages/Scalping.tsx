@@ -29,6 +29,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useMarketData } from '@/hooks/useMarketData'
 import { useOrderEventRefresh } from '@/hooks/useOrderEventRefresh'
 import { findLegSL, type SLState, useTrailingSL } from '@/hooks/useTrailingSL'
+import {
+  currentEntryPrice,
+  PREDEFINED_STOP_NOT_SET,
+  predefinedConfigProblem,
+  predefinedLevels,
+} from '@/lib/scalpingPredefinedStop'
 import { priceDecimals } from '@/lib/scalpingPrice'
 import { BOOK_EVENTS, buildPositionRows } from '@/lib/scalpingRows'
 import { mergeTick, type TickView } from '@/lib/scalpingTick'
@@ -678,6 +684,8 @@ export default function Scalping() {
     tgtValue: predefTgtValue,
     tgtUnit: predefTgtUnit,
   }
+  // Desktop (UI-03): shown beside the inputs; entries wait until it clears.
+  const predefinedIssue = predefinedConfigProblem(predefRef.current)
 
   // SL / target / trailing config + display. The engine that watches ticks and
   // fires exits runs SERVER-SIDE (services/scalping_risk_monitor_service.py) so
@@ -771,26 +779,29 @@ export default function Scalping() {
 
   // After an entry, auto-attach the global predefined SL / Target (points or %
   // of the fill LTP) so the websocket SL engine manages the exit.
+  // Desktop change (UI-03): measured from a fresh price, never skipped silently
+  // (lib/scalpingPredefinedStop).
   const attachPredefinedSL = useCallback(
-    (leg: SelectedLeg, action: ScalpingAction, quantity: number, prod: ScalpingProduct) => {
+    async (leg: SelectedLeg, action: ScalpingAction, quantity: number, prod: ScalpingProduct) => {
       const cfg = predefRef.current
       if (!cfg.slOn && !cfg.tgtOn) return
-      const ltp = marketDataRef.current.get(`${leg.exchange}:${leg.symbol}`)?.data?.ltp
-      if (!ltp || ltp <= 0) return
-      const toPts = (val: string, unit: 'PTS' | 'PCT') => {
-        const n = Number(val)
-        if (!Number.isFinite(n) || n <= 0) return 0
-        return unit === 'PCT' ? (ltp * n) / 100 : n
+      const ltp = await currentEntryPrice(
+        marketDataRef.current.get(`${leg.exchange}:${leg.symbol}`),
+        Date.now(),
+        TICK_STALE_MS,
+        async () =>
+          apiKey
+            ? (await tradingApi.getQuotes(apiKey, leg.symbol, leg.exchange)).data?.ltp
+            : undefined
+      )
+      const levels = ltp === null ? null : predefinedLevels(cfg, ltp, action)
+      if (ltp === null || !levels?.ok) {
+        const reason = levels && !levels.ok ? levels.reason : PREDEFINED_STOP_NOT_SET
+        showToast.error(reason, undefined, { duration: Number.POSITIVE_INFINITY })
+        return
       }
-      const slPts = cfg.slOn ? toPts(cfg.slValue, cfg.slUnit) : 0
-      const tgtPts = cfg.tgtOn ? toPts(cfg.tgtValue, cfg.tgtUnit) : 0
-      if (slPts <= 0 && tgtPts <= 0) return
-      const isBuy = action === 'BUY'
-      // No-SL sentinel that never triggers (target-only): below for long, far above for short.
-      const initialSl =
-        slPts > 0 ? (isBuy ? ltp - slPts : ltp + slPts) : isBuy ? 0 : Number.MAX_SAFE_INTEGER
-      const target = tgtPts > 0 ? (isBuy ? ltp + tgtPts : ltp - tgtPts) : 0
-      setSL({
+      const { initialSl, target } = levels
+      await setSL({
         symbol: leg.symbol,
         exchange: leg.exchange,
         product: prod,
@@ -807,14 +818,22 @@ export default function Scalping() {
         active: true,
       })
     },
-    [setSL]
+    [setSL, apiKey]
   )
 
   const submitOrder = useCallback(
     async (leg: SelectedLeg | null, action: ScalpingAction) => {
       const s = stateRef.current
       if (!s.armed) {
-        showToast.error('One-Click is disarmed — enable it to trade', 'orders')
+        // Desktop (N-05): the platform's words for this switch are on and off.
+        showToast.error('One-Click is off. Turn it on to trade.', 'orders')
+        return
+      }
+      // Desktop (UI-03): an entry the panel promises a stop for is not sent
+      // while the stop's value cannot be used.
+      const predefinedProblem = predefinedConfigProblem(predefRef.current)
+      if (predefinedProblem) {
+        showToast.error(`Order not sent. ${predefinedProblem}`)
         return
       }
       if (!leg) {
@@ -1525,6 +1544,11 @@ export default function Scalping() {
                 </SelectContent>
               </Select>
             </div>
+            {predefinedIssue && (
+              <span role="alert" className="text-xs text-destructive">
+                {predefinedIssue}
+              </span>
+            )}
 
             <div
               className="ml-auto flex items-center gap-6 font-mono"

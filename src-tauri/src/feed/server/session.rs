@@ -5,6 +5,7 @@
 
 use super::{Shared, AUTH_TIMEOUT_CODE};
 use crate::feed::auth::{AuthOutcome, FEED_LOCKED};
+use crate::feed::dialect::subscribe_depth;
 use crate::feed::outbox::Outbox;
 use crate::feed::protocol::{self as p, code, py_str, py_truthy, py_type_name, request_id};
 use crate::feed::registry::ClientId;
@@ -28,6 +29,8 @@ pub(super) struct Session {
     pub(super) outbox: Arc<Outbox>,
     pub(super) user_id: Option<String>,
     pub(super) broker: Option<String>,
+    /// What the client may still send before it is closed (RATE-01).
+    pub(super) meter: super::budget::Meter,
 }
 
 fn now_ms() -> i64 {
@@ -228,47 +231,38 @@ impl Session {
         }
     }
 
-    /// Subscribes one instrument: the depth it got (the largest the broker
-    /// supports up to the one asked for, in depth mode), or why not.
+    /// Subscribes one instrument: the depth its acknowledgment names (see
+    /// [`subscribe_depth`]; `None` is `null`), or why not. A feed known not
+    /// to stream refuses first, as the web's adapter does before it looks
+    /// the symbol up (WS-01).
     fn subscribe_key(
         &self,
         source: &Arc<dyn MarketDataSource>,
         key: &InstrumentKey,
         mode: Mode,
         requested_depth: i64,
-    ) -> Result<i64, String> {
+    ) -> Result<Option<i64>, String> {
+        if let Some(reason) = source.unavailable() {
+            return Err(reason);
+        }
         if !source.resolve(key) {
-            Err(format!(
+            return Err(format!(
                 "Token not found for {} on {}",
                 key.symbol, key.exchange
-            ))
-        } else if mode == Mode::Depth {
-            let supported = source.supported_depths(&key.exchange);
-            let actual = if supported.iter().any(|d| *d as i64 == requested_depth) {
-                Some(requested_depth as u8)
-            } else {
-                supported
-                    .iter()
-                    .copied()
-                    .filter(|d| (*d as i64) <= requested_depth)
-                    .max()
-            };
-            match actual {
-                Some(d) => self
-                    .shared
-                    .registry
-                    .subscribe(self.id, key, mode, d)
-                    .map(|_| d as i64),
-                None => Err(format!(
-                    "Depth level {} is not supported by this broker",
-                    requested_depth
-                )),
-            }
-        } else {
-            self.shared
+            ));
+        }
+        let supported = source.supported_depths(&key.exchange);
+        let broker = self.broker.as_deref().unwrap_or_default();
+        match subscribe_depth(broker, mode, requested_depth, &supported) {
+            Some((streamed, named)) => self
+                .shared
                 .registry
-                .subscribe(self.id, key, mode, DEFAULT_DEPTH)
-                .map(|_| requested_depth)
+                .subscribe(self.id, key, mode, streamed)
+                .map(|_| named),
+            None => Err(format!(
+                "Depth level {} is not supported by this broker",
+                requested_depth
+            )),
         }
     }
 

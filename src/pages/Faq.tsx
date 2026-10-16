@@ -47,7 +47,8 @@ const faqData = [
         question: 'What are the system requirements?',
         answer:
           // Desktop: the app is installed, not deployed; no Python or Node.js is needed.
-          'OpenAlgo Desktop runs on Windows 10/11, macOS (Intel and Apple Silicon), Linux and Raspberry Pi (64-bit). Install it like any other app; there is nothing else to set up. We recommend at least 4GB RAM and a stable internet connection.',
+          // Raspberry Pi is not supported (2026-10-16); Pi users run OpenAlgo web.
+          'OpenAlgo Desktop runs on Windows 10/11, macOS (Intel and Apple Silicon) and 64-bit Linux (x64 or ARM64). It does not support Raspberry Pi: run OpenAlgo web on your Pi instead. Install it like any other app; there is nothing else to set up. We recommend at least 4GB RAM and a stable internet connection.',
       },
       {
         question: 'Where does OpenAlgo Desktop run?',
