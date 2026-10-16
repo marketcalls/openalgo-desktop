@@ -20,6 +20,10 @@ use std::time::Duration;
 pub use tokio_tungstenite::tungstenite::handshake::client::Request as WsRequest;
 pub use tokio_tungstenite::tungstenite::Message;
 
+/// Longest a feed waits for a required login acknowledgement
+/// (`BrokerFeed::auth_ack_deadline`).
+pub const AUTH_ACK_DEADLINE: Duration = Duration::from_secs(20);
+
 /// OpenAlgo subscription mode (web modes 1/2/3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
 pub enum FeedMode {
@@ -235,6 +239,15 @@ pub trait BrokerFeed: Send + Sync {
     /// optional), treat the session as accepted after this long.
     fn auth_ack_timeout(&self) -> Option<Duration> {
         None
+    }
+
+    /// Longest the manager waits for a required acknowledgement before it
+    /// drops the socket and reconnects (TIME-05); used only when
+    /// `awaits_auth_ack` is true and `auth_ack_timeout` is `None`. Without
+    /// it a broker that keeps sending heartbeats but never confirms the
+    /// login holds a socket that never streams (web Shoonya waits 15 s).
+    fn auth_ack_deadline(&self) -> Option<Duration> {
+        self.awaits_auth_ack().then_some(AUTH_ACK_DEADLINE)
     }
 
     /// Frames that subscribe these instruments (one per instrument, already

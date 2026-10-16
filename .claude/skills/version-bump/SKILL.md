@@ -96,6 +96,16 @@ say per platform whether the installer was found signed; they are generated
 from a check of each installer, not from the presence of secrets. Branch and
 tag protection the maintainer should enable: `docs/release/branch-protection.md`.
 
+Before the maintainer publishes the draft release, one manual check that CI
+cannot make (MCP-04): install the draft's installer on a test computer, connect
+**Claude Desktop** and **Claude Code** with a read-only token from the API
+Key page (the configuration it shows), and in each ask for the tool list and
+one quote. CI already drives the packaged `mcp` subcommand against the
+running packaged app on every platform (install smoke, `launch_smoke.py
+--mcp-bridge`); this adds the real clients and their versions. Note the app
+and client versions in the release notes. Use sandbox mode; never place an
+order for this check.
+
 An agent never creates or pushes a `v*` tag, and never publishes a release,
 even when asked to "release": prepare the bump commit, run
 `check_versions.py --tag v<new>` to show it is ready, and hand over the

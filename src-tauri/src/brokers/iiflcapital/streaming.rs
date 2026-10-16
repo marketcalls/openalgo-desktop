@@ -388,6 +388,11 @@ impl BrokerFeed for IiflFeed {
         true
     }
 
+    /// The relay opens the broker side before its ready frame comes.
+    fn auth_ack_deadline(&self) -> Option<std::time::Duration> {
+        Some(relay::READY_DEADLINE)
+    }
+
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
         let mut topics = Vec::new();
         for s in subs {
@@ -668,6 +673,11 @@ impl BrokerFeed for IiflOrderFeed {
 
     fn awaits_auth_ack(&self) -> bool {
         true
+    }
+
+    /// The relay opens the broker side before its ready frame comes.
+    fn auth_ack_deadline(&self) -> Option<std::time::Duration> {
+        Some(relay::READY_DEADLINE)
     }
 
     fn subscribe_frames(&mut self, _subs: &[FeedSubscription]) -> Vec<Message> {

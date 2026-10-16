@@ -98,7 +98,21 @@ pub fn no_store(mut r: Response) -> Response {
 
 /// A file download with a fixed, server-chosen file name.
 pub fn download(body: String, mime: &'static str, filename: &str) -> Response {
-    let mut r = (StatusCode::OK, body).into_response();
+    attachment((StatusCode::OK, body).into_response(), mime, filename)
+}
+
+/// [`download`] for a body sent as it is produced: `body` yields the text
+/// in pieces, and an error ends the download where it happened.
+pub fn download_stream<S>(body: S, mime: &'static str, filename: &str) -> Response
+where
+    S: futures_util::Stream<Item = crate::error::Result<String>> + Send + 'static,
+{
+    let body = axum::body::Body::from_stream(body);
+    attachment((StatusCode::OK, body).into_response(), mime, filename)
+}
+
+/// `r` as a file download named `filename`, never cached.
+fn attachment(mut r: Response, mime: &'static str, filename: &str) -> Response {
     r.headers_mut()
         .insert(header::CONTENT_TYPE, HeaderValue::from_static(mime));
     if let Ok(v) = HeaderValue::from_str(&format!("attachment; filename={}", filename)) {

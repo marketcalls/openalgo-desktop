@@ -4,8 +4,8 @@
 //! over one generation of the shared symbol master.
 
 use super::core::float;
+use super::freeze_qty_service::FreezeLimits;
 use super::options_service::listed_live;
-use super::symbol_service::freeze_qty_for_option;
 use crate::brokers::common::master_contract::parse_oa_expiry;
 use crate::brokers::common::symbols::SymToken;
 use crate::brokers::common::underlying::{
@@ -22,7 +22,7 @@ pub const FNO_LIMIT: usize = 10_000;
 
 /// The public row shape of `/search/api/search`, with the row's contract
 /// multiplier (crypto masters; `null` for instruments that have none).
-pub fn api_row_with(r: &SymToken, contract_value: Option<f64>) -> Value {
+pub fn api_row_with(r: &SymToken, contract_value: Option<f64>, freeze: &FreezeLimits) -> Value {
     json!({
         "symbol": r.symbol,
         "brsymbol": r.brsymbol,
@@ -35,7 +35,7 @@ pub fn api_row_with(r: &SymToken, contract_value: Option<f64>) -> Value {
         "lotsize": r.lot_size,
         "contract_value": contract_value,
         "instrumenttype": r.instrument_type,
-        "freeze_qty": freeze_qty_for_option(&r.symbol, &r.exchange),
+        "freeze_qty": freeze.for_option(&r.symbol, &r.exchange),
     })
 }
 
@@ -177,7 +177,14 @@ pub fn api_search(
     exchanges: &[String],
     inst_types: &[String],
 ) -> Value {
-    api_search_with(rows, f, exchanges, inst_types, &|_| None)
+    api_search_with(
+        rows,
+        f,
+        exchanges,
+        inst_types,
+        &|_| None,
+        &FreezeLimits::default(),
+    )
 }
 
 /// `api_search` with each row's contract multiplier (web `search.py`
@@ -188,6 +195,7 @@ pub fn api_search_with(
     exchanges: &[String],
     inst_types: &[String],
     contract_value: &dyn Fn(&SymToken) -> Option<f64>,
+    freeze: &FreezeLimits,
 ) -> Value {
     let has_fno_filters = f.expiry.is_some()
         || !inst_types.is_empty()
@@ -226,7 +234,7 @@ pub fn api_search_with(
             };
             for r in found {
                 if seen.insert((r.symbol.clone(), r.exchange.clone())) {
-                    out.push(api_row_with(r, contract_value(r)));
+                    out.push(api_row_with(r, contract_value(r), freeze));
                 }
             }
         }

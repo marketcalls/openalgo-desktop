@@ -33,8 +33,11 @@ use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::tungstenite::protocol::{CloseFrame, WebSocketConfig};
 use tokio_util::sync::CancellationToken;
 
+mod budget;
 mod conn;
 mod session;
+
+pub use budget::FrameBudget;
 
 /// Close code the web uses when a socket does not authenticate in time.
 pub const AUTH_TIMEOUT_CODE: u16 = 4401;
@@ -69,6 +72,8 @@ pub struct FeedConfig {
     /// forwards every tick (the web's current behaviour); otherwise the
     /// latest tick in each window is sent at the window's end.
     pub throttle: Duration,
+    /// What one connection may send before it is closed (RATE-01).
+    pub frame_budget: FrameBudget,
     /// Who may open a connection, read at each handshake (security
     /// review S-10).
     pub handshake: HandshakeGate,
@@ -288,6 +293,7 @@ impl Default for FeedConfig {
             control_queue_cap: 1024,
             max_subscriptions_per_client: 3000,
             throttle: Duration::ZERO,
+            frame_budget: FrameBudget::default(),
             handshake: HandshakeGate::fixed(HandshakePolicy::default()),
         }
     }

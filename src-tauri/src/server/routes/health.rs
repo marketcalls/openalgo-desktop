@@ -140,6 +140,7 @@ pub async fn current(State(ctx): Ctx) -> Response {
             let o = health::overall_of(&m, ctx.now());
             let mut v = with_freshness(health::current_json(&m), &o);
             v["order_facts"] = health::order_facts_json(&ctx);
+            v["records"] = crate::services::record_loss::json(&ctx);
             if health::order_facts_failing(&ctx) {
                 v["overall_status"] = json!("fail");
             } else if o.status == "unknown" {

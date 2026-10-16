@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Start an installed OpenAlgo Desktop and wait until it serves its HTTP API.
 
-    python3 scripts/ci/launch_smoke.py [--first-sign-in] [--real-home] <command> [args...]
+    python3 scripts/ci/launch_smoke.py [--first-sign-in] [--real-home] [--mcp-bridge] <command> [args...]
 
 For CI runners only (.github/workflows/install-smoke.yml): a release build
 binds the shipped ports 127.0.0.1:5000 and 8765, which on a developer's
@@ -23,6 +23,11 @@ password is refused, so the sign-in check can fail. The password is random
 per run and never printed. KEY-01: the keys are locked with the password
 in openalgo.db, so session-status must say "locked" at the start and after
 the account is created, and not once the trader signed in.
+
+With --mcp-bridge, once signed in, it creates an MCP token through the
+app's own HTTP (POST /api/mcp/tokens, as the API Key page does) and drives
+the same binary's `mcp` subcommand against the running app
+(scripts/ci/mcp_stdio_smoke.py `against_app`), revoking the token midway.
 
 Then it stops the app and reaps it. It fails if the app exits first, does
 not answer within the deadline, or a sign-in step fails, and prints the
@@ -82,16 +87,37 @@ class Client:
         headers = {"Accept": "application/json"}
         data = None
         if form is not None:
-            token = self.csrf()
+            try:
+                token = self.csrf()
+            except (OSError, ValueError, KeyError) as e:
+                return 0, {"message": f"no CSRF token: {e}"}
             data = urllib.parse.urlencode({**form, "csrf_token": token}).encode("utf-8")
             headers["Content-Type"] = "application/x-www-form-urlencoded"
             headers["X-CSRFToken"] = token
+        return self._send(method, path, data, headers)
+
+    def call_json(self, method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
+        """A JSON request with the session's CSRF token (the app's own pages)."""
+        try:
+            token = self.csrf()
+        except (OSError, ValueError, KeyError) as e:
+            return 0, {"message": f"no CSRF token: {e}"}
+        headers = {"Accept": "application/json", "X-CSRFToken": token, "Content-Type": "application/json"}
+        data = json.dumps(body).encode("utf-8") if body is not None else None
+        return self._send(method, path, data, headers)
+
+    def _send(self, method: str, path: str, data: bytes | None, headers: dict[str, str]) -> tuple[int, dict]:
+        """The status and JSON body; a request that got no answer at all
+        (refused, reset, timed out) is status 0 with the reason, so the
+        caller reports it and the app's output is still printed."""
         req = urllib.request.Request(BASE + path, data=data, method=method, headers=headers)
         try:
             with self.opener.open(req, timeout=30) as r:
                 status, raw = r.status, r.read()
         except urllib.error.HTTPError as e:
             status, raw = e.code, e.read()
+        except OSError as e:
+            return 0, {"message": f"no answer: {e}"}
         try:
             body = json.loads(raw.decode("utf-8")) if raw else {}
         except ValueError:
@@ -104,8 +130,30 @@ class Client:
             return json.loads(r.read().decode("utf-8"))["csrf_token"]
 
 
-def first_sign_in() -> list[str]:
-    """Creates the account and signs in; returns what went wrong, if anything."""
+def mcp_bridge(exe: str):
+    """The check run with the signed-in session (--mcp-bridge)."""
+
+    def check(browser: Client) -> list[str]:
+        import mcp_stdio_smoke
+
+        status, body = browser.call_json("POST", "/api/mcp/tokens", {"name": "install smoke", "scope": "read"})
+        token, row = body.get("token"), body.get("data") or {}
+        print(f"POST /api/mcp/tokens: {status} {body.get('status')}")
+        if status != 200 or not token or "id" not in row:
+            return [f"creating an MCP token failed: {status} {body.get('message', '')}"]
+
+        def revoke() -> None:
+            s, b = browser.call_json("DELETE", f"/api/mcp/tokens/{row['id']}")
+            print(f"DELETE /api/mcp/tokens/<id>: {s} {b.get('status')}")
+
+        return mcp_stdio_smoke.against_app(exe, BASE, token, revoke)
+
+    return check
+
+
+def first_sign_in(then=None) -> list[str]:
+    """Creates the account and signs in; returns what went wrong, if anything.
+    `then(browser)` runs with the signed-in session and adds its problems."""
     # Meets the app's rules: upper and lower case, a digit, one of !@#$%^&*.
     password = "Aa1!" + secrets.token_hex(12)
     problems: list[str] = []
@@ -140,6 +188,8 @@ def first_sign_in() -> list[str]:
     if status != 200 or body.get("authenticated") is not True:
         problems.append(f"the session is not signed in after the sign-in: {status} {body}")
     locked("after the sign-in", False)
+    if then is not None and not problems:
+        problems += then(browser)
 
     # The check must be able to fail: a wrong password is refused and leaves
     # a fresh session signed out.
@@ -166,9 +216,9 @@ def stop(proc: subprocess.Popen) -> None:
 
 def main(argv: list[str]) -> int:
     flags = set()
-    while argv and argv[0] in ("--first-sign-in", "--real-home"):
+    while argv and argv[0] in ("--first-sign-in", "--real-home", "--mcp-bridge"):
         flags.add(argv.pop(0))
-    sign_in = "--first-sign-in" in flags
+    sign_in = "--first-sign-in" in flags or "--mcp-bridge" in flags
     if not argv:
         print(__doc__)
         return 2
@@ -195,7 +245,7 @@ def main(argv: list[str]) -> int:
                 time.sleep(1)
             answered_after = time.monotonic() - started
             if ok and sign_in:
-                problems = first_sign_in()
+                problems = first_sign_in(mcp_bridge(argv[0]) if "--mcp-bridge" in flags else None)
                 if proc.poll() is not None:
                     problems.append(f"the app exited with code {proc.poll()} during the sign-in")
         finally:

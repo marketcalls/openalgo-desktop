@@ -3,7 +3,7 @@
 //! (sandbox) routing of order tools, Remote MCP reachability, and the admin
 //! and token routes.
 
-use crate::mcp_support::{LOCAL, M};
+use crate::mcp_support::{assert_initialize_discloses_limits, LOCAL, M};
 use axum::http::{header, Method, StatusCode};
 use openalgo_desktop_lib::brokers::mock::MockCall;
 use openalgo_desktop_lib::mcp::store::TokenScope;
@@ -95,7 +95,10 @@ async fn missing_or_revoked_tokens_get_the_bearer_challenge() {
         "{}",
         www
     );
-    assert!(www.contains("resource_metadata=\"/.well-known/oauth-protected-resource\""));
+    // MCP-02: no OAuth discovery is advertised; the desktop serves none, and
+    // a client that followed the link got the app's page, not "bad token".
+    assert!(!www.contains("resource_metadata"), "{}", www);
+    assert!(!www.contains("well-known"), "{}", www);
 
     let (s, _, v) = m.post(Some("oamcp_not_a_token"), ping.clone(), LOCAL).await;
     assert_eq!(s, StatusCode::UNAUTHORIZED);
@@ -126,6 +129,7 @@ async fn json_rpc_envelope_and_methods() {
         json!({"tools": {"listChanged": false}})
     );
     assert_eq!(init["id"], 7);
+    assert_initialize_discloses_limits(&init);
 
     let (s, _, v) = m.post(Some(&t), json!([1, 2]), LOCAL).await;
     assert_eq!(s, StatusCode::OK);

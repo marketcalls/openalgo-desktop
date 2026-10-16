@@ -2,7 +2,7 @@
 //! need the signed-in user; the bot work is in `messaging::telegram`.
 
 use crate::messaging::telegram::db::{self, ConfigUpdate, UserFilter};
-use crate::messaging::telegram::page;
+use crate::messaging::telegram::{manage, page};
 use crate::server::envelope::error;
 use crate::server::middleware::User;
 use crate::server::routes::webui::{ok, JsonBody};
@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 type Ctx = State<Arc<AppState>>;
 
-const FAILED: &str = "Could not read the Telegram settings. Try again.";
+const FAILED: &str = manage::SETTINGS_UNREADABLE;
 
 /// The bot settings; a failed read is logged.
 fn config(ctx: &AppState) -> Option<db::BotConfig> {
@@ -109,22 +109,12 @@ pub async fn configuration(State(ctx): Ctx, _u: User, body: JsonBody) -> Respons
 
 /// POST /telegram/bot/start
 pub async fn bot_start(State(ctx): Ctx, _u: User) -> Response {
-    let Some(cfg) = config(&ctx) else {
-        return config_unreadable();
-    };
-    let Some(token) = cfg.token else {
-        return error(StatusCode::BAD_REQUEST, "Bot token not configured");
-    };
-    let svc = &ctx.messaging.telegram;
-    let (good, msg) = svc.initialize(&ctx, &token).await;
-    if !good {
-        return error(StatusCode::INTERNAL_SERVER_ERROR, msg);
-    }
-    let (good, msg) = svc.start(&ctx).await;
-    if good {
-        ok(json!({"status": "success", "message": msg}))
-    } else {
-        error(StatusCode::INTERNAL_SERVER_ERROR, msg)
+    match manage::start_bot(&ctx).await {
+        Ok(msg) => ok(json!({"status": "success", "message": msg})),
+        Err((status, msg)) => error(
+            StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+            msg,
+        ),
     }
 }
 
@@ -173,20 +163,7 @@ pub async fn broadcast(State(ctx): Ctx, _u: User, body: JsonBody) -> Response {
         Some(_) => {}
         None => return config_unreadable(),
     }
-    let (mut sent, mut failed) = (0, 0);
-    let list = page::users(&ctx, &filter_from(&body)).unwrap_or_default();
-    for u in list.iter().filter(|u| u.notifications_enabled) {
-        if ctx
-            .messaging
-            .telegram
-            .send_alert(&ctx, u.telegram_id, &message)
-            .await
-        {
-            sent += 1;
-        } else {
-            failed += 1;
-        }
-    }
+    let (sent, failed) = manage::broadcast(&ctx, &message, &filter_from(&body)).await;
     ok(json!({
         "status": "success",
         "message": format!("Sent to {} users, failed for {}", sent, failed),

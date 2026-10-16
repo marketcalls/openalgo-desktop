@@ -4,6 +4,7 @@
 //! Everything reads one consistent generation of the shared symbol master.
 
 use super::core::{float, Reply};
+use super::freeze_qty_service::FreezeLimits;
 use crate::brokers::common::master_contract::parse_oa_expiry;
 use crate::brokers::common::symbols::{SymToken, SymbolGeneration};
 use crate::brokers::common::underlying::is_derivative_of;
@@ -49,21 +50,21 @@ fn freeze_table() -> &'static HashMap<String, i64> {
     })
 }
 
-/// Web `get_freeze_qty`: 0 when no limit is configured.
-pub fn freeze_qty(symbol: &str, exchange: &str) -> i64 {
-    freeze_table()
-        .get(&format!("{}:{}", exchange, symbol))
-        .copied()
-        .unwrap_or(0)
+/// NSE's limit for `"<exchange>:<symbol>"` from the built-in table, 0 when
+/// it has none. Lookups go through `freeze_qty_service::FreezeLimits`,
+/// which puts the trader's own entries first.
+pub(crate) fn builtin_freeze_qty(key: &str) -> i64 {
+    freeze_table().get(key).copied().unwrap_or(0)
 }
 
-/// Web `get_freeze_qty_for_option`: the underlying from an F&O symbol.
+/// Web `get_freeze_qty_for_option`'s underlying of an F&O symbol, or `None`
+/// when it does not parse (it starts with a digit, like 360ONE).
 ///
 /// Index names are matched longest-prefix-first, so NIFTYNXT50 and NIFTYFPI
 /// are not shadowed by NIFTY, and SENSEX50 is not shadowed by SENSEX.
 /// NIFTYFPI's limit (53,900) is fifteen times NIFTY's, so falling through to
 /// NIFTY split its orders into far more slices than the exchange requires.
-pub fn freeze_qty_for_option(symbol: &str, exchange: &str) -> i64 {
+pub(crate) fn freeze_underlying(symbol: &str) -> Option<String> {
     let up = symbol.to_ascii_uppercase();
     for idx in [
         "BANKNIFTY",
@@ -77,25 +78,21 @@ pub fn freeze_qty_for_option(symbol: &str, exchange: &str) -> i64 {
         "SENSEX",
     ] {
         if up.starts_with(idx) {
-            return freeze_qty(idx, exchange);
+            return Some(idx.to_string());
         }
     }
     let base: String = up
         .chars()
         .take_while(|c| c.is_ascii_uppercase() || *c == '&' || *c == '-')
         .collect();
-    if base.is_empty() {
-        0
-    } else {
-        freeze_qty(&base, exchange)
-    }
+    (!base.is_empty()).then_some(base)
 }
 
 // ------------------------------------------------------------------ rows
 
 /// A master row of `snap` in the web's `symbol`/`search`/`instruments`
 /// shape (`lotsize` exact for a fractional crypto lot, MC-04).
-pub fn row_json(snap: &SymbolGeneration, r: &SymToken, with_freeze: bool) -> Value {
+pub fn row_json(snap: &SymbolGeneration, r: &SymToken, freeze: Option<&FreezeLimits>) -> Value {
     let mut v = json!({
         "symbol": r.symbol,
         "brsymbol": r.brsymbol,
@@ -109,11 +106,11 @@ pub fn row_json(snap: &SymbolGeneration, r: &SymToken, with_freeze: bool) -> Val
         "instrumenttype": r.instrument_type,
         "tick_size": float(r.tick_size),
     });
-    if with_freeze {
+    if let Some(limits) = freeze {
         if let Some(m) = v.as_object_mut() {
             m.insert(
                 "freeze_qty".into(),
-                json!(freeze_qty_for_option(&r.symbol, &r.exchange)),
+                json!(limits.for_option(&r.symbol, &r.exchange)),
             );
         }
     }
@@ -137,7 +134,7 @@ pub fn symbol(ctx: &AppState, symbol: &str, exchange: &str) -> Reply {
     } else {
         0
     };
-    let mut data = row_json(&snap, r, true);
+    let mut data = row_json(&snap, r, Some(&ctx.freeze));
     if let Some(m) = data.as_object_mut() {
         m.insert("id".into(), json!(id));
     }
@@ -222,7 +219,10 @@ pub fn search(ctx: &AppState, query: &str, exchange: Option<&str>) -> Reply {
             json!({"status": "success", "message": "No matching symbols found", "data": []}),
         );
     }
-    let data: Vec<Value> = found.iter().map(|r| row_json(&snap, r, true)).collect();
+    let data: Vec<Value> = found
+        .iter()
+        .map(|r| row_json(&snap, r, Some(&ctx.freeze)))
+        .collect();
     Reply::ok(json!({
         "status": "success",
         "message": format!("Found {} matching symbols", data.len()),
@@ -375,7 +375,7 @@ pub fn instruments(ctx: &AppState, exchange: &str, csv: bool) -> Instruments {
             body: instruments_csv(&rows),
         };
     }
-    let data: Vec<Value> = rows.iter().map(|r| row_json(&snap, r, false)).collect();
+    let data: Vec<Value> = rows.iter().map(|r| row_json(&snap, r, None)).collect();
     Instruments::Json(Reply::ok(json!({
         "status": "success",
         "message": format!("Found {} instruments", data.len()),
@@ -401,6 +401,15 @@ mod tests {
             instrument_type: it.into(),
             tick_size: 0.05,
         }
+    }
+
+    /// The built-in limits, with no entry of the trader's.
+    fn freeze_qty_for_option(symbol: &str, exchange: &str) -> i64 {
+        FreezeLimits::default().for_option(symbol, exchange)
+    }
+
+    fn freeze_qty(symbol: &str, exchange: &str) -> i64 {
+        FreezeLimits::default().qty(symbol, exchange)
     }
 
     #[test]
