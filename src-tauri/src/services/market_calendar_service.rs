@@ -4,10 +4,12 @@
 
 use crate::db::sqlite::market_calendar::{self as cal, Holiday, OpenWindow};
 use crate::error::Result;
+use crate::sandbox::TradingDayFn;
 use crate::state::AppState;
-use chrono::{DateTime, Datelike, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, TimeZone, Utc, Weekday};
 use chrono_tz::Asia::Kolkata;
 use serde_json::{json, Value};
+use std::sync::{Arc, Weak};
 
 /// Today's date in IST from the app clock.
 pub fn today_ist(now: DateTime<Utc>) -> NaiveDate {
@@ -45,6 +47,36 @@ pub fn holidays_api(ctx: &AppState, year: Option<i32>) -> Result<Value> {
 pub fn timings_for(ctx: &AppState, date: NaiveDate) -> Result<Vec<OpenWindow>> {
     let conn = ctx.sqlite.conn()?;
     cal::timings_for_date(&conn, date)
+}
+
+/// The sandbox's trading days, for its dated P&L snapshot (web
+/// `sandbox/catch_up_processor.is_pnl_snapshot_day` on an install whose
+/// session expires daily): every day that is not a market holiday, so a
+/// weekday holiday gets no snapshot and a weekend special session does. A
+/// calendar that cannot be read falls back to weekdays, as the web's check
+/// does. Holds the app weakly: the sandbox lives inside it.
+pub fn sandbox_trading_day(app: Weak<AppState>) -> TradingDayFn {
+    Arc::new(move |date: NaiveDate| {
+        let weekday = !matches!(date.weekday(), Weekday::Sat | Weekday::Sun);
+        let Some(ctx) = app.upgrade() else {
+            return weekday;
+        };
+        let holiday = ctx
+            .sqlite
+            .conn()
+            .and_then(|conn| cal::is_market_holiday(&conn, date));
+        match holiday {
+            Ok(h) => !h,
+            Err(e) => {
+                tracing::error!(
+                    "Could not read the market calendar for the sandbox P&L snapshot of {}: {}",
+                    date,
+                    e
+                );
+                weekday
+            }
+        }
+    })
 }
 
 pub fn timings_api_json(list: &[OpenWindow]) -> Value {

@@ -942,6 +942,35 @@ async fn crypto_pnl_is_snapshotted_at_weekends_and_equity_keeps_the_trading_cale
     env.shutdown().await;
 }
 
+/// Web `sandbox/catch_up_processor.py::is_pnl_snapshot_day` (openalgo
+/// cced84316, issue #876) and test/test_sandbox_pnl_snapshot_days.py: the
+/// app's own sandbox takes its 23:59 P&L snapshot on the market calendar,
+/// so a weekday exchange holiday gets no row and Muhurat trading on a
+/// Sunday gets one.
+#[tokio::test]
+async fn the_apps_pnl_snapshot_follows_the_market_calendar() {
+    use crate::webui_support::{ist, H};
+
+    let h = H::at(ist(2026, 10, 19, 8, 0));
+    let sb = &h.ctx.sandbox;
+    sb.funds().await.unwrap();
+    sb.run_due_jobs().await.unwrap();
+    // Monday 19 October trades, Tuesday 20 October is Dussehra, and Sunday
+    // 8 November is Muhurat trading.
+    for (m, d) in [(10, 19), (10, 20), (11, 8)] {
+        h.clock.set(ist(2026, m, d, 9, 0));
+        sb.run_due_jobs().await.unwrap();
+        h.clock
+            .set(ist(2026, m, d, 23, 59) + chrono::Duration::seconds(10));
+        sb.run_due_jobs().await.unwrap();
+    }
+    assert_eq!(
+        snapshot_dates(&sb.mypnl().await.unwrap()),
+        vec!["2026-10-19", "2026-11-08"]
+    );
+    h.ctx.shutdown().await;
+}
+
 // Crypto MIS positions are outside every Indian-market time rule: the MIS
 // square-off sweeps, their one-minute backup, the 03:00 IST boundary job
 // and the catch-up's leftover-MIS settlement all leave them alone.

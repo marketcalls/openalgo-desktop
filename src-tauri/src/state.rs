@@ -285,7 +285,12 @@ impl Parts<'_> {
                 clock: self.opts.clock.clone(),
                 bus: Some(self.bus.clone()),
             },
-            crate::sandbox::SandboxOptions::default(),
+            crate::sandbox::SandboxOptions {
+                trading_day: crate::services::market_calendar_service::sandbox_trading_day(
+                    me.clone(),
+                ),
+                ..crate::sandbox::SandboxOptions::default()
+            },
         )
     }
 }
