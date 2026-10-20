@@ -75,7 +75,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: bash scripts/ci/tested_commit.sh
       - name: Download the bundles
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: bundles-linux-${{ matrix.name }}
           path: bundles
@@ -154,7 +154,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: bash scripts/ci/tested_commit.sh
       - name: Download the bundles
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: bundles-windows-x86_64
           path: bundles
@@ -213,7 +213,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: bash scripts/ci/tested_commit.sh
       - name: Download the bundles
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: bundles-macos-aarch64
           path: bundles
@@ -240,7 +240,7 @@ jobs:
           test -x "$bin"
           echo "APP_BIN=${bin}" >> "$GITHUB_ENV"
       - name: Download the Intel bundle
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: bundles-macos-x86_64
           path: bundles-x64
