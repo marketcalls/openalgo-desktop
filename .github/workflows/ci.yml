@@ -23,6 +23,10 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  # The merge queue tests each PR on top of the latest master (and the PRs
+  # queued ahead of it) before it merges; ci-ok must report there too.
+  merge_group:
+    types: [checks_requested]
   workflow_dispatch:
 
 permissions:
