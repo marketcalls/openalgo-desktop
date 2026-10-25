@@ -70,7 +70,7 @@ jobs:
         # tauri::generate_context!() embeds frontendDist at compile time; an
         # empty dist/ is enough for clippy and keeps Node out of this job.
         run: mkdir -p dist && test -f dist/index.html || echo '<!doctype html><title>ci</title>' > dist/index.html
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri -> target
           shared-key: rust-lint-ubuntu-22.04
@@ -106,12 +106,12 @@ jobs:
           toolchain: 1.92.0
       - name: Frontend dist placeholder
         run: mkdir -p dist && test -f dist/index.html || echo '<!doctype html><title>ci</title>' > dist/index.html
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri -> target
           shared-key: rust-test-${{ matrix.os }}
           cache-on-failure: true
-      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
           tool: cargo-nextest
       - name: Unit and integration tests (nextest)
@@ -162,12 +162,12 @@ jobs:
           components: llvm-tools-preview
       - name: Frontend dist placeholder
         run: mkdir -p dist && test -f dist/index.html || echo '<!doctype html><title>ci</title>' > dist/index.html
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri -> target
           shared-key: rust-coverage-ubuntu-22.04
           cache-on-failure: true
-      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
           tool: cargo-llvm-cov,cargo-nextest
       - name: Run tests with coverage instrumentation
@@ -471,7 +471,7 @@ jobs:
         with:
           toolchain: 1.92.0
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri -> target
           shared-key: tauri-build-${{ matrix.name }}
