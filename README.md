@@ -6,56 +6,56 @@ How many times the files of each [OpenAlgo Desktop](https://github.com/marketcal
 
 | | Downloads |
 | --- | ---: |
-| All time | 370 |
-| Last 30 days | 370 |
-| Windows | 214 |
-| macOS | 105 |
-| Linux | 51 |
+| All time | 446 |
+| Last 30 days | 446 |
+| Windows | 239 |
+| macOS | 135 |
+| Linux | 72 |
 
-Update checks, which are not downloads and are in no total: 920.
+Update checks, which are not downloads and are in no total: 1,011.
 
 ## By release
 
 | Release | Published | Windows | macOS installer | macOS update | Linux AppImage | Linux .deb | Total | Update checks |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| v1.0.2 | 2026-10-24 | 75 | 20 | 8 | 7 | 7 | 117 | 383 |
-| v1.0.1 | 2026-10-23 | 44 | 13 | 15 | 10 | 8 | 90 | 257 |
-| v1.0.0 | 2026-10-22 | 95 | 34 | 15 | 11 | 8 | 163 | 280 |
+| v1.0.2 | 2026-10-24 | 95 | 33 | 12 | 11 | 13 | 164 | 471 |
+| v1.0.1 | 2026-10-23 | 46 | 16 | 17 | 12 | 10 | 101 | 259 |
+| v1.0.0 | 2026-10-22 | 98 | 38 | 19 | 14 | 12 | 181 | 281 |
 
 ## By file
 
 | Release | File | Downloaded by | Downloads |
 | --- | --- | --- | ---: |
-| v1.0.2 | `OpenAlgo.Desktop_1.0.2_aarch64.AppImage` | a person or the in-app update | 3 |
-| v1.0.2 | `OpenAlgo.Desktop_1.0.2_aarch64.app.tar.gz` | the in-app update | 5 |
-| v1.0.2 | `OpenAlgo.Desktop_1.0.2_aarch64.dmg` | a person (release page) | 12 |
-| v1.0.2 | `OpenAlgo.Desktop_1.0.2_amd64.AppImage` | a person or the in-app update | 4 |
-| v1.0.2 | `OpenAlgo.Desktop_1.0.2_amd64.deb` | a person (release page) | 4 |
-| v1.0.2 | `OpenAlgo.Desktop_1.0.2_arm64.deb` | a person (release page) | 3 |
-| v1.0.2 | `OpenAlgo.Desktop_1.0.2_x64-setup.exe` | a person or the in-app update | 75 |
-| v1.0.2 | `OpenAlgo.Desktop_1.0.2_x64.app.tar.gz` | the in-app update | 3 |
-| v1.0.2 | `OpenAlgo.Desktop_1.0.2_x64.dmg` | a person (release page) | 8 |
-| v1.0.2 | `latest.json` | update checks (not a download) | 383 |
-| v1.0.1 | `OpenAlgo.Desktop_1.0.1_aarch64.AppImage` | a person or the in-app update | 4 |
-| v1.0.1 | `OpenAlgo.Desktop_1.0.1_aarch64.app.tar.gz` | the in-app update | 9 |
-| v1.0.1 | `OpenAlgo.Desktop_1.0.1_aarch64.dmg` | a person (release page) | 9 |
-| v1.0.1 | `OpenAlgo.Desktop_1.0.1_amd64.AppImage` | a person or the in-app update | 6 |
-| v1.0.1 | `OpenAlgo.Desktop_1.0.1_amd64.deb` | a person (release page) | 5 |
-| v1.0.1 | `OpenAlgo.Desktop_1.0.1_arm64.deb` | a person (release page) | 3 |
-| v1.0.1 | `OpenAlgo.Desktop_1.0.1_x64-setup.exe` | a person or the in-app update | 44 |
-| v1.0.1 | `OpenAlgo.Desktop_1.0.1_x64.app.tar.gz` | the in-app update | 6 |
-| v1.0.1 | `OpenAlgo.Desktop_1.0.1_x64.dmg` | a person (release page) | 4 |
-| v1.0.1 | `latest.json` | update checks (not a download) | 257 |
-| v1.0.0 | `OpenAlgo.Desktop_1.0.0_aarch64.AppImage` | a person or the in-app update | 6 |
-| v1.0.0 | `OpenAlgo.Desktop_1.0.0_aarch64.app.tar.gz` | the in-app update | 10 |
-| v1.0.0 | `OpenAlgo.Desktop_1.0.0_aarch64.dmg` | a person (release page) | 21 |
-| v1.0.0 | `OpenAlgo.Desktop_1.0.0_amd64.AppImage` | a person or the in-app update | 5 |
-| v1.0.0 | `OpenAlgo.Desktop_1.0.0_amd64.deb` | a person (release page) | 5 |
-| v1.0.0 | `OpenAlgo.Desktop_1.0.0_arm64.deb` | a person (release page) | 3 |
-| v1.0.0 | `OpenAlgo.Desktop_1.0.0_x64-setup.exe` | a person or the in-app update | 95 |
-| v1.0.0 | `OpenAlgo.Desktop_1.0.0_x64.app.tar.gz` | the in-app update | 5 |
-| v1.0.0 | `OpenAlgo.Desktop_1.0.0_x64.dmg` | a person (release page) | 13 |
-| v1.0.0 | `latest.json` | update checks (not a download) | 280 |
+| v1.0.2 | `OpenAlgo.Desktop_1.0.2_aarch64.AppImage` | a person or the in-app update | 5 |
+| v1.0.2 | `OpenAlgo.Desktop_1.0.2_aarch64.app.tar.gz` | the in-app update | 8 |
+| v1.0.2 | `OpenAlgo.Desktop_1.0.2_aarch64.dmg` | a person (release page) | 22 |
+| v1.0.2 | `OpenAlgo.Desktop_1.0.2_amd64.AppImage` | a person or the in-app update | 6 |
+| v1.0.2 | `OpenAlgo.Desktop_1.0.2_amd64.deb` | a person (release page) | 8 |
+| v1.0.2 | `OpenAlgo.Desktop_1.0.2_arm64.deb` | a person (release page) | 5 |
+| v1.0.2 | `OpenAlgo.Desktop_1.0.2_x64-setup.exe` | a person or the in-app update | 95 |
+| v1.0.2 | `OpenAlgo.Desktop_1.0.2_x64.app.tar.gz` | the in-app update | 4 |
+| v1.0.2 | `OpenAlgo.Desktop_1.0.2_x64.dmg` | a person (release page) | 11 |
+| v1.0.2 | `latest.json` | update checks (not a download) | 471 |
+| v1.0.1 | `OpenAlgo.Desktop_1.0.1_aarch64.AppImage` | a person or the in-app update | 5 |
+| v1.0.1 | `OpenAlgo.Desktop_1.0.1_aarch64.app.tar.gz` | the in-app update | 10 |
+| v1.0.1 | `OpenAlgo.Desktop_1.0.1_aarch64.dmg` | a person (release page) | 11 |
+| v1.0.1 | `OpenAlgo.Desktop_1.0.1_amd64.AppImage` | a person or the in-app update | 7 |
+| v1.0.1 | `OpenAlgo.Desktop_1.0.1_amd64.deb` | a person (release page) | 6 |
+| v1.0.1 | `OpenAlgo.Desktop_1.0.1_arm64.deb` | a person (release page) | 4 |
+| v1.0.1 | `OpenAlgo.Desktop_1.0.1_x64-setup.exe` | a person or the in-app update | 46 |
+| v1.0.1 | `OpenAlgo.Desktop_1.0.1_x64.app.tar.gz` | the in-app update | 7 |
+| v1.0.1 | `OpenAlgo.Desktop_1.0.1_x64.dmg` | a person (release page) | 5 |
+| v1.0.1 | `latest.json` | update checks (not a download) | 259 |
+| v1.0.0 | `OpenAlgo.Desktop_1.0.0_aarch64.AppImage` | a person or the in-app update | 7 |
+| v1.0.0 | `OpenAlgo.Desktop_1.0.0_aarch64.app.tar.gz` | the in-app update | 12 |
+| v1.0.0 | `OpenAlgo.Desktop_1.0.0_aarch64.dmg` | a person (release page) | 22 |
+| v1.0.0 | `OpenAlgo.Desktop_1.0.0_amd64.AppImage` | a person or the in-app update | 7 |
+| v1.0.0 | `OpenAlgo.Desktop_1.0.0_amd64.deb` | a person (release page) | 7 |
+| v1.0.0 | `OpenAlgo.Desktop_1.0.0_arm64.deb` | a person (release page) | 5 |
+| v1.0.0 | `OpenAlgo.Desktop_1.0.0_x64-setup.exe` | a person or the in-app update | 98 |
+| v1.0.0 | `OpenAlgo.Desktop_1.0.0_x64.app.tar.gz` | the in-app update | 7 |
+| v1.0.0 | `OpenAlgo.Desktop_1.0.0_x64.dmg` | a person (release page) | 16 |
+| v1.0.0 | `latest.json` | update checks (not a download) | 281 |
 
 ## What the counts mean
 
