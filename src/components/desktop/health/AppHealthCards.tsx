@@ -49,7 +49,7 @@ const READER_NAMES: Record<string, string> = {
  */
 const PRICE_READERS = ['strategy', 'scalping', 'sandbox']
 
-const FEED_NAMES: Record<string, string> = {
+export const FEED_NAMES: Record<string, string> = {
   market_data: 'Broker market data',
   order_updates: 'Broker order updates',
   market_depth: 'Broker market depth',
@@ -78,7 +78,7 @@ function count(n: number, one: string, many: string): string {
   return `${n.toLocaleString('en-IN')} ${n === 1 ? one : many}`
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+export function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-2">
       <dt className="text-muted-foreground">{label}</dt>
@@ -90,7 +90,7 @@ function Row({ label, value }: { label: string; value: string }) {
 /** A card of label and value rows (a description list, so only rows go in
  * it); `note` explains the figures, `warning` says what a miss means, and
  * `stale` says when figures that could not be refreshed were read. */
-function AppCard({
+export function AppCard({
   title,
   level,
   note,

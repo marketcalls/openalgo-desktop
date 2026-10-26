@@ -43,6 +43,7 @@ pub mod chart_prefs_service;
 pub mod chart_test_service;
 pub mod core;
 pub mod error_log;
+pub mod feed_connections;
 pub mod feed_losses;
 pub mod freeze_qty_service;
 pub mod gtt_service;

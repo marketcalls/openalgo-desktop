@@ -184,6 +184,25 @@ export interface BrokerFeedLosses {
   /** Per reader, since OpenAlgo started: a reconnect does not reset it. */
   skipped_since_start?: Record<string, number>
   skipped_total_since_start?: number
+  /** Desktop: how the feed's connection held up (`feed_connections::json`). */
+  connection?: FeedConnection
+}
+
+/**
+ * A broker feed's connection since OpenAlgo started, or since another
+ * broker's feed was replaced by this one.
+ */
+export interface FeedConnection {
+  /** The broker of the latest connection; null before the first. */
+  broker: string | null
+  state: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'auth_failed'
+  connects: number
+  /** Connections that ended, or attempts that failed, and were tried again. */
+  disconnects: number
+  /** Of those, the ones that ended because the broker went quiet. */
+  stalls: number
+  /** Why the latest reconnect happened (`DropCause`) and when (RFC 3339). */
+  last_reconnect: { reason: string; at: string } | null
 }
 
 export interface MarketDataLosses {

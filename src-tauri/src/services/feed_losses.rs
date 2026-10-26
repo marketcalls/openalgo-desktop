@@ -90,13 +90,15 @@ fn feed_block(
 
 fn feed_json(name: &str, feed: &WebSocketManager) -> Value {
     let stats = feed.stats();
-    feed_block(
+    let mut v = feed_block(
         name,
         feed.is_connected(),
         &stats.since_connect(),
         &stats.skipped_since_start(),
         stats.last_event_age(),
-    )
+    );
+    v["connection"] = crate::services::feed_connections::json(feed);
+    v
 }
 
 /// What the feed server did not send its apps since OpenAlgo started.

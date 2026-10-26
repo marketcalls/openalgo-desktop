@@ -44,6 +44,7 @@ import {
   resolveAlert,
 } from '@/api/health'
 import { AppHealthCards } from '@/components/desktop/health/AppHealthCards'
+import { FeedConnectionsCard } from '@/components/desktop/health/FeedConnectionsCard'
 import { NoHealthSamples } from '@/components/desktop/health/NoHealthSamples'
 import { NotRefreshed, NotRefreshedCard } from '@/components/desktop/health/NotRefreshed'
 import { formatAge, readTime, sampleFreshness } from '@/components/desktop/health/sampleFreshness'
@@ -573,6 +574,7 @@ export default function HealthMonitor() {
       </div>
 
       <AppHealthCards read={reads.current} />
+      <FeedConnectionsCard read={reads.current} />
 
       {/* Charts - Placed above Top Memory Processes */}
       <div className="grid gap-4 lg:grid-cols-2">

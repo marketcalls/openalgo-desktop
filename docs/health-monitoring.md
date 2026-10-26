@@ -63,6 +63,7 @@ Below them, the desktop's own checks, one card each:
 | --- | --- |
 | **Data Files** | Each database's size and how fast it grows (see [Database growth](#database-growth)) |
 | **Market Data** | Each broker feed's updates since it connected; the prices strategies, scalping stops and sandbox orders missed, what apps on your feed missed, and what they got as a newer price instead (see [Market data](#market-data-freshness-and-skips)) |
+| **Broker Feed Connections** | Each broker feed's state, how often it reconnected (and how often because the broker went quiet), and when and why it last did (see [Broker feed connections](#broker-feed-connections)) |
 | **Order Tracking** | The order book checks, unconfirmed orders, order updates lost, and each open order-update gap with its mode, start and cause |
 | **Records Saved** | Order log and monitoring records that could not be saved |
 | **Strategy Prices** | The prices strategy risk management read, combined while busy, and missed |
@@ -241,6 +242,34 @@ charts and watchlists, and in your scripts), close apps on port 8765 you do
 not use, and keep other heavy programs off the computer during market hours.
 The counts go back to zero only when OpenAlgo restarts.
 
+## Broker feed connections
+
+For each broker feed listed under Market data, its `broker_feeds` entry
+carries `connection`: `broker`, `state` (`connected`, `connecting`,
+`reconnecting`, `disconnected`, `auth_failed`), `connects`,
+`disconnects` (connections that ended or attempts that failed, each
+followed by a new attempt), `stalls` (of those, the ones where the broker
+went quiet) and `last_reconnect` (`reason` and `at`). The reasons are
+`connect_failed`, `closed`, `silent` (nothing arrived for 90 seconds),
+`data_stopped` (the connection answered but prices stopped),
+`heartbeat_unanswered` (a keep-alive check went unanswered),
+`not_taking_frames`, `login_not_confirmed` and `woke` (the computer slept).
+The counts run from OpenAlgo's start and start again when another broker's
+feed replaces this one.
+
+The **Broker Feed Connections** card is red when the broker refused a feed
+(log in to the broker again) and amber while a feed reconnects or for 15
+minutes after it did, saying why in plain words. A feed that keeps
+reconnecting because the broker went quiet or left a keep-alive check
+unanswered points at the network between this computer and the broker.
+
+Each feed sends the keep-alive the web sends to the same broker (most ping
+every 30 seconds and expect an answer within 10; order update sockets every
+20), so a broker that is quiet but connected is not taken for dead. Feeds
+that reach their broker through a relay inside the app (AliceBlue, IIFL
+Capital, Nubra order updates) hear the broker's answers to the relay's
+keep-alive the same way.
+
 ## Strategy prices and exits
 
 The strategy module decides every price of a held symbol as it arrives and
@@ -358,6 +387,7 @@ keeps a worker thread per processor core and a pool for blocking work.
 | Order outcomes | Not monitored | Unconfirmed orders, the order-update gap, held positions |
 | Lost records and missed prices | Not counted | Counted, with an alert |
 | Feed skips and database growth | Not reported | Reported, skips since start, growth over the last day and the samples kept |
+| Feed reconnects | Logged only | Counted per feed, with the last reconnect's cause and time |
 | A read that fails | Every figure stays with only a message | Each read kept on its own; what could not be refreshed is marked, never emptied |
 | Deployment health checks (ELB, Kubernetes, Docker) | Documented | Not applicable: there is no server to probe |
 
