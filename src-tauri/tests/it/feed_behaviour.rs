@@ -641,3 +641,34 @@ async fn a_stalled_loopback_handshake_is_dropped_at_its_deadline() {
     assert_eq!(c.auth().await["status"], "success");
     h.handle.stop().await;
 }
+
+/// docs-8: like the web's proxy, which checks no level, any whole-number
+/// depth is taken and the broker's rules decide what is streamed: 7, 0 and
+/// -1 are acknowledged (Zerodha echoes the depth asked for), where the
+/// desktop said "Depth must be one of 5, 20, 30 or 50" for 0 and -1 and
+/// took 7 anyway. A depth that is not a whole number is refused, saying so.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn any_whole_number_depth_is_taken_as_the_web_takes_it() {
+    let h = start_default().await;
+    let mut c = Client::connect(&h.url).await;
+    c.auth().await;
+    let sbin = json!([{"symbol": "SBIN", "exchange": "NSE"}]);
+    for d in [7, 0, -1] {
+        let ack = c
+            .request(json!({"action": "subscribe", "symbols": sbin, "mode": 3, "depth": d}))
+            .await;
+        assert_eq!(ack["type"], "subscribe", "{}", ack);
+        assert_eq!(ack["status"], "success", "{}", ack);
+        assert_eq!(ack["subscriptions"][0]["depth"], d, "{}", ack);
+    }
+    let refused = c
+        .request(json!({"action": "subscribe", "symbols": sbin, "mode": 3, "depth": "deep"}))
+        .await;
+    assert_eq!(refused["status"], "error", "{}", refused);
+    assert_eq!(refused["code"], "INVALID_PARAMETERS");
+    assert_eq!(
+        refused["message"],
+        "Depth must be a whole number, such as 5, 20, 30 or 50"
+    );
+    h.handle.stop().await;
+}

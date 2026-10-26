@@ -263,7 +263,7 @@ Errors have no `type` field:
 | `AUTHENTICATION_ERROR` | A missing or wrong key, OpenAlgo locked, or (before a close) your session or key changed |
 | `BROKER_ERROR` | No broker logged in |
 | `INVALID_MODE` | A mode that is not 1, 2, 3, LTP, Quote or Depth |
-| `INVALID_PARAMETERS` | No symbols (`At least one symbol must be specified`), a depth that is not a positive whole number (`Depth must be one of 5, 20, 30 or 50`), or an unsubscribe with neither symbols nor `unsubscribe_all` |
+| `INVALID_PARAMETERS` | No symbols (`At least one symbol must be specified`), a depth that is not a whole number (`Depth must be a whole number, such as 5, 20, 30 or 50`), or an unsubscribe with neither symbols nor `unsubscribe_all` |
 | `INVALID_ACTION` | An unknown action. `{}` answers `Invalid action: None`. |
 | `INVALID_JSON` | A message that is not JSON (`Invalid JSON message`) |
 | `SERVER_ERROR` | A message that is JSON but not an object; a list answers `'list' object has no attribute 'get'` |

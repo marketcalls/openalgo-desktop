@@ -256,12 +256,13 @@ Requests refused as a whole are answered with an error frame:
 | Not authenticated yet | `NOT_AUTHENTICATED` | `You must authenticate first` |
 | Invalid `mode` | `INVALID_MODE` | see [Data modes](#data-modes) |
 | No instrument given | `INVALID_PARAMETERS` | `At least one symbol must be specified` |
-| `depth` not a positive whole number | `INVALID_PARAMETERS` | `Depth must be one of 5, 20, 30 or 50` |
+| `depth` not a whole number | `INVALID_PARAMETERS` | `Depth must be a whole number, such as 5, 20, 30 or 50` |
 | No broker logged in | `BROKER_ERROR` | `Broker adapter not found` |
 
-In the desktop, a `depth` that is not a positive whole number (`0`, `-5`,
-`2.5`, `"abc"`) is refused up front. Any other whole number is accepted and
-served as described next.
+Any whole number is accepted, as on the web, and served as described next
+(`0` or `-5` gets the smallest level the broker streams). In the desktop a
+`depth` that is not a whole number (`2.5`, `"abc"`) is refused up front; on
+the web, Zerodha echoes it and other brokers answer a `SERVER_ERROR` frame.
 
 #### Depth levels
 

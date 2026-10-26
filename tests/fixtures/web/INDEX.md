@@ -379,6 +379,10 @@ The web shares each of these defects; the desktop answers differently on purpose
 - **HDFC Sky `user_order_id` (BR-05)**: distinct per order (`max(clock, last + 1)` below 1e9); the web's clock-only id repeats for legs placed in the same millisecond.
 - **XTS subscription batches (BF-03)**: a batch that failed with a server error or rate limit is sent again (1 s doubling to 30 s, five times) for every XTS member, not only RMoney; a refused token reconnects the feed.
 
+### Web API defects deliberately not copied (1.0.3, read from web source)
+No fixture records these; each is asserted by its own test.
+- **WebSocket `depth` that is not a whole number (docs-8)**: the web's proxy checks no level; Zerodha's adapter echoes the value and the others fail with a `SERVER_ERROR` frame. The desktop refuses it with `INVALID_PARAMETERS` `Depth must be a whole number, such as 5, 20, 30 or 50`; any whole number is taken, as on the web (`feed_behaviour`).
+
 ### Web broker changes deliberately not copied
 - **Angel daily candles (web 4c8ee632c, #2176, 2026-10-06)**: the web dropped the +05:30 shift on Angel `D` candles, so they are now stamped at IST midnight (18:30 UTC of the previous day). Every other web broker, and `history/nifty_index_D.json` above (`1788220800` = 2026-09-01 00:00 UTC), stamps a daily candle at 00:00 UTC of its date. The desktop keeps 00:00 UTC for Angel (`brokers/angel/data.rs` `parse_candles`). The IST request window from the same commit is ported.
 

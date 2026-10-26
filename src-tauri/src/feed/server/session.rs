@@ -38,8 +38,13 @@ fn now_ms() -> i64 {
 }
 
 /// The depth a subscribe asks for (`depth`, else `depth_level`): the
-/// default when neither is given, `None` when it is not a positive whole
-/// number.
+/// default when neither is given, `None` when it is not a whole number.
+/// The web's proxy checks no level: it hands any value to the broker's
+/// adapter, whose rules ([`subscribe_depth`]) decide the level streamed and
+/// the one acknowledged (7 streams the largest level up to it, 0 the
+/// smallest), and the desktop takes any whole number the same way
+/// (docs-8). Some web adapters echo a value that is not a whole number and
+/// the others fail on it; the desktop refuses it.
 fn requested_depth(data: &Value) -> Option<i64> {
     let depth_v = match data.get("depth") {
         Some(v) if !v.is_null() => Some(v),
@@ -47,12 +52,12 @@ fn requested_depth(data: &Value) -> Option<i64> {
     };
     match depth_v {
         None => Some(DEFAULT_DEPTH as i64),
-        Some(v) => match v.as_i64() {
-            Some(d) if !v.is_f64() && d > 0 => Some(d),
-            _ => None,
-        },
+        Some(v) => v.as_i64(),
     }
 }
+
+/// What a subscribe whose depth is not a whole number is told.
+const DEPTH_NOT_WHOLE: &str = "Depth must be a whole number, such as 5, 20, 30 or 50";
 
 /// The instruments a subscribe lists: `symbols`, else the single
 /// `symbol` and `exchange` (Python iteration over `symbols`).
@@ -282,11 +287,7 @@ impl Session {
             }
         };
         let Some(requested_depth) = requested_depth(data) else {
-            self.error(
-                code::INVALID_PARAMETERS,
-                "Depth must be one of 5, 20, 30 or 50",
-                rid,
-            );
+            self.error(code::INVALID_PARAMETERS, DEPTH_NOT_WHOLE, rid);
             return Ok(());
         };
         let items = subscribe_items(data)?;
