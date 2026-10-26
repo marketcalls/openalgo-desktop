@@ -78,7 +78,22 @@ const PROGRESS: &[&str] = &["leg_trail_advanced", "lock_profit_floor_advanced"];
 /// second or two after that, so an exit decided longer ago than this is
 /// held by something else: a broker call that does not answer, a stalled
 /// database, or the evaluator busy polling prices.
-const SLOW_EXIT_AFTER: Duration = Duration::from_secs(15);
+pub(crate) const SLOW_EXIT_AFTER: Duration = Duration::from_secs(15);
+
+/// The strategies with an exit or stop decided and not yet acted on, and
+/// how long the oldest of them has waited, in seconds (health).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct ExitWait {
+    pub(crate) strategies: usize,
+    pub(crate) oldest_s: Option<u64>,
+}
+
+impl ExitWait {
+    /// How long the oldest has waited, once that is past `SLOW_EXIT_AFTER`.
+    pub(crate) fn slow_for(&self) -> Option<u64> {
+        self.oldest_s.filter(|s| *s >= SLOW_EXIT_AFTER.as_secs())
+    }
+}
 
 /// An exit risk decided for a leg, and the position it was decided on.
 #[derive(Debug, Clone, PartialEq)]
@@ -347,18 +362,26 @@ impl Pending {
     /// page names them.
     pub(super) fn health(&self, now: DateTime<Utc>) -> Value {
         let lagged = self.lagged.load(Ordering::Relaxed);
-        let (exits_waiting, oldest) = self.waiting.lock().exits();
-        let waited = oldest.map(|at| (now - at).to_std().unwrap_or_default().as_secs());
-        let slow = waited.is_some_and(|s| s >= SLOW_EXIT_AFTER.as_secs());
+        let wait = self.exit_wait(now);
+        let slow = wait.slow_for().is_some();
         json!({
             "status": if lagged == 0 && !slow { "pass" } else { "warn" },
             "ticks_queued": self.read.load(Ordering::Relaxed),
             "ticks_folded": self.combined.load(Ordering::Relaxed),
             "ticks_missed": lagged,
-            "exits_waiting": exits_waiting,
-            "oldest_exit_wait_s": waited,
+            "exits_waiting": wait.strategies,
+            "oldest_exit_wait_s": wait.oldest_s,
             "exits_slow": slow,
         })
+    }
+
+    /// The exits and stops decided and not yet acted on at `now`.
+    pub(super) fn exit_wait(&self, now: DateTime<Utc>) -> ExitWait {
+        let (strategies, oldest) = self.waiting.lock().exits();
+        ExitWait {
+            strategies,
+            oldest_s: oldest.map(|at| (now - at).to_std().unwrap_or_default().as_secs()),
+        }
     }
 }
 

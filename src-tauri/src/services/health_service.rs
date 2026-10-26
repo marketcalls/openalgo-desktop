@@ -198,7 +198,7 @@ pub fn sample_once(ctx: &AppState) -> Result<HealthRow> {
     let id = store::insert_health(&conn, &row)?;
     sample_alerts(&conn, now, &row, fd_levels)?;
     crate::services::record_loss::alert(&conn, ctx, now)?;
-    crate::services::strategy_ticks::alert(&conn, ctx, now)?;
+    crate::services::strategy_ticks::alert(&conn, &ctx.strategy.feed, now)?;
     Ok(HealthRow { id, ..row })
 }
 
@@ -703,7 +703,8 @@ pub fn stats_json(rows: &[HealthRow], hours: i64) -> Value {
 
 /// Whether OpenAlgo resolves alerts of `metric` itself once the cause is
 /// gone: the sampled levels, the order facts and held orders, the OpenScript
-/// order wait, the market data feed and the master contract. The Health
+/// order wait, slow strategy exits, the market data feed and the master
+/// contract. The Health
 /// page offers Resolve on the others (lost records, missed strategy prices,
 /// bans, a recovered Historify log, a scalping stop kept), which stay until
 /// the trader has read them. The web page offers no Resolve at all, so an
@@ -714,6 +715,7 @@ fn resolves_itself(metric: &str) -> bool {
             ORDER_FACTS_METRIC,
             ORDER_HELD_METRIC,
             OPENSCRIPT_ALERT,
+            crate::services::strategy_ticks::SLOW_EXITS_ALERT,
             crate::feed::FEED_ALERT_METRIC,
             crate::services::master_contract_service::MASTER_ALERT_METRIC,
         ]
@@ -829,6 +831,7 @@ mod tests {
             ORDER_FACTS_METRIC,
             ORDER_HELD_METRIC,
             OPENSCRIPT_ALERT,
+            "strategy_exits_slow",
             "market_data_feed",
             "master_contract",
         ] {

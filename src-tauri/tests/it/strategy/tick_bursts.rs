@@ -629,6 +629,74 @@ async fn health_says_how_long_a_decided_exit_has_waited() {
     t.m.shutdown().await;
 }
 
+/// An exit that waits past 15 seconds to be placed raises a health alert
+/// at the next sample, saying how long and for how many strategies, kept
+/// current while it waits, and resolved by OpenAlgo once the exits are
+/// placed. Before, only the Strategy Prices card turned amber while the
+/// Health page was open, and nothing was listed for a trader who was not
+/// looking at it.
+#[tokio::test]
+async fn a_slow_exit_raises_a_health_alert_until_it_is_placed() {
+    use openalgo_desktop_lib::db::sqlite::{logs::LogsDb, monitor};
+    use openalgo_desktop_lib::services::strategy_ticks;
+
+    let dir = tempfile::tempdir().unwrap();
+    let logs = LogsDb::new(&dir.path().join("logs.db")).unwrap();
+    let (t, burst) = burst_module().await;
+    // One health sample's alerts, and what is listed after it.
+    let sample = |t: &T| {
+        let c = logs.conn().unwrap();
+        strategy_ticks::alert(&c, &t.m.feed, t.clock.now()).unwrap();
+        monitor::active_alerts(&c).unwrap()
+    };
+    let (_, blocker) = held(&t, "Blocker", "OTM3", json!({"sl_pts": 10})).await;
+    let (_, other) = held(&t, "Other", "ATM", json!({"sl_pts": 10})).await;
+    let gate = Arc::new(Gate::default());
+    *t.gw.place_gate.lock() = Some(gate.clone());
+    burst.send(&blocker, 85.0);
+    gate.entered().await;
+    assert!(
+        sample(&t).is_empty(),
+        "an exit being placed now is not slow"
+    );
+
+    t.clock.advance(chrono::Duration::seconds(20));
+    let open = sample(&t);
+    assert_eq!(open.len(), 1, "{:?}", open);
+    assert_eq!(open[0].alert_type, "strategy_exits_slow");
+    assert_eq!(open[0].severity, "warn");
+    assert_eq!(open[0].metric_value, 20.0);
+    assert!(
+        open[0]
+            .message
+            .starts_with("A strategy exit decided 20 seconds ago is not placed yet"),
+        "{}",
+        open[0].message
+    );
+
+    // A second strategy's exit waits behind the first: one alert, saying
+    // what waits now.
+    let read = prices_read(&t);
+    burst.send(&other, 85.0);
+    assert!(eventually(|| prices_read(&t) == read + 1).await);
+    t.clock.advance(chrono::Duration::seconds(10));
+    let open = sample(&t);
+    assert_eq!(open.len(), 1, "{:?}", open);
+    assert!(
+        open[0].message.starts_with(
+            "2 strategies have an exit that is not placed yet; the oldest was decided 30 seconds ago"
+        ),
+        "{}",
+        open[0].message
+    );
+
+    *t.gw.place_gate.lock() = None;
+    gate.release();
+    settled(&t).await;
+    assert!(sample(&t).is_empty(), "resolved once the exits are placed");
+    t.m.shutdown().await;
+}
+
 /// The tick reader never waits on the database. With every pooled
 /// connection held, so a read waits its 10 s for one, a run whose banked
 /// P&L must be read for a new session and a run whose tick inputs were

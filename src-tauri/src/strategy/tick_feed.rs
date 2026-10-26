@@ -89,6 +89,12 @@ impl TickFeed {
         self.pending.missed_since_alert()
     }
 
+    /// The strategies whose exit or stop waits to be acted on at `now`, and
+    /// how long the oldest has waited (the slow-exit health alert).
+    pub(crate) fn exit_wait(&self, now: chrono::DateTime<chrono::Utc>) -> pending::ExitWait {
+        self.pending.exit_wait(now)
+    }
+
     /// Add this run's instruments; subscribes only those newly referenced.
     pub async fn add_run(&self, run_id: i64, keys: &[Key]) {
         let fresh: Vec<Key> = {
