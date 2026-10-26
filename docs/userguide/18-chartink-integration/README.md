@@ -26,10 +26,12 @@ address for ChartInk instead of `/api/v1/placeorder`.
 
 ## Making the desktop reachable from ChartInk
 
-OpenAlgo Desktop does not start a tunnel itself. Run one yourself on the same
-computer, then tell OpenAlgo its address:
+Turn on the built-in ngrok tunnel in **Profile**, the **Broker** tab,
+**Server Configuration** (your ngrok authtoken, then **Enable Ngrok Tunnel**;
+see [chapter 16](../16-tradingview-integration/README.md#step-1-turn-on-the-built-in-tunnel)).
+Or run a tunnel yourself on the same computer and tell OpenAlgo its address:
 
-1. Start a tunnel to the app port, for example `ngrok http 5000` or
+1. Start a tunnel to the app port, for example
    `cloudflared tunnel --url http://localhost:5000`. Use the port shown in
    **Server Settings** if you changed it.
 2. Copy the tunnel's `https://` address.

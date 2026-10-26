@@ -206,9 +206,9 @@ Semi-Auto and the rate limits. AI clients (MCP) get their own tokens with
 
 ### How do I connect TradingView, ChartInk or GoCharting?
 
-They send alerts from the internet, so run a tunnel (ngrok, Cloudflare
-Tunnel) to the app port and enter its address as **Host Server URL** in
-Profile. See [18 - ChartInk](../18-chartink-integration/README.md) and
+They send alerts from the internet, so turn on the built-in ngrok tunnel in
+Profile (Broker tab, **Server Configuration**), or run a tunnel yourself and
+enter its address as **Host Server URL** there. See [18 - ChartInk](../18-chartink-integration/README.md) and
 [19 - GoCharting](../19-gocharting-integration/README.md). Your own scripts,
 Amibroker and Excel on the same computer need no tunnel.
 

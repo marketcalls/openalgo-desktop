@@ -105,7 +105,8 @@ Tradejini, for example, check it at sign-in or on every call.
 
 TradingView, Chartink and GoCharting send alerts from their servers. Your
 computer is not reachable from the internet by default, so these alerts need a
-tunnel (such as ngrok or Cloudflare Tunnel) that you run yourself. Your own
+tunnel: the built-in ngrok tunnel (a free ngrok account), or one you run
+yourself such as Cloudflare Tunnel. Your own
 scripts, Amibroker and Excel on the same computer need nothing extra. See
 [chapter 16](../16-tradingview-integration/README.md).
 

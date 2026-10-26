@@ -88,7 +88,7 @@ What to know about saved keys:
 
 | What it shows | Meaning |
 | --- | --- |
-| Automatic | `http://127.0.0.1:<app port>/<broker>/callback`, or your **Host Server URL** while **Enable Ngrok Tunnel** is ticked in Profile |
+| Automatic | `http://127.0.0.1:<app port>/<broker>/callback`; while **Enable Ngrok Tunnel** is ticked in Profile, the built-in tunnel's address when it is online, else your **Host Server URL**. A sign-in that comes back through the built-in tunnel is passed on to this computer |
 | Custom address | An address you typed. It must be a full address ending in `/<broker>/callback` |
 
 **Use automatic** goes back to the automatic address; an empty field means

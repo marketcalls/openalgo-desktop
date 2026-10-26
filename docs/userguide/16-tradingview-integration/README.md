@@ -41,8 +41,8 @@ even if your router forwarded it.
 
 | Way | Supported? |
 | --- | --- |
-| A tunnel you run yourself (ngrok, Cloudflare Tunnel or similar), forwarding to `http://127.0.0.1:5000`, with its address entered as **Host Server URL** | **Yes.** This is the way |
-| OpenAlgo Desktop starting a tunnel for you | **No.** The desktop does not start, install or manage a tunnel. (OpenAlgo web starts ngrok itself when `NGROK_ALLOW` is on; the desktop does not.) |
+| The built-in ngrok tunnel (**Profile**, **Broker** tab, **Server Configuration**) | **Yes.** The simplest way: nothing to install, it opens when you sign in |
+| A tunnel you run yourself (Cloudflare Tunnel, an ngrok agent or similar), forwarding to `http://127.0.0.1:5000`, with its address entered as **Host Server URL** | **Yes** |
 | **Allow access from other devices** in Server Settings | **Not for webhooks.** It lets devices on your own network (a laptop, a tablet) reach the app over plain HTTP. It does not make the app reachable from the internet |
 | Forwarding port 5000 on your router to your computer | **No.** It would expose the app over plain HTTP, and TradingView does not call port 5000 |
 | A plain port forwarder that adds no forwarding header (`socat`, `ssh -R`) | **No.** Its callers look like programs on your computer. Use a tunnel that adds one, such as ngrok or Cloudflare Tunnel |
@@ -60,31 +60,42 @@ And, whatever the tunnel:
 For alerts around the clock without a computer left on, run
 [OpenAlgo web](https://github.com/marketcalls/openalgo) on a server instead.
 
-### Step 1: Start a tunnel
+### Step 1: Turn on the built-in tunnel
 
-Install a tunnel tool and point it at the desktop's app port (5000, or your
-**App port** from Server Settings). For example:
+1. Sign up at ngrok.com (the free plan works). Copy your authtoken from
+   **Your Authtoken** in the ngrok dashboard. Optionally reserve a domain
+   under **Domains**, so your webhook address stays the same every day.
+2. In OpenAlgo, open the profile menu, **Profile**, then the **Broker** tab.
+3. In the **Server Configuration** card, paste the authtoken (and the
+   domain, if you have one) and choose **Save authtoken and domain**. The
+   authtoken is kept encrypted and never shown again.
+4. Tick **Enable Ngrok Tunnel** and choose **Save Ngrok Settings**.
 
-| Tool | Command | Address it gives |
-| --- | --- | --- |
-| ngrok | `ngrok http 5000` | An `https://...ngrok-free.app` address, or your reserved domain |
-| Cloudflare Tunnel | `cloudflared tunnel --url http://127.0.0.1:5000` | An `https://...trycloudflare.com` address, or your own domain with a named tunnel |
+The card shows the tunnel's state: **Connecting**, then **Online** with its
+`https://` address. While it is online, the webhook address on the
+TradingView, GoCharting and Chartink pages and on each strategy uses it, and
+so does the automatic broker redirect URL (register that address at your
+broker too, or save the local one as a fixed redirect URL on Broker
+Configuration). The tunnel opens each time you sign in, closes when you log
+out or quit, and reconnects by itself if the connection drops. If it shows
+**Error**, the message says why and what to do (a mistyped authtoken, a
+domain not reserved on your ngrok account, another ngrok agent holding your
+account's tunnel, no internet).
 
-Other tunnel services (VS Code Dev Tunnels and others) work the same way if
-they give an `https` address anyone can call without signing in, and pass on
-the caller's address in a forwarding header.
+Through the built-in tunnel only alerts and API calls (with your API key),
+strategy and Chartink webhooks, and AI clients (with **Remote MCP** on)
+reach OpenAlgo. The OpenAlgo pages and the sign-in page stay on your
+computer: opening the tunnel's address in a browser shows a short notice.
 
-Copy the `https://` address the tool prints. Free tunnel addresses often
-change each time the tunnel restarts; a reserved or named address saves you
-updating every alert.
+### Or: a tunnel you run yourself
 
-### Step 2: Enter the tunnel address as Host Server URL
-
-1. Open the profile menu, **Profile**, then the **Broker** tab.
-2. In the **Server Configuration** card, enter the tunnel's address in **Host
-   Server URL**, for example `https://abc123.ngrok-free.app`. It must be the
-   bare address: `https://`, the host name, nothing after it.
-3. Choose **Save Ngrok Settings**. It applies at once; no restart.
+Point your tunnel tool at the desktop's app port (5000, or your **App port**
+from Server Settings), for example
+`cloudflared tunnel --url http://127.0.0.1:5000`, and copy the `https://`
+address it prints. Then, in the **Server Configuration** card, enter it in
+**Host Server URL** (the bare address: `https://`, the host name, nothing
+after it) and choose **Save Ngrok Settings**. It applies at once; no
+restart. Leave **Enable Ngrok Tunnel** off: it starts the built-in tunnel.
 
 Why this matters:
 
@@ -94,17 +105,15 @@ Why this matters:
 - The webhook address shown on the TradingView, GoCharting and Chartink pages
   uses it.
 
-**Enable Ngrok Tunnel**, in the same card, does not start ngrok. Tick it only
-if you also want broker logins to come back through the tunnel: the automatic
-broker redirect URL then becomes `<Host Server URL>/<broker>/callback`, which
-you must then register at your broker. For TradingView alone, leave it off.
-
-When you stop using the tunnel, choose **Use automatic address** under the
-field (or clear it) and save.
+Other tunnel services (VS Code Dev Tunnels and others) work the same way if
+they give an `https` address anyone can call without signing in, and pass on
+the caller's address in a forwarding header. When you stop using the tunnel,
+choose **Use automatic address** under the field (or clear it) and save.
 
 ### Security with a tunnel
 
-A tunnel makes the OpenAlgo sign-in page reachable from the internet.
+A tunnel you run yourself makes the OpenAlgo sign-in page reachable from
+the internet (the built-in one does not).
 
 - Use a strong password and turn on two-factor sign-in (**Profile**, **TOTP**
   tab; [chapter 05](../05-first-time-setup/README.md#step-6-turn-on-two-factor-sign-in-optional)).

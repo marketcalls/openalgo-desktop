@@ -26,11 +26,12 @@ the message for you.
 
 ## Making the desktop reachable
 
-OpenAlgo Desktop does not start a tunnel itself. Run one on the same computer
-(for example `ngrok http 5000` or `cloudflared tunnel --url http://localhost:5000`,
-using your app port if you changed it), then enter its `https://` address as
-**Host Server URL** in **Profile**, **Broker** tab, **Server Configuration**,
-and save.
+Turn on the built-in ngrok tunnel in **Profile**, **Broker** tab, **Server
+Configuration** (your ngrok authtoken, then **Enable Ngrok Tunnel**; see
+[chapter 16](../16-tradingview-integration/README.md#step-1-turn-on-the-built-in-tunnel)).
+Or run a tunnel yourself on the same computer (for example
+`cloudflared tunnel --url http://localhost:5000`, using your app port if you
+changed it) and enter its `https://` address as **Host Server URL** there.
 
 Until you do, the GoCharting page shows **Webhook URL not accessible!** and
 its webhook address points at `127.0.0.1`, which GoCharting cannot reach.
