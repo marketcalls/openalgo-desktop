@@ -182,16 +182,12 @@ export default function RemoteMcp() {
   const [killSwitchBusy, setKillSwitchBusy] = useState(false)
   const [expandedAudit, setExpandedAudit] = useState<number | null>(null)
 
-  // Settings card state — runtime values, the user's pending edits, and a
-  // "restart required" tracker that survives page reloads. We persist the
-  // settings the user last saved in localStorage; on every load we compare
-  // them with the runtime values returned by GET /admin/api/mcp/settings.
-  // If they match the runtime, the service was restarted and changes took
-  // effect — clear the banner.
+  // Settings card state: the saved values and the user's pending edits.
+  // Desktop: a save applies at once (there is no service to restart), so the
+  // web's "restart required" tracker is left out (docs-9).
   const [settings, setSettings] = useState<MCPSettings | null>(null)
   const [pendingSettings, setPendingSettings] = useState<MCPSettings | null>(null)
   const [savingSettings, setSavingSettings] = useState(false)
-  const [restartPending, setRestartPending] = useState<MCPSettings | null>(null)
 
   const loadAll = async () => {
     setLoading(true)
@@ -209,25 +205,9 @@ export default function RemoteMcp() {
       setSettings(settingsRes.settings)
       setPendingSettings(settingsRes.settings)
 
-      // Reconcile saved-but-not-applied state stored in localStorage
-      // against what the running process actually reports back.
-      const stored = localStorage.getItem(RESTART_PENDING_KEY)
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored) as MCPSettings
-          if (settingsEqual(parsed, settingsRes.settings)) {
-            // Service was restarted — runtime now matches what was saved.
-            localStorage.removeItem(RESTART_PENDING_KEY)
-            setRestartPending(null)
-          } else {
-            setRestartPending(parsed)
-          }
-        } catch {
-          localStorage.removeItem(RESTART_PENDING_KEY)
-        }
-      } else {
-        setRestartPending(null)
-      }
+      // Desktop: an earlier version kept a "restart required" note here,
+      // which a kill switch could leave showing for good.
+      localStorage.removeItem(RESTART_PENDING_KEY)
     } catch {
       showToast.error('Failed to load Remote MCP state', 'admin')
     } finally {
@@ -250,11 +230,11 @@ export default function RemoteMcp() {
         showToast.error(res.message ?? 'Failed to save settings', 'admin')
         return
       }
-      // Persist the saved values so we can show the "restart required"
-      // banner on reloads until the running process actually picks them up.
-      localStorage.setItem(RESTART_PENDING_KEY, JSON.stringify(pendingSettings))
-      setRestartPending(pendingSettings)
-      showToast.success('Saved. Restart the openalgo service to apply.', 'admin')
+      // Desktop: applied as soon as it is saved.
+      const saved = res.settings_pending ?? pendingSettings
+      setSettings(saved)
+      setPendingSettings(saved)
+      showToast.success('Saved. The new settings apply now.', 'admin')
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -374,7 +354,7 @@ export default function RemoteMcp() {
               variant="destructive"
               size="sm"
               onClick={() => setKillSwitchOpen(true)}
-              title="Revoke every active refresh token"
+              title="Revoke every MCP access token and turn order tools off"
             >
               <AlertTriangle className="h-4 w-4 mr-1" /> Kill switch
             </Button>
@@ -393,13 +373,14 @@ export default function RemoteMcp() {
                   Remote MCP settings
                 </CardTitle>
                 <CardDescription>
-                  {/* Desktop: settings are stored in-app; a restart means quitting the app. */}
-                  Toggle Remote MCP on or off and adjust its OAuth posture. Changes take effect
-                  after you quit OpenAlgo Desktop and open it again.
+                  {/* Desktop: settings are stored in-app and apply as soon as they are saved. */}
+                  Turn Remote MCP on or off and choose whether AI clients may place orders. Changes
+                  apply as soon as you save them.
                 </CardDescription>
               </div>
-              <Badge variant={mcpEnabled ? 'default' : 'secondary'}>
-                Currently {mcpEnabled ? 'enabled' : 'disabled'}
+              {/* Desktop: the saved Remote MCP switch; MCP itself always serves this computer. */}
+              <Badge variant={settings.http_enabled ? 'default' : 'secondary'}>
+                Currently {settings.http_enabled ? 'enabled' : 'disabled'}
               </Badge>
             </div>
           </CardHeader>
@@ -439,9 +420,11 @@ export default function RemoteMcp() {
                 }
                 placeholder="https://yourdomain.com"
               />
+              {/* Desktop: AI clients use access tokens; nothing is issued for this address. */}
               <p className="text-xs text-muted-foreground">
-                Same as your OpenAlgo dashboard URL. Required when MCP is enabled. Used as the JWT
-                issuer / audience claim — tokens are scoped to this exact origin.
+                The https address of the tunnel that forwards to OpenAlgo Desktop, such as your Host
+                Server URL. Optional: it gives the MCP URL for a hosted AI client, and browser-based
+                AI clients at this address are accepted while Remote MCP is on.
               </p>
             </div>
 
@@ -450,9 +433,11 @@ export default function RemoteMcp() {
               <div className="flex items-start justify-between gap-4 py-2 border-t pt-4">
                 <div>
                   <div className="text-sm font-medium">Remote MCP enabled</div>
+                  {/* Desktop: there is no OAuth sign-in to switch; loopback is always served. */}
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Master switch for the <code>/mcp</code> and <code>/oauth/*</code> endpoints.
-                    Local stdio MCP (Claude Desktop / Cursor) is unaffected.
+                    When on, AI clients on other computers, through a tunnel or your network, can
+                    use MCP with an access token from the API Key page. AI clients on this computer
+                    (Claude Desktop, Cursor, Windsurf) are always served.
                   </p>
                 </div>
                 <Switch
@@ -537,30 +522,16 @@ export default function RemoteMcp() {
         </Card>
       ) : null}
 
-      {/* Restart-required banner — shown until the running process picks up the saved values */}
-      {restartPending ? (
-        <Alert variant="default" className="border-amber-300 dark:border-amber-700">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertTitle>Restart required to apply changes</AlertTitle>
-          <AlertDescription>
-            {/* Desktop: no .env or service; a restart means quitting the app. */}
-            Settings saved. Quit OpenAlgo Desktop and open it again to apply them.
-            <span className="block mt-2 text-xs">
-              This banner clears automatically once the running service reflects the new values.
-            </span>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {/* Disabled state — short hint only; the toggle is in the settings card above */}
-      {!mcpEnabled ? (
+      {/* Disabled state — short hint only; the toggle is in the settings card above.
+          Desktop: shown from the saved switch, which applies at once. */}
+      {settings && !settings.http_enabled ? (
         <Alert>
           <ShieldAlert className="h-4 w-4" />
           <AlertTitle>Remote MCP is currently disabled</AlertTitle>
           <AlertDescription>
-            Hosted AI clients can't reach <code>/mcp</code> right now. Enable it from the settings
-            card above, then restart OpenAlgo Desktop. Local stdio MCP (Claude Desktop / Cursor /
-            Windsurf) is unaffected and works regardless.
+            AI clients on other computers cannot reach OpenAlgo Desktop right now. Turn Remote MCP
+            on in the settings card above and save; it applies at once. AI clients on this computer
+            (Claude Desktop, Cursor, Windsurf) are unaffected and work regardless.
           </AlertDescription>
         </Alert>
       ) : null}
@@ -668,9 +639,11 @@ export default function RemoteMcp() {
           <Card>
             <CardHeader>
               <CardTitle>MCP tool call audit</CardTitle>
+              {/* Desktop: the audit is a table in the logs database, not a log file. */}
               <CardDescription>
-                Tail of <code>log/mcp.jsonl</code>. Every tool call by any client is recorded with
-                timestamp, jti, scope, and outcome — params themselves are stored as a SHA-256 hash.
+                The latest entries of the MCP audit in OpenAlgo's logs database. Every tool call by
+                any AI client is recorded with its time, token, scope and outcome; its arguments are
+                kept only as a SHA-256 hash.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -837,16 +810,17 @@ export default function RemoteMcp() {
               <AlertTriangle className="h-5 w-5 text-destructive" />
               Trigger the Remote MCP kill switch?
             </AlertDialogTitle>
+            {/* Desktop: AI clients hold access tokens from the API Key page, revoked at
+                once; there are no refresh tokens or OAuth sign-in to repeat. */}
             <AlertDialogDescription className="space-y-2">
               <span className="block">
-                This revokes <strong>every</strong> refresh token across <strong>all</strong>{' '}
-                approved MCP clients in one shot. Use it if you suspect a stolen token, an
-                unexpected order, or before disabling Remote MCP entirely.
+                This revokes <strong>every</strong> MCP access token at once and turns off order
+                placement for AI clients. Use it if you suspect a stolen token, an unexpected order,
+                or before turning Remote MCP off.
               </span>
               <span className="block">
-                Active access tokens already issued continue to work until they expire — write tools
-                have a 15-minute hard cap. Clients are forced through a fresh OAuth dance to regain
-                refresh capability.
+                Every AI client stops working until you give it a new token from the API Key page.
+                Order tools stay off until you turn on Allow order placement in the settings above.
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
