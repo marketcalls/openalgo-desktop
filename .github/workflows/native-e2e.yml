@@ -80,7 +80,10 @@ jobs:
         with:
           name: native-e2e-runtime
           packages: xvfb webkit2gtk-driver ${{ steps.deb.outputs.depends }}
+          minutes: "15"
       - name: Install the .deb
+        # Its dependencies are installed above; nothing is left to download.
+        timeout-minutes: 5
         run: |
           set -euo pipefail
           shopt -s nullglob

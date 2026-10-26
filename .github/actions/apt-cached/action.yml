@@ -13,7 +13,8 @@ description: >
 # version of every package and checks each file against them, and downloads
 # only what changed. A file from the cache that is no longer current is
 # ignored, so a stale or another image's cache is never wrong, only less
-# useful. Saved from master only (pull requests and tags restore it), under
+# useful. Files saved from the same runner image install with no mirror at
+# all (the versions its own lists name). Saved from master only (pull requests and tags restore it), under
 # a key naming the files, so a new entry appears only when Ubuntu updated
 # one of them.
 
@@ -24,6 +25,14 @@ inputs:
   packages:
     description: The packages to install, by name, separated by spaces.
     required: true
+  minutes:
+    description: >
+      How long apt may take to update its lists and install, in minutes,
+      before the step fails naming the slow mirror as the cause; empty for
+      no limit. Set it inside the job's own limit, so a stalled mirror is a
+      clear failure and not a cancelled job.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -67,6 +76,7 @@ runs:
       shell: bash
       env:
         PACKAGES: ${{ inputs.packages }}
+        MINUTES: ${{ inputs.minutes }}
         CACHE: ${{ runner.temp }}/${{ inputs.name }}-apt
         RESTORED: ${{ steps.restore.outputs.cache-matched-key }}
         THIS_IMAGE: ${{ steps.prepare.outputs.this-image }}
@@ -77,8 +87,36 @@ runs:
           sudo cp "${CACHE}"/*.deb /var/cache/apt/archives/
           echo "Restored $(find "$CACHE" -maxdepth 1 -name '*.deb' | wc -l) package files (${RESTORED})."
         fi
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends -o APT::Keep-Downloaded-Packages=true "${wanted[@]}"
+        # Within the time given, a mirror too slow to finish fails the step
+        # with that cause, before the job's own limit cancels it silently.
+        deadline=$(( $(date +%s) + ${MINUTES:-0} * 60 ))
+        apt_step() {
+          local rc=0
+          if [ -z "$MINUTES" ]; then
+            "$@" || rc=$?
+            return "$rc"
+          fi
+          local left=$(( deadline - $(date +%s) ))
+          [ "$left" -gt 0 ] || left=1
+          timeout --kill-after=30s "${left}s" "$@" || rc=$?
+          if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+            echo "::error title=Slow Ubuntu mirror::apt could not download the packages within ${MINUTES} minutes: the runner's Ubuntu package mirror is too slow right now. Run the job again; once a run on master completes, these package files come from the cache."
+            exit 1
+          fi
+          return "$rc"
+        }
+        # Package files saved from this very runner image match its own
+        # package lists, so they install without the mirror at all: a stalled
+        # mirror once held `apt-get update` alone for 14 minutes (install
+        # smoke, run 40376716241). Anything they do not cover goes the long
+        # way, within the time given.
+        if [[ -n "$RESTORED" && "$RESTORED" == "$THIS_IMAGE"* ]] \
+          && sudo apt-get install -y --no-install-recommends --no-download "${wanted[@]}"; then
+          echo "Installed from the cached package files, without the mirror."
+        else
+          apt_step sudo apt-get update
+          apt_step sudo apt-get install -y --no-install-recommends -o APT::Keep-Downloaded-Packages=true "${wanted[@]}"
+        fi
         # What the mirror no longer offers (versions superseded since the
         # cache was saved) is dropped, so the cache holds today's files.
         sudo apt-get autoclean -y >/dev/null

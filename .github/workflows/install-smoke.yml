@@ -101,7 +101,10 @@ jobs:
         with:
           name: install-smoke-runtime
           packages: xvfb ${{ steps.deb.outputs.depends }}
+          minutes: "8"
       - name: Install the .deb (apt checks its Depends)
+        # Its dependencies are installed above; nothing is left to download.
+        timeout-minutes: 5
         run: |
           set -euo pipefail
           shopt -s nullglob
