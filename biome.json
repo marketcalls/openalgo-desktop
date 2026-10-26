@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.6.2/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -30,7 +30,9 @@
         "noUnusedImports": "warn",
         "noUnusedVariables": "warn",
         "useExhaustiveDependencies": "warn",
-        "noInvalidUseBeforeDeclaration": "off"
+        "noInvalidUseBeforeDeclaration": "off",
+        "noComponentHookFactories": "warn",
+        "noPlaywrightMissingAwait": "off"
       },
       "style": {
         "noNonNullAssertion": "off",
