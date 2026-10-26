@@ -35,6 +35,7 @@ pub mod strategy_module;
 pub mod strategy_portfolio;
 pub mod telegram;
 pub mod traffic;
+pub mod tunnel;
 pub mod update;
 pub mod watchlist;
 pub mod websocket_example;
@@ -118,6 +119,7 @@ pub fn table() -> Vec<RouteSpec> {
         scalping::table(),
         chartink::table(),
         update::table(),
+        tunnel::table(),
         e2e::table(),
     ]
     .into_iter()

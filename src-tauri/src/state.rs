@@ -141,6 +141,8 @@ pub struct AppState {
     /// In-app updates: the check, the offer, the download and the restart
     /// decision (`services::update`).
     pub updates: Arc<crate::services::update::UpdateService>,
+    /// The built-in ngrok tunnel (`services::tunnel`).
+    pub tunnel: crate::services::tunnel::Tunnel,
 }
 
 /// Health alert type raised when Historify had to drop an unreplayable WAL.
@@ -444,6 +446,7 @@ impl AppState {
             messaging: crate::messaging::Messaging::new(),
             mcp: crate::mcp::McpRuntime::new(),
             updates: crate::services::update::UpdateService::new(env!("CARGO_PKG_VERSION")),
+            tunnel: Default::default(),
         }
     }
 
@@ -559,6 +562,9 @@ impl AppState {
     /// tasks.
     pub async fn shutdown(&self) {
         self.shutdown.cancel();
+        self.tunnel
+            .stop(crate::services::tunnel::Off::SignedOut)
+            .await;
         self.reconciler.stop();
         self.messaging.shutdown().await;
         self.trading.shutdown().await;
@@ -585,8 +591,15 @@ impl AppState {
         self.clock.now()
     }
 
+    /// The settings in force. While the built-in tunnel is online its
+    /// public address is the Host Server URL, so the redirect address,
+    /// webhook addresses, the Host check and the trusted origins follow it.
     pub fn server_config(&self) -> ServerConfig {
-        self.config.read().clone()
+        let mut c = self.config.read().clone();
+        if let Some(url) = self.tunnel.public_url() {
+            c.host_server = Some(url);
+        }
+        c
     }
 
     pub fn reload_config(&self) -> Result<ServerConfig> {

@@ -103,6 +103,7 @@ const RUST_MIGRATIONS: &[(&str, Step)] = &[
         "095_whatsapp_command_logs_executed_at",
         crate::messaging::whatsapp::db::migrate_executed_at,
     ),
+    ("096_ngrok_tunnel", super::tunnel::migrate),
 ];
 
 /// Run all database migrations
@@ -260,7 +261,7 @@ pub fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<boo
 
 /// `ALTER TABLE ADD COLUMN` only when the column is missing, so a migration
 /// re-run on a partially migrated database never fails.
-fn add_column(conn: &Connection, table: &str, column: &str, decl: &str) -> Result<()> {
+pub(crate) fn add_column(conn: &Connection, table: &str, column: &str, decl: &str) -> Result<()> {
     if !column_exists(conn, table, column)? {
         conn.execute_batch(&format!(
             "ALTER TABLE {} ADD COLUMN {} {}",

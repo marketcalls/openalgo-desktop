@@ -23,11 +23,18 @@ pub enum Source {
     /// headers are never read.
     Lan(IpAddr),
     /// A caller behind a tunnel or proxy on this computer: a loopback peer
-    /// that sent a forwarding-type header or named any other host. Its
-    /// address is unknown: no forwarding header is ever read as one, so
+    /// that sent a forwarding-type header or named any other host, and
+    /// every request through the built-in tunnel ([`ThroughBuiltInTunnel`]).
+    /// Its address is unknown: no forwarding header is ever read as one, so
     /// every tunnel caller is one shared identity ([`PROXIED_CALLER`]).
     Tunnel,
 }
+
+/// Set by the built-in tunnel (`server::tunnel`) on each request it hands
+/// to the router, before any layer runs: the request is a tunnel caller
+/// whatever its headers say. No client can set it.
+#[derive(Clone, Copy, Debug)]
+pub struct ThroughBuiltInTunnel;
 
 impl Source {
     /// The address per-caller controls (rate limits, failure budgets,

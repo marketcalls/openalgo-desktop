@@ -1234,6 +1234,14 @@ and add each new one here.
   the app's own `Host`. No forwarding header is read as an address: tunnel
   callers are one identity, and bans and IP allowlists apply to network
   peers only.
+- The built-in ngrok tunnel (`services::tunnel`) serves its connections in
+  process with the app's router and marks each request
+  (`source::ThroughBuiltInTunnel`), so it is a tunnel caller whatever its
+  headers say. Only the paths in `server::tunnel::reach` are served through
+  it (`/api/v1`, the two webhooks, `/mcp`; broker callbacks are sent on to
+  `127.0.0.1`); the app and its sign-in stay local. A new public route is
+  not reachable through it until it is added there, deliberately
+  (`docs/security/known-residuals.md`).
 - Refuse cross-site browser requests (`Sec-Fetch-Site`, a foreign `Origin`
   or `Referer`) before they reach any failure counter or rate limit: a web
   page can fire them blind and use up the trader's budget.

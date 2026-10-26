@@ -17,6 +17,7 @@ pub mod routes;
 pub mod socketio;
 pub mod source;
 pub mod spa;
+pub(crate) mod tunnel;
 
 #[cfg(test)]
 mod tests;

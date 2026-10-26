@@ -231,6 +231,8 @@ mod credentials_lifecycle;
 mod key_vault;
 // NEW-SEC-01: browser origins compared whole, apart from Host names.
 mod origin;
+// The built-in ngrok tunnel in the app (services::tunnel, server::tunnel).
+mod tunnel;
 
 // ------------------------------------------------------------------ fixtures
 

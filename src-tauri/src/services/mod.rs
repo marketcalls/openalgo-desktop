@@ -85,6 +85,7 @@ pub mod system_info;
 pub mod telegram_admin_service;
 pub mod tools_service;
 pub mod traffic_service;
+pub mod tunnel;
 pub mod ui_order_service;
 pub mod update;
 pub mod watchlist_service;

@@ -337,7 +337,8 @@ pub struct Witness {
 }
 
 /// The first encrypted value in the database: the account's TOTP secret,
-/// else the API key, else saved broker keys, else a stored broker session.
+/// else the API key, else saved broker keys, else a stored broker session,
+/// else the tunnel's ngrok authtoken.
 /// `None` when nothing is encrypted yet (then any key will do).
 pub fn witness(conn: &Connection) -> Result<Option<Witness>> {
     let first = |sql: &str| -> Result<Option<(String, String, String)>> {
@@ -386,7 +387,7 @@ pub fn witness(conn: &Connection) -> Result<Option<Witness>> {
             aad: Aad::new("auth", "auth_token", &broker),
         }));
     }
-    Ok(None)
+    super::tunnel::witness(conn)
 }
 
 /// Every value the data key encrypts, dropped for a fresh start (a
@@ -400,8 +401,8 @@ pub fn witness(conn: &Connection) -> Result<Option<Witness>> {
 /// broker id, client id and redirect URL stay, so only the keys are typed
 /// again), stored broker sessions, pending broker sign-ins, the TOTP secret
 /// with every "require the authenticator" switch (TOTP is set up again),
-/// the Telegram bot token and linked users' saved API keys, and the WhatsApp
-/// pairing.
+/// the Telegram bot token and linked users' saved API keys, the WhatsApp
+/// pairing, and the tunnel's ngrok authtoken (its switch and domain stay).
 ///
 /// A new encrypted column must be added here and to `witness` (and the
 /// test that fills every one of them).
@@ -422,6 +423,7 @@ pub fn drop_encrypted_values(conn: &Connection) -> Result<()> {
          UPDATE whatsapp_users SET encrypted_api_key = NULL;",
     )?;
     crate::messaging::whatsapp::db::clear_session(conn)?;
+    super::tunnel::forget_authtoken(conn)?;
     Ok(())
 }
 
@@ -487,7 +489,9 @@ mod tests {
                  encrypted_api_key)
              VALUES ('j', '91', 'trader', 'v1:n:c');
              INSERT OR REPLACE INTO whatsapp_config (id, session_blob, is_paired, is_active)
-             VALUES (1, 'v1:n:c', 1, 1);",
+             VALUES (1, 'v1:n:c', 1, 1);
+             UPDATE settings SET ngrok_authtoken = 'v1:n:c', ngrok_allow = 1,
+                 ngrok_domain = 'desk.ngrok.app' WHERE id = 1;",
         )
         .unwrap();
         conn.execute_batch("BEGIN IMMEDIATE").unwrap();
@@ -527,6 +531,7 @@ mod tests {
         assert_eq!(one("SELECT encrypted_api_key FROM telegram_users"), None);
         assert_eq!(one("SELECT encrypted_api_key FROM whatsapp_users"), None);
         assert_eq!(one("SELECT session_blob FROM whatsapp_config"), None);
+        assert_eq!(one("SELECT ngrok_authtoken FROM settings"), None);
         assert!(
             witness(&conn).unwrap().is_none(),
             "nothing encrypted is left"
@@ -544,6 +549,11 @@ mod tests {
         assert!(one("SELECT redirect_url FROM broker_credentials").is_some());
         assert_eq!(n("SELECT COUNT(*) FROM telegram_users"), 1);
         assert_eq!(n("SELECT COUNT(*) FROM whatsapp_users"), 1);
+        assert_eq!(n("SELECT ngrok_allow FROM settings"), 1);
+        assert_eq!(
+            one("SELECT ngrok_domain FROM settings").as_deref(),
+            Some("desk.ngrok.app")
+        );
         assert!(super::super::credentials::list_configured(&conn)
             .unwrap()
             .is_empty());
@@ -554,6 +564,12 @@ mod tests {
         let (_d, db) = db();
         let conn = db.conn().unwrap();
         assert!(witness(&conn).unwrap().is_none());
+        // The tunnel's authtoken, when it is the only encrypted value.
+        conn.execute_batch("UPDATE settings SET ngrok_authtoken = 'v1:nt:ct' WHERE id = 1")
+            .unwrap();
+        let w = witness(&conn).unwrap().unwrap();
+        assert_eq!((w.ciphertext.as_str(), w.nonce.as_str()), ("ct", "nt"));
+        assert_eq!(w.aad, super::super::tunnel::authtoken_aad());
         conn.execute_batch(
             "INSERT INTO auth (broker_id, auth_token_encrypted, auth_token_nonce)
              VALUES ('fyers', 'tok', 'tn');",

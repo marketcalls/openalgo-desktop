@@ -44,6 +44,57 @@ the account binding (and the trader's own app secret, without which a
 `tokenId` cannot be consumed) does the verification. OpenAlgo web has the
 same exposure for these brokers: its callbacks do not check `state`.
 
+## The built-in ngrok tunnel: what is reachable
+
+The tunnel (`services::tunnel`, ngrok's SDK in process) runs only while the
+trader is signed in: it opens at the sign-in when **Enable Ngrok Tunnel** is
+on and closes at the sign-out, a fresh start, an account reset and quitting.
+Its connections are served by the app's own router with every layer
+(`server::tunnel`), and each request is marked as coming through it before
+any layer runs, so it is a tunnel caller (`Source::Tunnel`) whatever its
+headers say: one shared identity, never this computer, matching no IP
+allowlist, never banned, with the tunnel's own sign-in and failure budgets.
+Only these paths are served through it, by exact shape
+(`server::tunnel::reach`); everything else answers a 404 notice before the
+router runs:
+
+| Path | Credential | Notes |
+| --- | --- | --- |
+| `/api/v1/*` | API key in the body | The web's limits; behind the tunnel a valid key gets its own window |
+| `POST /strategy/webhook/{token}` | The secret address | An IP allowlist with entries refuses tunnel callers |
+| `POST /chartink/webhook/{webhook_id}` | The secret address | |
+| `/mcp`, `/mcp/healthz` | MCP bearer token | Not there at all unless Remote MCP is on |
+| `/{broker}/callback` (catalogue brokers) | none here | Answered with a 307 to the same path and query on `http://127.0.0.1:<port>`, where the browser session that started the sign-in is; nothing is processed through the tunnel |
+
+Not reachable through it: the app's pages and static files, `/auth/*`
+(sign-in, sign-out, CSRF token), `/setup`, Socket.IO, every session route,
+the OpenScript runner host and anything with an empty, `.` or `..` path
+segment. So nobody can sign in through the built-in tunnel. A tunnel the
+trader runs (cloudflared, an ngrok agent) is unchanged: callers through it
+are tunnel callers by their headers and `Host`, and the sign-in page is
+reachable there as before.
+
+The authtoken is sealed with the data key in `settings.ngrok_authtoken`
+(bound to its row and column), opened only while signed in, never returned
+by `/api/tunnel`, and listed in `key_vault::drop_encrypted_values` and
+`key_vault::witness`. ngrok's answer to a malformed token repeats it; that
+answer is never logged (only its error code), and other answers are logged
+with the token removed (`ngrok_sdk::redacted`). The SDK verifies ngrok's own
+CA bundled in the crate, over rustls with ring.
+
+Residual: at most 128 connections are served through the tunnel at once,
+each with 30 seconds to send its request headers. A stranger who finds the
+tunnel address can hold those places (slow headers, or a slow request body,
+which has no separate timeout) and delay alerts while they last; nothing
+else in the app is affected, and valid alerts are served as places free up.
+ngrok's own limits on the free plan apply in front of it.
+
+Residual: while the tunnel is online its address is the Host Server URL, so
+the automatic broker redirect address follows it. A trader who registered
+`http://127.0.0.1:<port>/<broker>/callback` with a broker that checks the
+address on sign-in (Upstox, Fyers) must register the tunnel's address too or
+save the local one as a fixed redirect address (`docs/user/brokers.md`).
+
 ## Credentials and limits behind a tunnel
 
 Behind a tunnel or proxy on this computer every caller arrives from

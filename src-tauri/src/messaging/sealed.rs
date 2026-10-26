@@ -1,5 +1,6 @@
 //! One-column AES-256-GCM storage for the messaging secrets (bot token,
-//! linked users' API keys, the WhatsApp session snapshot).
+//! linked users' API keys, the WhatsApp session snapshot) and the
+//! tunnel's ngrok authtoken.
 //!
 //! The web keeps each of these in a single Fernet column; here the column
 //! holds `v1:<nonce>:<ciphertext>` from the app's data key, with associated
@@ -18,13 +19,15 @@ pub fn seal(security: &SecurityManager, aad: &Aad, plaintext: &str) -> Result<St
 }
 
 pub fn open(security: &SecurityManager, aad: &Aad, stored: &str) -> Result<Secret> {
-    let rest = stored
-        .strip_prefix(PREFIX)
-        .ok_or_else(|| AppError::Encryption("unknown sealed format".into()))?;
-    let (nonce, ct) = rest
-        .split_once(':')
-        .ok_or_else(|| AppError::Encryption("unknown sealed format".into()))?;
+    let (nonce, ct) =
+        parts(stored).ok_or_else(|| AppError::Encryption("unknown sealed format".into()))?;
     security.decrypt(ct, nonce, aad)
+}
+
+/// A stored value's nonce and ciphertext, as `SecurityManager::decrypt`
+/// takes them (and `key_vault::witness`).
+pub fn parts(stored: &str) -> Option<(&str, &str)> {
+    stored.strip_prefix(PREFIX)?.split_once(':')
 }
 
 #[cfg(test)]

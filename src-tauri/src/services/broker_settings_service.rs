@@ -87,6 +87,7 @@ pub async fn save(
 ) -> std::result::Result<SettingsOutcome, SettingsError> {
     let has_keys = req.has_keys();
     let broker = req.broker.clone();
+    let tunnel_switched = req.ngrok_allow.is_some();
     let held = BrokerAuthService::session_lock(state).await;
     if let Some(why) = live_session_refusal(state, broker.as_deref(), has_keys)? {
         return Ok(SettingsOutcome::Refused(why));
@@ -97,6 +98,10 @@ pub async fn save(
     let signed_out_of =
         end_replaced_session(state, broker.as_deref(), has_keys, target.as_deref(), &held).await;
     drop(held);
+    // The web's NGROK_ALLOW is the built-in tunnel's switch.
+    if let Some(ctx) = state.arc().filter(|_| tunnel_switched) {
+        crate::services::tunnel::apply(&ctx, false).await;
+    }
     Ok(SettingsOutcome::Saved {
         switched,
         signed_out_of,

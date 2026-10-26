@@ -26,6 +26,7 @@ pub mod request_count;
 mod settings;
 pub mod strategy_portfolio;
 pub mod symbol;
+pub mod tunnel;
 pub mod user;
 pub mod watchlist;
 pub mod webui;

@@ -30,6 +30,7 @@ pub struct AuthedUser {
 }
 
 use crate::server::source::split_authority;
+use crate::server::source::ThroughBuiltInTunnel;
 pub use crate::server::source::{forwarded, Source, PROXIED_CALLER};
 
 /// Whether `port` is one the app's own pages are served on.
@@ -166,13 +167,17 @@ pub async fn peer_layer(
         .get::<ConnectInfo<SocketAddr>>()
         .map(|c| c.0.ip());
     let cfg = ctx.server_config();
-    let source = classify(
-        &cfg,
-        ctx.listening_port(),
-        socket,
-        req.headers(),
-        req.uri().authority().map(|a| a.as_str()),
-    );
+    let source = if req.extensions().get::<ThroughBuiltInTunnel>().is_some() {
+        Source::Tunnel
+    } else {
+        classify(
+            &cfg,
+            ctx.listening_port(),
+            socket,
+            req.headers(),
+            req.uri().authority().map(|a| a.as_str()),
+        )
+    };
     // A resource guard on every request, well above legitimate use: the
     // per-surface limits come after the credential is checked.
     let too_many = || {
@@ -247,6 +252,9 @@ fn mark_cookies_secure(resp: &mut Response) {
 pub fn source_of(ext: &axum::http::Extensions) -> Source {
     if let Some(s) = ext.get::<Source>() {
         return *s;
+    }
+    if ext.get::<ThroughBuiltInTunnel>().is_some() {
+        return Source::Tunnel;
     }
     match ext
         .get::<ConnectInfo<SocketAddr>>()

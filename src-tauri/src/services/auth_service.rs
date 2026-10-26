@@ -410,6 +410,9 @@ impl AuthService {
         }
         ctx.messaging.telegram.stop(ctx).await;
         ctx.messaging.whatsapp.stop_bot(ctx).await;
+        ctx.tunnel
+            .stop(crate::services::tunnel::Off::SignedOut)
+            .await;
         let c = ctx.clone();
         let (n, f) = (new.to_string(), confirm.to_string());
         tokio::task::spawn_blocking(move || Self::start_fresh(&c, &n, &f))
@@ -435,6 +438,9 @@ impl AuthService {
     pub async fn lock_everything(ctx: &std::sync::Arc<AppState>) {
         ctx.security.lock_with(|| ctx.sessions.clear());
         ctx.messaging.shutdown().await;
+        ctx.tunnel
+            .stop(crate::services::tunnel::Off::SignedOut)
+            .await;
         Self::clear_caches(ctx);
         ctx.clear_symbol_cache();
         Self::forget_adapter_state(ctx).await;
@@ -509,6 +515,7 @@ impl AuthService {
                 )?;
                 conn.execute("DELETE FROM whatsapp_users", [])?;
                 crate::messaging::whatsapp::db::clear_session(&conn)?;
+                crate::db::sqlite::tunnel::forget_authtoken(&conn)?;
                 // The keys go with the account; the next setup makes new
                 // ones (KEY-01).
                 crate::db::sqlite::key_vault::delete(&conn)?;
@@ -583,6 +590,9 @@ impl AuthService {
         }
         ctx.messaging.telegram.stop(ctx).await;
         ctx.messaging.whatsapp.stop_bot(ctx).await;
+        ctx.tunnel
+            .stop(crate::services::tunnel::Off::SignedOut)
+            .await;
         let c = ctx.clone();
         tokio::task::spawn_blocking(move || Self::reset_account(&c))
             .await

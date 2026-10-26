@@ -159,6 +159,8 @@ async fn finish_sign_in(
     // Telegram and WhatsApp come back with the keys, as the web's start-up
     // brings them back (they were stopped at the logout).
     crate::messaging::autostart(ctx);
+    // The built-in tunnel opens with them when it is switched on.
+    crate::services::tunnel::autostart(ctx);
     with_cookie(ok(body), &s.id)
 }
 
