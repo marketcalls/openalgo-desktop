@@ -81,9 +81,61 @@ impl Applied {
     }
 }
 
+/// The references feed clients want, and how many of them name each
+/// instrument: every tick asks whether its instrument is held, under the
+/// state lock, and a scan of every reference made that cost grow with the
+/// number held (3,000 instruments in several modes at a busy open).
+#[derive(Default)]
+struct Desired {
+    keys: HashSet<DesiredKey>,
+    per_instrument: HashMap<InstrumentKey, usize>,
+}
+
+impl Desired {
+    fn insert(&mut self, key: DesiredKey) -> bool {
+        let instrument = key.0.clone();
+        let added = self.keys.insert(key);
+        if added {
+            *self.per_instrument.entry(instrument).or_insert(0) += 1;
+        }
+        added
+    }
+
+    fn remove(&mut self, key: &DesiredKey) -> bool {
+        let removed = self.keys.remove(key);
+        if removed {
+            if let Some(n) = self.per_instrument.get_mut(&key.0) {
+                *n -= 1;
+                if *n == 0 {
+                    self.per_instrument.remove(&key.0);
+                }
+            }
+        }
+        removed
+    }
+
+    fn clear(&mut self) {
+        self.keys.clear();
+        self.per_instrument.clear();
+    }
+
+    fn contains(&self, key: &DesiredKey) -> bool {
+        self.keys.contains(key)
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &DesiredKey> {
+        self.keys.iter()
+    }
+
+    /// Whether any reference names this instrument.
+    fn holds(&self, instrument: &InstrumentKey) -> bool {
+        self.per_instrument.contains_key(instrument)
+    }
+}
+
 #[derive(Default)]
 struct State {
-    desired: HashSet<DesiredKey>,
+    desired: Desired,
     applied: HashMap<DesiredKey, Applied>,
     /// Last tick per held instrument, for the quote fields of a separate
     /// depth snapshot.
@@ -92,7 +144,7 @@ struct State {
 
 impl State {
     fn holds(&self, key: &InstrumentKey) -> bool {
-        self.desired.iter().any(|(k, _, _)| k == key)
+        self.desired.holds(key)
     }
 }
 
@@ -319,13 +371,14 @@ impl BrokerBridge {
             let gone: Vec<DesiredKey> = st
                 .applied
                 .keys()
-                .filter(|k| !st.desired.contains(*k))
+                .filter(|k| !st.desired.contains(k))
                 .cloned()
                 .collect();
             let remove: Vec<Applied> = gone.iter().filter_map(|k| st.applied.remove(k)).collect();
-            let held: HashSet<InstrumentKey> =
-                st.desired.iter().map(|(k, _, _)| k.clone()).collect();
-            st.last_tick.retain(|k, _| held.contains(k));
+            let State {
+                desired, last_tick, ..
+            } = &mut *st;
+            last_tick.retain(|k, _| desired.holds(k));
             (add, remove)
         };
         self.release(remove).await;
@@ -596,6 +649,35 @@ mod tests {
         bridge.relay(rx, &manager).await;
         let s = manager.stats().since_connect();
         assert!(s.skipped.contains(&(Reader::FeedClients, 3)), "{:?}", s);
+    }
+
+    /// A tick is relayed while any reference names its instrument, in any
+    /// mode or depth, and not once the last one goes or the bridge stops.
+    #[tokio::test]
+    async fn ticks_are_relayed_while_any_reference_holds_the_instrument() {
+        let bridge = BrokerBridge::new(Arc::new(WebSocketManager::new()), SymbolResolver::new());
+        let sbin = InstrumentKey::new("SBIN", "NSE");
+        let tcs = InstrumentKey::new("TCS", "NSE");
+        let relayed = |b: &BrokerBridge, symbol: &str| {
+            b.convert(&FeedEvent::Tick(full_tick(symbol, "NSE")))
+                .is_some()
+        };
+        assert!(!relayed(&bridge, "SBIN"));
+        bridge.subscribe(&sbin, Mode::Ltp, 5);
+        bridge.subscribe(&sbin, Mode::Depth, 20);
+        bridge.subscribe(&tcs, Mode::Quote, 5);
+        bridge.subscribe(&tcs, Mode::Quote, 5);
+        assert!(relayed(&bridge, "SBIN") && relayed(&bridge, "TCS"));
+        bridge.unsubscribe(&sbin, Mode::Depth, 20);
+        assert!(relayed(&bridge, "SBIN"), "the LTP reference still holds it");
+        bridge.unsubscribe(&sbin, Mode::Ltp, 5);
+        assert!(!relayed(&bridge, "SBIN"));
+        // A reference added twice is one reference.
+        bridge.unsubscribe(&tcs, Mode::Quote, 5);
+        assert!(!relayed(&bridge, "TCS"));
+        bridge.subscribe(&tcs, Mode::Ltp, 5);
+        bridge.stop().await;
+        assert!(!relayed(&bridge, "TCS"));
     }
 
     #[test]
