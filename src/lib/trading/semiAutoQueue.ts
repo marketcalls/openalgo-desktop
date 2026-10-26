@@ -35,7 +35,8 @@ function isPlaceOrder(input: RequestInfo | URL): boolean {
   return /\/api\/v1\/placeorder\/?(\?|$)/.test(url)
 }
 
-function isQueued(body: unknown): boolean {
+/** Whether a placeorder answer says the order was queued for approval. */
+export function isQueuedAnswer(body: unknown): boolean {
   if (!body || typeof body !== 'object') return false
   const b = body as Record<string, unknown>
   return b.status === 'success' && b.mode === 'semi_auto' && b.orderid == null && b.order_id == null
@@ -54,7 +55,7 @@ export function queueAwareFetch(base?: typeof fetch): typeof fetch {
       .clone()
       .json()
       .catch(() => null)
-    if (isQueued(body)) throw new QueuedForApproval()
+    if (isQueuedAnswer(body)) throw new QueuedForApproval()
     return res
   }
 }

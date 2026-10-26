@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useLiveQuote } from '@/hooks/useLiveQuote'
+import { isQueuedAnswer, WAITING_FOR_APPROVAL } from '@/lib/trading/semiAutoQueue'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import { showToast } from '@/utils/toast'
@@ -326,6 +327,10 @@ export function PlaceOrderDialog({
       if (response.status === 'success' && orderid) {
         // Toast is shown by useSocket when WebSocket receives order update
         onSuccess?.(orderid)
+        onOpenChange(false)
+      } else if (isQueuedAnswer(response)) {
+        // Desktop: Semi-Auto queued it in Action Center; not a failure (docs-43).
+        showToast.info(WAITING_FOR_APPROVAL, 'orders')
         onOpenChange(false)
       } else {
         const errorMsg = response.message || 'Order placement failed'
