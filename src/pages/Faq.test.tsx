@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { BROKER_COUNT } from '@/lib/brokerCatalog'
 import { render, screen, userEvent } from '@/test/test-utils'
 import Faq from './Faq'
 
@@ -29,5 +30,23 @@ describe('FAQ security answer', () => {
       'If you allow access from other devices in Server Settings, that traffic is not encrypted'
     )
     expect(answer).toHaveTextContent('reach OpenAlgo through a tunnel with https')
+  })
+})
+
+describe('FAQ brokers', () => {
+  // docs-39: the web's answer said 36 brokers and left Rupeezy out; the
+  // count and the list come from the broker catalogue.
+  it('gives the catalogue count and lists Rupeezy', async () => {
+    render(<Faq />)
+    await userEvent.click(screen.getByRole('button', { name: 'Which brokers are supported?' }))
+    const answer = await screen.findByText(/^OpenAlgo supports \d+ broker plugins/)
+    expect(answer).toHaveTextContent(`OpenAlgo supports ${BROKER_COUNT} broker plugins:`)
+    expect(answer).toHaveTextContent('RMoney, Rupeezy, Samco')
+    await userEvent.click(screen.getByRole('button', { name: 'What is OpenAlgo?' }))
+    expect(
+      await screen.findByText(
+        new RegExp(`across ${BROKER_COUNT} broker plugins: ${BROKER_COUNT - 1} securities`)
+      )
+    ).toBeInTheDocument()
   })
 })

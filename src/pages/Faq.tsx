@@ -27,6 +27,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { BROKER_COUNT, brokerNamesSentence, SECURITIES_BROKER_COUNT } from '@/lib/brokerCatalog'
 import { useThemeStore } from '@/stores/themeStore'
 
 const faqData = [
@@ -35,13 +36,13 @@ const faqData = [
     questions: [
       {
         question: 'What is OpenAlgo?',
-        answer:
-          'OpenAlgo is an open-source algorithmic trading platform that provides a unified API layer across 36 broker plugins: 35 securities integrations and Delta Exchange for crypto derivatives. It enables seamless integration with TradingView, Amibroker, Excel, Python, and AI agents, allowing traders to automate their trading strategies without being locked into a single broker.',
+        // Desktop: the counts and the list come from the broker catalogue
+        // (the web's FAQ says 36 and leaves out Rupeezy).
+        answer: `OpenAlgo is an open-source algorithmic trading platform that provides a unified API layer across ${BROKER_COUNT} broker plugins: ${SECURITIES_BROKER_COUNT} securities integrations and Delta Exchange for crypto derivatives. It enables seamless integration with TradingView, Amibroker, Excel, Python, and AI agents, allowing traders to automate their trading strategies without being locked into a single broker.`,
       },
       {
         question: 'Which brokers are supported?',
-        answer:
-          'OpenAlgo supports 36 broker plugins: 5 Paisa, 5 Paisa (XTS), Alice Blue, Angel One, Arrow, CompositEdge, Definedge, Delta Exchange, Dhan, Dhan (Sandbox), Firstock, Flattrade, Fyers, Groww, HDFC Securities, HDFC Sky, Ibulls, IIFL, IIFL Capital, IndMoney, JainamXts, Kotak Securities, Motilal Oswal, mStock by Mirae Asset, Nubra, Paytm Money, Pocketful, RMoney, Samco, Shoonya (Finvasia), TradeSmart, Tradejini, Upstox, Wisdom Capital, Zebu and Zerodha. Delta Exchange is a crypto exchange; the rest are Indian brokers. New brokers are being added regularly.',
+        answer: `OpenAlgo supports ${BROKER_COUNT} broker plugins: ${brokerNamesSentence()}. Delta Exchange is a crypto exchange; the rest are Indian brokers. New brokers are being added regularly.`,
       },
       {
         question: 'What are the system requirements?',
