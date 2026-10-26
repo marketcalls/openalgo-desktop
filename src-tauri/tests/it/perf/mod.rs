@@ -194,6 +194,51 @@ pub fn memory_kib() -> u64 {
     crate::feed_support::rss_kib()
 }
 
+/// What the resident set is made of, in KiB, where Linux and glibc say:
+/// anonymous memory (the heap and the stacks), file pages (the test
+/// binary's code, read in as code paths first run) and shared memory
+/// (SQLite's WAL index) from `/proc/self/status`, and what glibc's
+/// allocator holds in use and holds free across all its arenas
+/// (`mallinfo2`). Tells a climb in use from memory the allocator or the
+/// code pages settle into: the endurance run's resident set grew 5-7% in
+/// 15 minutes with descriptors and tasks flat.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MemoryParts {
+    pub anon_kib: u64,
+    pub file_kib: u64,
+    pub shmem_kib: u64,
+    pub heap_in_use_kib: u64,
+    pub heap_free_kib: u64,
+}
+
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+pub fn memory_parts() -> Option<MemoryParts> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    let field = |name: &str| {
+        status
+            .lines()
+            .find_map(|l| l.strip_prefix(name))
+            .and_then(|v| v.split_whitespace().next())
+            .and_then(|n| n.parse::<u64>().ok())
+            .unwrap_or(0)
+    };
+    // SAFETY: mallinfo2 takes no arguments and returns a struct by value;
+    // it walks glibc's arenas under their own locks.
+    let heap = unsafe { libc::mallinfo2() };
+    Some(MemoryParts {
+        anon_kib: field("RssAnon:"),
+        file_kib: field("RssFile:"),
+        shmem_kib: field("RssShmem:"),
+        heap_in_use_kib: ((heap.uordblks + heap.hblkhd) / 1024) as u64,
+        heap_free_kib: (heap.fordblks / 1024) as u64,
+    })
+}
+
+#[cfg(not(all(target_os = "linux", target_env = "gnu")))]
+pub fn memory_parts() -> Option<MemoryParts> {
+    None
+}
+
 /// Every file under `dir`, in bytes.
 pub fn folder_bytes(dir: &std::path::Path) -> u64 {
     let mut total = 0;

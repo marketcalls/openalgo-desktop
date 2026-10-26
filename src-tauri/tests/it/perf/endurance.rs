@@ -30,7 +30,7 @@
 
 use super::faults::{self, Outcome, ROTATION};
 use super::rig::{Rig, RigOptions, BASE_PRICE};
-use super::{folder_bytes, memory_kib, record_sample, Report};
+use super::{folder_bytes, memory_kib, memory_parts, record_sample, MemoryParts, Report};
 use crate::broker_session_e2e::settled_fds;
 use crate::feed_support::Client;
 use futures_util::{SinkExt, StreamExt};
@@ -74,6 +74,10 @@ struct Sample {
     /// What SQLite's allocator holds (page caches, statements), in KiB:
     /// tells caches filling from the rest of the growth.
     sqlite_kib: u64,
+    /// The resident set's parts and the allocator's in-use and free
+    /// memory, where the system says (Linux).
+    parts: Option<MemoryParts>,
+    threads: Option<i64>,
 }
 
 fn sqlite_kib() -> u64 {
@@ -95,7 +99,10 @@ async fn sample(rig: &Rig, minute: u64) -> Sample {
             .num_alive_tasks(),
         folder_kib: folder_bytes(rig.dir.path()) / 1024,
         sqlite_kib: sqlite_kib(),
+        parts: memory_parts(),
+        threads: openalgo_desktop_lib::services::health_service::process_stats().threads,
     };
+    let p = s.parts.unwrap_or_default();
     record_sample(
         "endurance_sample",
         &[
@@ -106,6 +113,12 @@ async fn sample(rig: &Rig, minute: u64) -> Sample {
             ("tasks", s.tasks.to_string()),
             ("folder_kib", s.folder_kib.to_string()),
             ("sqlite_kib", s.sqlite_kib.to_string()),
+            ("anon_kib", p.anon_kib.to_string()),
+            ("file_kib", p.file_kib.to_string()),
+            ("shmem_kib", p.shmem_kib.to_string()),
+            ("heap_in_use_kib", p.heap_in_use_kib.to_string()),
+            ("heap_free_kib", p.heap_free_kib.to_string()),
+            ("threads", s.threads.unwrap_or(-1).to_string()),
         ],
     );
     s
@@ -480,11 +493,27 @@ async fn memory_and_descriptors_stay_flat_through_a_trading_day_with_faults() {
     traffic.await.unwrap();
     reader.abort();
 
-    eprintln!("minute  mem_kib  sqlite_kib  fds  pool  tasks  folder_kib");
+    eprintln!(
+        "minute  mem_kib  sqlite_kib  fds  pool  tasks  folder_kib  anon_kib  file_kib  \
+         shmem_kib  heap_in_use_kib  heap_free_kib  threads"
+    );
     for s in &samples {
+        let p = s.parts.unwrap_or_default();
         eprintln!(
-            "{:>6} {:>8} {:>11} {:>4} {:>5} {:>6} {:>11}",
-            s.minute, s.mem_kib, s.sqlite_kib, s.fds, s.pool, s.tasks, s.folder_kib
+            "{:>6} {:>8} {:>11} {:>4} {:>5} {:>6} {:>11} {:>9} {:>9} {:>10} {:>16} {:>14} {:>8}",
+            s.minute,
+            s.mem_kib,
+            s.sqlite_kib,
+            s.fds,
+            s.pool,
+            s.tasks,
+            s.folder_kib,
+            p.anon_kib,
+            p.file_kib,
+            p.shmem_kib,
+            p.heap_in_use_kib,
+            p.heap_free_kib,
+            s.threads.unwrap_or(-1)
         );
     }
     for o in &outcomes {
