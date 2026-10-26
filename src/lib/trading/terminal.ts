@@ -126,6 +126,8 @@ import {
 } from './priceAxis'
 import { parseRangeChoice, type RangeChoice, serializeRangeChoice } from './rangeChoice'
 import { replayTiming } from './replayTiming'
+// Desktop: a Semi-Auto chart order waits in Action Center (docs-43).
+import { isQueuedForApproval, queueAwareFetch } from './semiAutoQueue'
 import {
   applySessionHours,
   prepareSessionHours,
@@ -2266,7 +2268,8 @@ export class TradingTerminal {
       this.toast(`placed ${summary} (id ${r.orderId})`, 'ok')
       this.pollBook()
     } catch (e) {
-      this.toast(this.cleanError(e), 'err')
+      if (isQueuedForApproval(e)) this.toast(e.message)
+      else this.toast(this.cleanError(e), 'err')
     }
   }
 
@@ -2298,6 +2301,11 @@ export class TradingTerminal {
       this.pollBook()
       return { orderId: r.orderId }
     } catch (e) {
+      // Queued in Action Center: placed, with no broker order id yet.
+      if (isQueuedForApproval(e)) {
+        this.toast(e.message)
+        return { orderId: '' }
+      }
       throw new Error(this.cleanError(e))
     }
   }
@@ -2322,7 +2330,8 @@ export class TradingTerminal {
       this.toast('position closed', 'ok')
       this.pollBook()
     } catch (e) {
-      this.toast(this.cleanError(e), 'err')
+      if (isQueuedForApproval(e)) this.toast(e.message)
+      else this.toast(this.cleanError(e), 'err')
     }
   }
 
@@ -7705,7 +7714,12 @@ export class TradingTerminal {
       },
     })
     this.cachedBars = withBarCache(this.rest, { ttlMs: 10 * 60_000 })
-    this.trade = new OpenAlgoTradeFeed({ baseUrl: '', apiKey: this.apiKey, strategy: STRATEGY })
+    this.trade = new OpenAlgoTradeFeed({
+      baseUrl: '',
+      apiKey: this.apiKey,
+      strategy: STRATEGY,
+      fetchImpl: queueAwareFetch(),
+    })
 
     // broker-supported intervals → the timeframe dropdown
     let groups: IntervalGroup[]
