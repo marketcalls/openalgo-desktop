@@ -5,6 +5,12 @@
 # The tauri crate (cargo) and @tauri-apps/* (npm) must stay on the same
 # major.minor. Dependabot cannot group across ecosystems, so merge the two
 # "tauri" PRs together.
+#
+# Supply-chain cooldown (as OpenAlgo web, 24d81412b): a version-update PR
+# waits until the new release has been public for 7 days, the window in
+# which a hijacked or malicious publish is usually caught and pulled.
+# GitHub does not apply cooldown to security updates, so a patched release
+# for an open advisory still arrives at once.
 
 version: 2
 updates:
@@ -16,6 +22,8 @@ updates:
       time: "03:00"
       timezone: Asia/Kolkata
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: chore
       include: scope
@@ -40,6 +48,8 @@ updates:
       time: "03:00"
       timezone: Asia/Kolkata
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: chore
       include: scope
@@ -74,6 +84,8 @@ updates:
       time: "03:00"
       timezone: Asia/Kolkata
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: ci
     labels: [dependencies, ci]
