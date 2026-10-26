@@ -1437,9 +1437,10 @@ export default function ProfilePage() {
                 <Shield className="h-4 w-4" />
                 <AlertTitle>About TOTP Authentication</AlertTitle>
                 <AlertDescription>
+                  {/* Desktop: TOTP guards sign-in; it does not recover a password (docs-34). */}
                   TOTP (Time-based One-Time Password) provides an additional layer of security.
                   You&apos;ll need an authenticator app like Google Authenticator or Authy to
-                  generate codes for password recovery.
+                  generate the codes OpenAlgo asks for when two-factor sign-in is on.
                 </AlertDescription>
               </Alert>
 
@@ -1485,9 +1486,14 @@ export default function ProfilePage() {
                     <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
                       <li>Install an authenticator app (Google Authenticator, Authy, etc.)</li>
                       <li>Scan the QR code above or enter the secret key manually</li>
-                      <li>Save your backup codes in a safe place</li>
+                      {/* Desktop: there are no backup codes, and a forgotten password is
+                          replaced from the sign-in page, not with a code (docs-41). */}
                       <li>
-                        You&apos;ll need the TOTP code to reset your password if you forget it
+                        There are no backup codes: keep the secret key somewhere safe, such as a
+                        password manager, to add it to a new phone
+                      </li>
+                      <li>
+                        Turn on Dashboard sign-in above to be asked for a code at every sign-in
                       </li>
                     </ol>
                   </div>

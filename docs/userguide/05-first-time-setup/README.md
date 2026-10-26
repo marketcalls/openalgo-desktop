@@ -172,12 +172,8 @@ use a tunnel.
 From the next sign-in, the code is asked for after the password. More in
 [28 - Two-factor authentication](../28-two-factor-auth/README.md).
 
-In the desktop, only **Dashboard sign-in** has an effect. The other two
-choices on that card come from OpenAlgo web: **Remote MCP authorization**
-(the desktop's AI clients use tokens from the API Key page, not the web's
-sign-in screen) and **Password reset** (the desktop does not reset passwords
-with a code). For the same reason, ignore the line in the TOTP tab's setup
-steps that says the code resets a forgotten password.
+The code guards sign-in only: it does not reset a forgotten password, and
+there are no backup codes.
 
 ## Step 7: Test in analyzer mode
 

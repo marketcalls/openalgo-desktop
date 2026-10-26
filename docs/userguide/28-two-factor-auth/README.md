@@ -33,16 +33,19 @@ them.
 
 ## The purposes, in the desktop
 
-The **2FA Enforcement** card lists three purposes, carried over from OpenAlgo
-web. In the desktop only the first one does anything:
+The **2FA Enforcement** card has one purpose, **Dashboard sign-in**: a code is
+asked for after your password on every sign-in.
 
-| Purpose | In OpenAlgo Desktop |
-| --- | --- |
-| **Dashboard sign-in** | A code is asked for after your password on every sign-in |
-| **Remote MCP authorization** | No effect. The desktop has no OAuth consent screen: AI clients use tokens from the API Key page, with read-only or order access, and AI clients on other computers need **Remote MCP** switched on in Admin |
-| **Password reset** | No effect. The desktop sends no email and a forgotten password is replaced in the desktop window (below) |
+OpenAlgo web's card has two more, which the desktop does not show because it
+has nothing for them to guard:
 
-The master switch must be on for any purpose to apply.
+- **Remote MCP authorization**: the desktop has no OAuth consent screen. AI
+  clients use tokens from the API Key page, with read-only or order access,
+  and AI clients on other computers need **Remote MCP** switched on in Admin.
+- **Password reset**: the desktop sends no email, and a forgotten password is
+  replaced in the desktop window (below).
+
+The master switch, **Enable 2FA**, must be on as well.
 
 ## Signing in with a code
 
@@ -67,9 +70,7 @@ each further mistake, up to 5 minutes.
 
 ## If you lose your phone
 
-There are no backup codes. The TOTP tab's setup steps mention saving backup
-codes and needing the code to reset your password; neither applies in the
-desktop.
+There are no backup codes, and the code does not reset a forgotten password.
 
 - **While you can still sign in** (on this computer, with the code or with
   2FA off): move the authenticator entry to your new phone by scanning the QR

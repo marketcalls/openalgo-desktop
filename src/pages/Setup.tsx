@@ -174,9 +174,9 @@ export default function Setup() {
               <Info className="h-5 w-5" />
               <AlertDescription>
                 <strong className="block mb-1">First Time Setup</strong>
+                {/* Desktop: TOTP guards sign-in only; there is no TOTP password reset (docs-34). */}
                 This form will create the initial administrator account. After signing in, open your
-                Profile and scan the TOTP QR code there to enable two-factor authentication and
-                TOTP-based password resets.
+                Profile and scan the TOTP QR code there to set up two-factor sign-in.
               </AlertDescription>
             </Alert>
           </div>
