@@ -165,7 +165,7 @@ Each object in `legs`:
 | 400 | Schema validation failed, including a missing or invalid `mode`. Also returned when the engine refused the start: a leg that could not be resolved, every entry rejected, a signal strategy, a Live start with no broker signed in, or new entries paused for a moment |
 | 403 | `Invalid openalgo apikey` |
 | 404 | `Strategy not found` |
-| 409 | The strategy is already running, `mode` is `live` on a strategy that has not opted into live trading, or the strategy was changed while it was starting |
+| 409 | The strategy is already running, `mode` is `live` on a strategy that has not opted into live trading (also when live trading was switched off while the start was being made), or the strategy was changed while it was starting |
 | 429 | Rate limited (100 a second) |
 | 500 | `An unexpected error occurred` |
 | 503 | OpenAlgo is locked: sign in to the app |
@@ -189,8 +189,9 @@ Each object in `legs`:
   and nothing is placed if it changed while the legs were being resolved. An
   edit or a token rotation in that window answers 409 `The strategy was changed
   while it was starting, so it did not start. Start it again.`; live trading
-  switched off in that window answers 400 `This strategy is not enabled for
-  live trading. Enable it first.`
+  switched off in that window answers 409 `This strategy is not enabled for
+  live trading. Enable it first.`, the same status as the check made before
+  the start (OpenAlgo web answers that one 400).
 - In the desktop, new entries pause for a few seconds after a gap in order
   updates from the broker, while OpenAlgo re-reads the order book. A start in
   that window answers 400 `New entries are paused for a moment while OpenAlgo

@@ -128,6 +128,15 @@ pub const EVENT_KINDS: &[&str] = &[
     "tick_source_stale",
     "recovery_succeeded",
     "recovery_failed",
+    // Written by the desktop only (unconfirmed orders, LOG-08; a schedule
+    // missed while the computer slept, ARCH-03). Listed so the `/events`
+    // filter accepts every kind the trail holds (docs-2).
+    "order_unconfirmed",
+    "order_unconfirmed_resolved",
+    "order_unconfirmed_absent",
+    "order_unconfirmed_held",
+    "order_unconfirmed_ambiguous",
+    "schedule_missed",
 ];
 pub const WEBHOOK_RESULTS: &[&str] = &[
     "ok",

@@ -198,9 +198,9 @@ against the leg's own entry price, so 2 on a short filled at 2500 is a stop at
 
 - `run` is `null` whenever the strategy has no `current_run_id`, which is the
   normal state of a stopped strategy.
-- In the desktop, if `current_run_id` is set but `run` is `null`, the run's
-  record could not be read at that moment. Treat the strategy as running and
-  ask again; do not read it as stopped.
+- If the current run's record cannot be read at that moment, the answer is
+  500 `An unexpected error occurred`, as on OpenAlgo web, never `run: null`.
+  Ask again; do not read it as stopped.
 - While a run is open, `pnl_realized`, `pnl_peak` and `pnl_trough` are the
   values last written to the run row, not a live mark. The live figures are on
   the strategy's page in the app.

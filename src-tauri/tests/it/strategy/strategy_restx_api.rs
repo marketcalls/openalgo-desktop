@@ -211,3 +211,70 @@ async fn stop_and_close_all_on_a_stopped_strategy_are_409() {
         assert_eq!(b["message"], "This strategy is not running");
     }
 }
+
+/// docs-2: every kind the desktop writes to the trail is accepted by the
+/// `kind` filter. The unconfirmed-order kinds and `schedule_missed` were
+/// written but refused with 400 `Must be one of: ...`.
+#[tokio::test]
+async fn the_events_filter_accepts_every_kind_the_desktop_writes() {
+    let a = app();
+    let sid = made(&a).await;
+    let kinds = [
+        "order_unconfirmed",
+        "order_unconfirmed_resolved",
+        "order_unconfirmed_absent",
+        "order_unconfirmed_held",
+        "order_unconfirmed_ambiguous",
+        "schedule_missed",
+    ];
+    for kind in kinds {
+        a.ctx
+            .strategy
+            .store
+            .record_event(sid, USER, kind, "test", &Default::default())
+            .unwrap();
+    }
+    for kind in kinds {
+        let (s, b) = a
+            .api(
+                "/api/v1/strategy/events",
+                json!({"strategy_id": sid, "kind": kind}),
+            )
+            .await;
+        assert_eq!(s, StatusCode::OK, "{}: {}", kind, b);
+        assert_eq!(b["data"].as_array().unwrap().len(), 1, "{}: {}", kind, b);
+        assert_eq!(b["data"][0]["kind"], kind);
+    }
+}
+
+/// docs-3: a current run whose record cannot be read is the web's 500,
+/// never `run: null`, which reads as a stopped strategy.
+#[tokio::test]
+async fn status_with_an_unreadable_run_is_an_error_not_a_stopped_strategy() {
+    let a = app();
+    let sid = made(&a).await;
+    {
+        // A run the strategy points at whose P&L is not a number.
+        let conn = a.ctx.sqlite.conn().unwrap();
+        conn.execute(
+            "INSERT INTO sm_strategy_run (strategy_id, mode, started_at, pnl_realized) \
+             VALUES (?1, 'sandbox', '2026-10-05 04:30:00', 'unreadable')",
+            [sid],
+        )
+        .unwrap();
+        let run = conn.last_insert_rowid();
+        conn.execute(
+            "UPDATE sm_strategy SET current_run_id = ?1 WHERE id = ?2",
+            [run, sid],
+        )
+        .unwrap();
+    }
+    let (s, b) = a
+        .api("/api/v1/strategy/status", json!({"strategy_id": sid}))
+        .await;
+    assert_eq!(s, StatusCode::INTERNAL_SERVER_ERROR, "{}", b);
+    assert_eq!(
+        b,
+        json!({"status": "error", "message": "An unexpected error occurred"})
+    );
+}

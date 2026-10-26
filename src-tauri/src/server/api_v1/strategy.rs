@@ -17,8 +17,8 @@ use crate::services::core::INVALID_API_KEY;
 use crate::services::schema::{Field, Schema, Validator};
 use crate::state::AppState;
 use crate::strategy::store::{
-    ALREADY_RUNNING, CHANGED_WHILE_STARTING, EVENT_KINDS, EVENT_SEVERITIES, RUN_MODES,
-    STRATEGY_STATUSES,
+    ALREADY_RUNNING, CHANGED_WHILE_STARTING, EVENT_KINDS, EVENT_SEVERITIES, LIVE_NOT_ENABLED,
+    RUN_MODES, STRATEGY_STATUSES,
 };
 use axum::{body::Bytes, extract::State, http::StatusCode, response::Response};
 use serde_json::{json, Map, Value};
@@ -295,11 +295,21 @@ pub async fn status(State(ctx): Ctx, ClientIp(ip): ClientIp, body: Bytes) -> Res
     let Some(row) = row else {
         return failure(NOT_FOUND, StatusCode::NOT_FOUND, Value::Null);
     };
-    let run = row
-        .current_run_id
-        .and_then(|id| ctx.strategy.store.get_run(id).ok().flatten())
-        .map(|r| r.to_dict())
-        .unwrap_or(Value::Null);
+    // A current run that cannot be read is an error, never `null`, which
+    // reads as a stopped strategy (docs-3, SM-04; the web's handler
+    // answers its exception with 500 too).
+    let run = match row.current_run_id.map(|id| ctx.strategy.store.get_run(id)) {
+        None | Some(Ok(None)) => Value::Null,
+        Some(Ok(Some(r))) => r.to_dict(),
+        Some(Err(e)) => {
+            tracing::error!(
+                "Could not read the current run of strategy {}: {}",
+                row.id,
+                e
+            );
+            return failure(UNEXPECTED, StatusCode::INTERNAL_SERVER_ERROR, Value::Null);
+        }
+    };
     success(json!({"data": row.to_dict(true), "run": run}))
 }
 
@@ -328,14 +338,23 @@ pub async fn start(State(ctx): Ctx, ClientIp(ip): ClientIp, body: Bytes) -> Resp
         let e = r
             .error
             .unwrap_or_else(|| "Could not start the strategy".into());
-        let code = if e == ALREADY_RUNNING || e == CHANGED_WHILE_STARTING {
-            StatusCode::CONFLICT
-        } else {
-            StatusCode::BAD_REQUEST
-        };
+        let code = start_refused_status(&e);
         return failure(e, code, Value::Null);
     }
     success(json!({"run_id": r.run_id, "mode": mode, "legs": r.legs}))
+}
+
+/// The status of a start the engine refused. A state conflict is 409: the
+/// strategy already running or changed while starting (web: "already
+/// running"), and Live switched off after the request was checked, which
+/// answers as the check's own refusal does (docs-4; the web answers that
+/// one 400). Anything else is a configuration the caller must fix: 400.
+fn start_refused_status(error: &str) -> StatusCode {
+    if [ALREADY_RUNNING, CHANGED_WHILE_STARTING, LIVE_NOT_ENABLED].contains(&error) {
+        StatusCode::CONFLICT
+    } else {
+        StatusCode::BAD_REQUEST
+    }
 }
 
 /// POST /api/v1/strategy/stop
@@ -445,4 +464,26 @@ pub async fn events(State(ctx): Ctx, ClientIp(ip): ClientIp, body: Bytes) -> Res
             .list_events(id, run_id, kind.as_deref(), severity.as_deref(), limit)
     };
     history(&ctx, format!("the events of strategy {}", id), read).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// docs-4: the engine's Live refusal (Live switched off between the
+    /// request's check and the start) is the 409 the check answers, not
+    /// a 400.
+    #[test]
+    fn a_start_refused_for_live_is_a_conflict_as_the_check_answers() {
+        assert_eq!(start_refused_status(LIVE_NOT_ENABLED), StatusCode::CONFLICT);
+        assert_eq!(start_refused_status(ALREADY_RUNNING), StatusCode::CONFLICT);
+        assert_eq!(
+            start_refused_status(CHANGED_WHILE_STARTING),
+            StatusCode::CONFLICT
+        );
+        assert_eq!(
+            start_refused_status("Every entry was rejected"),
+            StatusCode::BAD_REQUEST
+        );
+    }
 }

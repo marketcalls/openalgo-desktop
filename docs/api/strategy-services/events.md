@@ -189,10 +189,7 @@ open and reserved for you to reconcile by hand.
 | `order_unconfirmed_ambiguous` | critical | Several orders in the broker's order book match the unconfirmed order and nothing tells them apart. Check the order book; the leg is not sent again automatically |
 | `schedule_missed` | warn | A scheduled start or square-off was missed because OpenAlgo was not running then (the computer was asleep). `payload` carries `trigger_source: "scheduler"` and the job id |
 
-**These kinds appear in the trail but cannot be used as a `kind` filter yet.**
-Sending one answers 400 `Must be one of: ...`. To find them, filter by
-`severity` (`critical` catches the ones that need you) or read the trail
-unfiltered.
+The `kind` filter accepts these too; OpenAlgo web does not have them.
 
 ## Notes
 
