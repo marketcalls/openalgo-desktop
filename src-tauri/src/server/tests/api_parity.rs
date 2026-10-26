@@ -1,5 +1,6 @@
 //! `/api/v1` answers brought to the web's: the instruments CSV's crypto lot
-//! (docs-17) and history from Historify without a broker session (docs-30).
+//! (docs-17), history from Historify without a broker session (docs-30),
+//! and the analyzer toggle refused in Semi-Auto (docs-32).
 
 use super::*;
 
@@ -67,4 +68,31 @@ async fn history_from_historify_needs_no_broker_session() {
         .json(post_json("/api/v1/history", body("db", "not-the-key")))
         .await;
     assert_eq!((s, v), (StatusCode::FORBIDDEN, invalid));
+}
+
+/// docs-32: in Semi-Auto the API cannot switch analyzer mode (web 403,
+/// SEBI Research Analyst compliance); the mode stays as it was. In Auto it
+/// switches as before.
+#[tokio::test]
+async fn the_analyzer_toggle_is_refused_in_semi_auto() {
+    use crate::services::apikey_service::ApiKeyService;
+    let h = H::new();
+    let key = h.setup();
+    h.connect_broker();
+    ApiKeyService::set_order_mode(h.ctx(), "semi_auto").unwrap();
+    let toggle = json!({"apikey": key, "mode": true});
+    let (s, v) = h
+        .json(post_json("/api/v1/analyzer/toggle", toggle.clone()))
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{}", v);
+    assert_eq!(
+        v,
+        json!({"status": "error",
+               "message": crate::services::analyzer_service::TOGGLE_SEMI_AUTO})
+    );
+    assert!(!h.ctx().sqlite.get_analyze_mode().unwrap(), "not switched");
+    ApiKeyService::set_order_mode(h.ctx(), "auto").unwrap();
+    let (s, v) = h.json(post_json("/api/v1/analyzer/toggle", toggle)).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    assert_eq!(v["data"]["analyze_mode"], true);
 }

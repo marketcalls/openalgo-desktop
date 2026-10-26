@@ -34,6 +34,14 @@ enum ModeChange {
 /// web answers its exception's text; a trader reads this instead.
 const STATUS_UNREADABLE: &str = "The analyzer status could not be read just now. Try again.";
 
+/// `/api/v1/analyzer/toggle` in Semi-Auto: the web's refusal, word for word
+/// (`services/analyzer_service.py`, 403).
+pub(crate) const TOGGLE_SEMI_AUTO: &str = "Operation analyzer/toggle is not allowed in Semi-Auto mode. This operation can only be performed by the client via the UI. This restriction ensures SEBI Research Analyst compliance where mode switching is a client-only decision.";
+
+/// `/api/v1/analyzer/toggle` when the order mode cannot be read: nothing is
+/// switched (the web reads a failure as Auto and switches).
+const TOGGLE_ORDER_MODE_UNREADABLE: &str = "OpenAlgo could not read whether your orders wait for approval in the Action Center (Semi-Auto), so analyzer mode was not changed. Try again in a moment; if it keeps happening, restart OpenAlgo.";
+
 /// The mode as the answers name it.
 fn mode_name(analyze_mode: bool) -> &'static str {
     if analyze_mode {
@@ -146,6 +154,13 @@ impl AnalyzerService {
     /// the web (`toggle_analyzer_mode_with_auth`), saying the switch was
     /// made.
     pub async fn toggle_reply(state: &AppState, mode: bool) -> Reply {
+        // Semi-Auto: switching modes is the client's own decision, made in
+        // the app, never by an API caller (docs-32, web 403).
+        match super::order_service::semi_auto(state) {
+            Ok(false) => {}
+            Ok(true) => return Reply::error(403, TOGGLE_SEMI_AUTO),
+            Err(_) => return Reply::error(500, TOGGLE_ORDER_MODE_UNREADABLE),
+        }
         let on = match Self::set_mode(state, mode).await {
             Ok(on) => on,
             Err(e) => {

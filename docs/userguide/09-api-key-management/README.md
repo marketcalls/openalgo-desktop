@@ -44,8 +44,9 @@ orders that place something (regular, smart, basket, split, options and GTT
 orders) wait in the Action Center, while modify, cancel, cancel-all and
 close-position requests from the API are refused with a message such as
 "Modify order operation is not allowed in Semi-Auto mode. Please switch to
-Auto mode to modify orders." Read-only calls (funds, books, quotes) always
-answer at once.
+Auto mode to modify orders." A tool cannot switch analyzer mode either: in
+Semi-Auto that switch is yours alone, made in the app. Read-only calls
+(funds, books, quotes) always answer at once.
 
 ### API Playground
 

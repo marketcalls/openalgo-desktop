@@ -381,6 +381,7 @@ The web shares each of these defects; the desktop answers differently on purpose
 
 ### Web API defects deliberately not copied (1.0.3, read from web source)
 No fixture records these; each is asserted by its own test.
+- **`/analyzer/toggle` in Semi-Auto (docs-32)**: the web means to refuse it with 403 `Operation analyzer/toggle is not allowed in Semi-Auto mode. ...` (`services/analyzer_service.py`), but passes the API key to `get_order_mode`, which looks the mode up by user id, so it always reads `auto` and never refuses. The desktop refuses with that 403 (`server::tests::api_parity`).
 - **`/history` with `source: "db"` (docs-30)**: the web reads Historify without checking the key at all; the desktop checks the key and, as the web, needs no broker session for it (`server::tests::api_parity`).
 - **`/strategy/start` refused by the engine because Live was switched off after the check (docs-4)**: the web answers 400 (only "already running" is 409); the desktop answers 409, as the check before the start does.
 - **WebSocket `depth` that is not a whole number (docs-8)**: the web's proxy checks no level; Zerodha's adapter echoes the value and the others fail with a `SERVER_ERROR` frame. The desktop refuses it with `INVALID_PARAMETERS` `Depth must be a whole number, such as 5, 20, 30 or 50`; any whole number is taken, as on the web (`feed_behaviour`).

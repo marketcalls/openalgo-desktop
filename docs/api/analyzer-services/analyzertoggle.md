@@ -115,6 +115,7 @@ Validation errors on this endpoint carry `message` as a string that spells out a
 | 400 | `{'mode': ['Missing data for required field.']}` | No `mode` |
 | 400 | `{'mode': ['Not a valid boolean.']}` | A `mode` that is not a true/false value |
 | 403 | `Invalid openalgo apikey` | The key is wrong, or no broker is logged in |
+| 403 | `Operation analyzer/toggle is not allowed in Semi-Auto mode. This operation can only be performed by the client via the UI. This restriction ensures SEBI Research Analyst compliance where mode switching is a client-only decision.` | Orders wait for approval in the Action Center (Semi-Auto): switch the mode in the app instead |
 | 500 | `An unexpected error occurred` | The setting could not be saved |
 
 Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wrong method, rate limit) are listed in the [API overview](../README.md#errors-common-to-every-endpoint).
@@ -131,7 +132,7 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 ## In the desktop
 
 - In the desktop, a switch sent while another is still being applied waits for it. On a multi-threaded server the web answers 409 `Another mode change is still in progress. Try again in a moment.` instead.
-- In the desktop, the switch is never refused because the API key's order mode is Semi-Auto. The web's code means to refuse it with 403 in Semi-Auto, but its check looks the order mode up by the API key instead of the account, so in practice the web does not refuse it either.
+- In Semi-Auto the switch is refused with 403, as the web's code intends: switching between live and sandbox is the account holder's own decision, made in the app. The web's check looks the order mode up by the API key instead of the account, so in practice the web does not refuse it; the desktop does. If the order mode cannot be read, nothing is switched and the answer is 500.
 
 ---
 
