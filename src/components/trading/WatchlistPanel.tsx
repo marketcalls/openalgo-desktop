@@ -50,6 +50,7 @@ import { cn } from '@/lib/utils'
 import { showToast } from '@/utils/toast'
 import { PANEL_HEADER, PanelShell } from './panelShell'
 import { SymbolSearchDialog } from './SymbolSearchDialog'
+import { useWatchlistKeys } from './useWatchlistKeys'
 
 /** Remembers which list was open, so a reload lands where the user left off. */
 const ACTIVE_LIST_KEY = 'oa-trading-watchlist'
@@ -363,6 +364,10 @@ export function WatchlistPanel({ apiKey, onPick, search, activeSymbol }: Props) 
 
   /* ── live prices ──────────────────────────────────────────────────────── */
   const items = useMemo(() => active?.items ?? [], [active])
+  // Desktop (#198): Up and Down walk the list and chart each row.
+  const rowKeys = useWatchlistKeys(items, (item) =>
+    onPick({ symbol: item.symbol, exchange: item.exchange })
+  )
 
   // A stable identity for the hook's dependency chain: `items` is a fresh array
   // on every render, and useLivePrice keys its subscription off this.
@@ -826,7 +831,7 @@ export function WatchlistPanel({ apiKey, onPick, search, activeSymbol }: Props) 
         <span />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto" {...rowKeys}>
         {loading ? (
           <p className="p-3 text-[12px] text-muted-foreground">Loading...</p>
         ) : loadError ? (
@@ -941,6 +946,8 @@ export function WatchlistPanel({ apiKey, onPick, search, activeSymbol }: Props) 
                   // test can assert the fact rather than a Tailwind class that
                   // jsdom has no cascade to evaluate.
                   aria-current={activeSymbol === key ? true : undefined}
+                  data-watchlist-row={index}
+                  aria-keyshortcuts="ArrowUp ArrowDown"
                 />
 
                 {/* Out of flow: at rest the grip costs the symbol column no
