@@ -8,7 +8,8 @@ use crate::server::routes::webui::ok;
 use crate::services::apikey_service::ApiKeyService;
 use crate::services::core::Reply;
 use crate::services::{
-    account_service, chart_test_service as chart, market_data_service, pnl_tracker_service,
+    account_service, chart_test_service as chart, market_data_service, pnl_capital,
+    pnl_tracker_service,
 };
 use crate::state::AppState;
 use axum::{
@@ -102,7 +103,9 @@ pub async fn pnl(State(ctx): Ctx) -> Response {
             )
         }
     };
-    ok(pnl_tracker_service::compute(&trades, &positions, ctx.now(), history).await)
+    let mut body = pnl_tracker_service::compute(&trades, &positions, ctx.now(), history).await;
+    pnl_capital::attach(&ctx, &mut body).await;
+    ok(body)
 }
 
 /// GET /chart/test/api/history?symbol&exchange&interval&date

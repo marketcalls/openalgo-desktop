@@ -138,14 +138,19 @@ pub fn statistics_json(stats: &crate::brokers::types::PortfolioStats) -> Value {
     })
 }
 
-/// Live funds: the web's broker modules format every value to two decimals
-/// as strings.
-pub fn live_funds(f: &Funds) -> Value {
-    let used = if f.utilised_debits != 0.0 {
+/// The margin in use: the broker's utilised debits, else its used margin.
+pub(crate) fn utilised(f: &Funds) -> f64 {
+    if f.utilised_debits != 0.0 {
         f.utilised_debits
     } else {
         f.used_margin
-    };
+    }
+}
+
+/// Live funds: the web's broker modules format every value to two decimals
+/// as strings.
+pub fn live_funds(f: &Funds) -> Value {
+    let used = utilised(f);
     json!({
         "availablecash": format!("{:.2}", f.available_cash),
         "collateral": format!("{:.2}", f.collateral),

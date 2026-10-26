@@ -1322,7 +1322,9 @@ async fn pnl_tracker_shapes() {
             "min_mtm_time",
             "max_drawdown",
             "pnl_series",
-            "drawdown_series"
+            "drawdown_series",
+            "capital",
+            "capital_basis"
         ])
     );
     *h.mock.trade_book.lock() = Some(Ok(vec![Trade {
@@ -1346,6 +1348,35 @@ async fn pnl_tracker_shapes() {
     assert_eq!(d["max_mtm_time"], "09:20");
     assert_eq!(d["pnl_series"][0]["value"], 0.0, "09:15 is zero-filled");
     assert_eq!(keys(&d["pnl_series"][0]), set(&["time", "value"]));
+}
+
+/// docs-49, a deliberate deviation: the web shows the MTM as a percentage
+/// of a fixed 1,00,000. The tracker sends the capital the percentage is
+/// read against: live, the account's margin (the Dashboard's Available
+/// Balance plus Utilised); in analyzer mode, the sandbox's capital; none
+/// when it cannot be read.
+#[tokio::test]
+async fn pnl_tracker_sends_the_capital_its_percentage_is_read_against() {
+    let h = H::new(true).await;
+    // The mock's funds: 125,000.50 available, 2,500.25 utilised.
+    let (s, v) = h.post("/pnltracker/api/pnl", json!({})).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    assert_eq!(v["data"]["capital"], 127500.75);
+    assert_eq!(v["data"]["capital_basis"], "account");
+
+    *h.mock.funds_ok.lock() = false;
+    let (s, v) = h.post("/pnltracker/api/pnl", json!({})).await;
+    assert_eq!(s, StatusCode::OK, "the chart still loads: {}", v);
+    assert_eq!(v["data"]["capital"], Value::Null);
+    assert_eq!(v["data"]["capital_basis"], Value::Null);
+
+    // Analyzer mode: the sandbox's capital, 1 crore by default, whatever
+    // the broker's funds say.
+    h.analyze(true);
+    let (s, v) = h.post("/pnltracker/api/pnl", json!({})).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    assert_eq!(v["data"]["capital"], 10_000_000.0);
+    assert_eq!(v["data"]["capital_basis"], "sandbox");
 }
 
 #[tokio::test]

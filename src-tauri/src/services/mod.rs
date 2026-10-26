@@ -64,6 +64,7 @@ pub mod order_log_service;
 pub mod order_reconciler;
 pub mod order_router;
 pub mod order_service;
+pub mod pnl_capital;
 pub mod pnl_tracker_service;
 pub mod record_loss;
 pub mod report_flight;

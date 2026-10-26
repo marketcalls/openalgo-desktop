@@ -1,5 +1,6 @@
 import { AlertTriangle, Camera, RefreshCw, TrendingDown, TrendingUp } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type CapitalBasis, MtmPercentOfCapital } from '@/components/desktop/MtmPercentOfCapital'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { makeFormatCurrency } from '@/lib/utils'
@@ -60,6 +61,8 @@ interface PnLData {
   max_drawdown: number
   pnl_series: PnLDataPoint[]
   drawdown_series: PnLDataPoint[]
+  capital?: number | null
+  capital_basis?: CapitalBasis | null
 }
 
 export default function PnLTracker() {
@@ -78,6 +81,8 @@ export default function PnLTracker() {
     minMtm: 0,
     minMtmTime: '--:--',
     maxDrawdown: 0,
+    capital: undefined as number | null | undefined,
+    capitalBasis: undefined as CapitalBasis | null | undefined,
   })
 
   // Refs
@@ -313,6 +318,8 @@ export default function PnLTracker() {
           minMtm: data.min_mtm,
           minMtmTime: data.min_mtm_time || '--:--',
           maxDrawdown: data.max_drawdown,
+          capital: data.capital ?? null,
+          capitalBasis: data.capital_basis ?? null,
         })
 
         // Update chart
@@ -514,12 +521,11 @@ export default function PnLTracker() {
               >
                 {formatCurrency(metrics.currentMtm)}
               </div>
-              <div
-                className={`text-sm ${metrics.currentMtm >= 0 ? 'text-green-500' : 'text-red-500'}`}
-              >
-                {metrics.currentMtm >= 0 ? '+' : ''}
-                {((metrics.currentMtm / 100000) * 100).toFixed(2)}%
-              </div>
+              <MtmPercentOfCapital
+                mtm={metrics.currentMtm}
+                capital={metrics.capital}
+                basis={metrics.capitalBasis}
+              />
             </CardContent>
           </Card>
 

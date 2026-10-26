@@ -18,7 +18,7 @@ Four cards across the top:
 
 | Card | Meaning |
 | --- | --- |
-| **Current MTM** | Today's realized plus unrealized P&L, now. The percentage under it is the MTM divided by 1,00,000, a fixed base carried over from the web, not a percentage of your capital. |
+| **Current MTM** | Today's realized plus unrealized P&L, now. The percentage under it is the MTM as a share of your capital: in analyzer mode the sandbox capital (the starting capital on the Sandbox page, 1 crore unless you changed it); live, your account margin as the Dashboard shows it, Available Balance plus Utilised. When your funds cannot be read, no percentage is shown. (OpenAlgo web divides by a fixed 1,00,000.) |
 | **Max MTM** | The highest MTM of the day, with the time it was reached |
 | **Min MTM** | The lowest MTM of the day, with its time |
 | **Max Drawdown** | The largest fall from a high to a later low ("Peak to trough") |
