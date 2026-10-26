@@ -235,6 +235,7 @@ mod sandbox_contract;
 mod sandbox_engine;
 mod sandbox_fills;
 mod sandbox_gtt;
+mod sandbox_place_atomic;
 mod sandbox_props;
 mod sandbox_restart;
 mod sandbox_schedule;
