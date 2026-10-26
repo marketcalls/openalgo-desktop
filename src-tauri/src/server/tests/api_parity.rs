@@ -1,7 +1,44 @@
-//! `/api/v1` answers brought to the web's: history from Historify
-//! without a broker session (docs-30).
+//! `/api/v1` answers brought to the web's: the instruments CSV's crypto lot
+//! (docs-17) and history from Historify without a broker session (docs-30).
 
 use super::*;
+
+fn get(path: &str) -> Request<Body> {
+    Request::builder()
+        .method(Method::GET)
+        .uri(path)
+        .body(Body::empty())
+        .unwrap()
+}
+
+/// docs-17: the CSV download carries a fractional crypto lot as the JSON
+/// answer does (`0.0001`); it wrote the row's whole lot, `1`.
+#[tokio::test]
+async fn the_instruments_csv_carries_a_fractional_lot() {
+    use crate::brokers::common::symbols::tests::row;
+    let h = H::new();
+    let key = h.setup();
+    h.connect_broker();
+    let spot = row("BTCINR", "BTC_INR", "CRYPTO", "16614");
+    let mut master = crate::brokers::types::MasterContract::new(vec![spot.clone()]);
+    master.lot_sizes.insert(spot.token.clone(), 0.0001);
+    {
+        let mut c = h.ctx().sqlite.conn().unwrap();
+        crate::db::sqlite::symbol::store_master(&mut c, "zerodha", h.ctx().now(), &master).unwrap();
+    }
+    crate::services::master_contract_service::load_cached(h.ctx(), "zerodha")
+        .await
+        .unwrap();
+    let path = format!("/api/v1/instruments?apikey={}&exchange=CRYPTO", key);
+    let (s, v) = h.json(get(&path)).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    assert_eq!(v["data"][0]["lotsize"], json!(0.0001));
+    let (s, _, body) = h.send(get(&format!("{}&format=csv", path))).await;
+    assert_eq!(s, StatusCode::OK);
+    let csv = String::from_utf8(body).unwrap();
+    let line = csv.lines().nth(1).unwrap();
+    assert_eq!(line.split(',').nth(8), Some("0.0001"), "{}", line);
+}
 
 /// docs-30: `source: "db"` reads Historify on this computer and needs a
 /// valid key only, not a broker session (it answered 403 `Invalid openalgo

@@ -326,8 +326,11 @@ fn py_float(x: f64) -> String {
 pub const INSTRUMENT_COLUMNS: &str =
     "symbol,brsymbol,name,exchange,brexchange,token,expiry,strike,lotsize,instrumenttype,tick_size";
 
-/// Instruments of one exchange as the web's CSV download.
-pub fn instruments_csv(rows: &[&SymToken]) -> String {
+/// Instruments of one exchange as the web's CSV download. The lot size is
+/// the one the JSON answer carries, as the web writes the same value to
+/// both: a fractional crypto lot is `0.0001`, never the whole `1` the row
+/// rounds it to (docs-17).
+pub fn instruments_csv(snap: &SymbolGeneration, rows: &[&SymToken]) -> String {
     let mut out = String::with_capacity(rows.len() * 80 + 128);
     out.push_str(INSTRUMENT_COLUMNS);
     out.push_str("\r\n");
@@ -341,7 +344,10 @@ pub fn instruments_csv(rows: &[&SymToken]) -> String {
             csv_field(&r.token),
             csv_field(&r.expiry),
             py_float(r.strike),
-            r.lot_size.to_string(),
+            match snap.exact_lot_size(&r.exchange, &r.token) {
+                Some(exact) => py_float(exact),
+                None => r.lot_size.to_string(),
+            },
             csv_field(&r.instrument_type),
             py_float(r.tick_size),
         ];
@@ -372,7 +378,7 @@ pub fn instruments(ctx: &AppState, exchange: &str, csv: bool) -> Instruments {
     if csv {
         return Instruments::Csv {
             filename: format!("instruments_{}.csv", exchange),
-            body: instruments_csv(&rows),
+            body: instruments_csv(&snap, &rows),
         };
     }
     let data: Vec<Value> = rows.iter().map(|r| row_json(&snap, r, None)).collect();
@@ -495,12 +501,27 @@ mod tests {
     fn csv_matches_python_csv_module() {
         let mut r = row("A,B", "X \"Y\"", "NSE", "", "EQ");
         r.lot_size = 11250;
-        let csv = instruments_csv(&[&r]);
+        let snap = SymbolGeneration::build(vec![r.clone()], 1);
+        let csv = instruments_csv(&snap, &[&r]);
         let mut lines = csv.split("\r\n");
         assert_eq!(lines.next(), Some(INSTRUMENT_COLUMNS));
         assert_eq!(
             lines.next(),
             Some("\"A,B\",\"A,B\",\"X \"\"Y\"\"\",NSE,NSE,1,,0.0,11250,EQ,0.05")
         );
+    }
+
+    /// docs-17: a fractional crypto lot is written as the JSON answer and
+    /// the web carry it (`0.0001`), not as the whole lot of the row (`1`).
+    #[test]
+    fn csv_writes_a_fractional_lot_as_the_json_does() {
+        let r = row("BTCINR", "BTCINR", "CRYPTO", "", "SPOT");
+        let snap = SymbolGeneration::build(vec![r], 1)
+            .with_lot_sizes(&HashMap::from([("1".to_string(), 0.0001)]));
+        let rows: Vec<&SymToken> = snap.rows().iter().collect();
+        let csv = instruments_csv(&snap, &rows);
+        let line = csv.split("\r\n").nth(1).unwrap();
+        assert_eq!(line.split(',').nth(8), Some("0.0001"), "{}", line);
+        assert_eq!(snap.lotsize_json(rows[0]), json!(0.0001));
     }
 }
