@@ -33,8 +33,8 @@ use super::proto::{self, MarketFrame};
 use super::DEVICE_ID;
 use crate::brokers::common::relay::{self, Open, RelayHandle, Session, Step, Upstream};
 use crate::brokers::common::streaming::{
-    now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, WsRequest,
+    now_ms, ping, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
+    NormalizedTick, OrderUpdate, WsRequest, WEB_ORDER_PING_INTERVAL,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -721,6 +721,13 @@ impl Session for OrderSession {
             "subscribe {} notifications notification",
             self.token.expose()
         ))]
+    }
+
+    /// The web's order sockets ping every 20 s
+    /// (`websocket_proxy/order_adapter.py`; Nubra keeps the default); the
+    /// relay passes the pongs on as a sign that the broker is there.
+    fn keepalive(&self) -> Option<(Duration, Message)> {
+        Some((WEB_ORDER_PING_INTERVAL, ping()))
     }
 
     fn on_upstream(&mut self, msg: Message) -> Step {

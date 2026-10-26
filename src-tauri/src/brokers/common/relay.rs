@@ -322,6 +322,26 @@ fn ready_frame() -> Vec<Message> {
     vec![Message::Text(READY.into())]
 }
 
+/// The relay's sign that the broker is there: a pong the feed's manager
+/// hears as a frame (`BrokerFeed::parse` ignores it or reads a heartbeat).
+pub(crate) fn alive_frame() -> Message {
+    Message::Pong(Vec::new())
+}
+
+/// What the feed hears of one broker frame: the frames for it (the ready
+/// frame among them), or, when the frame gave the feed nothing (a pong, a
+/// heartbeat answer), the relay's sign that the broker is there. Without
+/// it a quiet broker behind a relay sent the manager nothing, its stall
+/// watchdog took the broker for dead, and the socket was dropped and made
+/// again.
+fn down_or_alive(down: Vec<Message>) -> Vec<Message> {
+    if down.is_empty() {
+        vec![alive_frame()]
+    } else {
+        down
+    }
+}
+
 async fn serve(down: WebSocketStream<TcpStream>, upstream: Arc<dyn Upstream>) {
     let (mut dw, mut dr) = down.split();
     let Some(up) = open_or_close(&*upstream, &mut dw).await else {
@@ -361,11 +381,12 @@ async fn serve(down: WebSocketStream<TcpStream>, upstream: Arc<dyn Upstream>) {
                         let _ = send_within(&mut dw, vec![auth_failed_frame(&message)]).await;
                         break;
                     }
+                    let mut down = step.down;
                     if step.ready && !ready {
                         ready = true;
-                        ok = ok && send_within(&mut dw, ready_frame()).await;
+                        down = ready_frame().into_iter().chain(down).collect();
                     }
-                    ok = ok && send_within(&mut dw, step.down).await;
+                    ok = ok && send_within(&mut dw, down_or_alive(down)).await;
                 }
             },
             _ = ka.tick(), if keepalive.is_some() => {
@@ -513,6 +534,69 @@ mod tests {
         let back = ws.next().await.unwrap().unwrap();
         assert_eq!(back, Message::Binary(vec![1, 2, 3]));
         assert_eq!(opens.load(Ordering::SeqCst), 1);
+    }
+
+    /// A broker kept alive with pings that passes on only data, as Nubra's
+    /// order session does.
+    struct Quiet {
+        url: String,
+    }
+
+    struct QuietSession;
+
+    impl Session for QuietSession {
+        fn on_upstream(&mut self, msg: Message) -> Step {
+            match msg {
+                m @ Message::Binary(_) => Step {
+                    down: vec![m],
+                    ..Default::default()
+                },
+                _ => Step::default(),
+            }
+        }
+        fn keepalive(&self) -> Option<(Duration, Message)> {
+            Some((Duration::from_millis(50), Message::Ping(Vec::new())))
+        }
+    }
+
+    #[async_trait]
+    impl Upstream for Quiet {
+        fn broker(&self) -> &'static str {
+            "test"
+        }
+        async fn open(&self) -> Open {
+            match tokio_tungstenite::connect_async(self.url.as_str()).await {
+                Ok((ws, _)) => Open::Ready(Box::new(ws)),
+                Err(_) => Open::Unavailable,
+            }
+        }
+        fn session(&self) -> Box<dyn Session> {
+            Box::new(QuietSession)
+        }
+    }
+
+    /// A quiet broker that answers its keepalive is heard by the feed: the
+    /// relay passed on data only, so the manager's stall watchdog took a
+    /// quiet broker for a dead one and remade the connection.
+    #[tokio::test]
+    async fn a_quiet_broker_answering_its_keepalive_is_heard_downstream() {
+        let relay = RelayHandle::start(Arc::new(Quiet {
+            url: echo_server().await,
+        }))
+        .unwrap();
+        let (mut ws, _) = tokio_tungstenite::connect_async(relay.url()).await.unwrap();
+        let first = ws.next().await.unwrap().unwrap();
+        assert_eq!(control(first.to_text().unwrap()), Some(Ok(())));
+        let next = tokio::time::timeout(Duration::from_secs(5), ws.next())
+            .await
+            .expect("a sign that the broker is there")
+            .unwrap()
+            .unwrap();
+        assert_eq!(next, alive_frame());
+        assert_eq!(
+            down_or_alive(vec![Message::Binary(vec![1])]),
+            [Message::Binary(vec![1])]
+        );
     }
 
     #[tokio::test]

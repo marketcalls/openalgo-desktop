@@ -176,6 +176,18 @@ start it with `RelayHandle::start` / `ensure_started`, and point
 Readiness and refusals reach `parse` as control frames (`relay::control`).
 The relay owns one listener and one session, aborted with the handle.
 
+Send the keepalive the web sends to the same socket: `heartbeat()` with
+its interval, and `heartbeat_reply_timeout()` when the web sets a
+`ping_timeout` (websocket-client `run_forever(ping_interval=30,
+ping_timeout=10)` is `WEB_PING_INTERVAL` / `WEB_PING_TIMEOUT` with
+`streaming::ping()`; the web's order sockets default to
+`WEB_ORDER_PING_INTERVAL`, 20 s). The manager's stall watchdog replaces a
+socket that hears nothing for 90 s, so a feed without a heartbeat is
+reconnected whenever its broker goes quiet (Kotak, Dhan, Samco and Kite
+were, until 1.0.3). Behind a relay, the relay passes the broker's answers
+to its keepalive on as pongs (`relay::down_or_alive`, the MQTT relay's
+PINGRESP).
+
 Ticks carry OpenAlgo symbols, epoch-millisecond timestamps, and
 `NormalizedTick::derive_change` for change and percent. The 8765 contract
 (modes 1/2/3, depth 5/20/30/50) is checked by `tests/it/feed_conformance.rs`.

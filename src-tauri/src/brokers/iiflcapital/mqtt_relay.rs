@@ -27,7 +27,7 @@
 //! a task aborted by a drop guard when the session ends or is aborted, so the
 //! broker socket is closed on every exit path. Channels are bounded.
 
-use crate::brokers::common::relay::{send_within, READY};
+use crate::brokers::common::relay::{alive_frame, send_within, READY};
 use crate::error::{AppError, Result};
 use async_trait::async_trait;
 use futures_util::stream::SplitSink;
@@ -453,6 +453,21 @@ async fn connack(broker: &'static str, events: &mut Events, dw: &mut Down) -> bo
     }
 }
 
+/// The frame the feed gets for one MQTT event: a publish as a data frame,
+/// and the broker's answer to the keepalive (sent every `KEEPALIVE` while
+/// nothing else moves) as the relay's sign that the broker is there, so
+/// the manager's stall watchdog does not take a quiet broker for a dead one
+/// (the same sign as the WebSocket relay's `down_or_alive`).
+fn downstream(ev: &Event) -> Option<Message> {
+    match ev {
+        Event::Incoming(Packet::Publish(p)) => {
+            Some(Message::Binary(encode_publish(&p.topic, &p.payload)))
+        }
+        Event::Incoming(Packet::PingResp) => Some(alive_frame()),
+        _ => None,
+    }
+}
+
 /// A SUBACK's refused topics, logged.
 fn log_refused_topics(broker: &'static str, codes: &[SubscribeReasonCode]) {
     let refused = codes
@@ -517,14 +532,14 @@ async fn serve(tcp: TcpStream, path: String, upstream: Arc<dyn MqttUpstream>) {
                 Some(Ok(_)) => {}
             },
             ev = events.recv() => match ev {
-                Some(Ok(Event::Incoming(Packet::Publish(p)))) => {
-                    let frame = encode_publish(&p.topic, &p.payload);
-                    ok = send_within(&mut dw, vec![Message::Binary(frame)]).await;
-                }
                 Some(Ok(Event::Incoming(Packet::SubAck(ack)))) => {
                     log_refused_topics(broker, &ack.return_codes);
                 }
-                Some(Ok(_)) => {}
+                Some(Ok(ev)) => {
+                    if let Some(frame) = downstream(&ev) {
+                        ok = send_within(&mut dw, vec![frame]).await;
+                    }
+                }
                 Some(Err(e)) => {
                     tracing::debug!(
                         broker,
@@ -585,6 +600,33 @@ mod tests {
         };
         assert_eq!(parse_op(&u), Some((false, vec!["a/b".to_string()])));
         assert_eq!(parse_op(r#"{"op":"x","topics":[]}"#), None);
+    }
+
+    /// IIFL Capital's feeds sent the manager nothing while the market was
+    /// quiet, although the broker answered every keepalive, so the stall
+    /// watchdog dropped and remade the connection.
+    #[test]
+    fn the_keepalive_answer_reaches_the_feed_as_a_sign_of_life() {
+        assert_eq!(
+            downstream(&Event::Incoming(Packet::PingResp)),
+            Some(Message::Pong(Vec::new()))
+        );
+        let publish = Packet::Publish(rumqttc::Publish::new(
+            "prod/marketfeed/mw/v1/nseeq/2885",
+            QoS::AtMostOnce,
+            vec![1, 2, 3],
+        ));
+        assert_eq!(
+            downstream(&Event::Incoming(publish)),
+            Some(Message::Binary(encode_publish(
+                "prod/marketfeed/mw/v1/nseeq/2885",
+                &[1, 2, 3]
+            )))
+        );
+        assert_eq!(
+            downstream(&Event::Outgoing(rumqttc::Outgoing::PingReq)),
+            None
+        );
     }
 
     #[test]
