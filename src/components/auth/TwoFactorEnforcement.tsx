@@ -39,6 +39,12 @@ const PURPOSES: { key: PurposeKey; label: string; help: string }[] = [
   },
 ]
 
+// Desktop: only dashboard sign-in reads its switch. There is no consent
+// screen for Remote MCP (AI clients use access tokens) and no emailed
+// password reset (a forgotten password is replaced from the sign-in page),
+// so those two switches would do nothing and are not shown (docs-33).
+const SHOWN_PURPOSES = PURPOSES.filter((p) => p.key === 'totp_required_for_login')
+
 export default function TwoFactorEnforcement() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -172,15 +178,17 @@ export default function TwoFactorEnforcement() {
           <div className="space-y-3 rounded-lg border p-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Apply 2FA to:</span>
-              <button
-                type="button"
-                className="text-xs text-primary hover:underline"
-                onClick={() => setAll(!allOn)}
-              >
-                {allOn ? 'Clear all' : 'Select all'}
-              </button>
+              {SHOWN_PURPOSES.length > 1 ? (
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => setAll(!allOn)}
+                >
+                  {allOn ? 'Clear all' : 'Select all'}
+                </button>
+              ) : null}
             </div>
-            {PURPOSES.map((p) => (
+            {SHOWN_PURPOSES.map((p) => (
               <div key={p.key} className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <Label className="font-medium">{p.label}</Label>
