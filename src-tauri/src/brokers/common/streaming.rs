@@ -286,6 +286,14 @@ pub trait BrokerFeed: Send + Sync {
         None
     }
 
+    /// How soon some frame must follow a heartbeat before the connection
+    /// is taken as dead and replaced; `None` leaves a silent socket to the
+    /// stall watchdog. The web's websocket-client clients set it as
+    /// `ping_timeout` (Kotak: 10 s).
+    fn heartbeat_reply_timeout(&self) -> Option<Duration> {
+        None
+    }
+
     /// Depth levels the broker can stream.
     fn supported_depth_levels(&self) -> &'static [u8] {
         &[5]

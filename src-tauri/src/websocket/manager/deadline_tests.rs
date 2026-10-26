@@ -1,6 +1,7 @@
 //! Session deadlines on a fake socket under a paused clock: a send the
-//! peer never takes (TIME-02) and a login the broker never confirms
-//! (TIME-05) both end the session, so the manager reconnects.
+//! peer never takes (TIME-02), a login the broker never confirms (TIME-05)
+//! and a heartbeat it never answers all end the session, so the manager
+//! reconnects; a quiet broker that answers its heartbeats keeps it.
 
 use super::*;
 use crate::brokers::common::streaming::AUTH_ACK_DEADLINE;
@@ -14,6 +15,9 @@ struct StuckSink {
     sent: Arc<Mutex<Vec<(Duration, String)>>>,
     take: usize,
     start: Instant,
+    /// The broker's side of the socket, when it answers a ping with a
+    /// pong as WebSocket servers do.
+    pongs: Option<mpsc::Sender<Message>>,
 }
 
 impl futures_util::Sink<Message> for StuckSink {
@@ -31,7 +35,15 @@ impl futures_util::Sink<Message> for StuckSink {
     }
 
     fn start_send(self: Pin<&mut Self>, item: Message) -> std::result::Result<(), WsError> {
-        let text = item.into_text().unwrap_or_default().to_string();
+        let text = match item {
+            Message::Ping(payload) => {
+                if let Some(broker) = &self.pongs {
+                    let _ = broker.try_send(Message::Pong(payload));
+                }
+                "<ping>".to_string()
+            }
+            other => other.into_text().unwrap_or_default().to_string(),
+        };
         self.sent.lock().push((self.start.elapsed(), text));
         Ok(())
     }
@@ -72,6 +84,7 @@ fn broker_frames() -> (mpsc::Sender<Message>, Frames) {
 struct ScriptedFeed {
     awaits_ack: bool,
     optional_ack: Option<Duration>,
+    reply_within: Option<Duration>,
 }
 
 impl BrokerFeed for ScriptedFeed {
@@ -101,6 +114,9 @@ impl BrokerFeed for ScriptedFeed {
     fn heartbeat(&self) -> Option<(Duration, Message)> {
         Some((Duration::from_secs(5), Message::Text("HB".into())))
     }
+    fn heartbeat_reply_timeout(&self) -> Option<Duration> {
+        self.reply_within
+    }
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {
         match msg {
             Message::Text(t) if t.as_str() == "PING" => {
@@ -114,7 +130,7 @@ impl BrokerFeed for ScriptedFeed {
 
 /// A supervisor for `feed` holding one subscription, and the sender of
 /// its commands.
-fn supervisor(feed: ScriptedFeed) -> (Supervisor, mpsc::Sender<Command>) {
+fn supervisor(feed: Box<dyn BrokerFeed>) -> (Supervisor, mpsc::Sender<Command>) {
     let (cmd_tx, cmd) = mpsc::channel(4);
     let sub = FeedSubscription {
         symbol: "SBIN".into(),
@@ -139,7 +155,7 @@ fn supervisor(feed: ScriptedFeed) -> (Supervisor, mpsc::Sender<Command>) {
         ..FeedConfig::default()
     };
     let s = Supervisor {
-        feed: Box::new(feed),
+        feed,
         cmd,
         registry: Arc::new(Mutex::new(registry)),
         events: broadcast::channel(4).0,
@@ -165,15 +181,38 @@ async fn run_session(
     script: Vec<(u64, &'static str)>,
     stop_at: Option<u64>,
 ) -> Run {
+    let socket = Socket {
+        take,
+        answers_pings: false,
+        limit: Duration::from_secs(120),
+    };
+    run_on(Box::new(feed), socket, script, stop_at).await
+}
+
+/// The fake socket: how many frames it takes, whether the broker answers
+/// pings, and the longest the test waits for the session to end.
+struct Socket {
+    take: usize,
+    answers_pings: bool,
+    limit: Duration,
+}
+
+async fn run_on(
+    feed: Box<dyn BrokerFeed>,
+    socket: Socket,
+    script: Vec<(u64, &'static str)>,
+    stop_at: Option<u64>,
+) -> Run {
     let start = Instant::now();
     let (mut sup, cmd) = supervisor(feed);
     let sent: Arc<Mutex<Vec<(Duration, String)>>> = Arc::default();
+    let (broker, mut read) = broker_frames();
     let mut write = StuckSink {
         sent: sent.clone(),
-        take,
+        take: socket.take,
         start,
+        pongs: socket.answers_pings.then(|| broker.clone()),
     };
-    let (broker, mut read) = broker_frames();
     let driver = tokio::spawn(async move {
         for (at, frame) in script {
             tokio::time::sleep_until(start + Duration::from_secs(at)).await;
@@ -186,16 +225,12 @@ async fn run_session(
         // Keep the socket open until the session is over.
         std::future::pending::<()>().await;
     });
-    let ended = tokio::time::timeout(
-        Duration::from_secs(120),
-        sup.session("mock", &mut write, &mut read),
-    )
-    .await;
+    let ended =
+        tokio::time::timeout(socket.limit, sup.session("mock", &mut write, &mut read)).await;
     driver.abort();
     let end = ended.ok().map(|e| match e {
         SessionEnd::Stopped => "stopped",
-        SessionEnd::Lost => "lost",
-        SessionEnd::Stalled => "stalled",
+        SessionEnd::Dropped(cause) => cause.name(),
         SessionEnd::AuthFailed(_) => "auth_failed",
     });
     let sent = sent.lock().clone();
@@ -210,6 +245,7 @@ fn plain() -> ScriptedFeed {
     ScriptedFeed {
         awaits_ack: false,
         optional_ack: None,
+        reply_within: None,
     }
 }
 
@@ -230,7 +266,12 @@ async fn a_send_the_peer_never_takes_ends_the_session() {
     ];
     for (i, (take, script, last, by)) in cases.into_iter().enumerate() {
         let run = run_session(plain(), take, script, None).await;
-        assert_eq!(run.end, Some("lost"), "case {}: the session must end", i);
+        assert_eq!(
+            run.end,
+            Some("not_taking_frames"),
+            "case {}: the session must end",
+            i
+        );
         assert!(
             run.at <= Duration::from_secs(by) + Duration::from_millis(50),
             "case {}: ended at {:?}, after {} s",
@@ -248,11 +289,11 @@ async fn a_send_the_peer_never_takes_ends_the_session() {
 async fn a_login_never_confirmed_reconnects_at_the_deadline() {
     let feed = ScriptedFeed {
         awaits_ack: true,
-        optional_ack: None,
+        ..plain()
     };
     let beats = (1..=8).map(|n| (n * 5, "HB")).collect();
     let run = run_session(feed, usize::MAX, beats, None).await;
-    assert_eq!(run.end, Some("lost"));
+    assert_eq!(run.end, Some("login_not_confirmed"));
     assert!(
         run.at >= AUTH_ACK_DEADLINE && run.at <= AUTH_ACK_DEADLINE + Duration::from_millis(50),
         "ended at {:?}",
@@ -271,7 +312,7 @@ async fn a_login_never_confirmed_reconnects_at_the_deadline() {
 async fn a_late_confirmation_and_an_optional_one_keep_the_session() {
     let required = ScriptedFeed {
         awaits_ack: true,
-        optional_ack: None,
+        ..plain()
     };
     let run = run_session(required, usize::MAX, vec![(15, "OK")], Some(30)).await;
     assert_eq!(run.end, Some("stopped"));
@@ -281,9 +322,28 @@ async fn a_late_confirmation_and_an_optional_one_keep_the_session() {
     let optional = ScriptedFeed {
         awaits_ack: true,
         optional_ack: Some(Duration::from_secs(2)),
+        ..plain()
     };
     let run = run_session(optional, usize::MAX, vec![], Some(30)).await;
     assert_eq!(run.end, Some("stopped"));
     let sub = run.sent.iter().find(|(_, f)| f == "SUB SBIN");
     assert_eq!(sub.map(|(at, _)| at.as_secs()), Some(2), "{:?}", run.sent);
+}
+
+/// A heartbeat the broker does not answer in time ends the session at the
+/// reply deadline; any frame after the heartbeat is an answer.
+#[tokio::test(start_paused = true)]
+async fn an_unanswered_heartbeat_ends_the_session_at_its_deadline() {
+    let feed = ScriptedFeed {
+        reply_within: Some(Duration::from_secs(2)),
+        ..plain()
+    };
+    // Heartbeats at 5, 10, 15 s; the broker answers the first two.
+    let run = run_session(feed, usize::MAX, vec![(6, "OK?"), (11, "OK?")], None).await;
+    assert_eq!(run.end, Some("heartbeat_unanswered"));
+    assert!(
+        run.at >= Duration::from_secs(17) && run.at <= Duration::from_millis(17_050),
+        "ended at {:?}",
+        run.at
+    );
 }

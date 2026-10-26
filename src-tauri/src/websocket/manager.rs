@@ -29,10 +29,10 @@ use crate::brokers::common::streaming::{
 };
 use crate::error::{AppError, Result};
 use futures_util::{SinkExt, StreamExt};
+use heartbeat::{Beat, Heartbeat};
 use parking_lot::Mutex;
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{broadcast, mpsc, watch};
@@ -40,10 +40,11 @@ use tokio::task::JoinHandle;
 use tokio::time::Instant;
 use tokio_tungstenite::tungstenite::Error as WsError;
 
+mod heartbeat;
 mod losses;
 mod stats;
 pub use losses::{Reader, SinceConnect};
-pub use stats::FeedStats;
+pub use stats::{Connection, DropCause, FeedStats, LastDrop};
 
 /// Capacity of the event fan-out channel.
 pub const TICK_CHANNEL_CAP: usize = 4096;
@@ -232,6 +233,7 @@ impl WebSocketManager {
     /// subscriptions are kept and sent again on the new socket.
     pub async fn connect(&self, feed: Box<dyn BrokerFeed>) -> Result<()> {
         self.stop_task().await;
+        self.stats.begin(feed.broker());
         let (tx, rx) = mpsc::channel(self.config.command_capacity.max(1));
         let ctx = Supervisor {
             feed,
@@ -393,10 +395,16 @@ impl Drop for WebSocketManager {
 /// Why one socket session ended.
 enum SessionEnd {
     Stopped,
-    Lost,
-    Stalled,
+    /// The connection ended (or was not made) for this cause; the manager
+    /// connects again after a backoff.
+    Dropped(DropCause),
     AuthFailed(String),
 }
+
+/// A session goes on, or ends with the reason (`?` in its steps).
+type Sent = std::result::Result<(), SessionEnd>;
+
+const CONNECT_FAILED: SessionEnd = SessionEnd::Dropped(DropCause::ConnectFailed);
 
 /// What a login acknowledgement that did not come in time means.
 #[derive(Debug, Clone, Copy)]
@@ -448,9 +456,8 @@ impl Supervisor {
                     }
                     return;
                 }
-                SessionEnd::Lost | SessionEnd::Stalled => {}
+                SessionEnd::Dropped(cause) => self.stats.dropped(cause),
             }
-            self.stats.disconnects.fetch_add(1, Ordering::Relaxed);
             if started.elapsed() >= self.config.stable_after {
                 attempt = 0;
             }
@@ -487,10 +494,10 @@ impl Supervisor {
         match tokio::time::timeout(self.config.connect_timeout, self.feed.prepare()).await {
             Ok(Ok(())) => {}
             Ok(Err(PrepareError::AuthFailed(message))) => return SessionEnd::AuthFailed(message),
-            Ok(Err(PrepareError::Unavailable)) => return SessionEnd::Lost,
+            Ok(Err(PrepareError::Unavailable)) => return CONNECT_FAILED,
             Err(_) => {
                 tracing::debug!(broker, "Market data feed preparation timed out");
-                return SessionEnd::Lost;
+                return CONNECT_FAILED;
             }
         }
         let mut retried = false;
@@ -529,7 +536,7 @@ impl Supervisor {
                             .into(),
                     );
                 }
-                return SessionEnd::Lost;
+                return CONNECT_FAILED;
             }
             Ok(Err(e)) => {
                 tracing::debug!(
@@ -537,14 +544,14 @@ impl Supervisor {
                     kind = ws_error_kind(&e),
                     "Market data feed connect failed"
                 );
-                return SessionEnd::Lost;
+                return CONNECT_FAILED;
             }
             Err(_) => {
                 tracing::debug!(broker, "Market data feed connect timed out");
-                return SessionEnd::Lost;
+                return CONNECT_FAILED;
             }
         };
-        self.stats.connects.fetch_add(1, Ordering::Relaxed);
+        self.stats.opened();
         let (mut write, mut read) = ws.split();
         let end = self.session(broker, &mut write, &mut read).await;
         // Close before reconnecting so the descriptor is released on every
@@ -555,15 +562,15 @@ impl Supervisor {
         end
     }
 
-    /// Send `frames` in order, all within the write timeout. False when the
-    /// socket failed or did not take them in time (TIME-02): the session
-    /// then ends as lost and the socket is replaced.
-    async fn send_all<S>(&self, write: &mut S, frames: Vec<Message>) -> bool
+    /// Send `frames` in order, all within the write timeout. An error when
+    /// the socket failed or did not take them in time (TIME-02): the
+    /// session then ends and the socket is replaced.
+    async fn send_all<S>(&self, write: &mut S, frames: Vec<Message>) -> Sent
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
     {
         if frames.is_empty() {
-            return true;
+            return Ok(());
         }
         let send = async {
             for f in frames {
@@ -572,31 +579,28 @@ impl Supervisor {
             Ok::<(), WsError>(())
         };
         match tokio::time::timeout(self.config.write_timeout, send).await {
-            Ok(sent) => sent.is_ok(),
+            Ok(sent) => sent.map_err(|_| SessionEnd::Dropped(DropCause::Closed)),
             Err(_) => {
                 tracing::warn!(
                     broker = self.feed.broker(),
                     "Market data feed stopped taking frames; reconnecting"
                 );
-                false
+                Err(SessionEnd::Dropped(DropCause::NotTakingFrames))
             }
         }
     }
 
-    /// Sends the full subscription set and reports the feed connected;
-    /// false when the socket is lost.
-    async fn subscribe_all<S>(&mut self, broker: &str, write: &mut S) -> bool
+    /// Sends the full subscription set and reports the feed connected.
+    async fn subscribe_all<S>(&mut self, broker: &str, write: &mut S) -> Sent
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
     {
-        if !self.resubscribe(write).await {
-            return false;
-        }
+        self.resubscribe(write).await?;
         self.stats.mark_connected();
         self.status.send_replace(FeedStatus::Connected {
             broker: broker.to_string(),
         });
-        true
+        Ok(())
     }
 
     /// One message from the broker: market events published, replies sent,
@@ -608,30 +612,24 @@ impl Supervisor {
         write: &mut S,
         msg: Message,
         subscribed: &mut bool,
-    ) -> std::result::Result<(), SessionEnd>
+    ) -> Sent
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
     {
         if let Message::Close(_) = msg {
-            return Err(SessionEnd::Lost);
+            return Err(SessionEnd::Dropped(DropCause::Closed));
         }
         for ev in self.feed.parse(&msg) {
             match ev {
                 FeedEvent::AuthFailed(m) => return Err(SessionEnd::AuthFailed(m)),
                 FeedEvent::AuthOk => {
                     if !*subscribed {
-                        if !self.subscribe_all(broker, write).await {
-                            return Err(SessionEnd::Lost);
-                        }
+                        self.subscribe_all(broker, write).await?;
                         *subscribed = true;
                     }
                 }
                 FeedEvent::Heartbeat => {}
-                FeedEvent::Reply(m) => {
-                    if !self.send_all(write, vec![m]).await {
-                        return Err(SessionEnd::Lost);
-                    }
-                }
+                FeedEvent::Reply(m) => self.send_all(write, vec![m]).await?,
                 e @ (FeedEvent::Tick(_) | FeedEvent::Depth(_) | FeedEvent::OrderUpdate(_)) => {
                     self.stats.mark_event();
                     // No receiver yet is normal; nothing is retained.
@@ -656,33 +654,31 @@ impl Supervisor {
         None
     }
 
-    /// A reconnect was asked for: the session ends as lost, and the
-    /// registry is sent again on the new socket.
+    /// A reconnect was asked for: the session ends, and the registry is
+    /// sent again on the new socket.
     fn reconnecting(&self) -> SessionEnd {
         tracing::info!(
             broker = self.feed.broker(),
             "Market data feed reconnecting after the computer slept"
         );
-        SessionEnd::Lost
+        SessionEnd::Dropped(DropCause::Woke)
     }
 
     /// Whether the feed stalled: nothing received within the stall timeout,
     /// or no market data while the socket stayed open.
-    fn stalled(&mut self, broker: &str, last_rx: Instant) -> bool {
+    fn stalled(&mut self, broker: &str, last_rx: Instant) -> Option<DropCause> {
         if last_rx.elapsed() >= self.config.stall_timeout {
             tracing::warn!(broker, "Market data feed stalled; reconnecting");
-            self.stats.stalls.fetch_add(1, Ordering::Relaxed);
-            return true;
+            return Some(DropCause::Silent);
         }
         if self.feed.data_stalled() {
             tracing::warn!(
                 broker,
                 "Market data stopped while the socket stayed open; reconnecting"
             );
-            self.stats.stalls.fetch_add(1, Ordering::Relaxed);
-            return true;
+            return Some(DropCause::DataStopped);
         }
-        false
+        None
     }
 
     async fn session<S, R>(&mut self, broker: &str, write: &mut S, read: &mut R) -> SessionEnd
@@ -691,22 +687,17 @@ impl Supervisor {
         R: futures_util::Stream<Item = std::result::Result<Message, WsError>> + Unpin,
     {
         let hello = self.feed.on_connected();
-        if !self.send_all(write, hello).await {
-            return SessionEnd::Lost;
+        if let Err(end) = self.send_all(write, hello).await {
+            return end;
         }
         let mut subscribed = false;
         if !self.feed.awaits_auth_ack() {
-            if !self.subscribe_all(broker, write).await {
-                return SessionEnd::Lost;
+            if let Err(end) = self.subscribe_all(broker, write).await {
+                return end;
             }
             subscribed = true;
         }
-        let heartbeat = self.feed.heartbeat();
-        let hb_period = heartbeat
-            .as_ref()
-            .map(|(d, _)| *d)
-            .unwrap_or(Duration::from_secs(3600));
-        let mut hb = tokio::time::interval_at(Instant::now() + hb_period, hb_period);
+        let mut heartbeat = Heartbeat::new(&*self.feed);
         let check = (self.config.stall_timeout / 4).max(Duration::from_millis(10));
         let mut watchdog = tokio::time::interval_at(Instant::now() + check, check);
         let mut last_rx = Instant::now();
@@ -721,11 +712,12 @@ impl Supervisor {
                         Some(Ok(m)) => m,
                         Some(Err(e)) => {
                             tracing::debug!(broker, kind = ws_error_kind(&e), "Market data feed read error");
-                            return SessionEnd::Lost;
+                            return SessionEnd::Dropped(DropCause::Closed);
                         }
-                        None => return SessionEnd::Lost,
+                        None => return SessionEnd::Dropped(DropCause::Closed),
                     };
                     last_rx = Instant::now();
+                    heartbeat.heard();
                     if let Err(end) = self.on_message(broker, write, msg, &mut subscribed).await {
                         return end;
                     }
@@ -735,13 +727,18 @@ impl Supervisor {
                         return end;
                     }
                 }
-                _ = hb.tick(), if heartbeat.is_some() => {
-                    if let Some((_, m)) = &heartbeat {
-                        if !self.send_all(write, vec![m.clone()]).await {
-                            return SessionEnd::Lost;
+                beat = heartbeat.next() => match beat {
+                    Beat::Due(m) => {
+                        if let Err(end) = self.send_all(write, vec![m]).await {
+                            return end;
                         }
+                        heartbeat.sent();
                     }
-                }
+                    Beat::Unanswered => {
+                        tracing::warn!(broker, "The broker did not answer the feed's heartbeat; reconnecting");
+                        return SessionEnd::Dropped(DropCause::HeartbeatUnanswered);
+                    }
+                },
                 _ = &mut ack_deadline, if ack.is_some() && !subscribed => {
                     let lapse = ack.map_or(AckLapse::Refuse, |(_, lapse)| lapse);
                     if let Err(end) = self.on_ack_lapse(broker, write, lapse).await {
@@ -750,8 +747,8 @@ impl Supervisor {
                     subscribed = true;
                 }
                 _ = watchdog.tick() => {
-                    if self.stalled(broker, last_rx) {
-                        return SessionEnd::Stalled;
+                    if let Some(cause) = self.stalled(broker, last_rx) {
+                        return SessionEnd::Dropped(cause);
                     }
                 }
             }
@@ -779,36 +776,25 @@ impl Supervisor {
     /// capped backoff reconnects (TIME-05). Frames that keep arriving
     /// without an acknowledgement (heartbeats) must not keep a socket that
     /// never streams.
-    async fn on_ack_lapse<S>(
-        &mut self,
-        broker: &str,
-        write: &mut S,
-        lapse: AckLapse,
-    ) -> std::result::Result<(), SessionEnd>
+    async fn on_ack_lapse<S>(&mut self, broker: &str, write: &mut S, lapse: AckLapse) -> Sent
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
     {
         match lapse {
-            AckLapse::Assume if self.subscribe_all(broker, write).await => Ok(()),
-            AckLapse::Assume => Err(SessionEnd::Lost),
+            AckLapse::Assume => self.subscribe_all(broker, write).await,
             AckLapse::Refuse => {
                 tracing::warn!(
                     broker,
                     "The broker did not confirm the market data login in time; reconnecting"
                 );
-                Err(SessionEnd::Lost)
+                Err(SessionEnd::Dropped(DropCause::LoginNotConfirmed))
             }
         }
     }
 
     /// One command from the manager; subscription changes wait for the
     /// login acknowledgement (they go out with the full set after it).
-    async fn on_command<S>(
-        &mut self,
-        write: &mut S,
-        cmd: Option<Command>,
-        subscribed: bool,
-    ) -> std::result::Result<(), SessionEnd>
+    async fn on_command<S>(&mut self, write: &mut S, cmd: Option<Command>, subscribed: bool) -> Sent
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
     {
@@ -824,11 +810,7 @@ impl Supervisor {
             return Ok(());
         }
         let frames = self.delta_frames(deltas);
-        if self.send_all(write, frames).await {
-            Ok(())
-        } else {
-            Err(SessionEnd::Lost)
-        }
+        self.send_all(write, frames).await
     }
 
     /// Frames for a run of deltas, in order. Consecutive subscribes (and
@@ -873,7 +855,7 @@ impl Supervisor {
         frames
     }
 
-    async fn resubscribe<S>(&mut self, write: &mut S) -> bool
+    async fn resubscribe<S>(&mut self, write: &mut S) -> Sent
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
     {
