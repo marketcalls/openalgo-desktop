@@ -9,7 +9,7 @@ use super::*;
 use crate::services::broker_config_service::BrokerConfigService;
 use crate::services::tunnel::fake::{capture_logs, wait_for, FakeProvider};
 use crate::services::tunnel::provider::OpenError;
-use crate::services::tunnel::TunnelState;
+use crate::services::tunnel::{Off, TunnelState, TunnelStatus};
 
 const TOKEN: &str = "2abcDEFghiJKLmnoPQRstu_vwxYZ0123456789";
 
@@ -21,8 +21,17 @@ fn harness() -> (H, Arc<FakeProvider>) {
     (h, fake)
 }
 
-/// A sign-in in the OpenAlgo Desktop window; the session cookie.
+/// A sign-in in the OpenAlgo Desktop window, once its tunnel autostart
+/// has applied the settings (its own task: a save racing it would open the
+/// tunnel twice); the session cookie.
 async fn sign_in(ctx: &Arc<AppState>) -> String {
+    let cookie = sign_in_only(ctx).await;
+    let signed_out = TunnelStatus::stopped(Off::SignedOut);
+    wait_for(&ctx.tunnel, |s| *s != signed_out).await;
+    cookie
+}
+
+async fn sign_in_only(ctx: &Arc<AppState>) -> String {
     let (s, headers, v) = send_to(
         ctx,
         from_the_app_window(
@@ -82,11 +91,11 @@ async fn get_json(ctx: &Arc<AppState>, cookie: &str, path: &str) -> (Value, Stri
     (serde_json::from_str(&text).unwrap(), text)
 }
 
-fn online(s: &crate::services::tunnel::TunnelStatus) -> bool {
+fn online(s: &TunnelStatus) -> bool {
     s.state == TunnelState::Online
 }
 
-fn stopped(s: &crate::services::tunnel::TunnelStatus) -> bool {
+fn stopped(s: &TunnelStatus) -> bool {
     s.state == TunnelState::Stopped
 }
 
@@ -329,9 +338,10 @@ async fn an_account_reset_closes_the_tunnel_and_forgets_the_authtoken() {
     )
     .await;
     wait_for(&ctx.tunnel, online).await;
+    let closed = fake.closed();
     AuthService::reset_account_everywhere(&ctx).await.unwrap();
     wait_for(&ctx.tunnel, stopped).await;
-    assert_eq!(fake.closed(), 1);
+    assert_eq!(fake.closed(), closed + 1);
     let s = crate::db::sqlite::tunnel::read(&ctx.sqlite.conn().unwrap()).unwrap();
     assert_eq!(s.authtoken, None);
     assert!(s.enabled);

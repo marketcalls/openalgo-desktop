@@ -14,7 +14,6 @@ use futures_util::StreamExt;
 use ngrok::config::TunnelBuilder;
 use ngrok::session::{ConnectError, IoStream};
 use ngrok::tunnel::{AcceptError, EndpointInfo, HttpTunnel, TunnelCloser};
-use ngrok::Error as _;
 use std::sync::Arc;
 
 /// Opens tunnels through ngrok's service.

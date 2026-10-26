@@ -430,11 +430,7 @@ async fn work_that_outlives_its_wait_holds_a_place_until_it_ends() {
         "{}",
         answer
     );
-    assert!(
-        took < Duration::from_secs(1),
-        "refused at once: {:?}",
-        took
-    );
+    assert!(took < Duration::from_secs(1), "refused at once: {:?}", took);
     assert_eq!(started.load(Ordering::SeqCst), 2, "nothing of it ran");
 
     gate.add_permits(10);
