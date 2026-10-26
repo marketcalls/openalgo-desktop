@@ -43,7 +43,7 @@ use tower::Layer;
 use tower_http::normalize_path::NormalizePathLayer;
 
 mod serve;
-pub(crate) use serve::{App, Limits};
+pub(crate) use serve::{App, Limits, Work};
 
 /// The peer every tunnel request carries: loopback, as for any tunnel on
 /// this computer. No caller's address is ever taken from the tunnel.
@@ -92,7 +92,13 @@ pub(crate) fn reach(path: &str) -> Reach {
 
 /// One request through the tunnel: refused, sent on to this computer, or
 /// served by the app within the tunnel's limits (`serve`).
-async fn handle(ctx: &Weak<AppState>, app: App, limits: Limits, req: Request<Body>) -> Response {
+async fn handle(
+    ctx: &Weak<AppState>,
+    work: Work,
+    app: App,
+    limits: Limits,
+    req: Request<Body>,
+) -> Response {
     match reach(req.uri().path()) {
         Reach::Refused => envelope::error(StatusCode::NOT_FOUND, NOT_THROUGH_THE_TUNNEL),
         Reach::ThisComputer => back_to_this_computer(ctx, req.uri()),
@@ -106,7 +112,7 @@ async fn handle(ctx: &Weak<AppState>, app: App, limits: Limits, req: Request<Bod
             };
             req.extensions_mut().insert(ConnectInfo(TUNNEL_PEER));
             req.extensions_mut().insert(ThroughBuiltInTunnel);
-            serve::answer_within(&ctx, app, req, limits.answer).await
+            serve::answer_within(&ctx, work, app, req, limits.answer).await
         }
     }
 }
@@ -143,18 +149,25 @@ fn back_to_this_computer(ctx: &Weak<AppState>, uri: &Uri) -> Response {
 /// route, never reachable through the tunnel), within the standard limits.
 pub(crate) fn connections(ctx: &Arc<AppState>) -> ServeConnection {
     let app = NormalizePathLayer::trim_trailing_slash().layer(crate::server::router(ctx.clone()).0);
-    serving(ctx, App::new(app), Limits::STANDARD)
+    serving(ctx, App::new(app), Limits::STANDARD, ctx.tunnel.work())
 }
 
 /// Serve the tunnel's connections with `app` within `limits`.
-pub(crate) fn serving(ctx: &Arc<AppState>, app: App, limits: Limits) -> ServeConnection {
+pub(crate) fn serving(
+    ctx: &Arc<AppState>,
+    app: App,
+    limits: Limits,
+    work: Work,
+) -> ServeConnection {
     let weak = Arc::downgrade(ctx);
     Arc::new(
         move |io: Box<dyn TunnelIo>, drain: CancellationToken| -> BoxFuture<'static, ()> {
-            let (weak, app) = (weak.clone(), app.clone());
+            let (weak, app, work) = (weak.clone(), app.clone(), work.clone());
             let service = tower::service_fn(move |req: Request<Incoming>| {
-                let (ctx, app) = (weak.clone(), app.clone());
-                async move { Ok::<_, Infallible>(handle(&ctx, app, limits, req.map(Body::new)).await) }
+                let (ctx, app, work) = (weak.clone(), app.clone(), work.clone());
+                async move {
+                    Ok::<_, Infallible>(handle(&ctx, work, app, limits, req.map(Body::new)).await)
+                }
             });
             Box::pin(serve::connection(io, service, limits, drain))
         },

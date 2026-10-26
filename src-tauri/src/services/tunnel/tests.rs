@@ -359,7 +359,7 @@ async fn a_normal_alert_is_served_while_slow_callers_hold_places() {
         answer: Duration::from_secs(10),
         lifetime: Duration::from_secs(30),
     };
-    let inner = serving(&t.ctx, App::new(router), limits);
+    let inner = serving(&t.ctx, App::new(router), limits, t.ctx.tunnel.work());
     let live = Arc::new(AtomicUsize::new(0));
     let count = live.clone();
     let serve: ServeConnection = Arc::new(

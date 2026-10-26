@@ -242,7 +242,16 @@ fn open(
     app: App,
     limits: Limits,
 ) -> (tokio::io::DuplexStream, tokio::task::JoinHandle<()>) {
-    let serve = serving(ctx, app, limits);
+    open_with(ctx, app, limits, ctx.tunnel.work())
+}
+
+fn open_with(
+    ctx: &Arc<AppState>,
+    app: App,
+    limits: Limits,
+    work: Work,
+) -> (tokio::io::DuplexStream, tokio::task::JoinHandle<()>) {
+    let serve = serving(ctx, app, limits, work);
     let (caller, ours) = tokio::io::duplex(64 * 1024);
     let task = tokio::spawn(serve(Box::new(ours), CancellationToken::new()));
     (caller, task)
@@ -373,4 +382,69 @@ async fn a_slow_answer_is_told_to_the_caller_and_the_work_runs_to_its_end() {
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
     panic!("the work was cut short");
+}
+
+/// One request to `/api/v1/ping` through a connection served with `app`;
+/// the answer and how long it took.
+async fn ask(ctx: &Arc<AppState>, app: &App, work: &Work) -> (String, Duration) {
+    let (mut caller, place) = open_with(ctx, app.clone(), QUICK, work.clone());
+    caller
+        .write_all(b"GET /api/v1/ping HTTP/1.1\r\nHost: desk.ngrok-free.app\r\n\r\n")
+        .await
+        .unwrap();
+    let answer = until_closed(&mut caller).await;
+    place.await.unwrap();
+    answer
+}
+
+/// Detached work stays bounded (second security review of the tunnel):
+/// with every permit held by work that outlives its wait, the next request
+/// is answered 503 at once and nothing of it runs; a permit returns when
+/// its work ends.
+#[tokio::test]
+async fn work_that_outlives_its_wait_holds_a_place_until_it_ends() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let t = ctx();
+    let gate = Arc::new(tokio::sync::Semaphore::new(0));
+    let started = Arc::new(AtomicUsize::new(0));
+    let (g, s) = (gate.clone(), started.clone());
+    let app = App::new(tower::service_fn(move |_req: Request<Body>| {
+        let (gate, started) = (g.clone(), s.clone());
+        async move {
+            started.fetch_add(1, Ordering::SeqCst);
+            let _pass = gate.acquire().await;
+            Ok::<_, Infallible>(StatusCode::OK.into_response())
+        }
+    }));
+    let work: Work = Arc::new(tokio::sync::Semaphore::new(2));
+    for _ in 0..2 {
+        let (answer, _) = ask(&t.ctx, &app, &work).await;
+        assert!(answer.starts_with("HTTP/1.1 504"), "{}", answer);
+    }
+    assert_eq!(work.available_permits(), 0, "the work still runs");
+
+    let (answer, took) = ask(&t.ctx, &app, &work).await;
+    assert!(answer.starts_with("HTTP/1.1 503"), "{}", answer);
+    assert!(
+        answer.contains("still working on earlier requests"),
+        "{}",
+        answer
+    );
+    assert!(
+        took < Duration::from_secs(1),
+        "refused at once: {:?}",
+        took
+    );
+    assert_eq!(started.load(Ordering::SeqCst), 2, "nothing of it ran");
+
+    gate.add_permits(10);
+    for _ in 0..500 {
+        if work.available_permits() == 2 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert_eq!(work.available_permits(), 2, "the permits came back");
+    let (answer, _) = ask(&t.ctx, &app, &work).await;
+    assert!(answer.starts_with("HTTP/1.1 200"), "{}", answer);
 }

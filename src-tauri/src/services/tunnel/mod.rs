@@ -46,6 +46,12 @@ use crate::state::AppState;
 /// flight and the close with ngrok, with room to spare.
 const STOP_WAIT: Duration = Duration::from_secs(20);
 
+/// Requests through the tunnel whose work may be running at once, waited
+/// for or not (`server::tunnel::serve::answer_within`): the work of a
+/// request whose caller was answered "still working" runs on, so the
+/// connection cap alone would not bound it.
+pub(crate) const MAX_WORK: usize = 128;
+
 /// The running supervisor and what it was started with.
 struct Running {
     request: OpenRequest,
@@ -60,6 +66,9 @@ pub struct Tunnel {
     /// One change at a time: a start, a restart or a stop holds it from
     /// reading the settings to the supervisor being started or stopped.
     running: tokio::sync::Mutex<Option<Running>>,
+    /// One permit per request whose work is running ([`MAX_WORK`]), for
+    /// the app's whole life, across reconnects and restarts.
+    work: Arc<tokio::sync::Semaphore>,
 }
 
 impl Default for Tunnel {
@@ -68,6 +77,7 @@ impl Default for Tunnel {
             provider: parking_lot::RwLock::new(Arc::new(ngrok_sdk::NgrokProvider::default())),
             status: Arc::new(watch::channel(TunnelStatus::stopped(Off::SignedOut)).0),
             running: tokio::sync::Mutex::new(None),
+            work: Arc::new(tokio::sync::Semaphore::new(MAX_WORK)),
         }
     }
 }
@@ -84,6 +94,11 @@ impl Tunnel {
             TunnelState::Online => s.url.clone(),
             _ => None,
         }
+    }
+
+    /// The permits for requests' work through the tunnel ([`MAX_WORK`]).
+    pub(crate) fn work(&self) -> Arc<tokio::sync::Semaphore> {
+        self.work.clone()
     }
 
     /// Stop the tunnel and say why. Waits for requests in flight through it

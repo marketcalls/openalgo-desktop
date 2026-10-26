@@ -89,9 +89,13 @@ connection is closed then), 10 s for its body, one request per connection
 is waited for 60 s, the slowest legitimate call (an order: up to 10 s for
 the broker pacer and the broker request's 30 s timeout); past it the caller
 is told the request is still being worked on, and the work runs on in a
-task the app owns, so an order is never cut off half-way. At most 128
-connections are served at once; the next caller is turned away at once
-(its connection closed), never queued.
+task the app owns, so an order is never cut off half-way. That detached
+work is bounded too: each request's work holds one of 128 permits
+(`services::tunnel::MAX_WORK`, for the app's whole life) until it has
+actually ended, and a request that finds none free is answered 503 at once,
+before anything of it runs. At most 128 connections are served at once;
+the next caller is turned away at once (its connection closed), never
+queued.
 
 Residual: a stranger who finds the tunnel address and keeps opening slow
 connections can fill those 128 places; each is held at most 90 s, alerts

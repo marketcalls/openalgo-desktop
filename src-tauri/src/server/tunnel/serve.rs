@@ -25,6 +25,10 @@ use tower::ServiceExt;
 /// stand-in).
 pub(crate) type App = BoxCloneSyncService<Request<Body>, Response, Infallible>;
 
+/// The permits for requests' work through the tunnel
+/// (`services::tunnel::MAX_WORK`; tests: their own).
+pub(crate) type Work = Arc<tokio::sync::Semaphore>;
+
 /// How long each part of a request through the tunnel may take.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Limits {
@@ -77,21 +81,37 @@ pub(super) async fn whole_body(
     }
 }
 
-/// The app's answer, waited for at most `limit`. The app runs the request
-/// in a task the context owns (`AppState::spawn`), so a caller that gives
-/// up, or a wait that ends, never cuts the work short.
+/// The app's answer, waited for at most `limit`.
+///
+/// The work is detached on purpose: it runs in a task the context owns
+/// (`AppState::spawn`) and is never dropped when the wait ends or the
+/// caller hangs up, because dropping a handler mid-flight could cut an
+/// order off half-way (sent to the broker, never recorded). Detached work
+/// is still bounded: the task holds one of `work`'s permits until the work
+/// has actually ended, and a request that finds none free is answered 503
+/// at once, before anything runs.
 pub(super) async fn answer_within(
     ctx: &Arc<AppState>,
+    work: Work,
     app: App,
     req: Request<Body>,
     limit: Duration,
 ) -> Response {
+    let Ok(permit) = work.try_acquire_owned() else {
+        tracing::warn!("Every place for work through the tunnel is taken; a request was refused");
+        return error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "OpenAlgo is still working on earlier requests through the tunnel. Send this one \
+             again in a moment.",
+        );
+    };
     let (tx, rx) = tokio::sync::oneshot::channel();
     ctx.spawn(async move {
         let answer = match app.oneshot(req).await {
             Ok(resp) => resp,
             Err(never) => match never {},
         };
+        drop(permit);
         let _ = tx.send(answer);
     });
     match tokio::time::timeout(limit, rx).await {
