@@ -12,7 +12,9 @@
 //! `instrument` may be a bare token, resolved against the subscriptions and
 //! dropped when two segments share it. Zero fields keep the last non-zero
 //! value. Mode 3 (depth) is served from the quote stream's best bid/ask: the
-//! broker streams level 1 only. Heartbeat: a `ping` every 30 s.
+//! broker streams level 1 only, so a Quote <-> Depth change sends nothing,
+//! and an LTP <-> Quote change subscribes the new stream before it drops the
+//! old one. Heartbeat: a `ping` every 30 s.
 //!
 //! Orders: `wss://ws-order-updates.indstocks.com/api/v1/ws/trades`, then
 //! `{"action":"subscribe","mode":"order_update"}`. Frames carry
@@ -79,6 +81,17 @@ struct SubInfo {
     mode: FeedMode,
 }
 
+impl SubInfo {
+    fn of(s: &FeedSubscription) -> Self {
+        Self {
+            symbol: s.symbol.clone(),
+            exchange: s.exchange.clone(),
+            token: s.token.clone(),
+            mode: s.mode,
+        }
+    }
+}
+
 /// Last non-zero values per instrument.
 type Cache = HashMap<String, f64>;
 
@@ -87,7 +100,14 @@ pub struct IndmoneyFeed {
     token: Secret,
     /// `SEGMENT:TOKEN` -> subscription.
     subs: HashMap<String, SubInfo>,
+    /// Bare token -> the `SEGMENT:TOKEN` keys subscribed under it, for the
+    /// ticks that name only the token (every tick looks it up).
+    by_token: HashMap<String, Vec<String>>,
     cache: HashMap<String, Cache>,
+}
+
+fn frame(action: &str, mode: &str, instruments: &[String]) -> Message {
+    Message::Text(json!({"action": action, "mode": mode, "instruments": instruments}).to_string())
 }
 
 impl IndmoneyFeed {
@@ -96,8 +116,30 @@ impl IndmoneyFeed {
             url: url.to_string(),
             token: Secret::new(token),
             subs: HashMap::new(),
+            by_token: HashMap::new(),
             cache: HashMap::new(),
         }
+    }
+
+    fn add(&mut self, inst: String, sub: SubInfo) {
+        let keys = self.by_token.entry(sub.token.clone()).or_default();
+        if !keys.contains(&inst) {
+            keys.push(inst.clone());
+        }
+        self.subs.insert(inst, sub);
+    }
+
+    fn remove(&mut self, inst: &str) {
+        let Some(sub) = self.subs.remove(inst) else {
+            return;
+        };
+        if let Some(keys) = self.by_token.get_mut(&sub.token) {
+            keys.retain(|k| k != inst);
+            if keys.is_empty() {
+                self.by_token.remove(&sub.token);
+            }
+        }
+        self.cache.remove(inst);
     }
 
     pub fn subscription_count(&self) -> usize {
@@ -118,17 +160,9 @@ impl IndmoneyFeed {
             };
             let inst = format!("{}:{}", seg, s.token);
             if action == "subscribe" {
-                self.subs.insert(
-                    inst.clone(),
-                    SubInfo {
-                        symbol: s.symbol.clone(),
-                        exchange: s.exchange.clone(),
-                        token: s.token.clone(),
-                        mode: s.mode,
-                    },
-                );
-            } else if self.subs.remove(&inst).is_some() {
-                self.cache.remove(&inst);
+                self.add(inst.clone(), SubInfo::of(s));
+            } else {
+                self.remove(&inst);
             }
             let g = groups.entry((ws_mode(s.mode), seg)).or_default();
             if !g.contains(&inst) {
@@ -138,9 +172,7 @@ impl IndmoneyFeed {
         let mut out = Vec::new();
         for ((mode, _), insts) in groups {
             for chunk in insts.chunks(MAX_PER_FRAME) {
-                out.push(Message::Text(
-                    json!({"action": action, "mode": mode, "instruments": chunk}).to_string(),
-                ));
+                out.push(frame(action, mode, chunk));
             }
         }
         out
@@ -152,16 +184,17 @@ impl IndmoneyFeed {
         if let Some(s) = self.subs.get(instrument) {
             return Some((instrument.to_string(), s.clone()));
         }
-        let mut it = self.subs.iter().filter(|(_, s)| s.token == instrument);
-        let first = it.next()?;
-        if it.next().is_some() {
-            tracing::warn!(
-                "INDmoney tick for token {} matches several segments; dropped",
-                instrument
-            );
-            return None;
+        match self.by_token.get(instrument)?.as_slice() {
+            [only] => self.subs.get(only).map(|s| (only.clone(), s.clone())),
+            [] => None,
+            _ => {
+                tracing::warn!(
+                    "INDmoney tick for token {} matches several segments; dropped",
+                    instrument
+                );
+                None
+            }
         }
-        Some((first.0.clone(), first.1.clone()))
     }
 
     fn tick(&mut self, msg: &Value) -> Vec<FeedEvent> {
@@ -202,7 +235,9 @@ impl IndmoneyFeed {
             ..Default::default()
         };
         let (mut bid, mut bid_qty, mut ask, mut ask_qty) = (0.0, 0.0, 0.0, 0.0);
-        if mode == "quote" {
+        // A Quote or Depth holder keeps its quote fields on an `ltp` tick
+        // (both streams arrive while a mode change overlaps them).
+        if sub.mode != FeedMode::Ltp {
             t.open = get("open");
             t.high = get("high");
             t.low = get("low");
@@ -263,6 +298,36 @@ impl BrokerFeed for IndmoneyFeed {
 
     fn unsubscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
         self.frames(subs, "unsubscribe")
+    }
+
+    /// Without a gap and keeping the last values: Quote and Depth share the
+    /// `quote` stream, so moving between them sends nothing (it sent an
+    /// unsubscribe and a subscribe of the same stream, and the prices
+    /// stopped until the broker sent the next one); LTP <-> Quote subscribes
+    /// the new stream first. The web subscribes each mode on its own and
+    /// drops one only when its last holder leaves.
+    fn mode_change_frames(
+        &mut self,
+        old: &FeedSubscription,
+        new: &FeedSubscription,
+    ) -> Vec<Message> {
+        let Some(seg) = ws_segment(&new.exchange) else {
+            return Vec::new();
+        };
+        let inst = format!("{}:{}", seg, new.token);
+        match self.subs.get_mut(&inst) {
+            Some(sub) => sub.mode = new.mode,
+            None => self.add(inst.clone(), SubInfo::of(new)),
+        }
+        let (from, to) = (ws_mode(old.mode), ws_mode(new.mode));
+        if from == to {
+            return Vec::new();
+        }
+        let inst = [inst];
+        vec![
+            frame("subscribe", to, &inst),
+            frame("unsubscribe", from, &inst),
+        ]
     }
 
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {

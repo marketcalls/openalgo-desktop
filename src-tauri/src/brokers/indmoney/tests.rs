@@ -797,6 +797,97 @@ fn ticks_resolve_retain_and_fan_out_depth() {
     assert!(matches!(f.heartbeat(), Some((d, Message::Ping(_))) if d.as_secs() == 30));
 }
 
+/// A Quote <-> Depth change sent an unsubscribe and a subscribe of the
+/// same `quote` stream, so prices stopped until the broker sent the next
+/// tick, and the unsubscribe cleared the values a partial tick keeps. Now
+/// it sends nothing and keeps them; LTP <-> Quote subscribes the new stream
+/// before dropping the old one, as the web holds both until a mode's last
+/// holder leaves.
+#[test]
+fn mode_changes_are_gapless_and_keep_the_last_values() {
+    let mut f = IndmoneyFeed::new("wss://x", "tok");
+    let quote = sub("SBIN", "NSE", "3045", FeedMode::Quote);
+    let depth = sub("SBIN", "NSE", "3045", FeedMode::Depth);
+    let ltp = sub("SBIN", "NSE", "3045", FeedMode::Ltp);
+    f.subscribe_frames(std::slice::from_ref(&quote));
+    let full = json!({"mode":"quote","instrument":"NSE:3045","data":{"ltp":1426,"open":1410,
+        "close":1418,"bid_price":1425.9,"bid_qty":10,"ask_price":1426.1,"ask_qty":20}});
+    f.parse(&Message::Text(full.to_string()));
+
+    assert!(f.mode_change_frames(&quote, &depth).is_empty());
+    let partial = json!({"mode":"quote","instrument":"NSE:3045","data":{"ltp":1427}});
+    let ev = f.parse(&Message::Text(partial.to_string()));
+    match &ev[..] {
+        [FeedEvent::Tick(t), FeedEvent::Depth(d)] => {
+            assert_eq!((t.ltp, t.open, t.mode), (1427.0, 1410.0, 3));
+            assert_eq!(
+                (d.ltp, d.buy[0].price, d.sell[0].quantity),
+                (1427.0, 1425.9, 20)
+            );
+        }
+        other => panic!("unexpected {:?}", other),
+    }
+    assert!(f.mode_change_frames(&depth, &quote).is_empty());
+
+    let down: Vec<Value> = f
+        .mode_change_frames(&quote, &ltp)
+        .iter()
+        .map(text)
+        .collect();
+    assert_eq!(
+        down,
+        [
+            json!({"action":"subscribe","mode":"ltp","instruments":["NSE:3045"]}),
+            json!({"action":"unsubscribe","mode":"quote","instruments":["NSE:3045"]}),
+        ]
+    );
+    let up: Vec<Value> = f
+        .mode_change_frames(&ltp, &quote)
+        .iter()
+        .map(text)
+        .collect();
+    assert_eq!(
+        up,
+        [
+            json!({"action":"subscribe","mode":"quote","instruments":["NSE:3045"]}),
+            json!({"action":"unsubscribe","mode":"ltp","instruments":["NSE:3045"]}),
+        ]
+    );
+    // While both streams arrive, an `ltp` tick keeps a Quote holder's fields.
+    let overlap = json!({"mode":"ltp","instrument":"3045","data":{"ltp":1428}});
+    let ev = f.parse(&Message::Text(overlap.to_string()));
+    match &ev[..] {
+        [FeedEvent::Tick(t)] => assert_eq!(
+            (t.ltp, t.open, t.close, t.mode),
+            (1428.0, 1410.0, 1418.0, 2)
+        ),
+        other => panic!("unexpected {:?}", other),
+    }
+    assert_eq!((f.subscription_count(), f.cache_len()), (1, 1));
+}
+
+/// Ticks that name only the token are found through the token map; a token
+/// two segments share is dropped until one of them goes.
+#[test]
+fn bare_tokens_resolve_through_the_token_map() {
+    let mut f = IndmoneyFeed::new("wss://x", "tok");
+    let cash = sub("RELIANCE", "NSE", "2885", FeedMode::Ltp);
+    let fut = sub("RELIANCE27OCT26FUT", "NFO", "2885", FeedMode::Ltp);
+    f.subscribe_frames(&[cash.clone(), fut.clone()]);
+    let bare = json!({"mode":"ltp","instrument":"2885","data":{"ltp":1}}).to_string();
+    assert!(f.parse(&Message::Text(bare.clone())).is_empty());
+    f.unsubscribe_frames(&[cash]);
+    let ev = f.parse(&Message::Text(bare.clone()));
+    assert!(
+        matches!(&ev[..], [FeedEvent::Tick(t)] if t.exchange == "NFO"),
+        "{:?}",
+        ev
+    );
+    f.unsubscribe_frames(&[fut]);
+    assert!(f.parse(&Message::Text(bare)).is_empty());
+    assert_eq!(f.subscription_count(), 0);
+}
+
 #[test]
 fn order_updates_map_letters_and_canonical_ids() {
     let ids = Arc::new(parking_lot::Mutex::new(OrderIdMap::default()));
