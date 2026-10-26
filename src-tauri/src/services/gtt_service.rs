@@ -144,6 +144,8 @@ fn live_error(e: &AppError, internal: &str, broker: &str) -> Reply {
         AppError::Broker(m) | AppError::Refused(m) | AppError::Validation(m) => {
             Reply::error(400, m.clone())
         }
+        // Not sent: the web's busy refusal (docs-20).
+        AppError::Busy(_) => Reply::broker_failure(e, 429),
         AppError::NotFound(m) => Reply::error(404, m.clone()),
         _ => {
             tracing::error!("GTT call failed: {}", e);

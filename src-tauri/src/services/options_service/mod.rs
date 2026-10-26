@@ -685,7 +685,7 @@ pub async fn synthetic_future_price(
         .broker
         .get_multiquotes(&h.auth, &keys)
         .await
-        .map_err(|e| Reply::error(500, e.client_message()))?;
+        .map_err(|e| Reply::broker_failure(&e, 500))?;
     let ltp_of = |sym: &str| {
         rows.iter()
             .find(|r| r.symbol == sym)

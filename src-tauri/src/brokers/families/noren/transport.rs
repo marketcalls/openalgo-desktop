@@ -159,7 +159,7 @@ impl Limiter {
         };
         budget.acquire(deadline).await.map_err(|d| {
             tracing::warn!("A broker request was refused before sending: {:?}", d);
-            outcome::refusal(BUSY_MESSAGE)
+            outcome::busy(BUSY_MESSAGE)
         })
     }
 
@@ -416,7 +416,7 @@ mod tests {
         // The sixth is 59 s away: refused at once, and inside an order
         // placement as a definite refusal (never sent).
         let e = outcome::placing(l.acquire()).await.unwrap_err();
-        assert!(matches!(e, AppError::Refused(_)), "{:?}", e);
+        assert!(matches!(e, AppError::Busy(_)), "{:?}", e);
         assert_eq!(e.client_message(), BUSY_MESSAGE);
         assert_eq!(start.elapsed(), Duration::from_secs(1), "refused at once");
         assert_eq!(l.held(), 5, "the refusal booked nothing");

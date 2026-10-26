@@ -41,7 +41,7 @@ The API limits above decide whether OpenAlgo accepts a request. Separately, Open
 - Brokers that publish none (Samco, Tradejini, HDFC Sky, HDFC Securities, Pocketful, 5paisa) are paced at 10 orders a second, the exchanges' threshold above which a retail API client's algorithm must be registered.
 - Orders have their own queue, apart from quotes and history, so a burst of market data requests never holds an exit back.
 
-What a client sees: a burst of orders is queued, so the later ones take a little longer to answer. An order whose turn would come more than 10 seconds later is not sent at all. It is answered at once with HTTP 400:
+What a client sees: a burst of orders is queued, so the later ones take a little longer to answer. A request whose turn would come more than 10 seconds later is not sent at all. It is answered at once with HTTP 429, as on the web (market data and account reads too):
 
 ```json
 {
@@ -96,7 +96,7 @@ Every caller is also limited to 1000 requests a second across the whole app. Pas
 
 - In the desktop, the limits cannot be changed. They are the web's sample settings (`.sample.env`); the web reads them from `.env` (`API_RATE_LIMIT`, `ORDER_RATE_LIMIT`, `SMART_ORDER_RATE_LIMIT`, `WEBHOOK_RATE_LIMIT`, `GREEKS_RATE_LIMIT`, `TELEGRAM_RATE_LIMIT`, `WHATSAPP_RATE_LIMIT`).
 - In the desktop, `/telegram/webhook` has the general limit of 100 per second; the web sets none on it.
-- In the desktop, orders are paced at the broker for every broker, including those the web does not pace (Samco, Tradejini, HDFC Sky, HDFC Securities, Pocketful, 5paisa), and an order that would wait more than 10 seconds is refused with HTTP 400. The web bounds the wait only on a multi-threaded server and answers 429 there.
+- In the desktop, orders are paced at the broker for every broker, including those the web does not pace (Samco, Tradejini, HDFC Sky, HDFC Securities, Pocketful, 5paisa), and a request that would wait more than 10 seconds is always refused with HTTP 429. The web bounds the wait only on a multi-threaded server (gthread) and answers 429 there.
 - In the desktop, the WebSocket feed limits the messages each client may send; the web reads messages without a limit.
 - In the desktop, the Chartink strategy management pages (create, configure, delete) have no request limit of their own; the web limits them to 200 per minute. They need the signed-in session either way. The web's Flow webhook limit has no counterpart: Flow is not in the desktop.
 

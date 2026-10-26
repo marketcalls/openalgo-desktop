@@ -90,7 +90,7 @@ Validation errors carry `message` as a string that spells out a Python dictionar
 | 400 | `{'orderid': ['Missing data for required field.']}` | A required field is missing |
 | 400 | `Order ID is missing` | `orderid` is an empty string |
 | 400 | The broker's own reason | The broker refused the cancel |
-| 400 | `OpenAlgo is pacing requests to stay within your broker's rate limit, and this one would have had to wait too long for its turn. Try again in a few seconds.` | The cancel would have waited more than 10 seconds for its turn at the broker; it was not sent |
+| 429 | `OpenAlgo is pacing requests to stay within your broker's rate limit, and this one would have had to wait too long for its turn. Try again in a few seconds.` | The cancel would have waited more than 10 seconds for its turn at the broker; it was not sent |
 | 403 | `Cancel order operation is not allowed in Semi-Auto mode. Please switch to Auto mode to cancel orders.` | The API key's order mode is Semi-Auto (live mode only) |
 | 500 | `Failed to cancel order due to internal error` | No usable answer from the broker |
 
@@ -117,7 +117,7 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 
 ## In the desktop
 
-- In the desktop, a cancel the broker pacer cannot send within 10 seconds is answered 400; the web answers 429, and only on a multi-threaded server.
+- A cancel the broker pacer cannot send within 10 seconds is answered 429, as on the web; the desktop always bounds the wait, the web only on a multi-threaded server.
 - In the desktop, if the order mode (Auto or Semi-Auto) cannot be read, a live cancel is refused with 500 and nothing is sent; the web treats an unreadable mode as Auto.
 
 ---

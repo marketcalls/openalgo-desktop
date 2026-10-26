@@ -5,6 +5,7 @@
 use crate::brokers::common::outcome::PlaceOutcome;
 use crate::brokers::types::AuthToken;
 use crate::brokers::Broker;
+use crate::error::AppError;
 use crate::events::{Event, Mode, OrderMeta};
 use crate::sandbox::SandboxError;
 use crate::state::AppState;
@@ -86,6 +87,18 @@ impl Reply {
         (200..300).contains(&self.status)
     }
 
+    /// A failed broker call as the web's services answer it: a request
+    /// refused before sending because the broker's pacing queue was too
+    /// long is 429 with its sentence (web `BrokerBusyError`,
+    /// `services/broker_busy.py`; docs-20, docs-29), anything else
+    /// `status` with the error's trader text.
+    pub fn broker_failure(e: &AppError, status: u16) -> Self {
+        match e {
+            AppError::Busy(m) => Self::error(BROKER_BUSY_STATUS, m.clone()),
+            _ => Self::error(status, e.client_message()),
+        }
+    }
+
     /// The `message` field, when it is a string.
     pub fn message(&self) -> String {
         self.body
@@ -97,6 +110,9 @@ impl Reply {
 }
 
 pub const UNEXPECTED: &str = "An unexpected error occurred";
+/// The status of a request refused because the broker was busy (web
+/// `BROKER_BUSY_STATUS`).
+pub const BROKER_BUSY_STATUS: u16 = 429;
 pub const INVALID_API_KEY: &str = "Invalid openalgo apikey";
 /// What `/api/v1` answers while OpenAlgo is locked: the keys that check an
 /// API key are not in memory until the trader signs in after OpenAlgo

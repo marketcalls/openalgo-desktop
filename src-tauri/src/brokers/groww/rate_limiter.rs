@@ -32,7 +32,7 @@
 //! says it was not retried.
 
 use crate::brokers::common::ratelimit::Pacer;
-use crate::error::{AppError, Result};
+use crate::error::Result;
 use std::future::Future;
 use std::time::{Duration, SystemTime};
 
@@ -124,7 +124,7 @@ impl GrowwLimiter {
                     t,
                     wait
                 );
-                AppError::Broker(BUSY_MESSAGE.into())
+                crate::brokers::common::outcome::busy(BUSY_MESSAGE)
             })
     }
 }
@@ -193,7 +193,8 @@ where
                 wait,
                 t
             );
-            return Err(AppError::Broker(SLOW_DOWN_MESSAGE.into()));
+            // The web raises `BrokerBusyError` here: 429.
+            return Err(crate::brokers::common::outcome::busy(SLOW_DOWN_MESSAGE));
         }
         tracing::warn!(
             "Groww is limiting {:?} requests; retry {} in {:?}",

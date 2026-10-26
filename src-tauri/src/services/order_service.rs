@@ -203,6 +203,8 @@ pub fn broker_error_reply(e: &AppError, internal: &str) -> Reply {
         AppError::Broker(m) | AppError::Refused(m) | AppError::Validation(m) => {
             Reply::error(400, m.clone())
         }
+        // Not sent: the web's busy refusal (docs-20).
+        AppError::Busy(_) => Reply::broker_failure(e, 429),
         // The wire never says "uncertain": a broker's text keeps its 400, a
         // transport failure its 500 (LOG-08).
         AppError::Uncertain(u) if u.internal => {

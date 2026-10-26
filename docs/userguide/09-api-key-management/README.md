@@ -102,7 +102,7 @@ Keeping the key in an environment variable keeps it out of your script files.
 | You are signed in to OpenAlgo and your broker is logged in | The normal answer |
 | OpenAlgo Desktop has just started, or you logged out | "Sign in to OpenAlgo to use the API. The API is off after OpenAlgo starts and after you log out, until you sign in again." (HTTP 503) |
 | The key is wrong or was regenerated | "Invalid openalgo apikey" (HTTP 403) |
-| Too many requests | HTTP 429. Limits: 10 orders per second, 10 smart orders per second, 100 other API calls per second |
+| Too many requests | HTTP 429. Limits, each counted per endpoint: 10 a second for placing, changing and cancelling orders and for smart orders, 30 a minute for option Greeks, Telegram and WhatsApp, 100 a second for the other calls. Also HTTP 429, with a sentence saying so, when your broker's own rate limit would have kept a request waiting more than 10 seconds: nothing was sent, try again in a few seconds |
 | OpenAlgo Desktop is closed | No answer: the connection is refused |
 
 The 503 answer is a desktop addition. OpenAlgo web has no locked state; the

@@ -168,7 +168,7 @@ Validation errors carry `message` as a string that spells out a Python dictionar
 | 400 | `{'quantity': ['Quantity is larger than any exchange accepts.']}` | Quantity above 2147483647 |
 | 400 | `Fractional quantities are not supported in OpenAlgo Desktop yet. Use a whole-number quantity.` | A fractional CRYPTO quantity, live or in analyzer mode |
 | 400 | The broker's own reason | The broker refused the order, or the position could not be read |
-| 400 | `OpenAlgo is pacing requests to stay within your broker's rate limit, and this one would have had to wait too long for its turn. Try again in a few seconds.` | The order would have waited more than 10 seconds for its turn at the broker; it was not sent |
+| 429 | `OpenAlgo is pacing requests to stay within your broker's rate limit, and this one would have had to wait too long for its turn. Try again in a few seconds.` | The order would have waited more than 10 seconds for its turn at the broker; it was not sent |
 | 500 | `Failed to place order due to internal error` | The order was sent and no definite answer came back |
 | 500 | `Failed to place smart order due to internal error` | The current position could not be read from the broker |
 
@@ -192,7 +192,7 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 - In the desktop, a live smart order that needs no order always answers 200 success with one of the two messages above, as analyzer mode does, whatever the broker. On the web the live answer depends on the broker's adapter: Zerodha, for example, answers `Positions Already Matched. No Action needed.` in both cases.
 - In the desktop, a fractional CRYPTO quantity is refused; smart orders carry whole units only.
 - In the desktop, an order sent with no definite answer from the broker is never sent again; OpenAlgo settles it from the broker's order book. See [Order placement outcomes](../../port/order-outcomes.md).
-- In the desktop, an order the broker pacer cannot send within 10 seconds is answered 400; the web answers 429, and only on a multi-threaded server.
+- An order the broker pacer cannot send within 10 seconds is answered 429, as on the web; the desktop always bounds the wait, the web only on a multi-threaded server.
 
 ---
 

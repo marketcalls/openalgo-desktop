@@ -156,7 +156,7 @@ Validation errors on this endpoint carry `message` as a string that spells out a
 | 400 | `{'product': ['Must be one of: MIS, NRML, CNC.']}` | Unknown product (likewise `action`, `pricetype`) |
 | 400 | `{'price': ['Price must be a non-negative number.']}` | Negative price |
 | 400 | The broker's own reason | The broker refused the order |
-| 400 | `OpenAlgo is pacing requests to stay within your broker's rate limit, and this one would have had to wait too long for its turn. Try again in a few seconds.` | The order would have waited more than 10 seconds for its turn at the broker; it was not sent (see [Rate limiting](../rate-limiting.md)) |
+| 429 | `OpenAlgo is pacing requests to stay within your broker's rate limit, and this one would have had to wait too long for its turn. Try again in a few seconds.` | The order would have waited more than 10 seconds for its turn at the broker; it was not sent (see [Rate limiting](../rate-limiting.md)) |
 | 400 | `Fractional quantities are not supported in OpenAlgo Desktop yet. Use a whole-number quantity.` | A fractional CRYPTO quantity in analyzer mode |
 | 500 | `Failed to place order due to internal error` | The order was sent and no definite answer came back (a timeout or a dropped connection) |
 | 500 | `OpenAlgo could not read whether analyzer mode is on, so nothing was sent. Restart OpenAlgo, then try again.` | The analyzer setting could not be read; nothing was sent |
@@ -192,7 +192,7 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 - In the desktop, an order sent with no definite answer from the broker (a timeout or a dropped connection after sending) is never sent again: OpenAlgo looks for it in the broker's order book and settles it there. The answer keeps the web's shape. See [Order placement outcomes](../../port/order-outcomes.md).
 - In the desktop, a quantity above 2147483647 is refused before anything is sent; the web passed it on.
 - In the desktop, a fractional CRYPTO quantity in analyzer mode is refused; the web's sandbox truncates it to a whole number.
-- In the desktop, an order the broker pacer cannot send within 10 seconds is answered 400; the web answers 429, and only on a multi-threaded server.
+- An order the broker pacer cannot send within 10 seconds is answered 429, as on the web; the desktop always bounds the wait, the web only on a multi-threaded server.
 - In the desktop, if the order mode (Auto or Semi-Auto) cannot be read, the order is refused with 500 and nothing is sent; the web treats an unreadable mode as Auto and places it.
 
 ---

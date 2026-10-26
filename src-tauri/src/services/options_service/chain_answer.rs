@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::brokers::types::{ChainQuoteRequest, ChainQuotes};
+use crate::error::AppError;
 use std::collections::{HashMap, HashSet};
 
 /// An option chain with what the broker could not supply: legs that came
@@ -193,14 +194,17 @@ async fn chain_quotes(
                 oi_missing: HashSet::new(),
             }),
     };
-    fetched.map_err(|e| {
-        Reply::error(
+    fetched.map_err(|e| match e {
+        // Not sent: the web answers its busy refusal as is (429), since a
+        // chain of zero prices would look like a dead market.
+        AppError::Busy(_) => Reply::broker_failure(&e, 500),
+        _ => Reply::error(
             500,
             format!(
                 "An error occurred while fetching option chain: {}",
                 e.client_message()
             ),
-        )
+        ),
     })
 }
 

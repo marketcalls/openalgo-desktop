@@ -233,6 +233,8 @@ mod key_vault;
 mod origin;
 // docs-1, docs-19: each /api/v1 endpoint in its own window, at the web's limit.
 mod api_limits;
+// docs-20, docs-29: a request the broker's pacer refused answers 429.
+mod broker_busy;
 
 // ------------------------------------------------------------------ fixtures
 

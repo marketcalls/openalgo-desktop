@@ -234,7 +234,7 @@ Validation errors on this endpoint use their own shape: a fixed `message` and th
 | 400 | `Total number of orders would exceed maximum limit of 100` | `quantity / splitsize` needs more than 100 orders |
 | 400 | `Quantity is larger than any exchange accepts.` | A live order quantity above 2147483647; nothing was sent |
 | 400 | The broker's own reason | The broker refused the order |
-| 400 | `OpenAlgo is pacing requests to stay within your broker's rate limit, and this one would have had to wait too long for its turn. Try again in a few seconds.` | The order would have waited more than 10 seconds for its turn at the broker; it was not sent |
+| 429 | `OpenAlgo is pacing requests to stay within your broker's rate limit, and this one would have had to wait too long for its turn. Try again in a few seconds.` | The order would have waited more than 10 seconds for its turn at the broker; it was not sent |
 | 404 | `No strikes found for NIFTY expiring 01JAN20. Please check expiry date or update master contract.` | The expiry is not a `DDMMMYY` date the master contract lists (the dashed `06-OCT-26` that `/expiry` returns must be turned into `06OCT26` first) |
 | 404 | `Option symbol NIFTY06OCT2622450CE not found in NFO. Symbol may not exist or master contract needs update.` | The picked strike is not listed (usually with `strike_int`) |
 | 500 | `Failed to place order due to internal error` | The order was sent and no definite answer came back |
@@ -265,7 +265,7 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 
 ## In the desktop
 
-- In the desktop, an order the broker pacer cannot send within 10 seconds is answered 400; the web answers 429, and only on a multi-threaded server.
+- An order the broker pacer cannot send within 10 seconds is answered 429, as on the web; the desktop always bounds the wait, the web only on a multi-threaded server.
 - In the desktop, a live order quantity above 2147483647 is refused before anything is sent; the web has no such check.
 - In the desktop, an order sent with no definite answer from the broker is never sent again: OpenAlgo looks for it in the broker's order book. The answer keeps the web's shape. See [Order placement outcomes](../../port/order-outcomes.md).
 - In the desktop, if OpenAlgo cannot read whether the order mode is Semi-Auto, the order is refused (500) instead of being placed; the web places it.

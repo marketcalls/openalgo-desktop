@@ -171,7 +171,8 @@ intervals. They are not accepted here.
   allows.
 - If OpenAlgo is pacing requests to stay within your broker's rate limit and
   this one would have waited more than about ten seconds, it is refused with
-  500 and "OpenAlgo is pacing requests ... Try again in a few seconds."
+  429 and "OpenAlgo is pacing requests ... Try again in a few seconds.", as
+  on OpenAlgo web.
 - The web's own documentation shows `timestamp` as a date string. Both OpenAlgo
   web and the desktop actually send epoch seconds, as shown here.
 - History always comes from your broker (or Historify), also in analyzer mode.

@@ -13,7 +13,6 @@ use crate::brokers::common::book_read::{self, Book};
 use crate::brokers::common::mapping::{Exchange, PriceType, Product};
 use crate::brokers::common::outcome;
 use crate::brokers::common::position_read::unread;
-use crate::brokers::common::ratelimit::BUSY_MESSAGE;
 use crate::brokers::common::symbols::SymToken;
 use crate::brokers::types::*;
 use crate::error::{AppError, Result};
@@ -345,7 +344,7 @@ pub async fn get_trade_book(b: &RupeezyBroker, auth: &AuthToken) -> Result<Vec<T
 }
 
 fn is_busy(e: &AppError) -> bool {
-    matches!(e, AppError::Broker(m) | AppError::Refused(m) if m == BUSY_MESSAGE)
+    matches!(e, AppError::Busy(_))
 }
 
 /// `{ticker: ltp}` from `/data/quotes` in `ltp` mode, 1000 tickers a call.

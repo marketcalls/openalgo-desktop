@@ -276,7 +276,13 @@ impl FyersLimiter {
                     d,
                     plan.label()
                 );
-                Err(outcome::refusal(denied_message(plan, c, d)))
+                let message = denied_message(plan, c, d);
+                // A turn too far away is the web's busy refusal (429); the
+                // daily cap, which the web does not have, stays a refusal.
+                Err(match d {
+                    Denied::Wait(_) => outcome::busy(message),
+                    Denied::Daily(_) => outcome::refusal(message),
+                })
             }
         }
     }

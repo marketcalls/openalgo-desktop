@@ -160,6 +160,20 @@ pub fn refusal(message: impl Into<String>) -> AppError {
     }
 }
 
+/// A request refused before sending because its turn in the broker's
+/// pacing queue was too far away (web `BrokerBusyError`): nothing was
+/// sent, so it is [`AppError::Busy`], which `/api/v1` answers with 429 as
+/// the web does. Inside a placement that already met a server error the
+/// order's outcome stays unknown, as with [`refusal`].
+pub fn busy(message: impl Into<String>) -> AppError {
+    let m = message.into();
+    if in_placement() && saw_server_error() {
+        AppError::Broker(m)
+    } else {
+        AppError::Busy(m)
+    }
+}
+
 /// [`refusal`] for an answer with this HTTP status: a server error is never
 /// a refusal.
 pub fn refusal_with_status(status: u16, message: impl Into<String>) -> AppError {
@@ -290,6 +304,7 @@ pub fn uncertain_cause(e: &AppError) -> Option<Option<String>> {
         | AppError::Internal(_) => Some(None),
         // A refusal the broker stated, or one that cannot follow a send.
         AppError::Refused(_)
+        | AppError::Busy(_)
         | AppError::Auth(_)
         | AppError::Validation(_)
         | AppError::NotFound(_)
@@ -537,6 +552,22 @@ mod tests {
             placing(async { refusal_with_status(502, "x") }).await,
             AppError::Broker(_)
         ));
+    }
+
+    /// A pacing refusal (web `BrokerBusyError`) is busy everywhere and
+    /// "not placed" inside a placement; after a server error in the same
+    /// placement the order stays unknown, as with any refusal.
+    #[tokio::test]
+    async fn a_busy_refusal_is_not_placed_unless_a_server_error_came_first() {
+        assert!(matches!(busy("x"), AppError::Busy(_)));
+        let r: Result<OrderResponse> = placing(async { Err(busy("x")) }).await;
+        assert_eq!(classify(&r), PlaceOutcome::Refused { reason: "x".into() });
+        let r: Result<OrderResponse> = placing(async {
+            note_server_error();
+            Err(busy("x"))
+        })
+        .await;
+        assert!(classify(&r).is_uncertain(), "{:?}", r);
     }
 
     #[tokio::test]

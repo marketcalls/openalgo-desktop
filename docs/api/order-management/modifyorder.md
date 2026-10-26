@@ -142,7 +142,7 @@ Validation errors carry `message` as a string that spells out a Python dictionar
 | 400 | `{'quantity': ['Quantity must be a positive number.']}` | Quantity is zero or negative |
 | 400 | `{'quantity': ['Quantity is larger than any exchange accepts.']}` | Quantity above 2147483647 |
 | 400 | The broker's own reason | The broker refused the change |
-| 400 | `OpenAlgo is pacing requests to stay within your broker's rate limit, and this one would have had to wait too long for its turn. Try again in a few seconds.` | The change would have waited more than 10 seconds for its turn at the broker; it was not sent |
+| 429 | `OpenAlgo is pacing requests to stay within your broker's rate limit, and this one would have had to wait too long for its turn. Try again in a few seconds.` | The change would have waited more than 10 seconds for its turn at the broker; it was not sent |
 | 403 | `Modify order operation is not allowed in Semi-Auto mode. Please switch to Auto mode to modify orders.` | The API key's order mode is Semi-Auto (live mode only) |
 | 500 | `Failed to modify order due to internal error` | No usable answer from the broker |
 
@@ -170,7 +170,7 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 
 - In the desktop, a fractional CRYPTO quantity is accepted only for a live order; analyzer mode refuses it, because the sandbox counts whole units.
 - In the desktop, a quantity above 2147483647 is refused before anything is sent; the web passed it on.
-- In the desktop, a change the broker pacer cannot send within 10 seconds is answered 400; the web answers 429, and only on a multi-threaded server.
+- A change the broker pacer cannot send within 10 seconds is answered 429, as on the web; the desktop always bounds the wait, the web only on a multi-threaded server.
 - In the desktop, if the order mode (Auto or Semi-Auto) cannot be read, a live change is refused with 500 (`OpenAlgo could not read whether your orders wait for approval in the Action Center (Semi-Auto), so nothing was sent. ...`); the web treats an unreadable mode as Auto.
 
 ---

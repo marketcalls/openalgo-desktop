@@ -29,7 +29,7 @@ fn broker_fail(e: &crate::error::AppError) -> Reply {
         crate::error::AppError::Unsupported(_) => Reply::error(501, e.client_message()),
         _ => {
             tracing::warn!("Broker book request failed: {}", e.code());
-            Reply::error(500, e.client_message())
+            Reply::broker_failure(e, 500)
         }
     }
 }
@@ -353,7 +353,7 @@ pub async fn funds(ctx: &AppState) -> Reply {
         Ok(f) => Reply::ok(json!({"status": "success", "data": live_funds(&f)})),
         Err(e) => {
             tracing::warn!("Funds request failed: {}", e.code());
-            Reply::error(500, e.client_message())
+            Reply::broker_failure(&e, 500)
         }
     }
 }
@@ -432,7 +432,7 @@ pub async fn open_position(ctx: &AppState, req: &Value) -> Reply {
                     .unwrap_or(json!(0));
                 Reply::ok(json!({"quantity": q, "status": "success"}))
             }
-            Err(e) => Reply::error(500, e.client_message()),
+            Err(e) => Reply::broker_failure(&e, 500),
         };
     }
     match h.broker.get_positions(&h.auth).await {
@@ -444,7 +444,7 @@ pub async fn open_position(ctx: &AppState, req: &Value) -> Reply {
                 .unwrap_or(0);
             Reply::ok(json!({"quantity": q, "status": "success"}))
         }
-        Err(e) => Reply::error(500, e.client_message()),
+        Err(e) => Reply::broker_failure(&e, 500),
     }
 }
 

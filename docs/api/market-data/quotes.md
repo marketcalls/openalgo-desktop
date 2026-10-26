@@ -113,8 +113,8 @@ in the [API overview](../README.md).
   (`1167.7`); read every price as a number.
 - If OpenAlgo is pacing requests to stay within your broker's rate limit and
   this one would have waited more than about ten seconds, it is refused with
-  500 and "OpenAlgo is pacing requests to stay within your broker's rate
-  limit, ... Try again in a few seconds."
+  429 and "OpenAlgo is pacing requests to stay within your broker's rate
+  limit, ... Try again in a few seconds.", as on OpenAlgo web.
 - For several symbols in one call use [MultiQuotes](./multiquotes.md). For
   prices as they change use the [Quote WebSocket](../websocket-streaming/quote.md).
 

@@ -75,6 +75,13 @@ pub enum AppError {
     #[error("Order refused: {0}")]
     Refused(String),
 
+    /// Refused before sending because the request's turn in the broker's
+    /// pacing queue was too far away (web `BrokerBusyError`): nothing
+    /// reached the broker. `/api/v1` answers it with 429 and this sentence,
+    /// as the web does. Built with `brokers::common::outcome::busy`.
+    #[error("Broker busy: {0}")]
+    Busy(String),
+
     /// An order request reached the broker, or may have, and no definite
     /// answer came back (a timeout or a dropped connection after sending, a
     /// server error, an unreadable reply, a success without an order id).
@@ -177,6 +184,7 @@ impl AppError {
             AppError::VaultUnreadable => "VAULT_UNREADABLE",
             AppError::Auth(_) => "AUTH_ERROR",
             AppError::Broker(_) | AppError::Refused(_) => "BROKER_ERROR",
+            AppError::Busy(_) => "BROKER_BUSY",
             AppError::Uncertain(_) => "ORDER_UNCERTAIN",
             AppError::Validation(_) => "VALIDATION_ERROR",
             AppError::NotFound(_) => "NOT_FOUND",
@@ -197,6 +205,7 @@ impl AppError {
             AppError::Auth(m)
             | AppError::Broker(m)
             | AppError::Refused(m)
+            | AppError::Busy(m)
             | AppError::Validation(m)
             | AppError::NotFound(m) => m.clone(),
             AppError::Uncertain(u) => u.message.clone(),

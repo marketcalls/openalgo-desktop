@@ -202,6 +202,10 @@ pub struct MockBroker {
     /// Told of every call as it is recorded (the E2E test build's scripted
     /// broker logs them, `brokers::scripted`).
     pub on_call: Mutex<Option<fn(&MockCall)>>,
+    /// Paces quotes, depth, history, placements and cancels like an
+    /// adapter's pacer when set: a turn more than ten seconds away is
+    /// refused before anything is sent (the busy refusal).
+    pub pacer: Mutex<Option<Arc<crate::brokers::common::ratelimit::Pacer>>>,
     next_id: Mutex<u64>,
 }
 
@@ -252,11 +256,21 @@ impl MockBroker {
             auth_gate: Mutex::new(None),
             funds_gate: Mutex::new(None),
             on_call: Mutex::new(None),
+            pacer: Mutex::new(None),
             next_id: Mutex::new(0),
             place_gate: Mutex::new(None),
             master_gate: Mutex::new(None),
             quote_gate: Mutex::new(None),
             strategies: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// Wait for a turn on [`Self::pacer`], or the adapter's busy refusal.
+    async fn pace(&self) -> Result<()> {
+        let pacer = self.pacer.lock().clone();
+        match pacer {
+            Some(p) => p.acquire().await,
+            None => Ok(()),
         }
     }
 
@@ -370,6 +384,7 @@ impl Broker for MockBroker {
             g.entered.notify_one();
             g.release.notified().await;
         }
+        self.pace().await?;
         self.record(MockCall::PlaceOrder(order.clone()));
         if *self.panic_after_place.lock() {
             panic!("mock broker: failure after the order reached the broker");
@@ -451,6 +466,7 @@ impl Broker for MockBroker {
     }
 
     async fn cancel_order(&self, _: &AuthToken, order_id: &str) -> Result<OrderResponse> {
+        self.pace().await?;
         self.record(MockCall::CancelOrder(order_id.to_string()));
         out(&self.cancel, || OrderResponse {
             order_id: order_id.to_string(),
@@ -583,6 +599,7 @@ impl Broker for MockBroker {
             g.entered.notify_one();
             g.release.notified().await;
         }
+        self.pace().await?;
         self.record(MockCall::Quote(key.clone()));
         self.quotes
             .lock()
@@ -594,6 +611,7 @@ impl Broker for MockBroker {
     }
 
     async fn get_multiquotes(&self, _: &AuthToken, keys: &[QuoteKey]) -> Result<Vec<QuoteResult>> {
+        self.pace().await?;
         self.record(MockCall::MultiQuotes(keys.to_vec()));
         let q = self.quotes.lock();
         Ok(keys
@@ -611,6 +629,7 @@ impl Broker for MockBroker {
     }
 
     async fn get_market_depth(&self, _: &AuthToken, key: &QuoteKey) -> Result<MarketDepth> {
+        self.pace().await?;
         self.record(MockCall::Depth(key.clone()));
         out(&self.depth, || MarketDepth {
             symbol: key.symbol.clone(),
@@ -622,6 +641,7 @@ impl Broker for MockBroker {
     }
 
     async fn get_history(&self, _: &AuthToken, req: &HistoryRequest) -> Result<Vec<Candle>> {
+        self.pace().await?;
         self.record(MockCall::History(req.clone()));
         out(&self.history, Vec::new)
     }

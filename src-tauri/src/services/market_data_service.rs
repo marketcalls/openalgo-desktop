@@ -47,10 +47,6 @@ pub fn quote_json(q: &Quote) -> Value {
     })
 }
 
-fn broker_message(e: &AppError) -> String {
-    e.client_message()
-}
-
 /// One quote, as the web's `get_quotes` (status and message on failure).
 pub async fn fetch_quote(
     ctx: &AppState,
@@ -62,7 +58,7 @@ pub async fn fetch_quote(
     h.broker
         .get_quote(&h.auth, &QuoteKey::new(exchange, symbol))
         .await
-        .map_err(|e| Reply::error(500, broker_message(&e)))
+        .map_err(|e| Reply::broker_failure(&e, 500))
 }
 
 /// `quotes`.
@@ -123,7 +119,7 @@ pub async fn multiquotes(ctx: &AppState, symbols: &[(String, String)]) -> Reply 
             }
             Reply::ok(json!({"status": "success", "results": results}))
         }
-        Err(e) => Reply::error(500, broker_message(&e)),
+        Err(e) => Reply::broker_failure(&e, 500),
     }
 }
 
@@ -167,7 +163,7 @@ pub async fn depth(ctx: &AppState, symbol: &str, exchange: &str) -> Reply {
             "totalsellqty": d.total_sell_qty,
             "volume": d.volume,
         }})),
-        Err(e) => Reply::error(500, broker_message(&e)),
+        Err(e) => Reply::broker_failure(&e, 500),
     }
 }
 
@@ -205,7 +201,7 @@ async fn broker_history(
     h.broker
         .get_history(&h.auth, &req)
         .await
-        .map_err(|e| Reply::error(500, broker_message(&e)))
+        .map_err(|e| Reply::broker_failure(&e, 500))
 }
 
 /// `history`.
@@ -480,6 +476,7 @@ pub async fn margin(ctx: &AppState, positions: &[Value]) -> Reply {
             format!("Margin calculation not implemented for broker: {}", h.id),
         ),
         Err(AppError::Broker(m)) | Err(AppError::Validation(m)) => Reply::error(400, m),
+        Err(e @ AppError::Busy(_)) => Reply::broker_failure(&e, 500),
         Err(e) => {
             tracing::error!("Margin calculation failed: {}", e);
             Reply::error(500, "Failed to calculate margin due to internal error")

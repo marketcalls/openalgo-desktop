@@ -256,7 +256,8 @@ impl FyersBroker {
                     delay,
                     endpoint
                 );
-                return Err(crate::brokers::common::outcome::refusal(
+                // The web raises `BrokerBusyError` here: 429.
+                return Err(crate::brokers::common::outcome::busy(
                     ratelimit::SLOW_DOWN_MESSAGE,
                 ));
             }

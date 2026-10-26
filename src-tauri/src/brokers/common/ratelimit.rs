@@ -96,7 +96,7 @@ impl Pacer {
                 "A broker request was refused before sending: its turn was {:?} away",
                 wait
             );
-            super::outcome::refusal(BUSY_MESSAGE)
+            super::outcome::busy(BUSY_MESSAGE)
         })
     }
 

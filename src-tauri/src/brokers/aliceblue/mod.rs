@@ -176,7 +176,7 @@ impl WindowLimiter {
         let deadline = tokio::time::Instant::now() + MAX_QUEUE_WAIT;
         self.budget.acquire(deadline).await.map_err(|d| {
             tracing::warn!("AliceBlue read refused before sending: {:?}", d);
-            crate::brokers::common::outcome::refusal(BUSY_MESSAGE)
+            crate::brokers::common::outcome::busy(BUSY_MESSAGE)
         })
     }
 

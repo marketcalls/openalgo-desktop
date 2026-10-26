@@ -63,7 +63,7 @@ impl WindowLimiter {
     pub async fn acquire_until(&self, deadline: Instant) -> Result<()> {
         self.budget.acquire(deadline).await.map_err(|d| {
             tracing::warn!("Upstox request refused before sending: {:?}", d);
-            outcome::refusal(BUSY_MESSAGE)
+            outcome::busy(BUSY_MESSAGE)
         })
     }
 
