@@ -393,6 +393,8 @@ struct State {
     ltt: i64,
     buy: Vec<DepthLevel>,
     sell: Vec<DepthLevel>,
+    /// A depth packet (level 8 or 16) has filled the book.
+    book: bool,
 }
 
 fn keep(old: f64, new: f64) -> f64 {
@@ -704,32 +706,43 @@ impl KotakFeed {
         st.total_sell = keep_i(st.total_sell, total_sell);
         st.oi = keep_i(st.oi, oi);
         st.ltt = keep_i(st.ltt, last_trade_time);
-        let depth = matches!(level, 8 | 16);
-        if depth || level == 4 {
+        if matches!(level, 4 | 8 | 16) {
             st.buy = merge_levels(&st.buy, &buy);
             st.sell = merge_levels(&st.sell, &sell);
+            st.book |= level != 4;
         }
         let st = st.clone();
         let mode = self.subs.get(&key).map(|s| s.mode);
         if mode == Some(FeedMode::Ltp) && st.ltp <= 0.0 {
             return;
         }
-        if let Some(t) = self.tick_for(&key, &st, now) {
+        self.publish(&key, &st, now, out);
+    }
+
+    /// A packet's tick, and for a Depth subscription whose book has
+    /// arrived, that book with the packet's price. Kotak sends the price
+    /// and the book in separate packets; the web republishes the depth with
+    /// its cached book on every packet (`kotak_adapter._on_data_received`,
+    /// mode 3), so the option chain, the order dialog and every Depth
+    /// holder see the price move between book updates.
+    fn publish(&self, key: &str, st: &State, now: i64, out: &mut Vec<FeedEvent>) {
+        let Some(sub) = self.subs.get(key) else {
+            return;
+        };
+        if let Some(t) = self.tick_for(key, st, now) {
             out.push(FeedEvent::Tick(t));
         }
-        if depth && mode == Some(FeedMode::Depth) {
-            if let Some(sub) = self.subs.get(&key) {
-                out.push(FeedEvent::Depth(NormalizedDepth {
-                    symbol: sub.symbol.clone(),
-                    exchange: sub.exchange.clone(),
-                    ltp: st.ltp,
-                    buy: st.buy.clone(),
-                    sell: st.sell.clone(),
-                    total_buy_quantity: st.total_buy,
-                    total_sell_quantity: st.total_sell,
-                    timestamp_ms: now,
-                }));
-            }
+        if sub.mode == FeedMode::Depth && st.book {
+            out.push(FeedEvent::Depth(NormalizedDepth {
+                symbol: sub.symbol.clone(),
+                exchange: sub.exchange.clone(),
+                ltp: st.ltp,
+                buy: st.buy.clone(),
+                sell: st.sell.clone(),
+                total_buy_quantity: st.total_buy,
+                total_sell_quantity: st.total_sell,
+                timestamp_ms: now,
+            }));
         }
     }
 
@@ -757,9 +770,7 @@ impl KotakFeed {
                 if st.ltp <= 0.0 {
                     return;
                 }
-                if let Some(t) = self.tick_for(&key, &st, now) {
-                    out.push(FeedEvent::Tick(t));
-                }
+                self.publish(&key, &st, now, out);
             }
             Sfeed::Index {
                 exchange,
@@ -937,7 +948,13 @@ impl BrokerFeed for KotakFeed {
         if is_depth {
             vec![Self::event_frame("subscribeDepth", &[input], true)]
         } else {
-            self.state.remove(&Self::sub_key(new));
+            // The book goes with the depth stream; the price and the quote
+            // fields stay, so the next packet does not read them as zero.
+            if let Some(st) = self.state.get_mut(&Self::sub_key(new)) {
+                st.buy.clear();
+                st.sell.clear();
+                st.book = false;
+            }
             vec![Self::event_frame("unsubscribeDepth", &[input], false)]
         }
     }

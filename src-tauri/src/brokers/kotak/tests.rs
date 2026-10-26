@@ -1004,7 +1004,8 @@ fn sfeed_handshake_subscribe_and_ticks() {
         }
         other => panic!("unexpected {:?}", other),
     }
-    // A mini touch line only moves the LTP; the rest is kept.
+    // A mini touch line only moves the LTP; the rest is kept, and the
+    // depth holder gets the cached book at the new price.
     let ev = f.parse(&Message::Binary(packet(
         0,
         1,
@@ -1012,7 +1013,10 @@ fn sfeed_handshake_subscribe_and_ticks() {
         &mini_body(3045, 81_500, 0),
     )));
     match &ev[..] {
-        [FeedEvent::Tick(t)] => assert_eq!((t.ltp, t.open, t.close), (815.0, 810.0, 812.35)),
+        [FeedEvent::Tick(t), FeedEvent::Depth(d)] => {
+            assert_eq!((t.ltp, t.open, t.close), (815.0, 810.0, 812.35));
+            assert_eq!((d.ltp, d.buy[0].price), (815.0, 814.05));
+        }
         other => panic!("unexpected {:?}", other),
     }
     // The index answers with its own token and its name.
@@ -1065,6 +1069,70 @@ fn sfeed_handshake_subscribe_and_ticks() {
         &f.parse(&Message::Text(fb.to_string()))[..],
         [FeedEvent::AuthFailed(_)]
     ));
+}
+
+/// The price each packet carries reaches Depth holders, with the book
+/// Kotak last sent: Kotak sends the price and the book in separate
+/// packets, and the web republishes the depth on every packet
+/// (`kotak_adapter._on_data_received`, mode 3). The desktop published depth
+/// only on book packets, so the option chain, the order dialog and
+/// `useLiveQuote` saw the price stand still between book updates.
+#[test]
+fn depth_holders_see_every_packets_price_with_the_cached_book() {
+    let mut f = KotakFeed::new(DEFAULT_SFEED_URL, "sid-1", "<USER_ID>".into(), master());
+    f.on_connected();
+    let ack = json!({"message_code": 1119, "exchanges": {"nse_cm": {"value": 1, "divider": 100}}});
+    f.parse(&Message::Text(ack.to_string()));
+    f.subscribe_frames(&[
+        fsub("SBIN", "NSE", FeedMode::Depth),
+        fsub("TCS", "NSE", FeedMode::Quote),
+    ]);
+    let picture = |level: u8, ltp: u32, rows: &[(i64, i32, i32)]| {
+        Message::Binary(packet(0, 1, level, &market_picture(3045, ltp, rows, rows)))
+    };
+    let mini = |token: u32, ltp: u32| Message::Binary(packet(0, 1, 1, &mini_body(token, ltp, 0)));
+    let depth_of = |ev: &[FeedEvent]| -> Option<(f64, f64)> {
+        ev.iter().find_map(|e| match e {
+            FeedEvent::Depth(d) => Some((d.ltp, d.buy[0].price)),
+            _ => None,
+        })
+    };
+
+    // No book yet: a price packet is a tick only, as on the web.
+    let ev = f.parse(&mini(3045, 81_390));
+    assert!(matches!(&ev[..], [FeedEvent::Tick(_)]), "{:?}", ev);
+    // The book arrives.
+    let ev = f.parse(&picture(8, 81_410, &[(100, 81_405, 1)]));
+    assert_eq!(depth_of(&ev), Some((814.1, 814.05)));
+    // Price-only packets move the depth holder's price over that book.
+    let ev = f.parse(&mini(3045, 81_500));
+    assert_eq!(depth_of(&ev), Some((815.0, 814.05)), "{:?}", ev);
+    let ev = f.parse(&picture(2, 81_600, &[]));
+    assert_eq!(depth_of(&ev), Some((816.0, 814.05)), "{:?}", ev);
+    // A Quote holder gets ticks only.
+    let ev = f.parse(&mini(11536, 350_050));
+    assert!(
+        matches!(&ev[..], [FeedEvent::Tick(t)] if t.symbol == "TCS"),
+        "{:?}",
+        ev
+    );
+
+    // Leaving depth drops the book but keeps the quote fields.
+    f.mode_change_frames(
+        &fsub("SBIN", "NSE", FeedMode::Depth),
+        &fsub("SBIN", "NSE", FeedMode::Quote),
+    );
+    let ev = f.parse(&mini(3045, 81_700));
+    match &ev[..] {
+        [FeedEvent::Tick(t)] => assert_eq!((t.ltp, t.open, t.close), (817.0, 810.0, 812.35)),
+        other => panic!("unexpected {:?}", other),
+    }
+    // Back in depth, nothing is published as a book until one arrives.
+    f.mode_change_frames(
+        &fsub("SBIN", "NSE", FeedMode::Quote),
+        &fsub("SBIN", "NSE", FeedMode::Depth),
+    );
+    assert_eq!(depth_of(&f.parse(&mini(3045, 81_800))), None);
 }
 
 #[test]
