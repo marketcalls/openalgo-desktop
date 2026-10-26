@@ -3,27 +3,16 @@ description: >
   Installs the system packages Tauri 2 needs to compile, test and bundle on
   Ubuntu 22.04 (x86_64 and aarch64). Kept in one place so every Linux job
   builds against the same WebKitGTK 4.1 / GTK 3 stack. The package files apt
-  downloads are cached per runner image and package list, so a slow Ubuntu
-  mirror only costs time for the packages it updated since.
-
-# Why a cache of package files (.deb), and not of the lists or the installed
-# files: on 2026-10-22 rust-lint's apt step took 19 minutes, all of it
-# downloading 52.8 MB of packages at 46 kB/s; `apt-get update` (13 MB)
-# took 2 s. With the files restored, apt still reads fresh lists, installs
-# the current version of every package and checks each file against them,
-# and downloads only what changed. A file from the cache that is no longer
-# current is ignored, so a stale or another image's cache is never wrong,
-# only less useful. Saved from master only (pull requests and tags restore
-# it), under a key naming the files, so a new entry appears only when
-# Ubuntu updated one of them.
+  downloads are cached per runner image and package list (apt-cached), so a
+  slow Ubuntu mirror only costs time for the packages it updated since.
 
 runs:
   using: composite
   steps:
-    - name: Bound apt network waits and name the package cache
-      id: prepare
-      shell: bash
-      env:
+    - name: Install the packages, from cached package files where they match
+      uses: ./.github/actions/apt-cached
+      with:
+        name: linux-tauri-deps
         # Tauri 2 prerequisites (https://v2.tauri.app/start/prerequisites/#linux)
         # plus what this app's crates link against:
         #   libdbus-1-dev, pkg-config  keyring (Linux Secret Service)
@@ -32,77 +21,7 @@ runs:
         # libappindicator3-dev and libayatana-appindicator3-dev conflict on
         # 22.04; only libappindicator3-dev is installed (what tauri-action
         # documents).
-        PACKAGES: >-
+        packages: >-
           build-essential curl wget file xdg-utils pkg-config patchelf
           libssl-dev libdbus-1-dev libxdo-dev libwebkit2gtk-4.1-dev
           libappindicator3-dev librsvg2-dev
-      run: |
-        set -euo pipefail
-        # A stalled Ubuntu mirror otherwise holds apt-get until the job
-        # timeout; fail the request and retry instead.
-        printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "5";\n' \
-          | sudo tee /etc/apt/apt.conf.d/99ci-network >/dev/null
-        # The runner image as GitHub names it (ImageOS, ImageVersion); the
-        # installed packages stand in where a runner does not say.
-        image_os="${ImageOS:-$(. /etc/os-release && echo "${ID}${VERSION_ID}")}"
-        image_version="${ImageVersion:-$(dpkg-query -W -f '${Package}=${Version}\n' | sort | sha256sum | cut -c1-16)}"
-        # shellcheck disable=SC2086 # one package name per word
-        package_list=$(printf '%s\n' $PACKAGES | sort -u | sha256sum | cut -c1-16)
-        any_image="linux-tauri-deps-v1-${RUNNER_ARCH}-${image_os}-${package_list}-"
-        {
-          echo "this-image=${any_image}${image_version}-"
-          echo "any-image=${any_image}"
-          echo "packages=${PACKAGES}"
-        } >> "$GITHUB_OUTPUT"
-
-    - name: Restore the cached package files
-      id: restore
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      with:
-        path: ${{ runner.temp }}/linux-tauri-deps-apt
-        # Saved keys end in a digest of the files, so both are prefixes:
-        # the newest entry of this image, else of any image.
-        key: ${{ steps.prepare.outputs.this-image }}
-        restore-keys: ${{ steps.prepare.outputs.any-image }}
-
-    - name: Install apt packages
-      id: install
-      shell: bash
-      env:
-        PACKAGES: ${{ steps.prepare.outputs.packages }}
-        CACHE: ${{ runner.temp }}/linux-tauri-deps-apt
-        RESTORED: ${{ steps.restore.outputs.cache-matched-key }}
-        THIS_IMAGE: ${{ steps.prepare.outputs.this-image }}
-      run: |
-        set -euo pipefail
-        read -r -a wanted <<< "$PACKAGES"
-        if compgen -G "${CACHE}/*.deb" >/dev/null; then
-          sudo cp "${CACHE}"/*.deb /var/cache/apt/archives/
-          echo "Restored $(find "$CACHE" -maxdepth 1 -name '*.deb' | wc -l) package files (${RESTORED})."
-        fi
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends -o APT::Keep-Downloaded-Packages=true "${wanted[@]}"
-        # What the mirror no longer offers (versions superseded since the
-        # cache was saved) is dropped, so the cache holds today's files.
-        sudo apt-get autoclean -y >/dev/null
-        files=$(find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -printf '%f\n' | sort)
-        if [ -z "$files" ]; then
-          echo "No package file was kept; nothing to cache."
-          exit 0
-        fi
-        key="${THIS_IMAGE}$(printf '%s\n' "$files" | sha256sum | cut -c1-16)"
-        if [ "$key" = "$RESTORED" ]; then
-          echo "The cache already holds these package files."
-          exit 0
-        fi
-        rm -rf "$CACHE"
-        mkdir -p "$CACHE"
-        find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp {} "$CACHE/" \;
-        echo "save-key=${key}" >> "$GITHUB_OUTPUT"
-
-    - name: Save the package files for the next run
-      if: steps.install.outputs.save-key != '' && github.ref == 'refs/heads/master'
-      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      with:
-        path: ${{ runner.temp }}/linux-tauri-deps-apt
-        key: ${{ steps.install.outputs.save-key }}

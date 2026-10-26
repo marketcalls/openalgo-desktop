@@ -44,10 +44,12 @@ jobs:
   linux:
     name: native e2e (linux x86_64)
     runs-on: ubuntu-22.04
-    # The install below fetches about 40 MB from the runner's Ubuntu mirror,
+    # The install below needs about 40 MB from the runner's Ubuntu mirror,
     # which some nights serves the 27 MB WebKit package alone in 4 to 7
     # minutes (the 1.0.1 and 1.0.2 nights: the 15-minute limit cut the job off
-    # before the journey started). The journey itself takes about 5.
+    # before the journey started). The package files come from the cache
+    # (apt-cached) unless Ubuntu updated them since; the limit leaves room
+    # for a night it did. The journey itself takes about 5.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
@@ -62,19 +64,28 @@ jobs:
         with:
           name: bundles-linux-x86_64
           path: bundles
-      - name: Install the .deb, Xvfb and WebKitWebDriver
+      - name: What the .deb depends on
+        id: deb
         run: |
           set -euo pipefail
-          printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "5";\n' \
-            | sudo tee /etc/apt/apt.conf.d/99ci-network >/dev/null
-          sudo apt-get update
           shopt -s nullglob
           debs=(bundles/deb/*.deb)
           if [ "${#debs[@]}" -ne 1 ]; then
             echo "::error::Expected one .deb, found ${#debs[@]}."
             exit 1
           fi
-          sudo apt-get install -y --no-install-recommends "./${debs[0]}" xvfb webkit2gtk-driver
+          echo "depends=$(bash scripts/ci/deb_depends.sh "${debs[0]}")" >> "$GITHUB_OUTPUT"
+      - name: Install Xvfb, WebKitWebDriver and the .deb's dependencies
+        uses: ./.github/actions/apt-cached
+        with:
+          name: native-e2e-runtime
+          packages: xvfb webkit2gtk-driver ${{ steps.deb.outputs.depends }}
+      - name: Install the .deb
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          debs=(bundles/deb/*.deb)
+          sudo apt-get install -y --no-install-recommends "./${debs[0]}"
           command -v WebKitWebDriver
       - name: Install tauri-driver and selenium
         run: |

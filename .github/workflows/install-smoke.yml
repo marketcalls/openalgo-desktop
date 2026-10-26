@@ -82,12 +82,8 @@ jobs:
         with:
           name: bundles-linux-${{ matrix.name }}
           path: bundles
-      - name: Bound apt network waits
-        run: |
-          printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "5";\n' \
-            | sudo tee /etc/apt/apt.conf.d/99ci-network >/dev/null
-          sudo apt-get update
-      - name: Install the .deb (apt resolves its Depends)
+      - name: What the .deb depends on
+        id: deb
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -96,7 +92,21 @@ jobs:
             echo "::error::Expected one .deb, found ${#debs[@]}."
             exit 1
           fi
-          sudo apt-get install -y --no-install-recommends "./${debs[0]}" xvfb
+          echo "depends=$(bash scripts/ci/deb_depends.sh "${debs[0]}")" >> "$GITHUB_OUTPUT"
+      - name: Install Xvfb and the .deb's dependencies
+        # The 27 MB WebKitGTK runtime among them, from cached package files
+        # unless Ubuntu updated them since: a slow mirror held the native
+        # E2E job's same download past its limit (apt-cached).
+        uses: ./.github/actions/apt-cached
+        with:
+          name: install-smoke-runtime
+          packages: xvfb ${{ steps.deb.outputs.depends }}
+      - name: Install the .deb (apt checks its Depends)
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          debs=(bundles/deb/*.deb)
+          sudo apt-get install -y --no-install-recommends "./${debs[0]}"
           dpkg -L open-algo-desktop | grep -E '^/usr/bin/'
       - name: The installed binary is not the E2E test build
         # src-tauri/src/e2e.rs: the test-only build signs in to a scripted

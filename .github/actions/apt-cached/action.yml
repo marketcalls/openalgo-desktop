@@ -1,0 +1,105 @@
+name: apt install with cached package files
+description: >
+  Installs Ubuntu packages with apt, restoring the package files (.deb) an
+  earlier run downloaded, so a slow Ubuntu mirror only costs time for the
+  packages it updated since. The cache is per runner image and package list.
+
+# Why a cache of package files (.deb), and not of the lists or the installed
+# files: on 2026-10-22 rust-lint's apt step took 19 minutes, all of it
+# downloading 52.8 MB of packages at 46 kB/s; `apt-get update` (13 MB)
+# took 2 s. The native E2E job's 27 MB WebKitGTK runtime came down as slowly
+# on the 1.0.1 and 1.0.2 nights and the job hit its time limit twice. With
+# the files restored, apt still reads fresh lists, installs the current
+# version of every package and checks each file against them, and downloads
+# only what changed. A file from the cache that is no longer current is
+# ignored, so a stale or another image's cache is never wrong, only less
+# useful. Saved from master only (pull requests and tags restore it), under
+# a key naming the files, so a new entry appears only when Ubuntu updated
+# one of them.
+
+inputs:
+  name:
+    description: The cache's name, the start of every key it is saved under.
+    required: true
+  packages:
+    description: The packages to install, by name, separated by spaces.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Bound apt network waits and name the package cache
+      id: prepare
+      shell: bash
+      env:
+        NAME: ${{ inputs.name }}
+        PACKAGES: ${{ inputs.packages }}
+      run: |
+        set -euo pipefail
+        # A stalled Ubuntu mirror otherwise holds apt-get until the job
+        # timeout; fail the request and retry instead.
+        printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "5";\n' \
+          | sudo tee /etc/apt/apt.conf.d/99ci-network >/dev/null
+        # The runner image as GitHub names it (ImageOS, ImageVersion); the
+        # installed packages stand in where a runner does not say.
+        image_os="${ImageOS:-$(. /etc/os-release && echo "${ID}${VERSION_ID}")}"
+        image_version="${ImageVersion:-$(dpkg-query -W -f '${Package}=${Version}\n' | sort | sha256sum | cut -c1-16)}"
+        # shellcheck disable=SC2086 # one package name per word
+        package_list=$(printf '%s\n' $PACKAGES | sort -u | sha256sum | cut -c1-16)
+        any_image="${NAME}-v1-${RUNNER_ARCH}-${image_os}-${package_list}-"
+        {
+          echo "this-image=${any_image}${image_version}-"
+          echo "any-image=${any_image}"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Restore the cached package files
+      id: restore
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/${{ inputs.name }}-apt
+        # Saved keys end in a digest of the files, so both are prefixes:
+        # the newest entry of this image, else of any image.
+        key: ${{ steps.prepare.outputs.this-image }}
+        restore-keys: ${{ steps.prepare.outputs.any-image }}
+
+    - name: Install apt packages
+      id: install
+      shell: bash
+      env:
+        PACKAGES: ${{ inputs.packages }}
+        CACHE: ${{ runner.temp }}/${{ inputs.name }}-apt
+        RESTORED: ${{ steps.restore.outputs.cache-matched-key }}
+        THIS_IMAGE: ${{ steps.prepare.outputs.this-image }}
+      run: |
+        set -euo pipefail
+        read -r -a wanted <<< "$PACKAGES"
+        if compgen -G "${CACHE}/*.deb" >/dev/null; then
+          sudo cp "${CACHE}"/*.deb /var/cache/apt/archives/
+          echo "Restored $(find "$CACHE" -maxdepth 1 -name '*.deb' | wc -l) package files (${RESTORED})."
+        fi
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends -o APT::Keep-Downloaded-Packages=true "${wanted[@]}"
+        # What the mirror no longer offers (versions superseded since the
+        # cache was saved) is dropped, so the cache holds today's files.
+        sudo apt-get autoclean -y >/dev/null
+        files=$(find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -printf '%f\n' | sort)
+        if [ -z "$files" ]; then
+          echo "No package file was kept; nothing to cache."
+          exit 0
+        fi
+        key="${THIS_IMAGE}$(printf '%s\n' "$files" | sha256sum | cut -c1-16)"
+        if [ "$key" = "$RESTORED" ]; then
+          echo "The cache already holds these package files."
+          exit 0
+        fi
+        rm -rf "$CACHE"
+        mkdir -p "$CACHE"
+        find /var/cache/apt/archives -maxdepth 1 -name '*.deb' -exec cp {} "$CACHE/" \;
+        echo "save-key=${key}" >> "$GITHUB_OUTPUT"
+
+    - name: Save the package files for the next run
+      if: steps.install.outputs.save-key != '' && github.ref == 'refs/heads/master'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/${{ inputs.name }}-apt
+        key: ${{ steps.install.outputs.save-key }}
