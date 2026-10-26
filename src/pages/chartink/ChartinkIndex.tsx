@@ -129,10 +129,10 @@ export default function ChartinkIndex() {
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Webhook URL not accessible!</AlertTitle>
           <AlertDescription>
-            Chartink cannot send alerts to localhost. Use <strong>ngrok</strong>,{' '}
-            <strong>Cloudflare Tunnel</strong>, <strong>VS Code Dev Tunnel</strong>, or a{' '}
-            <strong>custom domain</strong> to expose OpenAlgo Desktop to the internet, then enter
-            that address as the Host Server URL on the Broker tab of your Profile.
+            Chartink cannot send alerts to localhost. Turn on the{' '}
+            <strong>built-in ngrok tunnel</strong> on the Broker tab of your Profile, or use{' '}
+            <strong>Cloudflare Tunnel</strong>, <strong>VS Code Dev Tunnel</strong> or a{' '}
+            <strong>custom domain</strong> and enter that address as the Host Server URL there.
           </AlertDescription>
         </Alert>
       )}

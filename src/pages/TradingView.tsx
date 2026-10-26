@@ -237,10 +237,9 @@ export default function TradingView() {
           <AlertTriangle className="h-5 w-5" />
           <AlertDescription className="ml-2">
             <strong>Webhook URL not accessible!</strong> TradingView cannot send alerts to
-            localhost. Use <strong>ngrok</strong>, <strong>Cloudflare Tunnel</strong>,{' '}
-            <strong>VS Code Dev Tunnel</strong>, or a <strong>custom domain</strong> to expose your
-            OpenAlgo Desktop to the internet, then enter that address as the Host Server URL on the
-            Broker tab of your Profile.
+            localhost. Turn on the <strong>built-in ngrok tunnel</strong> on the Broker tab of your
+            Profile, or use <strong>Cloudflare Tunnel</strong>, <strong>VS Code Dev Tunnel</strong>{' '}
+            or a <strong>custom domain</strong> and enter that address as the Host Server URL there.
           </AlertDescription>
         </Alert>
       )}

@@ -188,13 +188,37 @@ Broker sign-in still has to be done on the computer running OpenAlgo: the
 broker sends you back to `127.0.0.1`, which on another device means that
 device, not this computer.
 
-**Using a tunnel (ngrok, Cloudflare Tunnel) for TradingView or Chartink
-alerts.** Enter the tunnel's public address as **Host Server URL** under
-**Server Configuration** on the Broker tab in Profile. Requests that arrive
-through a tunnel whose address is not entered there are refused. When you
-stop using the tunnel, choose **Use automatic address** under the field (or
-clear it) and save, so OpenAlgo goes back to its own address on this
-computer, including after a later port change.
+**The built-in ngrok tunnel for TradingView, Chartink or GoCharting
+alerts.** Its status is shown under **Server Configuration** on the Broker
+tab in Profile:
+
+- **Add your ngrok authtoken to start the tunnel**: paste it from **Your
+  Authtoken** in the ngrok dashboard and choose **Save authtoken and
+  domain**.
+- **ngrok did not accept the authtoken**: copy it again from the ngrok
+  dashboard (a revoked or mistyped one is refused) and save it.
+- **Your ngrok account cannot use the domain**: the domain must be reserved
+  on your ngrok account under **Domains**; clear it to use the address ngrok
+  gives your account.
+- **Your ngrok tunnel is in use by another ngrok agent**: an ngrok program
+  (on this or another computer, or OpenAlgo web) holds your account's
+  tunnel. Stop it; OpenAlgo keeps trying.
+- **Cannot reach ngrok**: check the internet connection and any firewall or
+  proxy; OpenAlgo keeps trying, at least every 30 seconds.
+
+The first time a browser opens a free-plan ngrok address, ngrok shows its
+own notice page; choose **Visit Site**. TradingView and the other alert
+services are not shown that page. Only alerts, API calls and AI clients are
+served through the built-in tunnel; the OpenAlgo pages stay on this
+computer.
+
+**Using your own tunnel (Cloudflare Tunnel, ngrok you run yourself).** Enter
+the tunnel's public address as **Host Server URL** under **Server
+Configuration** on the Broker tab in Profile. Requests that arrive through a
+tunnel whose address is not entered there are refused. When you stop using
+the tunnel, choose **Use automatic address** under the field (or clear it)
+and save, so OpenAlgo goes back to its own address on this computer,
+including after a later port change.
 
 Everything that arrives through a tunnel or proxy on this computer is treated
 as coming from the internet, never from this computer:
@@ -211,7 +235,8 @@ as coming from the internet, never from this computer:
   are counted per key or address tried, so a stranger's attempts never block
   your own alerts or your correct key. Your own programs on this computer are
   not affected by what tunnel callers do.
-- Signing in through the tunnel works only from the OpenAlgo page itself.
+- Signing in through your own tunnel works only from the OpenAlgo page
+  itself; through the built-in tunnel it does not work at all.
 - A plain port forwarder that adds no forwarding header (for example `socat`
   or `ssh -R`) makes its callers look like programs on this computer. Use a
   tunnel that adds one, such as ngrok or Cloudflare Tunnel.

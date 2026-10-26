@@ -33,8 +33,14 @@ a new value to replace it. Choosing another broker in the list clears
 whatever you typed, so nothing typed for one broker is saved under another.
 
 **Redirect URL.** For brokers that sign in on their own website, the page
-fills in the redirect URL automatically: this app's address, or your Host
-Server URL while the tunnel (ngrok) is on. You can type another address; it
+fills in the redirect URL automatically: this app's address, the built-in
+ngrok tunnel's address while it is online, or your Host Server URL while
+**Enable Ngrok Tunnel** is on. The address must match the one registered
+with your broker, so if you turn the tunnel on after registering
+`http://127.0.0.1:5000/<broker>/callback`, either register the tunnel's
+address with the broker too or save the `127.0.0.1` address here as a fixed
+one. A sign-in that comes back through the tunnel is passed on to this
+computer and finishes as usual. You can type another address; it
 must be a full address ending in `/<broker>/callback`. **Use automatic**
 goes back to the automatic address (an empty field means automatic too).
 The redirect URL is kept with that broker's keys.

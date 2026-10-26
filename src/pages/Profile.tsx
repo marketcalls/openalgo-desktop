@@ -23,6 +23,8 @@ import { Link } from 'react-router'
 import { type BrokerList, brokerConfigApi } from '@/api/broker-config'
 import { webClient } from '@/api/client'
 import TwoFactorEnforcement from '@/components/auth/TwoFactorEnforcement'
+// Desktop: the built-in ngrok tunnel (authtoken, domain, status).
+import { NgrokTunnelSettings } from '@/components/desktop/NgrokTunnelSettings'
 // Desktop: where the web's SMTP and System tabs are answered instead.
 import { ProfileDesktopNote } from '@/components/desktop/ProfileDesktopNote'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -767,8 +769,9 @@ export default function ProfilePage() {
             <CardHeader>
               <CardTitle>Server Configuration</CardTitle>
               <CardDescription>
-                Configure ngrok for receiving webhook alerts from external services like
-                TradingView, Chartink, GoCharting, etc.
+                Receive webhook alerts from external services like TradingView, Chartink and
+                GoCharting through the built-in ngrok tunnel, or through a tunnel you run yourself
+                (enter its address as the Host Server URL).
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -786,6 +789,8 @@ export default function ProfilePage() {
                 )}
               </div>
 
+              <NgrokTunnelSettings />
+
               <div className="space-y-2">
                 <Label htmlFor="profile-host-server">Host Server URL</Label>
                 <Input
@@ -795,7 +800,8 @@ export default function ProfilePage() {
                   placeholder="https://your-domain.ngrok-free.app"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Your ngrok domain or custom domain for receiving webhooks.
+                  The public address of this app for receiving webhooks. While the built-in tunnel
+                  is online, its address is used instead.
                 </p>
                 {hostServerEdited && hostServer.trim() && (
                   <Badge variant="outline" className="text-yellow-600">
