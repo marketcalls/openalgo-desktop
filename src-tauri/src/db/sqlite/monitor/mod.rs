@@ -1036,6 +1036,36 @@ mod tests {
         assert_eq!(b[0].ban_count, 3);
     }
 
+    /// The Repeat Limit is the number of bans before the permanent one, as
+    /// the Security page says (the web makes the limit-th ban permanent),
+    /// and an automatic ban is never made permanent by it (docs-47).
+    #[test]
+    fn the_repeat_limit_counts_the_bans_before_the_permanent_one() {
+        let c = db();
+        let by_hand = Ban {
+            ip: "10.0.0.7",
+            reason: "x",
+            duration_hours: Some(1),
+            permanent: false,
+            created_by: "manual",
+        };
+        let permanent = |c: &Connection| all_bans(c, now()).unwrap()[0].is_permanent;
+        assert!(ban_ip(&c, by_hand, now(), 2).unwrap());
+        assert!(ban_ip(&c, by_hand, now(), 2).unwrap());
+        assert!(!permanent(&c), "the second of a limit of 2 still expires");
+        assert!(ban_ip(&c, by_hand, now(), 2).unwrap());
+        assert!(permanent(&c), "the third is permanent");
+
+        let c = db();
+        for hour in 0..5 {
+            let later = now() + Duration::hours(2 * hour);
+            assert!(auto_ban(&c, "10.0.0.8", "x", Some(1), later, &[], 10).unwrap());
+        }
+        let b = all_bans(&c, now() + Duration::hours(8)).unwrap();
+        assert_eq!(b[0].ban_count, 5);
+        assert!(!b[0].is_permanent, "an automatic ban always expires");
+    }
+
     #[test]
     fn trackers_restart_after_a_day_and_keep_50_paths() {
         let c = db();

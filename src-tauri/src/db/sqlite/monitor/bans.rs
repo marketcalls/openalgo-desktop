@@ -49,8 +49,13 @@ pub struct Ban<'a> {
     pub created_by: &'a str,
 }
 
-/// Ban (or re-ban) an address. A fifth ban, or `repeat_limit` bans, makes it
-/// permanent as on the web. Loopback is never banned.
+/// Ban (or re-ban) an address. Loopback is never banned. A ban past
+/// `repeat_limit` bans of the address is permanent: the Security page's
+/// Repeat Limit ("Number of bans before permanent ban") for the bans the
+/// trader enters there. Automatic bans pass no limit (`auto_ban`), so they
+/// always expire. The web makes the `repeat_limit`-th ban permanent
+/// (`ban_count >= repeat_limit`), one ban sooner than its page says, and
+/// applies it to automatic bans too.
 pub fn ban_ip(
     conn: &Connection,
     ban: Ban<'_>,

@@ -408,7 +408,10 @@ fn write_batch(ctx: &AppState, batch: &[Record]) -> crate::error::Result<WriteOu
     Ok(out)
 }
 
-/// Web convention: 0 hours means permanent.
+/// An automatic ban's duration setting: 0 gives none, so the ban lasts
+/// `AUTO_BAN_DEFAULT_HOURS` (`store::auto_ban`). On the web 0 makes it
+/// permanent; here an automatic ban always expires (G3), and the Security
+/// page offers 0 as "Default (24 hours)".
 fn hours(h: i64) -> Option<i64> {
     (h > 0).then_some(h)
 }

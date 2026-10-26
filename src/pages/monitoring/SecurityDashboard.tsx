@@ -793,7 +793,8 @@ export default function SecurityDashboard() {
                   auto-ban
                 </p>
                 <p>
-                  <strong>Repeat Limit:</strong> Number of bans before permanent ban
+                  <strong>Repeat Limit:</strong> Number of bans before permanent ban, for the bans
+                  you enter on this page. Automatic bans always expire.
                 </p>
               </div>
             </CardContent>
