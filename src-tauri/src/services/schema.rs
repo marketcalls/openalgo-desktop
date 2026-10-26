@@ -349,8 +349,6 @@ pub enum Kind {
 #[derive(Clone)]
 pub struct Field {
     pub name: &'static str,
-    /// JSON key when it differs from `name` (`data_key`).
-    pub data_key: Option<&'static str>,
     pub kind: Kind,
     pub required: bool,
     /// `load_default` / `missing`.
@@ -363,7 +361,6 @@ impl Field {
     pub fn new(name: &'static str, kind: Kind) -> Self {
         Self {
             name,
-            data_key: None,
             kind,
             required: false,
             default: None,
@@ -416,18 +413,9 @@ impl Field {
         self
     }
 
-    pub fn data_key(mut self, key: &'static str) -> Self {
-        self.data_key = Some(key);
-        self
-    }
-
     pub fn validate(mut self, v: Validator) -> Self {
         self.validators.push(v);
         self
-    }
-
-    fn key(&self) -> &'static str {
-        self.data_key.unwrap_or(self.name)
     }
 }
 
@@ -472,7 +460,7 @@ impl Schema {
         let mut errs = FieldErrors::default();
         let mut out = Map::new();
         for f in &self.fields {
-            let key = f.key();
+            let key = f.name;
             match data.get(key) {
                 None => {
                     if f.required {
@@ -514,7 +502,7 @@ impl Schema {
             }
         }
         if self.unknown == Unknown::Raise {
-            let known: Vec<&str> = self.fields.iter().map(|f| f.key()).collect();
+            let known: Vec<&str> = self.fields.iter().map(|f| f.name).collect();
             for k in data.keys() {
                 if !known.contains(&k.as_str()) {
                     errs.add(k, "Unknown field.");

@@ -769,54 +769,6 @@ schema!(
     ])
 );
 
-/// `validate_date_or_timestamp`.
-fn date_or_timestamp(v: &Value) -> Result<(), String> {
-    let ok = v
-        .as_str()
-        .map(|s| {
-            let date = s.len() == 10
-                && s.as_bytes()[4] == b'-'
-                && s.as_bytes()[7] == b'-'
-                && s.chars().enumerate().all(|(i, c)| {
-                    if i == 4 || i == 7 {
-                        c == '-'
-                    } else {
-                        c.is_ascii_digit()
-                    }
-                });
-            let ts = (10..=13).contains(&s.len()) && s.chars().all(|c| c.is_ascii_digit());
-            date || ts
-        })
-        .unwrap_or(false);
-    if ok {
-        Ok(())
-    } else {
-        Err("Field must be a string in 'YYYY-MM-DD' format or a numeric timestamp.".to_string())
-    }
-}
-
-schema!(
-    ticker,
-    Schema::new(vec![
-        apikey(),
-        Field::str("symbol").required(),
-        Field::str("interval")
-            .required()
-            .validate(Validator::one_of(&[
-                "1m", "5m", "15m", "30m", "1h", "4h", "D", "W", "M"
-            ])),
-        Field::str("from_")
-            .data_key("from")
-            .required()
-            .validate(Validator::Custom(date_or_timestamp)),
-        Field::str("to")
-            .required()
-            .validate(Validator::Custom(date_or_timestamp)),
-        Field::boolean("adjusted"),
-        Field::str("sort").validate(Validator::one_of(&["asc", "desc"])),
-    ])
-);
-
 schema!(
     search,
     Schema::new(vec![
@@ -1130,26 +1082,5 @@ mod tests {
         for bad in ["ITM0", "OTM51", "ITM", "XYZ", "ITM01", "OTM1.5"] {
             assert!(!option_offset_valid(bad), "{}", bad);
         }
-    }
-
-    #[test]
-    fn ticker_dates() {
-        let ok = ticker()
-            .load(&obj(
-                json!({"apikey": "k", "symbol": "NSE:SBIN", "interval": "D",
-                "from": "2026-01-01", "to": "1790048700"}),
-            ))
-            .unwrap();
-        assert_eq!(ok["from_"], json!("2026-01-01"));
-        let e = ticker()
-            .load(&obj(
-                json!({"apikey": "k", "symbol": "NSE:SBIN", "interval": "D",
-                "from": "01-01-2026", "to": "2026-01-02"}),
-            ))
-            .unwrap_err();
-        assert_eq!(
-            e.messages("from"),
-            ["Field must be a string in 'YYYY-MM-DD' format or a numeric timestamp."]
-        );
     }
 }
