@@ -557,6 +557,7 @@ pub async fn layer(State(ctx): State<Arc<AppState>>, req: Request, next: Next) -
     };
     let status = resp.status();
     let elapsed_ms = ms_since(started);
+    let (resp, error) = refusal_reason(resp).await;
 
     if status == StatusCode::FORBIDDEN && path.starts_with("/api/v1/") {
         ctx.monitor.send(Record::InvalidKey { ip: ip.clone() });
@@ -575,9 +576,29 @@ pub async fn layer(State(ctx): State<Arc<AppState>>, req: Request, next: Next) -
         status_code: status.as_u16() as i64,
         duration_ms: elapsed_ms,
         host,
-        error: None,
+        error,
     }));
     resp
+}
+
+/// Why a reply of 400 or above refused the request, for the traffic log's
+/// Error column: the message of a small JSON reply (`message`, or `error`
+/// on the pages' replies; field errors as their JSON text). The web fills
+/// the column only when its handler raised an exception, so a refusal there
+/// carries no reason and the column is nearly always empty; here it says
+/// why, as the latency log does for `/api/v1`.
+async fn refusal_reason(resp: Response) -> (Response, Option<String>) {
+    if !(resp.status().is_client_error() || resp.status().is_server_error()) {
+        return (resp, None);
+    }
+    let (resp, body) = scan_body(resp).await;
+    let said = |k: &str| match body.as_ref()?.get(k)? {
+        Value::String(s) => Some(s.clone()),
+        fields @ (Value::Object(_) | Value::Array(_)) => Some(fields.to_string()),
+        _ => None,
+    };
+    let reason = said("message").or_else(|| said("error"));
+    (resp, reason)
 }
 
 fn ms_since(t: Instant) -> f64 {

@@ -204,6 +204,56 @@ async fn traffic_logger_records_requests_without_queries_or_bodies() {
         .starts_with("Timestamp,Client IP,Method,Path"));
 }
 
+/// The traffic log's Error column says why a request was refused: the
+/// reason an `/api/v1` or page reply gave, or a validation reply's field
+/// errors. It was always empty (docs-48); the web fills it only for an
+/// exception its handler raised.
+#[tokio::test]
+async fn the_traffic_log_says_why_a_request_was_refused() {
+    let (h, c, t) = signed_in();
+    let timings = |body| req(Method::POST, "/api/v1/market/timings", Some(body));
+    h.send(timings(json!({"apikey": "wrong", "date": "2026-10-01"})))
+        .await;
+    h.send(timings(json!({"date": "2026-10-01"}))).await;
+    let unban = req(
+        Method::POST,
+        "/security/unban",
+        Some(json!({"ip_address": "192.168.1.77"})),
+    );
+    h.send(with(unban, &c, Some(&t))).await;
+
+    let (s, v) = h
+        .json(with(get("/traffic/api/logs?limit=50"), &c, None))
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let rows = v.as_array().unwrap();
+    let error_of = |path: &str, status: u16| {
+        rows.iter()
+            .find(|r| r["path"] == path && r["status_code"] == status)
+            .map(|r| r["error"].clone())
+            .unwrap_or_else(|| panic!("no {} {} in {}", status, path, v))
+    };
+    assert_eq!(
+        error_of("/api/v1/market/timings", 403),
+        "Invalid openalgo apikey"
+    );
+    assert_eq!(
+        error_of("/api/v1/market/timings", 400),
+        r#"{"apikey":["Missing data for required field."]}"#
+    );
+    assert_eq!(error_of("/security/unban", 404), "IP not found in ban list");
+    for r in rows
+        .iter()
+        .filter(|r| r["status_code"].as_u64() < Some(400))
+    {
+        assert_eq!(r["error"], serde_json::Value::Null, "{}", r);
+    }
+    let (_, _, csv) = h.send(with(get("/traffic/export"), &c, None)).await;
+    assert!(String::from_utf8(csv)
+        .unwrap()
+        .contains("IP not found in ban list"));
+}
+
 #[tokio::test]
 async fn api_calls_are_timed_for_the_latency_dashboard() {
     let (h, c, _) = signed_in();
