@@ -347,3 +347,56 @@ async fn an_unanswered_heartbeat_ends_the_session_at_its_deadline() {
         run.at
     );
 }
+
+const KOTAK_LOGIN_OK: &str =
+    r#"{"message_code":1119,"exchanges":{"nse_cm":{"value":1,"divider":100}}}"#;
+
+fn kotak() -> Box<dyn BrokerFeed> {
+    Box::new(crate::brokers::kotak::streaming::KotakFeed::new(
+        "wss://example.invalid/feed",
+        "sid",
+        "<USER_ID>".into(),
+        crate::brokers::common::symbols::SymbolResolver::new(),
+    ))
+}
+
+/// Kotak's market feed pings every 30 s, as the web does
+/// (`sfeed_websocket.py`: `run_forever(ping_interval=30, ping_timeout=10)`).
+/// Without it a quiet five minutes (an illiquid contract, the market
+/// closed) went past the 90 s stall watchdog, which dropped the socket and
+/// reconnected, and the trader saw prices lag each time.
+#[tokio::test(start_paused = true)]
+async fn kotak_pings_every_30_s_and_a_quiet_broker_keeps_the_feed() {
+    let socket = Socket {
+        take: usize::MAX,
+        answers_pings: true,
+        limit: Duration::from_secs(400),
+    };
+    let run = run_on(kotak(), socket, vec![(1, KOTAK_LOGIN_OK)], Some(310)).await;
+    assert_eq!(run.end, Some("stopped"), "sent {:?}", run.sent);
+    let pings: Vec<u64> = run
+        .sent
+        .iter()
+        .filter(|(_, f)| f == "<ping>")
+        .map(|(at, _)| at.as_secs())
+        .collect();
+    assert_eq!(pings, (1..=10).map(|n| n * 30).collect::<Vec<_>>());
+}
+
+/// A Kotak socket that stops answering is replaced 10 s after the ping it
+/// left unanswered, not after the 90 s stall watchdog.
+#[tokio::test(start_paused = true)]
+async fn kotak_replaces_a_socket_that_leaves_a_ping_unanswered() {
+    let socket = Socket {
+        take: usize::MAX,
+        answers_pings: false,
+        limit: Duration::from_secs(400),
+    };
+    let run = run_on(kotak(), socket, vec![(1, KOTAK_LOGIN_OK)], None).await;
+    assert_eq!(run.end, Some("heartbeat_unanswered"), "sent {:?}", run.sent);
+    assert!(
+        run.at >= Duration::from_secs(40) && run.at <= Duration::from_millis(40_050),
+        "ended at {:?}",
+        run.at
+    );
+}

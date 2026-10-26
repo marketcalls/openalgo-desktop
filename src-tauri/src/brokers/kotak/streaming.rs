@@ -12,6 +12,7 @@
 //! * `{"event": "subscribeScrips"|"subscribeDepth"|"subscribeIndices",
 //!   "inputtoken": "nse_cm|11536,nse_cm|1594", "ack_symbol": true}` and the
 //!   `unsubscribe*` twins; acks (1109) map `seg|token` to trading symbols.
+//! * keepalive: a WebSocket ping every 30 s, answered within 10 s.
 //!
 //! Binary frames are little-endian, several packets per frame, each
 //! starting with its `u16` length. Header (9 bytes): `u16 length @0, u16 code
@@ -40,14 +41,15 @@
 use super::data::{index_candidates, kotak_segment};
 use super::feed_config::{lookup_feed_url, FeedLookup};
 use crate::brokers::common::streaming::{
-    now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, PrepareError, WsRequest,
+    now_ms, ping, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
+    NormalizedTick, PrepareError, WsRequest, WEB_PING_INTERVAL, WEB_PING_TIMEOUT,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::time::Duration;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
 pub const HEADER_SIZE: usize = 9;
@@ -896,6 +898,17 @@ impl BrokerFeed for KotakFeed {
 
     fn awaits_auth_ack(&self) -> bool {
         true
+    }
+
+    /// The web pings the feed every 30 s and drops a socket that has not
+    /// answered 10 s later (`sfeed_websocket.py`: `run_forever(
+    /// ping_interval=30, ping_timeout=10)`).
+    fn heartbeat(&self) -> Option<(Duration, Message)> {
+        Some((WEB_PING_INTERVAL, ping()))
+    }
+
+    fn heartbeat_reply_timeout(&self) -> Option<Duration> {
+        Some(WEB_PING_TIMEOUT)
     }
 
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
