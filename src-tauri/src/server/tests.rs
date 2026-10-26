@@ -231,6 +231,8 @@ mod credentials_lifecycle;
 mod key_vault;
 // NEW-SEC-01: browser origins compared whole, apart from Host names.
 mod origin;
+// docs-1, docs-19: each /api/v1 endpoint in its own window, at the web's limit.
+mod api_limits;
 
 // ------------------------------------------------------------------ fixtures
 

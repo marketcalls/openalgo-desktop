@@ -2910,7 +2910,7 @@ async fn s02_rotating_through_our_own_ipv6_network_hits_the_aggregate_cap() {
     // The network's request windows are spent by the invalid traffic (the
     // resource guard and the /api/v1 window); a neighbour with a valid key
     // is still served: shared windows refuse only invalid credentials.
-    for bucket in [Bucket::Guard, Bucket::Api] {
+    for bucket in [Bucket::Guard, Bucket::for_api_path("/api/v1/ping")] {
         let (limit, _) = bucket.limit();
         assert!(
             h.ctx().limiter.hits(bucket, net, now)

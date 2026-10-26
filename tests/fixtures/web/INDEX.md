@@ -330,6 +330,7 @@ One JSON object per line: `{ts, iso, direction: send|recv|note, message|raw, ...
 
 ### Rate limiting
 - `API_RATE_LIMIT` on this instance is `100 per second` (env; code default 10/s for ping, 50/s elsewhere), flask-limiter moving-window, in-memory, keyed by remote address. Order endpoints use `ORDER_RATE_LIMIT=10 per second`. A burst of 103 pings completed in 2.6 s with zero 429s (server throughput < limit), so the 429 body was not observable; per flask-limiter defaults it would be `429 {"message": "..."}`.
+- Each route's `@limiter.limit` counts in a window of its own per address: Flask-Limiter 4.1.1 (the web's pin) scopes a route limit by its endpoint (`RuntimeLimit.scope_for`). Read from source, not recorded (2026-10-26, docs-19). The other limits the decorators read: `SMART_ORDER_RATE_LIMIT` 10/s, `GREEKS_RATE_LIMIT` 30/min (optiongreeks, not in `.sample.env`), `TELEGRAM_RATE_LIMIT` 30/min, telegram/broadcast 5/min, `WHATSAPP_RATE_LIMIT` 30/min; the Telegram webhook has none (the desktop keeps the general limit on it as a resource guard).
 
 ### Date / time formats (four different ones)
 - Request dates: `start_date`/`end_date`/`from`/`to`/`market/timings.date` = `YYYY-MM-DD`. `expiry_date` for optionsymbol/optionchain/syntheticfuture = `DDMMMYY` (`06OCT26`).

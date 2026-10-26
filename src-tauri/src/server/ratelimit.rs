@@ -2,9 +2,7 @@
 //!
 //! | Bucket       | Limit           | Applies to                                        |
 //! |--------------|-----------------|---------------------------------------------------|
-//! | Api          | 100 per second  | every other `/api/v1` route                       |
-//! | Order        | 10 per second   | place/modify/cancel, options orders, GTT writes   |
-//! | SmartOrder   | 10 per second   | placesmartorder                                   |
+//! | Api          | per endpoint    | each `/api/v1` route in its own window, at the web's limit on it ([`api_limits`]) |
 //! | LoginMinute  | 5 per minute    | `/auth/login`, `/auth/login/totp`, broker logins  |
 //! | LoginHour    | 25 per hour     | same                                              |
 //! | ApiKeyFail   | 10 per minute   | failed API-key checks; over it the key is not even tried |
@@ -20,6 +18,9 @@
 //! No rate-limit headers are sent (web contract). Memory is bounded: windows
 //! are trimmed on every check and the table is swept when it grows.
 
+mod api_limits;
+
+pub use api_limits::Endpoint;
 use parking_lot::Mutex;
 use std::collections::{HashMap, VecDeque};
 use std::net::IpAddr;
@@ -53,14 +54,7 @@ fn request_window(bucket: Bucket, ip: &IpAddr) -> bool {
         && (minted(ip)
             || matches!(
                 bucket,
-                Bucket::Api
-                    | Bucket::Order
-                    | Bucket::SmartOrder
-                    | Bucket::Guard
-                    | Bucket::StrategyWebhook
-                    | Bucket::ChartinkWebhook
-                    | Bucket::Telegram
-                    | Bucket::TelegramBroadcast
+                Bucket::Api(_) | Bucket::Guard | Bucket::StrategyWebhook | Bucket::ChartinkWebhook
             ))
 }
 
@@ -88,9 +82,8 @@ fn reserved(ip: &IpAddr) -> bool {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Bucket {
-    Api,
-    Order,
-    SmartOrder,
+    /// One `/api/v1` endpoint's window, at the web's limit on it.
+    Api(Endpoint),
     LoginMinute,
     LoginHour,
     /// Failed API keys, MCP tokens and feed keys by caller, one budget for
@@ -110,27 +103,21 @@ pub enum Bucket {
     /// address, caller outside the allowlist) by caller. Spent, it refuses
     /// further invalid attempts early; never a valid webhook address.
     WebhookFail,
-    /// `/api/v1/telegram/*` but the webhook and broadcast (web
-    /// `TELEGRAM_RATE_LIMIT`, 30 per minute).
-    Telegram,
-    /// `/api/v1/telegram/broadcast` (web, 5 per minute): a script cannot
-    /// flood the linked chats.
-    TelegramBroadcast,
 }
 
 impl Bucket {
     pub fn limit(&self) -> (usize, Duration) {
         match self {
-            Bucket::Api => (100, Duration::from_secs(1)),
-            Bucket::Order | Bucket::SmartOrder => (10, Duration::from_secs(1)),
+            Bucket::Api(endpoint) => {
+                let (n, secs) = endpoint.rate().limit();
+                (n, Duration::from_secs(secs))
+            }
             Bucket::LoginMinute => (5, Duration::from_secs(60)),
             Bucket::LoginHour => (25, Duration::from_secs(3600)),
             Bucket::ApiKeyFail => (10, Duration::from_secs(60)),
             Bucket::Guard => (1000, Duration::from_secs(1)),
             Bucket::StrategyWebhook | Bucket::ChartinkWebhook => (100, Duration::from_secs(60)),
             Bucket::WebhookFail => (10, Duration::from_secs(60)),
-            Bucket::Telegram => (30, Duration::from_secs(60)),
-            Bucket::TelegramBroadcast => (5, Duration::from_secs(60)),
         }
     }
 
@@ -144,21 +131,10 @@ impl Bucket {
         }
     }
 
-    /// Which bucket an `/api/v1` path counts against.
+    /// The window an `/api/v1` path counts against: its endpoint's own
+    /// (docs-19).
     pub fn for_api_path(path: &str) -> Bucket {
-        let p = path.trim_start_matches("/api/v1/").trim_end_matches('/');
-        match p {
-            "placesmartorder" => Bucket::SmartOrder,
-            "placeorder" | "modifyorder" | "cancelorder" | "optionsorder" | "optionsmultiorder"
-            | "placegttorder" | "modifygttorder" | "cancelgttorder" => Bucket::Order,
-            // Web `API_RATE_LIMIT` (10 per second) on the strategy routes.
-            p if p.starts_with("strategy/") => Bucket::Order,
-            // Web `restx_api/telegram_bot.py`; the webhook has no limit there.
-            "telegram/broadcast" => Bucket::TelegramBroadcast,
-            "telegram/webhook" => Bucket::Api,
-            p if p.starts_with("telegram/") => Bucket::Telegram,
-            _ => Bucket::Api,
-        }
+        Bucket::Api(api_limits::endpoint_for(path))
     }
 }
 
@@ -723,19 +699,44 @@ mod tests {
         IpAddr::V4(Ipv4Addr::new(10, 0, 0, n))
     }
 
+    /// A route at the general limit (`/api/v1/funds`).
+    fn api() -> Bucket {
+        Bucket::for_api_path("/api/v1/funds")
+    }
+
     #[test]
     fn api_allows_100_per_second_then_429() {
         let rl = RateLimiter::new();
         let t0 = Instant::now();
         for _ in 0..100 {
-            assert!(rl.check(Bucket::Api, ip(1), t0).is_ok());
+            assert!(rl.check(api(), ip(1), t0).is_ok());
         }
-        assert!(rl.check(Bucket::Api, ip(1), t0).is_err());
+        assert!(rl.check(api(), ip(1), t0).is_err());
         // Another IP is unaffected.
-        assert!(rl.check(Bucket::Api, ip(2), t0).is_ok());
+        assert!(rl.check(api(), ip(2), t0).is_ok());
         // Moving window: after a second the oldest hits age out.
         assert!(rl
-            .check(Bucket::Api, ip(1), t0 + Duration::from_millis(1001))
+            .check(api(), ip(1), t0 + Duration::from_millis(1001))
+            .is_ok());
+    }
+
+    /// docs-19: each endpoint counts in its own window, as Flask-Limiter
+    /// scopes a route's limit by its endpoint. Ten places and ten cancels
+    /// in the same instant all pass; the eleventh place does not.
+    #[test]
+    fn each_endpoint_has_its_own_window() {
+        let rl = RateLimiter::new();
+        let t0 = Instant::now();
+        let place = Bucket::for_api_path("/api/v1/placeorder");
+        let cancel = Bucket::for_api_path("/api/v1/cancelorder");
+        for _ in 0..10 {
+            assert!(rl.check(place, ip(1), t0).is_ok());
+            assert!(rl.check(cancel, ip(1), t0).is_ok());
+        }
+        assert!(rl.check(place, ip(1), t0).is_err());
+        assert!(rl.check(cancel, ip(1), t0).is_err());
+        assert!(rl
+            .check(Bucket::for_api_path("/api/v1/modifyorder"), ip(1), t0)
             .is_ok());
     }
 
@@ -757,31 +758,19 @@ mod tests {
             .is_ok());
     }
 
+    /// The 429 body is Flask-Limiter's description of the endpoint's limit.
     #[test]
-    fn order_bucket_and_description() {
-        assert_eq!(Bucket::for_api_path("/api/v1/placeorder"), Bucket::Order);
-        assert_eq!(Bucket::for_api_path("/api/v1/placeorder/"), Bucket::Order);
-        assert_eq!(
-            Bucket::for_api_path("/api/v1/placesmartorder"),
-            Bucket::SmartOrder
-        );
-        assert_eq!(Bucket::for_api_path("/api/v1/funds"), Bucket::Api);
-        assert_eq!(
-            Bucket::for_api_path("/api/v1/telegram/notify"),
-            Bucket::Telegram
-        );
-        assert_eq!(
-            Bucket::for_api_path("/api/v1/telegram/broadcast"),
-            Bucket::TelegramBroadcast
-        );
-        assert_eq!(
-            Bucket::for_api_path("/api/v1/telegram/webhook"),
-            Bucket::Api
-        );
-        assert_eq!(Bucket::Telegram.describe(), "30 per 1 minute");
-        assert_eq!(Bucket::TelegramBroadcast.describe(), "5 per 1 minute");
-        assert_eq!(Bucket::Order.describe(), "10 per 1 second");
-        assert_eq!(Bucket::Api.describe(), "100 per 1 second");
+    fn endpoint_limits_are_described_as_flask_limiter_does() {
+        let describe = |p: &str| Bucket::for_api_path(p).describe();
+        assert_eq!(describe("/api/v1/placeorder"), "10 per 1 second");
+        assert_eq!(describe("/api/v1/placesmartorder"), "10 per 1 second");
+        assert_eq!(describe("/api/v1/funds"), "100 per 1 second");
+        assert_eq!(describe("/api/v1/strategy/start"), "100 per 1 second");
+        assert_eq!(describe("/api/v1/telegram/notify"), "30 per 1 minute");
+        assert_eq!(describe("/api/v1/telegram/broadcast"), "5 per 1 minute");
+        assert_eq!(describe("/api/v1/telegram/webhook"), "100 per 1 second");
+        assert_eq!(describe("/api/v1/optiongreeks"), "30 per 1 minute");
+        assert_eq!(describe("/api/v1/whatsapp/notify"), "30 per 1 minute");
     }
 
     #[test]
@@ -790,11 +779,7 @@ mod tests {
         let t0 = Instant::now();
         for i in 0..(MAX_ENTRIES as u32 + 500) {
             let a = IpAddr::V4(Ipv4Addr::from(i));
-            let _ = rl.check(
-                Bucket::Api,
-                a,
-                t0 + Duration::from_secs(2 * (i as u64 / 1000)),
-            );
+            let _ = rl.check(api(), a, t0 + Duration::from_secs(2 * (i as u64 / 1000)));
         }
         assert!(rl.len() <= MAX_ENTRIES + 1);
     }
@@ -850,7 +835,7 @@ mod tests {
         let addr = |n: u32| IpAddr::V4(Ipv4Addr::from(0x0b00_0000 + n));
         for n in 0..(3 * MAX_ENTRIES as u32) {
             let _ = rl.check(Bucket::Guard, addr(n), t0);
-            let _ = rl.check(Bucket::Api, addr(n), t0);
+            let _ = rl.check(api(), addr(n), t0);
             if n % 3 == 0 {
                 let _ = rl.check(Bucket::WebhookFail, addr(n), t0);
             }
@@ -875,16 +860,16 @@ mod tests {
         }
         for n in 0..100 {
             let fresh = addr(MAX_ENTRIES as u32 + n);
-            assert_eq!(rl.admit(Bucket::Api, fresh, t0), Admission::Allowed);
+            assert_eq!(rl.admit(api(), fresh, t0), Admission::Allowed);
         }
         let next = addr(MAX_ENTRIES as u32 + 500);
         assert!(matches!(
-            rl.admit(Bucket::Api, next, t0),
+            rl.admit(api(), next, t0),
             Admission::OverflowOver(_)
         ));
-        assert!(rl.check(Bucket::Api, next, t0).is_err());
+        assert!(rl.check(api(), next, t0).is_err());
         let local: IpAddr = "127.0.0.1".parse().unwrap();
-        assert_eq!(rl.admit(Bucket::Api, local, t0), Admission::Allowed);
+        assert_eq!(rl.admit(api(), local, t0), Admission::Allowed);
         // Every live failure count is still there.
         assert!(rl.check(Bucket::ApiKeyFail, addr(0), t0).is_ok());
         assert!(rl.len() <= MAX_ENTRIES + 4);

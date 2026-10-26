@@ -203,7 +203,11 @@ pub async fn authorize(ctx: &AppState, key: &str, ip: IpAddr, auth: Auth) -> boo
     // charged per address before the handler).
     if ip == PROXIED_CALLER {
         let now = ctx.limiter.now();
-        let bucket = API_CALL.try_with(|c| c.bucket).unwrap_or(Bucket::Api);
+        // The endpoint the rate layer set; outside it, the window of a
+        // path no route serves.
+        let bucket = API_CALL
+            .try_with(|c| c.bucket)
+            .unwrap_or_else(|_| Bucket::for_api_path(""));
         if ctx
             .limiter
             .check(bucket, limiter_key(ip, "apikey", key), now)

@@ -284,7 +284,7 @@ The request body is validated before the key is checked, so a request with both 
 
 ## Rate Limits
 
-100 requests a second per caller for most endpoints, 10 a second for order endpoints and for `/placesmartorder`, with a moving window and no rate-limit headers. OpenAlgo also paces the orders it sends to your broker. See [Rate limiting](./rate-limiting.md).
+100 requests a second per caller for most endpoints, 10 a second for order endpoints and for `/placesmartorder`, each endpoint in a window of its own, with a moving window and no rate-limit headers. OpenAlgo also paces the orders it sends to your broker. See [Rate limiting](./rate-limiting.md).
 
 ## Client Libraries
 

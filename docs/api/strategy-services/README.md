@@ -165,10 +165,11 @@ own run answers 500 with a sentence saying nothing was closed (the web answers
 
 ## Rate Limits
 
-The nine `/api/v1/strategy/` routes allow **10 requests per second** per caller,
-in a moving window. That is the web's built-in default for these routes; the
-desktop has no `.env`, so it is not raised to 100. An over-limit request gets
-429 with `{"message": "10 per 1 second"}` and no rate-limit headers.
+Each of the nine `/api/v1/strategy/` routes allows **100 requests per second**
+per caller, in a moving window of its own: the web's general limit
+(`API_RATE_LIMIT`) at the value of its sample settings, as for every other
+general endpoint. An over-limit request gets 429 with
+`{"message": "100 per 1 second"}` and no rate-limit headers.
 
 The public webhook allows 100 requests a minute per caller and 100 a minute per
 token. See the [webhook page](./webhook.md).
@@ -349,7 +350,6 @@ Money fields are JSON numbers, never strings.
 | Area | OpenAlgo web | OpenAlgo Desktop |
 |---|---|---|
 | API after a restart | Works as soon as the server is up | 503 until you sign in to the app (keys come from your password) |
-| `/api/v1/strategy/*` rate limit | `API_RATE_LIMIT` from `.env` (100 a second in `.sample.env`) | 10 a second per caller, fixed |
 | History read failure | Empty list, `success` | 500 `An unexpected error occurred` |
 | Stop or close that cannot read its run | 409 | 500 with a sentence saying nothing was closed |
 | An order with no definite broker answer | Not distinguished | `unconfirmed: true` on the leg, order status `unconfirmed`, never re-sent, settled from the order book |

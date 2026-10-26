@@ -290,7 +290,7 @@ the strategy's page if it leaks.
 
 TradingView limits how many alerts you may have and how often they fire,
 depending on your plan. OpenAlgo accepts up to 10 orders and 10 smart orders
-per second.
+per second, each kind counted on its own.
 
 ---
 

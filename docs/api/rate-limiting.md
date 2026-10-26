@@ -8,15 +8,16 @@ The limits are fixed in the app. There is no `.env` file and no setting to chang
 
 A caller is one network address: every program on this computer counts as one caller (127.0.0.1), and each device on your network is its own caller. Callers that come through a tunnel (ngrok, Cloudflare Tunnel) share one identity, so behind a tunnel a valid API key gets a window of its own.
 
-| Group | Limit | Endpoints |
-|-------|-------|-----------|
-| Orders | 10 per second | `/placeorder`, `/modifyorder`, `/cancelorder`, `/optionsorder`, `/optionsmultiorder`, `/placegttorder`, `/modifygttorder`, `/cancelgttorder`, and every `/strategy/*` endpoint |
-| Smart orders | 10 per second | `/placesmartorder` |
-| Telegram | 30 per minute | `/telegram/*`, except the two below |
-| Telegram broadcast | 5 per minute | `/telegram/broadcast` |
-| General | 100 per second | Every other `/api/v1` endpoint: market data, account books, symbols, options analytics, `/cancelallorder`, `/closeposition`, `/basketorder`, `/splitorder`, `/margin`, `/telegram/webhook`, `/whatsapp/notify` and the rest |
+Every endpoint has its own window per caller, as on the web: ten `/placeorder` and ten `/cancelorder` calls in the same second all go through, and so do 100 `/quotes` and 100 `/depth` calls.
 
-All paths are under `http://127.0.0.1:5000/api/v1`.
+| Limit | Endpoints (each in its own window) |
+|-------|------------------------------------|
+| 10 per second | `/placeorder`, `/modifyorder`, `/cancelorder`, `/optionsorder`, `/optionsmultiorder`, `/placegttorder`, `/modifygttorder`, `/cancelgttorder`, `/placesmartorder` |
+| 30 per minute | `/optiongreeks`, `/whatsapp/notify`, and every `/telegram/*` endpoint except the two below |
+| 5 per minute | `/telegram/broadcast` |
+| 100 per second | Every other `/api/v1` endpoint: market data, account books, symbols, the other options analytics, the `/strategy/*` endpoints, `/cancelallorder`, `/closeposition`, `/basketorder`, `/splitorder`, `/margin`, `/telegram/webhook` and the rest |
+
+All paths are under `http://127.0.0.1:5000/api/v1`. `/ticker/<symbol>` is one endpoint, whatever the symbol.
 
 A basket, split or options multi-order counts as one request here, however many orders it places.
 
@@ -93,10 +94,8 @@ Every caller is also limited to 1000 requests a second across the whole app. Pas
 
 ## In the desktop
 
-- In the desktop, one window counts every endpoint of a group together: `/placeorder` and `/cancelorder` share one 10-per-second window per caller, and `/quotes` and `/depth` share the 100-per-second one. The web counts each endpoint in a window of its own.
-- In the desktop, the `/strategy/*` endpoints are in the orders group (10 per second). The web applies its general limit to them (100 per second with its sample settings).
-- In the desktop, `/optiongreeks` and `/whatsapp/notify` are in the general group (100 per second). The web limits them to 30 per minute each.
-- In the desktop, the limits cannot be changed. The web reads them from `.env` (`API_RATE_LIMIT`, `ORDER_RATE_LIMIT`, `SMART_ORDER_RATE_LIMIT`, `WEBHOOK_RATE_LIMIT`).
+- In the desktop, the limits cannot be changed. They are the web's sample settings (`.sample.env`); the web reads them from `.env` (`API_RATE_LIMIT`, `ORDER_RATE_LIMIT`, `SMART_ORDER_RATE_LIMIT`, `WEBHOOK_RATE_LIMIT`, `GREEKS_RATE_LIMIT`, `TELEGRAM_RATE_LIMIT`, `WHATSAPP_RATE_LIMIT`).
+- In the desktop, `/telegram/webhook` has the general limit of 100 per second; the web sets none on it.
 - In the desktop, orders are paced at the broker for every broker, including those the web does not pace (Samco, Tradejini, HDFC Sky, HDFC Securities, Pocketful, 5paisa), and an order that would wait more than 10 seconds is refused with HTTP 400. The web bounds the wait only on a multi-threaded server and answers 429 there.
 - In the desktop, the WebSocket feed limits the messages each client may send; the web reads messages without a limit.
 - In the desktop, the Chartink strategy management pages (create, configure, delete) have no request limit of their own; the web limits them to 200 per minute. They need the signed-in session either way. The web's Flow webhook limit has no counterpart: Flow is not in the desktop.

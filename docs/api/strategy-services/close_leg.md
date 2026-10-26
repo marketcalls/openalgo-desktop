@@ -113,7 +113,7 @@ An error response carries `status` and `message` only.
 | 403 | `Invalid openalgo apikey` |
 | 404 | `Strategy not found` |
 | 409 | `This strategy is not running`, `Run is not active`, `That leg is not open`, the entry is not filled yet, the broker refused the exit, the broker did not confirm the exit, or the run belongs to another broker account or no broker is signed in |
-| 429 | Rate limited (10 a second) |
+| 429 | Rate limited (100 a second) |
 | 500 | `An unexpected error occurred`, or the run's own records could not be read |
 | 503 | OpenAlgo is locked: sign in to the app |
 

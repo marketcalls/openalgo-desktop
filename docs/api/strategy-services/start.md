@@ -166,7 +166,7 @@ Each object in `legs`:
 | 403 | `Invalid openalgo apikey` |
 | 404 | `Strategy not found` |
 | 409 | The strategy is already running, `mode` is `live` on a strategy that has not opted into live trading, or the strategy was changed while it was starting |
-| 429 | Rate limited (10 a second) |
+| 429 | Rate limited (100 a second) |
 | 500 | `An unexpected error occurred` |
 | 503 | OpenAlgo is locked: sign in to the app |
 

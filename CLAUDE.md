@@ -122,7 +122,12 @@ Observed quirks that are part of the contract and must be reproduced, not
 - `/expiry` returns `DD-MMM-YY`; `/optiongreeks` returns `DD-Mon-YYYY`; history
   and ticker candles are epoch seconds; holidays, timings and WebSocket
   timestamps are epoch milliseconds.
-- Rate limit is 100 per second per IP, moving window, no rate-limit headers.
+- Rate limits are per endpoint and per IP (Flask-Limiter scopes a route's
+  limit by its endpoint), moving window, no rate-limit headers, at the web's
+  `.sample.env` values: 100 per second, 10 per second for place, modify and
+  cancel (options orders and GTT writes included) and smart orders, 30 per
+  minute for `optiongreeks`, Telegram and WhatsApp, 5 per minute for the
+  Telegram broadcast (`server::ratelimit::api_limits`).
 
 ## Ports
 

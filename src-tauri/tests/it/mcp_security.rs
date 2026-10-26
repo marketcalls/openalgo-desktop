@@ -151,12 +151,14 @@ async fn one_tokens_fan_out_is_capped_by_its_upstream_budget() {
 async fn internal_calls_pass_the_api_rate_limiter() {
     let m = M::new().await;
     let t = m.token(TokenScope::Read);
-    // Spend the API bucket of the address MCP calls carry (1 s window).
+    // Spend the funds endpoint's window of the address MCP calls carry
+    // (1 s window).
+    let funds = Bucket::for_api_path("/api/v1/funds");
     while m
         .h
         .ctx
         .limiter
-        .check(Bucket::Api, MCP_CALLER, m.h.ctx.limiter.now())
+        .check(funds, MCP_CALLER, m.h.ctx.limiter.now())
         .is_ok()
     {}
     let out = m.output(&t, "get_funds", json!({})).await;

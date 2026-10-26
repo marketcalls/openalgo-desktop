@@ -150,7 +150,7 @@ Each object in `exits`:
 | 403 | `Invalid openalgo apikey` |
 | 404 | `Strategy not found` |
 | 409 | `This strategy is not running`, `Run is not active`, the stop request could not be saved, or exits could not all go out (refused, an unfilled entry, no broker session, another broker account). Read `stop_pending` |
-| 429 | Rate limited (10 a second) |
+| 429 | Rate limited (100 a second) |
 | 500 | `An unexpected error occurred`, or the run's own records could not be read |
 | 503 | OpenAlgo is locked: sign in to the app |
 
