@@ -59,6 +59,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useHostServer } from '@/hooks/useHostServer'
 import { cn } from '@/lib/utils'
 import {
   defaultQtyMode,
@@ -1759,6 +1760,8 @@ function WebhookTab({
 }) {
   const isSignal = strategy.strategy_kind === 'signal'
   const sampleLegId = strategy.legs[0]?.id ?? 1
+  // Desktop: the Host Server URL (or the tunnel's), not this page's address.
+  const hostServer = useHostServer()
 
   return (
     <div className="space-y-4">
@@ -1767,9 +1770,11 @@ function WebhookTab({
           <CardTitle>TradingView webhook</CardTitle>
           <CardDescription>
             The URL carries a per-strategy secret token. The token is shown once on create or
-            rotate, and stored only as a hash. Through a tunnel (ngrok, Cloudflare Tunnel) OpenAlgo
-            cannot see the caller's address, so an IP allowlist does not apply there: keep the URL
-            secret, it is what protects the webhook.
+            rotate, and stored only as a hash. An IP allowlist matches devices on your network only:
+            a call through a tunnel (the built-in ngrok tunnel, Cloudflare Tunnel) or from this
+            computer has no address OpenAlgo can match, so while the list has entries those calls
+            are refused. TradingView reaches OpenAlgo through a tunnel: leave the list empty for it
+            and keep the URL secret, it is what protects the webhook.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -1777,7 +1782,7 @@ function WebhookTab({
             <Label>Webhook URL (token redacted)</Label>
             <Input
               readOnly
-              value={`${window.location.origin}/strategy/webhook/••••••••••••`}
+              value={`${hostServer}/strategy/webhook/••••••••••••`}
               className="font-mono text-xs"
             />
             <p className="text-xs text-muted-foreground">
@@ -2535,6 +2540,8 @@ export default function StrategyDetail() {
   const numId = Number(strategyId)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  // Desktop: webhook addresses use the Host Server URL (or the tunnel's).
+  const hostServer = useHostServer()
 
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [confirmKill, setConfirmKill] = useState(false)
@@ -3048,14 +3055,14 @@ export default function StrategyDetail() {
                 <div className="flex items-center gap-2">
                   <Input
                     readOnly
-                    value={`${window.location.origin}/strategy/webhook/${rotatedToken}`}
+                    value={`${hostServer}/strategy/webhook/${rotatedToken}`}
                     className="font-mono text-xs"
                   />
                   <Button
                     size="sm"
                     onClick={() => {
                       navigator.clipboard.writeText(
-                        `${window.location.origin}/strategy/webhook/${rotatedToken}`
+                        `${hostServer}/strategy/webhook/${rotatedToken}`
                       )
                       showToast.success('Copied URL')
                     }}

@@ -29,6 +29,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { useHostServer } from '@/hooks/useHostServer'
 import { cn } from '@/lib/utils'
 import {
   ATM_OFFSETS,
@@ -1076,6 +1077,8 @@ interface StrategyWizardProps {
 export default function StrategyWizard({ editing }: StrategyWizardProps = {}) {
   const navigate = useNavigate()
   const isEdit = editing != null
+  // Desktop: the webhook address uses the Host Server URL (or the tunnel's).
+  const hostServer = useHostServer()
 
   const initialKind: StrategyKind = editing?.strategy_kind ?? 'batch'
   const storedTab = asTab(editing?.universe_tab)
@@ -2004,14 +2007,14 @@ export default function StrategyWizard({ editing }: StrategyWizardProps = {}) {
                 <div className="flex items-center gap-2">
                   <Input
                     readOnly
-                    value={`${window.location.origin}/strategy/webhook/${revealedToken.token}`}
+                    value={`${hostServer}/strategy/webhook/${revealedToken.token}`}
                     className="font-mono text-xs"
                   />
                   <Button
                     size="sm"
                     onClick={() => {
                       navigator.clipboard.writeText(
-                        `${window.location.origin}/strategy/webhook/${revealedToken.token}`
+                        `${hostServer}/strategy/webhook/${revealedToken.token}`
                       )
                       showToast.success('Copied URL')
                     }}
