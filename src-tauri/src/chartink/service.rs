@@ -200,13 +200,31 @@ fn field_text(v: Option<&Value>) -> Option<String> {
     }
 }
 
+/// A header line such as the page's own example
+/// `ChartinkSymbol,Exchange,Quantity,Product`: its exchange column names
+/// the column, where every stock line holds NSE or BSE.
+fn is_header(parts: &[&str]) -> bool {
+    parts
+        .get(1)
+        .is_some_and(|e| e.trim().eq_ignore_ascii_case("exchange"))
+}
+
+/// The web's bulk format, one `SYMBOL,EXCHANGE,QUANTITY,PRODUCT` per line,
+/// all or nothing. A first line that is a header is skipped: the page shows
+/// one in its example, and the web refused it with "Invalid exchange:
+/// Exchange" (docs-45, a deliberate deviation).
 fn parse_bulk(text: &str) -> Result<Vec<NewMapping>, String> {
     let mut out = Vec::new();
+    let mut first = true;
     for line in text.trim().split('\n') {
         if line.trim().is_empty() {
             continue;
         }
         let parts: Vec<&str> = line.trim().split(',').collect();
+        let first_line = std::mem::replace(&mut first, false);
+        if first_line && is_header(&parts) {
+            continue;
+        }
         if parts.len() != 4 {
             return Err(format!("Invalid format in line: {}", line));
         }
@@ -255,7 +273,13 @@ pub fn configure(ctx: &AppState, user: &str, id: i64, data: &Map<String, Value>)
                 return form_err(400, "The symbols could not be saved");
             }
         }
-        return Reply::ok(json!({"status": "success"}));
+        // The count the page reports ("Added N symbols"); the web sends
+        // none, so its page always said "Added 0" (docs-45). The import is
+        // all or nothing, so nothing failed once it is saved.
+        return Reply::ok(json!({
+            "status": "success",
+            "data": {"added": rows.len(), "failed": 0},
+        }));
     }
     let symbol = field_text(data.get("symbol"));
     let exchange = field_text(data.get("exchange"));

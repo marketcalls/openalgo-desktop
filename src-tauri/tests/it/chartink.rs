@@ -137,6 +137,8 @@ fn positional() -> Value {
     json!({"name": "momentum", "strategy_type": "positional"})
 }
 
+/// Chartink's webhook body (the fields of its sample payload), with an
+/// alert name that holds no keyword.
 fn alert(scan: &str, stocks: &str) -> Value {
     json!({"stocks": stocks, "trigger_prices": "100,200", "triggered_at": "10:00 am",
         "scan_name": scan, "scan_url": "x", "alert_name": "a", "webhook_url": "u"})
@@ -301,13 +303,19 @@ async fn strategy_lifecycle_has_the_web_shapes() {
         req(
             Method::POST,
             &cfg,
-            Some(json!({"symbols": "INFY,NSE,3,CNC\nTCS,BSE,2,MIS\n"})),
+            // docs-45: the page's own example starts with this header line,
+            // which the web refused ("Invalid exchange: Exchange"), and the
+            // page's "Added N symbols" read a count the web never sent.
+            Some(json!({"symbols": "ChartinkSymbol,Exchange,Quantity,Product\nINFY,NSE,3,CNC\nTCS,BSE,2,MIS\n"})),
             Some(&cookie),
             Some(&csrf),
         ),
     )
     .await;
-    assert_eq!(b, json!({"status": "success"}));
+    assert_eq!(
+        b,
+        json!({"status": "success", "data": {"added": 2, "failed": 0}})
+    );
     for (body, msg) in [
         (
             json!({"symbol": "SBIN", "exchange": "NFO", "quantity": 1, "product_type": "MIS"}),
@@ -328,6 +336,11 @@ async fn strategy_lifecycle_has_the_web_shapes() {
         (
             json!({"symbols": "SBIN,NSE,1"}),
             "Invalid format in line: SBIN,NSE,1",
+        ),
+        // Only the first line may be a header; the import is all or nothing.
+        (
+            json!({"symbols": "WIPRO,NSE,3,CNC\nSymbol,Exchange,Quantity,Product"}),
+            "Invalid exchange: Exchange",
         ),
     ] {
         let (s, b) = call(
@@ -526,6 +539,55 @@ async fn short_enters_with_a_sell_and_sell_and_cover_exit_with_smart_orders() {
     h.shutdown().await;
 }
 
+/// docs-44, a deliberate deviation from the web: the pages tell the trader
+/// to put the keyword in the Chartink alert name, and Chartink sends it as
+/// `alert_name`; the web's server read only `scan_name` and refused such an
+/// alert. The alert name is read first, then the scan name.
+#[tokio::test]
+async fn the_keyword_is_read_from_the_alert_name_then_the_scan_name() {
+    let h = H::new().await;
+    let (_, wid) = strategy(&h, positional()).await;
+    let named = |alert_name: &str, scan: &str| {
+        let mut body = alert(scan, "SBIN");
+        body["alert_name"] = json!(alert_name);
+        body
+    };
+
+    // Only the alert name holds the keyword, as the pages say to do.
+    let (s, b) = hook(&h, &wid, named("BUY - RSI Oversold", "RSI oversold"), ip(1)).await;
+    assert_eq!(s, StatusCode::OK, "{}", b);
+    assert_eq!(
+        wait_orders(&h, 1).await,
+        vec![("SBIN".into(), "BUY".into(), 10)]
+    );
+
+    // Both hold one: the alert name decides (SHORT enters with a SELL).
+    h.mock.calls.lock().clear();
+    let (s, b) = hook(&h, &wid, named("SHORT entry", "BUY breakout"), ip(2)).await;
+    assert_eq!(s, StatusCode::OK, "{}", b);
+    assert_eq!(
+        wait_orders(&h, 1).await,
+        vec![("SBIN".into(), "SELL".into(), 10)]
+    );
+
+    // Chartink's default alert name repeats the scan name, so a setup made
+    // for the web's server (keyword in the scan name) reads the same.
+    h.mock.calls.lock().clear();
+    let (s, b) = hook(
+        &h,
+        &wid,
+        named("Alert for BUY breakout", "BUY breakout"),
+        ip(3),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{}", b);
+    assert_eq!(
+        wait_orders(&h, 1).await,
+        vec![("SBIN".into(), "BUY".into(), 10)]
+    );
+    h.shutdown().await;
+}
+
 fn position(symbol: &str, qty: i32) -> Position {
     Position {
         symbol: symbol.into(),
@@ -575,7 +637,7 @@ async fn alerts_are_refused_like_the_web() {
         (s, b["error"].as_str().unwrap()),
         (
             StatusCode::BAD_REQUEST,
-            "No valid action keyword (BUY/SELL/SHORT/COVER) found in scan name"
+            "No valid action keyword (BUY/SELL/SHORT/COVER) found in alert name or scan name"
         )
     );
     let (_, b) = hook(&h, &wid, alert("buy", "UNMAPPED"), ip(5)).await;

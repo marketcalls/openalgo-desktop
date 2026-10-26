@@ -429,8 +429,8 @@ export default function ConfigureChartinkSymbols() {
                     className="font-mono text-sm"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Format: ChartinkSymbol,Exchange,Quantity,Product (one per line, no header). Max
-                    100KB.
+                    Format: ChartinkSymbol,Exchange,Quantity,Product (one per line; a header line is
+                    optional). Max 100KB.
                     <br />
                     Exchange: NSE or BSE only | Product: MIS or CNC only
                   </p>

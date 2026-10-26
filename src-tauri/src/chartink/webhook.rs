@@ -248,8 +248,8 @@ pub fn id_matches(given: &str, stored: &str) -> bool {
     given.len() == stored.len() && bool::from(given.as_bytes().ct_eq(stored.as_bytes()))
 }
 
-/// What the scan name asks for (web: the first of BUY, SELL, SHORT, COVER
-/// found in the upper-cased name).
+/// What an alert asks for: the first of BUY, SELL, SHORT, COVER found in
+/// the upper-cased name (web `webhook`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Signal {
     pub action: &'static str,
@@ -257,8 +257,23 @@ pub struct Signal {
     pub entry: bool,
 }
 
-pub fn signal_for(scan_name: &str) -> Option<Signal> {
-    let s = scan_name.to_uppercase();
+/// The answer to an alert whose names hold no keyword.
+pub const NO_KEYWORD: &str =
+    "No valid action keyword (BUY/SELL/SHORT/COVER) found in alert name or scan name";
+
+/// The keyword of an alert, read from the alert name first, then the scan
+/// name. Chartink sends both (`alert_name`, `scan_name`); the pages tell the
+/// trader to put the keyword in the alert name, while the web's server reads
+/// only the scan name, so a keyword placed where the pages say was refused.
+/// Chartink's default alert name is "Alert for <scan name>", which holds the
+/// scan name's keyword too, so a setup made for the web's server reads the
+/// same here. A deliberate deviation from the web (docs-44).
+pub fn signal_for_alert(alert_name: &str, scan_name: &str) -> Option<Signal> {
+    signal_for(alert_name).or_else(|| signal_for(scan_name))
+}
+
+fn signal_for(name: &str) -> Option<Signal> {
+    let s = name.to_uppercase();
     if s.contains("BUY") {
         Some(Signal {
             action: "BUY",

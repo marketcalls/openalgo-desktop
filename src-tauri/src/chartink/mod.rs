@@ -411,11 +411,8 @@ pub async fn handle_alert(
         Some(Value::String(s)) => s.clone(),
         _ => String::new(),
     };
-    let Some(signal) = webhook::signal_for(&text("scan_name")) else {
-        return err(
-            400,
-            "No valid action keyword (BUY/SELL/SHORT/COVER) found in scan name",
-        );
+    let Some(signal) = webhook::signal_for_alert(&text("alert_name"), &text("scan_name")) else {
+        return err(400, webhook::NO_KEYWORD);
     };
     if let Some(msg) = webhook::window_refusal(strategy, signal, module.now()) {
         tracing::info!("Chartink strategy {}: {}", strategy.id, msg);

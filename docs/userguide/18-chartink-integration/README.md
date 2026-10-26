@@ -5,7 +5,7 @@
 ChartInk is a stock screener. When a scan finds stocks, ChartInk can call a
 webhook with the list. OpenAlgo Desktop turns that call into orders for the
 stocks you have mapped in a **Chartink strategy**: it reads the action from the
-scan's name, places one order per mapped stock, and, for intraday strategies,
+alert's name, places one order per mapped stock, and, for intraday strategies,
 squares everything off at the time you set.
 
 ```
@@ -14,7 +14,7 @@ ChartInk scan finds stocks  --->  webhook to OpenAlgo Desktop  --->  orders for 
 ```
 
 ChartInk does not let you write the request yourself: it always sends the
-scan name and the stock list. That is why OpenAlgo uses its own webhook
+alert name, the scan name and the stock list. That is why OpenAlgo uses its own webhook
 address for ChartInk instead of `/api/v1/placeorder`.
 
 ## What you need
@@ -76,10 +76,11 @@ skipped. On the strategy page choose **Configure Symbols**, then either:
   TATAMOTORS,BSE,50,MIS
   ```
 
-  Do not include a header line: every line is read as a stock, and a line
-  whose exchange is not NSE or BSE stops the import with "Invalid exchange".
-  After an import, check the **Symbol Mappings** table; the count in the
-  confirmation message is not reliable.
+  A header line first (`ChartinkSymbol,Exchange,Quantity,Product`, as in the
+  page's example) is skipped; every other line is read as a stock. The import
+  is all or nothing: a line whose exchange is not NSE or BSE stops it with
+  "Invalid exchange" and adds none of the lines. The confirmation message
+  says how many stocks were added.
 
 The symbol must be written exactly as ChartInk sends it, which for NSE and BSE
 stocks is the plain trading symbol (`SBIN`, `RELIANCE`).
@@ -96,22 +97,25 @@ https://<your-tunnel-address>/chartink/webhook/<webhook-id>
 The long id at the end is the only thing that proves an alert is yours. Keep
 it private, like a password.
 
-## Step 4: Name the scan and set the alert in ChartInk
+## Step 4: Name the alert in ChartInk
 
 1. In ChartInk, build and save your scan.
-2. **Put one action keyword in the scan's name**: `BUY`, `SELL`, `SHORT` or
-   `COVER`, for example "BUY - RSI Oversold Stocks". OpenAlgo reads the name
-   ChartInk sends as `scan_name`. The app's own hint says "alert name"; to be
-   safe, use the same keyword in the alert's name too.
-3. Create the alert on the scan, turn on the webhook and paste the Webhook URL.
+2. Create the alert on the scan, turn on the webhook and paste the Webhook URL.
+3. **Put one action keyword in the alert's name**: `BUY`, `SELL`, `SHORT` or
+   `COVER`, for example "BUY - RSI Oversold Stocks". ChartInk's default alert
+   name is "Alert for" followed by the scan's name, so a keyword in the scan's
+   name works too.
 
-Use one keyword per scan. If a name holds more than one, OpenAlgo takes the
-first match in this order: BUY, SELL, SHORT, COVER (so "SHORT COVER" is read as
-SHORT).
+OpenAlgo reads the alert's name first and, when it holds no keyword, the
+scan's name. Use one keyword per alert. If a name holds more than one,
+OpenAlgo takes the first match in this order: BUY, SELL, SHORT, COVER (so
+"SHORT COVER" is read as SHORT). OpenAlgo web reads only the scan's name; the
+desktop reads the alert's name first because that is where the Chartink pages
+tell you to put the keyword.
 
 ## What each keyword does
 
-| Keyword in the scan name | Order for each mapped stock in the alert |
+| Keyword in the alert name | Order for each mapped stock in the alert |
 | --- | --- |
 | `BUY` | A MARKET BUY of the mapped quantity (opens or adds to a long) |
 | `SELL` | A smart order to a position of zero (exits the long) |
@@ -173,7 +177,7 @@ Check your positions after a long sleep.
 | What you see | Cause and fix |
 | --- | --- |
 | Nothing arrives | The tunnel is not running, its address changed, or Host Server URL is not set to it. Restart the tunnel, update the Host Server URL and the webhook address in ChartInk. |
-| "No valid action keyword (BUY/SELL/SHORT/COVER) found in scan name" | Rename the scan so its name holds one keyword. |
+| "No valid action keyword (BUY/SELL/SHORT/COVER) found in alert name or scan name" | Rename the alert so its name holds one keyword. |
 | "No symbol mappings configured" | Map at least one stock on Configure Symbols. |
 | "No orders were queued" | None of the stocks in the alert is mapped. Check the spelling in Symbol Mappings. |
 | "Cannot place ... before start time / after end time / after squareoff time" | The alert came outside the intraday window. |
