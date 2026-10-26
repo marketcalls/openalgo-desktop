@@ -271,6 +271,7 @@ impl H {
             start_backoff: Duration::from_millis(5),
             poll_backoff: Duration::from_millis(10),
             poll_backoff_max: Duration::from_millis(40),
+            ..Timing::default()
         });
         ctx.messaging.whatsapp.set_settings(ConnSettings {
             ws_url: Some("ws://127.0.0.1:9/ws/chat".into()),
@@ -817,6 +818,63 @@ async fn telegram_alerts_follow_bus_events_while_the_bot_is_started() {
     h.ctx.bus.publish(placed(Mode::Live));
     tokio::time::sleep(Duration::from_millis(400)).await;
     assert_eq!(fake.texts().len(), before);
+}
+
+/// docs-46, a deliberate deviation: the Rate Limit setting ("messages per
+/// minute per user") was stored and never applied, here as on the web.
+/// Alerts over it wait their turn and arrive complete and in order.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn telegram_alerts_keep_to_the_rate_limit_and_arrive_in_order() {
+    let _serial = SERIAL.lock().await;
+    let h = H::new(true);
+    let (fake, base, _j) = spawn_fake().await;
+    h.start_telegram(&base).await;
+    h.link(42);
+    let (s, v) = h
+        .post("/telegram/config", json!({"rate_limit_per_minute": 2}))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    // A 3-second "minute", so the test does not wait a real one.
+    let window = Duration::from_secs(3);
+    let t = h.ctx.messaging.telegram.timing();
+    h.ctx.messaging.telegram.set_timing(Timing {
+        alert_window: window,
+        ..t
+    });
+    let alerts = || {
+        fake.texts()
+            .into_iter()
+            .filter(|t| t.starts_with("*Order Placed*"))
+            .collect::<Vec<_>>()
+    };
+    let started = tokio::time::Instant::now();
+    for oid in ["OID1", "OID2", "OID3"] {
+        let mut e = placed(Mode::Live);
+        if let Event::OrderPlaced { meta, orderid, .. } = &mut e {
+            meta.response_data = json!({"status": "success", "orderid": oid});
+            *orderid = oid.into();
+        }
+        h.ctx.bus.publish(e);
+    }
+    assert!(wait_for(|| alerts().len() >= 2, 5000).await);
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert_eq!(
+        alerts().len(),
+        2,
+        "a third alert inside the window went out at once"
+    );
+    assert!(
+        started.elapsed() < window,
+        "the check ran inside the window"
+    );
+    assert!(wait_for(|| alerts().len() == 3, 10_000).await);
+    let order: Vec<bool> = ["OID1", "OID2", "OID3"]
+        .iter()
+        .zip(alerts())
+        .map(|(oid, text)| text.contains(&format!("Order ID: `{}`", oid)))
+        .collect();
+    assert_eq!(order, vec![true, true, true], "{:?}", alerts());
+    h.ctx.messaging.telegram.shutdown().await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

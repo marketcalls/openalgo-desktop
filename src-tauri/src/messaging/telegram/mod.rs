@@ -18,6 +18,7 @@ pub mod bot;
 pub mod chart;
 pub mod db;
 pub mod manage;
+mod pacing;
 pub mod page;
 mod texts;
 
@@ -60,6 +61,8 @@ pub struct Timing {
     /// First retry delay of a failing poll, doubled up to `poll_backoff_max`.
     pub poll_backoff: Duration,
     pub poll_backoff_max: Duration,
+    /// The window of the Rate Limit setting ("messages per minute").
+    pub alert_window: Duration,
 }
 
 impl Default for Timing {
@@ -69,6 +72,7 @@ impl Default for Timing {
             start_backoff: Duration::from_secs(5),
             poll_backoff: Duration::from_secs(1),
             poll_backoff_max: Duration::from_secs(30),
+            alert_window: Duration::from_secs(60),
         }
     }
 }
@@ -91,6 +95,8 @@ pub struct TelegramService {
     polls: Arc<AtomicU64>,
     /// Why the last start's task gave up, when it knows.
     start_failure: Arc<parking_lot::Mutex<Option<&'static str>>>,
+    /// The Rate Limit setting's turns, per user.
+    pacer: pacing::AlertPacer,
 }
 
 impl Default for TelegramService {
@@ -109,6 +115,7 @@ impl TelegramService {
             lifecycle: tokio::sync::Mutex::new(None),
             polls: Arc::new(AtomicU64::new(0)),
             start_failure: Arc::new(parking_lot::Mutex::new(None)),
+            pacer: pacing::AlertPacer::default(),
         }
     }
 
@@ -367,20 +374,27 @@ impl TelegramService {
     }
 
     /// Web `send_alert_sync`: Markdown, retried as plain text when Telegram
-    /// cannot parse it; queued in `notification_queue` when it fails.
+    /// cannot parse it; queued in `notification_queue` when it fails. Sent
+    /// in its turn under the Rate Limit setting (`pacing`).
     pub async fn send_alert(&self, ctx: &AppState, telegram_id: i64, message: &str) -> bool {
-        let token = match Self::config(ctx) {
-            Ok(c) => c.token,
+        let config = match Self::config(ctx) {
+            Ok(c) => Some(c),
             Err(e) => {
                 tracing::error!("Could not read the Telegram bot settings: {}", e);
                 None
             }
         };
-        let Some(token) = token else {
+        let Some((token, per_minute)) =
+            config.and_then(|c| c.token.map(|t| (t, c.rate_limit_per_minute)))
+        else {
             tracing::error!("No Telegram bot token configured, queueing notification");
             Self::queue(ctx, telegram_id, message);
             return false;
         };
+        if !self.wait_turn(telegram_id, per_minute).await {
+            Self::queue(ctx, telegram_id, message);
+            return false;
+        }
         let api = self.api(ctx, token);
         let mut res = api.send_message(telegram_id, message, true, None).await;
         if matches!(&res, Err(e) if e.is_parse_error()) {
@@ -397,6 +411,33 @@ impl TelegramService {
             Err(e) => {
                 tracing::error!("Telegram notification failed: {}", e);
                 Self::queue(ctx, telegram_id, message);
+                false
+            }
+        }
+    }
+
+    /// Wait for this user's next turn under the Rate Limit setting; false
+    /// when it is more than a window away.
+    async fn wait_turn(&self, telegram_id: i64, per_minute: i64) -> bool {
+        let window = self.timing().alert_window;
+        match self
+            .pacer
+            .book(telegram_id, per_minute, window, tokio::time::Instant::now())
+        {
+            pacing::Turn::Now => true,
+            pacing::Turn::After(wait) => {
+                tracing::debug!(
+                    "Telegram Rate Limit: next message to this user in {} ms",
+                    wait.as_millis()
+                );
+                tokio::time::sleep(wait).await;
+                true
+            }
+            pacing::Turn::TooFar => {
+                tracing::warn!(
+                    "Telegram message not sent: more than {} a minute for this user (the Rate Limit setting); kept in the notification queue",
+                    per_minute
+                );
                 false
             }
         }

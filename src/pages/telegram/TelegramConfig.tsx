@@ -188,7 +188,8 @@ export default function TelegramConfig() {
                 max={60}
               />
               <p className="text-xs text-muted-foreground">
-                Maximum messages per minute per user (1-60)
+                Maximum messages per minute per user (1-60). Alerts above it wait their turn and are
+                sent in order.
               </p>
             </div>
           </CardContent>

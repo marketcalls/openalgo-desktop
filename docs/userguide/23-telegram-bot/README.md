@@ -99,10 +99,15 @@ are not sent while the bot is stopped.
   commands of the last 7 days, and **Broadcast** (a message to every linked
   user, after a confirmation).
 - **Configuration**: the token, **Broadcast Messages** (allow or block
-  broadcasts) and **Rate Limit (messages per minute)**. The rate-limit value
-  is stored, as on the web, but replies are capped by fixed limits: 20 a
-  minute to a linked user, 60 a minute in all, and one an hour to someone who
-  has not linked.
+  broadcasts) and **Rate Limit (messages per minute)**. The rate limit caps
+  what OpenAlgo sends each linked user: order alerts, notifications sent
+  through the API, broadcasts and messages from these pages. A message above
+  it waits for its turn, so a burst of order alerts arrives late but complete
+  and in order; a message that could not go within the next minute (a burst
+  of API notifications, for example) is not sent. OpenAlgo web stores this
+  setting without applying it. Replies to bot commands have fixed limits of
+  their own: 20 a minute to a linked user, 60 a minute in all, and one an
+  hour to someone who has not linked.
 - **Users**: each Telegram user with the OpenAlgo account, notification state
   and last activity; **Send Message** to one user, or **Unlink** them.
 - **Analytics**: users and commands over the last 7 and 30 days.
