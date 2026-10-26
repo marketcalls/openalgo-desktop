@@ -138,7 +138,10 @@ class Workflows(unittest.TestCase):
     def test_every_windows_build_that_sets_rustflags_keeps_the_static_c_runtime(self):
         ci = text(".github/workflows/ci.yml")
         test = ci[ci.index("\n  rust-test:\n") : ci.index("\n  rust-coverage:\n")]
-        self.assertIn("RUSTFLAGS: ${{ matrix.os == 'windows-latest' && '-D warnings -C target-feature=+crt-static' || '-D warnings' }}", test)
+        # Windows first, with the static C runtime; ARM64 Linux links with
+        # lld (its debug test binaries pass AArch64's branch range); the rest
+        # take the plain flags.
+        self.assertIn("RUSTFLAGS: ${{ matrix.os == 'windows-latest' && '-D warnings -C target-feature=+crt-static' || matrix.os == 'ubuntu-22.04-arm' && '-D warnings -C link-arg=-fuse-ld=lld' || '-D warnings' }}", test)
         e2e = text(".github/workflows/native-e2e-test-build.yml")
         windows = e2e[e2e.index("--target x86_64-pc-windows-msvc") - 400 : e2e.index("--target x86_64-pc-windows-msvc")]
         self.assertIn("RUSTFLAGS: -D warnings -C target-feature=+crt-static", windows)

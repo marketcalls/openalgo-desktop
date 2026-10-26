@@ -95,12 +95,21 @@ jobs:
         os: [ubuntu-22.04, ubuntu-22.04-arm, macos-latest, windows-latest]
     env:
       # RUSTFLAGS replaces .cargo/config.toml's rustflags, so Windows repeats
-      # its static C runtime and the tests run the build that ships.
-      RUSTFLAGS: ${{ matrix.os == 'windows-latest' && '-D warnings -C target-feature=+crt-static' || '-D warnings' }}
+      # its static C runtime and the tests run the build that ships. ARM64
+      # Linux links its debug test binaries with lld: they have outgrown
+      # AArch64's 128 MiB direct-branch range, which GNU ld cannot bridge
+      # there ("relocation truncated to fit: R_AARCH64_CALL26"); lld inserts
+      # range-extension thunks.
+      RUSTFLAGS: ${{ matrix.os == 'windows-latest' && '-D warnings -C target-feature=+crt-static' || matrix.os == 'ubuntu-22.04-arm' && '-D warnings -C link-arg=-fuse-ld=lld' || '-D warnings' }}
     steps:
       - uses: actions/checkout@v7
       - if: runner.os == 'Linux'
         uses: ./.github/actions/linux-tauri-deps
+      # The linker for the ARM64 debug test binaries (RUSTFLAGS above). The
+      # deps step has already run apt-get update.
+      - if: matrix.os == 'ubuntu-22.04-arm'
+        name: lld for the ARM64 test binaries
+        run: sudo apt-get install -y --no-install-recommends lld
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           toolchain: 1.92.0
