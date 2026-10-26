@@ -146,9 +146,9 @@ intervals. They are not accepted here.
   built from the 1-minute candles; `W`, `M`, `Q` and `Y` from the daily ones.
 - With no stored data in the range the answer is 404:
   `No data found for RELIANCE:NSE interval D in local database. Download data first using Historify.`
-- In the desktop a `db` request still needs a valid API key and a logged-in
-  broker, like every history request. OpenAlgo web reads the local database
-  without checking the key.
+- A `db` request needs a valid API key, and no broker session: the data is
+  on this computer. OpenAlgo web reads the local database without checking
+  the key at all; the desktop checks it.
 
 ## Errors
 
@@ -157,7 +157,7 @@ intervals. They are not accepted here.
 | 400 | `{"interval": ["Must be one of: 1s, 5s, ... Q, Y."]}` | The interval is not in the list above. |
 | 400 | `{"start_date": ["Not a valid date."], ...}` | A date is not `YYYY-MM-DD`. |
 | 400 | `Symbol 'XYZ' not found for exchange 'NSE'. ...` | The symbol is not in the master contract. |
-| 403 | `Invalid openalgo apikey` | The key is wrong, or no broker is logged in. |
+| 403 | `Invalid openalgo apikey` | The key is wrong, or (with `source: "api"`) no broker is logged in. |
 | 404 | `No data found for ... in local database. Download data first using Historify.` | `source: "db"` and nothing stored for that range. |
 | 500 | The broker's own message | The broker refused the request (for example an interval it does not offer) or could not be reached. |
 | 500 | `Could not read the local Historify database. Try again.` | `source: "db"` and the database could not be read. |

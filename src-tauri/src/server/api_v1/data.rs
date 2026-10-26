@@ -1,6 +1,6 @@
 //! Market data and symbol endpoints.
 
-use super::{authorize, check, load, query_map, send, Auth, Style};
+use super::{authorize, check, load, load_choosing, query_map, send, Auth, Style};
 use crate::server::envelope::json_response;
 use crate::server::middleware::ClientIp;
 use crate::services::market_data_service as market;
@@ -61,18 +61,37 @@ simple!(multiquotes, schemas::multiquotes, Auth::Broker, |ctx, v| {
     market::multiquotes(&ctx, &pairs).await
 });
 
-simple!(history, schemas::history, Auth::Broker, |ctx, v| {
-    market::history(
-        &ctx,
-        &s(&v, "symbol"),
-        &s(&v, "exchange"),
-        &s(&v, "interval"),
-        date(&v, "start_date"),
-        date(&v, "end_date"),
-        &s(&v, "source"),
-    )
-    .await
-});
+/// What a history request's key must prove: `source: "db"` reads
+/// Historify, on this computer, and needs a valid key only; the broker
+/// session is needed to fetch from the broker (docs-30). The web checks no
+/// key at all on the Historify path, a defect not copied.
+fn history_auth(body: &Map<String, Value>) -> Auth {
+    if body.get("source").and_then(Value::as_str) == Some("db") {
+        Auth::KeyOnly
+    } else {
+        Auth::Broker
+    }
+}
+
+/// POST /api/v1/history
+pub async fn history(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
+    let style = Style::Object;
+    match load_choosing(&ctx, ip, req, schemas::history(), style, history_auth).await {
+        Ok(v) => send(
+            market::history(
+                &ctx,
+                &s(&v, "symbol"),
+                &s(&v, "exchange"),
+                &s(&v, "interval"),
+                date(&v, "start_date"),
+                date(&v, "end_date"),
+                &s(&v, "source"),
+            )
+            .await,
+        ),
+        Err(r) => r,
+    }
+}
 
 simple!(intervals, schemas::apikey_only, Auth::Broker, |ctx, _v| {
     market::intervals(&ctx)

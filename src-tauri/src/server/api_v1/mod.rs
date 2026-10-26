@@ -264,7 +264,21 @@ pub async fn load(
     style: Style,
     auth: Auth,
 ) -> Result<Value, Response> {
+    load_choosing(ctx, ip, req, schema, style, |_| auth).await
+}
+
+/// [`load`] for an endpoint whose key check depends on what is asked
+/// (`history` from Historify needs no broker session).
+pub async fn load_choosing(
+    ctx: &AppState,
+    ip: IpAddr,
+    req: Request,
+    schema: &Schema,
+    style: Style,
+    auth: impl FnOnce(&Map<String, Value>) -> Auth,
+) -> Result<Value, Response> {
     let body = read_json_object(req, &()).await?;
+    let auth = auth(&body);
     check(ctx, ip, &body, schema, style, auth)
         .await
         .map_err(|r| *r)

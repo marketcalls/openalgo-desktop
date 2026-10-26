@@ -30,7 +30,7 @@ See [Moving from OpenAlgo web](../user/moving-from-openalgo-web.md) and [Another
    }
    ```
 
-2. **Log in to your broker.** Most endpoints need a live broker session. Without one they answer 403 `Invalid openalgo apikey`, as on the web. These need only a valid API key: `/search`, `/expiry`, `/instruments`, `/pnl/symbols`, `/chart`, `/market/holidays`, `/market/timings`, `/strategy/*`, `/telegram/*` and `/whatsapp/notify`.
+2. **Log in to your broker.** Most endpoints need a live broker session. Without one they answer 403 `Invalid openalgo apikey`, as on the web. These need only a valid API key: `/search`, `/expiry`, `/instruments`, `/pnl/symbols`, `/chart`, `/market/holidays`, `/market/timings`, `/strategy/*`, `/telegram/*`, `/whatsapp/notify`, and `/history` with `source: "db"` (Historify).
 
 3. **Use the desktop's API key.** Copy it from the **API Key** page. A key from OpenAlgo web does not work here.
 

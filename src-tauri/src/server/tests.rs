@@ -235,6 +235,8 @@ mod origin;
 mod api_limits;
 // docs-20, docs-29: a request the broker's pacer refused answers 429.
 mod broker_busy;
+// docs-30: /api/v1 answers brought to the web's.
+mod api_parity;
 
 // ------------------------------------------------------------------ fixtures
 
