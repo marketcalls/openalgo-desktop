@@ -19,9 +19,11 @@
 //! * Entries go BUY before SELL (a short leg alone can be refused for margin).
 //! * Every leg is resolved before anything is claimed.
 //! * An exit uses the symbol the run holds, never a re-resolved one.
-//! * The order row is written before the broker is called. An entry that
-//!   cannot be recorded is not placed; an exit that cannot be recorded is
-//!   placed anyway (getting flat wins).
+//! * The order row is written before the broker is called. An order that
+//!   cannot be recorded is not placed: an entry fails, and an exit is not
+//!   sent (it could be sent twice if its answer were lost); the leg stays
+//!   managed and the next breach, stop retry or close tries again
+//!   (`exits::record_exit`, P2-6).
 //! * A leg whose entry was accepted but not filled is never exited.
 //! * A rejected exit releases its claim; a stop whose exits were refused
 //!   leaves the run open and managed.
