@@ -23,8 +23,9 @@ use super::proto::{
     feed::FeedUnion, full_feed::FullFeedUnion, FeedResponse, Ltpc, MarketFullFeed, MarketOhlc,
 };
 use crate::brokers::common::streaming::{
-    now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, PrepareError, WsRequest,
+    now_ms, ping, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
+    NormalizedTick, OrderUpdate, PrepareError, WsRequest, WEB_ORDER_PING_INTERVAL,
+    WEB_PING_TIMEOUT,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -787,8 +788,14 @@ impl BrokerFeed for UpstoxOrderFeed {
         }
     }
 
+    /// The web's order sockets ping every 20 s, answered within 10 s
+    /// (`websocket_proxy/order_adapter.py`; Upstox keeps the default).
     fn heartbeat(&self) -> Option<(Duration, Message)> {
-        Some((PING_PERIOD, Message::Ping(Vec::new())))
+        Some((WEB_ORDER_PING_INTERVAL, ping()))
+    }
+
+    fn heartbeat_reply_timeout(&self) -> Option<Duration> {
+        Some(WEB_PING_TIMEOUT)
     }
 
     fn subscribe_frames(&mut self, _subs: &[FeedSubscription]) -> Vec<Message> {

@@ -27,8 +27,8 @@
 use super::mapping::{int, num, text};
 use super::ListingIds;
 use crate::brokers::common::streaming::{
-    now_ms, round2, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, WsRequest,
+    now_ms, ping, round2, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
+    NormalizedDepth, NormalizedTick, WsRequest, WEB_PING_INTERVAL, WEB_PING_TIMEOUT,
 };
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
@@ -36,6 +36,7 @@ use parking_lot::Mutex;
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 
@@ -367,6 +368,17 @@ impl BrokerFeed for SamcoFeed {
             },
             _ => Vec::new(),
         }
+    }
+
+    /// The web pings the feed every 30 s, answered within 10 s
+    /// (`samcoWebSocket.py`: `PING_INTERVAL`, `PING_TIMEOUT`); its own
+    /// heartbeat thread only watches for silence and sends nothing.
+    fn heartbeat(&self) -> Option<(Duration, Message)> {
+        Some((WEB_PING_INTERVAL, ping()))
+    }
+
+    fn heartbeat_reply_timeout(&self) -> Option<Duration> {
+        Some(WEB_PING_TIMEOUT)
     }
 
     fn supported_depth_levels(&self) -> &'static [u8] {

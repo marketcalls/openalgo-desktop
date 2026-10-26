@@ -3,7 +3,8 @@
 
 use super::KotakSession;
 use crate::brokers::common::streaming::{
-    BrokerFeed, FeedEvent, FeedSubscription, Message, OrderUpdate, WsRequest,
+    ping, BrokerFeed, FeedEvent, FeedSubscription, Message, OrderUpdate, WsRequest,
+    WEB_PING_INTERVAL, WEB_PING_TIMEOUT,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::error::{AppError, Result};
@@ -172,7 +173,14 @@ impl BrokerFeed for KotakOrderFeed {
         }
     }
 
+    /// The web pings every 30 s and drops the socket when a ping goes
+    /// unanswered for 10 s (`kotak_order_adapter.py` `ws_ping_interval`,
+    /// `websocket_proxy/order_adapter.py`).
     fn heartbeat(&self) -> Option<(Duration, Message)> {
-        Some((Duration::from_secs(30), Message::Ping(Vec::new())))
+        Some((WEB_PING_INTERVAL, ping()))
+    }
+
+    fn heartbeat_reply_timeout(&self) -> Option<Duration> {
+        Some(WEB_PING_TIMEOUT)
     }
 }

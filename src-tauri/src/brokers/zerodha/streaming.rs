@@ -15,14 +15,15 @@
 
 use super::mapping::{from_kite_quantity, instrument_token, map_status};
 use crate::brokers::common::streaming::{
-    now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, WsRequest,
+    now_ms, ping, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
+    NormalizedTick, OrderUpdate, WsRequest, WEB_PING_INTERVAL, WEB_PING_TIMEOUT,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::time::Duration;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 
 pub const WS_URL: &str = "wss://ws.kite.trade";
@@ -339,5 +340,17 @@ impl BrokerFeed for KiteFeed {
             Message::Text(t) => self.parse_text(t),
             _ => Vec::new(),
         }
+    }
+
+    /// The web pings the ticker every 30 s, answered within 10 s
+    /// (`zerodha_websocket.py`: `PING_INTERVAL`, `PING_TIMEOUT`). Kite's own
+    /// one-byte heartbeats keep a quiet socket alive too; the ping also
+    /// finds a half-open one sooner than the stall watchdog.
+    fn heartbeat(&self) -> Option<(Duration, Message)> {
+        Some((WEB_PING_INTERVAL, ping()))
+    }
+
+    fn heartbeat_reply_timeout(&self) -> Option<Duration> {
+        Some(WEB_PING_TIMEOUT)
     }
 }

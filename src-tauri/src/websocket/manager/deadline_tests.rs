@@ -400,3 +400,94 @@ async fn kotak_replaces_a_socket_that_leaves_a_ping_unanswered() {
         run.at
     );
 }
+
+/// Feeds that sent no heartbeat although the web pings their sockets
+/// (Dhan market, 20-level depth and order updates, Samco, Kite): a quiet
+/// broker went past the stall watchdog and the socket was dropped and made
+/// again. Each now pings at the web's interval and keeps a quiet socket,
+/// as Upstox's order socket does at the web's 20 s.
+#[tokio::test(start_paused = true)]
+async fn quiet_feeds_that_ping_like_the_web_keep_their_socket() {
+    use crate::brokers::common::symbols::SymbolResolver;
+    let url = "wss://example.invalid/feed";
+    let feeds: Vec<(&str, Box<dyn BrokerFeed>, u64)> = vec![
+        (
+            "dhan",
+            Box::new(crate::brokers::dhan::streaming::DhanFeed::with_url(
+                url, "t", "c",
+            )),
+            30,
+        ),
+        (
+            "dhan 20 depth",
+            Box::new(crate::brokers::dhan::streaming::Dhan20DepthFeed::with_url(
+                url, "t", "c",
+            )),
+            30,
+        ),
+        (
+            "dhan orders",
+            Box::new(crate::brokers::dhan::streaming::DhanOrderFeed::new(
+                "t",
+                "c",
+                SymbolResolver::new(),
+            )),
+            20,
+        ),
+        (
+            "samco",
+            Box::new(crate::brokers::samco::streaming::SamcoFeed::new(
+                url,
+                "t",
+                Arc::default(),
+            )),
+            30,
+        ),
+        (
+            "kite",
+            Box::new(crate::brokers::zerodha::streaming::KiteFeed::new(
+                "k",
+                "t",
+                SymbolResolver::new(),
+            )),
+            30,
+        ),
+        // The web's order sockets ping every 20 s; this one pinged every 30.
+        (
+            "upstox orders",
+            Box::new(crate::brokers::upstox::streaming::UpstoxOrderFeed::new(
+                crate::brokers::upstox::streaming::Authorizer::orders(
+                    crate::brokers::common::http::client(),
+                    "http://127.0.0.1:9",
+                    "t",
+                ),
+                "http://127.0.0.1:9",
+                SymbolResolver::new(),
+            )),
+            20,
+        ),
+    ];
+    let mut wrong = Vec::new();
+    for (name, feed, every) in feeds {
+        let socket = Socket {
+            take: usize::MAX,
+            answers_pings: true,
+            limit: Duration::from_secs(400),
+        };
+        let run = run_on(feed, socket, vec![], Some(305)).await;
+        let pings: Vec<u64> = run
+            .sent
+            .iter()
+            .filter(|(_, f)| f == "<ping>")
+            .map(|(at, _)| at.as_secs())
+            .collect();
+        let expected: Vec<u64> = (1..=300 / every).map(|n| n * every).collect();
+        if run.end != Some("stopped") || pings != expected {
+            wrong.push(format!(
+                "{}: ended {:?}, pings at {:?}",
+                name, run.end, pings
+            ));
+        }
+    }
+    assert!(wrong.is_empty(), "{:#?}", wrong);
+}

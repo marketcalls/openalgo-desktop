@@ -1185,6 +1185,9 @@ fn order_feed_handshake_alternates_and_parses_orders() {
         "wss://cis.kotaksecurities.com/realtime"
     );
     let mut f = KotakOrderFeed::new(&s, master());
+    // The web's keepalive: a ping every 30 s, answered within 10 s.
+    assert!(matches!(f.heartbeat(), Some((d, Message::Ping(_))) if d.as_secs() == 30));
+    assert_eq!(f.heartbeat_reply_timeout().map(|d| d.as_secs()), Some(10));
     let first = f.connect_frame();
     match &first {
         Message::Text(t) => assert_eq!(
