@@ -22,7 +22,9 @@ pub type ServeConnection =
 pub(super) const OPEN_TIMEOUT: Duration = Duration::from_secs(30);
 /// The longest wait between attempts.
 pub(super) const MAX_RETRY: Duration = Duration::from_secs(30);
-/// Callers served at once; the next waits for one to finish.
+/// Callers served at once. The next is turned away at once (its
+/// connection closed; ngrok answers it with an error), never queued: each
+/// place is held at most `server::tunnel::Limits::lifetime`.
 pub(super) const MAX_CONNECTIONS: usize = 128;
 /// How long requests in flight (an order being placed) get to finish
 /// when the tunnel stops, before their connections are dropped.
@@ -102,19 +104,26 @@ impl Supervisor {
         self.status.send_replace(TunnelStatus::online(&url));
         let drain = CancellationToken::new();
         let mut conns = JoinSet::new();
+        let mut turned_away = 0u64;
         let ended = loop {
-            while conns.try_join_next().is_some() {}
-            if conns.len() >= MAX_CONNECTIONS {
-                tokio::select! {
-                    _ = self.stop.cancelled() => break Ended::Stopped,
-                    _ = conns.join_next() => continue,
-                }
-            }
             tokio::select! {
                 _ = self.stop.cancelled() => break Ended::Stopped,
                 next = tunnel.accept() => match next {
                     Some(io) => {
-                        conns.spawn((self.serve)(io, drain.child_token()));
+                        while conns.try_join_next().is_some() {}
+                        if conns.len() >= MAX_CONNECTIONS {
+                            drop(io);
+                            turned_away += 1;
+                            if turned_away.is_power_of_two() {
+                                tracing::warn!(
+                                    "The tunnel is serving {} callers; {} more turned away",
+                                    MAX_CONNECTIONS,
+                                    turned_away
+                                );
+                            }
+                        } else {
+                            conns.spawn((self.serve)(io, drain.child_token()));
+                        }
                     }
                     None => break Ended::Lost,
                 },

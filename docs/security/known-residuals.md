@@ -82,12 +82,22 @@ answer is never logged (only its error code), and other answers are logged
 with the token removed (`ngrok_sdk::redacted`). The SDK verifies ngrok's own
 CA bundled in the crate, over rustls with ring.
 
-Residual: at most 128 connections are served through the tunnel at once,
-each with 30 seconds to send its request headers. A stranger who finds the
-tunnel address can hold those places (slow headers, or a slow request body,
-which has no separate timeout) and delay alerts while they last; nothing
-else in the app is affected, and valid alerts are served as places free up.
-ngrok's own limits on the free plan apply in front of it.
+Every connection through it is bounded (`server::tunnel::Limits`, security
+review of the tunnel): 10 s to send the request's headers (an idle
+connection is closed then), 10 s for its body, one request per connection
+(no keep-alive), and 90 s for the connection's whole life. The app's answer
+is waited for 60 s, the slowest legitimate call (an order: up to 10 s for
+the broker pacer and the broker request's 30 s timeout); past it the caller
+is told the request is still being worked on, and the work runs on in a
+task the app owns, so an order is never cut off half-way. At most 128
+connections are served at once; the next caller is turned away at once
+(its connection closed), never queued.
+
+Residual: a stranger who finds the tunnel address and keeps opening slow
+connections can fill those 128 places; each is held at most 90 s, alerts
+arriving meanwhile are turned away at once rather than left waiting, and
+nothing else in the app is affected. ngrok's own limits on the free plan
+apply in front of it.
 
 Residual: while the tunnel is online its address is the Host Server URL, so
 the automatic broker redirect address follows it. A trader who registered

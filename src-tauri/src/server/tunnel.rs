@@ -16,6 +16,12 @@
 //!   switch). The app's pages, its sign-in and every session route stay on
 //!   this computer. A broker's sign-in redirect is sent on to this
 //!   computer's address, where the browser session that started it is.
+//!
+//! Every phase of a request through it is bounded ([`Limits`]): its
+//! headers, its body, the wait for the answer and the connection's whole
+//! life; one request per connection; a caller past the connection cap is
+//! turned away at once (`services::tunnel::supervisor`). A stranger who
+//! learns the address can hold a place only that long.
 
 use crate::brokers::catalog;
 use crate::server::envelope;
@@ -27,21 +33,17 @@ use axum::body::Body;
 use axum::extract::ConnectInfo;
 use axum::http::{header, HeaderValue, Request, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
-use axum::Router;
 use futures_util::future::BoxFuture;
 use hyper::body::Incoming;
-use hyper_util::rt::{TokioIo, TokioTimer};
-use hyper_util::service::TowerToHyperService;
 use std::convert::Infallible;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::{Arc, Weak};
-use std::time::Duration;
 use tokio_util::sync::CancellationToken;
-use tower::{Layer, ServiceExt};
-use tower_http::normalize_path::{NormalizePath, NormalizePathLayer};
+use tower::Layer;
+use tower_http::normalize_path::NormalizePathLayer;
 
-/// How long a caller may take to send a request's headers.
-const HEADER_TIMEOUT: Duration = Duration::from_secs(30);
+mod serve;
+pub(crate) use serve::{App, Limits};
 
 /// The peer every tunnel request carries: loopback, as for any tunnel on
 /// this computer. No caller's address is ever taken from the tunnel.
@@ -88,22 +90,23 @@ pub(crate) fn reach(path: &str) -> Reach {
     }
 }
 
-/// One request through the tunnel.
-async fn handle(
-    ctx: &Weak<AppState>,
-    app: NormalizePath<Router>,
-    mut req: Request<Body>,
-) -> Response {
+/// One request through the tunnel: refused, sent on to this computer, or
+/// served by the app within the tunnel's limits (`serve`).
+async fn handle(ctx: &Weak<AppState>, app: App, limits: Limits, req: Request<Body>) -> Response {
     match reach(req.uri().path()) {
         Reach::Refused => envelope::error(StatusCode::NOT_FOUND, NOT_THROUGH_THE_TUNNEL),
         Reach::ThisComputer => back_to_this_computer(ctx, req.uri()),
         Reach::App => {
+            let Some(ctx) = ctx.upgrade() else {
+                return serve::stopping();
+            };
+            let mut req = match serve::whole_body(req, limits.body).await {
+                Ok(r) => r,
+                Err(refused) => return refused,
+            };
             req.extensions_mut().insert(ConnectInfo(TUNNEL_PEER));
             req.extensions_mut().insert(ThroughBuiltInTunnel);
-            match app.oneshot(req).await {
-                Ok(resp) => resp,
-                Err(never) => match never {},
-            }
+            serve::answer_within(&ctx, app, req, limits.answer).await
         }
     }
 }
@@ -135,46 +138,25 @@ fn back_to_this_computer(ctx: &Weak<AppState>, uri: &Uri) -> Response {
     resp
 }
 
-/// Serve one caller's connection (HTTP/1.1, as ngrok forwards it) until it
-/// closes; when `drain` is cancelled, finish the request in flight and
-/// close.
-async fn serve_connection(
-    ctx: Weak<AppState>,
-    app: NormalizePath<Router>,
-    io: Box<dyn TunnelIo>,
-    drain: CancellationToken,
-) {
-    let service = tower::service_fn(move |req: Request<Incoming>| {
-        let (ctx, app) = (ctx.clone(), app.clone());
-        async move { Ok::<_, Infallible>(handle(&ctx, app, req.map(Body::new)).await) }
-    });
-    let mut builder = hyper::server::conn::http1::Builder::new();
-    builder
-        .timer(TokioTimer::new())
-        .header_read_timeout(HEADER_TIMEOUT);
-    let conn = builder.serve_connection(TokioIo::new(io), TowerToHyperService::new(service));
-    tokio::pin!(conn);
-    let ended = tokio::select! {
-        r = conn.as_mut() => r,
-        _ = drain.cancelled() => {
-            conn.as_mut().graceful_shutdown();
-            conn.await
-        }
-    };
-    if let Err(e) = ended {
-        tracing::debug!("A connection through the tunnel ended: {}", e);
-    }
-}
-
 /// How the tunnel's connections are served: the app's router, built for
 /// this tunnel (its Socket.IO handle is dropped: Socket.IO is a session
-/// route, never reachable through the tunnel).
+/// route, never reachable through the tunnel), within the standard limits.
 pub(crate) fn connections(ctx: &Arc<AppState>) -> ServeConnection {
     let app = NormalizePathLayer::trim_trailing_slash().layer(crate::server::router(ctx.clone()).0);
+    serving(ctx, App::new(app), Limits::STANDARD)
+}
+
+/// Serve the tunnel's connections with `app` within `limits`.
+pub(crate) fn serving(ctx: &Arc<AppState>, app: App, limits: Limits) -> ServeConnection {
     let weak = Arc::downgrade(ctx);
     Arc::new(
         move |io: Box<dyn TunnelIo>, drain: CancellationToken| -> BoxFuture<'static, ()> {
-            Box::pin(serve_connection(weak.clone(), app.clone(), io, drain))
+            let (weak, app) = (weak.clone(), app.clone());
+            let service = tower::service_fn(move |req: Request<Incoming>| {
+                let (ctx, app) = (weak.clone(), app.clone());
+                async move { Ok::<_, Infallible>(handle(&ctx, app, limits, req.map(Body::new)).await) }
+            });
+            Box::pin(serve::connection(io, service, limits, drain))
         },
     )
 }

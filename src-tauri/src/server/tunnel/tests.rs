@@ -6,6 +6,7 @@ use crate::brokers::BrokerRegistry;
 use crate::state::testing::{build, TestCtx};
 use crate::state::ServerStatus;
 use serde_json::Value;
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 const TUNNEL_HOST: &str = "desk.ngrok-free.app";
@@ -222,4 +223,154 @@ async fn a_broker_redirect_is_sent_on_to_this_computer() {
     )
     .await;
     assert_eq!(a.status, 307, "{}", a.head);
+}
+
+// ------------------------------------------------- limits (security review)
+
+/// Short limits, so the tests see each one act.
+const QUICK: Limits = Limits {
+    header: Duration::from_millis(300),
+    body: Duration::from_millis(300),
+    answer: Duration::from_millis(300),
+    lifetime: Duration::from_secs(5),
+};
+
+/// A connection served with `app` and `limits`; the caller's end, and the
+/// connection's task (its place among the tunnel's connections).
+fn open(
+    ctx: &Arc<AppState>,
+    app: App,
+    limits: Limits,
+) -> (tokio::io::DuplexStream, tokio::task::JoinHandle<()>) {
+    let serve = serving(ctx, app, limits);
+    let (caller, ours) = tokio::io::duplex(64 * 1024);
+    let task = tokio::spawn(serve(Box::new(ours), CancellationToken::new()));
+    (caller, task)
+}
+
+/// The app itself.
+fn router(ctx: &Arc<AppState>) -> App {
+    App::new(NormalizePathLayer::trim_trailing_slash().layer(crate::server::router(ctx.clone()).0))
+}
+
+/// Everything the caller is sent until the connection closes, and how long
+/// that took.
+async fn until_closed(caller: &mut tokio::io::DuplexStream) -> (String, Duration) {
+    let started = std::time::Instant::now();
+    let mut out = Vec::new();
+    tokio::time::timeout(Duration::from_secs(10), caller.read_to_end(&mut out))
+        .await
+        .expect("the connection was closed")
+        .unwrap();
+    (
+        String::from_utf8_lossy(&out).into_owned(),
+        started.elapsed(),
+    )
+}
+
+#[tokio::test]
+async fn a_slow_body_is_cut_off_at_its_limit_and_frees_its_place() {
+    let t = ctx();
+    let (mut caller, place) = open(&t.ctx, router(&t.ctx), QUICK);
+    caller
+        .write_all(
+            b"POST /api/v1/placeorder HTTP/1.1\r\nHost: desk.ngrok-free.app\r\n\
+              Content-Type: application/json\r\nContent-Length: 100\r\n\r\n{\"apikey\"",
+        )
+        .await
+        .unwrap();
+    let (answer, took) = until_closed(&mut caller).await;
+    assert!(answer.starts_with("HTTP/1.1 408"), "{}", answer);
+    assert!(answer.contains("took too long to arrive"), "{}", answer);
+    assert!(took < Duration::from_secs(3), "{:?}", took);
+    tokio::time::timeout(Duration::from_secs(2), place)
+        .await
+        .expect("the place is free")
+        .unwrap();
+}
+
+#[tokio::test]
+async fn an_idle_connection_is_closed_and_none_is_kept_alive() {
+    let t = ctx();
+    // Says nothing at all: closed at the header limit.
+    let (mut idle, place) = open(&t.ctx, router(&t.ctx), QUICK);
+    let (_, took) = until_closed(&mut idle).await;
+    assert!(took < Duration::from_secs(3), "{:?}", took);
+    place.await.unwrap();
+    // A request that asks to keep the connection: answered, then closed.
+    let (mut caller, place) = open(&t.ctx, router(&t.ctx), QUICK);
+    caller
+        .write_all(b"GET /dashboard HTTP/1.1\r\nHost: desk.ngrok-free.app\r\nConnection: keep-alive\r\n\r\n")
+        .await
+        .unwrap();
+    let (answer, _) = until_closed(&mut caller).await;
+    assert!(answer.starts_with("HTTP/1.1 404"), "{}", answer);
+    assert!(
+        answer.to_ascii_lowercase().contains("connection: close"),
+        "{}",
+        answer
+    );
+    place.await.unwrap();
+}
+
+#[tokio::test]
+async fn a_connection_is_closed_at_its_lifetime_whatever_it_is_doing() {
+    let t = ctx();
+    let limits = Limits {
+        header: Duration::from_secs(30),
+        lifetime: Duration::from_millis(300),
+        ..Limits::STANDARD
+    };
+    let (mut caller, place) = open(&t.ctx, router(&t.ctx), limits);
+    caller
+        .write_all(b"POST /api/v1/placeorder HTTP/1.1\r\nHost: desk.ngrok-free.app\r\nX-Slo")
+        .await
+        .unwrap();
+    let (_, took) = until_closed(&mut caller).await;
+    assert!(took < Duration::from_secs(3), "{:?}", took);
+    place.await.unwrap();
+}
+
+/// An answer slower than its limit: the caller is told and its place
+/// freed, and the work is not cut short (an order is never dropped
+/// half-way).
+#[tokio::test]
+async fn a_slow_answer_is_told_to_the_caller_and_the_work_runs_to_its_end() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let t = ctx();
+    let done = Arc::new(AtomicBool::new(false));
+    let finished = done.clone();
+    let slow = App::new(tower::service_fn(move |_req: Request<Body>| {
+        let finished = finished.clone();
+        async move {
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            finished.store(true, Ordering::SeqCst);
+            Ok::<_, Infallible>(StatusCode::OK.into_response())
+        }
+    }));
+    let (mut caller, place) = open(&t.ctx, slow, QUICK);
+    caller
+        .write_all(b"GET /api/v1/ping HTTP/1.1\r\nHost: desk.ngrok-free.app\r\n\r\n")
+        .await
+        .unwrap();
+    let (answer, took) = until_closed(&mut caller).await;
+    assert!(answer.starts_with("HTTP/1.1 504"), "{}", answer);
+    assert!(
+        answer.contains("still working on this request"),
+        "{}",
+        answer
+    );
+    assert!(took < Duration::from_secs(2), "{:?}", took);
+    place.await.unwrap();
+    assert!(
+        !done.load(Ordering::SeqCst),
+        "answered before the work ended"
+    );
+    for _ in 0..800 {
+        if done.load(Ordering::SeqCst) {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    panic!("the work was cut short");
 }
