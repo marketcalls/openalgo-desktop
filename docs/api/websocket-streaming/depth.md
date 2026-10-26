@@ -42,7 +42,7 @@ Illustrative values:
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "depth",
+    "mode": "full",
     "ltp": 1187.75,
     "ltt": 1712572800000,
     "timestamp": 1712572800000,
@@ -173,7 +173,7 @@ finally:
 ### Data Object
 
 Every field of the [Quote data](./quote.md#data-object-equities-futures-and-options),
-with `mode` set to `depth`, and:
+with `mode` set to `full`, and:
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -205,9 +205,10 @@ page.
   fields and no `depth`.
 - With the market closed, the levels are `{"price": 0.0, "quantity": 0,
   "orders": 0}`.
-- `data.mode` is `depth` for every broker. OpenAlgo web passes on its broker
-  adapter's own label here; its Zerodha frames say `full`. Read the numeric
-  top-level `mode` (3) to tell the modes apart.
+- `data.mode` is `full` for every broker, as OpenAlgo web's Zerodha frames
+  say. OpenAlgo web passes on its broker adapter's own label here, and some
+  adapters send a number. Read the numeric top-level `mode` (3) to tell the
+  modes apart.
 - `ltt` is always epoch milliseconds. OpenAlgo web's Zerodha depth frames
   carried the exchange's last trade time in seconds.
 - OpenAlgo web's documentation names the depth fields `ltq`, `totalbuyqty` and

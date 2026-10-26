@@ -486,7 +486,7 @@ has none (outside market hours, for example). `price_change` and
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "depth",
+    "mode": "full",
     "ltp": 1167.7,
     "ltt": 1791000325761,
     "timestamp": 1791000325761,

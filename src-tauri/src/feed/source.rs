@@ -49,12 +49,14 @@ impl Mode {
         }
     }
 
-    /// Lowercase label carried inside `market_data.data.mode`.
+    /// The label carried inside `market_data.data.mode`, as the recorded
+    /// web transcripts carry it (the Zerodha adapter's Kite mode names):
+    /// Depth frames say `full` (docs-7).
     pub fn data_label(self) -> &'static str {
         match self {
             Mode::Ltp => "ltp",
             Mode::Quote => "quote",
-            Mode::Depth => "depth",
+            Mode::Depth => "full",
         }
     }
 

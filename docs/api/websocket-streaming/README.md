@@ -208,7 +208,7 @@ and with neither, Quote (2).
 ```
 
 - The top-level `mode` is the number (1, 2, 3); `data.mode` is a lowercase
-  label (`ltp`, `quote`, `depth`).
+  label (`ltp`, `quote`, `full`), as OpenAlgo web's Zerodha frames carry it.
 - Times are epoch **milliseconds**.
 - A connection that holds a symbol in several modes receives one frame per
   mode it holds on each update: a Quote and an LTP subscription to the same

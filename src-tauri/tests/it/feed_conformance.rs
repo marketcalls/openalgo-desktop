@@ -10,7 +10,8 @@
 //! Market data frames are produced by publishing, at the point the recording
 //! received them, an update built from the recorded frame. The desktop
 //! frame must then have the same keys (top level, `data`, depth levels) and
-//! the same JSON value types; prices are not compared. One tolerance: the
+//! the same JSON value types, and the same `data.mode` label; prices are not
+//! compared. One tolerance: the
 //! desktop always sends `ltt` in mode-1 data, which the web's Zerodha
 //! adapter omits on mode-1 copies derived from a richer tick.
 
@@ -135,6 +136,9 @@ fn compare_market(exp: &Value, got: &Value) {
     }
     assert_eq!(ed["symbol"], gd["symbol"]);
     assert_eq!(ed["exchange"], gd["exchange"]);
+    // A label, not a price: compared by value (docs-7: Depth frames said
+    // `depth` where the recording says `full`).
+    assert_eq!(ed["mode"], gd["mode"], "data.mode");
     if let Some(book) = ed.get("depth") {
         for side in ["buy", "sell"] {
             let (e, g) = (
