@@ -1,6 +1,10 @@
-//! Development server without the window: the same HTTP server and
-//! services, a throwaway data directory and an in-memory keystore, so it
-//! never touches the real app data or the OS keychain.
+//! Development server without the window: the app's HTTP server and the
+//! services its routes call, a throwaway data directory and an in-memory
+//! keystore, so it never touches the real app data or the OS keychain.
+//! It starts only the HTTP server and the session expiry task: the market
+//! data feed, the health sampler, the traffic and latency monitor, the
+//! strategy and OpenScript schedulers and Chartink are not started (run the
+//! full app for those; `docs/contributing.md`).
 //!
 //! `cargo run --example dev_server` then open http://127.0.0.1:5500/
 //! (debug builds always use the development port 5500). Ctrl-C stops it.
