@@ -277,14 +277,14 @@ async fn the_session_cap_and_duplicate_window_survive_a_restart() {
         true
     );
     assert_eq!(
-        call(&run(&h, "window"), "place_order", buy("INFY")).await["ok"],
+        call(&run(&h, "window"), "place_order", buy("RELIANCE")).await["ok"],
         true
     );
     let h = h.restart().await;
     h.analyze(true);
-    let capped = call(&run(&h, "capped"), "place_order", buy("TCS")).await;
+    let capped = call(&run(&h, "capped"), "place_order", buy("RELIANCE")).await;
     assert_eq!(capped["code"], "session_cap_reached", "{}", capped);
-    let repeated = call(&run(&h, "window"), "place_order", buy("INFY")).await;
+    let repeated = call(&run(&h, "window"), "place_order", buy("RELIANCE")).await;
     assert_eq!(repeated["code"], "duplicate_order", "{}", repeated);
     h.shutdown().await;
 }
@@ -308,10 +308,10 @@ async fn the_kill_switch_stops_every_order_tool_until_released() {
     kill_switch::set_for(&h.ctx, false).unwrap();
     assert_eq!(call(&ctx, "place_order", buy("SBIN")).await["ok"], true);
     settings(&h, &[("kill_switch", "true")]);
-    let out = call(&ctx, "place_order", buy("TCS")).await;
+    let out = call(&ctx, "place_order", buy("RELIANCE")).await;
     assert_eq!(out["risk"]["details"]["source"], "setting", "{}", out);
     settings(&h, &[("kill_switch", "false")]);
-    assert_eq!(call(&ctx, "place_order", buy("TCS")).await["ok"], true);
+    assert_eq!(call(&ctx, "place_order", buy("RELIANCE")).await["ok"], true);
     h.shutdown().await;
 }
 
