@@ -172,8 +172,11 @@ fn the_condition_parser_accepts_exactly_the_webs_shapes() {
     }
 }
 
+/// An output's name and its returned values.
+type Output = (String, Vec<Cell>);
+
 /// A result dict as the web's evaluate_condition reads it.
-fn view_parts(result: &Value) -> (String, Option<Vec<String>>, Vec<(String, Vec<Cell>)>) {
+fn view_parts(result: &Value) -> (String, Option<Vec<String>>, Vec<Output>) {
     let indicator = result["indicator"].as_str().unwrap_or_default().to_string();
     let outputs = result["outputs"].as_array().map(|a| {
         a.iter()
