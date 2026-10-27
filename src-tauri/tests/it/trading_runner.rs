@@ -86,7 +86,7 @@ fn uncertain() -> DispatchResult {
 
 /// Take one from a countdown, if any is left.
 fn take(n: &AtomicU64) -> bool {
-    n.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| v.checked_sub(1))
+    n.try_update(Ordering::SeqCst, Ordering::SeqCst, |v| v.checked_sub(1))
         .is_ok()
 }
 

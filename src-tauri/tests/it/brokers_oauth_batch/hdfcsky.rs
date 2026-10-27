@@ -152,7 +152,7 @@ fn route(fake: &Fake, s: &Seen) -> Response {
         (Method::PUT, "/oapi/v1/fetch-ltp") => {
             if fake
                 .ltp_429
-                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
+                .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
                 .is_ok()
             {
                 return status(

@@ -561,7 +561,7 @@ fn snapshot(ex: u8, scrip: i32, price: f32) -> Vec<u8> {
         g.extend(v.to_le_bytes());
     }
     f.extend(pkt(ex, scrip, b'G', &g));
-    for (i, kind) in [b'B', b'C', b'D', b'E', b'F'].into_iter().enumerate() {
+    for (i, kind) in b"BCDEF".iter().copied().enumerate() {
         let step = (i + 1) as f32 * 0.05;
         let mut d = Vec::new();
         d.extend((price - step).to_le_bytes());

@@ -317,9 +317,9 @@ async fn a_fresh_symbol_does_not_hide_a_stalled_one() {
     let streaming = {
         let ticks = ticks.clone();
         tokio::spawn(async move {
-            for i in 0u32.. {
+            for i in (0u32..5).cycle() {
                 ticks.send(Tick::new("INFY", "NSE", d("1500")));
-                ticks.send(Tick::new("TCS", "NSE", d(&format!("{}", 3000 + i % 5))));
+                ticks.send(Tick::new("TCS", "NSE", d(&format!("{}", 3000 + i))));
                 tokio::time::sleep(Duration::from_millis(50)).await;
             }
         })

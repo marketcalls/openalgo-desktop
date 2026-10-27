@@ -303,15 +303,13 @@ async fn replay(name: &str) -> usize {
                 compare_control(&line["message"], &got);
                 compared += 1;
             }
-            Some("note") => {
-                if line.get("market_data_total") == Some(&Value::from(0)) {
-                    assert_eq!(
-                        c.recv_within(Duration::from_millis(150)).await,
-                        None,
-                        "server sent an unsolicited frame ({})",
-                        line["message"]["note"]
-                    );
-                }
+            Some("note") if line.get("market_data_total") == Some(&Value::from(0)) => {
+                assert_eq!(
+                    c.recv_within(Duration::from_millis(150)).await,
+                    None,
+                    "server sent an unsolicited frame ({})",
+                    line["message"]["note"]
+                );
             }
             _ => {}
         }

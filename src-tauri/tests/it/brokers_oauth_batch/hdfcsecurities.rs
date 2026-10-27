@@ -179,10 +179,9 @@ fn packet_for(scrip: &str) -> Option<GenericDto> {
         (packet_type::NSE_FO_ALL, t)
     } else if let Some(t) = scrip.strip_prefix("NCD_") {
         (packet_type::NSE_CD_ALL, t)
-    } else if let Some(t) = scrip.strip_prefix("NSE_") {
-        (packet_type::NSE_CM_ALL, t)
     } else {
-        return None;
+        let t = scrip.strip_prefix("NSE_")?;
+        (packet_type::NSE_CM_ALL, t)
     };
     let level = |price: f64, buy: bool| MarketDepthDto {
         quantity: 40,

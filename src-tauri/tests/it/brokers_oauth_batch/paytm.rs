@@ -119,7 +119,7 @@ fn route(fake: &Fake, method: &str, path: &str, query: &str, body: &Value) -> Re
         ("GET", "/data/v1/price/live") => {
             if fake
                 .live_failures
-                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
+                .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
                 .is_ok()
             {
                 return status(StatusCode::SERVICE_UNAVAILABLE, json!({"message": "busy"}));

@@ -128,7 +128,7 @@ fn route(fake: &Fake, path: &str, body: &Value) -> Response {
             fake.quote_calls.fetch_add(1, Ordering::SeqCst);
             if fake
                 .wrong_quotes
-                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
+                .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
                 .is_ok()
             {
                 return ok(
