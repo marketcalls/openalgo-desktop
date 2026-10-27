@@ -5,7 +5,13 @@
 //! would not fit comes back as a well-formed envelope carrying the start of
 //! the text as a JSON string, never JSON cut off mid-value:
 //! `{"ok":true,"truncated":true,"dropped_chars":N,"partial":"...","note":"..."}`.
+//!
+//! A `serde_json::Value` map writes its keys sorted (the app builds
+//! serde_json without `preserve_order`). A result whose key order the model
+//! should read as the web wrote it is a struct, or an ordered map, written
+//! with [`dumps_capped_ordered`].
 
+use serde::Serialize;
 use serde_json::Value;
 
 /// Lists longer than this are cut while serialising, with a marker.
@@ -65,7 +71,24 @@ fn envelope(partial: &str, dropped_chars: usize) -> String {
 /// Compact JSON of `value` in at most `limit` characters, or the truncation
 /// envelope with the longest prefix that still fits.
 pub fn dumps_capped(value: &Value, limit: usize) -> String {
-    let text = serde_json::to_string(&json_safe(value)).unwrap_or_else(|_| "null".into());
+    capped(
+        serde_json::to_string(&json_safe(value)).unwrap_or_else(|_| "null".into()),
+        limit,
+    )
+}
+
+/// [`dumps_capped`] for any serialisable result, in the order it writes
+/// itself: a struct's fields as declared, an ordered map as inserted. The
+/// type bounds its own lists and depth.
+pub fn dumps_capped_ordered<T: Serialize + ?Sized>(value: &T, limit: usize) -> String {
+    capped(
+        serde_json::to_string(value).unwrap_or_else(|_| "null".into()),
+        limit,
+    )
+}
+
+/// `text` if it fits in `limit` characters, else the truncation envelope.
+fn capped(text: String, limit: usize) -> String {
     let total = text.chars().count();
     if total <= limit {
         return text;
@@ -120,12 +143,37 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn a_small_result_is_compact_json_in_its_own_order() {
+    fn a_small_result_is_compact_json_and_a_map_is_sorted() {
         let v = json!({"symbol": "INFY", "ltp": 1520.5, "a": [1, null]});
         assert_eq!(
             dumps_capped(&v, 12_000),
+            r#"{"a":[1,null],"ltp":1520.5,"symbol":"INFY"}"#
+        );
+    }
+
+    /// The web's dict order, kept by a struct.
+    #[test]
+    fn an_ordered_result_keeps_its_order_and_the_cap() {
+        #[derive(Serialize)]
+        struct Quote {
+            symbol: &'static str,
+            ltp: f64,
+            a: Vec<Option<i32>>,
+        }
+        let q = Quote {
+            symbol: "INFY",
+            ltp: 1520.5,
+            a: vec![Some(1), None],
+        };
+        assert_eq!(
+            dumps_capped_ordered(&q, 12_000),
             r#"{"symbol":"INFY","ltp":1520.5,"a":[1,null]}"#
         );
+        let long = vec!["\u{20b9}x"; 3000];
+        let text = dumps_capped_ordered(&long, 12_000);
+        assert!(text.chars().count() <= 12_000);
+        let v: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(v["truncated"], true);
     }
 
     #[test]

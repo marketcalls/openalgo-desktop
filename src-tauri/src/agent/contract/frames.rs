@@ -244,26 +244,109 @@ pub fn sse(frame: &Frame) -> String {
 mod tests {
     use super::*;
 
-    fn fixture() -> Value {
+    use indexmap::IndexMap;
+
+    fn fixture_text() -> String {
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/tests/fixtures/agent/frames.json"
         );
-        serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+        std::fs::read_to_string(path).unwrap()
+    }
+
+    fn fixture() -> Value {
+        serde_json::from_str(&fixture_text()).unwrap()
+    }
+
+    /// A frame's keys in the order written, read without sorting them.
+    fn keys_in_order(json: &str) -> Vec<String> {
+        let top: IndexMap<String, Value> = serde_json::from_str(json).unwrap();
+        top.into_keys().collect()
+    }
+
+    /// JSON read with every object's keys kept in the order written.
+    #[derive(serde::Deserialize, Serialize)]
+    #[serde(untagged)]
+    enum Ordered {
+        Null(()),
+        Bool(bool),
+        Number(serde_json::Number),
+        String(String),
+        Array(Vec<Ordered>),
+        Object(IndexMap<String, Ordered>),
+    }
+
+    impl Ordered {
+        fn sort_maps(&mut self) {
+            match self {
+                Ordered::Array(items) => items.iter_mut().for_each(Ordered::sort_maps),
+                Ordered::Object(map) => {
+                    map.sort_keys();
+                    map.values_mut().for_each(Ordered::sort_maps);
+                }
+                _ => {}
+            }
+        }
+
+        fn field(&mut self, name: &str) -> Option<&mut Ordered> {
+            match self {
+                Ordered::Object(map) => map.get_mut(name),
+                _ => None,
+            }
+        }
+    }
+
+    /// The web's frame as the desktop writes it: the web's bytes, except
+    /// that the JSON maps a frame carries (a call's arguments, a result, a
+    /// chart spec or command) have sorted keys, as every serde_json map in
+    /// the app is written. The frame's own fields, and a requirement's,
+    /// keep the web's order.
+    fn with_payload_maps_sorted(json: &str) -> String {
+        let mut frame: Ordered = serde_json::from_str(json).unwrap();
+        for name in ["args", "result", "spec", "commands"] {
+            if let Some(payload) = frame.field(name) {
+                payload.sort_maps();
+            }
+        }
+        if let Some(Ordered::Array(requirements)) = frame.field("requirements") {
+            for r in requirements {
+                if let Some(args) = r.field("args") {
+                    args.sort_maps();
+                }
+            }
+        }
+        serde_json::to_string(&frame).unwrap()
     }
 
     /// Every sample the web wrote reads back into a desktop frame and is
-    /// written again byte for byte: same keys, same order, same escaping.
+    /// written again byte for byte: same keys, same order, same escaping,
+    /// apart from the key order inside the maps a frame carries.
     #[test]
     fn every_web_sample_is_written_byte_for_byte() {
         let f = fixture();
         let samples = f["samples"].as_array().unwrap();
         assert!(samples.len() >= 20);
+        let mut payload_order_differs = Vec::new();
         for s in samples {
             let frame: Frame = serde_json::from_value(s["dict"].clone())
                 .unwrap_or_else(|e| panic!("{}: {}", s["dict"], e));
-            assert_eq!(sse(&frame), s["sse"].as_str().unwrap(), "{}", s["dict"]);
+            let web = s["sse"].as_str().unwrap();
+            let body = web
+                .strip_prefix("data: ")
+                .and_then(|b| b.strip_suffix("\n\n"))
+                .unwrap();
+            let want = format!("data: {}\n\n", with_payload_maps_sorted(body));
+            if want != web {
+                payload_order_differs.push(frame.wire_type());
+            }
+            assert_eq!(sse(&frame), want, "{}", s["dict"]);
         }
+        // Only these samples carry a map the web wrote unsorted; every
+        // other one is compared with the web's bytes as they are.
+        assert_eq!(
+            payload_order_differs,
+            ["tool_start", "tool_end", "viz", "confirm"]
+        );
     }
 
     /// The vocabulary and each frame's fields, in the web's order.
@@ -325,8 +408,8 @@ mod tests {
         ];
         assert_eq!(ours.iter().map(Frame::wire_type).collect::<Vec<_>>(), types);
         for frame in &ours {
-            let v = frame.to_value();
-            let keys: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
+            let written = keys_in_order(&serde_json::to_string(frame).unwrap());
+            let keys: Vec<&str> = written.iter().map(String::as_str).collect();
             let want: Vec<&str> = std::iter::once("type")
                 .chain(
                     f["fields"][frame.wire_type()]
@@ -408,12 +491,12 @@ mod tests {
             ]
             .map(|r| as_wire(serde_json::to_value(r).unwrap()))
         );
-        let headers: Vec<(String, String)> = f["sse_headers"]
-            .as_object()
-            .unwrap()
-            .iter()
-            .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
-            .collect();
+        #[derive(serde::Deserialize)]
+        struct Recorded {
+            sse_headers: IndexMap<String, String>,
+        }
+        let recorded: Recorded = serde_json::from_str(&fixture_text()).unwrap();
+        let headers: Vec<(String, String)> = recorded.sse_headers.into_iter().collect();
         assert_eq!(
             headers,
             SSE_HEADERS

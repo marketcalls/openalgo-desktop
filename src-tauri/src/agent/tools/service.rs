@@ -473,13 +473,15 @@ mod tests {
         );
     }
 
+    /// Keys come in the order the reply was read in: sorted, as the app's
+    /// `/api/v1` writes its maps (the web shows its dict's own order).
     #[test]
     fn a_payload_without_a_message_is_shown_as_python_would() {
         let p =
             json!({"status": "error", "message": {"symbol": ["Missing data for required field."]}});
         assert_eq!(
             extract_detail(&p),
-            "{'status': 'error', 'message': {'symbol': ['Missing data for required field.']}}"
+            "{'message': {'symbol': ['Missing data for required field.']}, 'status': 'error'}"
         );
         assert_eq!(py_repr(&json!("it's")), "\"it's\"");
         assert_eq!(py_repr(&json!([true, null, 1.5])), "[True, None, 1.5]");

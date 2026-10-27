@@ -15,6 +15,9 @@
 name: openalgo-desktop CodeQL config
 
 paths-ignore:
+  # Third-party crates kept as published (src-tauri/vendor/*/VENDORED.md),
+  # with their own tests, examples and workflows; not our code to change.
+  - src-tauri/vendor/**
   - src-tauri/tests/**
   - src-tauri/src/server/tests/**
   - "src-tauri/src/**/tests.rs"

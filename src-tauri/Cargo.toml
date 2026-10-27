@@ -199,6 +199,8 @@ libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3.10"
+# Reads a JSON object's keys in the order written (serde_json maps sort).
+indexmap = { version = "2", features = ["serde"] }
 proptest = "1"
 tokio = { version = "1", features = ["full", "test-util"] }
 # Integration tests in tests/ use the scriptable broker (brokers::mock).
@@ -255,3 +257,11 @@ opt-level = 3
 
 [profile.dev.package.zeroize]
 opt-level = 3
+
+# genai 0.7.1 as published, without serde_json's `preserve_order` feature,
+# which it would otherwise turn on for the whole build and so change the key
+# order of every JSON map in the app (vendor/genai-0.7.1/VENDORED.md). The
+# folder is not a member of this crate's workspace, so our clippy, tests and
+# code-health checks never treat it as our code.
+[patch.crates-io]
+genai = { path = "vendor/genai-0.7.1" }

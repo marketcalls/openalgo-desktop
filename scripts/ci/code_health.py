@@ -63,7 +63,9 @@ GENERATED = {
 # Where a pub fn may be called from: the whole Rust tree, the frontend
 # (invoke by name) and the Tauri permission files.
 REFERENCE_ROOTS = ("src-tauri", "src")
-SKIP_DIRS = {"target", "node_modules", "gen", "dist", ".git"}
+# "vendor": third-party crates kept as published (src-tauri/vendor), not
+# ours to size, lint or count as callers of our pub fns.
+SKIP_DIRS = {"target", "node_modules", "gen", "dist", ".git", "vendor"}
 
 MAP_CHECKS = ("rust_files", "rust_functions", "handler_db_access", "lint_allows")
 LIST_CHECKS = ("dead_public_functions",)

@@ -68,3 +68,15 @@ regexes = [
   # The same value as gitleaks decodes it from base64.
   '''^foobarBazQux1234567890ABCDEFGHIJKLMN$''',
 ]
+
+[[allowlists]]
+description = "Cache keys in the vendored genai crate's recorded test exchanges"
+# src-tauri/vendor/genai-0.7.1 is genai as published on crates.io
+# (VENDORED.md there). Its recorded OpenAI exchanges carry each request's
+# prompt_cache_key, a random UUID that names a prompt cache, not a
+# credential. Only UUIDs, and only in that crate's recordings.
+condition = "AND"
+paths = ['''^src-tauri/vendor/genai-0\.7\.1/tests/data/''']
+regexes = [
+  '''^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$''',
+]

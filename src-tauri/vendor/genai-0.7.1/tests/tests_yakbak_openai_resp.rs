@@ -1,0 +1,593 @@
+//! Replay integration tests for the OpenAI Responses API adapter.
+//!
+//! These tests use pre-recorded cassettes from `tests/data/yakbak/openai_resp/`
+//! and assert that content and tool calls flow through correctly.
+
+mod support;
+
+use futures::StreamExt;
+use genai::chat::*;
+use serde_json::json;
+use support::yakbak::replay_client;
+use support::{TestResult, extract_stream_end};
+
+#[tokio::test]
+async fn test_yakbak_openai_resp_reasoning_summary_capture() -> TestResult<()> {
+	// Regression for the two-part fix applied in
+	// `adapter_impl.rs` (request side inserts
+	// `reasoning.summary="detailed"` when
+	// `capture_reasoning_content=true`) and `streamer.rs` (parses
+	// `response.reasoning_summary_text.delta` events emitted by the
+	// Responses API). The cassette was recorded against the real
+	// API with both halves present — if either regresses, this
+	// test's `reasoning_content` assertion starts failing.
+	let (client, _server) = replay_client("openai_resp", "reasoning_summary_capture").await?;
+
+	let chat_req = ChatRequest::new(vec![
+		ChatMessage::system("Answer concisely."),
+		ChatMessage::user("Why is 47 * 23 = 1081? Reason step by step."),
+	]);
+	let options = ChatOptions::default()
+		.with_reasoning_effort(ReasoningEffort::Low)
+		.with_capture_content(true)
+		.with_capture_reasoning_content(true);
+
+	let stream_res = client
+		.exec_chat_stream("openai_resp::gpt-5.4-mini", chat_req, Some(&options))
+		.await?;
+	let extract = extract_stream_end(stream_res.stream).await?;
+
+	let reasoning = extract
+		.reasoning_content
+		.as_deref()
+		.ok_or("reasoning_content should be populated")?;
+	assert!(!reasoning.is_empty(), "reasoning_content populated but empty");
+	// First summary chunk for the recorded prompt starts with a
+	// header line we can pin — the API formats summaries as
+	// "**Topic**\n\nFirst line..." and the exact header is stable
+	// for a fixed prompt.
+	assert!(
+		reasoning.starts_with("**"),
+		"reasoning_content should start with a summary header, got: {:?}",
+		&reasoning[..reasoning.len().min(60)]
+	);
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_yakbak_openai_resp_reasoning_stream() -> TestResult<()> {
+	let (client, _server) = replay_client("openai_resp", "reasoning_stream").await?;
+
+	let chat_req = ChatRequest::new(vec![
+		ChatMessage::system("Answer in one sentence."),
+		ChatMessage::user("Why is the sky blue?"),
+	]);
+	let options = ChatOptions::default()
+		.with_reasoning_effort(ReasoningEffort::Low)
+		.with_capture_content(true)
+		.with_capture_reasoning_content(true)
+		.with_capture_usage(true);
+
+	let stream_res = client
+		.exec_chat_stream("openai_resp::gpt-5.4-mini", chat_req, Some(&options))
+		.await?;
+	let extract = extract_stream_end(stream_res.stream).await?;
+
+	// Exact text content
+	assert_eq!(
+		extract.content.as_deref(),
+		Some(
+			"The sky looks blue because molecules in Earth\u{2019}s atmosphere scatter shorter blue wavelengths of sunlight more strongly than longer red wavelengths, sending more blue light to our eyes."
+		),
+		"Text should match recorded response exactly"
+	);
+
+	// Exact usage
+	let usage = extract.stream_end.captured_usage.as_ref().ok_or("Should have usage")?;
+	assert_eq!(usage.prompt_tokens, Some(21));
+	assert_eq!(usage.completion_tokens, Some(45));
+	assert_eq!(usage.total_tokens, Some(66));
+
+	// Encrypted reasoning content should be captured as thought signatures
+	let thought_sigs = extract
+		.stream_end
+		.captured_thought_signatures()
+		.ok_or("Should have thought signatures (encrypted reasoning content)")?;
+	assert_eq!(thought_sigs.len(), 1, "Should have exactly one thought signature");
+	assert!(
+		thought_sigs[0].len() > 100,
+		"Encrypted content should be substantial, got {} bytes",
+		thought_sigs[0].len()
+	);
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_yakbak_openai_resp_stream_tools() -> TestResult<()> {
+	let (client, _server) = replay_client("openai_resp", "reasoning_stream_tools").await?;
+
+	let chat_req = ChatRequest::new(vec![
+		ChatMessage::system("You are a helpful assistant. Use tools when needed."),
+		ChatMessage::user("What is the temperature in C and weather, in Paris, France"),
+	])
+	.append_tool(Tool::new("get_weather").with_schema(json!({
+		"type": "object",
+		"properties": {
+			"city": { "type": "string", "description": "The city name" },
+			"country": { "type": "string", "description": "The most likely country of this city name" },
+			"unit": { "type": "string", "enum": ["C", "F"], "description": "Temperature unit" }
+		},
+		"required": ["city", "country", "unit"],
+	})));
+
+	let options = ChatOptions::default()
+		.with_reasoning_effort(ReasoningEffort::Low)
+		.with_capture_content(true)
+		.with_capture_reasoning_content(true)
+		.with_capture_tool_calls(true)
+		.with_capture_usage(true);
+
+	let stream_res = client
+		.exec_chat_stream("openai_resp::gpt-5.4-mini", chat_req, Some(&options))
+		.await?;
+	let extract = extract_stream_end(stream_res.stream).await?;
+
+	// Exactly one tool call
+	let tool_calls = extract.stream_end.captured_tool_calls().ok_or("Should have tool calls")?;
+	assert_eq!(tool_calls.len(), 1);
+
+	// Exact tool call details
+	let tc = &tool_calls[0];
+	assert_eq!(tc.fn_name, "get_weather");
+	assert_eq!(
+		tc.fn_arguments,
+		json!({"city": "Paris", "country": "France", "unit": "C"})
+	);
+	assert!(!tc.call_id.is_empty());
+
+	// Exact usage
+	let usage = extract.stream_end.captured_usage.as_ref().ok_or("Should have usage")?;
+	assert_eq!(usage.prompt_tokens, Some(106));
+	assert_eq!(usage.completion_tokens, Some(45));
+	assert_eq!(usage.total_tokens, Some(151));
+
+	Ok(())
+}
+
+/// Demonstrates and verifies the UTF-8 chunking fix in WebStream::poll_next().
+///
+/// When a multi-byte UTF-8 character (e.g. Japanese 日 = 3 bytes) straddles an HTTP
+/// chunk boundary, the old code's `String::from_utf8()` would fail. The fix buffers
+/// incomplete trailing bytes across chunks.
+///
+/// This tape has Japanese text positioned at byte offset 8191 (8KB boundary).
+#[tokio::test]
+async fn test_yakbak_openai_resp_utf8_chunking_bug() -> TestResult<()> {
+	let (client, _server) = replay_client("openai_resp", "utf8_chunking_bug").await?;
+
+	let chat_req = ChatRequest::new(vec![ChatMessage::user("Say something in Japanese.")]);
+	let options = ChatOptions::default().with_capture_content(true).with_capture_usage(true);
+
+	let stream_res = client
+		.exec_chat_stream("openai_resp::o3-mini", chat_req, Some(&options))
+		.await?;
+	let extract = extract_stream_end(stream_res.stream).await?;
+
+	// The content should contain Japanese characters intact
+	let content = extract.content.ok_or("Should have streamed content")?;
+	assert!(
+		content.contains("日本語のテスト"),
+		"Content should contain Japanese text, got: {}...",
+		&content[content.len().saturating_sub(100)..]
+	);
+
+	// Usage should be captured
+	let usage = extract.stream_end.captured_usage.as_ref().ok_or("Should have usage")?;
+	assert_eq!(usage.prompt_tokens, Some(10));
+	assert_eq!(usage.completion_tokens, Some(50));
+	assert_eq!(usage.total_tokens, Some(60));
+
+	Ok(())
+}
+
+/// Regression test: tool calls from a streamed response must be returned in the
+/// same order as their `output_index` from the SSE stream.
+///
+/// Before the fix, `HashMap::drain()` yielded entries in arbitrary hash-bucket
+/// order, so the final `Vec<ToolCall>` could be shuffled across runs even though
+/// the input stream was identical.  Replacing `HashMap` with `BTreeMap` (keyed by
+/// `output_index`) guarantees sorted iteration order.
+///
+/// This cassette contains 3 parallel tool calls at output indices 1, 2, 3:
+///   1 → get_weather(city=Paris, country=France, unit=C)
+///   2 → get_time(timezone=Europe/Paris)
+///   3 → get_currency(from=USD, to=EUR, amount=100)
+#[tokio::test]
+async fn test_yakbak_openai_resp_multi_tool_ordering() -> TestResult<()> {
+	let (client, _server) = replay_client("openai_resp", "multi_tool_ordering").await?;
+
+	let chat_req = ChatRequest::new(vec![
+		ChatMessage::system("You are a helpful assistant. Use tools when needed."),
+		ChatMessage::user("What's the weather, time, and USD→EUR rate for Paris?"),
+	])
+	.append_tool(Tool::new("get_weather").with_schema(json!({
+		"type": "object",
+		"properties": {
+			"city":    { "type": "string" },
+			"country": { "type": "string" },
+			"unit":    { "type": "string", "enum": ["C", "F"] }
+		},
+		"required": ["city", "country", "unit"]
+	})))
+	.append_tool(Tool::new("get_time").with_schema(json!({
+		"type": "object",
+		"properties": {
+			"timezone": { "type": "string" }
+		},
+		"required": ["timezone"]
+	})))
+	.append_tool(Tool::new("get_currency").with_schema(json!({
+		"type": "object",
+		"properties": {
+			"from":   { "type": "string" },
+			"to":     { "type": "string" },
+			"amount": { "type": "number" }
+		},
+		"required": ["from", "to", "amount"]
+	})));
+
+	let options = ChatOptions::default()
+		.with_reasoning_effort(ReasoningEffort::Low)
+		.with_capture_tool_calls(true)
+		.with_capture_usage(true);
+
+	let stream_res = client
+		.exec_chat_stream("openai_resp::gpt-5.4-mini", chat_req, Some(&options))
+		.await?;
+	let extract = extract_stream_end(stream_res.stream).await?;
+
+	// -- Exactly 3 tool calls
+	let tool_calls = extract.stream_end.captured_tool_calls().ok_or("Should have tool calls")?;
+	assert_eq!(tool_calls.len(), 3, "Expected exactly 3 tool calls");
+
+	// -- Tool call 0: get_weather (output_index 1)
+	assert_eq!(tool_calls[0].fn_name, "get_weather");
+	assert_eq!(tool_calls[0].call_id, "call_weather_001");
+	assert_eq!(
+		tool_calls[0].fn_arguments,
+		json!({"city": "Paris", "country": "France", "unit": "C"})
+	);
+
+	// -- Tool call 1: get_time (output_index 2)
+	assert_eq!(tool_calls[1].fn_name, "get_time");
+	assert_eq!(tool_calls[1].call_id, "call_time_002");
+	assert_eq!(tool_calls[1].fn_arguments, json!({"timezone": "Europe/Paris"}));
+
+	// -- Tool call 2: get_currency (output_index 3)
+	assert_eq!(tool_calls[2].fn_name, "get_currency");
+	assert_eq!(tool_calls[2].call_id, "call_currency_003");
+	assert_eq!(
+		tool_calls[2].fn_arguments,
+		json!({"from": "USD", "to": "EUR", "amount": 100})
+	);
+
+	// -- Usage
+	let usage = extract.stream_end.captured_usage.as_ref().ok_or("Should have usage")?;
+	assert_eq!(usage.prompt_tokens, Some(150));
+	assert_eq!(usage.completion_tokens, Some(80));
+	assert_eq!(usage.total_tokens, Some(230));
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_yakbak_openai_resp_reasoning_stream_completed_empty() -> TestResult<()> {
+	// Regression for the `output_item.done` capture path in `streamer.rs`.
+	//
+	// Some Responses-API-shaped backends (proxies that forward to ChatGPT
+	// internal endpoints, custom Azure deployments, etc.) emit each
+	// `type:"reasoning"` item via `response.output_item.added` and
+	// `response.output_item.done` events, but then send a terminal
+	// `response.completed` whose `response.output` array is empty `[]`.
+	//
+	// Before the fix, the streamer only scanned `response.output` at
+	// completion time to pull out encrypted reasoning blobs — so on these
+	// backends, `captured_thought_signatures()` came back empty even
+	// though the wire had clearly delivered the blob. After the fix, the
+	// blob is captured as the `output_item.done` event fires, and falls
+	// back to the `response.output` scan only if the streaming events
+	// didn't carry it.
+	let (client, _server) = replay_client("openai_resp", "reasoning_stream_completed_empty").await?;
+
+	let chat_req = ChatRequest::new(vec![
+		ChatMessage::system("Answer in one sentence."),
+		ChatMessage::user("Why is the sky blue?"),
+	]);
+	let options = ChatOptions::default()
+		.with_reasoning_effort(ReasoningEffort::Low)
+		.with_capture_content(true)
+		.with_capture_reasoning_content(true)
+		.with_capture_usage(true);
+
+	let stream_res = client
+		.exec_chat_stream("openai_resp::gpt-5.4-mini", chat_req, Some(&options))
+		.await?;
+	let extract = extract_stream_end(stream_res.stream).await?;
+
+	// Encrypted reasoning content should still be captured — sourced from
+	// the `output_item.done` event, not from `response.output`.
+	let thought_sigs = extract
+		.stream_end
+		.captured_thought_signatures()
+		.ok_or("Should have captured thought signatures from output_item.done")?;
+	assert_eq!(
+		thought_sigs.len(),
+		1,
+		"Should have exactly one thought signature even when response.completed.output is empty"
+	);
+	assert!(
+		thought_sigs[0].len() > 100,
+		"Encrypted content should be substantial, got {} bytes",
+		thought_sigs[0].len()
+	);
+
+	// Text content still flows through the delta events.
+	assert_eq!(
+		extract.content.as_deref(),
+		Some(
+			"The sky looks blue because molecules in Earth\u{2019}s atmosphere scatter shorter blue wavelengths of sunlight more strongly than longer red wavelengths, sending more blue light to our eyes."
+		),
+		"Text content should still arrive via delta events"
+	);
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn test_yakbak_openai_resp_tools_completed_no_output_field() -> TestResult<()> {
+	// Regression for `RespResponse` deserialization in `resp_response.rs`.
+	//
+	// Some Responses-API-shaped backends omit the `output` field from the
+	// terminal `response.completed` event entirely (not `output: []`,
+	// absent). Without `#[serde(default)]` on `RespResponse::output`,
+	// serde fails the whole event with "missing field `output`", the
+	// streamer skips it as malformed, and the stream closes via the
+	// EOF fallback — which never finalises the per-`output_index` tool
+	// calls accumulated in `in_progress_tool_calls`. Result:
+	// `captured_tool_calls` comes back `None` even though every
+	// `response.function_call_arguments.delta` arrived intact.
+	//
+	// This cassette was recorded against a real backend where the issue
+	// reproduces; the `response.completed` event has no `output` key.
+	let (client, _server) = replay_client("openai_resp", "tools_completed_no_output_field").await?;
+
+	let chat_req = ChatRequest::new(vec![
+		ChatMessage::system("You are a helpful assistant. Use tools when needed."),
+		ChatMessage::user("What is the temperature in C and weather, in Paris, France"),
+	])
+	.append_tool(Tool::new("get_weather").with_schema(json!({
+		"type": "object",
+		"properties": {
+			"city":    { "type": "string" },
+			"country": { "type": "string" },
+			"unit":    { "type": "string", "enum": ["C", "F"] }
+		},
+		"required": ["city", "country", "unit"]
+	})));
+
+	let options = ChatOptions::default()
+		.with_reasoning_effort(ReasoningEffort::Low)
+		.with_capture_tool_calls(true)
+		.with_capture_usage(true);
+
+	let stream_res = client
+		.exec_chat_stream("openai_resp::gpt-5.4", chat_req, Some(&options))
+		.await?;
+	let extract = extract_stream_end(stream_res.stream).await?;
+
+	let tool_calls = extract
+		.stream_end
+		.captured_tool_calls()
+		.ok_or("Tool call accumulated from delta events should survive a response.completed with no `output` field")?;
+	assert_eq!(tool_calls.len(), 1, "Expected exactly one tool call");
+
+	let tc = &tool_calls[0];
+	assert_eq!(tc.fn_name, "get_weather");
+	assert_eq!(
+		tc.fn_arguments,
+		json!({"city": "Paris", "country": "France", "unit": "C"})
+	);
+	assert!(!tc.call_id.is_empty());
+
+	let usage = extract.stream_end.captured_usage.as_ref().ok_or("Should have usage")?;
+	assert_eq!(usage.prompt_tokens, Some(82));
+	assert_eq!(usage.completion_tokens, Some(26));
+	assert_eq!(usage.total_tokens, Some(108));
+
+	Ok(())
+}
+
+/// Replay test for freeform custom tools (lark-grammar-constrained), the
+/// OpenAI Responses `type: "custom"` tool family.
+///
+/// Covers the full roundtrip against a recorded backend session:
+/// - Request 1: a `Tool` with `custom_format` is serialized as a
+///   `type: "custom"` tool; the streamed `custom_tool_call` /
+///   `response.custom_tool_call_input.delta` events are accumulated into a
+///   `ToolCall` whose `fn_arguments` stays a RAW string (freeform input is
+///   NOT JSON — parsing it would mangle the patch).
+/// - Request 2: the assistant `ToolCall` is sent back as a
+///   `custom_tool_call` input item and the `ToolResponse` as
+///   `custom_tool_call_output` (not `function_call` / `function_call_output`,
+///   which the API rejects for custom tools), and the final text flows.
+#[tokio::test]
+async fn test_yakbak_openai_resp_custom_grammar_tool() -> TestResult<()> {
+	let (client, _server) = replay_client("openai_resp", "custom_grammar_tool").await?;
+
+	let chat_req = seed_apply_patch_request();
+	let options = ChatOptions::default()
+		.with_reasoning_effort(ReasoningEffort::Low)
+		.with_capture_content(true)
+		.with_capture_tool_calls(true)
+		.with_capture_usage(true);
+
+	// -- Turn 1: the custom tool call, with the raw grammar-constrained patch
+	let stream_res = client
+		.exec_chat_stream("openai_resp::gpt-5.4-mini", chat_req.clone(), Some(&options))
+		.await?;
+	let extract = extract_stream_end(stream_res.stream).await?;
+
+	let usage = extract.stream_end.captured_usage.as_ref().ok_or("Should have usage")?;
+	assert_eq!(usage.prompt_tokens, Some(358));
+	assert_eq!(usage.completion_tokens, Some(68));
+	assert_eq!(usage.total_tokens, Some(426));
+
+	let tool_calls = extract
+		.stream_end
+		.captured_into_tool_calls()
+		.ok_or("Should have captured the custom tool call")?;
+	assert_eq!(tool_calls.len(), 1, "Expected exactly one custom tool call");
+
+	let tc = &tool_calls[0];
+	assert_eq!(tc.fn_name, "apply_patch");
+	assert_eq!(tc.call_id, "call_dnKaJCb74pLKobQZDVi5yv2U");
+	// The freeform input must stay a raw string — not JSON-parsed.
+	let expected_patch = "*** Begin Patch\n*** Update File: hello.py\n@@\n-def greet(name):\n+def welcome(name):\n     print(f\"Hello, {name}!\")\n \n-greet(\"World\")\n+welcome(\"World\")\n*** End Patch\n";
+	assert_eq!(
+		tc.fn_arguments.as_str(),
+		Some(expected_patch),
+		"custom tool input should be the raw patch string"
+	);
+
+	// -- Turn 2: roundtrip — tool call + output go back as custom_* items
+	let call_id = tool_calls[0].call_id.clone();
+	let chat_req = chat_req
+		.append_message(ChatMessage::from(tool_calls))
+		.append_message(ToolResponse::new(call_id, "Patch applied successfully."));
+
+	let stream_res = client
+		.exec_chat_stream("openai_resp::gpt-5.4-mini", chat_req, Some(&options))
+		.await?;
+	let extract = extract_stream_end(stream_res.stream).await?;
+
+	assert_eq!(extract.content.as_deref(), Some("Done."));
+
+	let usage = extract.stream_end.captured_usage.as_ref().ok_or("Should have usage")?;
+	assert_eq!(usage.prompt_tokens, Some(431));
+	assert_eq!(usage.completion_tokens, Some(6));
+	assert_eq!(usage.total_tokens, Some(437));
+
+	Ok(())
+}
+
+/// Same tool definition as `record_openai_resp_custom_grammar_tool` in
+/// `tests_yakbak_record.rs` — the OpenAI `apply_patch` freeform custom tool.
+fn seed_apply_patch_request() -> ChatRequest {
+	let apply_patch_grammar = r#"start: begin_patch hunk+ end_patch
+begin_patch: "*** Begin Patch" LF
+end_patch: "*** End Patch" LF?
+
+hunk: add_hunk | delete_hunk | update_hunk
+add_hunk: "*** Add File: " filename LF add_line+
+delete_hunk: "*** Delete File: " filename LF
+update_hunk: "*** Update File: " filename LF change_move? change?
+
+filename: /(.+)/
+add_line: "+" /(.*)/ LF -> line
+
+change_move: "*** Move to: " filename LF
+change: (change_context | change_line)+ eof_line?
+change_context: ("@@" | "@@ " /(.+)/) LF
+change_line: ("+" | "-" | " ") /(.*)/ LF
+eof_line: "*** End of File" LF
+
+%import common.LF
+"#;
+
+	ChatRequest::new(vec![
+		ChatMessage::system("You are a coding assistant. Edit files with the apply_patch tool."),
+		ChatMessage::user(
+			"Rename the function `greet` to `welcome` in the file `hello.py` (update the call site too). \
+			 Current content of hello.py:\n\n\
+			 def greet(name):\n    print(f\"Hello, {name}!\")\n\ngreet(\"World\")\n",
+		),
+	])
+	.append_tool(
+		Tool::new("apply_patch")
+			.with_description(
+				"Use the `apply_patch` tool to edit files. This is a FREEFORM tool, so do not wrap the patch in JSON.",
+			)
+			.with_custom_format(json!({
+				"type": "grammar",
+				"syntax": "lark",
+				"definition": apply_patch_grammar,
+			})),
+	)
+}
+
+// Protocol fixtures, not live recordings. The first uses the exact error object
+// from https://developers.openai.com/api/reference/resources/responses/streaming-events/#error.
+// The second adds a preceding delta, nullable code, non-null param, and a trailing
+// delta to verify that a provider error terminates the stream.
+#[tokio::test]
+async fn test_yakbak_openai_resp_stream_error() -> TestResult<()> {
+	check_stream_error("stream_error", false).await
+}
+
+#[tokio::test]
+async fn test_yakbak_openai_resp_stream_error_after_delta() -> TestResult<()> {
+	check_stream_error("stream_error_after_delta", true).await
+}
+
+async fn check_stream_error(scenario: &str, partial: bool) -> TestResult<()> {
+	for capture in [false, true] {
+		// -- Setup client and stream
+		let (client, _server) = replay_client("openai_resp", scenario).await?;
+		let options = ChatOptions::default().with_capture_content(capture);
+		let mut stream = client
+			.exec_chat_stream(
+				"openai_resp::gpt-5.4-mini",
+				ChatRequest::new(vec![ChatMessage::user("Hello")]),
+				Some(&options),
+			)
+			.await?
+			.stream;
+
+		// -- Verify start and partial chunks
+		assert!(matches!(stream.next().await, Some(Ok(ChatStreamEvent::Start))));
+		if partial {
+			assert!(matches!(
+				stream.next().await,
+				Some(Ok(ChatStreamEvent::Chunk(chunk))) if chunk.content == "Partial answer"
+			));
+		}
+
+		// -- Verify error response
+		match stream.next().await {
+			Some(Err(genai::Error::ChatResponse { model_iden, body })) => {
+				assert_eq!(model_iden.adapter_kind, genai::adapter::AdapterKind::OpenAIResp);
+				assert_eq!(
+					body,
+					json!({
+						"type": "error",
+						"code": if partial { None } else { Some("ERR_SOMETHING") },
+						"message": "Something went wrong",
+						"param": if partial { Some("input") } else { None },
+						"sequence_number": if partial { 2 } else { 1 },
+					})
+				);
+			}
+			other => return Err(format!("expected provider error, got {other:?}").into()),
+		}
+
+		// -- Verify stream termination
+		assert!(
+			stream.next().await.is_none(),
+			"no success End or further chunks after error"
+		);
+		assert!(stream.next().await.is_none());
+	}
+	Ok(())
+}

@@ -198,7 +198,10 @@ jobs:
           scan-type: fs
           scan-ref: .
           scanners: vuln,secret
-          skip-dirs: node_modules,src-tauri/target,dist
+          # src-tauri/vendor: third-party crates kept as published (genai's
+          # own Cargo.lock lists its dev tools, which never reach the app;
+          # the app's dependencies are src-tauri/Cargo.lock).
+          skip-dirs: node_modules,src-tauri/target,dist,src-tauri/vendor
           severity: CRITICAL,HIGH,MEDIUM
           trivyignores: .trivyignore
           format: sarif

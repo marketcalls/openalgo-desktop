@@ -190,6 +190,12 @@ impl ToolOutcome {
         ToolOutcome::Ok(super::json::dumps_capped(value, MAX_RESULT_CHARS))
     }
 
+    /// [`ToolOutcome::json`] for a struct or an ordered map, so the model
+    /// reads the keys in the web's order (a `Value` map is sorted).
+    pub fn json_ordered<T: serde::Serialize + ?Sized>(value: &T) -> ToolOutcome {
+        ToolOutcome::Ok(super::json::dumps_capped_ordered(value, MAX_RESULT_CHARS))
+    }
+
     /// An argument the tool itself refuses, worded as every refusal is (the
     /// web's `invalid_argument`).
     pub fn invalid_argument(field: &str, reason: &str, fix: Option<&str>) -> ToolOutcome {
@@ -324,6 +330,29 @@ mod tests {
         assert_eq!(
             ToolOutcome::invalid_argument("x", "bad.", None).text(),
             "The 'x' argument is invalid: bad."
+        );
+    }
+
+    /// A `Value` map is written sorted; a struct keeps the web's order.
+    #[test]
+    fn a_result_keeps_its_order_only_when_it_has_one() {
+        #[derive(serde::Serialize)]
+        struct Reply {
+            status: &'static str,
+            orderid: &'static str,
+        }
+        let v = serde_json::json!({"status": "success", "orderid": "1"});
+        assert_eq!(
+            ToolOutcome::json(&v).text(),
+            r#"{"orderid":"1","status":"success"}"#
+        );
+        let r = Reply {
+            status: "success",
+            orderid: "1",
+        };
+        assert_eq!(
+            ToolOutcome::json_ordered(&r).text(),
+            r#"{"status":"success","orderid":"1"}"#
         );
     }
 }
