@@ -206,26 +206,26 @@ fn list_indicators_details_a_narrow_match_and_groups_a_broad_one() {
 fn list_and_describe_refusals_are_the_webs_sentences() {
     let bad_category = list_indicators("", "Trends").expect_err("refused");
     assert_eq!(
-        bad_category.message(),
+        bad_category.text(),
         "The 'category' argument is invalid: 'trends' is not one of the catalogue's categories \
          Use one of: trend, momentum, volatility, volume, oscillators, statistical, hybrid, \
          talib_extra, utility."
     );
     let nothing = list_indicators("zzz", "").expect_err("refused");
     assert_eq!(
-        nothing.message(),
+        nothing.text(),
         "The 'query' argument is invalid: nothing in the catalogue matches 'zzz' Try a broader \
          keyword, or call list_indicators with no arguments to see every category."
     );
     let near = describe_indicator("bollinger").expect_err("unknown");
     assert_eq!(
-        near.message(),
+        near.text(),
         "The 'name' argument is invalid: 'bollinger' is not an indicator on this build Did you \
          mean: bbands, bbpercent, bbwidth, obv_smoothed?"
     );
     let far = unknown_indicator("indicator", "qqq");
     assert_eq!(
-        far.message(),
+        far.text(),
         "The 'indicator' argument is invalid: 'qqq' is not one of the 127 indicators Call \
          list_indicators with a keyword to find the right name."
     );

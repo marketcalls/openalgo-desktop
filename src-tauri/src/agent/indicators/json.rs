@@ -9,7 +9,7 @@
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Json {
+pub(crate) enum Json {
     Null,
     Bool(bool),
     Int(i64),
@@ -22,18 +22,36 @@ pub enum Json {
 }
 
 impl Json {
-    pub fn str(text: impl Into<String>) -> Self {
+    pub(crate) fn str(text: impl Into<String>) -> Self {
         Json::Str(text.into())
     }
 
     /// An object from `(key, value)` pairs, in the order given.
-    pub fn obj<K: Into<String>>(pairs: impl IntoIterator<Item = (K, Json)>) -> Self {
+    pub(crate) fn obj<K: Into<String>>(pairs: impl IntoIterator<Item = (K, Json)>) -> Self {
         Json::Obj(pairs.into_iter().map(|(k, v)| (k.into(), v)).collect())
+    }
+
+    /// A `serde_json::Value` as this type, keys in the value's own order.
+    pub(crate) fn from_value(value: &serde_json::Value) -> Self {
+        use serde_json::Value;
+        match value {
+            Value::Null => Json::Null,
+            Value::Bool(b) => Json::Bool(*b),
+            Value::Number(n) => match n.as_i64() {
+                Some(i) => Json::Int(i),
+                None => Json::Num(n.as_f64().unwrap_or(f64::NAN)),
+            },
+            Value::String(s) => Json::Str(s.clone()),
+            Value::Array(items) => Json::Arr(items.iter().map(Json::from_value).collect()),
+            Value::Object(map) => {
+                Json::obj(map.iter().map(|(k, v)| (k.clone(), Json::from_value(v))))
+            }
+        }
     }
 
     /// Set `key`, in place when it is already present (a Python dict
     /// assignment), at the end otherwise.
-    pub fn set(&mut self, key: &str, value: Json) {
+    pub(crate) fn set(&mut self, key: &str, value: Json) {
         if let Json::Obj(pairs) = self {
             match pairs.iter_mut().find(|(k, _)| k == key) {
                 Some(slot) => slot.1 = value,
@@ -43,7 +61,7 @@ impl Json {
     }
 
     /// The value under `key` in an object.
-    pub fn get(&self, key: &str) -> Option<&Json> {
+    pub(crate) fn get(&self, key: &str) -> Option<&Json> {
         match self {
             Json::Obj(pairs) => pairs.iter().find(|(k, _)| k == key).map(|(_, v)| v),
             _ => None,
@@ -52,7 +70,7 @@ impl Json {
 
     /// The compact text the web's `json.dumps(..., separators=(",", ":"))`
     /// gives, keys in order.
-    pub fn to_text(&self) -> String {
+    pub(crate) fn to_text(&self) -> String {
         serde_json::to_string(self).unwrap_or_else(|_| "null".into())
     }
 }

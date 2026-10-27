@@ -13,11 +13,11 @@ use super::support::{frame, json, json_diff, second, COMPUTE};
 use crate::agent::indicators::coerce::{required_bars, resolve_param_aliases};
 use crate::agent::indicators::compute::compute;
 use crate::agent::indicators::compute::Cell;
-use crate::agent::indicators::pyfmt::py_round;
 use crate::agent::indicators::registry::get_spec;
 use crate::agent::indicators::scan::{
     evaluate_condition, parse_condition, Condition, CrossKind, Op, ResultView, CONDITION_HELP,
 };
+use crate::agent::tools::numbers::py_round;
 
 const ABS: f64 = 1e-6;
 const REL: f64 = 1e-9;

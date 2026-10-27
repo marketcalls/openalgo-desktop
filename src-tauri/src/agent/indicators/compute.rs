@@ -10,11 +10,12 @@ use serde_json::{Map, Value};
 
 use super::coerce::{coerce_params, resolve_param_aliases};
 use super::descriptions::describe;
-use super::frame::{ist_iso, CandleFrame};
 use super::json::Json;
-use super::pyfmt::{py_repr, py_round};
 use super::registry::{self, Default, IndicatorSpec, Status};
 use super::ta::{self, ParamValue, Params, Series};
+use crate::agent::tools::market::candles::{ist_timestamp, CandleFrame};
+use crate::agent::tools::numbers::py_round;
+use crate::agent::tools::values::py_repr;
 
 /// Decimal places kept on every returned value (`_ROUND_DP`).
 const ROUND_DP: usize = 6;
@@ -22,7 +23,7 @@ const ROUND_DP: usize = 6;
 /// A refusal the caller can fix by changing the request; the sentence is
 /// the web's.
 #[derive(Debug, Clone, PartialEq)]
-pub struct IndicatorError(pub String);
+pub(crate) struct IndicatorError(pub String);
 
 impl IndicatorError {
     pub(crate) fn new(message: impl Into<String>) -> Self {
@@ -39,7 +40,7 @@ impl std::fmt::Display for IndicatorError {
 /// One returned value: a number rounded to six places, a signal flag, or
 /// `None` where the indicator has no value.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Cell {
+pub(crate) enum Cell {
     Null,
     Num(f64),
     Flag(bool),
@@ -55,16 +56,24 @@ impl Cell {
     }
 }
 
+/// An IST index entry as pandas renders it (`2026-02-11T09:15:00+05:30`).
+pub(crate) fn ist_stamp(epoch_seconds: i64) -> String {
+    match ist_timestamp(&Value::from(epoch_seconds)) {
+        Value::String(text) => text,
+        other => other.to_string(),
+    }
+}
+
 /// The second instrument's closes for `beta` and `correlation`.
 #[derive(Debug, Clone, Default)]
-pub struct Comparison {
+pub(crate) struct Comparison {
     pub timestamps: Vec<i64>,
     pub closes: Vec<f64>,
 }
 
 /// One computed indicator: the web's `compute()` result.
 #[derive(Debug, Clone)]
-pub struct Computed {
+pub(crate) struct Computed {
     pub(crate) indicator: &'static str,
     pub(crate) category: &'static str,
     pub(crate) params_used: Vec<(&'static str, Json)>,
@@ -83,7 +92,7 @@ pub struct Computed {
 
 impl Computed {
     /// The result as the web returns it, keys in the web's order.
-    pub fn to_json(&self) -> Json {
+    pub(crate) fn to_json(&self) -> Json {
         let mut out = Json::obj([
             ("indicator", Json::str(self.indicator)),
             ("category", Json::str(self.category)),
@@ -159,7 +168,7 @@ fn series_for<'f>(
     let mut out = Vec::with_capacity(spec.inputs.len());
     for column in spec.inputs {
         let Some(values) = frame.column(column) else {
-            let carried: Vec<&str> = frame.column_names().collect();
+            let carried: Vec<&str> = frame.columns.iter().map(|(name, _)| *name).collect();
             return Err(IndicatorError::new(format!(
                 "{} needs the {} series but these candles only carry {}.",
                 spec.name,
@@ -204,7 +213,7 @@ fn align_second(frame: &CandleFrame, second: &Comparison) -> Vec<f64> {
         .zip(second.closes.iter().copied())
         .collect();
     let mut aligned: Vec<f64> = frame
-        .timestamps()
+        .time
         .iter()
         .map(|t| lookup.get(t).copied().unwrap_or(f64::NAN))
         .collect();
@@ -376,7 +385,7 @@ pub(crate) fn call_library(
 /// `compute`: one indicator over a cleaned frame. `name` is the exact `ta`
 /// method name, already lower-cased; `second` is the comparison instrument
 /// for `beta` and `correlation`; `last_n` values of each output come back.
-pub fn compute(
+pub(crate) fn compute(
     name: &str,
     frame: &CandleFrame,
     params: Option<&Map<String, Value>>,
@@ -514,10 +523,7 @@ fn shape(
         defaults_applied: (!applied.is_empty()).then_some(applied),
         outputs,
         values_returned: tail.min(frame.len()),
-        timestamps: frame.timestamps()[start..]
-            .iter()
-            .map(|t| ist_iso(*t))
-            .collect(),
+        timestamps: frame.time[start..].iter().map(|t| ist_stamp(*t)).collect(),
         values,
         summary,
         note: target.note,

@@ -8,11 +8,11 @@ use super::support::{frame, json, COMPUTE};
 use crate::agent::indicators::coerce::resolve_param_aliases;
 use crate::agent::indicators::compute::{compute, Cell};
 use crate::agent::indicators::compute_batch;
-use crate::agent::indicators::frame::CandleFrame;
 use crate::agent::indicators::registry::get_spec;
 use crate::agent::indicators::scan::{
     evaluate_condition, parse_condition, plan_scan, scan_symbol, ResultView,
 };
+use crate::agent::tools::market::candles::CandleFrame;
 
 fn trend() -> CandleFrame {
     frame(&json(COMPUTE)["frames"]["trend"])
@@ -123,7 +123,7 @@ fn a_scan_plan_refuses_what_the_web_refuses() {
     assert!(plan_scan("RSI", "RSI < 101").is_ok());
     let unparsed = plan_scan("rsi", "RSI between 20 and 30").expect_err("refused");
     assert_eq!(
-        unparsed.message(),
+        unparsed.text(),
         "The 'condition' argument is invalid: 'RSI between 20 and 30' is not one of the two \
          accepted shapes Use a comparison against a number, such as \"rsi < 30\" or \"adx > 25\", \
          or a cross between two of the indicator's own outputs, such as \
@@ -132,13 +132,13 @@ fn a_scan_plan_refuses_what_the_web_refuses() {
     );
     let pair = plan_scan("beta", "beta > 1").expect_err("refused");
     assert_eq!(
-        pair.message(),
+        pair.text(),
         "The 'indicator' argument is invalid: beta compares two instruments and cannot be scanned \
          across a list Use compute_indicator with compare_symbol instead, once per instrument."
     );
     assert!(plan_scan("nope", "x > 1")
         .expect_err("unknown")
-        .message()
+        .text()
         .contains("'nope'"));
 }
 

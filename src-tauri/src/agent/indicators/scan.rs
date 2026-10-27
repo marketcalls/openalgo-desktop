@@ -11,11 +11,13 @@
 use serde_json::{Map, Value};
 
 use super::compute::{compute, Cell, Computed, IndicatorError};
-use super::discovery::{unknown_indicator, ArgError};
-use super::frame::CandleFrame;
+use super::discovery::unknown_indicator;
 use super::json::Json;
-use super::pyfmt::py_repr;
 use super::registry::{self, IndicatorSpec};
+use crate::agent::contract::tool::ToolOutcome;
+use crate::agent::tools::market::candles::CandleFrame;
+use crate::agent::tools::market::normalise::refuse;
+use crate::agent::tools::values::py_repr;
 
 /// What a condition may look like (`_CONDITION_HELP`).
 pub(crate) const CONDITION_HELP: &str = "Use a comparison against a number, such as \"rsi < 30\" \
@@ -314,22 +316,22 @@ fn evaluate_cross(kind: CrossKind, a: &str, b: &str, result: &ResultView) -> (bo
 
 /// A scan the tool may run: the indicator and the parsed condition.
 #[derive(Debug, Clone)]
-pub struct ScanPlan {
+pub(crate) struct ScanPlan {
     pub(crate) spec: &'static IndicatorSpec,
     pub(crate) condition: Condition,
 }
 
 /// `scan_symbols`' checks before any instrument is fetched: a known
 /// indicator over one instrument, and a condition the parser reads.
-pub fn plan_scan(indicator: &str, condition: &str) -> Result<ScanPlan, ArgError> {
+pub(crate) fn plan_scan(indicator: &str, condition: &str) -> Result<ScanPlan, ToolOutcome> {
     let name = indicator.trim().to_lowercase();
     let Some(spec) = registry::get_spec(&name) else {
         return Err(unknown_indicator("indicator", indicator));
     };
     if spec.needs_second_series {
-        return Err(ArgError::new(
+        return Err(refuse(
             "indicator",
-            format!(
+            &format!(
                 "{} compares two instruments and cannot be scanned across a list",
                 name
             ),
@@ -337,13 +339,13 @@ pub fn plan_scan(indicator: &str, condition: &str) -> Result<ScanPlan, ArgError>
         ));
     }
     let Some(parsed) = parse_condition(condition) else {
-        return Err(ArgError::new(
+        return Err(refuse(
             "condition",
-            format!(
+            &format!(
                 "{} is not one of the two accepted shapes",
                 py_repr(&Value::String(condition.into()))
             ),
-            format!(
+            &format!(
                 "{} Valid output names for {}: {}.",
                 CONDITION_HELP,
                 name,
@@ -359,7 +361,7 @@ pub fn plan_scan(indicator: &str, condition: &str) -> Result<ScanPlan, ArgError>
 
 /// One instrument of a scan: the indicator over its candles, then the
 /// condition. The tool adds the symbol and exchange to the detail.
-pub fn scan_symbol(
+pub(crate) fn scan_symbol(
     plan: &ScanPlan,
     frame: &CandleFrame,
     params: Option<&Map<String, Value>>,

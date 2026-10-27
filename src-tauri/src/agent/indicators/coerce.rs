@@ -6,9 +6,9 @@
 use serde_json::{Map, Value};
 
 use super::compute::IndicatorError;
-use super::pyfmt::{py_repr, py_str};
 use super::registry::{required_default, IndicatorSpec, Kind};
 use super::ta::ParamValue;
+use crate::agent::tools::values::{py_repr, py_str, truthy};
 
 /// Extra bars fetched on top of the measured warm-up (`WARMUP_MARGIN`).
 pub(crate) const WARMUP_MARGIN: usize = 30;
@@ -120,18 +120,6 @@ fn parse_float_text(text: &str) -> Option<f64> {
     cleaned.parse().ok()
 }
 
-/// Python truthiness of a JSON-decoded value (`bool(value)`).
-fn truthy(value: &Value) -> bool {
-    match value {
-        Value::Null => false,
-        Value::Bool(b) => *b,
-        Value::Number(n) => n.as_f64().is_some_and(|x| x != 0.0),
-        Value::String(s) => !s.is_empty(),
-        Value::Array(items) => !items.is_empty(),
-        Value::Object(map) => !map.is_empty(),
-    }
-}
-
 /// A whole float as Python's `int()` prints it, beyond `i64` too (and `0`,
 /// never `-0`).
 fn whole_text(value: f64) -> String {
@@ -238,7 +226,7 @@ pub(crate) fn coerce_params(
 /// `required_bars`: how many bars to fetch so `want` finite values come
 /// back. The measured warm-up, raised by a period longer than the default,
 /// plus a margin, never below 60.
-pub fn required_bars(
+pub(crate) fn required_bars(
     spec: &IndicatorSpec,
     params: Option<&Map<String, Value>>,
     want: usize,
