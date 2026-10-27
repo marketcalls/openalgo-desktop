@@ -474,3 +474,165 @@ async fn an_account_reset_closes_the_tunnel_and_forgets_the_authtoken() {
     assert!(s.enabled);
     assert_eq!(s.domain.as_deref(), Some("desk.ngrok.app"));
 }
+
+/// The real ngrok service, approved by the maintainer: `#[ignore]`, run by
+/// hand with NGROK_AUTHTOKEN and NGROK_DOMAIN in the environment (it skips
+/// without them). Neither value is ever printed: every check reports only
+/// its name and whether it passed.
+#[tokio::test]
+#[ignore]
+async fn tunnel_live_through_the_real_ngrok_service() {
+    use crate::security::Secret;
+    use crate::services::tunnel::fake::wait_status;
+    use crate::services::tunnel::TunnelChange;
+    let (Ok(authtoken), Ok(domain)) = (
+        std::env::var("NGROK_AUTHTOKEN"),
+        std::env::var("NGROK_DOMAIN"),
+    ) else {
+        eprintln!("skipped: NGROK_AUTHTOKEN and NGROK_DOMAIN are not set");
+        return;
+    };
+    let h = H::new(); // the real ngrok provider
+    h.setup();
+    h.save_broker_credentials();
+    h.ctx().pin_listener_ports(0, 0);
+    h.ctx().reload_config().unwrap();
+    let server = crate::server::start(h.ctx().clone()).await.unwrap();
+    let port = server.addr.port();
+    let ctx = h.ctx().clone();
+    sign_in(&ctx).await;
+    let saved = crate::services::tunnel::save(
+        &ctx,
+        TunnelChange {
+            enabled: Some(true),
+            authtoken: Some(Secret::new(authtoken)),
+            domain: Some(domain),
+            ..Default::default()
+        },
+    )
+    .await;
+    // The address as the app saved it (a pasted https:// address is
+    // reduced to its domain).
+    let Some(host) = saved.ok().and_then(|v| v.domain) else {
+        panic!("the tunnel settings were not saved");
+    };
+    let st = wait_status(ctx.tunnel.watch(), Duration::from_secs(90), |s| {
+        matches!(s.state, TunnelState::Online | TunnelState::Error)
+    })
+    .await;
+    if st.state != TunnelState::Online {
+        let why = if st.message.contains("in use by another ngrok agent") {
+            "the domain is online elsewhere (another agent on the account)"
+        } else if st.message.contains("authtoken") {
+            "the authtoken was refused"
+        } else if st.message.contains("cannot use the domain") {
+            "the account cannot use the domain"
+        } else {
+            "another error (see the log)"
+        };
+        server.stop().await;
+        panic!("the tunnel did not open: {}", why);
+    }
+    let site = format!("https://{}", host);
+    let mut checks: Vec<(&str, bool)> = Vec::new();
+    checks.push((
+        "the live address is the saved domain",
+        st.url.as_deref() == Some(site.as_str()),
+    ));
+    checks.push((
+        "the broker redirect is the domain's",
+        BrokerConfigService::redirect_url(&ctx, "zerodha").ok()
+            == Some(format!("{}/zerodha/callback", site)),
+    ));
+
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(30))
+        .build()
+        .unwrap();
+    let call = |method: reqwest::Method, path: &str| {
+        client
+            .request(method, format!("{}{}", site, path))
+            .header("ngrok-skip-browser-warning", "1")
+    };
+    let api = call(reqwest::Method::POST, "/api/v1/funds")
+        .json(&json!({"apikey": "not-a-key"}))
+        .send()
+        .await;
+    checks.push(match api {
+        Ok(r) => {
+            let status = r.status();
+            let body: Value = r.json().await.unwrap_or(Value::Null);
+            (
+                "/api/v1 with a bad key: the app's refusal",
+                status == StatusCode::FORBIDDEN && body["status"] == "error",
+            )
+        }
+        Err(_) => ("/api/v1 with a bad key: the app's refusal", false),
+    });
+    let root = call(reqwest::Method::GET, "/").send().await;
+    checks.push(match root {
+        Ok(r) => {
+            let status = r.status();
+            let body: Value = r.json().await.unwrap_or(Value::Null);
+            (
+                "/ : the tunnel's notice",
+                status == StatusCode::NOT_FOUND
+                    && body["message"] == crate::server::tunnel::NOT_THROUGH_THE_TUNNEL,
+            )
+        }
+        Err(_) => ("/ : the tunnel's notice", false),
+    });
+    let callback = call(reqwest::Method::GET, "/zerodha/callback?code=x")
+        .send()
+        .await;
+    let local = format!("http://127.0.0.1:{}/zerodha/callback?code=x", port);
+    checks.push(match callback {
+        Ok(r) => (
+            "a broker callback: sent on to this computer",
+            r.status() == StatusCode::TEMPORARY_REDIRECT
+                && r.headers()
+                    .get(header::LOCATION)
+                    .and_then(|v| v.to_str().ok())
+                    == Some(local.as_str()),
+        ),
+        Err(_) => ("a broker callback: sent on to this computer", false),
+    });
+    let webhook = call(
+        reqwest::Method::POST,
+        &format!("/strategy/webhook/{}", uuid::Uuid::new_v4().simple()),
+    )
+    .json(&json!({}))
+    .send()
+    .await;
+    checks.push(match webhook {
+        Ok(r) => {
+            let status = r.status();
+            let body: Value = r.json().await.unwrap_or(Value::Null);
+            (
+                "an unknown strategy webhook: the app's refusal",
+                status == StatusCode::NOT_FOUND
+                    && body["message"] != crate::server::tunnel::NOT_THROUGH_THE_TUNNEL,
+            )
+        }
+        Err(_) => ("an unknown strategy webhook: the app's refusal", false),
+    });
+
+    let off = crate::services::tunnel::save(
+        &ctx,
+        TunnelChange {
+            enabled: Some(false),
+            ..Default::default()
+        },
+    )
+    .await;
+    let st = wait_status(ctx.tunnel.watch(), Duration::from_secs(30), stopped).await;
+    checks.push(("switched off: stopped", off.is_ok() && stopped(&st)));
+    server.stop().await;
+
+    for (name, passed) in &checks {
+        eprintln!("check {}: {}", name, if *passed { "pass" } else { "FAIL" });
+    }
+    let failed: Vec<&str> = checks.iter().filter(|c| !c.1).map(|c| c.0).collect();
+    assert!(failed.is_empty(), "failed: {:?}", failed);
+}
