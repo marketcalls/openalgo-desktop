@@ -19,7 +19,6 @@ use rust_decimal::{Decimal, RoundingStrategy};
 use serde_json::{json, Value};
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 
 pub const KEY_TRADING_ENABLED: &str = "trading_enabled";
 pub const KEY_REQUIRE_ANALYZER_MODE: &str = "require_analyzer_mode";
