@@ -81,7 +81,7 @@ static SPECS: LazyLock<Vec<ToolSpec>> = LazyLock::new(|| {
         .filter_map(|name| {
             let spec = recorded.iter().find(|s| s["name"] == *name)?;
             Some(ToolSpec {
-                name: *name,
+                name,
                 description: spec["description"]
                     .as_str()
                     .unwrap_or_default()
