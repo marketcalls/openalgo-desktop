@@ -18,6 +18,7 @@
 pub mod account;
 pub mod answer;
 pub mod instrument;
+pub mod live;
 pub mod market;
 pub mod numbers;
 pub mod options;
@@ -42,6 +43,7 @@ pub const TOOLKITS: &[ToolGroup] = &[
     account::GROUP,
     options::GROUP,
     instrument::GROUP,
+    live::GROUP,
     // Toolkit lanes add their line here, for example:
     // orders::GROUP,     // order 50, every surface, requires Trading
     //
