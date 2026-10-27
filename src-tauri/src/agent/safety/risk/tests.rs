@@ -318,30 +318,66 @@ fn modified(quantity: i64, price: f64, ltp: Option<f64>) -> Map<String, Value> {
     modify_args(&obj(&order), ltp.map(Value::from).as_ref())
 }
 
+/// The order being modified, as the order book reports it.
+fn held() -> ExistingOrder {
+    ExistingOrder {
+        orderid: "A1".into(),
+        symbol: "SBIN".into(),
+        exchange: "NSE".into(),
+        action: "BUY".into(),
+        product: "MIS".into(),
+    }
+}
+
+fn open() -> Gate {
+    Gate {
+        kill_switch_file_present: false,
+        analyzer_mode: Some(false),
+    }
+}
+
 /// D-007: the web let a modify raise a quantity or move a price past every
 /// limit, because it ran only the gate. The desktop checks the modified
 /// order's exchange, product, quantity, notional and price deviation.
 #[test]
 fn a_modified_order_meets_the_quantity_price_and_notional_rules() {
     let l = modify_limits();
-    let open = Gate {
-        kill_switch_file_present: false,
-        analyzer_mode: Some(false),
-    };
     let details = |q: i64| obj(&json!({"orderid": "A1", "quantity": q}));
-    let v = check_modify(&l, &open, &modified(101, 100.0, Some(100.0)), details(101));
-    assert_eq!(v.code, RiskCode::QuantityExceeded, "{:?}", v);
-    let v = check_modify(&l, &open, &modified(10, 120.0, Some(100.0)), details(10));
-    assert_eq!(v.code, RiskCode::PriceDeviation, "{:?}", v);
-    assert_eq!(v.reason, "The order price 120.0 is 20.00% away from the last traded price 100.0, beyond the 5% limit.");
     let v = check_modify(
         &l,
-        &open,
+        &open(),
+        &modified(101, 100.0, Some(100.0)),
+        &held(),
+        details(101),
+    );
+    assert_eq!(v.code, RiskCode::QuantityExceeded, "{:?}", v);
+    let v = check_modify(
+        &l,
+        &open(),
+        &modified(10, 120.0, Some(100.0)),
+        &held(),
+        details(10),
+    );
+    assert_eq!(v.code, RiskCode::PriceDeviation, "{:?}", v);
+    assert_eq!(
+        v.reason,
+        "The order price 120.0 is 20.00% away from the last traded price 100.0, beyond the 5% limit."
+    );
+    let v = check_modify(
+        &l,
+        &open(),
         &modified(100, 6000.0, Some(6000.0)),
+        &held(),
         details(100),
     );
     assert_eq!(v.code, RiskCode::NotionalExceeded, "{:?}", v);
-    let v = check_modify(&l, &open, &modified(10, 101.0, None), details(10));
+    let v = check_modify(
+        &l,
+        &open(),
+        &modified(10, 101.0, None),
+        &held(),
+        details(10),
+    );
     assert!(v.allowed, "{:?}", v);
     assert_eq!(v.reason, "modify_order passed every risk check.");
     assert_eq!(v.details["operation"], "modify_order");
@@ -351,26 +387,138 @@ fn a_modified_order_meets_the_quantity_price_and_notional_rules() {
         json!(["No last traded price for SBIN, so the price-deviation check was skipped."])
     );
     // The web's check (the gate alone) let the first one through.
-    assert!(check_destructive(&l, &open, &json!("modify_order"), details(101)).allowed);
+    assert!(check_destructive(&l, &open(), &json!("modify_order"), details(101)).allowed);
+}
+
+/// Security review (2026-10-27): the checks run on the order being
+/// modified, not on what the model says it is. A change naming another
+/// symbol, exchange, side or product is refused, and the order's own
+/// symbol meets the blocklist.
+#[test]
+fn a_modify_is_checked_against_the_order_it_changes() {
+    let l = modify_limits();
+    let mut other = held();
+    other.symbol = "TCS".into();
+    other.product = "cnc".into();
+    let v = check_modify(
+        &l,
+        &open(),
+        &modified(10, 100.0, Some(100.0)),
+        &other,
+        Map::new(),
+    );
+    assert_eq!(v.code, RiskCode::InvalidArguments, "{:?}", v);
+    assert_eq!(
+        v.reason,
+        "Order A1 is BUY TCS on NSE under CNC, but this change names symbol SBIN (the order has TCS), product MIS (the order has CNC). A modification keeps the order's own symbol, exchange, side and product; restate the change with the order's values."
+    );
+    assert_eq!(v.details["fields"], json!(["symbol", "product"]));
+    let mut blocked = modify_limits();
+    blocked.symbol_blocklist.insert("SBIN".into());
+    let v = check_modify(
+        &blocked,
+        &open(),
+        &modified(10, 100.0, Some(100.0)),
+        &held(),
+        Map::new(),
+    );
+    assert_eq!(v.code, RiskCode::SymbolBlocked, "{:?}", v);
 }
 
 #[test]
 fn a_modify_never_claims_and_still_meets_the_gate() {
     let mut l = modify_limits();
     l.max_orders_per_session = 0;
-    let open = Gate {
-        kill_switch_file_present: false,
-        analyzer_mode: None,
-    };
-    assert!(check_modify(&l, &open, &modified(10, 100.0, Some(100.0)), Map::new()).allowed);
+    assert!(
+        check_modify(
+            &l,
+            &open(),
+            &modified(10, 100.0, Some(100.0)),
+            &held(),
+            Map::new()
+        )
+        .allowed
+    );
     let killed = Gate {
         kill_switch_file_present: true,
         analyzer_mode: None,
     };
     assert_eq!(
-        check_modify(&l, &killed, &modified(10, 100.0, Some(100.0)), Map::new()).code,
+        check_modify(
+            &l,
+            &killed,
+            &modified(10, 100.0, Some(100.0)),
+            &held(),
+            Map::new()
+        )
+        .code,
         RiskCode::KillSwitch
     );
 }
 
 /// Security review (2026-10-27): the same order restated with a price
+/// written another way, or a price its type ignores, is still the same
+/// order to the duplicate window. The web's fingerprint let each of these
+/// through as new.
+#[test]
+fn a_restated_order_is_still_a_duplicate() {
+    let mut l = RiskLimits::defaults(std::path::Path::new("/data"));
+    l.trading_enabled = true;
+    let open = Gate {
+        kill_switch_file_present: false,
+        analyzer_mode: Some(true),
+    };
+    let now = Utc::now();
+    let order = |extra: Value| {
+        let mut o = json!({"symbol": "SBIN", "exchange": "NSE", "action": "BUY", "quantity": 10,
+            "product": "MIS", "ltp": 100});
+        if let (Some(o), Some(e)) = (o.as_object_mut(), extra.as_object()) {
+            o.extend(e.clone());
+        }
+        obj(&o)
+    };
+    let pairs = [
+        (
+            json!({"price_type": "LIMIT", "price": 100}),
+            json!({"price_type": "LIMIT", "price": "100.0"}),
+        ),
+        (
+            json!({"price_type": "LIMIT", "price": 100.5}),
+            json!({"price_type": "limit", "price": "100.50", "trigger_price": 9}),
+        ),
+        (
+            json!({"price_type": "MARKET", "price": 5}),
+            json!({"price_type": "MARKET", "price": 7, "trigger_price": 3}),
+        ),
+        (
+            json!({"price_type": "SL-M", "trigger_price": 99, "price": 5}),
+            json!({"price_type": "SLM", "trigger_price": "99.00"}),
+        ),
+        (
+            json!({"price_type": "SL", "price": 101, "trigger_price": 100}),
+            json!({"price_type": "SL", "price": "101.000", "trigger_price": 100.0}),
+        ),
+        (
+            json!({"quantity": 10}),
+            json!({"quantity": "10", "symbol": " sbin ", "exchange": "nse", "action": "buy", "product": "mis"}),
+        ),
+    ];
+    for (first, second) in pairs {
+        let mut book = Book::default();
+        let a = check_order(&l, &open, &mut book, &order(first.clone()), now, Some("a"));
+        assert!(a.allowed, "{:?}", a);
+        let b = check_order(&l, &open, &mut book, &order(second.clone()), now, Some("b"));
+        assert_eq!(
+            b.code,
+            RiskCode::DuplicateOrder,
+            "{} then {}",
+            first,
+            second
+        );
+    }
+    // A price the type does use still tells two orders apart.
+    let mut book = Book::default();
+    let limit = |p: f64| order(json!({"price_type": "LIMIT", "price": p}));
+    assert!(check_order(&l, &open, &mut book, &limit(100.0), now, Some("a")).allowed);
+    assert!(check_order(&l, &open, &mut book, &limit(100.5), now, Some("b")).allowed);
+}

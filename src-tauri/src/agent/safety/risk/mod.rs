@@ -25,9 +25,10 @@
 //! Rules 8 and 9 and the claim are one step on the book ([`book`]); a
 //! refusal after the claim (rules 10 and 11) gives the claim back.
 //!
-//! Desktop difference (D-007): a modified order is checked against rules
-//! 1 to 3, 5 to 7 and 10 ([`check_modify`]); the web checked only 1 to 3,
-//! so a modify could raise a quantity or move a price past the limits.
+//! Desktop difference (D-007): a modified order is checked against the
+//! order book's record of it and rules 1 to 7 and 10 ([`check_modify`]);
+//! the web checked only 1 to 3, so a modify could raise a quantity or move
+//! a price past the limits.
 
 pub mod book;
 pub mod intent;
@@ -719,15 +720,44 @@ pub fn check_destructive(
     )
 }
 
-/// A modification (D-007, desktop): the gate, then the modified order's
-/// exchange, product and quantity (rules 5 to 7) and its notional and
-/// price deviation (rule 10). No claim: a modify is not a new order, so it
-/// never consumes the session cap or meets the duplicate window, and funds
-/// are the broker's to judge for a change to an order already accepted.
+/// The order a modification changes, as the order book reports it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExistingOrder {
+    pub orderid: String,
+    pub symbol: String,
+    pub exchange: String,
+    pub action: String,
+    pub product: String,
+}
+
+/// The fields a modification names that are not the order's own.
+fn differs(intent: &Intent, order: &ExistingOrder) -> Vec<(&'static str, String, String)> {
+    let canon = |t: &str| t.trim().to_uppercase();
+    [
+        ("symbol", &intent.symbol, &order.symbol),
+        ("exchange", &intent.exchange, &order.exchange),
+        ("action", &intent.action, &order.action),
+        ("product", &intent.product, &order.product),
+    ]
+    .into_iter()
+    .filter(|(_, sent, held)| canon(sent) != canon(held))
+    .map(|(field, sent, held)| (field, sent.clone(), canon(held)))
+    .collect()
+}
+
+/// A modification (D-007, desktop): the gate; then the change must name
+/// the order's own symbol, exchange, side and product (the order book's
+/// record, never the model's word for it); then the order's symbol (rule
+/// 4), its exchange and product with the new quantity (rules 5 to 7), and
+/// the new prices against the order's own instrument (rule 10). No claim:
+/// a modify is not a new order, so it never consumes the session cap or
+/// meets the duplicate window, and funds are the broker's to judge for an
+/// order it has already accepted. The web checked only the gate.
 pub fn check_modify(
     limits: &RiskLimits,
     gate_in: &Gate,
     args: &Map<String, Value>,
+    order: &ExistingOrder,
     details: Map<String, Value>,
 ) -> Verdict {
     if let Some(refused) = gate(limits, gate_in) {
@@ -737,8 +767,29 @@ pub fn check_modify(
         Ok(i) => i,
         Err(e) => return verdict(false, e.code, e.reason, Value::Object(e.details)),
     };
+    let wrong = differs(&intent, order);
+    if !wrong.is_empty() {
+        let named: Vec<String> = wrong
+            .iter()
+            .map(|(field, sent, held)| format!("{} {} (the order has {})", field, sent, held))
+            .collect();
+        return blocked(
+            RiskCode::InvalidArguments,
+            format!(
+                "Order {} is {} {} on {} under {}, but this change names {}. A modification keeps the order's own symbol, exchange, side and product; restate the change with the order's values.",
+                order.orderid,
+                order.action.trim().to_uppercase(),
+                order.symbol.trim().to_uppercase(),
+                order.exchange.trim().to_uppercase(),
+                order.product.trim().to_uppercase(),
+                named.join(", ")
+            ),
+            json!({"orderid": order.orderid, "fields": wrong.iter().map(|(f, _, _)| *f).collect::<Vec<_>>()}),
+        );
+    }
     let mut warnings = Vec::new();
-    if let Some(refused) = check_venue_and_size(&intent, limits)
+    if let Some(refused) = check_symbol(&intent, limits)
+        .or_else(|| check_venue_and_size(&intent, limits))
         .or_else(|| check_pricing(&intent, limits, &mut warnings))
     {
         return refused;

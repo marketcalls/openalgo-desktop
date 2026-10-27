@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeApproval, rupees } from './orderWords'
+import { describeApproval, describeSmartPreview, rupees } from './orderWords'
 
 const place = (args: Record<string, unknown>) =>
   describeApproval({ tool_name: 'place_order', args }).sentence
@@ -110,5 +110,34 @@ describe('describeApproval', () => {
   it('prints prices with Indian grouping and two decimals', () => {
     expect(rupees(150000)).toBe('1,50,000.00')
     expect(rupees(0.05)).toBe('0.05')
+  })
+})
+
+describe('describeSmartPreview', () => {
+  it('states the difference a smart order sends, not its target', () => {
+    expect(
+      describeSmartPreview({ held: 500, target: -500, action: 'SELL', quantity: 1000 }, false)
+    ).toBe('Held now: long 500. This sends Sell 1,000 to reach short 500.')
+    expect(
+      describeSmartPreview({ held: 100, target: 150, action: 'BUY', quantity: 50 }, false)
+    ).toBe('Held now: long 100. This sends Buy 50 to reach long 150.')
+    expect(describeSmartPreview({ held: -75, target: 0, action: 'BUY', quantity: 75 }, false)).toBe(
+      'Held now: short 75. This sends Buy 75 to reach flat.'
+    )
+    expect(describeSmartPreview({ held: 100, target: 100, action: null, quantity: 0 }, false)).toBe(
+      'The position is already long 100: nothing will be placed.'
+    )
+  })
+
+  it('never guesses when the position cannot be read', () => {
+    expect(describeSmartPreview(undefined, false)).toBe('Reading the position held now.')
+    expect(describeSmartPreview({ held: null, target: -500 }, false)).toMatch(/could not be read/)
+    expect(describeSmartPreview(undefined, true)).toMatch(/could not be read/)
+    expect(
+      describeSmartPreview(
+        { held: null, error: "The 'position_size' argument is invalid: x" },
+        false
+      )
+    ).toBe("The 'position_size' argument is invalid: x")
   })
 })

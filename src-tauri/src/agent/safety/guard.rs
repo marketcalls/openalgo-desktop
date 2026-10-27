@@ -87,18 +87,18 @@ pub async fn check_destructive(
     .await
 }
 
-/// Check a modification (D-007: the modified order's quantity, price and
-/// notional too).
+/// Check a modification against the order it changes (D-007).
 pub async fn check_modify(
     app: &Arc<AppState>,
     args: Map<String, Value>,
+    order: risk::ExistingOrder,
     analyzer_mode: Option<bool>,
     details: Map<String, Value>,
 ) -> Result<Verdict> {
     let verdict = app
         .blocking(move |ctx| {
             let (limits, gate) = gate(ctx, analyzer_mode);
-            Ok(risk::check_modify(&limits, &gate, &args, details))
+            Ok(risk::check_modify(&limits, &gate, &args, &order, details))
         })
         .await?;
     log_warnings(&verdict);

@@ -11,13 +11,15 @@
 //! with the platform's sentence. No tool passes a destination of its own.
 
 use super::pipeline::{Sent, DISPATCH_TIMEOUT, PREPARE_TIMEOUT};
-use super::reads;
+use super::reads::{self, Lookup};
+use super::smart;
 use super::validate::{self, arg, Check};
 use super::AGENT_STRATEGY;
 use crate::agent::contract::tool::{ToolCtx, ToolOutcome};
 use crate::agent::safety::guard;
-use crate::agent::safety::risk::{modify_args, Verdict};
+use crate::agent::safety::risk::{modify_args, ExistingOrder, Verdict};
 use crate::agent::tools::order_vocab::split_exchange_prefix;
+use crate::services::order_service::SmartDecision;
 use serde_json::{json, Map, Value};
 
 /// A tool's checked intention, ready to send.
@@ -45,22 +47,35 @@ pub(super) enum Dispatch {
     },
 }
 
-/// Why there is no plan.
-pub(super) enum Refused {
+/// Why there is no plan, so nothing is sent.
+pub(super) enum Unplanned {
     /// A fixable argument: the model reads the correction.
     Retry(String),
     /// The platform failed before anything was sent (logged, not shown).
     Internal(String),
+    /// What the check needs could not be confirmed (the order book, the
+    /// position held), so it was refused rather than checked against the
+    /// model's word: `stage` names what, `message` is the trader's sentence.
+    Unverified {
+        stage: &'static str,
+        message: String,
+    },
+    /// The position is already where the smart order asks: nothing to
+    /// place, as the platform's own smart order would answer.
+    NothingToPlace {
+        message: String,
+        extra: Map<String, Value>,
+    },
 }
 
-impl From<ToolOutcome> for Refused {
-    fn from(o: ToolOutcome) -> Refused {
-        Refused::Retry(o.text().to_string())
+impl From<ToolOutcome> for Unplanned {
+    fn from(o: ToolOutcome) -> Unplanned {
+        Unplanned::Retry(o.text().to_string())
     }
 }
 
-fn internal(e: crate::error::AppError) -> Refused {
-    Refused::Internal(format!("{}: {}", "AppError", e))
+fn internal(e: crate::error::AppError) -> Unplanned {
+    Unplanned::Internal(format!("{}: {}", "AppError", e))
 }
 
 fn session(ctx: &ToolCtx) -> String {
@@ -79,7 +94,7 @@ fn extra(fields: &[(&str, Value)]) -> Map<String, Value> {
 async fn price_and_funds(
     ctx: &ToolCtx,
     order: &Map<String, Value>,
-) -> Result<(Value, Value), Refused> {
+) -> Result<(Value, Value), Unplanned> {
     let symbol = arg(order, "symbol").as_str().unwrap_or_default();
     let exchange = arg(order, "exchange").as_str().unwrap_or_default();
     let both = async {
@@ -90,7 +105,7 @@ async fn price_and_funds(
     };
     match tokio::time::timeout(PREPARE_TIMEOUT, both).await {
         Ok((ltp, funds)) => Ok((ltp.unwrap_or(Value::Null), funds.unwrap_or(Value::Null))),
-        Err(_) => Err(Refused::Internal(format!(
+        Err(_) => Err(Unplanned::Internal(format!(
             "Timeout: the reads before the risk check took longer than {} seconds",
             PREPARE_TIMEOUT.as_secs()
         ))),
@@ -118,7 +133,10 @@ fn guard_args(
     ])
 }
 
-pub(super) async fn place_order(ctx: &ToolCtx, args: &Map<String, Value>) -> Result<Plan, Refused> {
+pub(super) async fn place_order(
+    ctx: &ToolCtx,
+    args: &Map<String, Value>,
+) -> Result<Plan, Unplanned> {
     let order = validate::build_order(args, false)?;
     let (ltp, funds) = price_and_funds(ctx, &order).await?;
     let quantity = arg(&order, "quantity").as_i64().unwrap_or(0);
@@ -141,9 +159,10 @@ pub(super) async fn place_order(ctx: &ToolCtx, args: &Map<String, Value>) -> Res
     })
 }
 
-/// The smallest exposure a smart order can have: it moves the position to
-/// `position_size`, so it is checked on the larger of that and `quantity`.
-fn smart_order(args: &Map<String, Value>) -> Check<(Map<String, Value>, i64)> {
+/// A smart order's arguments checked: the order, its target position and
+/// its quantity. Both at zero would flatten whatever is held, which is
+/// refused as the web refuses it.
+pub(super) fn smart_order(args: &Map<String, Value>) -> Check<(Map<String, Value>, i64, i64)> {
     let target = validate::whole_number("position_size", arg(args, "position_size"), None)?;
     let mut fields = args.clone();
     if arg(args, "quantity").is_null() {
@@ -152,27 +171,59 @@ fn smart_order(args: &Map<String, Value>) -> Check<(Map<String, Value>, i64)> {
     let mut order = validate::build_order(&fields, true)?;
     order.insert("position_size".into(), json!(target));
     let quantity = arg(&order, "quantity").as_i64().unwrap_or(0);
-    let exposure = target.abs().max(quantity);
-    if exposure <= 0 {
+    if target.abs().max(quantity) <= 0 {
         return Err(ToolOutcome::invalid_argument(
             "position_size",
             "a smart order with both quantity and position_size at zero flattens whatever the account happens to be holding, which is not something to ask for by accident.",
             Some("Use the close_position tool to flatten a position, or give a non-zero position_size for the position you want to end up with."),
         ));
     }
-    Ok((order, exposure))
+    Ok((order, target, quantity))
 }
 
+fn text(order: &Map<String, Value>, key: &str) -> String {
+    arg(order, key).as_str().unwrap_or_default().to_string()
+}
+
+/// The guard checks the order the smart order will send (security review,
+/// 2026-10-27): the difference between the position held and the target,
+/// with its own side, decided by the platform's smart-order table. The
+/// web checked the larger of the target and the quantity, half a reversal.
 pub(super) async fn place_smart_order(
     ctx: &ToolCtx,
     args: &Map<String, Value>,
-) -> Result<Plan, Refused> {
-    let (order, exposure) = smart_order(args)?;
-    let (ltp, funds) = price_and_funds(ctx, &order).await?;
+) -> Result<Plan, Unplanned> {
+    let (order, target, quantity) = smart_order(args)?;
+    let (symbol, exchange, product) = (
+        text(&order, "symbol"),
+        text(&order, "exchange"),
+        text(&order, "product"),
+    );
+    let Some(held) = reads::open_position_quantity(ctx, &symbol, &exchange, &product).await else {
+        return Err(Unplanned::Unverified {
+            stage: "position",
+            message: smart::position_unreadable(&symbol, &exchange, &product),
+        });
+    };
+    let (side, size) = match smart::decide(held, target, quantity, &text(&order, "action")) {
+        SmartDecision::Place { action, quantity } => (action, quantity),
+        SmartDecision::NoAction(message) => {
+            return Err(Unplanned::NothingToPlace {
+                message: message.to_string(),
+                extra: extra(&[
+                    ("order", Value::Object(order)),
+                    ("held_quantity", json!(held)),
+                ]),
+            })
+        }
+    };
+    let mut sent = order.clone();
+    sent.insert("action".into(), json!(side));
+    let (ltp, funds) = price_and_funds(ctx, &sent).await?;
     let verdict = guard::check_order(
         &ctx.app,
         &session(ctx),
-        guard_args(&order, exposure, ltp, funds),
+        guard_args(&sent, size, ltp, funds),
         reads::analyzer_mode(ctx),
     )
     .await
@@ -181,7 +232,12 @@ pub(super) async fn place_smart_order(
         verdict,
         extra: extra(&[
             ("order", Value::Object(order.clone())),
-            ("risk_checked_quantity", json!(exposure)),
+            ("risk_checked_quantity", json!(size)),
+            ("held_quantity", json!(held)),
+            (
+                "sends",
+                smart::describe(held, target, quantity, &text(&order, "action")),
+            ),
         ]),
         dispatch: Dispatch::Post {
             endpoint: "placesmartorder",
@@ -191,40 +247,51 @@ pub(super) async fn place_smart_order(
     })
 }
 
-/// D-007: the modified order meets the quantity, price and notional rules
-/// too, so its last traded price is read as for a new order.
+/// The order a modification changes, from the order book; refused when it
+/// is not there or the book cannot be read (security review, 2026-10-27).
+async fn existing_order(ctx: &ToolCtx, identifier: &str) -> Result<ExistingOrder, Unplanned> {
+    let message = match reads::order_record(ctx, identifier).await {
+        Lookup::Found(order) => return Ok(order),
+        Lookup::NotFound => format!(
+            "Order {} is not in the order book, so the change could not be checked against the order it would modify, and nothing was sent. Read the order id from the order book and ask again with it exactly as shown.",
+            identifier
+        ),
+        Lookup::Unreadable => "The order book could not be read, so the change could not be checked against the order it would modify, and nothing was sent. Tell the operator the order book is not available right now, and ask again once it is.".to_string(),
+    };
+    Err(Unplanned::Unverified {
+        stage: "order",
+        message,
+    })
+}
+
+/// D-007: the modified order meets the symbol, size, price and notional
+/// rules against the order it changes, whose last traded price is read.
 pub(super) async fn modify_order(
     ctx: &ToolCtx,
     args: &Map<String, Value>,
-) -> Result<Plan, Refused> {
+) -> Result<Plan, Unplanned> {
     let identifier = validate::order_id(arg(args, "order_id"))?;
     let mut order = validate::build_order(args, false)?;
     order.insert("orderid".into(), json!(identifier));
-    let symbol = arg(&order, "symbol")
-        .as_str()
-        .unwrap_or_default()
-        .to_string();
-    let exchange = arg(&order, "exchange")
-        .as_str()
-        .unwrap_or_default()
-        .to_string();
+    let existing = existing_order(ctx, &identifier).await?;
     let ltp = tokio::time::timeout(
         PREPARE_TIMEOUT,
-        reads::last_traded_price(ctx, &symbol, &exchange),
+        reads::last_traded_price(ctx, &existing.symbol, &existing.exchange),
     )
     .await
     .map_err(|_| {
-        Refused::Internal("Timeout: the quote before the risk check did not arrive".into())
+        Unplanned::Internal("Timeout: the quote before the risk check did not arrive".into())
     })?;
     let details = extra(&[
         ("orderid", json!(identifier)),
-        ("symbol", json!(symbol)),
-        ("exchange", json!(exchange)),
+        ("symbol", json!(existing.symbol)),
+        ("exchange", json!(existing.exchange)),
         ("quantity", arg(&order, "quantity").clone()),
     ]);
     let verdict = guard::check_modify(
         &ctx.app,
         modify_args(&order, ltp.as_ref()),
+        existing,
         reads::analyzer_mode(ctx),
         details,
     )
@@ -244,7 +311,7 @@ pub(super) async fn modify_order(
 pub(super) async fn cancel_order(
     ctx: &ToolCtx,
     args: &Map<String, Value>,
-) -> Result<Plan, Refused> {
+) -> Result<Plan, Unplanned> {
     let identifier = validate::order_id(arg(args, "order_id"))?;
     let verdict = guard::check_destructive(
         &ctx.app,
@@ -271,7 +338,7 @@ pub(super) async fn cancel_order(
 pub(super) async fn cancel_all_orders(
     ctx: &ToolCtx,
     _args: &Map<String, Value>,
-) -> Result<Plan, Refused> {
+) -> Result<Plan, Unplanned> {
     let verdict = guard::check_destructive(
         &ctx.app,
         "cancel_all_orders",
@@ -294,7 +361,7 @@ pub(super) async fn cancel_all_orders(
 pub(super) async fn close_position(
     ctx: &ToolCtx,
     args: &Map<String, Value>,
-) -> Result<Plan, Refused> {
+) -> Result<Plan, Unplanned> {
     let text = |k: &str| {
         (!arg(args, k).is_null()).then(|| crate::agent::safety::risk::num::py_str(arg(args, k)))
     };
@@ -331,7 +398,7 @@ pub(super) async fn close_position(
 pub(super) async fn close_all_positions(
     ctx: &ToolCtx,
     _args: &Map<String, Value>,
-) -> Result<Plan, Refused> {
+) -> Result<Plan, Unplanned> {
     let verdict = guard::check_destructive(
         &ctx.app,
         "close_all_positions",

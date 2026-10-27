@@ -13,14 +13,20 @@
 //! (`scripts/agent/capture_web_orders.py`); never edit that file by hand.
 //!
 //! What lives where: [`validate`] (arguments), [`reads`] (what the guard
-//! is told), [`plans`] (what each tool means), [`pipeline`] (the five
-//! steps every tool runs), and the vocabulary shared with the read-only
-//! account tools in `super::order_vocab`.
+//! is told), [`plans`] (what each tool means), [`smart`] (what a smart
+//! order really sends), [`pipeline`] (the five steps every tool runs),
+//! [`preview`] (the approval card's view of a smart order), and the
+//! vocabulary shared with the read-only account tools in
+//! `super::order_vocab`.
 
 mod pipeline;
 mod plans;
+mod preview;
 mod reads;
+pub mod smart;
 mod validate;
+
+pub use preview::smart_order_preview;
 
 #[cfg(test)]
 mod tests;

@@ -17,7 +17,7 @@
 //! model is told not to send it again and to have the trader check the
 //! order book).
 
-use super::plans::{Plan, Refused};
+use super::plans::{Plan, Unplanned};
 use crate::agent::contract::json::dumps_capped;
 use crate::agent::contract::tool::{ToolCtx, ToolOutcome, MAX_RESULT_CHARS};
 use crate::agent::prompts::untrusted::wrap_tool_result;
@@ -159,7 +159,7 @@ pub(super) async fn run_mutation(
     tool: &'static str,
     args: &Map<String, Value>,
     attributes: Vec<(&'static str, String)>,
-    plan: impl std::future::Future<Output = Result<Plan, Refused>>,
+    plan: impl std::future::Future<Output = Result<Plan, Unplanned>>,
 ) -> ToolOutcome {
     let mut attempt = Entry::new(Phase::Attempt, tool);
     attempt.conversation_id = ctx.conversation_id;
@@ -183,14 +183,14 @@ pub(super) async fn run_mutation(
     settle(&call, &plan, sent).await
 }
 
-async fn not_planned(call: &Call<'_>, refused: Refused) -> ToolOutcome {
+async fn not_planned(call: &Call<'_>, refused: Unplanned) -> ToolOutcome {
     match refused {
-        Refused::Retry(message) => {
+        Unplanned::Retry(message) => {
             let response = json!({"status": "error", "stage": "validation", "message": message});
             call.result_row(false, response, None, Vec::new()).await;
             ToolOutcome::Retry(message)
         }
-        Refused::Internal(exception) => {
+        Unplanned::Internal(exception) => {
             tracing::error!(
                 "Agent tool {} could not be prepared: {}",
                 call.tool,
@@ -201,6 +201,29 @@ async fn not_planned(call: &Call<'_>, refused: Refused) -> ToolOutcome {
             call.result_row(false, response, None, Vec::new()).await;
             call.emit(json!({"ok": false, "tool": call.tool, "status": "error",
                 "message": INTERNAL_MESSAGE, "retry": false}))
+        }
+        Unplanned::Unverified { stage, message } => {
+            tracing::warn!(
+                "Agent tool {} refused unverified ({}): {}",
+                call.tool,
+                stage,
+                message
+            );
+            let response = json!({"status": "error", "stage": stage, "message": message});
+            call.result_row(false, response, None, Vec::new()).await;
+            call.emit(json!({"ok": false, "tool": call.tool, "status": "error",
+                "message": message, "retry": false}))
+        }
+        Unplanned::NothingToPlace { message, extra } => {
+            let response = json!({"status": "success", "message": message});
+            call.result_row(true, response.clone(), None, Vec::new())
+                .await;
+            let mut result = json!({"ok": true, "tool": call.tool, "status": "success",
+                "order_ids": [], "message": message, "response": response});
+            if let Value::Object(r) = &mut result {
+                r.extend(extra);
+            }
+            call.emit(result)
         }
     }
 }

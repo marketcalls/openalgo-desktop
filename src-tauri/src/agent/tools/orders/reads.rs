@@ -13,7 +13,8 @@
 
 use super::AGENT_STRATEGY;
 use crate::agent::contract::tool::ToolCtx;
-use crate::agent::safety::risk::num::py_decimal;
+use crate::agent::safety::risk::num::{py_decimal, py_str};
+use crate::agent::safety::risk::ExistingOrder;
 use crate::agent::tools::service::{unwrap, SERVICE_TIMEOUT};
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
@@ -138,4 +139,59 @@ pub(super) async fn open_position_quantity(
     )
     .await?;
     py_decimal(body.get("quantity")?)?.trunc().to_i64()
+}
+
+/// What the order book says about one order.
+pub(super) enum Lookup {
+    Found(ExistingOrder),
+    NotFound,
+    /// The book could not be read, or the order's row is incomplete.
+    Unreadable,
+}
+
+/// The order a modification changes, from the order book (the sandbox's
+/// in analyzer mode), never from the model's arguments.
+pub(super) async fn order_record(ctx: &ToolCtx, order_id: &str) -> Lookup {
+    let Some(body) = read(
+        ctx,
+        "orderbook_service.get_orderbook",
+        "orderbook",
+        json!({}),
+    )
+    .await
+    else {
+        tracing::warn!("Agent order tools could not read the order book to check a modification");
+        return Lookup::Unreadable;
+    };
+    let Some(rows) = source(&body).get("orders").and_then(Value::as_array) else {
+        return Lookup::Unreadable;
+    };
+    let Some(row) = rows
+        .iter()
+        .find(|r| r.get("orderid").map(|v| py_str(v).trim() == order_id) == Some(true))
+    else {
+        return Lookup::NotFound;
+    };
+    let field = |k: &str| {
+        row.get(k)
+            .map(|v| py_str(v).trim().to_string())
+            .filter(|t| !t.is_empty())
+    };
+    match (
+        field("symbol"),
+        field("exchange"),
+        field("action"),
+        field("product"),
+    ) {
+        (Some(symbol), Some(exchange), Some(action), Some(product)) => {
+            Lookup::Found(ExistingOrder {
+                orderid: order_id.to_string(),
+                symbol,
+                exchange,
+                action,
+                product,
+            })
+        }
+        _ => Lookup::Unreadable,
+    }
 }

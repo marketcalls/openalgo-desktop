@@ -1,7 +1,8 @@
 //! The web's `blueprints/agent.py`, split by area: the chat routes
 //! ([`chat`]) and the conversation routes ([`conversations`]) here, and
-//! the audit trail's read route ([`audit`], D-006, a desktop addition);
-//! the config routes belong to the config part. Every route needs the signed-in
+//! the audit trail's read route ([`audit`], D-006) and what a paused smart
+//! order will send ([`orders`], for the approval card), both desktop
+//! additions; the config routes belong to the config part. Every route needs the signed-in
 //! user and carries the session's CSRF token on writes, like every page
 //! route; none is public.
 //!
@@ -13,6 +14,7 @@
 pub mod audit;
 pub mod chat;
 pub mod conversations;
+pub mod orders;
 
 use super::{Access, RouteSpec};
 use crate::agent::reply::Refusal;
@@ -71,6 +73,9 @@ pub fn table() -> Vec<RouteSpec> {
             post(chat::cancel)
         }),
         spec("/agent/api/audit", Method::GET, || get(audit::list)),
+        spec("/agent/api/orders/preview", Method::GET, || {
+            get(orders::preview)
+        }),
     ]
 }
 

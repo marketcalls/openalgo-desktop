@@ -203,3 +203,46 @@ export function describeApproval(request: ApprovalRequest): ApprovalWords {
   const fallback = request.tool_name.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
   return { sentence: words ?? `${fallback}.`, details: details(args) }
 }
+
+/** What the server says a paused smart order will send (the preview route). */
+export interface SmartOrderPreview {
+  held: number | null
+  target?: number | null
+  action?: string | null
+  quantity?: number | null
+  message?: string
+  error?: string
+}
+
+function units(n: number): string {
+  return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n)
+}
+
+function holding(n: number): string {
+  if (n > 0) return `long ${units(n)}`
+  if (n < 0) return `short ${units(Math.abs(n))}`
+  return 'flat'
+}
+
+/**
+ * A smart order sends the difference between the position held and the
+ * target, not the target: the card states that difference, read from the
+ * position held now, which is also what the risk check is run on after the
+ * approval.
+ */
+export function describeSmartPreview(
+  preview: SmartOrderPreview | undefined,
+  failed: boolean
+): string {
+  if (failed || (preview && preview.held === null && !preview.error)) {
+    return 'The position held now could not be read, so the order this would send is not known. After approval it is refused unless the position can be read.'
+  }
+  if (!preview) return 'Reading the position held now.'
+  if (preview.error) return preview.error
+  const held = preview.held ?? 0
+  if (!preview.action || !preview.quantity) {
+    return `The position is already ${holding(held)}: nothing will be placed.`
+  }
+  const sideWord = preview.action === 'SELL' ? 'Sell' : 'Buy'
+  return `Held now: ${holding(held)}. This sends ${sideWord} ${units(preview.quantity)} to reach ${holding(preview.target ?? 0)}.`
+}

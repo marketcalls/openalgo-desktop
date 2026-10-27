@@ -162,8 +162,22 @@ async fn semi_auto_queues_new_orders_and_refuses_the_rest() {
     assert!(out["response"]["pending_order_id"].is_i64(), "{}", out);
     assert_eq!(out["order_ids"], json!([]));
     assert_eq!(placed(&h), 0);
+    held(&h, 50);
+    let square_off = call(
+        &ctx,
+        "close_position",
+        json!({"symbol": "SBIN", "exchange": "NSE", "product": "MIS"}),
+    )
+    .await;
+    assert_eq!(square_off["ok"], true, "{}", square_off);
+    assert_eq!(
+        square_off["response"]["message"],
+        "Order queued for approval in Action Center"
+    );
+    assert_eq!(placed(&h), 0, "a square-off waits in the Action Center too");
+    working_order(&h, "A1");
     let modify = json!({"order_id": "A1", "symbol": "SBIN", "exchange": "NSE", "action": "BUY",
-        "quantity": 1, "product": "MIS", "price_type": "LIMIT", "price": 100.0});
+        "quantity": 1, "product": "MIS", "price_type": "LIMIT", "price": (sbin_ltp(&h) * 20.0).round() / 20.0});
     for (name, args, sentence) in [
         ("modify_order", modify, "Modify order operation is not allowed in Semi-Auto mode. Please switch to Auto mode to modify orders"),
         ("cancel_order", json!({"order_id": "A1"}), "Cancel order operation is not allowed in Semi-Auto mode. Please switch to Auto mode to cancel orders"),
@@ -338,10 +352,9 @@ async fn trading_switch_analyzer_only_and_bulk_permission_are_enforced() {
     h.shutdown().await;
 }
 
-/// The size, value and price limits through the tools, and D-007: a
-/// modify meets them too (the web let a modify past them).
+/// The size, value and price limits through the tools.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn quantity_value_and_price_limits_hold_for_new_and_modified_orders() {
+async fn quantity_value_and_price_limits_hold_for_new_orders() {
     let h = H::new().await;
     settings(
         &h,
@@ -370,10 +383,6 @@ async fn quantity_value_and_price_limits_hold_for_new_and_modified_orders() {
         call(&ctx, "place_order", far).await["code"],
         "price_deviation"
     );
-    let modify = json!({"order_id": "A1", "symbol": "SBIN", "exchange": "NSE", "action": "BUY",
-        "quantity": 101, "product": "MIS", "price_type": "MARKET"});
-    let out = call(&ctx, "modify_order", modify).await;
-    assert_eq!(out["code"], "quantity_exceeded", "{}", out);
     h.shutdown().await;
 }
 
@@ -457,5 +466,279 @@ async fn closing_a_position_reads_it_first() {
     .await;
     assert_eq!(out["ok"], true, "{}", out);
     assert_eq!(placed(&h), 1, "the square-off was sent");
+    h.shutdown().await;
+}
+
+fn held(h: &H, quantity: i32) {
+    h.mock
+        .positions
+        .lock()
+        .replace(Ok(vec![openalgo_desktop_lib::brokers::types::Position {
+            symbol: "SBIN".into(),
+            exchange: "NSE".into(),
+            product: "MIS".into(),
+            quantity,
+            overnight_quantity: 0,
+            average_price: 100.0,
+            ltp: 100.0,
+            pnl: 0.0,
+            realized_pnl: 0.0,
+            unrealized_pnl: 0.0,
+            buy_quantity: quantity.max(0),
+            buy_value: 0.0,
+            sell_quantity: (-quantity).max(0),
+            sell_value: 0.0,
+        }]));
+}
+
+fn sbin_ltp(h: &H) -> f64 {
+    h.mock.quotes.lock().get("NSE:SBIN").map(|q| q.ltp).unwrap()
+}
+
+fn target(position_size: i64) -> Value {
+    json!({"symbol": "SBIN", "exchange": "NSE", "action": "BUY", "quantity": 0,
+        "position_size": position_size, "product": "MIS"})
+}
+
+fn sent_quantities(h: &H) -> Vec<(String, u64)> {
+    h.mock
+        .calls()
+        .iter()
+        .filter_map(|c| match c {
+            MockCall::PlaceOrder(o) => Some((o.action.as_str().to_string(), o.quantity as u64)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Security review (2026-10-27): a smart order sends the difference from
+/// the position held, so the guard checks that order, side and size. The
+/// web checked the larger of target and quantity: a reversal from long
+/// 500 to short 500 sends 1,000 and was checked as 500.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_smart_order_is_checked_on_what_it_sends() {
+    let h = H::new().await;
+    h.analyze(false);
+    let ltp = sbin_ltp(&h);
+    let cap = format!("{:.2}", ltp * 700.0);
+    settings(
+        &h,
+        &[
+            ("trading_enabled", "true"),
+            ("max_order_value", &cap),
+            ("max_order_quantity", "55"),
+        ],
+    );
+    let ctx = run(&h, "smart");
+    held(&h, 500);
+    let reversal = call(&ctx, "place_smart_order", target(-500)).await;
+    assert_eq!(reversal["code"], "quantity_exceeded", "{}", reversal);
+    assert_eq!(
+        reversal["risk"]["details"]["quantity"], 1000,
+        "{}",
+        reversal
+    );
+    settings(&h, &[("max_order_quantity", "10000")]);
+    let reversal = call(&ctx, "place_smart_order", target(-500)).await;
+    assert_eq!(
+        reversal["code"], "notional_exceeded",
+        "the notional of 1,000, not 500: {}",
+        reversal
+    );
+    held(&h, 100);
+    let increase = call(&ctx, "place_smart_order", target(150)).await;
+    assert_eq!(increase["ok"], true, "{}", increase);
+    assert_eq!(increase["risk_checked_quantity"], 50);
+    assert_eq!(increase["held_quantity"], 100);
+    assert_eq!(
+        increase["sends"],
+        json!({"held": 100, "target": 150, "action": "BUY", "quantity": 50})
+    );
+    settings(&h, &[("max_order_quantity", "55")]);
+    let reduce = call(&ctx, "place_smart_order", target(40)).await;
+    assert_eq!(
+        reduce["code"], "quantity_exceeded",
+        "SELL 60 against a cap of 55: {}",
+        reduce
+    );
+    settings(&h, &[("max_order_quantity", "60")]);
+    let reduce = call(&ctx, "place_smart_order", target(40)).await;
+    assert_eq!(reduce["ok"], true, "{}", reduce);
+    assert_eq!(reduce["risk"]["details"]["action"], "SELL");
+    assert_eq!(
+        sent_quantities(&h),
+        [("BUY".to_string(), 50), ("SELL".to_string(), 60)]
+    );
+    h.shutdown().await;
+}
+
+/// The position already at the target: nothing to place, nothing sent, no
+/// claim; a position that cannot be read: refused, never guessed.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_smart_order_with_nothing_to_send_or_an_unreadable_position() {
+    let h = H::new().await;
+    trading(&h);
+    h.analyze(false);
+    let ctx = run(&h, "smart-edge");
+    held(&h, 100);
+    let same = call(&ctx, "place_smart_order", target(100)).await;
+    assert_eq!(same["ok"], true, "{}", same);
+    assert_eq!(
+        same["message"],
+        "No OpenPosition Found. Not placing Exit order."
+    );
+    assert_eq!(same["order_ids"], json!([]));
+    h.mock
+        .positions
+        .lock()
+        .replace(Err("Session expired".into()));
+    let unknown = call(&ctx, "place_smart_order", target(150)).await;
+    assert_eq!(
+        (unknown["ok"].as_bool(), unknown["retry"].as_bool()),
+        (Some(false), Some(false)),
+        "{}",
+        unknown
+    );
+    assert!(
+        unknown["message"]
+            .as_str()
+            .unwrap()
+            .starts_with("The position held in SBIN on NSE under MIS could not be read"),
+        "{}",
+        unknown
+    );
+    assert!(sent_quantities(&h).is_empty(), "nothing was sent");
+    let rows = trail(&h).await;
+    assert_eq!(rows[0]["response"]["stage"], "position");
+    h.shutdown().await;
+}
+
+/// The approval card's preview: what the smart order will send from what
+/// is held, before the trader approves.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_preview_shows_what_a_smart_order_will_send() {
+    let h = H::new().await;
+    h.analyze(false);
+    held(&h, 500);
+    let args = |v: Value| v.as_object().cloned().unwrap();
+    let preview = orders::smart_order_preview(&h.ctx, "trader", args(target(-500))).await;
+    assert_eq!(
+        preview,
+        json!({"held": 500, "target": -500, "action": "SELL", "quantity": 1000})
+    );
+    h.mock
+        .positions
+        .lock()
+        .replace(Err("Session expired".into()));
+    let unknown = orders::smart_order_preview(&h.ctx, "trader", args(target(-500))).await;
+    assert_eq!(unknown, json!({"held": null, "target": -500}));
+    assert!(sent_quantities(&h).is_empty(), "a preview sends nothing");
+    h.shutdown().await;
+}
+
+fn working_order(h: &H, id: &str) {
+    h.mock
+        .order_book
+        .lock()
+        .replace(Ok(vec![openalgo_desktop_lib::brokers::types::Order {
+            order_id: id.into(),
+            exchange_order_id: None,
+            symbol: "SBIN".into(),
+            exchange: "NSE".into(),
+            side: "BUY".into(),
+            quantity: 10,
+            filled_quantity: 0,
+            pending_quantity: 10,
+            price: 100.0,
+            trigger_price: 0.0,
+            average_price: 0.0,
+            order_type: "LIMIT".into(),
+            product: "MIS".into(),
+            status: "open".into(),
+            validity: "DAY".into(),
+            order_timestamp: String::new(),
+            exchange_timestamp: None,
+            rejection_reason: None,
+            order_tag: None,
+        }]));
+}
+
+fn modify(symbol: &str, quantity: i64, price: f64) -> Value {
+    json!({"order_id": "A1", "symbol": symbol, "exchange": "NSE", "action": "BUY",
+        "quantity": quantity, "product": "MIS", "price_type": "LIMIT", "price": price})
+}
+
+fn modifies(h: &H) -> usize {
+    h.mock
+        .calls()
+        .iter()
+        .filter(|c| matches!(c, MockCall::ModifyOrder(_)))
+        .count()
+}
+
+/// D-007 done safely (security review, 2026-10-27): a modify is checked
+/// against the order the book has, not the model's word for it; one that
+/// names another instrument is refused, and one whose order cannot be
+/// found or whose book cannot be read is refused rather than checked
+/// against its own arguments.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_modify_is_checked_against_the_order_in_the_book() {
+    let h = H::new().await;
+    settings(
+        &h,
+        &[("trading_enabled", "true"), ("max_order_quantity", "100")],
+    );
+    h.analyze(false);
+    let ctx = run(&h, "modify");
+    let ltp = (sbin_ltp(&h) * 20.0).round() / 20.0;
+    working_order(&h, "A1");
+    let big = call(&ctx, "modify_order", modify("SBIN", 101, ltp)).await;
+    assert_eq!(big["code"], "quantity_exceeded", "{}", big);
+    let far = call(
+        &ctx,
+        "modify_order",
+        modify("SBIN", 10, (ltp * 0.5).round()),
+    )
+    .await;
+    assert_eq!(far["code"], "price_deviation", "{}", far);
+    let other = call(&ctx, "modify_order", modify("TCS", 10, ltp)).await;
+    assert_eq!(other["code"], "invalid_arguments", "{}", other);
+    assert!(
+        other["message"]
+            .as_str()
+            .unwrap()
+            .contains("symbol TCS (the order has SBIN)"),
+        "{}",
+        other
+    );
+    assert_eq!(modifies(&h), 0, "nothing was sent");
+    let fine = call(&ctx, "modify_order", modify("SBIN", 20, ltp)).await;
+    assert_eq!(fine["ok"], true, "{}", fine);
+    assert_eq!(modifies(&h), 1);
+    let mut unknown = modify("SBIN", 10, ltp);
+    unknown["order_id"] = json!("ZZ9");
+    let missing = call(&ctx, "modify_order", unknown).await;
+    assert!(
+        missing["message"]
+            .as_str()
+            .unwrap()
+            .starts_with("Order ZZ9 is not in the order book"),
+        "{}",
+        missing
+    );
+    h.mock
+        .order_book
+        .lock()
+        .replace(Err("Session expired".into()));
+    let unreadable = call(&ctx, "modify_order", modify("SBIN", 10, ltp)).await;
+    assert!(
+        unreadable["message"]
+            .as_str()
+            .unwrap()
+            .starts_with("The order book could not be read"),
+        "{}",
+        unreadable
+    );
+    assert_eq!(modifies(&h), 1, "nothing more was sent");
     h.shutdown().await;
 }

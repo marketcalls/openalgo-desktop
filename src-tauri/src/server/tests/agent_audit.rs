@@ -107,3 +107,31 @@ async fn another_users_conversation_is_not_found_and_strangers_are_refused() {
         "the trail is for the signed-in user only"
     );
 }
+
+/// `GET /agent/api/orders/preview`: what a paused smart order will send,
+/// for the approval card. Signed-in only; a refused argument is named; a
+/// position that cannot be read (no broker session here) reads as unknown.
+#[tokio::test]
+async fn the_smart_order_preview_is_for_the_signed_in_user() {
+    let h = H::new();
+    h.setup();
+    let (cookie, _) = h.session(true);
+    let path = "/agent/api/orders/preview?symbol=SBIN&exchange=NSE&product=MIS&position_size=-500&quantity=0&action=BUY";
+    let (s, _) = h.json(json_get(path)).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+    let (s, v) = h.json(with_session(json_get(path), &cookie, None)).await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    assert_eq!(v["data"], json!({"held": null, "target": -500}));
+    let bad =
+        "/agent/api/orders/preview?symbol=SBIN&exchange=NSE&product=MIS&position_size=x&action=BUY";
+    let (_, v) = h.json(with_session(json_get(bad), &cookie, None)).await;
+    assert_eq!(v["data"]["held"], Value::Null);
+    assert!(
+        v["data"]["error"]
+            .as_str()
+            .unwrap()
+            .starts_with("The 'position_size' argument is invalid"),
+        "{}",
+        v
+    );
+}
