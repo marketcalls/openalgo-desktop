@@ -860,6 +860,12 @@ Every flaky test found so far was a race, not a slow machine:
   connections taken on its runtime thread (`db::sqlite::checkouts`, as
   `polled_reads` does) as well as bounding the hold: the count fails on
   every run, the bound only when the wait happened to be long.
+- Opening a store waits for its first connection while it is being
+  opened, up to two minutes, and fails at once with SQLite's reason when
+  it cannot open (`db::sqlite::build_pool`). A macOS runner once slowed
+  every running test 5-8 times for 10-16 s at the same instants, and the
+  10 s checkout deadline failed `AppState::open` with `Pool(Error(None))`:
+  the connection was still opening, nothing had failed.
 - An `/api/v1` call with a key no cache knows yet (the first after a start,
   a sign-out, a new key or a broker session change) verifies it: an index
   query, one Argon2 run and a `last_used_at` write. Inline in
