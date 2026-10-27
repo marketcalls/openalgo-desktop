@@ -15,6 +15,7 @@
 //!   session section (IST time, trading on or off, analyzer mode, the
 //!   chart's context).
 
+mod openui;
 pub mod untrusted;
 
 use chrono::DateTime;
@@ -117,6 +118,9 @@ fn desktop_wording(mut r: Recorded) -> Recorded {
             if s.key == *key {
                 s.body = s.body.replace(from, to);
             }
+        }
+        if s.key == openui::OPENUI_LANG_KEY {
+            s.body = openui::desktop_reference(&s.body);
         }
     }
     r
@@ -425,6 +429,8 @@ mod tests {
             for (_, from, to) in DESKTOP_WORDING {
                 web = web.replace(from, to);
             }
+            // The desktop's own generated OpenUI Lang reference (decision 17).
+            web = web.replace(&web_openui_reference(), openui::OPENUI_LANG_DOC.trim());
             let web = web.as_str();
             if web.contains("THIS SESSION") {
                 assert_eq!(prompt, web, "{}", run);
@@ -435,6 +441,34 @@ mod tests {
                 assert!(prompt.starts_with(web.split("\n\n").next().unwrap()));
             }
         }
+    }
+
+    /// The web's generated OpenUI Lang reference, as recorded.
+    fn web_openui_reference() -> String {
+        let raw: Recorded = serde_json::from_str(include_str!("sections.json")).unwrap();
+        let body = &raw
+            .chat
+            .iter()
+            .find(|s| s.key == "openui_lang")
+            .unwrap()
+            .body;
+        openui::web_reference(body).unwrap().to_string()
+    }
+
+    /// The recorded section carries the web's reference exactly once on
+    /// chat and voice, so the desktop's replaces all of it.
+    #[test]
+    fn the_web_openui_reference_is_found_to_be_replaced() {
+        let raw: Recorded = serde_json::from_str(include_str!("sections.json")).unwrap();
+        for list in [&raw.chat, &raw.voice] {
+            let body = &list.iter().find(|s| s.key == "openui_lang").unwrap().body;
+            assert_eq!(body.matches(openui::WEB_DOC_BANNER).count(), 1);
+            assert_eq!(
+                openui::web_reference(body),
+                Some(web_openui_reference().as_str())
+            );
+        }
+        assert!(raw.chart.iter().all(|s| s.key != "openui_lang"));
     }
 
     /// D-013: the web's 40,000 budget could drop THIS SESSION, the section
