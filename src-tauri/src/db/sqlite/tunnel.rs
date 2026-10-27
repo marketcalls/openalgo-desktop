@@ -70,6 +70,24 @@ pub fn save(conn: &Connection, u: &TunnelUpdate) -> Result<()> {
     Ok(())
 }
 
+/// With the switch on and a domain saved, the Host Server URL is
+/// `https://<domain>`, stored, so it is the same whether the tunnel is
+/// online or not: the webhook addresses, the Host check, the trusted
+/// origins and the automatic broker redirect (`https://<domain>/<broker>/
+/// callback`, as a web user registers it) all use that one domain
+/// (maintainer, 2026-10-27). Run by every save that can change the switch
+/// or the domain, in its transaction.
+pub fn pin_host_server(conn: &Connection) -> Result<()> {
+    conn.execute(
+        "UPDATE settings SET host_server = 'https://' || ngrok_domain
+         WHERE id = 1 AND ngrok_allow = 1
+           AND ngrok_domain IS NOT NULL AND ngrok_domain <> ''
+           AND (host_server IS NULL OR host_server <> 'https://' || ngrok_domain)",
+        [],
+    )?;
+    Ok(())
+}
+
 /// Drop the saved authtoken: a fresh start or an account reset, after
 /// which the key it was sealed with is gone. The switch and the domain
 /// stay; the tunnel waits for a new authtoken.

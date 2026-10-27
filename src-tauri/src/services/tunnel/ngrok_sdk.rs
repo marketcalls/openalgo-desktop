@@ -71,9 +71,7 @@ impl TunnelProvider for NgrokProvider {
         // Named, so ngrok is not sent the machine's host name and program
         // path (the SDK's default description of where traffic goes).
         endpoint.forwards_to("OpenAlgo Desktop");
-        if let Some(domain) = &request.domain {
-            endpoint.domain(domain.as_str());
-        }
+        endpoint.domain(request.domain.as_str());
         let tunnel = endpoint
             .listen()
             .await

@@ -7,7 +7,7 @@ const TOKEN: &str = "2abcDEFghiJKLmnoPQRstu_vwxYZ0123456789";
 fn request() -> OpenRequest {
     OpenRequest {
         authtoken: crate::security::Secret::new(TOKEN),
-        domain: Some("desk.ngrok-free.app".into()),
+        domain: "desk.ngrok-free.app".into(),
     }
 }
 

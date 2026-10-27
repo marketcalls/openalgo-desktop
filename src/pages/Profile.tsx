@@ -800,8 +800,8 @@ export default function ProfilePage() {
                   placeholder="https://your-domain.ngrok-free.app"
                 />
                 <p className="text-xs text-muted-foreground">
-                  The public address of this app for receiving webhooks. While the built-in tunnel
-                  is online, its address is used instead.
+                  The public address of this app for receiving webhooks. With Enable Ngrok Tunnel on
+                  and an ngrok domain saved, it is https://&lt;that domain&gt;.
                 </p>
                 {hostServerEdited && hostServer.trim() && (
                   <Badge variant="outline" className="text-yellow-600">

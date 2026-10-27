@@ -18,6 +18,8 @@ use tokio::time::Instant;
 #[derive(Default)]
 pub(crate) struct FakeProvider {
     script: Mutex<VecDeque<OpenError>>,
+    /// Opens on another address than the domain asked for.
+    elsewhere: std::sync::atomic::AtomicBool,
     opens: Mutex<Vec<(Instant, OpenRequest)>>,
     callers: Mutex<Vec<mpsc::Sender<Box<dyn TunnelIo>>>>,
     closed: Arc<AtomicUsize>,
@@ -32,6 +34,11 @@ impl FakeProvider {
     pub(crate) fn fail_next(&self, problem: OpenError, times: usize) {
         let mut s = self.script.lock();
         s.extend(std::iter::repeat_n(problem, times));
+    }
+
+    /// The next tunnels open on another address than their domain.
+    pub(crate) fn open_elsewhere(&self) {
+        self.elsewhere.store(true, Ordering::SeqCst);
     }
 
     /// What every open was asked for, in order.
@@ -66,19 +73,16 @@ impl FakeProvider {
 #[async_trait]
 impl TunnelProvider for FakeProvider {
     async fn open(&self, request: &OpenRequest) -> Result<Box<dyn OpenTunnel>, OpenError> {
-        let n = {
-            let mut opens = self.opens.lock();
-            opens.push((Instant::now(), request.clone()));
-            opens.len()
-        };
+        self.opens.lock().push((Instant::now(), request.clone()));
         if let Some(problem) = self.script.lock().pop_front() {
             return Err(problem);
         }
         let (tx, incoming) = mpsc::channel(8);
         self.callers.lock().push(tx);
-        let url = match &request.domain {
-            Some(d) => format!("https://{}", d),
-            None => format!("https://fake-{}.ngrok-free.app", n),
+        let url = if self.elsewhere.load(Ordering::SeqCst) {
+            "https://elsewhere.ngrok-free.app".to_string()
+        } else {
+            format!("https://{}", request.domain)
         };
         Ok(Box::new(FakeTunnel {
             url,

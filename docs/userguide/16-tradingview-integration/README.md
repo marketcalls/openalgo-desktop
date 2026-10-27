@@ -63,24 +63,26 @@ For alerts around the clock without a computer left on, run
 ### Step 1: Turn on the built-in tunnel
 
 1. Sign up at ngrok.com (the free plan works). Copy your authtoken from
-   **Your Authtoken** in the ngrok dashboard. Optionally reserve a domain
-   under **Domains**, so your webhook address stays the same every day.
+   **Your Authtoken** and your free domain from **Domains** in the ngrok
+   dashboard. The domain is required: the tunnel always uses it, so your
+   addresses never change.
 2. In OpenAlgo, open the profile menu, **Profile**, then the **Broker** tab.
-3. In the **Server Configuration** card, paste the authtoken (and the
-   domain, if you have one) and choose **Save authtoken and domain**. The
-   authtoken is kept encrypted and never shown again.
+3. In the **Server Configuration** card, paste the authtoken and the domain
+   and choose **Save authtoken and domain**. The authtoken is kept
+   encrypted and never shown again.
 4. Tick **Enable Ngrok Tunnel** and choose **Save Ngrok Settings**.
 
 The card shows the tunnel's state: **Connecting**, then **Online** with its
-`https://` address. While it is online, the webhook address on the
-TradingView, GoCharting and Chartink pages and on each strategy uses it, and
-so does the automatic broker redirect URL (register that address at your
-broker too, or save the local one as a fixed redirect URL on Broker
-Configuration). The tunnel opens each time you sign in, closes when you log
+`https://` address. With the switch on, your **Host Server URL** is
+`https://<your domain>`, online or not: the webhook addresses on the
+TradingView, GoCharting and Chartink pages and on each strategy use it, and
+so does the automatic broker redirect URL. Register
+`https://<your domain>/<broker>/callback` with your broker, as OpenAlgo web
+users do, or keep a fixed local redirect URL on Broker Configuration. The tunnel opens each time you sign in, closes when you log
 out or quit, and reconnects by itself if the connection drops. If it shows
 **Error**, the message says why and what to do (a mistyped authtoken, a
-domain not reserved on your ngrok account, another ngrok agent holding your
-account's tunnel, no internet).
+domain that is not on your ngrok account, another ngrok agent using your
+domain, no internet). It never falls back to another address.
 
 Through the built-in tunnel only alerts and API calls (with your API key),
 strategy and Chartink webhooks, and AI clients (with **Remote MCP** on)

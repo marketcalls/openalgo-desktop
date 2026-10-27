@@ -591,15 +591,8 @@ impl AppState {
         self.clock.now()
     }
 
-    /// The settings in force. While the built-in tunnel is online its
-    /// public address is the Host Server URL, so the redirect address,
-    /// webhook addresses, the Host check and the trusted origins follow it.
     pub fn server_config(&self) -> ServerConfig {
-        let mut c = self.config.read().clone();
-        if let Some(url) = self.tunnel.public_url() {
-            c.host_server = Some(url);
-        }
-        c
+        self.config.read().clone()
     }
 
     pub fn reload_config(&self) -> Result<ServerConfig> {

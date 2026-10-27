@@ -97,17 +97,19 @@ A web instance on a VPS had a public address; your desktop does not.
 OpenAlgo Desktop has ngrok built in, so there is nothing to install:
 
 1. Sign up at ngrok.com (the free plan works) and copy your authtoken from
-   **Your Authtoken** in the ngrok dashboard. Optionally reserve a domain
-   under **Domains** (the free plan includes one), so your webhook addresses
-   stay the same every day.
+   **Your Authtoken** and your free domain from **Domains** in the ngrok
+   dashboard.
 2. In OpenAlgo, open Profile, the Broker tab, **Server Configuration**. Paste
-   the authtoken (and the domain, if you have one) and choose **Save
-   authtoken and domain**.
+   the authtoken and the domain and choose **Save authtoken and domain**.
 3. Tick **Enable Ngrok Tunnel** and choose **Save Ngrok Settings**. The
-   status changes to **Online** with your public address.
+   status changes to **Online** at `https://<your domain>`.
 
-While the tunnel is online, the webhook addresses on the TradingView,
-GoCharting, Chartink and strategy pages use its address. The tunnel opens
+Your Host Server URL is then `https://<your domain>`, as `HOST_SERVER` was
+on the web, whether the tunnel is online or not: the webhook addresses on
+the TradingView, GoCharting, Chartink and strategy pages use it, and so
+does the automatic broker redirect URL
+(`https://<your domain>/<broker>/callback`, which you may already have
+registered with your broker for the web). The tunnel opens
 each time you sign in to OpenAlgo and closes when you log out or quit; if
 the connection drops, OpenAlgo reconnects by itself.
 

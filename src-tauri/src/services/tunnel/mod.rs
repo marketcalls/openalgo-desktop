@@ -14,11 +14,14 @@
 //! The tunnel runs only while the trader is signed in: it opens at the
 //! sign-in when switched on ([`autostart`]), follows every settings change
 //! ([`save`]), and closes at the sign-out, a fresh start and quitting
-//! ([`Tunnel::stop`]). While it is online the Host Server URL, the
-//! automatic broker redirect address and the webhook addresses follow its
-//! public address ([`Tunnel::public_url`], read by
-//! `AppState::server_config`). What a caller through it may reach is
-//! decided in `server::tunnel`.
+//! ([`Tunnel::stop`]). It opens only on the saved domain (the free one
+//! ngrok gives every account), never on another address, and with the
+//! switch on the stored Host Server URL is `https://<domain>`
+//! (`db::sqlite::tunnel::pin_host_server`): the webhook addresses, the
+//! Host check, the trusted origins and the automatic broker redirect use
+//! that one address whether the tunnel is online or not (maintainer,
+//! 2026-10-27). What a caller through it may reach is decided in
+//! `server::tunnel`.
 
 #[cfg(test)]
 pub(crate) mod fake;
@@ -85,15 +88,6 @@ impl Default for Tunnel {
 impl Tunnel {
     pub fn status(&self) -> TunnelStatus {
         self.status.borrow().clone()
-    }
-
-    /// The public address while the tunnel is online.
-    pub fn public_url(&self) -> Option<String> {
-        let s = self.status.borrow();
-        match s.state {
-            TunnelState::Online => s.url.clone(),
-            _ => None,
-        }
     }
 
     /// The permits for requests' work through the tunnel ([`MAX_WORK`]).

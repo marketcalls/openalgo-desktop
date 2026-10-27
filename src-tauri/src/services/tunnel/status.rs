@@ -29,6 +29,9 @@ pub enum Off {
     Disabled,
     /// On, but no authtoken is saved.
     NoAuthtoken,
+    /// On, but no domain is saved: the tunnel never opens on another
+    /// address.
+    NoDomain,
     /// Nobody is signed in: the authtoken cannot be opened (KEY-01).
     SignedOut,
     /// The saved authtoken does not open with this install's key.
@@ -42,6 +45,10 @@ impl TunnelStatus {
         let message = match why {
             Off::Disabled => "The tunnel is off.",
             Off::NoAuthtoken => "Add your ngrok authtoken to start the tunnel.",
+            Off::NoDomain => {
+                "Add your ngrok domain: the free domain listed under Domains in your ngrok \
+                 dashboard."
+            }
             Off::SignedOut => "The tunnel starts when you sign in to OpenAlgo.",
             Off::Unreadable => {
                 "Your saved ngrok authtoken could not be read. Paste it again and save."
@@ -73,29 +80,33 @@ impl TunnelStatus {
     }
 
     /// The tunnel did not open: why, and whether OpenAlgo keeps trying.
-    pub fn failed(problem: OpenError, domain: Option<&str>) -> Self {
-        let message = match (problem, domain) {
-            (OpenError::Authtoken, _) => "ngrok did not accept the authtoken. Copy it again \
-                from Your Authtoken in your ngrok dashboard, paste it here and save."
+    pub fn failed(problem: OpenError, domain: &str) -> Self {
+        let message = match problem {
+            OpenError::Authtoken => "ngrok did not accept the authtoken. Copy it again from \
+                Your Authtoken in your ngrok dashboard, paste it here and save."
                 .to_string(),
-            (OpenError::Domain, Some(d)) => format!(
+            OpenError::Domain => format!(
                 "Your ngrok account cannot use the domain {}. Check it under Domains in your \
-                 ngrok dashboard, or clear the domain to use the address ngrok gives your account.",
-                d
+                 ngrok dashboard and save the domain listed there.",
+                domain
             ),
-            (OpenError::Domain, None) => "ngrok would not give your account an address. Reserve \
-                a domain under Domains in your ngrok dashboard and enter it here."
-                .to_string(),
-            (OpenError::Account, _) => "ngrok will not start a tunnel for this account. Sign in \
+            OpenError::OtherAddress => format!(
+                "ngrok offered another address than your domain {}, so the tunnel was closed. \
+                 Check the domain under Domains in your ngrok dashboard and save it again.",
+                domain
+            ),
+            OpenError::Account => "ngrok will not start a tunnel for this account. Sign in \
                 to your ngrok dashboard to see why (for example, an email still to verify)."
                 .to_string(),
-            (OpenError::InUse, _) => "Your ngrok tunnel is in use by another ngrok agent, on \
-                this or another computer. Stop the other one; OpenAlgo keeps trying."
-                .to_string(),
-            (OpenError::Unreachable, _) => "Cannot reach ngrok. Check your internet connection \
+            OpenError::InUse => format!(
+                "Your ngrok domain {} is in use by another ngrok agent, on this or another \
+                 computer. Stop the other one; OpenAlgo keeps trying.",
+                domain
+            ),
+            OpenError::Unreachable => "Cannot reach ngrok. Check your internet connection \
                 and firewall; OpenAlgo keeps trying."
                 .to_string(),
-            (OpenError::Other, _) => "ngrok did not open the tunnel. OpenAlgo keeps trying; the \
+            OpenError::Other => "ngrok did not open the tunnel. OpenAlgo keeps trying; the \
                 details are in the log."
                 .to_string(),
         };

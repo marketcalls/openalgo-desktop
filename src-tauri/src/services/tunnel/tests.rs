@@ -32,7 +32,9 @@ struct Run {
 
 /// A supervisor whose connections are counted and held until the caller
 /// hangs up or the tunnel drains.
-fn run(provider: Arc<FakeProvider>, domain: Option<&str>) -> Run {
+const DOMAIN: &str = "desk.ngrok-free.app";
+
+fn run(provider: Arc<FakeProvider>, domain: &str) -> Run {
     let (tx, status) = watch::channel(TunnelStatus::stopped(Off::Disabled));
     let served = Arc::new(AtomicUsize::new(0));
     let active = Arc::new(AtomicUsize::new(0));
@@ -57,7 +59,7 @@ fn run(provider: Arc<FakeProvider>, domain: Option<&str>) -> Run {
         provider,
         request: OpenRequest {
             authtoken: Secret::new(TOKEN),
-            domain: domain.map(String::from),
+            domain: domain.to_string(),
         },
         status: Arc::new(tx),
         serve,
@@ -105,13 +107,13 @@ fn the_backoff_doubles_from_one_second_and_stops_at_thirty() {
 async fn an_unreachable_ngrok_is_tried_again_at_least_every_thirty_seconds() {
     let fake = FakeProvider::new();
     fake.fail_next(OpenError::Unreachable, 7);
-    let r = run(fake.clone(), None);
+    let r = run(fake.clone(), DOMAIN);
     let s = until(&r, |s| s.state == TunnelState::Error).await;
     assert!(s.message.contains("Cannot reach ngrok"), "{}", s.message);
     assert!(s.message.contains("keeps trying"), "{}", s.message);
     let s = until(&r, online).await;
-    assert_eq!(s.url.as_deref(), Some("https://fake-8.ngrok-free.app"));
-    assert_eq!(s.message, "Online at https://fake-8.ngrok-free.app");
+    assert_eq!(s.url.as_deref(), Some("https://desk.ngrok-free.app"));
+    assert_eq!(s.message, "Online at https://desk.ngrok-free.app");
     let times = fake.open_times();
     let gaps: Vec<u64> = times.windows(2).map(|w| (w[1] - w[0]).as_secs()).collect();
     assert_eq!(gaps, [1, 2, 4, 8, 16, 30, 30]);
@@ -122,7 +124,7 @@ async fn an_unreachable_ngrok_is_tried_again_at_least_every_thirty_seconds() {
 #[tokio::test(start_paused = true)]
 async fn a_lost_tunnel_says_so_and_opens_again_with_the_same_settings() {
     let fake = FakeProvider::new();
-    let r = run(fake.clone(), Some("desk.ngrok-free.app"));
+    let r = run(fake.clone(), DOMAIN);
     until(&r, online).await;
     fake.lose();
     let s = until(&r, |s| s.state == TunnelState::Connecting).await;
@@ -158,7 +160,7 @@ async fn a_refused_authtoken_or_domain_is_not_tried_again() {
     ] {
         let fake = FakeProvider::new();
         fake.fail_next(problem, 1);
-        let r = run(fake.clone(), Some("desk.ngrok-free.app"));
+        let r = run(fake.clone(), DOMAIN);
         let s = until(&r, |s| s.state == TunnelState::Error).await;
         assert!(s.message.contains(words), "{}", s.message);
         assert!(!s.message.contains(TOKEN));
@@ -174,9 +176,14 @@ async fn a_refused_authtoken_or_domain_is_not_tried_again() {
 async fn a_tunnel_in_use_elsewhere_is_tried_again() {
     let fake = FakeProvider::new();
     fake.fail_next(OpenError::InUse, 2);
-    let r = run(fake.clone(), None);
+    let r = run(fake.clone(), DOMAIN);
     let s = until(&r, |s| s.state == TunnelState::Error).await;
-    assert!(s.message.contains("another ngrok agent"), "{}", s.message);
+    assert!(
+        s.message
+            .contains("desk.ngrok-free.app is in use by another ngrok agent"),
+        "{}",
+        s.message
+    );
     until(&r, online).await;
     assert_eq!(fake.opens().len(), 3);
     r.stop.cancel();
@@ -188,7 +195,7 @@ async fn a_tunnel_in_use_elsewhere_is_tried_again() {
 #[tokio::test(start_paused = true)]
 async fn a_stop_drains_the_connections_and_closes_the_tunnel() {
     let fake = FakeProvider::new();
-    let r = run(fake.clone(), None);
+    let r = run(fake.clone(), DOMAIN);
     until(&r, online).await;
     let _a = fake.call().await;
     let _b = fake.call().await;
@@ -205,7 +212,7 @@ async fn a_stop_drains_the_connections_and_closes_the_tunnel() {
 #[tokio::test(start_paused = true)]
 async fn a_caller_past_the_cap_is_turned_away_at_once() {
     let fake = FakeProvider::new();
-    let r = run(fake.clone(), None);
+    let r = run(fake.clone(), DOMAIN);
     until(&r, online).await;
     let mut callers = Vec::new();
     for _ in 0..MAX_CONNECTIONS {
@@ -285,7 +292,7 @@ async fn no_connection_outlives_its_caller_a_loss_or_a_stop() {
             provider: fake.clone(),
             request: OpenRequest {
                 authtoken: Secret::new(TOKEN),
-                domain: None,
+                domain: DOMAIN.into(),
             },
             status: Arc::new(tx),
             serve,
@@ -381,7 +388,7 @@ async fn a_normal_alert_is_served_while_slow_callers_hold_places() {
             provider: fake.clone(),
             request: OpenRequest {
                 authtoken: Secret::new(TOKEN),
-                domain: None,
+                domain: DOMAIN.into(),
             },
             status: Arc::new(tx),
             serve,
@@ -442,4 +449,27 @@ async fn a_normal_alert_is_served_while_slow_callers_hold_places() {
     assert!(answer.starts_with("HTTP/1.1 404"), "{}", answer);
     stop.cancel();
     join.await.unwrap();
+}
+
+/// ngrok offering another address than the domain (maintainer: the
+/// address never changes): the tunnel is closed at once, never served, and
+/// not tried again until the settings change.
+#[tokio::test(start_paused = true)]
+async fn a_tunnel_on_another_address_than_the_domain_is_never_served() {
+    let fake = FakeProvider::new();
+    fake.open_elsewhere();
+    let r = run(fake.clone(), DOMAIN);
+    let s = until(&r, |s| s.state == TunnelState::Error).await;
+    assert!(
+        s.message.contains("another address than your domain"),
+        "{}",
+        s.message
+    );
+    assert_eq!(s.url, None);
+    assert_eq!(fake.closed(), 1, "closed at once");
+    tokio::time::sleep(LONG).await;
+    assert_eq!(fake.opens().len(), 1);
+    assert_eq!(r.served.load(Ordering::SeqCst), 0);
+    r.stop.cancel();
+    r.join.await.unwrap();
 }

@@ -195,14 +195,15 @@ tab in Profile:
 - **Add your ngrok authtoken to start the tunnel**: paste it from **Your
   Authtoken** in the ngrok dashboard and choose **Save authtoken and
   domain**.
+- **Add your ngrok domain**: paste the free domain listed under **Domains**
+  in the ngrok dashboard. The tunnel never opens on another address.
 - **ngrok did not accept the authtoken**: copy it again from the ngrok
   dashboard (a revoked or mistyped one is refused) and save it.
-- **Your ngrok account cannot use the domain**: the domain must be reserved
-  on your ngrok account under **Domains**; clear it to use the address ngrok
-  gives your account.
-- **Your ngrok tunnel is in use by another ngrok agent**: an ngrok program
-  (on this or another computer, or OpenAlgo web) holds your account's
-  tunnel. Stop it; OpenAlgo keeps trying.
+- **Your ngrok account cannot use the domain**: copy the domain exactly as
+  it is listed under **Domains** in your ngrok dashboard and save it.
+- **Your ngrok domain is in use by another ngrok agent**: an ngrok program
+  (on this or another computer, or OpenAlgo web) is using your domain. Stop
+  it; OpenAlgo keeps trying.
 - **Cannot reach ngrok**: check the internet connection and any firewall or
   proxy; OpenAlgo keeps trying, at least every 30 seconds.
 

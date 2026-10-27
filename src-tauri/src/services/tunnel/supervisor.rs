@@ -68,6 +68,19 @@ impl Supervisor {
                 }
             };
             match opened {
+                Ok(tunnel) if tunnel.url() != format!("https://{}", self.request.domain) => {
+                    // Never served on another address: everything the app
+                    // shows (Host Server URL, webhook and redirect
+                    // addresses) is the domain.
+                    tracing::warn!("ngrok offered another address than the saved domain; closed");
+                    let _ = tokio::time::timeout(CLOSE_TIMEOUT, tunnel.close()).await;
+                    self.status.send_replace(TunnelStatus::failed(
+                        OpenError::OtherAddress,
+                        &self.request.domain,
+                    ));
+                    self.stop.cancelled().await;
+                    return;
+                }
                 Ok(tunnel) => {
                     if self.serve_until_lost(tunnel).await == Ended::Stopped {
                         return;
@@ -77,10 +90,8 @@ impl Supervisor {
                     failures = 1;
                 }
                 Err(problem) => {
-                    self.status.send_replace(TunnelStatus::failed(
-                        problem,
-                        self.request.domain.as_deref(),
-                    ));
+                    self.status
+                        .send_replace(TunnelStatus::failed(problem, &self.request.domain));
                     if !problem.retries() {
                         self.stop.cancelled().await;
                         return;

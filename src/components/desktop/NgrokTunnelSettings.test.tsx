@@ -44,10 +44,15 @@ describe('NgrokTunnelSettings', () => {
     expect(token.type).toBe('password')
     expect(token.placeholder).toMatch(/^Saved\./)
     expect(screen.getByText('An authtoken is saved.')).toBeInTheDocument()
-    expect((screen.getByLabelText('Reserved domain (optional)') as HTMLInputElement).value).toBe(
+    expect((screen.getByLabelText('ngrok domain') as HTMLInputElement).value).toBe(
       'desk.ngrok-free.app'
     )
-    expect(screen.getByText(/your broker's automatic redirect address/)).toBeInTheDocument()
+    expect(screen.getByTestId('tunnel-addresses')).toHaveTextContent(
+      'your Host Server URL is https://desk.ngrok-free.app'
+    )
+    expect(screen.getByTestId('tunnel-addresses')).toHaveTextContent(
+      'https://desk.ngrok-free.app/<broker>/callback'
+    )
   })
 
   it('sends only what the trader changed, then clears the authtoken field', async () => {
@@ -64,7 +69,7 @@ describe('NgrokTunnelSettings', () => {
     await waitFor(() => expect(token.value).toBe(''))
     expect(screen.getByTestId('tunnel-message')).toHaveTextContent('Connecting to ngrok.')
 
-    fireEvent.change(screen.getByLabelText('Reserved domain (optional)'), {
+    fireEvent.change(screen.getByLabelText('ngrok domain'), {
       target: { value: '' },
     })
     fireEvent.click(save)

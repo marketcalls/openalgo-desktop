@@ -100,10 +100,12 @@ export function NgrokTunnelSettings() {
         {status?.message ?? 'Reading the tunnel status.'}
         {readFailed && ' (Could not read the latest status; showing the last one.)'}
       </p>
-      {status?.state === 'online' && status.url && (
-        <p className="text-xs text-muted-foreground">
-          While the tunnel is online, the Host Server URL, your broker's automatic redirect address
-          and the webhook addresses use {status.url}.
+      {settings?.domain && (
+        <p className="text-xs text-muted-foreground" data-testid="tunnel-addresses">
+          With Enable Ngrok Tunnel on, your Host Server URL is https://{settings.domain}, online or
+          not: webhook addresses use it, and so does the broker redirect URL. Register https://
+          {settings.domain}/&lt;broker&gt;/callback with your broker, or keep a fixed local redirect
+          URL on Broker Configuration.
         </p>
       )}
 
@@ -142,7 +144,7 @@ export function NgrokTunnelSettings() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="ngrok-domain">Reserved domain (optional)</Label>
+        <Label htmlFor="ngrok-domain">ngrok domain</Label>
         <Input
           id="ngrok-domain"
           spellCheck={false}
@@ -151,8 +153,8 @@ export function NgrokTunnelSettings() {
           placeholder="yourname.ngrok-free.app"
         />
         <p className="text-xs text-muted-foreground">
-          A domain from Domains in your ngrok dashboard, so your webhook addresses stay the same.
-          Leave it empty to use the address ngrok gives your account.
+          The free domain listed under Domains in your ngrok dashboard. The tunnel always opens on
+          it, so your addresses never change.
         </p>
       </div>
 

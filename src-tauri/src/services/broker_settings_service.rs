@@ -171,6 +171,9 @@ fn store(
             ..Default::default()
         },
     )?;
+    // The switch on with an ngrok domain saved: the Host Server URL is the
+    // domain, whatever the form sent (`db::sqlite::tunnel::pin_host_server`).
+    crate::db::sqlite::tunnel::pin_host_server(&tx)?;
     tx.commit()?;
     Ok((previous, target))
 }

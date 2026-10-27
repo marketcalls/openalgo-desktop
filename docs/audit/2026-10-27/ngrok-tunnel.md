@@ -54,6 +54,6 @@ outside test code.
 Recorded in `docs/security/known-residuals.md` ("The built-in ngrok
 tunnel"): a stranger who learns the address and keeps opening slow
 connections can fill the 128 places, each for at most 90 s (alerts then
-are turned away at once, not left waiting); the automatic broker redirect
-follows the tunnel while it is online, so a broker that checks the address
-needs the tunnel's registered too or a fixed local one saved.
+are turned away at once, not left waiting). The tunnel opens only on the
+saved domain, and with the switch on the stored Host Server URL is that
+domain, so no address follows the tunnel's live state.

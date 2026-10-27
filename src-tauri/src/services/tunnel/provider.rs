@@ -17,9 +17,11 @@ impl<T: AsyncRead + AsyncWrite + Unpin + Send + 'static> TunnelIo for T {}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OpenRequest {
     pub authtoken: Secret,
-    /// A domain reserved on the trader's ngrok account; `None` takes the
-    /// address ngrok gives the account.
-    pub domain: Option<String>,
+    /// The domain on the trader's ngrok account (the free one under
+    /// Domains in the ngrok dashboard). Required: the tunnel never opens on
+    /// any other address, so the Host Server URL, the webhook addresses and
+    /// the broker redirect address never change (maintainer, 2026-10-27).
+    pub domain: String,
 }
 
 /// Why a tunnel did not open. Each is told to the trader in their words
@@ -38,6 +40,9 @@ pub enum OpenError {
     /// The account's tunnel or domain is in use elsewhere (another ngrok
     /// agent, or a session of this app ngrok has not yet closed).
     InUse,
+    /// ngrok opened the tunnel on another address than the domain; it is
+    /// closed at once, never served.
+    OtherAddress,
     /// ngrok could not be reached (network, firewall, DNS, TLS).
     Unreachable,
     /// Anything else ngrok answered.

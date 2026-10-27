@@ -120,18 +120,23 @@ pub(super) async fn store_change(ctx: &Arc<AppState>, change: TunnelChange) -> R
             (None, true) => Some(None),
             (None, false) => None,
         };
-        let conn = state.sqlite.conn()?;
+        let mut conn = state.sqlite.conn()?;
+        let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         store::save(
-            &conn,
+            &tx,
             &TunnelUpdate {
                 enabled: change.enabled,
                 authtoken,
                 domain,
             },
-        )
+        )?;
+        store::pin_host_server(&tx)?;
+        tx.commit()?;
+        Ok(())
     })
     .await?;
-    // The switch is also `ngrok_allow`, which the redirect address reads.
+    // The switch is also `ngrok_allow`, and the Host Server URL may now be
+    // the domain: both are read by the redirect and webhook addresses.
     ctx.reload_config()?;
     Ok(())
 }
@@ -154,13 +159,11 @@ pub(super) async fn wanted(ctx: &Arc<AppState>) -> std::result::Result<OpenReque
         return Err(Off::SignedOut);
     }
     let sealed_token = s.authtoken.ok_or(Off::NoAuthtoken)?;
+    let domain = s.domain.ok_or(Off::NoDomain)?;
     let authtoken =
         sealed::open(&ctx.security, &store::authtoken_aad(), &sealed_token).map_err(|e| {
             tracing::error!("The saved ngrok authtoken could not be opened: {}", e);
             Off::Unreadable
         })?;
-    Ok(OpenRequest {
-        authtoken,
-        domain: s.domain,
-    })
+    Ok(OpenRequest { authtoken, domain })
 }

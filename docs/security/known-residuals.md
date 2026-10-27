@@ -103,11 +103,15 @@ arriving meanwhile are turned away at once rather than left waiting, and
 nothing else in the app is affected. ngrok's own limits on the free plan
 apply in front of it.
 
-Residual: while the tunnel is online its address is the Host Server URL, so
-the automatic broker redirect address follows it. A trader who registered
-`http://127.0.0.1:<port>/<broker>/callback` with a broker that checks the
-address on sign-in (Upstox, Fyers) must register the tunnel's address too or
-save the local one as a fixed redirect address (`docs/user/brokers.md`).
+The tunnel opens only on the saved domain (the free one ngrok gives every
+account) and never on another address: an answer on any other address is
+closed at once. With the switch on, the stored Host Server URL is
+`https://<domain>` (`db::sqlite::tunnel::pin_host_server`), so the webhook
+addresses, the Host check, the trusted origins and the automatic broker
+redirect (`https://<domain>/<broker>/callback`, as a web user registers
+it) are that one address whether the tunnel is online or not; nothing
+follows the tunnel's live state. A sign-in that comes back through the
+tunnel is sent on to this computer, as above.
 
 ## Credentials and limits behind a tunnel
 
