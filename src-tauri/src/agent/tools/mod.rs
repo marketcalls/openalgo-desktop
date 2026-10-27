@@ -17,6 +17,7 @@
 
 pub mod account;
 pub mod answer;
+pub mod indicators;
 pub mod instrument;
 pub mod live;
 pub mod market;
@@ -43,6 +44,7 @@ use std::sync::Arc;
 pub const TOOLKITS: &[ToolGroup] = &[
     market::GROUP,
     symbols::GROUP,
+    indicators::GROUP,
     account::GROUP,
     options::GROUP,
     instrument::GROUP,
