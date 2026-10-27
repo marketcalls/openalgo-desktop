@@ -110,6 +110,22 @@ impl r2d2::HandleError<rusqlite::Error> for ConnectFailure {
     }
 }
 
+/// The threads a pool opens connections and reaps idle ones on, ended
+/// with the pool. r2d2's own run every job still scheduled first, and the
+/// idle reaper is always scheduled (every 30 s), so each pool dropped left
+/// its three threads behind for up to 30 s: a test process that opened and
+/// dropped app contexts quickly (31 in one test) reached macOS's 2,048
+/// threads, and r2d2 could not start its next pool's threads.
+fn workers() -> Arc<scheduled_thread_pool::ScheduledThreadPool> {
+    Arc::new(
+        scheduled_thread_pool::ScheduledThreadPool::builder()
+            .num_threads(3)
+            .thread_name_pattern("r2d2-worker-{}")
+            .on_drop_behavior(scheduled_thread_pool::OnPoolDropBehavior::DiscardPendingScheduled)
+            .build(),
+    )
+}
+
 /// The pool, once its first connection is open. Every checkout waits at
 /// most `wait`; the first connection is waited for while it is being
 /// opened, up to `limit`, and a failure to open it ends the wait.
@@ -126,6 +142,7 @@ fn build_pool(
         .connection_timeout(wait)
         .idle_timeout(Some(Duration::from_secs(300)))
         .error_handler(Box::new(ConnectFailure(failure.clone())))
+        .thread_pool(workers())
         .build_unchecked(manager);
     let started = std::time::Instant::now();
     loop {

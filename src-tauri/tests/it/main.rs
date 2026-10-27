@@ -230,6 +230,7 @@ mod order_quantity_safety;
 mod order_split_bounds;
 mod perf;
 mod polled_reads;
+mod pool_threads;
 mod sandbox_concurrency;
 mod sandbox_contract;
 mod sandbox_engine;

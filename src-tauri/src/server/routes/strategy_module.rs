@@ -838,7 +838,10 @@ pub fn register_socket_handlers(socket: &socketioxide::extract::SocketRef) {
         |s: SocketRef,
          Data(data): Data<Value>,
          ack: AckSender,
-         State(ctx): State<Arc<AppState>>| async move {
+         State(app): State<std::sync::Weak<AppState>>| async move {
+            let Some(ctx) = app.upgrade() else {
+                return;
+            };
             let reply = strategy_subscribe(&ctx, &s, &data).await;
             let _ = ack.send(&reply);
         },

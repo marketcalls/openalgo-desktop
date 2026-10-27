@@ -8,7 +8,7 @@ use crate::state::AppState;
 use socketioxide::extract::{SocketRef, State};
 use socketioxide::layer::SocketIoLayer;
 use socketioxide::SocketIo;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 /// A connection is accepted only for a signed-in browser session. The
 /// socket is already in the namespace when this runs, so a sign-out that
@@ -16,7 +16,11 @@ use std::sync::Arc;
 /// ([`disconnect_signed_out`]), and every push re-checks the session
 /// (`SocketEmitter::emit_signed_in`): a connection racing a sign-out ends
 /// closed either way (security review S-09).
-fn on_connect(socket: SocketRef, State(ctx): State<Arc<AppState>>) {
+fn on_connect(socket: SocketRef, State(app): State<Weak<AppState>>) {
+    let Some(ctx) = app.upgrade() else {
+        let _ = socket.disconnect();
+        return;
+    };
     if !signed_in(&ctx, &socket) {
         let _ = socket.disconnect();
         return;
@@ -50,8 +54,15 @@ pub fn disconnect_signed_out(ctx: &AppState, io: &SocketIo) -> usize {
     closed
 }
 
-pub fn layer(ctx: Arc<AppState>) -> (SocketIoLayer, SocketIo) {
-    let (layer, io) = SocketIo::builder().with_state(ctx).build_layer();
+/// The layer and its handle. The handlers reach the app through a weak
+/// reference: the app keeps the handle (`SocketEmitter`), so a strong one
+/// here was a cycle that kept every context that built the HTTP app alive
+/// after its last user dropped it, with its databases and their threads (a
+/// test process reached macOS's 2,048 threads that way).
+pub fn layer(ctx: &Arc<AppState>) -> (SocketIoLayer, SocketIo) {
+    let (layer, io) = SocketIo::builder()
+        .with_state(Arc::downgrade(ctx))
+        .build_layer();
     io.ns("/", on_connect);
     (layer, io)
 }

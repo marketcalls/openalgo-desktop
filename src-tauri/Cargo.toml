@@ -35,6 +35,9 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 duckdb = { version = "1.0", features = ["bundled", "parquet"] }
 r2d2 = "0.8"
 r2d2_sqlite = "0.25"
+# r2d2's worker threads, built to end with their pool (db::sqlite::build_pool):
+# by default each dropped pool kept its three until its next reaper run.
+scheduled-thread-pool = "0.2.7"
 
 # Security
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust", "vendored"] }

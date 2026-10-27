@@ -173,7 +173,6 @@ mod tests {
     /// state is gone before the folder is opened again.
     async fn close(ctx: Arc<AppState>) {
         ctx.shutdown().await;
-        ctx.ui.set(None);
         for _ in 0..1000 {
             if Arc::strong_count(&ctx) == 1 {
                 break;

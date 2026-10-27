@@ -546,12 +546,9 @@ fn open_at(
 }
 
 /// Close the app as a restart does (DuckDB holds its file exclusively).
-/// A request's own short task may still hold the state for a moment, and a
-/// router built by a test request keeps its live-update server (which holds
-/// the state) in `ctx.ui` until it is let go.
+/// A request's own short task may still hold the state for a moment.
 async fn close(ctx: Arc<AppState>) {
     ctx.shutdown().await;
-    ctx.ui.set(None);
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
     while Arc::strong_count(&ctx) > 1 && tokio::time::Instant::now() < deadline {
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;

@@ -37,7 +37,6 @@ fn open_on(dir: &Path, store: Arc<dyn KeyStore>) -> Arc<AppState> {
 /// Close the app as quitting does (DuckDB holds its file exclusively).
 async fn close(ctx: Arc<AppState>) {
     ctx.shutdown().await;
-    ctx.ui.set(None);
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
     while Arc::strong_count(&ctx) > 1 && tokio::time::Instant::now() < deadline {
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -932,7 +931,6 @@ async fn quitting_wipes_the_keys() {
         ctx.security.api_key_lookup("k"),
         Err(crate::error::AppError::Locked)
     ));
-    ctx.ui.set(None);
 }
 
 // ----------------------------------------------------------------- caches
