@@ -3,7 +3,7 @@
 
 use super::numpy::{cumsum, mean, nan_vec, nansum, sum, zip};
 use super::volatility::bbands_checked;
-use super::{many, non_empty, one, us, validate_period, Args, TaError, TaResult};
+use super::{many, non_empty, one, us, validate_period, Args, HlcvKernel, TaError, TaResult};
 
 const NO_VOLUME: &str = "No volume is provided by the data vendor.";
 
@@ -104,16 +104,17 @@ fn vwma_strict(values: &[f64], volume: &[f64], length: i64) -> Vec<f64> {
     if length == 0 {
         return out;
     }
-    for i in length - 1..n {
+    for (i, slot) in out.iter_mut().enumerate().skip(length - 1) {
+        let window = i + 1 - length..=i;
         let (mut weighted, mut total) = (0.0, 0.0);
-        for j in i + 1 - length..=i {
-            if !values[j].is_nan() && !volume[j].is_nan() {
-                weighted += values[j] * volume[j];
-                total += volume[j];
+        for (v, vol) in values[window.clone()].iter().zip(&volume[window]) {
+            if !v.is_nan() && !vol.is_nan() {
+                weighted += v * vol;
+                total += vol;
             }
         }
         if total > 0.0 {
-            out[i] = weighted / total;
+            *slot = weighted / total;
         }
     }
     out
@@ -144,10 +145,7 @@ fn vwap(a: &Args) -> TaResult {
 }
 
 /// MFI and CMF: high, low, close, volume and a validated period.
-fn hlcv_period(
-    a: &Args,
-    kernel: fn(&[f64], &[f64], &[f64], &[f64], usize) -> Vec<f64>,
-) -> TaResult {
+fn hlcv_period(a: &Args, kernel: HlcvKernel) -> TaResult {
     let [high, low, close, volume] = a.aligned::<4>()?;
     let period = a.p().int("period")?;
     validate_period(period, close.len())?;

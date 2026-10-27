@@ -361,7 +361,7 @@ pub(crate) fn bind(spec: &'static IndicatorSpec, clean: &[(&'static str, ParamVa
             ))
         })
         .collect();
-    Params::new(spec.name, values)
+    Params::new(spec.name, values).with_series(spec.series_args)
 }
 
 /// Run one `ta` method the way the web's dispatcher calls it.

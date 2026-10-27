@@ -118,7 +118,7 @@ fn alma(a: &Args) -> TaResult {
     let period = p.int("period")?;
     validate_period(period, data.len())?;
     let offset = p.float("offset")?;
-    if !(0.0 <= offset && offset <= 1.0) {
+    if !(0.0..=1.0).contains(&offset) {
         return Err(TaError::value(format!(
             "Offset must be between 0 and 1, got {}",
             p.shown("offset")?

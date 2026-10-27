@@ -255,6 +255,19 @@ fn the_catalogue_and_the_ta_surface_agree() {
     }
     let empty = Params::new("nope", Vec::new());
     assert!(ta::call("not_an_indicator", &[], &empty).is_none());
+    let sma = get_spec("sma").expect("sma");
+    let missing = ta::call(
+        "sma",
+        &[],
+        &crate::agent::indicators::compute::bind(sma, &[]),
+    );
+    assert_eq!(
+        missing.and_then(Result::err).map(|e| (e.kind, e.message)),
+        Some((
+            "TypeError",
+            "TechnicalAnalysis.sma() missing 1 required positional argument: 'data'".to_string()
+        ))
+    );
 }
 
 /// The web's TECHNICAL INDICATORS prompt section tells the model to compute

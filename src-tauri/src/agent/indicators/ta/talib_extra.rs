@@ -3,7 +3,7 @@
 //! a period longer than the data gives NaN, as on the web.
 
 use super::numpy::{nan_vec, zip};
-use super::{many, non_empty, one, us, Args, TaResult};
+use super::{many, non_empty, one, us, Args, HlcKernel, TaResult};
 
 pub(super) fn call(name: &str, a: &Args) -> Option<TaResult> {
     Some(match name {
@@ -97,7 +97,7 @@ fn hl_period(a: &Args, kernel: fn(&[f64], &[f64], usize) -> Vec<f64>) -> TaResul
 }
 
 /// DX, ADXR: high, low, close and a period.
-fn hlc_period(a: &Args, kernel: fn(&[f64], &[f64], &[f64], usize) -> Vec<f64>) -> TaResult {
+fn hlc_period(a: &Args, kernel: HlcKernel) -> TaResult {
     let [high, low, close] = a.aligned::<3>()?;
     one(kernel(high, low, close, us(a.p().int("period")?)?))
 }
