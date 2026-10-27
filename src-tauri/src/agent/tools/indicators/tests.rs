@@ -69,8 +69,8 @@ fn map(v: Value) -> Map<String, Value> {
     v.as_object().cloned().unwrap_or_default()
 }
 
-#[test]
-fn the_toolkit_is_the_webs() {
+#[tokio::test]
+async fn the_toolkit_is_the_webs() {
     let kit = Kit::new();
     spec_contract::assert_toolkit(&GROUP, &kit.ctx(Surface::Chat));
 }
