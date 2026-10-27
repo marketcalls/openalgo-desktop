@@ -158,8 +158,13 @@ pub fn api_key(ctx: &AppState) -> String {
     }
 }
 
-async fn run(
+/// Hand `req` to the `/api/v1` handler stack in process, as a client at
+/// `caller` (the rate limiter's key), and read the answer within `timeout`.
+/// Shared by MCP and the Agent's tools, each with its own address so
+/// neither spends the other's request budget.
+pub async fn run_as(
     ctx: &Arc<AppState>,
+    caller: IpAddr,
     mut req: Request<Body>,
     timeout: Duration,
 ) -> Result<Raw, Transport> {
@@ -169,7 +174,7 @@ async fn run(
         }
     }
     req.extensions_mut()
-        .insert(ConnectInfo(SocketAddr::new(MCP_CALLER, 0)));
+        .insert(ConnectInfo(SocketAddr::new(caller, 0)));
     let router = crate::server::api_v1::router()
         .route_layer(mw::from_fn_with_state(
             ctx.clone(),
@@ -227,16 +232,10 @@ async fn run(
 pub async fn post_raw(
     ctx: &Arc<AppState>,
     endpoint: &str,
-    mut payload: Map<String, Value>,
+    payload: Map<String, Value>,
 ) -> Result<Raw, Transport> {
-    payload.insert("apikey".into(), json!(api_key(ctx)));
-    let req = Request::builder()
-        .method(Method::POST)
-        .uri(format!("/api/v1/{}", endpoint))
-        .header("content-type", "application/json")
-        .body(Body::from(Value::Object(payload).to_string()))
-        .map_err(|_| Transport::NotSent)?;
-    run(ctx, req, SDK_TIMEOUT).await
+    let req = post_request(&api_key(ctx), endpoint, payload)?;
+    run_as(ctx, MCP_CALLER, req, SDK_TIMEOUT).await
 }
 
 /// GET `/api/v1/<endpoint>?apikey=..&<query>`.
@@ -245,16 +244,40 @@ pub async fn get_raw(
     endpoint: &str,
     query: &[(&str, &str)],
 ) -> Result<Raw, Transport> {
-    let key = api_key(ctx);
-    let mut pairs: Vec<(&str, &str)> = vec![("apikey", key.as_str())];
+    let req = get_request(&api_key(ctx), endpoint, query)?;
+    run_as(ctx, MCP_CALLER, req, SDK_TIMEOUT).await
+}
+
+/// The SDK's POST: `payload` plus `apikey` in the JSON body (the web reads
+/// the key from the body, never a header).
+pub fn post_request(
+    key: &str,
+    endpoint: &str,
+    mut payload: Map<String, Value>,
+) -> Result<Request<Body>, Transport> {
+    payload.insert("apikey".into(), json!(key));
+    Request::builder()
+        .method(Method::POST)
+        .uri(format!("/api/v1/{}", endpoint))
+        .header("content-type", "application/json")
+        .body(Body::from(Value::Object(payload).to_string()))
+        .map_err(|_| Transport::NotSent)
+}
+
+/// The SDK's GET: `apikey` first on the query string.
+pub fn get_request(
+    key: &str,
+    endpoint: &str,
+    query: &[(&str, &str)],
+) -> Result<Request<Body>, Transport> {
+    let mut pairs: Vec<(&str, &str)> = vec![("apikey", key)];
     pairs.extend_from_slice(query);
     let qs = serde_urlencoded::to_string(&pairs).unwrap_or_default();
-    let req = Request::builder()
+    Request::builder()
         .method(Method::GET)
         .uri(format!("/api/v1/{}?{}", endpoint, qs))
         .body(Body::empty())
-        .map_err(|_| Transport::NotSent)?;
-    run(ctx, req, SDK_TIMEOUT).await
+        .map_err(|_| Transport::NotSent)
 }
 
 /// The SDK's dict for a transport failure (`_make_request`'s except arms).
