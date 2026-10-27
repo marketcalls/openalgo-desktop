@@ -8,7 +8,7 @@ use crate::agent::chatgpt::refresh::{SIGN_IN_AGAIN, SKEW_SECONDS};
 use crate::agent::chatgpt::service;
 use crate::agent::contract::model::ModelError;
 use crate::agent::outbound::fake::closed_port;
-use crate::agent::plan::{PlanSignIn, NOT_SIGNED_IN};
+use crate::agent::plan::NOT_SIGNED_IN;
 
 fn ciphertext(t: &TestCtx) -> String {
     t.ctx

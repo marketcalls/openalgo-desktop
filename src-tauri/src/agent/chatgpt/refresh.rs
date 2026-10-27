@@ -31,7 +31,9 @@ pub const SIGN_IN_AGAIN: &str =
 pub const RENEW_UNREACHABLE: &str = "Could not reach ChatGPT's sign-in service to renew the sign-in. Check the internet connection and try again.";
 pub const RENEW_INCOMPLETE: &str = "ChatGPT sent back an incomplete credential while renewing the sign-in. Sign in to ChatGPT again from agent settings.";
 
-/// An access token ready to send, with its account.
+/// An access token ready to send, with its account (the token prints
+/// redacted).
+#[derive(Debug)]
 pub struct Access {
     pub token: Secret,
     pub account_id: Option<String>,
