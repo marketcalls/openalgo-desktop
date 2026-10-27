@@ -1,0 +1,4462 @@
+{
+ "_comment": "Captured from the web's services/agent/safety/risk.py by scripts/agent/capture_web_orders.py. Regenerate only from the web.",
+ "start": "2026-10-27T04:00:00+00:00",
+ "defaults": {
+  "trading_enabled": false,
+  "require_analyzer_mode": false,
+  "max_orders_per_session": 20,
+  "max_order_quantity": 10000,
+  "max_order_value": "500000.00",
+  "max_price_deviation_pct": "5",
+  "duplicate_order_window_seconds": 10,
+  "allowed_exchanges": [
+   "BCD",
+   "BFO",
+   "BSE",
+   "CDS",
+   "CRYPTO",
+   "MCX",
+   "NCDEX",
+   "NCO",
+   "NFO",
+   "NSE"
+  ],
+  "allowed_products": [
+   "CNC",
+   "MIS",
+   "NRML"
+  ],
+  "symbol_allowlist": [],
+  "symbol_blocklist": [],
+  "max_funds_utilization_pct": "100",
+  "allow_bulk_destructive": false,
+  "kill_switch": false,
+  "kill_switch_file": "<kill_switch_file>"
+ },
+ "cases": [
+  {
+   "name": "kill switch setting",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": true,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "kill_switch",
+      "reason": "The agent kill switch is engaged. Release it in the agent settings to resume trading.",
+      "details": {
+       "source": "setting"
+      },
+      "message": "Blocked by the risk guard [kill_switch]: The agent kill switch is engaged. Release it in the agent settings to resume trading."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": "cancel_order",
+     "at": 0,
+     "details": {
+      "orderid": "A1"
+     },
+     "expect": {
+      "allowed": false,
+      "code": "kill_switch",
+      "reason": "The agent kill switch is engaged. Release it in the agent settings to resume trading.",
+      "details": {
+       "source": "setting"
+      },
+      "message": "Blocked by the risk guard [kill_switch]: The agent kill switch is engaged. Release it in the agent settings to resume trading."
+     },
+     "orders_claimed": 0
+    }
+   ]
+  },
+  {
+   "name": "kill switch file",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": true
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "kill_switch",
+      "reason": "The agent kill switch file <kill_switch_file> exists. Delete it to resume trading.",
+      "details": {
+       "source": "file",
+       "kill_switch_file": "<kill_switch_file>"
+      },
+      "message": "Blocked by the risk guard [kill_switch]: The agent kill switch file <kill_switch_file> exists. Delete it to resume trading."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": "close_all_positions",
+     "at": 0,
+     "details": {},
+     "expect": {
+      "allowed": false,
+      "code": "kill_switch",
+      "reason": "The agent kill switch file <kill_switch_file> exists. Delete it to resume trading.",
+      "details": {
+       "source": "file",
+       "kill_switch_file": "<kill_switch_file>"
+      },
+      "message": "Blocked by the risk guard [kill_switch]: The agent kill switch file <kill_switch_file> exists. Delete it to resume trading."
+     },
+     "orders_claimed": 0
+    }
+   ]
+  },
+  {
+   "name": "kill switch setting wins over the file",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": true,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": true
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "kill_switch",
+      "reason": "The agent kill switch is engaged. Release it in the agent settings to resume trading.",
+      "details": {
+       "source": "setting"
+      },
+      "message": "Blocked by the risk guard [kill_switch]: The agent kill switch is engaged. Release it in the agent settings to resume trading."
+     },
+     "orders_claimed": 0
+    }
+   ]
+  },
+  {
+   "name": "trading switched off",
+   "limits": {
+    "trading_enabled": false,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "trading_disabled",
+      "reason": "Agent trading is switched off. Enable it in the agent settings first.",
+      "details": {},
+      "message": "Blocked by the risk guard [trading_disabled]: Agent trading is switched off. Enable it in the agent settings first."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": "cancel_order",
+     "at": 0,
+     "details": {
+      "orderid": "A1"
+     },
+     "expect": {
+      "allowed": false,
+      "code": "trading_disabled",
+      "reason": "Agent trading is switched off. Enable it in the agent settings first.",
+      "details": {},
+      "message": "Blocked by the risk guard [trading_disabled]: Agent trading is switched off. Enable it in the agent settings first."
+     },
+     "orders_claimed": 0
+    }
+   ]
+  },
+  {
+   "name": "analyzer required and unreadable",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": true,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "analyzer_unknown",
+      "reason": "Analyzer mode is required but the platform's analyzer setting could not be read, so this order cannot be confirmed as a sandbox order.",
+      "details": {},
+      "message": "Blocked by the risk guard [analyzer_unknown]: Analyzer mode is required but the platform's analyzer setting could not be read, so this order cannot be confirmed as a sandbox order."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": "cancel_order",
+     "at": 0,
+     "details": {},
+     "expect": {
+      "allowed": false,
+      "code": "analyzer_unknown",
+      "reason": "Analyzer mode is required but the platform's analyzer setting could not be read, so this order cannot be confirmed as a sandbox order.",
+      "details": {},
+      "message": "Blocked by the risk guard [analyzer_unknown]: Analyzer mode is required but the platform's analyzer setting could not be read, so this order cannot be confirmed as a sandbox order."
+     },
+     "orders_claimed": 0
+    }
+   ]
+  },
+  {
+   "name": "analyzer required in live mode",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": true,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "analyzer_mode": false,
+     "expect": {
+      "allowed": false,
+      "code": "analyzer_required",
+      "reason": "The agent is restricted to analyzer mode and the platform is in live mode. Switch the platform to analyzer mode, or turn off require_analyzer_mode in the agent settings.",
+      "details": {},
+      "message": "Blocked by the risk guard [analyzer_required]: The agent is restricted to analyzer mode and the platform is in live mode. Switch the platform to analyzer mode, or turn off require_analyzer_mode in the agent settings."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": "cancel_order",
+     "at": 0,
+     "details": {},
+     "analyzer_mode": false,
+     "expect": {
+      "allowed": false,
+      "code": "analyzer_required",
+      "reason": "The agent is restricted to analyzer mode and the platform is in live mode. Switch the platform to analyzer mode, or turn off require_analyzer_mode in the agent settings.",
+      "details": {},
+      "message": "Blocked by the risk guard [analyzer_required]: The agent is restricted to analyzer mode and the platform is in live mode. Switch the platform to analyzer mode, or turn off require_analyzer_mode in the agent settings."
+     },
+     "orders_claimed": 0
+    }
+   ]
+  },
+  {
+   "name": "analyzer required in analyzer mode",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": true,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 500,
+      "available_funds": 100000
+     },
+     "at": 0,
+     "claim": true,
+     "analyzer_mode": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 1,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>"
+      },
+      "message": "BUY 10 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 1
+    }
+   ]
+  },
+  {
+   "name": "analyzer not required, mode unknown",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 500,
+      "available_funds": 100000
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 1,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>"
+      },
+      "message": "BUY 10 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 1
+    }
+   ]
+  },
+  {
+   "name": "normalisation refusals",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_symbol",
+      "reason": "No symbol was supplied.",
+      "details": {},
+      "message": "Blocked by the risk guard [invalid_symbol]: No symbol was supplied."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": null,
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_symbol",
+      "reason": "No symbol was supplied.",
+      "details": {},
+      "message": "Blocked by the risk guard [invalid_symbol]: No symbol was supplied."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "  ",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_symbol",
+      "reason": "No symbol was supplied.",
+      "details": {},
+      "message": "Blocked by the risk guard [invalid_symbol]: No symbol was supplied."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "exchange_not_allowed",
+      "reason": "No exchange was supplied for SBIN.",
+      "details": {},
+      "message": "Blocked by the risk guard [exchange_not_allowed]: No exchange was supplied for SBIN."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": null,
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "exchange_not_allowed",
+      "reason": "No exchange was supplied for SBIN.",
+      "details": {},
+      "message": "Blocked by the risk guard [exchange_not_allowed]: No exchange was supplied for SBIN."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "HOLD",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_action",
+      "reason": "Action must be BUY or SELL, not 'HOLD'.",
+      "details": {
+       "action": "HOLD"
+      },
+      "message": "Blocked by the risk guard [invalid_action]: Action must be BUY or SELL, not 'HOLD'."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": null,
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_action",
+      "reason": "Action must be BUY or SELL, not None.",
+      "details": {
+       "action": "None"
+      },
+      "message": "Blocked by the risk guard [invalid_action]: Action must be BUY or SELL, not None."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "b",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_action",
+      "reason": "Action must be BUY or SELL, not 'b'.",
+      "details": {
+       "action": "b"
+      },
+      "message": "Blocked by the risk guard [invalid_action]: Action must be BUY or SELL, not 'b'."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": ""
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "product_not_allowed",
+      "reason": "No product type was supplied for SBIN.",
+      "details": {},
+      "message": "Blocked by the risk guard [product_not_allowed]: No product type was supplied for SBIN."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": null
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "product_not_allowed",
+      "reason": "No product type was supplied for SBIN.",
+      "details": {},
+      "message": "Blocked by the risk guard [product_not_allowed]: No product type was supplied for SBIN."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "price_type": "STOP"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_price_type",
+      "reason": "Price type must be one of MARKET, LIMIT, SL, SL-M, not 'STOP'.",
+      "details": {
+       "price_type": "STOP"
+      },
+      "message": "Blocked by the risk guard [invalid_price_type]: Price type must be one of MARKET, LIMIT, SL, SL-M, not 'STOP'."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "price_type": "sl_m",
+      "trigger_price": 100
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_price_type",
+      "reason": "Price type must be one of MARKET, LIMIT, SL, SL-M, not 'sl_m'.",
+      "details": {
+       "price_type": "sl_m"
+      },
+      "message": "Blocked by the risk guard [invalid_price_type]: Price type must be one of MARKET, LIMIT, SL, SL-M, not 'sl_m'."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": "abc",
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_quantity",
+      "reason": "Quantity must be a whole number, not 'abc'.",
+      "details": {
+       "quantity": "abc"
+      },
+      "message": "Blocked by the risk guard [invalid_quantity]: Quantity must be a whole number, not 'abc'."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 0,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_quantity",
+      "reason": "Quantity must be greater than zero, not 0.",
+      "details": {
+       "quantity": 0
+      },
+      "message": "Blocked by the risk guard [invalid_quantity]: Quantity must be greater than zero, not 0."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": -5,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_quantity",
+      "reason": "Quantity must be greater than zero, not -5.",
+      "details": {
+       "quantity": -5
+      },
+      "message": "Blocked by the risk guard [invalid_quantity]: Quantity must be greater than zero, not -5."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10.0,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_quantity",
+      "reason": "Quantity must be a whole number, not 10.0.",
+      "details": {
+       "quantity": "10.0"
+      },
+      "message": "Blocked by the risk guard [invalid_quantity]: Quantity must be a whole number, not 10.0."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": true,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_quantity",
+      "reason": "Quantity must be a whole number, not True.",
+      "details": {
+       "quantity": "True"
+      },
+      "message": "Blocked by the risk guard [invalid_quantity]: Quantity must be a whole number, not True."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": "7",
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 7 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 7,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 1,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "No reference price for SBIN, so the notional cap and the price-deviation check were skipped."
+       ]
+      },
+      "message": "BUY 7 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": null,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_quantity",
+      "reason": "Quantity must be a whole number, not None.",
+      "details": {
+       "quantity": "None"
+      },
+      "message": "Blocked by the risk guard [invalid_quantity]: Quantity must be a whole number, not None."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "price_type": "LIMIT"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_price",
+      "reason": "A LIMIT order needs a positive limit price.",
+      "details": {
+       "price": "None"
+      },
+      "message": "Blocked by the risk guard [invalid_price]: A LIMIT order needs a positive limit price."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "price_type": "LIMIT",
+      "price": -5
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_price",
+      "reason": "A LIMIT order needs a positive limit price.",
+      "details": {
+       "price": "-5"
+      },
+      "message": "Blocked by the risk guard [invalid_price]: A LIMIT order needs a positive limit price."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "price_type": "SL",
+      "price": 100
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_price",
+      "reason": "A SL order needs a positive trigger price.",
+      "details": {
+       "trigger_price": "None"
+      },
+      "message": "Blocked by the risk guard [invalid_price]: A SL order needs a positive trigger price."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "price_type": "SL-M"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_price",
+      "reason": "A SL-M order needs a positive trigger price.",
+      "details": {
+       "trigger_price": "None"
+      },
+      "message": "Blocked by the risk guard [invalid_price]: A SL-M order needs a positive trigger price."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "price_type": "SL-M",
+      "trigger_price": 0
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_price",
+      "reason": "A SL-M order needs a positive trigger price.",
+      "details": {
+       "trigger_price": "0"
+      },
+      "message": "Blocked by the risk guard [invalid_price]: A SL-M order needs a positive trigger price."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "price_type": "SLM",
+      "trigger_price": 101.5,
+      "ltp": 100
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "SL-M",
+       "orders_claimed": 2,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 SBIN on NSE was skipped."
+       ]
+      },
+      "message": "BUY 10 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 2
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "price_type": null,
+      "ltp": 200
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 3,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 SBIN on NSE was skipped."
+       ]
+      },
+      "message": "BUY 10 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 3
+    }
+   ]
+  },
+  {
+   "name": "symbol blocklist",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [
+     "SBIN"
+    ],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "sbin",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "symbol_blocked",
+      "reason": "SBIN is on the agent's symbol blocklist.",
+      "details": {
+       "symbol": "SBIN"
+      },
+      "message": "Blocked by the risk guard [symbol_blocked]: SBIN is on the agent's symbol blocklist."
+     },
+     "orders_claimed": 0
+    }
+   ]
+  },
+  {
+   "name": "symbol allowlist",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [
+     "INFY",
+     "TCS"
+    ],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "symbol_not_allowed",
+      "reason": "SBIN is not on the agent's symbol allowlist.",
+      "details": {
+       "symbol": "SBIN",
+       "allowed": [
+        "INFY",
+        "TCS"
+       ]
+      },
+      "message": "Blocked by the risk guard [symbol_not_allowed]: SBIN is not on the agent's symbol allowlist."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "tcs",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 3000
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 TCS on NSE passed every risk check.",
+      "details": {
+       "symbol": "TCS",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 1,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 TCS on NSE was skipped."
+       ]
+      },
+      "message": "BUY 10 TCS on NSE passed every risk check."
+     },
+     "orders_claimed": 1
+    }
+   ]
+  },
+  {
+   "name": "blocklist before allowlist",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [
+     "SBIN"
+    ],
+    "symbol_blocklist": [
+     "SBIN"
+    ],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "symbol_blocked",
+      "reason": "SBIN is on the agent's symbol blocklist.",
+      "details": {
+       "symbol": "SBIN"
+      },
+      "message": "Blocked by the risk guard [symbol_blocked]: SBIN is on the agent's symbol blocklist."
+     },
+     "orders_claimed": 0
+    }
+   ]
+  },
+  {
+   "name": "exchange not allowed",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "exchange_not_allowed",
+      "reason": "The agent may not trade on NSE_INDEX. Allowed: BCD, BFO, BSE, CDS, CRYPTO, MCX, NCDEX, NCO, NFO, NSE.",
+      "details": {
+       "exchange": "NSE_INDEX",
+       "allowed": [
+        "BCD",
+        "BFO",
+        "BSE",
+        "CDS",
+        "CRYPTO",
+        "MCX",
+        "NCDEX",
+        "NCO",
+        "NFO",
+        "NSE"
+       ]
+      },
+      "message": "Blocked by the risk guard [exchange_not_allowed]: The agent may not trade on NSE_INDEX. Allowed: BCD, BFO, BSE, CDS, CRYPTO, MCX, NCDEX, NCO, NFO, NSE."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "NIFTY28MAR2420800CE",
+      "exchange": "nfo",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "NRML",
+      "ltp": 120
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 NIFTY28MAR2420800CE on NFO passed every risk check.",
+      "details": {
+       "symbol": "NIFTY28MAR2420800CE",
+       "exchange": "NFO",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "NRML",
+       "price_type": "MARKET",
+       "orders_claimed": 1,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 NIFTY28MAR2420800CE on NFO was skipped."
+       ]
+      },
+      "message": "BUY 10 NIFTY28MAR2420800CE on NFO passed every risk check."
+     },
+     "orders_claimed": 1
+    }
+   ]
+  },
+  {
+   "name": "exchange narrowed",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "NFO"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "exchange_not_allowed",
+      "reason": "The agent may not trade on NSE. Allowed: NFO.",
+      "details": {
+       "exchange": "NSE",
+       "allowed": [
+        "NFO"
+       ]
+      },
+      "message": "Blocked by the risk guard [exchange_not_allowed]: The agent may not trade on NSE. Allowed: NFO."
+     },
+     "orders_claimed": 0
+    }
+   ]
+  },
+  {
+   "name": "product not allowed",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "product_not_allowed",
+      "reason": "The agent may not use product MIS. Allowed: CNC.",
+      "details": {
+       "product": "MIS",
+       "allowed": [
+        "CNC"
+       ]
+      },
+      "message": "Blocked by the risk guard [product_not_allowed]: The agent may not use product MIS. Allowed: CNC."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "cnc",
+      "ltp": 500
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "CNC",
+       "price_type": "MARKET",
+       "orders_claimed": 1,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 SBIN on NSE was skipped."
+       ]
+      },
+      "message": "BUY 10 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 1
+    }
+   ]
+  },
+  {
+   "name": "quantity cap",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 100,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 101,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "quantity_exceeded",
+      "reason": "Quantity 101 exceeds the per-order limit of 100.",
+      "details": {
+       "quantity": 101,
+       "limit": 100
+      },
+      "message": "Blocked by the risk guard [quantity_exceeded]: Quantity 101 exceeds the per-order limit of 100."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 100,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 100 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 100,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 1,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 100 SBIN on NSE was skipped."
+       ]
+      },
+      "message": "BUY 100 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 1
+    }
+   ]
+  },
+  {
+   "name": "session cap",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 2,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 1,
+       "orders_allowed": 2,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 SBIN on NSE was skipped."
+       ]
+      },
+      "message": "BUY 10 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "TCS",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 TCS on NSE passed every risk check.",
+      "details": {
+       "symbol": "TCS",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 2,
+       "orders_allowed": 2,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 TCS on NSE was skipped."
+       ]
+      },
+      "message": "BUY 10 TCS on NSE passed every risk check."
+     },
+     "orders_claimed": 2
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "session_cap_reached",
+      "reason": "This session has already claimed 2 of its 2 permitted orders and this request needs 1 more. Start a new conversation or raise max_orders_per_session.",
+      "details": {
+       "orders_claimed": 2,
+       "orders_allowed": 2,
+       "requested": 1
+      },
+      "message": "Blocked by the risk guard [session_cap_reached]: This session has already claimed 2 of its 2 permitted orders and this request needs 1 more. Start a new conversation or raise max_orders_per_session."
+     },
+     "orders_claimed": 2
+    },
+    {
+     "call": "check_destructive",
+     "operation": "cancel_order",
+     "at": 0,
+     "details": {
+      "orderid": "A1"
+     },
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "cancel_order passed every risk check.",
+      "details": {
+       "operation": "cancel_order",
+       "orderid": "A1"
+      },
+      "message": "cancel_order passed every risk check."
+     },
+     "orders_claimed": 2
+    }
+   ]
+  },
+  {
+   "name": "session cap of zero",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 0,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "session_cap_reached",
+      "reason": "This session has already claimed 0 of its 0 permitted orders and this request needs 1 more. Start a new conversation or raise max_orders_per_session.",
+      "details": {
+       "orders_claimed": 0,
+       "orders_allowed": 0,
+       "requested": 1
+      },
+      "message": "Blocked by the risk guard [session_cap_reached]: This session has already claimed 0 of its 0 permitted orders and this request needs 1 more. Start a new conversation or raise max_orders_per_session."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": "modify_order",
+     "at": 0,
+     "details": {
+      "orderid": "A1"
+     },
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "modify_order passed every risk check.",
+      "details": {
+       "operation": "modify_order",
+       "orderid": "A1"
+      },
+      "message": "modify_order passed every risk check."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": "close_position",
+     "at": 0,
+     "details": {
+      "symbol": "SBIN"
+     },
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "close_position passed every risk check.",
+      "details": {
+       "operation": "close_position",
+       "symbol": "SBIN"
+      },
+      "message": "close_position passed every risk check."
+     },
+     "orders_claimed": 0
+    }
+   ]
+  },
+  {
+   "name": "duplicate window",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 1,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 SBIN on NSE was skipped."
+       ]
+      },
+      "message": "BUY 10 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 3.5,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "duplicate_order",
+      "reason": "An identical order (BUY 10 SBIN on NSE) was allowed 3.5s ago, inside the 10s duplicate window. Wait, or change the order.",
+      "details": {
+       "symbol": "SBIN",
+       "seconds_ago": 3.5,
+       "window_seconds": 10
+      },
+      "message": "Blocked by the risk guard [duplicate_order]: An identical order (BUY 10 SBIN on NSE) was allowed 3.5s ago, inside the 10s duplicate window. Wait, or change the order."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 9.94,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "duplicate_order",
+      "reason": "An identical order (BUY 10 SBIN on NSE) was allowed 9.9s ago, inside the 10s duplicate window. Wait, or change the order.",
+      "details": {
+       "symbol": "SBIN",
+       "seconds_ago": 9.9,
+       "window_seconds": 10
+      },
+      "message": "Blocked by the risk guard [duplicate_order]: An identical order (BUY 10 SBIN on NSE) was allowed 9.9s ago, inside the 10s duplicate window. Wait, or change the order."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 10,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 2,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 SBIN on NSE was skipped."
+       ]
+      },
+      "message": "BUY 10 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 2
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 11,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 10.5,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 11 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 11,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 3,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 11 SBIN on NSE was skipped."
+       ]
+      },
+      "message": "BUY 11 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 3
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10,
+      "price_type": "LIMIT",
+      "price": 10
+     },
+     "at": 12,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "LIMIT",
+       "orders_claimed": 4,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 SBIN on NSE was skipped."
+       ]
+      },
+      "message": "BUY 10 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 4
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10,
+      "price_type": "LIMIT",
+      "price": 10
+     },
+     "at": 13,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "duplicate_order",
+      "reason": "An identical order (BUY 10 SBIN on NSE) was allowed 1.0s ago, inside the 10s duplicate window. Wait, or change the order.",
+      "details": {
+       "symbol": "SBIN",
+       "seconds_ago": 1.0,
+       "window_seconds": 10
+      },
+      "message": "Blocked by the risk guard [duplicate_order]: An identical order (BUY 10 SBIN on NSE) was allowed 1.0s ago, inside the 10s duplicate window. Wait, or change the order."
+     },
+     "orders_claimed": 4
+    }
+   ]
+  },
+  {
+   "name": "duplicate window off",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 0,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 1,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 SBIN on NSE was skipped."
+       ]
+      },
+      "message": "BUY 10 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 2,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 SBIN on NSE was skipped."
+       ]
+      },
+      "message": "BUY 10 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 2
+    }
+   ]
+  },
+  {
+   "name": "release gives the claim back",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 1,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 1,
+       "orders_allowed": 1,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 SBIN on NSE was skipped."
+       ]
+      },
+      "message": "BUY 10 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "release",
+     "of": 0,
+     "expect": true,
+     "orders_claimed": 0
+    },
+    {
+     "call": "release",
+     "of": 0,
+     "expect": false,
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 1,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 1,
+       "orders_allowed": 1,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 SBIN on NSE was skipped."
+       ]
+      },
+      "message": "BUY 10 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "commit",
+     "of": 3,
+     "expect": true,
+     "orders_claimed": 1
+    },
+    {
+     "call": "release",
+     "of": 3,
+     "expect": false,
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "TCS",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 2,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "session_cap_reached",
+      "reason": "This session has already claimed 1 of its 1 permitted orders and this request needs 1 more. Start a new conversation or raise max_orders_per_session.",
+      "details": {
+       "orders_claimed": 1,
+       "orders_allowed": 1,
+       "requested": 1
+      },
+      "message": "Blocked by the risk guard [session_cap_reached]: This session has already claimed 1 of its 1 permitted orders and this request needs 1 more. Start a new conversation or raise max_orders_per_session."
+     },
+     "orders_claimed": 1
+    }
+   ]
+  },
+  {
+   "name": "a refusal has nothing to release",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_symbol",
+      "reason": "No symbol was supplied.",
+      "details": {},
+      "message": "Blocked by the risk guard [invalid_symbol]: No symbol was supplied."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "release",
+     "of": 0,
+     "expect": false,
+     "orders_claimed": 0
+    },
+    {
+     "call": "commit",
+     "of": 0,
+     "expect": false,
+     "orders_claimed": 0
+    }
+   ]
+  },
+  {
+   "name": "a dry run claims nothing",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 1,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 0,
+     "claim": false,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 0,
+       "orders_allowed": 1,
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 SBIN on NSE was skipped."
+       ]
+      },
+      "message": "BUY 10 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "release",
+     "of": 0,
+     "expect": false,
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 1,
+       "orders_allowed": 1,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 SBIN on NSE was skipped."
+       ]
+      },
+      "message": "BUY 10 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "ltp": 10
+     },
+     "at": 1,
+     "claim": false,
+     "expect": {
+      "allowed": false,
+      "code": "session_cap_reached",
+      "reason": "This session has already claimed 1 of its 1 permitted orders and this request needs 1 more. Start a new conversation or raise max_orders_per_session.",
+      "details": {
+       "orders_claimed": 1,
+       "orders_allowed": 1,
+       "requested": 1
+      },
+      "message": "Blocked by the risk guard [session_cap_reached]: This session has already claimed 1 of its 1 permitted orders and this request needs 1 more. Start a new conversation or raise max_orders_per_session."
+     },
+     "orders_claimed": 1
+    }
+   ]
+  },
+  {
+   "name": "notional cap",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 600,
+      "product": "MIS",
+      "price_type": "LIMIT",
+      "price": 1000,
+      "ltp": 1000
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "notional_exceeded",
+      "reason": "The order is worth about 600000.00, above the per-order limit of 500000.00.",
+      "details": {
+       "notional": "600000",
+       "limit": "500000.00",
+       "reference_price": "1000",
+       "quantity": 600
+      },
+      "message": "Blocked by the risk guard [notional_exceeded]: The order is worth about 600000.00, above the per-order limit of 500000.00."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 500,
+      "product": "MIS",
+      "price_type": "LIMIT",
+      "price": 1000,
+      "ltp": 1000
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 500 SBIN on NSE passed every risk check.",
+      "details": {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 500,
+       "product": "MIS",
+       "price_type": "LIMIT",
+       "orders_claimed": 1,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 500 SBIN on NSE was skipped."
+       ]
+      },
+      "message": "BUY 500 SBIN on NSE passed every risk check."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "TCS",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 600,
+      "product": "MIS",
+      "ltp": 1000.5
+     },
+     "at": 1,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "notional_exceeded",
+      "reason": "The order is worth about 600300.00, above the per-order limit of 500000.00.",
+      "details": {
+       "notional": "600300.0",
+       "limit": "500000.00",
+       "reference_price": "1000.5",
+       "quantity": 600
+      },
+      "message": "Blocked by the risk guard [notional_exceeded]: The order is worth about 600300.00, above the per-order limit of 500000.00."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 300,
+      "product": "MIS",
+      "price_type": "SL-M",
+      "trigger_price": 2000
+     },
+     "at": 2,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "notional_exceeded",
+      "reason": "The order is worth about 600000.00, above the per-order limit of 500000.00.",
+      "details": {
+       "notional": "600000",
+       "limit": "500000.00",
+       "reference_price": "2000",
+       "quantity": 300
+      },
+      "message": "Blocked by the risk guard [notional_exceeded]: The order is worth about 600000.00, above the per-order limit of 500000.00."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "WIPRO",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 5,
+      "product": "MIS"
+     },
+     "at": 3,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 5 WIPRO on NSE passed every risk check.",
+      "details": {
+       "symbol": "WIPRO",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 5,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 2,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "No reference price for WIPRO, so the notional cap and the price-deviation check were skipped."
+       ]
+      },
+      "message": "BUY 5 WIPRO on NSE passed every risk check."
+     },
+     "orders_claimed": 2
+    }
+   ]
+  },
+  {
+   "name": "a pricing refusal gives the claim back",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 1,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 600,
+      "product": "MIS",
+      "price_type": "LIMIT",
+      "price": 1000,
+      "ltp": 1000
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "notional_exceeded",
+      "reason": "The order is worth about 600000.00, above the per-order limit of 500000.00.",
+      "details": {
+       "notional": "600000",
+       "limit": "500000.00",
+       "reference_price": "1000",
+       "quantity": 600
+      },
+      "message": "Blocked by the risk guard [notional_exceeded]: The order is worth about 600000.00, above the per-order limit of 500000.00."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 600,
+      "product": "MIS",
+      "price_type": "LIMIT",
+      "price": 1000,
+      "ltp": 500
+     },
+     "at": 1,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "notional_exceeded",
+      "reason": "The order is worth about 600000.00, above the per-order limit of 500000.00.",
+      "details": {
+       "notional": "600000",
+       "limit": "500000.00",
+       "reference_price": "1000",
+       "quantity": 600
+      },
+      "message": "Blocked by the risk guard [notional_exceeded]: The order is worth about 600000.00, above the per-order limit of 500000.00."
+     },
+     "orders_claimed": 0
+    }
+   ]
+  },
+  {
+   "name": "price deviation",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "price_type": "LIMIT",
+      "price": 1100,
+      "ltp": 1000
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "price_deviation",
+      "reason": "The order price 1100 is 10.00% away from the last traded price 1000, beyond the 5% limit.",
+      "details": {
+       "order_price": "1100",
+       "ltp": "1000",
+       "deviation_pct": "10.00",
+       "limit_pct": "5"
+      },
+      "message": "Blocked by the risk guard [price_deviation]: The order price 1100 is 10.00% away from the last traded price 1000, beyond the 5% limit."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "TCS",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "price_type": "LIMIT",
+      "price": 1050,
+      "ltp": 1000
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 10 TCS on NSE passed every risk check.",
+      "details": {
+       "symbol": "TCS",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "price_type": "LIMIT",
+       "orders_claimed": 1,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 10 TCS on NSE was skipped."
+       ]
+      },
+      "message": "BUY 10 TCS on NSE passed every risk check."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "price_type": "SL",
+      "price": 940,
+      "trigger_price": 945,
+      "ltp": 1000
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "price_deviation",
+      "reason": "The order price 940 is 6.00% away from the last traded price 1000, beyond the 5% limit.",
+      "details": {
+       "order_price": "940",
+       "ltp": "1000",
+       "deviation_pct": "6.00",
+       "limit_pct": "5"
+      },
+      "message": "Blocked by the risk guard [price_deviation]: The order price 940 is 6.00% away from the last traded price 1000, beyond the 5% limit."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "WIPRO",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 10,
+      "product": "MIS",
+      "price_type": "SL-M",
+      "trigger_price": 1070.25,
+      "ltp": 1000
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "price_deviation",
+      "reason": "The order price 1070.25 is 7.02% away from the last traded price 1000, beyond the 5% limit.",
+      "details": {
+       "order_price": "1070.25",
+       "ltp": "1000",
+       "deviation_pct": "7.02",
+       "limit_pct": "5"
+      },
+      "message": "Blocked by the risk guard [price_deviation]: The order price 1070.25 is 7.02% away from the last traded price 1000, beyond the 5% limit."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "ITC",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 1,
+      "product": "MIS",
+      "price_type": "LIMIT",
+      "price": 101,
+      "ltp": 0
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 1 ITC on NSE passed every risk check.",
+      "details": {
+       "symbol": "ITC",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 1,
+       "product": "MIS",
+       "price_type": "LIMIT",
+       "orders_claimed": 2,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "No last traded price for ITC, so the price-deviation check was skipped.",
+        "Available funds are unknown, so the affordability check for BUY 1 ITC on NSE was skipped."
+       ]
+      },
+      "message": "BUY 1 ITC on NSE passed every risk check."
+     },
+     "orders_claimed": 2
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "HDFC",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 1,
+      "product": "MIS",
+      "price_type": "LIMIT",
+      "price": 1450.55,
+      "ltp": 1500.123
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 1 HDFC on NSE passed every risk check.",
+      "details": {
+       "symbol": "HDFC",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 1,
+       "product": "MIS",
+       "price_type": "LIMIT",
+       "orders_claimed": 3,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 1 HDFC on NSE was skipped."
+       ]
+      },
+      "message": "BUY 1 HDFC on NSE passed every risk check."
+     },
+     "orders_claimed": 3
+    }
+   ]
+  },
+  {
+   "name": "deviation limit decimal",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "2.5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 1,
+      "product": "MIS",
+      "price_type": "LIMIT",
+      "price": 1026,
+      "ltp": 1000
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "price_deviation",
+      "reason": "The order price 1026 is 2.60% away from the last traded price 1000, beyond the 2.5% limit.",
+      "details": {
+       "order_price": "1026",
+       "ltp": "1000",
+       "deviation_pct": "2.60",
+       "limit_pct": "2.5"
+      },
+      "message": "Blocked by the risk guard [price_deviation]: The order price 1026 is 2.60% away from the last traded price 1000, beyond the 2.5% limit."
+     },
+     "orders_claimed": 0
+    }
+   ]
+  },
+  {
+   "name": "affordability",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "50",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 100,
+      "product": "MIS",
+      "ltp": 1000,
+      "available_funds": 150000
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "insufficient_funds",
+      "reason": "BUY 100 SBIN on NSE needs about 100000.00 but only 75000.00 of the 150000.00 available may be used (50% of funds).",
+      "details": {
+       "required": "100000.00",
+       "usable": "75000.00",
+       "available": "150000.00",
+       "utilization_pct": "50"
+      },
+      "message": "Blocked by the risk guard [insufficient_funds]: BUY 100 SBIN on NSE needs about 100000.00 but only 75000.00 of the 150000.00 available may be used (50% of funds)."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "TCS",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 100,
+      "product": "MIS",
+      "ltp": 1000,
+      "available_funds": 200000
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 100 TCS on NSE passed every risk check.",
+      "details": {
+       "symbol": "TCS",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 100,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 1,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>"
+      },
+      "message": "BUY 100 TCS on NSE passed every risk check."
+     },
+     "orders_claimed": 1
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "action": "SELL",
+      "quantity": 100,
+      "product": "MIS",
+      "ltp": 1000,
+      "available_funds": 10
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "SELL 100 INFY on NSE passed every risk check.",
+      "details": {
+       "symbol": "INFY",
+       "exchange": "NSE",
+       "action": "SELL",
+       "quantity": 100,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 2,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>"
+      },
+      "message": "SELL 100 INFY on NSE passed every risk check."
+     },
+     "orders_claimed": 2
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "WIPRO",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 100,
+      "product": "MIS",
+      "ltp": 1000
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 100 WIPRO on NSE passed every risk check.",
+      "details": {
+       "symbol": "WIPRO",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 100,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 3,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 100 WIPRO on NSE was skipped."
+       ]
+      },
+      "message": "BUY 100 WIPRO on NSE passed every risk check."
+     },
+     "orders_claimed": 3
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "ITC",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 1,
+      "product": "MIS",
+      "ltp": 1000,
+      "available_funds": "abc"
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 1 ITC on NSE passed every risk check.",
+      "details": {
+       "symbol": "ITC",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 1,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 4,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 1 ITC on NSE was skipped."
+       ]
+      },
+      "message": "BUY 1 ITC on NSE passed every risk check."
+     },
+     "orders_claimed": 4
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "HDFC",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 1,
+      "product": "MIS",
+      "ltp": 1000,
+      "available_funds": true
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "BUY 1 HDFC on NSE passed every risk check.",
+      "details": {
+       "symbol": "HDFC",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 1,
+       "product": "MIS",
+       "price_type": "MARKET",
+       "orders_claimed": 5,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>",
+       "warnings": [
+        "Available funds are unknown, so the affordability check for BUY 1 HDFC on NSE was skipped."
+       ]
+      },
+      "message": "BUY 1 HDFC on NSE passed every risk check."
+     },
+     "orders_claimed": 5
+    },
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "AXIS",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 1,
+      "product": "MIS",
+      "ltp": 1000,
+      "available_funds": -100
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "insufficient_funds",
+      "reason": "BUY 1 AXIS on NSE needs about 1000.00 but only -50.00 of the -100.00 available may be used (50% of funds).",
+      "details": {
+       "required": "1000.00",
+       "usable": "-50.00",
+       "available": "-100.00",
+       "utilization_pct": "50"
+      },
+      "message": "Blocked by the risk guard [insufficient_funds]: BUY 1 AXIS on NSE needs about 1000.00 but only -50.00 of the -100.00 available may be used (50% of funds)."
+     },
+     "orders_claimed": 5
+    }
+   ]
+  },
+  {
+   "name": "affordability default",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_order",
+     "args": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "action": "BUY",
+      "quantity": 3,
+      "product": "MIS",
+      "ltp": 333.33,
+      "available_funds": 999.98
+     },
+     "at": 0,
+     "claim": true,
+     "expect": {
+      "allowed": false,
+      "code": "insufficient_funds",
+      "reason": "BUY 3 SBIN on NSE needs about 999.99 but only 999.98 of the 999.98 available may be used (100% of funds).",
+      "details": {
+       "required": "999.99",
+       "usable": "999.98",
+       "available": "999.98",
+       "utilization_pct": "100"
+      },
+      "message": "Blocked by the risk guard [insufficient_funds]: BUY 3 SBIN on NSE needs about 999.99 but only 999.98 of the 999.98 available may be used (100% of funds)."
+     },
+     "orders_claimed": 0
+    }
+   ]
+  },
+  {
+   "name": "destructive operations",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_destructive",
+     "operation": "cancel_order",
+     "at": 0,
+     "details": {
+      "orderid": "A1"
+     },
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "cancel_order passed every risk check.",
+      "details": {
+       "operation": "cancel_order",
+       "orderid": "A1"
+      },
+      "message": "cancel_order passed every risk check."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": "modify_order",
+     "at": 0,
+     "details": {
+      "orderid": "A1",
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "quantity": 5
+     },
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "modify_order passed every risk check.",
+      "details": {
+       "operation": "modify_order",
+       "orderid": "A1",
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "quantity": 5
+      },
+      "message": "modify_order passed every risk check."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": "close_position",
+     "at": 0,
+     "details": {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "product": "MIS"
+     },
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "close_position passed every risk check.",
+      "details": {
+       "operation": "close_position",
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "product": "MIS"
+      },
+      "message": "close_position passed every risk check."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": "cancel_all_orders",
+     "at": 0,
+     "details": {},
+     "expect": {
+      "allowed": false,
+      "code": "bulk_operation_not_allowed",
+      "reason": "cancel_all_orders affects the whole account and account-wide operations are switched off. Enable allow_bulk_destructive in the agent settings to permit it.",
+      "details": {
+       "operation": "cancel_all_orders"
+      },
+      "message": "Blocked by the risk guard [bulk_operation_not_allowed]: cancel_all_orders affects the whole account and account-wide operations are switched off. Enable allow_bulk_destructive in the agent settings to permit it."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": "close_all_positions",
+     "at": 0,
+     "details": {},
+     "expect": {
+      "allowed": false,
+      "code": "bulk_operation_not_allowed",
+      "reason": "close_all_positions affects the whole account and account-wide operations are switched off. Enable allow_bulk_destructive in the agent settings to permit it.",
+      "details": {
+       "operation": "close_all_positions"
+      },
+      "message": "Blocked by the risk guard [bulk_operation_not_allowed]: close_all_positions affects the whole account and account-wide operations are switched off. Enable allow_bulk_destructive in the agent settings to permit it."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": "square_off_all",
+     "at": 0,
+     "details": {},
+     "expect": {
+      "allowed": false,
+      "code": "bulk_operation_not_allowed",
+      "reason": "square_off_all affects the whole account and account-wide operations are switched off. Enable allow_bulk_destructive in the agent settings to permit it.",
+      "details": {
+       "operation": "square_off_all"
+      },
+      "message": "Blocked by the risk guard [bulk_operation_not_allowed]: square_off_all affects the whole account and account-wide operations are switched off. Enable allow_bulk_destructive in the agent settings to permit it."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": " Cancel_Order ",
+     "at": 0,
+     "details": {},
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "cancel_order passed every risk check.",
+      "details": {
+       "operation": "cancel_order"
+      },
+      "message": "cancel_order passed every risk check."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": "nuke",
+     "at": 0,
+     "details": {},
+     "expect": {
+      "allowed": false,
+      "code": "unknown_operation",
+      "reason": "'nuke' is not a destructive operation this guard knows. Known operations: cancel_all_orders, cancel_gtt_order, cancel_order, close_all_positions, close_position, modify_gtt_order, modify_order, square_off_all.",
+      "details": {
+       "operation": "nuke"
+      },
+      "message": "Blocked by the risk guard [unknown_operation]: 'nuke' is not a destructive operation this guard knows. Known operations: cancel_all_orders, cancel_gtt_order, cancel_order, close_all_positions, close_position, modify_gtt_order, modify_order, square_off_all."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": null,
+     "at": 0,
+     "details": {},
+     "expect": {
+      "allowed": false,
+      "code": "unknown_operation",
+      "reason": "None is not a destructive operation this guard knows. Known operations: cancel_all_orders, cancel_gtt_order, cancel_order, close_all_positions, close_position, modify_gtt_order, modify_order, square_off_all.",
+      "details": {
+       "operation": "None"
+      },
+      "message": "Blocked by the risk guard [unknown_operation]: None is not a destructive operation this guard knows. Known operations: cancel_all_orders, cancel_gtt_order, cancel_order, close_all_positions, close_position, modify_gtt_order, modify_order, square_off_all."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": "cancel_gtt_order",
+     "at": 0,
+     "details": {
+      "trigger_id": "T1"
+     },
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "cancel_gtt_order passed every risk check.",
+      "details": {
+       "operation": "cancel_gtt_order",
+       "trigger_id": "T1"
+      },
+      "message": "cancel_gtt_order passed every risk check."
+     },
+     "orders_claimed": 0
+    }
+   ]
+  },
+  {
+   "name": "bulk operations allowed",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": true,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_destructive",
+     "operation": "cancel_all_orders",
+     "at": 0,
+     "details": {},
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "cancel_all_orders passed every risk check.",
+      "details": {
+       "operation": "cancel_all_orders"
+      },
+      "message": "cancel_all_orders passed every risk check."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_destructive",
+     "operation": "close_all_positions",
+     "at": 0,
+     "details": {},
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "close_all_positions passed every risk check.",
+      "details": {
+       "operation": "close_all_positions"
+      },
+      "message": "close_all_positions passed every risk check."
+     },
+     "orders_claimed": 0
+    }
+   ]
+  },
+  {
+   "name": "basket",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 20,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_basket",
+     "legs": [],
+     "at": 0,
+     "expect": {
+      "allowed": false,
+      "code": "empty_basket",
+      "reason": "The basket contains no legs.",
+      "details": {},
+      "message": "Blocked by the risk guard [empty_basket]: The basket contains no legs."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_basket",
+     "legs": [
+      {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS"
+      },
+      "not a leg"
+     ],
+     "at": 0,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_arguments",
+      "reason": "Leg 2 is not a mapping of order fields.",
+      "details": {
+       "leg": 2
+      },
+      "message": "Blocked by the risk guard [invalid_arguments]: Leg 2 is not a mapping of order fields."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_basket",
+     "legs": [
+      {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS"
+      },
+      {
+       "symbol": "TCS",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "colour": "red"
+      }
+     ],
+     "at": 0,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_arguments",
+      "reason": "Leg 2 carries unrecognised field(s): colour.",
+      "details": {
+       "leg": 2,
+       "unknown": [
+        "colour"
+       ]
+      },
+      "message": "Blocked by the risk guard [invalid_arguments]: Leg 2 carries unrecognised field(s): colour."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_basket",
+     "legs": [
+      {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS"
+      },
+      {
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 1,
+       "product": "MIS"
+      }
+     ],
+     "at": 0,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_arguments",
+      "reason": "Leg 2: _normalise() missing 1 required keyword-only argument: 'symbol'",
+      "details": {
+       "leg": 2
+      },
+      "message": "Blocked by the risk guard [invalid_arguments]: Leg 2: _normalise() missing 1 required keyword-only argument: 'symbol'"
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_basket",
+     "legs": [
+      {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS"
+      },
+      {
+       "action": "BUY",
+       "quantity": 1
+      }
+     ],
+     "at": 0,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_arguments",
+      "reason": "Leg 2: _normalise() missing 3 required keyword-only arguments: 'symbol', 'exchange', and 'product'",
+      "details": {
+       "leg": 2
+      },
+      "message": "Blocked by the risk guard [invalid_arguments]: Leg 2: _normalise() missing 3 required keyword-only arguments: 'symbol', 'exchange', and 'product'"
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_basket",
+     "legs": [
+      {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS"
+      },
+      {
+       "symbol": "TCS",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 0,
+       "product": "MIS"
+      }
+     ],
+     "at": 0,
+     "expect": {
+      "allowed": false,
+      "code": "invalid_quantity",
+      "reason": "Leg 2: Quantity must be greater than zero, not 0.",
+      "details": {
+       "leg": 2,
+       "quantity": 0
+      },
+      "message": "Blocked by the risk guard [invalid_quantity]: Leg 2: Quantity must be greater than zero, not 0."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_basket",
+     "legs": [
+      {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS"
+      },
+      {
+       "symbol": "TCS",
+       "exchange": "NSE_INDEX",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS"
+      }
+     ],
+     "at": 0,
+     "expect": {
+      "allowed": false,
+      "code": "exchange_not_allowed",
+      "reason": "Leg 2: The agent may not trade on NSE_INDEX. Allowed: BCD, BFO, BSE, CDS, CRYPTO, MCX, NCDEX, NCO, NFO, NSE.",
+      "details": {
+       "leg": 2,
+       "exchange": "NSE_INDEX",
+       "allowed": [
+        "BCD",
+        "BFO",
+        "BSE",
+        "CDS",
+        "CRYPTO",
+        "MCX",
+        "NCDEX",
+        "NCO",
+        "NFO",
+        "NSE"
+       ]
+      },
+      "message": "Blocked by the risk guard [exchange_not_allowed]: Leg 2: The agent may not trade on NSE_INDEX. Allowed: BCD, BFO, BSE, CDS, CRYPTO, MCX, NCDEX, NCO, NFO, NSE."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_basket",
+     "legs": [
+      {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "ltp": 10
+      },
+      {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "ltp": 10
+      }
+     ],
+     "at": 0,
+     "expect": {
+      "allowed": false,
+      "code": "duplicate_order",
+      "reason": "Leg 2 repeats leg 1 exactly (BUY 10 SBIN on NSE). Send it once with the combined quantity if that is what you meant.",
+      "details": {
+       "symbol": "SBIN",
+       "leg": 2,
+       "duplicate_of": 1
+      },
+      "message": "Blocked by the risk guard [duplicate_order]: Leg 2 repeats leg 1 exactly (BUY 10 SBIN on NSE). Send it once with the combined quantity if that is what you meant."
+     },
+     "orders_claimed": 0
+    },
+    {
+     "call": "check_basket",
+     "legs": [
+      {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "ltp": 10
+      },
+      {
+       "symbol": "TCS",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "ltp": 20,
+       "available_funds": 500
+      }
+     ],
+     "at": 0,
+     "expect": {
+      "allowed": true,
+      "code": "ok",
+      "reason": "All 2 legs passed every risk check.",
+      "details": {
+       "legs": 2,
+       "symbols": [
+        "SBIN",
+        "TCS"
+       ],
+       "orders_claimed": 2,
+       "orders_allowed": 20,
+       "claim_token": "<claim_token>"
+      },
+      "message": "All 2 legs passed every risk check."
+     },
+     "orders_claimed": 2
+    },
+    {
+     "call": "check_basket",
+     "legs": [
+      {
+       "symbol": "A1",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "ltp": 1000
+      },
+      {
+       "symbol": "A2",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "ltp": 1000
+      }
+     ],
+     "at": 1,
+     "available_funds": 15000,
+     "expect": {
+      "allowed": false,
+      "code": "insufficient_funds",
+      "reason": "this basket of 2 legs needs about 20000.00 but only 15000.00 of the 15000.00 available may be used (100% of funds).",
+      "details": {
+       "required": "20000.00",
+       "usable": "15000.00",
+       "available": "15000.00",
+       "utilization_pct": "100"
+      },
+      "message": "Blocked by the risk guard [insufficient_funds]: this basket of 2 legs needs about 20000.00 but only 15000.00 of the 15000.00 available may be used (100% of funds)."
+     },
+     "orders_claimed": 2
+    },
+    {
+     "call": "check_basket",
+     "legs": [
+      {
+       "symbol": "B1",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 600,
+       "product": "MIS",
+       "ltp": 1000,
+       "price_type": "LIMIT",
+       "price": 1000
+      }
+     ],
+     "at": 2,
+     "expect": {
+      "allowed": false,
+      "code": "notional_exceeded",
+      "reason": "Leg 1: The order is worth about 600000.00, above the per-order limit of 500000.00.",
+      "details": {
+       "leg": 1,
+       "notional": "600000",
+       "limit": "500000.00",
+       "reference_price": "1000",
+       "quantity": 600
+      },
+      "message": "Blocked by the risk guard [notional_exceeded]: Leg 1: The order is worth about 600000.00, above the per-order limit of 500000.00."
+     },
+     "orders_claimed": 2
+    }
+   ]
+  },
+  {
+   "name": "basket cap",
+   "limits": {
+    "trading_enabled": true,
+    "require_analyzer_mode": false,
+    "max_orders_per_session": 2,
+    "max_order_quantity": 10000,
+    "max_order_value": "500000.00",
+    "max_price_deviation_pct": "5",
+    "duplicate_order_window_seconds": 10,
+    "allowed_exchanges": [
+     "BCD",
+     "BFO",
+     "BSE",
+     "CDS",
+     "CRYPTO",
+     "MCX",
+     "NCDEX",
+     "NCO",
+     "NFO",
+     "NSE"
+    ],
+    "allowed_products": [
+     "CNC",
+     "MIS",
+     "NRML"
+    ],
+    "symbol_allowlist": [],
+    "symbol_blocklist": [],
+    "max_funds_utilization_pct": "100",
+    "allow_bulk_destructive": false,
+    "kill_switch": false,
+    "kill_switch_file": "<kill_switch_file>",
+    "kill_switch_file_present": false
+   },
+   "steps": [
+    {
+     "call": "check_basket",
+     "legs": [
+      {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "ltp": 1
+      },
+      {
+       "symbol": "TCS",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "ltp": 1
+      },
+      {
+       "symbol": "INFY",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "ltp": 1
+      }
+     ],
+     "at": 0,
+     "expect": {
+      "allowed": false,
+      "code": "session_cap_reached",
+      "reason": "This session has already claimed 0 of its 2 permitted orders and this request needs 3 more. Start a new conversation or raise max_orders_per_session.",
+      "details": {
+       "orders_claimed": 0,
+       "orders_allowed": 2,
+       "requested": 3
+      },
+      "message": "Blocked by the risk guard [session_cap_reached]: This session has already claimed 0 of its 2 permitted orders and this request needs 3 more. Start a new conversation or raise max_orders_per_session."
+     },
+     "orders_claimed": 0
+    }
+   ]
+  }
+ ]
+}

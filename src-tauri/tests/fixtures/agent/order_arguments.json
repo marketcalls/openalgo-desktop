@@ -1,0 +1,1511 @@
+{
+ "_comment": "Captured from the web's services/agent/tools/orders.py and order_vocab.py by scripts/agent/capture_web_orders.py. Regenerate only from the web.",
+ "strategy": "OpenAlgo Agent",
+ "vectors": [
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "ok": {
+     "strategy": "OpenAlgo Agent",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 10,
+     "product": "MIS",
+     "pricetype": "MARKET",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "s",
+    "quantity": 10,
+    "product": "intraday",
+    "price_type": "SL M",
+    "price": 0.0,
+    "trigger_price": 1440.0
+   },
+   "expect": {
+    "ok": {
+     "strategy": "OpenAlgo Agent",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "SELL",
+     "quantity": 10,
+     "product": "MIS",
+     "pricetype": "SL-M",
+     "price": 0.0,
+     "trigger_price": 1440.0,
+     "disclosed_quantity": 0
+    }
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": null,
+    "trigger_price": null
+   },
+   "expect": {
+    "ok": {
+     "strategy": "OpenAlgo Agent",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 10,
+     "product": "MIS",
+     "pricetype": "MARKET",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "NSE:SBIN",
+    "exchange": "",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "ok": {
+     "strategy": "OpenAlgo Agent",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 10,
+     "product": "MIS",
+     "pricetype": "MARKET",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "nse:sbin",
+    "exchange": "nse",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "ok": {
+     "strategy": "OpenAlgo Agent",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 10,
+     "product": "MIS",
+     "pricetype": "MARKET",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "NSE:SBIN",
+    "exchange": "BSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'symbol' argument is invalid: it is written as NSE:SBIN, which names NSE, but the exchange argument is BSE, and the two disagree. Pass the bare symbol SBIN with the exchange the operator meant, and say which one you used."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "NFO:NIFTY28MAR2420800CE",
+    "exchange": "nfo",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "NRML",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "ok": {
+     "strategy": "OpenAlgo Agent",
+     "symbol": "NIFTY28MAR2420800CE",
+     "exchange": "NFO",
+     "action": "BUY",
+     "quantity": 10,
+     "product": "NRML",
+     "pricetype": "MARKET",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "NIFTY",
+    "exchange": "NSE_INDEX",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'exchange' argument is invalid: NSE_INDEX is a quote-only index code: an index itself cannot be bought or sold. Trade its future or one of its options on NFO instead, with the exact symbol the symbol search or option chain tool returns, and state the new contract to the operator before placing it."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "NIFTY",
+    "exchange": "BSE_INDEX",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'exchange' argument is invalid: BSE_INDEX is a quote-only index code: an index itself cannot be bought or sold. Trade its future or one of its options on BFO instead, with the exact symbol the symbol search or option chain tool returns, and state the new contract to the operator before placing it."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "CRUDE",
+    "exchange": "MCX_INDEX",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'exchange' argument is invalid: MCX_INDEX is a quote-only index code: an index itself cannot be bought or sold. Trade its future or one of its options on MCX instead, with the exact symbol the symbol search or option chain tool returns, and state the new contract to the operator before placing it."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "US30",
+    "exchange": "GLOBAL_INDEX",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'exchange' argument is invalid: GLOBAL_INDEX is a quote-only code for a global index, and there is no contract for it that this platform can trade."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSEX",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'exchange' argument is invalid: NSEX is not an OpenAlgo exchange code. Use one of: NSE, NFO, CDS, BSE, BFO, BCD, MCX, NCDEX, NCO, NSE_INDEX, BSE_INDEX, MCX_INDEX, GLOBAL_INDEX, CRYPTO."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'exchange' argument is invalid: it was empty. Pass the value the operator gave you, or look it up with the symbol search tool first."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": null,
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'exchange' argument is invalid: it was empty. Pass the value the operator gave you, or look it up with the symbol search tool first."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'symbol' argument is invalid: it was empty. Pass the value the operator gave you, or look it up with the symbol search tool first."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "   ",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'symbol' argument is invalid: it was empty. Pass the value the operator gave you, or look it up with the symbol search tool first."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "HOLD",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'action' argument is invalid: HOLD is not a side. Use one of: BUY, SELL."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'action' argument is invalid: it was empty. Pass the value the operator gave you, or look it up with the symbol search tool first."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "BOGUS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'product' argument is invalid: BOGUS is not a product type. Use one of: CNC, NRML, MIS. CNC is delivery in a cash segment, NRML carries a derivative overnight, MIS is intraday."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'product' argument is invalid: it was empty. Pass the value the operator gave you, or look it up with the symbol search tool first."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "delivery",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "ok": {
+     "strategy": "OpenAlgo Agent",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 10,
+     "product": "CNC",
+     "pricetype": "MARKET",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "Carry_Forward",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "ok": {
+     "strategy": "OpenAlgo Agent",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 10,
+     "product": "NRML",
+     "pricetype": "MARKET",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "BOGUS",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'price_type' argument is invalid: BOGUS is not a price type. Use one of: MARKET, LIMIT, SL, SL-M."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'price_type' argument is invalid: it was empty. Pass the value the operator gave you, or look it up with the symbol search tool first."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "stop loss limit",
+    "price": 100.0,
+    "trigger_price": 99.0
+   },
+   "expect": {
+    "ok": {
+     "strategy": "OpenAlgo Agent",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 10,
+     "product": "MIS",
+     "pricetype": "SL",
+     "price": 100.0,
+     "trigger_price": 99.0,
+     "disclosed_quantity": 0
+    }
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 1450.5,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'price' argument is invalid: a MARKET order carries no limit price, yet price=1450.5 was sent, so the order the operator approved does not say which of the two they meant. Drop price (or pass 0) to keep it a MARKET order, or switch price_type to LIMIT to trade at that price. Restate the corrected order to the operator, since it needs their approval again."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 100.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'price' argument is invalid: a MARKET order carries no limit price, yet price=100 was sent, so the order the operator approved does not say which of the two they meant. Drop price (or pass 0) to keep it a MARKET order, or switch price_type to LIMIT to trade at that price. Restate the corrected order to the operator, since it needs their approval again."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 1234567.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'price' argument is invalid: a MARKET order carries no limit price, yet price=1.23457e+06 was sent, so the order the operator approved does not say which of the two they meant. Drop price (or pass 0) to keep it a MARKET order, or switch price_type to LIMIT to trade at that price. Restate the corrected order to the operator, since it needs their approval again."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 1e-05,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'price' argument is invalid: a MARKET order carries no limit price, yet price=1e-05 was sent, so the order the operator approved does not say which of the two they meant. Drop price (or pass 0) to keep it a MARKET order, or switch price_type to LIMIT to trade at that price. Restate the corrected order to the operator, since it needs their approval again."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "LIMIT",
+    "price": 100.0,
+    "trigger_price": 99.0
+   },
+   "expect": {
+    "retry": "The 'trigger_price' argument is invalid: a LIMIT order carries no trigger, yet trigger_price=99 was sent, so the order the operator approved does not say whether they wanted a stop. Drop trigger_price (or pass 0) to keep it a LIMIT order, or switch price_type to SL or SL-M for a stop order. Restate the corrected order to the operator, since it needs their approval again."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "LIMIT",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'price' argument is invalid: a LIMIT order is priced by the operator, so it needs a limit price. Pass the price in rupees, for example price=1450.5, or use MARKET if you meant to trade at whatever is available."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "LIMIT",
+    "price": 1450.5,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "ok": {
+     "strategy": "OpenAlgo Agent",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 10,
+     "product": "MIS",
+     "pricetype": "LIMIT",
+     "price": 1450.5,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "SL",
+    "price": 100.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'trigger_price' argument is invalid: a SL order only becomes live once the market reaches its trigger, so it needs one. Pass the trigger in rupees, for example trigger_price=1440.0."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "SL",
+    "price": 0.0,
+    "trigger_price": 99.0
+   },
+   "expect": {
+    "retry": "The 'price' argument is invalid: a SL order is priced by the operator, so it needs a limit price. Pass the price in rupees, for example price=1450.5, or use MARKET if you meant to trade at whatever is available."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "SL-M",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'trigger_price' argument is invalid: a SL-M order only becomes live once the market reaches its trigger, so it needs one. Pass the trigger in rupees, for example trigger_price=1440.0."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "SL-M",
+    "price": 100.0,
+    "trigger_price": 99.0
+   },
+   "expect": {
+    "retry": "The 'price' argument is invalid: a SL-M order carries no limit price, yet price=100 was sent, so the order the operator approved does not say which of the two they meant. Drop price (or pass 0) to keep it a SL-M order, or switch price_type to LIMIT to trade at that price. Restate the corrected order to the operator, since it needs their approval again."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": -5.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'price' argument is invalid: -5.0 is negative. A price is zero or positive. Use 0 when the order type does not use it."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": -1.5
+   },
+   "expect": {
+    "retry": "The 'trigger_price' argument is invalid: -1.5 is negative. A price is zero or positive. Use 0 when the order type does not use it."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 10,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": "",
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "ok": {
+     "strategy": "OpenAlgo Agent",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 10,
+     "product": "MIS",
+     "pricetype": "MARKET",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 0,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'quantity' argument is invalid: 0 is below the smallest permitted value of 1. Quantity is a positive whole number of units, never lots and never zero."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": -3,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'quantity' argument is invalid: -3 is below the smallest permitted value of 1. Quantity is a positive whole number of units, never lots and never zero."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 2.5,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'quantity' argument is invalid: 2.5 is not a whole number, and quantities are in units rather than fractions. Round to a whole number of units. For a derivative it must also be a multiple of the contract's lot size, which you look up rather than assume."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": "5",
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "ok": {
+     "strategy": "OpenAlgo Agent",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 5,
+     "product": "MIS",
+     "pricetype": "MARKET",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 5.0,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "ok": {
+     "strategy": "OpenAlgo Agent",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 5,
+     "product": "MIS",
+     "pricetype": "MARKET",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": null,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'quantity' argument is invalid: None is not a number. Pass a whole number of units, for example 10."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": "abc",
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'quantity' argument is invalid: 'abc' is not a number. Pass a whole number of units, for example 10."
+   }
+  },
+  {
+   "fn": "build_order",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": true,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "retry": "The 'quantity' argument is invalid: True is not a number. Pass a whole number of units, for example 10."
+   }
+  },
+  {
+   "fn": "build_order_zero_ok",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "BUY",
+    "quantity": 0,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "ok": {
+     "strategy": "OpenAlgo Agent",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 0,
+     "product": "MIS",
+     "pricetype": "MARKET",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  },
+  {
+   "fn": "build_order_zero_ok",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "action": "SELL",
+    "quantity": 0,
+    "product": "MIS",
+    "price_type": "MARKET",
+    "price": 0.0,
+    "trigger_price": 0.0
+   },
+   "expect": {
+    "ok": {
+     "strategy": "OpenAlgo Agent",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "SELL",
+     "quantity": 0,
+     "product": "MIS",
+     "pricetype": "MARKET",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  },
+  {
+   "fn": "order_id",
+   "args": {
+    "value": 240307000616990
+   },
+   "expect": {
+    "ok": "240307000616990"
+   }
+  },
+  {
+   "fn": "order_id",
+   "args": {
+    "value": "  A1  "
+   },
+   "expect": {
+    "ok": "A1"
+   }
+  },
+  {
+   "fn": "order_id",
+   "args": {
+    "value": true
+   },
+   "expect": {
+    "retry": "The 'order_id' argument is invalid: it was empty, and an order cannot be identified without it. Read the exact order id from the order book and pass it verbatim."
+   }
+  },
+  {
+   "fn": "order_id",
+   "args": {
+    "value": ""
+   },
+   "expect": {
+    "retry": "The 'order_id' argument is invalid: it was empty, and an order cannot be identified without it. Read the exact order id from the order book and pass it verbatim."
+   }
+  },
+  {
+   "fn": "order_id",
+   "args": {
+    "value": null
+   },
+   "expect": {
+    "retry": "The 'order_id' argument is invalid: it was empty, and an order cannot be identified without it. Read the exact order id from the order book and pass it verbatim."
+   }
+  },
+  {
+   "fn": "order_id",
+   "args": {
+    "value": "   "
+   },
+   "expect": {
+    "retry": "The 'order_id' argument is invalid: it was empty, and an order cannot be identified without it. Read the exact order id from the order book and pass it verbatim."
+   }
+  },
+  {
+   "fn": "order_id",
+   "args": {
+    "value": 0
+   },
+   "expect": {
+    "ok": "0"
+   }
+  },
+  {
+   "fn": "order_id",
+   "args": {
+    "value": 12.0
+   },
+   "expect": {
+    "ok": "12.0"
+   }
+  },
+  {
+   "fn": "position_size",
+   "args": {
+    "value": -75
+   },
+   "expect": {
+    "ok": -75
+   }
+  },
+  {
+   "fn": "position_size",
+   "args": {
+    "value": 0
+   },
+   "expect": {
+    "ok": 0
+   }
+  },
+  {
+   "fn": "position_size",
+   "args": {
+    "value": 150
+   },
+   "expect": {
+    "ok": 150
+   }
+  },
+  {
+   "fn": "position_size",
+   "args": {
+    "value": "20"
+   },
+   "expect": {
+    "ok": 20
+   }
+  },
+  {
+   "fn": "position_size",
+   "args": {
+    "value": null
+   },
+   "expect": {
+    "retry": "The 'position_size' argument is invalid: None is not a number. Pass a whole number of units, for example 10."
+   }
+  },
+  {
+   "fn": "position_size",
+   "args": {
+    "value": 2.5
+   },
+   "expect": {
+    "retry": "The 'position_size' argument is invalid: 2.5 is not a whole number, and quantities are in units rather than fractions. Round to a whole number of units. For a derivative it must also be a multiple of the contract's lot size, which you look up rather than assume."
+   }
+  },
+  {
+   "fn": "canonical_product",
+   "args": {
+    "value": "INTRADAY"
+   },
+   "expect": {
+    "ok": "MIS"
+   }
+  },
+  {
+   "fn": "canonical_product",
+   "args": {
+    "value": "intraday"
+   },
+   "expect": {
+    "ok": "MIS"
+   }
+  },
+  {
+   "fn": "canonical_product",
+   "args": {
+    "value": "DELIVERY"
+   },
+   "expect": {
+    "ok": "CNC"
+   }
+  },
+  {
+   "fn": "canonical_product",
+   "args": {
+    "value": "CARRYFORWARD"
+   },
+   "expect": {
+    "ok": "NRML"
+   }
+  },
+  {
+   "fn": "canonical_product",
+   "args": {
+    "value": "CARRY_FORWARD"
+   },
+   "expect": {
+    "ok": "NRML"
+   }
+  },
+  {
+   "fn": "canonical_product",
+   "args": {
+    "value": "NORMAL"
+   },
+   "expect": {
+    "ok": "NRML"
+   }
+  },
+  {
+   "fn": "canonical_product",
+   "args": {
+    "value": " mis "
+   },
+   "expect": {
+    "ok": "MIS"
+   }
+  },
+  {
+   "fn": "canonical_product",
+   "args": {
+    "value": "CNC"
+   },
+   "expect": {
+    "ok": "CNC"
+   }
+  },
+  {
+   "fn": "canonical_product",
+   "args": {
+    "value": "BOGUS"
+   },
+   "expect": {
+    "ok": "BOGUS"
+   }
+  },
+  {
+   "fn": "canonical_product",
+   "args": {
+    "value": null
+   },
+   "expect": {
+    "ok": ""
+   }
+  },
+  {
+   "fn": "canonical_price_type",
+   "args": {
+    "value": "SL_M"
+   },
+   "expect": {
+    "ok": "SL-M"
+   }
+  },
+  {
+   "fn": "canonical_price_type",
+   "args": {
+    "value": "SL M"
+   },
+   "expect": {
+    "ok": "SL-M"
+   }
+  },
+  {
+   "fn": "canonical_price_type",
+   "args": {
+    "value": "SLM"
+   },
+   "expect": {
+    "ok": "SL-M"
+   }
+  },
+  {
+   "fn": "canonical_price_type",
+   "args": {
+    "value": "sl-m"
+   },
+   "expect": {
+    "ok": "SL-M"
+   }
+  },
+  {
+   "fn": "canonical_price_type",
+   "args": {
+    "value": "STOPLOSS_MARKET"
+   },
+   "expect": {
+    "ok": "SL-M"
+   }
+  },
+  {
+   "fn": "canonical_price_type",
+   "args": {
+    "value": "STOP_LOSS_MARKET"
+   },
+   "expect": {
+    "ok": "SL-M"
+   }
+  },
+  {
+   "fn": "canonical_price_type",
+   "args": {
+    "value": "STOPLOSS"
+   },
+   "expect": {
+    "ok": "SL"
+   }
+  },
+  {
+   "fn": "canonical_price_type",
+   "args": {
+    "value": "Stop Loss"
+   },
+   "expect": {
+    "ok": "SL"
+   }
+  },
+  {
+   "fn": "canonical_price_type",
+   "args": {
+    "value": "STOPLOSS_LIMIT"
+   },
+   "expect": {
+    "ok": "SL"
+   }
+  },
+  {
+   "fn": "canonical_price_type",
+   "args": {
+    "value": "stop-loss-limit"
+   },
+   "expect": {
+    "ok": "SL"
+   }
+  },
+  {
+   "fn": "canonical_price_type",
+   "args": {
+    "value": "MARKET"
+   },
+   "expect": {
+    "ok": "MARKET"
+   }
+  },
+  {
+   "fn": "canonical_price_type",
+   "args": {
+    "value": "LIMIT"
+   },
+   "expect": {
+    "ok": "LIMIT"
+   }
+  },
+  {
+   "fn": "canonical_price_type",
+   "args": {
+    "value": "SL"
+   },
+   "expect": {
+    "ok": "SL"
+   }
+  },
+  {
+   "fn": "canonical_price_type",
+   "args": {
+    "value": "BOGUS"
+   },
+   "expect": {
+    "ok": "BOGUS"
+   }
+  },
+  {
+   "fn": "canonical_price_type",
+   "args": {
+    "value": null
+   },
+   "expect": {
+    "ok": ""
+   }
+  },
+  {
+   "fn": "canonical_price_type",
+   "args": {
+    "value": "  sl  -  m "
+   },
+   "expect": {
+    "ok": "SL-M"
+   }
+  },
+  {
+   "fn": "canonical_action",
+   "args": {
+    "value": "B"
+   },
+   "expect": {
+    "ok": "BUY"
+   }
+  },
+  {
+   "fn": "canonical_action",
+   "args": {
+    "value": "s"
+   },
+   "expect": {
+    "ok": "SELL"
+   }
+  },
+  {
+   "fn": "canonical_action",
+   "args": {
+    "value": "buy"
+   },
+   "expect": {
+    "ok": "BUY"
+   }
+  },
+  {
+   "fn": "canonical_action",
+   "args": {
+    "value": "X"
+   },
+   "expect": {
+    "ok": "X"
+   }
+  },
+  {
+   "fn": "canonical_action",
+   "args": {
+    "value": null
+   },
+   "expect": {
+    "ok": ""
+   }
+  },
+  {
+   "fn": "split_exchange_prefix",
+   "args": {
+    "symbol": "nse:sbin",
+    "exchange": ""
+   },
+   "expect": {
+    "ok": [
+     "SBIN",
+     "NSE"
+    ]
+   }
+  },
+  {
+   "fn": "split_exchange_prefix",
+   "args": {
+    "symbol": "NSE:SBIN",
+    "exchange": null
+   },
+   "expect": {
+    "ok": [
+     "SBIN",
+     "NSE"
+    ]
+   }
+  },
+  {
+   "fn": "split_exchange_prefix",
+   "args": {
+    "symbol": "NFO:NIFTY28MAR2420800CE",
+    "exchange": "nfo"
+   },
+   "expect": {
+    "ok": [
+     "NIFTY28MAR2420800CE",
+     "NFO"
+    ]
+   }
+  },
+  {
+   "fn": "split_exchange_prefix",
+   "args": {
+    "symbol": "NSE:SBIN",
+    "exchange": "BSE"
+   },
+   "expect": {
+    "retry": "The 'symbol' argument is invalid: it is written as NSE:SBIN, which names NSE, but the exchange argument is BSE, and the two disagree. Pass the bare symbol SBIN with the exchange the operator meant, and say which one you used."
+   }
+  },
+  {
+   "fn": "split_exchange_prefix",
+   "args": {
+    "symbol": "SBIN",
+    "exchange": "NSE"
+   },
+   "expect": {
+    "ok": [
+     "SBIN",
+     "NSE"
+    ]
+   }
+  },
+  {
+   "fn": "split_exchange_prefix",
+   "args": {
+    "symbol": " nse : sbin ",
+    "exchange": " "
+   },
+   "expect": {
+    "ok": [
+     "SBIN",
+     "NSE"
+    ]
+   }
+  },
+  {
+   "fn": "split_exchange_prefix",
+   "args": {
+    "symbol": "A:B:C",
+    "exchange": ""
+   },
+   "expect": {
+    "ok": [
+     "B:C",
+     "A"
+    ]
+   }
+  },
+  {
+   "fn": "index_refusal",
+   "args": {
+    "exchange": "NSE_INDEX"
+   },
+   "expect": {
+    "ok": "NSE_INDEX is a quote-only index code: an index itself cannot be bought or sold. Trade its future or one of its options on NFO instead, with the exact symbol the symbol search or option chain tool returns, and state the new contract to the operator before placing it."
+   }
+  },
+  {
+   "fn": "index_refusal",
+   "args": {
+    "exchange": "BSE_INDEX"
+   },
+   "expect": {
+    "ok": "BSE_INDEX is a quote-only index code: an index itself cannot be bought or sold. Trade its future or one of its options on BFO instead, with the exact symbol the symbol search or option chain tool returns, and state the new contract to the operator before placing it."
+   }
+  },
+  {
+   "fn": "index_refusal",
+   "args": {
+    "exchange": "MCX_INDEX"
+   },
+   "expect": {
+    "ok": "MCX_INDEX is a quote-only index code: an index itself cannot be bought or sold. Trade its future or one of its options on MCX instead, with the exact symbol the symbol search or option chain tool returns, and state the new contract to the operator before placing it."
+   }
+  },
+  {
+   "fn": "index_refusal",
+   "args": {
+    "exchange": "GLOBAL_INDEX"
+   },
+   "expect": {
+    "ok": "GLOBAL_INDEX is a quote-only code for a global index, and there is no contract for it that this platform can trade."
+   }
+  },
+  {
+   "fn": "index_refusal",
+   "args": {
+    "exchange": "NSE"
+   },
+   "expect": {
+    "ok": null
+   }
+  },
+  {
+   "fn": "refusal_message",
+   "args": {
+    "detail": "Invalid quantity."
+   },
+   "expect": {
+    "ok": "The broker or the platform refused this request, so nothing was placed or changed. The reason given was: Invalid quantity. Do not send it again on your own. Tell the operator the reason in plain words. If it names something that can be corrected, such as a price off the tick size, a quantity that is not a whole number of lots or a product the segment does not allow, say what you would change and send a corrected request only if they ask, because it needs their approval again."
+   }
+  },
+  {
+   "fn": "refusal_message",
+   "args": {
+    "detail": ""
+   },
+   "expect": {
+    "ok": "The broker or the platform refused this request, so nothing was placed or changed. No reason was given. Do not send it again on your own. Tell the operator the reason in plain words. If it names something that can be corrected, such as a price off the tick size, a quantity that is not a whole number of lots or a product the segment does not allow, say what you would change and send a corrected request only if they ask, because it needs their approval again."
+   }
+  }
+ ]
+}

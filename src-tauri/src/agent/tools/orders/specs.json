@@ -1,0 +1,287 @@
+[
+  {
+    "name": "place_order",
+    "description": "Place a real order on the operator's live broker account.\nTHIS PLACES A REAL ORDER WITH REAL MONEY and pauses for the operator's\nexplicit approval before it runs. After they approve, a risk check runs\ninside this tool and can still refuse the order; a refusal is reported,\nnot retried. If the platform is in analyzer mode the order goes to the\nsandbox instead, and the result says so.\n\nState the whole order in words before calling: action, quantity, symbol,\nexchange, product, price type and any price or trigger. The operator\napproves what you stated.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "description": "OpenAlgo symbol, exactly as the symbol search or option\nchain returned it. For example ``RELIANCE``,\n``BANKNIFTY24APR24FUT`` or ``NIFTY28MAR2420800CE``. Never\nconstruct an expiry or a strike yourself."
+        },
+        "exchange": {
+          "type": "string",
+          "description": "Exchange code the symbol trades on. One of NSE, BSE (cash\nequity), NFO, BFO (futures and options), CDS, BCD (currency),\nMCX, NCDEX, NCO (commodity), CRYPTO. The index codes NSE_INDEX,\nBSE_INDEX, MCX_INDEX and GLOBAL_INDEX are quote-only and an\norder on one is always wrong."
+        },
+        "action": {
+          "type": "string",
+          "description": "``BUY`` or ``SELL``."
+        },
+        "quantity": {
+          "type": "integer",
+          "description": "Whole number of units, not lots. For example ``10`` shares\nof RELIANCE, or ``75`` for one NIFTY option lot of 75. Look the\nlot size up rather than assuming it."
+        },
+        "product": {
+          "type": "string",
+          "description": "Required, with no default: ``CNC`` for delivery in a cash\nsegment, ``NRML`` to carry a derivative overnight, ``MIS`` for\nintraday in either. It decides whether the position is squared\noff automatically before the close, so take it from the operator\nand ask if they did not say. CNC on a derivatives exchange is\nalways wrong."
+        },
+        "price_type": {
+          "type": "string",
+          "description": "``MARKET`` (default, no price and no trigger), ``LIMIT``\n(needs price), ``SL`` (stop-loss limit, needs both price and\ntrigger_price) or ``SL-M`` (stop-loss market, needs\ntrigger_price only). Use MARKET unless the operator asked for\nsomething else."
+        },
+        "price": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Limit price in rupees, for example ``1450.5``. Required for\nLIMIT and SL. Leave it out, or pass 0, for MARKET and SL-M. It\nmust respect the instrument's tick size."
+        },
+        "trigger_price": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Trigger price in rupees, for example ``1440.0``.\nRequired for SL and SL-M. Leave it out, or pass 0, for MARKET and\nLIMIT."
+        }
+      },
+      "required": [
+        "symbol",
+        "exchange",
+        "action",
+        "quantity",
+        "product"
+      ]
+    },
+    "requires_confirmation": true
+  },
+  {
+    "name": "place_smart_order",
+    "description": "Place a real order that moves a position to a target size.\nTHIS PLACES A REAL ORDER WITH REAL MONEY and pauses for the operator's\nexplicit approval before it runs. A risk check runs inside this tool\nafter that approval and can still refuse it.\n\nA smart order compares ``position_size`` with the position the account\nactually holds in this symbol and product, then sends only the\ndifference. Holding 100 and asking for 150 buys 50; holding 100 and\nasking for -100 sells 200; holding exactly the target sends nothing and\nreports that no action was needed. Use it when the operator describes a\nposition they want to end up with rather than a trade they want to send.\n\nBecause the order the broker finally sends is a difference this tool\ncannot know in advance, the risk check is sized on the larger of\n``quantity`` and the absolute target position, which is the closest\nconservative figure available.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "description": "OpenAlgo symbol, exactly as a lookup returned it, for\nexample ``INFY`` or ``NIFTY28MAR2420800CE``."
+        },
+        "exchange": {
+          "type": "string",
+          "description": "Exchange code the symbol trades on, for example ``NSE`` or\n``NFO``. Index codes are quote-only and cannot be traded."
+        },
+        "action": {
+          "type": "string",
+          "description": "``BUY`` or ``SELL``. It is used only when the account holds\nno position in this symbol and the target is zero; otherwise the\ndirection is derived from the difference."
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Whole number of units to send when there is no position\nand no target, for example ``50``. Not lots. Pass 0 when only\n``position_size`` matters."
+        },
+        "position_size": {
+          "type": "integer",
+          "description": "The position to end up holding, in units and signed:\n``150`` for long 150, ``-75`` for short 75, ``0`` for flat. To\nflatten an existing position use the ``close_position`` tool\ninstead, which is built for it."
+        },
+        "product": {
+          "type": "string",
+          "description": "Required, with no default: ``CNC``, ``NRML`` or ``MIS``.\nThe position is matched within this product, so it must be the\nproduct the position is held under, and MIS is squared off\nautomatically before the close while the others are not."
+        },
+        "price_type": {
+          "type": "string",
+          "description": "``MARKET`` (default), ``LIMIT``, ``SL`` or ``SL-M``."
+        },
+        "price": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Limit price in rupees, for example ``1450.5``. Required for\nLIMIT and SL. Leave it out, or pass 0, otherwise."
+        },
+        "trigger_price": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Trigger price in rupees, for example ``1440.0``.\nRequired for SL and SL-M. Leave it out, or pass 0, otherwise."
+        }
+      },
+      "required": [
+        "symbol",
+        "exchange",
+        "action",
+        "quantity",
+        "position_size",
+        "product"
+      ]
+    },
+    "requires_confirmation": true
+  },
+  {
+    "name": "modify_order",
+    "description": "Modify a real pending order on the broker.\nTHIS CHANGES A REAL ORDER and pauses for the operator's explicit\napproval before it runs. A risk check runs inside this tool after that\napproval and can still refuse it.\n\nThe broker replaces the order wholesale, so every field below is sent\nwhether or not it changed. Read the order book first and repeat the\nvalues you are not changing, or an unstated field is silently\noverwritten with whatever you passed here.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "The broker's order id, exactly as the order book reported\nit, for example ``240307000616990``. Never invent one."
+        },
+        "symbol": {
+          "type": "string",
+          "description": "OpenAlgo symbol of the existing order, for example ``INFY``."
+        },
+        "exchange": {
+          "type": "string",
+          "description": "Exchange code of the existing order, for example ``NSE``."
+        },
+        "action": {
+          "type": "string",
+          "description": "``BUY`` or ``SELL``. This is the side of the existing order;\na modify does not flip it."
+        },
+        "quantity": {
+          "type": "integer",
+          "description": "The order quantity after the change, in whole units."
+        },
+        "product": {
+          "type": "string",
+          "description": "Required: ``CNC``, ``NRML`` or ``MIS``, matching the\nexisting order. Read it from the order book rather than\nassuming, because MIS is squared off automatically and the\nothers are not."
+        },
+        "price_type": {
+          "type": "string",
+          "description": "``MARKET``, ``LIMIT``, ``SL`` or ``SL-M`` after the\nchange. There is no default: state what the order should become."
+        },
+        "price": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Limit price in rupees after the change, for example\n``1455.0``. Required for LIMIT and SL. Leave it out, or pass 0,\notherwise."
+        },
+        "trigger_price": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Trigger price in rupees after the change. Required\nfor SL and SL-M. Leave it out, or pass 0, otherwise."
+        }
+      },
+      "required": [
+        "order_id",
+        "symbol",
+        "exchange",
+        "action",
+        "quantity",
+        "product",
+        "price_type"
+      ]
+    },
+    "requires_confirmation": true
+  },
+  {
+    "name": "cancel_order",
+    "description": "Cancel one real pending order on the broker.\nTHIS CANCELS A REAL ORDER and pauses for the operator's explicit\napproval before it runs. A risk check runs inside this tool after that\napproval and can still refuse it.\n\nOnly a working order can be cancelled. An order that is already\ncomplete, rejected or cancelled comes back as a failure from the broker,\nwhich is information rather than something to retry.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "description": "The broker's order id, exactly as the order book reported\nit, for example ``240307000616990``. Read it from the order book\nrather than reconstructing it."
+        }
+      },
+      "required": [
+        "order_id"
+      ]
+    },
+    "requires_confirmation": true
+  },
+  {
+    "name": "cancel_all_orders",
+    "description": "Cancel every open order on the account.\nTHIS CANCELS EVERY PENDING ORDER ON THE WHOLE ACCOUNT, including orders\nthe operator placed by hand and orders belonging to other strategies. It\npauses for the operator's explicit approval before it runs, and a risk\ncheck runs inside this tool after that approval.\n\nAccount-wide operations are switched off by default and the risk check\nrefuses this outright until an operator turns them on in the agent\nsettings. That refusal is the intended answer, not a fault: report it\nand offer to cancel the specific orders instead.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    },
+    "requires_confirmation": true
+  },
+  {
+    "name": "close_position",
+    "description": "Close one real open position by squaring it off at market.\nTHIS SENDS A REAL ORDER WITH REAL MONEY and pauses for the operator's\nexplicit approval before it runs. A risk check runs inside this tool\nafter that approval and can still refuse it.\n\nThe position held in this symbol and product is read first, and an\noffsetting market order for exactly that quantity is sent: a long is\nsold, a short is bought back. If the position service reads zero\nthere, nothing is sent and the result carries ``status`` of\n``nothing_to_close`` with ``ok`` false. That is not proof the position\nis closed: check ``get_positions`` before saying so.\n\nThis closes one named position. To flatten the entire account use\n``close_all_positions``, which is a different and much larger action.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "description": "OpenAlgo symbol of the position, exactly as the position\nbook reported it, for example ``INFY`` or\n``NIFTY28MAR2420800CE``."
+        },
+        "exchange": {
+          "type": "string",
+          "description": "Exchange code of the position, for example ``NSE`` or\n``NFO``."
+        },
+        "product": {
+          "type": "string",
+          "description": "The product the position is held under: ``CNC``, ``NRML``\nor ``MIS``. A position is held per product, so the wrong product\ncloses nothing. Read it from the position book."
+        }
+      },
+      "required": [
+        "symbol",
+        "exchange",
+        "product"
+      ]
+    },
+    "requires_confirmation": true
+  },
+  {
+    "name": "close_all_positions",
+    "description": "Square off every open position on the account.\nTHIS CLOSES EVERY POSITION ON THE WHOLE ACCOUNT WITH REAL MONEY,\nincluding positions the operator opened by hand and positions belonging\nto other strategies. It pauses for the operator's explicit approval\nbefore it runs, and a risk check runs inside this tool after that\napproval.\n\nAccount-wide operations are switched off by default and the risk check\nrefuses this outright until an operator turns them on in the agent\nsettings. That refusal is the intended answer, not a fault: report it\nand offer to close the named positions with ``close_position`` instead.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    },
+    "requires_confirmation": true
+  }
+]
