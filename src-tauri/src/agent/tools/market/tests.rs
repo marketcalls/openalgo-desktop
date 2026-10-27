@@ -480,7 +480,7 @@ use chrono::TimeZone;
 
 #[test]
 fn daily_candles_roll_up_into_iso_weeks() {
-    let rows = vec![
+    let rows = [
         day(5, 100.0, 105.0, 99.0, 104.0, 10),
         day(7, 104.0, 110.0, 101.0, 108.0, 20),
         day(9, 108.0, 109.0, 95.0, 97.0, 30),
@@ -502,7 +502,7 @@ fn daily_candles_roll_up_into_iso_weeks() {
 
 #[test]
 fn the_summary_covers_every_row_and_omits_what_no_row_had() {
-    let rows = vec![
+    let rows = [
         map(
             json!({"timestamp": 1_791_000_000, "open": 10, "high": 12, "low": 9, "close": 11, "volume": 100}),
         ),
@@ -528,7 +528,7 @@ fn the_summary_covers_every_row_and_omits_what_no_row_had() {
             "change_percent": 40.0
         })
     );
-    let no_volume = vec![map(json!({"timestamp": 1_791_000_000, "close": 5}))];
+    let no_volume = [map(json!({"timestamp": 1_791_000_000, "close": 5}))];
     let s = summarise_candles(&no_volume, &candle_columns(&no_volume[0]));
     assert!(s.get("total_volume").is_none() && s.get("first_open").is_none());
     assert!(summarise_candles(&[], &Columns::default()).is_empty());
@@ -536,7 +536,7 @@ fn the_summary_covers_every_row_and_omits_what_no_row_had() {
 
 #[test]
 fn chart_bars_drop_unusable_rows_and_sort() {
-    let rows = vec![
+    let rows = [
         // The columns are read off the first row, as on the web.
         map(
             json!({"Timestamp": 1_791_086_400_000_i64, "Open": null, "High": null, "Low": null, "Close": 2, "Volume": 7}),
@@ -844,7 +844,7 @@ async fn the_market_toolkit_matches_the_web() {
 
 #[test]
 fn a_candle_frame_has_no_gaps_and_one_row_per_timestamp() {
-    let rows = vec![
+    let rows = [
         map(
             json!({"timestamp": 300, "open": 1, "high": 2, "low": 0.5, "close": 1.5, "volume": null}),
         ),
@@ -871,7 +871,7 @@ fn a_candle_frame_has_no_gaps_and_one_row_per_timestamp() {
     assert_eq!(frame.column("close"), Some(&[1.1, 1.5][..]));
     assert_eq!(frame.len(), 2);
     assert!(candle_frame(&[], &Columns::default()).is_empty());
-    let no_close = vec![map(json!({"timestamp": 1, "open": 1}))];
+    let no_close = [map(json!({"timestamp": 1, "open": 1}))];
     assert!(candle_frame(&no_close, &candle_columns(&no_close[0])).is_empty());
 }
 

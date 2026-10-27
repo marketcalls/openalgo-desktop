@@ -337,10 +337,9 @@ pub fn interval_alias(text: &str) -> Option<String> {
         "M".to_string()
     } else if let Some(n) = MINUTE_ALIAS.captures(text).and_then(number) {
         format!("{}m", n)
-    } else if let Some(n) = HOUR_ALIAS.captures(text).and_then(number) {
-        format!("{}h", n)
     } else {
-        return None;
+        let n = HOUR_ALIAS.captures(text).and_then(number)?;
+        format!("{}h", n)
     };
     (alias != text).then_some(alias)
 }

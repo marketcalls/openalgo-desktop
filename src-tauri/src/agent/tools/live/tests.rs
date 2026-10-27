@@ -98,7 +98,7 @@ fn small_helpers_read_as_the_web_reads_them() {
     ] {
         assert_eq!(py_g(x), s, "{}", x);
     }
-    let legs = vec![
+    let legs = [
         map(json!({"symbol": "A", "multiplier": 1})),
         map(json!({"symbol": "B", "multiplier": -2})),
     ];
