@@ -32,7 +32,7 @@ mod utils;
 mod volatility;
 mod volume;
 
-use crate::agent::indicators::pyfmt::py_float_repr;
+use crate::agent::tools::values::float_repr;
 
 /// One output of an indicator: numbers (NaN where the indicator has no value
 /// yet) or the boolean flags `fractals`, `rising`, `falling` and the cross
@@ -89,7 +89,7 @@ impl ParamValue {
     pub(crate) fn display(&self) -> String {
         match self {
             ParamValue::Int(v) => v.to_string(),
-            ParamValue::Float(v) => py_float_repr(*v),
+            ParamValue::Float(v) => float_repr(*v),
             ParamValue::Bool(true) => "True".into(),
             ParamValue::Bool(false) => "False".into(),
             ParamValue::Str(s) => s.clone(),

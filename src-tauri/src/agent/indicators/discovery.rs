@@ -8,45 +8,14 @@ use serde_json::Value;
 use super::compute::default_json;
 use super::descriptions::describe;
 use super::json::Json;
-use super::pyfmt::py_repr;
 use super::registry::{self, IndicatorSpec, Status, CATEGORIES};
+use crate::agent::contract::tool::ToolOutcome;
+use crate::agent::tools::market::normalise::refuse;
+use crate::agent::tools::values::py_repr;
 
 /// Above this many matches `list_indicators` returns names grouped by
 /// category instead of a description each (`LIST_DETAIL_LIMIT`).
 pub(crate) const LIST_DETAIL_LIMIT: usize = 45;
-
-/// A tool argument the model must change: the web's `invalid_argument`
-/// parts. `message()` is the sentence the model reads.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ArgError {
-    pub field: &'static str,
-    pub reason: String,
-    pub fix: Option<String>,
-}
-
-impl ArgError {
-    pub(crate) fn new(
-        field: &'static str,
-        reason: impl Into<String>,
-        fix: impl Into<String>,
-    ) -> Self {
-        Self {
-            field,
-            reason: reason.into(),
-            fix: Some(fix.into()),
-        }
-    }
-
-    /// `The '<field>' argument is invalid: <reason> <fix>`.
-    pub fn message(&self) -> String {
-        let mut message = format!("The '{}' argument is invalid: {}", self.field, self.reason);
-        if let Some(fix) = &self.fix {
-            message.push(' ');
-            message.push_str(fix);
-        }
-        message
-    }
-}
 
 fn strings(items: &[&str]) -> Json {
     Json::Arr(items.iter().map(|s| Json::str(*s)).collect())
@@ -143,23 +112,23 @@ fn category_counts_json() -> Json {
 /// The body of `list_indicators(query, category)`: the matches with a
 /// description each, or their names by category when there are more than
 /// 45.
-pub fn list_indicators(query: &str, category: &str) -> Result<Json, ArgError> {
+pub(crate) fn list_indicators(query: &str, category: &str) -> Result<Json, ToolOutcome> {
     let wanted = category.trim().to_lowercase();
     if !wanted.is_empty() && !CATEGORIES.contains(&wanted.as_str()) {
-        return Err(ArgError::new(
+        return Err(refuse(
             "category",
-            format!(
+            &format!(
                 "{} is not one of the catalogue's categories",
                 py_repr(&Value::String(wanted))
             ),
-            format!("Use one of: {}.", CATEGORIES.join(", ")),
+            &format!("Use one of: {}.", CATEGORIES.join(", ")),
         ));
     }
     let specs = search_specs(query, &wanted);
     if specs.is_empty() {
-        return Err(ArgError::new(
+        return Err(refuse(
             "query",
-            format!(
+            &format!(
                 "nothing in the catalogue matches {}",
                 py_repr(&Value::String(query.into()))
             ),
@@ -203,7 +172,7 @@ pub fn list_indicators(query: &str, category: &str) -> Result<Json, ArgError> {
 }
 
 /// The body of `describe_indicator(name)`: the full signature.
-pub fn describe_indicator(name: &str) -> Result<Json, ArgError> {
+pub(crate) fn describe_indicator(name: &str) -> Result<Json, ToolOutcome> {
     let cleaned = name.trim().to_lowercase();
     match registry::get_spec(&cleaned) {
         Some(spec) => Ok(spec_to_dict(spec, true)),
@@ -213,7 +182,7 @@ pub fn describe_indicator(name: &str) -> Result<Json, ArgError> {
 
 /// `_unknown_indicator`: the refusal for a name that is not registered,
 /// naming up to five near matches when the catalogue has any.
-pub fn unknown_indicator(field: &'static str, name: &str) -> ArgError {
+pub(crate) fn unknown_indicator(field: &str, name: &str) -> ToolOutcome {
     let cleaned = name.trim().to_lowercase();
     let near = if cleaned.is_empty() {
         Vec::new()
@@ -222,9 +191,9 @@ pub fn unknown_indicator(field: &'static str, name: &str) -> ArgError {
     };
     let shown = py_repr(&Value::String(name.into()));
     if near.is_empty() {
-        return ArgError::new(
+        return refuse(
             field,
-            format!(
+            &format!(
                 "{} is not one of the {} indicators",
                 shown,
                 registry::count()
@@ -233,9 +202,9 @@ pub fn unknown_indicator(field: &'static str, name: &str) -> ArgError {
         );
     }
     let names: Vec<&str> = near.iter().take(5).map(|s| s.name).collect();
-    ArgError::new(
+    refuse(
         field,
-        format!("{} is not an indicator on this build", shown),
-        format!("Did you mean: {}?", names.join(", ")),
+        &format!("{} is not an indicator on this build", shown),
+        &format!("Did you mean: {}?", names.join(", ")),
     )
 }

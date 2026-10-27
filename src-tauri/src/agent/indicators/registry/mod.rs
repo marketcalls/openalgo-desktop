@@ -142,7 +142,7 @@ impl Status {
 
 /// One callable on `ta`.
 #[derive(Debug, Clone, Copy)]
-pub struct IndicatorSpec {
+pub(crate) struct IndicatorSpec {
     pub(crate) name: &'static str,
     pub(crate) category: &'static str,
     /// OHLCV columns in call order; empty for the pair helpers.
@@ -208,7 +208,7 @@ pub(crate) fn count() -> usize {
 }
 
 /// One entry by its exact `ta` name, already lower-cased and trimmed.
-pub fn get_spec(name: &str) -> Option<&'static IndicatorSpec> {
+pub(crate) fn get_spec(name: &str) -> Option<&'static IndicatorSpec> {
     all().find(|spec| spec.name == name)
 }
 

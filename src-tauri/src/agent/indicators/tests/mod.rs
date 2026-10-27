@@ -15,4 +15,4 @@ mod arguments;
 mod catalogue;
 mod golden_compute;
 mod golden_raw;
-mod support;
+pub(crate) mod support;
