@@ -47,7 +47,7 @@ pub async fn get_one(
 ) -> Response {
     match path_id(&id, uri.path()) {
         Ok(id) => answer(service::get(&ctx, &c.user, id).await, StatusCode::OK),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 
@@ -60,7 +60,7 @@ pub async fn delete_one(
 ) -> Response {
     match path_id(&id, uri.path()) {
         Ok(id) => answer(service::delete(&ctx, &c.user, id).await, StatusCode::OK),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 
@@ -76,6 +76,6 @@ pub async fn truncate(
             service::truncate(&ctx, &c.user, id, message_id).await,
             StatusCode::OK,
         ),
-        (Err(r), _) | (_, Err(r)) => r,
+        (Err(r), _) | (_, Err(r)) => *r,
     }
 }

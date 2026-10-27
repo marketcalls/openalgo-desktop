@@ -14,7 +14,7 @@ pub mod conversations;
 
 use super::{Access, RouteSpec};
 use crate::agent::reply::Refusal;
-use crate::server::envelope::json_response;
+use crate::server::envelope::{json_response, EarlyReply};
 use crate::server::middleware::{source_of, AuthedUser};
 use crate::server::ratelimit::{Admission, Bucket};
 use crate::state::AppState;
@@ -185,9 +185,9 @@ impl FromRequest<Arc<AppState>> for AgentBody {
 
 /// An id in a path, or the app's JSON 404 (the web's `<int:...>` matches
 /// nothing else).
-pub(crate) fn path_id(raw: &str, path: &str) -> Result<i64, Response> {
+pub(crate) fn path_id(raw: &str, path: &str) -> Result<i64, EarlyReply> {
     raw.parse::<i64>()
-        .map_err(|_| crate::server::envelope::not_found(path))
+        .map_err(|_| Box::new(crate::server::envelope::not_found(path)))
 }
 
 /// A service answer as the route's reply.

@@ -53,7 +53,7 @@ impl StreamSlots {
     /// Take a slot, or `None` when every slot is in use.
     pub fn admit(&self) -> Option<Slot> {
         self.open
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
                 (n < MAX_CONCURRENT_STREAMS).then_some(n + 1)
             })
             .ok()
