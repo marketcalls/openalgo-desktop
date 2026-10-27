@@ -21,6 +21,7 @@ pub mod instrument;
 pub mod live;
 pub mod market;
 pub mod numbers;
+pub mod openui;
 pub mod option_viz;
 pub mod options;
 pub mod options_common;
@@ -48,6 +49,7 @@ pub const TOOLKITS: &[ToolGroup] = &[
     live::GROUP,
     option_viz::GROUP,
     viz::GROUP,
+    openui::GROUP,
     // Toolkit lanes add their line here, for example:
     // orders::GROUP,     // order 50, every surface, requires Trading
     //
