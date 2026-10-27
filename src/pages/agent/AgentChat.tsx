@@ -119,7 +119,7 @@ export default function AgentChat() {
         else if (frame.type === 'confirm') {
           // A spoken turn paused for approval. The card renders as it always
           // does; this additionally lets the trader answer it out loud, with
-          // the server deciding whether what they said was the phrase.
+          // the server deciding whether what they said was a plain yes.
           const runId = frame.run_id
           const ids = frame.requirements.map((requirement) => requirement.id)
           voiceController.current?.awaitApproval(runId, () => {

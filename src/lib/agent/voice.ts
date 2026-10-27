@@ -93,6 +93,12 @@ export interface VoiceStatus {
   state: VoiceState
   /** Plain language, safe to show. Null unless `state` is `error`. */
   error: string | null
+  /**
+   * Desktop (D-033): why an idle session stopped by itself, shown until the
+   * next press. The web dropped it, so a session hung up for quiet looked like
+   * one that had never started. Null otherwise.
+   */
+  notice: string | null
 }
 
 /** One side of one spoken exchange, closed by a pause rather than an event. */
@@ -243,7 +249,13 @@ export function speakable(text: string): string {
     clipped.lastIndexOf('! ')
   )
   if (cut > SPEAKABLE_BUDGET / 2) return clipped.slice(0, cut + 1).trim()
-  return `${clipped.slice(0, clipped.lastIndexOf(' ')).trim()}...`
+  // Desktop (D-035): the ellipsis is spoken, so it comes out of the budget,
+  // as the web's server copy does. The web's client cut the full budget and
+  // added it on top (483 characters), and a run with no space lost its last
+  // character to a lastIndexOf of -1 (482). This is the only copy now.
+  const room = raw.slice(0, SPEAKABLE_BUDGET - 3)
+  const space = room.lastIndexOf(' ')
+  return `${(space === -1 ? room : room.slice(0, space)).trim()}...`
 }
 
 /**
@@ -385,6 +397,8 @@ function nextEventId(): string {
 export function createVoiceController(options: VoiceControllerOptions = {}): VoiceController {
   let state: VoiceState = 'idle'
   let errorMessage: string | null = null
+  // Desktop (D-033): the idle hang-up's sentence, kept until the next press.
+  let notice: string | null = null
 
   const statusListeners = new Set<(status: VoiceStatus) => void>()
   const transcriptListeners = new Set<(lines: VoiceTranscriptLine[]) => void>()
@@ -436,9 +450,12 @@ export function createVoiceController(options: VoiceControllerOptions = {}): Voi
     if (seconds <= 0) return
     idleTimer = setTimeout(() => {
       if (state === 'idle') return
-      const minutes = Math.round(seconds / 60)
-      const quiet =
-        minutes >= 1 ? `${minutes} minute${minutes === 1 ? '' : 's'}` : `${seconds} seconds`
+      // Desktop (D-033): now that the sentence is shown it must be exact; the
+      // web rounded 30 seconds up to "1 minute".
+      const minutes = seconds / 60
+      const quiet = Number.isInteger(minutes)
+        ? `${minutes} minute${minutes === 1 ? '' : 's'}`
+        : `${seconds} seconds`
       teardown()
       setState(
         'idle',
@@ -452,7 +469,7 @@ export function createVoiceController(options: VoiceControllerOptions = {}): Voi
   // -- notification --------------------------------------------------------
 
   function emitStatus(): void {
-    const snapshot: VoiceStatus = { state, error: errorMessage }
+    const snapshot: VoiceStatus = { state, error: errorMessage, notice }
     for (const listener of statusListeners) listener(snapshot)
   }
 
@@ -462,9 +479,11 @@ export function createVoiceController(options: VoiceControllerOptions = {}): Voi
   }
 
   function setState(next: VoiceState, reason: string | null = null): void {
-    if (state === next && errorMessage === reason) return
+    const nextNotice = next === 'idle' ? reason : null
+    if (state === next && errorMessage === reason && notice === nextNotice) return
     state = next
     errorMessage = next === 'error' ? reason : null
+    notice = nextNotice
     emitStatus()
   }
 
@@ -835,7 +854,10 @@ export function createVoiceController(options: VoiceControllerOptions = {}): Voi
         // never answer.
         element.play().catch((cause: unknown) => {
           fail(
-            describeCause(cause, 'Your browser would not play the reply. Check the tab is not muted.')
+            describeCause(
+              cause,
+              'Your browser would not play the reply. Check the tab is not muted.'
+            )
           )
         })
       })
@@ -937,7 +959,7 @@ export function createVoiceController(options: VoiceControllerOptions = {}): Voi
    * Offer one utterance to the server as an approval for the waiting run.
    *
    * **The page does not decide.** It reports what it heard and which run it
-   * heard it against; whether that is the phrase, whether the window is still
+   * heard it against; whether that is a plain yes, whether the window is still
    * open and whether spoken approval is switched on at all are read server-side
    * from stored settings, so a defect here cannot turn a sentence into an
    * order. The card on screen remains the other way, and the only way once the
@@ -977,7 +999,7 @@ export function createVoiceController(options: VoiceControllerOptions = {}): Voi
   return {
     start,
     stop,
-    status: () => ({ state, error: errorMessage }),
+    status: () => ({ state, error: errorMessage, notice }),
     transcript: () => [...lines],
     onStatus: (listener) => {
       statusListeners.add(listener)

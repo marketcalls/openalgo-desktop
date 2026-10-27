@@ -423,10 +423,9 @@ export interface WebSearchTestResult {
 // any `openai` provider key: an operator may run the intelligence on Claude or
 // a local model and still want OpenAI's ears and mouth.
 //
-// Two fields here are not independent, and the type cannot say so. The order
-// phrase must not appear anywhere in the agent's name, so the server validates
-// them as a pair however they arrive, and a write that moves either one is
-// re-validated against the other. Send both whenever either changes.
+// Desktop (D-043): there is no approval word. The web's note here described an
+// order phrase that was removed; an order is approved by a plain yes after it
+// is read back, decided by the server (`/voice/approve`), or by the card.
 // =============================================================================
 
 /**
@@ -446,7 +445,6 @@ export interface VoiceDefaults {
   voice_speaker: string
   /** What the trader calls the agent. Letters and spaces, up to 40. */
   voice_agent_name: string
-  /** The word that approves a staged order. One word, 3 to 20 letters. */
   /** Whether mutating tools reach the voice surface. Subject to trading_enabled. */
   voice_trading_enabled: boolean
   /** How long a spoken approval stays open, 5 to 300. */
@@ -1108,10 +1106,8 @@ export async function getVoiceConfig(): Promise<VoiceConfigResponse> {
 /**
  * Persist a partial voice configuration update.
  *
- * This never carries a key; the key has its own routes below. The agent name
- * and the order phrase are validated against each other, so send both whenever
- * either one has moved: a rename can invalidate a phrase that was acceptable a
- * moment earlier, and the server re-writes the phrase when either half changes.
+ * This never carries a key; the key has its own routes below. Every value is
+ * checked before anything is written, so one bad value changes nothing.
  */
 export async function updateVoiceConfig(values: VoiceConfigUpdate): Promise<VoiceConfig> {
   const response = await webClient.put(VOICE_BASE, values)

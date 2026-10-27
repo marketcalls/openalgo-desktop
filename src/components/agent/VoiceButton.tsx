@@ -19,6 +19,9 @@
  * - **The last thing heard is shown**, truncated, on a screen wide enough for
  *   it. Speech recognition mishears, and a trader who cannot see what was heard
  *   has no way to tell a wrong answer from a wrong question.
+ *
+ * Desktop: a session that hung up after the quiet timeout says so until the
+ * next press (D-033).
  */
 
 import { useQuery } from '@tanstack/react-query'
@@ -90,7 +93,7 @@ export function VoiceButton({
 
   const idleTimeout = config.data?.data.voice_idle_timeout_seconds ?? 0
 
-  const [status, setStatus] = useState<VoiceStatus>({ state: 'idle', error: null })
+  const [status, setStatus] = useState<VoiceStatus>({ state: 'idle', error: null, notice: null })
   const [lines, setLines] = useState<VoiceTranscriptLine[]>([])
 
   // Held in a ref, not a dependency: the page rebuilds this callback on most
@@ -160,6 +163,9 @@ export function VoiceButton({
   const name = voice.voice_agent_name || 'the voice agent'
   const action = live ? 'Stop the voice session' : `Talk to ${name}`
 
+  // Desktop (D-033): why an idle session stopped, until the next press.
+  const idleNotice = status.state === 'idle' ? status.notice : null
+
   return (
     <div className={cn('flex min-w-0 items-center gap-1.5', className)}>
       <Button
@@ -169,7 +175,7 @@ export function VoiceButton({
         onClick={() => (live ? controller.stop() : void controller.start())}
         disabled={disabled && !live}
         aria-label={action}
-        title={status.error ?? action}
+        title={status.error ?? idleNotice ?? action}
       >
         {status.state === 'connecting' || status.state === 'thinking' ? (
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
@@ -194,7 +200,9 @@ export function VoiceButton({
           status.state === 'error' ? 'text-destructive' : 'text-muted-foreground'
         )}
       >
-        {status.state === 'error' ? (status.error ?? STATE_LABEL.error) : STATE_LABEL[status.state]}
+        {status.state === 'error'
+          ? (status.error ?? STATE_LABEL.error)
+          : (idleNotice ?? STATE_LABEL[status.state])}
       </span>
 
       {/* What was heard, so a mishearing is visible before the answer is. */}

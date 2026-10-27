@@ -10,19 +10,17 @@
  * Three things this panel has to make obvious, because none is guessable and
  * each one is a way an operator ends up surprised:
  *
- * - **The name carries no authority.** The
- *   name is what a trader says all day and carries no authority. The approval
- *   word does one thing, and the server refuses a word that also appears in the
- *   name so the two cannot be collapsed back into one by configuration. That
- *   rule is stated next to the fields and checked here as the operator types,
- *   because meeting it for the first time as a 400 teaches nothing.
+ * - **The name carries no authority.** It is what a trader says all day. An
+ *   order is approved by a plain yes after it has been read back, or by the
+ *   card on screen. (Desktop, D-043: the web's note here still described an
+ *   approval word that was removed.)
  * - **Voice trading is subordinate, not parallel.** `voice_trading_enabled` is
  *   an `and`, never an `or`: with the agent's own trading switch off, turning
  *   this on changes nothing at all. The panel renders it as a nested control
  *   and says so when the master is off, rather than showing a switch that
  *   appears to work and does not.
- * - **What spoken approval actually means.** Anyone within earshot who says the
- *   word while a window is open places the staged order. That is written in
+ * - **What spoken approval actually means.** Anyone within earshot who says yes
+ *   while a window is open places the staged order. That is written in
  *   plain words rather than softened, and without an alarming icon, because the
  *   operator is the one who decides whether their room is a room where that is
  *   acceptable.
@@ -30,7 +28,7 @@
  * Two rules from the module contract are enforced here rather than assumed, the
  * same way WebSearchPanel enforces them: **a key value is never rendered**, not
  * masked and not partial, so the field starts empty even when a key is stored;
- * and **the server owns validation**, so an unusable name, word or window is
+ * and **the server owns validation**, so an unusable name or window is
  * refused with the server's own message rather than corrected locally.
  *
  * The two switches apply on toggle and the typed fields wait for Save. That
@@ -287,10 +285,7 @@ export function VoicePanel() {
       return
     }
 
-    // Only what moved, except for the two spoken values, which travel together
-    // whenever either of them has: the server validates them as a pair and
-    // re-writes the word when the name changes, so sending one alone would have
-    // it validated against a value the operator is no longer looking at.
+    // Only what moved.
     const values: VoiceConfigUpdate = {}
     if (form.model.trim() !== config.voice_model) values.voice_model = form.model.trim()
     if (form.speaker !== config.voice_speaker) values.voice_speaker = form.speaker
@@ -322,8 +317,8 @@ export function VoicePanel() {
           A spoken surface on the same agent. The speech model hears and speaks and decides nothing:
           every answer it reads out is produced by the model you configured above, through the same
           tools and the same limits a typed question goes through, and the full answer lands on
-          screen as an ordinary message. Audio goes from your browser straight to OpenAI; the only
-          thing this server does is mint the session with the key below.
+          screen as an ordinary message. Audio goes straight between this window and OpenAI;
+          OpenAlgo only mints the session with the key below.
         </CardDescription>
       </CardHeader>
 
@@ -512,10 +507,14 @@ export function VoicePanel() {
                     onChange={(event) => setDraft({ ...form, confirmWindow: event.target.value })}
                   />
                   <p className="text-xs text-muted-foreground">
+                    {/* Desktop (D-034): the web said the window closes on the first
+                        thing said; the server keeps it open past anything that
+                        is not a yes. */}
                     {`${MIN_CONFIRM_WINDOW} to ${MAX_CONFIRM_WINDOW}.`}
                     {defaults ? ` Default ${defaults.voice_confirm_window_seconds}.` : ''} It opens
-                    only after an order has been staged and read back, allows one attempt, and
-                    closes on the first thing said either way.
+                    only after an order asked for by voice has been staged and read back. A plain
+                    yes approves it once and closes it; anything else is not an answer and leaves it
+                    open until the time runs out. Answering the card on screen closes it too.
                   </p>
                 </div>
 
