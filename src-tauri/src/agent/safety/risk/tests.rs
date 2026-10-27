@@ -372,3 +372,5 @@ fn a_modify_never_claims_and_still_meets_the_gate() {
         RiskCode::KillSwitch
     );
 }
+
+/// Security review (2026-10-27): the same order restated with a price

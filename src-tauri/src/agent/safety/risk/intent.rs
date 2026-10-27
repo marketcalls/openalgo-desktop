@@ -50,9 +50,22 @@ pub struct Intent {
 }
 
 impl Intent {
-    /// The identity the duplicate-order window compares.
+    /// The identity the duplicate-order window compares: the canonical
+    /// symbol, exchange, side, whole quantity, product and price type, and
+    /// only the prices that type uses, each without its scale.
+    ///
+    /// Desktop fix (security review, 2026-10-27): the web joins the prices
+    /// as written, so the same order restated as `100.0` instead of `100`,
+    /// or a MARKET order carrying a different (ignored) price, read as a
+    /// new order and escaped the window.
     pub fn fingerprint(&self) -> String {
-        let text = |d: Option<Decimal>| d.map(|x| x.to_string()).unwrap_or_default();
+        let text = |d: Option<Decimal>| d.map(|x| x.normalize().to_string()).unwrap_or_default();
+        let (price, trigger) = match self.price_type.as_str() {
+            MARKET => (None, None),
+            LIMIT => (self.price, None),
+            SL_M => (None, self.trigger_price),
+            _ => (self.price, self.trigger_price),
+        };
         [
             self.symbol.clone(),
             self.exchange.clone(),
@@ -60,8 +73,8 @@ impl Intent {
             self.quantity.to_string(),
             self.product.clone(),
             self.price_type.clone(),
-            text(self.price),
-            text(self.trigger_price),
+            text(price),
+            text(trigger),
         ]
         .join("|")
     }
