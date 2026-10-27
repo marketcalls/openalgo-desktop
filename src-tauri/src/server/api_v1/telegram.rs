@@ -47,7 +47,7 @@ async fn query_and_key(
 }
 
 /// The body of a POST that may come without one (start, stop).
-async fn optional_body_and_key(ctx: &AppState, ip: IpAddr, req: Request) -> Result<(), Response> {
+async fn optional_body_and_key(ctx: &AppState, ip: IpAddr, req: Request) -> Result<(), EarlyReply> {
     if req.headers().contains_key(header::CONTENT_TYPE) {
         return body_and_key(ctx, ip, req).await.map(|_| ());
     }
@@ -58,7 +58,7 @@ async fn optional_body_and_key(ctx: &AppState, ip: IpAddr, req: Request) -> Resu
         .unwrap_or_default()
         .to_string();
     if key.is_empty() || !authorize(ctx, &key, ip, Auth::KeyOnly).await {
-        return Err(error(StatusCode::UNAUTHORIZED, BAD_KEY));
+        return Err(Box::new(error(StatusCode::UNAUTHORIZED, BAD_KEY)));
     }
     Ok(())
 }
@@ -80,7 +80,7 @@ pub async fn config(
 pub async fn update_config(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
     match body_and_key(&ctx, ip, req).await {
         Ok(body) => send(admin::update_config_reply(&ctx, &body)),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 
@@ -88,7 +88,7 @@ pub async fn update_config(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request
 pub async fn start(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
     match optional_body_and_key(&ctx, ip, req).await {
         Ok(()) => send(admin::start_reply(&ctx).await),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 
@@ -96,7 +96,7 @@ pub async fn start(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Res
 pub async fn stop(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
     match optional_body_and_key(&ctx, ip, req).await {
         Ok(()) => send(admin::stop_reply(&ctx).await),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 
@@ -128,7 +128,7 @@ pub async fn users(
 pub async fn broadcast(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
     match body_and_key(&ctx, ip, req).await {
         Ok(body) => send(admin::broadcast_reply(&ctx, &body).await),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 
@@ -176,7 +176,7 @@ pub async fn preferences(
 pub async fn update_preferences(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
     match body_and_key(&ctx, ip, req).await {
         Ok(body) => send(admin::update_preferences_reply(&ctx, &body)),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 

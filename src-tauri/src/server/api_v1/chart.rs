@@ -45,7 +45,7 @@ pub async fn get_preferences(
 pub async fn update_preferences(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
     let body = match read_json_object(req, &()).await {
         Ok(b) => b,
-        Err(r) => return r,
+        Err(r) => return *r,
     };
     if body.is_empty() {
         return error(StatusCode::BAD_REQUEST, "No data provided");

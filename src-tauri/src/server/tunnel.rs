@@ -108,7 +108,7 @@ async fn handle(
             };
             let mut req = match serve::whole_body(req, limits.body).await {
                 Ok(r) => r,
-                Err(refused) => return refused,
+                Err(refused) => return *refused,
             };
             req.extensions_mut().insert(ConnectInfo(TUNNEL_PEER));
             req.extensions_mut().insert(ThroughBuiltInTunnel);

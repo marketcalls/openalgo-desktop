@@ -17,6 +17,7 @@
 
 use crate::db::sqlite::monitor::{self as store, LatencyRow, TrafficRow};
 use crate::db::sqlite::webui::{self, SecuritySettings};
+use crate::server::envelope::EarlyReply;
 use crate::server::middleware::client_ip;
 use crate::services::latency_probe::{self, BrokerTime};
 use crate::state::AppState;
@@ -550,7 +551,7 @@ pub async fn layer(State(ctx): State<Arc<AppState>>, req: Request, next: Next) -
             };
             match timed(&ctx, req, next, call).await {
                 Ok(r) => r,
-                Err(r) => return r,
+                Err(r) => return *r,
             }
         }
         None => next.run(req).await,
@@ -621,11 +622,11 @@ fn banned_reply() -> Response {
 
 /// Read an API POST's body (refused past the body limit) for the symbol it
 /// names, and rebuild the request.
-async fn with_symbol(req: Request) -> Result<(Request, Option<String>), Response> {
+async fn with_symbol(req: Request) -> Result<(Request, Option<String>), EarlyReply> {
     let (parts, body) = req.into_parts();
     let bytes = match axum::body::to_bytes(body, crate::config::BODY_LIMIT_BYTES).await {
         Ok(b) => b,
-        Err(_) => return Err(too_large()),
+        Err(_) => return Err(Box::new(too_large())),
     };
     let symbol = serde_json::from_slice::<Value>(&bytes)
         .ok()
@@ -689,7 +690,7 @@ async fn timed(
     req: Request,
     next: Next,
     call: Timed<'_>,
-) -> Result<Response, Response> {
+) -> Result<Response, EarlyReply> {
     let t = Instant::now();
     let (req, symbol) = if req.method() == Method::POST {
         with_symbol(req).await?

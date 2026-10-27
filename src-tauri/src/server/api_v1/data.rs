@@ -34,7 +34,7 @@ macro_rules! simple {
         pub async fn $name(State($ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
             match load(&$ctx, ip, req, $schema(), Style::Object, $auth).await {
                 Ok($v) => send($body),
-                Err(r) => r,
+                Err(r) => *r,
             }
         }
     };
@@ -89,7 +89,7 @@ pub async fn history(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> R
             )
             .await,
         ),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 
@@ -129,7 +129,7 @@ pub async fn margin(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Re
                 .unwrap_or_default();
             send(market::margin(&ctx, &positions).await)
         }
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 

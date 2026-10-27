@@ -20,7 +20,7 @@ type Ctx = State<Arc<AppState>>;
 pub async fn placegttorder(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
     let mut body = match read_json_object(req, &()).await {
         Ok(b) => b,
-        Err(r) => return r,
+        Err(r) => return *r,
     };
     schemas::gtt_pre_load(&mut body);
     let style = Style::PyGtt("placegttorder", GttKind::Failed);
@@ -34,7 +34,7 @@ pub async fn placegttorder(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request
 pub async fn modifygttorder(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
     let mut body = match read_json_object(req, &()).await {
         Ok(b) => b,
-        Err(r) => return r,
+        Err(r) => return *r,
     };
     schemas::gtt_pre_load(&mut body);
     let style = Style::PyGtt("modifygttorder", GttKind::ModifyFailed);
@@ -49,7 +49,7 @@ pub async fn cancelgttorder(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Reques
     let style = Style::PyGtt("cancelgttorder", GttKind::CancelFailed);
     match load(&ctx, ip, req, schemas::cancel_gtt(), style, Auth::Broker).await {
         Ok(v) => send(gtt::cancel_gtt(&ctx, &v).await),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 
@@ -69,6 +69,6 @@ pub async fn gttorderbook(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request)
             let status = v.get("status").and_then(Value::as_str).unwrap_or("active");
             send(gtt::gtt_orderbook(&ctx, status).await)
         }
-        Err(r) => r,
+        Err(r) => *r,
     }
 }

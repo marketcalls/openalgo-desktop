@@ -76,7 +76,7 @@ fn unexpected(e: impl std::fmt::Display) -> Response {
 pub async fn holidays(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
     let body = match read_json_object(req, &()).await {
         Ok(b) => b,
-        Err(r) => return r,
+        Err(r) => return *r,
     };
     let mut f = FieldErrors::default();
     unknown(&mut f, &body, &["apikey", "year"]);
@@ -136,7 +136,7 @@ pub async fn holidays(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> 
 pub async fn timings(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
     let body = match read_json_object(req, &()).await {
         Ok(b) => b,
-        Err(r) => return r,
+        Err(r) => return *r,
     };
     let mut f = FieldErrors::default();
     unknown(&mut f, &body, &["apikey", "date"]);

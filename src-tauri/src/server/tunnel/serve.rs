@@ -6,7 +6,7 @@
 //! indefinitely, and enough of them would leave the trader's alerts
 //! waiting. With them, a place is held for at most [`Limits::lifetime`].
 
-use crate::server::envelope::error;
+use crate::server::envelope::{error, EarlyReply};
 use crate::services::tunnel::provider::TunnelIo;
 use crate::state::AppState;
 use axum::body::Body;
@@ -65,19 +65,19 @@ impl Limits {
 pub(super) async fn whole_body(
     req: Request<Body>,
     limit: Duration,
-) -> Result<Request<Body>, Response> {
+) -> Result<Request<Body>, EarlyReply> {
     let (parts, body) = req.into_parts();
     let read = axum::body::to_bytes(body, crate::config::BODY_LIMIT_BYTES);
     match tokio::time::timeout(limit, read).await {
         Ok(Ok(bytes)) => Ok(Request::from_parts(parts, Body::from(bytes))),
-        Ok(Err(_)) => Err(error(
+        Ok(Err(_)) => Err(Box::new(error(
             StatusCode::PAYLOAD_TOO_LARGE,
             "The request is too large.",
-        )),
-        Err(_) => Err(error(
+        ))),
+        Err(_) => Err(Box::new(error(
             StatusCode::REQUEST_TIMEOUT,
             "The request took too long to arrive. Send it again.",
-        )),
+        ))),
     }
 }
 

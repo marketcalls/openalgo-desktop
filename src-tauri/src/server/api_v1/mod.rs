@@ -263,7 +263,7 @@ pub async fn load(
     schema: &Schema,
     style: Style,
     auth: Auth,
-) -> Result<Value, Response> {
+) -> Result<Value, EarlyReply> {
     load_choosing(ctx, ip, req, schema, style, |_| auth).await
 }
 
@@ -276,12 +276,10 @@ pub async fn load_choosing(
     schema: &Schema,
     style: Style,
     auth: impl FnOnce(&Map<String, Value>) -> Auth,
-) -> Result<Value, Response> {
+) -> Result<Value, EarlyReply> {
     let body = read_json_object(req, &()).await?;
     let auth = auth(&body);
-    check(ctx, ip, &body, schema, style, auth)
-        .await
-        .map_err(|r| *r)
+    check(ctx, ip, &body, schema, style, auth).await
 }
 
 /// Query string as the web's `request.args` (`None` for absent keys).

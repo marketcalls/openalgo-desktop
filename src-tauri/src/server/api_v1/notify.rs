@@ -8,7 +8,7 @@
 //! `services::notify_service`.
 
 use super::{authorize, send, Auth};
-use crate::server::envelope::{error, read_json_object};
+use crate::server::envelope::{error, read_json_object, EarlyReply};
 use crate::server::middleware::ClientIp;
 use crate::services::notify_service;
 use crate::state::AppState;
@@ -32,7 +32,7 @@ pub(super) async fn body_and_key(
     ctx: &AppState,
     ip: IpAddr,
     req: Request,
-) -> Result<Map<String, Value>, Response> {
+) -> Result<Map<String, Value>, EarlyReply> {
     let header_key = req
         .headers()
         .get("x-api-key")
@@ -47,7 +47,7 @@ pub(super) async fn body_and_key(
         .or(header_key)
         .unwrap_or_default();
     if key.is_empty() || !authorize(ctx, &key, ip, Auth::KeyOnly).await {
-        return Err(error(StatusCode::UNAUTHORIZED, BAD_KEY));
+        return Err(Box::new(error(StatusCode::UNAUTHORIZED, BAD_KEY)));
     }
     Ok(body)
 }
@@ -56,7 +56,7 @@ pub(super) async fn body_and_key(
 pub async fn telegram_notify(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
     match body_and_key(&ctx, ip, req).await {
         Ok(data) => send(notify_service::telegram(&ctx, &data).await),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 
@@ -64,6 +64,6 @@ pub async fn telegram_notify(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Reque
 pub async fn whatsapp_notify(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
     match body_and_key(&ctx, ip, req).await {
         Ok(data) => send(notify_service::whatsapp(&ctx, &data).await),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }

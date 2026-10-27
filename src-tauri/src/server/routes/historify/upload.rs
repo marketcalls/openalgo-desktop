@@ -35,7 +35,7 @@ fn unreadable_upload() -> Response {
 pub async fn upload(State(ctx): Ctx, mp: Multipart) -> Response {
     let form = match read_form(&ctx, mp).await {
         Ok(f) => f,
-        Err(r) => return r,
+        Err(r) => return *r,
     };
     if !form.file_seen {
         return error(StatusCode::BAD_REQUEST, "No file provided");
@@ -85,13 +85,13 @@ struct UploadForm {
 
 /// Read the form: the first `file` part streamed to a temporary file, the
 /// other parts as text.
-async fn read_form(ctx: &AppState, mut mp: Multipart) -> Result<UploadForm, Response> {
+async fn read_form(ctx: &AppState, mut mp: Multipart) -> Result<UploadForm, EarlyReply> {
     let mut form = UploadForm::default();
     loop {
         let field = match mp.next_field().await {
             Ok(Some(f)) => f,
             Ok(None) => break,
-            Err(e) => return Err(read_error(e.status())),
+            Err(e) => return Err(read_error(e.status()).into()),
         };
         let name = field.name().unwrap_or_default().to_string();
         if name == "file" && !form.file_seen {
@@ -131,7 +131,7 @@ async fn save_part(
     ctx: &AppState,
     mut field: Field<'_>,
     kind: FileKind,
-) -> Result<UploadFile, Response> {
+) -> Result<UploadFile, EarlyReply> {
     use tokio::io::AsyncWriteExt;
     let disk = || {
         error(
@@ -143,7 +143,7 @@ async fn save_part(
         Ok(d) => d.to_path_buf(),
         Err(e) => {
             tracing::error!("Could not create the Historify work folder: {}", e);
-            return Err(disk());
+            return Err(disk().into());
         }
     };
     let ext = if kind == FileKind::Csv {
@@ -161,21 +161,21 @@ async fn save_part(
         Ok(f) => f,
         Err(e) => {
             tracing::error!("Could not save an upload: {}", e);
-            return Err(disk());
+            return Err(disk().into());
         }
     };
     let mut size = 0usize;
     while let Some(chunk) = field.chunk().await.map_err(|e| read_error(e.status()))? {
         size += chunk.len();
         if size > MAX_UPLOAD_BYTES {
-            return Err(too_large());
+            return Err(too_large().into());
         }
         if out.write_all(&chunk).await.is_err() {
-            return Err(disk());
+            return Err(disk().into());
         }
     }
     if out.flush().await.is_err() {
-        return Err(unreadable_upload());
+        return Err(unreadable_upload().into());
     }
     drop(out);
     Ok(guard)

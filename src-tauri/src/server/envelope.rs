@@ -94,9 +94,9 @@ fn is_json(req: &Request) -> bool {
 pub async fn read_json_object<S: Send + Sync>(
     req: Request,
     state: &S,
-) -> Result<Map<String, Value>, Response> {
+) -> Result<Map<String, Value>, EarlyReply> {
     if !is_json(&req) {
-        return Err(unexpected());
+        return Err(Box::new(unexpected()));
     }
     let bytes = Bytes::from_request(req, state).await.map_err(|e| {
         if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
@@ -109,10 +109,10 @@ pub async fn read_json_object<S: Send + Sync>(
         .map_err(|_| json_response(StatusCode::BAD_REQUEST, json!({"message": BAD_REQUEST_MSG})))?;
     match v {
         Value::Object(m) => Ok(m),
-        _ => Err(json_response(
+        _ => Err(Box::new(json_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             json!({"message": "Internal Server Error"}),
-        )),
+        ))),
     }
 }
 
@@ -127,7 +127,7 @@ where
     type Rejection = Response;
 
     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
-        let map = read_json_object(req, state).await?;
+        let map = read_json_object(req, state).await.map_err(|r| *r)?;
         let value = Value::Object(map);
         match serde_path_to_error::deserialize::<_, T>(value) {
             Ok(t) => Ok(ApiJson(t)),

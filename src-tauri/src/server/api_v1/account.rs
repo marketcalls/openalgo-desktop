@@ -31,7 +31,7 @@ pub async fn ping(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Resp
     )
     .await
     {
-        return r;
+        return *r;
     }
     let broker = ctx
         .get_broker_session()
@@ -54,7 +54,7 @@ pub async fn analyzer(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> 
     )
     .await
     {
-        return r;
+        return *r;
     }
     send(AnalyzerService::status_reply(&ctx).await)
 }
@@ -72,7 +72,7 @@ pub async fn analyzer_toggle(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Reque
     .await
     {
         Ok(v) => v,
-        Err(r) => return r,
+        Err(r) => return *r,
     };
     let mode = v.get("mode").and_then(Value::as_bool).unwrap_or(false);
     send(AnalyzerService::toggle_reply(&ctx, mode).await)
@@ -91,7 +91,7 @@ macro_rules! book {
             )
             .await
             {
-                return r;
+                return *r;
             }
             send($svc(&ctx).await)
         }
@@ -109,7 +109,7 @@ pub async fn orderstatus(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) 
     let style = Style::PyOrder("orderstatus");
     match load(&ctx, ip, req, schemas::order_status(), style, Auth::Broker).await {
         Ok(v) => send(account::order_status(&ctx, &v).await),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 
@@ -118,7 +118,7 @@ pub async fn openposition(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request)
     let style = Style::PyOrder("openposition");
     match load(&ctx, ip, req, schemas::open_position(), style, Auth::Broker).await {
         Ok(v) => send(account::open_position(&ctx, &v).await),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 
@@ -132,7 +132,7 @@ pub async fn pnl_symbols(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) 
     }
     let body = match read_json_object(req, &()).await {
         Ok(b) => b,
-        Err(r) => return r,
+        Err(r) => return *r,
     };
     let loaded = match schemas::apikey_only().load(&body) {
         Ok(l) => l,

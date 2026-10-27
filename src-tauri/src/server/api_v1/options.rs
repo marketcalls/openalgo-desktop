@@ -37,7 +37,7 @@ pub async fn optionsymbol(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request)
     .await
     {
         Ok(v) => send(options::option_symbol(&ctx, &v).await),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 
@@ -67,7 +67,7 @@ pub async fn optionchain(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) 
             )
             .await,
         ),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 
@@ -92,7 +92,7 @@ pub async fn syntheticfuture(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Reque
             )
             .await,
         ),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 
@@ -109,7 +109,7 @@ pub async fn optiongreeks(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request)
     .await
     {
         Ok(v) => send(options::option_greeks(&ctx, &v).await),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }
 
@@ -126,6 +126,6 @@ pub async fn multioptiongreeks(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Req
     .await
     {
         Ok(v) => send(options::multi_option_greeks(&ctx, &v).await),
-        Err(r) => r,
+        Err(r) => *r,
     }
 }

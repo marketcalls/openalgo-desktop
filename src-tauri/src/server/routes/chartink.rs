@@ -197,7 +197,7 @@ pub async fn webhook_route(
     }
     let bytes = match read_payload(req).await {
         Ok(b) => b,
-        Err(r) => return r,
+        Err(r) => return *r,
     };
     let (status, body, failed_auth) = svc::webhook_alert(&ctx, &webhook_id, &bytes).await;
     if failed_auth && known {
@@ -264,7 +264,7 @@ fn admit_webhook_call(
 
 /// The alert body, at most `MAX_PAYLOAD_BYTES` (a larger declared or sent
 /// body is refused).
-async fn read_payload(req: Request) -> Result<Bytes, Response> {
+async fn read_payload(req: Request) -> Result<Bytes, EarlyReply> {
     let declared = req
         .headers()
         .get(header::CONTENT_LENGTH)
@@ -280,10 +280,10 @@ async fn read_payload(req: Request) -> Result<Bytes, Response> {
         )
     };
     if declared.is_some_and(|d| d > webhook::MAX_PAYLOAD_BYTES) {
-        return Err(too_large());
+        return Err(Box::new(too_large()));
     }
     let body: Body = req.into_body();
     to_bytes(body, webhook::MAX_PAYLOAD_BYTES)
         .await
-        .map_err(|_| too_large())
+        .map_err(|_| Box::new(too_large()))
 }

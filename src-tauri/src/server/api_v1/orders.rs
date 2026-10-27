@@ -22,7 +22,7 @@ macro_rules! order_endpoint {
         pub async fn $name(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> Response {
             match load(&ctx, ip, req, $schema(), $style, Auth::Broker).await {
                 Ok(v) => send($svc(&ctx, &v, Route::API).await),
-                Err(r) => r,
+                Err(r) => *r,
             }
         }
     };
