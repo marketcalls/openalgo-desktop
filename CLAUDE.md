@@ -447,6 +447,14 @@ below, and treat a wave as unfinished until it has been done.
   silently growing or dying.
 - Do not retain large payloads (master contract, history, option chains)
   beyond the request that built them.
+- On Linux the resident set includes memory glibc keeps after the app
+  freed it. Before calling growth a leak, read the endurance run's parts
+  (`perf::endurance`: code pages, glibc in use and held free, SQLite's
+  cache): over 180 minutes the in-use heap stayed flat while held-free
+  memory climbed. `services::heap` gives whole free pages back once a
+  minute (about 1 ms each); the resident set still climbs about 2.6 MiB
+  an hour after it (3.8 before) with the in-use heap flat, so a longer
+  run has to say whether that settles.
 
 **Measure, do not just read.** For a suspected leak, drive the path 100+ times
 and sample descriptors (`lsof -p <pid> | wc -l`) and RSS (`ps -o rss= -p <pid>`)
