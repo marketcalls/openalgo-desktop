@@ -63,6 +63,7 @@ import { AttachmentChip } from './AttachmentChip'
 import { CodeArtifact } from './CodeArtifact'
 import { MessageActions } from './MessageActions'
 import { MessageEditor } from './MessageEditor'
+import { OrderApproval } from './OrderApproval'
 import { ToolTimeline } from './ToolTimeline'
 import { UsageBadge } from './UsageBadge'
 import { VizBlock } from './viz/VizBlock'
@@ -372,10 +373,8 @@ function PendingConfirm({
             key={requirement.id || requirement.tool_call_id}
             className="rounded-md border border-amber-500/40 bg-background/60 p-2 dark:border-amber-600/40"
           >
-            <p className="text-xs font-medium text-foreground">{requirement.tool_name}</p>
-            <pre className="mt-1 max-h-40 overflow-auto font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words text-muted-foreground">
-              {JSON.stringify(requirement.args ?? {}, null, 2)}
-            </pre>
+            {/* Desktop (D-047): the order in a trader's words, not the tool name and JSON. */}
+            <OrderApproval requirement={requirement} />
           </li>
         ))}
       </ul>
