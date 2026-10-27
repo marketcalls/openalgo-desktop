@@ -483,13 +483,9 @@ no Python runtime:
   Analyzer
 
 **Removed from this version** (maintainer, 2026-10-12): the Python Strategy
-Host and the Agent. No code for either ships, and nothing in the UI leads to
-them: no route, navigation or menu entry, Admin card, `/trading` side panel
-or button, Telegram command. `/python` and `/agent` are unknown pages (the
-app's 404 page), `/agent/api/*` is an unknown API path (the JSON 404), and a
-saved terminal layout that still names the Agent panel opens with no panel.
-A later version that brings either back adds it as a new page, with its
-route, SPA path and navigation entry in one change.
+Host. No code for it ships, and nothing in the UI leads to it: no route,
+navigation or menu entry, Admin card, Telegram command. `/python` is an
+unknown page (the app's 404 page) and its API paths are the JSON 404.
 
 Decided:
 
@@ -514,20 +510,18 @@ Decided:
     crate that the web's `wars` package wraps with PyO3. Same pairing (QR and
     pair code), session export/import as an encrypted blob, alerts and bot
     commands as the web. The web's notes on `wars` threading do not apply.
-- **Agent: not in this version** (maintainer, 2026-10-12, replacing the
-  2026-10-07 deferral that kept its pages with a "not available" message).
-  Its pages, the Assistant panel in `/trading`, the `@openuidev` packages and
-  the `/agent/api` route group were removed. Working notes for a future
-  version, which would be a native Rust Agent with no Python runtime: a
-  provider layer of our own (OpenAI chat and Responses, Anthropic Messages,
-  Gemini; Ollama and OpenAI-compatible providers through the OpenAI format),
-  model list and pricing from LiteLLM's public catalogue with a bundled
-  fallback, tools calling desktop services directly. Do not depend on
-  `LiteLLM-Labs/litellm-rust`, a proof of concept; revisit if BerriAI ships an
-  official Rust crate. The web's frontend for it (`pages/agent`,
-  `components/agent`, `lib/agent`, `api/agent.ts`,
-  `components/trading/AgentPanel.tsx`, `lib/trading/chartContract.ts`) is the
-  starting point to carry over.
+- **Agent: back in 1.0.4** (maintainer, 2026-10-27), at parity with the
+  web's `/agent`, `/agent/config`, the `/trading` Assistant panel and voice.
+  A native Rust Agent with no Python runtime and no agent framework:
+  `src-tauri/src/agent/` (start at its `mod.rs`), genai 0.7.1 for the
+  providers over the Agent's own reqwest 0.13 client (rustls on ring), our
+  own run loop (`agent/run`), which owns pause for approval and resume.
+  Tools mirror the web's agent tools (names, arguments, descriptions,
+  surfaces, approval list) and reach OpenAlgo through the in-process
+  `/api/v1` path MCP uses (`agent/tools/service.rs`). The stream frames and
+  the system prompt are pinned byte for byte against fixtures recorded from
+  the web (`scripts/agent/`). Flow (`flow_gen`) and Python strategy
+  generation (`strategy_gen`) are not in this version.
 
 ## Testing
 
