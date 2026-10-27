@@ -53,8 +53,6 @@ const SAFE_KEY_NAMES: &[&str] = &[
     "reasoning_tokens",
     "cached_tokens",
     "tokens_used",
-    "token",
-    "tokens",
     "symboltoken",
     "symbol_token",
     "instrument_token",
@@ -63,19 +61,36 @@ const SAFE_KEY_NAMES: &[&str] = &[
 ];
 
 /// Value shapes that are secrets whatever they are called: a provider key,
-/// a bearer token, a long pure-hex string (every generated key here).
+/// a bearer token, a JWT (a broker's access token is often one), a long
+/// pure-hex string (every generated key here).
 static SECRET_VALUES: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     [
         r"\bsk-[A-Za-z0-9_\-]{16,}",
         r"(?i)\bBearer\s+[A-Za-z0-9._\-]{16,}",
-        r"(?i)^[0-9a-f]{32,}$",
+        r"\beyJ[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]{4,}\.[A-Za-z0-9_\-]*",
+        r"\b[A-Za-z0-9_\-]{16,}\.[A-Za-z0-9_\-]{16,}\.[A-Za-z0-9_\-]{16,}",
+        r"(?i)\b[0-9a-f]{32,}\b",
     ]
     .iter()
     .filter_map(|p| Regex::new(p).ok())
     .collect()
 });
 
-/// Whether a key's value must not be shown or stored.
+/// A run of base64 or base64url characters long enough to be a key.
+static LONG_RUN: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r"[A-Za-z0-9+/_\-]{40,}={0,2}").ok());
+
+/// A long run that mixes upper case, lower case and digits is random key
+/// material, not a word, a symbol or a number.
+fn looks_random(run: &str) -> bool {
+    run.chars().any(|c| c.is_ascii_uppercase())
+        && run.chars().any(|c| c.is_ascii_lowercase())
+        && run.chars().any(|c| c.is_ascii_digit())
+}
+
+/// Whether a key's value must not be shown or stored. A bare `token` is
+/// judged by its value ([`redact_token`]): it names an instrument as often
+/// as a credential.
 pub fn is_secret_key(key: &str) -> bool {
     let lowered = key.trim().to_lowercase();
     if SAFE_KEY_NAMES.contains(&lowered.as_str()) {
@@ -84,11 +99,47 @@ pub fn is_secret_key(key: &str) -> bool {
     SECRET_KEY_MARKERS.iter().any(|m| lowered.contains(m))
 }
 
+/// The longest instrument token kept under a bare `token` key.
+const MAX_INSTRUMENT_TOKEN_DIGITS: usize = 12;
+
+/// A bare `token` or `tokens` field: kept only when it is an instrument
+/// token (a short run of digits, or such a number); anything else is
+/// treated as the credential it may be (security review, 2026-10-27: the
+/// web safelisted the name and let a broker auth token through).
+fn redact_token(value: &Value) -> Value {
+    let short_digits = |s: &str| {
+        !s.is_empty()
+            && s.len() <= MAX_INSTRUMENT_TOKEN_DIGITS
+            && s.chars().all(|c| c.is_ascii_digit())
+    };
+    match value {
+        Value::Number(n) if n.is_u64() && short_digits(&n.to_string()) => value.clone(),
+        Value::String(s) if short_digits(s.trim()) => value.clone(),
+        Value::Array(items) => {
+            Value::Array(items.iter().take(MAX_ITEMS).map(redact_token).collect())
+        }
+        Value::Null => Value::Null,
+        _ => Value::String(REDACTED.into()),
+    }
+}
+
 /// Remove secret-shaped substrings and cap the length.
 pub fn redact_text(value: &str) -> String {
     let mut text = value.to_string();
     for pattern in SECRET_VALUES.iter() {
         text = pattern.replace_all(&text, REDACTED).into_owned();
+    }
+    if let Some(re) = LONG_RUN.as_ref() {
+        text = re
+            .replace_all(&text, |c: &regex::Captures<'_>| {
+                let run = c.get(0).map(|m| m.as_str()).unwrap_or("");
+                if looks_random(run) {
+                    REDACTED.to_string()
+                } else {
+                    run.to_string()
+                }
+            })
+            .into_owned();
     }
     let chars = text.chars().count();
     if chars > MAX_STRING {
@@ -121,7 +172,10 @@ fn walk(value: &Value, depth: usize) -> Value {
         Value::Object(map) => Value::Object(
             map.iter()
                 .map(|(k, v)| {
-                    let v = if is_secret_key(k) {
+                    let bare = k.trim().to_lowercase();
+                    let v = if bare == "token" || bare == "tokens" {
+                        redact_token(v)
+                    } else if is_secret_key(k) {
                         Value::String(REDACTED.into())
                     } else {
                         walk(v, depth + 1)
@@ -173,6 +227,43 @@ mod tests {
         assert_eq!(r["note"], "use [redacted] now");
         assert_eq!(r["auth"], REDACTED);
         assert_eq!(r["hex"], REDACTED);
+    }
+
+    /// Security review, 2026-10-27: the web safelisted a bare `token`, so a
+    /// broker's auth token in a field of that name went to the model and
+    /// the audit unmasked.
+    #[test]
+    fn a_bare_token_is_kept_only_when_it_is_an_instrument_token() {
+        let r = redact(&json!({
+            "token": "a1b2c3d4e5f6",
+            "tokens": ["2885", "x-auth-123"],
+            "Token": 2885,
+            "symboltoken": "3045",
+            "instrument_token": 408065,
+        }));
+        assert_eq!(r["token"], REDACTED);
+        assert_eq!(r["tokens"], json!(["2885", REDACTED]));
+        assert_eq!(r["Token"], 2885);
+        assert_eq!(r["symboltoken"], "3045");
+        assert_eq!(r["instrument_token"], 408065);
+        assert_eq!(redact(&json!({"token": "2885"}))["token"], "2885");
+    }
+
+    #[test]
+    fn a_jwt_or_long_random_key_is_removed_from_any_field() {
+        let jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJBQjEyMzQifQ.c2lnbmF0dXJlLXZhbHVl";
+        let r = redact(&json!({
+            "message": format!("session {} expired", jwt),
+            "data": {"note": "key=Zm9vYmFyQmF6UXV4MTIzNDU2Nzg5MEFCQ0RFRkdISUpLTE1O done"},
+            "hex": "id 0123456789abcdef0123456789abcdef end",
+            "symbol": "NIFTY28MAR2420800CE",
+            "path": "/agent/api/conversations/12/messages/40",
+        }));
+        assert_eq!(r["message"], "session [redacted] expired");
+        assert_eq!(r["data"]["note"], "key=[redacted] done");
+        assert_eq!(r["hex"], "id [redacted] end");
+        assert_eq!(r["symbol"], "NIFTY28MAR2420800CE");
+        assert_eq!(r["path"], "/agent/api/conversations/12/messages/40");
     }
 
     #[test]

@@ -21,9 +21,12 @@ use std::net::{IpAddr, Ipv6Addr};
 use std::sync::LazyLock;
 use std::time::Duration;
 
-/// The address the Agent's in-process calls carry (discard-only prefix,
-/// RFC 6666, beside MCP's `100::1`).
-pub const AGENT_CALLER: IpAddr = IpAddr::V6(Ipv6Addr::new(0x100, 0, 0, 0, 0, 0, 0, 2));
+/// The address the Agent's in-process calls carry: its own identity in the
+/// app's internal block `100::/64` (discard-only, RFC 6666), beside MCP's
+/// `100::1` and the shared tunnel identity `100::2`, so it never shares a
+/// rate limit, a failure budget or a ban with anyone else, and is never
+/// banned (security review, 2026-10-27: it was `100::2`, the tunnel's).
+pub const AGENT_CALLER: IpAddr = IpAddr::V6(Ipv6Addr::new(0x100, 0, 0, 0, 0, 0, 0, 3));
 
 /// How long a tool waits for a read (the web's
 /// `AGENT_SERVICE_TIMEOUT_SECONDS`).
@@ -407,6 +410,37 @@ mod tests {
             "{:?}",
             reply
         );
+    }
+
+    /// The Agent is its own caller: not MCP, not the tunnel's shared
+    /// identity, not the limiter's overflow or per-credential keys, and
+    /// internal (never banned, its own budget key, no aggregate).
+    #[test]
+    fn the_agent_is_its_own_internal_caller() {
+        use crate::server::ratelimit::OVERFLOW;
+        use crate::server::source::PROXIED_CALLER;
+        let ids = [AGENT_CALLER, dispatch::MCP_CALLER, PROXIED_CALLER, OVERFLOW];
+        for (i, a) in ids.iter().enumerate() {
+            for b in &ids[i + 1..] {
+                assert_ne!(a, b);
+            }
+        }
+        let IpAddr::V6(v) = AGENT_CALLER else {
+            panic!()
+        };
+        assert_eq!(
+            v.segments()[..4],
+            [0x100, 0, 0, 0],
+            "inside 100::/64, outside the minted and overflow prefixes"
+        );
+        assert!(crate::db::sqlite::monitor::never_banned(
+            &AGENT_CALLER.to_string()
+        ));
+        assert_eq!(
+            crate::server::addr::budget_key_with(AGENT_CALLER, &[]),
+            AGENT_CALLER
+        );
+        assert_eq!(crate::server::addr::aggregate_key(AGENT_CALLER), None);
     }
 
     #[test]

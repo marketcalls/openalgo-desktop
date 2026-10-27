@@ -1,0 +1,8 @@
+# serde_json's `preserve_order` feature is on since genai 0.7.1 (the
+# Agent's provider layer) turned it on for the whole tree: a JSON object
+# keeps its keys in insertion order, as the web's dicts do, and
+# `serde_json::Value` grew from 32 to 80 bytes. `services::core::Reply`
+# carries a Value, so every `Result<_, Reply>` crossed clippy's default
+# 128-byte `result_large_err` threshold at once without any code changing.
+# The threshold is raised for that, not the lint switched off.
+large-error-threshold = 256

@@ -242,11 +242,16 @@ fn to_bool(value: &Value) -> Result<Value, &'static str> {
     const PARSE: &str = "Input should be a valid boolean, unable to interpret input";
     match value {
         Value::Bool(_) => Ok(value.clone()),
-        Value::Number(n) => match n.as_f64() {
-            Some(f) if f == 0.0 => Ok(Value::Bool(false)),
-            Some(f) if f == 1.0 => Ok(Value::Bool(true)),
-            _ => Err(PARSE),
-        },
+        Value::Number(n) => {
+            let f = n.as_f64();
+            if f == Some(0.0) {
+                Ok(Value::Bool(false))
+            } else if f == Some(1.0) {
+                Ok(Value::Bool(true))
+            } else {
+                Err(PARSE)
+            }
+        }
         Value::String(s) => match s.trim().to_lowercase().as_str() {
             "0" | "off" | "f" | "false" | "n" | "no" => Ok(Value::Bool(false)),
             "1" | "on" | "t" | "true" | "y" | "yes" => Ok(Value::Bool(true)),

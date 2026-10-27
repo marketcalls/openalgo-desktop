@@ -64,11 +64,7 @@ pub fn escape_attribute(value: &str) -> String {
         Some(re) => re.replace_all(value, "").into_owned(),
         None => value.to_string(),
     };
-    text = text
-        .replace("\r\n", " ")
-        .replace('\r', " ")
-        .replace('\n', " ")
-        .replace('\t', " ");
+    text = text.replace("\r\n", " ").replace(['\r', '\n', '\t'], " ");
     text = text
         .replace('&', "&amp;")
         .replace('<', "&lt;")
