@@ -31,6 +31,7 @@ import {
   type StrategyLeg,
 } from '@/lib/strategyMath'
 import { cn } from '@/lib/utils'
+import { asNumber, asRecord, asText } from './spec'
 
 /** Sample count for the curve. The chart is inline and narrow; 240 is what
  *  /strategybuilder uses and it is already more points than pixels here. */
@@ -60,6 +61,77 @@ export interface PayoffSpec {
   /** Legs the tool refused to model, with the reason. Cash equity is the common one. */
   excluded?: Array<{ symbol?: string; reason?: string }> | string[]
   notices?: string[]
+}
+
+/**
+ * Read one leg off the frame, or `null` when it cannot be modelled.
+ *
+ * Desktop (D-031): the web cast `spec.legs` straight to `PayoffLeg[]`, so a
+ * `null` or a number in the list threw while the card rendered, outside the
+ * guard around `computePayoff`, and took the whole message down with it. Each
+ * leg is now read the way `spec.ts` reads every other frame: a leg needs a
+ * symbol, a side and a positive size, because a guessed side flips the curve
+ * and a guessed size scales it. Everything else falls back to what the
+ * strategy builder uses for "unknown".
+ */
+function parseLeg(value: unknown, index: number): PayoffLeg | null {
+  const raw = asRecord(value)
+  if (!raw) return null
+  const symbol = asText(raw.symbol)
+  const side = asText(raw.side)?.toUpperCase()
+  const lots = asNumber(raw.lots)
+  const lotSize = asNumber(raw.lotSize)
+  if (!symbol || (side !== 'BUY' && side !== 'SELL')) return null
+  if (lots === null || lots <= 0 || lotSize === null || lotSize <= 0) return null
+  const optionType = asText(raw.optionType)?.toUpperCase()
+  const leg: PayoffLeg = {
+    id: asText(raw.id) ?? `leg-${index + 1}`,
+    segment: asText(raw.segment)?.toUpperCase() === 'FUTURE' ? 'FUTURE' : 'OPTION',
+    side,
+    lots,
+    lotSize,
+    expiry: asText(raw.expiry) ?? '',
+    price: asNumber(raw.price) ?? 0,
+    iv: asNumber(raw.iv) ?? 0,
+    active: raw.active !== false,
+    symbol,
+  }
+  const strike = asNumber(raw.strike)
+  if (strike !== null) leg.strike = strike
+  if (optionType === 'CE' || optionType === 'PE') leg.optionType = optionType
+  const exchange = asText(raw.exchange)
+  if (exchange) leg.exchange = exchange
+  for (const key of [
+    'expiryTs',
+    'tickSize',
+    'marketPrice',
+    'referenceUnderlying',
+    'forwardPrice',
+  ] as const) {
+    const number = asNumber(raw[key])
+    if (number !== null) leg[key] = number
+  }
+  if (raw.contractValid === true) leg.contractValid = true
+  const origin = asText(raw.origin)
+  if (origin) leg.origin = origin
+  return leg
+}
+
+/** Every leg the frame carried that can be modelled, and how many could not. */
+function parseLegs(value: unknown): { legs: PayoffLeg[]; unreadable: number } {
+  if (!Array.isArray(value)) return { legs: [], unreadable: 0 }
+  const legs = value
+    .map((item, index) => parseLeg(item, index))
+    .filter((leg): leg is PayoffLeg => leg !== null)
+  return { legs, unreadable: value.length - legs.length }
+}
+
+/** One excluded row as the card names it, or `null` when it says nothing. */
+function excludedText(item: unknown): string | null {
+  if (typeof item === 'string') return asText(item)
+  const row = asRecord(item)
+  if (!row) return null
+  return [asText(row.symbol), asText(row.reason)].filter(Boolean).join(' - ') || null
 }
 
 /** Calendar days from now to the nearest leg expiry, floored at zero.
@@ -160,10 +232,13 @@ export interface PayoffCardProps {
 }
 
 export function PayoffCard({ spec, title }: PayoffCardProps) {
-  const parsed = (spec ?? null) as PayoffSpec | null
-  const legs = Array.isArray(parsed?.legs) ? parsed.legs : []
-  const spot = typeof parsed?.spot === 'number' ? parsed.spot : 0
-  const currency = parsed?.currency || ''
+  const parsed = asRecord(spec) as PayoffSpec | null
+  // One parse per spec object: the memo below keys on `legs`, and a fresh
+  // array on every render would recompute the curve each time.
+  const { legs, unreadable } = useMemo(() => parseLegs(parsed?.legs), [parsed?.legs])
+  const spot = asNumber(parsed?.spot) ?? 0
+  const currency = asText(parsed?.currency) ?? ''
+  const atmIv = asNumber(parsed?.atm_iv)
 
   // One memo for the whole computation: computePayoff walks every leg across
   // 240 samples twice, and re-running it on an unrelated re-render is the kind
@@ -173,7 +248,7 @@ export function PayoffCard({ spec, title }: PayoffCardProps) {
     const now = new Date()
     const daysAtExpiry = daysToNearestExpiry(legs, now)
     const range: [number, number] = [spot * (1 - RANGE_FRACTION), spot * (1 + RANGE_FRACTION)]
-    const fallbackIv = typeof parsed?.atm_iv === 'number' ? parsed.atm_iv : 0
+    const fallbackIv = atmIv ?? 0
 
     let payoff: PayoffResult
     try {
@@ -196,7 +271,7 @@ export function PayoffCard({ spec, title }: PayoffCardProps) {
       remainingYears: daysAtExpiry / 365,
       credit: netPremium(legs),
     }
-  }, [legs, spot, parsed?.atm_iv])
+  }, [legs, spot, atmIv])
 
   if (legs.length === 0 || spot <= 0) {
     return (
@@ -209,22 +284,29 @@ export function PayoffCard({ spec, title }: PayoffCardProps) {
   }
 
   const structure = nameStructure(legs)
-  const heading = title || [parsed?.underlying, structure].filter(Boolean).join(' ') || 'Payoff'
-  const excluded = Array.isArray(parsed?.excluded) ? parsed.excluded : []
+  const underlying = asText(parsed?.underlying)
+  const mode = asText(parsed?.mode)
+  const heading = title || [underlying, structure].filter(Boolean).join(' ') || 'Payoff'
+  const excluded = (Array.isArray(parsed?.excluded) ? parsed.excluded : [])
+    .map(excludedText)
+    .filter((text): text is string => text !== null)
+  const notices = (Array.isArray(parsed?.notices) ? parsed.notices : [])
+    .map(asText)
+    .filter((text): text is string => text !== null)
 
   return (
     <div className="my-3 overflow-hidden rounded-lg border border-border bg-card">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-border bg-muted/40 px-3 py-2">
         <span className="text-sm font-semibold tracking-tight">{heading}</span>
-        {parsed?.underlying && (
+        {underlying && (
           <span className="font-mono text-[11px] text-muted-foreground">
-            {parsed.underlying} {currency}
+            {underlying} {currency}
             {spot.toLocaleString('en-IN')}
           </span>
         )}
-        {parsed?.mode && (
+        {mode && (
           <span className="ml-auto text-[10px] tracking-wide text-muted-foreground uppercase">
-            {parsed.mode}
+            {mode}
           </span>
         )}
       </div>
@@ -324,20 +406,21 @@ export function PayoffCard({ spec, title }: PayoffCardProps) {
           call is held, which understates the risk. */}
       {excluded.length > 0 && (
         <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-          Not modelled:{' '}
-          {excluded
-            .map((item) =>
-              typeof item === 'string'
-                ? item
-                : [item.symbol, item.reason].filter(Boolean).join(' - ')
-            )
-            .join('; ')}
+          Not modelled: {excluded.join('; ')}
         </div>
       )}
 
-      {Array.isArray(parsed?.notices) && parsed.notices.length > 0 && (
+      {unreadable > 0 && (
         <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-          {parsed.notices.join(' ')}
+          {unreadable === 1
+            ? 'One leg in this frame could not be read, so the curve leaves it out.'
+            : `${unreadable} legs in this frame could not be read, so the curve leaves them out.`}
+        </div>
+      )}
+
+      {notices.length > 0 && (
+        <div className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+          {notices.join(' ')}
         </div>
       )}
     </div>

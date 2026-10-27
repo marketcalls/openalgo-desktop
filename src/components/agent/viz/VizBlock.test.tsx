@@ -175,4 +175,32 @@ describe('VizBlock', () => {
     )
     expect(container).not.toBeEmptyDOMElement()
   })
+
+  it('hands a payoff frame to the payoff card (desktop: the web has no test here)', () => {
+    render(
+      <VizBlock
+        item={item('payoff', {
+          underlying: 'NIFTY',
+          spot: 23873.45,
+          legs: [
+            {
+              id: 'agent-1',
+              segment: 'OPTION',
+              side: 'SELL',
+              lots: 1,
+              lotSize: 75,
+              expiry: '08SEP26',
+              strike: 23850,
+              optionType: 'CE',
+              price: 120.5,
+              iv: 12.5,
+              active: true,
+              symbol: 'NIFTY08SEP2623850CE',
+            },
+          ],
+        })}
+      />
+    )
+    expect(screen.getByText('NIFTY08SEP2623850CE')).toBeInTheDocument()
+  })
 })
