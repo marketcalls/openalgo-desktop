@@ -22,6 +22,7 @@
 //! - `chat/`: the chat service the routes call; `run/`: one turn, its loop
 //!   and its stored state; `stream/`: its frames as SSE; `reply`: a refusal
 //!   before anything streams.
+//! - `safety`: the order guard, the kill switch and the session counters.
 //!
 //! Nothing a turn needs starts at boot: a run is built when the trader sends
 //! a message, so a platform whose Agent cannot work still starts. [`start`]
@@ -37,6 +38,7 @@ pub mod prompts;
 pub mod redact;
 pub mod reply;
 pub mod run;
+pub mod safety;
 pub mod stream;
 #[cfg(test)]
 pub(crate) mod testing;

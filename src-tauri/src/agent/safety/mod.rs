@@ -1,0 +1,19 @@
+//! The Agent's order safety (the web's `services/agent/safety/` and the
+//! risk half of `services/agent/settings.py`).
+//!
+//! What lives where:
+//!
+//! - [`risk`]: the order guard, pure: the eleven rules, the 24 codes,
+//!   verdicts, the session book's claim.
+//! - [`limits`]: the trader's trading and risk settings as the guard reads
+//!   them, fresh for every order.
+//! - [`kill_switch`]: the kill switch file.
+//! - [`counters`]: the session books, persisted (migration
+//!   `099_agent_safety`), checked and claimed in one write transaction.
+//! - [`guard`]: the guard as the order tools call it.
+
+pub mod counters;
+pub mod guard;
+pub mod kill_switch;
+pub mod limits;
+pub mod risk;
