@@ -388,6 +388,27 @@ impl StrategyModule {
         })
     }
 
+    /// The strategy `id` of `user`, read on the blocking pool: every
+    /// strategy page and `/api/v1/strategy` request looks it up first, and
+    /// the Detail page polls its books every 5 s. On the runtime the lookup
+    /// waited for a pooled connection while the books' own reads held them
+    /// (polled_reads: 114 and 173 ms on a macOS runner).
+    pub async fn owned_strategy(
+        &self,
+        id: i64,
+        user: &str,
+    ) -> Result<Option<StrategyRow>, AppError> {
+        let user = user.to_string();
+        self.store
+            .blocking(move |s| s.get_strategy(id, &user))
+            .await
+    }
+
+    /// The account the API key belongs to, read on the blocking pool.
+    pub async fn api_key_owner(&self) -> Result<Option<String>, AppError> {
+        self.store.blocking(|s| s.api_key_owner()).await
+    }
+
     /// The strategy as the Detail page reads it: its record and, under
     /// `realized_by_mode`, the realized P&L of every finalised run summed per
     /// mode over its whole history (SM-05). The page used to add up the at

@@ -14,6 +14,7 @@ use axum::body::Body;
 use axum::extract::ConnectInfo;
 use axum::http::{header, Method, Request, StatusCode};
 use http_body_util::BodyExt;
+use openalgo_desktop_lib::db::sqlite::checkouts;
 use openalgo_desktop_lib::security::hashing;
 use parking_lot::Mutex;
 use serde_json::{json, Value};
@@ -105,6 +106,9 @@ struct Held {
     /// the runtime that one run held it for 30-45 ms in a debug build and
     /// about 200 ms on a loaded macOS runner.
     argon2: u32,
+    /// Pooled database connections taken on the runtime thread meanwhile,
+    /// and the time it waited for them.
+    pooled: (u32, Duration),
 }
 
 /// [`all_at_once`] on the watched runtime; the replies and what they held
@@ -119,6 +123,7 @@ async fn held_at_once(
     reqs: Vec<Request<Body>>,
 ) -> (Vec<Reply>, Held) {
     let argon2 = hashing::argon2_runs();
+    let pooled = checkouts();
     let each = reqs
         .into_iter()
         .map(|r| crate::runtime_busy(send(h, app, r)));
@@ -127,12 +132,14 @@ async fn held_at_once(
         .await;
     let (replies, each) = replies.into_iter().unzip();
     let argon2 = hashing::argon2_runs() - argon2;
+    let pooled = (checkouts().0 - pooled.0, checkouts().1 - pooled.1);
     (
         replies,
         Held {
             at_once,
             each,
             argon2,
+            pooled,
         },
     )
 }
@@ -145,8 +152,17 @@ fn assert_runtime_free(what: &str, held: &Held) {
     );
     let busy: Duration = held.each.iter().sum();
     eprintln!(
-        "{}: the runtime was held for {:?} at most, busy {:?} in all (each request {:?})",
-        what, held.at_once, busy, held.each
+        "{}: the runtime was held for {:?} at most, busy {:?} in all (each request {:?}); \
+         pooled connections taken on it {} (waited {:?})",
+        what, held.at_once, busy, held.each, held.pooled.0, held.pooled.1
+    );
+    // A pooled connection taken on the runtime holds it for as long as the
+    // pool has none free, which the other requests' reads decide: the
+    // strategy pages' lookup waited 114 and 173 ms on a macOS runner.
+    assert_eq!(
+        held.pooled.0, 0,
+        "{}: pooled database connections were taken on the runtime (waited {:?})",
+        what, held.pooled.1
     );
     assert!(
         held.at_once < Duration::from_millis(200),

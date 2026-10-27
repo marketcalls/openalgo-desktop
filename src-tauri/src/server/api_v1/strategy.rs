@@ -199,7 +199,7 @@ async fn resolve(
             Value::Null,
         )));
     }
-    let user = match ctx.strategy.store.api_key_owner() {
+    let user = match ctx.strategy.api_key_owner().await {
         Ok(Some(u)) => u,
         _ => {
             return Err(Box::new(failure(
@@ -213,7 +213,7 @@ async fn resolve(
         return Ok((data, user, None));
     }
     let sid = data["strategy_id"].as_i64().unwrap_or(0);
-    match ctx.strategy.store.get_strategy(sid, &user) {
+    match ctx.strategy.owned_strategy(sid, &user).await {
         Ok(Some(row)) => Ok((data, user, Some(row))),
         Ok(None) => Err(Box::new(failure(
             NOT_FOUND,

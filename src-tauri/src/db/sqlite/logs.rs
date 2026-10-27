@@ -86,7 +86,7 @@ impl LogsDb {
     /// Check out a pooled connection (monitoring tables). Drop it before any
     /// network await.
     pub fn conn(&self) -> Result<super::DbConn> {
-        Ok(self.pool.get()?)
+        super::checkout(&self.pool)
     }
 
     /// Open and idle pooled connections (health monitor).
@@ -97,7 +97,7 @@ impl LogsDb {
 
     /// Copy sandbox logs written by earlier builds into the main database, once.
     pub fn import_from_main(&self, main: &Connection) -> Result<()> {
-        let conn = self.pool.get()?;
+        let conn = self.conn()?;
         super::monitor::import_from_main(&conn, main)?;
         let done: bool = conn.query_row(
             "SELECT EXISTS(SELECT 1 FROM migrations WHERE name = '001_import_main_analyzer_logs')",
@@ -145,7 +145,7 @@ impl LogsDb {
         request: &Value,
         response: &Value,
     ) -> Result<()> {
-        self.pool.get()?.execute(
+        self.conn()?.execute(
             "INSERT INTO order_logs (api_type, request_data, response_data) VALUES (?1, ?2, ?3)",
             params![
                 api_type,
@@ -162,7 +162,7 @@ impl LogsDb {
         request: &Value,
         response: &Value,
     ) -> Result<()> {
-        self.pool.get()?.execute(
+        self.conn()?.execute(
             "INSERT INTO analyzer_logs (api_type, request_data, response_data) VALUES (?1, ?2, ?3)",
             params![
                 api_type,
@@ -175,21 +175,19 @@ impl LogsDb {
 
     pub fn count_analyzer_logs(&self) -> Result<i64> {
         Ok(self
-            .pool
-            .get()?
+            .conn()?
             .query_row("SELECT COUNT(*) FROM analyzer_logs", [], |r| r.get(0))?)
     }
 
     pub fn count_order_logs(&self) -> Result<i64> {
         Ok(self
-            .pool
-            .get()?
+            .conn()?
             .query_row("SELECT COUNT(*) FROM order_logs", [], |r| r.get(0))?)
     }
 
     /// Latest order log rows (newest first), for tests and the logs page.
     pub fn recent_order_logs(&self, limit: i64) -> Result<Vec<(String, String, String)>> {
-        let conn = self.pool.get()?;
+        let conn = self.conn()?;
         let mut stmt = conn.prepare(
             "SELECT api_type, request_data, response_data FROM order_logs ORDER BY id DESC LIMIT ?1",
         )?;

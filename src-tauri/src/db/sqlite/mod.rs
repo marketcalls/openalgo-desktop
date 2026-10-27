@@ -40,6 +40,34 @@ use std::time::Duration;
 
 pub type DbConn = PooledConnection<SqliteConnectionManager>;
 
+thread_local! {
+    /// Pooled connections this thread has taken, and how long it waited
+    /// for them ([`checkouts`]).
+    static CHECKOUTS: std::cell::Cell<(u32, Duration)> =
+        const { std::cell::Cell::new((0, Duration::ZERO)) };
+}
+
+/// Take a connection from `pool`, counted against this thread.
+pub(crate) fn checkout(pool: &Pool<SqliteConnectionManager>) -> Result<DbConn> {
+    let started = std::time::Instant::now();
+    let conn = pool.get();
+    let waited = started.elapsed();
+    CHECKOUTS.with(|c| {
+        let (n, w) = c.get();
+        c.set((n.wrapping_add(1), w.saturating_add(waited)));
+    });
+    Ok(conn?)
+}
+
+/// Pooled connections taken on this thread so far, and the time it spent
+/// waiting for them. A pool with no free connection holds the thread for
+/// the whole wait, so a test on a current-thread runtime reads it to prove
+/// a request never took one on the runtime that carries the feed and the
+/// risk owners (`tests/it/polled_reads.rs`).
+pub fn checkouts() -> (u32, Duration) {
+    CHECKOUTS.with(std::cell::Cell::get)
+}
+
 /// Build a pool with the pragmas every connection needs, at the store's
 /// [`Durability`], applied to each connection the pool opens.
 pub fn open_pool(
@@ -134,7 +162,7 @@ impl SqliteDb {
 
     /// Check out a pooled connection. Drop it before any network await.
     pub fn conn(&self) -> Result<DbConn> {
-        Ok(self.pool.get()?)
+        checkout(&self.pool)
     }
 
     /// Open and idle pooled connections (health monitor).

@@ -851,6 +851,15 @@ Every flaky test found so far was a race, not a slow machine:
   remainder, bound the test with `on_watched_runtime` and
   `IdleLog::longest_hold`, the longest the runtime thread ran without going
   idle, instead of raising the bound.
+- A synchronous database call on the runtime waits for a free pooled
+  connection for as long as other requests' blocking reads hold the pool.
+  The strategy pages and `/api/v1/strategy` looked their strategy up that
+  way (one request alone 114 and 173 ms on macOS runners, 201 ms under
+  llvm-cov); they read it off the runtime now
+  (`StrategyModule::owned_strategy`). A runtime test counts the pooled
+  connections taken on its runtime thread (`db::sqlite::checkouts`, as
+  `polled_reads` does) as well as bounding the hold: the count fails on
+  every run, the bound only when the wait happened to be long.
 - An `/api/v1` call with a key no cache knows yet (the first after a start,
   a sign-out, a new key or a broker session change) verifies it: an index
   query, one Argon2 run and a `last_used_at` write. Inline in

@@ -116,7 +116,7 @@ fn store_error(e: AppError) -> Response {
 
 /// `(row)` for an owner-scoped route, or the 404 that hides another user's id.
 /// The helpers' error replies are boxed: a reply is large.
-fn resolve(
+async fn resolve(
     ctx: &AppState,
     user: &str,
     sid: &str,
@@ -124,7 +124,7 @@ fn resolve(
     let Ok(id) = sid.parse::<i64>() else {
         return Err(Box::new(err(NOT_FOUND, StatusCode::NOT_FOUND)));
     };
-    match ctx.strategy.store.get_strategy(id, user) {
+    match ctx.strategy.owned_strategy(id, user).await {
         Ok(Some(r)) => Ok(r),
         Ok(None) => Err(Box::new(err(NOT_FOUND, StatusCode::NOT_FOUND))),
         // Not "not found" (SM-04): a stop or a kill switch must not be told
@@ -264,7 +264,7 @@ pub async fn create(State(ctx): Ctx, User(u): User, body: Bytes) -> Response {
 
 /// GET /strategy/api/strategies/{sid}
 pub async fn detail(State(ctx): Ctx, User(u): User, Path(sid): Path<String>) -> Response {
-    let row = match resolve(&ctx, &u.username, &sid) {
+    let row = match resolve(&ctx, &u.username, &sid).await {
         Ok(r) => r,
         Err(r) => return *r,
     };
@@ -367,7 +367,7 @@ pub async fn update(
     Path(sid): Path<String>,
     body: Bytes,
 ) -> Response {
-    let row = match resolve(&ctx, &u.username, &sid) {
+    let row = match resolve(&ctx, &u.username, &sid).await {
         Ok(r) => r,
         Err(r) => return *r,
     };
@@ -410,7 +410,7 @@ pub async fn update(
 
 /// DELETE /strategy/api/strategies/{sid}
 pub async fn delete(State(ctx): Ctx, User(u): User, Path(sid): Path<String>) -> Response {
-    let row = match resolve(&ctx, &u.username, &sid) {
+    let row = match resolve(&ctx, &u.username, &sid).await {
         Ok(r) => r,
         Err(r) => return *r,
     };
@@ -428,7 +428,7 @@ pub async fn delete(State(ctx): Ctx, User(u): User, Path(sid): Path<String>) -> 
 
 /// POST /strategy/api/strategies/{sid}/webhook/rotate
 pub async fn rotate_webhook(State(ctx): Ctx, User(u): User, Path(sid): Path<String>) -> Response {
-    let row = match resolve(&ctx, &u.username, &sid) {
+    let row = match resolve(&ctx, &u.username, &sid).await {
         Ok(r) => r,
         Err(r) => return *r,
     };
@@ -458,7 +458,7 @@ pub async fn set_live(
     Path(sid): Path<String>,
     body: Bytes,
 ) -> Response {
-    let row = match resolve(&ctx, &u.username, &sid) {
+    let row = match resolve(&ctx, &u.username, &sid).await {
         Ok(r) => r,
         Err(r) => return *r,
     };
@@ -511,7 +511,7 @@ pub async fn set_live(
 /// POST /strategy/api/strategies/{sid}/kill_switch: lock the webhook, then
 /// flatten. The lock goes on first so a signal mid-flatten cannot re-enter.
 pub async fn kill_switch(State(ctx): Ctx, User(u): User, Path(sid): Path<String>) -> Response {
-    let row = match resolve(&ctx, &u.username, &sid) {
+    let row = match resolve(&ctx, &u.username, &sid).await {
         Ok(r) => r,
         Err(r) => return *r,
     };
@@ -571,7 +571,7 @@ pub async fn kill_switch(State(ctx): Ctx, User(u): User, Path(sid): Path<String>
 
 /// POST /strategy/api/strategies/{sid}/unlock_webhook
 pub async fn unlock_webhook(State(ctx): Ctx, User(u): User, Path(sid): Path<String>) -> Response {
-    let row = match resolve(&ctx, &u.username, &sid) {
+    let row = match resolve(&ctx, &u.username, &sid).await {
         Ok(r) => r,
         Err(r) => return *r,
     };
@@ -595,7 +595,7 @@ pub async fn start(
     Path(sid): Path<String>,
     body: Bytes,
 ) -> Response {
-    let row = match resolve(&ctx, &u.username, &sid) {
+    let row = match resolve(&ctx, &u.username, &sid).await {
         Ok(r) => r,
         Err(r) => return *r,
     };
@@ -631,7 +631,7 @@ pub async fn start(
 }
 
 async fn stop_for(ctx: &AppState, user: &str, sid: &str, event: bool) -> Response {
-    let row = match resolve(ctx, user, sid) {
+    let row = match resolve(ctx, user, sid).await {
         Ok(r) => r,
         Err(r) => return *r,
     };
@@ -680,7 +680,7 @@ pub async fn close_leg(
     User(u): User,
     Path((sid, leg_id)): Path<(String, String)>,
 ) -> Response {
-    let row = match resolve(&ctx, &u.username, &sid) {
+    let row = match resolve(&ctx, &u.username, &sid).await {
         Ok(r) => r,
         Err(r) => return *r,
     };

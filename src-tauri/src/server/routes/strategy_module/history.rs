@@ -20,7 +20,7 @@ use std::collections::HashMap;
 
 /// GET .../runs
 pub async fn runs(State(ctx): Ctx, User(u): User, Path(sid): Path<String>) -> Response {
-    let row = match resolve(&ctx, &u.username, &sid) {
+    let row = match resolve(&ctx, &u.username, &sid).await {
         Ok(r) => r,
         Err(r) => return *r,
     };
@@ -35,7 +35,7 @@ pub async fn orders(
     Path(sid): Path<String>,
     Query(q): Q,
 ) -> Response {
-    let row = match resolve(&ctx, &u.username, &sid) {
+    let row = match resolve(&ctx, &u.username, &sid).await {
         Ok(r) => r,
         Err(r) => return *r,
     };
@@ -65,7 +65,7 @@ pub async fn events(
     Path(sid): Path<String>,
     Query(q): Q,
 ) -> Response {
-    let row = match resolve(&ctx, &u.username, &sid) {
+    let row = match resolve(&ctx, &u.username, &sid).await {
         Ok(r) => r,
         Err(r) => return *r,
     };
@@ -111,7 +111,7 @@ pub async fn events(
 
 /// GET .../webhook_events
 pub async fn webhook_events(State(ctx): Ctx, User(u): User, Path(sid): Path<String>) -> Response {
-    let row = match resolve(&ctx, &u.username, &sid) {
+    let row = match resolve(&ctx, &u.username, &sid).await {
         Ok(r) => r,
         Err(r) => return *r,
     };
@@ -129,7 +129,7 @@ async fn book(
     q: &HashMap<String, String>,
     which: u8,
 ) -> Response {
-    let row = match resolve(ctx, user, sid) {
+    let row = match resolve(ctx, user, sid).await {
         Ok(r) => r,
         Err(r) => return *r,
     };
@@ -191,7 +191,7 @@ pub async fn checkpoints(
     Path(sid): Path<String>,
     Query(q): Q,
 ) -> Response {
-    let row = match resolve(&ctx, &u.username, &sid) {
+    let row = match resolve(&ctx, &u.username, &sid).await {
         Ok(r) => r,
         Err(r) => return *r,
     };
