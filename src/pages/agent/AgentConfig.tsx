@@ -36,9 +36,9 @@
  * render error so one broken panel cannot take the other two down with it.
  *
  * Desktop: a Trading safety section follows Trading (decision 1 of the 1.0.4
- * plan: every setting reachable in the app), and the ChatGPT subscription,
- * Voice, Web search and External data sections are added by the parts that
- * own them, each at its web position marked below.
+ * plan: every setting reachable in the app), and the Voice and External data
+ * sections are added by the parts that own them, each at its web position
+ * marked below.
  */
 
 import { ArrowLeft, Plus } from 'lucide-react'
@@ -46,10 +46,12 @@ import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { AddModelDialog } from '@/components/agent/config/AddModelDialog'
+import { ChatGptSubscriptionPanel } from '@/components/agent/config/ChatGptSubscriptionPanel'
 import { ProviderCatalogPanel } from '@/components/agent/config/ProviderCatalogPanel'
 import { RegisteredModelsTable } from '@/components/agent/config/RegisteredModelsTable'
 import { TradingPanel } from '@/components/agent/config/TradingPanel'
 import { TradingSafetyPanel } from '@/components/agent/config/TradingSafetyPanel'
+import { WebSearchPanel } from '@/components/agent/config/WebSearchPanel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Navbar } from '@/components/layout/Navbar'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -139,7 +141,9 @@ export default function AgentConfig() {
                 that way once. This panel is the answer to a question an
                 operator arrives with ("where is my ChatGPT plan"), so it sits
                 where they land. */}
-            {/* The ChatGPT subscription section goes here (the ChatGPT part). */}
+            <Section name="The ChatGPT subscription">
+              <ChatGptSubscriptionPanel />
+            </Section>
             <Section name="Trading">
               <TradingPanel />
             </Section>
@@ -158,8 +162,10 @@ export default function AgentConfig() {
             <Section name="The provider catalog">
               <ProviderCatalogPanel />
             </Section>
-            {/* The Web search section goes here (the web search part), then
-                External data (the external data part). */}
+            <Section name="Web search">
+              <WebSearchPanel />
+            </Section>
+            {/* External data goes here (the external data part). */}
           </div>
         </div>
       </div>
