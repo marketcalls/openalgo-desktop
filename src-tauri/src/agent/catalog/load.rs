@@ -88,7 +88,8 @@ fn build(
     entries: HashMap<String, Entry>,
     extra: &[(String, Vec<String>)],
 ) -> Catalog {
-    let providers = s
+    let mut entries = entries;
+    let mut providers: Vec<(String, Vec<String>)> = s
         .models
         .iter()
         .map(|(p, listed, _)| {
@@ -99,6 +100,9 @@ fn build(
             (p.clone(), names)
         })
         .collect();
+    // The plan models the table lacks (the web registers them on every
+    // build too).
+    crate::agent::chatgpt::models::register(&mut entries, &mut providers);
     let mut provider_ids = s.provider_ids.clone();
     provider_ids.extend(entries.values().map(|e| e.provider.clone()));
     provider_ids.remove("");

@@ -296,6 +296,7 @@ impl crate::agent::AgentModule {
         let module = Self::new();
         module.set_resolver(Arc::new(RegistryResolver));
         module.set_policy(Arc::new(crate::agent::settings::policy::SettingsPolicy));
+        module.set_plan(Arc::new(crate::agent::chatgpt::ChatGptPlan::default()));
         module
     }
 }

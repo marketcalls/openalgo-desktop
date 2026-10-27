@@ -123,6 +123,8 @@ impl ModelClient {
             options = options.with_extra_headers(auth.headers.clone());
         }
         let options = adjust(options);
+        // A ChatGPT plan's request, as the web's LiteLLM sends it.
+        let (request, options) = crate::agent::chatgpt::codex::shape(model, request, options);
         self.genai
             .exec_chat_stream(target, request, Some(&options))
             .await

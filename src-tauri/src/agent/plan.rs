@@ -15,7 +15,7 @@ use std::sync::Arc;
 pub const NOT_SIGNED_IN: &str = "This model runs on a ChatGPT subscription and no subscription is authorised. Sign in to ChatGPT from agent settings.";
 
 /// The ChatGPT plan's sign-in.
-pub trait PlanSignIn: Send + Sync {
+pub trait PlanSignIn: std::any::Any + Send + Sync {
     /// Whether a plan turn can authenticate now: no network, never a
     /// device login (the setup gate's `chatgpt_authorised`).
     fn is_authorised(&self, app: &AppState) -> bool;
@@ -27,6 +27,10 @@ pub trait PlanSignIn: Send + Sync {
     /// The credential each plan request fetches: the access token, renewed
     /// when it is about to expire, and the account header.
     fn credentials(&self, app: &Arc<AppState>) -> Arc<dyn ProviderCredentials>;
+
+    /// The app signs out, locks, resets or quits: a sign-in waiting for
+    /// approval stops (no network, no wait).
+    fn stop(&self) {}
 }
 
 /// No plan signed in: what the app has until the ChatGPT part installs its

@@ -10,6 +10,7 @@
 //! 12 MB body.
 
 pub mod chat;
+pub mod chatgpt;
 pub mod config;
 pub mod conversations;
 
@@ -38,6 +39,7 @@ pub const MAX_REQUEST_BYTES: usize = 12_000_000;
 pub fn table() -> Vec<RouteSpec> {
     let mut routes = chat_table();
     routes.extend(config::table());
+    routes.extend(chatgpt::table());
     routes
 }
 
