@@ -14,8 +14,10 @@
 //! crate, which the HTTP client parses the request with too), and the
 //! parsed form is what is stored and later requested, so the guard and the
 //! request cannot read the address differently. Text a parser may read two
-//! ways is refused before parsing: a backslash (read as a slash), and any
-//! space, tab, line break or control character (dropped by the standard).
+//! ways is refused before parsing: a backslash (read as a slash), any
+//! space, tab, line break or control character (dropped by the standard),
+//! and any '@' (where a user name would start; the web refused one in the
+//! authority, and no provider endpoint needs one).
 //! The host decides by what it is, however it is spelled: `2130706433`,
 //! `0x7f.1` and `[::ffff:127.0.0.1]` are the loopback address, and
 //! `2852039166` and `[::ffff:a9fe:a9fe]` the metadata address.
@@ -89,6 +91,12 @@ pub fn check(text: &str) -> Result<Url, String> {
     }
     if !matches!(scheme_of(text).as_str(), "http" | "https") {
         return Err(BAD_SCHEME.into());
+    }
+    // Any '@' at all, as the web refuses one in the authority: a blanket
+    // rule reads the same in every parser, and no provider endpoint needs
+    // one. The parsed user name and password are checked again below.
+    if text.contains('@') {
+        return Err(HAS_CREDENTIALS.into());
     }
     let parsed = Url::parse(text).map_err(|_| NOT_PARSED.to_string())?;
     if !matches!(parsed.scheme(), "http" | "https") {

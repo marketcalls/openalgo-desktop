@@ -138,10 +138,14 @@
   {
    "url": "http://@example.com/",
    "kind": "openai_compatible",
-   "error": null,
-   "normalized": "http://example.com",
-   "class": "other",
-   "why": "an empty user part carries no credential (the web refused it)"
+   "error": "The base URL must not carry a username or password",
+   "why": "an empty user part: the web refused it, and any @ is refused before parsing"
+  },
+  {
+   "url": "http://example.com/v1/@models",
+   "kind": "openai_compatible",
+   "error": "The base URL must not carry a username or password",
+   "why": "an @ anywhere, the path included"
   },
   {
    "url": "  http://localhost:1234/v1/  ",

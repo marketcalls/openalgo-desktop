@@ -15,8 +15,8 @@
  *
  * Every decision is made on one parse, the URL standard's, which is how the
  * request reads the address too. Text a parser may read two ways is refused
- * first: a backslash (read as a slash) and any space, tab, line break or
- * control character (dropped by the standard). The host decides by what it
+ * first: a backslash (read as a slash), any space, tab, line break or control
+ * character (dropped by the standard), and any '@' (where a user name starts). The host decides by what it
  * is, however it is spelled (`2130706433` and `[::ffff:127.0.0.1]` are this
  * computer; `2852039166` is the metadata address).
  */
@@ -95,6 +95,9 @@ export function baseUrlProblem(value: string): string | null {
   if (AMBIGUOUS.test(url)) return BASE_URL_MESSAGES.characters
   const scheme = schemeOf(url)
   if (scheme !== 'http' && scheme !== 'https') return BASE_URL_MESSAGES.scheme
+  // Any '@' at all, as the web refuses one: the same in every parser, and no
+  // provider endpoint needs one. The parsed user name is checked again below.
+  if (url.includes('@')) return BASE_URL_MESSAGES.credentials
   let parsed: URL
   try {
     parsed = new URL(url)
