@@ -4,7 +4,8 @@
 //! the model reads `indicator`, `category`, `description`, `params_used`, ...
 //! in that order. `serde_json::Value` sorts object keys (the crate is built
 //! without `preserve_order`, which the `/api/v1` contract relies on), so the
-//! results are built as this type and serialised from it directly.
+//! results are built as this type and serialised from it directly
+//! (`ToolOutcome::json_ordered`).
 
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
@@ -67,12 +68,6 @@ impl Json {
             _ => None,
         }
     }
-
-    /// The compact text the web's `json.dumps(..., separators=(",", ":"))`
-    /// gives, keys in order.
-    pub(crate) fn to_text(&self) -> String {
-        serde_json::to_string(self).unwrap_or_else(|_| "null".into())
-    }
 }
 
 impl Serialize for Json {
@@ -111,7 +106,10 @@ mod tests {
         let mut j = Json::obj([("b", Json::Int(1)), ("a", Json::Num(f64::NAN))]);
         j.set("b", Json::Bool(true));
         j.set("c", Json::str("x"));
-        assert_eq!(j.to_text(), r#"{"b":true,"a":null,"c":"x"}"#);
+        assert_eq!(
+            serde_json::to_string(&j).expect("serialises"),
+            r#"{"b":true,"a":null,"c":"x"}"#
+        );
         assert_eq!(j.get("c"), Some(&Json::str("x")));
     }
 }
