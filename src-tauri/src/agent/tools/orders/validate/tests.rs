@@ -50,7 +50,11 @@ fn every_answer_matches_the_webs() {
     for (i, vector) in vectors.iter().enumerate() {
         let name = vector["fn"].as_str().unwrap();
         let got = run(name, &vector["args"]);
-        assert_eq!(got, vector["expect"], "vector {} {} {}", i, name, vector["args"]);
+        assert_eq!(
+            got, vector["expect"],
+            "vector {} {} {}",
+            i, name, vector["args"]
+        );
     }
     assert!(vectors.len() > 90, "{}", vectors.len());
 }

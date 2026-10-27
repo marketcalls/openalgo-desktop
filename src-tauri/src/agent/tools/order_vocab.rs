@@ -37,7 +37,10 @@ const PRICE_TYPE_ALIASES: [(&str, &str); 8] = [
 const ACTION_ALIASES: [(&str, &str); 2] = [("B", "BUY"), ("S", "SELL")];
 
 fn alias(table: &[(&str, &str)], key: &str) -> Option<String> {
-    table.iter().find(|(k, _)| *k == key).map(|(_, v)| v.to_string())
+    table
+        .iter()
+        .find(|(k, _)| *k == key)
+        .map(|(_, v)| v.to_string())
 }
 
 fn upper(value: Option<&str>) -> String {

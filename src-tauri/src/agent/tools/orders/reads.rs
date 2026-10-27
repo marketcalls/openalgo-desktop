@@ -42,7 +42,10 @@ fn source(body: &Value) -> &Value {
 
 async fn read(ctx: &ToolCtx, label: &str, endpoint: &str, payload: Value) -> Option<Value> {
     let payload: Map<String, Value> = payload.as_object().cloned().unwrap_or_default();
-    match unwrap(label, ctx.api_post(endpoint, payload, SERVICE_TIMEOUT).await) {
+    match unwrap(
+        label,
+        ctx.api_post(endpoint, payload, SERVICE_TIMEOUT).await,
+    ) {
         Ok(body) if body.is_object() => Some(body),
         Ok(_) | Err(_) => None,
     }
@@ -50,7 +53,11 @@ async fn read(ctx: &ToolCtx, label: &str, endpoint: &str, payload: Value) -> Opt
 
 /// The last traded price, as the quote carried it (so the guard prints it
 /// as the web does), or `None` when there is no usable one.
-pub(super) async fn last_traded_price(ctx: &ToolCtx, symbol: &str, exchange: &str) -> Option<Value> {
+pub(super) async fn last_traded_price(
+    ctx: &ToolCtx,
+    symbol: &str,
+    exchange: &str,
+) -> Option<Value> {
     let Some(body) = read(
         ctx,
         "quotes_service.get_quotes",
@@ -104,7 +111,10 @@ pub(super) fn analyzer_mode(ctx: &ToolCtx) -> Option<bool> {
     match ctx.app.sqlite.get_analyze_mode() {
         Ok(on) => Some(on),
         Err(e) => {
-            tracing::error!("Agent order tools could not read the platform analyzer toggle: {}", e);
+            tracing::error!(
+                "Agent order tools could not read the platform analyzer toggle: {}",
+                e
+            );
             None
         }
     }

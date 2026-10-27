@@ -48,7 +48,9 @@ fn text_of(v: &Value) -> Option<String> {
 /// Why an order on a quote-only index code cannot be placed, naming the
 /// venue its contracts trade on; `None` for any other exchange.
 pub fn index_refusal(exchange: &str) -> Option<String> {
-    let (_, venue) = INDEX_TRADING_VENUES.iter().find(|(code, _)| *code == exchange)?;
+    let (_, venue) = INDEX_TRADING_VENUES
+        .iter()
+        .find(|(code, _)| *code == exchange)?;
     Some(match venue {
         None => format!(
             "{} is a quote-only code for a global index, and there is no contract for it that this platform can trade.",
@@ -167,7 +169,10 @@ pub(super) fn whole_number(field: &str, value: &Value, minimum: Option<i64>) -> 
             Some("Pass a whole number of units, for example 10."),
         ));
     };
-    let Some(number) = (parsed == parsed.trunc()).then(|| parsed.to_i64()).flatten() else {
+    let Some(number) = (parsed == parsed.trunc())
+        .then(|| parsed.to_i64())
+        .flatten()
+    else {
         return Err(ToolOutcome::invalid_argument(
             field,
             &format!("{} is not a whole number, and quantities are in units rather than fractions.", parsed),
@@ -177,7 +182,10 @@ pub(super) fn whole_number(field: &str, value: &Value, minimum: Option<i64>) -> 
     if let Some(min) = minimum.filter(|m| number < *m) {
         return Err(ToolOutcome::invalid_argument(
             field,
-            &format!("{} is below the smallest permitted value of {}.", number, min),
+            &format!(
+                "{} is below the smallest permitted value of {}.",
+                number, min
+            ),
             Some("Quantity is a positive whole number of units, never lots and never zero."),
         ));
     }
@@ -245,7 +253,10 @@ fn prices(kind: &str, args: &Map<String, Value>) -> Check<(f64, f64)> {
 
 /// The service payload in the service's own field names, tagged with the
 /// Agent's strategy and carrying no credential (the web's `_build_order`).
-pub(super) fn build_order(args: &Map<String, Value>, allow_zero_quantity: bool) -> Check<Map<String, Value>> {
+pub(super) fn build_order(
+    args: &Map<String, Value>,
+    allow_zero_quantity: bool,
+) -> Check<Map<String, Value>> {
     let kind = price_type(arg(args, "price_type"))?;
     let (limit_price, trigger) = prices(&kind, args)?;
     let (bare, venue) = split_exchange_prefix(
@@ -254,11 +265,21 @@ pub(super) fn build_order(args: &Map<String, Value>, allow_zero_quantity: bool) 
     )?;
     let mut order = Map::new();
     order.insert("strategy".into(), json!(AGENT_STRATEGY));
-    order.insert("symbol".into(), json!(required_text("symbol", &json!(bare))?.to_uppercase()));
+    order.insert(
+        "symbol".into(),
+        json!(required_text("symbol", &json!(bare))?.to_uppercase()),
+    );
     order.insert("exchange".into(), json!(exchange(&json!(venue))?));
     order.insert("action".into(), json!(action(arg(args, "action"))?));
     let minimum = if allow_zero_quantity { 0 } else { 1 };
-    order.insert("quantity".into(), json!(whole_number("quantity", arg(args, "quantity"), Some(minimum))?));
+    order.insert(
+        "quantity".into(),
+        json!(whole_number(
+            "quantity",
+            arg(args, "quantity"),
+            Some(minimum)
+        )?),
+    );
     order.insert("product".into(), json!(product(arg(args, "product"))?));
     order.insert("pricetype".into(), json!(kind));
     order.insert("price".into(), json!(limit_price));

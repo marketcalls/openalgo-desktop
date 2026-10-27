@@ -362,11 +362,17 @@ mod tests {
         assert_eq!(l.max_price_deviation_pct, Decimal::from(100));
         assert_eq!(
             l.allowed_exchanges,
-            ["NFO", "NSE"].iter().map(|s| s.to_string()).collect::<BTreeSet<String>>()
+            ["NFO", "NSE"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<BTreeSet<String>>()
         );
         assert_eq!(
             l.allowed_products,
-            ["CNC", "MIS"].iter().map(|s| s.to_string()).collect::<BTreeSet<String>>()
+            ["CNC", "MIS"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<BTreeSet<String>>()
         );
         assert!(l.symbol_blocklist.is_empty() && l.symbol_allowlist.is_empty());
         assert_eq!(l.kill_switch_path, dir.join("stop_here"));

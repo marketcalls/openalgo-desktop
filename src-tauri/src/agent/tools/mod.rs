@@ -26,8 +26,8 @@ pub const TOOLKITS: &[ToolGroup] = &[
     // Toolkit lanes add their line here, for example:
     // market::GROUP,     // order 10, every surface
     orders::GROUP, // order 50, every surface, requires Trading
-    //
-    // Later: flow_gen::GROUP (order 70, chat only), not in this version.
+                   //
+                   // Later: flow_gen::GROUP (order 70, chat only), not in this version.
 ];
 
 /// The groups a run is offered, ordered by `order` then `key`.

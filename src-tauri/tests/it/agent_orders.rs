@@ -68,7 +68,10 @@ fn tool(ctx: &ToolCtx, name: &str) -> Arc<dyn AgentTool> {
 
 /// What the model reads: the JSON inside the `<tool_result>` block.
 async fn call(ctx: &ToolCtx, name: &str, args: Value) -> Value {
-    match tool(ctx, name).call(ctx, args.as_object().cloned().unwrap()).await {
+    match tool(ctx, name)
+        .call(ctx, args.as_object().cloned().unwrap())
+        .await
+    {
         ToolOutcome::Ok(text) => {
             let start = text.find('\n').unwrap();
             let end = text.rfind('\n').unwrap();
@@ -120,7 +123,10 @@ async fn an_approved_order_in_analyzer_mode_goes_to_the_sandbox() {
     assert_eq!(placed(&h), 0, "nothing reached the broker");
     let rows = trail(&h).await;
     let (result, attempt) = (&rows[0], &rows[1]);
-    assert_eq!((attempt["phase"].as_str(), result["phase"].as_str()), (Some("attempt"), Some("result")));
+    assert_eq!(
+        (attempt["phase"].as_str(), result["phase"].as_str()),
+        (Some("attempt"), Some("result"))
+    );
     assert_eq!(result["attempt_id"], attempt["id"]);
     assert_eq!(result["ok"], true);
     assert_eq!(result["risk_verdict"], "ok");
@@ -136,13 +142,22 @@ async fn an_approved_order_in_analyzer_mode_goes_to_the_sandbox() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn semi_auto_queues_new_orders_and_refuses_the_rest() {
     let h = H::new().await;
-    settings(&h, &[("trading_enabled", "true"), ("allow_bulk_destructive", "true")]);
+    settings(
+        &h,
+        &[
+            ("trading_enabled", "true"),
+            ("allow_bulk_destructive", "true"),
+        ],
+    );
     h.analyze(false);
     ApiKeyService::set_order_mode(&h.ctx, "semi_auto").unwrap();
     let ctx = run(&h, "semi");
     let out = call(&ctx, "place_order", buy("SBIN")).await;
     assert_eq!(out["ok"], true, "{}", out);
-    assert_eq!(out["response"]["message"], "Order queued for approval in Action Center");
+    assert_eq!(
+        out["response"]["message"],
+        "Order queued for approval in Action Center"
+    );
     assert_eq!(out["response"]["mode"], "semi_auto");
     assert!(out["response"]["pending_order_id"].is_i64(), "{}", out);
     assert_eq!(out["order_ids"], json!([]));
@@ -171,7 +186,10 @@ async fn a_broker_refusal_gives_the_claim_back_and_says_why() {
     let h = H::new().await;
     trading(&h);
     h.analyze(false);
-    h.mock.order_ids.lock().push_back(Err("Invalid quantity".into()));
+    h.mock
+        .order_ids
+        .lock()
+        .push_back(Err("Invalid quantity".into()));
     let ctx = run(&h, "refused");
     let out = call(&ctx, "place_order", buy("SBIN")).await;
     assert_eq!(out["ok"], false, "{}", out);
@@ -179,7 +197,11 @@ async fn a_broker_refusal_gives_the_claim_back_and_says_why() {
     assert_eq!(out["retry"], false);
     let message = out["message"].as_str().unwrap();
     assert!(message.contains("Invalid quantity"), "{}", message);
-    assert!(!message.contains("call the tool again") && !message.contains("HTTP"), "{}", message);
+    assert!(
+        !message.contains("call the tool again") && !message.contains("HTTP"),
+        "{}",
+        message
+    );
     let again = call(&ctx, "place_order", buy("SBIN")).await;
     assert_eq!(again["ok"], true, "the claim was given back: {}", again);
     h.shutdown().await;
@@ -194,19 +216,35 @@ async fn a_lost_answer_is_unknown_and_never_sent_twice() {
     let h = H::new().await;
     trading(&h);
     h.analyze(false);
-    h.mock.after_send.lock().push_back((AfterSend::Dropped, "open"));
+    h.mock
+        .after_send
+        .lock()
+        .push_back((AfterSend::Dropped, "open"));
     let ctx = run(&h, "lost");
     let out = call(&ctx, "place_order", buy("SBIN")).await;
     assert_eq!(out["status"], "unknown", "{}", out);
     assert_eq!(out["retry"], false);
-    assert!(out["message"].as_str().unwrap().contains("do NOT send it again"));
+    assert!(out["message"]
+        .as_str()
+        .unwrap()
+        .contains("do NOT send it again"));
     let again = call(&ctx, "place_order", buy("SBIN")).await;
     assert_eq!(again["status"], "blocked", "{}", again);
     assert_eq!(again["code"], "duplicate_order");
     assert_eq!(placed(&h), 1, "the order reached the broker once");
     let rows = trail(&h).await;
-    let unknown = rows.iter().find(|r| r["response"]["status"] == "unknown").unwrap();
-    assert!(unknown["response"]["exception"].as_str().unwrap().starts_with("Uncertain"), "{}", unknown);
+    let unknown = rows
+        .iter()
+        .find(|r| r["response"]["status"] == "unknown")
+        .unwrap();
+    assert!(
+        unknown["response"]["exception"]
+            .as_str()
+            .unwrap()
+            .starts_with("Uncertain"),
+        "{}",
+        unknown
+    );
     h.shutdown().await;
 }
 
@@ -215,10 +253,19 @@ async fn a_lost_answer_is_unknown_and_never_sent_twice() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_session_cap_and_duplicate_window_survive_a_restart() {
     let h = H::new().await;
-    settings(&h, &[("trading_enabled", "true"), ("max_orders_per_session", "1")]);
+    settings(
+        &h,
+        &[("trading_enabled", "true"), ("max_orders_per_session", "1")],
+    );
     h.analyze(true);
-    assert_eq!(call(&run(&h, "capped"), "place_order", buy("SBIN")).await["ok"], true);
-    assert_eq!(call(&run(&h, "window"), "place_order", buy("INFY")).await["ok"], true);
+    assert_eq!(
+        call(&run(&h, "capped"), "place_order", buy("SBIN")).await["ok"],
+        true
+    );
+    assert_eq!(
+        call(&run(&h, "window"), "place_order", buy("INFY")).await["ok"],
+        true
+    );
     let h = h.restart().await;
     h.analyze(true);
     let capped = call(&run(&h, "capped"), "place_order", buy("TCS")).await;
@@ -240,7 +287,10 @@ async fn the_kill_switch_stops_every_order_tool_until_released() {
     let out = call(&ctx, "place_order", buy("SBIN")).await;
     assert_eq!(out["code"], "kill_switch", "{}", out);
     assert_eq!(out["risk"]["details"]["source"], "file");
-    assert_eq!(call(&ctx, "cancel_order", json!({"order_id": "A1"})).await["code"], "kill_switch");
+    assert_eq!(
+        call(&ctx, "cancel_order", json!({"order_id": "A1"})).await["code"],
+        "kill_switch"
+    );
     kill_switch::set_for(&h.ctx, false).unwrap();
     assert_eq!(call(&ctx, "place_order", buy("SBIN")).await["ok"], true);
     settings(&h, &[("kill_switch", "true")]);
@@ -259,14 +309,29 @@ async fn trading_switch_analyzer_only_and_bulk_permission_are_enforced() {
     let h = H::new().await;
     h.analyze(false);
     let ctx = run(&h, "switches");
-    assert_eq!(call(&ctx, "place_order", buy("SBIN")).await["code"], "trading_disabled");
-    settings(&h, &[("trading_enabled", "true"), ("require_analyzer_mode", "true")]);
-    assert_eq!(call(&ctx, "place_order", buy("SBIN")).await["code"], "analyzer_required");
+    assert_eq!(
+        call(&ctx, "place_order", buy("SBIN")).await["code"],
+        "trading_disabled"
+    );
+    settings(
+        &h,
+        &[
+            ("trading_enabled", "true"),
+            ("require_analyzer_mode", "true"),
+        ],
+    );
+    assert_eq!(
+        call(&ctx, "place_order", buy("SBIN")).await["code"],
+        "analyzer_required"
+    );
     h.analyze(true);
     assert_eq!(call(&ctx, "place_order", buy("SBIN")).await["ok"], true);
     let bulk = call(&ctx, "cancel_all_orders", json!({})).await;
     assert_eq!(bulk["code"], "bulk_operation_not_allowed", "{}", bulk);
-    assert_eq!(call(&ctx, "close_all_positions", json!({})).await["code"], "bulk_operation_not_allowed");
+    assert_eq!(
+        call(&ctx, "close_all_positions", json!({})).await["code"],
+        "bulk_operation_not_allowed"
+    );
     settings(&h, &[("allow_bulk_destructive", "true")]);
     let allowed = call(&ctx, "cancel_all_orders", json!({})).await;
     assert_eq!(allowed["ok"], true, "{}", allowed);
@@ -278,17 +343,33 @@ async fn trading_switch_analyzer_only_and_bulk_permission_are_enforced() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn quantity_value_and_price_limits_hold_for_new_and_modified_orders() {
     let h = H::new().await;
-    settings(&h, &[("trading_enabled", "true"), ("max_order_quantity", "100"), ("max_order_value", "1000")]);
+    settings(
+        &h,
+        &[
+            ("trading_enabled", "true"),
+            ("max_order_quantity", "100"),
+            ("max_order_value", "1000"),
+        ],
+    );
     h.analyze(true);
     let ctx = run(&h, "limits");
     let big = json!({"symbol": "SBIN", "exchange": "NSE", "action": "BUY", "quantity": 101, "product": "MIS"});
-    assert_eq!(call(&ctx, "place_order", big).await["code"], "quantity_exceeded");
+    assert_eq!(
+        call(&ctx, "place_order", big).await["code"],
+        "quantity_exceeded"
+    );
     let dear = json!({"symbol": "SBIN", "exchange": "NSE", "action": "BUY", "quantity": 100, "product": "MIS"});
-    assert_eq!(call(&ctx, "place_order", dear).await["code"], "notional_exceeded");
+    assert_eq!(
+        call(&ctx, "place_order", dear).await["code"],
+        "notional_exceeded"
+    );
     settings(&h, &[("max_order_value", "100000000")]);
     let far = json!({"symbol": "SBIN", "exchange": "NSE", "action": "BUY", "quantity": 1, "product": "MIS",
         "price_type": "LIMIT", "price": 1.0});
-    assert_eq!(call(&ctx, "place_order", far).await["code"], "price_deviation");
+    assert_eq!(
+        call(&ctx, "place_order", far).await["code"],
+        "price_deviation"
+    );
     let modify = json!({"order_id": "A1", "symbol": "SBIN", "exchange": "NSE", "action": "BUY",
         "quantity": 101, "product": "MIS", "price_type": "MARKET"});
     let out = call(&ctx, "modify_order", modify).await;
@@ -308,7 +389,11 @@ async fn a_fixable_argument_is_a_correction_with_its_audit_pair() {
     args["price"] = json!(1450.5);
     let out = call(&run(&h, "fix"), "place_order", args).await;
     let text = out["retry"].as_str().unwrap();
-    assert!(text.starts_with("The 'price' argument is invalid: a MARKET order carries no limit price"), "{}", text);
+    assert!(
+        text.starts_with("The 'price' argument is invalid: a MARKET order carries no limit price"),
+        "{}",
+        text
+    );
     assert_eq!(placed(&h), 0);
     let rows = trail(&h).await;
     assert_eq!(rows[0]["response"]["stage"], "validation");
@@ -325,28 +410,51 @@ async fn closing_a_position_reads_it_first() {
     trading(&h);
     h.analyze(false);
     let ctx = run(&h, "close");
-    let out = call(&ctx, "close_position", json!({"symbol": "NSE:SBIN", "exchange": "", "product": "intraday"})).await;
+    let out = call(
+        &ctx,
+        "close_position",
+        json!({"symbol": "NSE:SBIN", "exchange": "", "product": "intraday"}),
+    )
+    .await;
     assert_eq!(out["status"], "nothing_to_close", "{}", out);
-    assert_eq!((out["symbol"].as_str(), out["exchange"].as_str(), out["product"].as_str()), (Some("SBIN"), Some("NSE"), Some("MIS")));
-    assert!(out["message"].as_str().unwrap().contains("does not prove the position is closed"));
+    assert_eq!(
+        (
+            out["symbol"].as_str(),
+            out["exchange"].as_str(),
+            out["product"].as_str()
+        ),
+        (Some("SBIN"), Some("NSE"), Some("MIS"))
+    );
+    assert!(out["message"]
+        .as_str()
+        .unwrap()
+        .contains("does not prove the position is closed"));
     assert_eq!(placed(&h), 0);
-    h.mock.positions.lock().replace(Ok(vec![openalgo_desktop_lib::brokers::types::Position {
-        symbol: "SBIN".into(),
-        exchange: "NSE".into(),
-        product: "MIS".into(),
-        quantity: 50,
-        overnight_quantity: 0,
-        average_price: 100.0,
-        ltp: 100.0,
-        pnl: 0.0,
-        realized_pnl: 0.0,
-        unrealized_pnl: 0.0,
-        buy_quantity: 50,
-        buy_value: 5000.0,
-        sell_quantity: 0,
-        sell_value: 0.0,
-    }]));
-    let out = call(&ctx, "close_position", json!({"symbol": "SBIN", "exchange": "NSE", "product": "MIS"})).await;
+    h.mock
+        .positions
+        .lock()
+        .replace(Ok(vec![openalgo_desktop_lib::brokers::types::Position {
+            symbol: "SBIN".into(),
+            exchange: "NSE".into(),
+            product: "MIS".into(),
+            quantity: 50,
+            overnight_quantity: 0,
+            average_price: 100.0,
+            ltp: 100.0,
+            pnl: 0.0,
+            realized_pnl: 0.0,
+            unrealized_pnl: 0.0,
+            buy_quantity: 50,
+            buy_value: 5000.0,
+            sell_quantity: 0,
+            sell_value: 0.0,
+        }]));
+    let out = call(
+        &ctx,
+        "close_position",
+        json!({"symbol": "SBIN", "exchange": "NSE", "product": "MIS"}),
+    )
+    .await;
     assert_eq!(out["ok"], true, "{}", out);
     assert_eq!(placed(&h), 1, "the square-off was sent");
     h.shutdown().await;

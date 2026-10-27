@@ -25,7 +25,9 @@ mod validate;
 #[cfg(test)]
 mod tests;
 
-use crate::agent::contract::tool::{AgentTool, Capability, Surfaces, ToolCtx, ToolGroup, ToolOutcome, ToolSpec};
+use crate::agent::contract::tool::{
+    AgentTool, Capability, Surfaces, ToolCtx, ToolGroup, ToolOutcome, ToolSpec,
+};
 use crate::agent::safety::risk::num::py_str;
 use async_trait::async_trait;
 use serde_json::{Map, Value};
@@ -74,7 +76,11 @@ static SPECS: LazyLock<Vec<ToolSpec>> = LazyLock::new(|| {
             let spec = recorded.iter().find(|s| s["name"] == *name)?;
             Some(ToolSpec {
                 name: *name,
-                description: spec["description"].as_str().unwrap_or_default().to_string().into(),
+                description: spec["description"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string()
+                    .into(),
                 parameters: spec["parameters"].clone(),
                 needs_approval: true,
             })
@@ -107,7 +113,10 @@ fn build(_ctx: &ToolCtx) -> Vec<Arc<dyn AgentTool>> {
 pub struct OrderTool(ToolSpec);
 
 /// The wrapper's labels: the raw arguments the web labels its result with.
-fn attributes(args: &Map<String, Value>, keys: &[(&'static str, &str)]) -> Vec<(&'static str, String)> {
+fn attributes(
+    args: &Map<String, Value>,
+    keys: &[(&'static str, &str)],
+) -> Vec<(&'static str, String)> {
     keys.iter()
         .map(|(label, key)| (*label, py_str(args.get(*key).unwrap_or(&Value::Null))))
         .collect()
@@ -124,19 +133,71 @@ impl AgentTool for OrderTool {
         let a = &args;
         let place = [("symbol", "symbol"), ("exchange", "exchange")];
         match name {
-            "place_order" => pipeline::run_mutation(ctx, name, a, attributes(a, &place), plans::place_order(ctx, a)).await,
-            "place_smart_order" => pipeline::run_mutation(ctx, name, a, attributes(a, &place), plans::place_smart_order(ctx, a)).await,
+            "place_order" => {
+                pipeline::run_mutation(
+                    ctx,
+                    name,
+                    a,
+                    attributes(a, &place),
+                    plans::place_order(ctx, a),
+                )
+                .await
+            }
+            "place_smart_order" => {
+                pipeline::run_mutation(
+                    ctx,
+                    name,
+                    a,
+                    attributes(a, &place),
+                    plans::place_smart_order(ctx, a),
+                )
+                .await
+            }
             "modify_order" => {
-                let labels = attributes(a, &[("symbol", "symbol"), ("exchange", "exchange"), ("order_id", "order_id")]);
+                let labels = attributes(
+                    a,
+                    &[
+                        ("symbol", "symbol"),
+                        ("exchange", "exchange"),
+                        ("order_id", "order_id"),
+                    ],
+                );
                 pipeline::run_mutation(ctx, name, a, labels, plans::modify_order(ctx, a)).await
             }
             "cancel_order" => {
                 let labels = attributes(a, &[("order_id", "order_id")]);
                 pipeline::run_mutation(ctx, name, a, labels, plans::cancel_order(ctx, a)).await
             }
-            "cancel_all_orders" => pipeline::run_mutation(ctx, name, &Map::new(), Vec::new(), plans::cancel_all_orders(ctx, a)).await,
-            "close_position" => pipeline::run_mutation(ctx, name, a, attributes(a, &place), plans::close_position(ctx, a)).await,
-            "close_all_positions" => pipeline::run_mutation(ctx, name, &Map::new(), Vec::new(), plans::close_all_positions(ctx, a)).await,
+            "cancel_all_orders" => {
+                pipeline::run_mutation(
+                    ctx,
+                    name,
+                    &Map::new(),
+                    Vec::new(),
+                    plans::cancel_all_orders(ctx, a),
+                )
+                .await
+            }
+            "close_position" => {
+                pipeline::run_mutation(
+                    ctx,
+                    name,
+                    a,
+                    attributes(a, &place),
+                    plans::close_position(ctx, a),
+                )
+                .await
+            }
+            "close_all_positions" => {
+                pipeline::run_mutation(
+                    ctx,
+                    name,
+                    &Map::new(),
+                    Vec::new(),
+                    plans::close_all_positions(ctx, a),
+                )
+                .await
+            }
             other => ToolOutcome::Retry(format!("{} is not an order tool.", other)),
         }
     }

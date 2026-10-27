@@ -68,12 +68,18 @@ fn session(ctx: &ToolCtx) -> String {
 }
 
 fn extra(fields: &[(&str, Value)]) -> Map<String, Value> {
-    fields.iter().map(|(k, v)| (k.to_string(), v.clone())).collect()
+    fields
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.clone()))
+        .collect()
 }
 
 /// The last traded price and the funds, read together within
 /// [`PREPARE_TIMEOUT`]; a read that does not arrive is unknown.
-async fn price_and_funds(ctx: &ToolCtx, order: &Map<String, Value>) -> Result<(Value, Value), Refused> {
+async fn price_and_funds(
+    ctx: &ToolCtx,
+    order: &Map<String, Value>,
+) -> Result<(Value, Value), Refused> {
     let symbol = arg(order, "symbol").as_str().unwrap_or_default();
     let exchange = arg(order, "exchange").as_str().unwrap_or_default();
     let both = async {
@@ -92,7 +98,12 @@ async fn price_and_funds(ctx: &ToolCtx, order: &Map<String, Value>) -> Result<(V
 }
 
 /// The guard's view of a new order of `quantity` units.
-fn guard_args(order: &Map<String, Value>, quantity: i64, ltp: Value, funds: Value) -> Map<String, Value> {
+fn guard_args(
+    order: &Map<String, Value>,
+    quantity: i64,
+    ltp: Value,
+    funds: Value,
+) -> Map<String, Value> {
     extra(&[
         ("symbol", arg(order, "symbol").clone()),
         ("exchange", arg(order, "exchange").clone()),
@@ -111,13 +122,21 @@ pub(super) async fn place_order(ctx: &ToolCtx, args: &Map<String, Value>) -> Res
     let order = validate::build_order(args, false)?;
     let (ltp, funds) = price_and_funds(ctx, &order).await?;
     let quantity = arg(&order, "quantity").as_i64().unwrap_or(0);
-    let verdict = guard::check_order(&ctx.app, &session(ctx), guard_args(&order, quantity, ltp, funds), reads::analyzer_mode(ctx))
-        .await
-        .map_err(internal)?;
+    let verdict = guard::check_order(
+        &ctx.app,
+        &session(ctx),
+        guard_args(&order, quantity, ltp, funds),
+        reads::analyzer_mode(ctx),
+    )
+    .await
+    .map_err(internal)?;
     Ok(Plan {
         verdict,
         extra: extra(&[("order", Value::Object(order.clone()))]),
-        dispatch: Dispatch::Post { endpoint: "placeorder", payload: order },
+        dispatch: Dispatch::Post {
+            endpoint: "placeorder",
+            payload: order,
+        },
         label: "place_order_service.place_order",
     })
 }
@@ -144,68 +163,123 @@ fn smart_order(args: &Map<String, Value>) -> Check<(Map<String, Value>, i64)> {
     Ok((order, exposure))
 }
 
-pub(super) async fn place_smart_order(ctx: &ToolCtx, args: &Map<String, Value>) -> Result<Plan, Refused> {
+pub(super) async fn place_smart_order(
+    ctx: &ToolCtx,
+    args: &Map<String, Value>,
+) -> Result<Plan, Refused> {
     let (order, exposure) = smart_order(args)?;
     let (ltp, funds) = price_and_funds(ctx, &order).await?;
-    let verdict = guard::check_order(&ctx.app, &session(ctx), guard_args(&order, exposure, ltp, funds), reads::analyzer_mode(ctx))
-        .await
-        .map_err(internal)?;
+    let verdict = guard::check_order(
+        &ctx.app,
+        &session(ctx),
+        guard_args(&order, exposure, ltp, funds),
+        reads::analyzer_mode(ctx),
+    )
+    .await
+    .map_err(internal)?;
     Ok(Plan {
         verdict,
-        extra: extra(&[("order", Value::Object(order.clone())), ("risk_checked_quantity", json!(exposure))]),
-        dispatch: Dispatch::Post { endpoint: "placesmartorder", payload: order },
+        extra: extra(&[
+            ("order", Value::Object(order.clone())),
+            ("risk_checked_quantity", json!(exposure)),
+        ]),
+        dispatch: Dispatch::Post {
+            endpoint: "placesmartorder",
+            payload: order,
+        },
         label: "place_smart_order_service.place_smart_order",
     })
 }
 
 /// D-007: the modified order meets the quantity, price and notional rules
 /// too, so its last traded price is read as for a new order.
-pub(super) async fn modify_order(ctx: &ToolCtx, args: &Map<String, Value>) -> Result<Plan, Refused> {
+pub(super) async fn modify_order(
+    ctx: &ToolCtx,
+    args: &Map<String, Value>,
+) -> Result<Plan, Refused> {
     let identifier = validate::order_id(arg(args, "order_id"))?;
     let mut order = validate::build_order(args, false)?;
     order.insert("orderid".into(), json!(identifier));
-    let symbol = arg(&order, "symbol").as_str().unwrap_or_default().to_string();
-    let exchange = arg(&order, "exchange").as_str().unwrap_or_default().to_string();
-    let ltp = tokio::time::timeout(PREPARE_TIMEOUT, reads::last_traded_price(ctx, &symbol, &exchange))
-        .await
-        .map_err(|_| Refused::Internal("Timeout: the quote before the risk check did not arrive".into()))?;
+    let symbol = arg(&order, "symbol")
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
+    let exchange = arg(&order, "exchange")
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
+    let ltp = tokio::time::timeout(
+        PREPARE_TIMEOUT,
+        reads::last_traded_price(ctx, &symbol, &exchange),
+    )
+    .await
+    .map_err(|_| {
+        Refused::Internal("Timeout: the quote before the risk check did not arrive".into())
+    })?;
     let details = extra(&[
         ("orderid", json!(identifier)),
         ("symbol", json!(symbol)),
         ("exchange", json!(exchange)),
         ("quantity", arg(&order, "quantity").clone()),
     ]);
-    let verdict = guard::check_modify(&ctx.app, modify_args(&order, ltp.as_ref()), reads::analyzer_mode(ctx), details)
-        .await
-        .map_err(internal)?;
+    let verdict = guard::check_modify(
+        &ctx.app,
+        modify_args(&order, ltp.as_ref()),
+        reads::analyzer_mode(ctx),
+        details,
+    )
+    .await
+    .map_err(internal)?;
     Ok(Plan {
         verdict,
         extra: extra(&[("order", Value::Object(order.clone()))]),
-        dispatch: Dispatch::Post { endpoint: "modifyorder", payload: order },
+        dispatch: Dispatch::Post {
+            endpoint: "modifyorder",
+            payload: order,
+        },
         label: "modify_order_service.modify_order",
     })
 }
 
-pub(super) async fn cancel_order(ctx: &ToolCtx, args: &Map<String, Value>) -> Result<Plan, Refused> {
+pub(super) async fn cancel_order(
+    ctx: &ToolCtx,
+    args: &Map<String, Value>,
+) -> Result<Plan, Refused> {
     let identifier = validate::order_id(arg(args, "order_id"))?;
-    let verdict = guard::check_destructive(&ctx.app, "cancel_order", reads::analyzer_mode(ctx), extra(&[("orderid", json!(identifier))]))
-        .await
-        .map_err(internal)?;
+    let verdict = guard::check_destructive(
+        &ctx.app,
+        "cancel_order",
+        reads::analyzer_mode(ctx),
+        extra(&[("orderid", json!(identifier))]),
+    )
+    .await
+    .map_err(internal)?;
     Ok(Plan {
         verdict,
         extra: extra(&[("order_id", json!(identifier))]),
         dispatch: Dispatch::Post {
             endpoint: "cancelorder",
-            payload: extra(&[("strategy", json!(AGENT_STRATEGY)), ("orderid", json!(identifier))]),
+            payload: extra(&[
+                ("strategy", json!(AGENT_STRATEGY)),
+                ("orderid", json!(identifier)),
+            ]),
         },
         label: "cancel_order_service.cancel_order",
     })
 }
 
-pub(super) async fn cancel_all_orders(ctx: &ToolCtx, _args: &Map<String, Value>) -> Result<Plan, Refused> {
-    let verdict = guard::check_destructive(&ctx.app, "cancel_all_orders", reads::analyzer_mode(ctx), Map::new())
-        .await
-        .map_err(internal)?;
+pub(super) async fn cancel_all_orders(
+    ctx: &ToolCtx,
+    _args: &Map<String, Value>,
+) -> Result<Plan, Refused> {
+    let verdict = guard::check_destructive(
+        &ctx.app,
+        "cancel_all_orders",
+        reads::analyzer_mode(ctx),
+        Map::new(),
+    )
+    .await
+    .map_err(internal)?;
     Ok(Plan {
         verdict,
         extra: Map::new(),
@@ -217,28 +291,55 @@ pub(super) async fn cancel_all_orders(ctx: &ToolCtx, _args: &Map<String, Value>)
     })
 }
 
-pub(super) async fn close_position(ctx: &ToolCtx, args: &Map<String, Value>) -> Result<Plan, Refused> {
-    let text = |k: &str| (!arg(args, k).is_null()).then(|| crate::agent::safety::risk::num::py_str(arg(args, k)));
-    let (bare, venue) = split_exchange_prefix(text("symbol").as_deref(), text("exchange").as_deref())?;
+pub(super) async fn close_position(
+    ctx: &ToolCtx,
+    args: &Map<String, Value>,
+) -> Result<Plan, Refused> {
+    let text = |k: &str| {
+        (!arg(args, k).is_null()).then(|| crate::agent::safety::risk::num::py_str(arg(args, k)))
+    };
+    let (bare, venue) =
+        split_exchange_prefix(text("symbol").as_deref(), text("exchange").as_deref())?;
     let symbol = validate::required_text("symbol", &json!(bare))?.to_uppercase();
     let exchange = validate::exchange(&json!(venue))?;
     let product = validate::product(arg(args, "product"))?;
-    let details = extra(&[("symbol", json!(symbol)), ("exchange", json!(exchange)), ("product", json!(product))]);
-    let verdict = guard::check_destructive(&ctx.app, "close_position", reads::analyzer_mode(ctx), details.clone())
-        .await
-        .map_err(internal)?;
+    let details = extra(&[
+        ("symbol", json!(symbol)),
+        ("exchange", json!(exchange)),
+        ("product", json!(product)),
+    ]);
+    let verdict = guard::check_destructive(
+        &ctx.app,
+        "close_position",
+        reads::analyzer_mode(ctx),
+        details.clone(),
+    )
+    .await
+    .map_err(internal)?;
     Ok(Plan {
         verdict,
         extra: details,
-        dispatch: Dispatch::SquareOff { symbol, exchange, product },
+        dispatch: Dispatch::SquareOff {
+            symbol,
+            exchange,
+            product,
+        },
         label: "place_smart_order_service.place_smart_order",
     })
 }
 
-pub(super) async fn close_all_positions(ctx: &ToolCtx, _args: &Map<String, Value>) -> Result<Plan, Refused> {
-    let verdict = guard::check_destructive(&ctx.app, "close_all_positions", reads::analyzer_mode(ctx), Map::new())
-        .await
-        .map_err(internal)?;
+pub(super) async fn close_all_positions(
+    ctx: &ToolCtx,
+    _args: &Map<String, Value>,
+) -> Result<Plan, Refused> {
+    let verdict = guard::check_destructive(
+        &ctx.app,
+        "close_all_positions",
+        reads::analyzer_mode(ctx),
+        Map::new(),
+    )
+    .await
+    .map_err(internal)?;
     Ok(Plan {
         verdict,
         extra: Map::new(),
@@ -255,10 +356,15 @@ pub(super) async fn close_all_positions(ctx: &ToolCtx, _args: &Map<String, Value
 /// reads the position itself.
 pub(super) async fn dispatch(ctx: &ToolCtx, d: &Dispatch) -> Sent {
     match d {
-        Dispatch::Post { endpoint, payload } => {
-            Sent::of(ctx.api_post(endpoint, payload.clone(), DISPATCH_TIMEOUT).await)
-        }
-        Dispatch::SquareOff { symbol, exchange, product } => {
+        Dispatch::Post { endpoint, payload } => Sent::of(
+            ctx.api_post(endpoint, payload.clone(), DISPATCH_TIMEOUT)
+                .await,
+        ),
+        Dispatch::SquareOff {
+            symbol,
+            exchange,
+            product,
+        } => {
             let held = reads::open_position_quantity(ctx, symbol, exchange, product).await;
             if held == Some(0) {
                 return Sent::NothingToClose {
@@ -271,7 +377,10 @@ pub(super) async fn dispatch(ctx: &ToolCtx, d: &Dispatch) -> Sent {
                 ("strategy", json!(AGENT_STRATEGY)),
                 ("symbol", json!(symbol)),
                 ("exchange", json!(exchange)),
-                ("action", json!(if held.unwrap_or(0) > 0 { "SELL" } else { "BUY" })),
+                (
+                    "action",
+                    json!(if held.unwrap_or(0) > 0 { "SELL" } else { "BUY" }),
+                ),
                 ("quantity", json!(0)),
                 ("position_size", json!(0)),
                 ("product", json!(product)),
@@ -280,7 +389,10 @@ pub(super) async fn dispatch(ctx: &ToolCtx, d: &Dispatch) -> Sent {
                 ("trigger_price", json!(0.0)),
                 ("disclosed_quantity", json!(0)),
             ]);
-            Sent::of(ctx.api_post("placesmartorder", order, DISPATCH_TIMEOUT).await)
+            Sent::of(
+                ctx.api_post("placesmartorder", order, DISPATCH_TIMEOUT)
+                    .await,
+            )
         }
     }
 }
