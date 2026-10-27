@@ -412,14 +412,9 @@ fn server_settings(cfg: &crate::config::ServerConfig) -> serde_json::Map<String,
             .clone()
             .unwrap_or_else(|| format!("ws://127.0.0.1:{}", cfg.ws_port))),
     );
-    o.insert(
-        "server_status".into(),
-        json!({
-            "flask": {"host": cfg.bind_host, "port": cfg.http_port.to_string()},
-            "websocket": {"host": cfg.bind_host, "port": cfg.ws_port.to_string()},
-            "zmq": {"host": "127.0.0.1", "port": "5555"},
-        }),
-    );
+    // Desktop: no web `server_status` (Flask, WebSocket and ZeroMQ, always
+    // "Running"); the Profile page reads the real parts from Server
+    // Settings (`components`, docs-35).
     o
 }
 

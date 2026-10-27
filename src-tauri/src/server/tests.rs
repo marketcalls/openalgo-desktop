@@ -231,6 +231,8 @@ mod credentials_lifecycle;
 mod key_vault;
 // NEW-SEC-01: browser origins compared whole, apart from Host names.
 mod origin;
+// docs-35: Server Status shows the desktop's parts with their real state.
+mod server_status;
 
 // ------------------------------------------------------------------ fixtures
 

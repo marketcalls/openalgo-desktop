@@ -25,6 +25,7 @@ import { webClient } from '@/api/client'
 import TwoFactorEnforcement from '@/components/auth/TwoFactorEnforcement'
 // Desktop: where the web's SMTP and System tabs are answered instead.
 import { ProfileDesktopNote } from '@/components/desktop/ProfileDesktopNote'
+import { ServerStatusCard } from '@/components/desktop/ServerStatusCard'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -129,11 +130,6 @@ interface BrokerCredentials {
   // Desktop: true while the address is the automatic one (nothing saved).
   host_server_is_default?: boolean
   websocket_url_is_default?: boolean
-  server_status?: {
-    flask: { host: string; port: string }
-    websocket: { host: string; port: string }
-    zmq: { host: string; port: string }
-  }
 }
 
 // Toast position options
@@ -718,49 +714,8 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Server Status Card */}
-          {brokerCredentials?.server_status && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Server Status</CardTitle>
-                <CardDescription>Running services and their configured ports</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="flex flex-col items-center p-3 bg-muted rounded-lg">
-                    <Badge variant="default" className="mb-2 bg-green-600">
-                      Running
-                    </Badge>
-                    <span className="text-sm font-medium">Flask App</span>
-                    <span className="text-xs text-muted-foreground">
-                      {brokerCredentials.server_status.flask.host}:
-                      {brokerCredentials.server_status.flask.port}
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-center p-3 bg-muted rounded-lg">
-                    <Badge variant="default" className="mb-2 bg-green-600">
-                      Running
-                    </Badge>
-                    <span className="text-sm font-medium">WebSocket</span>
-                    <span className="text-xs text-muted-foreground">
-                      {brokerCredentials.server_status.websocket.host}:
-                      {brokerCredentials.server_status.websocket.port}
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-center p-3 bg-muted rounded-lg">
-                    <Badge variant="default" className="mb-2 bg-green-600">
-                      Running
-                    </Badge>
-                    <span className="text-sm font-medium">ZeroMQ</span>
-                    <span className="text-xs text-muted-foreground">
-                      {brokerCredentials.server_status.zmq.host}:
-                      {brokerCredentials.server_status.zmq.port}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {/* Desktop: the parts the desktop runs, with their real state (docs-35). */}
+          <ServerStatusCard />
 
           {/* Ngrok Configuration - Separate Card */}
           <Card>

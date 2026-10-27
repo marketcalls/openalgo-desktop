@@ -38,7 +38,7 @@ fn check(name: &str, feed: &WebSocketManager, market: bool) -> Value {
 /// Whether the stream is up, and what a trader reads about it. The
 /// broker's own refusal text is never shown (it goes to the log where it
 /// arrived).
-fn describe(
+pub(super) fn describe(
     status: &FeedStatus,
     age: Option<Duration>,
     instruments: Option<usize>,
@@ -78,7 +78,7 @@ fn describe(
 }
 
 /// "12 s", "3 min", "2 h".
-fn ago(a: Duration) -> String {
+pub(super) fn ago(a: Duration) -> String {
     let s = a.as_secs();
     if s < 120 {
         format!("{} s", s)

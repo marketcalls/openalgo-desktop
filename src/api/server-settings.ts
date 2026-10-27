@@ -15,6 +15,21 @@ export interface ServerSettings {
   lan_enabled: boolean
   /** The market data feed's state; `message` names the cause and the fix. */
   ws_status?: MarketDataStatus
+  /** Every part of the running app with its state (Profile, Server Status). */
+  components?: ServerComponent[]
+}
+
+/** One part of the running app, as the server reports it. */
+export interface ServerComponent {
+  name: string
+  /** Where a listener listens, `host:port`. */
+  address: string | null
+  /** Picks the badge colour: working, on its way, not working, not in use. */
+  state: 'ok' | 'waiting' | 'problem' | 'off'
+  /** The badge text. */
+  label: string
+  /** The cause and the fix when there is a problem; context otherwise. */
+  detail: string | null
 }
 
 export interface MarketDataStatus {

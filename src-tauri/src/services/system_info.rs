@@ -16,6 +16,7 @@ use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;
 use std::time::Instant;
 
+pub(crate) mod components;
 mod streams;
 
 pub const MAX_LIMIT: i64 = 200;
@@ -254,23 +255,13 @@ fn is_raspberry_pi() -> Option<String> {
 
 fn listeners(ctx: &AppState) -> Vec<Value> {
     let cfg = ctx.server_config();
-    let http = match &*ctx.server_status.read() {
-        ServerStatus::Running { host, port } => {
-            json!({"name": "App and API", "address": format!("{}:{}", host, port), "state": "running"})
-        }
-        ServerStatus::PortInUse { port, .. } => {
-            json!({"name": "App and API", "address": format!("{}:{}", cfg.bind_host, port), "state": "port in use"})
-        }
-        ServerStatus::Failed { .. } => {
-            json!({"name": "App and API", "address": format!("{}:{}", cfg.bind_host, cfg.http_port), "state": "stopped"})
-        }
-        ServerStatus::Starting => {
-            json!({"name": "App and API", "address": format!("{}:{}", cfg.bind_host, cfg.http_port), "state": "starting"})
-        }
+    let entry = |name: &'static str, port: u16, st: &ServerStatus| {
+        let c = components::listener(name, (&cfg.bind_host, port), st);
+        json!({"name": name, "address": c.address, "state": c.label.to_lowercase()})
     };
     vec![
-        http,
-        json!({"name": "Market data feed", "address": format!("{}:{}", cfg.bind_host, cfg.ws_port), "state": "configured"}),
+        entry("App and API", cfg.http_port, &ctx.server_status.read()),
+        entry("Market data feed", cfg.ws_port, &ctx.feed_status.read()),
     ]
 }
 

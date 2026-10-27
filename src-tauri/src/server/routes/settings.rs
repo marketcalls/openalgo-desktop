@@ -39,6 +39,9 @@ fn server_data(ctx: &AppState) -> Value {
         "lan_enabled": !cfg.is_loopback(),
         // The market data listener's state; a taken port carries the fix.
         "ws_status": ws_status(&ws),
+        // Every part of the running app with its state, for the Profile
+        // page's Server Status (docs-35).
+        "components": crate::services::system_info::components::server_components(ctx),
     })
 }
 
