@@ -456,7 +456,7 @@ Receive your strategy alerts on **Telegram** and **WhatsApp**.
 ### Desktop and Backend
 
 - **Tauri 2**: the desktop shell, window and installers
-- **Rust 1.92**: the whole backend, in one process
+- **Rust 1.99**: the whole backend, in one process
 - **tokio**: async runtime
 - **axum**: the HTTP server for the interface, `/api/v1` and webhooks
 - **socketioxide**: Socket.IO for real-time updates to the interface
@@ -832,7 +832,7 @@ Every system needs:
 | --- | --- | --- |
 | Git | any recent | [git-scm.com](https://git-scm.com/downloads) |
 | Node.js | 22 LTS recommended (22.23.4+, 24.22.1+ or 26.12.1+; npm warns on Node 20 and on older patch levels) | [nodejs.org](https://nodejs.org/) or a version manager such as `nvm` |
-| Rust | 1.92.0, installed through `rustup` | [rustup.rs](https://rustup.rs/). The repository pins the version in `rust-toolchain.toml` at its root, so `rustup` installs the right one automatically the first time you build |
+| Rust | 1.99.1, installed through `rustup` | [rustup.rs](https://rustup.rs/). The repository pins the version in `rust-toolchain.toml` at its root, so `rustup` installs the right one automatically the first time you build |
 
 Each system also needs the native libraries the app window is built on:
 
@@ -947,7 +947,7 @@ cargo test --locked               # Rust unit and integration tests
 | Linux: `webkit2gtk-4.1` or `javascriptcoregtk` not found | Install the Linux package list above. Ubuntu 20.04 and Debian 11 are too old; they lack WebKitGTK 4.1 |
 | Windows: `link.exe` not found, or MSVC errors | Install the **Desktop development with C++** workload in the Visual Studio Build Tools, then open a new terminal |
 | macOS: `xcrun: error: invalid active developer path` | Run `xcode-select --install` |
-| `error: toolchain '1.92.0' is not installed` | Run `rustup toolchain install 1.92.0`, or any `cargo` command inside the repository, which installs it |
+| `error: toolchain '1.99.1' is not installed` | Run `rustup toolchain install 1.99.1`, or any `cargo` command inside the repository, which installs it |
 | Port 5500 already in use | A development copy or `dev_server` is still running; stop it. Find the program with `lsof -nP -iTCP:5500 -sTCP:LISTEN` (macOS, Linux) or `netstat -ano \| findstr :5500` (Windows) |
 | The browser at `127.0.0.1:5500` says the interface is not built | Run `npm run build` once; the server reads the built interface from `dist/` |
 | A build runs out of memory or disk | Rust builds need several GB of free memory and about 20 GB of disk. Close other heavy programs, or reduce parallel jobs with `CARGO_BUILD_JOBS=2` |

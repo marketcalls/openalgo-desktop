@@ -6,7 +6,7 @@ authors = ["OpenAlgo"]
 edition = "2021"
 license = "AGPL-3.0-only"
 publish = false
-rust-version = "1.92"
+rust-version = "1.99"
 
 [lib]
 name = "openalgo_desktop_lib"

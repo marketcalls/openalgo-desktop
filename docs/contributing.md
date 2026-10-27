@@ -75,7 +75,7 @@ The tools and the native libraries per system are in README,
 Node.js 22 LTS (22.23.4+, 24.22.1+ or 26.12.1+, the October 2026 security
 releases; Node 20 is end of life), and Rust through `rustup`.
 The Rust version is pinned in `rust-toolchain.toml` at the repository root
-(1.92.0, with rustfmt and clippy), so `rustup` installs the right one the
+(1.99.1, with rustfmt and clippy), so `rustup` installs the right one the
 first time you build. On Linux the package list is the one CI uses
 (`.github/actions/linux-tauri-deps`).
 
@@ -418,6 +418,6 @@ WebKitGTK, MSVC and Xcode tools and the Rust toolchain. Also:
 | `capability with identifier <name> not found` | The shared build folder's build-script output names another worktree: rebase this one onto master, or see CLAUDE.md, "One shared build folder" |
 | Builds take hours or the machine swaps | Several builds at once on a small machine. One cargo command at a time, `CARGO_BUILD_JOBS=4` or lower |
 | The disk fills | The shared build folder: delete old `deps`, `build` and `incremental` entries while no build runs ([6](#6-several-checkouts-worktrees-and-the-shared-build-folder)) |
-| clippy passes locally and fails in CI | Check `rustup show` uses 1.92.0 from `rust-toolchain.toml`; a newer clippy has other lints |
+| clippy passes locally and fails in CI | Check `rustup show` uses 1.99.1 from `rust-toolchain.toml`; a newer clippy has other lints |
 | A test passes on your machine and fails on another system in CI | A race or a platform difference, not a slow machine: wait on the event, not a sleep; CLAUDE.md, "Tests that pass locally and fail in CI", lists the ones found so far |
 | `dev_server` shows "No API key generated" after a restart | Its account was wiped at the restart; reload the page and set it up again |

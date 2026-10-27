@@ -64,7 +64,7 @@ jobs:
       - uses: ./.github/actions/linux-tauri-deps
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
-          toolchain: 1.92.0
+          toolchain: 1.99.1
           components: rustfmt, clippy
       - name: Frontend dist placeholder
         # tauri::generate_context!() embeds frontendDist at compile time; an
@@ -118,7 +118,7 @@ jobs:
           minutes: "10"
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
-          toolchain: 1.92.0
+          toolchain: 1.99.1
       - name: Frontend dist placeholder
         run: mkdir -p dist && test -f dist/index.html || echo '<!doctype html><title>ci</title>' > dist/index.html
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
@@ -173,7 +173,7 @@ jobs:
       - uses: ./.github/actions/linux-tauri-deps
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
-          toolchain: 1.92.0
+          toolchain: 1.99.1
           components: llvm-tools-preview
       - name: Frontend dist placeholder
         run: mkdir -p dist && test -f dist/index.html || echo '<!doctype html><title>ci</title>' > dist/index.html
@@ -484,7 +484,7 @@ jobs:
         uses: ./.github/actions/linux-tauri-deps
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
-          toolchain: 1.92.0
+          toolchain: 1.99.1
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
