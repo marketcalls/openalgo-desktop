@@ -263,28 +263,32 @@ async fn a_lost_answer_is_unknown_and_never_sent_twice() {
 }
 
 /// D-003 (Q-1036): the session order cap and the duplicate window survive
-/// a restart; the web forgot both.
+/// a restart; the web forgot both. The cap leaves room for one more order
+/// in the second session, so its refusal can only be the window.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_session_cap_and_duplicate_window_survive_a_restart() {
     let h = H::new().await;
     settings(
         &h,
-        &[("trading_enabled", "true"), ("max_orders_per_session", "1")],
+        &[("trading_enabled", "true"), ("max_orders_per_session", "2")],
     );
     h.analyze(true);
-    assert_eq!(
-        call(&run(&h, "capped"), "place_order", buy("SBIN")).await["ok"],
-        true
-    );
-    assert_eq!(
-        call(&run(&h, "window"), "place_order", buy("RELIANCE")).await["ok"],
-        true
-    );
+    let sized = |symbol: &str, quantity: i64| {
+        let mut o = buy(symbol);
+        o["quantity"] = json!(quantity);
+        o
+    };
+    for q in [1, 2] {
+        let out = call(&run(&h, "capped"), "place_order", sized("SBIN", q)).await;
+        assert_eq!(out["ok"], true, "{}", out);
+    }
+    let out = call(&run(&h, "window"), "place_order", sized("RELIANCE", 1)).await;
+    assert_eq!(out["ok"], true, "{}", out);
     let h = h.restart().await;
     h.analyze(true);
-    let capped = call(&run(&h, "capped"), "place_order", buy("RELIANCE")).await;
+    let capped = call(&run(&h, "capped"), "place_order", sized("RELIANCE", 3)).await;
     assert_eq!(capped["code"], "session_cap_reached", "{}", capped);
-    let repeated = call(&run(&h, "window"), "place_order", buy("RELIANCE")).await;
+    let repeated = call(&run(&h, "window"), "place_order", sized("RELIANCE", 1)).await;
     assert_eq!(repeated["code"], "duplicate_order", "{}", repeated);
     h.shutdown().await;
 }
