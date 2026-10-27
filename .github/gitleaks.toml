@@ -52,3 +52,19 @@ regexes = [
   '''^EOS7b0Gy28yNMM9Y3Eb0xS8WgPgz2iXnO87OMlG2usA$''',
   '''^aa11986f53323c413e6844bf08de8d0900cb42b5af9b3c88f960319d7d992e62$''',
 ]
+
+[[allowlists]]
+description = "Made-up credentials in the Agent redaction tests"
+# Only these exact test values, and only in this file: the values the
+# redaction tests (agent::redact::tests) prove are removed. Commit 6a6db49c
+# wrote them as literals; the tests now assemble them at runtime, so only
+# that commit's history needs this entry. They protect nothing.
+condition = "AND"
+paths = ['''^src-tauri/src/agent/redact\.rs$''']
+regexes = [
+  '''^a1b2c3d4e5f6$''',
+  '''^eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiJBQjEyMzQifQ\.c2lnbmF0dXJlLXZhbHVl$''',
+  '''^Zm9vYmFyQmF6UXV4MTIzNDU2Nzg5MEFCQ0RFRkdISUpLTE1O$''',
+  # The same value as gitleaks decodes it from base64.
+  '''^foobarBazQux1234567890ABCDEFGHIJKLMN$''',
+]

@@ -64,6 +64,13 @@ pub fn no_decision_matched(run_id: &str) -> String {
     )
 }
 
+/// The trader's answers to a paused run: call id to approved.
+pub type Decisions = HashMap<String, bool>;
+
+/// What a resumed turn settles first: the paused calls, the answers and
+/// the trader's note.
+type Answered = (Vec<PendingCall>, Decisions, Option<String>);
+
 /// How a turn starts.
 pub enum Start {
     /// A new message: its input as the model reads it.
@@ -74,7 +81,7 @@ pub enum Start {
 
 /// A paused run being answered.
 pub struct Resume {
-    pub decisions: HashMap<String, bool>,
+    pub decisions: Decisions,
     pub note: Option<String>,
     pub paused: PausedState,
     /// The run's own messages up to the pause.
@@ -192,11 +199,7 @@ pub async fn drive(spec: RunSpec, client: Arc<client::ModelClient>, mut out: Fra
     persist(&spec.ctx, &messages, ending, out).await;
 }
 
-async fn go(
-    turn: &mut Turn<'_>,
-    resume: Option<(Vec<PendingCall>, HashMap<String, bool>, Option<String>)>,
-    out: &mut FrameOut,
-) -> LoopEnd {
+async fn go(turn: &mut Turn<'_>, resume: Option<Answered>, out: &mut FrameOut) -> LoopEnd {
     match resume {
         None => turn.run(out).await,
         Some((pending, decisions, note)) => {

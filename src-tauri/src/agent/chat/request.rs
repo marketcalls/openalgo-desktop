@@ -4,6 +4,7 @@
 
 use super::Refusal;
 use crate::agent::contract::tool::Surface;
+use crate::agent::run::Decisions;
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 
@@ -208,11 +209,12 @@ pub fn run_options_of(notices: &Value) -> (Option<String>, Vec<String>, bool) {
     (None, Vec::new(), true)
 }
 
+/// Tool names by call id, as the list form of the decisions gives them.
+pub type ToolNames = HashMap<String, String>;
+
 /// The trader's decisions: `{call_id: bool}` or `[{id, approved, tool}]`.
 /// Returns the decisions and, for the list form, the tool names.
-pub fn decisions_of(
-    raw: Option<&Value>,
-) -> Result<(HashMap<String, bool>, HashMap<String, String>), Refusal> {
+pub fn decisions_of(raw: Option<&Value>) -> Result<(Decisions, ToolNames), Refusal> {
     let mut decisions = HashMap::new();
     let mut names = HashMap::new();
     match raw {
@@ -334,7 +336,7 @@ mod tests {
     #[test]
     fn decisions_read_both_shapes() {
         let (d, _) = decisions_of(Some(&json!({"call_1": true}))).unwrap();
-        assert_eq!(d["call_1"], true);
+        assert!(d["call_1"]);
         let (d, n) = decisions_of(Some(
             &json!([{"id": "c", "approved": false, "tool": "place_order"}]),
         ))
