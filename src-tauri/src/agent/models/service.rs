@@ -10,10 +10,11 @@
 
 use super::secrets::{self, model_secret_name, provider_secret_name, SecretInfo};
 use super::store::{self, ModelChanges, ModelRow, NewModel, NOT_FOUND};
-use super::{success, text_field, truthy, Refused};
+use super::{success, text_field, truthy};
 use crate::agent::catalog::{self, Catalog};
 use crate::agent::providers::base_url::validate_base_url;
 use crate::agent::providers::{capable, catalog_id, Probe, PROVIDER_KINDS};
+use crate::agent::reply::Refusal;
 use crate::agent::settings::schema::REASONING_EFFORTS;
 use crate::state::AppState;
 use rusqlite::Connection;
@@ -38,9 +39,9 @@ const FLAGS: &[&str] = &[
 const MAX_NAME_CHARS: usize = 200;
 const MAX_BASE_URL_CHARS: usize = 500;
 
-fn internal(e: impl std::fmt::Display) -> Refused {
+fn internal(e: impl std::fmt::Display) -> Refusal {
     tracing::error!("Agent model registry failed: {}", e);
-    Refused::new(500, "Could not read the models")
+    Refusal::new(500, "Could not read the models", None)
 }
 
 /// One row as the routes answer it, with `supports_reasoning` resolved
@@ -61,20 +62,20 @@ fn row_json(catalog: &Catalog, row: &ModelRow, secrets: &HashMap<String, SecretI
 }
 
 /// One row as the routes answer it.
-pub fn model_json(conn: &Connection, row: &ModelRow) -> Result<Value, Refused> {
+pub fn model_json(conn: &Connection, row: &ModelRow) -> Result<Value, Refusal> {
     let secrets = secrets::describe(conn, &row.secret_names()).map_err(internal)?;
     Ok(row_json(&catalog::current(), row, &secrets))
 }
 
-fn reload(conn: &Connection, id: i64) -> Result<Value, Refused> {
+fn reload(conn: &Connection, id: i64) -> Result<Value, Refusal> {
     match store::get(conn, id).map_err(internal)? {
         Some(row) => model_json(conn, &row),
-        None => Err(Refused::new(404, NOT_FOUND)),
+        None => Err(Refusal::new(404, NOT_FOUND, None)),
     }
 }
 
 /// `GET /agent/api/models`: every model, the default first.
-pub fn list(app: &AppState) -> Result<Value, Refused> {
+pub fn list(app: &AppState) -> Result<Value, Refusal> {
     let conn = app.sqlite.conn().map_err(internal)?;
     let rows = store::list(&conn, false).map_err(internal)?;
     let mut names: Vec<String> = Vec::new();
@@ -96,7 +97,7 @@ struct PastedKey {
     scope: &'static str,
 }
 
-fn pasted_key(body: &Map<String, Value>) -> Result<PastedKey, Refused> {
+fn pasted_key(body: &Map<String, Value>) -> Result<PastedKey, Refusal> {
     let asked = text_field(body, "api_key_scope").to_lowercase();
     let asked = if asked.is_empty() {
         "provider".to_string()
@@ -104,7 +105,7 @@ fn pasted_key(body: &Map<String, Value>) -> Result<PastedKey, Refused> {
         asked
     };
     let Some(scope) = SCOPES.iter().find(|s| **s == asked) else {
-        return Err(Refused::bad_request(format!(
+        return Err(Refusal::bad_request(format!(
             "api_key_scope must be one of: {}",
             SCOPES.join(", ")
         )));
@@ -115,21 +116,21 @@ fn pasted_key(body: &Map<String, Value>) -> Result<PastedKey, Refused> {
     })
 }
 
-fn checked_effort(raw: String) -> Result<String, Refused> {
+fn checked_effort(raw: String) -> Result<String, Refusal> {
     let effort = raw.to_lowercase();
     if REASONING_EFFORTS.contains(&effort.as_str()) {
         Ok(effort)
     } else {
-        Err(Refused::bad_request(format!(
+        Err(Refusal::bad_request(format!(
             "default_reasoning_effort must be one of: {}",
             REASONING_EFFORTS.join(", ")
         )))
     }
 }
 
-fn checked_length(value: &str, max: usize, what: &str) -> Result<(), Refused> {
+fn checked_length(value: &str, max: usize, what: &str) -> Result<(), Refusal> {
     if value.chars().count() > max {
-        return Err(Refused::bad_request(format!(
+        return Err(Refusal::bad_request(format!(
             "{} can be at most {} characters",
             what, max
         )));
@@ -139,9 +140,9 @@ fn checked_length(value: &str, max: usize, what: &str) -> Result<(), Refused> {
 
 /// The base URL a request names (a non-text value is none, as the web
 /// reads it), through the guard.
-fn checked_base_url(body: &Map<String, Value>, kind: &str) -> Result<Option<String>, Refused> {
+fn checked_base_url(body: &Map<String, Value>, kind: &str) -> Result<Option<String>, Refusal> {
     let raw = body.get("base_url").and_then(Value::as_str);
-    let url = validate_base_url(raw, kind).map_err(Refused::bad_request)?;
+    let url = validate_base_url(raw, kind).map_err(Refusal::bad_request)?;
     if let Some(u) = &url {
         checked_length(u, MAX_BASE_URL_CHARS, "A base URL")?;
     }
@@ -149,17 +150,17 @@ fn checked_base_url(body: &Map<String, Value>, kind: &str) -> Result<Option<Stri
 }
 
 /// The registration as the web reads it, checked in its order.
-fn new_model(body: &Map<String, Value>) -> Result<NewModel, Refused> {
+fn new_model(body: &Map<String, Value>) -> Result<NewModel, Refusal> {
     let kind = text_field(body, "provider_kind");
     if !PROVIDER_KINDS.contains(&kind.as_str()) {
-        return Err(Refused::bad_request(format!(
+        return Err(Refusal::bad_request(format!(
             "provider_kind must be one of: {}",
             PROVIDER_KINDS.join(", ")
         )));
     }
     let model_name = text_field(body, "model_name");
     if model_name.is_empty() {
-        return Err(Refused::bad_request("A model name is required"));
+        return Err(Refusal::bad_request("A model name is required"));
     }
     checked_length(&model_name, MAX_NAME_CHARS, "A model name")?;
     let display = text_field(body, "display_name");
@@ -192,7 +193,7 @@ fn new_model(body: &Map<String, Value>) -> Result<NewModel, Refused> {
 
 /// `POST /agent/api/models`: register a model (never the default: it has
 /// not been tested), storing the key where the trader asked. 201.
-pub fn create(app: &AppState, body: &Map<String, Value>) -> Result<Value, Refused> {
+pub fn create(app: &AppState, body: &Map<String, Value>) -> Result<Value, Refusal> {
     let model = new_model(body)?;
     let key = pasted_key(body)?;
     let conn = app.sqlite.conn().map_err(internal)?;
@@ -203,7 +204,7 @@ pub fn create(app: &AppState, body: &Map<String, Value>) -> Result<Value, Refuse
             &provider_secret_name(&model.provider_kind),
             &key.value,
         )
-        .map_err(|m| Refused::new(500, m))?;
+        .map_err(|m| Refusal::new(500, m, None))?;
     }
     let created = store::create(&conn, &model, app.now()).map_err(|m| {
         let status = if m.contains("already registered") {
@@ -211,7 +212,7 @@ pub fn create(app: &AppState, body: &Map<String, Value>) -> Result<Value, Refuse
         } else {
             400
         };
-        Refused::new(status, m)
+        Refusal::new(status, m, None)
     })?;
     if !key.value.is_empty() && key.scope == "model" {
         if let Err(m) = secrets::set(
@@ -222,15 +223,15 @@ pub fn create(app: &AppState, body: &Map<String, Value>) -> Result<Value, Refuse
         ) {
             // The row stands: the key can be set by an edit, and saying so
             // beats deleting a model the trader asked for.
-            let mut refused = Refused::new(
+            let data = model_json(&conn, &created)?;
+            return Err(Refusal::new(
                 500,
                 format!(
                     "{} was registered but its API key could not be stored: {}",
                     model.display_name, m
                 ),
-            );
-            refused.extra = Some(json!({ "data": model_json(&conn, &created)? }));
-            return Err(refused);
+                Some(json!({ "data": data })),
+            ));
         }
     }
     tracing::info!(
@@ -242,7 +243,7 @@ pub fn create(app: &AppState, body: &Map<String, Value>) -> Result<Value, Refuse
 }
 
 /// The edit a request asks for, as the web reads it.
-fn changes_of(body: &Map<String, Value>, row: &ModelRow) -> Result<ModelChanges, Refused> {
+fn changes_of(body: &Map<String, Value>, row: &ModelRow) -> Result<ModelChanges, Refusal> {
     let mut c = ModelChanges::default();
     if body.contains_key("display_name") {
         let name = text_field(body, "display_name");
@@ -273,15 +274,15 @@ fn changes_of(body: &Map<String, Value>, row: &ModelRow) -> Result<ModelChanges,
 
 /// `PATCH /agent/api/models/<id>`: edit a model; a blank key keeps the
 /// stored one.
-pub fn update(app: &AppState, id: i64, body: &Map<String, Value>) -> Result<Value, Refused> {
+pub fn update(app: &AppState, id: i64, body: &Map<String, Value>) -> Result<Value, Refusal> {
     let conn = app.sqlite.conn().map_err(internal)?;
     let row = store::get(&conn, id)
         .map_err(internal)?
-        .ok_or_else(|| Refused::new(404, NOT_FOUND))?;
+        .ok_or_else(|| Refusal::new(404, NOT_FOUND, None))?;
     let changes = changes_of(body, &row)?;
     let key = pasted_key(body)?;
     if changes.is_empty() && key.value.is_empty() {
-        return Err(Refused::bad_request("Nothing to update"));
+        return Err(Refusal::bad_request("Nothing to update"));
     }
     if !changes.is_empty() {
         store::update(&conn, id, &changes, app.now()).map_err(|m| {
@@ -290,7 +291,7 @@ pub fn update(app: &AppState, id: i64, body: &Map<String, Value>) -> Result<Valu
             } else {
                 400
             };
-            Refused::new(status, m)
+            Refusal::new(status, m, None)
         })?;
     }
     if !key.value.is_empty() {
@@ -299,28 +300,29 @@ pub fn update(app: &AppState, id: i64, body: &Map<String, Value>) -> Result<Valu
         } else {
             provider_secret_name(&row.provider_kind)
         };
-        secrets::set(&conn, &app.security, &name, &key.value).map_err(|m| Refused::new(500, m))?;
+        secrets::set(&conn, &app.security, &name, &key.value)
+            .map_err(|m| Refusal::new(500, m, None))?;
     }
     Ok(success(json!({ "data": reload(&conn, id)? })))
 }
 
 /// `DELETE /agent/api/models/<id>`.
-pub fn delete(app: &AppState, id: i64) -> Result<Value, Refused> {
+pub fn delete(app: &AppState, id: i64) -> Result<Value, Refusal> {
     let conn = app.sqlite.conn().map_err(internal)?;
     store::delete(&conn, id).map_err(|m| {
         let status = if m == NOT_FOUND { 404 } else { 500 };
-        Refused::new(status, m)
+        Refusal::new(status, m, None)
     })?;
     tracing::info!("Agent model {} deleted", id);
     Ok(success(json!({ "message": "Model deleted" })))
 }
 
 /// `POST /agent/api/models/<id>/default`.
-pub fn set_default(app: &AppState, id: i64) -> Result<Value, Refused> {
+pub fn set_default(app: &AppState, id: i64) -> Result<Value, Refusal> {
     let conn = app.sqlite.conn().map_err(internal)?;
     store::set_default(&conn, id).map_err(|m| {
         let status = if m == NOT_FOUND { 404 } else { 409 };
-        Refused::new(status, m)
+        Refusal::new(status, m, None)
     })?;
     Ok(success(json!({ "data": reload(&conn, id)? })))
 }

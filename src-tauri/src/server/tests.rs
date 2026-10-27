@@ -241,6 +241,8 @@ mod broker_busy;
 mod api_parity;
 // The built-in ngrok tunnel in the app (services::tunnel, server::tunnel).
 mod tunnel;
+// The Agent's configuration routes (the config part of blueprints/agent.py).
+mod agent_config;
 
 // ------------------------------------------------------------------ fixtures
 

@@ -45,7 +45,10 @@ pub async fn fetch(client: &reqwest_agent::Client, url: &str) -> Result<Vec<u8>,
         .await
         .map_err(|e| format!("the request failed: {}", e.without_url()))?;
     if !response.status().is_success() {
-        return Err(format!("the server answered {}", response.status().as_u16()));
+        return Err(format!(
+            "the server answered {}",
+            response.status().as_u16()
+        ));
     }
     if response
         .content_length()
@@ -65,4 +68,30 @@ pub async fn fetch(client: &reqwest_agent::Client, url: &str) -> Result<Vec<u8>,
         body.extend_from_slice(&chunk);
     }
     Ok(body)
+}
+
+/// At app start, once (an owned task, aborted at quit): fetch the table on
+/// the Agent's own HTTP client and put it in place if it passes. Started by
+/// the app only, never by a test context, so no test reaches the network.
+pub fn start(app: &std::sync::Arc<crate::state::AppState>) {
+    app.spawn(async move {
+        let client = match crate::agent::run::client::http_client() {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!("The model catalogue was not refreshed: {}", e);
+                return;
+            }
+        };
+        match fetch(&client, TABLE_URL).await {
+            Ok(body) => {
+                if let Err(e) = tokio::task::spawn_blocking(move || apply(&body)).await {
+                    tracing::warn!("The model catalogue refresh stopped: {}", e);
+                }
+            }
+            Err(reason) => tracing::info!(
+                "The model catalogue was not refreshed ({}); the bundled one is used",
+                reason
+            ),
+        }
+    });
 }

@@ -82,7 +82,10 @@ pub fn brand(id: &str) -> (String, String) {
 
 /// The display name of a provider the grid knows.
 pub fn known_name(id: &str) -> Option<&'static str> {
-    BRANDS.iter().find(|(p, _, _)| *p == id).map(|(_, name, _)| *name)
+    BRANDS
+        .iter()
+        .find(|(p, _, _)| *p == id)
+        .map(|(_, name, _)| *name)
 }
 
 pub fn needs_key(id: &str) -> bool {

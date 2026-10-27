@@ -235,6 +235,10 @@ async fn start_services(
     ctx.trading.start(ctx.now(), &ctx.sqlite);
     // Chartink intraday square-offs (owned task).
     ctx.chartink.start();
+    // The Agent's model catalogue: LiteLLM's price table refreshed once,
+    // 5 s, as the web gets it at import (owned task; the bundled copy
+    // stays on any failure).
+    agent::catalog::refresh::start(ctx);
     // Market data feed for SDK clients; a taken port is kept in
     // its status with a trader-facing message.
     let feed = feed::FeedService::new(ctx.clone());

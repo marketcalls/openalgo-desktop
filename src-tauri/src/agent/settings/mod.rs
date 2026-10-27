@@ -230,17 +230,19 @@ pub fn settings_answer(app: &AppState) -> Value {
 pub fn update_answer(
     app: &AppState,
     body: &Map<String, Value>,
-) -> Result<Value, crate::agent::models::Refused> {
-    use crate::agent::models::Refused;
+) -> Result<Value, crate::agent::reply::Refusal> {
+    use crate::agent::reply::Refusal;
     if body.is_empty() {
-        return Err(Refused::bad_request("Nothing to update"));
+        return Err(Refusal::bad_request("Nothing to update"));
     }
     match update(app, body) {
         Ok(data) => Ok(crate::agent::models::success(
             serde_json::json!({ "data": data }),
         )),
-        Err(UpdateError::Invalid(message)) => Err(Refused::bad_request(message)),
-        Err(UpdateError::Store) => Err(Refused::new(500, "Could not save the agent settings")),
+        Err(UpdateError::Invalid(message)) => Err(Refusal::bad_request(message)),
+        Err(UpdateError::Store) => {
+            Err(Refusal::new(500, "Could not save the agent settings", None))
+        }
     }
 }
 
@@ -257,10 +259,10 @@ pub fn kill_switch_answer(app: &AppState) -> Value {
 pub fn set_kill_switch_answer(
     app: &AppState,
     body: &Map<String, Value>,
-) -> Result<Value, crate::agent::models::Refused> {
-    use crate::agent::models::Refused;
+) -> Result<Value, crate::agent::reply::Refusal> {
+    use crate::agent::reply::Refusal;
     let Some(Value::Bool(engaged)) = body.get("engaged") else {
-        return Err(Refused::bad_request("engaged must be true or false"));
+        return Err(Refusal::bad_request("engaged must be true or false"));
     };
     match kill_switch::set(app, *engaged) {
         Ok(state) => Ok(crate::agent::models::success(
@@ -268,7 +270,7 @@ pub fn set_kill_switch_answer(
         )),
         Err(e) => {
             tracing::error!("The Agent kill switch could not be saved: {}", e);
-            Err(Refused::new(500, "Could not save the kill switch"))
+            Err(Refusal::new(500, "Could not save the kill switch", None))
         }
     }
 }

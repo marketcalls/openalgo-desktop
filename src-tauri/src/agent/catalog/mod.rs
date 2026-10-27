@@ -394,10 +394,10 @@ pub fn providers_answer() -> Value {
 pub fn models_answer(
     provider: Option<&str>,
     chat_only: Option<&str>,
-) -> Result<Value, crate::agent::models::Refused> {
+) -> Result<Value, crate::agent::reply::Refusal> {
     let provider = provider.unwrap_or("").trim();
     if provider.is_empty() {
-        return Err(crate::agent::models::Refused::bad_request(
+        return Err(crate::agent::reply::Refusal::bad_request(
             "A provider is required",
         ));
     }

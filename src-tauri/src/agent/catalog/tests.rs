@@ -217,11 +217,62 @@ fn unknown_is_never_zero() {
     );
     let missing = models_answer(Some("  "), None).unwrap_err();
     assert_eq!(
-        (missing.status, missing.message.as_str()),
+        (missing.status, missing.message()),
         (400, "A provider is required")
     );
     let nobody = models_answer(Some("nobody"), None).unwrap();
     assert_eq!(nobody["provider"], Value::Null);
     assert_eq!(nobody["data"], json!([]));
     assert_eq!(providers_answer()["available"], json!(true));
+}
+
+/// Serve one HTTP answer on a local port; the address to fetch.
+async fn serve_once(head: String, body: Vec<u8>) -> (String, tokio::task::JoinHandle<()>) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let task = tokio::spawn(async move {
+        if let Ok((mut sock, _)) = listener.accept().await {
+            let mut buf = [0u8; 4096];
+            let _ = sock.read(&mut buf).await;
+            let _ = sock.write_all(head.as_bytes()).await;
+            let _ = sock.write_all(&body).await;
+            let _ = sock.shutdown().await;
+        }
+    });
+    (format!("http://127.0.0.1:{}/table.json", port), task)
+}
+
+#[tokio::test]
+async fn the_refresh_fetches_one_bounded_table() {
+    let client = crate::agent::run::client::http_client().unwrap();
+    let table = serde_json::to_vec(&table(3000)).unwrap();
+    let head = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        table.len()
+    );
+    let (url, task) = serve_once(head, table.clone()).await;
+    let body = refresh::fetch(&client, &url).await.unwrap();
+    assert_eq!(body, table);
+    task.await.unwrap();
+    let huge = format!(
+        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        refresh::MAX_BYTES + 1
+    );
+    let (url, task) = serve_once(huge, Vec::new()).await;
+    assert!(
+        refresh::fetch(&client, &url).await.is_err(),
+        "refused before it is read"
+    );
+    task.abort();
+    let (url, task) = serve_once(
+        "HTTP/1.1 503 X\r\nContent-Length: 0\r\n\r\n".into(),
+        Vec::new(),
+    )
+    .await;
+    assert_eq!(
+        refresh::fetch(&client, &url).await.unwrap_err(),
+        "the server answered 503"
+    );
+    task.await.unwrap();
 }

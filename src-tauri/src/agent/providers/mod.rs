@@ -166,7 +166,10 @@ pub fn validate_provider_config(
         return Some("The base URL must start with http:// or https://".into());
     }
     if spec.needs_key && !has_key && !is_subscription(model_name) {
-        return Some(format!("{} requires an API key", key_label(spec, model_name)));
+        return Some(format!(
+            "{} requires an API key",
+            key_label(spec, model_name)
+        ));
     }
     None
 }

@@ -1,8 +1,8 @@
 //! The web's `blueprints/agent.py`, split by area: the chat routes
-//! ([`chat`]) and the conversation routes ([`conversations`]) here; the
-//! config routes belong to the config part. Every route needs the signed-in
-//! user and carries the session's CSRF token on writes, like every page
-//! route; none is public.
+//! ([`chat`]), the conversation routes ([`conversations`]) and the
+//! configuration routes ([`config`]: status, catalogue, models, settings).
+//! Every route needs the signed-in user and carries the session's CSRF
+//! token on writes, like every page route; none is public.
 //!
 //! The handlers read the request, call one service in `crate::agent` and
 //! shape the reply. Limits as the web: 240 requests a minute across the
@@ -10,6 +10,7 @@
 //! 12 MB body.
 
 pub mod chat;
+pub mod config;
 pub mod conversations;
 
 use super::{Access, RouteSpec};
@@ -32,8 +33,16 @@ use std::sync::Arc;
 /// attachments travel base64 inside the JSON.
 pub const MAX_REQUEST_BYTES: usize = 12_000_000;
 
-/// The Agent's chat and conversation routes.
+/// The Agent's routes: chat and conversations here, then the
+/// configuration routes ([`config::table`]).
 pub fn table() -> Vec<RouteSpec> {
+    let mut routes = chat_table();
+    routes.extend(config::table());
+    routes
+}
+
+/// The chat and conversation routes.
+fn chat_table() -> Vec<RouteSpec> {
     let spec =
         |path: &'static str, method: Method, make: fn() -> MethodRouter<Arc<AppState>>| RouteSpec {
             path,

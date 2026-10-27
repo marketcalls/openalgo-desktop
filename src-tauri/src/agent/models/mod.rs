@@ -6,11 +6,13 @@
 //! - `secrets`: `ag_secret`, sealed under the app's data key.
 //! - `service`: what the model routes do: register, edit, remove, make
 //!   default, list, each answering with the web's body and status.
+//! - `probe`: a model's credential test, one capped streamed request.
 //!
 //! The answers are the web's envelope: `{"status": "success", ...}`, or a
-//! [`Refused`] the route turns into `{"status": "error", "message": ...}`.
+//! [`Refusal`](crate::agent::reply::Refusal) with its status and sentence.
 
 pub mod migration;
+pub mod probe;
 pub mod secrets;
 pub mod service;
 pub mod store;
@@ -19,40 +21,6 @@ pub mod store;
 mod tests;
 
 use serde_json::{Map, Value};
-
-/// A request refused with the web's status and sentence, and any extra
-/// fields its error body carries (`data` for a model saved without its key).
-#[derive(Debug, Clone, PartialEq)]
-pub struct Refused {
-    pub status: u16,
-    pub message: String,
-    pub extra: Option<Value>,
-}
-
-impl Refused {
-    pub fn new(status: u16, message: impl Into<String>) -> Refused {
-        Refused {
-            status,
-            message: message.into(),
-            extra: None,
-        }
-    }
-
-    pub fn bad_request(message: impl Into<String>) -> Refused {
-        Refused::new(400, message)
-    }
-
-    /// The error body (the web's `_error`).
-    pub fn body(&self) -> Value {
-        let mut out = Map::new();
-        out.insert("status".into(), "error".into());
-        out.insert("message".into(), self.message.clone().into());
-        if let Some(Value::Object(extra)) = &self.extra {
-            out.extend(extra.clone());
-        }
-        Value::Object(out)
-    }
-}
 
 /// The success body (the web's `_ok`): the payload's keys beside
 /// `"status": "success"`.

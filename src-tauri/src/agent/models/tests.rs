@@ -3,7 +3,7 @@
 use super::secrets::{self, fingerprint};
 use super::service;
 use super::store::{self, ModelChanges, NewModel};
-use super::Refused;
+use crate::agent::reply::Refusal;
 use crate::security::Unlocked;
 use serde_json::{json, Map, Value};
 
@@ -261,34 +261,34 @@ async fn deleting_a_model_takes_its_own_key_and_hands_the_default_on() {
 #[tokio::test]
 async fn registering_reads_the_request_as_the_web_does() {
     let t = ctx();
-    let refused = |b: Value| -> Refused { service::create(&t.ctx, &body(b)).unwrap_err() };
+    let refused = |b: Value| -> Refusal { service::create(&t.ctx, &body(b)).unwrap_err() };
     assert_eq!(
-        refused(json!({"provider_kind": "azure", "model_name": "x"})).message,
+        refused(json!({"provider_kind": "azure", "model_name": "x"})).message(),
         "provider_kind must be one of: openai, anthropic, ollama, openai_compatible, litellm"
     );
     assert_eq!(
-        refused(json!({"provider_kind": "openai"})).message,
+        refused(json!({"provider_kind": "openai"})).message(),
         "A model name is required"
     );
     assert_eq!(
-        refused(json!({"provider_kind": "ollama", "model_name": "m"})).message,
+        refused(json!({"provider_kind": "ollama", "model_name": "m"})).message(),
         "Ollama requires a base URL"
     );
     assert_eq!(
         refused(
             json!({"provider_kind": "openai", "model_name": "m", "default_reasoning_effort": "max"})
         )
-        .message,
+        .message(),
         "default_reasoning_effort must be one of: off, low, medium, high"
     );
     assert_eq!(
         refused(json!({"provider_kind": "openai", "model_name": "m", "api_key_scope": "team"}))
-            .message,
+            .message(),
         "api_key_scope must be one of: provider, model"
     );
     let r = refused(json!({"provider_kind": "openai", "model_name": "m".repeat(201)}));
     assert_eq!(
-        (r.status, r.message.as_str()),
+        (r.status, r.message()),
         (400, "A model name can be at most 200 characters")
     );
     let made = service::create(
@@ -316,7 +316,7 @@ async fn registering_reads_the_request_as_the_web_does() {
     assert!(m.get("api_key").is_none() && !made.to_string().contains("sk-shared"));
     let dup = refused(json!({"provider_kind": "openai", "model_name": "gpt-4o"}));
     assert_eq!(
-        (dup.status, dup.message.as_str()),
+        (dup.status, dup.message()),
         (409, "gpt-4o is already registered for this provider")
     );
     // A second model of the provider needs no key: the shared one answers.
@@ -394,7 +394,7 @@ async fn an_edit_keeps_a_blank_key_and_refuses_an_empty_request() {
     let id = made["data"]["id"].as_i64().unwrap();
     let nothing = service::update(&t.ctx, id, &body(json!({"api_key": "  "}))).unwrap_err();
     assert_eq!(
-        (nothing.status, nothing.message.as_str()),
+        (nothing.status, nothing.message()),
         (400, "Nothing to update")
     );
     let kept = service::update(
@@ -409,7 +409,7 @@ async fn an_edit_keeps_a_blank_key_and_refuses_an_empty_request() {
     );
     let missing = service::update(&t.ctx, 999, &body(json!({"display_name": "x"}))).unwrap_err();
     assert_eq!(
-        (missing.status, missing.message.as_str()),
+        (missing.status, missing.message()),
         (404, "Model not found")
     );
     let bad_url = service::update(
@@ -442,7 +442,7 @@ async fn an_edit_keeps_a_blank_key_and_refuses_an_empty_request() {
     .unwrap();
     let r = service::set_default(&t.ctx, untested["data"]["id"].as_i64().unwrap()).unwrap_err();
     assert_eq!(
-        (r.status, r.message.as_str()),
+        (r.status, r.message()),
         (
             409,
             "Test the model's credentials before making it the default"
@@ -481,5 +481,70 @@ async fn a_fresh_start_takes_every_agent_key_and_the_tests_that_rested_on_them()
     assert_eq!(
         store::get(&conn, local.id).unwrap().unwrap().last_test_ok,
         Some(true)
+    );
+}
+
+/// A test the gate refuses is a failed test on the row, at 0 ms, and no
+/// request; a provider that does not answer in time fails the test with
+/// the limit in the sentence.
+#[tokio::test]
+async fn a_test_refused_before_sending_or_unanswered_is_recorded_failed() {
+    use crate::agent::testing::{FakeProvider, Reply};
+    let t = ctx();
+    let keyless = service::create(
+        &t.ctx,
+        &body(json!({"provider_kind": "openai", "model_name": "gpt-4o"})),
+    )
+    .unwrap();
+    let id = keyless["data"]["id"].as_i64().unwrap();
+    let v = super::probe::test(&t.ctx, id).await.unwrap();
+    assert_eq!(
+        (
+            v["ok"].clone(),
+            v["message"].clone(),
+            v["latency_ms"].clone()
+        ),
+        (json!(false), json!("OpenAI requires an API key"), json!(0))
+    );
+    assert_eq!(
+        v["data"]["last_test_error"],
+        json!("OpenAI requires an API key")
+    );
+    let unreachable = service::create(
+        &t.ctx,
+        &body(json!({"provider_kind": "litellm", "model_name": "bedrock/x", "api_key": "sk-shared-key-1234"})),
+    )
+    .unwrap();
+    let v = super::probe::test(&t.ctx, unreachable["data"]["id"].as_i64().unwrap())
+        .await
+        .unwrap();
+    assert_eq!(v["ok"], json!(false));
+    assert!(
+        v.get("data").is_none(),
+        "the web's kwargs path carries no row"
+    );
+    let fake = FakeProvider::start(vec![Reply::Hang]).await;
+    let slow = service::create(
+        &t.ctx,
+        &body(
+            json!({"provider_kind": "ollama", "model_name": "llama3", "base_url": fake.endpoint()}),
+        ),
+    )
+    .unwrap();
+    let v = super::probe::test_within(
+        &t.ctx,
+        slow["data"]["id"].as_i64().unwrap(),
+        std::time::Duration::from_millis(300),
+    )
+    .await
+    .unwrap();
+    assert_eq!(v["ok"], json!(false));
+    assert_eq!(
+        v["message"],
+        json!("The provider did not answer within 1 second")
+    );
+    assert_eq!(
+        super::probe::test(&t.ctx, 999).await.unwrap_err().status,
+        404
     );
 }

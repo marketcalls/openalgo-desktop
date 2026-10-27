@@ -228,13 +228,10 @@ async fn the_answers_carry_the_webs_envelope_and_statuses() {
     assert_eq!(got["status"], "success");
     assert!(got["data"].is_object() && got["defaults"].is_object());
     let empty = update_answer(&t.ctx, &serde_json::Map::new()).unwrap_err();
-    assert_eq!(
-        (empty.status, empty.message.as_str()),
-        (400, "Nothing to update")
-    );
+    assert_eq!((empty.status, empty.message()), (400, "Nothing to update"));
     let bad = update_answer(&t.ctx, &body(json!({"kill_switch": "maybe"}))).unwrap_err();
     assert_eq!(bad.status, 400);
-    assert_eq!(bad.message, "kill_switch must be a boolean, got 'maybe'");
+    assert_eq!(bad.message(), "kill_switch must be a boolean, got 'maybe'");
     let ok = update_answer(&t.ctx, &body(json!({"kill_switch": true}))).unwrap();
     assert_eq!(ok["data"]["kill_switch"], json!(true));
 }

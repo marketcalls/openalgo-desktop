@@ -26,7 +26,7 @@ struct Assets;
 /// Frontend routes (web `App.tsx`), minus the out-of-scope Flow and pandas
 /// backtesters, and minus the Python Strategy Host (`/python`), which is not
 /// part of this version (maintainer, 2026-10-12): its paths get the app's 404
-/// page. The Agent (`/agent`) is back in 1.0.4. `:x` matches one path
+/// page. The Agent (`/agent`, `/agent/config`) is back in 1.0.4. `:x` matches one path
 /// segment.
 pub const SPA_ROUTES: &[&str] = &[
     "/",
@@ -39,6 +39,7 @@ pub const SPA_ROUTES: &[&str] = &[
     "/admin/remote-mcp",
     "/admin/timings",
     "/agent",
+    "/agent/config",
     "/analyzer",
     "/apikey",
     "/arbitrage",
@@ -215,6 +216,7 @@ mod tests {
         assert!(!is_spa_route("/doesnotexist"));
         assert!(!is_spa_route("/python"));
         assert!(is_spa_route("/agent"));
+        assert!(is_spa_route("/agent/config"));
         assert!(!is_spa_route("/broker/angel/totp/x"));
     }
 
