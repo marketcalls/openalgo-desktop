@@ -4,7 +4,7 @@
 //! the same tail. Built as [`Json`] so the keys reach the model in the web's
 //! order (a MACD table lists `macd_line`, `signal_line`, `histogram`).
 
-use crate::agent::contract::tool::{ToolOutcome, MAX_RESULT_CHARS};
+use crate::agent::contract::tool::ToolOutcome;
 use crate::agent::indicators::{ist_stamp, Computed, Json};
 use crate::agent::prompts::untrusted::wrap_tool_result;
 use crate::agent::redact::redact;
@@ -145,17 +145,17 @@ pub(super) fn fit(build: impl Fn(usize) -> Json, start: usize) -> Json {
     build(chosen.get())
 }
 
-/// A result as the model reads it, in the web's key order: labelled as
-/// data like every tool result. When redaction would change anything, or
-/// the text is over the cap, the shared path answers instead (redacted and
-/// capped, keys sorted), so an ordered answer never skips either.
+/// A result as the model reads it, in the web's key order
+/// ([`ToolOutcome::json_ordered`], capped like every result) and labelled
+/// as data. When redaction would change anything the shared path answers
+/// instead (redacted, keys sorted), so an ordered answer never skips it.
 pub(super) fn answer(tool: &str, payload: &Json, labels: &[Label<'_>]) -> ToolOutcome {
     let value = serde_json::to_value(payload).unwrap_or(Value::Null);
-    let text = payload.to_text();
-    if redact(&value) != value || text.chars().count() > MAX_RESULT_CHARS {
+    if redact(&value) != value {
         return json_result(tool, &value, labels);
     }
+    let ordered = ToolOutcome::json_ordered(payload);
     let borrowed: Vec<(&str, Option<&str>)> =
         labels.iter().map(|(k, v)| (*k, v.as_deref())).collect();
-    ToolOutcome::Ok(wrap_tool_result(tool, &text, &borrowed))
+    ToolOutcome::Ok(wrap_tool_result(tool, ordered.text(), &borrowed))
 }
