@@ -168,7 +168,9 @@ fn r2(v: f64) -> f64 {
 /// Split a frame into packets (trailing partial packets are ignored).
 pub fn packets(frame: &[u8]) -> Vec<Packet> {
     frame
-        .chunks_exact(PACKET_LEN)
+        .as_chunks::<PACKET_LEN>()
+        .0
+        .iter()
         .map(|p| {
             let mut body = [0u8; 20];
             body.copy_from_slice(&p[10..30]);

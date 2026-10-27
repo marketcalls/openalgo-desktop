@@ -106,10 +106,7 @@ fn schedule_to_add(body: &JsonBody) -> Result<AddSchedule, EarlyReply> {
     } else if parse_hhmm(&time_of_day).is_none() {
         return Err(bad("Invalid time format. Use HH:MM (e.g., 09:15)"));
     }
-    let lookback_days = match lookback(body, Some(1)) {
-        Ok(v) => v.unwrap_or(1),
-        Err(r) => return Err(r),
-    };
+    let lookback_days = lookback(body, Some(1))?.unwrap_or(1);
     Ok(AddSchedule {
         name,
         schedule_type,

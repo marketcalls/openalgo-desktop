@@ -531,7 +531,7 @@ impl Scheduler {
             }
             job.next = next_after(&job.recur, now);
         }
-        due.sort_by(|a, b| a.0.cmp(&b.0));
+        due.sort_by_key(|a| a.0);
         due.into_iter().map(|(_, id, k)| (id, k)).collect()
     }
 

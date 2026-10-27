@@ -103,7 +103,7 @@ impl Runner {
             let rows = services
                 .order_book_rows(RunMode::Live)
                 .await
-                .map_err(&unreadable)?;
+                .map_err(unreadable)?;
             // Which of the book's orders are the runner's, read on the
             // blocking pool (PROD-REL-02); unknown, all of them.
             let ids: Vec<String> = rows.iter().map(|r| r.order_id.clone()).collect();
