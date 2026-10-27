@@ -13,6 +13,8 @@
 //! in this version (maintainer, 2026-10-27). Flow comes later: its line goes
 //! in the marked place below, chat surface only, as on the web.
 
+pub mod order_vocab;
+pub mod orders;
 pub mod service;
 
 use crate::agent::contract::tool::{AgentTool, ToolCtx, ToolGroup};
@@ -23,7 +25,7 @@ use std::sync::Arc;
 pub const TOOLKITS: &[ToolGroup] = &[
     // Toolkit lanes add their line here, for example:
     // market::GROUP,     // order 10, every surface
-    // orders::GROUP,     // order 50, every surface, requires Trading
+    orders::GROUP, // order 50, every surface, requires Trading
     //
     // Later: flow_gen::GROUP (order 70, chat only), not in this version.
 ];

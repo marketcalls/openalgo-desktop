@@ -169,6 +169,7 @@ mod mcp_support;
 mod sandbox_support;
 mod webui_support;
 
+mod agent_orders;
 mod analyzer_mode;
 mod api_v1_chart;
 mod api_v1_contract;
