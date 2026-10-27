@@ -76,6 +76,25 @@ mod tests {
         );
     }
 
+    /// Every result is redacted, and redaction removes any run of 32 or
+    /// more hex characters. That is safe for the books only because no
+    /// desktop broker uses an order id of 32 or more continuous hex
+    /// characters (numeric ids, or UUIDs, which carry hyphens): an order id
+    /// must survive, or the trader could not be told which order is which.
+    #[test]
+    fn order_ids_survive_redaction() {
+        let ids = [
+            "250408000989443",
+            "240108010918222",
+            "GMK39038RDT490CCVRO",
+            "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        ];
+        for id in ids {
+            let out = json_result("get_order_status", &json!({"order_id": id}), &[]);
+            assert!(out.text().contains(id), "{}", out.text());
+        }
+    }
+
     #[test]
     fn an_answer_carries_its_notices_as_one_sentence() {
         let out = tool_answer(
