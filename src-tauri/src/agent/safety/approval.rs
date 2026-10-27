@@ -287,14 +287,12 @@ mod tests {
         let run = pause(&t);
         t.clock
             .advance(Duration::minutes(10) + Duration::seconds(1));
-        let claim =
-            store::claim_paused(&*t.ctx.sqlite.conn().unwrap(), &run, "trader", t.ctx.now())
-                .unwrap();
+        let claim = store::claim_paused(&t.ctx.sqlite.conn().unwrap(), &run, "trader", t.ctx.now())
+            .unwrap();
         assert_eq!(claim, Claim::Expired);
         AuditTrail.abandoned(&t.ctx, &run).await;
-        let again =
-            store::claim_paused(&*t.ctx.sqlite.conn().unwrap(), &run, "trader", t.ctx.now())
-                .unwrap();
+        let again = store::claim_paused(&t.ctx.sqlite.conn().unwrap(), &run, "trader", t.ctx.now())
+            .unwrap();
         assert_eq!(again, Claim::Expired, "an expired run never resumes");
         let rows = rows(&t).await;
         assert_eq!(rows.len(), 1);
@@ -310,9 +308,8 @@ mod tests {
         let t = app();
         let run = pause(&t);
         t.clock.advance(Duration::minutes(9));
-        let claim =
-            store::claim_paused(&*t.ctx.sqlite.conn().unwrap(), &run, "trader", t.ctx.now())
-                .unwrap();
+        let claim = store::claim_paused(&t.ctx.sqlite.conn().unwrap(), &run, "trader", t.ctx.now())
+            .unwrap();
         assert!(matches!(claim, Claim::Claimed(_)), "{:?}", claim);
     }
 
