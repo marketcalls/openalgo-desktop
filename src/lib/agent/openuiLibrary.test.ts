@@ -134,6 +134,21 @@ describe('the component subset', () => {
     expect(prompt).toContain('Never emit a URL, a link or an image')
   })
 
+  it('teaches no URL, no button, no action and no image prop (desktop, D-022)', () => {
+    // The shipped ListItem carries an image and an ActionExpression, and the
+    // generator answers the second with a whole section on Button and
+    // @OpenUrl("https://..."). The subset left those components out; these
+    // props brought them back into the prompt.
+    const prompt = buildAgentUiPrompt()
+    for (const taught of ['Button', '@OpenUrl', 'ActionExpression', 'Action(', 'image?:']) {
+      expect(prompt).not.toContain(taught)
+    }
+    expect(prompt).not.toContain('"image"')
+    expect(prompt).not.toMatch(/https?:\/\//)
+    expect(prompt).toContain('ListItem(title: string, subtitle?: string) -')
+    expect(prompt).toContain('ListBlock(items: ListItem[]) -')
+  })
+
   it('leaves a union of literals alone while narrowing a union of components', () => {
     expect(pruneUnknownComponents('x(children: (TextContent | ImageGallery | Table)[])')).toBe(
       'x(children: (TextContent | Table)[])'

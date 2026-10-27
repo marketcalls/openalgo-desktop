@@ -43,12 +43,19 @@
  *   whose numbers the model types itself, so the rule has to live here.
  */
 
-import { createLibrary, type Library, type PromptOptions } from '@openuidev/react-lang'
+import {
+  type ComponentRenderProps,
+  createLibrary,
+  defineComponent,
+  type Library,
+  type PromptOptions,
+} from '@openuidev/react-lang'
 import {
   openuiChatAdditionalRules,
   openuiChatExamples,
   openuiChatLibrary,
 } from '@openuidev/react-ui/genui-lib'
+import { createElement, type FC } from 'react'
 
 /**
  * The components the agent may compose, and the only ones it is taught.
@@ -182,6 +189,81 @@ export function missingAgentUiComponents(): string[] {
 }
 
 /**
+ * The shipped list components, narrowed to text (desktop, D-022).
+ *
+ * The shipped `ListItem` takes an `image` (`{src, alt}`, drawn as an `<img>`
+ * when its `ListBlock` uses the `"image"` variant) and an `action`, typed
+ * `ActionExpression`. The subset above left out every image and form
+ * component, but these two props came in with `ListBlock`, and the second one
+ * is what makes the generator write a whole "Action - Button Behavior" section
+ * teaching `Button` and `@OpenUrl("https://...")`: an image is a fetch to an
+ * address the model chose, and an action is a click that navigates to one.
+ *
+ * Narrowing the definitions closes both halves at once, because the prompt is
+ * generated from the same objects the renderer draws with: the model is no
+ * longer taught an image, an action, a button or a URL, and an image or an
+ * action that arrives anyway is dropped before the shipped list draws, which
+ * then always uses its numbered variant.
+ */
+type ShippedComponent = (typeof openuiChatLibrary.components)[string]
+
+/** The zod v4 object behind a shipped definition's props, as used here. */
+interface PropsObject {
+  pick(mask: Record<string, true>): PropsObject
+  omit(mask: Record<string, true>): PropsObject
+  extend(shape: Record<string, unknown>): PropsObject
+}
+
+function shipped(name: string): ShippedComponent {
+  return openuiChatLibrary.components[name]
+}
+
+function propsOf(name: string): PropsObject {
+  return shipped(name).props as unknown as PropsObject
+}
+
+function asProps(schema: PropsObject): ShippedComponent['props'] {
+  return schema as unknown as ShippedComponent['props']
+}
+
+/** One list item, keeping only the text a shipped item draws. */
+function textItem(item: unknown): unknown {
+  if (!item || typeof item !== 'object') return item
+  const props = (item as { props?: Record<string, unknown> }).props ?? {}
+  return { ...item, props: { title: props.title, subtitle: props.subtitle } }
+}
+
+const agentListItem = defineComponent({
+  name: 'ListItem',
+  props: asProps(propsOf('ListItem').pick({ title: true, subtitle: true })),
+  description: 'Item in a ListBlock - a title with an optional subtitle.',
+  component: () => null,
+})
+
+const agentListBlock = defineComponent({
+  name: 'ListBlock',
+  props: asProps(
+    propsOf('ListBlock')
+      .omit({ variant: true })
+      .extend({ items: (agentListItem.ref as unknown as { array(): unknown }).array() })
+  ),
+  description: 'A numbered list of items.',
+  component: (render: ComponentRenderProps) => {
+    const items = Array.isArray(render.props.items) ? render.props.items : []
+    return createElement(shipped('ListBlock').component as FC<ComponentRenderProps>, {
+      ...render,
+      props: { items: items.map(textItem), variant: 'number' },
+    })
+  },
+})
+
+/** The definitions the agent library uses in place of the shipped ones. */
+const NARROWED: Record<string, ShippedComponent> = {
+  ListItem: agentListItem as unknown as ShippedComponent,
+  ListBlock: agentListBlock as unknown as ShippedComponent,
+}
+
+/**
  * The library the `Renderer` draws with, and the one the prompt is built from.
  *
  * Built once at module load. `root` is carried over from the shipped chat
@@ -189,7 +271,9 @@ export function missingAgentUiComponents(): string[] {
  * describes.
  */
 export const agentUiLibrary: Library = createLibrary({
-  components: AGENT_UI_COMPONENTS.map((name) => openuiChatLibrary.components[name]).filter(Boolean),
+  components: AGENT_UI_COMPONENTS.map(
+    (name) => NARROWED[name] ?? openuiChatLibrary.components[name]
+  ).filter(Boolean),
   root: openuiChatLibrary.root,
 })
 

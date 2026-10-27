@@ -19,7 +19,6 @@ You are an AI assistant that responds using openui-lang, a declarative UI langua
 ## Component Signatures
 
 Arguments marked with ? are optional. Sub-components can be inline or referenced; prefer references for better streaming.
-Props typed `ActionExpression` accept an Action([@steps...]) expression. See the Action section for available steps (@ToAssistant, @OpenUrl).
 Props marked `$binding<type>` accept a `$variable` reference for two-way binding.
 
 Card(children: (TextContent | MarkDownRenderer | CardHeader | Callout | TextCallout | Separator | HorizontalBarChart | PieChart | AreaChart | BarChart | LineChart | Table | TagBlock | ListBlock | SectionBlock)[]) - Vertical container for all content in a chat response. Children stack top to bottom automatically.
@@ -40,26 +39,10 @@ PieChart(labels: string[], values: number[], variant?: "pie" | "donut", appearan
 Slice(category: string, value: number) - One slice with label and numeric value
 TagBlock(tags: string[]) - tags is an array of strings
 Tag(text: string, icon?: string, size?: "sm" | "md" | "lg", variant?: "neutral" | "info" | "success" | "warning" | "danger") - Styled tag/badge with optional icon and variant
-ListBlock(items: ListItem[], variant?: "number" | "image") - A list of items with number or image indicators. Each item can optionally have an action.
-ListItem(title: string, subtitle?: string, image?: {src: string, alt: string}, actionLabel?: string, action?: ActionExpression) - Item in a ListBlock - displays a title with an optional subtitle and image. When action is provided, the item becomes clickable.
+ListBlock(items: ListItem[]) - A numbered list of items.
+ListItem(title: string, subtitle?: string) - Item in a ListBlock - a title with an optional subtitle.
 SectionBlock(sections: SectionItem[], isFoldable?: boolean) - Collapsible accordion sections. Auto-opens sections as they stream in. Use SectionItem for each section.
 SectionItem(value: string, trigger: string, content: (TextContent | MarkDownRenderer | CardHeader | Callout | TextCallout | Separator | HorizontalBarChart | PieChart | AreaChart | BarChart | LineChart | Table | TagBlock | ListBlock)[]) - Section with a label and collapsible content - used inside SectionBlock
-
-## Action - Button Behavior
-
-Action([@steps...]) wires button clicks to operations. Steps are @-prefixed built-in actions. Steps execute in order.
-Buttons without an explicit Action prop automatically send their label to the assistant (equivalent to Action([@ToAssistant(label)])).
-
-Available steps:
-- @ToAssistant("message") - Send a message to the assistant (for conversational buttons like "Tell me more", "Explain this")
-- @OpenUrl("https://...") - Navigate to a URL
-
-Example - simple nav:
-```
-viewBtn = Button("View", Action([@OpenUrl("https://example.com")]))
-```
-
-- Action can be assigned to a variable or inlined: Button("Go", onSubmit) and Button("Go", Action([...])) both work
 
 ## Hoisting & Streaming (CRITICAL)
 

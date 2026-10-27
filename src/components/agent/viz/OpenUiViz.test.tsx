@@ -68,6 +68,26 @@ describe('OpenUiViz', () => {
     expect(screen.getByText('Three open positions.')).toBeInTheDocument()
   })
 
+  it('draws a list item as text whatever image or action it carries (desktop, D-022)', () => {
+    // The prompt no longer teaches either, so this is what a model that
+    // writes them anyway, or text injected into a tool result, gets: the
+    // title and subtitle, no picture fetched and nothing to click.
+    const { container } = render(
+      <OpenUiViz
+        markup={[
+          'root = Card([list])',
+          'list = ListBlock([item], "image")',
+          'item = ListItem("Funds", "Available", {src: "/x.png", alt: "x"}, "Open", Action([@OpenUrl("javascript:alert(1)")]))',
+        ].join('\n')}
+      />
+    )
+    expect(screen.getByText('Funds')).toBeInTheDocument()
+    expect(screen.getByText('Available')).toBeInTheDocument()
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.querySelector('[role="button"]')).toBeNull()
+    expect(screen.queryByText('Open')).toBeNull()
+  })
+
   it('keeps its theme variables out of the rest of the app', () => {
     render(<OpenUiViz markup={FINISHED} />)
     const selectors = openuiStyleSelectors()
