@@ -117,8 +117,10 @@ fn underlyings_stop_at_the_first_real_date() {
     .map(|(s, e)| crate::agent::tools::testkit::map(json!({"symbol": s, "exchange": e})))
     .collect();
     assert_eq!(underlyings(&rows, "", false), vec!["726GS2033", "NIFTY"]);
+    // Across exchanges the caller excludes nothing: the failed underlying
+    // on another exchange is the answer.
     assert_eq!(
-        underlyings(&rows, "NIFTY", true),
+        underlyings(&rows, "", true),
         vec!["726GS2033 (NFO)", "NIFTY (NFO)"]
     );
     assert_eq!(underlyings(&rows, "NIFTY", false), vec!["726GS2033"]);

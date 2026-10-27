@@ -68,11 +68,15 @@ mod tests {
             &json!({"symbol": "INFY", "quote": {"ltp": 1520.5}, "auth_token": "abc"}),
             &[label("symbol", &"INFY"), ("exchange", None)],
         );
+        assert!(out.is_ok());
+        let text = out.text();
+        let (head, rest) = text.split_once('\n').unwrap_or_default();
+        assert_eq!(head, "<tool_result tool=\"get_quote\" symbol=\"INFY\">");
+        let body = rest.strip_suffix("\n</tool_result>").unwrap_or_default();
+        let parsed: Value = serde_json::from_str(body).unwrap_or_default();
         assert_eq!(
-            out,
-            ToolOutcome::Ok(
-                "<tool_result tool=\"get_quote\" symbol=\"INFY\">\n{\"symbol\":\"INFY\",\"quote\":{\"ltp\":1520.5},\"auth_token\":\"[redacted]\"}\n</tool_result>".into()
-            )
+            parsed,
+            json!({"symbol": "INFY", "quote": {"ltp": 1520.5}, "auth_token": "[redacted]"})
         );
     }
 

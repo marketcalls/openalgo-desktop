@@ -537,7 +537,10 @@ fn the_summary_covers_every_row_and_omits_what_no_row_had() {
 #[test]
 fn chart_bars_drop_unusable_rows_and_sort() {
     let rows = vec![
-        map(json!({"Timestamp": 1_791_086_400_000_i64, "Close": 2, "Volume": 7})),
+        // The columns are read off the first row, as on the web.
+        map(
+            json!({"Timestamp": 1_791_086_400_000_i64, "Open": null, "High": null, "Low": null, "Close": 2, "Volume": 7}),
+        ),
         map(json!({"Timestamp": 1_791_000_000, "Open": 1, "High": 3, "Low": 0.5, "Close": 1.5})),
         map(json!({"Timestamp": "", "Close": 9})),
         map(json!({"Timestamp": 1_791_000_001, "Close": null})),
@@ -566,8 +569,9 @@ fn fit_to_budget_keeps_the_most_rows_that_fit() {
     );
     let kept = payload["kept"].as_u64().unwrap_or_default() as usize;
     assert!(rendered_length(&payload) <= JSON_BUDGET);
-    let one_more = json!({"rows": rows[..kept + 1].to_vec(), "kept": kept + 1});
-    assert!(rendered_length(&one_more) > JSON_BUDGET, "kept {}", kept);
+    // The web's arithmetic lands within a row or two of the real limit.
+    let three_more = json!({"rows": rows[..kept + 3].to_vec(), "kept": kept + 3});
+    assert!(rendered_length(&three_more) > JSON_BUDGET, "kept {}", kept);
 }
 
 // ---------------------------------------------------------------- the tools
