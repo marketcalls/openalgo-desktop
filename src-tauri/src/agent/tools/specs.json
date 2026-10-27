@@ -1,0 +1,1936 @@
+{
+  "_comment": "Generated from the web by scripts/agent/capture_web_tools.py: what the model is sent for each Agent tool. Never edit by hand.",
+  "web_commit": "dbb608e0",
+  "tools": {
+    "read_chart": {
+      "description": "Report what is on the chart right now. Draws nothing, fetches nothing.\nEverything here came with the operator's message, so this call is free\nand instant. Use it before commenting on the operator's own drawings,\nbefore deciding whether your markup is still on screen, and whenever you\nneed the exact indicator settings or the drawing anchors, which the\nsession summary does not carry.\n\nReach for it only when you need those lists. The instrument, the\ninterval, the viewport and the last price are already stated in your\nTHIS SESSION instructions.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "analyse_chart": {
+      "description": "Analyse the chart on screen: trend, structure and momentum. Draws nothing.\nOne candle fetch answers all three, so this is one call rather than\nthree. Everything it reports is computed here from real bars: the swing\nsequence, the slope of the fitted rails, the period range, and RSI, MACD,\nADX and ATR from the same candles.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "lookback_bars": {
+            "type": "integer",
+            "description": "How many candles to analyse, 60 to 1500. Pass 0 for\nthe default of 300, which is what almost every question wants."
+          }
+        },
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "find_patterns": {
+      "description": "Find candlestick and chart patterns, and mark every one on the chart.\nTwo kinds come back together. Candlestick patterns are single bars or\nruns of two or three: engulfings, hammers, stars, harami, tweezers,\nmarubozu, doji. Chart patterns are statements about the swing sequence:\ndouble tops and bottoms, head and shoulders, triangles and ranges.\n\nMarking is not optional, exactly as it is not optional for draw_levels,\ndraw_trendline and draw_zone: a pattern named in a paragraph makes the\noperator hunt for the bar, and this panel is docked to the chart the bar\nis on. If they would rather the chart were clean, clear_drawings\n``patterns`` takes the markers off again.\n\nEvery hit is detected from real candles, so its bar and its price are\nfacts. Say which pattern, on which bar, and what it implies; do not add\none the result does not list.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "lookback_bars": {
+            "type": "integer",
+            "description": "How many candles to search, 60 to 1500. Pass 0 for the\ndefault of 300. Candlestick patterns are reported from the most\nrecent 30 bars of that window, because a hammer six months ago is\nhistory rather than a signal."
+          }
+        },
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "draw_levels": {
+      "description": "Draw the strongest horizontal support and resistance levels on the chart.\nLevels come from clustered swing points, ranked by how many times price\nactually turned there, and each is a price that printed. Support and\nresistance are decided against the chart's live last price, so the same\nlevel is named the way the operator reads it now.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "How many levels to draw, 1 to 8. Defaults to 4."
+          },
+          "lookback_bars": {
+            "type": "integer",
+            "description": "How many candles to search, 60 to 1500. Pass 0 for the\ndefault of 300."
+          },
+          "note": {
+            "type": "string",
+            "description": "An optional short caption drawn with the levels, in words. It\ncarries no numbers: the prices on the labels come from the\ncandles, not from you."
+          }
+        },
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "draw_trendline": {
+      "description": "Draw a trendline through real swing points, or both rails of a channel.\nThe line runs through two swing points that actually printed and is\nchosen as the one price has respected: a resistance rail with nothing\nabove it and a support rail with nothing below it, from its anchor\nforward, before touch count is even looked at. So it touches the bars it\nclaims to touch and holds where it claims to hold, rather than being\nfitted to a cloud.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "side": {
+            "type": "string",
+            "description": "Which swings to fit. ``support`` uses the swing lows,\n``resistance`` the swing highs, ``both`` draws a rail through\neach, and ``auto`` picks whichever side has the better fit."
+          },
+          "lookback_bars": {
+            "type": "integer",
+            "description": "How many candles to search, 60 to 1500. Pass 0 for the\ndefault of 300."
+          },
+          "note": {
+            "type": "string",
+            "description": "An optional short caption drawn with the line, in words. It\ncarries no numbers."
+          }
+        },
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "draw_zone": {
+      "description": "Shade a demand or supply zone, derived from the bars around a real swing.\nA demand zone is the base price left behind before an advance: the lowest\nlow around the most recent significant swing low, up to the highest candle\nbody there. A supply zone is the mirror. Both edges therefore printed, and\nneither is a number anybody chose.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "``demand`` for the base under price, ``supply`` for the ceiling\nabove it, ``both`` to shade one of each, or ``range`` for a\nconsolidation, meaning the longest stretch where price held one\nnarrow band. Reach for ``range`` whenever the operator says\nconsolidation, sideways, base, box or accumulation: those are\nnot swings and a demand zone is not what they are describing."
+          },
+          "lookback_bars": {
+            "type": "integer",
+            "description": "How many candles to search, 60 to 1500. Pass 0 for the\ndefault of 300."
+          },
+          "note": {
+            "type": "string",
+            "description": "An optional short caption drawn with the band, in words. It\ncarries no numbers."
+          }
+        },
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "clear_drawings": {
+      "description": "Remove your own markup from the chart. Never touches the operator's drawings.\nYour drawings live in named groups and are id'd separately from anything\nthe operator placed by hand, so this can only ever remove yours.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "string",
+            "description": "Which of your groups to remove: ``levels``, ``trendline``,\n``zone`` or ``patterns``. Leave it empty, or pass ``all``, to\nremove all of them."
+          }
+        },
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "list_chart_indicators": {
+      "description": "List the indicators this chart can DRAW.\nThese are not the indicators that compute values. The chart draws with\n``openalgo-charts``, a JavaScript library of 112 indicators, while\n``compute_indicator`` and its siblings use the Rust-backed Python\nlibrary of 127. Only 40 indicators exist in both, four of them spelled\nwith a hyphen here and an underscore there (``aroon-oscillator`` is\n``aroon_oscillator``), so AlphaTrend and HalfTrend\ncan be drawn and never tabulated, and ``bbands`` and ``adxr`` can be\ntabulated and never drawn. Consult THIS list before saying an indicator\nis unavailable on the chart, because the other one will not have it.\n\nThe operator may also have written their own indicators, which the chart\nloads at runtime from ``strategies/indicators/``. Those cannot appear\nhere, so a name absent from this list is worth trying rather than\nrefusing: the chart checks its own registry and ignores what it does not\nrecognise.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Optional filter, matched against the id and the name. Leave\nit empty for the whole catalogue, which is long."
+          }
+        },
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "add_chart_indicator": {
+      "description": "Add an indicator to the chart the operator is looking at.\nThe id is passed through to the chart, which checks its own registry and\nignores an id it does not know. That is deliberate: the operator's own\nindicator modules are loaded in the browser and no list on this side can\nsee them, so refusing here on a name this process has not heard of would\nblock a working indicator.\n\nAdding one already on the chart does nothing rather than drawing a\nsecond identical line.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The indicator id, as listed by ``list_chart_indicators``, for\nexample ``alphatrend``, ``halftrend`` or ``supertrend``. For an\nindicator that is not on that list, and so is one of the\noperator's own modules, keep their own words and join them with\nhyphens: \"my UT Bot\" is ``ut-bot``, not ``utbot``. Running the\nwords together invents an id nothing is registered under, and\nthe chart drops it without a word."
+          },
+          "settings": {
+            "anyOf": [
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional per-indicator inputs, such as a period. Leave it\nout to take the indicator's own defaults, which is almost always\nwhat the operator meant."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "needs_approval": false
+    },
+    "remove_chart_indicator": {
+      "description": "Remove an indicator from the chart.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The indicator id to remove."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "needs_approval": false
+    },
+    "get_quote": {
+      "description": "Fetch the latest quote for one instrument.\nUse this for a single symbol. For several at once use ``get_quotes``,\nwhich is one broker call instead of many.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "OpenAlgo symbol, in capitals, exactly as the instrument is\nlisted. For example ``RELIANCE``, ``BANKNIFTY24APR24FUT`` or\n``NIFTY28MAR2420800CE``."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange code the symbol is listed on. One of NSE, BSE\n(equity), NFO, BFO (futures and options), CDS, BCD (currency),\nMCX, NCDEX, NCO (commodity), CRYPTO, or the quote-only index\ncodes NSE_INDEX, BSE_INDEX, MCX_INDEX and GLOBAL_INDEX. An index\nsuch as NIFTY or SENSEX is quoted on an index code, never on NSE\nor BSE."
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange"
+        ]
+      },
+      "needs_approval": false
+    },
+    "get_quotes": {
+      "description": "Fetch the latest quote for several instruments in one call.\nPrefer this over repeated ``get_quote`` calls: it is a single broker\nrequest, which is faster and far less likely to be rate limited.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbols": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "description": "The instruments to quote, as a list of objects each\ncarrying a ``symbol`` and an ``exchange``, for example\n``[{\"symbol\": \"INFY\", \"exchange\": \"NSE\"}, {\"symbol\": \"NIFTY\",\n\"exchange\": \"NSE_INDEX\"}]``. Both fields are required on every\nentry; the exchange is not inherited from the entry before it.\nAt most 50 entries per call, so split a longer watchlist into\nbatches. A plain ``\"NSE:INFY\"`` string is accepted in place of\nan object, and so is one comma separated string of them, such\nas ``\"NSE:INFY, NSE_INDEX:NIFTY\"``."
+          }
+        },
+        "required": [
+          "symbols"
+        ]
+      },
+      "needs_approval": false
+    },
+    "get_depth": {
+      "description": "Fetch the order book depth for one instrument.\nDepth is the resting bid and ask ladder, normally five levels a side,\nwith the total buy and sell quantity behind them. Use it to judge\nliquidity and the spread before sizing an order. An index has no order\nbook; quote it instead.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "OpenAlgo symbol, in capitals, exactly as the instrument is\nlisted. For example ``SBIN`` or ``NIFTY28MAR2420800CE``."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange code the symbol is listed on: NSE, BSE, NFO, BFO,\nCDS, BCD, MCX, NCDEX, NCO or CRYPTO. Depth on a quote-only index\nexchange is normally unavailable."
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange"
+        ]
+      },
+      "needs_approval": false
+    },
+    "get_history": {
+      "description": "Fetch historical candles for one instrument.\nThe result is a summary of the whole range plus the most recent candles,\nnot the whole frame: a minute interval over a month is tens of thousands\nof bars. The summary is computed over every candle in the range, so the\nhigh, the low and the volume are the real ones even when older candles\nwere dropped, and the result says how many were dropped.\n\nAsk for the range you actually need. A question about a trend over three\nmonths wants a daily interval, not a one-minute one.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "OpenAlgo symbol, in capitals, exactly as the instrument is\nlisted. For example ``INFY``, ``NIFTY`` or\n``BANKNIFTY24APR24FUT``."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange code the symbol is listed on: NSE, BSE, NFO, BFO,\nCDS, BCD, MCX, NCDEX, NCO, CRYPTO, or an index code such as\nNSE_INDEX or BSE_INDEX for an index."
+          },
+          "interval": {
+            "type": "string",
+            "description": "Candle size. Call ``get_intervals`` for the ones this\nbroker accepts; they are drawn from ``1s`` to ``45s`` for\nseconds, ``1m`` to ``30m`` for minutes, ``1h`` to ``4h`` for\nhours, and ``D``, ``W``, ``M`` for daily, weekly and monthly.\nCase matters: ``1m`` is one minute and ``M`` is one month.\nDefaults to ``D``."
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "First day of the range, as ``YYYY-MM-DD``, for example\n``2026-01-15``. Inclusive, and interpreted in IST. Leave it out\nfor about the last 100 candles at ``interval`` up to\n``end_date``."
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last day of the range, as ``YYYY-MM-DD``. Inclusive, and\ninterpreted in IST. It must not be before ``start_date``.\nDefaults to today."
+          },
+          "source": {
+            "type": "string",
+            "description": "Where the candles come from. ``api`` (the default) asks the\nbroker, which is what you want for anything current. ``db``\nreads the local Historify store, which only holds what the\noperator has already downloaded and answers with a download\ninstruction when it holds nothing for the request."
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange"
+        ]
+      },
+      "needs_approval": false
+    },
+    "get_intervals": {
+      "description": "List the candle intervals the connected broker supports.\nBrokers differ: one offers seconds, another starts at one minute, and\nthe hourly resolutions vary. Call this before ``get_history`` when you\nare unsure, and pass one of the returned values verbatim.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "search_symbols": {
+      "description": "Search OpenAlgo's instrument master for listed contracts.\nThis is how a name, a fragment or a description becomes an exact listed\nsymbol. Call it before quoting, charting or ordering anything whose\nsymbol you were not handed verbatim, then use the ``symbol`` string that\ncomes back exactly as it came back. Never assemble a derivative symbol\nyourself: an index expiry is not the last Thursday of the month any\nmore, and a strike ladder is not evenly spaced everywhere.\n\nEvery whitespace-separated term must match, against the OpenAlgo symbol,\nthe broker symbol, the instrument name or the strike. ``NIFTY 20800 CE``\nis a good query. A sentence is not.\n\nOpenAlgo symbol format, which is what the ``symbol`` field holds:\n\n- Equity is the bare base symbol: ``INFY``, ``SBIN``, ``TATAMOTORS``.\n- Futures are ``[Base][DDMMMYY]FUT``: ``BANKNIFTY24APR24FUT``,\n  ``CRUDEOILM20MAY24FUT``, ``USDINR10MAY24FUT``.\n- Options are ``[Base][DDMMMYY][Strike][CE or PE]``:\n  ``NIFTY28MAR2420800CE``, ``CRUDEOIL17APR246750CE``. A decimal strike\n  keeps its decimal point and the point is part of the symbol:\n  ``VEDL25APR24292.5CE``.\n- An index carries no expiry and sits on its own exchange code:\n  ``NIFTY`` and ``BANKNIFTY`` on ``NSE_INDEX``, ``SENSEX`` on\n  ``BSE_INDEX``.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "What to search for. A base symbol (``RELIANCE``), a company\nname (``State Bank``), a whole contract\n(``NIFTY28MAR2420800CE``), or terms that must all match\n(``BANKNIFTY 56000 PE``). Case does not matter."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange filter, one of NSE, BSE, NFO, BFO, CDS, BCD, MCX,\nNCDEX, NCO, CRYPTO, NSE_INDEX, BSE_INDEX, MCX_INDEX,\nGLOBAL_INDEX. Leave it empty to search every exchange, which is\nthe right choice when you are not certain where the instrument\nis listed."
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "needs_approval": false
+    },
+    "get_symbol": {
+      "description": "Confirm one exact contract and return what an order needs to know.\nUse this to verify a symbol before acting on it, and to get the three\nnumbers an order depends on: ``lotsize``, ``tick_size`` and\n``freeze_qty``. They come back together so nothing has to look them up\ntwice.\n\nThe pair must be exact. A symbol is only meaningful with its exchange,\nand OpenAlgo treats the pair as a contract identity rather than a label:\n\n- Equity is the bare base symbol: ``INFY`` on NSE.\n- Futures are ``[Base][DDMMMYY]FUT``: ``BANKNIFTY24APR24FUT`` on NFO.\n- Options are ``[Base][DDMMMYY][Strike][CE or PE]``:\n  ``NIFTY28MAR2420800CE`` on NFO, and a decimal strike keeps its point,\n  as in ``VEDL25APR24292.5CE``.\n\nIf the contract is not listed, this tool comes back with the listed\ncontracts that look closest rather than a bare failure. Take one of\nthose; do not adjust an expiry or a strike yourself to make one fit.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "The exact OpenAlgo symbol, for example ``RELIANCE``,\n``BANKNIFTY24APR24FUT`` or ``NIFTY28MAR2420800CE``. Get it from\nsearch_symbols rather than composing it."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange code the contract is listed on. One of NSE, BSE,\nNFO, BFO, CDS, BCD, MCX, NCDEX, NCO, CRYPTO, NSE_INDEX,\nBSE_INDEX, MCX_INDEX, GLOBAL_INDEX. Equity is NSE or BSE, an\nindex future or option is NFO or BFO, and an index itself is\nNSE_INDEX or BSE_INDEX."
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange"
+        ]
+      },
+      "needs_approval": false
+    },
+    "get_expiry_dates": {
+      "description": "List the live expiry dates for a futures or options underlying.\nThis is the only sanctioned source for the date segment of a derivative\nsymbol. Expired contracts are excluded and the dates come back in\nchronological order, so the first entry is the nearest expiry and the\nweekly or monthly rhythm is visible rather than assumed.\n\nEach entry carries the date twice: ``expiry`` as the exchange writes it\n(``31-JUL-25``) and ``symbol_expiry`` as an OpenAlgo symbol spells it\n(``31JUL25``). A symbol is that segment between the base and the rest:\n\n- Futures: ``[Base][symbol_expiry]FUT``, so BANKNIFTY plus ``24APR24``\n  is ``BANKNIFTY24APR24FUT``.\n- Options: ``[Base][symbol_expiry][Strike][CE or PE]``, so NIFTY plus\n  ``28MAR24`` plus 20800 is ``NIFTY28MAR2420800CE``, and a decimal\n  strike keeps its point: ``VEDL25APR24292.5CE``.\n\nThe expiry is a fact you now have; the strike is not. Confirm the whole\ncontract with search_symbols before quoting or ordering it, because a\nstrike outside the listed ladder produces a symbol that does not exist.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "The underlying, not a contract. ``NIFTY``, ``BANKNIFTY``,\n``RELIANCE``, ``CRUDEOIL``, ``USDINR``. Passing a full contract\nsymbol here finds nothing."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "The exchange the derivatives are listed on, one of NFO,\nBFO, CDS, BCD, MCX, NCDEX, NCO, CRYPTO. NIFTY and BANKNIFTY\noptions are on NFO even though the index itself is quoted on\nNSE_INDEX; SENSEX options are on BFO. NSE, NSE_INDEX, BSE,\nBSE_INDEX and MCX_INDEX are read as their derivatives\nexchange, and the result says so."
+          },
+          "instrument_type": {
+            "type": "string",
+            "description": "``options`` or ``futures``. Nothing else."
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange",
+          "instrument_type"
+        ]
+      },
+      "needs_approval": false
+    },
+    "list_indicators": {
+      "description": "List the technical indicators that can be computed, by keyword or category.\nThere are 127. Confirm a name here before computing it rather than\nguessing from memory: several are named differently from the textbook\n(the Relative Vigor Index is ``rvi``, the Ultimate Oscillator is\n``ultimate_oscillator``), and a guessed name costs a whole round trip.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Keyword matched against the name, the category, the\ndescription and the caveats, so an intent works as well as a\nname: \"bollinger\", \"trend strength\", \"money flow\", \"volatility\".\nLeave it out to see the whole catalogue grouped by category."
+          },
+          "category": {
+            "type": "string",
+            "description": "Exact category filter. One of trend, momentum,\nvolatility, volume, oscillators, statistical, hybrid,\ntalib_extra, utility."
+          }
+        },
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "describe_indicator": {
+      "description": "Show the exact call signature of one indicator before computing it.\nUse this when you need an output's name for a scan condition, when you\nwant to override a parameter and do not know what it is called, or when\nan indicator returned something you did not expect. It reports which\nprice series the indicator needs, every parameter with its type and the\nlibrary's own default, the output names in return order, and how many\nbars of warm-up it needs before its first real value.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Indicator method name, for example ``macd``, ``supertrend``\nor ``adx``. Case does not matter."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "needs_approval": false
+    },
+    "compute_indicator": {
+      "description": "Compute one technical indicator over real candles.\nFetches the candles itself, cleans them, computes the indicator over the\nwhole series and returns the most recent values with a summary. **Do not\npass dates**: the range is derived from the lookback and padded\nautomatically by the indicator's warm-up, so ``beta`` fetches the 253\nbars it needs even when you asked for ten values.\n\nFor more than one indicator on the same instrument use\n``compute_indicators_batch``: it shares a single candle fetch, and the\nbroker's history calls are rate limited.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "OpenAlgo symbol, in capitals, exactly as the instrument is\nlisted. For example ``RELIANCE``, ``NIFTY`` or\n``BANKNIFTY24APR24FUT``."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange code the symbol is listed on: NSE, BSE, NFO, BFO,\nCDS, BCD, MCX, NCDEX, NCO, CRYPTO, or an index code such as\nNSE_INDEX for an index."
+          },
+          "indicator": {
+            "type": "string",
+            "description": "Indicator name from ``list_indicators``, for example\n``rsi``, ``supertrend`` or ``macd``."
+          },
+          "interval": {
+            "type": "string",
+            "description": "Candle size. Defaults to ``D`` (daily), which is what an\nunqualified question means. Use ``1h`` for hourly, ``5m`` for\nfive minute, and call ``get_intervals`` when unsure. Case\nmatters: ``1m`` is one minute and ``M`` is one month."
+          },
+          "params": {
+            "anyOf": [
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Indicator parameters, for example ``{\"period\": 21}`` or\n``{\"period\": 10, \"multiplier\": 3}``. Call\n``describe_indicator`` for the names and defaults. ``length``,\n``fast``, ``slow``, ``signal`` and ``std`` are read as the\nindicator's own name where that is unambiguous. Leave it out\nto use the library's own defaults."
+          },
+          "last_n": {
+            "type": "integer",
+            "description": "How many recent values to return per output, at most 120.\nDefaults to 10. Ask for what the answer needs: every value costs\ncontext."
+          },
+          "lookback_bars": {
+            "type": "integer",
+            "description": "How many candles to compute over. Leave it 0 to size\nit automatically from the indicator's warm-up, which is almost\nalways right. Raise it only when you want a longer history than\nthe warm-up requires."
+          },
+          "compare_symbol": {
+            "type": "string",
+            "description": "The second instrument, needed only by ``beta`` and\n``correlation``, which compare two price series. For example\n``NIFTY``."
+          },
+          "compare_exchange": {
+            "type": "string",
+            "description": "Exchange of the comparison instrument, for example\n``NSE_INDEX``. Defaults to the same exchange as ``symbol``."
+          },
+          "source": {
+            "type": "string",
+            "description": "Where the candles come from. ``api`` (the default) asks the\nbroker. ``db`` reads the local Historify store, which only holds\nwhat the operator has already downloaded."
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange",
+          "indicator"
+        ]
+      },
+      "needs_approval": false
+    },
+    "compute_indicators_batch": {
+      "description": "Compute several indicators on one instrument in a single call.\nThis is the tool for \"show me RSI, MACD and ADX\", and for anything the\noperator wants as one table. All of them share one candle fetch, so it\nis one broker request instead of several behind a rate limiter, and the\nvalues line up bar for bar because they came from the same bars.\n\n**Do not pass dates.** The window is sized from the longest warm-up in\nthe batch.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "OpenAlgo symbol, in capitals. For example ``RELIANCE``."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange code the symbol is listed on, for example ``NSE``."
+          },
+          "indicators": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "description": "The indicators to compute, at most 8. Either plain names\nor objects carrying a ``name`` and optional ``params``, and the\ntwo can be mixed. For example ``[\"macd\", {\"name\":\n\"supertrend\", \"params\": {\"period\": 10, \"multiplier\": 3}},\n{\"name\": \"sma\", \"params\": {\"period\": 50}}]``."
+          },
+          "interval": {
+            "type": "string",
+            "description": "Candle size. Defaults to ``D`` (daily). Use ``1h`` for\nhourly. Case matters: ``1m`` is one minute and ``M`` is one\nmonth."
+          },
+          "last_n": {
+            "type": "integer",
+            "description": "How many recent values to return per output, at most 120.\nDefaults to 10, which is the right size for a table the operator\nwill read."
+          },
+          "lookback_bars": {
+            "type": "integer",
+            "description": "How many candles to compute over. Leave it 0 to size\nit automatically from the longest warm-up in the batch."
+          },
+          "source": {
+            "type": "string",
+            "description": "``api`` for the broker (the default), or ``db`` for the\nlocal Historify store."
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange",
+          "indicators"
+        ]
+      },
+      "needs_approval": false
+    },
+    "scan_symbols": {
+      "description": "Screen several instruments for one indicator condition.\nUse it for \"which of these is oversold\", \"which have MACD crossing up\",\n\"which are trending\". Each instrument is a separate broker history call\nbehind a rate limiter, so keep the list to the ones the operator named.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbols": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "description": "The instruments to scan, at most 15. For example\n``[\"SBIN\", \"RELIANCE\", \"INFY\"]``."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange code shared by all of them, for example ``NSE``."
+          },
+          "indicator": {
+            "type": "string",
+            "description": "Indicator name, for example ``rsi``, ``adx`` or ``macd``."
+          },
+          "condition": {
+            "type": "string",
+            "description": "What counts as a match. Either a comparison of one output\nagainst a number, such as ``\"rsi < 30\"`` or ``\"adx > 25\"``, or a\ncross between two of that indicator's outputs, such as\n``\"crossover(macd_line, signal_line)\"``. Output names come from\n``describe_indicator``. Nothing else is accepted: this is a\nfixed parser, not an expression evaluator, so no arithmetic, no\n``and``, no ``or`` and no function other than ``crossover``,\n``crossunder`` and ``cross``."
+          },
+          "interval": {
+            "type": "string",
+            "description": "Candle size. Defaults to ``D`` (daily)."
+          },
+          "params": {
+            "anyOf": [
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Indicator parameters, for example ``{\"period\": 21}``."
+          },
+          "source": {
+            "type": "string",
+            "description": "``api`` for the broker (the default), or ``db`` for the\nlocal Historify store."
+          }
+        },
+        "required": [
+          "symbols",
+          "exchange",
+          "indicator",
+          "condition"
+        ]
+      },
+      "needs_approval": false
+    },
+    "get_funds": {
+      "description": "Fetch the account's cash, collateral, used margin and P&L.\nUse this for any question about buying power, available balance, margin\nin use, or how much money is free.\n\nThe result carries a ``funds`` object typically holding\n``availablecash``, ``collateral``, ``m2munrealized`` (P&L on open\npositions), ``m2mrealized`` (P&L already booked) and ``utiliseddebits``\n(margin in use); a broker may add fields of its own. Every figure is in\nrupees and comes back exactly as the broker reported it, which may be a\nnumber or a numeric string. Present it as money without recalculating\nit.\n\nFigures reflect the platform's current mode. In analyzer mode these are\nsandbox balances rather than the live broker account, and the ``mode``\nfield in the result says which. Never present a sandbox balance as the\noperator's real money.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "get_positions": {
+      "description": "Fetch every open intraday and carry position for the trading day.\nUse this for \"what am I holding\", \"what is my P&L\", \"am I long or short\nin X\", and before discussing any exit. Settled delivery stock is not\nhere; that is ``get_holdings``, and a question about everything the\noperator owns needs both.\n\nThe result carries ``count`` and a ``positions`` list whose rows\ntypically hold ``symbol``, ``exchange``, ``product``, ``quantity``,\n``average_price``, ``ltp`` and ``pnl``, money in rupees. A positive\nquantity is long, a negative one is short, and zero means the position\nwas opened and closed again today. A ``count`` of zero means the\noperator is flat, which is a real answer and not a failure.\n\nFigures reflect the platform's current mode; in analyzer mode these are\nsandbox positions, and the ``mode`` field says so.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "get_holdings": {
+      "description": "Fetch the delivery portfolio: shares held beyond the trading day.\nUse this for \"what is in my portfolio\", long-term P&L, and any question\nabout stock held in the demat account. Holdings are settled delivery\nstock, separate from the day's open positions, which are\n``get_positions``. A question about everything the operator owns needs\nboth.\n\nThe result carries ``count``, a ``holdings`` list and a ``statistics``\nobject holding ``totalholdingvalue``, ``totalinvvalue``,\n``totalprofitandloss`` and ``totalpnlpercentage``. Each holding row\ntypically holds ``symbol``, ``exchange``, ``product``, ``quantity``,\n``pnl`` and ``pnlpercent``, money in rupees. A ``count`` of zero means\nthe portfolio is empty, which is a real answer and not a failure.\n\nFigures reflect the platform's current mode; in analyzer mode these are\nsandbox holdings, and the ``mode`` field says so.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "get_orderbook": {
+      "description": "Fetch every order placed today, whatever state it ended in.\nUse this for \"what orders did I place\", \"is my order filled\", \"what was\nrejected\", and to find an order id before calling ``get_order_status``.\nIt covers completed, open, cancelled and rejected orders alike, so an\norder missing from here was never accepted.\n\nThe result carries ``count``, an ``orders`` list and a ``statistics``\nobject counting buy, sell, completed, open and rejected orders. Each\norder row typically holds ``orderid``, ``symbol``, ``exchange``,\n``action``, ``product``, ``quantity``, ``price``, ``trigger_price``,\n``pricetype``, ``order_status`` and ``timestamp``, money in rupees. A\n``count`` of zero means no orders were placed today, which is a real\nanswer and not a failure. A long book comes back as its first rows plus\na ``rows_omitted`` count; report the count honestly rather than implying\nyou saw every row.\n\nFigures reflect the platform's current mode; in analyzer mode this is\nthe sandbox order book, and the ``mode`` field says so.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "get_tradebook": {
+      "description": "Fetch today's executed trades, the fills rather than the orders.\nUse this for \"what actually got executed\", average fill prices, and\nturnover. An order can exist without a trade, having been open,\ncancelled or rejected, and one order can produce several trades, so\n``get_orderbook`` is the intent and this is what really happened.\n\nThe result carries ``count`` and a ``trades`` list whose rows typically\nhold ``orderid``, ``symbol``, ``exchange``, ``action``, ``product``,\n``quantity``, ``average_price``, ``trade_value`` and ``timestamp``,\nmoney in rupees. A ``count`` of zero means nothing was executed today,\nwhich is a real answer and not a failure. A long book comes back as its\nfirst rows plus a ``rows_omitted`` count.\n\nFigures reflect the platform's current mode; in analyzer mode these are\nsimulated fills, and the ``mode`` field says so.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "get_open_position": {
+      "description": "Fetch the net quantity held in one exact contract.\nUse this when the question is about a single instrument, rather than\npulling the whole position book and searching it. The match is exact on\nall three arguments together: the same symbol held as ``MIS`` and as\n``NRML`` is two separate positions, and asking for the wrong product\nreports zero.\n\nThe result carries the ``quantity`` for that contract. Positive is long,\nnegative is short, and zero means the position service reported no open\nquantity for that exact symbol, exchange and product. Zero is not a\nfailure, but some brokers report positions as flat when they are not,\nso check ``get_positions`` before telling the operator they hold\nnothing. Figures reflect the platform's\ncurrent mode; in analyzer mode this is the sandbox position, and the\n``mode`` field says so.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "OpenAlgo symbol, exactly as the instrument is listed. Equity\nis the base symbol (``RELIANCE``, ``SBIN``). A future is\n``[base][expiry]FUT`` (``BANKNIFTY24APR24FUT``). An option is\n``[base][expiry][strike][CE or PE]`` (``NIFTY28MAR2420800CE``,\n``VEDL25APR24292.5CE``). Resolve the exact symbol with the symbol\nsearch tool if you are not certain of it; a symbol that does not\nmatch reports zero rather than an error."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange code. One of NSE, BSE (equity), NFO, BFO (F&O),\nCDS, BCD (currency), MCX, NCDEX, NCO (commodity), NSE_INDEX,\nBSE_INDEX, MCX_INDEX, GLOBAL_INDEX (quote-only indices) or\nCRYPTO."
+          },
+          "product": {
+            "type": "string",
+            "description": "Product type. CNC for delivery equity, NRML for carry\nfutures and options, MIS for intraday."
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange",
+          "product"
+        ]
+      },
+      "needs_approval": false
+    },
+    "get_order_status": {
+      "description": "Fetch the current state of one order placed today.\nUse this to answer \"did my order go through\", to check a fill price, or\nto find out why an order did not execute. The order is looked up in\ntoday's order book, so an id from an earlier session is not found. Use\n``get_orderbook`` when you do not have the id.\n\nThe result carries ``found`` and, when the order exists, an ``order``\nobject holding ``orderid``, ``symbol``, ``exchange``, ``action``,\n``product``, ``quantity``, ``price``, ``trigger_price``, ``pricetype``,\n``order_status``, ``average_price`` (the real fill price, filled in for\na completed order) and ``timestamp``, money in rupees. ``order_status``\nis one of complete, open, pending, cancelled or rejected. A ``found`` of\nfalse means no order with that id is in today's book, which is an answer\nrather than an error. Figures reflect the platform's current mode; in\nanalyzer mode this is the sandbox order, and the ``mode`` field says so.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "description": "The broker's order id, exactly as it appeared in the order\nbook or in the confirmation of a placed order, for example\n``250408000989443``. It is an opaque string; pass it unchanged\nrather than reformatting or trimming it."
+          }
+        },
+        "required": [
+          "order_id"
+        ]
+      },
+      "needs_approval": false
+    },
+    "get_option_chain": {
+      "description": "Fetch the option chain around ATM for one underlying and one expiry.\nReturns a strike ladder centred on the at-the-money strike, with a call\nand a put leg per strike, each carrying its live quote, its lot size and\nits ATM/ITM/OTM label. Set ``with_greeks`` to add implied volatility and\ndelta, gamma, theta and vega to every leg.\n\nPrefer this over ``get_option_greeks`` for anything covering more than a\ncontract or two. The Greeks here are computed from the quotes this call\nhas already fetched, so they cost no extra broker request, and they are\nnot bound by the 50-symbol cap the platform's batch Greeks path enforces.\nCalling ``get_option_greeks`` once per strike is many broker round trips\nfor data this single call already returned.\n\nKeep ``strike_count`` small. A strike with Greeks costs roughly 700\ncharacters of the result budget, so about 7 strikes each side is the most\nthat fits; beyond that the strikes farthest from ATM are dropped to keep\nthe result valid, and ``strikes_omitted`` reports how many.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "underlying": {
+            "type": "string",
+            "description": "Underlying symbol, not an option symbol. ``NIFTY``,\n``BANKNIFTY``, ``SENSEX``, ``RELIANCE``, ``CRUDEOIL``, ``BTC``. A\nfutures symbol that carries its own expiry, such as\n``NIFTY28OCT25FUT``, is accepted and its embedded expiry then\nwins over ``expiry_date``."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange of the **underlying**, not of the options.\n``NSE_INDEX`` for NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY;\n``BSE_INDEX`` for SENSEX, BANKEX; ``NSE`` or ``BSE`` for a stock;\n``MCX`` for a commodity; ``CDS`` or ``BCD`` for currency;\n``CRYPTO`` for crypto. ``NFO`` and ``BFO`` are accepted too and\nare mapped back to the right underlying automatically."
+          },
+          "expiry_date": {
+            "type": "string",
+            "description": "Expiry in DDMMMYY format, for example ``28NOV25`` or\n``30DEC25``. Look the expiry up first rather than guessing one; a\ndate with no listed contracts returns an error, not an empty\nchain. Pass an empty string only when ``underlying`` already\ncarries the expiry, as ``NIFTY28OCT25FUT`` does."
+          },
+          "strike_count": {
+            "type": "integer",
+            "description": "How many strikes to return on each side of ATM, so the\nladder is ``2 * strike_count + 1`` strikes wide. Defaults to 5,\nwhich is 11 strikes. Pass 0 for the entire listed chain, which is\nrarely wanted: a NIFTY weekly runs to hundreds of strikes, takes\nfar longer to fetch, and is trimmed to fit the result anyway. The\nmaximum is 100."
+          },
+          "with_greeks": {
+            "type": "boolean",
+            "description": "True to attach ``implied_volatility``, ``delta``,\n``gamma``, ``theta`` and ``vega`` to every leg. Costs no extra\nbroker request. The Greeks are Black-76, priced off a forward\nderived from the ATM call and put by put-call parity rather than\noff the spot price, because an index future trades at a premium\nto spot and pricing off spot biases every delta."
+          }
+        },
+        "required": [
+          "underlying",
+          "exchange",
+          "expiry_date"
+        ]
+      },
+      "needs_approval": false
+    },
+    "get_option_symbol": {
+      "description": "Resolve one tradable option symbol from an offset relative to ATM.\nUse this to turn \"the second out-of-the-money NIFTY call for the 28NOV25\nexpiry\" into the exact OpenAlgo symbol, lot size and tick size an order\nneeds. The strike is picked from the strikes the exchange actually lists,\nso an underlying with uneven strike spacing resolves correctly and a\nsymbol that does not exist is reported rather than invented.\n\nFor a view of several strikes at once, call ``get_option_chain``: one\nrequest covers the whole ladder and every leg comes back with its symbol\nalready resolved.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "underlying": {
+            "type": "string",
+            "description": "Underlying symbol, not an option symbol. ``NIFTY``,\n``BANKNIFTY``, ``SENSEX``, ``RELIANCE``, ``CRUDEOIL``. A futures\nsymbol carrying its own expiry, such as ``NIFTY28OCT25FUT``, is\naccepted and its embedded expiry is used."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange of the **underlying**. ``NSE_INDEX`` for NIFTY,\nBANKNIFTY, FINNIFTY, MIDCPNIFTY; ``BSE_INDEX`` for SENSEX,\nBANKEX; ``NSE`` or ``BSE`` for a stock; ``MCX``, ``CDS``,\n``BCD``, ``NCDEX``, ``NCO``, ``CRYPTO`` for their own products.\n``NFO`` and ``BFO`` are accepted and mapped back automatically."
+          },
+          "expiry_date": {
+            "type": "string",
+            "description": "Expiry in DDMMMYY format, for example ``28OCT25``. Pass\nan empty string only when ``underlying`` already carries the\nexpiry."
+          },
+          "offset": {
+            "type": "string",
+            "description": "Which strike to take, counted in **listed strikes** away from\nATM rather than in points. ``ATM`` is the listed strike nearest\nthe underlying price. ``ITM1`` to ``ITM50`` step into the money\nand ``OTM1`` to ``OTM50`` step out of it, one listed strike per\nstep. In the money is a **lower** strike for a CE and a\n**higher** strike for a PE; out of the money is the opposite.\nWith NIFTY at 24230 and strikes listed every 50, ATM is 24250,\nso: ``OTM2`` with option_type CE is 24350, ``ITM2`` with CE is\n24150, ``OTM2`` with PE is 24150, ``ITM2`` with PE is 24350. Case\ndoes not matter. An offset past the end of the listed ladder is\nan error, not a clamp to the last strike. ``ATM+2`` is not an\noffset; say ``OTM2`` or ``ITM2``."
+          },
+          "option_type": {
+            "type": "string",
+            "description": "``CE`` for a call or ``PE`` for a put. ``CALL`` and\n``PUT`` are read as those."
+          }
+        },
+        "required": [
+          "underlying",
+          "exchange",
+          "expiry_date",
+          "offset",
+          "option_type"
+        ]
+      },
+      "needs_approval": false
+    },
+    "get_option_greeks": {
+      "description": "Fetch implied volatility and the Greeks for one option contract.\nThis is the single-contract tool. For a ladder, a spread, or any question\nabout more than a couple of strikes, call ``get_option_chain`` with\n``with_greeks=True`` instead: it returns the same Greeks for every leg\nfrom quotes it has already fetched, costs no extra broker request, and is\nnot limited to 50 symbols the way the batch Greeks path is. Calling this\ntool repeatedly across a chain is the slow way to get data one call\nalready had.\n\nThe numbers are Black-76, priced off the forward for that expiry, which\nis derived from the ATM call and put by put-call parity where those are\navailable and falls back to the underlying spot otherwise. Read them as\ngiven; do not recompute or re-scale them.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "The exact OpenAlgo option symbol, in\n``[Base][DDMMMYY][Strike][CE|PE]`` form, for example\n``NIFTY28NOV2524000CE`` or ``VEDL25APR24292.5PE``. Resolve it\nwith ``get_option_symbol`` or read it from a chain leg first; a\nsymbol assembled by guesswork usually does not exist."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "The exchange the **option** lists on, which is not the\nunderlying's exchange. One of NFO, BFO, MCX, CDS, BCD, NCDEX,\nNCO, CRYPTO. A NIFTY option is NFO, a SENSEX option is BFO."
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange"
+        ]
+      },
+      "needs_approval": false
+    },
+    "get_synthetic_future": {
+      "description": "Compute the forward the options market is pricing for one expiry.\nThe synthetic future is what the ATM call and put imply the underlying\nwill be worth at expiry: ``strike + call price - put price``. Compare it\nwith the spot price to read the basis, or with the listed future to spot\na dislocation. It is also the reference every Black-76 Greek in this\ntoolkit is priced off, which is why a chain's own ``forward_price`` and\nthis number agree.\n\nWhen a chain is being fetched anyway, ``get_option_chain`` already\nreturns ``forward_price`` for that expiry, so this tool is for the case\nwhere the forward is the whole question.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "underlying": {
+            "type": "string",
+            "description": "Plain underlying symbol: ``NIFTY``, ``BANKNIFTY``,\n``SENSEX``, ``RELIANCE``. Unlike the other tools here this one\ntakes the base symbol only, never a futures symbol with the\nexpiry inside it."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange of the **underlying**. ``NSE_INDEX`` for NIFTY,\nBANKNIFTY, FINNIFTY, MIDCPNIFTY; ``BSE_INDEX`` for SENSEX,\nBANKEX; ``NSE`` or ``BSE`` for a stock; ``MCX``, ``CDS``,\n``BCD``, ``NCDEX``, ``NCO``, ``CRYPTO`` for their own products."
+          },
+          "expiry_date": {
+            "type": "string",
+            "description": "Expiry in DDMMMYY format, for example ``28OCT25``.\nRequired: every expiry has its own forward."
+          }
+        },
+        "required": [
+          "underlying",
+          "exchange",
+          "expiry_date"
+        ]
+      },
+      "needs_approval": false
+    },
+    "plot_combined_premium": {
+      "description": "Chart the combined premium of several option legs over time.\nTwo different series live behind this one tool, and which you get is\ndecided by whether you name contracts. Say which one you asked for when\nyou describe the result, because they diverge as soon as spot moves:\n\n- **Leave ``legs`` empty** and you get the **rolling ATM** straddle of\n  ``underlying``: for every candle the ATM strike is recomputed from the\n  underlying close and that straddle is priced, so the strike follows\n  spot. This is the volatility view, and it is what \"the NIFTY straddle\n  today\" usually means.\n- **Name contracts in ``legs``** and you get those exact contracts,\n  summed, with the **strikes held constant**. As spot moves away from\n  the strike this becomes a directional position, which the rolling\n  series never is.\n\nThe series is built from closes and drawn as a line, deliberately. A\ncombined high is not the sum of the legs' highs: the legs move against\neach other, so their highs happen at different moments inside one bar\nand adding them invents a peak that never traded. Do not ask for a\ncombined candle and do not describe one.\n\nSensible defaults, so this usually answers in one call: the latest\nsession, five minute candles, and for the rolling series the nearest\nlisted expiry and whichever exchange the underlying is listed on. A\ncandle size this broker does not serve steps down to one minute rather\nthan refusing, because the operator asked to see a combination and the\nsize is incidental to that. The result says what was used, so correct it\non a second call only if the operator meant something else.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "underlying": {
+            "type": "string",
+            "description": "Underlying symbol for the rolling ATM series:\n``NIFTY``, ``BANKNIFTY``, ``SENSEX``, ``RELIANCE``,\n``CRUDEOIL``. Required when ``legs`` is empty. When ``legs`` is\ngiven it is optional, and is only used to expand a shorthand leg\nsuch as ``23850CE``."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange of the **underlying**, not of the options:\n``NSE_INDEX`` for NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY;\n``BSE_INDEX`` for SENSEX, BANKEX; ``NSE`` or ``BSE`` for a\nstock; ``MCX`` for a commodity. Leave it empty to have it looked\nup in the instrument master, which is right almost always."
+          },
+          "expiry_date": {
+            "type": "string",
+            "description": "Which expiry to price. Either a date in DDMMMYY form,\nfor example ``08SEP26``, or one of ``current_week``,\n``next_week``, ``current_month`` and ``next_month``, which are\nresolved against the listed expiries here. \"The current month\"\nis the monthly contract, which is the last weekly of that\nmonth, not the nearest one. Leave it empty for the nearest\nlisted expiry. Only the rolling series needs it; a named\ncontract carries its own."
+          },
+          "legs": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The contracts to sum, at most eight, each either an OpenAlgo\nsymbol such as ``\"NIFTY08SEP2623850CE\"``, an exchange-qualified\n``\"NFO:NIFTY08SEP2623850CE\"``, the shorthand ``\"23850CE\"`` when\n``underlying`` and ``expiry_date`` are set, or an object such as\n``{\"symbol\": \"NIFTY08SEP2623850CE\", \"exchange\": \"NFO\", \"side\":\n\"SELL\", \"lots\": 1}``. ``side`` defaults to BUY, so a plain list\nof two symbols is their sum; a sold leg is subtracted, which is\nwhat makes a spread come out as a spread. ``action`` is read as\n``side``, and a ``quantity`` in units is converted to lots with\nthe contract's lot size. A contract that is not in the\ninstrument master is refused, never guessed."
+          },
+          "interval": {
+            "type": "string",
+            "description": "Candle size, defaulting to ``5m``. Call ``get_intervals``\nfor the ones this broker accepts. Case matters: ``1m`` is one\nminute and ``M`` is one month."
+          },
+          "days": {
+            "type": "integer",
+            "description": "How many recent trading sessions the series spans, defaulting\nto 1, which is the latest session. At most 5."
+          },
+          "indicators": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Studies the chart computes from the **combined** series,\nat most six. Either shorthand strings such as\n``[\"supertrend\", \"ema:20\", \"rsi:14\"]`` or objects such as\n``[{\"id\": \"supertrend\", \"inputs\": {\"length\": 10, \"multiplier\":\n3}}]``. They read the combination, not its legs, so a\nsupertrend here is a supertrend on the straddle. Ids are the\nchart's own: ``sma``, ``ema``, ``vwap``, ``bollinger``,\n``supertrend``, ``rsi``, ``macd``, ``atr``, ``adx`` and the\nrest. Leave it out when the question is about the premium\nalone."
+          }
+        },
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "plot_payoff": {
+      "description": "Draw the payoff diagram of an option structure at expiry.\nReach for this whenever the operator asks what a structure makes or\nloses, where it breaks even, what its maximum profit or loss is, or\nsimply \"what is my payoff\". Do not describe a payoff shape in prose and\nnever draw one out of characters: this tool exists so the operator sees\nthe real curve.\n\nTwo sources of legs, and they can be combined:\n\n- **Contracts the operator named**, in ``legs``. Use this for a\n  structure they are considering.\n- **Their own open positions.** Call with no arguments at all and the\n  position book is read: that is the right call for \"what is my payoff\"\n  and \"show me my current risk\". Set ``include_open_positions`` to add\n  the book to legs you also named.\n\nEvery number on the curve is fetched here: the lot size and tick size\nfrom the instrument master, the premium from the live quote or, for a\nheld position, its own average price, the implied volatility from the\nplatform's Black-76 inversion, and the spot from the underlying's quote.\nYou supply which contracts, which side and how many, and nothing else.\n\nCash equity is not on the curve, because a payoff leg is an option or a\nfuture. When the operator holds shares in the same underlying, the card\nsays so and so must you: a covered call charted without its shares looks\nlike a naked short call.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "legs": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "boolean"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The contracts in the structure, at most eight, each either an\nOpenAlgo symbol such as ``\"NIFTY08SEP2623850CE\"``, an\nexchange-qualified ``\"NFO:NIFTY08SEP2623850CE\"``, the shorthand\n``\"23850CE\"`` when ``underlying`` and ``expiry_date`` are set,\nor an object such as ``{\"symbol\": \"NIFTY08SEP2623850CE\",\n\"exchange\": \"NFO\", \"side\": \"SELL\", \"lots\": 2}``. ``side``\ndefaults to BUY and ``lots`` to 1; ``action`` is read as\n``side``, and a ``quantity`` in units is converted to lots with\nthe contract's lot size. Leave the whole argument out\nto chart the operator's own open positions instead. A contract\nthat is not in the instrument master is refused, never guessed."
+          },
+          "underlying": {
+            "type": "string",
+            "description": "Optional, and only used to expand a shorthand leg such\nas ``23850CE``. The underlying of the curve itself is read from\nthe legs."
+          },
+          "expiry_date": {
+            "type": "string",
+            "description": "Optional, in DDMMMYY format, and only used to expand a\nshorthand leg."
+          },
+          "include_open_positions": {
+            "type": "boolean",
+            "description": "True to add the operator's open F&O\npositions to the legs named above. Ignored when ``legs`` is\nempty, because the position book is then the source anyway."
+          }
+        },
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "show_instrument": {
+      "description": "Show a full instrument card for one symbol in the conversation.\nReach for this whenever the operator asks for a price, a quote, a last\ntraded price, or how something is doing, trading or moving. It is the\nright answer to \"what is RELIANCE at\", \"how is NIFTY doing today\" and\n\"give me a quote on SBIN\". Prefer it over ``get_quote``, which is for\nwhen you need the number to reason with rather than to show.\n\nThe card carries the last traded price and the move against the previous\nclose, the day's open, high, low and volume, an intraday price and\nvolume chart, the 52 week high and low, the top of the order book on\nboth sides, and, when the operator holds this instrument, their own\nquantity, average price and unrealised profit or loss. Every figure is\nfetched here from the broker session, so none of it is yours to supply.\n\nIt carries no fundamentals, because this platform has no source for\nthem. There is no price/earnings ratio, market capitalisation, earnings\nper share or dividend yield anywhere in OpenAlgo. Do not add one from\nmemory in your reply: a remembered figure sitting beside broker data\nreads as though the broker returned it.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "OpenAlgo symbol, in capitals, exactly as the instrument is\nlisted. Equity is the base symbol (``RELIANCE``, ``SBIN``). A\nfuture is ``[base][expiry]FUT`` (``BANKNIFTY24APR24FUT``). An\noption is ``[base][expiry][strike][CE or PE]``\n(``NIFTY28MAR2420800CE``). An index is its plain name\n(``NIFTY``, ``SENSEX``)."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange code the symbol is listed on: NSE, BSE (equity),\nNFO, BFO (futures and options), CDS, BCD (currency), MCX, NCDEX,\nNCO (commodity), CRYPTO, or the quote-only index codes\nNSE_INDEX, BSE_INDEX, MCX_INDEX and GLOBAL_INDEX. An index such\nas NIFTY or SENSEX is quoted on an index code, never on NSE or\nBSE."
+          },
+          "interval": {
+            "type": "string",
+            "description": "Candle size for the intraday chart on the card, defaulting\nto ``5m``. Call ``get_intervals`` for the ones this broker\naccepts. Case matters: ``1m`` is one minute and ``M`` is one\nmonth. Use ``1m`` only when the question is about the last few\nminutes."
+          },
+          "days": {
+            "type": "integer",
+            "description": "How many recent trading sessions the intraday chart spans,\ndefaulting to 1, which is the latest session. At most 5. Ask for\nmore only when the question is about the last few days; a longer\nrange belongs on ``plot_price_chart`` with a daily interval."
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange"
+        ]
+      },
+      "needs_approval": false
+    },
+    "plot_price_chart": {
+      "description": "Draw a price chart of one instrument in the conversation.\nUse this whenever the operator asks to see, plot, chart or graph a\nprice, a trend, a range or a pattern. The candles are fetched here, from\nthe same service ``get_history`` uses, so the chart cannot show a bar\nthe platform did not return, and none of the series reaches you: you get\na one line summary and the operator gets the chart.\n\nDo not follow this with ``get_history`` for the same range unless you\nneed to reason about individual bars. The summary this returns already\ncarries the open, close, high, low and change.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "OpenAlgo symbol, in capitals, exactly as the instrument is\nlisted. For example ``INFY``, ``NIFTY`` or\n``BANKNIFTY24APR24FUT``."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange code the symbol is listed on: NSE, BSE, NFO, BFO,\nCDS, BCD, MCX, NCDEX, NCO, CRYPTO, or an index code such as\nNSE_INDEX or BSE_INDEX for an index."
+          },
+          "interval": {
+            "type": "string",
+            "description": "Candle size. Call ``get_intervals`` for the ones this\nbroker accepts. Case matters: ``1m`` is one minute and ``M`` is\none month. Defaults to ``D``."
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "First day of the range, as ``YYYY-MM-DD``. Inclusive,\nand interpreted in IST. Leave it out for about the last 100\ncandles at ``interval`` up to ``end_date``."
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last day of the range, as ``YYYY-MM-DD``. Inclusive, and\ninterpreted in IST. It must not be before ``start_date``.\nDefaults to today."
+          },
+          "chart_type": {
+            "type": "string",
+            "description": "The shape to draw: ``candlestick`` (the default),\n``hollow-candle``, ``bar``, ``high-low``, ``line``, ``step``,\n``area``, ``baseline`` or ``heikin-ashi``. Use ``line`` or\n``area`` for a long daily range where individual candles are too\nsmall to read."
+          },
+          "indicators": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Overlays and oscillators the chart computes from those\nsame bars, at most six. Either shorthand strings such as\n``[\"ema:20\", \"ema:50\", \"rsi:14\"]`` or objects such as\n``[{\"id\": \"supertrend\", \"inputs\": {\"length\": 10, \"multiplier\":\n3}}]``. Ids are the chart's own: ``sma``, ``ema``, ``wma``,\n``hma``, ``vwap``, ``bollinger``, ``supertrend``, ``rsi``,\n``macd``, ``atr``, ``adx``, ``stochastic``, ``obv`` and the\nrest; ``bbands`` and ``psar`` are read as ``bollinger`` and\n``parabolic-sar``, and an id the chart cannot draw is refused\nwith the nearest ones it can. A single string such as\n``\"ema:20, rsi:14\"`` is accepted too. Leave it out when the\nquestion is about price alone."
+          },
+          "source": {
+            "type": "string",
+            "description": "Where the candles come from. ``api`` (the default) asks the\nbroker. ``db`` reads the local Historify store, which only holds\nwhat the operator has already downloaded."
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange"
+        ]
+      },
+      "needs_approval": false
+    },
+    "plot_open_interest": {
+      "description": "Draw call and put open interest by strike for one expiry.\nThis is the OI wall picture: where the market has written the most\ncontracts, which strikes are acting as resistance and support, and what\nthe put-call ratio is. Reach for it whenever the operator asks about\nopen interest, OI walls, max OI strikes, PCR or where the market expects\nan expiry to land.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "underlying": {
+            "type": "string",
+            "description": "Underlying symbol, not an option symbol. ``NIFTY``,\n``BANKNIFTY``, ``SENSEX``, ``RELIANCE``, ``CRUDEOIL``."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange of the **underlying**, not of the options.\n``NSE_INDEX`` for NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY;\n``BSE_INDEX`` for SENSEX, BANKEX; ``NSE`` or ``BSE`` for a\nstock; ``MCX`` for a commodity. ``NFO`` and ``BFO`` are accepted\nand mapped back to the right underlying automatically."
+          },
+          "expiry_date": {
+            "type": "string",
+            "description": "Expiry in DDMMMYY format, for example ``28NOV25``. Look\nthe listed expiries up first rather than guessing a date."
+          },
+          "strike_count": {
+            "type": "integer",
+            "description": "Strikes each side of ATM, so the ladder is\n``2 * strike_count + 1`` wide. Defaults to 15, which shows both\nwalls on an index weekly. The maximum is 100."
+          }
+        },
+        "required": [
+          "underlying",
+          "exchange",
+          "expiry_date"
+        ]
+      },
+      "needs_approval": false
+    },
+    "plot_gamma_exposure": {
+      "description": "Draw net gamma exposure by strike for one expiry.\nGEX is gamma times open interest times lot size, called minus put, so a\npositive bar is a strike where dealers are long gamma and tend to damp\nmovement, and a negative one is where they are short it and tend to\namplify. Reach for it when the operator asks about gamma, GEX, dealer\npositioning, pinning, or where price is likely to be held or accelerated.\n\nThis one is slow: it prices the Greeks of every listed strike around\nATM, so it costs a full chain fetch plus an inversion per leg. Ask for it\nwhen it is what the question is about, not as background.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "underlying": {
+            "type": "string",
+            "description": "Underlying symbol, for example ``NIFTY`` or\n``BANKNIFTY``."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange of the underlying. ``NSE_INDEX``, ``BSE_INDEX``,\n``NSE``, ``BSE``, or the option exchange ``NFO`` or ``BFO``."
+          },
+          "expiry_date": {
+            "type": "string",
+            "description": "Expiry in DDMMMYY format, for example ``28NOV25``."
+          }
+        },
+        "required": [
+          "underlying",
+          "exchange",
+          "expiry_date"
+        ]
+      },
+      "needs_approval": false
+    },
+    "plot_volatility_surface": {
+      "description": "Draw a 3D implied volatility surface across strikes and expiries.\nThe surface shows the smile across strikes and the term structure across\nexpiries at once, which is what makes a skew or an expiry trading rich\nvisible rather than arithmetic. Reach for it when the operator asks about\nthe volatility surface, the term structure, or how IV differs between\nexpiries.\n\nEvery cell is an implied volatility inversion, so the cost is strikes\ntimes expiries. Keep both small.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "underlying": {
+            "type": "string",
+            "description": "Underlying symbol, for example ``NIFTY``."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange of the underlying, such as ``NSE_INDEX``."
+          },
+          "expiry_dates": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "description": "The expiries to span, in DDMMMYY format, nearest\nfirst, for example ``[\"28NOV25\", \"26DEC25\", \"29JAN26\"]``, or\none comma separated string of them. At most eight. Look the\nlisted expiries up first."
+          },
+          "strike_count": {
+            "type": "integer",
+            "description": "Strikes each side of ATM, defaulting to 8. The maximum\nis 25, and a wide surface is slow as well as unreadable."
+          }
+        },
+        "required": [
+          "underlying",
+          "exchange",
+          "expiry_dates"
+        ]
+      },
+      "needs_approval": false
+    },
+    "render_ui": {
+      "description": "Render a card of general data: charts, tables, metric callouts.\nReach for this when the answer is a set of numbers that reads better\ndrawn than written: position sizes, a funds breakdown, a comparison\nacross instruments, a set of counts or shares. The operator sees a\nrendered card in the conversation rather than a markdown table.\n\nThis is not the tool for prices. A price, a candle series, an open\ninterest ladder or a Greek gets ``plot_price_chart``,\n``plot_open_interest``, ``plot_gamma_exposure`` or\n``plot_volatility_surface``, because those fetch their own data and\nthis one draws whatever you type.\n\n**Never draw a number you made up.** A chart of invented figures reads\nas authoritative and is worse than no chart at all. Every number must\ncome from one of two places, and they are not the same:\n\n* A tool result you actually received in this conversation. Draw it and\n  say what it is.\n* A figure the operator gave you in their own message - \"twenty percent\n  gold, thirty percent nifty bees, the rest in silver\". That is their\n  number, not yours, and drawing it is the point of asking. Draw it, and\n  title the card so it cannot be mistaken for their account: \"Example\n  allocation\", not \"Your allocation\". If it could be read as a holding,\n  a position or a valuation, say in the card that it is illustrative.\n\nRefusing the second case is a real failure, not caution: the operator\nasked for a sketch of their own figures and got a paragraph explaining\nwhy it could not be drawn, followed by the same figures as plain text.\n\nOrdinary answers stay markdown. Rendering is a deliberate act, not a\nwrapper around every reply.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "markup": {
+            "type": "string",
+            "description": "The whole OpenUI Lang program, as described in the OPENUI\nLANG section of your instructions. It must bind ``root``, as in\n``root = Card([title, chart])`` on the first line, and every\nname it defines must be reachable from ``root`` or it is\nsilently dropped. Send the program alone, with no code fence\nand no commentary around it."
+          }
+        },
+        "required": [
+          "markup"
+        ]
+      },
+      "needs_approval": false
+    },
+    "stream_quotes": {
+      "description": "Open a live streaming card for a list of instruments.\nThis is the tool for watch, track, monitor, stream, live and \"keep an\neye on\". The card subscribes to the broker feed in the browser and\nupdates on its own for as long as the message is on screen, so the\noperator watches it rather than asking you again.\n\nFor **one** instrument asked about **once**, use ``show_instrument``\ninstead: it draws the full card, with the day's range, an intraday\nchart, the 52 week high and low, the order book and the operator's own\nposition. Use this one when there are several instruments, or when the\noperator asked to watch rather than to know.\n\nEvery symbol is resolved against the instrument master first. One that\ndoes not resolve is named back to you and left off the card, because a\nsubscription that never ticks looks exactly like a dead feed; the rest\nstill stream. The card is seeded with a snapshot, so it renders\ncomplete even outside market hours, and it carries the trading session\nso it can say the market is closed rather than showing a still price.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbols": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "description": "The instruments to watch, as a list of objects each\ncarrying a ``symbol`` and an ``exchange``, for example\n``[{\"symbol\": \"RELIANCE\", \"exchange\": \"NSE\"}, {\"symbol\":\n\"NIFTY\", \"exchange\": \"NSE_INDEX\"}]``. A plain ``\"NSE:INFY\"``\nstring is accepted in place of an object, or on its own for a\nsingle instrument. Both fields are\nrequired on every entry; the exchange is not inherited from the\nentry before it. When the operator did not name an exchange,\nuse NSE for an Indian share and the index code for an index,\nsay which you used, and open the card: do not stop to ask,\nbecause a symbol listed on both NSE and BSE is the normal case\nrather than an ambiguity worth a turn. At most 12 instruments,\nor 4 in Depth mode, and anything past that is dropped rather\nthan refused."
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How much each tick carries. ``LTP`` is the last traded price\nonly. ``Quote``, the default, adds the day's open, high, low,\nvolume and the best bid and ask, which is what a watchlist row\nshows. ``Depth`` adds the five level order book, and is worth\nthe extra weight only when the question is about liquidity or\nthe spread. The protocol numbers 1, 2 and 3 mean the same three."
+          }
+        },
+        "required": [
+          "symbols"
+        ]
+      },
+      "needs_approval": false
+    },
+    "stream_combo": {
+      "description": "Open a live card showing one derived value recomputed on every tick.\n\"The live ATM straddle of NIFTY this week\" is not a list of quotes: it\nis one number, and it moves whenever either leg moves. This tool\nresolves the legs, states the formula, and the card evaluates it per\ntick in the browser. The same shape covers a strangle, a vertical\nspread, a ratio and a synthetic basis, so reach for it whenever the\noperator wants to watch a **combination** rather than instruments side\nby side.\n\nThe value is always ``constant + sum(multiplier x price)``, where a\nbought leg counts positive and a sold leg negative. Nothing about the\nnumber is yours to compute or to state: the expiry, the spot, the ATM\nstrike, the strike interval, the option symbols and the seeded premiums\nare all fetched here.\n\n**The legs are pinned at resolution.** If spot later moves to a\ndifferent strike the card says so rather than quietly relabelling\nitself as a different straddle, because resubscribing would change what\nthe number means while the operator was watching it.\n\nSensible defaults, so this usually answers in one call: the ATM\nstraddle, the current week's expiry, and whichever exchange the\nunderlying is listed on. The result says exactly which expiry date and\nwhich strike were used, so correct it on a second call only if the\noperator meant something else.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "underlying": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The underlying: ``NIFTY``, ``BANKNIFTY``, ``SENSEX``,\n``RELIANCE``, ``CRUDEOIL``. Required unless ``legs`` names the\ncontracts outright."
+          },
+          "exchange": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exchange of the **underlying**, not of the options:\n``NSE_INDEX`` for NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY;\n``BSE_INDEX`` for SENSEX and BANKEX; ``NSE`` or ``BSE`` for a\nstock; ``MCX`` for a commodity. Leave it empty or null to have\nit looked up in the instrument master, which is right almost\nalways."
+          },
+          "structure": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which combination to build: ``straddle`` (the default,\nthe ATM call plus the ATM put), ``strangle``, ``call_spread``,\n``put_spread``, ``call_ratio``, ``put_ratio``, ``synthetic``\n(the synthetic future, strike plus call less put) or ``basis``\n(that synthetic less spot). Ignored when ``legs`` is given."
+          },
+          "expiry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "``current_week`` (the default, the nearest listed expiry),\n``next_week``, ``current_month``, ``next_month``, or an exact\ndate in DDMMMYY form such as ``09SEP26``. Every one of these\nis resolved against the expiries actually listed, and the\nresult names the date that was picked."
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How many strikes out of the money the wing legs sit, for the\nstructures that have one: the strangle, the spreads and the\nratios. Defaults to 1, meaning the first strike out. Ignored by\nthe straddle, the synthetic and the basis."
+          },
+          "legs": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The exact contracts to combine, instead of a named structure.\nAt most 8, each either an OpenAlgo symbol such as\n``\"NIFTY09SEP2624500CE\"``, an exchange-qualified\n``\"NFO:NIFTY09SEP2624500CE\"``, the shorthand ``\"24500CE\"``\nwhen ``underlying`` and ``expiry`` are both set, or an object\nsuch as ``{\"symbol\": \"NIFTY09SEP2624500CE\", \"side\": \"SELL\",\n\"lots\": 2}``. ``side`` defaults to BUY, so a plain list of two\nsymbols is their sum and a sold leg is subtracted."
+          }
+        },
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "place_order": {
+      "description": "Place a real order on the operator's live broker account.\nTHIS PLACES A REAL ORDER WITH REAL MONEY and pauses for the operator's\nexplicit approval before it runs. After they approve, a risk check runs\ninside this tool and can still refuse the order; a refusal is reported,\nnot retried. If the platform is in analyzer mode the order goes to the\nsandbox instead, and the result says so.\n\nState the whole order in words before calling: action, quantity, symbol,\nexchange, product, price type and any price or trigger. The operator\napproves what you stated.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "OpenAlgo symbol, exactly as the symbol search or option\nchain returned it. For example ``RELIANCE``,\n``BANKNIFTY24APR24FUT`` or ``NIFTY28MAR2420800CE``. Never\nconstruct an expiry or a strike yourself."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange code the symbol trades on. One of NSE, BSE (cash\nequity), NFO, BFO (futures and options), CDS, BCD (currency),\nMCX, NCDEX, NCO (commodity), CRYPTO. The index codes NSE_INDEX,\nBSE_INDEX, MCX_INDEX and GLOBAL_INDEX are quote-only and an\norder on one is always wrong."
+          },
+          "action": {
+            "type": "string",
+            "description": "``BUY`` or ``SELL``."
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "Whole number of units, not lots. For example ``10`` shares\nof RELIANCE, or ``75`` for one NIFTY option lot of 75. Look the\nlot size up rather than assuming it."
+          },
+          "product": {
+            "type": "string",
+            "description": "Required, with no default: ``CNC`` for delivery in a cash\nsegment, ``NRML`` to carry a derivative overnight, ``MIS`` for\nintraday in either. It decides whether the position is squared\noff automatically before the close, so take it from the operator\nand ask if they did not say. CNC on a derivatives exchange is\nalways wrong."
+          },
+          "price_type": {
+            "type": "string",
+            "description": "``MARKET`` (default, no price and no trigger), ``LIMIT``\n(needs price), ``SL`` (stop-loss limit, needs both price and\ntrigger_price) or ``SL-M`` (stop-loss market, needs\ntrigger_price only). Use MARKET unless the operator asked for\nsomething else."
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Limit price in rupees, for example ``1450.5``. Required for\nLIMIT and SL. Leave it out, or pass 0, for MARKET and SL-M. It\nmust respect the instrument's tick size."
+          },
+          "trigger_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Trigger price in rupees, for example ``1440.0``.\nRequired for SL and SL-M. Leave it out, or pass 0, for MARKET and\nLIMIT."
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange",
+          "action",
+          "quantity",
+          "product"
+        ]
+      },
+      "needs_approval": true
+    },
+    "place_smart_order": {
+      "description": "Place a real order that moves a position to a target size.\nTHIS PLACES A REAL ORDER WITH REAL MONEY and pauses for the operator's\nexplicit approval before it runs. A risk check runs inside this tool\nafter that approval and can still refuse it.\n\nA smart order compares ``position_size`` with the position the account\nactually holds in this symbol and product, then sends only the\ndifference. Holding 100 and asking for 150 buys 50; holding 100 and\nasking for -100 sells 200; holding exactly the target sends nothing and\nreports that no action was needed. Use it when the operator describes a\nposition they want to end up with rather than a trade they want to send.\n\nBecause the order the broker finally sends is a difference this tool\ncannot know in advance, the risk check is sized on the larger of\n``quantity`` and the absolute target position, which is the closest\nconservative figure available.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "OpenAlgo symbol, exactly as a lookup returned it, for\nexample ``INFY`` or ``NIFTY28MAR2420800CE``."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange code the symbol trades on, for example ``NSE`` or\n``NFO``. Index codes are quote-only and cannot be traded."
+          },
+          "action": {
+            "type": "string",
+            "description": "``BUY`` or ``SELL``. It is used only when the account holds\nno position in this symbol and the target is zero; otherwise the\ndirection is derived from the difference."
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whole number of units to send when there is no position\nand no target, for example ``50``. Not lots. Pass 0 when only\n``position_size`` matters."
+          },
+          "position_size": {
+            "type": "integer",
+            "description": "The position to end up holding, in units and signed:\n``150`` for long 150, ``-75`` for short 75, ``0`` for flat. To\nflatten an existing position use the ``close_position`` tool\ninstead, which is built for it."
+          },
+          "product": {
+            "type": "string",
+            "description": "Required, with no default: ``CNC``, ``NRML`` or ``MIS``.\nThe position is matched within this product, so it must be the\nproduct the position is held under, and MIS is squared off\nautomatically before the close while the others are not."
+          },
+          "price_type": {
+            "type": "string",
+            "description": "``MARKET`` (default), ``LIMIT``, ``SL`` or ``SL-M``."
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Limit price in rupees, for example ``1450.5``. Required for\nLIMIT and SL. Leave it out, or pass 0, otherwise."
+          },
+          "trigger_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Trigger price in rupees, for example ``1440.0``.\nRequired for SL and SL-M. Leave it out, or pass 0, otherwise."
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange",
+          "action",
+          "quantity",
+          "position_size",
+          "product"
+        ]
+      },
+      "needs_approval": true
+    },
+    "modify_order": {
+      "description": "Modify a real pending order on the broker.\nTHIS CHANGES A REAL ORDER and pauses for the operator's explicit\napproval before it runs. A risk check runs inside this tool after that\napproval and can still refuse it.\n\nThe broker replaces the order wholesale, so every field below is sent\nwhether or not it changed. Read the order book first and repeat the\nvalues you are not changing, or an unstated field is silently\noverwritten with whatever you passed here.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "description": "The broker's order id, exactly as the order book reported\nit, for example ``240307000616990``. Never invent one."
+          },
+          "symbol": {
+            "type": "string",
+            "description": "OpenAlgo symbol of the existing order, for example ``INFY``."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange code of the existing order, for example ``NSE``."
+          },
+          "action": {
+            "type": "string",
+            "description": "``BUY`` or ``SELL``. This is the side of the existing order;\na modify does not flip it."
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "The order quantity after the change, in whole units."
+          },
+          "product": {
+            "type": "string",
+            "description": "Required: ``CNC``, ``NRML`` or ``MIS``, matching the\nexisting order. Read it from the order book rather than\nassuming, because MIS is squared off automatically and the\nothers are not."
+          },
+          "price_type": {
+            "type": "string",
+            "description": "``MARKET``, ``LIMIT``, ``SL`` or ``SL-M`` after the\nchange. There is no default: state what the order should become."
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Limit price in rupees after the change, for example\n``1455.0``. Required for LIMIT and SL. Leave it out, or pass 0,\notherwise."
+          },
+          "trigger_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Trigger price in rupees after the change. Required\nfor SL and SL-M. Leave it out, or pass 0, otherwise."
+          }
+        },
+        "required": [
+          "order_id",
+          "symbol",
+          "exchange",
+          "action",
+          "quantity",
+          "product",
+          "price_type"
+        ]
+      },
+      "needs_approval": true
+    },
+    "cancel_order": {
+      "description": "Cancel one real pending order on the broker.\nTHIS CANCELS A REAL ORDER and pauses for the operator's explicit\napproval before it runs. A risk check runs inside this tool after that\napproval and can still refuse it.\n\nOnly a working order can be cancelled. An order that is already\ncomplete, rejected or cancelled comes back as a failure from the broker,\nwhich is information rather than something to retry.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "description": "The broker's order id, exactly as the order book reported\nit, for example ``240307000616990``. Read it from the order book\nrather than reconstructing it."
+          }
+        },
+        "required": [
+          "order_id"
+        ]
+      },
+      "needs_approval": true
+    },
+    "cancel_all_orders": {
+      "description": "Cancel every open order on the account.\nTHIS CANCELS EVERY PENDING ORDER ON THE WHOLE ACCOUNT, including orders\nthe operator placed by hand and orders belonging to other strategies. It\npauses for the operator's explicit approval before it runs, and a risk\ncheck runs inside this tool after that approval.\n\nAccount-wide operations are switched off by default and the risk check\nrefuses this outright until an operator turns them on in the agent\nsettings. That refusal is the intended answer, not a fault: report it\nand offer to cancel the specific orders instead.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "needs_approval": true
+    },
+    "close_position": {
+      "description": "Close one real open position by squaring it off at market.\nTHIS SENDS A REAL ORDER WITH REAL MONEY and pauses for the operator's\nexplicit approval before it runs. A risk check runs inside this tool\nafter that approval and can still refuse it.\n\nThe position held in this symbol and product is read first, and an\noffsetting market order for exactly that quantity is sent: a long is\nsold, a short is bought back. If the position service reads zero\nthere, nothing is sent and the result carries ``status`` of\n``nothing_to_close`` with ``ok`` false. That is not proof the position\nis closed: check ``get_positions`` before saying so.\n\nThis closes one named position. To flatten the entire account use\n``close_all_positions``, which is a different and much larger action.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "description": "OpenAlgo symbol of the position, exactly as the position\nbook reported it, for example ``INFY`` or\n``NIFTY28MAR2420800CE``."
+          },
+          "exchange": {
+            "type": "string",
+            "description": "Exchange code of the position, for example ``NSE`` or\n``NFO``."
+          },
+          "product": {
+            "type": "string",
+            "description": "The product the position is held under: ``CNC``, ``NRML``\nor ``MIS``. A position is held per product, so the wrong product\ncloses nothing. Read it from the position book."
+          }
+        },
+        "required": [
+          "symbol",
+          "exchange",
+          "product"
+        ]
+      },
+      "needs_approval": true
+    },
+    "close_all_positions": {
+      "description": "Square off every open position on the account.\nTHIS CLOSES EVERY POSITION ON THE WHOLE ACCOUNT WITH REAL MONEY,\nincluding positions the operator opened by hand and positions belonging\nto other strategies. It pauses for the operator's explicit approval\nbefore it runs, and a risk check runs inside this tool after that\napproval.\n\nAccount-wide operations are switched off by default and the risk check\nrefuses this outright until an operator turns them on in the agent\nsettings. That refusal is the intended answer, not a fault: report it\nand offer to close the named positions with ``close_position`` instead.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "needs_approval": true
+    },
+    "get_skill_instructions": {
+      "description": "Read a skill's instructions: how to author one kind of thing on this platform.\nCall this before writing anything a skill in the SKILLS section covers,\nthen read the reference pages it names with get_skill_reference. Long\ninstructions come back in pages: while next_offset is not null, call\nagain with offset set to it to read the rest. The skill was written for\na reader that can run commands; agent_notes says how to do each step\nwith your own tools instead.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "skill_name": {
+            "type": "string",
+            "description": "A skill name exactly as the SKILLS section lists it, for\nexample ``openscript`` or ``flow-builder``."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Character offset to read from. 0 for the first page, then\nthe next_offset the previous page returned."
+          }
+        },
+        "required": [
+          "skill_name"
+        ]
+      },
+      "needs_approval": false
+    },
+    "get_skill_reference": {
+      "description": "Read one reference page of a skill, such as a name table or a list of pitfalls.\nUse the paths get_skill_instructions listed under references, or a path\nthe instructions name. Long pages come back in pages: while next_offset\nis not null, call again with offset set to it. Read a page to the end\nbefore relying on it; a table you have half read looks complete.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "skill_name": {
+            "type": "string",
+            "description": "A skill name exactly as the SKILLS section lists it, for\nexample ``openscript``."
+          },
+          "reference_path": {
+            "type": "string",
+            "description": "The page's path inside the skill folder, for\nexample ``reference/library.md``. A bare file name such as\n``library.md`` works when only one page has that name."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Character offset to read from. 0 for the first page, then\nthe next_offset the previous page returned."
+          }
+        },
+        "required": [
+          "skill_name",
+          "reference_path"
+        ]
+      },
+      "needs_approval": false
+    },
+    "list_openscripts": {
+      "description": "List the OpenScript scripts already stored in strategies/openscript/.\nCall this before saving, so a new script does not take the name of one\nthe trader already has, and so you can tell them what exists. Reading\nonly; nothing is written.",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "needs_approval": false
+    },
+    "save_openscript": {
+      "description": "Save an OpenScript study or strategy to strategies/openscript/ as source.\nShow the operator the full source before calling this. It is stored as\nsource only: nothing compiles it here, so tell the operator to open it\nin the OpenScript editor on /trading, where it compiles, plots and lists\nany errors, and that saving it there with a clean console is what lets\nit run as a strategy. Never say it compiled or is running.\n\nA name already taken is refused unless ``replace`` is true. Call\nlist_openscripts first and choose a new name. Pass replace=true only\nwhen the operator asked you to change that script, and tell them first\nthat it will be replaced (the previous source is kept as a .bak file).\nA script that has been compiled in /trading (compiled=true in\nlist_openscripts) is never replaced, even with replace=true: it may be\ndeployed and running, so save under a new name or tell the operator to\nedit it in the /trading OpenScript editor.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "The script's file name, for example ``ema_cross`` or\n``ema_cross.oscript``. The ``.oscript`` extension is added when\nmissing. Letters, digits, dot, dash and underscore only,\nstarting with a letter or digit, at most 64 characters before\nthe extension. The name is used exactly; it is not rewritten."
+          },
+          "source": {
+            "type": "string",
+            "description": "The complete OpenScript source, exactly as it should land\non disk, the same text you showed the operator. At most 256 kB."
+          },
+          "replace": {
+            "type": "boolean",
+            "description": "True to replace an existing script of that name that has\nno compiled program. Defaults to false, which refuses any name\nalready taken."
+          }
+        },
+        "required": [
+          "filename",
+          "source"
+        ]
+      },
+      "needs_approval": true
+    },
+    "web_search": {
+      "description": "Search the public web and get back a list of pages with short extracts.\nUse this to find sources, recent news, filings, exchange circulars or\nanything else that is not in the platform's own data. A figure an\nexchange publishes, such as market breadth or a 52-week high, comes from\ncall_mcp_tool first when that tool is offered. It returns links,\nnot conclusions: read the snippets, follow up with the operator, and say\nwhich source a claim came from. It is never a source for a price, a\nposition or an order status, all of which come from a platform tool.\n\nThe query that actually goes out is built from the operator's own words,\nso a term they never used is dropped before the call. Ask for what they\nasked for, in their words.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "What to search for, in plain words, for example\n``RBI repo rate decision October 2026`` or\n``Tata Motors quarterly results``. Search operators are not\nneeded and terms the operator did not use are removed."
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "How many results to return, from 1 to 10. Defaults to 5.\nAsk for more only when the operator wants a survey rather than an\nanswer."
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "needs_approval": false
+    },
+    "web_research": {
+      "description": "Ask a research provider a question and get one answer with its citations.\nUse this when the operator wants an answer rather than a reading list,\nfor example ``what did the RBI say about liquidity this month`` or\n``why did Tata Motors fall today``. The result is one provider's summary\nof several pages, so it is second-hand by construction: attribute it to\nthe provider, name the citations behind a claim, and prefer\n``web_search`` when the operator wants to read the sources themselves.\nNever use it for a price, a position, a holding or an order status.\n\nThe question that actually goes out is built from the operator's own\nwords, so a term they never used is dropped before the call.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "description": "The question in plain words, as the operator asked it, for\nexample ``what is driving the rupee this week``. A full question\nworks better here than keywords."
+          }
+        },
+        "required": [
+          "question"
+        ]
+      },
+      "needs_approval": false
+    },
+    "list_mcp_tools": {
+      "description": "List the tools one external data server offers, or describe one in full.\nWithout ``tool`` you get every tool's name, a one-line summary and its\nargument names and types. With ``tool`` you get that tool's full\ndescription and each argument's meaning. Ask for the one tool before\ncalling it whenever its arguments are not obvious. Both are cached, so\ncalling this costs little.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "server": {
+            "type": "string",
+            "description": "A server key from the EXTERNAL DATA section of your\ninstructions."
+          },
+          "tool": {
+            "type": "string",
+            "description": "Optional exact tool name, for example ``get_stock_history``,\nto describe that one tool in full. Leave empty for the list."
+          }
+        },
+        "required": [
+          "server"
+        ]
+      },
+      "needs_approval": false
+    },
+    "call_mcp_tool": {
+      "description": "Call one tool on an external data server and return its answer.\nRead-only: nothing here changes the account. Use list_mcp_tools first if\nyou are unsure of the tool's name or arguments.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "server": {
+            "type": "string",
+            "description": "A server key from the EXTERNAL DATA section of your\ninstructions."
+          },
+          "tool": {
+            "type": "string",
+            "description": "The tool's exact name from list_mcp_tools, for example\n``get_stock_history``."
+          },
+          "arguments": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": true
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The tool's arguments as a JSON object, for example\n``{\"symbol\": \"SBIN\", \"months\": 3}``. A JSON string of an object\nis accepted too. Omit for a tool that takes none."
+          },
+          "page": {
+            "type": "integer",
+            "description": "Which page of a long answer to read, from 1. A result that\nruns to more than one page says how many there are."
+          }
+        },
+        "required": [
+          "server",
+          "tool"
+        ]
+      },
+      "needs_approval": false
+    }
+  }
+}

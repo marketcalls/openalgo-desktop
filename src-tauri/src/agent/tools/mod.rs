@@ -7,13 +7,18 @@
 //! any surface. Selection never reads anything the model can influence.
 //!
 //! Adding a toolkit is one file under this folder plus one line below.
-//! Each toolkit's tools reach OpenAlgo through [`service`].
+//! Each toolkit's tools reach OpenAlgo through [`service`] and take their
+//! specs from [`specs`] (the web's wording, captured); every registered
+//! toolkit is pinned against the web by `spec_contract`.
 //!
 //! Flow (`flow_gen`) and Python strategy generation (`strategy_gen`) are not
 //! in this version (maintainer, 2026-10-27). Flow comes later: its line goes
 //! in the marked place below, chat surface only, as on the web.
 
 pub mod service;
+#[cfg(test)]
+pub(crate) mod spec_contract;
+pub mod specs;
 
 use crate::agent::contract::tool::{AgentTool, ToolCtx, ToolGroup};
 use std::collections::HashSet;
@@ -22,7 +27,6 @@ use std::sync::Arc;
 /// Every toolkit, one line each (`order` decides the model's order).
 pub const TOOLKITS: &[ToolGroup] = &[
     // Toolkit lanes add their line here, for example:
-    // market::GROUP,     // order 10, every surface
     // orders::GROUP,     // order 50, every surface, requires Trading
     //
     // Later: flow_gen::GROUP (order 70, chat only), not in this version.
