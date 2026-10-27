@@ -22,6 +22,7 @@ pub mod service;
 #[cfg(test)]
 pub(crate) mod spec_contract;
 pub mod specs;
+pub mod symbols;
 #[cfg(test)]
 pub(crate) mod testkit;
 pub mod values;
@@ -33,6 +34,7 @@ use std::sync::Arc;
 /// Every toolkit, one line each (`order` decides the model's order).
 pub const TOOLKITS: &[ToolGroup] = &[
     market::GROUP,
+    symbols::GROUP,
     // Toolkit lanes add their line here, for example:
     // orders::GROUP,     // order 50, every surface, requires Trading
     //
