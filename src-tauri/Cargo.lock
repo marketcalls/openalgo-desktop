@@ -3996,6 +3996,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "oa_core"
+version = "0.1.0"
+source = "git+https://github.com/marketcalls/openalgo-python-library?rev=9e9f294c5a07ad335b23a1f667cb1b547a2e9f07#9e9f294c5a07ad335b23a1f667cb1b547a2e9f07"
+
+[[package]]
 name = "objc2"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4273,6 +4278,7 @@ dependencies = [
  "memmap2",
  "mime_guess",
  "ngrok",
+ "oa_core",
  "openalgo-desktop",
  "parking_lot",
  "png 0.17.16",

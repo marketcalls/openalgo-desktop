@@ -165,6 +165,13 @@ bytes = "1"
 # 8x8 bitmap font for the Telegram chart PNGs (no system fonts needed).
 font8x8 = { version = "0.3", default-features = false }
 
+# openalgo.ta's Rust core (MIT, no dependencies): the indicator kernels the
+# Agent computes with. Pinned to the commit of tag v2.0.5 of
+# marketcalls/openalgo-python-library, the openalgo release the web pins in
+# its uv.lock, so the numbers are the web's. Read-only use: the maintainer
+# owns that repository; a new pin follows the web's openalgo upgrade.
+oa_core = { git = "https://github.com/marketcalls/openalgo-python-library", rev = "9e9f294c5a07ad335b23a1f667cb1b547a2e9f07" }
+
 # MCP (Model Context Protocol): the stdio transport of `openalgo-desktop mcp`.
 # Server side only, over tokio stdio; no HTTP or auth features (the `/mcp`
 # HTTP transport is served by axum in `crate::mcp::http`).
