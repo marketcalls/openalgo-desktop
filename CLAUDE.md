@@ -866,6 +866,11 @@ Every flaky test found so far was a race, not a slow machine:
   every running test 5-8 times for 10-16 s at the same instants, and the
   10 s checkout deadline failed `AppState::open` with `Pool(Error(None))`:
   the connection was still opening, nothing had failed.
+- macOS examines a freshly linked binary the first time it runs, before
+  `main`: `openalgo-desktop mcp --help` took 9.0 s on a loaded Mac right
+  after linking and 0.5-1 s after that. A test that runs the binary
+  bounds that first run on its own (`mcp_subcommand::FIRST_RUN`), and
+  keeps its short waits for what the binary itself does.
 - An `/api/v1` call with a key no cache knows yet (the first after a start,
   a sign-out, a new key or a broker session change) verifies it: an index
   query, one Argon2 run and a `last_used_at` write. Inline in

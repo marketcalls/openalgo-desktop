@@ -168,10 +168,18 @@ impl Guard {
     }
 }
 
+/// How long the probe waits for the binary's first run. macOS examines a
+/// freshly linked binary the first time it runs (its signature and the
+/// libraries it loads) before `main` starts: `mcp --help`, which only
+/// prints and exits, took 9.0 s on a loaded Mac right after linking, and
+/// the 10 s wait it had then timed out under load. The waits after the
+/// probe are for the client's own behaviour and keep 10 s.
+const FIRST_RUN: Duration = Duration::from_secs(60);
+
 /// Fail fast unless the binary is this checkout's thin client.
 fn probe() {
     let mut g = Guard::spawn(&["mcp", "--help"], None);
-    let status = g.wait(Duration::from_secs(10));
+    let status = g.wait(FIRST_RUN);
     std::thread::sleep(Duration::from_millis(50));
     let lines = g.drain();
     assert_eq!(status.and_then(|s| s.code()), Some(2), "{:?}", lines);
