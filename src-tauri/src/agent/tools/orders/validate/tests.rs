@@ -58,3 +58,22 @@ fn every_answer_matches_the_webs() {
     }
     assert!(vectors.len() > 90, "{}", vectors.len());
 }
+
+/// A price type the model leaves out is the web's default, MARKET; prices
+/// left out read as zero; an empty price type is still refused.
+#[test]
+fn arguments_left_out_take_the_webs_defaults() {
+    let args = json!({"symbol": "SBIN", "exchange": "NSE", "action": "BUY", "quantity": 1, "product": "MIS"});
+    let order = build_order(args.as_object().unwrap(), false).unwrap();
+    assert_eq!(order["pricetype"], "MARKET");
+    assert_eq!(
+        (order["price"].as_f64(), order["trigger_price"].as_f64()),
+        (Some(0.0), Some(0.0))
+    );
+    let mut empty = args.clone();
+    empty["price_type"] = json!("");
+    assert!(build_order(empty.as_object().unwrap(), false)
+        .unwrap_err()
+        .text()
+        .starts_with("The 'price_type' argument is invalid: it was empty."));
+}

@@ -257,7 +257,13 @@ pub(super) fn build_order(
     args: &Map<String, Value>,
     allow_zero_quantity: bool,
 ) -> Check<Map<String, Value>> {
-    let kind = price_type(arg(args, "price_type"))?;
+    // The web's signature default (`price_type: str = "MARKET"`): the
+    // schema the model reads carries no defaults, so an argument left out
+    // takes it here, while one sent empty is still refused.
+    let kind = match args.get("price_type") {
+        Some(v) => price_type(v)?,
+        None => "MARKET".to_string(),
+    };
     let (limit_price, trigger) = prices(&kind, args)?;
     let (bare, venue) = split_exchange_prefix(
         text_of(arg(args, "symbol")).as_deref(),
