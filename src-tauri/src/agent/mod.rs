@@ -16,6 +16,8 @@
 //! - `conversations/`: conversations, messages, the runs' own history and
 //!   paused runs (migration `097_agent_core`).
 //! - `attachments`: files on a turn, the vision check's input.
+//! - `chart_catalogue`: the indicators the `/trading` chart can draw, from
+//!   the generated `docs/prompt/indicators/chart-indicators.md`.
 //! - `tool_guard`: a call's arguments read, checked and coerced before the
 //!   tool runs, and the correction the model reads when they do not fit.
 //! - `redact`: secrets out of anything shown, stored or logged.
@@ -30,6 +32,7 @@
 //! quit.
 
 pub mod attachments;
+pub mod chart_catalogue;
 pub mod chat;
 pub mod contract;
 pub mod conversations;
