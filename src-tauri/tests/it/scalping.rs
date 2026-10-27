@@ -624,6 +624,9 @@ struct FakeGateway {
     /// While set, every position-book read waits on it (barrier).
     gate: Mutex<Option<Arc<tokio::sync::Notify>>>,
     entered: tokio::sync::Notify,
+    /// A placement reached the broker (before any `delay_ms`): the exit
+    /// it sends was written to the stop's row before it was sent.
+    placing: tokio::sync::Notify,
 }
 
 impl FakeGateway {
@@ -641,6 +644,7 @@ impl FakeGateway {
 #[async_trait]
 impl OrderGateway for FakeGateway {
     async fn place(&self, mode: RunMode, order: &OrderPayload) -> DispatchResult {
+        self.placing.notify_one();
         let d = *self.delay_ms.lock();
         if d > 0 {
             tokio::time::sleep(Duration::from_millis(d)).await;
@@ -1318,17 +1322,18 @@ async fn quitting_while_an_exit_is_in_flight_never_sends_it_again() {
     m.mon.sync().await;
     *m.gw.delay_ms.lock() = 5_000;
     m.mon.process_tick(OPT, "NFO", 94.0).await;
-    // The exit is in flight at the broker when the app quits.
-    for _ in 0..200 {
-        let pending = m
-            .mon
-            .exit_attempt("live", OPT, "NFO", "MIS")
-            .is_some_and(|a| !a.children.is_empty());
-        if pending {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(5)).await;
-    }
+    // The exit is in flight at the broker when the app quits. Waited for
+    // as the event, not a timer: 200 sleeps of 5 ms ended early on
+    // Windows' coarse timers and the app quit before the exit was sent.
+    tokio::time::timeout(Duration::from_secs(60), m.gw.placing.notified())
+        .await
+        .expect("the exit reached the broker");
+    let a = m.mon.exit_attempt("live", OPT, "NFO", "MIS");
+    assert!(
+        a.as_ref().is_some_and(|a| a.children.len() == 1),
+        "written before it was sent: {:?}",
+        a
+    );
     m.mon.stop().await;
     *m.gw.delay_ms.lock() = 0;
     // Started again from the rows.
