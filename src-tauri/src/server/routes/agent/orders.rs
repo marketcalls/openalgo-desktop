@@ -5,15 +5,14 @@
 //! answer is `{held, target, action, quantity}`, `held` null when the
 //! position cannot be read. Read only.
 
+use super::{ApiCaller, Caller};
 use crate::agent::tools::orders::smart_order_preview;
 use crate::server::envelope::json_response;
-use crate::server::middleware::AuthedUser;
 use crate::state::AppState;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::Response,
-    Extension,
 };
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
@@ -31,13 +30,13 @@ const FIELDS: [&str; 6] = [
 
 pub async fn preview(
     State(ctx): State<Arc<AppState>>,
-    Extension(user): Extension<AuthedUser>,
+    Caller(caller): ApiCaller,
     Query(q): Query<HashMap<String, String>>,
 ) -> Response {
     let args: Map<String, Value> = FIELDS
         .iter()
         .filter_map(|k| q.get(*k).map(|v| (k.to_string(), json!(v))))
         .collect();
-    let data = smart_order_preview(&ctx, &user.username, args).await;
+    let data = smart_order_preview(&ctx, &caller.user, args).await;
     json_response(StatusCode::OK, json!({"status": "success", "data": data}))
 }

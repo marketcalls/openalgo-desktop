@@ -6,15 +6,14 @@
 //! another user's is not found (404, never 403, so ids cannot be probed).
 //! Rows were redacted when written and are redacted again here.
 
+use super::{ApiCaller, Caller};
 use crate::agent::safety::audit::{self, store, Filter, Listing};
 use crate::server::envelope::{error, json_response, unexpected};
-use crate::server::middleware::AuthedUser;
 use crate::state::AppState;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::Response,
-    Extension,
 };
 use serde_json::json;
 use std::collections::HashMap;
@@ -46,14 +45,14 @@ fn filter(q: &HashMap<String, String>) -> Result<Filter, &'static str> {
 
 pub async fn list(
     State(ctx): State<Arc<AppState>>,
-    Extension(user): Extension<AuthedUser>,
+    Caller(caller): ApiCaller,
     Query(q): Query<HashMap<String, String>>,
 ) -> Response {
     let f = match filter(&q) {
         Ok(f) => f,
         Err(sentence) => return error(StatusCode::BAD_REQUEST, sentence),
     };
-    match audit::list(&ctx, &user.username, f).await {
+    match audit::list(&ctx, &caller.user, f).await {
         Ok(Listing::Rows(rows)) => {
             json_response(StatusCode::OK, json!({"status": "success", "data": rows}))
         }
