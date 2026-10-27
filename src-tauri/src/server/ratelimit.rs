@@ -54,7 +54,13 @@ fn request_window(bucket: Bucket, ip: &IpAddr) -> bool {
         && (minted(ip)
             || matches!(
                 bucket,
-                Bucket::Api(_) | Bucket::Guard | Bucket::StrategyWebhook | Bucket::ChartinkWebhook
+                Bucket::Api(_)
+                    | Bucket::Guard
+                    | Bucket::StrategyWebhook
+                    | Bucket::ChartinkWebhook
+                    | Bucket::AgentApi
+                    | Bucket::AgentStream
+                    | Bucket::AgentTest
             ))
 }
 
@@ -103,6 +109,15 @@ pub enum Bucket {
     /// address, caller outside the allowlist) by caller. Spent, it refuses
     /// further invalid attempts early; never a valid webhook address.
     WebhookFail,
+    /// The Agent's ordinary routes together (web `AGENT_RATE_LIMIT`, 240 per
+    /// minute, one shared scope so alternating routes draws no fresh budget).
+    AgentApi,
+    /// The Agent's streaming routes (web `AGENT_STREAM_RATE_LIMIT`, 30 per
+    /// minute): a stream holds a connection and bills a provider.
+    AgentStream,
+    /// The Agent's routes that reach a provider to test it (web
+    /// `AGENT_TEST_RATE_LIMIT`, 12 per minute).
+    AgentTest,
 }
 
 impl Bucket {
@@ -118,6 +133,9 @@ impl Bucket {
             Bucket::Guard => (1000, Duration::from_secs(1)),
             Bucket::StrategyWebhook | Bucket::ChartinkWebhook => (100, Duration::from_secs(60)),
             Bucket::WebhookFail => (10, Duration::from_secs(60)),
+            Bucket::AgentApi => (240, Duration::from_secs(60)),
+            Bucket::AgentStream => (30, Duration::from_secs(60)),
+            Bucket::AgentTest => (12, Duration::from_secs(60)),
         }
     }
 

@@ -19,23 +19,40 @@
 //! - `tool_guard`: a call's arguments read, checked and coerced before the
 //!   tool runs, and the correction the model reads when they do not fit.
 //! - `redact`: secrets out of anything shown, stored or logged.
+//! - `chat/`: the chat service the routes call; `run/`: one turn, its loop
+//!   and its stored state; `stream/`: its frames as SSE; `reply`: a refusal
+//!   before anything streams.
 //!
-//! Nothing starts at boot: a run is built when the trader sends a message,
-//! so a platform whose Agent cannot work still starts.
+//! Nothing a turn needs starts at boot: a run is built when the trader sends
+//! a message, so a platform whose Agent cannot work still starts. [`start`]
+//! closes runs a quit left open and sweeps expired approvals once a minute;
+//! [`AgentModule::stop_all`] ends every turn at sign-out, lock, reset and
+//! quit.
 
 pub mod attachments;
+pub mod chat;
 pub mod contract;
 pub mod conversations;
 pub mod prompts;
 pub mod redact;
+pub mod reply;
+pub mod run;
+pub mod stream;
+#[cfg(test)]
+pub(crate) mod testing;
 pub mod tool_guard;
 pub mod tools;
 
 use contract::approval::{ApprovalHook, NoApprovalRecord};
 use contract::model::{ModelResolver, NoModelConfigured};
 use contract::policy::{DefaultPolicy, RunPolicy, SectionSource};
-use parking_lot::RwLock;
+use contract::tool::ToolGroup;
+use parking_lot::{Mutex, RwLock};
+use run::client::ModelClient;
+use run::registry::RunRegistry;
 use std::sync::Arc;
+use std::time::Duration;
+use stream::StreamSlots;
 
 /// The Agent's state, owned by the app context.
 pub struct AgentModule {
@@ -43,6 +60,15 @@ pub struct AgentModule {
     approvals: RwLock<Arc<dyn ApprovalHook>>,
     policy: RwLock<Arc<dyn RunPolicy>>,
     sections: RwLock<Vec<Arc<dyn SectionSource>>>,
+    /// The toolkits runs are built from (the registry; a test's own).
+    toolkits: RwLock<&'static [ToolGroup]>,
+    /// The turns running now.
+    runs: Arc<RunRegistry>,
+    /// The answers streaming now.
+    slots: StreamSlots,
+    /// The provider connection, built on first use.
+    client: Mutex<Option<Arc<ModelClient>>>,
+    turn_limit: RwLock<Duration>,
 }
 
 impl Default for AgentModule {
@@ -58,7 +84,65 @@ impl AgentModule {
             approvals: RwLock::new(Arc::new(NoApprovalRecord)),
             policy: RwLock::new(Arc::new(DefaultPolicy)),
             sections: RwLock::new(Vec::new()),
+            toolkits: RwLock::new(tools::TOOLKITS),
+            runs: Arc::new(RunRegistry::default()),
+            slots: StreamSlots::default(),
+            client: Mutex::new(None),
+            turn_limit: RwLock::new(run::MAX_TURN),
         }
+    }
+
+    /// The toolkits a run is built from.
+    pub fn toolkits(&self) -> &'static [ToolGroup] {
+        *self.toolkits.read()
+    }
+
+    /// Build runs from other toolkits (a test's).
+    #[cfg(test)]
+    pub fn set_toolkits(&self, groups: &'static [ToolGroup]) {
+        *self.toolkits.write() = groups;
+    }
+
+    /// The turns running now.
+    pub fn runs(&self) -> Arc<RunRegistry> {
+        self.runs.clone()
+    }
+
+    /// The stream slots.
+    pub fn slots(&self) -> &StreamSlots {
+        &self.slots
+    }
+
+    /// The longest a turn may run.
+    pub fn turn_limit(&self) -> Duration {
+        *self.turn_limit.read()
+    }
+
+    /// Cut turns off sooner (a test of the limit).
+    #[cfg(test)]
+    pub fn set_turn_limit(&self, limit: Duration) {
+        *self.turn_limit.write() = limit;
+    }
+
+    /// The provider connection, built once.
+    pub fn client(&self) -> Result<Arc<ModelClient>, String> {
+        let mut slot = self.client.lock();
+        if let Some(c) = slot.as_ref() {
+            return Ok(c.clone());
+        }
+        let c = Arc::new(ModelClient::new()?);
+        *slot = Some(c.clone());
+        Ok(c)
+    }
+
+    /// End every turn now (sign-out, lock, account reset, fresh start,
+    /// quit): each ends with `done` (cancelled) and is stored as cancelled.
+    pub fn stop_all(&self) -> usize {
+        let n = self.runs.cancel_all();
+        if n > 0 {
+            tracing::info!("Stopped {} Agent turn(s)", n);
+        }
+        n
     }
 
     /// Who decides a run's model (the config lane's, once installed).
@@ -100,6 +184,58 @@ impl AgentModule {
     /// EXTERNAL DATA sections).
     pub fn add_section_source(&self, source: Arc<dyn SectionSource>) {
         self.sections.write().push(source);
+    }
+}
+
+/// Once a minute, how often expired approvals are swept.
+const SWEEP_EVERY: Duration = Duration::from_secs(60);
+
+/// At startup: close runs a quit left `running` (they never finished, so
+/// they are not history), then sweep expired approvals once a minute,
+/// telling the approval hook each one will never resume. The task is owned
+/// by the app and ends with it.
+pub fn start(app: &Arc<crate::state::AppState>) {
+    let me = Arc::downgrade(app);
+    app.spawn(async move {
+        if let Some(app) = me.upgrade() {
+            let now = app.now();
+            if let Err(e) = app
+                .blocking(move |c| {
+                    conversations::store::close_interrupted_runs(&*c.sqlite.conn()?, now)
+                })
+                .await
+            {
+                tracing::warn!(
+                    "Agent runs left open by the last quit could not be closed: {}",
+                    e
+                );
+            }
+        }
+        let mut tick = tokio::time::interval(SWEEP_EVERY);
+        loop {
+            tick.tick().await;
+            let Some(app) = me.upgrade() else { return };
+            if app.shutdown.is_cancelled() {
+                return;
+            }
+            sweep(&app).await;
+        }
+    });
+}
+
+async fn sweep(app: &Arc<crate::state::AppState>) {
+    let now = app.now();
+    match app
+        .blocking(move |c| conversations::store::expire_paused(&*c.sqlite.conn()?, now))
+        .await
+    {
+        Ok(ids) => {
+            let hook = app.agent.approvals();
+            for id in ids {
+                hook.abandoned(app, &id).await;
+            }
+        }
+        Err(e) => tracing::warn!("Expired Agent approvals could not be swept: {}", e),
     }
 }
 

@@ -397,6 +397,7 @@ impl AuthService {
         confirm: &str,
     ) -> Result<()> {
         Self::check_new_password(new, confirm)?;
+        ctx.agent.stop_all();
         if let Err(e) = crate::services::broker_auth_service::BrokerAuthService::revoke(
             ctx,
             crate::events::SessionEndReason::Logout,
@@ -437,6 +438,7 @@ impl AuthService {
     /// next sign-in brings them back (`messaging::autostart`).
     pub async fn lock_everything(ctx: &std::sync::Arc<AppState>) {
         ctx.security.lock_with(|| ctx.sessions.clear());
+        ctx.agent.stop_all();
         ctx.messaging.shutdown().await;
         ctx.tunnel
             .stop(crate::services::tunnel::Off::SignedOut)
@@ -577,6 +579,7 @@ impl AuthService {
     /// cannot be written) and the bots, wipe and rotate (`reset_account`,
     /// which deletes the stored row), then sign every window out.
     pub async fn reset_account_everywhere(ctx: &std::sync::Arc<AppState>) -> Result<()> {
+        ctx.agent.stop_all();
         if let Err(e) = crate::services::broker_auth_service::BrokerAuthService::revoke(
             ctx,
             crate::events::SessionEndReason::Logout,

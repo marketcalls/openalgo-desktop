@@ -575,6 +575,16 @@ pub fn release_paused(conn: &Connection, run_id: &str) -> Result<()> {
     Ok(())
 }
 
+/// Give back a claim a resume could not use (it named another
+/// conversation): the run waits for approval again.
+pub fn unclaim_paused(conn: &Connection, run_id: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE ag_paused_run SET state = 'paused' WHERE run_id = ?1 AND state = 'resuming'",
+        [run_id],
+    )?;
+    Ok(())
+}
+
 /// Paused runs past their expiry, marked expired; their ids.
 pub fn expire_paused(conn: &Connection, now: DateTime<Utc>) -> Result<Vec<String>> {
     let ts = stamp(now);

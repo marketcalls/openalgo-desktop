@@ -5,6 +5,7 @@
 
 pub mod account;
 pub mod admin;
+pub mod agent;
 pub mod analyzer;
 pub mod app_config;
 pub mod auth;
@@ -41,7 +42,6 @@ pub mod watchlist;
 pub mod websocket_example;
 pub mod webui;
 pub mod whatsapp;
-
 use crate::server::middleware::{require_user, require_user_for_json};
 use crate::state::AppState;
 use axum::{
@@ -111,8 +111,7 @@ pub fn table() -> Vec<RouteSpec> {
         messaging(),
         historify::table(),
         broker_config::table(),
-        // The /trading terminal (web custom_indicators.py, openscript.py,
-        // openscript_runner.py).
+        // The /trading terminal (web custom_indicators.py, openscript*.py).
         custom_indicators::table(),
         openscript::table(),
         openscript_runner::table(),
@@ -121,6 +120,7 @@ pub fn table() -> Vec<RouteSpec> {
         update::table(),
         tunnel::table(),
         e2e::table(),
+        agent::table(),
     ]
     .into_iter()
     .flatten()

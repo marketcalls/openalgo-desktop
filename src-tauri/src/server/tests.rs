@@ -575,30 +575,48 @@ async fn every_user_route_rejects_without_a_signed_in_session() {
     assert!(checked >= 18, "only {} user routes", checked);
 }
 
-/// The Agent and the Python Strategy Host are not part of this version
-/// (maintainer, 2026-10-12). No route answers for them: an `/agent/api` call is
-/// an unknown API path and gets the JSON 404 on every method, signed in or
-/// not, and their pages get the app's 404 page.
+/// The Python Strategy Host is not part of this version (maintainer,
+/// 2026-10-12): no route answers for it, its API paths are the JSON 404 on
+/// every method, signed in or not, and its pages get the app's 404 page. The
+/// Agent is back in 1.0.4 (maintainer, 2026-10-27): its page is served, its
+/// routes need the signed-in user, and an unknown `/agent/api` path is still
+/// the JSON 404.
 #[tokio::test]
-async fn agent_and_python_paths_are_not_found() {
+async fn python_paths_are_not_found_and_the_agent_answers() {
     let h = H::new();
     h.setup();
     let (cookie, csrf) = h.session(true);
+    let table = routes::table();
     assert!(
-        routes::table()
-            .iter()
-            .all(|r| !r.path.starts_with("/agent") && !r.path.starts_with("/python")),
-        "a route still answers for the Agent or the Python Strategy Host"
+        table.iter().all(|r| !r.path.starts_with("/python")),
+        "a route still answers for the Python Strategy Host"
     );
+    let agent: Vec<String> = table
+        .iter()
+        .filter(|r| r.path.starts_with("/agent"))
+        .map(|r| format!("{} {}", r.method, r.path))
+        .collect();
+    for route in [
+        "GET /agent/api/conversations",
+        "POST /agent/api/conversations",
+        "GET /agent/api/conversations/{id}",
+        "DELETE /agent/api/conversations/{id}",
+        "DELETE /agent/api/conversations/{id}/messages/{message_id}",
+        "POST /agent/api/chat/stream",
+        "POST /agent/api/chat/confirm",
+        "POST /agent/api/chat/{run_id}/cancel",
+    ] {
+        assert!(agent.iter().any(|r| r == route), "{} is not routed", route);
+    }
+    assert!(table
+        .iter()
+        .filter(|r| r.path.starts_with("/agent"))
+        .all(|r| r.access == Access::User));
     for (method, path) in [
         (Method::GET, "/agent/api/x"),
         (Method::GET, "/agent/api"),
-        (Method::GET, "/agent/api/catalog/models?provider=openai"),
         (Method::POST, "/agent/api/x"),
-        (Method::POST, "/agent/api/chat/stream"),
-        (Method::PUT, "/agent/api/settings"),
-        (Method::PATCH, "/agent/api/models/1"),
-        (Method::DELETE, "/agent/api/conversations/7"),
+        (Method::PATCH, "/agent/api/nope/1"),
         (Method::POST, "/python/start/1"),
     ] {
         let want = json!({
@@ -624,7 +642,7 @@ async fn agent_and_python_paths_are_not_found() {
             assert_eq!(v, want, "{} {} anonymous", method, path);
         }
     }
-    for path in ["/agent", "/agent/config", "/python", "/python/new"] {
+    for path in ["/python", "/python/new"] {
         let (s, headers, body) = h.send(with_session(get(path), &cookie, None)).await;
         assert_eq!(s, StatusCode::NOT_FOUND, "{}", path);
         assert!(
@@ -641,6 +659,15 @@ async fn agent_and_python_paths_are_not_found() {
             path
         );
     }
+    let (s, _, body) = h.send(with_session(get("/agent"), &cookie, None)).await;
+    assert_eq!(s, StatusCode::OK, "/agent is a page");
+    assert!(String::from_utf8_lossy(&body).contains("<!doctype html"));
+    let (s, v) = h.json(get("/agent/api/conversations")).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED, "anonymous");
+    assert_eq!(
+        v,
+        json!({"status": "error", "message": "Not authenticated"})
+    );
 }
 
 /// An unknown path in an API namespace is a JSON 404; a page path never is.
