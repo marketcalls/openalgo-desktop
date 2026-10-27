@@ -92,10 +92,11 @@ fn one_extractor_finds_every_order_id_shape() {
         "data": {"NorenOrdNo": "D4", "nestOrderNumber": "E5", "broker_orderid": " F6 ", "trigger_id": "T7"},
         "pending_order_id": 9
     });
-    assert_eq!(
-        extract_order_ids(&reply),
-        ["A1", "42", "B2", "C3", "D4", "E5", "F6", "T7"]
-    );
+    // Sorted: the walk follows the reply's own key order, which depends on
+    // how serde_json keeps maps (insertion order or sorted).
+    let mut ids = extract_order_ids(&reply);
+    ids.sort();
+    assert_eq!(ids, ["42", "A1", "B2", "C3", "D4", "E5", "F6", "T7"]);
     let many: Vec<Value> = (0..300).map(|i| json!({"orderid": i})).collect();
     assert_eq!(
         extract_order_ids(&json!({"results": many})).len(),
