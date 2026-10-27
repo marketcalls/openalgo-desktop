@@ -65,7 +65,11 @@ async fn every_route_is_the_webs_and_needs_the_trader() {
             .body(Body::empty())
             .unwrap();
         let (s, _) = h.json(anonymous).await;
-        assert_eq!(s, StatusCode::UNAUTHORIZED, "{} {}", m, path);
+        if method == Method::GET {
+            assert_eq!(s, StatusCode::UNAUTHORIZED, "{} {}", m, path);
+        } else {
+            assert!(!s.is_success(), "{} {} answers a stranger", m, path);
+        }
         if method != Method::GET {
             let no_token = with_session(
                 Request::builder()

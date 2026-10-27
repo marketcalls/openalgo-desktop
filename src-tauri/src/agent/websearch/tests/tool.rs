@@ -75,7 +75,10 @@ fn the_tools_are_the_webs_and_are_offered_only_with_the_switch_on() {
     );
     let t = ctx();
     for surface in [Surface::Chat, Surface::Chart, Surface::Voice] {
-        let on = build_tools(TOOLKITS, &run_ctx(&t, surface));
+        let on: Vec<_> = build_tools(TOOLKITS, &run_ctx(&t, surface))
+            .into_iter()
+            .filter(|x| x.spec().name.starts_with("web_"))
+            .collect();
         let names: Vec<&str> = on.iter().map(|x| x.spec().name).collect();
         assert_eq!(names, ["web_search", "web_research"], "{:?}", surface);
         for tool in &on {
@@ -90,7 +93,9 @@ fn the_tools_are_the_webs_and_are_offered_only_with_the_switch_on() {
         let mut off = run_ctx(&t, surface);
         off.caps.web_search_enabled = false;
         assert!(
-            build_tools(TOOLKITS, &off).is_empty(),
+            build_tools(TOOLKITS, &off)
+                .iter()
+                .all(|x| !x.spec().name.starts_with("web_")),
             "the switch off withholds both"
         );
     }

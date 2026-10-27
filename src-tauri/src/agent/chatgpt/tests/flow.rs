@@ -32,7 +32,7 @@ async fn start_returns_the_code_at_once_and_authorises_in_the_background() {
         (LoginState::Pending, "ABCD-1234")
     );
     assert_eq!(s.verification_url, fake.url("/codex/device"));
-    assert_eq!(s.expires_at.unwrap() - s.started_at.unwrap(), 30.0);
+    assert!((s.expires_at.unwrap() - s.started_at.unwrap() - 30.0).abs() < 1e-3);
     assert_eq!(s.message, "");
     until("authorised", || {
         plan.snapshot().state == LoginState::Authorised

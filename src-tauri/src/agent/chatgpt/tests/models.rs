@@ -4,7 +4,10 @@ use crate::agent::catalog::{self, Entry};
 use crate::agent::chatgpt::models::{entry, register, PROVIDER, SUPPLEMENTAL};
 use std::collections::HashMap;
 
-fn empty() -> (HashMap<String, Entry>, Vec<(String, Vec<String>)>) {
+/// The provider listing the catalogue keeps.
+type Listing = Vec<(String, Vec<String>)>;
+
+fn empty() -> (HashMap<String, Entry>, Listing) {
     (
         HashMap::new(),
         vec![(PROVIDER.to_string(), vec!["chatgpt/gpt-5.4".to_string()])],
@@ -93,7 +96,7 @@ fn no_entry_carries_a_price_and_every_one_answers_on_responses() {
 #[test]
 fn a_catalogue_of_another_shape_still_gets_the_models() {
     let mut e = HashMap::new();
-    let mut p: Vec<(String, Vec<String>)> = Vec::new();
+    let mut p: Listing = Vec::new();
     assert_eq!(register(&mut e, &mut p).len(), SUPPLEMENTAL.len());
     assert_eq!(p[0].0, PROVIDER);
 }
