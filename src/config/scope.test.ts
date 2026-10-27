@@ -1,8 +1,10 @@
 /**
- * The Python Strategy Host (`/python`) and the Agent (`/agent`, `/agent/config`,
- * the Assistant panel in the /trading terminal) are not part of this version
- * of OpenAlgo Desktop (maintainer, 2026-10-12). Nothing a trader can click may
- * lead to them: no navigation or menu entry, no route, no link.
+ * The Python Strategy Host (`/python`) is not part of this version of OpenAlgo
+ * Desktop (maintainer, 2026-10-12). Nothing a trader can click may lead to it:
+ * no navigation or menu entry, no route, no link.
+ *
+ * The Agent (`/agent`) came back in 1.0.4 (maintainer, 2026-10-27), as a page
+ * with its route, its server path and its navigation entry in one change.
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs'
@@ -12,8 +14,8 @@ import { desktopProfileMenuItems } from '@/lib/desktop'
 import { bottomNavItems, mobileSheetItems, navItems, profileMenuItems } from './navigation'
 
 const SRC_DIR = join(process.cwd(), 'src')
-const REMOVED = /^\/(agent|python)(\/|$)/
-const REMOVED_LABEL = /\b(agent|assistant|python)\b/i
+const REMOVED = /^\/python(\/|$)/
+const REMOVED_LABEL = /\bpython\b/i
 
 /** Every non-test source file under src/. */
 function sources(dir: string): string[] {
@@ -24,8 +26,13 @@ function sources(dir: string): string[] {
   })
 }
 
-describe('removed from this version: the Python Strategy Host and the Agent', () => {
-  it('has no navigation, mobile or profile menu entry for them', () => {
+function routerPaths(): string[] {
+  const app = readFileSync(join(SRC_DIR, 'App.tsx'), 'utf8')
+  return [...app.matchAll(/<Route\s[^>]*path="([^"]+)"/g)].map((m) => m[1])
+}
+
+describe('removed from this version: the Python Strategy Host', () => {
+  it('has no navigation, mobile or profile menu entry for it', () => {
     const menus = {
       navItems,
       bottomNavItems,
@@ -41,19 +48,26 @@ describe('removed from this version: the Python Strategy Host and the Agent', ()
     }
   })
 
-  it('declares no /agent or /python route in the router', () => {
-    const app = readFileSync(join(SRC_DIR, 'App.tsx'), 'utf8')
-    const paths = [...app.matchAll(/<Route\s[^>]*path="([^"]+)"/g)].map((m) => m[1])
+  it('declares no /python route in the router', () => {
+    const paths = routerPaths()
     // The parse found the router, so an empty list cannot pass by accident.
     expect(paths).toContain('/trading')
     expect(paths).toContain('*')
     expect(paths.filter((path) => REMOVED.test(path))).toEqual([])
   })
 
-  it('links to neither from any page, card, menu or button', () => {
+  it('links to it from no page, card, menu or button', () => {
     const offenders = sources(SRC_DIR).filter((file) =>
-      /['"`]\/(agent|python)(\/|['"`?#])/.test(readFileSync(file, 'utf8'))
+      /['"`]\/python(\/|['"`?#])/.test(readFileSync(file, 'utf8'))
     )
     expect(offenders).toEqual([])
+  })
+})
+
+describe('the Agent is a page of this version', () => {
+  it('has its route and its profile menu entry, as on the web', () => {
+    expect(routerPaths()).toContain('/agent')
+    expect(profileMenuItems.map((item) => item.href)).toContain('/agent')
+    expect(profileMenuItems.find((item) => item.href === '/agent')?.label).toBe('Agent')
   })
 })

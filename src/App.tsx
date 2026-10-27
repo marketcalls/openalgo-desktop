@@ -78,8 +78,9 @@ const Arbitrage = lazy(() => import('@/pages/Arbitrage'))
 const StrategyBuilder = lazy(() => import('@/pages/StrategyBuilder'))
 const StrategyPortfolio = lazy(() => import('@/pages/StrategyPortfolio'))
 
-// Desktop: the Python Strategy Host (/python) and the Agent (/agent, /agent/config)
-// are not part of this version (maintainer, 2026-10-12); unknown paths show NotFound.
+// Agent (web pages/agent). Desktop: the Python Strategy Host (/python) is not
+// part of this version (maintainer, 2026-10-12); unknown paths show NotFound.
+const AgentIndex = lazy(() => import('@/pages/agent/AgentIndex'))
 
 // Strategy module: multi-leg options strategies with risk management
 const StrategyList = lazy(() => import('@/pages/strategy/List'))
@@ -279,6 +280,12 @@ function App() {
               <Route element={<FullWidthLayout />}>
                 <Route path="/playground" element={<Playground />} />
                 <Route path="/trading" element={<Trading />} />
+                {/* The agent is an application surface, not a document: the
+                    thread scrolls inside a fixed viewport with the composer
+                    pinned under it, and a conversation sidebar sits beside it.
+                    Layout's centred, page-scrolling container cannot hold that,
+                    so it renders its own Navbar like /trading does. */}
+                <Route path="/agent" element={<AgentIndex />} />
                 <Route path="/historify" element={<Historify />} />
                 <Route path="/historify/charts" element={<HistorifyCharts />} />
                 <Route path="/historify/charts/:symbol" element={<HistorifyCharts />} />
