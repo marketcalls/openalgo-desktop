@@ -16,11 +16,14 @@
 //! in the marked place below, chat surface only, as on the web.
 
 pub mod answer;
+pub mod market;
 pub mod numbers;
 pub mod service;
 #[cfg(test)]
 pub(crate) mod spec_contract;
 pub mod specs;
+#[cfg(test)]
+pub(crate) mod testkit;
 pub mod values;
 
 use crate::agent::contract::tool::{AgentTool, ToolCtx, ToolGroup};
@@ -29,6 +32,7 @@ use std::sync::Arc;
 
 /// Every toolkit, one line each (`order` decides the model's order).
 pub const TOOLKITS: &[ToolGroup] = &[
+    market::GROUP,
     // Toolkit lanes add their line here, for example:
     // orders::GROUP,     // order 50, every surface, requires Trading
     //
