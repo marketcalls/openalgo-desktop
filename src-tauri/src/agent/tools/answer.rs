@@ -52,7 +52,7 @@ pub fn tool_answer(
 }
 
 /// A label from anything printable.
-pub fn label<'a>(name: &'a str, value: impl ToString) -> Label<'a> {
+pub fn label<'a>(name: &'a str, value: &dyn std::fmt::Display) -> Label<'a> {
     (name, Some(value.to_string()))
 }
 
@@ -66,7 +66,7 @@ mod tests {
         let out = json_result(
             "get_quote",
             &json!({"symbol": "INFY", "quote": {"ltp": 1520.5}, "auth_token": "abc"}),
-            &[label("symbol", "INFY"), ("exchange", None)],
+            &[label("symbol", &"INFY"), ("exchange", None)],
         );
         assert_eq!(
             out,
@@ -101,7 +101,7 @@ mod tests {
             "stream_quotes",
             "Opened a live Quote card on 1 instrument.",
             &["A.".into(), "B.".into()],
-            &[label("count", 1), ("mode", None)],
+            &[label("count", &1), ("mode", None)],
         );
         assert_eq!(
             out.text(),

@@ -324,6 +324,9 @@ pub fn candle_frame(records: &[Map<String, Value>], columns: &Columns) -> Candle
     frame
 }
 
+/// The rows of one week or month, keyed by (year, week or month).
+type Period<'a> = ((i32, u32), Vec<&'a Map<String, Value>>);
+
 /// Daily candles rolled up into ISO weeks (`W`) or calendar months (`M`):
 /// the first day's timestamp and open, the highest high, the lowest low,
 /// the last day's close, the summed volume and the last open interest,
@@ -337,7 +340,7 @@ pub fn roll_up_candles(
     let Some(stamp_key) = columns.get("timestamp") else {
         return records.to_vec();
     };
-    let mut periods: Vec<((i32, u32), Vec<&Map<String, Value>>)> = Vec::new();
+    let mut periods: Vec<Period<'_>> = Vec::new();
     for row in records {
         let Some(day) = row
             .get(stamp_key)

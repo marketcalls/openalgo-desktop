@@ -22,6 +22,12 @@ use serde_json::{Map, Value};
 /// snapshot ([`super::master`]); a test passes a fixed set.
 pub type Listed<'a> = &'a (dyn Fn(&str, &str) -> bool + Sync);
 
+/// One instrument: its symbol and exchange.
+pub type Pair = (String, String);
+
+/// A normalised symbol list and the notices about what was corrected.
+pub type PairList = (Vec<Pair>, Vec<String>);
+
 /// A refusal worded as every refusal is.
 pub fn refuse(field: &str, reason: &str, fix: &str) -> ToolOutcome {
     ToolOutcome::invalid_argument(field, reason, Some(fix))
@@ -527,7 +533,7 @@ pub fn symbol_pairs(
     field: &str,
     limit: usize,
     truncate: bool,
-) -> Result<(Vec<(String, String)>, Vec<String>), ToolOutcome> {
+) -> Result<PairList, ToolOutcome> {
     let empty_fix = "Pass a list of objects, for example [{\"symbol\": \"INFY\", \"exchange\": \"NSE\"}, {\"symbol\": \"SBIN\", \"exchange\": \"NSE\"}].";
     let mut raw = symbols.cloned().unwrap_or(Value::Null);
     if let Value::String(s) = &raw {
@@ -583,7 +589,7 @@ pub fn symbol_pairs(
         ));
         items.truncate(limit);
     }
-    let mut pairs: Vec<(String, String)> = Vec::new();
+    let mut pairs: Vec<Pair> = Vec::new();
     let mut duplicates = 0usize;
     for (index, item) in items.iter().enumerate() {
         let (symbol, exchange) = pair_fields(item, index, field)?;
@@ -606,10 +612,7 @@ pub fn symbol_pairs(
 }
 
 /// [`symbol_pairs`] with the `get_quotes` limit.
-pub fn quote_pairs(
-    listed: Listed<'_>,
-    symbols: Option<&Value>,
-) -> Result<(Vec<(String, String)>, Vec<String>), ToolOutcome> {
+pub fn quote_pairs(listed: Listed<'_>, symbols: Option<&Value>) -> Result<PairList, ToolOutcome> {
     symbol_pairs(listed, symbols, "symbols", MAX_MULTIQUOTE_SYMBOLS, false)
 }
 

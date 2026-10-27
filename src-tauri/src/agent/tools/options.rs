@@ -234,10 +234,10 @@ pub fn normalise_int(
     };
     let whole = number.filter(|n| n.is_finite() && n.fract() == 0.0);
     match whole {
-        Some(n) if (minimum as f64) <= n && n <= maximum as f64 => Ok(n as i64),
+        Some(n) if (minimum as f64..=maximum as f64).contains(&n) => Ok(n as i64),
         _ => {
             let fix = match default {
-                Some(d) if minimum <= d && d <= maximum => {
+                Some(d) if (minimum..=maximum).contains(&d) => {
                     format!(
                         "Pass an integer in that range; the default {} is {}.",
                         field, d

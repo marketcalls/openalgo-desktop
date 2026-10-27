@@ -23,7 +23,7 @@ use crate::agent::tools::account::{current_mode, CURRENCY};
 use crate::agent::tools::answer::{label, tool_answer};
 use crate::agent::tools::instrument::{depth_levels, normalise_quote, quote_move};
 use crate::agent::tools::market::candles::iso_ist;
-use crate::agent::tools::market::normalise::symbol_pairs;
+use crate::agent::tools::market::normalise::{symbol_pairs, Pair};
 use crate::agent::tools::market::{data_of, master, IST};
 use crate::agent::tools::numbers::{as_number, format_price, py_round};
 use crate::agent::tools::specs;
@@ -319,7 +319,9 @@ pub fn market_block<'a>(
         .map(|venue| match timings.iter().find(|w| w.exchange.trim().to_uppercase() == *venue) {
             None => json!({"exchange": venue, "known": false, "is_open": false}),
             Some(w) => {
-                let open = w.start_time != 0 && w.end_time != 0 && w.start_time <= now_ms && now_ms <= w.end_time;
+                let open = w.start_time != 0
+                    && w.end_time != 0
+                    && (w.start_time..=w.end_time).contains(&now_ms);
                 json!({"exchange": venue, "known": true, "is_open": open, "opens_at": w.start_time, "closes_at": w.end_time})
             }
         })
@@ -393,7 +395,7 @@ async fn stream_quotes(
     let listed = master(&ctx.app);
     let symbols = symbols_argument(args.get("symbols"));
     let (pairs, mut notices) = symbol_pairs(&listed, symbols.as_ref(), "symbols", limit, true)?;
-    let (resolved, refused): (Vec<(String, String)>, Vec<(String, String)>) =
+    let (resolved, refused): (Vec<Pair>, Vec<Pair>) =
         pairs.into_iter().partition(|(s, e)| listed(s, e));
     let refused_rows: Vec<Value> = refused
         .iter()
@@ -458,7 +460,7 @@ async fn stream_quotes(
         "stream_quotes",
         &message,
         &notices,
-        &[label("count", instruments.len()), label("mode", mode)],
+        &[label("count", &instruments.len()), label("mode", &mode)],
     ))
 }
 

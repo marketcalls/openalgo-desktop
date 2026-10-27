@@ -324,7 +324,7 @@ async fn get_quotes(
     Ok(json_result(
         "get_quotes",
         &payload,
-        &[label("count", pairs.len())],
+        &[label("count", &pairs.len())],
     ))
 }
 

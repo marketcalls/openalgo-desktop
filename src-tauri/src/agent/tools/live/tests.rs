@@ -394,3 +394,30 @@ async fn the_live_toolkit_matches_the_web() {
     let ctx = kit.ctx(Surface::Chat);
     crate::agent::tools::spec_contract::assert_toolkit(&GROUP, &ctx);
 }
+
+#[tokio::test]
+async fn a_quotes_card_holds_twelve_and_drops_the_rest_with_a_notice() {
+    let kit = Kit::new();
+    let ctx = kit.ctx(Surface::Chat);
+    let thirteen: Vec<Value> = (0..13)
+        .map(|i| json!(format!("NSE:SYM{}", i)))
+        .chain(std::iter::once(json!("NSE:INFY")))
+        .collect();
+    let out = kit
+        .call_in(&GROUP, &ctx, "stream_quotes", json!({"symbols": thirteen}))
+        .await;
+    // Fourteen asked for, twelve kept, none of them listed: no card.
+    assert!(
+        out.text()
+            .contains("None of the instruments asked for are in the instrument master"),
+        "{}",
+        out.text()
+    );
+    assert!(
+        out.text()
+            .contains("Note: 2 of 14 entries were dropped, because this call carries at most 12."),
+        "{}",
+        out.text()
+    );
+    assert!(ctx.viz.drain().is_empty());
+}

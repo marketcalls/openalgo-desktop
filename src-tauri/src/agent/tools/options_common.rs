@@ -505,7 +505,7 @@ pub fn within_this_week(expiry: &str, today: NaiveDate) -> bool {
         return false;
     };
     let sunday = today + Duration::days(6 - i64::from(today.weekday().num_days_from_monday()));
-    today <= moment && moment <= sunday
+    (today..=sunday).contains(&moment)
 }
 
 /// The last expiry listed in the nearest contract month (or the month
@@ -526,8 +526,7 @@ pub fn monthly_expiry(listed: &[String], later: bool) -> String {
     };
     listed
         .iter()
-        .filter(|e| month(e) == wanted)
-        .next_back()
+        .rfind(|e| month(e) == wanted)
         .or(listed.last())
         .cloned()
         .unwrap_or_default()
