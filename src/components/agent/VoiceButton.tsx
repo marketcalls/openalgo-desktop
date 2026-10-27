@@ -20,13 +20,15 @@
  *   it. Speech recognition mishears, and a trader who cannot see what was heard
  *   has no way to tell a wrong answer from a wrong question.
  *
- * Desktop: a session that hung up after the quiet timeout says so until the
- * next press (D-033).
+ * Desktop: where the app window's web view cannot do voice at all (Linux
+ * without WebRTC), the button is shown disabled with the reason beside it
+ * rather than left out (decision 13); and a session that hung up after the
+ * quiet timeout says so until the next press (D-033).
  */
 
 import { useQuery } from '@tanstack/react-query'
 import { AudioLines, Loader2, Mic, MicOff } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { agentQueryKeys, getVoiceConfig } from '@/api/agent'
 import { Button } from '@/components/ui/button'
 import {
@@ -36,6 +38,7 @@ import {
   type VoiceStatus,
   type VoiceTranscriptLine,
 } from '@/lib/agent/voice'
+import { voiceUnavailableReason } from '@/lib/agent/voiceDesktop'
 import { cn } from '@/lib/utils'
 
 /** What each state says under the button. Plain text, no icons in the words. */
@@ -94,6 +97,9 @@ export function VoiceButton({
   const idleTimeout = config.data?.data.voice_idle_timeout_seconds ?? 0
 
   const [status, setStatus] = useState<VoiceStatus>({ state: 'idle', error: null, notice: null })
+  // Desktop (decision 13): read once; the web view does not change under a page.
+  const [unavailable] = useState(voiceUnavailableReason)
+  const reasonId = useId()
   const [lines, setLines] = useState<VoiceTranscriptLine[]>([])
 
   // Held in a ref, not a dependency: the page rebuilds this callback on most
@@ -162,6 +168,29 @@ export function VoiceButton({
 
   const name = voice.voice_agent_name || 'the voice agent'
   const action = live ? 'Stop the voice session' : `Talk to ${name}`
+
+  if (unavailable) {
+    return (
+      <div className={cn('flex min-w-0 items-center gap-1.5', className)}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled
+          aria-label={`Talk to ${name}`}
+          aria-describedby={reasonId}
+        >
+          <MicOff className="h-4 w-4" aria-hidden />
+        </Button>
+        <span
+          id={reasonId}
+          className="max-w-[22rem] text-[11px] leading-snug text-muted-foreground"
+        >
+          {unavailable}
+        </span>
+      </div>
+    )
+  }
 
   // Desktop (D-033): why an idle session stopped, until the next press.
   const idleNotice = status.state === 'idle' ? status.notice : null

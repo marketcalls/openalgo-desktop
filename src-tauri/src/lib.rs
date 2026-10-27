@@ -64,6 +64,7 @@ pub mod websocket;
 use commands::ShellState;
 use state::AppState;
 use std::sync::Arc;
+use tauri::webview::{PermissionKind, PermissionResponse};
 use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -268,6 +269,7 @@ fn main_window_url(ctx: &AppState, server_running: bool) -> WebviewUrl {
 /// left cannot be taken back, so no page on it may load here.
 fn open_main_window(app: &tauri::App, ctx: &Arc<AppState>, url: WebviewUrl) -> tauri::Result<()> {
     let live = Arc::downgrade(ctx);
+    let listening = Arc::downgrade(ctx);
     let builder = WebviewWindowBuilder::new(app, "main", url);
     // CI's Windows native E2E build only (src/e2e.rs).
     #[cfg(all(windows, feature = "e2e-debug-port"))]
@@ -275,7 +277,7 @@ fn open_main_window(app: &tauri::App, ctx: &Arc<AppState>, url: WebviewUrl) -> t
         Some(port) => builder.additional_browser_args(&e2e::browser_args(port)),
         None => builder,
     };
-    builder
+    let _window = builder
         .on_navigation(move |to| {
             let port = live.upgrade().map(|c| c.live_port());
             let ok =
@@ -287,12 +289,56 @@ fn open_main_window(app: &tauri::App, ctx: &Arc<AppState>, url: WebviewUrl) -> t
             }
             ok
         })
+        .on_permission_request(move |_, kind| microphone_permission(&listening, kind))
         .title("OpenAlgo Desktop")
         .inner_size(1400.0, 900.0)
         .min_inner_size(1024.0, 768.0)
         .center()
         .build()?;
+    #[cfg(target_os = "linux")]
+    enable_voice_webview(&_window);
     Ok(())
+}
+
+/// The main window grants the microphone itself only while voice is on
+/// (`agent::voice::window_may_listen`); otherwise, and for anything else,
+/// the platform's own answer stands (a prompt on Windows and macOS, a
+/// refusal on Linux), so a refusal is never saved into the web view.
+fn microphone_permission(
+    app: &std::sync::Weak<AppState>,
+    kind: PermissionKind,
+) -> PermissionResponse {
+    match kind {
+        PermissionKind::Microphone
+            if app
+                .upgrade()
+                .is_some_and(|a| agent::voice::window_may_listen(&a)) =>
+        {
+            PermissionResponse::Allow
+        }
+        _ => PermissionResponse::Default,
+    }
+}
+
+/// Linux: WebKitGTK offers a page no microphone or WebRTC unless asked.
+/// Asked for the main window, which loads only the app's own pages; where
+/// the system's WebKitGTK was built without WebRTC this changes nothing and
+/// the voice button says why. The page loads again so it starts with the
+/// settings in place.
+#[cfg(target_os = "linux")]
+fn enable_voice_webview(window: &tauri::WebviewWindow) {
+    let set = window.with_webview(|w| {
+        use webkit2gtk::{SettingsExt, WebViewExt};
+        let view = w.inner();
+        if let Some(settings) = WebViewExt::settings(&view) {
+            settings.set_enable_media_stream(true);
+            settings.set_enable_webrtc(true);
+        }
+        view.reload();
+    });
+    if let Err(e) = set {
+        tracing::warn!("Voice settings for the window could not be applied: {}", e);
+    }
 }
 
 /// OpenScript live runs open one hidden window each, loading the runner

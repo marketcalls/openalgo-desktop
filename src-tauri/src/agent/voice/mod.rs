@@ -37,6 +37,13 @@ use parking_lot::{Mutex, RwLock};
 use providers::VoiceProviderSpec;
 use transcript::TranscriptAudit;
 
+/// Whether the app window may use the microphone: only while the trader has
+/// voice switched on (the web's `Permissions-Policy: microphone=(self)`,
+/// which it sends only then). Read fresh; an unreadable setting is off.
+pub fn window_may_listen(app: &crate::state::AppState) -> bool {
+    config::VoiceSettings::read(app).enabled
+}
+
 /// The voice surface's state, owned by the Agent module.
 pub struct VoiceModule {
     /// Spoken approval windows of paused voice runs.

@@ -179,6 +179,9 @@ sysinfo = { version = "0.38", default-features = false, features = ["system", "d
 memmap2 = "0.9.11"
 # malloc_trim: freed heap pages given back once a minute (services::heap).
 libc = "0.2"
+# The main window's WebKitGTK settings for voice (microphone and WebRTC):
+# the version wry pins, already built for the window.
+webkit2gtk = { version = "=2.0.2", features = ["v2_38"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Thread count for the health monitor (proc_pidinfo).

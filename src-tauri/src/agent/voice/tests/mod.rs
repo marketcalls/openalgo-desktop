@@ -5,6 +5,7 @@
 mod mint;
 mod runs;
 mod settings;
+mod window;
 
 use crate::agent::chat::tests::{harness, Harness};
 use crate::agent::testing::Reply;

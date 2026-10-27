@@ -42,7 +42,7 @@
     "longDescription": "OpenAlgo Desktop is an open-source algorithmic trading platform that allows you to connect with multiple Indian brokers and execute trades via TradingView webhooks and APIs.",
     "copyright": "Copyright 2024 OpenAlgo",
     "macOS": {
-      "entitlements": null,
+      "entitlements": "entitlements.plist",
       "exceptionDomain": "",
       "frameworks": [],
       "providerShortName": null,

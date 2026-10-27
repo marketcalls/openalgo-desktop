@@ -40,6 +40,8 @@
 
 import { fetchCSRFToken } from '@/api/client'
 import { AGENT_API_BASE, type AgentFrame, streamAgentFrames } from './stream'
+// Desktop: the microphone sentences name the app's own settings screens.
+import { desktopMicrophoneRefusal } from './voiceDesktop'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || ''
 
@@ -296,6 +298,10 @@ function describeCause(cause: unknown, fallback: string): string {
  */
 function microphoneRefusal(cause: unknown): string {
   const name = (cause as { name?: string } | null)?.name ?? ''
+  // Desktop: the app window and an insecure address get the desktop's own
+  // sentences (the app's port, the operating system's microphone switch).
+  const desktop = desktopMicrophoneRefusal(name, window.isSecureContext)
+  if (desktop) return desktop
   // Checked before the permission cases, because an insecure page never gets
   // as far as asking: the browser refuses the device outright and the operator
   // is left toggling a permission that was never the problem. OpenAlgo is
