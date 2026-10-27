@@ -47,6 +47,7 @@ pub mod feed_losses;
 pub mod freeze_qty_service;
 pub mod gtt_service;
 pub mod health_service;
+pub mod heap;
 pub mod history_tools_service;
 pub mod latency_probe;
 pub mod latency_service;

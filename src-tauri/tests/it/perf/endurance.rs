@@ -552,6 +552,11 @@ async fn memory_and_descriptors_stay_flat_through_a_trading_day_with_faults() {
     let faults_met = outcomes.iter().all(|o| o.met);
     let hours = started.elapsed().as_secs_f64() / 3600.0;
     let folder_growth = (end.folder_kib as f64 - warm.folder_kib as f64) / 1024.0;
+    // The heap given back once a minute (Linux, glibc): how long each
+    // trim held the arenas.
+    let mut trims = openalgo_desktop_lib::services::heap::trim_times();
+    trims.sort();
+    let trim_ms = |d: Option<&Duration>| d.map_or("n/a".to_string(), |d| super::ms(*d));
     let failed_faults: Vec<&str> = outcomes
         .iter()
         .filter(|o| !o.met)
@@ -574,6 +579,9 @@ async fn memory_and_descriptors_stay_flat_through_a_trading_day_with_faults() {
         .field("sqlite_kib_end", end.sqlite_kib)
         .field("mem_kib_first_half", first_half)
         .field("mem_kib_second_half", second_half)
+        .field("heap_trims", trims.len())
+        .field("heap_trim_median_ms", trim_ms(trims.get(trims.len() / 2)))
+        .field("heap_trim_max_ms", trim_ms(trims.last()))
         .field("fds_warm", warm.fds)
         .field("fds_peak", fd_peak)
         .field("pool_warm", warm.pool)

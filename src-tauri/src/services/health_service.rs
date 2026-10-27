@@ -325,6 +325,7 @@ pub fn start(ctx: &Arc<AppState>) {
                     let r = tokio::task::spawn_blocking(move || {
                         let r = sample_once(&c2);
                         crate::services::monitor::housekeep(&c2);
+                        crate::services::heap::give_back_free_memory();
                         r
                     })
                     .await;
