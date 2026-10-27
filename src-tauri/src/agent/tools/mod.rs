@@ -15,10 +15,13 @@
 //! in this version (maintainer, 2026-10-27). Flow comes later: its line goes
 //! in the marked place below, chat surface only, as on the web.
 
+pub mod answer;
+pub mod numbers;
 pub mod service;
 #[cfg(test)]
 pub(crate) mod spec_contract;
 pub mod specs;
+pub mod values;
 
 use crate::agent::contract::tool::{AgentTool, ToolCtx, ToolGroup};
 use std::collections::HashSet;
