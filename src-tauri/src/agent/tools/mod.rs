@@ -31,6 +31,7 @@ pub mod symbols;
 #[cfg(test)]
 pub(crate) mod testkit;
 pub mod values;
+pub mod viz;
 
 use crate::agent::contract::tool::{AgentTool, ToolCtx, ToolGroup};
 use std::collections::HashSet;
@@ -44,6 +45,7 @@ pub const TOOLKITS: &[ToolGroup] = &[
     options::GROUP,
     instrument::GROUP,
     live::GROUP,
+    viz::GROUP,
     // Toolkit lanes add their line here, for example:
     // orders::GROUP,     // order 50, every surface, requires Trading
     //
