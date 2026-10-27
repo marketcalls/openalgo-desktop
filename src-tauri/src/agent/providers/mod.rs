@@ -27,6 +27,8 @@ pub mod target;
 mod egress_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod trader_sentence_tests;
 
 use crate::agent::catalog::Catalog;
 
