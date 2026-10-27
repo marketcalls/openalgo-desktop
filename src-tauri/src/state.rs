@@ -143,6 +143,8 @@ pub struct AppState {
     pub updates: Arc<crate::services::update::UpdateService>,
     /// The built-in ngrok tunnel (`services::tunnel`).
     pub tunnel: crate::services::tunnel::Tunnel,
+    /// The Agent: its model resolver, approval hook and running turns.
+    pub agent: crate::agent::AgentModule,
 }
 
 /// Health alert type raised when Historify had to drop an unreplayable WAL.
@@ -447,6 +449,7 @@ impl AppState {
             mcp: crate::mcp::McpRuntime::new(),
             updates: crate::services::update::UpdateService::new(env!("CARGO_PKG_VERSION")),
             tunnel: Default::default(),
+            agent: crate::agent::AgentModule::new(),
         }
     }
 

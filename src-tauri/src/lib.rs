@@ -20,6 +20,7 @@
     )
 )]
 
+pub mod agent;
 pub mod analytics;
 pub mod brokers;
 pub mod cache;

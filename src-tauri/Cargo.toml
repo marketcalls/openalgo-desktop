@@ -64,6 +64,13 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls", "multipart", "ht
 # The HTTP/2 crate reqwest uses, named only to read a failed order
 # request's HTTP/2 error code (brokers::common::outcome::after_send).
 h2 = "0.4.16"
+# The Agent's model providers (OpenAI chat and Responses, Anthropic, Gemini,
+# Ollama, OpenAI-compatible), pinned exactly, with no TLS of its own: the
+# Agent hands it a reqwest 0.13 client built here (rustls on ring, the
+# webpki roots), so no aws-lc and no OpenSSL reach the tree. The Agent's
+# client is its own, never the broker one: a turn may stream for 900 s.
+genai = { version = "=0.7.1", default-features = false }
+reqwest_agent = { package = "reqwest", version = "0.13", default-features = false, features = ["rustls-no-provider", "http2", "json", "stream"] }
 
 # HTTP server
 axum = { version = "0.8", features = ["multipart", "macros"] }
@@ -138,6 +145,9 @@ async-trait = "0.1"
 
 # URL parsing
 url = "2.5"
+# Secret-shaped text in Agent tool results and service messages
+# (agent::redact, agent::tools::service), as the web's patterns.
+regex = "1"
 urlencoding = "2.1"
 
 # UUID generation

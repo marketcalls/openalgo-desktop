@@ -1,0 +1,519 @@
+{
+  "_comment": "Captured from the web's services/agent/frames.py by scripts/agent/capture_web_frames.py. Regenerate only from the web; the desktop's frames must match this file.",
+  "frame_types": [
+    "start",
+    "token",
+    "tool_start",
+    "tool_end",
+    "reasoning",
+    "ui",
+    "viz",
+    "chart_command",
+    "confirm",
+    "notice",
+    "usage",
+    "error",
+    "done"
+  ],
+  "fields": {
+    "start": [
+      {
+        "name": "run_id",
+        "default": {
+          "required": true
+        }
+      },
+      {
+        "name": "session_id",
+        "default": {
+          "required": true
+        }
+      },
+      {
+        "name": "conversation_id",
+        "default": {
+          "required": true
+        }
+      },
+      {
+        "name": "user_message_id",
+        "default": ""
+      }
+    ],
+    "token": [
+      {
+        "name": "delta",
+        "default": {
+          "required": true
+        }
+      }
+    ],
+    "tool_start": [
+      {
+        "name": "id",
+        "default": {
+          "required": true
+        }
+      },
+      {
+        "name": "name",
+        "default": {
+          "required": true
+        }
+      },
+      {
+        "name": "args",
+        "default": {}
+      }
+    ],
+    "tool_end": [
+      {
+        "name": "id",
+        "default": {
+          "required": true
+        }
+      },
+      {
+        "name": "name",
+        "default": {
+          "required": true
+        }
+      },
+      {
+        "name": "ok",
+        "default": {
+          "required": true
+        }
+      },
+      {
+        "name": "result",
+        "default": null
+      },
+      {
+        "name": "duration",
+        "default": null
+      }
+    ],
+    "reasoning": [
+      {
+        "name": "delta",
+        "default": {
+          "required": true
+        }
+      }
+    ],
+    "ui": [
+      {
+        "name": "delta",
+        "default": {
+          "required": true
+        }
+      }
+    ],
+    "viz": [
+      {
+        "name": "kind",
+        "default": ""
+      },
+      {
+        "name": "spec",
+        "default": {}
+      },
+      {
+        "name": "title",
+        "default": ""
+      },
+      {
+        "name": "source",
+        "default": ""
+      }
+    ],
+    "chart_command": [
+      {
+        "name": "commands",
+        "default": []
+      }
+    ],
+    "confirm": [
+      {
+        "name": "run_id",
+        "default": {
+          "required": true
+        }
+      },
+      {
+        "name": "session_id",
+        "default": {
+          "required": true
+        }
+      },
+      {
+        "name": "requirements",
+        "default": []
+      }
+    ],
+    "notice": [
+      {
+        "name": "level",
+        "default": {
+          "required": true
+        }
+      },
+      {
+        "name": "message",
+        "default": {
+          "required": true
+        }
+      }
+    ],
+    "usage": [
+      {
+        "name": "input_tokens",
+        "default": 0
+      },
+      {
+        "name": "output_tokens",
+        "default": 0
+      },
+      {
+        "name": "total_tokens",
+        "default": 0
+      },
+      {
+        "name": "cached_tokens",
+        "default": 0
+      },
+      {
+        "name": "reasoning_tokens",
+        "default": 0
+      },
+      {
+        "name": "cost_usd",
+        "default": null
+      },
+      {
+        "name": "billing",
+        "default": "metered"
+      },
+      {
+        "name": "model",
+        "default": null
+      },
+      {
+        "name": "ttft_ms",
+        "default": null
+      }
+    ],
+    "error": [
+      {
+        "name": "message",
+        "default": {
+          "required": true
+        }
+      },
+      {
+        "name": "kind",
+        "default": "internal"
+      }
+    ],
+    "done": [
+      {
+        "name": "reason",
+        "default": "stop"
+      }
+    ]
+  },
+  "done_reasons": [
+    "stop",
+    "cancelled",
+    "incomplete"
+  ],
+  "notice_levels": [
+    "info",
+    "warning",
+    "error"
+  ],
+  "error_kinds": [
+    "config",
+    "input",
+    "provider",
+    "tool",
+    "internal"
+  ],
+  "sse_headers": {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    "X-Accel-Buffering": "no"
+  },
+  "heartbeat": ": heartbeat\n\n",
+  "samples": [
+    {
+      "dict": {
+        "type": "start",
+        "run_id": "r-1",
+        "session_id": "s-1",
+        "conversation_id": 7,
+        "user_message_id": ""
+      },
+      "sse": "data: {\"type\":\"start\",\"run_id\":\"r-1\",\"session_id\":\"s-1\",\"conversation_id\":7,\"user_message_id\":\"\"}\n\n"
+    },
+    {
+      "dict": {
+        "type": "start",
+        "run_id": "r-2",
+        "session_id": "s-2",
+        "conversation_id": 7,
+        "user_message_id": 41
+      },
+      "sse": "data: {\"type\":\"start\",\"run_id\":\"r-2\",\"session_id\":\"s-2\",\"conversation_id\":7,\"user_message_id\":41}\n\n"
+    },
+    {
+      "dict": {
+        "type": "token",
+        "delta": "NIFTY ₹ निफ्टी \"q\" \\ \n\t\u0001"
+      },
+      "sse": "data: {\"type\":\"token\",\"delta\":\"NIFTY ₹ निफ्टी \\\"q\\\" \\\\ \\n\\t\\u0001\"}\n\n"
+    },
+    {
+      "dict": {
+        "type": "tool_start",
+        "id": "call_1",
+        "name": "get_quote",
+        "args": {
+          "symbol": "INFY",
+          "exchange": "NSE"
+        }
+      },
+      "sse": "data: {\"type\":\"tool_start\",\"id\":\"call_1\",\"name\":\"get_quote\",\"args\":{\"symbol\":\"INFY\",\"exchange\":\"NSE\"}}\n\n"
+    },
+    {
+      "dict": {
+        "type": "tool_start",
+        "id": "call_2",
+        "name": "get_funds",
+        "args": {}
+      },
+      "sse": "data: {\"type\":\"tool_start\",\"id\":\"call_2\",\"name\":\"get_funds\",\"args\":{}}\n\n"
+    },
+    {
+      "dict": {
+        "type": "tool_end",
+        "id": "call_1",
+        "name": "get_quote",
+        "ok": true,
+        "result": "{\"ltp\":1520.5,\"symbol\":\"INFY\"}",
+        "duration": 0.25
+      },
+      "sse": "data: {\"type\":\"tool_end\",\"id\":\"call_1\",\"name\":\"get_quote\",\"ok\":true,\"result\":\"{\\\"ltp\\\":1520.5,\\\"symbol\\\":\\\"INFY\\\"}\",\"duration\":0.25}\n\n"
+    },
+    {
+      "dict": {
+        "type": "tool_end",
+        "id": "call_3",
+        "name": "get_history",
+        "ok": false,
+        "result": "refused",
+        "duration": null
+      },
+      "sse": "data: {\"type\":\"tool_end\",\"id\":\"call_3\",\"name\":\"get_history\",\"ok\":false,\"result\":\"refused\",\"duration\":null}\n\n"
+    },
+    {
+      "dict": {
+        "type": "tool_end",
+        "id": "call_4",
+        "name": "x",
+        "ok": true,
+        "result": {
+          "z": 1,
+          "a": [
+            1,
+            2.5,
+            null
+          ]
+        },
+        "duration": null
+      },
+      "sse": "data: {\"type\":\"tool_end\",\"id\":\"call_4\",\"name\":\"x\",\"ok\":true,\"result\":{\"z\":1,\"a\":[1,2.5,null]},\"duration\":null}\n\n"
+    },
+    {
+      "dict": {
+        "type": "reasoning",
+        "delta": "thinking"
+      },
+      "sse": "data: {\"type\":\"reasoning\",\"delta\":\"thinking\"}\n\n"
+    },
+    {
+      "dict": {
+        "type": "ui",
+        "delta": "root = Card()"
+      },
+      "sse": "data: {\"type\":\"ui\",\"delta\":\"root = Card()\"}\n\n"
+    },
+    {
+      "dict": {
+        "type": "viz",
+        "kind": "",
+        "spec": {},
+        "title": "",
+        "source": ""
+      },
+      "sse": "data: {\"type\":\"viz\",\"kind\":\"\",\"spec\":{},\"title\":\"\",\"source\":\"\"}\n\n"
+    },
+    {
+      "dict": {
+        "type": "viz",
+        "kind": "candles",
+        "spec": {
+          "symbol": "INFY",
+          "candles": [
+            [
+              1,
+              2.0,
+              3,
+              1.5,
+              2.5,
+              100
+            ]
+          ],
+          "a": true
+        },
+        "title": "INFY daily",
+        "source": "history_service"
+      },
+      "sse": "data: {\"type\":\"viz\",\"kind\":\"candles\",\"spec\":{\"symbol\":\"INFY\",\"candles\":[[1,2.0,3,1.5,2.5,100]],\"a\":true},\"title\":\"INFY daily\",\"source\":\"history_service\"}\n\n"
+    },
+    {
+      "dict": {
+        "type": "chart_command",
+        "commands": []
+      },
+      "sse": "data: {\"type\":\"chart_command\",\"commands\":[]}\n\n"
+    },
+    {
+      "dict": {
+        "type": "chart_command",
+        "commands": [
+          {
+            "op": "clear"
+          },
+          {
+            "op": "line",
+            "price": 101.25
+          }
+        ]
+      },
+      "sse": "data: {\"type\":\"chart_command\",\"commands\":[{\"op\":\"clear\"},{\"op\":\"line\",\"price\":101.25}]}\n\n"
+    },
+    {
+      "dict": {
+        "type": "confirm",
+        "run_id": "r-1",
+        "session_id": "s-1",
+        "requirements": [
+          {
+            "id": "q-1",
+            "tool_call_id": "call_9",
+            "tool_name": "place_order",
+            "args": {
+              "symbol": "SBIN",
+              "quantity": 1
+            },
+            "missing": [],
+            "kind": "confirmation"
+          }
+        ]
+      },
+      "sse": "data: {\"type\":\"confirm\",\"run_id\":\"r-1\",\"session_id\":\"s-1\",\"requirements\":[{\"id\":\"q-1\",\"tool_call_id\":\"call_9\",\"tool_name\":\"place_order\",\"args\":{\"symbol\":\"SBIN\",\"quantity\":1},\"missing\":[],\"kind\":\"confirmation\"}]}\n\n"
+    },
+    {
+      "dict": {
+        "type": "notice",
+        "level": "warning",
+        "message": "Sandbox mode is on."
+      },
+      "sse": "data: {\"type\":\"notice\",\"level\":\"warning\",\"message\":\"Sandbox mode is on.\"}\n\n"
+    },
+    {
+      "dict": {
+        "type": "usage",
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "cost_usd": null,
+        "billing": "metered",
+        "model": null,
+        "ttft_ms": null
+      },
+      "sse": "data: {\"type\":\"usage\",\"input_tokens\":0,\"output_tokens\":0,\"total_tokens\":0,\"cached_tokens\":0,\"reasoning_tokens\":0,\"cost_usd\":null,\"billing\":\"metered\",\"model\":null,\"ttft_ms\":null}\n\n"
+    },
+    {
+      "dict": {
+        "type": "usage",
+        "input_tokens": 1200,
+        "output_tokens": 80,
+        "total_tokens": 1280,
+        "cached_tokens": 1000,
+        "reasoning_tokens": 12,
+        "cost_usd": 0.0042,
+        "billing": "metered",
+        "model": "openai/gpt-4o-mini",
+        "ttft_ms": 812.5
+      },
+      "sse": "data: {\"type\":\"usage\",\"input_tokens\":1200,\"output_tokens\":80,\"total_tokens\":1280,\"cached_tokens\":1000,\"reasoning_tokens\":12,\"cost_usd\":0.0042,\"billing\":\"metered\",\"model\":\"openai/gpt-4o-mini\",\"ttft_ms\":812.5}\n\n"
+    },
+    {
+      "dict": {
+        "type": "usage",
+        "input_tokens": 5,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "cached_tokens": 0,
+        "reasoning_tokens": 0,
+        "cost_usd": null,
+        "billing": "subscription",
+        "model": "chatgpt/gpt-5.4",
+        "ttft_ms": null
+      },
+      "sse": "data: {\"type\":\"usage\",\"input_tokens\":5,\"output_tokens\":0,\"total_tokens\":0,\"cached_tokens\":0,\"reasoning_tokens\":0,\"cost_usd\":null,\"billing\":\"subscription\",\"model\":\"chatgpt/gpt-5.4\",\"ttft_ms\":null}\n\n"
+    },
+    {
+      "dict": {
+        "type": "error",
+        "message": "Your OpenAI account has no credits left.",
+        "kind": "internal"
+      },
+      "sse": "data: {\"type\":\"error\",\"message\":\"Your OpenAI account has no credits left.\",\"kind\":\"internal\"}\n\n"
+    },
+    {
+      "dict": {
+        "type": "error",
+        "message": "bad",
+        "kind": "provider"
+      },
+      "sse": "data: {\"type\":\"error\",\"message\":\"bad\",\"kind\":\"provider\"}\n\n"
+    },
+    {
+      "dict": {
+        "type": "done",
+        "reason": "stop"
+      },
+      "sse": "data: {\"type\":\"done\",\"reason\":\"stop\"}\n\n"
+    },
+    {
+      "dict": {
+        "type": "done",
+        "reason": "cancelled"
+      },
+      "sse": "data: {\"type\":\"done\",\"reason\":\"cancelled\"}\n\n"
+    },
+    {
+      "dict": {
+        "type": "done",
+        "reason": "incomplete"
+      },
+      "sse": "data: {\"type\":\"done\",\"reason\":\"incomplete\"}\n\n"
+    }
+  ]
+}
