@@ -231,3 +231,19 @@ async fn orders_are_offered_only_with_trading_and_always_gated() {
         );
     }
 }
+
+/// L-045, L-046, Q-733: the reads before the guard wait at most 60 s and
+/// the dispatch 120 s, as the web's AGENT_PREPARE_TIMEOUT_SECONDS and
+/// AGENT_DISPATCH_TIMEOUT_SECONDS.
+#[test]
+fn the_prepare_and_dispatch_bounds_are_the_webs() {
+    assert_eq!(
+        super::pipeline::PREPARE_TIMEOUT,
+        std::time::Duration::from_secs(60)
+    );
+    assert_eq!(
+        super::pipeline::DISPATCH_TIMEOUT,
+        std::time::Duration::from_secs(120)
+    );
+    assert_eq!(AGENT_STRATEGY, "OpenAlgo Agent");
+}
