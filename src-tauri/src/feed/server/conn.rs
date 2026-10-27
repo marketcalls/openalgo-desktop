@@ -180,7 +180,7 @@ async fn take_pool_place(
         (&shared.network, shared.cfg.max_connections, Pool::Network)
     };
     let placed = counter
-        .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+        .try_update(Ordering::AcqRel, Ordering::Acquire, |n| {
             (n < cap).then_some(n + 1)
         })
         .is_ok();

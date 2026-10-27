@@ -91,7 +91,7 @@ impl CallBudget {
         use std::sync::atomic::Ordering::SeqCst;
         if self
             .prepaid
-            .fetch_update(SeqCst, SeqCst, |n| n.checked_sub(1))
+            .try_update(SeqCst, SeqCst, |n| n.checked_sub(1))
             .is_ok()
         {
             return true;
