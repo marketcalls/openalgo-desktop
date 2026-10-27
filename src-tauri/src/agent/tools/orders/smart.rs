@@ -10,6 +10,15 @@
 //! one the service runs), and the guard checks that order: its quantity
 //! and its side, for every rule and the duplicate window. A position that
 //! cannot be read is refused, never guessed.
+//!
+//! Then the order that was checked is the order sent (lead decision,
+//! 2026-10-27): the position is read again at dispatch and, unchanged, a
+//! plain `placeorder` of the checked side and size goes out, never
+//! `placesmartorder`, which would decide again from whatever is held by
+//! then. A position that moved since the check (or since the approval
+//! card showed it) sends nothing. The web sends
+//! `place_smart_order_service`; in Semi-Auto the Action Center here shows
+//! the fixed order that was approved.
 
 use crate::services::order_service::{smart_decision, SmartDecision};
 use serde_json::{json, Value};
@@ -25,6 +34,85 @@ pub(super) fn position_unreadable(symbol: &str, exchange: &str, product: &str) -
         "The position held in {} on {} under {} could not be read, so the order this smart order would send is not known, and nothing was sent. Tell the operator the position could not be read, and ask again once the positions are available.",
         symbol, exchange, product
     )
+}
+
+/// The identity of one smart order for its approval card's record: the
+/// checked order's symbol, exchange, product, target, quantity and side,
+/// as the tool and the card's preview both read them.
+pub(super) fn order_key(
+    order: &serde_json::Map<String, Value>,
+    target: i64,
+    quantity: i64,
+) -> String {
+    let text = |k: &str| {
+        order
+            .get(k)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string()
+    };
+    [
+        text("symbol"),
+        text("exchange"),
+        text("product"),
+        target.to_string(),
+        quantity.to_string(),
+        text("action"),
+    ]
+    .join("|")
+}
+
+/// What is held, in a trader's words.
+fn holding(n: i64) -> String {
+    match n {
+        n if n > 0 => format!("long {}", n),
+        n if n < 0 => format!("short {}", -n),
+        _ => "flat".into(),
+    }
+}
+
+/// The refusal when the position moved between what was shown or checked
+/// and what is held now.
+pub(super) fn position_changed(symbol: &str, from: i64, to: i64) -> String {
+    format!(
+        "Your position in {} changed from {} to {} since this was checked. Nothing was sent; ask again.",
+        symbol,
+        holding(from),
+        holding(to)
+    )
+}
+
+/// What to do at dispatch, from the position held now.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum AtDispatch {
+    /// The position moved, or could not be read: send nothing.
+    Refuse(String),
+    /// Already where the order would take it: send nothing.
+    Nothing(&'static str),
+    /// Send the checked order.
+    Send { action: String, quantity: i64 },
+}
+
+/// The checked order holds only while the position it was sized from is
+/// still the one held.
+pub(super) fn at_dispatch(
+    names: (&str, &str, &str),
+    checked: i64,
+    now: Option<i64>,
+    sizes: (i64, i64),
+    action: &str,
+) -> AtDispatch {
+    let (symbol, exchange, product) = names;
+    let Some(now) = now else {
+        return AtDispatch::Refuse(position_unreadable(symbol, exchange, product));
+    };
+    if now != checked {
+        return AtDispatch::Refuse(position_changed(symbol, checked, now));
+    }
+    match decide(now, sizes.0, sizes.1, action) {
+        SmartDecision::Place { action, quantity } => AtDispatch::Send { action, quantity },
+        SmartDecision::NoAction(message) => AtDispatch::Nothing(message),
+    }
 }
 
 /// The decision as data for the approval card and the result: what is
@@ -70,6 +158,38 @@ mod tests {
         assert_eq!(
             describe(100, 100, 5, "BUY")["message"],
             "Positions Already Matched. No Action needed."
+        );
+    }
+
+    #[test]
+    fn the_checked_order_is_sent_only_while_the_position_is_unchanged() {
+        let names = ("SBIN", "NSE", "MIS");
+        assert_eq!(
+            at_dispatch(names, 500, Some(500), (-500, 0), "BUY"),
+            AtDispatch::Send {
+                action: "SELL".into(),
+                quantity: 1000
+            }
+        );
+        assert_eq!(
+            at_dispatch(names, 100, Some(150), (150, 0), "BUY"),
+            AtDispatch::Refuse(
+                "Your position in SBIN changed from long 100 to long 150 since this was checked. Nothing was sent; ask again.".into()
+            )
+        );
+        assert_eq!(
+            at_dispatch(names, -20, Some(0), (40, 0), "BUY"),
+            AtDispatch::Refuse(
+                "Your position in SBIN changed from short 20 to flat since this was checked. Nothing was sent; ask again.".into()
+            )
+        );
+        let AtDispatch::Refuse(unread) = at_dispatch(names, 100, None, (150, 0), "BUY") else {
+            panic!()
+        };
+        assert!(unread.starts_with("The position held in SBIN on NSE under MIS could not be read"));
+        assert_eq!(
+            at_dispatch(names, 0, Some(0), (0, 0), "BUY"),
+            AtDispatch::Nothing("No OpenPosition Found. Not placing Exit order.")
         );
     }
 }

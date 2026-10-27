@@ -53,9 +53,17 @@ pub(super) enum Sent {
     /// `/api/v1` answered definitely, placed or refused.
     Answered(ServiceReply),
     /// Nothing reached the handlers: nothing was sent.
-    NotSent(String),
+    NotDispatched(String),
     /// It may have reached the broker; the detail is for the audit trail.
     Unknown(String),
+    /// Refused at dispatch (the position moved since it was checked):
+    /// nothing was sent.
+    NotPlaced {
+        stage: &'static str,
+        message: String,
+    },
+    /// Already where the order would take it: nothing was sent.
+    NothingPlaced(String),
     /// A square-off whose position read zero: no order was sent.
     NothingToClose {
         symbol: String,
@@ -68,11 +76,11 @@ impl Sent {
     /// Sort a reply into the three outcomes.
     pub(super) fn of(reply: ServiceReply) -> Sent {
         match reply {
-            ServiceReply::NoAnswer(Transport::NotSent) => {
-                Sent::NotSent("NotSent: the request could not be handed to the handlers".into())
-            }
+            ServiceReply::NoAnswer(Transport::NotSent) => Sent::NotDispatched(
+                "NotSent: the request could not be handed to the handlers".into(),
+            ),
             ServiceReply::NoAnswer(Transport::Budget) => {
-                Sent::NotSent("Budget: the in-process request budget was spent".into())
+                Sent::NotDispatched("Budget: the in-process request budget was spent".into())
             }
             ServiceReply::NoAnswer(Transport::Timeout) => Sent::Unknown(format!(
                 "Timeout: no answer within {} seconds",
@@ -252,58 +260,9 @@ async fn blocked(call: &Call<'_>, verdict: &Verdict) -> ToolOutcome {
 async fn settle(call: &Call<'_>, plan: &Plan, sent: Sent) -> ToolOutcome {
     let verdict = &plan.verdict;
     let risk = verdict.as_dict();
-    let reply = match sent {
-        Sent::NotSent(detail) => {
-            call.release(verdict).await;
-            tracing::warn!("Agent tool {} was not dispatched: {}", call.tool, detail);
-            call.result_row(
-                false,
-                json!({"status": "error", "message": NOT_SENT_MESSAGE, "risk": risk}),
-                Some(verdict),
-                Vec::new(),
-            )
-            .await;
-            return call.emit(json!({"ok": false, "tool": call.tool, "status": "error",
-                "message": NOT_SENT_MESSAGE, "risk": risk, "retry": false}));
-        }
-        Sent::Unknown(exception) => {
-            tracing::error!(
-                "Agent tool {}: the outcome at the broker is unknown: {}",
-                call.tool,
-                crate::agent::redact::redact_text(&exception)
-            );
-            call.result_row(
-                false,
-                json!({"status": "unknown", "message": UNKNOWN_MESSAGE,
-                "exception": exception, "risk": risk}),
-                Some(verdict),
-                Vec::new(),
-            )
-            .await;
-            return call.emit(json!({"ok": false, "tool": call.tool, "status": "unknown",
-                "message": UNKNOWN_MESSAGE, "risk": risk, "retry": false}));
-        }
-        Sent::NothingToClose {
-            symbol,
-            exchange,
-            product,
-        } => {
-            call.release(verdict).await;
-            let message = nothing_to_close(&symbol, &exchange, &product);
-            call.result_row(
-                false,
-                json!({"status": "nothing_to_close", "message": message}),
-                Some(verdict),
-                Vec::new(),
-            )
-            .await;
-            return call.emit(
-                json!({"ok": false, "tool": call.tool, "status": "nothing_to_close",
-                "message": message, "symbol": symbol, "exchange": exchange, "product": product,
-                "quantity": 0, "order_ids": [], "retry": false}),
-            );
-        }
-        Sent::Answered(reply) => reply,
+    let reply = match unsent(call, verdict, sent).await {
+        Ok(reply) => reply,
+        Err(outcome) => return outcome,
     };
     let body = match &reply {
         ServiceReply::Answered { body, .. } => body.clone(),
@@ -324,6 +283,104 @@ async fn settle(call: &Call<'_>, plan: &Plan, sent: Sent) -> ToolOutcome {
                 "message": message, "risk": risk, "retry": false}))
         }
         Ok(payload) => placed(call, plan, payload).await,
+    }
+}
+
+/// The outcomes where no answer to a placement came back: nothing sent
+/// (the claim goes back), or sent with no definite answer (the claim is
+/// kept). `Ok` is an answer to settle.
+async fn unsent(
+    call: &Call<'_>,
+    verdict: &Verdict,
+    sent: Sent,
+) -> Result<ServiceReply, ToolOutcome> {
+    let risk = verdict.as_dict();
+    match sent {
+        Sent::NotDispatched(detail) => {
+            call.release(verdict).await;
+            tracing::warn!("Agent tool {} was not dispatched: {}", call.tool, detail);
+            call.result_row(
+                false,
+                json!({"status": "error", "message": NOT_SENT_MESSAGE, "risk": risk}),
+                Some(verdict),
+                Vec::new(),
+            )
+            .await;
+            Err(
+                call.emit(json!({"ok": false, "tool": call.tool, "status": "error",
+                "message": NOT_SENT_MESSAGE, "risk": risk, "retry": false})),
+            )
+        }
+        Sent::Unknown(exception) => {
+            tracing::error!(
+                "Agent tool {}: the outcome at the broker is unknown: {}",
+                call.tool,
+                crate::agent::redact::redact_text(&exception)
+            );
+            call.result_row(
+                false,
+                json!({"status": "unknown", "message": UNKNOWN_MESSAGE,
+                "exception": exception, "risk": risk}),
+                Some(verdict),
+                Vec::new(),
+            )
+            .await;
+            Err(
+                call.emit(json!({"ok": false, "tool": call.tool, "status": "unknown",
+                "message": UNKNOWN_MESSAGE, "risk": risk, "retry": false})),
+            )
+        }
+        Sent::NothingToClose {
+            symbol,
+            exchange,
+            product,
+        } => {
+            call.release(verdict).await;
+            let message = nothing_to_close(&symbol, &exchange, &product);
+            call.result_row(
+                false,
+                json!({"status": "nothing_to_close", "message": message}),
+                Some(verdict),
+                Vec::new(),
+            )
+            .await;
+            Err(call.emit(
+                json!({"ok": false, "tool": call.tool, "status": "nothing_to_close",
+                "message": message, "symbol": symbol, "exchange": exchange, "product": product,
+                "quantity": 0, "order_ids": [], "retry": false}),
+            ))
+        }
+        Sent::NotPlaced { stage, message } => {
+            call.release(verdict).await;
+            tracing::warn!(
+                "Agent tool {} sent nothing ({}): {}",
+                call.tool,
+                stage,
+                message
+            );
+            call.result_row(
+                false,
+                json!({"status": "error", "stage": stage, "message": message, "risk": risk}),
+                Some(verdict),
+                Vec::new(),
+            )
+            .await;
+            Err(
+                call.emit(json!({"ok": false, "tool": call.tool, "status": "error",
+                "message": message, "risk": risk, "retry": false})),
+            )
+        }
+        Sent::NothingPlaced(message) => {
+            call.release(verdict).await;
+            let response = json!({"status": "success", "message": message});
+            call.result_row(true, response.clone(), Some(verdict), Vec::new())
+                .await;
+            Err(
+                call.emit(json!({"ok": true, "tool": call.tool, "status": "success",
+                "order_ids": [], "message": message, "response": response})),
+            )
+        }
+        Sent::Answered(reply) => Ok(reply),
     }
 }
 
@@ -366,11 +423,11 @@ mod tests {
     fn a_lost_answer_is_unknown_and_an_unsent_one_is_not() {
         assert!(matches!(
             Sent::of(ServiceReply::NoAnswer(Transport::NotSent)),
-            Sent::NotSent(_)
+            Sent::NotDispatched(_)
         ));
         assert!(matches!(
             Sent::of(ServiceReply::NoAnswer(Transport::Budget)),
-            Sent::NotSent(_)
+            Sent::NotDispatched(_)
         ));
         assert!(matches!(
             Sent::of(ServiceReply::NoAnswer(Transport::Timeout)),

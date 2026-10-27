@@ -56,12 +56,13 @@ describe('OrderApproval', () => {
         data: { held: 500, target: -500, action: 'SELL', quantity: 1000 },
       },
     })
-    renderWithQuery(<OrderApproval requirement={smart} />)
+    renderWithQuery(<OrderApproval requirement={smart} runId="run-1" />)
     expect(
       await screen.findByText('Held now: long 500. This sends Sell 1,000 to reach short 500.')
     ).toBeInTheDocument()
     expect(client.get).toHaveBeenCalledWith('/agent/api/orders/preview', {
       params: {
+        run_id: 'run-1',
         symbol: 'SBIN',
         exchange: 'NSE',
         product: 'MIS',

@@ -12,12 +12,12 @@
 
 use super::pipeline::{Sent, DISPATCH_TIMEOUT, PREPARE_TIMEOUT};
 use super::reads::{self, Lookup};
-use super::smart;
+use super::smart::{self, AtDispatch};
 use super::validate::{self, arg, Check};
 use super::AGENT_STRATEGY;
 use crate::agent::contract::tool::{ToolCtx, ToolOutcome};
-use crate::agent::safety::guard;
 use crate::agent::safety::risk::{modify_args, ExistingOrder, Verdict};
+use crate::agent::safety::{guard, previews};
 use crate::agent::tools::order_vocab::split_exchange_prefix;
 use crate::services::order_service::SmartDecision;
 use serde_json::{json, Map, Value};
@@ -45,6 +45,23 @@ pub(super) enum Dispatch {
         exchange: String,
         product: String,
     },
+    /// A smart order's checked order, sent as a plain order only while the
+    /// position it was sized from is still the one held.
+    Checked(Box<CheckedOrder>),
+}
+
+/// A smart order as it was checked.
+pub(super) struct CheckedOrder {
+    /// Symbol, exchange and product.
+    pub names: (String, String, String),
+    /// The position the check sized the order from.
+    pub held: i64,
+    /// The target position and the quantity asked for.
+    pub sizes: (i64, i64),
+    /// The side the model asked for (used only for a new position).
+    pub action: String,
+    /// The `placeorder` payload of the checked side and size.
+    pub order: Map<String, Value>,
 }
 
 /// Why there is no plan, so nothing is sent.
@@ -185,27 +202,49 @@ fn text(order: &Map<String, Value>, key: &str) -> String {
     arg(order, key).as_str().unwrap_or_default().to_string()
 }
 
+/// The position the approval card showed for this order in this run, if
+/// it showed one.
+async fn shown_on_card(ctx: &ToolCtx, key: String) -> Result<Option<i64>, Unplanned> {
+    let (user, run) = (ctx.user_id.clone(), ctx.run_id.clone());
+    ctx.app
+        .blocking(move |c| previews::shown(&*c.sqlite.conn()?, &user, &run, &key, c.now()))
+        .await
+        .map_err(internal)
+}
+
 /// The guard checks the order the smart order will send (security review,
 /// 2026-10-27): the difference between the position held and the target,
 /// with its own side, decided by the platform's smart-order table. The
 /// web checked the larger of the target and the quantity, half a reversal.
+/// A position other than the one the approval card showed sends nothing,
+/// and what is sent is a plain order of the checked side and size.
 pub(super) async fn place_smart_order(
     ctx: &ToolCtx,
     args: &Map<String, Value>,
 ) -> Result<Plan, Unplanned> {
     let (order, target, quantity) = smart_order(args)?;
-    let (symbol, exchange, product) = (
+    let names = (
         text(&order, "symbol"),
         text(&order, "exchange"),
         text(&order, "product"),
     );
-    let Some(held) = reads::open_position_quantity(ctx, &symbol, &exchange, &product).await else {
+    let (symbol, exchange, product) = (&names.0, &names.1, &names.2);
+    let Some(held) = reads::open_position_quantity(ctx, symbol, exchange, product).await else {
         return Err(Unplanned::Unverified {
             stage: "position",
-            message: smart::position_unreadable(&symbol, &exchange, &product),
+            message: smart::position_unreadable(symbol, exchange, product),
         });
     };
-    let (side, size) = match smart::decide(held, target, quantity, &text(&order, "action")) {
+    if let Some(shown) = shown_on_card(ctx, smart::order_key(&order, target, quantity)).await? {
+        if shown != held {
+            return Err(Unplanned::Unverified {
+                stage: "position",
+                message: smart::position_changed(symbol, shown, held),
+            });
+        }
+    }
+    let action = text(&order, "action");
+    let (side, size) = match smart::decide(held, target, quantity, &action) {
         SmartDecision::Place { action, quantity } => (action, quantity),
         SmartDecision::NoAction(message) => {
             return Err(Unplanned::NothingToPlace {
@@ -217,13 +256,15 @@ pub(super) async fn place_smart_order(
             })
         }
     };
-    let mut sent = order.clone();
-    sent.insert("action".into(), json!(side));
-    let (ltp, funds) = price_and_funds(ctx, &sent).await?;
+    let mut checked = order.clone();
+    checked.remove("position_size");
+    checked.insert("action".into(), json!(side));
+    checked.insert("quantity".into(), json!(size));
+    let (ltp, funds) = price_and_funds(ctx, &checked).await?;
     let verdict = guard::check_order(
         &ctx.app,
         &session(ctx),
-        guard_args(&sent, size, ltp, funds),
+        guard_args(&checked, size, ltp, funds),
         reads::analyzer_mode(ctx),
     )
     .await
@@ -231,19 +272,20 @@ pub(super) async fn place_smart_order(
     Ok(Plan {
         verdict,
         extra: extra(&[
-            ("order", Value::Object(order.clone())),
+            ("order", Value::Object(checked.clone())),
+            ("position_size", json!(target)),
             ("risk_checked_quantity", json!(size)),
             ("held_quantity", json!(held)),
-            (
-                "sends",
-                smart::describe(held, target, quantity, &text(&order, "action")),
-            ),
+            ("sends", smart::describe(held, target, quantity, &action)),
         ]),
-        dispatch: Dispatch::Post {
-            endpoint: "placesmartorder",
-            payload: order,
-        },
-        label: "place_smart_order_service.place_smart_order",
+        dispatch: Dispatch::Checked(Box::new(CheckedOrder {
+            names: names.clone(),
+            held,
+            sizes: (target, quantity),
+            action,
+            order: checked,
+        })),
+        label: "place_order_service.place_order",
     })
 }
 
@@ -418,11 +460,31 @@ pub(super) async fn close_all_positions(
     })
 }
 
+/// A smart order's checked order, sent only while the position is the one
+/// it was sized from; a plain `placeorder`, never `placesmartorder`.
+async fn send_checked(ctx: &ToolCtx, c: &CheckedOrder) -> Sent {
+    let (symbol, exchange, product) = (&c.names.0, &c.names.1, &c.names.2);
+    let now = reads::open_position_quantity(ctx, symbol, exchange, product).await;
+    let names = (symbol.as_str(), exchange.as_str(), product.as_str());
+    match smart::at_dispatch(names, c.held, now, c.sizes, &c.action) {
+        AtDispatch::Refuse(message) => Sent::NotPlaced {
+            stage: "position",
+            message,
+        },
+        AtDispatch::Nothing(message) => Sent::NothingPlaced(message.to_string()),
+        AtDispatch::Send { .. } => Sent::of(
+            ctx.api_post("placeorder", c.order.clone(), DISPATCH_TIMEOUT)
+                .await,
+        ),
+    }
+}
+
 /// Send a plan's call. A square-off whose position reads zero sends
 /// nothing; one whose position cannot be read is sent, and the platform
 /// reads the position itself.
 pub(super) async fn dispatch(ctx: &ToolCtx, d: &Dispatch) -> Sent {
     match d {
+        Dispatch::Checked(c) => send_checked(ctx, c).await,
         Dispatch::Post { endpoint, payload } => Sent::of(
             ctx.api_post(endpoint, payload.clone(), DISPATCH_TIMEOUT)
                 .await,

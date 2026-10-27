@@ -1,9 +1,11 @@
 //! `GET /agent/api/orders/preview`: what a paused smart order will send,
 //! for the approval card (a desktop addition, security review
 //! 2026-10-27). The query carries the call's arguments (`symbol`,
-//! `exchange`, `product`, `position_size`, `quantity`, `action`); the
-//! answer is `{held, target, action, quantity}`, `held` null when the
-//! position cannot be read. Read only.
+//! `exchange`, `product`, `position_size`, `quantity`, `action`) and the
+//! paused run's `run_id`; the answer is `{held, target, action,
+//! quantity}`, `held` null when the position cannot be read. Nothing is
+//! checked or sent; the position shown is recorded for that run, so the
+//! order tool sends nothing if it reads another one after the approval.
 
 use super::{ApiCaller, Caller};
 use crate::agent::tools::orders::smart_order_preview;
@@ -37,6 +39,7 @@ pub async fn preview(
         .iter()
         .filter_map(|k| q.get(*k).map(|v| (k.to_string(), json!(v))))
         .collect();
-    let data = smart_order_preview(&ctx, &caller.user, args).await;
+    let run = q.get("run_id").map(String::as_str);
+    let data = smart_order_preview(&ctx, &caller.user, run, args).await;
     json_response(StatusCode::OK, json!({"status": "success", "data": data}))
 }

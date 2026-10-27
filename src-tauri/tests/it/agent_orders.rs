@@ -621,7 +621,7 @@ async fn the_preview_shows_what_a_smart_order_will_send() {
     h.analyze(false);
     held(&h, 500);
     let args = |v: Value| v.as_object().cloned().unwrap();
-    let preview = orders::smart_order_preview(&h.ctx, "trader", args(target(-500))).await;
+    let preview = orders::smart_order_preview(&h.ctx, "trader", None, args(target(-500))).await;
     assert_eq!(
         preview,
         json!({"held": 500, "target": -500, "action": "SELL", "quantity": 1000})
@@ -630,7 +630,7 @@ async fn the_preview_shows_what_a_smart_order_will_send() {
         .positions
         .lock()
         .replace(Err("Session expired".into()));
-    let unknown = orders::smart_order_preview(&h.ctx, "trader", args(target(-500))).await;
+    let unknown = orders::smart_order_preview(&h.ctx, "trader", None, args(target(-500))).await;
     assert_eq!(unknown, json!({"held": null, "target": -500}));
     assert!(sent_quantities(&h).is_empty(), "a preview sends nothing");
     h.shutdown().await;
@@ -740,5 +740,184 @@ async fn a_modify_is_checked_against_the_order_in_the_book() {
         unreadable
     );
     assert_eq!(modifies(&h), 1, "nothing more was sent");
+    h.shutdown().await;
+}
+
+/// The api_type of every order the platform logged, newest first, once
+/// the log subscriber has written at least one (bounded wait: the log is
+/// written off the order path, by a bus subscriber).
+async fn logged(h: &H) -> Vec<String> {
+    for _ in 0..500 {
+        let rows = h.ctx.logs.recent_order_logs(20).unwrap();
+        if !rows.is_empty() {
+            return rows.into_iter().map(|(api, _, _)| api).collect();
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    Vec::new()
+}
+
+/// Lead decision (2026-10-27): the order sent is the order checked. The
+/// card showed long 100; the position is long 150 when the tool runs after
+/// the approval, so nothing is sent.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_smart_order_is_not_sent_when_the_position_moved_since_the_card() {
+    let h = H::new().await;
+    trading(&h);
+    h.analyze(false);
+    held(&h, 100);
+    let args = target(150).as_object().cloned().unwrap();
+    let shown = orders::smart_order_preview(&h.ctx, "trader", Some("run-card"), args).await;
+    assert_eq!(shown["quantity"], 50, "{}", shown);
+    held(&h, 150);
+    let out = call(&run(&h, "card"), "place_smart_order", target(150)).await;
+    assert_eq!(
+        out["message"],
+        "Your position in SBIN changed from long 100 to long 150 since this was checked. Nothing was sent; ask again."
+    );
+    assert_eq!(
+        (out["ok"].as_bool(), out["retry"].as_bool()),
+        (Some(false), Some(false))
+    );
+    assert!(sent_quantities(&h).is_empty(), "nothing was sent");
+    h.shutdown().await;
+}
+
+/// The position unchanged: a plain order of the checked side and size,
+/// never a smart order the platform would size again.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_unchanged_position_sends_the_checked_order() {
+    let h = H::new().await;
+    trading(&h);
+    h.analyze(false);
+    held(&h, 100);
+    let args = target(150).as_object().cloned().unwrap();
+    orders::smart_order_preview(&h.ctx, "trader", Some("run-same"), args).await;
+    let out = call(&run(&h, "same"), "place_smart_order", target(150)).await;
+    assert_eq!(out["ok"], true, "{}", out);
+    assert_eq!(out["order"]["action"], "BUY");
+    assert_eq!(out["order"]["quantity"], 50);
+    assert!(out["order"].get("position_size").is_none(), "{}", out);
+    assert_eq!(out["position_size"], 150);
+    assert_eq!(sent_quantities(&h), [("BUY".to_string(), 50)]);
+    let apis = logged(&h).await;
+    assert!(apis.contains(&"placeorder".to_string()), "{:?}", apis);
+    assert!(!apis.contains(&"placesmartorder".to_string()), "{:?}", apis);
+    h.shutdown().await;
+}
+
+static FLIP: std::sync::Mutex<Option<Arc<openalgo_desktop_lib::brokers::mock::MockBroker>>> =
+    std::sync::Mutex::new(None);
+static READS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// On the second read of the position (the dispatch's), the position has
+/// moved: a fill between the check and the send.
+fn moves_on_the_second_read(c: &MockCall) {
+    if !matches!(c, MockCall::OpenPosition(..)) {
+        return;
+    }
+    if READS.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 1 {
+        let mock = FLIP.lock().ok().and_then(|m| m.clone());
+        if let Some(mock) = mock {
+            mock.positions.lock().replace(Ok(vec![sbin_position(130)]));
+        }
+    }
+}
+
+fn sbin_position(quantity: i32) -> openalgo_desktop_lib::brokers::types::Position {
+    openalgo_desktop_lib::brokers::types::Position {
+        symbol: "SBIN".into(),
+        exchange: "NSE".into(),
+        product: "MIS".into(),
+        quantity,
+        overnight_quantity: 0,
+        average_price: 100.0,
+        ltp: 100.0,
+        pnl: 0.0,
+        realized_pnl: 0.0,
+        unrealized_pnl: 0.0,
+        buy_quantity: quantity.max(0),
+        buy_value: 0.0,
+        sell_quantity: (-quantity).max(0),
+        sell_value: 0.0,
+    }
+}
+
+/// A fill between the check and the send: the position is read again at
+/// dispatch, and the checked order is not sent on a position it was not
+/// sized from.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_smart_order_is_not_sent_when_the_position_moves_before_dispatch() {
+    let h = H::new().await;
+    trading(&h);
+    h.analyze(false);
+    held(&h, 100);
+    *FLIP.lock().unwrap() = Some(h.mock.clone());
+    READS.store(0, std::sync::atomic::Ordering::SeqCst);
+    *h.mock.on_call.lock() = Some(moves_on_the_second_read);
+    let out = call(&run(&h, "moves"), "place_smart_order", target(150)).await;
+    *h.mock.on_call.lock() = None;
+    *FLIP.lock().unwrap() = None;
+    assert_eq!(
+        out["message"],
+        "Your position in SBIN changed from long 100 to long 130 since this was checked. Nothing was sent; ask again.",
+        "{}",
+        out
+    );
+    assert!(sent_quantities(&h).is_empty(), "nothing was sent");
+    let rows = trail(&h).await;
+    assert_eq!(rows[0]["response"]["stage"], "position");
+    let again = call(&run(&h, "moves"), "place_smart_order", target(150)).await;
+    assert_eq!(again["ok"], true, "the claim was given back: {}", again);
+    assert_eq!(sent_quantities(&h), [("BUY".to_string(), 20)]);
+    h.shutdown().await;
+}
+
+/// Semi-Auto: the Action Center holds the checked order with its fixed side
+/// and size, not a smart order to be sized again when it is approved there.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn semi_auto_queues_the_checked_smart_order() {
+    let h = H::new().await;
+    settings(
+        &h,
+        &[
+            ("trading_enabled", "true"),
+            ("max_order_value", "100000000"),
+        ],
+    );
+    h.analyze(false);
+    ApiKeyService::set_order_mode(&h.ctx, "semi_auto").unwrap();
+    held(&h, 500);
+    let out = call(&run(&h, "semi-smart"), "place_smart_order", target(-500)).await;
+    assert_eq!(
+        out["response"]["message"], "Order queued for approval in Action Center",
+        "{}",
+        out
+    );
+    let id = out["response"]["pending_order_id"].as_i64().unwrap();
+    let (api, data): (String, String) = h
+        .ctx
+        .sqlite
+        .conn()
+        .unwrap()
+        .query_row(
+            "SELECT api_type, order_data FROM pending_orders WHERE id = ?1",
+            [id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    let data: Value = serde_json::from_str(&data).unwrap();
+    assert_eq!(api, "placeorder");
+    assert_eq!(
+        (data["action"].as_str(), data["quantity"].as_i64()),
+        (Some("SELL"), Some(1000)),
+        "{}",
+        data
+    );
+    assert!(data.get("position_size").is_none());
+    assert!(
+        sent_quantities(&h).is_empty(),
+        "it waits in the Action Center"
+    );
     h.shutdown().await;
 }

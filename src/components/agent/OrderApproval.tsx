@@ -19,8 +19,10 @@ import {
 
 const PREVIEW_FIELDS = ['symbol', 'exchange', 'product', 'position_size', 'quantity', 'action']
 
-function SmartOrderSends({ args }: { args: Record<string, unknown> }) {
-  const params: Record<string, string> = {}
+function SmartOrderSends({ args, runId }: { args: Record<string, unknown>; runId?: string }) {
+  // The run id lets the server record the position this card shows, so the
+  // order is not sent if the position has moved by the time it runs.
+  const params: Record<string, string> = runId ? { run_id: runId } : {}
   for (const key of PREVIEW_FIELDS) {
     const value = args[key]
     if (value !== null && value !== undefined) params[key] = String(value)
@@ -43,14 +45,20 @@ function SmartOrderSends({ args }: { args: Record<string, unknown> }) {
   )
 }
 
-export function OrderApproval({ requirement }: { requirement: ApprovalRequest }) {
+export function OrderApproval({
+  requirement,
+  runId,
+}: {
+  requirement: ApprovalRequest
+  runId?: string
+}) {
   const { sentence, details } = describeApproval(requirement)
   const smart =
     requirement.tool_name === 'place_smart_order' && (requirement.missing ?? []).length === 0
   return (
     <div>
       <p className="text-xs font-medium text-foreground">{sentence}</p>
-      {smart && <SmartOrderSends args={requirement.args ?? {}} />}
+      {smart && <SmartOrderSends args={requirement.args ?? {}} runId={runId} />}
       {details.length > 0 && (
         <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
           {details.map(({ name, label, value }) => (

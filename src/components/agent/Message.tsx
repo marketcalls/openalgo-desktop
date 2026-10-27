@@ -374,7 +374,7 @@ function PendingConfirm({
             className="rounded-md border border-amber-500/40 bg-background/60 p-2 dark:border-amber-600/40"
           >
             {/* Desktop (D-047): the order in a trader's words, not the tool name and JSON. */}
-            <OrderApproval requirement={requirement} />
+            <OrderApproval requirement={requirement} runId={pending.runId} />
           </li>
         ))}
       </ul>
