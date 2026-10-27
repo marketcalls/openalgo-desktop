@@ -241,6 +241,8 @@ mod broker_busy;
 mod api_parity;
 // The built-in ngrok tunnel in the app (services::tunnel, server::tunnel).
 mod tunnel;
+// D-006: the Agent's audit trail, read.
+mod agent_audit;
 
 // ------------------------------------------------------------------ fixtures
 
