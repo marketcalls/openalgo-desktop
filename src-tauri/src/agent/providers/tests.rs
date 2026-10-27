@@ -1,4 +1,4 @@
-use super::base_url::validate_base_url;
+use super::base_url::{host_class, validate_base_url};
 use super::target::{target_for, Target};
 use super::*;
 use crate::agent::catalog;
@@ -139,18 +139,51 @@ fn the_endpoint_guard_is_the_one_both_dialogs_run() {
     .unwrap();
     for case in cases["cases"].as_array().unwrap() {
         let url = case["url"].as_str().unwrap();
-        let got = validate_base_url(Some(url), case["kind"].as_str().unwrap());
+        let kind = case["kind"].as_str().unwrap();
+        let got = validate_base_url(Some(url), kind);
         match case["error"].as_str() {
-            Some(error) => assert_eq!(got.unwrap_err(), error, "{}", url),
-            None => assert_eq!(
-                got.unwrap().as_deref(),
-                case["normalized"].as_str(),
-                "{}",
-                url
-            ),
+            Some(error) => assert_eq!(got.unwrap_err(), error, "{:?}", url),
+            None => {
+                let stored = got.unwrap();
+                assert_eq!(stored.as_deref(), case["normalized"].as_str(), "{:?}", url);
+                if let (Some(stored), Some(class)) = (stored, case["class"].as_str()) {
+                    let parsed = url::Url::parse(&stored).unwrap();
+                    assert_eq!(host_class(&parsed).unwrap().as_str(), class, "{:?}", url);
+                }
+            }
         }
     }
     assert_eq!(validate_base_url(None, "openai"), Ok(None));
+}
+
+/// The web's per-kind rule: both kinds that take an endpoint may reach a
+/// server on this computer or the local network, however its address is
+/// spelled; the metadata service is refused for every kind.
+#[test]
+fn both_endpoint_kinds_reach_local_servers_and_never_the_metadata_service() {
+    for kind in ["ollama", "openai_compatible"] {
+        for url in [
+            "http://127.0.0.1:11434",
+            "http://localhost:1234/v1",
+            "http://2130706433:1234",
+            "http://0x7f.1:1234",
+            "http://[::ffff:127.0.0.1]:1234",
+            "http://192.168.1.10:1234",
+        ] {
+            assert!(
+                validate_base_url(Some(url), kind).is_ok(),
+                "{} {}",
+                kind,
+                url
+            );
+        }
+    }
+    for kind in PROVIDER_KINDS {
+        assert_eq!(
+            validate_base_url(Some("http://0251.0376.0251.0376/"), kind).unwrap_err(),
+            super::base_url::METADATA
+        );
+    }
 }
 
 fn t(kind: &str, name: &str, url: Option<&str>) -> Result<Target, String> {

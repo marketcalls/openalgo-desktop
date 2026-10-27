@@ -1,33 +1,280 @@
 {
-  "_comment": "One guard on a provider endpoint (D-028): the server (agent::providers::base_url) and both dialogs (src/lib/agent/baseUrlGuard.ts) run these cases. The first four groups are the web's test_agent_composer_backend.py TestTheProviderEndpointGuard; the rest are desktop cases.",
-  "cases": [
-    {"url": "http://169.254.169.254/latest/meta-data/", "kind": "openai_compatible", "error": "That address is the cloud metadata endpoint and cannot be used"},
-    {"url": "http://[fd00:ec2::254]/", "kind": "openai_compatible", "error": "That address is the cloud metadata endpoint and cannot be used"},
-    {"url": "http://metadata.google.internal/", "kind": "openai_compatible", "error": "That address is the cloud metadata endpoint and cannot be used"},
-    {"url": "http://metadata/", "kind": "openai_compatible", "error": "That address is the cloud metadata endpoint and cannot be used"},
-    {"url": "http://169.254.169.254./", "kind": "openai_compatible", "error": "That address is the cloud metadata endpoint and cannot be used"},
-    {"url": "http://[::ffff:169.254.169.254]/", "kind": "openai_compatible", "error": "That address is the cloud metadata endpoint and cannot be used"},
-    {"url": "http://[::ffff:a9fe:a9fe]/", "kind": "openai_compatible", "error": "That address is the cloud metadata endpoint and cannot be used"},
-    {"url": "file:///etc/passwd", "kind": "openai_compatible", "error": "The base URL must start with http:// or https://"},
-    {"url": "gopher://127.0.0.1:11434/", "kind": "openai_compatible", "error": "The base URL must start with http:// or https://"},
-    {"url": "javascript:alert(1)", "kind": "openai_compatible", "error": "The base URL must start with http:// or https://"},
-    {"url": "ftp://example.com/", "kind": "openai_compatible", "error": "The base URL must start with http:// or https://"},
-    {"url": "http://user:pass@example.com/v1", "kind": "openai_compatible", "error": "The base URL must not carry a username or password"},
-    {"url": "http://127.0.0.1:11434", "kind": "ollama", "error": null, "normalized": "http://127.0.0.1:11434"},
-    {"url": "http://192.168.1.10:11434", "kind": "ollama", "error": null, "normalized": "http://192.168.1.10:11434"},
-    {"url": "https://api.example.com/v1", "kind": "openai_compatible", "error": null, "normalized": "https://api.example.com/v1"},
-    {"url": "  http://localhost:1234/v1/  ", "kind": "openai_compatible", "error": null, "normalized": "http://localhost:1234/v1"},
-    {"url": "HTTP://LocalHost:1234", "kind": "openai_compatible", "error": null, "normalized": "HTTP://LocalHost:1234"},
-    {"url": "http://METADATA.GOOGLE.INTERNAL./x", "kind": "openai_compatible", "error": "That address is the cloud metadata endpoint and cannot be used"},
-    {"url": "http://2852039166/", "kind": "openai_compatible", "error": "That address is the cloud metadata endpoint and cannot be used"},
-    {"url": "http://0xa9fea9fe/", "kind": "openai_compatible", "error": "That address is the cloud metadata endpoint and cannot be used"},
-    {"url": "http://[fd00:0ec2:0:0:0:0:0:254]/", "kind": "openai_compatible", "error": "That address is the cloud metadata endpoint and cannot be used"},
-    {"url": "http://@example.com/", "kind": "openai_compatible", "error": "The base URL must not carry a username or password"},
-    {"url": "localhost:11434", "kind": "ollama", "error": "The base URL must start with http:// or https://"},
-    {"url": "http://[::1", "kind": "ollama", "error": "The base URL could not be parsed"},
-    {"url": "", "kind": "ollama", "error": "Ollama requires a base URL"},
-    {"url": "   ", "kind": "openai_compatible", "error": "OpenAI-compatible endpoint requires a base URL"},
-    {"url": "", "kind": "openai", "error": null, "normalized": null},
-    {"url": "http://[::1]:11434", "kind": "ollama", "error": null, "normalized": "http://[::1]:11434"}
-  ]
+ "_comment": "One guard on a provider endpoint (D-028): the server (agent::providers::base_url) and both dialogs (src/lib/agent/baseUrlGuard.ts) run every case. The first group is the web's test_agent_composer_backend.py TestTheProviderEndpointGuard. 'normalized' is what the server stores and requests; 'class' is what the host is. The two kinds that take an endpoint (ollama, openai_compatible) may both reach loopback and private hosts, as on the web.",
+ "cases": [
+  {
+   "url": "http://169.254.169.254/latest/meta-data/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used"
+  },
+  {
+   "url": "http://[fd00:ec2::254]/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used"
+  },
+  {
+   "url": "http://metadata.google.internal/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used"
+  },
+  {
+   "url": "http://metadata/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used"
+  },
+  {
+   "url": "http://169.254.169.254./",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used"
+  },
+  {
+   "url": "http://[::ffff:169.254.169.254]/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used"
+  },
+  {
+   "url": "http://[::ffff:a9fe:a9fe]/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used"
+  },
+  {
+   "url": "file:///etc/passwd",
+   "kind": "openai_compatible",
+   "error": "The base URL must start with http:// or https://"
+  },
+  {
+   "url": "gopher://127.0.0.1:11434/",
+   "kind": "openai_compatible",
+   "error": "The base URL must start with http:// or https://"
+  },
+  {
+   "url": "javascript:alert(1)",
+   "kind": "openai_compatible",
+   "error": "The base URL must start with http:// or https://"
+  },
+  {
+   "url": "ftp://example.com/",
+   "kind": "openai_compatible",
+   "error": "The base URL must start with http:// or https://"
+  },
+  {
+   "url": "http://user:pass@example.com/v1",
+   "kind": "openai_compatible",
+   "error": "The base URL must not carry a username or password"
+  },
+  {
+   "url": "http://127.0.0.1:11434",
+   "kind": "ollama",
+   "error": null,
+   "normalized": "http://127.0.0.1:11434",
+   "class": "loopback"
+  },
+  {
+   "url": "http://192.168.1.10:11434",
+   "kind": "ollama",
+   "error": null,
+   "normalized": "http://192.168.1.10:11434",
+   "class": "other"
+  },
+  {
+   "url": "https://api.example.com/v1",
+   "kind": "openai_compatible",
+   "error": null,
+   "normalized": "https://api.example.com/v1",
+   "class": "other"
+  },
+  {
+   "url": "http:\\\\user@example.com",
+   "kind": "openai_compatible",
+   "error": "The base URL must not contain spaces, line breaks, control characters or backslashes",
+   "why": "a backslash is read as a slash: credentials the text check missed"
+  },
+  {
+   "url": "http://evil\\@10.0.0.1/",
+   "kind": "openai_compatible",
+   "error": "The base URL must not contain spaces, line breaks, control characters or backslashes",
+   "why": "a backslash before the @"
+  },
+  {
+   "url": "http:/\tuser@example.com/",
+   "kind": "openai_compatible",
+   "error": "The base URL must not contain spaces, line breaks, control characters or backslashes",
+   "why": "a tab the standard drops, so the host is user@example.com"
+  },
+  {
+   "url": "http://exa\nmple.com/",
+   "kind": "openai_compatible",
+   "error": "The base URL must not contain spaces, line breaks, control characters or backslashes",
+   "why": "a line break the standard drops"
+  },
+  {
+   "url": "http://169.254.\r169.254/",
+   "kind": "openai_compatible",
+   "error": "The base URL must not contain spaces, line breaks, control characters or backslashes",
+   "why": "a carriage return inside the metadata address"
+  },
+  {
+   "url": "http://example.com /v1",
+   "kind": "openai_compatible",
+   "error": "The base URL must not contain spaces, line breaks, control characters or backslashes",
+   "why": "a space"
+  },
+  {
+   "url": "http://example.com/\u0000",
+   "kind": "openai_compatible",
+   "error": "The base URL must not contain spaces, line breaks, control characters or backslashes",
+   "why": "a control character"
+  },
+  {
+   "url": "http://user@example.com/v1",
+   "kind": "openai_compatible",
+   "error": "The base URL must not carry a username or password"
+  },
+  {
+   "url": "http://:secret@example.com/",
+   "kind": "openai_compatible",
+   "error": "The base URL must not carry a username or password",
+   "why": "a password with no user name"
+  },
+  {
+   "url": "http://@example.com/",
+   "kind": "openai_compatible",
+   "error": null,
+   "normalized": "http://example.com",
+   "class": "other",
+   "why": "an empty user part carries no credential (the web refused it)"
+  },
+  {
+   "url": "  http://localhost:1234/v1/  ",
+   "kind": "openai_compatible",
+   "error": null,
+   "normalized": "http://localhost:1234/v1",
+   "class": "loopback"
+  },
+  {
+   "url": "HTTP://LocalHost:1234",
+   "kind": "openai_compatible",
+   "error": null,
+   "normalized": "http://localhost:1234",
+   "class": "loopback"
+  },
+  {
+   "url": "http://models.localhost:1234/v1",
+   "kind": "openai_compatible",
+   "error": null,
+   "normalized": "http://models.localhost:1234/v1",
+   "class": "loopback"
+  },
+  {
+   "url": "http://2130706433:11434",
+   "kind": "ollama",
+   "error": null,
+   "normalized": "http://127.0.0.1:11434",
+   "class": "loopback",
+   "why": "decimal IPv4"
+  },
+  {
+   "url": "http://0x7f.1:11434",
+   "kind": "ollama",
+   "error": null,
+   "normalized": "http://127.0.0.1:11434",
+   "class": "loopback",
+   "why": "hex IPv4"
+  },
+  {
+   "url": "http://017700000001:11434",
+   "kind": "ollama",
+   "error": null,
+   "normalized": "http://127.0.0.1:11434",
+   "class": "loopback",
+   "why": "octal IPv4"
+  },
+  {
+   "url": "http://[::ffff:127.0.0.1]:11434",
+   "kind": "ollama",
+   "error": null,
+   "normalized": "http://[::ffff:7f00:1]:11434",
+   "class": "loopback",
+   "why": "IPv4-mapped IPv6"
+  },
+  {
+   "url": "http://[::1]:11434",
+   "kind": "ollama",
+   "error": null,
+   "normalized": "http://[::1]:11434",
+   "class": "loopback"
+  },
+  {
+   "url": "http://10.0.0.2:8000/v1",
+   "kind": "openai_compatible",
+   "error": null,
+   "normalized": "http://10.0.0.2:8000/v1",
+   "class": "other"
+  },
+  {
+   "url": "http://METADATA.GOOGLE.INTERNAL./x",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used"
+  },
+  {
+   "url": "http://2852039166/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used",
+   "why": "decimal IPv4"
+  },
+  {
+   "url": "http://0xa9fea9fe/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used",
+   "why": "hex IPv4"
+  },
+  {
+   "url": "http://0251.0376.0251.0376/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used",
+   "why": "octal IPv4"
+  },
+  {
+   "url": "http://0xa9.0xfe.0xa9.0xfe/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used",
+   "why": "hex parts"
+  },
+  {
+   "url": "http://169.254.43518/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used",
+   "why": "three-part IPv4"
+  },
+  {
+   "url": "http://[fd00:0ec2:0:0:0:0:0:254]/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used"
+  },
+  {
+   "url": "localhost:11434",
+   "kind": "ollama",
+   "error": "The base URL must start with http:// or https://"
+  },
+  {
+   "url": "http://[::1",
+   "kind": "ollama",
+   "error": "The base URL could not be parsed"
+  },
+  {
+   "url": "",
+   "kind": "ollama",
+   "error": "Ollama requires a base URL"
+  },
+  {
+   "url": "   ",
+   "kind": "openai_compatible",
+   "error": "OpenAI-compatible endpoint requires a base URL"
+  },
+  {
+   "url": "",
+   "kind": "openai",
+   "error": null,
+   "normalized": null
+  }
+ ]
 }

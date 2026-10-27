@@ -3,38 +3,69 @@
 //!
 //! OpenAlgo makes requests to this address, so it is checked before it is
 //! saved: http or https only, no username or password in it, a host, and
-//! never a cloud metadata address. A private or loopback host is allowed on
-//! purpose: a model on the trader's own computer or network (Ollama, LM
-//! Studio) is the point of these kinds. The host is not resolved: a lookup
-//! in the save path would refuse a server that is simply not up yet.
+//! never a cloud metadata address. A model on the trader's own computer or
+//! network is the point of the two kinds that take an endpoint (Ollama, and
+//! an OpenAI-compatible server such as LM Studio, vLLM or llamafile), so a
+//! loopback or private host is allowed for both, as the web allows it. The
+//! host is not resolved: a lookup in the save path would refuse a server
+//! that is simply not up yet.
 //!
-//! The host is read the way the WHATWG URL standard reads it, which is how
-//! the HTTP client will read it too, so `http://2852039166/` and
-//! `http://0xa9fea9fe/` are the metadata address here as they are on the
-//! wire (the web's parser let them through). The add and edit dialogs run
-//! the same steps in the browser (`src/lib/agent/baseUrlGuard.ts`) against
-//! the same cases (`tests/fixtures/agent/base_url_cases.json`), so the three
-//! agree (the web's two dialogs did not).
+//! Every decision is made on ONE parse, the WHATWG URL standard's (the `url`
+//! crate, which the HTTP client parses the request with too), and the
+//! parsed form is what is stored and later requested, so the guard and the
+//! request cannot read the address differently. Text a parser may read two
+//! ways is refused before parsing: a backslash (read as a slash), and any
+//! space, tab, line break or control character (dropped by the standard).
+//! The host decides by what it is, however it is spelled: `2130706433`,
+//! `0x7f.1` and `[::ffff:127.0.0.1]` are the loopback address, and
+//! `2852039166` and `[::ffff:a9fe:a9fe]` the metadata address.
+//!
+//! The add and edit dialogs run the same steps in the browser
+//! (`src/lib/agent/baseUrlGuard.ts`) on the same cases
+//! (`tests/fixtures/agent/base_url_cases.json`), so the three decide alike.
 
 use super::{normalize_base_url, provider_spec};
-use std::net::IpAddr;
+use std::net::{Ipv4Addr, Ipv6Addr};
+use url::{Host, Url};
 
+pub const BAD_CHARACTERS: &str =
+    "The base URL must not contain spaces, line breaks, control characters or backslashes";
 pub const NOT_PARSED: &str = "The base URL could not be parsed";
 pub const BAD_SCHEME: &str = "The base URL must start with http:// or https://";
 pub const HAS_CREDENTIALS: &str = "The base URL must not carry a username or password";
 pub const NO_HOST: &str = "The base URL must name a host";
 pub const METADATA: &str = "That address is the cloud metadata endpoint and cannot be used";
 
-/// Hosts never accepted: the cloud metadata service, however it is spelled.
-const BLOCKED_HOSTS: &[&str] = &[
-    "169.254.169.254",
-    "fd00:ec2::254",
-    "metadata.google.internal",
-    "metadata",
-];
+/// The cloud metadata service's names.
+const METADATA_NAMES: &[&str] = &["metadata.google.internal", "metadata"];
+const METADATA_V4: Ipv4Addr = Ipv4Addr::new(169, 254, 169, 254);
+const METADATA_V6: Ipv6Addr = Ipv6Addr::new(0xfd00, 0xec2, 0, 0, 0, 0, 0, 0x254);
 
-/// Check an endpoint for a kind: the normalised URL, `None` when none was
-/// given and the kind needs none, or the sentence that refuses it.
+/// What a host is, as far as the guard cares.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostClass {
+    /// The cloud metadata service: never.
+    Metadata,
+    /// This computer (`localhost`, `*.localhost`, 127/8, `::1`): a local
+    /// model server, allowed.
+    Loopback,
+    /// Anything else, private networks included: allowed.
+    Other,
+}
+
+impl HostClass {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            HostClass::Metadata => "metadata",
+            HostClass::Loopback => "loopback",
+            HostClass::Other => "other",
+        }
+    }
+}
+
+/// Check an endpoint for a kind: the URL to store and request (the parsed
+/// form, without a trailing slash), `None` when none was given and the kind
+/// needs none, or the sentence that refuses it.
 pub fn validate_base_url(raw: Option<&str>, kind: &str) -> Result<Option<String>, String> {
     let url = normalize_base_url(raw);
     if url.is_empty() {
@@ -44,57 +75,77 @@ pub fn validate_base_url(raw: Option<&str>, kind: &str) -> Result<Option<String>
         }
         return Ok(None);
     }
-    check(&url)?;
-    Ok(Some(url))
+    check(&url).map(|parsed| Some(parsed.as_str().trim_end_matches('/').to_string()))
 }
 
-/// The steps, in the web's order, on a normalised non-empty URL.
-pub fn check(url: &str) -> Result<(), String> {
-    let scheme = scheme_of(url);
-    if scheme != "http" && scheme != "https" {
+/// The steps, on trimmed non-empty text: the parsed URL, or the refusal.
+pub fn check(text: &str) -> Result<Url, String> {
+    if text
+        .chars()
+        // U+FEFF: the browser's guard reads it as space too.
+        .any(|c| c == '\\' || c == '\u{feff}' || c.is_whitespace() || c.is_control())
+    {
+        return Err(BAD_CHARACTERS.into());
+    }
+    if !matches!(scheme_of(text).as_str(), "http" | "https") {
         return Err(BAD_SCHEME.into());
     }
-    if authority_of(url).contains('@') {
+    let parsed = Url::parse(text).map_err(|_| NOT_PARSED.to_string())?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err(BAD_SCHEME.into());
+    }
+    if !parsed.username().is_empty() || parsed.password().is_some() {
         return Err(HAS_CREDENTIALS.into());
     }
-    let parsed = url::Url::parse(url).map_err(|_| NOT_PARSED.to_string())?;
-    let host = match parsed.host() {
-        None => return Err(NO_HOST.into()),
-        Some(url::Host::Domain(d)) => d.trim().to_lowercase().trim_end_matches('.').to_string(),
-        Some(url::Host::Ipv4(a)) => a.to_string(),
-        Some(url::Host::Ipv6(a)) => match a.to_ipv4_mapped() {
-            Some(v4) => v4.to_string(),
-            None => a.to_string(),
-        },
-    };
-    if host.is_empty() {
-        return Err(NO_HOST.into());
+    match host_class(&parsed) {
+        None => Err(NO_HOST.into()),
+        Some(HostClass::Metadata) => Err(METADATA.into()),
+        Some(_) => Ok(parsed),
     }
-    if is_blocked(&host) {
-        return Err(METADATA.into());
-    }
-    Ok(())
 }
 
-fn is_blocked(host: &str) -> bool {
-    if BLOCKED_HOSTS.contains(&host) {
-        return true;
-    }
-    match host.parse::<IpAddr>() {
-        Ok(IpAddr::V6(a)) => {
-            let canonical = a
-                .to_ipv4_mapped()
-                .map(|v4| v4.to_string())
-                .unwrap_or_else(|| a.to_string());
-            BLOCKED_HOSTS.contains(&canonical.as_str())
+/// The parsed host's class; `None` when there is no host.
+pub fn host_class(parsed: &Url) -> Option<HostClass> {
+    match parsed.host()? {
+        Host::Domain(d) => {
+            let name = d.to_lowercase();
+            let name = name.trim_end_matches('.');
+            if name.is_empty() {
+                return None;
+            }
+            Some(if METADATA_NAMES.contains(&name) {
+                HostClass::Metadata
+            } else if name == "localhost" || name.ends_with(".localhost") {
+                HostClass::Loopback
+            } else {
+                HostClass::Other
+            })
         }
-        _ => false,
+        Host::Ipv4(a) => Some(class_v4(a)),
+        Host::Ipv6(a) => Some(match a.to_ipv4_mapped() {
+            Some(v4) => class_v4(v4),
+            None if a == METADATA_V6 => HostClass::Metadata,
+            None if a.is_loopback() => HostClass::Loopback,
+            None => HostClass::Other,
+        }),
     }
 }
 
-/// The scheme as Python's `urlsplit` finds it (lower-cased), or empty.
-fn scheme_of(url: &str) -> String {
-    let Some((head, _)) = url.split_once(':') else {
+fn class_v4(a: Ipv4Addr) -> HostClass {
+    if a == METADATA_V4 {
+        HostClass::Metadata
+    } else if a.is_loopback() {
+        HostClass::Loopback
+    } else {
+        HostClass::Other
+    }
+}
+
+/// The scheme as written (lower-cased), or empty: checked before parsing so
+/// a scheme the guard refuses gets the web's sentence, not "could not be
+/// parsed".
+fn scheme_of(text: &str) -> String {
+    let Some((head, _)) = text.split_once(':') else {
         return String::new();
     };
     let valid = head.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
@@ -106,13 +157,4 @@ fn scheme_of(url: &str) -> String {
     } else {
         String::new()
     }
-}
-
-/// The authority (`netloc`): after `//`, up to the path, query or fragment.
-fn authority_of(url: &str) -> &str {
-    let Some((_, rest)) = url.split_once("//") else {
-        return "";
-    };
-    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-    &rest[..end]
 }
