@@ -743,18 +743,13 @@ async fn a_modify_is_checked_against_the_order_in_the_book() {
     h.shutdown().await;
 }
 
-/// The api_type of every order the platform logged, newest first, once
-/// the log subscriber has written at least one (bounded wait: the log is
-/// written off the order path, by a bus subscriber).
-async fn logged(h: &H) -> Vec<String> {
-    for _ in 0..500 {
-        let rows = h.ctx.logs.recent_order_logs(20).unwrap();
-        if !rows.is_empty() {
-            return rows.into_iter().map(|(api, _, _)| api).collect();
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    }
-    Vec::new()
+/// Whether the platform's smart-order service ran: it, and only it, asks
+/// the broker for one open position (the tool reads the positions book).
+fn smart_order_service_ran(h: &H) -> bool {
+    h.mock
+        .calls()
+        .iter()
+        .any(|c| matches!(c, MockCall::OpenPosition(..)))
 }
 
 /// Lead decision (2026-10-27): the order sent is the order checked. The
@@ -800,9 +795,10 @@ async fn an_unchanged_position_sends_the_checked_order() {
     assert!(out["order"].get("position_size").is_none(), "{}", out);
     assert_eq!(out["position_size"], 150);
     assert_eq!(sent_quantities(&h), [("BUY".to_string(), 50)]);
-    let apis = logged(&h).await;
-    assert!(apis.contains(&"placeorder".to_string()), "{:?}", apis);
-    assert!(!apis.contains(&"placesmartorder".to_string()), "{:?}", apis);
+    assert!(
+        !smart_order_service_ran(&h),
+        "a plain order was sent, never a smart order the platform sizes again"
+    );
     h.shutdown().await;
 }
 
@@ -810,10 +806,11 @@ static FLIP: std::sync::Mutex<Option<Arc<openalgo_desktop_lib::brokers::mock::Mo
     std::sync::Mutex::new(None);
 static READS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-/// On the second read of the position (the dispatch's), the position has
-/// moved: a fill between the check and the send.
+/// On the second read of the positions book (the dispatch's; the tool reads
+/// the position through `/api/v1/openposition`, which reads the book), the
+/// position has moved: a fill between the check and the send.
 fn moves_on_the_second_read(c: &MockCall) {
-    if !matches!(c, MockCall::OpenPosition(..)) {
+    if !matches!(c, MockCall::Positions) {
         return;
     }
     if READS.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 1 {
