@@ -874,3 +874,16 @@ fn a_candle_frame_has_no_gaps_and_one_row_per_timestamp() {
     let no_close = vec![map(json!({"timestamp": 1, "open": 1}))];
     assert!(candle_frame(&no_close, &candle_columns(&no_close[0])).is_empty());
 }
+
+#[test]
+fn interval_groups_flatten_in_the_web_order() {
+    let grouped = map(
+        json!({"days": ["D"], "hours": ["1h"], "minutes": ["1m", "5m"], "seconds": ["1s"], "weeks": ["W"], "custom": ["X"]}),
+    );
+    let flat: Vec<&str> = groups_in_web_order(&grouped)
+        .filter_map(Value::as_array)
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect();
+    assert_eq!(flat, ["1s", "1m", "5m", "1h", "D", "W", "X"]);
+}

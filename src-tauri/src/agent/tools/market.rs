@@ -120,8 +120,7 @@ impl BrokerIntervals {
             }
         };
         if let Some(grouped) = response.get("data").and_then(Value::as_object) {
-            let accepted: Vec<String> = grouped
-                .values()
+            let accepted: Vec<String> = groups_in_web_order(grouped)
                 .filter_map(Value::as_array)
                 .flatten()
                 .map(crate::agent::tools::values::py_str)
@@ -160,6 +159,20 @@ impl BrokerIntervals {
             .as_ref()
             .and_then(|l| l.error.clone())
     }
+}
+
+/// The broker's interval groups in the order the web's service builds
+/// them (seconds, minutes, hours, days, weeks, months, then any other), so
+/// the flat list a refusal names reads as the web's does whatever order the
+/// JSON map keeps its keys in.
+fn groups_in_web_order(grouped: &Map<String, Value>) -> impl Iterator<Item = &Value> {
+    const ORDER: [&str; 6] = ["seconds", "minutes", "hours", "days", "weeks", "months"];
+    let known = ORDER.iter().filter_map(|k| grouped.get(*k));
+    let others = grouped
+        .iter()
+        .filter(|(k, _)| !ORDER.contains(&k.as_str()))
+        .map(|(_, v)| v);
+    known.chain(others)
 }
 
 pub const GROUP: ToolGroup = ToolGroup {
