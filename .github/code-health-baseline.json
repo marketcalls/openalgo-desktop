@@ -8,6 +8,7 @@
     "src/components/trading/ChartPane.tsx": "web",
     "src/components/trading/ScriptPanel.tsx": "web",
     "src/components/trading/WatchlistPanel.tsx": "web",
+    "src/lib/agent/voice.ts": "web",
     "src/lib/flow/constants.ts": "web",
     "src/lib/strategyMath.ts": "web",
     "src/lib/trading/chartProfiles.ts": "web",
