@@ -65,6 +65,9 @@ fn order_fact_alerts(a: &App) -> usize {
 
 #[tokio::test]
 async fn a_lost_fill_is_applied_once_and_health_shows_the_gap_until_then() {
+    // Health judges the whole process (its threads, memory and
+    // descriptors): alone, so other tests' contexts do not decide it.
+    crate::isolated!(a_lost_fill_is_applied_once_and_health_shows_the_gap_until_then);
     let a = app();
     // Passes run by hand: the reconciler's own task would also open a gap
     // when the market feed connects for the new runs, at a time the test
