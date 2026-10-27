@@ -18,7 +18,7 @@
 //! order book).
 
 use super::plans::{Plan, Unplanned};
-use crate::agent::contract::json::dumps_capped;
+use crate::agent::contract::json::dumps_capped_ordered;
 use crate::agent::contract::tool::{ToolCtx, ToolOutcome, MAX_RESULT_CHARS};
 use crate::agent::prompts::untrusted::wrap_tool_result;
 use crate::agent::redact::redact;
@@ -27,8 +27,19 @@ use crate::agent::safety::guard;
 use crate::agent::safety::risk::Verdict;
 use crate::agent::tools::service::{extract_detail, unwrap, ServiceReply};
 use crate::mcp::dispatch::Transport;
+use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 use std::time::Duration;
+
+/// A result object in the web's key order: its dicts keep the order they
+/// were written in, and the model reads them so; a `Value` map is sorted.
+macro_rules! ordered {
+    ($($k:literal : $v:expr),* $(,)?) => {{
+        let mut m: IndexMap<String, Value> = IndexMap::new();
+        $(m.insert($k.to_string(), serde_json::json!($v));)*
+        m
+    }};
+}
 
 /// How long a tool waits for the reads before the guard (the web's
 /// `AGENT_PREPARE_TIMEOUT_SECONDS`).
@@ -133,7 +144,7 @@ impl Call<'_> {
     }
 
     /// The result as the model reads it: capped JSON, labelled as data.
-    fn emit(&self, payload: Value) -> ToolOutcome {
+    fn emit(&self, payload: IndexMap<String, Value>) -> ToolOutcome {
         let attrs: Vec<(&str, Option<&str>)> = self
             .attributes
             .iter()
@@ -141,7 +152,7 @@ impl Call<'_> {
             .collect();
         ToolOutcome::Ok(wrap_tool_result(
             self.tool,
-            &dumps_capped(&payload, MAX_RESULT_CHARS),
+            &dumps_capped_ordered(&payload, MAX_RESULT_CHARS),
             &attrs,
         ))
     }
@@ -207,8 +218,8 @@ async fn not_planned(call: &Call<'_>, refused: Unplanned) -> ToolOutcome {
             let response = json!({"status": "error", "stage": "validation",
                 "message": INTERNAL_MESSAGE, "exception": exception});
             call.result_row(false, response, None, Vec::new()).await;
-            call.emit(json!({"ok": false, "tool": call.tool, "status": "error",
-                "message": INTERNAL_MESSAGE, "retry": false}))
+            call.emit(ordered! {"ok": false, "tool": call.tool, "status": "error",
+            "message": INTERNAL_MESSAGE, "retry": false})
         }
         Unplanned::Unverified { stage, message } => {
             tracing::warn!(
@@ -219,18 +230,16 @@ async fn not_planned(call: &Call<'_>, refused: Unplanned) -> ToolOutcome {
             );
             let response = json!({"status": "error", "stage": stage, "message": message});
             call.result_row(false, response, None, Vec::new()).await;
-            call.emit(json!({"ok": false, "tool": call.tool, "status": "error",
-                "message": message, "retry": false}))
+            call.emit(ordered! {"ok": false, "tool": call.tool, "status": "error",
+            "message": message, "retry": false})
         }
         Unplanned::NothingToPlace { message, extra } => {
             let response = json!({"status": "success", "message": message});
             call.result_row(true, response.clone(), None, Vec::new())
                 .await;
-            let mut result = json!({"ok": true, "tool": call.tool, "status": "success",
-                "order_ids": [], "message": message, "response": response});
-            if let Value::Object(r) = &mut result {
-                r.extend(extra);
-            }
+            let mut result = ordered! {"ok": true, "tool": call.tool, "status": "success",
+            "order_ids": json!([]), "message": message, "response": response};
+            result.extend(extra);
             call.emit(result)
         }
     }
@@ -250,9 +259,11 @@ async fn blocked(call: &Call<'_>, verdict: &Verdict) -> ToolOutcome {
         call.tool,
         verdict.as_message()
     );
-    call.emit(json!({"ok": false, "tool": call.tool, "status": "blocked",
+    call.emit(
+        ordered! {"ok": false, "tool": call.tool, "status": "blocked",
         "blocked_by": "risk_guard", "code": verdict.code.as_str(),
-        "message": verdict.as_message(), "risk": risk, "retry": false}))
+        "message": verdict.as_message(), "risk": risk, "retry": false},
+    )
 }
 
 /// Steps 4 and 5 after the dispatch: give the claim back when nothing was
@@ -279,8 +290,8 @@ async fn settle(call: &Call<'_>, plan: &Plan, sent: Sent) -> ToolOutcome {
                 Vec::new(),
             )
             .await;
-            call.emit(json!({"ok": false, "tool": call.tool, "status": "error",
-                "message": message, "risk": risk, "retry": false}))
+            call.emit(ordered! {"ok": false, "tool": call.tool, "status": "error",
+            "message": message, "risk": risk, "retry": false})
         }
         Ok(payload) => placed(call, plan, payload).await,
     }
@@ -307,8 +318,8 @@ async fn unsent(
             )
             .await;
             Err(
-                call.emit(json!({"ok": false, "tool": call.tool, "status": "error",
-                "message": NOT_SENT_MESSAGE, "risk": risk, "retry": false})),
+                call.emit(ordered! {"ok": false, "tool": call.tool, "status": "error",
+                "message": NOT_SENT_MESSAGE, "risk": risk, "retry": false}),
             )
         }
         Sent::Unknown(exception) => {
@@ -325,10 +336,10 @@ async fn unsent(
                 Vec::new(),
             )
             .await;
-            Err(
-                call.emit(json!({"ok": false, "tool": call.tool, "status": "unknown",
-                "message": UNKNOWN_MESSAGE, "risk": risk, "retry": false})),
-            )
+            Err(call.emit(
+                ordered! {"ok": false, "tool": call.tool, "status": "unknown",
+                "message": UNKNOWN_MESSAGE, "risk": risk, "retry": false},
+            ))
         }
         Sent::NothingToClose {
             symbol,
@@ -345,9 +356,9 @@ async fn unsent(
             )
             .await;
             Err(call.emit(
-                json!({"ok": false, "tool": call.tool, "status": "nothing_to_close",
+                ordered! {"ok": false, "tool": call.tool, "status": "nothing_to_close",
                 "message": message, "symbol": symbol, "exchange": exchange, "product": product,
-                "quantity": 0, "order_ids": [], "retry": false}),
+                "quantity": 0, "order_ids": json!([]), "retry": false},
             ))
         }
         Sent::NotPlaced { stage, message } => {
@@ -366,8 +377,8 @@ async fn unsent(
             )
             .await;
             Err(
-                call.emit(json!({"ok": false, "tool": call.tool, "status": "error",
-                "message": message, "risk": risk, "retry": false})),
+                call.emit(ordered! {"ok": false, "tool": call.tool, "status": "error",
+                "message": message, "risk": risk, "retry": false}),
             )
         }
         Sent::NothingPlaced(message) => {
@@ -375,10 +386,10 @@ async fn unsent(
             let response = json!({"status": "success", "message": message});
             call.result_row(true, response.clone(), Some(verdict), Vec::new())
                 .await;
-            Err(
-                call.emit(json!({"ok": true, "tool": call.tool, "status": "success",
-                "order_ids": [], "message": message, "response": response})),
-            )
+            Err(call.emit(
+                ordered! {"ok": true, "tool": call.tool, "status": "success",
+                "order_ids": json!([]), "message": message, "response": response},
+            ))
         }
         Sent::Answered(reply) => Ok(reply),
     }
@@ -396,12 +407,10 @@ async fn placed(call: &Call<'_>, plan: &Plan, payload: Value) -> ToolOutcome {
     let order_ids = audit::extract_order_ids(&payload);
     call.result_row(true, payload.clone(), Some(verdict), order_ids.clone())
         .await;
-    let mut result = json!({"ok": true, "tool": call.tool, "status": "success",
-        "order_ids": order_ids, "risk": verdict.as_dict(), "response": redact(&payload)});
-    if let Value::Object(r) = &mut result {
-        for (k, v) in &plan.extra {
-            r.insert(k.clone(), v.clone());
-        }
+    let mut result = ordered! {"ok": true, "tool": call.tool, "status": "success",
+    "order_ids": order_ids, "risk": verdict.as_dict(), "response": redact(&payload)};
+    for (k, v) in &plan.extra {
+        result.insert(k.clone(), v.clone());
     }
     call.emit(result)
 }
@@ -418,6 +427,18 @@ pub fn nothing_to_close(symbol: &str, exchange: &str, product: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The model reads a result's keys in the web's order (`ok`, `tool`,
+    /// `status` first), not sorted.
+    #[test]
+    fn results_keep_the_webs_key_order() {
+        let r = ordered! {"ok": false, "tool": "place_order", "status": "blocked",
+        "blocked_by": "risk_guard", "code": "kill_switch", "retry": false};
+        assert_eq!(
+            dumps_capped_ordered(&r, MAX_RESULT_CHARS),
+            r#"{"ok":false,"tool":"place_order","status":"blocked","blocked_by":"risk_guard","code":"kill_switch","retry":false}"#
+        );
+    }
 
     #[test]
     fn a_lost_answer_is_unknown_and_an_unsent_one_is_not() {
