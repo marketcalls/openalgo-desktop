@@ -86,4 +86,8 @@ allow-git = [
   # WhatsApp client (MIT), pinned by commit in src-tauri/Cargo.toml: the crate
   # the web's `wars` package wraps; not published to crates.io at that commit.
   "https://github.com/marketcalls/whatsapp-rust",
+  # oa_core (MIT, no dependencies), the Rust core of openalgo.ta, pinned by
+  # commit in src-tauri/Cargo.toml to tag v2.0.5, the openalgo release the
+  # web pins: the Agent's indicator kernels. Not published to crates.io.
+  "https://github.com/marketcalls/openalgo-python-library",
 ]
