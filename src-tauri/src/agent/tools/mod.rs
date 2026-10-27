@@ -15,6 +15,7 @@
 //! in this version (maintainer, 2026-10-27). Flow comes later: its line goes
 //! in the marked place below, chat surface only, as on the web.
 
+pub mod account;
 pub mod answer;
 pub mod market;
 pub mod numbers;
@@ -35,6 +36,7 @@ use std::sync::Arc;
 pub const TOOLKITS: &[ToolGroup] = &[
     market::GROUP,
     symbols::GROUP,
+    account::GROUP,
     // Toolkit lanes add their line here, for example:
     // orders::GROUP,     // order 50, every surface, requires Trading
     //
