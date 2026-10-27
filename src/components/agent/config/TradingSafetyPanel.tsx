@@ -30,7 +30,7 @@ function KillSwitch() {
   const [error, setError] = useState<string | null>(null)
   const state = useQuery({ queryKey: killSwitchQueryKey, queryFn: getKillSwitch })
   const save = useMutation({
-    mutationFn: setKillSwitch,
+    mutationFn: (engaged: boolean) => setKillSwitch(engaged),
     onSuccess: (next) => {
       setError(null)
       queryClient.setQueryData(killSwitchQueryKey, next)

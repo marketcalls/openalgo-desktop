@@ -81,6 +81,7 @@ const StrategyPortfolio = lazy(() => import('@/pages/StrategyPortfolio'))
 // Agent (web pages/agent). Desktop: the Python Strategy Host (/python) is not
 // part of this version (maintainer, 2026-10-12); unknown paths show NotFound.
 const AgentIndex = lazy(() => import('@/pages/agent/AgentIndex'))
+const AgentConfig = lazy(() => import('@/pages/agent/AgentConfig'))
 
 // Strategy module: multi-leg options strategies with risk management
 const StrategyList = lazy(() => import('@/pages/strategy/List'))
@@ -286,6 +287,7 @@ function App() {
                     Layout's centred, page-scrolling container cannot hold that,
                     so it renders its own Navbar like /trading does. */}
                 <Route path="/agent" element={<AgentIndex />} />
+                <Route path="/agent/config" element={<AgentConfig />} />
                 <Route path="/historify" element={<Historify />} />
                 <Route path="/historify/charts" element={<HistorifyCharts />} />
                 <Route path="/historify/charts/:symbol" element={<HistorifyCharts />} />

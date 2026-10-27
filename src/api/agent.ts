@@ -73,6 +73,11 @@ export interface AgentStatus {
   agent_available: boolean
   /** False when no OpenAlgo API key exists, so no tool can reach the platform. */
   has_openalgo_api_key: boolean
+  /**
+   * Desktop (decision 11): whether a ChatGPT plan is signed in. The web's
+   * server sends it too; its type left it out.
+   */
+  chatgpt_authorised: boolean
 }
 
 // =============================================================================
