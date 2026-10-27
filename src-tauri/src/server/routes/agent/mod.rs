@@ -1,6 +1,7 @@
 //! The web's `blueprints/agent.py`, split by area: the chat routes
-//! ([`chat`]) and the conversation routes ([`conversations`]) here; the
-//! config routes belong to the config part. Every route needs the signed-in
+//! ([`chat`]) and the conversation routes ([`conversations`]) here, and
+//! the audit trail's read route ([`audit`], D-006, a desktop addition);
+//! the config routes belong to the config part. Every route needs the signed-in
 //! user and carries the session's CSRF token on writes, like every page
 //! route; none is public.
 //!
@@ -9,6 +10,7 @@
 //! ordinary routes, 30 a minute on the streaming ones (per caller), and a
 //! 12 MB body.
 
+pub mod audit;
 pub mod chat;
 pub mod conversations;
 
@@ -68,6 +70,7 @@ pub fn table() -> Vec<RouteSpec> {
         spec("/agent/api/chat/{run_id}/cancel", Method::POST, || {
             post(chat::cancel)
         }),
+        spec("/agent/api/audit", Method::GET, || get(audit::list)),
     ]
 }
 

@@ -119,8 +119,6 @@ pub fn table() -> Vec<RouteSpec> {
         chartink::table(),
         update::table(),
         tunnel::table(),
-        // The Agent's audit trail (D-006, desktop addition).
-        agent_audit::table(),
         e2e::table(),
         agent::table(),
     ]
