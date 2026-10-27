@@ -906,8 +906,8 @@ async fn semi_auto_queues_the_checked_smart_order() {
     let data: Value = serde_json::from_str(&data).unwrap();
     assert_eq!(api, "placeorder");
     assert_eq!(
-        (data["action"].as_str(), data["quantity"].as_i64()),
-        (Some("SELL"), Some(1000)),
+        (data["action"].as_str(), data["quantity"].as_f64()),
+        (Some("SELL"), Some(1000.0)),
         "{}",
         data
     );
