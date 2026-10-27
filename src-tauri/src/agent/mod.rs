@@ -11,6 +11,8 @@
 //!   resolver, the viz side channel, the approval hook.
 //! - `tools/`: the registry, one line per toolkit, and the in-process
 //!   `/api/v1` path the tools reach OpenAlgo through.
+//! - `indicators/`: the 127 `openalgo.ta` indicators the indicator tools
+//!   compute, on `oa_core`, with the web's registry and refusals.
 //! - `prompts/`: the system prompt, its sections and the untrusted-text
 //!   wrappers.
 //! - `conversations/`: conversations, messages, the runs' own history and
@@ -36,6 +38,7 @@ pub mod chart_catalogue;
 pub mod chat;
 pub mod contract;
 pub mod conversations;
+pub mod indicators;
 pub mod prompts;
 pub mod redact;
 pub mod reply;
