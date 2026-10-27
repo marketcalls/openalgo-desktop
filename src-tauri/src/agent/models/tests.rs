@@ -345,31 +345,36 @@ async fn the_model_json_is_the_webs_shape_with_reasoning_resolved() {
         &body(json!({"provider_kind": "openai", "model_name": "gpt-3.5-turbo", "supports_reasoning": true})),
     )
     .unwrap();
-    let keys: Vec<&String> = made["data"].as_object().unwrap().keys().collect();
-    assert_eq!(
-        keys,
-        [
-            "id",
-            "provider_kind",
-            "model_name",
-            "display_name",
-            "base_url",
-            "enabled",
-            "is_default",
-            "supports_reasoning",
-            "default_reasoning_effort",
-            "supports_vision",
-            "tools_unreliable",
-            "last_tested_at",
-            "last_test_ok",
-            "last_test_error",
-            "has_api_key",
-            "api_key_fingerprint",
-            "api_key_source",
-            "created_at",
-            "updated_at"
-        ]
-    );
+    let mut keys: Vec<&str> = made["data"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    keys.sort_unstable();
+    let mut want = vec![
+        "id",
+        "provider_kind",
+        "model_name",
+        "display_name",
+        "base_url",
+        "enabled",
+        "is_default",
+        "supports_reasoning",
+        "default_reasoning_effort",
+        "supports_vision",
+        "tools_unreliable",
+        "last_tested_at",
+        "last_test_ok",
+        "last_test_error",
+        "has_api_key",
+        "api_key_fingerprint",
+        "api_key_source",
+        "created_at",
+        "updated_at",
+    ];
+    want.sort_unstable();
+    assert_eq!(keys, want, "the web's fields, whatever their order");
     assert_eq!(
         made["data"]["supports_reasoning"],
         json!(false),

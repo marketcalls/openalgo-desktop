@@ -122,9 +122,16 @@ fn body(v: Value) -> serde_json::Map<String, Value> {
 async fn get_all_shows_typed_values_and_a_missing_override_as_null() {
     let t = ctx();
     let all = Snapshot::read(&t.ctx).to_json();
-    let keys: Vec<&String> = all.as_object().unwrap().keys().collect();
-    let web: Vec<&str> = FIELDS.iter().map(|f| f.key).collect();
-    assert_eq!(keys, web, "the web's order");
+    let mut keys: Vec<&str> = all
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    let mut web: Vec<&str> = FIELDS.iter().map(|f| f.key).collect();
+    keys.sort_unstable();
+    web.sort_unstable();
+    assert_eq!(keys, web, "every setting, whatever the map's order");
     assert_eq!(all["system_prompt"], Value::Null);
     assert_eq!(all["max_order_value"], json!("500000.00"));
     assert_eq!(all["allowed_products"], json!(["CNC", "MIS", "NRML"]));

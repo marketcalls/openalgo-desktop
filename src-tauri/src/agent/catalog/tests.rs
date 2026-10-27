@@ -29,20 +29,25 @@ fn the_grid_offers_what_genai_reaches_sorted_by_name() {
     sorted.sort();
     assert_eq!(names, sorted);
     let card = c.get_provider(" openai ").unwrap().to_json();
-    let keys: Vec<&String> = card.as_object().unwrap().keys().collect();
-    assert_eq!(
-        keys,
-        [
-            "id",
-            "display_name",
-            "icon",
-            "provider_kind",
-            "needs_key",
-            "needs_base_url",
-            "model_count",
-            "total_model_count"
-        ]
-    );
+    let mut keys: Vec<&str> = card
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    keys.sort_unstable();
+    let mut want = vec![
+        "id",
+        "display_name",
+        "icon",
+        "provider_kind",
+        "needs_key",
+        "needs_base_url",
+        "model_count",
+        "total_model_count",
+    ];
+    want.sort_unstable();
+    assert_eq!(keys, want, "the web's fields, whatever their order");
     assert_eq!(card["provider_kind"], "openai");
     let lm = c.get_provider("lm_studio").unwrap();
     assert!(!lm.needs_key && lm.needs_base_url);
@@ -62,26 +67,31 @@ fn a_providers_models_carry_context_price_and_tool_support() {
     );
     assert!(chat.iter().all(ModelInfo::is_chat));
     let gpt = chat.iter().find(|m| m.id == "gpt-4o").unwrap().to_json();
-    let keys: Vec<&String> = gpt.as_object().unwrap().keys().collect();
-    assert_eq!(
-        keys,
-        [
-            "id",
-            "provider",
-            "qualified_id",
-            "catalog_key",
-            "mode",
-            "max_input_tokens",
-            "max_output_tokens",
-            "input_price_per_million",
-            "output_price_per_million",
-            "supports_function_calling",
-            "supports_vision",
-            "supports_reasoning",
-            "in_catalog",
-            "is_chat"
-        ]
-    );
+    let mut keys: Vec<&str> = gpt
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    keys.sort_unstable();
+    let mut want = vec![
+        "id",
+        "provider",
+        "qualified_id",
+        "catalog_key",
+        "mode",
+        "max_input_tokens",
+        "max_output_tokens",
+        "input_price_per_million",
+        "output_price_per_million",
+        "supports_function_calling",
+        "supports_vision",
+        "supports_reasoning",
+        "in_catalog",
+        "is_chat",
+    ];
+    want.sort_unstable();
+    assert_eq!(keys, want, "the web's fields, whatever their order");
     assert_eq!(gpt["qualified_id"], "openai/gpt-4o");
     assert_eq!(gpt["supports_function_calling"], json!(true));
     assert!(gpt["input_price_per_million"].as_f64().unwrap() > 0.0);

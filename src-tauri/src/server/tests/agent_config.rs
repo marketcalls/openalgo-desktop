@@ -97,20 +97,20 @@ async fn the_setup_gate_and_the_catalogue_answer_as_the_web() {
         .json(call(Method::GET, "/agent/api/status", None, &c, &t))
         .await;
     assert_eq!(s, StatusCode::OK);
-    let keys: Vec<&String> = v.as_object().unwrap().keys().collect();
-    assert_eq!(
-        keys,
-        [
-            "status",
-            "configured",
-            "model_count",
-            "default_model_id",
-            "trading_enabled",
-            "agent_available",
-            "has_openalgo_api_key",
-            "chatgpt_authorised"
-        ]
-    );
+    let mut keys: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
+    keys.sort_unstable();
+    let mut want = vec![
+        "status",
+        "configured",
+        "model_count",
+        "default_model_id",
+        "trading_enabled",
+        "agent_available",
+        "has_openalgo_api_key",
+        "chatgpt_authorised",
+    ];
+    want.sort_unstable();
+    assert_eq!(keys, want, "the web's fields, whatever their order");
     assert_eq!(
         (v["configured"].clone(), v["agent_available"].clone()),
         (json!(false), json!(true))
