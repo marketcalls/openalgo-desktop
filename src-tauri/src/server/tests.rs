@@ -243,6 +243,8 @@ mod api_parity;
 mod tunnel;
 // The Agent's configuration routes (the config part of blueprints/agent.py).
 mod agent_config;
+// The ChatGPT plan and web search routes (blueprints/agent.py).
+mod agent_chatgpt_search;
 
 // ------------------------------------------------------------------ fixtures
 

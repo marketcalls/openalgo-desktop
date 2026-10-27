@@ -13,6 +13,7 @@ pub mod chat;
 pub mod chatgpt;
 pub mod config;
 pub mod conversations;
+pub mod websearch;
 
 use super::{Access, RouteSpec};
 use crate::agent::reply::Refusal;
@@ -40,6 +41,7 @@ pub fn table() -> Vec<RouteSpec> {
     let mut routes = chat_table();
     routes.extend(config::table());
     routes.extend(chatgpt::table());
+    routes.extend(websearch::table());
     routes
 }
 
