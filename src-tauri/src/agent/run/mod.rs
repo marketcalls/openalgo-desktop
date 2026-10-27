@@ -317,6 +317,10 @@ async fn persist(ctx: &ToolCtx, messages: &[ChatMessage], ending: Ending, mut ou
         Ending::Done(_) => None,
     };
     let confirm = matches!(ending, Ending::Paused(..));
+    if matches!(ending, Ending::Done(_)) {
+        // A run that ended is no longer approvable by voice.
+        app.agent.voice().windows.forget(&run_id);
+    }
     let status = match &ending {
         Ending::Paused(..) | Ending::StillPaused(_) => "paused",
         Ending::Done(DoneReason::Stop) => "completed",
@@ -341,6 +345,14 @@ async fn persist(ctx: &ToolCtx, messages: &[ChatMessage], ending: Ending, mut ou
     .await;
     if let Some((_, requirements)) = paused.filter(|_| confirm) {
         if saved {
+            // D-017: only a run started on the voice surface can be
+            // approved by voice; opened before the card reaches the page.
+            if ctx.surface == crate::agent::contract::tool::Surface::Voice {
+                app.agent
+                    .voice()
+                    .windows
+                    .note_pause(&run_id, std::time::Instant::now());
+            }
             out.send(Frame::Confirm {
                 run_id: run_id.clone(),
                 session_id: session_id.clone(),

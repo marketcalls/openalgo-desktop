@@ -236,6 +236,8 @@ pub async fn resume(
     };
     let mut parts = build::run_parts(app, key).await?;
     let (paused, messages) = build::claim(app, &run_id, &caller.user, conversation_id).await?;
+    // Answered here, so a spoken yes can no longer approve it.
+    app.agent.voice().windows.forget(&run_id);
     parts.ctx.run_id = run_id.clone();
     build::record_decisions(
         app,
@@ -276,4 +278,4 @@ pub(crate) fn paused_state(row: &store::PausedRow) -> Option<PausedState> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
