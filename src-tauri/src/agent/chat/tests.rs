@@ -708,6 +708,93 @@ async fn bodies_are_bounded_and_images_need_a_model_that_sees() {
     );
 }
 
+/// Each step of a long test must finish in time, or the test says where
+/// it stopped instead of hanging.
+async fn within<T>(step: &str, fut: impl std::future::Future<Output = T>) -> T {
+    match tokio::time::timeout(std::time::Duration::from_secs(20), fut).await {
+        Ok(v) => v,
+        Err(_) => panic!("{} did not finish", step),
+    }
+}
+
+/// Resource hygiene: a hundred turns, finished, stopped and abandoned,
+/// leave no run, no stream slot and no task behind.
+#[tokio::test]
+async fn a_hundred_turns_leave_nothing_behind() {
+    let h = harness(vec![]).await;
+    let tasks_before = h.ctx().task_count();
+    let base = std::time::Instant::now();
+    for i in 0..100u64 {
+        // A minute apart for the limiter, so the 30-a-minute stream limit
+        // does not stop the loop.
+        h.ctx()
+            .limiter
+            .freeze(Some(base + std::time::Duration::from_secs(61 * i)));
+        match i % 3 {
+            0 => {
+                h.fake.push(Reply::Text(vec!["ok"]));
+                within(
+                    &format!("turn {}", i),
+                    h.chat("/agent/api/chat/stream", json!({"message": "q"})),
+                )
+                .await;
+            }
+            1 => {
+                h.fake.push(Reply::Hang);
+                let (start, body) = within(
+                    &format!("open {}", i),
+                    open_until_start(&h, json!({"message": "q"})),
+                )
+                .await;
+                // Stop it only once its request reached the provider, so
+                // the script and the requests stay in step.
+                within(
+                    &format!("request {}", i),
+                    h.fake.wait_for_requests(i as usize + 1),
+                )
+                .await;
+                let run = start["run_id"].as_str().unwrap().to_string();
+                within(
+                    &format!("cancel {}", i),
+                    h.json("POST", &format!("/agent/api/chat/{}/cancel", run), None),
+                )
+                .await;
+                within(&format!("end {}", i), rest(body)).await;
+            }
+            _ => {
+                h.fake.push(Reply::Hang);
+                let (_, body) = within(
+                    &format!("open {}", i),
+                    open_until_start(&h, json!({"message": "q"})),
+                )
+                .await;
+                within(
+                    &format!("request {}", i),
+                    h.fake.wait_for_requests(i as usize + 1),
+                )
+                .await;
+                drop(body);
+            }
+        }
+    }
+    within("the last run to end", h.ctx().agent.runs().wait_idle()).await;
+    within(
+        "every provider connection to close",
+        h.fake.wait_all_closed(),
+    )
+    .await;
+    // A spawn reaps the finished tasks; the no-op itself is the +1.
+    h.ctx().spawn(async {});
+    assert_eq!(h.ctx().agent.slots().open(), 0, "stream slots left open");
+    assert!(
+        h.ctx().task_count() <= tasks_before + 1,
+        "tasks left behind: {} (from {})",
+        h.ctx().task_count(),
+        tasks_before
+    );
+    assert_eq!(h.fake.sent().len(), 100, "one model request a turn");
+}
+
 /// The web's limits: 30 streamed turns a minute per caller, then a JSON 429
 /// with the wait.
 #[tokio::test]

@@ -10,6 +10,7 @@
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
 struct Entry {
@@ -21,6 +22,9 @@ struct Entry {
 #[derive(Default)]
 pub struct RunRegistry {
     runs: Mutex<HashMap<String, Entry>>,
+    /// How many runs are live, published on every change so a waiter
+    /// learns of the last one ending without polling.
+    live: watch::Sender<usize>,
 }
 
 /// Removes its run from the registry when dropped.
@@ -31,7 +35,9 @@ pub struct Registered {
 
 impl Drop for Registered {
     fn drop(&mut self) {
-        self.registry.runs.lock().remove(&self.run_id);
+        let mut runs = self.registry.runs.lock();
+        runs.remove(&self.run_id);
+        self.registry.live.send_replace(runs.len());
     }
 }
 
@@ -43,13 +49,16 @@ impl RunRegistry {
         session: &str,
         cancel: CancellationToken,
     ) -> Registered {
-        self.runs.lock().insert(
+        let mut runs = self.runs.lock();
+        runs.insert(
             run_id.to_string(),
             Entry {
                 cancel,
                 session: session.to_string(),
             },
         );
+        self.live.send_replace(runs.len());
+        drop(runs);
         Registered {
             registry: self.clone(),
             run_id: run_id.to_string(),
@@ -84,6 +93,12 @@ impl RunRegistry {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
+    /// Wait until no run is live.
+    #[cfg(test)]
+    pub async fn wait_idle(&self) {
+        let _ = self.live.subscribe().wait_for(|n| *n == 0).await;
+    }
 }
 
 #[cfg(test)]
@@ -112,5 +127,21 @@ mod tests {
         let _gb = reg.register("b", "t", b.clone());
         assert_eq!(reg.cancel_all(), 2);
         assert!(a.is_cancelled() && b.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn a_waiter_learns_when_the_last_run_ends() {
+        let reg = Arc::new(RunRegistry::default());
+        reg.wait_idle().await;
+        let guard = reg.register("r1", "s", CancellationToken::new());
+        let waiter = tokio::spawn({
+            let reg = reg.clone();
+            async move { reg.wait_idle().await }
+        });
+        tokio::task::yield_now().await;
+        assert!(!waiter.is_finished(), "a run is still live");
+        drop(guard);
+        waiter.await.unwrap();
+        assert!(reg.is_empty());
     }
 }

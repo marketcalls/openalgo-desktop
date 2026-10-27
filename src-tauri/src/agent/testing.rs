@@ -17,6 +17,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+use tokio::sync::watch;
 
 /// One scripted answer.
 #[derive(Debug, Clone)]
@@ -30,7 +31,7 @@ pub enum Reply {
     Fail(u16, &'static str),
     /// A raw SSE body (the Responses stream).
     Raw(String),
-    /// Hold the stream open, sending nothing, until the test ends.
+    /// Hold the stream open, sending nothing, until the client closes it.
     Hang,
 }
 
@@ -38,7 +39,24 @@ pub struct FakeProvider {
     pub port: u16,
     script: Arc<Mutex<VecDeque<Reply>>>,
     pub requests: Arc<Mutex<Vec<Value>>>,
+    counts: Arc<Counts>,
     task: tokio::task::JoinHandle<()>,
+}
+
+/// What a test can wait on: requests seen, and connections still open.
+#[derive(Default)]
+struct Counts {
+    seen: watch::Sender<usize>,
+    open: watch::Sender<usize>,
+}
+
+/// One accepted connection; counted open until dropped.
+struct Open(Arc<Counts>);
+
+impl Drop for Open {
+    fn drop(&mut self) {
+        self.0.open.send_modify(|n| *n -= 1);
+    }
 }
 
 impl Drop for FakeProvider {
@@ -53,22 +71,36 @@ impl FakeProvider {
         let port = listener.local_addr().unwrap().port();
         let script = Arc::new(Mutex::new(VecDeque::from(script)));
         let requests = Arc::new(Mutex::new(Vec::new()));
-        let (s, r) = (script.clone(), requests.clone());
+        let counts = Arc::new(Counts::default());
+        let (s, r, c) = (script.clone(), requests.clone(), counts.clone());
         let task = tokio::spawn(async move {
             loop {
                 let Ok((sock, _)) = listener.accept().await else {
                     return;
                 };
+                c.open.send_modify(|n| *n += 1);
+                let open = Open(c.clone());
                 let (s, r) = (s.clone(), r.clone());
-                tokio::spawn(async move { serve(sock, s, r).await });
+                tokio::spawn(async move { serve(sock, s, r, open).await });
             }
         });
         FakeProvider {
             port,
             script,
             requests,
+            counts,
             task,
         }
+    }
+
+    /// Wait until `n` requests have arrived in all.
+    pub async fn wait_for_requests(&self, n: usize) {
+        let _ = self.counts.seen.subscribe().wait_for(|c| *c >= n).await;
+    }
+
+    /// Wait until every connection a client opened has been closed.
+    pub async fn wait_all_closed(&self) {
+        let _ = self.counts.open.subscribe().wait_for(|n| *n == 0).await;
     }
 
     pub fn endpoint(&self) -> String {
@@ -89,6 +121,7 @@ async fn serve(
     mut sock: tokio::net::TcpStream,
     script: Arc<Mutex<VecDeque<Reply>>>,
     requests: Arc<Mutex<Vec<Value>>>,
+    open: Open,
 ) {
     let mut buf = Vec::new();
     let mut chunk = [0u8; 65536];
@@ -125,13 +158,15 @@ async fn serve(
         .lock()
         .pop_front()
         .unwrap_or(Reply::Text(vec!["(no script)"]));
+    open.0.seen.send_modify(|c| *c += 1);
     let (status, payload) = match reply {
         Reply::Fail(status, body) => (status, body.to_string()),
         Reply::Hang => {
             let _ = sock
                 .write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n\r\n")
                 .await;
-            tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+            // Nothing more is sent; the read ends when the client hangs up.
+            while matches!(sock.read(&mut chunk).await, Ok(n) if n > 0) {}
             return;
         }
         Reply::Raw(sse) => (200, sse),
