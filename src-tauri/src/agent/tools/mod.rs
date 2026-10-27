@@ -19,6 +19,7 @@ pub mod account;
 pub mod answer;
 pub mod market;
 pub mod numbers;
+pub mod options;
 pub mod service;
 #[cfg(test)]
 pub(crate) mod spec_contract;
@@ -37,6 +38,7 @@ pub const TOOLKITS: &[ToolGroup] = &[
     market::GROUP,
     symbols::GROUP,
     account::GROUP,
+    options::GROUP,
     // Toolkit lanes add their line here, for example:
     // orders::GROUP,     // order 50, every surface, requires Trading
     //
