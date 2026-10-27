@@ -2,6 +2,7 @@
   "_doc": "Code-health ratchet: what was over a limit when the gate started, with its size then. Entries may only go down; `python3 scripts/ci/code_health.py --update` lowers them after an improvement. Adding or raising one needs the maintainer (the code-health-exception label). See CLAUDE.md, Code health.",
   "dead_public_functions": [],
   "frontend_files": {
+    "src/api/agent.ts": "web",
     "src/api/strategy_module.ts": "web",
     "src/components/trading/ChartPane.tsx": "web",
     "src/components/trading/ScriptPanel.tsx": "web",
