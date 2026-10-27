@@ -172,8 +172,8 @@ mod tests {
 
     /// The migration on a populated database: rows written before it ran
     /// again (another table's and its own) are all still there.
-    #[test]
-    fn the_migration_runs_on_a_populated_database() {
+    #[tokio::test]
+    async fn the_migration_runs_on_a_populated_database() {
         let t =
             crate::state::testing::build(crate::brokers::BrokerRegistry::new(), chrono::Utc::now());
         let conn = t.ctx.sqlite.conn().unwrap();

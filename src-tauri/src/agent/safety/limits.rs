@@ -379,8 +379,8 @@ mod tests {
 
     /// A store without the settings table (or any read failure) gives the
     /// defaults: an Agent whose settings cannot be read does not trade.
-    #[test]
-    fn an_unreadable_store_does_not_trade() {
+    #[tokio::test]
+    async fn an_unreadable_store_does_not_trade() {
         let t =
             crate::state::testing::build(crate::brokers::BrokerRegistry::new(), chrono::Utc::now());
         let l = read(&t.ctx);
