@@ -18,6 +18,37 @@ fn frame_status(status: &str) -> String {
     incoming
 }
 
+/// What folding one frame into an order row would leave: the row's status
+/// before and after, and its filled quantity before and after.
+struct FoldFacts {
+    previous_status: String,
+    next_status: String,
+    previous_qty: i64,
+    cumulative: i64,
+}
+
+impl FoldFacts {
+    /// Quantity evidence is cumulative: a frame never lowers it.
+    fn of(row: &OrderRow, status: &str, filled_qty: Option<i64>) -> Self {
+        let incoming = frame_status(status);
+        let mut evidence = filled_qty.unwrap_or(0).max(0);
+        if incoming == "complete" && evidence <= 0 {
+            // A complete order with an omitted quantity traded in full.
+            evidence = row.qty.max(0);
+        }
+        let previous_status = row.status.trim().to_ascii_lowercase();
+        let previous_qty = row.filled_qty.unwrap_or(0).max(0);
+        let cumulative = previous_qty.max(evidence);
+        let next_status = folded_status(&previous_status, &incoming, cumulative - previous_qty);
+        Self {
+            previous_status,
+            next_status,
+            previous_qty,
+            cumulative,
+        }
+    }
+}
+
 /// The row's status after a frame: `complete` stays; a dead row comes back
 /// only as `complete` with strictly more filled quantity (`delta`); a
 /// working row takes a terminal frame's status, else stays `open`.
@@ -164,26 +195,20 @@ impl Store {
         filled_qty: Option<i64>,
         reject_reason: Option<&str>,
     ) -> Result<Option<OrderFactFold>> {
-        let incoming = frame_status(status);
-        let incoming_qty = filled_qty.unwrap_or(0).max(0);
         for _ in 0..8 {
             let Some(row) = self.get_order(order_id)? else {
                 return Ok(None);
             };
             let raw_status = row.status.clone();
-            let previous_status = raw_status.trim().to_ascii_lowercase();
-            let previous_qty = row.filled_qty.unwrap_or(0).max(0);
             let previous_price = row.avg_fill_price;
-            let mut evidence = incoming_qty;
-            if incoming == "complete" && evidence <= 0 {
-                // A complete order with an omitted quantity traded in full.
-                evidence = row.qty.max(0);
-            }
-            let cumulative = previous_qty.max(evidence);
+            let FoldFacts {
+                previous_status,
+                next_status,
+                previous_qty,
+                cumulative,
+            } = FoldFacts::of(&row, status, filled_qty);
             let delta = cumulative - previous_qty;
-            let next_status = folded_status(&previous_status, &incoming, delta);
-            let status_changed = next_status != previous_status;
-            if !status_changed && delta <= 0 {
+            if next_status == previous_status && delta <= 0 {
                 return Ok(Some(OrderFactFold {
                     order_id,
                     previous_status: previous_status.clone(),

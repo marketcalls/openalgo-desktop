@@ -194,7 +194,7 @@ fn refresh_run_pnl(run: &mut RunState) {
 }
 
 /// What a fill did to the run's live state.
-enum Outcome {
+pub(crate) enum FillOutcome {
     NoState,
     Ignored,
     Applied {
@@ -216,19 +216,21 @@ impl StrategyModule {
         opts: FillOpts,
     ) -> BoxFuture<'a, bool> {
         Box::pin(async move {
-            self.apply_fill_inner(run_id, leg_id, avg_price, is_entry, opts)
-                .await
+            let outcome = self.fill_state(run_id, leg_id, avg_price, is_entry, &opts);
+            self.after_fill(run_id, is_entry, outcome).await
         })
     }
 
-    async fn apply_fill_inner(
+    /// The fill applied to the run's live state, at once and in memory
+    /// only: what [`Self::after_fill`] then acts on.
+    pub(crate) fn fill_state(
         &self,
         run_id: i64,
         leg_id: i64,
         avg_price: Option<f64>,
         is_entry: bool,
-        opts: FillOpts,
-    ) -> bool {
+        opts: &FillOpts,
+    ) -> FillOutcome {
         let mut warnings: Vec<String> = Vec::new();
         let price = avg_price.filter(|p| p.is_finite() && *p > 0.0);
         let outcome = self
@@ -236,40 +238,52 @@ impl StrategyModule {
             .with_run(run_id, |run| {
                 let strategy_id = run.strategy_id;
                 let Some(leg) = run.leg_mut(leg_id) else {
-                    return Outcome::Ignored;
+                    return FillOutcome::Ignored;
                 };
                 let mut entry_applied = false;
-                if settles_superseded(leg, &opts, is_entry) {
+                if settles_superseded(leg, opts, is_entry) {
                     // Settle the outgoing position from its own entry and
                     // size; the live position is untouched.
-                    settle_superseded(leg, &opts, price);
+                    settle_superseded(leg, opts, price);
                 } else {
-                    if let Some(w) = stale_fill(leg, leg_id, &opts, is_entry) {
+                    if let Some(w) = stale_fill(leg, leg_id, opts, is_entry) {
                         warnings.push(w);
-                        return Outcome::Ignored;
+                        return FillOutcome::Ignored;
                     }
                     if is_entry {
                         entry_applied =
-                            apply_entry_fill(leg, &opts, price, (leg_id, run_id), &mut warnings);
+                            apply_entry_fill(leg, opts, price, (leg_id, run_id), &mut warnings);
                     } else {
-                        apply_exit_fill(leg, &opts, price, (leg_id, run_id), &mut warnings);
+                        apply_exit_fill(leg, opts, price, (leg_id, run_id), &mut warnings);
                     }
                 }
                 // Recompute the run totals while the lock is held.
                 refresh_run_pnl(run);
-                Outcome::Applied {
+                FillOutcome::Applied {
                     went_flat: !run.requires_management(),
                     entry_applied,
                     strategy_id,
                 }
             })
-            .unwrap_or(Outcome::NoState);
+            .unwrap_or(FillOutcome::NoState);
         for w in warnings {
             tracing::warn!("{}", w);
         }
+        outcome
+    }
 
+    /// What follows a fill applied by [`Self::fill_state`]: a late exit
+    /// after the run was finalised reconciles its P&L from the rows, an
+    /// entry may complete a pending stop, and a run left flat is finished.
+    /// True when the run went flat.
+    pub(crate) async fn after_fill(
+        &self,
+        run_id: i64,
+        is_entry: bool,
+        outcome: FillOutcome,
+    ) -> bool {
         let (went_flat, entry_applied, strategy_id) = match outcome {
-            Outcome::NoState => {
+            FillOutcome::NoState => {
                 // A late terminal update after another worker finalised:
                 // reconcile from the durable rows instead.
                 if !is_entry {
@@ -277,8 +291,8 @@ impl StrategyModule {
                 }
                 return false;
             }
-            Outcome::Ignored => return false,
-            Outcome::Applied {
+            FillOutcome::Ignored => return false,
+            FillOutcome::Applied {
                 went_flat,
                 entry_applied,
                 strategy_id,
