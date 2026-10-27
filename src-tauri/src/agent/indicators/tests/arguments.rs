@@ -114,7 +114,7 @@ fn an_output_the_indicator_does_not_have_still_fails() {
     };
     let (hit, detail) = evaluate_condition(&parse_condition("ADX < 30").expect("parses"), &view);
     assert!(!hit);
-    let text = detail.to_text();
+    let text = serde_json::to_string(&detail).expect("serialises");
     assert!(text.contains("no output named"), "{text}");
 }
 

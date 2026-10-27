@@ -74,7 +74,7 @@ fn result_keys_come_in_the_web_order() {
     let fixture = json(COMPUTE);
     let data = frame(&fixture["frames"]["trend"]);
     let result = compute("uo_oscillator", &data, None, None, 3).expect("computes");
-    let text = result.to_json().to_text();
+    let text = serde_json::to_string(&result.to_json()).expect("serialises");
     let order = [
         "\"indicator\"",
         "\"category\"",
