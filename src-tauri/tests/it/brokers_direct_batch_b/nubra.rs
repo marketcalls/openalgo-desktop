@@ -19,6 +19,7 @@ use openalgo_desktop_lib::brokers::common::symbols::SymbolResolver;
 use openalgo_desktop_lib::brokers::nubra::NubraBroker;
 use openalgo_desktop_lib::brokers::types::*;
 use openalgo_desktop_lib::brokers::{Broker, BrokerCredentials};
+use openalgo_desktop_lib::websocket::handshake;
 use parking_lot::Mutex;
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -257,25 +258,24 @@ async fn ws_server(reply: Vec<u8>, first_text: Arc<Mutex<Vec<String>>>) -> Strin
                 use tokio_tungstenite::tungstenite::handshake::server::{
                     ErrorResponse, Request, Response as WsResponse,
                 };
-                let check =
-                    |req: &Request, resp: WsResponse| -> Result<WsResponse, ErrorResponse> {
-                        let auth = req
-                            .headers()
-                            .get("authorization")
-                            .and_then(|v| v.to_str().ok());
-                        let dev = req
-                            .headers()
-                            .get("x-device-id")
-                            .and_then(|v| v.to_str().ok());
-                        if auth == Some("Bearer SESS1") && dev == Some("OPENALGO") {
-                            Ok(resp)
-                        } else {
-                            let mut r = ErrorResponse::new(None);
-                            *r.status_mut() =
-                                tokio_tungstenite::tungstenite::http::StatusCode::UNAUTHORIZED;
-                            Err(r)
-                        }
-                    };
+                let check = handshake::check(|req: &Request, resp: WsResponse| {
+                    let auth = req
+                        .headers()
+                        .get("authorization")
+                        .and_then(|v| v.to_str().ok());
+                    let dev = req
+                        .headers()
+                        .get("x-device-id")
+                        .and_then(|v| v.to_str().ok());
+                    if auth == Some("Bearer SESS1") && dev == Some("OPENALGO") {
+                        Ok(resp)
+                    } else {
+                        let mut r = ErrorResponse::new(None);
+                        *r.status_mut() =
+                            tokio_tungstenite::tungstenite::http::StatusCode::UNAUTHORIZED;
+                        Err(Box::new(r))
+                    }
+                });
                 let Ok(mut ws) = tokio_tungstenite::accept_hdr_async(tcp, check).await else {
                     return;
                 };

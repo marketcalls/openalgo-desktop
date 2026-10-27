@@ -368,16 +368,15 @@ type Events = tokio::sync::mpsc::Receiver<std::result::Result<Event, ConnectionE
 /// The downstream WebSocket, accepted on the relay's own path only and
 /// within the handshake timeout.
 async fn accept_downstream(tcp: TcpStream, path: String) -> Option<WebSocketStream<TcpStream>> {
-    let check =
-        move |req: &Request, resp: Response| -> std::result::Result<Response, ErrorResponse> {
-            if req.uri().path() == path {
-                Ok(resp)
-            } else {
-                let mut r = ErrorResponse::new(None);
-                *r.status_mut() = tokio_tungstenite::tungstenite::http::StatusCode::NOT_FOUND;
-                Err(r)
-            }
-        };
+    let check = crate::websocket::handshake::check(move |req: &Request, resp: Response| {
+        if req.uri().path() == path {
+            Ok(resp)
+        } else {
+            let mut r = ErrorResponse::new(None);
+            *r.status_mut() = tokio_tungstenite::tungstenite::http::StatusCode::NOT_FOUND;
+            Err(Box::new(r))
+        }
+    });
     match tokio::time::timeout(
         DOWNSTREAM_HANDSHAKE,
         tokio_tungstenite::accept_hdr_async(tcp, check),

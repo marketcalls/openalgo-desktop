@@ -14,6 +14,7 @@ use openalgo_desktop_lib::brokers::fyers::streaming::{subscribe_frame, HSM_ABSEN
 use openalgo_desktop_lib::brokers::fyers::{FyersBroker, FyersUrls};
 use openalgo_desktop_lib::brokers::types::AuthToken;
 use openalgo_desktop_lib::brokers::Broker;
+use openalgo_desktop_lib::websocket::handshake;
 use openalgo_desktop_lib::websocket::{FeedConfig, WebSocketManager};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -93,12 +94,13 @@ async fn hsm_feed_authenticates_subscribes_and_ticks() {
     let server = tokio::spawn(async move {
         let (tcp, _) = listener.accept().await.unwrap();
         let mut had_auth_header = false;
-        let mut ws = tokio_tungstenite::accept_hdr_async(tcp, |req: &Request, resp: Response| {
+        let check = handshake::check(|req: &Request, resp: Response| {
             had_auth_header = req.headers().contains_key("authorization");
             Ok(resp)
-        })
-        .await
-        .unwrap();
+        });
+        let mut ws = tokio_tungstenite::accept_hdr_async(tcp, check)
+            .await
+            .unwrap();
         let auth = match ws.next().await {
             Some(Ok(Message::Binary(b))) => b,
             other => panic!("expected the auth frame, got {:?}", other),

@@ -24,6 +24,7 @@ use axum::body::Bytes;
 use axum::http::Uri;
 use axum::Router;
 use futures_util::{SinkExt, StreamExt};
+use openalgo_desktop_lib::websocket::handshake;
 use std::future::Future;
 use std::pin::Pin;
 use tokio::net::TcpListener;
@@ -194,16 +195,18 @@ impl FakeWs {
             let mut conns = tokio::task::JoinSet::new();
             while let Ok((stream, _)) = listener.accept().await {
                 let hs = hs.clone();
-                let cb = move |req: &tokio_tungstenite::tungstenite::handshake::server::Request,
-                               resp| {
-                    let pq = req
-                        .uri()
-                        .path_and_query()
-                        .map(|p| p.to_string())
-                        .unwrap_or_default();
-                    hs.lock().push((pq, req.headers().clone()));
-                    Ok(resp)
-                };
+                let cb = handshake::check(
+                    move |req: &tokio_tungstenite::tungstenite::handshake::server::Request,
+                          resp| {
+                        let pq = req
+                            .uri()
+                            .path_and_query()
+                            .map(|p| p.to_string())
+                            .unwrap_or_default();
+                        hs.lock().push((pq, req.headers().clone()));
+                        Ok(resp)
+                    },
+                );
                 if let Ok(ws) = tokio_tungstenite::accept_hdr_async(stream, cb).await {
                     let h = handler.clone();
                     conns.spawn(async move { h(ws).await });

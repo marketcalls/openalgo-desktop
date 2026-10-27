@@ -18,6 +18,7 @@ use openalgo_desktop_lib::brokers::hdfcsecurities::proto::{
 use openalgo_desktop_lib::brokers::hdfcsecurities::HdfcSecuritiesBroker;
 use openalgo_desktop_lib::brokers::types::*;
 use openalgo_desktop_lib::brokers::{Broker, BrokerCredentials};
+use openalgo_desktop_lib::websocket::handshake;
 use parking_lot::Mutex;
 use prost::Message as _;
 use serde_json::{json, Value};
@@ -223,7 +224,7 @@ async fn serve_ws(fake: Arc<Fake>) -> String {
             let fake = fake.clone();
             tokio::spawn(async move {
                 let rec = fake.clone();
-                let cb = move |req: &Request, resp: WsResponse| {
+                let cb = handshake::check(move |req: &Request, resp: WsResponse| {
                     let auth = req
                         .headers()
                         .get("authorization")
@@ -232,7 +233,7 @@ async fn serve_ws(fake: Arc<Fake>) -> String {
                         .to_string();
                     rec.ws_handshakes.lock().push((req.uri().to_string(), auth));
                     Ok(resp)
-                };
+                });
                 let Ok(mut ws) = tokio_tungstenite::accept_hdr_async(stream, cb).await else {
                     return;
                 };

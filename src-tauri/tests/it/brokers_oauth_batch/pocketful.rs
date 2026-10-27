@@ -15,6 +15,7 @@ use openalgo_desktop_lib::brokers::pocketful::master_contract::parse_archive;
 use openalgo_desktop_lib::brokers::pocketful::{zip, PocketfulBroker};
 use openalgo_desktop_lib::brokers::types::*;
 use openalgo_desktop_lib::brokers::{Broker, BrokerCredentials};
+use openalgo_desktop_lib::websocket::handshake;
 use parking_lot::Mutex;
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -226,10 +227,10 @@ async fn serve_ws(fake: Arc<Fake>) -> String {
             let fake = fake.clone();
             tokio::spawn(async move {
                 let uri_slot = fake.clone();
-                let cb = move |req: &Request, resp: WsResponse| {
+                let cb = handshake::check(move |req: &Request, resp: WsResponse| {
                     uri_slot.ws_uris.lock().push(req.uri().to_string());
                     Ok(resp)
-                };
+                });
                 let Ok(mut ws) = tokio_tungstenite::accept_hdr_async(stream, cb).await else {
                     return;
                 };

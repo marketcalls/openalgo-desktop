@@ -7,7 +7,7 @@
 use futures_util::{SinkExt, StreamExt};
 use openalgo_desktop_lib::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription};
 use openalgo_desktop_lib::brokers::rupeezy::streaming::RupeezyFeed;
-use openalgo_desktop_lib::websocket::{FeedConfig, WebSocketManager};
+use openalgo_desktop_lib::websocket::{handshake, FeedConfig, WebSocketManager};
 use serde_json::Value;
 use std::sync::Arc;
 use std::time::Duration;
@@ -70,11 +70,11 @@ async fn the_feed_subscribes_decodes_and_resubscribes_after_a_reconnect() {
             let n = conn;
             tokio::spawn(async move {
                 let mut path = String::new();
-                let cb = |req: &tokio_tungstenite::tungstenite::handshake::server::Request,
+                let cb = handshake::check(|req: &tokio_tungstenite::tungstenite::handshake::server::Request,
                           resp: tokio_tungstenite::tungstenite::handshake::server::Response| {
                     path = req.uri().to_string();
                     Ok(resp)
-                };
+                });
                 let Ok(mut ws) = tokio_tungstenite::accept_hdr_async(tcp, cb).await else {
                     return;
                 };

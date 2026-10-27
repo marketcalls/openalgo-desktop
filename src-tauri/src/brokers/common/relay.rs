@@ -250,16 +250,15 @@ async fn accept_loop(listener: tokio::net::TcpListener, path: String, upstream: 
 
 /// Accept the manager's WebSocket on the secret path, within the budget.
 async fn handshake(tcp: TcpStream, path: String) -> Option<WebSocketStream<TcpStream>> {
-    let check =
-        move |req: &Request, resp: Response| -> std::result::Result<Response, ErrorResponse> {
-            if req.uri().path() == path {
-                Ok(resp)
-            } else {
-                let mut r = ErrorResponse::new(None);
-                *r.status_mut() = tokio_tungstenite::tungstenite::http::StatusCode::NOT_FOUND;
-                Err(r)
-            }
-        };
+    let check = crate::websocket::handshake::check(move |req: &Request, resp: Response| {
+        if req.uri().path() == path {
+            Ok(resp)
+        } else {
+            let mut r = ErrorResponse::new(None);
+            *r.status_mut() = tokio_tungstenite::tungstenite::http::StatusCode::NOT_FOUND;
+            Err(Box::new(r))
+        }
+    });
     match tokio::time::timeout(
         DOWNSTREAM_HANDSHAKE,
         tokio_tungstenite::accept_hdr_async(tcp, check),

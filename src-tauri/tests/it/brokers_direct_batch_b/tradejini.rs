@@ -15,6 +15,7 @@ use openalgo_desktop_lib::brokers::tradejini::streaming::build::{self, V};
 use openalgo_desktop_lib::brokers::tradejini::{TradejiniBroker, WsTimings};
 use openalgo_desktop_lib::brokers::types::*;
 use openalgo_desktop_lib::brokers::{Broker, BrokerCredentials};
+use openalgo_desktop_lib::websocket::handshake;
 use parking_lot::Mutex;
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -247,21 +248,22 @@ async fn serve_ws(fake: Arc<Fake>) -> String {
         while let Ok((tcp, _)) = l.accept().await {
             let fake = fake.clone();
             tokio::spawn(async move {
-                let check = |req: &tokio_tungstenite::tungstenite::handshake::server::Request,
-                             resp| {
-                    let q = req.uri().query().unwrap_or("");
-                    if q == format!("token={}:{}&version=3.1", KEY, ACCESS) {
-                        Ok(resp)
-                    } else {
-                        let mut r =
+                let check = handshake::check(
+                    |req: &tokio_tungstenite::tungstenite::handshake::server::Request, resp| {
+                        let q = req.uri().query().unwrap_or("");
+                        if q == format!("token={}:{}&version=3.1", KEY, ACCESS) {
+                            Ok(resp)
+                        } else {
+                            let mut r =
                             tokio_tungstenite::tungstenite::handshake::server::ErrorResponse::new(
                                 None,
                             );
-                        *r.status_mut() =
-                            tokio_tungstenite::tungstenite::http::StatusCode::UNAUTHORIZED;
-                        Err(r)
-                    }
-                };
+                            *r.status_mut() =
+                                tokio_tungstenite::tungstenite::http::StatusCode::UNAUTHORIZED;
+                            Err(Box::new(r))
+                        }
+                    },
+                );
                 let Ok(mut ws) = tokio_tungstenite::accept_hdr_async(tcp, check).await else {
                     return;
                 };

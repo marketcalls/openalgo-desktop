@@ -5,6 +5,7 @@
 //! with `subscribe_ticks()` and maps them to the web's `market_data` frames.
 //! Broker specifics live in each adapter's `BrokerFeed`.
 
+pub mod handshake;
 mod manager;
 
 pub use crate::brokers::common::streaming::{

@@ -20,6 +20,7 @@ use openalgo_desktop_lib::brokers::types::*;
 use openalgo_desktop_lib::brokers::{
     compositedge, fivepaisaxts, jainamxts, rmoney, Broker, BrokerCredentials,
 };
+use openalgo_desktop_lib::websocket::handshake;
 use openalgo_desktop_lib::websocket::{FeedConfig, WebSocketManager};
 use parking_lot::Mutex;
 use serde_json::{json, Value};
@@ -769,14 +770,14 @@ async fn socket_server(log: Arc<Mutex<Vec<String>>>, refuse: bool) -> String {
             let log = log.clone();
             tokio::spawn(async move {
                 let seen = log.clone();
-                let cb = move |req: &Request, resp: Response| {
+                let cb = handshake::check(move |req: &Request, resp: Response| {
                     seen.lock().push(format!(
                         "ws|{}|{}",
                         req.uri().path(),
                         req.uri().query().unwrap_or("")
                     ));
                     Ok(resp)
-                };
+                });
                 let Ok(mut ws) = tokio_tungstenite::accept_hdr_async(tcp, cb).await else {
                     return;
                 };

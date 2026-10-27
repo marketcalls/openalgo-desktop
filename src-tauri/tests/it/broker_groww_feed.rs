@@ -14,6 +14,7 @@ use openalgo_desktop_lib::brokers::common::symbols::SymbolResolver;
 use openalgo_desktop_lib::brokers::groww::{nkeys, proto, GrowwBroker};
 use openalgo_desktop_lib::brokers::types::AuthToken;
 use openalgo_desktop_lib::brokers::Broker;
+use openalgo_desktop_lib::websocket::handshake;
 use openalgo_desktop_lib::websocket::{FeedConfig, WebSocketManager};
 use parking_lot::Mutex;
 use prost::Message as _;
@@ -69,7 +70,7 @@ async fn nats_server(log: Log) -> String {
             let log = log.clone();
             tokio::spawn(async move {
                 let hlog = log.clone();
-                let cb = move |req: &Request, mut resp: Response| {
+                let cb = handshake::check(move |req: &Request, mut resp: Response| {
                     let h = |k: &str| {
                         req.headers()
                             .get(k)
@@ -86,7 +87,7 @@ async fn nats_server(log: Log) -> String {
                     resp.headers_mut()
                         .insert("Sec-WebSocket-Protocol", HeaderValue::from_static("nats"));
                     Ok(resp)
-                };
+                });
                 let Ok(mut ws) = tokio_tungstenite::accept_hdr_async(tcp, cb).await else {
                     return;
                 };

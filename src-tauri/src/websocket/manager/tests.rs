@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::brokers::mock::MockFeed;
+use crate::websocket::handshake;
 use futures_util::{SinkExt, StreamExt};
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::TcpListener;
@@ -321,12 +322,12 @@ async fn handshake_refusal_stops_reconnecting() {
     let srv = tokio::spawn(async move {
         while let Ok((tcp, _)) = listener.accept().await {
             a2.fetch_add(1, Ordering::Relaxed);
-            let _ = tokio_tungstenite::accept_hdr_async(tcp, |_: &Request, _: Response| {
+            let refuse = handshake::check(|_: &Request, _: Response| {
                 let mut resp = ErrorResponse::new(Some("forbidden".into()));
                 *resp.status_mut() = tokio_tungstenite::tungstenite::http::StatusCode::FORBIDDEN;
-                Err(resp)
-            })
-            .await;
+                Err(Box::new(resp))
+            });
+            let _ = tokio_tungstenite::accept_hdr_async(tcp, refuse).await;
         }
     });
     let m = WebSocketManager::with_config(fast());
@@ -541,12 +542,10 @@ async fn a_url_without_a_path_is_requested_at_the_root() {
     let srv = tokio::spawn(async move {
         while let Ok((tcp, _)) = listener.accept().await {
             let seen = seen2.clone();
-            let cb = move |req: &Request,
-                           resp: Response|
-                  -> std::result::Result<Response, ErrorResponse> {
+            let cb = handshake::check(move |req: &Request, resp: Response| {
                 *seen.lock() = req.uri().path_and_query().map(|p| p.to_string());
                 Ok(resp)
-            };
+            });
             if let Ok(mut ws) = tokio_tungstenite::accept_hdr_async(tcp, cb).await {
                 while let Some(Ok(_)) = ws.next().await {}
             }
@@ -765,13 +764,13 @@ async fn mstock_socket_address_never_reaches_the_log() {
         }),
         tokio::spawn(async move {
             while let Ok((tcp, _)) = refusing.accept().await {
-                let _ = tokio_tungstenite::accept_hdr_async(tcp, |_: &Request, _: Response| {
+                let refuse = handshake::check(|_: &Request, _: Response| {
                     let mut resp = ErrorResponse::new(Some("unauthorized".into()));
                     *resp.status_mut() =
                         tokio_tungstenite::tungstenite::http::StatusCode::UNAUTHORIZED;
-                    Err(resp)
-                })
-                .await;
+                    Err(Box::new(resp))
+                });
+                let _ = tokio_tungstenite::accept_hdr_async(tcp, refuse).await;
             }
         }),
     ];
@@ -780,10 +779,10 @@ async fn mstock_socket_address_never_reaches_the_log() {
     servers.push(tokio::spawn(async move {
         while let Ok((tcp, _)) = closing.accept().await {
             let seen = seen2.clone();
-            let cb = move |req: &Request, resp: Response| {
+            let cb = handshake::check(move |req: &Request, resp: Response| {
                 seen.lock().push(req.uri().to_string());
                 Ok(resp)
-            };
+            });
             if let Ok(mut ws) = tokio_tungstenite::accept_hdr_async(tcp, cb).await {
                 let _ = ws.next().await;
                 let _ = ws.close(None).await;
