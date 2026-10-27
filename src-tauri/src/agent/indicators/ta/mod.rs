@@ -75,6 +75,12 @@ impl TaError {
 
 pub(crate) type TaResult = Result<Vec<Series>, TaError>;
 
+/// A kernel over high, low, close and a period (CCI, Williams %R, DX, ADXR).
+type HlcKernel = fn(&[f64], &[f64], &[f64], usize) -> Vec<f64>;
+
+/// A kernel over high, low, close, volume and a period (MFI, CMF).
+type HlcvKernel = fn(&[f64], &[f64], &[f64], &[f64], usize) -> Vec<f64>;
+
 /// One argument value after the dispatcher's coercion.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum ParamValue {
@@ -104,12 +110,25 @@ impl ParamValue {
 #[derive(Debug, Clone)]
 pub(crate) struct Params {
     method: &'static str,
+    /// The signature's names for the series arguments, for the `TypeError`
+    /// a missing one raises.
+    series: &'static [&'static str],
     values: Vec<(&'static str, ParamValue)>,
 }
 
 impl Params {
     pub(crate) fn new(method: &'static str, values: Vec<(&'static str, ParamValue)>) -> Self {
-        Self { method, values }
+        Self {
+            method,
+            series: &[],
+            values,
+        }
+    }
+
+    /// The same parameters, with the method's series argument names.
+    pub(crate) fn with_series(mut self, series: &'static [&'static str]) -> Self {
+        self.series = series;
+        self
     }
 
     fn get(&self, name: &str) -> Result<&ParamValue, TaError> {
@@ -186,13 +205,21 @@ pub(crate) struct Args<'a> {
 }
 
 impl<'a> Args<'a> {
-    /// The `i`th positional series.
+    /// The `i`th positional series, or the `TypeError` Python raises when
+    /// it is missing.
     fn s(&self, i: usize) -> Result<&'a [f64], TaError> {
         self.series.get(i).copied().ok_or_else(|| {
-            TaError::type_error(format!(
-                "TechnicalAnalysis.{}() missing a required series argument",
-                self.params.method
-            ))
+            let p = self.params;
+            TaError::type_error(match p.series.get(i) {
+                Some(name) => format!(
+                    "TechnicalAnalysis.{}() missing 1 required positional argument: '{}'",
+                    p.method, name
+                ),
+                None => format!(
+                    "TechnicalAnalysis.{}() missing a required series argument",
+                    p.method
+                ),
+            })
         })
     }
 

@@ -2,7 +2,7 @@
 //! `_backend.py` compositions they call.
 
 use super::numpy::nan_vec;
-use super::{many, non_empty, one, us, validate_period, Args, TaError, TaResult};
+use super::{many, non_empty, one, us, validate_period, Args, HlcKernel, TaError, TaResult};
 
 pub(super) fn call(name: &str, a: &Args) -> Option<TaResult> {
     Some(match name {
@@ -80,7 +80,7 @@ fn stochastic(a: &Args) -> TaResult {
 }
 
 /// CCI and Williams %R: high, low, close and a validated period.
-fn hlc_period(a: &Args, kernel: fn(&[f64], &[f64], &[f64], usize) -> Vec<f64>) -> TaResult {
+fn hlc_period(a: &Args, kernel: HlcKernel) -> TaResult {
     let [high, low, close] = a.aligned::<3>()?;
     let period = a.p().int("period")?;
     validate_period(period, close.len())?;

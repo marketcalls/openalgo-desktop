@@ -42,7 +42,7 @@ fn aroon(a: &Args) -> TaResult {
 fn pivot_points(a: &Args) -> TaResult {
     let [high, low, close] = a.aligned::<3>()?;
     let n = close.len();
-    let mut lines = vec![Vec::with_capacity(n); 7];
+    let mut lines: Vec<Vec<f64>> = (0..7).map(|_| Vec::with_capacity(n)).collect();
     for i in 0..n {
         let (h, l, c) = (high[i], low[i], close[i]);
         let pivot = (h + l + c) / 3.0;
