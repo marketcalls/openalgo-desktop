@@ -120,6 +120,13 @@ async fn a_search_goes_out_in_the_traders_words_and_comes_back_wrapped() {
         open,
         "<web_result provider=\"duckduckgo\" trust=\"third-party\" kind=\"links\">"
     );
+    // The web's key order, which a sorted map would lose.
+    assert!(
+        o.text()
+            .contains("{\"ok\":true,\"provider\":\"duckduckgo\",\"query_sent\":\"RBI repo rate\",\"query_source\":\"constrained\",\"result_count\":1,\"results\":[{\"title\":\"RBI\",\"url\":"),
+        "{}",
+        o.text()
+    );
     assert_eq!(p["query_sent"], "RBI repo rate");
     assert_eq!(p["query_source"], "constrained");
     assert_eq!(

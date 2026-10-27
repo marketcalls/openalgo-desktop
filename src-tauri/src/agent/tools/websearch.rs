@@ -13,11 +13,12 @@
 //! results were wrapped; a provider's failure is third-party text too, so
 //! it is wrapped the same way (`kind="error"`).
 
-use crate::agent::contract::json::dumps_capped;
+use crate::agent::contract::json::dumps_capped_ordered;
 use crate::agent::contract::tool::{
     AgentTool, Capability, Surfaces, ToolCtx, ToolGroup, ToolOutcome, ToolSpec, MAX_RESULT_CHARS,
 };
 use crate::agent::prompts::untrusted::wrap_web_result;
+use crate::agent::websearch::payloads::{Answer, Links, NotOk};
 use crate::agent::websearch::providers::{self, Net, Outcome};
 use crate::agent::websearch::settings::{self, Config};
 use crate::agent::websearch::taint::{self, Constrained};
@@ -26,7 +27,7 @@ use crate::security::Secret;
 use crate::state::AppState;
 use async_trait::async_trait;
 use parking_lot::Mutex;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value};
 use std::borrow::Cow;
 use std::sync::{Arc, LazyLock};
 
@@ -126,12 +127,13 @@ impl AgentTool for WebTool {
     }
 }
 
-fn json_text(v: &Value) -> String {
-    dumps_capped(v, MAX_RESULT_CHARS)
+/// A result as compact JSON in its own key order, within the cap.
+fn json_text<T: serde::Serialize>(v: &T) -> String {
+    dumps_capped_ordered(v, MAX_RESULT_CHARS)
 }
 
 /// A provider's failure, wrapped as third-party text (D-020).
-fn failure(provider: &str, payload: &Value) -> ToolOutcome {
+fn failure(provider: &str, payload: &NotOk<'_>) -> ToolOutcome {
     ToolOutcome::Ok(wrap_web_result(
         provider,
         &json_text(payload),
@@ -140,12 +142,11 @@ fn failure(provider: &str, payload: &Value) -> ToolOutcome {
 }
 
 fn busy(outcome: &Outcome, notices: &[String]) -> ToolOutcome {
-    let mut p = json!({"ok": false, "error": "platform_busy", "provider": outcome.provider,
-                       "message": outcome.error});
+    let mut p = NotOk::new("platform_busy", outcome.error.clone()).by(outcome.provider);
     if !notices.is_empty() {
-        p["notices"] = json!(notices);
+        p = p.with_notices(notices);
     }
-    ToolOutcome::json(&p)
+    ToolOutcome::json_ordered(&p)
 }
 
 fn blocked(tool: &str) -> ToolOutcome {
@@ -153,9 +154,7 @@ fn blocked(tool: &str) -> ToolOutcome {
         "{} refused: no operator message is available for this turn, so no query could be constructed",
         tool
     );
-    ToolOutcome::json(
-        &json!({"ok": false, "error": "no_operator_message", "message": NO_OPERATOR_MESSAGE}),
-    )
+    ToolOutcome::json_ordered(&NotOk::new("no_operator_message", NO_OPERATOR_MESSAGE))
 }
 
 /// The count the model asked for, clamped to 1..10 with a notice; a value
@@ -225,23 +224,21 @@ impl WebTool {
     }
 
     /// Both caps, checked before a call (`_Budget.refusal`).
-    async fn refusal(&self, app: &Arc<AppState>) -> Option<Value> {
+    async fn refusal(&self, app: &Arc<AppState>) -> Option<NotOk<'static>> {
         let c = self.config(app).await;
         if *self.shared.budget.used.lock() >= c.max_calls_per_turn {
-            return Some(
-                json!({"ok": false, "error": "per_turn_budget_exhausted", "message": format!(
+            return Some(NotOk::new("per_turn_budget_exhausted", format!(
                 "This turn has already used its {} web searches. Answer from what you have and tell the operator you stopped searching.",
-                c.max_calls_per_turn)}),
-            );
+                c.max_calls_per_turn)));
         }
         let day = today(app.now());
         let used = app
             .blocking(move |x| Ok(settings::usage(&*x.sqlite.conn()?, &day)))
             .await
             .unwrap_or(0);
-        (used >= c.daily_cap).then(|| json!({"ok": false, "error": "daily_cap_reached", "message": format!(
+        (used >= c.daily_cap).then(|| NotOk::new("daily_cap_reached", format!(
             "The daily web search cap of {} calls is reached. Tell the operator; they can raise it in the agent settings.",
-            c.daily_cap)}))
+            c.daily_cap)))
     }
 
     /// Count one successful call against both caps.
@@ -303,8 +300,8 @@ impl WebTool {
             return blocked("web_search");
         }
         if let Some(refusal) = self.refusal(&ctx.app).await {
-            tracing::info!("Web search refused before dispatch: {}", refusal["error"]);
-            return ToolOutcome::json(&refusal);
+            tracing::info!("Web search refused before dispatch: {}", refusal.error);
+            return ToolOutcome::json_ordered(&refusal);
         }
         let config = self.config(&ctx.app).await;
         let mut notices: Vec<String> = count_notice.into_iter().collect();
@@ -323,22 +320,21 @@ impl WebTool {
             config.max_calls_per_turn,
         );
         if !outcome.ok {
-            return failure(
-                outcome.provider,
-                &json!({"ok": false, "error": "provider_failed", "provider": outcome.provider,
-                        "message": outcome.error, "notices": notices}),
-            );
+            let p = NotOk::new("provider_failed", outcome.error.clone())
+                .by(outcome.provider)
+                .with_notices(&notices);
+            return failure(outcome.provider, &p);
         }
         self.record(&ctx.app).await;
-        let payload = json!({
-            "ok": true,
-            "provider": outcome.provider,
-            "query_sent": q.text,
-            "query_source": q.decision.as_str(),
-            "result_count": outcome.results.len(),
-            "results": outcome.results,
-            "notices": notices,
-        });
+        let payload = Links {
+            ok: true,
+            provider: outcome.provider,
+            query_sent: &q.text,
+            query_source: q.decision.as_str(),
+            result_count: outcome.results.len(),
+            results: &outcome.results,
+            notices: &notices,
+        };
         ToolOutcome::Ok(wrap_web_result(
             outcome.provider,
             &json_text(&payload),
@@ -406,12 +402,13 @@ impl WebTool {
         }
         let Some(key) = self.key(&ctx.app, PERPLEXITY).await else {
             tracing::info!("Web research refused before dispatch: no Perplexity key configured");
-            return ToolOutcome::json(&json!({"ok": false, "error": "not_configured",
-                                             "provider": PERPLEXITY, "message": NO_PERPLEXITY_KEY}));
+            return ToolOutcome::json_ordered(
+                &NotOk::new("not_configured", NO_PERPLEXITY_KEY).by(PERPLEXITY),
+            );
         };
         if let Some(refusal) = self.refusal(&ctx.app).await {
-            tracing::info!("Web research refused before dispatch: {}", refusal["error"]);
-            return ToolOutcome::json(&refusal);
+            tracing::info!("Web research refused before dispatch: {}", refusal.error);
+            return ToolOutcome::json_ordered(&refusal);
         }
         let config = self.config(&ctx.app).await;
         let o =
@@ -428,24 +425,23 @@ impl WebTool {
             config.max_calls_per_turn,
         );
         if !o.ok {
-            return failure(
-                PERPLEXITY,
-                &json!({"ok": false, "error": "provider_failed", "provider": PERPLEXITY,
-                        "message": o.error, "cost_usd": o.cost_usd}),
-            );
+            let p = NotOk::new("provider_failed", o.error.clone())
+                .by(PERPLEXITY)
+                .with_cost(o.cost_usd);
+            return failure(PERPLEXITY, &p);
         }
         self.record(&ctx.app).await;
-        let payload = json!({
-            "ok": true,
-            "provider": PERPLEXITY,
-            "model": config.perplexity_model,
-            "question_sent": q.text,
-            "question_source": q.decision.as_str(),
-            "answer": o.answer,
-            "citation_count": o.citations.len(),
-            "citations": o.citations,
-            "cost_usd": o.cost_usd,
-        });
+        let payload = Answer {
+            ok: true,
+            provider: PERPLEXITY,
+            model: &config.perplexity_model,
+            question_sent: &q.text,
+            question_source: q.decision.as_str(),
+            answer: &o.answer,
+            citation_count: o.citations.len(),
+            citations: &o.citations,
+            cost_usd: o.cost_usd,
+        };
         ToolOutcome::Ok(wrap_web_result(
             PERPLEXITY,
             &json_text(&payload),

@@ -48,13 +48,10 @@ async fn tavily_is_asked_as_the_web_asks_it_and_its_rows_are_shaped() {
         2,
         "rows without a URL, and past the count, are left out"
     );
+    assert_eq!(o.results[0].snippet.chars().count(), 400);
+    assert!(o.results[0].snippet.ends_with("..."));
     assert_eq!(
-        o.results[0]["snippet"].as_str().unwrap().chars().count(),
-        400
-    );
-    assert!(o.results[0]["snippet"].as_str().unwrap().ends_with("..."));
-    assert_eq!(
-        o.results[1],
+        serde_json::to_value(&o.results[1]).unwrap(),
         json!({"title": "Second", "url": "https://example.com/b", "snippet": "short"})
     );
 }
@@ -161,7 +158,7 @@ async fn perplexity_is_asked_for_a_cited_answer_and_it_is_read_back() {
     assert_eq!(o.answer, "The rupee fell.\n\nOil rose.");
     assert_eq!(o.citations.len(), 20, "at most 20");
     assert_eq!(
-        o.citations[0],
+        serde_json::to_value(&o.citations[0]).unwrap(),
         json!({"id": "s0", "url": "https://src.example/0", "title": "Source 0"})
     );
     assert_eq!(o.cost_usd, Some(0.0123));
@@ -235,10 +232,10 @@ fn the_html_page_is_read_as_title_url_and_snippet() {
     let rows = parse_html(&page);
     assert_eq!(rows.len(), 2);
     assert_eq!(
-        rows[0],
+        serde_json::to_value(&rows[0]).unwrap(),
         json!({"title": "RBI repo rate", "url": "https://rbi.org.in/", "snippet": "The \"repo\" rate & more"})
     );
-    assert_eq!(rows[1]["url"], "https://example.com/two");
+    assert_eq!(rows[1].url, "https://example.com/two");
 }
 
 #[test]
@@ -249,10 +246,10 @@ fn the_lite_page_is_read_too() {
     let rows = parse_lite(page);
     assert_eq!(rows.len(), 2);
     assert_eq!(
-        rows[0],
+        serde_json::to_value(&rows[0]).unwrap(),
         json!({"title": "First & best", "url": "https://example.com/a", "snippet": "Snippet one"})
     );
-    assert_eq!(rows[1]["snippet"], "");
+    assert_eq!(rows[1].snippet, "");
 }
 
 #[tokio::test]

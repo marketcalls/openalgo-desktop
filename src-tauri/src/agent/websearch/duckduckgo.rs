@@ -11,11 +11,11 @@
 //! error: this provider is also the fallback for the other two.
 
 use super::providers::{
-    bounded, Net, Outcome, DUCKDUCKGO_TIMEOUT, MAX_SNIPPET_CHARS, MAX_TITLE_CHARS,
+    bounded, Link, Net, Outcome, DUCKDUCKGO_TIMEOUT, MAX_SNIPPET_CHARS, MAX_TITLE_CHARS,
 };
 use super::DUCKDUCKGO;
 use regex::Regex;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::sync::LazyLock;
 use std::time::Instant;
 
@@ -113,7 +113,7 @@ pub fn target_of(href: &str) -> Option<String> {
 
 /// The results of one page: anchors carrying `link_class`, each with the
 /// first snippet between it and the next result.
-fn parse(html: &str, link_class: &str, snippet: &LazyLock<Option<Regex>>) -> Vec<Value> {
+fn parse(html: &str, link_class: &str, snippet: &LazyLock<Option<Regex>>) -> Vec<Link> {
     let Some(anchor) = ANCHOR.as_ref() else {
         return Vec::new();
     };
@@ -152,22 +152,22 @@ fn parse(html: &str, link_class: &str, snippet: &LazyLock<Option<Regex>>) -> Vec
         if url.is_empty() {
             continue;
         }
-        out.push(json!({
-            "title": bounded(Some(&Value::String(plain(inner))), MAX_TITLE_CHARS),
-            "url": url,
-            "snippet": bounded(Some(&Value::String(text)), MAX_SNIPPET_CHARS),
-        }));
+        out.push(Link {
+            title: bounded(Some(&Value::String(plain(inner))), MAX_TITLE_CHARS),
+            url,
+            snippet: bounded(Some(&Value::String(text)), MAX_SNIPPET_CHARS),
+        });
     }
     out
 }
 
 /// The results of the html page (`result__a` links, `result__snippet`).
-pub fn parse_html(html: &str) -> Vec<Value> {
+pub fn parse_html(html: &str) -> Vec<Link> {
     parse(html, "result__a", &HTML_SNIPPET)
 }
 
 /// The results of the lite page (`result-link` links, `result-snippet`).
-pub fn parse_lite(html: &str) -> Vec<Value> {
+pub fn parse_lite(html: &str) -> Vec<Link> {
     parse(html, "result-link", &LITE_SNIPPET)
 }
 

@@ -20,6 +20,7 @@
 //! the keys are vault rows (`websearch:tavily`, `websearch:perplexity`).
 
 pub mod duckduckgo;
+pub mod payloads;
 pub mod probe;
 pub mod providers;
 pub mod service;

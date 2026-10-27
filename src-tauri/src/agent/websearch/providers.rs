@@ -97,16 +97,32 @@ pub fn net() -> Net {
     DEFAULT_NET.clone()
 }
 
+/// One link result, in the web's key order (`{title, url, snippet}`).
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize)]
+pub struct Link {
+    pub title: String,
+    pub url: String,
+    pub snippet: String,
+}
+
+/// One of Perplexity's sources, in the web's key order (`{id, url, title}`).
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize)]
+pub struct Citation {
+    pub id: String,
+    pub url: String,
+    pub title: String,
+}
+
 /// What one provider call produced (the web's `ProviderOutcome`).
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Outcome {
     pub ok: bool,
     pub provider: &'static str,
     /// Links: `{title, url, snippet}`.
-    pub results: Vec<Value>,
+    pub results: Vec<Link>,
     pub answer: String,
     /// Perplexity's sources: `{id, url, title}`.
-    pub citations: Vec<Value>,
+    pub citations: Vec<Citation>,
     pub cost_usd: Option<f64>,
     pub error: String,
     /// The gate could not take it: the provider was never asked.
@@ -304,7 +320,7 @@ pub async fn tavily(net: &Net, query: &str, max_results: usize, key: &Secret) ->
         tracing::warn!("Tavily returned a body that is not JSON");
         return Outcome::failed(TAVILY, "Tavily returned a body that is not JSON.");
     };
-    let results: Vec<Value> = payload
+    let results: Vec<Link> = payload
         .get("results")
         .and_then(Value::as_array)
         .into_iter()
@@ -312,12 +328,10 @@ pub async fn tavily(net: &Net, query: &str, max_results: usize, key: &Secret) ->
         .take(max_results)
         .filter_map(|row| {
             let url = bounded(row.get("url"), MAX_SNIPPET_CHARS);
-            (row.is_object() && !url.is_empty()).then(|| {
-                json!({
-                    "title": bounded(row.get("title"), MAX_TITLE_CHARS),
-                    "url": url,
-                    "snippet": bounded(row.get("content"), MAX_SNIPPET_CHARS),
-                })
+            (row.is_object() && !url.is_empty()).then(|| Link {
+                title: bounded(row.get("title"), MAX_TITLE_CHARS),
+                url,
+                snippet: bounded(row.get("content"), MAX_SNIPPET_CHARS),
             })
         })
         .collect();
@@ -404,9 +418,9 @@ pub async fn perplexity(net: &Net, question: &str, model: &str, key: &Secret) ->
 /// The answer and the citations of a Perplexity response
 /// (`_parse_perplexity_output`): `search_results` items give the sources
 /// (first per URL, at most 20), `message` items the prose.
-pub fn parse_perplexity(payload: &Value) -> (String, Vec<Value>) {
+pub fn parse_perplexity(payload: &Value) -> (String, Vec<Citation>) {
     let mut parts: Vec<String> = Vec::new();
-    let mut citations: Vec<Value> = Vec::new();
+    let mut citations: Vec<Citation> = Vec::new();
     let mut seen: Vec<String> = Vec::new();
     let items = payload
         .get("output")
@@ -436,11 +450,11 @@ pub fn parse_perplexity(payload: &Value) -> (String, Vec<Value>) {
                     continue;
                 }
                 seen.push(url.clone());
-                citations.push(json!({
-                    "id": bounded(source.get("id"), MAX_TITLE_CHARS),
-                    "url": url,
-                    "title": bounded(source.get("title"), MAX_TITLE_CHARS),
-                }));
+                citations.push(Citation {
+                    id: bounded(source.get("id"), MAX_TITLE_CHARS),
+                    url,
+                    title: bounded(source.get("title"), MAX_TITLE_CHARS),
+                });
             }
         } else if kind == "message" {
             for block in item
