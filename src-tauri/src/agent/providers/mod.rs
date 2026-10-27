@@ -10,6 +10,8 @@
 //!   (decision 9 of the 1.0.4 plan: what genai reaches is offered;
 //!   Bedrock, SageMaker and Vertex are not).
 //! - `base_url`: the one guard on a trader-supplied endpoint (D-028).
+//! - `egress`: where the Agent's HTTP client may connect (no link-local
+//!   address, no redirect), for what the text guard cannot see.
 //!
 //! Desktop differences: an OpenAI-compatible endpoint takes a key when it
 //! has one and works without one, as a local server (LM Studio, vLLM,
@@ -18,8 +20,11 @@
 //! row names its provider, not LiteLLM (decision 9).
 
 pub mod base_url;
+pub mod egress;
 pub mod target;
 
+#[cfg(test)]
+mod egress_tests;
 #[cfg(test)]
 mod tests;
 

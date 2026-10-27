@@ -23,8 +23,18 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 /// reasoning model can think for a few minutes before its first token.
 const STREAM_READ_TIMEOUT: Duration = Duration::from_secs(300);
 
-/// The Agent's HTTP client.
+/// The Agent's HTTP client. It follows no redirect (a provider's API
+/// answers where it is asked) and resolves names through the guarded
+/// resolver, which never hands out a link-local address such as the cloud
+/// metadata service's (`providers::egress`).
 pub fn http_client() -> Result<reqwest_agent::Client, String> {
+    http_client_with(crate::agent::providers::egress::GuardedResolver::system())
+}
+
+/// [`http_client`] on a given resolver (a test's lookup).
+pub fn http_client_with<R: reqwest_agent::dns::Resolve + 'static>(
+    resolver: R,
+) -> Result<reqwest_agent::Client, String> {
     let mut roots = rustls::RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     let mut tls = rustls::ClientConfig::builder_with_provider(Arc::new(
@@ -42,6 +52,8 @@ pub fn http_client() -> Result<reqwest_agent::Client, String> {
         .connect_timeout(CONNECT_TIMEOUT)
         .timeout(super::MAX_TURN)
         .pool_idle_timeout(Duration::from_secs(90))
+        .redirect(reqwest_agent::redirect::Policy::none())
+        .dns_resolver(resolver)
         .build()
         .map_err(|e| format!("The Agent's HTTP client could not be built: {}", e))
 }

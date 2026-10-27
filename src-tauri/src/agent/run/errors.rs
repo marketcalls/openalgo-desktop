@@ -29,6 +29,15 @@ pub struct ProviderFailure {
 /// Read a genai failure.
 pub fn read_genai_error(err: &genai::Error) -> ProviderFailure {
     use genai::webc::Error as W;
+    // A refused endpoint (a link-local address, `providers::egress`) is
+    // said in the endpoint guard's words.
+    if crate::agent::providers::egress::refused(err) {
+        return ProviderFailure {
+            names: vec![crate::agent::providers::egress::REFUSED],
+            status: None,
+            text: crate::agent::providers::base_url::METADATA.into(),
+        };
+    }
     let web = |e: &W| -> ProviderFailure {
         match e {
             W::ResponseFailedStatus { status, body, .. } => ProviderFailure {
@@ -364,6 +373,13 @@ fn sentence(cat: Option<Category>, label: Option<&str>) -> String {
 /// The sentence a trader sees for a provider failure; the provider's own
 /// text (redacted) goes to the log.
 pub fn provider_message(failure: &ProviderFailure, provider_kind: &str) -> String {
+    if failure
+        .names
+        .contains(&crate::agent::providers::egress::REFUSED)
+    {
+        tracing::warn!("Agent run refused: its provider's address is in a link-local range");
+        return crate::agent::providers::base_url::METADATA.into();
+    }
     let detail = redact_text(failure.text.trim());
     let code = status_code(&detail, failure.status);
     let text = sentence(

@@ -1,5 +1,5 @@
 {
- "_comment": "One guard on a provider endpoint (D-028): the server (agent::providers::base_url) and both dialogs (src/lib/agent/baseUrlGuard.ts) run every case. The first group is the web's test_agent_composer_backend.py TestTheProviderEndpointGuard. 'normalized' is what the server stores and requests; 'class' is what the host is. The two kinds that take an endpoint (ollama, openai_compatible) may both reach loopback and private hosts, as on the web.",
+ "_comment": "One guard on a provider endpoint (D-028): the server (agent::providers::base_url) and both dialogs (src/lib/agent/baseUrlGuard.ts) run every case. The first group is the web's test_agent_composer_backend.py TestTheProviderEndpointGuard. 'normalized' is what the server stores and requests; 'class' is what the host is. Metadata covers the service's names and the whole link-local blocks (169.254.0.0/16, fe80::/10, fd00:ec2::/32) after unwrapping IPv4-mapped, IPv4-compatible and NAT64 spellings, the rule the Agent's HTTP client connects by. The two kinds that take an endpoint (ollama, openai_compatible) may both reach loopback and private hosts, as on the web.",
  "cases": [
   {
    "url": "http://169.254.169.254/latest/meta-data/",
@@ -253,6 +253,91 @@
    "url": "http://[fd00:0ec2:0:0:0:0:0:254]/",
    "kind": "openai_compatible",
    "error": "That address is the cloud metadata endpoint and cannot be used"
+  },
+  {
+   "url": "http://169.254.1.1/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used",
+   "why": "anywhere in the link-local block"
+  },
+  {
+   "url": "http://169.254.0.1:8080/",
+   "kind": "ollama",
+   "error": "That address is the cloud metadata endpoint and cannot be used"
+  },
+  {
+   "url": "http://2851995649/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used",
+   "why": "decimal link-local"
+  },
+  {
+   "url": "http://[fe80::1]/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used",
+   "why": "IPv6 link-local"
+  },
+  {
+   "url": "http://[febf::1]/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used",
+   "why": "the top of fe80::/10"
+  },
+  {
+   "url": "http://[fd00:ec2::1]/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used",
+   "why": "AWS's IPv6 metadata block"
+  },
+  {
+   "url": "http://[::169.254.169.254]/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used",
+   "why": "IPv4-compatible IPv6"
+  },
+  {
+   "url": "http://[64:ff9b::169.254.169.254]/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used",
+   "why": "NAT64"
+  },
+  {
+   "url": "http://[::ffff:169.254.1.2]/",
+   "kind": "openai_compatible",
+   "error": "That address is the cloud metadata endpoint and cannot be used",
+   "why": "IPv4-mapped link-local"
+  },
+  {
+   "url": "http://[fec0::1]:8000",
+   "kind": "openai_compatible",
+   "error": null,
+   "normalized": "http://[fec0::1]:8000",
+   "class": "other",
+   "why": "just outside fe80::/10"
+  },
+  {
+   "url": "http://169.255.0.1",
+   "kind": "openai_compatible",
+   "error": null,
+   "normalized": "http://169.255.0.1",
+   "class": "other",
+   "why": "just outside 169.254.0.0/16"
+  },
+  {
+   "url": "http://[64:ff9b::7f00:1]:11434",
+   "kind": "ollama",
+   "error": null,
+   "normalized": "http://[64:ff9b::7f00:1]:11434",
+   "class": "loopback",
+   "why": "NAT64 of this computer"
+  },
+  {
+   "url": "http://[::7f00:1]:11434",
+   "kind": "ollama",
+   "error": null,
+   "normalized": "http://[::7f00:1]:11434",
+   "class": "loopback",
+   "why": "IPv4-compatible loopback"
   },
   {
    "url": "localhost:11434",

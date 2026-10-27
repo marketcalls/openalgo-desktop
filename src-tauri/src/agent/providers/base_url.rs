@@ -20,14 +20,19 @@
 //! authority, and no provider endpoint needs one).
 //! The host decides by what it is, however it is spelled: `2130706433`,
 //! `0x7f.1` and `[::ffff:127.0.0.1]` are the loopback address, and
-//! `2852039166` and `[::ffff:a9fe:a9fe]` the metadata address.
+//! `2852039166`, `[::ffff:a9fe:a9fe]`, `[::a9fe:a9fe]` and
+//! `[64:ff9b::a9fe:a9fe]` the metadata address. The whole link-local
+//! blocks are refused (169.254.0.0/16, fe80::/10, fd00:ec2::/32), the rule
+//! the Agent's HTTP client also connects by (`egress`), which catches what
+//! text cannot: a name that resolves there, or a redirect.
 //!
 //! The add and edit dialogs run the same steps in the browser
 //! (`src/lib/agent/baseUrlGuard.ts`) on the same cases
 //! (`tests/fixtures/agent/base_url_cases.json`), so the three decide alike.
 
+use super::egress::{is_refused, unwrap_v4};
 use super::{normalize_base_url, provider_spec};
-use std::net::{Ipv4Addr, Ipv6Addr};
+use std::net::IpAddr;
 use url::{Host, Url};
 
 pub const BAD_CHARACTERS: &str =
@@ -40,13 +45,13 @@ pub const METADATA: &str = "That address is the cloud metadata endpoint and cann
 
 /// The cloud metadata service's names.
 const METADATA_NAMES: &[&str] = &["metadata.google.internal", "metadata"];
-const METADATA_V4: Ipv4Addr = Ipv4Addr::new(169, 254, 169, 254);
-const METADATA_V6: Ipv6Addr = Ipv6Addr::new(0xfd00, 0xec2, 0, 0, 0, 0, 0, 0x254);
 
 /// What a host is, as far as the guard cares.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HostClass {
-    /// The cloud metadata service: never.
+    /// The cloud metadata service, by name, or any address in the
+    /// link-local blocks it lives in (169.254.0.0/16, fe80::/10,
+    /// fd00:ec2::/32), however it is spelled: never.
     Metadata,
     /// This computer (`localhost`, `*.localhost`, 127/8, `::1`): a local
     /// model server, allowed.
@@ -129,20 +134,17 @@ pub fn host_class(parsed: &Url) -> Option<HostClass> {
                 HostClass::Other
             })
         }
-        Host::Ipv4(a) => Some(class_v4(a)),
-        Host::Ipv6(a) => Some(match a.to_ipv4_mapped() {
-            Some(v4) => class_v4(v4),
-            None if a == METADATA_V6 => HostClass::Metadata,
-            None if a.is_loopback() => HostClass::Loopback,
-            None => HostClass::Other,
-        }),
+        Host::Ipv4(a) => Some(class_ip(IpAddr::V4(a))),
+        Host::Ipv6(a) => Some(class_ip(IpAddr::V6(a))),
     }
 }
 
-fn class_v4(a: Ipv4Addr) -> HostClass {
-    if a == METADATA_V4 {
+/// An address's class, by the rule the Agent's client connects by
+/// (`egress::is_refused`), after unwrapping an IPv4 address written as IPv6.
+fn class_ip(ip: IpAddr) -> HostClass {
+    if is_refused(ip) {
         HostClass::Metadata
-    } else if a.is_loopback() {
+    } else if ip.is_loopback() || unwrap_v4(ip).is_loopback() {
         HostClass::Loopback
     } else {
         HostClass::Other
