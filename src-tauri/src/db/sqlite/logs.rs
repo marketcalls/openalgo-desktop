@@ -66,6 +66,7 @@ impl LogsDb {
         pool.get()?.execute_batch(SCHEMA)?;
         super::monitor::migrate(&*pool.get()?)?;
         crate::mcp::store::migrate_audit(&*pool.get()?)?;
+        crate::agent::safety::audit::store::migrate(&*pool.get()?)?;
         Ok(Self {
             pool,
             failed_log_writes: AtomicU64::new(0),

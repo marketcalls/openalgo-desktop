@@ -11,7 +11,12 @@
 //! - [`counters`]: the session books, persisted (migration
 //!   `099_agent_safety`), checked and claimed in one write transaction.
 //! - [`guard`]: the guard as the order tools call it.
+//! - [`audit`]: the audit trail in `logs.db` (logs migration
+//!   `014_agent_audit`) and its read.
+//! - [`approval`]: the approval hook, each decision in the audit trail.
 
+pub mod approval;
+pub mod audit;
 pub mod counters;
 pub mod guard;
 pub mod kill_switch;
