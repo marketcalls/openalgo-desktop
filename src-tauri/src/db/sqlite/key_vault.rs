@@ -338,7 +338,7 @@ pub struct Witness {
 
 /// The first encrypted value in the database: the account's TOTP secret,
 /// else the API key, else saved broker keys, else a stored broker session,
-/// else the tunnel's ngrok authtoken.
+/// else the tunnel's ngrok authtoken, else an Agent key.
 /// `None` when nothing is encrypted yet (then any key will do).
 pub fn witness(conn: &Connection) -> Result<Option<Witness>> {
     let first = |sql: &str| -> Result<Option<(String, String, String)>> {
@@ -387,7 +387,10 @@ pub fn witness(conn: &Connection) -> Result<Option<Witness>> {
             aad: Aad::new("auth", "auth_token", &broker),
         }));
     }
-    super::tunnel::witness(conn)
+    if let Some(w) = super::tunnel::witness(conn)? {
+        return Ok(Some(w));
+    }
+    crate::agent::models::secrets::witness(conn)
 }
 
 /// Every value the data key encrypts, dropped for a fresh start (a
@@ -402,7 +405,9 @@ pub fn witness(conn: &Connection) -> Result<Option<Witness>> {
 /// again), stored broker sessions, pending broker sign-ins, the TOTP secret
 /// with every "require the authenticator" switch (TOTP is set up again),
 /// the Telegram bot token and linked users' saved API keys, the WhatsApp
-/// pairing, and the tunnel's ngrok authtoken (its switch and domain stay).
+/// pairing, the tunnel's ngrok authtoken (its switch and domain stay), and
+/// the Agent's keys and ChatGPT sign-in (its models stay, untested where
+/// they needed one: `agent::models::secrets::wipe`).
 ///
 /// A new encrypted column must be added here and to `witness` (and the
 /// test that fills every one of them).
@@ -424,6 +429,7 @@ pub fn drop_encrypted_values(conn: &Connection) -> Result<()> {
     )?;
     crate::messaging::whatsapp::db::clear_session(conn)?;
     super::tunnel::forget_authtoken(conn)?;
+    crate::agent::models::secrets::wipe(conn)?;
     Ok(())
 }
 
@@ -491,7 +497,13 @@ mod tests {
              INSERT OR REPLACE INTO whatsapp_config (id, session_blob, is_paired, is_active)
              VALUES (1, 'v1:n:c', 1, 1);
              UPDATE settings SET ngrok_authtoken = 'v1:n:c', ngrok_allow = 1,
-                 ngrok_domain = 'desk.ngrok.app' WHERE id = 1;",
+                 ngrok_domain = 'desk.ngrok.app' WHERE id = 1;
+             INSERT INTO ag_secret (name, ciphertext, fingerprint)
+             VALUES ('provider:openai', 'v1:n:c', '...abcd sha256:0123456789ab');
+             INSERT INTO ag_provider_model (provider_kind, model_name, display_name,
+                 is_default, last_test_ok, created_at, updated_at)
+             VALUES ('openai', 'gpt-4o', 'GPT-4o', 1, 1, 't', 't');
+             INSERT INTO ag_setting (key, value) VALUES ('trading_enabled', 'true');",
         )
         .unwrap();
         conn.execute_batch("BEGIN IMMEDIATE").unwrap();
@@ -532,6 +544,12 @@ mod tests {
         assert_eq!(one("SELECT encrypted_api_key FROM whatsapp_users"), None);
         assert_eq!(one("SELECT session_blob FROM whatsapp_config"), None);
         assert_eq!(one("SELECT ngrok_authtoken FROM settings"), None);
+        assert_eq!(n("SELECT COUNT(*) FROM ag_secret"), 0);
+        assert_eq!(
+            n("SELECT COUNT(*) FROM ag_provider_model WHERE is_default = 1 OR last_test_ok = 1"),
+            0,
+            "a model whose key went is tested again before it runs"
+        );
         assert!(
             witness(&conn).unwrap().is_none(),
             "nothing encrypted is left"
@@ -557,6 +575,11 @@ mod tests {
         assert!(super::super::credentials::list_configured(&conn)
             .unwrap()
             .is_empty());
+        assert_eq!(n("SELECT COUNT(*) FROM ag_provider_model"), 1);
+        assert_eq!(
+            one("SELECT value FROM ag_setting WHERE key = 'trading_enabled'").as_deref(),
+            Some("true")
+        );
     }
 
     #[test]
@@ -564,7 +587,18 @@ mod tests {
         let (_d, db) = db();
         let conn = db.conn().unwrap();
         assert!(witness(&conn).unwrap().is_none());
-        // The tunnel's authtoken, when it is the only encrypted value.
+        // An Agent key, when it is the only encrypted value.
+        conn.execute_batch(
+            "INSERT INTO ag_secret (name, ciphertext) VALUES ('provider:openai', 'v1:an:ac')",
+        )
+        .unwrap();
+        let w = witness(&conn).unwrap().unwrap();
+        assert_eq!((w.ciphertext.as_str(), w.nonce.as_str()), ("ac", "an"));
+        assert_eq!(
+            w.aad,
+            Aad::new("ag_secret", "ciphertext", "provider:openai")
+        );
+        // The tunnel's authtoken comes before it.
         conn.execute_batch("UPDATE settings SET ngrok_authtoken = 'v1:nt:ct' WHERE id = 1")
             .unwrap();
         let w = witness(&conn).unwrap().unwrap();

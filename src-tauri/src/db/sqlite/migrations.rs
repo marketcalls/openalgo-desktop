@@ -108,6 +108,7 @@ const RUST_MIGRATIONS: &[(&str, Step)] = &[
         "097_agent_core",
         crate::agent::conversations::store::migrate,
     ),
+    ("098_agent_config", crate::agent::models::migration::migrate),
 ];
 
 /// Run all database migrations

@@ -22,6 +22,12 @@
 //! - `chat/`: the chat service the routes call; `run/`: one turn, its loop
 //!   and its stored state; `stream/`: its frames as SSE; `reply`: a refusal
 //!   before anything streams.
+//! - `settings/`, `providers/`, `catalog/`, `models/`, `resolver`, `plan`,
+//!   `setup_gate`: the configuration (migration `098_agent_config`): the
+//!   Agent's settings and run policy, the provider kinds and their genai
+//!   targets, the model catalogue, the trader's models and keys, which model
+//!   a run uses, the ChatGPT plan's sign-in seen from the registry, and the
+//!   setup gate.
 //!
 //! Nothing a turn needs starts at boot: a run is built when the trader sends
 //! a message, so a platform whose Agent cannot work still starts. [`start`]
@@ -30,13 +36,20 @@
 //! quit.
 
 pub mod attachments;
+pub mod catalog;
 pub mod chat;
 pub mod contract;
 pub mod conversations;
+pub mod models;
+pub mod plan;
 pub mod prompts;
+pub mod providers;
 pub mod redact;
 pub mod reply;
+pub mod resolver;
 pub mod run;
+pub mod settings;
+pub mod setup_gate;
 pub mod stream;
 #[cfg(test)]
 pub(crate) mod testing;
@@ -48,6 +61,7 @@ use contract::model::{ModelResolver, NoModelConfigured};
 use contract::policy::{DefaultPolicy, RunPolicy, SectionSource};
 use contract::tool::ToolGroup;
 use parking_lot::{Mutex, RwLock};
+use plan::{NoPlanSignIn, PlanSignIn};
 use run::client::ModelClient;
 use run::registry::RunRegistry;
 use std::sync::Arc;
@@ -69,6 +83,7 @@ pub struct AgentModule {
     /// The provider connection, built on first use.
     client: Mutex<Option<Arc<ModelClient>>>,
     turn_limit: RwLock<Duration>,
+    plan: RwLock<Arc<dyn PlanSignIn>>,
 }
 
 impl Default for AgentModule {
@@ -89,6 +104,7 @@ impl AgentModule {
             slots: StreamSlots::default(),
             client: Mutex::new(None),
             turn_limit: RwLock::new(run::MAX_TURN),
+            plan: RwLock::new(Arc::new(NoPlanSignIn)),
         }
     }
 
@@ -184,6 +200,16 @@ impl AgentModule {
     /// EXTERNAL DATA sections).
     pub fn add_section_source(&self, source: Arc<dyn SectionSource>) {
         self.sections.write().push(source);
+    }
+
+    /// The ChatGPT plan's sign-in (none until the ChatGPT part installs it).
+    pub fn plan(&self) -> Arc<dyn PlanSignIn> {
+        self.plan.read().clone()
+    }
+
+    /// Install the ChatGPT plan's sign-in.
+    pub fn set_plan(&self, plan: Arc<dyn PlanSignIn>) {
+        *self.plan.write() = plan;
     }
 }
 

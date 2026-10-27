@@ -449,7 +449,7 @@ impl AppState {
             mcp: crate::mcp::McpRuntime::new(),
             updates: crate::services::update::UpdateService::new(env!("CARGO_PKG_VERSION")),
             tunnel: Default::default(),
-            agent: crate::agent::AgentModule::new(),
+            agent: crate::agent::AgentModule::configured(),
         }
     }
 

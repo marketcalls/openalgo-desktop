@@ -518,6 +518,7 @@ impl AuthService {
                 conn.execute("DELETE FROM whatsapp_users", [])?;
                 crate::messaging::whatsapp::db::clear_session(&conn)?;
                 crate::db::sqlite::tunnel::forget_authtoken(&conn)?;
+                crate::agent::models::secrets::wipe(&conn)?;
                 // The keys go with the account; the next setup makes new
                 // ones (KEY-01).
                 crate::db::sqlite::key_vault::delete(&conn)?;
