@@ -135,6 +135,10 @@ pub struct StrategyModule {
     /// What decides whether new entries may be placed now (the order
     /// reconciler while a gap in order facts is open).
     entry_gate: std::sync::OnceLock<Arc<dyn crate::services::order_reconciler::EntryGate>>,
+    /// Held while a broker frame is folded into its order row and its fill
+    /// applied to the run (`order_events`), so fills reach the run in the
+    /// order their folds committed.
+    fold_gate: tokio::sync::Mutex<()>,
 }
 
 impl StrategyModule {
@@ -169,6 +173,7 @@ impl StrategyModule {
             reconcile_absence: crate::services::order_reconciler::AbsenceTracker::new(),
             reconcile_ambiguous: Mutex::new(HashSet::new()),
             entry_gate: std::sync::OnceLock::new(),
+            fold_gate: tokio::sync::Mutex::new(()),
         })
     }
 
@@ -193,10 +198,15 @@ impl StrategyModule {
         message: &str,
         fields: store::EventFields,
     ) {
-        match self
+        // Written on the blocking pool: the order reconciler's pass and the
+        // order-update path record events, on the runtime that judges the
+        // ticks (PROD-REL-02).
+        let (user, k, m) = (user_id.to_string(), kind.to_string(), message.to_string());
+        let recorded = self
             .store
-            .record_event(strategy_id, user_id, kind, message, &fields)
-        {
+            .blocking(move |s| s.record_event(strategy_id, &user, &k, &m, &fields))
+            .await;
+        match recorded {
             Ok(row) => {
                 self.broadcast.push_event(strategy_id, row.to_dict()).await;
             }

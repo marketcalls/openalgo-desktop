@@ -43,6 +43,7 @@ pub use management::{
     migrate_revision, ClaimOutcome, StartClaim, ALREADY_RUNNING, CHANGED_WHILE_EDITING,
     CHANGED_WHILE_STARTING, LIVE_NOT_ENABLED, WEBHOOK_LOCKED,
 };
+pub(crate) use orders::frame_changes;
 pub use runs::migrate_run_account;
 pub use webhook_audit::WebhookEvent;
 

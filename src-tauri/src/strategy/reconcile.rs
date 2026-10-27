@@ -278,7 +278,8 @@ impl StrategyModule {
                     continue;
                 }
             };
-            // Working orders: fold the book's fact (idempotent).
+            // Working orders: fold the book's fact (idempotent), from the
+            // rows this pass read, never one read per order.
             for o in run
                 .orders
                 .iter()
@@ -286,7 +287,7 @@ impl StrategyModule {
             {
                 let bid = o.broker_order_id.clone().unwrap_or_default();
                 if let Some(b) = book.by_id(&bid) {
-                    self.apply_order_snapshot(&bid, &b.row).await;
+                    self.fold_book_fact(o, &bid, &b.row).await;
                 }
             }
             // Its unconfirmed orders; a run whose strategy is gone has no
@@ -352,10 +353,13 @@ impl StrategyModule {
         strategy_id: i64,
         user_id: &str,
     ) {
-        match self
+        // Written on the blocking pool, as the pass reads (PROD-REL-02).
+        let (id, bound_to) = (o.id, broker_order_id.to_string());
+        let bound = self
             .store
-            .update_order(o.id, Some("open"), Some(broker_order_id), None)
-        {
+            .blocking(move |s| s.update_order(id, Some("open"), Some(bound_to.as_str()), None))
+            .await;
+        match bound {
             Ok(true) => {}
             other => {
                 tracing::error!(
@@ -409,8 +413,22 @@ impl StrategyModule {
         let Ok(order_id) = id.parse::<i64>() else {
             return Ok(false);
         };
-        let o = match self.store.get_order(order_id) {
-            Ok(Some(o)) => o,
+        // Read on the blocking pool, under the reconciler's pass lock.
+        let read =
+            self.store
+                .blocking(move |s| {
+                    let Some(o) = s.get_order(order_id)? else {
+                        return Ok(None);
+                    };
+                    let strategy =
+                        s.get_run(o.run_id).ok().flatten().and_then(|run| {
+                            s.get_strategy_unscoped(run.strategy_id).ok().flatten()
+                        });
+                    Ok(Some((o, strategy)))
+                })
+                .await;
+        let (o, strategy) = match read {
+            Ok(Some(found)) => found,
             Ok(None) => {
                 self.reconcile_absence.forget(&key);
                 return Ok(false);
@@ -425,12 +443,6 @@ impl StrategyModule {
             self.reconcile_absence.forget(&key);
             return Ok(false);
         }
-        let strategy = self.store.get_run(o.run_id).ok().flatten().and_then(|run| {
-            self.store
-                .get_strategy_unscoped(run.strategy_id)
-                .ok()
-                .flatten()
-        });
         let Some(strategy) = strategy else {
             return Err("The strategy of this order could not be read. Try again.".into());
         };
@@ -451,9 +463,11 @@ impl StrategyModule {
         user_id: &str,
         by_trader: bool,
     ) {
+        let id = o.id;
         let _ = self
             .store
-            .update_order(o.id, Some("rejected"), None, Some(NOT_PLACED));
+            .blocking(move |s| s.update_order(id, Some("rejected"), None, Some(NOT_PLACED)))
+            .await;
         if o.kind == "entry" {
             self.state
                 .settle_unconfirmed_entry(o.run_id, o.leg_id, o.id, false);

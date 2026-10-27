@@ -240,3 +240,105 @@ async fn a_relay_that_fell_behind_opens_a_live_gap() {
     a.ctx.reconciler.pass().await;
     assert!(!a.ctx.reconciler.gap_open(RunMode::Live));
 }
+
+/// A leg of a run, as the run's live state holds it.
+fn leg_of(a: &App, run: i64) -> openalgo_desktop_lib::strategy::state::LegState {
+    a.ctx
+        .strategy
+        .state
+        .snapshot(run)
+        .unwrap()
+        .leg(1)
+        .unwrap()
+        .clone()
+}
+
+/// PROD-REL-02 residual: a reconcile pass folds the strategies' working
+/// orders and settles their unconfirmed ones without the database on the
+/// runtime that judges the ticks. It looked every working order up and
+/// folded the book's fact there, and wrote what it settled there too, so
+/// with the pool busy each pass held the runtime for the wait. Counted,
+/// not timed: the pass takes no pooled connection on the runtime thread,
+/// and the fill and the entry found in the book are each applied once.
+#[test]
+fn a_reconcile_pass_takes_no_database_connection_on_the_runtime() {
+    crate::on_watched_runtime(|runtime| async move {
+        use openalgo_desktop_lib::brokers::mock::AfterSend;
+        use openalgo_desktop_lib::db::sqlite::checkouts;
+        let a = app();
+        a.ctx.reconciler.stop();
+        a.ctx.sqlite.set_analyze_mode(false).unwrap();
+        // An entry working at the broker.
+        let working = live_strategy(&a, "Working").await;
+        let r = a
+            .ctx
+            .strategy
+            .start_run(working, USER, "live", "manual", None)
+            .await;
+        assert!(r.ok, "{:?}", r);
+        let run = r.run_id.unwrap();
+        let bid = a.ctx.strategy.store.list_orders(run).unwrap()[0]
+            .broker_order_id
+            .clone()
+            .unwrap();
+        // An entry the broker took and filled, whose answer was lost.
+        *a.mock.after_send_time.lock() = "2026-10-07 10:00:05".into();
+        a.mock
+            .after_send
+            .lock()
+            .push_back((AfterSend::Dropped, "complete"));
+        let lost = live_strategy(&a, "Lost").await;
+        let r = a
+            .ctx
+            .strategy
+            .start_run(lost, USER, "live", "manual", None)
+            .await;
+        assert!(r.ok, "an unconfirmed entry keeps its run: {:?}", r);
+        let lost_run = r.run_id.unwrap();
+        assert_eq!(
+            a.ctx.strategy.store.list_orders(lost_run).unwrap()[0].status,
+            "unconfirmed"
+        );
+        // The book shows both: the working entry has filled.
+        {
+            let mut book = a.mock.order_book.lock();
+            let mut rows = match book.take() {
+                Some(Ok(rows)) => rows,
+                _ => Vec::new(),
+            };
+            rows.push(broker_order(&bid, "SELL", 65, "complete", 100.0));
+            *book = Some(Ok(rows));
+        }
+        runtime.until_idle().await;
+        let before = checkouts();
+        a.ctx.reconciler.pass().await;
+        let taken = checkouts().0 - before.0;
+        assert_eq!(
+            taken, 0,
+            "pooled connections taken on the runtime during the pass"
+        );
+        let leg = leg_of(&a, run);
+        assert_eq!(
+            (leg.entry_status.as_str(), leg.qty, leg.entry_avg),
+            ("complete", 65, 100.0),
+            "the fill the book shows is applied"
+        );
+        let found = a.ctx.strategy.store.list_orders(lost_run).unwrap()[0].clone();
+        assert!(found.broker_order_id.is_some(), "{:?}", found);
+        assert_eq!(found.status, "complete", "{:?}", found);
+        let lost_leg = leg_of(&a, lost_run);
+        assert_eq!(
+            (lost_leg.entry_status.as_str(), lost_leg.qty),
+            ("complete", 65),
+            "the entry found in the book is managed"
+        );
+        // A second pass over the same book folds and settles nothing again,
+        // and still takes no connection on the runtime.
+        let before = checkouts();
+        a.ctx.reconciler.pass().await;
+        assert_eq!(checkouts().0 - before.0, 0);
+        assert_eq!(leg_of(&a, run).qty, 65);
+        assert_eq!(leg_of(&a, lost_run).qty, 65);
+        assert_eq!(places(&a), 2, "nothing is sent again");
+    })
+}

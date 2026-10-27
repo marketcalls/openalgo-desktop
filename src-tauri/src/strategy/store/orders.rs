@@ -47,6 +47,17 @@ impl FoldFacts {
             cumulative,
         }
     }
+
+    fn changes(&self) -> bool {
+        self.next_status != self.previous_status || self.cumulative > self.previous_qty
+    }
+}
+
+/// Whether folding a frame into `row` would change it, as
+/// [`Store::fold_order_broker_frame`] decides on the same row: a frame
+/// that would not is not folded at all.
+pub(crate) fn frame_changes(row: &OrderRow, status: &str, filled_qty: Option<i64>) -> bool {
+    FoldFacts::of(row, status, filled_qty).changes()
 }
 
 /// The row's status after a frame: `complete` stays; a dead row comes back

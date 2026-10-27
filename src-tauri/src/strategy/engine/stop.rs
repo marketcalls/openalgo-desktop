@@ -331,12 +331,28 @@ impl StrategyModule {
     /// Continue a durable stop (after an entry fill, or on the scheduler's
     /// periodic retry). `None` when no stop is pending.
     pub async fn reconcile_pending_stop(&self, run_id: i64) -> Option<StopOutcome> {
-        let run = self.store.get_run(run_id).ok().flatten()?;
+        // Read on the blocking pool: asked after every entry fill and
+        // settled order, from the order reconciler's pass (PROD-REL-02).
+        let (run, strategy) = self
+            .store
+            .blocking(move |s| {
+                let run = s.get_run(run_id)?;
+                let strategy = match &run {
+                    Some(r) if r.stopped_at.is_none() && r.stop_requested_reason.is_some() => {
+                        s.get_strategy_unscoped(r.strategy_id).ok().flatten()
+                    }
+                    _ => None,
+                };
+                Ok((run, strategy))
+            })
+            .await
+            .ok()?;
+        let run = run?;
         if run.stopped_at.is_some() {
             return None;
         }
         let reason = run.stop_requested_reason.clone()?;
-        let Ok(Some(strategy)) = self.store.get_strategy_unscoped(run.strategy_id) else {
+        let Some(strategy) = strategy else {
             return Some(StopOutcome::pending(
                 "The strategy owning this pending stop is unavailable",
                 vec![],

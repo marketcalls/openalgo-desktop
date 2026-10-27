@@ -905,6 +905,15 @@ Every flaky test found so far was a race, not a slow machine:
   read that fails is never "nothing": unknown holding counts as yes, and an
   owner that could not read its own orders answers an error, so the gap
   stays open.
+- The strategies' share of a pass reads nothing per working order: it
+  folds the book's fact into the row the pass already read, and only when
+  the fact would change it (`StrategyModule::fold_book_fact`,
+  `store::frame_changes`). The fold, the order lookups of the
+  order-update path, the writes that settle an unconfirmed order and the
+  strategy's audit events run on the blocking pool (PROD-REL-02). A fold
+  and the fill it applies to the run hold `fold_gate` together, so fills
+  reach the run in the order their folds committed; the follow-ups (a
+  pending stop, a finished run) run after it is released.
 
 ### Data and migrations
 

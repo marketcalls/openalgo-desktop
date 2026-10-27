@@ -18,8 +18,8 @@
 //! carries the broker id. Such frames are held in a bounded stash (512 ids,
 //! 16 frames each, 120 s) and replayed the moment the row is bound.
 
-use super::engine::FillOpts;
-use super::store::{OrderFactFold, OrderRow};
+use super::engine::{FillOpts, FillOutcome};
+use super::store::{frame_changes, OrderFactFold, OrderRow, RunRow, StrategyRow};
 use super::StrategyModule;
 use crate::events::{Event, Lane, OrderUpdate, Subscriber, Topic};
 use parking_lot::Mutex;
@@ -140,6 +140,78 @@ fn incremental_fill_price(fold: &OrderFactFold) -> Option<f64> {
     }
 }
 
+/// A frame's fill as the run applies it: the price of what it newly
+/// reports (an entry's average, an exit's increment) and how it names its
+/// order and position.
+fn fill_of(row: &OrderRow, fold: &OrderFactFold, is_entry: bool) -> (Option<f64>, FillOpts) {
+    let price = if is_entry {
+        usable_price(fold.average_fill_price)
+    } else {
+        incremental_fill_price(fold)
+    };
+    let opts = FillOpts {
+        filled_qty: Some(fold.fill_delta),
+        order_row_id: Some(row.id),
+        position_ref: row.position_ref.clone(),
+        cumulative_filled_qty: (is_entry && (!fold.terminal() || fold.previous_filled_qty > 0))
+            .then_some(fold.cumulative_filled_qty),
+        order_terminal: fold.terminal(),
+        allow_prior_order_correction: fold.was_terminal(),
+    };
+    (price, opts)
+}
+
+/// The facts of one broker frame as its order row folds them.
+struct FrameFacts {
+    status: &'static str,
+    filled_qty: Option<i64>,
+    price: Option<f64>,
+    rejection: Option<String>,
+}
+
+impl FrameFacts {
+    fn of(u: &OrderUpdate) -> Self {
+        Self {
+            status: canonical_status(&normalise(&u.order_status)),
+            filled_qty: (u.filled_quantity > 0).then_some(u.filled_quantity),
+            price: usable_price(Some(u.average_price)),
+            rejection: (!u.rejection_reason.is_empty()).then(|| u.rejection_reason.clone()),
+        }
+    }
+}
+
+/// One targeted order-status response, or an order-book row, as an
+/// `order.update` frame; a row that names no order id is `broker_order_id`.
+fn snapshot_frame(broker_order_id: &str, order: &Value) -> OrderUpdate {
+    let get = |keys: &[&str]| {
+        keys.iter()
+            .find_map(|k| order.get(*k).filter(|v| !v.is_null()))
+    };
+    let s = |keys: &[&str]| get(keys).and_then(Value::as_str).unwrap_or("").to_string();
+    let n = |keys: &[&str]| get(keys).and_then(crate::risk::value_to_f64).unwrap_or(0.0);
+    let id = {
+        let v = s(&["orderid", "order_id"]);
+        if v.is_empty() {
+            broker_order_id.to_string()
+        } else {
+            v
+        }
+    };
+    OrderUpdate {
+        orderid: id,
+        symbol: s(&["symbol"]),
+        exchange: s(&["exchange"]),
+        action: s(&["action"]),
+        quantity: n(&["quantity", "qty"]) as i64,
+        order_status: s(&["order_status", "orderstatus", "status"]),
+        filled_quantity: n(&["filled_quantity", "filledqty", "filled_qty"]) as i64,
+        pending_quantity: n(&["pending_quantity", "pendingqty", "pending_qty"]) as i64,
+        average_price: n(&["average_price", "averageprice", "avg_fill_price"]),
+        rejection_reason: s(&["rejection_reason", "reject_reason"]),
+        ..Default::default()
+    }
+}
+
 /// The bus subscriber. Holds a weak reference so the module can be dropped.
 pub struct StrategyOrderEvents {
     module: Weak<StrategyModule>,
@@ -197,7 +269,7 @@ impl StrategyModule {
     /// Match one update to a strategy order and apply it.
     pub async fn apply_update(&self, order_id: &str, update: OrderUpdate) {
         let replays_before = self.order_events.replays();
-        let row = match self.store.get_order_by_broker_id(order_id) {
+        let row = match self.order_by_broker_id(order_id).await {
             Ok(r) => r,
             Err(e) => {
                 tracing::error!("Could not look up strategy order {}: {}", order_id, e);
@@ -212,7 +284,7 @@ impl StrategyModule {
                     return;
                 }
                 // A replay ran between the lookup and the hold: look again.
-                let Ok(Some(r)) = self.store.get_order_by_broker_id(order_id) else {
+                let Ok(Some(r)) = self.order_by_broker_id(order_id).await else {
                     return;
                 };
                 let frames = self.order_events.take(order_id);
@@ -236,7 +308,7 @@ impl StrategyModule {
         if frames.is_empty() {
             return;
         }
-        let Ok(Some(row)) = self.store.get_order_by_broker_id(order_id) else {
+        let Ok(Some(row)) = self.order_by_broker_id(order_id).await else {
             return;
         };
         for frame in frames {
@@ -244,67 +316,99 @@ impl StrategyModule {
         }
     }
 
+    /// The strategy order carrying `broker_order_id`, read on the blocking
+    /// pool: every order update and every status snapshot asks, from the
+    /// runtime that judges the ticks (PROD-REL-02).
+    async fn order_by_broker_id(
+        &self,
+        broker_order_id: &str,
+    ) -> crate::error::Result<Option<OrderRow>> {
+        let id = broker_order_id.to_string();
+        self.store
+            .blocking(move |s| s.get_order_by_broker_id(&id))
+            .await
+    }
+
     /// Fold one targeted order-status response through the push path.
     pub async fn apply_order_snapshot(&self, broker_order_id: &str, order: &Value) {
-        let get = |keys: &[&str]| {
-            keys.iter()
-                .find_map(|k| order.get(*k).filter(|v| !v.is_null()))
-        };
-        let s = |keys: &[&str]| get(keys).and_then(Value::as_str).unwrap_or("").to_string();
-        let n = |keys: &[&str]| get(keys).and_then(crate::risk::value_to_f64).unwrap_or(0.0);
-        let id = {
-            let v = s(&["orderid", "order_id"]);
-            if v.is_empty() {
-                broker_order_id.to_string()
-            } else {
-                v
-            }
-        };
-        let update = OrderUpdate {
-            orderid: id.clone(),
-            symbol: s(&["symbol"]),
-            exchange: s(&["exchange"]),
-            action: s(&["action"]),
-            quantity: n(&["quantity", "qty"]) as i64,
-            order_status: s(&["order_status", "orderstatus", "status"]),
-            filled_quantity: n(&["filled_quantity", "filledqty", "filled_qty"]) as i64,
-            pending_quantity: n(&["pending_quantity", "pendingqty", "pending_qty"]) as i64,
-            average_price: n(&["average_price", "averageprice", "avg_fill_price"]),
-            rejection_reason: s(&["rejection_reason", "reject_reason"]),
-            ..Default::default()
-        };
-        if let Ok(Some(row)) = self.store.get_order_by_broker_id(&id) {
-            self.apply_frame(&id, &row, &update).await;
+        let update = snapshot_frame(broker_order_id, order);
+        if let Ok(Some(row)) = self.order_by_broker_id(&update.orderid).await {
+            self.apply_frame(&update.orderid, &row, &update).await;
         }
     }
 
+    /// Fold the order book's fact for `row`, a working order the
+    /// reconciler's pass read with its run: no lookup, and no fold at all
+    /// when the book says nothing the row does not, so a pass over orders
+    /// that are still working reads nothing more (PROD-REL-02).
+    pub(crate) async fn fold_book_fact(
+        &self,
+        row: &OrderRow,
+        broker_order_id: &str,
+        order: &Value,
+    ) {
+        let update = snapshot_frame(broker_order_id, order);
+        let facts = FrameFacts::of(&update);
+        if frame_changes(row, facts.status, facts.filled_qty) {
+            self.apply_frame(&update.orderid, row, &update).await;
+        }
+    }
+
+    /// Fold the frame into its order row on the blocking pool. The fold and
+    /// whether an entry fill came after its run finished; `None` when the
+    /// frame changed nothing or could not be folded (logged).
+    async fn fold_off_runtime(
+        &self,
+        row: &OrderRow,
+        facts: FrameFacts,
+        is_entry: bool,
+    ) -> Option<(OrderFactFold, bool)> {
+        let (id, run_id) = (row.id, row.run_id);
+        let folded = self
+            .store
+            .blocking(move |s| {
+                let fold = match s.fold_order_broker_frame(
+                    id,
+                    facts.status,
+                    facts.price,
+                    facts.filled_qty,
+                    facts.rejection.as_deref(),
+                )? {
+                    Some(f) if f.changed => f,
+                    _ => return Ok(None),
+                };
+                let late_entry = is_entry
+                    && fold.fill_delta > 0
+                    && s.get_run(run_id)
+                        .ok()
+                        .flatten()
+                        .is_some_and(|r| r.stopped_at.is_some());
+                Ok(Some((fold, late_entry)))
+            })
+            .await;
+        folded.unwrap_or_else(|e| {
+            tracing::error!(
+                "Could not fold broker facts for strategy order {}: {}",
+                id,
+                e
+            );
+            None
+        })
+    }
+
     async fn apply_frame(&self, order_id: &str, row: &OrderRow, u: &OrderUpdate) {
-        let status = normalise(&u.order_status);
-        let canonical = canonical_status(&status);
-        let incoming_qty = (u.filled_quantity > 0).then_some(u.filled_quantity);
-        let incoming_price = usable_price(Some(u.average_price));
-        let rejection = (!u.rejection_reason.is_empty()).then_some(u.rejection_reason.as_str());
+        let facts = FrameFacts::of(u);
+        let canonical = facts.status;
         let is_entry = row.kind == "entry";
-
-        let fold = match self.store.fold_order_broker_frame(
-            row.id,
-            canonical,
-            incoming_price,
-            incoming_qty,
-            rejection,
-        ) {
-            Ok(Some(f)) if f.changed => f,
-            Ok(_) => return,
-            Err(e) => {
-                tracing::error!(
-                    "Could not fold broker facts for strategy order {}: {}",
-                    row.id,
-                    e
-                );
-                return;
-            }
+        // The fold waits for the database on the blocking pool, so two
+        // frames of one order folded at once could reach the run the other
+        // way round: an entry resized back to the older quantity, or an
+        // exit fill finding its claim already released. Under the gate a
+        // fill is applied before the next fold begins.
+        let gate = self.fold_gate.lock().await;
+        let Some((fold, late_entry)) = self.fold_off_runtime(row, facts, is_entry).await else {
+            return;
         };
-
         let exit_owner = if is_entry {
             None
         } else {
@@ -312,18 +416,19 @@ impl StrategyModule {
         };
         let should_apply =
             fold.fill_delta > 0 || (fold.terminal() && fold.cumulative_filled_qty > 0);
-        let late_entry = is_entry
-            && fold.fill_delta > 0
-            && self
-                .store
-                .get_run(row.run_id)
-                .ok()
-                .flatten()
-                .map(|r| r.stopped_at.is_some())
-                .unwrap_or(false);
+        let (price, opts) = fill_of(row, &fold, is_entry);
+        let filled = (should_apply && !late_entry)
+            .then(|| self.fill_state(row.run_id, row.leg_id, price, is_entry, &opts));
+        drop(gate);
         if should_apply {
-            self.apply_frame_fill(row, order_id, &fold, (is_entry, late_entry))
-                .await;
+            self.after_frame_fill(
+                row,
+                order_id,
+                &fold,
+                (is_entry, late_entry),
+                (price, filled),
+            )
+            .await;
         }
 
         let dead_transition =
@@ -339,35 +444,22 @@ impl StrategyModule {
         }
     }
 
-    /// Applies a frame's fill to the position it belongs to (a late entry
-    /// on a stopped run is corrected instead), and reports a fill the
-    /// broker gave no price for.
-    async fn apply_frame_fill(
+    /// What follows a frame's fill, once it is applied to the position it
+    /// belongs to: the run's follow-ups (a late entry on a stopped run is
+    /// corrected instead), and a fill the broker gave no price for is
+    /// reported.
+    async fn after_frame_fill(
         &self,
         row: &OrderRow,
         order_id: &str,
         fold: &OrderFactFold,
         (is_entry, late_entry): (bool, bool),
+        (price, filled): (Option<f64>, Option<FillOutcome>),
     ) {
-        let price = if is_entry {
-            usable_price(fold.average_fill_price)
-        } else {
-            incremental_fill_price(fold)
-        };
-        let opts = FillOpts {
-            filled_qty: Some(fold.fill_delta),
-            order_row_id: Some(row.id),
-            position_ref: row.position_ref.clone(),
-            cumulative_filled_qty: (is_entry && (!fold.terminal() || fold.previous_filled_qty > 0))
-                .then_some(fold.cumulative_filled_qty),
-            order_terminal: fold.terminal(),
-            allow_prior_order_correction: fold.was_terminal(),
-        };
         if late_entry {
             self.manage_late_entry_correction(row.run_id).await;
-        } else {
-            self.apply_fill(row.run_id, row.leg_id, price, is_entry, opts)
-                .await;
+        } else if let Some(outcome) = filled {
+            self.after_fill(row.run_id, is_entry, outcome).await;
         }
         if fold.fill_delta > 0 && price.is_none() {
             self.report_unpriced_fill(row, order_id, fold.cumulative_filled_qty)
@@ -434,9 +526,12 @@ impl StrategyModule {
 
     /// The order's durable row and the run's state, pushed to the page.
     async fn broadcast_order(&self, row: &OrderRow) {
-        if let (Ok(Some(durable)), Ok(Some(run))) =
-            (self.store.get_order(row.id), self.store.get_run(row.run_id))
-        {
+        let (id, run_id) = (row.id, row.run_id);
+        let read = self
+            .store
+            .blocking(move |s| Ok((s.get_order(id)?, s.get_run(run_id)?)))
+            .await;
+        if let Ok((Some(durable), Some(run))) = read {
             self.broadcast
                 .push_order_update(run.strategy_id, durable.to_dict())
                 .await;
@@ -501,11 +596,24 @@ impl StrategyModule {
             .unwrap_or(false)
     }
 
+    /// A run and its strategy, read on the blocking pool; `None` when
+    /// either is gone or cannot be read.
+    async fn run_and_strategy(&self, run_id: i64) -> Option<(RunRow, StrategyRow)> {
+        self.store
+            .blocking(move |s| {
+                let Some(run) = s.get_run(run_id)? else {
+                    return Ok(None);
+                };
+                Ok(s.get_strategy_unscoped(run.strategy_id)?
+                    .map(|strategy| (run, strategy)))
+            })
+            .await
+            .ok()
+            .flatten()
+    }
+
     async fn report_unpriced_fill(&self, row: &OrderRow, order_id: &str, qty: i64) {
-        let Ok(Some(run)) = self.store.get_run(row.run_id) else {
-            return;
-        };
-        let Ok(Some(strategy)) = self.store.get_strategy_unscoped(run.strategy_id) else {
+        let Some((run, strategy)) = self.run_and_strategy(row.run_id).await else {
             return;
         };
         self.emit(
@@ -531,15 +639,12 @@ impl StrategyModule {
     }
 
     async fn report_pending_stop_exit_failed(&self, row: &OrderRow, ended: &str) {
-        let Ok(Some(run)) = self.store.get_run(row.run_id) else {
+        let Some((run, strategy)) = self.run_and_strategy(row.run_id).await else {
             return;
         };
         if run.stopped_at.is_some() || run.stop_requested_reason.is_none() {
             return;
         }
-        let Ok(Some(strategy)) = self.store.get_strategy_unscoped(run.strategy_id) else {
-            return;
-        };
         let order = row
             .broker_order_id
             .as_ref()
@@ -564,10 +669,7 @@ impl StrategyModule {
     }
 
     async fn report_stranded_exit(&self, row: &OrderRow, ended: &str) {
-        let Ok(Some(run)) = self.store.get_run(row.run_id) else {
-            return;
-        };
-        let Ok(Some(strategy)) = self.store.get_strategy_unscoped(run.strategy_id) else {
+        let Some((run, strategy)) = self.run_and_strategy(row.run_id).await else {
             return;
         };
         self.emit(
