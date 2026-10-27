@@ -20,6 +20,7 @@ pub mod answer;
 pub mod market;
 pub mod numbers;
 pub mod options;
+pub mod options_common;
 pub mod service;
 #[cfg(test)]
 pub(crate) mod spec_contract;
