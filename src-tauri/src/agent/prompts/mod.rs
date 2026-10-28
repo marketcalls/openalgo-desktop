@@ -96,7 +96,42 @@ pub(crate) const DESKTOP_WORDING: &[(&str, &str, &str)] = &[
     (
         "code_output",
         "Writing a strategy writes a file; the\n  operator starts it themselves, deliberately, from the Python page.",
-        "The operator runs it\n  themselves, deliberately.",
+        "Nothing saves it as a\n  file: the operator copies it and runs it themselves, deliberately, with\n  Python on this computer.",
+    ),
+    (
+        "code_output",
+        "the interface mounts an editor for\neach one as soon as its fence closes.",
+        "the chat shows each one, ready to\ncopy, as soon as its fence closes.",
+    ),
+    (
+        "code_output",
+        "    python:     # strategies/scripts/ema_crossover.py\n    javascript: // strategies/indicators/vwap_bands.js\n    sql:        -- reports/open_positions.sql",
+        "    python:     # ema_crossover.py\n    javascript: // vwap_bands.js\n    sql:        -- open_positions.sql",
+    ),
+    (
+        "code_output",
+        "```json flow-ema-crossover.json",
+        "```json watchlist.json",
+    ),
+    (
+        "openalgo_sdk",
+        "It is already\ninstalled.",
+        "The operator runs\nit with Python and the `openalgo` package on this computer.",
+    ),
+    (
+        "openalgo_sdk",
+        "The strategy host\n  injects `OPENALGO_API_KEY`, `HOST_SERVER` and `WEBSOCKET_URL` when it starts a\n  script.",
+        "The operator sets\n  `OPENALGO_API_KEY` (from the API Key page) in their own environment;\n  `HOST_SERVER` and `WEBSOCKET_URL` fall back to this app's addresses above.",
+    ),
+    (
+        "openalgo_sdk",
+        "Guard it so an\n  exception in one iteration does not kill the process, and log what it did.",
+        "Guard it so an\n  exception in one iteration does not kill the process, log what it did, and\n  tell the operator to try it in analyzer mode first.",
+    ),
+    (
+        "openalgo_sdk",
+        "- **Do not re-check what the host guarantees.** The strategy host sets the\n  environment before the script runs, so an `if not os.getenv(...): raise` block\n  is ceremony.",
+        "- **Do not add environment checks.** An `if not os.getenv(...): raise` block\n  is ceremony.",
     ),
 ];
 
@@ -473,7 +508,20 @@ mod tests {
             ..Default::default()
         });
         assert!(p.contains("runs on their own computer"));
-        assert!(!p.contains("own server") && !p.contains("Python page"));
+        for web_only in [
+            "own server",
+            "Python page",
+            "strategy host",
+            "what the host guarantees",
+            "strategies/",
+            "flow-",
+            "mounts an editor",
+            "already\ninstalled",
+        ] {
+            assert!(!p.contains(web_only), "{}", web_only);
+        }
+        assert!(p.contains("from the API Key page"));
+        assert!(p.contains("analyzer mode first"));
         assert!(p.contains(r#"os.getenv("HOST_SERVER", "http://127.0.0.1:5500")"#));
         assert!(p.contains(r#"os.getenv("WEBSOCKET_URL", "ws://127.0.0.1:8766")"#));
     }
