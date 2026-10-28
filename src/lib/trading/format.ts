@@ -44,9 +44,11 @@ export function snapTick(price: number, tick: number | undefined, refPrice: numb
 /**
  * Indian digit grouping (12,34,567) of an integer string.
  *
- * Intl 'en-IN' is not an option for the reason at the top of this file.
+ * Exported because a quantity is grouped the same way a price is, and the
+ * agent's instrument card shows volume, open interest and position size. Intl
+ * 'en-IN' is not an option for the reason at the top of this file.
  */
-function groupIndian(intStr: string): string {
+export function groupIndian(intStr: string): string {
   if (intStr.length <= 3) return intStr
   return `${intStr.slice(0, -3).replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${intStr.slice(-3)}`
 }
