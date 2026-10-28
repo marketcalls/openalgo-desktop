@@ -48,6 +48,7 @@ pub mod stream;
 pub(crate) mod testing;
 pub mod tool_guard;
 pub mod tools;
+pub mod websearch;
 
 use contract::approval::{ApprovalHook, NoApprovalRecord};
 use contract::model::{ModelResolver, NoModelConfigured};
