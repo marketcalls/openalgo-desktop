@@ -46,6 +46,7 @@ import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { AddModelDialog } from '@/components/agent/config/AddModelDialog'
+import { McpPanel } from '@/components/agent/config/McpPanel'
 import { ProviderCatalogPanel } from '@/components/agent/config/ProviderCatalogPanel'
 import { RegisteredModelsTable } from '@/components/agent/config/RegisteredModelsTable'
 import { TradingPanel } from '@/components/agent/config/TradingPanel'
@@ -158,8 +159,10 @@ export default function AgentConfig() {
             <Section name="The provider catalog">
               <ProviderCatalogPanel />
             </Section>
-            {/* The Web search section goes here (the web search part), then
-                External data (the external data part). */}
+            {/* The Web search section goes here (the web search part). */}
+            <Section name="External data">
+              <McpPanel />
+            </Section>
           </div>
         </div>
       </div>
