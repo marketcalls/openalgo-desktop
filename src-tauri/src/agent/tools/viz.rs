@@ -578,6 +578,64 @@ async fn plot_gamma_exposure(
     ))
 }
 
+/// The 3D surface figure and its expiry labels: days to expiry on the y
+/// axis (the expiry's index when the service gave none), labelled with the
+/// service's dates (the asked ones when it gave none).
+fn surface_spec(
+    payload: &Value,
+    strikes: &[Value],
+    surface: &[Value],
+    dates: &[String],
+) -> (Map<String, Value>, Vec<String>) {
+    let rows: Vec<Value> = payload
+        .get("expiries")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let days: Vec<Value> = if rows.is_empty() {
+        (0..surface.len()).map(|i| json!(i)).collect()
+    } else {
+        rows.iter()
+            .map(|r| json!(r.get("dte").and_then(as_number)))
+            .collect()
+    };
+    let labels: Vec<String> = if rows.is_empty() {
+        dates.to_vec()
+    } else {
+        rows.iter()
+            .map(|r| match r {
+                Value::Object(m) => py_str(m.get("date").unwrap_or(&Value::Null)),
+                _ => String::new(),
+            })
+            .collect()
+    };
+    let mut layout = Map::new();
+    layout.insert(
+        "scene".into(),
+        json!({
+            "xaxis": {"title": {"text": "Strike"}},
+            "yaxis": {"title": {"text": "Days to expiry"}},
+            "zaxis": {"title": {"text": "Implied volatility %"}},
+        }),
+    );
+    layout.insert("showlegend".into(), json!(false));
+    let mut spec = plotly_spec(
+        vec![json!({
+            "type": "surface",
+            "name": "Implied volatility",
+            "x": strikes,
+            "y": days,
+            "z": surface,
+            "connectgaps": false,
+            "colorbar": {"title": {"text": "IV %"}},
+        })],
+        layout,
+        "3d",
+    );
+    spec.insert("expiry_labels".into(), json!(labels));
+    (spec, labels)
+}
+
 /// `plot_volatility_surface`: IV across strikes and expiries, from the Vol
 /// Surface page's service, drawn in 3D.
 async fn plot_volatility_surface(
@@ -632,52 +690,7 @@ async fn plot_volatility_surface(
             &[label("underlying", &underlying)],
         ));
     };
-    let rows: Vec<Value> = payload
-        .get("expiries")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    let days: Vec<Value> = if rows.is_empty() {
-        (0..surface.len()).map(|i| json!(i)).collect()
-    } else {
-        rows.iter()
-            .map(|r| json!(r.get("dte").and_then(as_number)))
-            .collect()
-    };
-    let labels: Vec<String> = if rows.is_empty() {
-        dates.clone()
-    } else {
-        rows.iter()
-            .map(|r| match r {
-                Value::Object(m) => py_str(m.get("date").unwrap_or(&Value::Null)),
-                _ => String::new(),
-            })
-            .collect()
-    };
-    let mut layout = Map::new();
-    layout.insert(
-        "scene".into(),
-        json!({
-            "xaxis": {"title": {"text": "Strike"}},
-            "yaxis": {"title": {"text": "Days to expiry"}},
-            "zaxis": {"title": {"text": "Implied volatility %"}},
-        }),
-    );
-    layout.insert("showlegend".into(), json!(false));
-    let mut spec = plotly_spec(
-        vec![json!({
-            "type": "surface",
-            "name": "Implied volatility",
-            "x": strikes,
-            "y": days,
-            "z": surface,
-            "connectgaps": false,
-            "colorbar": {"title": {"text": "IV %"}},
-        })],
-        layout,
-        "3d",
-    );
-    spec.insert("expiry_labels".into(), json!(labels));
+    let (spec, labels) = surface_spec(&payload, strikes, surface, &dates);
     let title = format!("{} implied volatility surface", underlying);
     if !deliver(ctx, TOOL, "plotly", spec, &title, "vol_surface_service") {
         return Ok(tool_answer(
