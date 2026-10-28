@@ -430,7 +430,7 @@ mod tests {
                 web = web.replace(from, to);
             }
             // The desktop's own generated OpenUI Lang reference (decision 17).
-            web = web.replace(&web_openui_reference(), openui::OPENUI_LANG_DOC.trim());
+            web = web.replace(&web_openui_reference(), &openui::reference());
             let web = web.as_str();
             if web.contains("THIS SESSION") {
                 assert_eq!(prompt, web, "{}", run);
