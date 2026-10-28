@@ -12,15 +12,20 @@ use crate::state::AppState;
 pub struct SettingsPolicy;
 
 impl RunPolicy for SettingsPolicy {
-    fn settings(&self, app: &AppState, _surface: Surface) -> RunSettings {
-        run_settings(&Snapshot::read(app))
+    fn settings(&self, app: &AppState, surface: Surface) -> RunSettings {
+        let mut settings = run_settings(&Snapshot::read(app));
+        // A surface with no registered server gets neither the external data
+        // tools nor their prompt section, whatever the switch says (the
+        // web's `_effective_mcp_enabled`).
+        settings.mcp_enabled &= !app.agent.mcp().for_surface(surface).is_empty();
+        settings
     }
 }
 
 /// A run's settings from one read. The spoken surface may trade only while
 /// the master switch is on too (the web's `trading_effective`), so there is
-/// one place that stops every order. `mcp_enabled` is the trader's switch;
-/// whether a server is registered is the external data part's to add.
+/// one place that stops every order. `mcp_enabled` is the trader's switch
+/// (a registered server for the surface is added by [`SettingsPolicy`]).
 pub fn run_settings(s: &Snapshot) -> RunSettings {
     let trading = s.flag(TRADING_ENABLED);
     let name = s.text(VOICE_AGENT_NAME).trim();

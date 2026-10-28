@@ -14,6 +14,7 @@
 //! in the marked place below, chat surface only, as on the web.
 
 mod lane_specs;
+pub mod mcp;
 pub mod openscript_gen;
 pub mod service;
 pub mod skills;
@@ -29,6 +30,7 @@ pub const TOOLKITS: &[ToolGroup] = &[
     // orders::GROUP,     // order 50, every surface, requires Trading
     skills::GROUP,         // order 58, chat and chart
     openscript_gen::GROUP, // order 65, chat and chart
+    mcp::GROUP,            // order 85, every surface, requires Mcp
                            //
                            // Later: flow_gen::GROUP (order 70, chat only), not in this version.
 ];

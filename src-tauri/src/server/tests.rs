@@ -243,6 +243,8 @@ mod api_parity;
 mod tunnel;
 // The Agent's configuration routes (the config part of blueprints/agent.py).
 mod agent_config;
+// The Agent's external data routes (the MCP part of blueprints/agent.py).
+mod agent_external;
 
 // ------------------------------------------------------------------ fixtures
 

@@ -22,6 +22,8 @@
 //! - `chat/`: the chat service the routes call; `run/`: one turn, its loop
 //!   and its stored state; `stream/`: its frames as SSE; `reply`: a refusal
 //!   before anything streams.
+//! - `mcp/`: the external data servers the Agent reads over MCP (none is
+//!   registered today) and the EXTERNAL DATA prompt section.
 //! - `skills/`: the authoring guidance the Agent reads on demand and the
 //!   SKILLS prompt section.
 //! - `settings/`, `providers/`, `catalog/`, `models/`, `resolver`, `plan`,
@@ -42,6 +44,7 @@ pub mod catalog;
 pub mod chat;
 pub mod contract;
 pub mod conversations;
+pub mod mcp;
 pub mod models;
 pub mod plan;
 pub mod prompts;
@@ -87,6 +90,8 @@ pub struct AgentModule {
     client: Mutex<Option<Arc<ModelClient>>>,
     turn_limit: RwLock<Duration>,
     plan: RwLock<Arc<dyn PlanSignIn>>,
+    /// The external data servers, their clients and answers being paged.
+    mcp: mcp::ExternalData,
 }
 
 impl Default for AgentModule {
@@ -108,6 +113,7 @@ impl AgentModule {
             client: Mutex::new(None),
             turn_limit: RwLock::new(run::MAX_TURN),
             plan: RwLock::new(Arc::new(NoPlanSignIn)),
+            mcp: mcp::ExternalData::default(),
         }
     }
 
@@ -203,6 +209,11 @@ impl AgentModule {
     /// EXTERNAL DATA sections).
     pub fn add_section_source(&self, source: Arc<dyn SectionSource>) {
         self.sections.write().push(source);
+    }
+
+    /// The external data servers.
+    pub fn mcp(&self) -> &mcp::ExternalData {
+        &self.mcp
     }
 
     /// The ChatGPT plan's sign-in (none until the ChatGPT part installs it).

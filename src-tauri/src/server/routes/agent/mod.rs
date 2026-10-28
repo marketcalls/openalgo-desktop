@@ -1,6 +1,7 @@
 //! The web's `blueprints/agent.py`, split by area: the chat routes
-//! ([`chat`]), the conversation routes ([`conversations`]) and the
-//! configuration routes ([`config`]: status, catalogue, models, settings).
+//! ([`chat`]), the conversation routes ([`conversations`]), the
+//! configuration routes ([`config`]: status, catalogue, models, settings)
+//! and the external data routes ([`external`]).
 //! Every route needs the signed-in user and carries the session's CSRF
 //! token on writes, like every page route; none is public.
 //!
@@ -12,6 +13,7 @@
 pub mod chat;
 pub mod config;
 pub mod conversations;
+pub mod external;
 
 use super::{Access, RouteSpec};
 use crate::agent::reply::Refusal;
@@ -38,6 +40,7 @@ pub const MAX_REQUEST_BYTES: usize = 12_000_000;
 pub fn table() -> Vec<RouteSpec> {
     let mut routes = chat_table();
     routes.extend(config::table());
+    routes.extend(external::table());
     routes
 }
 

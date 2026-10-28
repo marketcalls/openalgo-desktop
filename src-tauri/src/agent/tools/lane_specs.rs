@@ -51,7 +51,7 @@ mod tests {
     //! meet).
     use crate::agent::contract::tool::{Capabilities, Capability, Surface};
     use crate::agent::tools::testing::ctx;
-    use crate::agent::tools::{openscript_gen, skills};
+    use crate::agent::tools::{mcp, openscript_gen, skills};
     use serde_json::Value;
 
     fn fixture() -> Value {
@@ -71,7 +71,7 @@ mod tests {
             mcp_enabled: true,
             ..Default::default()
         };
-        for group in [&skills::GROUP, &openscript_gen::GROUP] {
+        for group in [&skills::GROUP, &openscript_gen::GROUP, &mcp::GROUP] {
             let web = f["toolkits"]
                 .as_array()
                 .unwrap()
