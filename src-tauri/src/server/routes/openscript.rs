@@ -12,7 +12,7 @@ use crate::server::envelope::json_response;
 use crate::server::middleware::User;
 use crate::state::AppState;
 use crate::trading::names::{is_exchange_code, is_script_name, script_name_refusal};
-use crate::trading::scripts::{Refused, StoredScript};
+use crate::trading::scripts::{Refused, Replace, StoredScript};
 use axum::{
     body::{Body, Bytes},
     extract::{DefaultBodyLimit, Path, Query, State},
@@ -184,8 +184,13 @@ pub async fn save(
         };
     let store = ctx.trading.scripts.clone();
     let name = file.clone();
-    let saved =
-        tokio::task::spawn_blocking(move || store.save(&name, &source, program.as_deref())).await;
+    // The editor replaces whatever is stored, compiled or not (web route).
+    let saved = tokio::task::spawn_blocking(move || {
+        store
+            .save(&name, &source, program.as_deref(), Replace::ANY)
+            .map_err(|e| e.into_refused(&name))
+    })
+    .await;
     match saved {
         Ok(Ok(s)) => json_response(
             StatusCode::OK,

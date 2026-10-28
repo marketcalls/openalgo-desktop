@@ -111,10 +111,17 @@ impl KeyedLocks {
     }
 }
 
-/// The scripts folder.
+/// The scripts folder. One write path: the /trading editor's route and the
+/// Agent's `save_openscript` both save through [`ScriptStore::save`] (web
+/// `openscript_store.write_script`), so there is one name rule, one size
+/// limit, one per-file lock and one replace sequence.
 pub struct ScriptStore {
     dir: PathBuf,
     locks: KeyedLocks,
+    /// Every save in order, `(name, with a program)`: the web's spy on
+    /// `write_script`, so a test can see who saved through here.
+    #[cfg(test)]
+    pub(crate) saves: Mutex<Vec<(String, bool)>>,
 }
 
 /// What a save stored.
@@ -123,6 +130,60 @@ pub struct Saved {
     pub bytes: usize,
     pub mtime: i64,
     pub program: bool,
+    /// A source of that name was there, and is kept as `<name>.bak`.
+    pub replaced: bool,
+}
+
+/// What a save may replace (web `write_script`'s `replace` and
+/// `replace_compiled`), checked under the file's lock so nothing slips in
+/// between the check and the write.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Replace {
+    /// A source of that name.
+    pub source: bool,
+    /// A source that has a compiled program beside it, whatever `source`
+    /// says: that program is what a deployed strategy starts from.
+    pub compiled: bool,
+}
+
+impl Replace {
+    /// The /trading editor: whatever is stored is replaced.
+    pub const ANY: Replace = Replace {
+        source: true,
+        compiled: true,
+    };
+}
+
+/// Why a save did not happen.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SaveError {
+    /// The name, the sizes, the program or the disk refused it.
+    Refused(Refused),
+    /// Something is stored under the name and [`Replace`] said not to
+    /// replace it (web `ScriptConflict`); nothing was written.
+    Taken { compiled: bool },
+}
+
+impl SaveError {
+    /// The refusal a route answers with (web `ScriptConflict`'s message for
+    /// a taken name; the editor's route replaces, so never sees one).
+    pub fn into_refused(self, name: &str) -> Refused {
+        match self {
+            SaveError::Refused(r) => r,
+            SaveError::Taken { compiled } => Refused::new(
+                409,
+                format!(
+                    "{} already has {} stored",
+                    name,
+                    if compiled {
+                        "a compiled program"
+                    } else {
+                        "a source"
+                    }
+                ),
+            ),
+        }
+    }
 }
 
 impl ScriptStore {
@@ -130,6 +191,8 @@ impl ScriptStore {
         Self {
             dir,
             locks: KeyedLocks::default(),
+            #[cfg(test)]
+            saves: Mutex::default(),
         }
     }
 
@@ -152,9 +215,22 @@ impl ScriptStore {
     }
 
     /// Every stored source, by name, with whether a program sits beside it.
+    /// A folder that cannot be read lists nothing (logged).
     pub fn index(&self) -> Vec<StoredScript> {
-        let Ok(entries) = fs::read_dir(&self.dir) else {
-            return Vec::new();
+        self.list().unwrap_or_else(|e| {
+            tracing::warn!("Could not list the OpenScript folder: {}", e);
+            Vec::new()
+        })
+    }
+
+    /// [`ScriptStore::index`], telling a folder that cannot be read from one
+    /// that does not exist yet (web `list_scripts`: a missing folder lists
+    /// nothing, an unreadable one is an error).
+    pub fn list(&self) -> std::io::Result<Vec<StoredScript>> {
+        let entries = match fs::read_dir(&self.dir) {
+            Ok(entries) => entries,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(e) => return Err(e),
         };
         let mut names: Vec<String> = entries
             .filter_map(|e| e.ok())
@@ -162,7 +238,7 @@ impl ScriptStore {
             .filter(|n| is_script_name(n))
             .collect();
         names.sort();
-        names
+        Ok(names
             .into_iter()
             .filter_map(|file| {
                 let meta = plain_file(&self.dir, &file)?;
@@ -173,7 +249,7 @@ impl ScriptStore {
                     file,
                 })
             })
-            .collect()
+            .collect())
     }
 
     /// One source's bytes, or `None` when there is no such file.
@@ -245,67 +321,50 @@ impl ScriptStore {
         Ok(())
     }
 
-    /// Create or replace one source, and the program beside it.
-    pub fn save(&self, name: &str, source: &str, program: Option<&str>) -> Result<Saved, Refused> {
+    /// Create or replace one source, and the program beside it, replacing
+    /// only what `replace` allows.
+    pub fn save(
+        &self,
+        name: &str,
+        source: &str,
+        program: Option<&str>,
+        replace: Replace,
+    ) -> Result<Saved, SaveError> {
         if !is_script_name(name) {
-            return Err(Refused::new(400, super::names::script_name_refusal(name)));
+            return Err(SaveError::Refused(Refused::new(
+                400,
+                super::names::script_name_refusal(name),
+            )));
         }
-        Self::check_save(source, program)?;
+        Self::check_save(source, program).map_err(SaveError::Refused)?;
         if let Err(e) = fs::create_dir_all(&self.dir) {
             tracing::error!("Could not create the OpenScript folder: {}", e);
-            return Err(Refused::new(
+            return Err(SaveError::Refused(Refused::new(
                 500,
                 "Could not create the scripts folder. Check that the app's data folder can be written to.",
-            ));
+            )));
         }
-        let target = self.dir.join(name);
-        let program_target = self.dir.join(Self::program_name(name));
-        let result = self.locks.hold(name, || {
-            let mut staged: Vec<PathBuf> = Vec::new();
-            let out = (|| -> std::io::Result<()> {
-                if fs::symlink_metadata(&target).is_ok_and(|m| m.file_type().is_file()) {
-                    let backup = self.dir.join(format!("{}.bak", name));
-                    fs::write(&backup, fs::read(&target)?)?;
-                }
-                let source_tmp = stage(&self.dir, source.as_bytes())?;
-                staged.push(source_tmp.clone());
-                let program_tmp = match program {
-                    Some(p) => {
-                        let t = stage(&self.dir, p.as_bytes())?;
-                        staged.push(t.clone());
-                        Some(t)
-                    }
-                    None => None,
-                };
-                // One unlink and two renames: every state in between is a
-                // source with no program, which is never wrong.
-                match fs::remove_file(&program_target) {
-                    Ok(()) => {}
-                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-                    Err(e) => return Err(e),
-                }
-                fs::rename(&source_tmp, &target)?;
-                staged.retain(|p| p != &source_tmp);
-                if let Some(t) = program_tmp {
-                    fs::rename(&t, &program_target)?;
-                    staged.retain(|p| p != &t);
-                }
-                Ok(())
-            })();
-            // Whatever is still staged was never renamed into place.
-            for leftover in staged {
-                let _ = fs::remove_file(leftover);
+        #[cfg(test)]
+        self.saves
+            .lock()
+            .push((name.to_string(), program.is_some()));
+        let replaced = match self
+            .locks
+            .hold(name, || self.write(name, source, program, replace))
+        {
+            Ok(Ok(replaced)) => replaced,
+            Ok(Err(taken)) => return Err(taken),
+            Err(e) => {
+                tracing::error!("Could not save the OpenScript source {}: {}", name, e);
+                return Err(SaveError::Refused(Refused::new(
+                    500,
+                    "Could not save this script. Check that the app's data folder can be written to.",
+                )));
             }
-            out
-        });
-        if let Err(e) = result {
-            tracing::error!("Could not save the OpenScript source {}: {}", name, e);
-            return Err(Refused::new(
-                500,
-                "Could not save this script. Check that the app's data folder can be written to.",
-            ));
-        }
-        let mtime = fs::metadata(&target).map(|m| mtime_of(&m)).unwrap_or(0);
+        };
+        let mtime = fs::metadata(self.dir.join(name))
+            .map(|m| mtime_of(&m))
+            .unwrap_or(0);
         tracing::info!(
             "Saved OpenScript source {} ({} bytes, program {})",
             name,
@@ -316,7 +375,65 @@ impl ScriptStore {
             bytes: source.len(),
             mtime,
             program: program.is_some(),
+            replaced,
         })
+    }
+
+    /// The replace sequence, under the file's lock: refuse what `replace`
+    /// does not allow, back the old source up, stage both halves, then one
+    /// unlink and two renames. Every state in between is a source with no
+    /// program, which is never wrong. The inner result says whether a
+    /// source was replaced, or that the name was taken (nothing written).
+    fn write(
+        &self,
+        name: &str,
+        source: &str,
+        program: Option<&str>,
+        replace: Replace,
+    ) -> std::io::Result<Result<bool, SaveError>> {
+        let target = self.dir.join(name);
+        let program_target = self.dir.join(Self::program_name(name));
+        let existing = fs::symlink_metadata(&target).is_ok_and(|m| m.file_type().is_file());
+        if !replace.compiled && fs::symlink_metadata(&program_target).is_ok() {
+            return Ok(Err(SaveError::Taken { compiled: true }));
+        }
+        if !replace.source && fs::symlink_metadata(&target).is_ok() {
+            return Ok(Err(SaveError::Taken { compiled: false }));
+        }
+        let mut staged: Vec<PathBuf> = Vec::new();
+        let out = (|| -> std::io::Result<()> {
+            if existing {
+                let backup = self.dir.join(format!("{}.bak", name));
+                fs::write(&backup, fs::read(&target)?)?;
+            }
+            let source_tmp = stage(&self.dir, source.as_bytes())?;
+            staged.push(source_tmp.clone());
+            let program_tmp = match program {
+                Some(p) => {
+                    let t = stage(&self.dir, p.as_bytes())?;
+                    staged.push(t.clone());
+                    Some(t)
+                }
+                None => None,
+            };
+            match fs::remove_file(&program_target) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(e),
+            }
+            fs::rename(&source_tmp, &target)?;
+            staged.retain(|p| p != &source_tmp);
+            if let Some(t) = program_tmp {
+                fs::rename(&t, &program_target)?;
+                staged.retain(|p| p != &t);
+            }
+            Ok(())
+        })();
+        // Whatever is still staged was never renamed into place.
+        for leftover in staged {
+            let _ = fs::remove_file(leftover);
+        }
+        out.map(|()| Ok(existing))
     }
 
     /// Delete one source, its backup and its program. Deleting one that is
@@ -379,6 +496,18 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// A save as the /trading editor makes it.
+    fn save(
+        store: &ScriptStore,
+        name: &str,
+        source: &str,
+        program: Option<&str>,
+    ) -> Result<Saved, Refused> {
+        store
+            .save(name, source, program, Replace::ANY)
+            .map_err(|e| e.into_refused(name))
+    }
+
     fn program_for(source: &str) -> String {
         json!({"format": 1, "source": {"hash": source_hash(source)}}).to_string()
     }
@@ -397,14 +526,18 @@ mod tests {
         let store = ScriptStore::new(dir.path().join("openscript"));
         assert!(store.index().is_empty());
 
-        let saved = store
-            .save("t.oscript", "version 1", Some(&program_for("version 1")))
-            .unwrap();
+        let saved = save(
+            &store,
+            "t.oscript",
+            "version 1",
+            Some(&program_for("version 1")),
+        )
+        .unwrap();
         assert!(saved.program);
         assert!(store.has_program("t.oscript"));
 
         // A save with no program removes the one that was there.
-        store.save("t.oscript", "version 1\n// edit", None).unwrap();
+        save(&store, "t.oscript", "version 1\n// edit", None).unwrap();
         assert!(!store.has_program("t.oscript"));
         assert_eq!(
             fs::read_to_string(store.dir().join("t.oscript.bak")).unwrap(),
@@ -424,24 +557,19 @@ mod tests {
     fn a_program_from_other_text_is_refused_and_nothing_changes() {
         let dir = tempfile::tempdir().unwrap();
         let store = ScriptStore::new(dir.path().to_path_buf());
-        store
-            .save("t.oscript", "one", Some(&program_for("one")))
-            .unwrap();
-        let e = store
-            .save("t.oscript", "two", Some(&program_for("one")))
-            .unwrap_err();
+        save(&store, "t.oscript", "one", Some(&program_for("one"))).unwrap();
+        let e = save(&store, "t.oscript", "two", Some(&program_for("one"))).unwrap_err();
         assert_eq!(e.status, 400);
         assert!(e.message.contains("different text"));
         assert_eq!(store.source("t.oscript").unwrap(), b"one");
         assert!(store.has_program("t.oscript"));
-        let e = store.save("t.oscript", "two", Some("[1,2")).unwrap_err();
+        let e = save(&store, "t.oscript", "two", Some("[1,2")).unwrap_err();
         assert!(e.message.contains("could not be read"));
-        let e = store.save("t.oscript", "two", Some("{}")).unwrap_err();
+        let e = save(&store, "t.oscript", "two", Some("{}")).unwrap_err();
         assert!(e.message.contains("not a compiled program"));
         let deep = format!("{}{}", "[".repeat(5000), "]".repeat(5000));
         assert_eq!(
-            store
-                .save("t.oscript", "two", Some(&deep))
+            save(&store, "t.oscript", "two", Some(&deep))
                 .unwrap_err()
                 .status,
             400
@@ -453,20 +581,97 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = ScriptStore::new(dir.path().to_path_buf());
         let big = "a".repeat(MAX_SOURCE_BYTES + 1);
-        assert_eq!(store.save("t.oscript", &big, None).unwrap_err().status, 413);
+        assert_eq!(
+            save(&store, "t.oscript", &big, None).unwrap_err().status,
+            413
+        );
         let ok = "a".repeat(MAX_SOURCE_BYTES);
-        assert!(store.save("t.oscript", &ok, None).is_ok());
+        assert!(save(&store, "t.oscript", &ok, None).is_ok());
         let program = "a".repeat(MAX_PROGRAM_BYTES + 1);
         assert_eq!(
-            store
-                .save("t.oscript", "x", Some(&program))
+            save(&store, "t.oscript", "x", Some(&program))
                 .unwrap_err()
                 .status,
             413
         );
         assert_eq!(
-            store.save("../t.oscript", "x", None).unwrap_err().status,
+            save(&store, "../t.oscript", "x", None).unwrap_err().status,
             400
         );
+    }
+
+    const KEEP: Replace = Replace {
+        source: false,
+        compiled: false,
+    };
+
+    /// Web `test_a_refused_write_leaves_nothing_behind`: a save told not to
+    /// replace finds the name taken and writes nothing, no backup and no
+    /// staged file.
+    #[test]
+    fn a_refused_write_leaves_nothing_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ScriptStore::new(dir.path().to_path_buf());
+        save(&store, "a.oscript", "old", None).unwrap();
+        assert_eq!(
+            store.save("a.oscript", "new", None, KEEP),
+            Err(SaveError::Taken { compiled: false })
+        );
+        let names: Vec<String> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert_eq!(names, ["a.oscript"]);
+        assert_eq!(store.source("a.oscript").unwrap(), b"old");
+        assert_eq!(store.locks.len(), 0);
+    }
+
+    /// A compiled program is never replaced by a save that does not allow
+    /// it, even one allowed to replace the source; the editor's save still
+    /// replaces both (web `test_the_route_still_replaces_a_compiled_script`).
+    #[test]
+    fn a_compiled_script_is_replaced_only_by_a_save_that_allows_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ScriptStore::new(dir.path().to_path_buf());
+        save(&store, "r.oscript", "one", Some(&program_for("one"))).unwrap();
+        let only_source = Replace {
+            source: true,
+            compiled: false,
+        };
+        for replace in [KEEP, only_source] {
+            assert_eq!(
+                store.save("r.oscript", "two", None, replace),
+                Err(SaveError::Taken { compiled: true })
+            );
+        }
+        assert!(store.has_program("r.oscript"));
+        assert!(!dir.path().join("r.oscript.bak").exists());
+        let saved = save(&store, "r.oscript", "two", Some(&program_for("two"))).unwrap();
+        assert!(saved.replaced && saved.program);
+        assert_eq!(store.source("r.oscript").unwrap(), b"two");
+        assert_eq!(
+            fs::read_to_string(dir.path().join("r.oscript.bak")).unwrap(),
+            "one"
+        );
+        let fresh = store.save("new.oscript", "x", None, only_source).unwrap();
+        assert!(!fresh.replaced);
+        assert_eq!(
+            SaveError::Taken { compiled: true }.into_refused("r.oscript"),
+            Refused::new(409, "r.oscript already has a compiled program stored")
+        );
+    }
+
+    /// A folder not made yet lists nothing; one that cannot be read is an
+    /// error the caller can tell apart (web `list_scripts`).
+    #[test]
+    fn a_missing_folder_lists_nothing_and_an_unreadable_one_says_so() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = ScriptStore::new(dir.path().join("openscript"));
+        assert_eq!(missing.list().unwrap(), vec![]);
+        let file = dir.path().join("not-a-folder");
+        fs::write(&file, "x").unwrap();
+        let broken = ScriptStore::new(file);
+        assert!(broken.list().is_err());
+        assert!(broken.index().is_empty());
     }
 }
