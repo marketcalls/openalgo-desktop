@@ -155,6 +155,30 @@ fn whole_words_pass_whatever_their_case_and_edge_punctuation() {
     let q = constrain("nifty! \"BankNifty\" today", op);
     assert_eq!(
         (q.text.as_str(), q.decision),
-        ("nifty BankNifty today", Decision::Verbatim)
+        ("NIFTY banknifty today", Decision::Verbatim),
+        "the trader's form goes out, not the model's"
     );
+}
+
+/// Casing is a channel: the model's own casing never goes out.
+#[test]
+fn the_traders_form_of_a_word_goes_out_never_the_models() {
+    let op = "Tata Motors results today";
+    let q = constrain("tAtA MOTORS ReSuLtS", op);
+    assert_eq!(q.text, "Tata Motors results");
+}
+
+/// A word goes out no more often than the trader wrote it, and the query
+/// is never longer than their message.
+#[test]
+fn a_word_repeats_only_as_often_as_the_trader_wrote_it() {
+    let q = constrain("nifty Nifty NIFTY bank", "nifty vs Nifty bank");
+    assert_eq!(q.text, "nifty nifty bank");
+    let q = constrain("INFY INFY results results INFY", "INFY results");
+    assert_eq!(q.text, "INFY results");
+    assert!(split_len(&q.text) <= 2);
+}
+
+fn split_len(text: &str) -> usize {
+    text.split_whitespace().count()
 }

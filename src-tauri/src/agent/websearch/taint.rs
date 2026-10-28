@@ -2,8 +2,9 @@
 //!
 //! The model's query never reaches a provider. The outgoing query is built
 //! from the trader's own message for the turn: a token of the model's
-//! survives only when it is one of that message's words, whole (the web
-//! kept any substring; a deviation), and when none survives
+//! survives only when it is one of that message's words, whole, and goes
+//! out in the trader's own form, no more often than they wrote it (the web
+//! kept any substring in the model's form; deviations), and when none survives
 //! the message itself is sent. A word the model invented, or copied out of
 //! a poisoned tool result, cannot leave the machine. With no message to
 //! build from, nothing is sent.
@@ -13,6 +14,7 @@
 //! tokens go too. The marker it leaves is never sent.
 
 use regex::Regex;
+use std::collections::HashMap;
 use std::sync::LazyLock;
 
 const REDACTED: &str = "[redacted]";
@@ -182,47 +184,75 @@ fn join_within(tokens: &[&str], limit: usize) -> String {
     out.join(" ")
 }
 
-/// The trader's own words, as a set: the redacted message split as
-/// `str.split()` splits it, each word without its edge punctuation and
-/// lower-cased, the redaction marker left out.
-fn operator_words(operator: &str) -> std::collections::HashSet<String> {
-    split(operator)
-        .map(|t| strip_edges(t).to_lowercase())
-        .filter(|w| !w.is_empty() && w != REDACTION_TOKEN)
-        .collect()
+/// One of the trader's words: the form they wrote it in (edge punctuation
+/// off) and how many times they wrote it.
+struct Word {
+    form: String,
+    count: usize,
+}
+
+/// The trader's own words, keyed by their lower-cased form: the redacted
+/// message split as `str.split()` splits it, each word without its edge
+/// punctuation, the redaction marker left out. Also the number of words.
+fn operator_words(operator: &str) -> (HashMap<String, Word>, usize) {
+    let mut words: HashMap<String, Word> = HashMap::new();
+    let mut total = 0;
+    for t in split(operator) {
+        let form = strip_edges(t);
+        let key = form.to_lowercase();
+        if key.is_empty() || key == REDACTION_TOKEN {
+            continue;
+        }
+        total += 1;
+        words
+            .entry(key)
+            .or_insert_with(|| Word {
+                form: form.to_string(),
+                count: 0,
+            })
+            .count += 1;
+    }
+    (words, total)
 }
 
 /// Build the outgoing query out of the trader's own words
-/// (`constrain_query`). A word of the model's is kept only when it is one
-/// of the trader's words, whole: the web kept any substring of the
-/// message, so a fragment of a word, of the redaction marker, or a single
-/// letter or digit passed, and data could leave a piece at a time
-/// (security review, 2026-10-28; a deviation from the web).
+/// (`constrain_query`). Deviations from the web, from the security review
+/// (2026-10-28), so nothing the model chooses can ride out in a query:
+///
+/// - a word of the model's is kept only when it is one of the trader's
+///   words, whole (the web kept any substring of the message, so a fragment
+///   of a word, of the redaction marker, or a single letter or digit
+///   passed, and data could leave a piece at a time);
+/// - what goes out is the trader's own form of the word, never the model's
+///   casing (casing is a channel);
+/// - a word goes out at most as often as the trader wrote it, and the query
+///   holds at most as many words as the trader's message (the web sent
+///   each word once).
 pub fn constrain(requested: &str, operator_message: &str) -> Constrained {
     let operator = redact(operator_message);
     if operator.is_empty() {
         return Constrained::block();
     }
-    let words = operator_words(&operator);
+    let (words, total) = operator_words(&operator);
     let requested = redact(requested);
+    let mut used: HashMap<String, usize> = HashMap::new();
     let mut kept: Vec<&str> = Vec::new();
-    let mut seen: Vec<String> = Vec::new();
     let mut dropped = 0;
     for raw in split(&requested) {
-        let token = strip_edges(raw);
-        let lowered = token.to_lowercase();
+        let lowered = strip_edges(raw).to_lowercase();
         if lowered.is_empty() || lowered == REDACTION_TOKEN {
             continue;
         }
-        if !words.contains(&lowered) {
+        let Some(word) = words.get(&lowered) else {
             dropped += 1;
             continue;
-        }
-        if seen.contains(&lowered) {
+        };
+        let n = used.entry(lowered).or_insert(0);
+        if *n >= word.count || kept.len() >= total {
             continue;
         }
-        seen.push(lowered);
-        kept.push(token);
+        *n += 1;
+        kept.push(&word.form);
     }
     let text = join_within(&kept, MAX_QUERY_CHARS);
     if text.is_empty() {
