@@ -8,7 +8,7 @@
  * closes it.
  */
 
-import { FileCode2, FlaskConical, type LucideIcon, Shapes, Table2 } from 'lucide-react'
+import { Bot, FileCode2, FlaskConical, type LucideIcon, Shapes, Table2 } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { ChromeIcon, lineStroke24 } from '@/lib/trading/glyphs'
 import { cn } from '@/lib/utils'
@@ -18,11 +18,9 @@ import { Tip } from './Tip'
 const PANELS = [
   // Nothing here is a metaphor: the watchlist is a list of instruments, the
   // option chain is a table of strikes, and the objects panel is the shapes
-  // drawn on the chart.
-  //
-  // Desktop: the web's Assistant (Agent) panel is not part of this version,
-  // so the rail has no `agent` entry and a remembered `agent` panel reads as
-  // no panel at all (see `isPanelId`).
+  // drawn on the chart. The assistant is the one thing on the rail that is
+  // not a view of the market, so it is last rather than wedged between two
+  // that are.
   //
   // Every panel carries a glyph. Objects spelled its label down the rail
   // instead, which made one button twice the height of the three beside it
@@ -89,6 +87,12 @@ const PANELS = [
     label: 'Strategies',
     icon: 'trading',
     hint: 'Strategies running on the server, Live or Sandbox',
+  },
+  {
+    id: 'agent',
+    label: 'Assistant',
+    icon: Bot,
+    hint: 'Ask about this chart, or have it changed for you',
   },
 ] as const
 

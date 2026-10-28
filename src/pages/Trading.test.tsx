@@ -138,6 +138,10 @@ vi.mock('@/components/trading/DrawingRail', async (importOriginal) => {
 vi.mock('@/components/trading/IndicatorTemplates', () => ({ IndicatorTemplates: () => null }))
 vi.mock('@/components/trading/WorkspaceMenu', () => ({ WorkspaceMenu: () => null }))
 vi.mock('@/components/trading/dock/TradingDock', () => ({ TradingDock: () => null }))
+// The panel itself has its own tests; here it only has to be there or not.
+vi.mock('@/components/trading/AgentPanel', () => ({
+  AgentPanel: () => <aside aria-label="Assistant" />,
+}))
 // The real `isPanelId`, so a remembered panel is checked against the rail's own list.
 vi.mock('@/components/trading/RightRail', async (importOriginal) => ({
   RightRail: () => null,
@@ -291,10 +295,18 @@ describe('remembered side panel', () => {
     expect(localStorage.getItem('oa-trading-panel')).toBe('objects')
   })
 
-  it('opens with no panel when the remembered one was the Assistant, and forgets it', async () => {
-    // The Agent is not in this version. A trader who left its panel open in
-    // an earlier build gets the terminal, not a crash or an empty side panel.
+  it('opens the Assistant again when the saved layout names it', async () => {
+    // A trader who left the Assistant open gets it back with the terminal, as
+    // with every other panel the rail has.
     localStorage.setItem('oa-trading-panel', 'agent')
+    render(<Trading />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Replay p0' })).toBeVisible())
+    expect(await screen.findByRole('complementary', { name: 'Assistant' })).toBeInTheDocument()
+    expect(localStorage.getItem('oa-trading-panel')).toBe('agent')
+  })
+
+  it('opens with no panel when the remembered one is not a panel, and forgets it', async () => {
+    localStorage.setItem('oa-trading-panel', 'depth')
     render(<Trading />)
     await waitFor(() => expect(screen.getByRole('button', { name: 'Replay p0' })).toBeVisible())
     expect(localStorage.getItem('oa-trading-panel')).toBeNull()
