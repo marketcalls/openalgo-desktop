@@ -347,7 +347,7 @@ impl McpTool {
             };
             return wrapped(tool, &payload, &labels);
         }
-        let Some(found) = tools.iter().find(|t| name_of(*t) == wanted) else {
+        let Some(found) = tools.iter().find(|t| name_of(t) == wanted) else {
             let mut names: Vec<String> = tools.iter().map(name_of).collect();
             names.sort();
             let shown: String = wanted.chars().take(80).collect();

@@ -94,17 +94,22 @@ fn answer_key(server: &str, tool: &str, args: &Map<String, Value>) -> String {
     format!("{}:{}:{}", server, tool, &digest[..24])
 }
 
+/// What the model asked for, read and checked.
+struct Asked {
+    spec: Arc<McpServerSpec>,
+    name: String,
+    given: Map<String, Value>,
+    page: usize,
+}
+
 /// The arguments read and checked, in the web's order.
-fn read(
-    t: &McpTool,
-    args: &Map<String, Value>,
-) -> Result<(Arc<McpServerSpec>, String, Map<String, Value>, usize), ToolOutcome> {
-    Ok((
-        t.server(args.get("server"))?,
-        checked_tool(args.get("tool"))?,
-        arguments(args.get("arguments"))?,
-        page(args.get("page"))?,
-    ))
+fn read(t: &McpTool, args: &Map<String, Value>) -> Result<Asked, ToolOutcome> {
+    Ok(Asked {
+        spec: t.server(args.get("server"))?,
+        name: checked_tool(args.get("tool"))?,
+        given: arguments(args.get("arguments"))?,
+        page: page(args.get("page"))?,
+    })
 }
 
 /// The taint boundary: what is sent is built from the trader's words and
@@ -220,7 +225,12 @@ fn respond(
 }
 
 pub(super) async fn call(t: &McpTool, ctx: &ToolCtx, args: &Map<String, Value>) -> ToolOutcome {
-    let (spec, name, given, page_number) = match read(t, args) {
+    let Asked {
+        spec,
+        name,
+        given,
+        page: page_number,
+    } = match read(t, args) {
         Ok(c) => c,
         Err(r) => return r,
     };

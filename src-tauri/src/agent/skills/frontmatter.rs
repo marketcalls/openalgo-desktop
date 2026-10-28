@@ -335,10 +335,8 @@ fn flow(first: &str, more: &[&str]) -> Result<Value, Malformed> {
             (None, '"' | '\'') => quote = Some(c),
             (None, '[') => depth.push(']'),
             (None, '{') => depth.push('}'),
-            (None, ']' | '}') => {
-                if depth.pop() != Some(c) {
-                    return Err(not_yaml("a bracket closes nothing it opened"));
-                }
+            (None, ']' | '}') if depth.pop() != Some(c) => {
+                return Err(not_yaml("a bracket closes nothing it opened"));
             }
             _ => {}
         }
