@@ -65,8 +65,8 @@ fn ddg(fake: &FakeServer) {
     );
 }
 
-#[test]
-fn the_tools_are_the_webs_and_are_offered_only_with_the_switch_on() {
+#[tokio::test]
+async fn the_tools_are_the_webs_and_are_offered_only_with_the_switch_on() {
     let specs: Value = serde_json::from_str(include_str!("../specs.json")).unwrap();
     assert_eq!((GROUP.key, GROUP.order), ("websearch", 80));
     assert_eq!(

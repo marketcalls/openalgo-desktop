@@ -305,13 +305,12 @@ impl WebTool {
         }
         let config = self.config(&ctx.app).await;
         let mut notices: Vec<String> = count_notice.into_iter().collect();
-        let outcome = match self
+        let outcome = self
             .link_search(ctx, &config, &q, count as usize, &mut notices)
-            .await
-        {
-            Ok(o) => o,
-            Err(busy_outcome) => return busy(&busy_outcome, &notices),
-        };
+            .await;
+        if outcome.busy {
+            return busy(&outcome, &notices);
+        }
         self.log(
             "web_search",
             outcome.provider,
@@ -352,7 +351,7 @@ impl WebTool {
         q: &Constrained,
         count: usize,
         notices: &mut Vec<String>,
-    ) -> Result<Outcome, Outcome> {
+    ) -> Outcome {
         let mut provider = config.provider;
         let mut tavily_key = None;
         if provider == PERPLEXITY {
@@ -374,21 +373,14 @@ impl WebTool {
                 Some(key) => {
                     let o = providers::tavily(&self.shared.net, &q.text, count, &key).await;
                     self.mark_used(&ctx.app, &o).await;
-                    if o.busy {
-                        return Err(o);
-                    }
-                    if o.ok {
-                        return Ok(o);
+                    if o.busy || o.ok {
+                        return o;
                     }
                     notices.push(format!("{} DuckDuckGo answered instead.", o.error));
                 }
             }
         }
-        let o = duckduckgo::search(&self.shared.net, &q.text, count).await;
-        if o.busy {
-            return Err(o);
-        }
-        Ok(o)
+        duckduckgo::search(&self.shared.net, &q.text, count).await
     }
 
     /// `web_research`.

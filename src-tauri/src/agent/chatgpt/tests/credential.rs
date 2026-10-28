@@ -23,8 +23,8 @@ fn ciphertext(t: &TestCtx) -> String {
         .unwrap()
 }
 
-#[test]
-fn the_record_is_canonical_json_and_an_unchanged_one_is_not_rewritten() {
+#[tokio::test]
+async fn the_record_is_canonical_json_and_an_unchanged_one_is_not_rewritten() {
     let t = ctx();
     let r = record_expiring(&t, 3600, Some("rt-abc-0123456789"));
     let text = r.canonical();

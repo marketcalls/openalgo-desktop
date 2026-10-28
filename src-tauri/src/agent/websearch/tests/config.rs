@@ -23,8 +23,8 @@ fn ciphertext(t: &crate::state::testing::TestCtx, name: &str) -> String {
         .unwrap()
 }
 
-#[test]
-fn the_configuration_describes_every_key_and_shows_none() {
+#[tokio::test]
+async fn the_configuration_describes_every_key_and_shows_none() {
     let t = ctx();
     settings::set_key(&t.ctx, "tavily", Some(&json!("tvly-test-key-0123456789"))).unwrap();
     let c = settings::config(&t.ctx).unwrap();
@@ -168,8 +168,8 @@ fn an_unknown_key_is_refused_and_a_key_may_not_travel_in_the_settings() {
     assert_eq!(prepare(&Map::new()).unwrap_err(), "Nothing to update");
 }
 
-#[test]
-fn an_update_is_all_or_nothing() {
+#[tokio::test]
+async fn an_update_is_all_or_nothing() {
     let t = ctx();
     let e = settings::update(
         &t.ctx,
@@ -212,8 +212,8 @@ fn stored_values_are_read_leniently() {
     );
 }
 
-#[test]
-fn keys_are_checked_without_being_quoted() {
+#[tokio::test]
+async fn keys_are_checked_without_being_quoted() {
     let t = ctx();
     let refuse = |p: &str, v: Value| settings::set_key(&t.ctx, p, Some(&v)).unwrap_err();
     assert_eq!(
@@ -242,8 +242,8 @@ fn keys_are_checked_without_being_quoted() {
     );
 }
 
-#[test]
-fn an_unchanged_key_is_not_rewritten_and_clearing_is_idempotent() {
+#[tokio::test]
+async fn an_unchanged_key_is_not_rewritten_and_clearing_is_idempotent() {
     let t = ctx();
     settings::set_key(&t.ctx, "tavily", Some(&json!("  tvly-same-0123456789 "))).unwrap();
     let first = ciphertext(&t, "websearch:tavily");
@@ -278,8 +278,8 @@ fn todays_count_reads_zero_for_anything_but_today() {
     assert_eq!(usage_from(None, day), 0);
 }
 
-#[test]
-fn the_counter_counts_and_resets_on_a_new_ist_day() {
+#[tokio::test]
+async fn the_counter_counts_and_resets_on_a_new_ist_day() {
     let t = ctx();
     let conn = t.ctx.sqlite.conn().unwrap();
     assert_eq!(count_one(&conn, "2026-10-27").unwrap(), 1);
@@ -317,8 +317,8 @@ fn the_counter_counts_and_resets_on_a_new_ist_day() {
 /// D-019: the web read the counter, added one and wrote it back, so two
 /// searches at once could lose a count. Eight threads, 25 searches each,
 /// every one counted.
-#[test]
-fn concurrent_searches_lose_no_count() {
+#[tokio::test]
+async fn concurrent_searches_lose_no_count() {
     let t = ctx();
     let threads: Vec<_> = (0..8)
         .map(|_| {
