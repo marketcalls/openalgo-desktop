@@ -3,7 +3,8 @@
 //!
 //! - [`json_result`]: a JSON payload (the web's `self._wrapped(tool,
 //!   payload, **labels)`): redacted, serialised within the 12,000 character
-//!   cap, wrapped in a `<tool_result tool=...>` block.
+//!   cap, wrapped in a `<tool_result tool=...>` block;
+//!   [`json_result_ordered`] the same in the payload's own key order.
 //! - [`tool_answer`]: the one or two lines a rendering tool returns while
 //!   its chart or card travels on the viz side channel (the web's
 //!   `viz.tool_answer`), notices appended as one trailing sentence.
@@ -16,6 +17,7 @@ use crate::agent::contract::json::dumps_capped;
 use crate::agent::contract::tool::{ToolOutcome, MAX_RESULT_CHARS};
 use crate::agent::prompts::untrusted::wrap_tool_result;
 use crate::agent::redact::{redact, redact_text};
+use serde::Serialize;
 use serde_json::Value;
 
 /// A tag attribute: its name and its value, or `None` to leave it out (the
@@ -30,6 +32,23 @@ fn borrowed<'a>(labels: &'a [Label<'a>]) -> Vec<(&'a str, Option<&'a str>)> {
 pub fn json_result(tool: &str, payload: &Value, labels: &[Label<'_>]) -> ToolOutcome {
     let text = dumps_capped(&redact(payload), MAX_RESULT_CHARS);
     ToolOutcome::Ok(wrap_tool_result(tool, &text, &borrowed(labels)))
+}
+
+/// [`json_result`] keeping the payload's own key order (a struct, or an
+/// ordered map), so the model reads the keys in the web's order. When
+/// redaction would change anything the redacted, sorted [`json_result`]
+/// answers instead, so an ordered answer never skips it.
+pub fn json_result_ordered<T: Serialize + ?Sized>(
+    tool: &str,
+    payload: &T,
+    labels: &[Label<'_>],
+) -> ToolOutcome {
+    let value = serde_json::to_value(payload).unwrap_or(Value::Null);
+    if redact(&value) != value {
+        return json_result(tool, &value, labels);
+    }
+    let text = ToolOutcome::json_ordered(payload);
+    ToolOutcome::Ok(wrap_tool_result(tool, text.text(), &borrowed(labels)))
 }
 
 /// A rendering tool's confirmation, with its notices appended as
