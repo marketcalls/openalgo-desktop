@@ -114,6 +114,8 @@ pub struct AppState {
     pub latency_reports: crate::services::report_flight::ReportFlight,
     /// The Traffic page's statistics, one computation for concurrent requests.
     pub traffic_reports: crate::services::report_flight::ReportFlight,
+    /// The log reports built at once (`AppState::report`).
+    pub reports: crate::services::report_gate::ReportGate,
     /// The Action Center's answer per user and status, one read for the
     /// reloads a burst of order events asks for at once (each answer read
     /// after it was asked).
@@ -440,6 +442,7 @@ impl AppState {
             monitor: crate::services::monitor::Monitor::new(),
             latency_reports: Default::default(),
             traffic_reports: Default::default(),
+            reports: Default::default(),
             action_center_reads: crate::services::report_flight::KeyedFlight::fresh(
                 "the Action Center",
             ),

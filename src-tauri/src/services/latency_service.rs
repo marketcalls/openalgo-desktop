@@ -53,7 +53,7 @@ fn histogram(conn: &rusqlite::Connection, broker: &str, t: &store::LatencyTotals
 
 /// The newest `limit` calls first, read off the async workers.
 pub async fn recent(ctx: &Arc<AppState>, limit: i64) -> Result<Vec<LatencyRow>> {
-    ctx.blocking(move |c| {
+    ctx.report(move |c| {
         c.monitor.drain_now(c);
         store::recent_latency(&*c.logs.conn()?, Some(limit))
     })
@@ -79,7 +79,7 @@ where
         };
         let r = render.clone();
         let (out, last) = ctx
-            .blocking(move |c| {
+            .report(move |c| {
                 if before.is_none() {
                     c.monitor.drain_now(c);
                 }

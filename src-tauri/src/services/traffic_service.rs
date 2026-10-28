@@ -50,7 +50,7 @@ pub async fn export<F>(ctx: &Arc<AppState>, render: F) -> Result<String>
 where
     F: FnOnce(&[TrafficRow]) -> String + Send + 'static,
 {
-    ctx.blocking(move |c| Ok(render(&recent(c, None)?))).await
+    ctx.report(move |c| Ok(render(&recent(c, None)?))).await
 }
 
 /// `GET /traffic/api/stats`: totals, errors and average duration overall,

@@ -387,6 +387,13 @@ const REPORT_PAGES: &[&str] = &[
 /// 10 ms timer beside the pages ([`crate::runtime_stall`]) once ran 374 ms
 /// late on a CI runner while every page's polls took 11.8 ms in all: the
 /// runner had not run the idle thread, which no page can change.
+///
+/// Sixteen pages built at once on the blocking pool kept every core of a
+/// three-core macOS runner busy, and the runtime thread, woken, waited for
+/// a core: 244-317 ms held while the pages' polls took 19 ms (CI 40716174457,
+/// 40722674764), 94-549 ms on a Mac's four efficiency cores (`taskpolicy
+/// -b`). The log reports now take turns, two at once (`AppState::report`):
+/// 4-13 ms there.
 #[test]
 fn report_pages_over_a_large_log_do_not_hold_the_runtime() {
     crate::on_watched_runtime(|runtime| async move {

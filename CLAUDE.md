@@ -832,6 +832,12 @@ Every flaky test found so far was a race, not a slow machine:
   clock.
 - Descriptor checks account for database pool growth: r2d2 refills `min_idle`
   and each SQLite connection holds two descriptors (database and WAL).
+- **CPU-heavy work on the blocking pool can starve the runtime.** Sixteen
+  log reports built at once took every core of a three-core macOS runner,
+  and the runtime thread waited up to 0.55 s for one; they now take turns
+  (`AppState::report`). `CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER="taskpolicy
+  -b"` runs a test binary on a Mac's efficiency cores, which reproduces a
+  small runner locally.
 - A test that fails about one run in five is a bug. Run a suspect test 10 to
   30 times before calling it fixed.
 - Every `AppState` runs the order reconciler's task (a pass every 5 s while

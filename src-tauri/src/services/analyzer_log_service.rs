@@ -246,7 +246,7 @@ where
     T: Send + 'static,
     F: FnOnce(Vec<Value>, Value) -> Result<T> + Send + 'static,
 {
-    ctx.blocking(move |c| {
+    ctx.report(move |c| {
         let requests = rows_between(c, &from, &to)?
             .iter()
             .map(format_request)
@@ -263,7 +263,7 @@ where
 /// The requests in `from..to` as the export's CSV, read and formatted off
 /// the async workers.
 pub async fn export(ctx: &Arc<AppState>, from: String, to: String) -> Result<String> {
-    ctx.blocking(move |c| {
+    ctx.report(move |c| {
         let requests: Vec<Value> = rows_between(c, &from, &to)?
             .iter()
             .map(format_request)

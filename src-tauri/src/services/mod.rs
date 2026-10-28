@@ -70,6 +70,7 @@ pub mod pnl_capital;
 pub mod pnl_tracker_service;
 pub mod record_loss;
 pub mod report_flight;
+pub mod report_gate;
 pub mod request_budget_service;
 pub mod sandbox_export_service;
 pub mod sandbox_feed;

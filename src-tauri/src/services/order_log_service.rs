@@ -48,6 +48,6 @@ pub async fn export<F>(
 where
     F: FnOnce(&[OrderLogRow]) -> String + Send + 'static,
 {
-    ctx.blocking(move |c| Ok(render(&all(c, &from, &to, search.as_deref())?)))
+    ctx.report(move |c| Ok(render(&all(c, &from, &to, search.as_deref())?)))
         .await
 }

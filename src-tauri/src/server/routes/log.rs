@@ -112,7 +112,7 @@ pub async fn view(State(ctx): Ctx, Query(q): Q) -> Response {
         .get("search")
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
-    let read = ctx.blocking(move |c| {
+    let read = ctx.report(move |c| {
         let (rows, total) = order_log_service::page(c, &from, &to, search.as_deref(), page)?;
         json_text(json!({
             "logs": rows.iter().map(entry).collect::<Vec<_>>(),

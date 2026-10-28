@@ -164,7 +164,7 @@ pub async fn current(State(ctx): Ctx) -> Response {
 pub async fn history(State(ctx): Ctx, Query(q): Q) -> Response {
     let hours = health::clamp_hours(q.get("hours").map(|s| s.as_str()));
     let read =
-        ctx.blocking(move |c| json_text(health::history_json(&health::samples_since(c, hours)?)));
+        ctx.report(move |c| json_text(health::history_json(&health::samples_since(c, hours)?)));
     match read.await {
         Ok(body) => ok_text(body),
         Err(e) => failed(
@@ -179,7 +179,7 @@ pub async fn history(State(ctx): Ctx, Query(q): Q) -> Response {
 pub async fn stats(State(ctx): Ctx, Query(q): Q) -> Response {
     let hours = health::clamp_hours(q.get("hours").map(|s| s.as_str()));
     let read =
-        ctx.blocking(move |c| Ok(health::stats_json(&health::samples_since(c, hours)?, hours)));
+        ctx.report(move |c| Ok(health::stats_json(&health::samples_since(c, hours)?, hours)));
     match read.await {
         Ok(v) => ok(v),
         Err(e) => failed(
@@ -278,7 +278,7 @@ pub async fn held_not_placed(State(ctx): Ctx, axum::Json(body): axum::Json<NotPl
 pub async fn export(State(ctx): Ctx, Query(q): Q) -> Response {
     let hours = health::clamp_hours(q.get("hours").map(|s| s.as_str()));
     match ctx
-        .blocking(move |c| Ok(export_csv(&health::samples_since(c, hours)?)))
+        .report(move |c| Ok(export_csv(&health::samples_since(c, hours)?)))
         .await
     {
         Ok(out) => download(out, "text/csv", "health_metrics.csv"),

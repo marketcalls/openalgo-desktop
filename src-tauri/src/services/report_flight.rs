@@ -23,7 +23,8 @@ pub struct ReportFlight {
 
 impl ReportFlight {
     /// The report `compute` makes, on the blocking pool (off the async
-    /// workers). A request that arrives while one is computed waits for it
+    /// workers) as one of the log reports built at once
+    /// (`AppState::report`). A request that arrives while one is computed waits for it
     /// and answers with it; one that arrives after it computes its own.
     pub async fn share<F>(&self, ctx: &Arc<AppState>, compute: F) -> Result<Value>
     where
@@ -36,7 +37,7 @@ impl ReportFlight {
                 return Ok(report.clone());
             }
         }
-        let report = ctx.blocking(compute).await?;
+        let report = ctx.report(compute).await?;
         *last = Some((Instant::now(), report.clone()));
         Ok(report)
     }

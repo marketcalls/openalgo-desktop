@@ -37,7 +37,7 @@ pub async fn logs(State(ctx): Ctx, Query(q): Query<HashMap<String, String>>) -> 
         .and_then(|l| l.parse::<i64>().ok())
         .unwrap_or(100)
         .clamp(1, 1000);
-    let read = ctx.blocking(move |c| {
+    let read = ctx.report(move |c| {
         let rows = traffic_service::recent(c, Some(limit))?;
         json_text(Value::Array(rows.iter().map(row_json).collect()))
     });
