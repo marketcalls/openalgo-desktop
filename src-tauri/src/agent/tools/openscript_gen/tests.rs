@@ -5,7 +5,7 @@
 
 use super::GROUP;
 use crate::agent::chat::tests::{harness, types};
-use crate::agent::contract::tool::{AgentTool, Capabilities, Surface, ToolGroup, ToolOutcome};
+use crate::agent::contract::tool::{Capabilities, Surface, ToolGroup, ToolOutcome};
 use crate::agent::testing::Reply;
 use crate::agent::tools::testing::ctx;
 use crate::state::testing::{build, TestCtx};

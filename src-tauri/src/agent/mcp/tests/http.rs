@@ -13,8 +13,8 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use parking_lot::Mutex;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, ListToolsResult, ServerCapabilities,
-    Tool,
+    CallToolResult, ContentBlock, Implementation, InitializeResult, ListToolsResult,
+    ServerCapabilities, Tool,
 };
 use serde_json::{json, Map, Value};
 use std::sync::Arc;
@@ -82,7 +82,7 @@ async fn mcp(State(seen): State<Shared>, headers: HeaderMap, body: String) -> Re
             ([("content-type", "text/event-stream")], body).into_response()
         }
         Some("tools/call") => {
-            let result = CallToolResult::success(vec![Content::text("{\"close\":812.5}")]);
+            let result = CallToolResult::success(vec![ContentBlock::text("{\"close\":812.5}")]);
             (
                 [("content-type", "application/json")],
                 rpc(&id, serde_json::to_value(result).unwrap()),
