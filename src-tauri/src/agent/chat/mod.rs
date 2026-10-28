@@ -276,4 +276,4 @@ pub(crate) fn paused_state(row: &store::PausedRow) -> Option<PausedState> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

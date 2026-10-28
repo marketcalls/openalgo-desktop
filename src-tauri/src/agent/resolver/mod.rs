@@ -296,6 +296,7 @@ impl crate::agent::AgentModule {
         let module = Self::new();
         module.set_resolver(Arc::new(RegistryResolver));
         module.set_policy(Arc::new(crate::agent::settings::policy::SettingsPolicy));
+        module.add_section_source(Arc::new(crate::agent::skills::prompt::SkillsSection));
         module
     }
 }
