@@ -141,3 +141,59 @@ fn the_effort_sent_follows_the_web_rules() {
     m.capabilities.default_reasoning_effort = "off".into();
     assert_eq!(effective_effort(&m, None), None);
 }
+
+/// A model name ending in an effort word goes out exactly as configured,
+/// on every provider format, with or without an effort, and no effort is
+/// read out of it (genai cut `gpt-5.1-codex-max` to `gpt-5.1-codex`).
+#[tokio::test]
+async fn a_model_name_is_sent_exactly_as_configured() {
+    use genai::adapter::AdapterKind as A;
+    let fake = FakeProvider::start(vec![]).await;
+    let client = ModelClient::new().unwrap();
+    let mut sent = 0;
+    for adapter in [A::OpenAI, A::OpenAIResp, A::Anthropic, A::Gemini, A::Ollama] {
+        for name in ["gpt-5.1-codex-max", "acme-reasoner-high"] {
+            for effort in [None, Some("low")] {
+                let mut model = fake_model(&fake.endpoint(), adapter);
+                model.model_name = name.into();
+                if let Ok(resp) = client
+                    .stream(&model, ChatRequest::from_user("hi"), effort)
+                    .await
+                {
+                    let mut stream = resp.stream;
+                    while let Some(Ok(_)) = stream.next().await {}
+                }
+                sent += 1;
+                tokio::time::timeout(
+                    std::time::Duration::from_secs(10),
+                    fake.wait_for_requests(sent),
+                )
+                .await
+                .unwrap_or_else(|_| panic!("{:?} {} {:?}: no request", adapter, name, effort));
+                let body = &fake.sent()[sent - 1];
+                let path = &fake.paths()[sent - 1];
+                let case = format!("{:?} {} {:?}", adapter, name, effort);
+                if adapter == A::Gemini {
+                    assert!(
+                        path.contains(&format!("models/{}:", name)),
+                        "{}: {}",
+                        case,
+                        path
+                    );
+                } else {
+                    assert_eq!(body["model"], name, "{}", case);
+                }
+                if effort.is_none() {
+                    for field in ["reasoning_effort", "reasoning", "thinking", "think"] {
+                        assert!(body.get(field).is_none(), "{}: {} sent", case, field);
+                    }
+                    assert!(
+                        body.pointer("/generationConfig/thinkingConfig").is_none(),
+                        "{}",
+                        case
+                    );
+                }
+            }
+        }
+    }
+}

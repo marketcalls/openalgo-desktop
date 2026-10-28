@@ -588,7 +588,7 @@ export interface ChatGptStatus {
   /** True once the credential is in `ag_secret` rather than only on disk. */
   stored_in_database: boolean
   /** Where LiteLLM's own auth file lives. Shown so a stale one is findable. */
-  token_dir: string
+  token_dir: string | null
   login: ChatGptLogin
   /** Never present. Declared so nothing can assign a token onto this object. */
   api_key?: never

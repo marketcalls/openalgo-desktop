@@ -597,7 +597,9 @@ async fn another_session_cannot_stop_a_turn() {
         session: "another".into(),
     };
     crate::agent::chat::cancel(h.ctx(), &other, run).unwrap();
-    assert_eq!(h.ctx().agent.runs().len(), 1, "still running");
+    // Read the run's own stop signal: its entry stays until the task ends,
+    // so a count would pass even if the stop had been obeyed.
+    assert!(!h.ctx().agent.runs().is_stopping(run), "still running");
     let mine = crate::agent::chat::Caller {
         user: USER.into(),
         session: h.browser_session().into(),

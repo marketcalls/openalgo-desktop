@@ -39,6 +39,7 @@ pub struct FakeProvider {
     pub port: u16,
     script: Arc<Mutex<VecDeque<Reply>>>,
     pub requests: Arc<Mutex<Vec<Value>>>,
+    paths: Arc<Mutex<Vec<String>>>,
     counts: Arc<Counts>,
     task: tokio::task::JoinHandle<()>,
 }
@@ -72,7 +73,13 @@ impl FakeProvider {
         let script = Arc::new(Mutex::new(VecDeque::from(script)));
         let requests = Arc::new(Mutex::new(Vec::new()));
         let counts = Arc::new(Counts::default());
-        let (s, r, c) = (script.clone(), requests.clone(), counts.clone());
+        let paths = Arc::new(Mutex::new(Vec::new()));
+        let (s, r, c, p) = (
+            script.clone(),
+            requests.clone(),
+            counts.clone(),
+            paths.clone(),
+        );
         let task = tokio::spawn(async move {
             loop {
                 let Ok((sock, _)) = listener.accept().await else {
@@ -80,14 +87,15 @@ impl FakeProvider {
                 };
                 c.open.send_modify(|n| *n += 1);
                 let open = Open(c.clone());
-                let (s, r) = (s.clone(), r.clone());
-                tokio::spawn(async move { serve(sock, s, r, open).await });
+                let (s, r, p) = (s.clone(), r.clone(), p.clone());
+                tokio::spawn(async move { serve(sock, s, r, p, open).await });
             }
         });
         FakeProvider {
             port,
             script,
             requests,
+            paths,
             counts,
             task,
         }
@@ -111,6 +119,11 @@ impl FakeProvider {
         self.script.lock().push_back(reply);
     }
 
+    /// The path of each request, in order.
+    pub fn paths(&self) -> Vec<String> {
+        self.paths.lock().clone()
+    }
+
     /// The JSON bodies the run sent, in order.
     pub fn sent(&self) -> Vec<Value> {
         self.requests.lock().clone()
@@ -121,6 +134,7 @@ async fn serve(
     mut sock: tokio::net::TcpStream,
     script: Arc<Mutex<VecDeque<Reply>>>,
     requests: Arc<Mutex<Vec<Value>>>,
+    paths: Arc<Mutex<Vec<String>>>,
     open: Open,
 ) {
     let mut buf = Vec::new();
@@ -138,6 +152,11 @@ async fn serve(
         }
     };
     let head = String::from_utf8_lossy(&buf[..body_start]).to_lowercase();
+    let path = String::from_utf8_lossy(&buf[..body_start])
+        .split_whitespace()
+        .nth(1)
+        .unwrap_or_default()
+        .to_string();
     let length: usize = head
         .lines()
         .find_map(|l| l.strip_prefix("content-length:"))
@@ -154,6 +173,7 @@ async fn serve(
     }
     let body: Value = serde_json::from_slice(&buf[body_start..]).unwrap_or(Value::Null);
     requests.lock().push(body);
+    paths.lock().push(path);
     let reply = script
         .lock()
         .pop_front()

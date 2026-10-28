@@ -94,6 +94,15 @@ impl RunRegistry {
         self.len() == 0
     }
 
+    /// Whether a live run has been told to stop.
+    #[cfg(test)]
+    pub fn is_stopping(&self, run_id: &str) -> bool {
+        self.runs
+            .lock()
+            .get(run_id)
+            .is_some_and(|e| e.cancel.is_cancelled())
+    }
+
     /// Wait until no run is live.
     #[cfg(test)]
     pub async fn wait_idle(&self) {
