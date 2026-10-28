@@ -35,6 +35,20 @@ pub fn http_client() -> Result<reqwest_agent::Client, String> {
 pub fn http_client_with<R: reqwest_agent::dns::Resolve + 'static>(
     resolver: R,
 ) -> Result<reqwest_agent::Client, String> {
+    client_rules(resolver)?
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(super::MAX_TURN)
+        .pool_idle_timeout(Duration::from_secs(90))
+        .build()
+        .map_err(|e| format!("The Agent's HTTP client could not be built: {}", e))
+}
+
+/// What every HTTP client of the Agent's is built on, before its own
+/// timeouts: rustls on ring with the webpki roots, no redirect followed, and
+/// names resolved through `resolver` (the external data client's too).
+pub fn client_rules<R: reqwest_agent::dns::Resolve + 'static>(
+    resolver: R,
+) -> Result<reqwest_agent::ClientBuilder, String> {
     let mut roots = rustls::RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     let mut tls = rustls::ClientConfig::builder_with_provider(Arc::new(
@@ -47,15 +61,10 @@ pub fn http_client_with<R: reqwest_agent::dns::Resolve + 'static>(
     // A preconfigured TLS config carries its own ALPN; without it reqwest
     // never negotiates HTTP/2.
     tls.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
-    reqwest_agent::Client::builder()
+    Ok(reqwest_agent::Client::builder()
         .tls_backend_preconfigured(tls)
-        .connect_timeout(CONNECT_TIMEOUT)
-        .timeout(super::MAX_TURN)
-        .pool_idle_timeout(Duration::from_secs(90))
         .redirect(reqwest_agent::redirect::Policy::none())
-        .dns_resolver(resolver)
-        .build()
-        .map_err(|e| format!("The Agent's HTTP client could not be built: {}", e))
+        .dns_resolver(resolver))
 }
 
 /// One genai client for the process.
