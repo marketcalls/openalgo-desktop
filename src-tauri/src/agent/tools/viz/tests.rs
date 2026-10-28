@@ -284,6 +284,7 @@ async fn nifty_on_nse_reaches_the_service_on_nse_index() {
         "plot_volatility_surface",
     ] {
         let kit = Kit::new();
+        quoted_chain(&kit);
         let ctx = kit.ctx(Surface::Chat);
         let args = match tool {
             "plot_volatility_surface" => {
