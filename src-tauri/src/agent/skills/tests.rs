@@ -412,8 +412,9 @@ fn a_long_description_is_cut_at_a_sentence() {
     );
     let one = "word ".repeat(200);
     let cut = short_description(&one);
-    assert_eq!(cut.chars().count(), 597);
-    assert!(cut.ends_with("word..."));
+    // No sentence end: the first 597 characters and "...".
+    assert_eq!(cut.chars().count(), 600);
+    assert!(cut.ends_with("wo..."), "{}", cut);
     assert_eq!(short_description(" a \n\t b "), "a b");
 }
 

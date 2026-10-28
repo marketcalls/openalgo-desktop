@@ -253,6 +253,8 @@ async fn a_result_is_parsed_and_wrapped_and_cannot_close_its_own_block() {
     assert!(text.starts_with("<tool_result tool=\"call_mcp_tool\" server=\"demo_eod\" mcp_tool=\"get_market_mood\" trust=\"third-party\">"), "{}", text);
     assert_eq!(text.matches("</tool_result>").count(), 1);
     assert!(text.ends_with("</tool_result>"));
+    *s.server.call_result.lock() =
+        json!({"content": [{"type": "text", "text": "{\"symbol\":\"SBIN\",\"close\":812.5}"}]});
     let ok = s.call("call_mcp_tool", json!({"server": "demo_eod", "tool": "get_stock_history", "arguments": {"symbol": "SBIN"}}), ASKED).await;
     assert!(ok.text().contains(r#"{"ok":true,"server":"demo_eod","tool":"get_stock_history","page":1,"pages":1,"content":{"close":812.5,"symbol":"SBIN"}}"#), "{}", ok.text());
 }
@@ -396,8 +398,8 @@ async fn a_tool_error_keeps_the_server_words_inside_the_wrapper() {
     );
 }
 
-#[test]
-fn the_tool_descriptions_name_every_registered_server() {
+#[tokio::test]
+async fn the_tool_descriptions_name_every_registered_server() {
     let s = setup();
     for t in s.tools(&s.ctx(Surface::Chat, "")) {
         let d = t.spec().description.to_string();
@@ -421,8 +423,8 @@ fn production_registers_no_server_and_teaches_nothing() {
     assert!(mcp_prompt_section(&hub.for_surface(Surface::Chat)).is_none());
 }
 
-#[test]
-fn the_registered_servers_check_and_keys_match_case_insensitively() {
+#[tokio::test]
+async fn the_registered_servers_check_and_keys_match_case_insensitively() {
     for s in demo_servers().iter().chain(registered().iter()) {
         assert_eq!(s.check(), Ok(()));
         assert!(!s.use_for.is_empty() && !s.description.is_empty());
@@ -502,8 +504,8 @@ async fn the_switch_and_a_registered_server_decide_the_toolkit_and_the_section()
 
 // --------------------------------------------------------- the prompt
 
-#[test]
-fn the_section_is_generated_from_the_registry() {
+#[tokio::test]
+async fn the_section_is_generated_from_the_registry() {
     let mut servers = demo_servers();
     servers[1].caveats = "Values are 15 minutes late.".into();
     let servers: Vec<Arc<McpServerSpec>> = servers.into_iter().map(Arc::new).collect();
@@ -602,7 +604,7 @@ fn an_argument_is_built_only_from_the_traders_words_and_the_tools_literals() {
     let ok = constructed(json!({"symbol": "state  BANK,", "months": 3, "interval": "1d", "adjusted": true, "exchange": "NSE"}), message).unwrap();
     assert_eq!(
         Value::Object(ok),
-        json!({"symbol": "state BANK", "months": 3, "interval": "1d", "adjusted": true, "exchange": "NSE"})
+        json!({"symbol": "State Bank", "months": 3, "interval": "1d", "adjusted": true, "exchange": "NSE"})
     );
     for (args, at) in [
         (json!({"symbol": "State Bank of India"}), "symbol"),
@@ -670,7 +672,7 @@ fn an_argument_mostly_of_short_words_is_refused() {
     assert_eq!(refused_at(json!({"symbol": "a b c 8"}), message), "symbol");
     assert_eq!(
         refused_at(json!({"symbols": ["8", "1", "2", "LT"]}), message),
-        "symbols"
+        "symbols[3]"
     );
     assert!(constructed(json!({"symbol": "LT"}), message).is_ok());
     assert!(constructed(json!({"symbol": "State Bank of India"}), message).is_ok());

@@ -216,8 +216,8 @@ async fn a_taken_name_is_refused_without_replace_and_replaced_with_it() {
     assert_eq!(fresh["replaced"], false);
 }
 
-#[test]
-fn the_schema_tells_the_model_about_replace() {
+#[tokio::test]
+async fn the_schema_tells_the_model_about_replace() {
     let t = app();
     let c = ctx(t.ctx.clone(), Surface::Chat, Capabilities::default());
     let tools = (GROUP.build)(&c);
@@ -330,8 +330,8 @@ async fn a_write_failure_is_reported_in_plain_words() {
     );
 }
 
-#[test]
-fn saving_pauses_for_approval_and_listing_does_not() {
+#[tokio::test]
+async fn saving_pauses_for_approval_and_listing_does_not() {
     let t = app();
     let c = ctx(t.ctx.clone(), Surface::Chat, Capabilities::default());
     let approval: Vec<(&str, bool)> = (GROUP.build)(&c)
@@ -401,8 +401,8 @@ fn offered_on_chat_and_chart_not_voice() {
     }
 }
 
-#[test]
-fn the_store_is_the_apps_openscript_folder() {
+#[tokio::test]
+async fn the_store_is_the_apps_openscript_folder() {
     let t = app();
     assert_eq!(dir(&t), t.ctx.data_dir.join("openscript"));
 }

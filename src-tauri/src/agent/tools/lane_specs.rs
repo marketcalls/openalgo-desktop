@@ -62,8 +62,8 @@ mod tests {
         serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
     }
 
-    #[test]
-    fn the_toolkits_and_their_tools_are_the_webs() {
+    #[tokio::test]
+    async fn the_toolkits_and_their_tools_are_the_webs() {
         let f = fixture();
         let t =
             crate::state::testing::build(crate::brokers::BrokerRegistry::new(), chrono::Utc::now());
