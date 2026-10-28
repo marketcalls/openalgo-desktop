@@ -207,9 +207,10 @@ async fn every_draw_tool_emits_its_own_group() {
 async fn levels_are_named_against_the_live_price_and_carry_their_numbers() {
     let panel = Panel::new();
     let out = panel.call("draw_levels", json!({"count": 3})).await;
+    // The web finds two levels on these bars (133 and 97, in
+    // tests/fixtures/agent/chart_geometry.json), so a count of 3 draws two.
     assert!(
-        out.text()
-            .contains("Drew 3 levels on RELIANCE D in your 'levels' group, from 65 bars: "),
+        out.text().contains("Drew 2 levels on RELIANCE D in your 'levels' group, from 65 bars: 133.00 (resistance, 4 touches), 97.00 (support, 2 touches)."),
         "{}",
         out.text()
     );

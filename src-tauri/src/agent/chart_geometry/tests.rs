@@ -310,3 +310,168 @@ fn a_triangle_is_two_rails_and_never_a_diagonal_between_them() {
         .unwrap_or_else(|| panic!("{:?}", rectangle));
     assert_eq!(range.segments, [[0, 1], [2, 3]]);
 }
+
+// -- the web's own answers on the web tests' bars ------------------------------------
+
+/// `tests/fixtures/agent/chart_geometry.json`, recorded from the web's
+/// `chart_geometry.py` by `scripts/agent/capture_web_chart_geometry.py`.
+fn golden() -> serde_json::Value {
+    serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/agent/chart_geometry.json"
+    )))
+    .unwrap_or_else(|e| panic!("chart_geometry.json: {}", e))
+}
+
+/// The bars the web's chart toolkit test serves (`history_rows`): open at
+/// the previous close, high and low three points beyond the body.
+fn history_bars(closes: &[f64], start: f64) -> Bars {
+    let previous = |i: usize| if i == 0 { closes[0] } else { closes[i - 1] };
+    Bars {
+        times: (0..closes.len()).map(|i| start + i as f64 * DAY).collect(),
+        opens: (0..closes.len()).map(previous).collect(),
+        highs: (0..closes.len())
+            .map(|i| previous(i).max(closes[i]) + 3.0)
+            .collect(),
+        lows: (0..closes.len())
+            .map(|i| previous(i).min(closes[i]) - 3.0)
+            .collect(),
+        closes: closes.to_vec(),
+    }
+}
+
+fn floats(v: &serde_json::Value) -> Vec<f64> {
+    v.as_array()
+        .map(|a| a.iter().filter_map(serde_json::Value::as_f64).collect())
+        .unwrap_or_default()
+}
+
+fn pivots_json(pivots: &[Pivot]) -> serde_json::Value {
+    serde_json::json!(pivots
+        .iter()
+        .map(|p| serde_json::json!([p.index, p.price]))
+        .collect::<Vec<_>>())
+}
+
+fn fit_json(fit: Option<Fit>) -> serde_json::Value {
+    fit.map_or(serde_json::Value::Null, |f| {
+        serde_json::json!({"from": f.from.index, "to": f.to.index, "slope": f.slope,
+            "touches": f.touches, "r2": f.r2, "breaks": f.breaks})
+    })
+}
+
+fn side_name(side: Side) -> &'static str {
+    match side {
+        Side::High => "high",
+        Side::Low => "low",
+    }
+}
+
+/// Equal, with floats equal to twelve significant digits (a slope is a
+/// quotient of epoch seconds and both languages print it differently).
+fn same(ours: &serde_json::Value, web: &serde_json::Value, path: &str) {
+    use serde_json::Value;
+    match (ours, web) {
+        (Value::Number(a), Value::Number(b)) => {
+            let (a, b) = (
+                a.as_f64().unwrap_or(f64::NAN),
+                b.as_f64().unwrap_or(f64::NAN),
+            );
+            assert!(
+                (a - b).abs() <= 1e-12 * a.abs().max(b.abs()).max(1.0),
+                "{}: {} != {}",
+                path,
+                a,
+                b
+            );
+        }
+        (Value::Array(a), Value::Array(b)) => {
+            assert_eq!(a.len(), b.len(), "{}: {} != {}", path, ours, web);
+            for (i, (x, y)) in a.iter().zip(b).enumerate() {
+                same(x, y, &format!("{}[{}]", path, i));
+            }
+        }
+        (Value::Object(a), Value::Object(b)) => {
+            assert_eq!(
+                a.keys().collect::<Vec<_>>(),
+                b.keys().collect::<Vec<_>>(),
+                "{}",
+                path
+            );
+            for (k, x) in a {
+                same(x, &b[k], &format!("{}.{}", path, k));
+            }
+        }
+        _ => assert_eq!(ours, web, "{}", path),
+    }
+}
+
+/// Every geometry answer equals the web's on the same bars: swing points,
+/// structure, levels, rails, zones, consolidation, candlestick hits and
+/// chart patterns.
+#[test]
+fn the_web_geometry_is_reproduced() {
+    use serde_json::json;
+    let g = golden();
+    let start = g["start"].as_f64().unwrap_or(0.0);
+    let cases = g["cases"].as_object().cloned().unwrap_or_default();
+    assert_eq!(cases.len(), 3);
+    for (name, web) in &cases {
+        let bars = history_bars(&floats(&web["closes"]), start);
+        let (lo, hi) = (0, bars.len() - 1);
+        let (highs, lows) = significant_pivots(&bars, lo, hi);
+        let s = structure(&highs, &lows);
+        let levels: Vec<serde_json::Value> = support_resistance(&bars, lo, hi, Some(115.0), 2)
+            .iter()
+            .map(|l| {
+                json!({"price": l.price, "touches": l.touches, "role": l.role,
+                "side": side_name(l.side), "first_time": l.first_time, "last_time": l.last_time})
+            })
+            .collect();
+        let band = |z: Option<ZoneBand>| {
+            z.map_or(serde_json::Value::Null, |z| {
+                json!({"low": z.low, "high": z.high,
+                "from_time": z.from_time, "to_time": z.to_time, "pivot_time": z.pivot_time,
+                "pivot_price": z.pivot_price, "bars_since": z.bars_since})
+            })
+        };
+        let range = consolidation(&bars, lo, hi, MIN_RANGE_BARS).map_or(serde_json::Value::Null, |r| {
+            json!({"low": r.low, "high": r.high, "from_time": r.from_time, "to_time": r.to_time,
+                "bars": r.bars, "width_pct": r.width_pct, "drift_pct": r.drift_pct, "touches": r.touches})
+        });
+        let candles: Vec<serde_json::Value> = candlestick_patterns(&bars, 30, lo, hi)
+            .iter()
+            .map(|h| json!([h.name, h.bias, h.index, h.price, h.bars]))
+            .collect();
+        let patterns: Vec<serde_json::Value> = chart_patterns(&bars, &highs, &lows, lo, hi)
+            .iter()
+            .map(|p| {
+                json!([
+                    p.name,
+                    p.bias,
+                    p.anchors
+                        .iter()
+                        .map(|a| json!([a.time, a.price]))
+                        .collect::<Vec<_>>()
+                ])
+            })
+            .collect();
+        let ours = json!({
+            "closes": web["closes"],
+            "significant_highs": pivots_json(&highs),
+            "significant_lows": pivots_json(&lows),
+            "structure": {"higher_highs": s.higher_highs, "lower_highs": s.lower_highs,
+                "higher_lows": s.higher_lows, "lower_lows": s.lower_lows, "verdict": s.verdict},
+            "levels": levels,
+            "resistance": fit_json(fit_line(&highs, TOUCH_TOLERANCE_PCT, Some((&bars, Rail::Resistance)))),
+            "support": fit_json(fit_line(&lows, TOUCH_TOLERANCE_PCT, Some((&bars, Rail::Support)))),
+            "loose_resistance": fit_json(fit_line(&highs, TOUCH_TOLERANCE_PCT, None)),
+            "demand": band(zone(&bars, ZoneKind::Demand, lo, hi)),
+            "supply": band(zone(&bars, ZoneKind::Supply, lo, hi)),
+            "range": range,
+            "candles": candles,
+            "chart_patterns": patterns,
+        });
+        same(&ours, web, name);
+    }
+}

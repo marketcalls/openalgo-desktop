@@ -1,0 +1,1417 @@
+{
+ "start": 1785000000.0,
+ "day": 86400.0,
+ "cases": {
+  "web_closes": {
+   "closes": [
+    100,
+    103.75,
+    107.5,
+    111.25,
+    115.0,
+    118.75,
+    122.5,
+    126.25,
+    130.0,
+    126.25,
+    122.5,
+    118.75,
+    115.0,
+    111.25,
+    107.5,
+    103.75,
+    100.0,
+    103.75,
+    107.5,
+    111.25,
+    115.0,
+    118.75,
+    122.5,
+    126.25,
+    130.0,
+    126.25,
+    122.5,
+    118.75,
+    115.0,
+    111.25,
+    107.5,
+    103.75,
+    100.0,
+    103.75,
+    107.5,
+    111.25,
+    115.0,
+    118.75,
+    122.5,
+    126.25,
+    130.0,
+    126.875,
+    123.75,
+    120.625,
+    117.5,
+    114.375,
+    111.25,
+    108.125,
+    105.0,
+    107.875,
+    110.75,
+    113.625,
+    116.5,
+    119.375,
+    122.25,
+    125.125,
+    128.0,
+    126.375,
+    124.75,
+    123.125,
+    121.5,
+    119.875,
+    118.25,
+    116.625,
+    115.0
+   ],
+   "significant_highs": [
+    [
+     8,
+     133.0
+    ],
+    [
+     24,
+     133.0
+    ],
+    [
+     40,
+     133.0
+    ],
+    [
+     56,
+     131.0
+    ]
+   ],
+   "significant_lows": [
+    [
+     16,
+     97.0
+    ],
+    [
+     32,
+     97.0
+    ],
+    [
+     48,
+     102.0
+    ]
+   ],
+   "structure": {
+    "higher_highs": 0,
+    "lower_highs": 1,
+    "higher_lows": 1,
+    "lower_lows": 0,
+    "verdict": "lower highs into higher lows, a contracting range"
+   },
+   "levels": [
+    {
+     "price": 133.0,
+     "touches": 4,
+     "role": "resistance",
+     "side": "high",
+     "first_time": 1785691200.0,
+     "last_time": 1789838400.0
+    },
+    {
+     "price": 97.0,
+     "touches": 2,
+     "role": "support",
+     "side": "low",
+     "first_time": 1786382400.0,
+     "last_time": 1787764800.0
+    }
+   ],
+   "resistance": {
+    "from": 40,
+    "to": 56,
+    "slope": -1.4467592592592592e-06,
+    "touches": 2,
+    "r2": 1.0,
+    "breaks": 0
+   },
+   "support": {
+    "from": 32,
+    "to": 48,
+    "slope": 3.6168981481481483e-06,
+    "touches": 2,
+    "r2": 1.0,
+    "breaks": 0
+   },
+   "loose_resistance": {
+    "from": 8,
+    "to": 56,
+    "slope": -4.822530864197531e-07,
+    "touches": 2,
+    "r2": 1.0,
+    "breaks": 0
+   },
+   "demand": {
+    "low": 102.0,
+    "high": 111.25,
+    "from_time": 1789060800.0,
+    "to_time": 1790529600.0,
+    "pivot_time": 1789147200.0,
+    "pivot_price": 102.0,
+    "bars_since": 16
+   },
+   "supply": {
+    "low": 122.25,
+    "high": 131.0,
+    "from_time": 1789752000.0,
+    "to_time": 1790529600.0,
+    "pivot_time": 1789838400.0,
+    "pivot_price": 131.0,
+    "bars_since": 8
+   },
+   "range": null,
+   "candles": [
+    [
+     "three white soldiers",
+     "bullish",
+     35,
+     104.5,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     36,
+     108.25,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     37,
+     112.0,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     38,
+     115.75,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     39,
+     119.5,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     40,
+     123.25,
+     3
+    ],
+    [
+     "tweezer top",
+     "bearish",
+     41,
+     133.0,
+     2
+    ],
+    [
+     "inside bar",
+     "neutral",
+     41,
+     123.875,
+     2
+    ],
+    [
+     "three black crows",
+     "bearish",
+     43,
+     126.75,
+     3
+    ],
+    [
+     "three black crows",
+     "bearish",
+     44,
+     123.625,
+     3
+    ],
+    [
+     "three black crows",
+     "bearish",
+     45,
+     120.5,
+     3
+    ],
+    [
+     "three black crows",
+     "bearish",
+     46,
+     117.375,
+     3
+    ],
+    [
+     "three black crows",
+     "bearish",
+     47,
+     114.25,
+     3
+    ],
+    [
+     "three black crows",
+     "bearish",
+     48,
+     111.125,
+     3
+    ],
+    [
+     "tweezer bottom",
+     "bullish",
+     49,
+     102.0,
+     2
+    ],
+    [
+     "inside bar",
+     "neutral",
+     49,
+     102.0,
+     2
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     51,
+     107.75,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     52,
+     110.625,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     53,
+     113.5,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     54,
+     116.375,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     55,
+     119.25,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     56,
+     122.125,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     57,
+     123.375,
+     1
+    ],
+    [
+     "tweezer top",
+     "bearish",
+     57,
+     131.0,
+     2
+    ],
+    [
+     "inside bar",
+     "neutral",
+     57,
+     123.375,
+     2
+    ],
+    [
+     "spinning top",
+     "neutral",
+     58,
+     121.75,
+     1
+    ],
+    [
+     "spinning top",
+     "neutral",
+     59,
+     120.125,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     59,
+     127.75,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     60,
+     118.5,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     60,
+     126.125,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     61,
+     116.875,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     61,
+     124.5,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     62,
+     115.25,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     62,
+     122.875,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     63,
+     113.625,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     63,
+     121.25,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     64,
+     112.0,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     64,
+     119.625,
+     3
+    ]
+   ],
+   "chart_patterns": [
+    [
+     "symmetrical triangle",
+     "neutral",
+     [
+      [
+       1788456000.0,
+       133.0
+      ],
+      [
+       1789838400.0,
+       131.0
+      ],
+      [
+       1787764800.0,
+       97.0
+      ],
+      [
+       1789147200.0,
+       102.0
+      ]
+     ]
+    ]
+   ]
+  },
+  "converging": {
+   "closes": [
+    100,
+    105.0,
+    110.0,
+    115.0,
+    120.0,
+    125.0,
+    130.0,
+    135.0,
+    140.0,
+    135.625,
+    131.25,
+    126.875,
+    122.5,
+    118.125,
+    113.75,
+    109.375,
+    105.0,
+    108.875,
+    112.75,
+    116.625,
+    120.5,
+    124.375,
+    128.25,
+    132.125,
+    136.0,
+    132.75,
+    129.5,
+    126.25,
+    123.0,
+    119.75,
+    116.5,
+    113.25,
+    110.0,
+    112.75,
+    115.5,
+    118.25,
+    121.0,
+    123.75,
+    126.5,
+    129.25,
+    132.0,
+    129.875,
+    127.75,
+    125.625,
+    123.5,
+    121.375,
+    119.25,
+    117.125,
+    115.0,
+    116.625,
+    118.25,
+    119.875,
+    121.5,
+    123.125,
+    124.75,
+    126.375,
+    128.0,
+    126.75,
+    125.5,
+    124.25,
+    123.0,
+    121.75,
+    120.5,
+    119.25,
+    118.0
+   ],
+   "significant_highs": [
+    [
+     8,
+     143.0
+    ],
+    [
+     24,
+     139.0
+    ],
+    [
+     40,
+     135.0
+    ],
+    [
+     56,
+     131.0
+    ]
+   ],
+   "significant_lows": [
+    [
+     16,
+     102.0
+    ],
+    [
+     32,
+     107.0
+    ],
+    [
+     48,
+     112.0
+    ]
+   ],
+   "structure": {
+    "higher_highs": 0,
+    "lower_highs": 3,
+    "higher_lows": 2,
+    "lower_lows": 0,
+    "verdict": "lower highs into higher lows, a contracting range"
+   },
+   "levels": [],
+   "resistance": {
+    "from": 8,
+    "to": 56,
+    "slope": -2.8935185185185184e-06,
+    "touches": 4,
+    "r2": 1.0,
+    "breaks": 0
+   },
+   "support": {
+    "from": 16,
+    "to": 48,
+    "slope": 3.6168981481481483e-06,
+    "touches": 3,
+    "r2": 1.0,
+    "breaks": 1
+   },
+   "loose_resistance": {
+    "from": 8,
+    "to": 56,
+    "slope": -2.8935185185185184e-06,
+    "touches": 4,
+    "r2": 1.0,
+    "breaks": 0
+   },
+   "demand": {
+    "low": 112.0,
+    "high": 119.25,
+    "from_time": 1789060800.0,
+    "to_time": 1790529600.0,
+    "pivot_time": 1789147200.0,
+    "pivot_price": 112.0,
+    "bars_since": 16
+   },
+   "supply": {
+    "low": 124.75,
+    "high": 131.0,
+    "from_time": 1789752000.0,
+    "to_time": 1790529600.0,
+    "pivot_time": 1789838400.0,
+    "pivot_price": 131.0,
+    "bars_since": 8
+   },
+   "range": {
+    "low": 112.0,
+    "high": 131.0,
+    "from_time": 1788715200.0,
+    "to_time": 1790529600.0,
+    "bars": 22,
+    "width_pct": 16.96,
+    "drift_pct": 40.1,
+    "touches": 11
+   },
+   "candles": [
+    [
+     "three white soldiers",
+     "bullish",
+     35,
+     112.5,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     36,
+     115.25,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     37,
+     118.0,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     38,
+     120.75,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     39,
+     123.5,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     40,
+     126.25,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     41,
+     126.875,
+     1
+    ],
+    [
+     "tweezer top",
+     "bearish",
+     41,
+     135.0,
+     2
+    ],
+    [
+     "inside bar",
+     "neutral",
+     41,
+     126.875,
+     2
+    ],
+    [
+     "spinning top",
+     "neutral",
+     42,
+     124.75,
+     1
+    ],
+    [
+     "spinning top",
+     "neutral",
+     43,
+     122.625,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     43,
+     130.75,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     44,
+     120.5,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     44,
+     128.625,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     45,
+     118.375,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     45,
+     126.5,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     46,
+     116.25,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     46,
+     124.375,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     47,
+     114.125,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     47,
+     122.25,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     48,
+     112.0,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     48,
+     120.125,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     49,
+     112.0,
+     1
+    ],
+    [
+     "tweezer bottom",
+     "bullish",
+     49,
+     112.0,
+     2
+    ],
+    [
+     "inside bar",
+     "neutral",
+     49,
+     112.0,
+     2
+    ],
+    [
+     "spinning top",
+     "neutral",
+     50,
+     113.625,
+     1
+    ],
+    [
+     "spinning top",
+     "neutral",
+     51,
+     115.25,
+     1
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     51,
+     115.25,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     52,
+     116.875,
+     1
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     52,
+     116.875,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     53,
+     118.5,
+     1
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     53,
+     118.5,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     54,
+     120.125,
+     1
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     54,
+     120.125,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     55,
+     121.75,
+     1
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     55,
+     121.75,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     56,
+     123.375,
+     1
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     56,
+     123.375,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     57,
+     123.75,
+     1
+    ],
+    [
+     "tweezer top",
+     "bearish",
+     57,
+     131.0,
+     2
+    ],
+    [
+     "inside bar",
+     "neutral",
+     57,
+     123.75,
+     2
+    ],
+    [
+     "spinning top",
+     "neutral",
+     58,
+     122.5,
+     1
+    ],
+    [
+     "spinning top",
+     "neutral",
+     59,
+     121.25,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     59,
+     128.5,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     60,
+     120.0,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     60,
+     127.25,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     61,
+     118.75,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     61,
+     126.0,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     62,
+     117.5,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     62,
+     124.75,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     63,
+     116.25,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     63,
+     123.5,
+     3
+    ],
+    [
+     "spinning top",
+     "neutral",
+     64,
+     115.0,
+     1
+    ],
+    [
+     "three black crows",
+     "bearish",
+     64,
+     122.25,
+     3
+    ]
+   ],
+   "chart_patterns": [
+    [
+     "symmetrical triangle",
+     "neutral",
+     [
+      [
+       1788456000.0,
+       135.0
+      ],
+      [
+       1789838400.0,
+       131.0
+      ],
+      [
+       1787764800.0,
+       107.0
+      ],
+      [
+       1789147200.0,
+       112.0
+      ]
+     ]
+    ]
+   ]
+  },
+  "lower_highs": {
+   "closes": [
+    80,
+    78.33333333333333,
+    76.66666666666667,
+    75.0,
+    73.33333333333333,
+    71.66666666666667,
+    70.0,
+    78.5,
+    87.0,
+    95.5,
+    104.0,
+    112.5,
+    121.0,
+    117.5,
+    114.0,
+    110.5,
+    107.0,
+    103.5,
+    100.0,
+    103.16666666666667,
+    106.33333333333333,
+    109.5,
+    112.66666666666667,
+    115.83333333333333,
+    119.0,
+    115.5,
+    112.0,
+    108.5,
+    105.0,
+    101.5,
+    98.0,
+    101.16666666666667,
+    104.33333333333333,
+    107.5,
+    110.66666666666667,
+    113.83333333333333,
+    117.0,
+    107.5,
+    98.0,
+    88.5,
+    79.0,
+    69.5,
+    60.0,
+    65.16666666666667,
+    70.33333333333333,
+    75.5,
+    80.66666666666667,
+    85.83333333333333,
+    91.0,
+    85.0,
+    79.0,
+    73.0,
+    67.0,
+    61.0,
+    55.0
+   ],
+   "significant_highs": [
+    [
+     12,
+     124.0
+    ],
+    [
+     24,
+     122.0
+    ],
+    [
+     36,
+     120.0
+    ],
+    [
+     48,
+     94.0
+    ]
+   ],
+   "significant_lows": [
+    [
+     6,
+     67.0
+    ],
+    [
+     18,
+     97.0
+    ],
+    [
+     30,
+     95.0
+    ],
+    [
+     42,
+     57.0
+    ]
+   ],
+   "structure": {
+    "higher_highs": 0,
+    "lower_highs": 3,
+    "higher_lows": 1,
+    "lower_lows": 2,
+    "verdict": "lower highs and lower lows, a downtrend"
+   },
+   "levels": [
+    {
+     "price": 122.0,
+     "touches": 3,
+     "role": "resistance",
+     "side": "high",
+     "first_time": 1786036800.0,
+     "last_time": 1788110400.0
+    },
+    {
+     "price": 95.0,
+     "touches": 2,
+     "role": "support",
+     "side": "low",
+     "first_time": 1786555200.0,
+     "last_time": 1787592000.0
+    }
+   ],
+   "resistance": {
+    "from": 12,
+    "to": 36,
+    "slope": -1.9290123456790124e-06,
+    "touches": 3,
+    "r2": 1.0,
+    "breaks": 0
+   },
+   "support": {
+    "from": 18,
+    "to": 42,
+    "slope": -1.9290123456790123e-05,
+    "touches": 2,
+    "r2": 1.0,
+    "breaks": 0
+   },
+   "loose_resistance": {
+    "from": 12,
+    "to": 48,
+    "slope": -9.645061728395062e-06,
+    "touches": 2,
+    "r2": 1.0,
+    "breaks": 0
+   },
+   "demand": {
+    "low": 57.0,
+    "high": 79.0,
+    "from_time": 1788542400.0,
+    "to_time": 1789665600.0,
+    "pivot_time": 1788628800.0,
+    "pivot_price": 57.0,
+    "bars_since": 12
+   },
+   "supply": {
+    "low": 80.6667,
+    "high": 94.0,
+    "from_time": 1789060800.0,
+    "to_time": 1789665600.0,
+    "pivot_time": 1789147200.0,
+    "pivot_price": 94.0,
+    "bars_since": 6
+   },
+   "range": {
+    "low": 92.5,
+    "high": 124.0,
+    "from_time": 1785864000.0,
+    "to_time": 1788283200.0,
+    "bars": 29,
+    "width_pct": 34.05,
+    "drift_pct": 19.0,
+    "touches": 13
+   },
+   "candles": [
+    [
+     "bearish engulfing",
+     "bearish",
+     25,
+     122.0,
+     2
+    ],
+    [
+     "tweezer top",
+     "bearish",
+     25,
+     122.0,
+     2
+    ],
+    [
+     "three black crows",
+     "bearish",
+     27,
+     115.0,
+     3
+    ],
+    [
+     "three black crows",
+     "bearish",
+     28,
+     111.5,
+     3
+    ],
+    [
+     "three black crows",
+     "bearish",
+     29,
+     108.0,
+     3
+    ],
+    [
+     "three black crows",
+     "bearish",
+     30,
+     104.5,
+     3
+    ],
+    [
+     "tweezer bottom",
+     "bullish",
+     31,
+     95.0,
+     2
+    ],
+    [
+     "inside bar",
+     "neutral",
+     31,
+     95.0,
+     2
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     33,
+     101.3333,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     34,
+     104.5,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     35,
+     107.6667,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     36,
+     110.8333,
+     3
+    ],
+    [
+     "bearish engulfing",
+     "bearish",
+     37,
+     120.0,
+     2
+    ],
+    [
+     "tweezer top",
+     "bearish",
+     37,
+     120.0,
+     2
+    ],
+    [
+     "three black crows",
+     "bearish",
+     39,
+     101.0,
+     3
+    ],
+    [
+     "three black crows",
+     "bearish",
+     40,
+     91.5,
+     3
+    ],
+    [
+     "three black crows",
+     "bearish",
+     41,
+     82.0,
+     3
+    ],
+    [
+     "three black crows",
+     "bearish",
+     42,
+     72.5,
+     3
+    ],
+    [
+     "tweezer bottom",
+     "bullish",
+     43,
+     57.0,
+     2
+    ],
+    [
+     "inside bar",
+     "neutral",
+     43,
+     57.0,
+     2
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     45,
+     67.3333,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     46,
+     72.5,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     47,
+     77.6667,
+     3
+    ],
+    [
+     "three white soldiers",
+     "bullish",
+     48,
+     82.8333,
+     3
+    ],
+    [
+     "bearish engulfing",
+     "bearish",
+     49,
+     94.0,
+     2
+    ],
+    [
+     "tweezer top",
+     "bearish",
+     49,
+     94.0,
+     2
+    ],
+    [
+     "three black crows",
+     "bearish",
+     51,
+     82.0,
+     3
+    ],
+    [
+     "three black crows",
+     "bearish",
+     52,
+     76.0,
+     3
+    ],
+    [
+     "three black crows",
+     "bearish",
+     53,
+     70.0,
+     3
+    ],
+    [
+     "three black crows",
+     "bearish",
+     54,
+     64.0,
+     3
+    ]
+   ],
+   "chart_patterns": []
+  }
+ }
+}
