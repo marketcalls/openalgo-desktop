@@ -232,10 +232,14 @@ from the trader's own words in that turn's message (whole words, in the
 trader's own form, each used no more often than the trader wrote it), the
 literals the tool's schema lists for that argument, and exact numbers the
 trader wrote; keys are the schema's own, each value has the type the schema
-declares, and at most three one- or two-character words, switches or nulls
-go out in one call (`agent/mcp/taint.rs`, tested in `agent::mcp::tests`).
+declares, empty text is refused, and at most three one- or two-character
+words, switches or nulls go out in one call (`agent/mcp/taint.rs`, tested in `agent::mcp::tests`).
 What remains is which of those words appear and in what order, which can
-still carry a few bits. No external MCP server is registered in this
+still carry a few bits. The argument structure is bounded by a single
+per-call budget (every word, number, switch, null, literal, list and
+object is a piece; at most the trader's word count plus four, eight fixed
+values and three levels of nesting), so a call carries at most a small,
+fixed amount beyond the trader's own words. No external MCP server is registered in this
 version, so nothing is sent at all; adding one is a change to the app
 (`agent/mcp/registry.rs`), and the trader's External data switch on
 `/agent/config` withholds every server from the Agent.

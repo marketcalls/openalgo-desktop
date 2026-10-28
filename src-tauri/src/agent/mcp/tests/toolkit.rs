@@ -569,7 +569,11 @@ fn schema() -> Value {
         "exchange": {"const": "NSE"}, "symbols": {"type": "array", "items": {"type": "string"}},
         "intervals": {"type": "array", "items": {"enum": ["day", "week"]}},
         "filter": {"type": "object", "properties": {"name": {"type": "string"}}},
-        "flag": {"description": "no type stated"}}})
+        "flag": {"description": "no type stated"},
+        "more_intervals": {"type": "array", "items": {"enum": ["day", "week"]}},
+        "filters": {"type": "array", "items": {"type": "object"}},
+        "groups": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}},
+        "deep": {"type": "array", "items": {"type": "array", "items": {"type": "array", "items": {"type": "array"}}}}}})
 }
 
 fn constructed(
@@ -708,25 +712,74 @@ fn the_traders_own_form_goes_out_and_words_are_not_reused() {
         "symbol"
     );
     assert!(constructed(json!({"symbol": "Bank Bank"}), "Bank or Bank").is_ok());
-    assert_eq!(
-        refused_at(json!({"filter": {"name": "State"}}), "State"),
-        "filter.name"
-    );
-    assert!(constructed(json!({"filter": {"name": "State"}}), "State Bank").is_ok());
+    // An object is one piece of the call's budget, its key none.
+    assert!(constructed(json!({"filter": {"name": "State"}}), "State").is_ok());
 }
 
 /// Each value is of a type the schema declares for it; a switch or null
-/// only where declared; a list of switches or fixed values is short.
+/// only where declared.
 #[test]
 fn a_value_must_be_of_the_type_the_schema_declares() {
-    let message = "3 months of State";
+    let message = "3 months of State Bank on the daily and weekly chart";
     assert_eq!(refused_at(json!({"months": "3"}), message), "months");
     assert_eq!(refused_at(json!({"flag": true}), message), "flag");
     assert_eq!(refused_at(json!({"symbol": null}), message), "symbol");
     assert_eq!(refused_at(json!({"symbols": [3]}), message), "symbols[0]");
-    let nine = json!({"intervals": vec!["week"; 9]});
-    assert_eq!(refused_at(nine, message), "intervals");
     assert!(constructed(json!({"months": 3, "symbol": "State"}), message).is_ok());
+}
+
+/// The final round (2026-10-28): one budget for the whole call. Every value
+/// is a piece, empty containers included; the call holds at most the
+/// trader's words plus four pieces, eight literals, switches or nulls in
+/// all, and three levels of nesting; an empty text is refused.
+#[test]
+fn one_budget_bounds_the_whole_call() {
+    // "State" is one word: a budget of five pieces.
+    let one = "State";
+    assert_eq!(refused_at(json!({"symbol": ""}), one), "symbol");
+    assert_eq!(refused_at(json!({"symbol": " ,, "}), one), "symbol");
+    assert!(constructed(json!({"filters": [{}, {}, {}]}), one).is_ok());
+    assert_eq!(
+        refused_at(json!({"filters": [{}, {}, {}, {}, {}]}), one),
+        "filters[4]",
+        "empty containers count"
+    );
+    let five = "State Bank India today now";
+    assert!(constructed(json!({"groups": [["State"], ["Bank"], ["India"]]}), five).is_ok());
+    assert_eq!(
+        refused_at(
+            json!({"groups": [["State"], ["Bank"], ["India"], ["today"], ["now"]]}),
+            five
+        ),
+        "groups[4]",
+        "many small lists spend the budget"
+    );
+    assert!(constructed(json!({"deep": [[[]]]}), five).is_ok());
+    assert_eq!(
+        refused_at(json!({"deep": [[[[]]]]}), five),
+        "deep[0][0][0]",
+        "deeper than three levels"
+    );
+    // Literals are counted across the call, not per list.
+    let long = "one two three four five six seven eight nine ten eleven twelve";
+    assert_eq!(
+        refused_at(
+            json!({"intervals": vec!["week"; 5], "more_intervals": vec!["day"; 4]}),
+            long
+        ),
+        "more_intervals[3]"
+    );
+    // A normal call stays well inside the budget.
+    let asked = "SBIN daily history for 3 months please";
+    let sent = constructed(
+        json!({"symbol": "sbin", "months": 3, "interval": "1d", "exchange": "NSE"}),
+        asked,
+    )
+    .unwrap();
+    assert_eq!(
+        Value::Object(sent),
+        json!({"symbol": "SBIN", "months": 3, "interval": "1d", "exchange": "NSE"})
+    );
 }
 
 #[tokio::test]

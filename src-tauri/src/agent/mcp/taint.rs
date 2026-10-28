@@ -14,19 +14,21 @@
 //!   case (a fragment, a piece of the marker, or a digit inside a longer
 //!   number does not pass), and is sent as the trader wrote it, never in
 //!   the model's casing. Each word is used at most as many times as the
-//!   trader wrote it, and all the words together at most as many as the
-//!   message has.
+//!   trader wrote it. An empty or word-less text is refused.
 //! - **The server's literals.** Or the whole value is a literal the tool's
 //!   `inputSchema` lists for that argument (an `enum` value or the `const`).
 //! - **The schema's shape.** A key is an argument name the schema declares,
 //!   never a trader's word. Each value's JSON type must be one the schema
 //!   declares for it (`type`, and `items.type` for a list); a switch or a
-//!   null is refused where the schema does not declare one. A list holds at
-//!   most [`MAX_LITERAL_ITEMS`] switches or literals.
-//! - **Few short pieces.** One- and two-character words, switches and nulls
-//!   are what data would be spelled out in: more than
-//!   [`MAX_SHORT_PIECES`] across the whole call is refused. A nested key
-//!   counts as one of the trader's words.
+//!   null is refused where the schema does not declare one. Nesting stops
+//!   at [`MAX_DEPTH`] levels.
+//! - **One budget for the call.** Every value is a piece: each word,
+//!   number, switch, null and literal, and each list and object, empty ones
+//!   included. A call holds at most the trader's word count plus
+//!   [`EXTRA_PIECES`] pieces, at most [`MAX_FIXED_PIECES`] literals,
+//!   switches and nulls, and at most [`MAX_SHORT_PIECES`] one- and
+//!   two-character words, switches and nulls (what data would be spelled
+//!   out in).
 //!
 //! What is left (which of these words, in what order) can still carry a few
 //! bits; `docs/security/known-residuals.md` records it.
@@ -42,13 +44,16 @@ use serde_json::{Map, Value};
 use std::collections::HashMap;
 
 /// How deep a value is followed; deeper is refused.
-const MAX_DEPTH: usize = 6;
+pub const MAX_DEPTH: usize = 3;
 
 /// Most one- and two-character words, switches and nulls in one call.
 pub const MAX_SHORT_PIECES: usize = 3;
 
-/// Most switches or literals in one list.
-pub const MAX_LITERAL_ITEMS: usize = 8;
+/// Most literals, switches and nulls in one call.
+pub const MAX_FIXED_PIECES: usize = 8;
+
+/// The pieces one call may hold beyond the trader's word count.
+pub const EXTRA_PIECES: usize = 4;
 
 /// Stripped from a word's ends before it is compared (the web's
 /// `_EDGE_PUNCTUATION`, as the web search boundary strips it).
@@ -104,8 +109,12 @@ pub enum Why {
     WrongType,
     /// More short words, switches and nulls than [`MAX_SHORT_PIECES`].
     ShortPieces,
-    /// A list with more switches or literals than [`MAX_LITERAL_ITEMS`].
-    TooManyItems,
+    /// More literals, switches and nulls than [`MAX_FIXED_PIECES`].
+    TooManyFixed,
+    /// More pieces than the trader's words plus [`EXTRA_PIECES`].
+    OverBudget,
+    /// A text with no word in it.
+    EmptyText,
     /// Shaped like a key or a password.
     KeyShaped,
     /// Nested past what is followed.
@@ -131,7 +140,9 @@ impl Refused {
             Why::NotDeclared => format!("{} is not an argument this tool lists.", self.at),
             Why::WrongType => format!("{} is not of the type this tool lists for it.", self.at),
             Why::ShortPieces => format!("{} brings the call to more than {} one- and two-character words, switches or nulls, which is how data is spelled out a piece at a time, so it is not sent.", self.at, MAX_SHORT_PIECES),
-            Why::TooManyItems => format!("{} lists more than {} switches or fixed values.", self.at, MAX_LITERAL_ITEMS),
+            Why::TooManyFixed => format!("{} brings the call to more than {} switches, nulls or fixed values.", self.at, MAX_FIXED_PIECES),
+            Why::OverBudget => format!("{} brings the call to more values than the trader's message has words, so it is not sent.", self.at),
+            Why::EmptyText => format!("{} is an empty text; leave the argument out instead.", self.at),
             Why::KeyShaped => format!("{} looks like a key or a password, which is never sent to an external server.", self.at),
             Why::TooDeep => format!("{} is nested too deeply.", self.at),
         }
@@ -217,7 +228,8 @@ pub fn construct(
     let mut builder = Builder {
         vocab,
         used: HashMap::new(),
-        words: 0,
+        pieces: 0,
+        fixed: 0,
         short: 0,
     };
     let mut out = Map::new();
@@ -230,18 +242,43 @@ pub fn construct(
     Ok(out)
 }
 
-/// One call's construction, with what it has used so far.
+/// One call's construction, with what it has used so far: one budget for
+/// the whole call.
 struct Builder<'a> {
     vocab: &'a Vocabulary,
     /// How often each trader word has been used.
     used: HashMap<String, usize>,
-    /// Trader words used, nested keys included.
-    words: usize,
+    /// Every value so far: each word, number, switch, null and literal, and
+    /// each list and object, empty ones included.
+    pieces: usize,
+    /// Literals, switches and nulls.
+    fixed: usize,
     /// One- and two-character words, switches and nulls.
     short: usize,
 }
 
 impl Builder<'_> {
+    /// One more piece against the call's budget: the trader's words plus
+    /// [`EXTRA_PIECES`].
+    fn piece(&mut self, at: &str) -> Result<(), Refused> {
+        self.pieces += 1;
+        if self.pieces > self.vocab.total + EXTRA_PIECES {
+            return Err(refuse(at, "", Why::OverBudget));
+        }
+        Ok(())
+    }
+
+    /// A literal, switch or null: a piece, and one of at most
+    /// [`MAX_FIXED_PIECES`] in the call.
+    fn fixed_piece(&mut self, at: &str) -> Result<(), Refused> {
+        self.piece(at)?;
+        self.fixed += 1;
+        if self.fixed > MAX_FIXED_PIECES {
+            return Err(refuse(at, "", Why::TooManyFixed));
+        }
+        Ok(())
+    }
+
     fn short_piece(&mut self, at: &str) -> Result<(), Refused> {
         self.short += 1;
         if self.short > MAX_SHORT_PIECES {
@@ -257,11 +294,11 @@ impl Builder<'_> {
             return Err(refuse(at, word, Why::NotTheTraders));
         };
         let used = self.used.entry(lower).or_insert(0);
-        if *used >= *written || self.words >= self.vocab.total {
+        if *used >= *written {
             return Err(refuse(at, word, Why::TooOften));
         }
         *used += 1;
-        self.words += 1;
+        self.piece(at)?;
         if is_short(own) {
             self.short_piece(at)?;
         }
@@ -280,6 +317,7 @@ impl Builder<'_> {
         }
         if !matches!(value, Value::Array(_) | Value::Object(_)) && literals(schema).contains(&value)
         {
+            self.fixed_piece(at)?;
             let text = match value {
                 Value::String(s) => s.clone(),
                 other => other.to_string(),
@@ -294,6 +332,7 @@ impl Builder<'_> {
         }
         match value {
             Value::Null | Value::Bool(_) => {
+                self.fixed_piece(at)?;
                 self.short_piece(at)?;
                 Ok(value.clone())
             }
@@ -301,28 +340,25 @@ impl Builder<'_> {
                 self.word(at, &n.to_string())?;
                 Ok(value.clone())
             }
-            Value::String(s) => {
-                if redact_secrets(s) != *s {
-                    return Err(refuse(at, "", Why::KeyShaped));
-                }
-                let own = words(s)
-                    .map(|w| self.word(at, w))
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(Value::String(own.join(" ")))
+            Value::String(s) => self.text(s, at),
+            Value::Array(items) => {
+                self.piece(at)?;
+                let inner = schema.and_then(|s| s.get("items"));
+                items
+                    .iter()
+                    .enumerate()
+                    .map(|(i, v)| self.value(v, inner, &format!("{}[{}]", at, i), depth + 1))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map(Value::Array)
             }
-            Value::Array(items) => self.list(items, schema, at, depth),
             Value::Object(map) => {
+                self.piece(at)?;
                 let mut out = Map::new();
                 for (k, v) in map {
                     let here = format!("{}.{}", at, k);
                     let Some(declared) = property(schema, k) else {
                         return Err(refuse(&here, k, Why::NotDeclared));
                     };
-                    // A nested key is a piece too: it counts as a word.
-                    if self.words >= self.vocab.total {
-                        return Err(refuse(&here, k, Why::TooOften));
-                    }
-                    self.words += 1;
                     out.insert(k.clone(), self.value(v, Some(declared), &here, depth + 1)?);
                 }
                 Ok(Value::Object(out))
@@ -330,26 +366,19 @@ impl Builder<'_> {
         }
     }
 
-    fn list(
-        &mut self,
-        items: &[Value],
-        schema: Option<&Value>,
-        at: &str,
-        depth: usize,
-    ) -> Result<Value, Refused> {
-        let inner = schema.and_then(|s| s.get("items"));
-        let fixed = items
-            .iter()
-            .filter(|v| matches!(v, Value::Bool(_) | Value::Null) || literals(inner).contains(v))
-            .count();
-        if fixed > MAX_LITERAL_ITEMS {
-            return Err(refuse(at, "", Why::TooManyItems));
+    /// A text value: words of the trader's, in the trader's own form. An
+    /// empty or word-less text is refused (its absence or presence alone
+    /// would carry a bit).
+    fn text(&mut self, s: &str, at: &str) -> Result<Value, Refused> {
+        if redact_secrets(s) != *s {
+            return Err(refuse(at, "", Why::KeyShaped));
         }
-        items
-            .iter()
-            .enumerate()
-            .map(|(i, v)| self.value(v, inner, &format!("{}[{}]", at, i), depth + 1))
-            .collect::<Result<Vec<_>, _>>()
-            .map(Value::Array)
+        let own = words(s)
+            .map(|w| self.word(at, w))
+            .collect::<Result<Vec<_>, _>>()?;
+        if own.is_empty() {
+            return Err(refuse(at, "", Why::EmptyText));
+        }
+        Ok(Value::String(own.join(" ")))
     }
 }
