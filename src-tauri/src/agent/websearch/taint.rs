@@ -2,7 +2,8 @@
 //!
 //! The model's query never reaches a provider. The outgoing query is built
 //! from the trader's own message for the turn: a token of the model's
-//! survives only when it appears in that message, and when none survives
+//! survives only when it is one of that message's words, whole (the web
+//! kept any substring; a deviation), and when none survives
 //! the message itself is sent. A word the model invented, or copied out of
 //! a poisoned tool result, cannot leave the machine. With no message to
 //! build from, nothing is sent.
@@ -181,14 +182,28 @@ fn join_within(tokens: &[&str], limit: usize) -> String {
     out.join(" ")
 }
 
+/// The trader's own words, as a set: the redacted message split as
+/// `str.split()` splits it, each word without its edge punctuation and
+/// lower-cased, the redaction marker left out.
+fn operator_words(operator: &str) -> std::collections::HashSet<String> {
+    split(operator)
+        .map(|t| strip_edges(t).to_lowercase())
+        .filter(|w| !w.is_empty() && w != REDACTION_TOKEN)
+        .collect()
+}
+
 /// Build the outgoing query out of the trader's own words
-/// (`constrain_query`).
+/// (`constrain_query`). A word of the model's is kept only when it is one
+/// of the trader's words, whole: the web kept any substring of the
+/// message, so a fragment of a word, of the redaction marker, or a single
+/// letter or digit passed, and data could leave a piece at a time
+/// (security review, 2026-10-28; a deviation from the web).
 pub fn constrain(requested: &str, operator_message: &str) -> Constrained {
     let operator = redact(operator_message);
     if operator.is_empty() {
         return Constrained::block();
     }
-    let haystack = operator.to_lowercase();
+    let words = operator_words(&operator);
     let requested = redact(requested);
     let mut kept: Vec<&str> = Vec::new();
     let mut seen: Vec<String> = Vec::new();
@@ -199,7 +214,7 @@ pub fn constrain(requested: &str, operator_message: &str) -> Constrained {
         if lowered.is_empty() || lowered == REDACTION_TOKEN {
             continue;
         }
-        if !haystack.contains(&lowered) {
+        if !words.contains(&lowered) {
             dropped += 1;
             continue;
         }

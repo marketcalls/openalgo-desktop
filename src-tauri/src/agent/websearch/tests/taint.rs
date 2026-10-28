@@ -115,3 +115,46 @@ fn the_query_stops_on_a_word_boundary_inside_the_cap() {
     assert!(q.text.chars().count() <= MAX_QUERY_CHARS);
     assert!(op.starts_with(&q.text) && op[q.text.len()..].starts_with(' '));
 }
+
+/// Security review (2026-10-28), a deviation from the web: a model word is
+/// kept only when it is one of the trader's words, whole. The web's
+/// substring test let fragments through, a piece at a time.
+#[test]
+fn a_fragment_of_a_traders_word_is_not_one_of_their_words() {
+    let op = "What did the RBI say about the repo rate today?";
+    let q = constrain("RBI rep at ate oda", op);
+    assert_eq!(
+        (q.text.as_str(), q.decision),
+        ("RBI", Decision::Constrained)
+    );
+    assert_eq!(q.dropped, 4);
+    for fragment in ["w", "h", "a", "t", "?", "pora", "da"] {
+        let f = constrain(fragment, op);
+        assert_eq!(
+            f.decision,
+            Decision::OperatorMessage,
+            "{:?} passed",
+            fragment
+        );
+    }
+    let digits = constrain("5 0 50 2 6", "Nifty 50 levels for 26 Oct");
+    assert_eq!(digits.text, "50", "only whole numbers the trader wrote");
+}
+
+#[test]
+fn fragments_of_the_redaction_marker_are_not_words() {
+    let op = "check INFY news, my key is sk-proj-ABCDEFGH12345678";
+    let q = constrain("redact acted red INFY", op);
+    assert_eq!(q.text, "INFY");
+    assert_eq!(q.dropped, 3);
+}
+
+#[test]
+fn whole_words_pass_whatever_their_case_and_edge_punctuation() {
+    let op = "Is NIFTY, or (banknifty), up today?";
+    let q = constrain("nifty! \"BankNifty\" today", op);
+    assert_eq!(
+        (q.text.as_str(), q.decision),
+        ("nifty BankNifty today", Decision::Verbatim)
+    );
+}
