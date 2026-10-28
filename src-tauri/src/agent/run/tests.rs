@@ -184,14 +184,19 @@ async fn a_model_name_is_sent_exactly_as_configured() {
                     assert_eq!(body["model"], name, "{}", case);
                 }
                 if effort.is_none() {
-                    for field in ["reasoning_effort", "reasoning", "thinking", "think"] {
-                        assert!(body.get(field).is_none(), "{}: {} sent", case, field);
+                    // No effort of any kind; a request to capture reasoning
+                    // (Responses `reasoning.summary`, Gemini
+                    // `includeThoughts`) is not one.
+                    for field in [
+                        "/reasoning_effort",
+                        "/reasoning/effort",
+                        "/thinking",
+                        "/think",
+                        "/generationConfig/thinkingConfig/thinkingBudget",
+                        "/generationConfig/thinkingConfig/thinkingLevel",
+                    ] {
+                        assert!(body.pointer(field).is_none(), "{}: {} sent", case, field);
                     }
-                    assert!(
-                        body.pointer("/generationConfig/thinkingConfig").is_none(),
-                        "{}",
-                        case
-                    );
                 }
             }
         }
