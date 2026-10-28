@@ -5,13 +5,25 @@
 //!
 //! Every argument sent to a server is built out of words that are already
 //! the trader's or the server's own, never out of anything the model
-//! invented or copied from a tool result: each whitespace-delimited word of
-//! a text value, and the text of a number, must appear (ignoring case) in
-//! the trader's message for this turn, or be a name or a value the tool's
-//! own `inputSchema` lists (its argument names, an `enum` or a `default`),
-//! which the server already knows. A key must be one of those too. A switch
-//! or null carries no account data and passes. Credential-shaped text is
-//! refused before anything is compared.
+//! invented or copied from a tool result:
+//!
+//! - The trader's message for this turn is redacted (credentials out),
+//!   split once on white space, each word stripped of edge punctuation and
+//!   lower-cased, the redaction marker removed: that set is the trader's
+//!   words.
+//! - Each word of a text value, edge punctuation stripped, must be exactly
+//!   one of the trader's words; a number's text likewise. A fragment of a
+//!   word, of the marker, or a letter or digit inside a longer word does
+//!   not pass (security review, 2026-10-28: the web's search boundary tests
+//!   a substring of the message, and data could leave a piece at a time).
+//!   The web search boundary uses the same exact-word rule.
+//! - Or the whole value is a literal the tool's `inputSchema` lists for that
+//!   argument (an `enum` value or the `const`), which the server already
+//!   knows.
+//! - A key is an argument name the schema declares, or one of the trader's
+//!   words. A switch or null carries no account data and passes.
+//! - An argument built mostly from one- or two-character words is refused:
+//!   letters and digits are the pieces data would be spelled out in.
 //!
 //! The web's search boundary keeps the words that pass and drops the rest.
 //! An argument is a lookup value, not a query: "State Bank of" names a
@@ -22,152 +34,223 @@
 //! from "last month", a count the trader did not say), which it has to ask
 //! for; nothing is sent until it does.
 
-use crate::agent::redact::redact_text;
+use crate::agent::redact::{redact_secrets, REDACTED};
 use serde_json::{Map, Value};
 use std::collections::HashSet;
 
 /// How deep a value is followed; deeper is refused.
 const MAX_DEPTH: usize = 6;
 
-/// The words an argument may be built from.
+/// Stripped from a word's ends before it is compared (the web's
+/// `_EDGE_PUNCTUATION`, as the web search boundary strips it).
+const EDGE: &[char] = &[
+    ' ', '\t', '\n', '\r', '"', '\'', '`', '.', ',', ';', ':', '!', '?', '(', ')', '[', ']', '{',
+    '}', '<', '>', '|', '\\', '/', '*', '~', '#',
+];
+
+/// A word of at most this many characters is a short one.
+const SHORT_WORD_CHARS: usize = 2;
+
+fn words(text: &str) -> impl Iterator<Item = &str> {
+    text.split_whitespace()
+        .map(|w| w.trim_matches(|c| EDGE.contains(&c)))
+        .filter(|w| !w.is_empty())
+}
+
+/// The trader's words: what an argument may be built from.
 pub struct Vocabulary {
-    /// The trader's message, credentials removed, lower case.
-    operator: String,
-    /// Names and values the tool's schema lists, lower case.
-    server: HashSet<String>,
+    trader: HashSet<String>,
 }
 
 impl Vocabulary {
-    pub fn new(operator_message: &str, schema: Option<&Value>) -> Vocabulary {
-        let mut server = HashSet::new();
-        if let Some(s) = schema {
-            collect(s, &mut server, 0);
-        }
+    pub fn new(operator_message: &str) -> Vocabulary {
+        let marker = REDACTED.trim_matches(|c| EDGE.contains(&c)).to_lowercase();
         Vocabulary {
-            operator: redact_text(operator_message).to_lowercase(),
-            server,
+            trader: words(&redact_secrets(operator_message))
+                .map(str::to_lowercase)
+                .filter(|w| *w != marker)
+                .collect(),
         }
     }
 
-    fn allows(&self, word: &str) -> bool {
-        let w = word.to_lowercase();
-        self.server.contains(&w) || (!w.is_empty() && self.operator.contains(&w))
+    fn has(&self, word: &str) -> bool {
+        self.trader.contains(&word.to_lowercase())
     }
 }
 
-/// The property names, enum values and defaults of a schema.
-fn collect(schema: &Value, out: &mut HashSet<String>, depth: usize) {
-    if depth > MAX_DEPTH {
-        return;
-    }
-    let Some(obj) = schema.as_object() else {
-        return;
-    };
-    if let Some(props) = obj.get("properties").and_then(Value::as_object) {
-        for (name, prop) in props {
-            out.insert(name.to_lowercase());
-            collect(prop, out, depth + 1);
-        }
-    }
-    for listed in obj
+/// The literal values (`enum`, `const`) a schema lists for one value.
+fn literals(schema: Option<&Value>) -> Vec<&Value> {
+    let Some(s) = schema else { return Vec::new() };
+    let mut out: Vec<&Value> = s
         .get("enum")
         .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-    {
-        if let Some(word) = scalar_text(listed) {
-            out.insert(word.to_lowercase());
+        .map(|a| a.iter().collect())
+        .unwrap_or_default();
+    out.extend(s.get("const"));
+    for key in ["anyOf", "oneOf"] {
+        for branch in s.get(key).and_then(Value::as_array).into_iter().flatten() {
+            out.extend(literals(Some(branch)));
         }
     }
-    if let Some(word) = obj.get("default").and_then(scalar_text) {
-        out.insert(word.to_lowercase());
-    }
-    for key in ["items", "anyOf", "oneOf"] {
-        match obj.get(key) {
-            Some(Value::Array(items)) => items.iter().for_each(|i| collect(i, out, depth + 1)),
-            Some(item) => collect(item, out, depth + 1),
-            None => {}
-        }
-    }
+    out
 }
 
-fn scalar_text(v: &Value) -> Option<String> {
-    match v {
-        Value::String(s) => Some(s.clone()),
-        Value::Number(n) => Some(n.to_string()),
-        _ => None,
-    }
+/// The schema of a named property, of an object schema.
+fn property<'a>(schema: Option<&'a Value>, name: &str) -> Option<&'a Value> {
+    schema?.get("properties")?.get(name)
 }
 
-/// An argument that may not leave: where it is and the word that stopped
-/// it.
+fn declares(schema: Option<&Value>, name: &str) -> bool {
+    property(schema, name).is_some()
+}
+
+/// Why an argument may not leave.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Why {
+    /// A word that is neither the trader's nor a literal of the tool's.
+    NotTheTraders,
+    /// Mostly one- and two-character words.
+    ShortWords,
+    /// Shaped like a key or a password.
+    KeyShaped,
+    /// Nested past what is followed.
+    TooDeep,
+}
+
+/// An argument that may not leave: where it is, the word that stopped it
+/// and why.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Refused {
     pub at: String,
     pub word: String,
+    pub why: Why,
 }
 
-fn refuse(at: &str, word: &str) -> Refused {
-    Refused {
-        at: at.to_string(),
-        word: word.chars().take(40).collect(),
+impl Refused {
+    /// The correction the model reads.
+    pub fn reason(&self) -> String {
+        match self.why {
+            Why::NotTheTraders => format!(
+                "{} holds words the trader did not write in this message ({}), and an external server is sent only the trader's own words or the values its tool lists.",
+                self.at,
+                crate::agent::tools::service::py_repr(&Value::String(self.word.clone()))
+            ),
+            Why::ShortWords => format!(
+                "{} is made mostly of one- and two-character words, which is how data is spelled out a piece at a time, so it is not sent.",
+                self.at
+            ),
+            Why::KeyShaped => format!(
+                "{} looks like a key or a password, which is never sent to an external server.",
+                self.at
+            ),
+            Why::TooDeep => format!("{} is nested too deeply.", self.at),
+        }
     }
 }
 
-/// The arguments as they will be sent, every word the trader's or the
-/// server's, or the first one that is not.
+fn refuse(at: &str, word: &str, why: Why) -> Refused {
+    Refused {
+        at: at.to_string(),
+        word: word.chars().take(40).collect(),
+        why,
+    }
+}
+
+/// The arguments as they will be sent, every word the trader's or a
+/// literal of the tool's, or the first one that is not. `schema` is the
+/// tool's `inputSchema`.
 pub fn construct(
     args: &Map<String, Value>,
     vocab: &Vocabulary,
+    schema: Option<&Value>,
 ) -> Result<Map<String, Value>, Refused> {
     let mut out = Map::new();
     for (key, value) in args {
-        if !vocab.allows(key) {
-            return Err(refuse(key, key));
+        if !declares(schema, key) && !vocab.has(key) {
+            return Err(refuse(key, key, Why::NotTheTraders));
         }
-        out.insert(key.clone(), value_of(value, vocab, key, 1)?);
+        let built = value_of(value, vocab, property(schema, key), key, 1)?;
+        let mut tally = (0usize, 0usize);
+        count_words(&built, &mut tally);
+        let (all, short) = tally;
+        if all >= 2 && short * 2 > all {
+            return Err(refuse(key, "", Why::ShortWords));
+        }
+        out.insert(key.clone(), built);
     }
     Ok(out)
 }
 
-fn value_of(value: &Value, vocab: &Vocabulary, at: &str, depth: usize) -> Result<Value, Refused> {
+/// `(words, short words)` of a built value, the literals included.
+fn count_words(value: &Value, tally: &mut (usize, usize)) {
+    let mut add = |w: &str| {
+        tally.0 += 1;
+        if w.chars().count() <= SHORT_WORD_CHARS {
+            tally.1 += 1;
+        }
+    };
+    match value {
+        Value::String(s) => words(s).for_each(&mut add),
+        Value::Number(n) => add(&n.to_string()),
+        Value::Array(items) => items.iter().for_each(|v| count_words(v, tally)),
+        Value::Object(map) => map.values().for_each(|v| count_words(v, tally)),
+        Value::Null | Value::Bool(_) => {}
+    }
+}
+
+fn value_of(
+    value: &Value,
+    vocab: &Vocabulary,
+    schema: Option<&Value>,
+    at: &str,
+    depth: usize,
+) -> Result<Value, Refused> {
     if depth > MAX_DEPTH {
-        return Err(refuse(at, "(nested too deeply)"));
+        return Err(refuse(at, "", Why::TooDeep));
+    }
+    if !matches!(value, Value::Array(_) | Value::Object(_)) && literals(schema).contains(&value) {
+        return Ok(value.clone());
     }
     match value {
         Value::Null | Value::Bool(_) => Ok(value.clone()),
         Value::Number(n) => {
             let text = n.to_string();
-            if vocab.allows(&text) {
+            if vocab.has(&text) {
                 Ok(value.clone())
             } else {
-                Err(refuse(at, &text))
+                Err(refuse(at, &text, Why::NotTheTraders))
             }
         }
         Value::String(s) => {
-            if redact_text(s) != *s {
-                return Err(refuse(at, "(a value shaped like a key)"));
+            if redact_secrets(s) != *s {
+                return Err(refuse(at, "", Why::KeyShaped));
             }
-            let words: Vec<&str> = s.split_whitespace().collect();
-            match words.iter().find(|w| !vocab.allows(w)) {
-                Some(word) => Err(refuse(at, word)),
-                None => Ok(Value::String(words.join(" "))),
+            let kept: Vec<&str> = words(s).collect();
+            match kept.iter().find(|w| !vocab.has(w)) {
+                Some(word) => Err(refuse(at, word, Why::NotTheTraders)),
+                None => Ok(Value::String(kept.join(" "))),
             }
         }
-        Value::Array(items) => items
-            .iter()
-            .enumerate()
-            .map(|(i, v)| value_of(v, vocab, &format!("{}[{}]", at, i), depth + 1))
-            .collect::<Result<Vec<_>, _>>()
-            .map(Value::Array),
+        Value::Array(items) => {
+            let inner = schema.and_then(|s| s.get("items"));
+            items
+                .iter()
+                .enumerate()
+                .map(|(i, v)| value_of(v, vocab, inner, &format!("{}[{}]", at, i), depth + 1))
+                .collect::<Result<Vec<_>, _>>()
+                .map(Value::Array)
+        }
         Value::Object(map) => {
             let mut out = Map::new();
             for (k, v) in map {
                 let here = format!("{}.{}", at, k);
-                if !vocab.allows(k) {
-                    return Err(refuse(&here, k));
+                if !declares(schema, k) && !vocab.has(k) {
+                    return Err(refuse(&here, k, Why::NotTheTraders));
                 }
-                out.insert(k.clone(), value_of(v, vocab, &here, depth + 1)?);
+                out.insert(
+                    k.clone(),
+                    value_of(v, vocab, property(schema, k), &here, depth + 1)?,
+                );
             }
             Ok(Value::Object(out))
         }

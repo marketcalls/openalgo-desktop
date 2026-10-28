@@ -138,8 +138,8 @@ impl ExternalData {
             servers: RwLock::new(Arc::new(Self::checked(specs))),
             clients: Mutex::new(HashMap::new()),
             answers: Mutex::new(Answers::default()),
-            connector: RwLock::new(Arc::new(http)),
-            clock: RwLock::new(Arc::new(SystemClock::default())),
+            connector: RwLock::new(Arc::new(http) as Connector),
+            clock: RwLock::new(Arc::new(SystemClock::default()) as Arc<dyn Clock>),
         }
     }
 
@@ -197,7 +197,8 @@ impl ExternalData {
         {
             return Some(c.clone());
         }
-        let transport = (self.connector.read())(spec)?;
+        let connect = self.connector.read().clone();
+        let transport = connect.as_ref()(spec)?;
         let client = Arc::new(McpClient::new(
             spec.clone(),
             transport,

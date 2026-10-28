@@ -125,6 +125,18 @@ fn redact_token(value: &Value) -> Value {
 
 /// Remove secret-shaped substrings and cap the length.
 pub fn redact_text(value: &str) -> String {
+    let text = redact_secrets(value);
+    let chars = text.chars().count();
+    if chars > MAX_STRING {
+        let head: String = text.chars().take(MAX_STRING).collect();
+        return format!("{}... [truncated, {} characters]", head, chars);
+    }
+    text
+}
+
+/// Remove secret-shaped substrings, the whole text kept (the external data
+/// taint boundary reads every word of the trader's message).
+pub fn redact_secrets(value: &str) -> String {
     let mut text = value.to_string();
     for pattern in SECRET_VALUES.iter() {
         text = pattern.replace_all(&text, REDACTED).into_owned();
@@ -140,11 +152,6 @@ pub fn redact_text(value: &str) -> String {
                 }
             })
             .into_owned();
-    }
-    let chars = text.chars().count();
-    if chars > MAX_STRING {
-        let head: String = text.chars().take(MAX_STRING).collect();
-        return format!("{}... [truncated, {} characters]", head, chars);
     }
     text
 }

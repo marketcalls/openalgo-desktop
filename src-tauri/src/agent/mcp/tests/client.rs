@@ -5,7 +5,7 @@ use crate::agent::mcp::client::McpClient;
 use crate::agent::mcp::client::{user_agent, PROTOCOL_VERSION};
 use crate::agent::mcp::errors::Kind;
 use crate::agent::mcp::testing::{
-    assert_trader_safe, reply_raw, spec, FakeClock, FakeServer, Handler, Seam, RUPEE,
+    assert_trader_safe, reply_raw, respond, spec, FakeClock, FakeServer, Handler, Seam, RUPEE,
 };
 use crate::agent::mcp::transport::Failure;
 use crate::agent::mcp::wire::parse_sse;
@@ -24,7 +24,7 @@ fn failing(
     fail: impl Fn() -> Result<crate::agent::mcp::wire::Reply, Failure> + Send + Sync + 'static,
 ) -> Handler {
     let left = AtomicUsize::new(n);
-    Arc::new(move |server: &FakeServer, seen| {
+    respond(move |server: &FakeServer, seen| {
         if left.load(Ordering::SeqCst) > 0 {
             left.fetch_sub(1, Ordering::SeqCst);
             return fail();
@@ -124,9 +124,7 @@ async fn utf8_text_survives_the_round_trip() {
 #[tokio::test]
 async fn a_json_rpc_argument_error_on_a_call_is_a_tool_error() {
     let (client, server, _) = client_for(spec("demo_eod"));
-    server.on(
-        "tools/call",
-        Arc::new(|_, seen| {
+    server.on("tools/call", respond(|_, seen| {
             let body = json!({"jsonrpc": "2.0", "id": seen.payload["id"], "error": {"code": -32602, "message": "symbol is required"}});
             Ok(reply_raw(200, &[("content-type", "application/json")], &body.to_string()))
         }),
@@ -159,7 +157,7 @@ async fn a_reply_that_is_not_json_is_a_protocol_error() {
     let (client, server, _) = client_for(spec("demo_eod"));
     server.on(
         "tools/list",
-        Arc::new(|_, _| {
+        respond(|_, _| {
             Ok(reply_raw(
                 200,
                 &[("content-type", "text/html")],
@@ -392,7 +390,7 @@ async fn a_refusal_at_the_door_counts_as_a_failure() {
         let (client, server, _) = breaking(2);
         server.on(
             "initialize",
-            Arc::new(move |_, _| {
+            respond(move |_, _| {
                 Ok(reply_raw(
                     status,
                     &[("content-type", "text/html")],
@@ -421,7 +419,7 @@ async fn a_refusal_at_the_door_counts_as_a_failure() {
 #[tokio::test]
 async fn a_404_without_a_session_does_not_count_as_a_failure() {
     let (client, server, _) = breaking(1);
-    server.on("initialize", Arc::new(|_, _| Ok(reply_raw(404, &[], "no"))));
+    server.on("initialize", respond(|_, _| Ok(reply_raw(404, &[], "no"))));
     let e = client.list_tools(true).await.unwrap_err();
     assert_eq!(e.code(), "protocol_error");
     assert_eq!(client.breaker().0, 0);

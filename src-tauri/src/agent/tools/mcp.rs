@@ -210,7 +210,7 @@ fn failure(tool: &str, spec: &McpServerSpec, e: &McpError, mcp_tool: Option<&str
     wrapped(
         tool,
         &payload,
-        &[("server", Some(&spec.key)), ("mcp_tool", mcp_tool)],
+        &[("server", Some(spec.key.as_str())), ("mcp_tool", mcp_tool)],
     )
 }
 
@@ -230,7 +230,7 @@ fn tool_failed(spec: &McpServerSpec, name: &str, e: &McpError, text: &str) -> To
         "call_mcp_tool",
         &payload,
         &[
-            ("server", Some(&spec.key)),
+            ("server", Some(spec.key.as_str())),
             ("mcp_tool", Some(name)),
             ("trust", Some(TRUST)),
         ],
@@ -347,7 +347,7 @@ impl McpTool {
             };
             return wrapped(tool, &payload, &labels);
         }
-        let Some(found) = tools.iter().find(|t| name_of(t) == wanted) else {
+        let Some(found) = tools.iter().find(|t| name_of(*t) == wanted) else {
             let mut names: Vec<String> = tools.iter().map(name_of).collect();
             names.sort();
             let shown: String = wanted.chars().take(80).collect();

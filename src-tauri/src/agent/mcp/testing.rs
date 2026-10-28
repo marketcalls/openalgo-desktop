@@ -83,6 +83,14 @@ impl Seen {
 
 pub type Handler = Arc<dyn Fn(&FakeServer, &Seen) -> Result<Reply, Failure> + Send + Sync>;
 
+/// A handler from a closure (the bound gives the closure its signature).
+pub fn respond<F>(f: F) -> Handler
+where
+    F: Fn(&FakeServer, &Seen) -> Result<Reply, Failure> + Send + Sync + 'static,
+{
+    Arc::new(f)
+}
+
 /// A healthy server with sessions `s1`, `s2`...; any method's answer can
 /// be replaced by a handler.
 pub struct FakeServer {
@@ -90,9 +98,9 @@ pub struct FakeServer {
     pub tools: Mutex<Vec<Value>>,
     pub call_result: Mutex<Value>,
     pub sse: AtomicBool,
-    sessions: AtomicU64,
+    pub sessions: AtomicU64,
     pub live: Mutex<HashSet<String>>,
-    handlers: Mutex<HashMap<String, Handler>>,
+    pub handlers: Mutex<HashMap<String, Handler>>,
     /// Moved by this much on every request (a slow server).
     pub clock: Option<(Arc<FakeClock>, Duration)>,
 }

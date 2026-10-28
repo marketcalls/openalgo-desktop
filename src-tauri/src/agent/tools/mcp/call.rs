@@ -116,16 +116,17 @@ fn bounded(
     schema: Option<&Value>,
     given: &Map<String, Value>,
 ) -> Result<Map<String, Value>, ToolOutcome> {
-    let vocabulary = Vocabulary::new(&ctx.operator_message, schema);
-    construct(given, &vocabulary).map_err(|refused| {
-        tracing::info!("call_mcp_tool {}.{} refused at the taint boundary: {}", spec.key, name, refused.at);
+    let vocabulary = Vocabulary::new(&ctx.operator_message);
+    construct(given, &vocabulary, schema).map_err(|refused| {
+        tracing::info!(
+            "call_mcp_tool {}.{} refused at the taint boundary: {}",
+            spec.key,
+            name,
+            refused.at
+        );
         ToolOutcome::invalid_argument(
             "arguments",
-            &format!(
-                "{} holds words the trader did not write in this message ({}), and an external server is sent only the trader's own words or the values its tool lists.",
-                refused.at,
-                py_repr(&Value::String(refused.word))
-            ),
+            &refused.reason(),
             Some("Use the trader's words for it, or ask the trader."),
         )
     })
@@ -211,7 +212,7 @@ fn respond(
         "call_mcp_tool",
         &payload,
         &[
-            ("server", Some(&spec.key)),
+            ("server", Some(spec.key.as_str())),
             ("mcp_tool", Some(name)),
             ("trust", Some(TRUST)),
         ],

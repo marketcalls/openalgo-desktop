@@ -239,9 +239,9 @@ fn is_resolved(text: &str) -> bool {
         return true;
     }
     let digits = text.trim_start_matches(['+', '-']).replace('_', "");
-    !digits.is_empty()
-        && (digits.parse::<f64>().is_ok() && !digits.contains(['e', 'E', 'i', 'I', 'n', 'N'])
-            || digits.starts_with("0x") && digits.len() > 2)
+    let number = digits.parse::<f64>().is_ok() && !digits.contains(['e', 'E', 'i', 'I', 'n', 'N']);
+    let hex = digits.starts_with("0x") && digits.len() > 2;
+    !digits.is_empty() && (number || hex)
 }
 
 /// A single- or double-quoted scalar, possibly over several lines.

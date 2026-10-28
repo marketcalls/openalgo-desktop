@@ -3,7 +3,9 @@
 //! connection test against stand-in servers behind the transport seam.
 
 use super::*;
-use crate::agent::mcp::testing::{demo_servers, install, reply_raw, FakeClock, FakeServer, Seen};
+use crate::agent::mcp::testing::{
+    demo_servers, install, reply_raw, respond, FakeClock, FakeServer, Seen,
+};
 
 fn call(method: Method, path: &str, body: Option<&str>, cookie: &str, csrf: &str) -> Request<Body> {
     let r = Request::builder()
@@ -85,7 +87,7 @@ async fn a_connection_test_reports_each_server_in_a_200() {
     let server = Arc::new(FakeServer::default());
     server.on(
         "initialize",
-        Arc::new(|server: &FakeServer, seen: &Seen| {
+        respond(|server: &FakeServer, seen: &Seen| {
             if seen.url.contains("demo_live") {
                 return Ok(reply_raw(503, &[], "down"));
             }

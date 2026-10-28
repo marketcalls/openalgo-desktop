@@ -7,7 +7,7 @@ use crate::agent::mcp::prompt::{mcp_prompt_section, ExternalDataSection, MCP_SEC
 use crate::agent::mcp::registry::{registered, McpServerSpec};
 use crate::agent::mcp::taint::{construct, Vocabulary};
 use crate::agent::mcp::testing::{
-    assert_trader_safe, demo_servers, install, reply_raw, spec, FakeClock, FakeServer,
+    assert_trader_safe, demo_servers, install, reply_raw, respond, spec, FakeClock, FakeServer,
 };
 use crate::agent::mcp::transport::Failure;
 use crate::agent::mcp::ExternalData;
@@ -68,7 +68,7 @@ async fn building_it_does_no_network_work() {
     let s = setup();
     s.server.on(
         "initialize",
-        Arc::new(|_, _| Err(Failure::Unreachable("must not be called".into()))),
+        respond(|_, _| Err(Failure::Unreachable("must not be called".into()))),
     );
     let tools = s.tools(&s.ctx(Surface::Chat, ""));
     let names: Vec<&str> = tools.iter().map(|t| t.spec().name).collect();
@@ -352,7 +352,7 @@ async fn an_outage_is_reported_in_plain_words_not_raised() {
     let s = setup();
     s.server.on(
         "initialize",
-        Arc::new(|_, _| Ok(reply_raw(504, &[], "Gateway Timeout"))),
+        respond(|_, _| Ok(reply_raw(504, &[], "Gateway Timeout"))),
     );
     let out = s
         .call(
@@ -537,7 +537,7 @@ async fn the_connection_test_reports_each_server_and_never_fails() {
     let s = setup();
     s.server.on(
         "initialize",
-        Arc::new(
+        respond(
             |server: &FakeServer, seen: &crate::agent::mcp::testing::Seen| {
                 if seen.url.contains("demo_live") {
                     return Ok(reply_raw(504, &[], "x"));
@@ -565,7 +565,8 @@ async fn the_connection_test_reports_each_server_and_never_fails() {
 fn schema() -> Value {
     json!({"type": "object", "properties": {
         "symbol": {"type": "string"}, "months": {"type": "number", "default": 1},
-        "interval": {"type": "string", "enum": ["1d", "1w"]}, "adjusted": {"type": "boolean"}}})
+        "interval": {"type": "string", "enum": ["1d", "1w"]}, "adjusted": {"type": "boolean"},
+        "exchange": {"const": "NSE"}, "symbols": {"type": "array", "items": {"type": "string"}}}})
 }
 
 fn constructed(
@@ -574,27 +575,28 @@ fn constructed(
 ) -> Result<Map<String, Value>, crate::agent::mcp::taint::Refused> {
     construct(
         args.as_object().unwrap(),
-        &Vocabulary::new(message, Some(&schema())),
+        &Vocabulary::new(message),
+        Some(&schema()),
     )
 }
 
-/// D-021: an argument is built from the trader's words and the tool's own
-/// names and values; a word the model invented or copied from a poisoned
-/// tool result never leaves.
+fn refused_at(args: Value, message: &str) -> String {
+    constructed(args.clone(), message)
+        .map(|_| String::new())
+        .unwrap_or_else(|r| r.at)
+}
+
+/// D-021: an argument is built from the trader's whole words and the
+/// tool's own literals for that argument; a word the model invented or
+/// copied from a poisoned tool result never leaves.
 #[test]
-fn an_argument_is_built_only_from_the_traders_words_and_the_tools_own() {
-    let message = "Show State Bank   daily candles for 3 months";
-    let ok = constructed(
-        json!({"symbol": "state  BANK", "months": 3, "interval": "1d", "adjusted": true}),
-        message,
-    )
-    .unwrap();
+fn an_argument_is_built_only_from_the_traders_words_and_the_tools_literals() {
+    let message = "Show State Bank   daily candles for 3 months, please.";
+    let ok = constructed(json!({"symbol": "state  BANK,", "months": 3, "interval": "1d", "adjusted": true, "exchange": "NSE"}), message).unwrap();
     assert_eq!(
         Value::Object(ok),
-        json!({"symbol": "state BANK", "months": 3, "interval": "1d", "adjusted": true})
+        json!({"symbol": "state BANK", "months": 3, "interval": "1d", "adjusted": true, "exchange": "NSE"})
     );
-    // The schema's default is the server's own word.
-    assert!(constructed(json!({"months": 1}), "nothing numeric here").is_ok());
     for (args, at) in [
         (json!({"symbol": "State Bank of India"}), "symbol"),
         (
@@ -602,19 +604,69 @@ fn an_argument_is_built_only_from_the_traders_words_and_the_tools_own() {
             "note",
         ),
         (json!({"months": 12}), "months"),
-        (json!({"symbol": ["State", "holdings"]}), "symbol[1]"),
+        (json!({"symbols": ["State", "holdings"]}), "symbols[1]"),
         (json!({"symbol": {"name": "Bank"}}), "symbol.name"),
         (
             json!({"symbol": "sk-abcdefghijklmnopqrstuvwxyz123456"}),
             "symbol",
         ),
+        // A literal of another argument is not this one's.
+        (json!({"symbol": "1d"}), "symbol"),
     ] {
-        let refused = constructed(args.clone(), message).unwrap_err();
-        assert_eq!(refused.at, at, "{}", args);
+        assert_eq!(refused_at(args.clone(), message), at, "{}", args);
     }
     // A credential the trader pasted is never something to build from.
     let key = "abcdef0123456789abcdef0123456789";
-    assert!(constructed(json!({"symbol": key}), &format!("my key is {}", key)).is_err());
+    assert_eq!(
+        refused_at(json!({"symbol": key}), &format!("my key is {}", key)),
+        "symbol"
+    );
+}
+
+/// Security review (2026-10-28): a piece of a trader's word, of the
+/// redaction marker, or a digit inside a longer number does not pass.
+#[test]
+fn a_fragment_of_a_traders_word_is_refused() {
+    let message = "State Bank history for 13 months; my key sk-abcdefghijklmnopqrstuvwxyz123456";
+    for fragment in [
+        "Ban",
+        "tate",
+        "an",
+        "S",
+        "redact",
+        "acted",
+        "redacted",
+        "[redacted]",
+    ] {
+        assert_eq!(
+            refused_at(json!({"symbol": fragment}), message),
+            "symbol",
+            "{}",
+            fragment
+        );
+    }
+    assert_eq!(
+        refused_at(json!({"months": 1}), message),
+        "months",
+        "1 is not 13"
+    );
+    assert_eq!(refused_at(json!({"months": 3}), message), "months");
+    assert!(constructed(json!({"months": 13, "symbol": "bank"}), message).is_ok());
+}
+
+/// Letters and digits are what data would be spelled out in: an argument
+/// made mostly of one- and two-character words is refused, even when each
+/// is the trader's; a single short symbol still passes.
+#[test]
+fn an_argument_mostly_of_short_words_is_refused() {
+    let message = "a b c 8 1 2 LT State Bank of India";
+    assert_eq!(refused_at(json!({"symbol": "a b c 8"}), message), "symbol");
+    assert_eq!(
+        refused_at(json!({"symbols": ["8", "1", "2", "LT"]}), message),
+        "symbols"
+    );
+    assert!(constructed(json!({"symbol": "LT"}), message).is_ok());
+    assert!(constructed(json!({"symbol": "State Bank of India"}), message).is_ok());
 }
 
 #[tokio::test]
@@ -625,4 +677,55 @@ async fn a_refused_argument_is_a_correction_and_nothing_is_sent() {
         .await;
     assert_eq!(out.text(), "The 'arguments' argument is invalid: symbol holds words the trader did not write in this message ('RELIANCE'), and an external server is sent only the trader's own words or the values its tool lists. Use the trader's words for it, or ask the trader.");
     assert_eq!(s.server.count("tools/call"), 0);
+}
+
+/// A real turn (the web's pinned defect: the tools never reached a run):
+/// with a server registered and the switch on, the model is sent both
+/// tools and the EXTERNAL DATA section beside SKILLS; with none
+/// registered, neither.
+#[tokio::test]
+async fn the_toolkit_and_its_section_reach_a_real_run() {
+    use crate::agent::chat::tests::harness;
+    use crate::agent::testing::Reply;
+    for registered in [true, false] {
+        let h = harness(vec![Reply::Text(vec!["ok"])]).await;
+        if registered {
+            install(
+                h.ctx().agent.mcp(),
+                demo_servers(),
+                &Arc::new(FakeServer::default()),
+                &Arc::new(FakeClock::default()),
+            );
+        }
+        let (_, _, raw) = h
+            .chat(
+                "/agent/api/chat/stream",
+                json!({"message": "market breadth today"}),
+            )
+            .await;
+        let sent = h.fake.sent();
+        let first = sent.first().unwrap_or_else(|| panic!("{}", raw));
+        let tools: Vec<String> = first["tools"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .map(|t| t["function"]["name"].as_str().unwrap_or("").to_string())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let system = first["messages"][0]["content"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+        assert_eq!(
+            tools.contains(&"call_mcp_tool".to_string()),
+            registered,
+            "{:?}",
+            tools
+        );
+        assert_eq!(system.contains("EXTERNAL DATA (MCP)"), registered);
+        assert!(
+            system.contains("\nSKILLS\n") && tools.contains(&"get_skill_instructions".to_string())
+        );
+    }
 }
