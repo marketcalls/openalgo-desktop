@@ -20,6 +20,9 @@
 //! - `attachments`: files on a turn, the vision check's input.
 //! - `chart_catalogue`: the indicators the `/trading` chart can draw, from
 //!   the generated `docs/prompt/indicators/chart-indicators.md`.
+//! - `chart_contract`: the `/trading` chart wire contract both ways, the
+//!   context the panel sends and the commands the chart tools send back;
+//!   `chart_geometry`: levels, rails, zones and patterns from real bars.
 //! - `tool_guard`: a call's arguments read, checked and coerced before the
 //!   tool runs, and the correction the model reads when they do not fit.
 //! - `redact`: secrets out of anything shown, stored or logged.
@@ -35,6 +38,8 @@
 
 pub mod attachments;
 pub mod chart_catalogue;
+pub mod chart_contract;
+pub mod chart_geometry;
 pub mod chat;
 pub mod contract;
 pub mod conversations;
