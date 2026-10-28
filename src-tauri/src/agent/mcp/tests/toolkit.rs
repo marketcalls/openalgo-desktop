@@ -566,7 +566,10 @@ fn schema() -> Value {
     json!({"type": "object", "properties": {
         "symbol": {"type": "string"}, "months": {"type": "number", "default": 1},
         "interval": {"type": "string", "enum": ["1d", "1w"]}, "adjusted": {"type": "boolean"},
-        "exchange": {"const": "NSE"}, "symbols": {"type": "array", "items": {"type": "string"}}}})
+        "exchange": {"const": "NSE"}, "symbols": {"type": "array", "items": {"type": "string"}},
+        "intervals": {"type": "array", "items": {"enum": ["day", "week"]}},
+        "filter": {"type": "object", "properties": {"name": {"type": "string"}}},
+        "flag": {"description": "no type stated"}}})
 }
 
 fn constructed(
@@ -605,7 +608,7 @@ fn an_argument_is_built_only_from_the_traders_words_and_the_tools_literals() {
         ),
         (json!({"months": 12}), "months"),
         (json!({"symbols": ["State", "holdings"]}), "symbols[1]"),
-        (json!({"symbol": {"name": "Bank"}}), "symbol.name"),
+        (json!({"symbol": {"name": "Bank"}}), "symbol"),
         (
             json!({"symbol": "sk-abcdefghijklmnopqrstuvwxyz123456"}),
             "symbol",
@@ -667,6 +670,63 @@ fn an_argument_mostly_of_short_words_is_refused() {
     );
     assert!(constructed(json!({"symbol": "LT"}), message).is_ok());
     assert!(constructed(json!({"symbol": "State Bank of India"}), message).is_ok());
+}
+
+/// Security review, second pass (2026-10-28): short pieces are counted
+/// across the whole call, not per argument, and a key is only ever one the
+/// schema declares, never a word of the trader's.
+#[test]
+fn short_pieces_count_across_the_call_and_keys_are_the_schemas() {
+    let message = "8 1 sbin bank State";
+    let four = json!({"symbol": "8", "months": 1, "interval": "1d", "adjusted": true});
+    assert_ne!(
+        refused_at(four, message),
+        "",
+        "four short pieces in one call"
+    );
+    assert!(constructed(
+        json!({"symbol": "8", "months": 1, "interval": "1d"}),
+        message
+    )
+    .is_ok());
+    assert_eq!(
+        refused_at(json!({"bank": "State"}), message),
+        "bank",
+        "a trader's word is not a key"
+    );
+}
+
+/// The trader's own form goes out, never the model's casing; a word is
+/// used at most as often as the trader wrote it, and a nested key counts
+/// toward the message's number of words.
+#[test]
+fn the_traders_own_form_goes_out_and_words_are_not_reused() {
+    let sent = constructed(json!({"symbol": "STATE bank"}), "State Bank please").unwrap();
+    assert_eq!(sent["symbol"], "State Bank");
+    assert_eq!(
+        refused_at(json!({"symbol": "Bank Bank"}), "Bank please"),
+        "symbol"
+    );
+    assert!(constructed(json!({"symbol": "Bank Bank"}), "Bank or Bank").is_ok());
+    assert_eq!(
+        refused_at(json!({"filter": {"name": "State"}}), "State"),
+        "filter.name"
+    );
+    assert!(constructed(json!({"filter": {"name": "State"}}), "State Bank").is_ok());
+}
+
+/// Each value is of a type the schema declares for it; a switch or null
+/// only where declared; a list of switches or fixed values is short.
+#[test]
+fn a_value_must_be_of_the_type_the_schema_declares() {
+    let message = "3 months of State";
+    assert_eq!(refused_at(json!({"months": "3"}), message), "months");
+    assert_eq!(refused_at(json!({"flag": true}), message), "flag");
+    assert_eq!(refused_at(json!({"symbol": null}), message), "symbol");
+    assert_eq!(refused_at(json!({"symbols": [3]}), message), "symbols[0]");
+    let nine = json!({"intervals": vec!["week"; 9]});
+    assert_eq!(refused_at(nine, message), "intervals");
+    assert!(constructed(json!({"months": 3, "symbol": "State"}), message).is_ok());
 }
 
 #[tokio::test]

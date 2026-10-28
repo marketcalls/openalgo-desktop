@@ -224,3 +224,18 @@ Residual: an IPv4 device on the network is counted per address. Rotating
 IPv4 addresses on a LAN takes DHCP or ARP abuse, which the network itself
 would show; each address it takes still has its own budgets, and the
 limiter's table bound and overflow still cap the total.
+
+## The Agent's external data (MCP) arguments
+
+Every argument the Agent sends to an external MCP server is built only
+from the trader's own words in that turn's message (whole words, in the
+trader's own form, each used no more often than the trader wrote it), the
+literals the tool's schema lists for that argument, and exact numbers the
+trader wrote; keys are the schema's own, each value has the type the schema
+declares, and at most three one- or two-character words, switches or nulls
+go out in one call (`agent/mcp/taint.rs`, tested in `agent::mcp::tests`).
+What remains is which of those words appear and in what order, which can
+still carry a few bits. No external MCP server is registered in this
+version, so nothing is sent at all; adding one is a change to the app
+(`agent/mcp/registry.rs`), and the trader's External data switch on
+`/agent/config` withholds every server from the Agent.
