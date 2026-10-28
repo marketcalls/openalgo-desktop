@@ -10,7 +10,6 @@
 //! the request that uses it.
 
 use crate::agent::contract::model::{ModelError, ResolvedModel};
-use genai::adapter::AdapterKind;
 use genai::chat::{ChatOptions, ChatRequest, ChatStreamResponse, ReasoningEffort};
 use genai::resolver::{AuthData, Endpoint};
 use genai::{ModelIden, ServiceTarget};
@@ -105,10 +104,7 @@ impl ModelClient {
             .with_capture_reasoning_content(true)
             .with_capture_tool_calls(true)
             .with_stream_read_timeout(STREAM_READ_TIMEOUT);
-        if let Some(e) = effort
-            .and_then(reasoning_effort)
-            .or_else(|| name_kept_whole(model))
-        {
+        if let Some(e) = effort.and_then(reasoning_effort) {
             options = options.with_reasoning_effort(e);
         }
         if !auth.headers.is_empty() {
@@ -127,23 +123,6 @@ impl ModelClient {
 pub enum StreamOpenError {
     Credentials(ModelError),
     Provider(genai::Error),
-}
-
-/// genai reads a model name that ends in an effort word
-/// (`gpt-5.1-codex-max`, `...-high`) as that effort when none is given, and
-/// sends the name without it: a different model. With no effort set, the
-/// request gets one that adds nothing, so the name goes out exactly as
-/// configured: for the OpenAI formats an effort with no keyword, for
-/// Anthropic and Gemini `Zero` (no thinking fields; Anthropic says
-/// "disabled" only to a model that thinks by default). Ollama reads no
-/// suffix.
-fn name_kept_whole(model: &ResolvedModel) -> Option<ReasoningEffort> {
-    ReasoningEffort::from_model_name(&model.model_name).0?;
-    match model.adapter {
-        AdapterKind::Ollama => None,
-        AdapterKind::Anthropic | AdapterKind::Gemini => Some(ReasoningEffort::Zero),
-        _ => Some(ReasoningEffort::Budget(0)),
-    }
 }
 
 fn reasoning_effort(level: &str) -> Option<ReasoningEffort> {

@@ -377,12 +377,9 @@ impl ReasoningEffort {
 	///
 	/// Known model names whose suffix is part of the actual name are left unchanged.
 	pub fn from_model_name(model_name: &str) -> (Option<Self>, &str) {
-		if let Some((prefix, last)) = model_name.rsplit_once('-')
-			&& let Some(effort) = ReasoningEffort::from_keyword(last)
-			&& !PROTECTED_MODEL_NAMES.contains(&model_name)
-		{
-			return (Some(effort), prefix);
-		}
+		// OpenAlgo Desktop (VENDORED.md): a model name is never read as an
+		// effort, and is sent exactly as configured.
+		let _ = PROTECTED_MODEL_NAMES;
 		(None, model_name)
 	}
 }

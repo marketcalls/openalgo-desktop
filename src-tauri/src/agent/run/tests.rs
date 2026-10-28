@@ -142,17 +142,48 @@ fn the_effort_sent_follows_the_web_rules() {
     assert_eq!(effective_effort(&m, None), None);
 }
 
-/// A model name ending in an effort word goes out exactly as configured,
-/// on every provider format, with or without an effort, and no effort is
-/// read out of it (genai cut `gpt-5.1-codex-max` to `gpt-5.1-codex`).
+/// Effort fields a request may carry, on any provider format.
+const EFFORT_FIELDS: [&str; 7] = [
+    "/reasoning_effort",
+    "/reasoning/effort",
+    "/thinking",
+    "/think",
+    "/output_config/effort",
+    "/generationConfig/thinkingConfig/thinkingBudget",
+    "/generationConfig/thinkingConfig/thinkingLevel",
+];
+
+/// A model name goes out exactly as configured on every provider format,
+/// and an effort is sent only when one is set: genai read a name ending in
+/// an effort word as that effort (`gpt-5.1-codex-max` went out as
+/// `gpt-5.1-codex` with effort max). A request to capture reasoning
+/// (Responses `reasoning.summary`, Gemini `includeThoughts`) is not an
+/// effort and is sent either way.
 #[tokio::test]
 async fn a_model_name_is_sent_exactly_as_configured() {
     use genai::adapter::AdapterKind as A;
     let fake = FakeProvider::start(vec![]).await;
     let client = ModelClient::new().unwrap();
     let mut sent = 0;
-    for adapter in [A::OpenAI, A::OpenAIResp, A::Anthropic, A::Gemini, A::Ollama] {
-        for name in ["gpt-5.1-codex-max", "acme-reasoner-high"] {
+    let mut problems = Vec::new();
+    let formats = [
+        A::OpenAI,
+        A::OpenAIResp,
+        A::Anthropic,
+        A::Gemini,
+        A::Ollama,
+        // OpenAI-compatible, with thinking managed in the body.
+        A::DeepSeek,
+    ];
+    let names = [
+        "gpt-5.1-codex-max",
+        "acme-reasoner-high",
+        "claude-sonnet-5-5",
+        "claude-sonnet-5-5-high",
+        "gemini-3.5-flash-zero",
+    ];
+    for adapter in formats {
+        for name in names {
             for effort in [None, Some("low")] {
                 let mut model = fake_model(&fake.endpoint(), adapter);
                 model.model_name = name.into();
@@ -164,41 +195,35 @@ async fn a_model_name_is_sent_exactly_as_configured() {
                     while let Some(Ok(_)) = stream.next().await {}
                 }
                 sent += 1;
+                let case = format!("{:?} {} {:?}", adapter, name, effort);
                 tokio::time::timeout(
                     std::time::Duration::from_secs(10),
                     fake.wait_for_requests(sent),
                 )
                 .await
-                .unwrap_or_else(|_| panic!("{:?} {} {:?}: no request", adapter, name, effort));
+                .unwrap_or_else(|_| panic!("{}: no request", case));
                 let body = &fake.sent()[sent - 1];
                 let path = &fake.paths()[sent - 1];
-                let case = format!("{:?} {} {:?}", adapter, name, effort);
-                if adapter == A::Gemini {
-                    assert!(
-                        path.contains(&format!("models/{}:", name)),
-                        "{}: {}",
-                        case,
-                        path
-                    );
+                let exact = if adapter == A::Gemini {
+                    path.contains(&format!("models/{}:", name))
                 } else {
-                    assert_eq!(body["model"], name, "{}", case);
+                    body["model"] == name
+                };
+                if !exact {
+                    problems.push(format!("{}: sent as {} {}", case, body["model"], path));
                 }
-                if effort.is_none() {
-                    // No effort of any kind; a request to capture reasoning
-                    // (Responses `reasoning.summary`, Gemini
-                    // `includeThoughts`) is not one.
-                    for field in [
-                        "/reasoning_effort",
-                        "/reasoning/effort",
-                        "/thinking",
-                        "/think",
-                        "/generationConfig/thinkingConfig/thinkingBudget",
-                        "/generationConfig/thinkingConfig/thinkingLevel",
-                    ] {
-                        assert!(body.pointer(field).is_none(), "{}: {} sent", case, field);
-                    }
+                let efforts: Vec<&str> = EFFORT_FIELDS
+                    .into_iter()
+                    .filter(|f| body.pointer(f).is_some())
+                    .collect();
+                if effort.is_none() && !efforts.is_empty() {
+                    problems.push(format!("{}: {:?} sent", case, efforts));
+                }
+                if effort.is_some() && efforts.is_empty() {
+                    problems.push(format!("{}: no effort sent", case));
                 }
             }
         }
     }
+    assert!(problems.is_empty(), "{:#?}", problems);
 }

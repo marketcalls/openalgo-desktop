@@ -399,26 +399,9 @@ impl GeminiAdapter {
 	) -> Result<(Value, String)> {
 		// -- Reasoning Budget
 		let (provider_model_name, computed_reasoning_effort) = match (model_name, options_set.reasoning_effort()) {
-			// No explicit reasoning_effort, try to infer from model name suffix (supports -zero)
-			(model, None) => {
-				if let Some((prefix, last)) = model_name.rsplit_once('-') {
-					let reasoning = match last {
-						// 'zero' is canonical ('none' for backward compatibility)
-						"none" | "zero" => Some(ReasoningEffort::Budget(0)),
-						"low" | "minimal" => Some(ReasoningEffort::Low),
-						"medium" => Some(ReasoningEffort::Medium),
-						"high" => Some(ReasoningEffort::High),
-						"xhigh" => Some(ReasoningEffort::XHigh),
-						"max" => Some(ReasoningEffort::Max),
-						_ => None,
-					};
-					// strip the reasoning suffix from the model name if one was matched
-					let model = if reasoning.is_some() { prefix } else { model };
-					(model, reasoning)
-				} else {
-					(model, None)
-				}
-			}
+			// OpenAlgo Desktop (VENDORED.md): no effort is read from the model
+			// name, which is sent exactly as configured.
+			(model, None) => (model, None),
 			// TOOD: make it more elegant
 			(model, Some(effort)) => (model, Some(effort.clone())),
 		};
