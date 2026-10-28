@@ -14,6 +14,8 @@
 import { migrateDrawings } from 'openalgo-charts/draw'
 import { describe, expect, it } from 'vitest'
 
+import { describeDrawings } from './chartContract'
+
 /** What a 1.9.2 build wrote to localStorage for three drawings and a label. */
 const LEGACY = [
   {
@@ -109,5 +111,14 @@ describe('a 1.9.x drawings array upgrades to a 2.0 document', () => {
 
   it('is stable: migrating the document again changes nothing', () => {
     expect(shape(migrateDrawings(doc))).toEqual(shape(doc))
+  })
+
+  it('is what the agent reads: the label reaches the chart context by value', () => {
+    const described = describeDrawings(doc.drawings)
+    const label = described.drawings.find((d) => d.tool === 'text')
+    expect(label?.text).toBe('Supply zone')
+    // An empty 1.9.x label is no label, not a label of nothing.
+    const priceLabel = described.drawings.find((d) => d.tool === 'price-label')
+    expect(priceLabel?.text).toBeUndefined()
   })
 })
