@@ -722,6 +722,10 @@ async fn within<T>(step: &str, fut: impl std::future::Future<Output = T>) -> T {
 #[tokio::test]
 async fn a_hundred_turns_leave_nothing_behind() {
     let h = harness(vec![]).await;
+    // The first router built starts, once, the app's owned task that
+    // closes the live-update connections of ended sessions; count from
+    // after it, so only what the turns leave is measured.
+    let _ = crate::server::app(h.ctx().clone());
     let tasks_before = h.ctx().task_count();
     let base = std::time::Instant::now();
     for i in 0..100u64 {

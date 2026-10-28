@@ -191,7 +191,6 @@ fn refused(e: &NotAnIdentifier) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::Value;
 
     #[test]
     fn every_web_wrapping_is_reproduced() {
@@ -199,25 +198,29 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/tests/fixtures/agent/prompts.json"
         );
-        let f: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
-        for case in f["wrapped"].as_array().unwrap() {
-            let attrs: Vec<(String, Option<String>)> = case["attributes"]
-                .as_object()
-                .unwrap()
-                .iter()
-                .map(|(k, v)| (k.clone(), v.as_str().map(str::to_string)))
-                .collect();
-            let borrowed: Vec<(&str, Option<&str>)> = attrs
+        // Attributes are written in the order given, so the recorded
+        // cases are read with their keys in the web's order (a
+        // serde_json map would sort them).
+        #[derive(serde::Deserialize)]
+        struct Case {
+            tag: String,
+            text: String,
+            attributes: indexmap::IndexMap<String, Option<String>>,
+            wrapped: String,
+        }
+        #[derive(serde::Deserialize)]
+        struct Recorded {
+            wrapped: Vec<Case>,
+        }
+        let f: Recorded = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        for case in &f.wrapped {
+            let attrs: Vec<(&str, Option<&str>)> = case
+                .attributes
                 .iter()
                 .map(|(k, v)| (k.as_str(), v.as_deref()))
                 .collect();
-            let got = wrap_untrusted(
-                case["tag"].as_str().unwrap(),
-                case["text"].as_str().unwrap(),
-                &borrowed,
-            )
-            .unwrap();
-            assert_eq!(got, case["wrapped"].as_str().unwrap(), "{}", case["tag"]);
+            let got = wrap_untrusted(&case.tag, &case.text, &attrs).unwrap();
+            assert_eq!(got, case.wrapped, "{}", case.tag);
         }
     }
 
