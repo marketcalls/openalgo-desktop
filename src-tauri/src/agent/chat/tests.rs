@@ -614,13 +614,12 @@ async fn a_client_that_leaves_stops_its_turn() {
     let (_, body) = open_until_start(&h, json!({"message": "think"})).await;
     // The run is waiting on the provider, sending nothing; the client goes.
     drop(body);
-    for _ in 0..200 {
-        if h.ctx().agent.runs().is_empty() && h.ctx().agent.slots().open() == 0 {
-            return;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    }
-    panic!("the run or its stream slot outlived the client");
+    within("the run to stop", h.ctx().agent.runs().wait_idle()).await;
+    assert_eq!(
+        h.ctx().agent.slots().open(),
+        0,
+        "the stream slot outlived the client"
+    );
 }
 
 #[tokio::test]
@@ -635,7 +634,7 @@ async fn signing_out_stops_every_turn() {
 
 /// D-016: the web capped streams and turns only under gthread.
 #[tokio::test]
-async fn a_seventh_answer_waits_and_a_long_turn_is_cut_off() {
+async fn a_seventh_answer_waits() {
     let h = harness((0..6).map(|_| Reply::Hang).collect()).await;
     let mut open = Vec::new();
     for i in 0..6 {
@@ -664,13 +663,20 @@ async fn a_seventh_answer_waits_and_a_long_turn_is_cut_off() {
     for b in open {
         rest(b).await;
     }
+}
+
+/// D-016: the 900 s turn limit holds on the desktop whatever the server.
+#[tokio::test]
+async fn a_long_turn_is_cut_off() {
+    let h = harness(vec![Reply::Hang]).await;
     h.ctx()
         .agent
         .set_turn_limit(std::time::Duration::from_millis(200));
-    h.fake.push(Reply::Hang);
-    let (_, f, _) = h
-        .chat("/agent/api/chat/stream", json!({"message": "slow"}))
-        .await;
+    let (_, f, _) = within(
+        "the cut-off",
+        h.chat("/agent/api/chat/stream", json!({"message": "slow"})),
+    )
+    .await;
     assert_eq!(types(&f), ["start", "error", "done"]);
     assert_eq!(f[1]["message"], crate::agent::run::TURN_TOO_LONG_MESSAGE);
     assert_eq!(f[2]["reason"], "incomplete");
