@@ -27,15 +27,46 @@ use crate::agent::safety::guard;
 use crate::agent::safety::risk::Verdict;
 use crate::agent::tools::service::{extract_detail, unwrap, ServiceReply};
 use crate::mcp::dispatch::Transport;
-use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 use std::time::Duration;
+
+/// A JSON object that keeps its keys in the order they were written (the
+/// web's dicts do, and the model reads them so; a `Value` map is sorted).
+#[derive(Debug, Default)]
+pub(super) struct Ordered(Vec<(String, Value)>);
+
+impl Ordered {
+    /// Set a key; an existing key keeps its place, as a dict's update does.
+    fn insert(&mut self, key: String, value: Value) {
+        match self.0.iter_mut().find(|(k, _)| *k == key) {
+            Some(slot) => slot.1 = value,
+            None => self.0.push((key, value)),
+        }
+    }
+
+    fn extend(&mut self, fields: Map<String, Value>) {
+        for (k, v) in fields {
+            self.insert(k, v);
+        }
+    }
+}
+
+impl serde::Serialize for Ordered {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut map = s.serialize_map(Some(self.0.len()))?;
+        for (k, v) in &self.0 {
+            map.serialize_entry(k, v)?;
+        }
+        map.end()
+    }
+}
 
 /// A result object in the web's key order: its dicts keep the order they
 /// were written in, and the model reads them so; a `Value` map is sorted.
 macro_rules! ordered {
     ($($k:literal : $v:expr),* $(,)?) => {{
-        let mut m: IndexMap<String, Value> = IndexMap::new();
+        let mut m = Ordered::default();
         $(m.insert($k.to_string(), serde_json::json!($v));)*
         m
     }};
@@ -144,7 +175,7 @@ impl Call<'_> {
     }
 
     /// The result as the model reads it: capped JSON, labelled as data.
-    fn emit(&self, payload: IndexMap<String, Value>) -> ToolOutcome {
+    fn emit(&self, payload: Ordered) -> ToolOutcome {
         let attrs: Vec<(&str, Option<&str>)> = self
             .attributes
             .iter()
