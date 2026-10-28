@@ -3,9 +3,9 @@
 //! argument names and types for the catalogue, and a compact schema for
 //! one tool in full, so a 21-tool server fits one result.
 
-use indexmap::IndexMap;
 use serde::Serialize;
 use serde_json::Value;
+use std::collections::BTreeMap;
 
 pub const MAX_SUMMARY_CHARS: usize = 200;
 pub const MAX_TOOL_DESCRIPTION_CHARS: usize = 2500;
@@ -58,7 +58,7 @@ pub struct Property {
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct CompactSchema {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub properties: Option<IndexMap<String, Property>>,
+    pub properties: Option<BTreeMap<String, Property>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required: Option<Vec<String>>,
 }
@@ -96,7 +96,7 @@ pub fn compact_schema(schema: Option<&Value>) -> CompactSchema {
     let Some(schema) = schema.and_then(Value::as_object) else {
         return CompactSchema::default();
     };
-    let properties: IndexMap<String, Property> = schema
+    let properties: BTreeMap<String, Property> = schema
         .get("properties")
         .and_then(Value::as_object)
         .map(|props| {
@@ -122,7 +122,7 @@ pub fn compact_schema(schema: Option<&Value>) -> CompactSchema {
 }
 
 /// Each argument's name and type, for the catalogue (`any` when unstated).
-pub fn argument_types(schema: Option<&Value>) -> IndexMap<String, Value> {
+pub fn argument_types(schema: Option<&Value>) -> BTreeMap<String, Value> {
     compact_schema(schema)
         .properties
         .unwrap_or_default()

@@ -33,10 +33,10 @@ use crate::agent::mcp::registry::McpServerSpec;
 use crate::agent::prompts::untrusted::wrap_tool_result;
 use crate::agent::tools::service::py_repr;
 use async_trait::async_trait;
-use indexmap::IndexMap;
 use serde::Serialize;
 use serde_json::{Map, Value};
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 /// Ceiling on the arguments the model may send, serialised as the web
@@ -116,7 +116,7 @@ struct McpTool {
 struct Row {
     name: String,
     summary: String,
-    arguments: IndexMap<String, Value>,
+    arguments: BTreeMap<String, Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     required: Option<Vec<String>>,
 }
