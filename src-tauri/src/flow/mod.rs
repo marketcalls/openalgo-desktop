@@ -8,6 +8,8 @@
 //! - `contract/`: the interfaces every part codes against: the stored model,
 //!   the node trait and its context, interpolation, the client nodes reach
 //!   OpenAlgo through, the subscription record and the trigger hooks.
+//! - `executor/`: running a workflow: the one-run-per-workflow claim, the
+//!   owned run task, the record, the graph walk.
 //! - `nodes/`: the node registry, one line per node family.
 //! - `store/`: the workflows and their run history (migration
 //!   `100_flow_core`).
@@ -18,6 +20,7 @@
 //! before it ends.
 
 pub mod contract;
+pub mod executor;
 pub mod nodes;
 pub mod store;
 pub mod validator;
