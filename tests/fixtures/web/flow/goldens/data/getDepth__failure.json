@@ -1,0 +1,126 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "getDepth",
+ "scenario": "failure",
+ "note": "",
+ "parity": [
+  "N-getDepth-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "getDepth",
+  "data": {
+   "outputVariable": "d",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "getDepth",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "d",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "depth",
+   "reply": {
+    "status": "error",
+    "error": "Invalid openalgo apikey",
+    "code": 403
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_depth",
+    "endpoint": "depth",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "error": "Invalid openalgo apikey",
+   "code": 403
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "d": {
+    "status": "error",
+    "error": "Invalid openalgo apikey",
+    "code": 403
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting depth for: SBIN"
+   ],
+   [
+    "info",
+    "Depth result received"
+   ],
+   [
+    "info",
+    "Stored result in variable: d"
+   ],
+   [
+    "error",
+    "Stopping this branch: getDepth node failed (Invalid openalgo apikey)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "getDepth",
+     "message": "Invalid openalgo apikey"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

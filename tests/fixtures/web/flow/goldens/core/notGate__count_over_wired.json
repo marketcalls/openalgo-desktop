@@ -1,0 +1,138 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "core",
+ "type": "notGate",
+ "scenario": "count_over_wired",
+ "note": "",
+ "parity": [
+  "N-gate-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "notGate",
+  "data": {
+   "inputCount": 2
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {
+  "in1": true
+ },
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "notGate",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "inputCount": 2
+    }
+   },
+   {
+    "id": "probe-yes",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "yes"
+    }
+   },
+   {
+    "id": "probe-no",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "no"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   },
+   {
+    "id": "in1",
+    "type": "goldenProbe",
+    "position": {
+     "x": -100,
+     "y": 0
+    },
+    "data": {
+     "probe": "in1"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-yes",
+    "source": "n1",
+    "target": "probe-yes",
+    "sourceHandle": "yes"
+   },
+   {
+    "id": "e-no",
+    "source": "n1",
+    "target": "probe-no",
+    "sourceHandle": "no"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   },
+   {
+    "id": "e-in1",
+    "source": "in1",
+    "target": "n1"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": null,
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {
+   "in1": true
+  },
+  "logs": [
+   [
+    "error",
+    "notGate is configured for 2 inputs but only 1 are wired. Wire the rest, or lower the input count, rather than evaluating on part of the condition."
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "notGate",
+     "message": "notGate is configured for 2 inputs but only 1 are wired. Wire the rest, or lower the input count, rather than evaluating on part of the condition."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

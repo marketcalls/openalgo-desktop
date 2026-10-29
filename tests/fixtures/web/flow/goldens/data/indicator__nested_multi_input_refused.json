@@ -1,0 +1,127 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "indicator",
+ "scenario": "nested_multi_input_refused",
+ "note": "",
+ "parity": [
+  "N-indicator-06"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "indicator",
+  "data": {
+   "indicatorName": "atr",
+   "sourceSeries": "{{prices}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "prices": [
+   101.0,
+   102.5,
+   101.75,
+   103.0,
+   104.25,
+   103.5,
+   105.0,
+   106.0,
+   105.5,
+   107.25,
+   108.0,
+   107.5
+  ]
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "indicator",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "indicatorName": "atr",
+     "sourceSeries": "{{prices}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "'atr' takes more than one independent input series (e.g. high/low/close), so it cannot be nested on top of another indicator's single output series. Nest only single-series indicators (SMA, EMA, RSI, WMA, stdev, highest/lowest, ...)."
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "prices": [
+    101.0,
+    102.5,
+    101.75,
+    103.0,
+    104.25,
+    103.5,
+    105.0,
+    106.0,
+    105.5,
+    107.25,
+    108.0,
+    107.5
+   ]
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Computing nested atr over 12 upstream values"
+   ],
+   [
+    "error",
+    "Indicator error: 'atr' takes more than one independent input series (e.g. high/low/close), so it cannot be nested on top of another indicator's single output series. Nest only single-series indicators (SMA, EMA, RSI, WMA, stdev, highest/lowest, ...)."
+   ],
+   [
+    "error",
+    "Stopping this branch: indicator node failed ('atr' takes more than one independent input series (e.g. high/low/close), so it cannot be nested on top of another indicator's single output series. Nest only single-series indicators (SMA, EMA, RSI, WMA, stdev, highest/lowest, ...).)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "indicator",
+     "message": "'atr' takes more than one independent input series (e.g. high/low/close), so it cannot be nested on top of another indicator's single output series. Nest only single-series indicators (SMA, EMA, RSI, WMA, stdev, highest/lowest, ...)."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

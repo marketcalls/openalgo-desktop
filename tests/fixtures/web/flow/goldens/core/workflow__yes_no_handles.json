@@ -1,0 +1,120 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "yes_no_handles",
+ "note": "",
+ "parity": [
+  "E-24",
+  "N-logic-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "YesNo",
+  "nodes": [
+   {
+    "id": "start",
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:15"
+    }
+   },
+   {
+    "id": "c",
+    "type": "timeCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "targetTime": "09:30",
+     "operator": ">="
+    }
+   },
+   {
+    "id": "y",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "after"
+    }
+   },
+   {
+    "id": "nn",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "before"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-start-c-x",
+    "source": "start",
+    "target": "c"
+   },
+   {
+    "id": "e-c-y-yes",
+    "source": "c",
+    "target": "y",
+    "sourceHandle": "yes"
+   },
+   {
+    "id": "e-c-nn-no",
+    "source": "c",
+    "target": "nn",
+    "sourceHandle": "no"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "result": {
+   "status": "success",
+   "message": "Workflow executed successfully"
+  },
+  "record": {
+   "status": "completed",
+   "error": null
+  },
+  "vars_out": {},
+  "logs": [
+   [
+    "info",
+    "Starting workflow: YesNo"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "info",
+    "Time condition (entry): 10:15 >= 09:30 = True"
+   ],
+   [
+    "info",
+    "[LOG] after"
+   ]
+  ]
+ }
+}

@@ -1,0 +1,119 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "unsubscribe",
+ "scenario": "interpolated",
+ "note": "",
+ "parity": [
+  "N-unsubscribe-05"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "unsubscribe",
+  "data": {
+   "exchange": "NSE",
+   "streamType": "{{st}}",
+   "symbol": "{{webhook.symbol}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "symbol": "SBIN"
+  },
+  "st": "depth"
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "unsubscribe",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "streamType": "{{st}}",
+     "symbol": "{{webhook.symbol}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker"
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "type": "unsubscribe",
+   "symbol": "SBIN",
+   "exchange": "NSE",
+   "stream_type": "depth",
+   "message": "Unsubscribed from depth stream"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "symbol": "SBIN"
+   },
+   "st": "depth"
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Unsubscribing from depth stream: SBIN (NSE)"
+   ],
+   [
+    "info",
+    "Unsubscribed from depth for SBIN"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null,
+  "feed": [
+   {
+    "op": "unsubscribe",
+    "symbols": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE"
+     }
+    ],
+    "mode": "Depth"
+   }
+  ]
+ }
+}

@@ -1,0 +1,138 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "history",
+ "scenario": "failure",
+ "note": "",
+ "parity": [
+  "N-history-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "history",
+  "data": {
+   "endDate": "2026-10-28",
+   "exchange": "NSE",
+   "interval": "D",
+   "outputVariable": "h",
+   "startDate": "2026-09-01",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "history",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "endDate": "2026-10-28",
+     "exchange": "NSE",
+     "interval": "D",
+     "outputVariable": "h",
+     "startDate": "2026-09-01",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "history",
+   "reply": {
+    "status": "error",
+    "error": "Interval '2h' is not supported",
+    "code": 400
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_history",
+    "endpoint": "history",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-09-01",
+     "end_date": "2026-10-28",
+     "source": "api"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "error": "Interval '2h' is not supported",
+   "code": 400
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "h": {
+    "status": "error",
+    "error": "Interval '2h' is not supported",
+    "code": 400
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting history for: SBIN (D)"
+   ],
+   [
+    "info",
+    "History data received"
+   ],
+   [
+    "info",
+    "Stored result in variable: h"
+   ],
+   [
+    "error",
+    "Stopping this branch: history node failed (Interval '2h' is not supported)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "history",
+     "message": "Interval '2h' is not supported"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

@@ -1,0 +1,144 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "margin",
+ "scenario": "basket_json",
+ "note": "",
+ "parity": [
+  "N-margin-03",
+  "N-margin-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "margin",
+  "data": {
+   "outputVariable": "mg",
+   "positionsJson": "[{\"symbol\": \"nifty25nov2624000ce\", \"exchange\": \"NFO\", \"action\": \"sell\", \"quantity\": 65, \"product\": \"NRML\", \"pricetype\": \"MARKET\"}, {\"symbol\": \"NIFTY25NOV2624500CE\", \"exchange\": \"NFO\", \"action\": \"BUY\", \"quantity\": \"65\", \"product\": \"NRML\", \"pricetype\": \"LIMIT\", \"price\": \"42.5\", \"triggerPrice\": 0, \"note\": \"hedge\"}]"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "margin",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "mg",
+     "positionsJson": "[{\"symbol\": \"nifty25nov2624000ce\", \"exchange\": \"NFO\", \"action\": \"sell\", \"quantity\": 65, \"product\": \"NRML\", \"pricetype\": \"MARKET\"}, {\"symbol\": \"NIFTY25NOV2624500CE\", \"exchange\": \"NFO\", \"action\": \"BUY\", \"quantity\": \"65\", \"product\": \"NRML\", \"pricetype\": \"LIMIT\", \"price\": \"42.5\", \"triggerPrice\": 0, \"note\": \"hedge\"}]"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "margin",
+   "reply": {
+    "status": "success",
+    "data": {
+     "total_margin_required": 81250.0,
+     "span_margin": 0.0,
+     "exposure_margin": 0.0
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "margin",
+    "endpoint": "margin",
+    "payload": {
+     "positions": [
+      {
+       "symbol": "NIFTY25NOV2624000CE",
+       "exchange": "NFO",
+       "action": "SELL",
+       "quantity": "65",
+       "product": "NRML",
+       "pricetype": "MARKET"
+      },
+      {
+       "symbol": "NIFTY25NOV2624500CE",
+       "exchange": "NFO",
+       "action": "BUY",
+       "quantity": "65",
+       "product": "NRML",
+       "pricetype": "LIMIT",
+       "price": "42.5",
+       "note": "hedge",
+       "trigger_price": "0"
+      }
+     ]
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": {
+    "total_margin_required": 81250.0,
+    "span_margin": 0.0,
+    "exposure_margin": 0.0
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "mg": {
+    "status": "success",
+    "data": {
+     "total_margin_required": 81250.0,
+     "span_margin": 0.0,
+     "exposure_margin": 0.0
+    }
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Calculating margin for a basket of 2 position(s)"
+   ],
+   [
+    "info",
+    "Margin result: {'status': 'success', 'data': {'total_margin_required': 81250.0, 'span_margin': 0.0, 'exposure_margin': 0.0}}"
+   ],
+   [
+    "info",
+    "Stored result in variable: mg"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

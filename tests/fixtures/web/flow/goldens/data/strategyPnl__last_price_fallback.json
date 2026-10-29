@@ -1,0 +1,164 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "strategyPnl",
+ "scenario": "last_price_fallback",
+ "note": "",
+ "parity": [
+  "N-strategyPnl-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "strategyPnl",
+  "data": {
+   "outputVariable": "pnl"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "strategyPnl",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "pnl"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "strategy_book": [
+   {
+    "strategy": "Golden Flow",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "product": "MIS",
+    "quantity": 10.0,
+    "average_price": 800.0,
+    "realized_pnl": 50.0,
+    "today_realized_pnl": 50.0
+   }
+  ]
+ },
+ "script": [
+  {
+   "endpoint": "positionbook",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "product": "MIS",
+      "last_price": 801.35,
+      "quantity": 10
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "positionbook",
+    "endpoint": "positionbook",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "strategy": "Golden Flow",
+   "realized": 50.0,
+   "today_realized": 50.0,
+   "unrealized": 13.5,
+   "total": 63.5,
+   "open_quantity": 10.0,
+   "unpriced_legs": 0,
+   "legs": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "product": "MIS",
+     "quantity": 10.0,
+     "average_price": 800.0,
+     "ltp": 801.35,
+     "realized": 50.0,
+     "today_realized": 50.0,
+     "unrealized": 13.5
+    }
+   ],
+   "today_total": 63.5
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "pnl": {
+    "status": "success",
+    "strategy": "Golden Flow",
+    "realized": 50.0,
+    "today_realized": 50.0,
+    "unrealized": 13.5,
+    "total": 63.5,
+    "open_quantity": 10.0,
+    "unpriced_legs": 0,
+    "legs": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "product": "MIS",
+      "quantity": 10.0,
+      "average_price": 800.0,
+      "ltp": 801.35,
+      "realized": 50.0,
+      "today_realized": 50.0,
+      "unrealized": 13.5
+     }
+    ],
+    "today_total": 63.5
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Strategy P&L [Golden Flow]: realized=50.0 unrealized=13.5 total=63.5 openQty=10.0"
+   ],
+   [
+    "info",
+    "Stored result in variable: pnl"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

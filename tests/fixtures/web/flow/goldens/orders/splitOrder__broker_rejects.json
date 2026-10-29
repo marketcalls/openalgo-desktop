@@ -1,0 +1,148 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "splitOrder",
+ "scenario": "broker_rejects",
+ "note": "",
+ "parity": [
+  "N-splitOrder-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "splitOrder",
+  "data": {
+   "action": "BUY",
+   "exchange": "NSE",
+   "outputVariable": "split",
+   "price": 0,
+   "priceType": "MARKET",
+   "quantity": 100,
+   "splitSize": 50,
+   "symbol": "SBIN",
+   "triggerPrice": 0
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "splitOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "BUY",
+     "exchange": "NSE",
+     "outputVariable": "split",
+     "price": 0,
+     "priceType": "MARKET",
+     "quantity": 100,
+     "splitSize": 50,
+     "symbol": "SBIN",
+     "triggerPrice": 0
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "splitorder",
+   "reply": {
+    "status": "error",
+    "error": "Insufficient funds: required 81250.00, available 1200.00",
+    "code": 400
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "split_order",
+    "endpoint": "splitorder",
+    "payload": {
+     "strategy": "Golden Flow",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 100,
+     "splitsize": 50,
+     "pricetype": "MARKET",
+     "product": "MIS",
+     "price": 0.0,
+     "trigger_price": 0.0
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "error": "Insufficient funds: required 81250.00, available 1200.00",
+   "code": 400
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "split": {
+    "status": "error",
+    "error": "Insufficient funds: required 81250.00, available 1200.00",
+    "code": 400
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Placing split order: SBIN qty=100 split=50"
+   ],
+   [
+    "error",
+    "Split order result: {'status': 'error', 'error': 'Insufficient funds: required 81250.00, available 1200.00', 'code': 400}"
+   ],
+   [
+    "info",
+    "Stored result in variable: split"
+   ],
+   [
+    "error",
+    "Stopping this branch: splitOrder node failed (Insufficient funds: required 81250.00, available 1200.00)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "splitOrder",
+     "message": "Insufficient funds: required 81250.00, available 1200.00"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

@@ -1,0 +1,111 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "whatsappAlert",
+ "scenario": "to_self",
+ "note": "",
+ "parity": [
+  "N-whatsappAlert-01",
+  "N-whatsappAlert-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "whatsappAlert",
+  "data": {
+   "message": "Filled {{sym}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "sym": "SBIN"
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "whatsappAlert",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "Filled {{sym}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": {
+  "status": "success",
+  "data": {
+   "sent": [
+    "self"
+   ],
+   "failed": [],
+   "skipped": []
+  }
+ },
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "data": {
+    "sent": [
+     "self"
+    ],
+    "failed": [],
+    "skipped": []
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "sym": "SBIN"
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Sending WhatsApp alert to self: Filled SBIN"
+   ],
+   [
+    "info",
+    "WhatsApp result: {'status': 'success', 'data': {'sent': ['self'], 'failed': [], 'skipped': []}}"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null,
+  "alerts": [
+   {
+    "channel": "whatsapp",
+    "message": "Filled SBIN",
+    "to": null
+   }
+  ]
+ }
+}

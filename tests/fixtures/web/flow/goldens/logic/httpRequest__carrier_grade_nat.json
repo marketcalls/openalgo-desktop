@@ -1,0 +1,157 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "httpRequest",
+ "scenario": "carrier_grade_nat",
+ "note": "",
+ "parity": [
+  "N-httpRequest-07"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "httpRequest",
+  "data": {
+   "method": "GET",
+   "outputVariable": "resp",
+   "url": "http://tailnet.flow-golden.test/"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "httpRequest",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "method": "GET",
+     "outputVariable": "resp",
+     "url": "http://tailnet.flow-golden.test/"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "http": {
+   "resolve": {
+    "tailnet.flow-golden.test": [
+     "100.64.1.1"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "body": "{\"ok\": true, \"id\": 7}",
+    "content_type": "application/json"
+   }
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "statusCode": 200,
+   "data": {
+    "ok": true,
+    "id": 7
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "resp": {
+    "status": "success",
+    "statusCode": 200,
+    "data": {
+     "ok": true,
+     "id": 7
+    }
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "HTTP GET http://tailnet.flow-golden.test/"
+   ],
+   [
+    "info",
+    "Stored result in variable: resp"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null,
+  "http_requests": [
+   {
+    "method": "GET",
+    "path": "/",
+    "query": "",
+    "headers": {},
+    "body": ""
+   }
+  ]
+ },
+ "desktop_expected": {
+  "parity": "N-httpRequest-07",
+  "why": "WEB-DEFECT: 100.64.0.0/10 (carrier-grade NAT, the Tailscale range) is reachable on the web; the desktop refuses it like a private address (decisions.md 12).",
+  "fix": [
+   "http_cgnat"
+  ],
+  "outputs": {
+   "status": "error",
+   "message": "refusing to send this request: host 'tailnet.flow-golden.test' resolves to 100.64.1.1, which is not a public address"
+  },
+  "vars_out": {},
+  "logs": [
+   [
+    "error",
+    "HTTP request aborted: refusing to send this request: host 'tailnet.flow-golden.test' resolves to 100.64.1.1, which is not a public address"
+   ],
+   [
+    "error",
+    "Stopping this branch: httpRequest node failed (refusing to send this request: host 'tailnet.flow-golden.test' resolves to 100.64.1.1, which is not a public address)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "httpRequest",
+     "message": "refusing to send this request: host 'tailnet.flow-golden.test' resolves to 100.64.1.1, which is not a public address"
+    }
+   ],
+   "abort": null
+  },
+  "http_requests": null
+ }
+}

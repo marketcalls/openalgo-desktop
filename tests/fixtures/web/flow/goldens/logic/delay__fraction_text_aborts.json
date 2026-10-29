@@ -1,0 +1,79 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "delay",
+ "scenario": "fraction_text_aborts",
+ "note": "",
+ "parity": [
+  "N-delay-02",
+  "N-logic-05"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "delay",
+  "data": {
+   "delayValue": "1.5"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "delay",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "delayValue": "1.5"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": null,
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Error: invalid literal for int() with base 10: '1.5'"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [],
+   "abort": "invalid literal for int() with base 10: '1.5'"
+  }
+ }
+}

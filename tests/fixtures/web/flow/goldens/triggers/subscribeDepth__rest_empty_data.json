@@ -1,0 +1,155 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "subscribeDepth",
+ "scenario": "rest_empty_data",
+ "note": "",
+ "parity": [
+  "N-subscribeDepth-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "subscribeDepth",
+  "data": {
+   "exchange": "NSE",
+   "outputVariable": "depth",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "subscribeDepth",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "outputVariable": "depth",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "connect_error": "down"
+  }
+ },
+ "script": [
+  {
+   "endpoint": "depth",
+   "reply": {
+    "status": "success",
+    "data": {}
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_depth",
+    "endpoint": "depth",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "type": "depth",
+   "symbol": "SBIN",
+   "exchange": "NSE",
+   "data": {
+    "bids": [],
+    "asks": []
+   },
+   "source": "rest_api"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "depth": {
+    "status": "success",
+    "type": "depth",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "data": {
+     "bids": [],
+     "asks": []
+    },
+    "source": "rest_api"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Subscribing to Depth stream: SBIN (NSE)"
+   ],
+   [
+    "warning",
+    "WebSocket connection failed: down"
+   ],
+   [
+    "info",
+    "WebSocket timeout/failed, falling back to REST API for SBIN"
+   ],
+   [
+    "info",
+    "Depth for SBIN: Bid=0, Ask=0 (0 bids, 0 asks) via REST API"
+   ],
+   [
+    "info",
+    "Stored result in variable: depth"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ },
+ "desktop_expected": {
+  "parity": "N-subscribeDepth-04",
+  "why": "WEB-DEFECT (decisions.md 9): store_output overwrites the documented value with the whole result dict; the desktop stores the documented value under the stripped outputVariable (the run log is unchanged).",
+  "fix": [
+   "stream_documented_value"
+  ],
+  "vars_out": {
+   "depth": {
+    "bids": [],
+    "asks": []
+   }
+  }
+ }
+}

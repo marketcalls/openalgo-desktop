@@ -1,0 +1,160 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "optionSymbol",
+ "scenario": "interpolated",
+ "note": "",
+ "parity": [
+  "N-optionSymbol-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "optionSymbol",
+  "data": {
+   "exchange": "NSE_INDEX",
+   "expiryDate": "{{exp.data[1]}}",
+   "offset": "{{webhook.o}}",
+   "optionType": "CE",
+   "outputVariable": "opt",
+   "underlying": "{{webhook.u}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "u": "BANKNIFTY",
+   "o": "ITM2"
+  },
+  "exp": {
+   "data": [
+    "04NOV26",
+    "25nov26"
+   ]
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "optionSymbol",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE_INDEX",
+     "expiryDate": "{{exp.data[1]}}",
+     "offset": "{{webhook.o}}",
+     "optionType": "CE",
+     "outputVariable": "opt",
+     "underlying": "{{webhook.u}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "optionsymbol",
+   "reply": {
+    "status": "success",
+    "symbol": "NIFTY25NOV2624000CE",
+    "exchange": "NFO",
+    "lotsize": 65,
+    "tick_size": 0.05,
+    "freeze_qty": 1800,
+    "underlying_ltp": 24012.35
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "optionsymbol",
+    "endpoint": "optionsymbol",
+    "payload": {
+     "underlying": "BANKNIFTY",
+     "exchange": "NSE_INDEX",
+     "expiry_date": "25nov26",
+     "strike_int": null,
+     "offset": "ITM2",
+     "option_type": "CE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "symbol": "NIFTY25NOV2624000CE",
+   "exchange": "NFO",
+   "lotsize": 65,
+   "tick_size": 0.05,
+   "freeze_qty": 1800,
+   "underlying_ltp": 24012.35
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "u": "BANKNIFTY",
+    "o": "ITM2"
+   },
+   "exp": {
+    "data": [
+     "04NOV26",
+     "25nov26"
+    ]
+   },
+   "opt": {
+    "status": "success",
+    "symbol": "NIFTY25NOV2624000CE",
+    "exchange": "NFO",
+    "lotsize": 65,
+    "tick_size": 0.05,
+    "freeze_qty": 1800,
+    "underlying_ltp": 24012.35
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Resolving option symbol: BANKNIFTY CE ITM2"
+   ],
+   [
+    "info",
+    "Option symbol result: {'status': 'success', 'symbol': 'NIFTY25NOV2624000CE', 'exchange': 'NFO', 'lotsize': 65, 'tick_size': 0.05, 'freeze_qty': 1800, 'underlying_ltp': 24012.35}"
+   ],
+   [
+    "info",
+    "Stored result in variable: opt"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

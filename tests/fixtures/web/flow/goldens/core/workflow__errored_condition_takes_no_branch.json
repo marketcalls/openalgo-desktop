@@ -1,0 +1,148 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "errored_condition_takes_no_branch",
+ "note": "",
+ "parity": [
+  "E-24",
+  "N-logic-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Errored",
+  "nodes": [
+   {
+    "id": "start",
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:15"
+    }
+   },
+   {
+    "id": "c",
+    "type": "varCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "leftValue": "{{missing}}",
+     "operator": ">",
+     "rightValue": "3"
+    }
+   },
+   {
+    "id": "yes",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "yes"
+    }
+   },
+   {
+    "id": "no",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "no"
+    }
+   },
+   {
+    "id": "always",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "always"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-start-c-x",
+    "source": "start",
+    "target": "c"
+   },
+   {
+    "id": "e-c-yes-true",
+    "source": "c",
+    "target": "yes",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-c-no-false",
+    "source": "c",
+    "target": "no",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-c-always-x",
+    "source": "c",
+    "target": "always"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "result": {
+   "status": "error",
+   "message": "1 node(s) failed: varCondition: leftValue did not resolve to a number: '{{missing}}'",
+   "errors": [
+    {
+     "node": "c",
+     "type": "varCondition",
+     "message": "leftValue did not resolve to a number: '{{missing}}'"
+    }
+   ]
+  },
+  "record": {
+   "status": "failed",
+   "error": "varCondition: leftValue did not resolve to a number: '{{missing}}'"
+  },
+  "vars_out": {},
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Errored"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "error",
+    "Var check aborted: leftValue did not resolve to a number: '{{missing}}'"
+   ],
+   [
+    "error",
+    "varCondition could not be evaluated (leftValue did not resolve to a number: '{{missing}}')"
+   ],
+   [
+    "info",
+    "[LOG] always"
+   ]
+  ]
+ }
+}

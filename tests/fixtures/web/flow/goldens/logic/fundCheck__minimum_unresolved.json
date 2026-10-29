@@ -1,0 +1,175 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "fundCheck",
+ "scenario": "minimum_unresolved",
+ "note": "",
+ "parity": [
+  "N-fundCheck-06"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "fundCheck",
+  "data": {
+   "minAvailable": "{{typo}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "fundCheck",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "minAvailable": "{{typo}}"
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "funds",
+   "reply": {
+    "status": "success",
+    "data": {
+     "availablecash": 250000.5,
+     "collateral": 0.0,
+     "m2mrealized": 0.0,
+     "m2munrealized": 0.0,
+     "utiliseddebits": 12000.0
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "funds",
+    "endpoint": "funds",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "condition": true,
+   "available": 250000.5
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {
+   "n1": true
+  },
+  "logs": [
+   [
+    "info",
+    "Checking funds"
+   ],
+   [
+    "info",
+    "Fund check: available=250000.5 >= 0.0 = True"
+   ]
+  ],
+  "next": [
+   "pass",
+   "true"
+  ],
+  "error": null
+ },
+ "desktop_expected": {
+  "parity": "N-fundCheck-06",
+  "why": "WEB-DEFECT: an unparseable minimum becomes 0.0 and the guard passes; the desktop fails closed before reading funds (the sentence is the lane's).",
+  "calls": {
+   "$any": "calls"
+  },
+  "outputs": {
+   "status": "error",
+   "condition": false,
+   "message": {
+    "$any": "string"
+   }
+  },
+  "logs": {
+   "$any": "logs"
+  },
+  "next": [
+   "pass"
+  ],
+  "conditions_out": {},
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "fundCheck",
+     "message": {
+      "$any": "string"
+     }
+    }
+   ],
+   "abort": null
+  }
+ }
+}

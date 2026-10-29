@@ -1,0 +1,219 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "barOffset",
+ "scenario": "intraday_forming_dropped",
+ "note": "",
+ "parity": [
+  "N-barOffset-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "barOffset",
+  "data": {
+   "exchange": "NSE",
+   "interval": "5m",
+   "offsetBars": 1,
+   "outputVariable": "bar1",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "barOffset",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "interval": "5m",
+     "offsetBars": 1,
+     "outputVariable": "bar1",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "history",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "timestamp": 1793246280,
+      "open": 812.0,
+      "high": 814.5,
+      "low": 803.75,
+      "close": 805.75,
+      "volume": 100000
+     },
+     {
+      "timestamp": 1793246580,
+      "open": 805.75,
+      "high": 809.25,
+      "low": 801.5,
+      "close": 804.5,
+      "volume": 107919
+     },
+     {
+      "timestamp": 1793246880,
+      "open": 804.5,
+      "high": 812.75,
+      "low": 802.5,
+      "close": 808.25,
+      "volume": 115838
+     },
+     {
+      "timestamp": 1793247180,
+      "open": 808.25,
+      "high": 810.75,
+      "low": 800.25,
+      "close": 803.25,
+      "volume": 123757
+     },
+     {
+      "timestamp": 1793247480,
+      "open": 803.25,
+      "high": 806.75,
+      "low": 801.25,
+      "close": 803.25,
+      "volume": 131676
+     },
+     {
+      "timestamp": 1793247780,
+      "open": 803.25,
+      "high": 812.75,
+      "low": 800.25,
+      "close": 808.25,
+      "volume": 139595
+     },
+     {
+      "timestamp": 1793248080,
+      "open": 808.25,
+      "high": 810.75,
+      "low": 802.5,
+      "close": 804.5,
+      "volume": 147514
+     },
+     {
+      "timestamp": 1793248380,
+      "open": 804.5,
+      "high": 809.25,
+      "low": 801.5,
+      "close": 805.75,
+      "volume": 105433
+     },
+     {
+      "timestamp": 1793248680,
+      "open": 805.75,
+      "high": 816.5,
+      "low": 803.75,
+      "close": 812.0,
+      "volume": 113352
+     },
+     {
+      "timestamp": 1793248980,
+      "open": 812.0,
+      "high": 814.5,
+      "low": 806.5,
+      "close": 809.5,
+      "volume": 121271
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_history",
+    "endpoint": "history",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "5m",
+     "start_date": "2026-10-24",
+     "end_date": "2026-10-29",
+     "source": "api"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "symbol": "SBIN",
+   "exchange": "NSE",
+   "offsetBars": 1,
+   "timestamp": 1793248380,
+   "open": 804.5,
+   "high": 809.25,
+   "low": 801.5,
+   "close": 805.75,
+   "volume": 105433
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "bar1": {
+    "status": "success",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "offsetBars": 1,
+    "timestamp": 1793248380,
+    "open": 804.5,
+    "high": 809.25,
+    "low": 801.5,
+    "close": 805.75,
+    "volume": 105433
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Fetching bar offset 1 for SBIN (5m)"
+   ],
+   [
+    "info",
+    "Bar offset 1 for SBIN: {'status': 'success', 'symbol': 'SBIN', 'exchange': 'NSE', 'offsetBars': 1, 'timestamp': 1793248380, 'open': 804.5, 'high': 809.25, 'low': 801.5, 'close': 805.75, 'volume': 105433}"
+   ],
+   [
+    "info",
+    "Stored result in variable: bar1"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

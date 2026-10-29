@@ -1,0 +1,95 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "margin",
+ "scenario": "basket_empty_after_interpolation",
+ "note": "",
+ "parity": [
+  "N-margin-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "margin",
+  "data": {
+   "positionsJson": "{{blank}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "blank": "  "
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "margin",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "positionsJson": "{{blank}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Margin positions is empty after variable interpolation; check the {{variable}} references in the basket."
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "blank": "  "
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Margin failed: Margin positions is empty after variable interpolation; check the {{variable}} references in the basket."
+   ],
+   [
+    "error",
+    "Stopping this branch: margin node failed (Margin positions is empty after variable interpolation; check the {{variable}} references in the basket.)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "margin",
+     "message": "Margin positions is empty after variable interpolation; check the {{variable}} references in the basket."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

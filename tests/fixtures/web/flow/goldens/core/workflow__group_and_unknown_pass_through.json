@@ -1,0 +1,96 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "group_and_unknown_pass_through",
+ "note": "",
+ "parity": [
+  "N-group-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Group",
+  "nodes": [
+   {
+    "id": "start",
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:15"
+    }
+   },
+   {
+    "id": "g",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "G"
+    }
+   },
+   {
+    "id": "l",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "inside"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-start-g-x",
+    "source": "start",
+    "target": "g"
+   },
+   {
+    "id": "e-g-l-x",
+    "source": "g",
+    "target": "l"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "result": {
+   "status": "success",
+   "message": "Workflow executed successfully"
+  },
+  "record": {
+   "status": "completed",
+   "error": null
+  },
+  "vars_out": {},
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Group"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "info",
+    "[LOG] inside"
+   ]
+  ]
+ }
+}

@@ -1,0 +1,156 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "smartOrder",
+ "scenario": "interpolated",
+ "note": "",
+ "parity": [
+  "N-smartOrder-01",
+  "N-common-13"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "smartOrder",
+  "data": {
+   "action": "SELL",
+   "exchange": "{{webhook.ex}}",
+   "positionSize": "{{webhook.size}}",
+   "price": "{{webhook.px}}",
+   "priceType": "{{webhook.pt}}",
+   "product": "{{webhook.prod}}",
+   "quantity": "{{webhook.qty}}",
+   "strategyTag": "{{webhook.tag}}",
+   "symbol": "{{webhook.symbol}}",
+   "triggerPrice": "{{webhook.tp}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "symbol": "INFY",
+   "qty": "4",
+   "size": "-2",
+   "split": "2",
+   "px": "1880.5",
+   "tp": "1879",
+   "ex": "NSE",
+   "prod": "CNC",
+   "pt": "SL",
+   "tag": "tv-alert",
+   "id": "250408000123456"
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "smartOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "SELL",
+     "exchange": "{{webhook.ex}}",
+     "positionSize": "{{webhook.size}}",
+     "price": "{{webhook.px}}",
+     "priceType": "{{webhook.pt}}",
+     "product": "{{webhook.prod}}",
+     "quantity": "{{webhook.qty}}",
+     "strategyTag": "{{webhook.tag}}",
+     "symbol": "{{webhook.symbol}}",
+     "triggerPrice": "{{webhook.tp}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "placesmartorder",
+   "reply": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "place_smart_order",
+    "endpoint": "placesmartorder",
+    "payload": {
+     "strategy": "tv-alert",
+     "symbol": "INFY",
+     "exchange": "NSE",
+     "action": "SELL",
+     "quantity": 4,
+     "position_size": -2,
+     "pricetype": "SL",
+     "product": "CNC",
+     "price": 1880.5,
+     "trigger_price": 1879.0
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "orderid": "250408000123456"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "symbol": "INFY",
+    "qty": "4",
+    "size": "-2",
+    "split": "2",
+    "px": "1880.5",
+    "tp": "1879",
+    "ex": "NSE",
+    "prod": "CNC",
+    "pt": "SL",
+    "tag": "tv-alert",
+    "id": "250408000123456"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Placing smart order: INFY SELL"
+   ],
+   [
+    "info",
+    "Smart order result: {'status': 'success', 'orderid': '250408000123456'}"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

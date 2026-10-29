@@ -1,0 +1,161 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "intervals",
+ "scenario": "happy",
+ "note": "",
+ "parity": [
+  "N-intervals-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "intervals",
+  "data": {
+   "outputVariable": "iv"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "intervals",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "iv"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "intervals",
+   "reply": {
+    "status": "success",
+    "data": {
+     "days": [
+      "D"
+     ],
+     "hours": [
+      "1h"
+     ],
+     "minutes": [
+      "1m",
+      "3m",
+      "5m",
+      "10m",
+      "15m",
+      "30m"
+     ],
+     "months": [],
+     "seconds": [],
+     "weeks": []
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_intervals",
+    "endpoint": "intervals",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": {
+    "days": [
+     "D"
+    ],
+    "hours": [
+     "1h"
+    ],
+    "minutes": [
+     "1m",
+     "3m",
+     "5m",
+     "10m",
+     "15m",
+     "30m"
+    ],
+    "months": [],
+    "seconds": [],
+    "weeks": []
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "iv": {
+    "status": "success",
+    "data": {
+     "days": [
+      "D"
+     ],
+     "hours": [
+      "1h"
+     ],
+     "minutes": [
+      "1m",
+      "3m",
+      "5m",
+      "10m",
+      "15m",
+      "30m"
+     ],
+     "months": [],
+     "seconds": [],
+     "weeks": []
+    }
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting available intervals"
+   ],
+   [
+    "info",
+    "Intervals result: {'status': 'success', 'data': {'days': ['D'], 'hours': ['1h'], 'minutes': ['1m', '3m', '5m', '10m', '15m', '30m'], 'months': [], 'seconds': [], 'weeks': []}}"
+   ],
+   [
+    "info",
+    "Stored result in variable: iv"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

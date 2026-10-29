@@ -1,0 +1,189 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "plain_node_reached_twice_runs_twice",
+ "note": "Parity with the web (decisions.md 8): a non-branching node reached by two paths runs once per path.",
+ "parity": [
+  "E-29"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Merge",
+  "nodes": [
+   {
+    "id": "start",
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:15"
+    }
+   },
+   {
+    "id": "l1",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "path 1"
+    }
+   },
+   {
+    "id": "l2",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "path 2"
+    }
+   },
+   {
+    "id": "o",
+    "type": "placeOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 1,
+     "priceType": "MARKET"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-start-l1-x",
+    "source": "start",
+    "target": "l1"
+   },
+   {
+    "id": "e-start-l2-x",
+    "source": "start",
+    "target": "l2"
+   },
+   {
+    "id": "e-l1-o-x",
+    "source": "l1",
+    "target": "o"
+   },
+   {
+    "id": "e-l2-o-x",
+    "source": "l2",
+    "target": "o"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {},
+ "script": [
+  {
+   "endpoint": "placeorder",
+   "reply": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  },
+  {
+   "endpoint": "placeorder",
+   "reply": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "place_order",
+    "endpoint": "placeorder",
+    "payload": {
+     "strategy": "Merge",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 1,
+     "pricetype": "MARKET",
+     "product": "MIS",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   },
+   {
+    "method": "place_order",
+    "endpoint": "placeorder",
+    "payload": {
+     "strategy": "Merge",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 1,
+     "pricetype": "MARKET",
+     "product": "MIS",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  ],
+  "result": {
+   "status": "success",
+   "message": "Workflow executed successfully"
+  },
+  "record": {
+   "status": "completed",
+   "error": null
+  },
+  "vars_out": {},
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Merge"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "info",
+    "[LOG] path 1"
+   ],
+   [
+    "info",
+    "Placing order: SBIN BUY qty=1"
+   ],
+   [
+    "info",
+    "Order result: {'status': 'success', 'orderid': '250408000123456'}"
+   ],
+   [
+    "info",
+    "[LOG] path 2"
+   ],
+   [
+    "info",
+    "Placing order: SBIN BUY qty=1"
+   ],
+   [
+    "info",
+    "Order result: {'status': 'success', 'orderid': '250408000123456'}"
+   ]
+  ]
+ }
+}

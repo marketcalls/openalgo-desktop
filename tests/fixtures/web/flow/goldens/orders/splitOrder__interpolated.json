@@ -1,0 +1,178 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "splitOrder",
+ "scenario": "interpolated",
+ "note": "",
+ "parity": [
+  "N-splitOrder-01",
+  "N-common-13"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "splitOrder",
+  "data": {
+   "action": "BUY",
+   "exchange": "NSE",
+   "priceType": "MARKET",
+   "quantity": "{{webhook.qty}}",
+   "splitSize": "{{webhook.split}}",
+   "symbol": "{{webhook.symbol}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "symbol": "INFY",
+   "qty": "4",
+   "size": "-2",
+   "split": "2",
+   "px": "1880.5",
+   "tp": "1879",
+   "ex": "NSE",
+   "prod": "CNC",
+   "pt": "SL",
+   "tag": "tv-alert",
+   "id": "250408000123456"
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "splitOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "BUY",
+     "exchange": "NSE",
+     "priceType": "MARKET",
+     "quantity": "{{webhook.qty}}",
+     "splitSize": "{{webhook.split}}",
+     "symbol": "{{webhook.symbol}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "splitorder",
+   "reply": {
+    "status": "success",
+    "results": [
+     {
+      "order_num": 1,
+      "orderid": "250408000400001",
+      "quantity": 50,
+      "status": "success"
+     },
+     {
+      "order_num": 2,
+      "orderid": "250408000400002",
+      "quantity": 50,
+      "status": "success"
+     }
+    ],
+    "split_size": 50,
+    "total_quantity": 100
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "split_order",
+    "endpoint": "splitorder",
+    "payload": {
+     "strategy": "Golden Flow",
+     "symbol": "INFY",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 4,
+     "splitsize": 2,
+     "pricetype": "MARKET",
+     "product": "MIS",
+     "price": 0.0,
+     "trigger_price": 0.0
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "results": [
+    {
+     "order_num": 1,
+     "orderid": "250408000400001",
+     "quantity": 50,
+     "status": "success"
+    },
+    {
+     "order_num": 2,
+     "orderid": "250408000400002",
+     "quantity": 50,
+     "status": "success"
+    }
+   ],
+   "split_size": 50,
+   "total_quantity": 100
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "symbol": "INFY",
+    "qty": "4",
+    "size": "-2",
+    "split": "2",
+    "px": "1880.5",
+    "tp": "1879",
+    "ex": "NSE",
+    "prod": "CNC",
+    "pt": "SL",
+    "tag": "tv-alert",
+    "id": "250408000123456"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Placing split order: INFY qty=4 split=2"
+   ],
+   [
+    "info",
+    "Split order result: {'status': 'success', 'results': [{'order_num': 1, 'orderid': '250408000400001', 'quantity': 50, 'status': 'success'}, {'order_num': 2, 'orderid': '250408000400002', 'quantity': 50, 'status': 'success'}], 'split_size': 50, 'total_quantity': 100}"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

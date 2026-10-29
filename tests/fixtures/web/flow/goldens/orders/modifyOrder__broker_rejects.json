@@ -1,0 +1,164 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "modifyOrder",
+ "scenario": "broker_rejects",
+ "note": "",
+ "parity": [
+  "N-modifyOrder-06"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "modifyOrder",
+  "data": {
+   "newPrice": 805.25,
+   "orderId": "250408000123456",
+   "outputVariable": "modified"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "modifyOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "newPrice": 805.25,
+     "orderId": "250408000123456",
+     "outputVariable": "modified"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "orderstatus",
+   "reply": {
+    "status": "success",
+    "data": {
+     "action": "BUY",
+     "average_price": 0.0,
+     "exchange": "NSE",
+     "order_status": "open",
+     "orderid": "250408000123456",
+     "price": 800.0,
+     "pricetype": "LIMIT",
+     "product": "MIS",
+     "quantity": 10,
+     "symbol": "SBIN",
+     "timestamp": "2026-10-29 10:14:59",
+     "trigger_price": 0.0
+    }
+   }
+  },
+  {
+   "endpoint": "modifyorder",
+   "reply": {
+    "status": "error",
+    "error": "Insufficient funds: required 81250.00, available 1200.00",
+    "code": 400
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_order_status",
+    "endpoint": "orderstatus",
+    "payload": {
+     "orderid": "250408000123456"
+    }
+   },
+   {
+    "method": "modify_order",
+    "endpoint": "modifyorder",
+    "payload": {
+     "strategy": "flow_workflow",
+     "orderid": "250408000123456",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 10,
+     "pricetype": "LIMIT",
+     "product": "MIS",
+     "price": 805.25,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "error": "Insufficient funds: required 81250.00, available 1200.00",
+   "code": 400
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "modified": {
+    "status": "error",
+    "error": "Insufficient funds: required 81250.00, available 1200.00",
+    "code": 400
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Modifying order: 250408000123456 - SBIN BUY qty=10 price=805.25 trigger=0.0"
+   ],
+   [
+    "error",
+    "Modify order result: {'status': 'error', 'error': 'Insufficient funds: required 81250.00, available 1200.00', 'code': 400}"
+   ],
+   [
+    "info",
+    "Stored result in variable: modified"
+   ],
+   [
+    "error",
+    "Stopping this branch: modifyOrder node failed (Insufficient funds: required 81250.00, available 1200.00)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "modifyOrder",
+     "message": "Insufficient funds: required 81250.00, available 1200.00"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

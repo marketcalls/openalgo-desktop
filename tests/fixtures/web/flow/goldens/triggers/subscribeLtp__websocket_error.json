@@ -1,0 +1,156 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "subscribeLtp",
+ "scenario": "websocket_error",
+ "note": "",
+ "parity": [
+  "N-stream-10"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "subscribeLtp",
+  "data": {
+   "exchange": "NSE",
+   "outputVariable": "ltp",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "subscribeLtp",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "outputVariable": "ltp",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "verify_raise": "auth database is locked"
+  }
+ },
+ "script": [
+  {
+   "endpoint": "quotes",
+   "reply": {
+    "status": "success",
+    "data": {
+     "ask": 812.6,
+     "bid": 812.4,
+     "high": 818.0,
+     "low": 805.25,
+     "ltp": 812.5,
+     "oi": 0,
+     "open": 806.0,
+     "prev_close": 800.0,
+     "volume": 1250000
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_quotes",
+    "endpoint": "quotes",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "type": "ltp",
+   "symbol": "SBIN",
+   "exchange": "NSE",
+   "ltp": 812.5,
+   "source": "rest_api"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "ltp": {
+    "status": "success",
+    "type": "ltp",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "ltp": 812.5,
+    "source": "rest_api"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Subscribing to LTP stream: SBIN (NSE)"
+   ],
+   [
+    "warning",
+    "WebSocket error: auth database is locked"
+   ],
+   [
+    "info",
+    "WebSocket timeout/failed, falling back to REST API for SBIN"
+   ],
+   [
+    "info",
+    "LTP for SBIN: 812.5 (via REST API)"
+   ],
+   [
+    "info",
+    "Stored result in variable: ltp"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ },
+ "desktop_expected": {
+  "parity": "N-subscribeLtp-05",
+  "why": "WEB-DEFECT (decisions.md 9): store_output overwrites the documented value with the whole result dict; the desktop stores the documented value under the stripped outputVariable (the run log is unchanged).",
+  "fix": [
+   "stream_documented_value"
+  ],
+  "vars_out": {
+   "ltp": 812.5
+  }
+ }
+}
