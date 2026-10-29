@@ -95,5 +95,49 @@
    ],
    "abort": null
   }
+ },
+ "desktop_expected": {
+  "parity": "N-mathExpression-12",
+  "why": "The web's text is Python's AttributeError; parity accepts any wording that names the value's type (the lane's).",
+  "outputs": {
+   "status": "error",
+   "message": {
+    "$any": "string"
+   }
+  },
+  "logs": [
+   [
+    "info",
+    "Evaluating: 42"
+   ],
+   [
+    "info",
+    "Interpolated: 42"
+   ],
+   [
+    "error",
+    {
+     "$prefix": "Math expression failed: "
+    }
+   ],
+   [
+    "error",
+    {
+     "$prefix": "Stopping this branch: mathExpression node failed ("
+    }
+   ]
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "mathExpression",
+     "message": {
+      "$any": "string"
+     }
+    }
+   ],
+   "abort": null
+  }
  }
 }
