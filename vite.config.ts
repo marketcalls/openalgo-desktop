@@ -54,6 +54,8 @@ const SHARED_PREFIXES = [
   '/modify_order',
   '/modify_gtt_order',
   '/cancel_gtt_order',
+  // Flow: the /flow pages and their /flow/api data.
+  '/flow',
 ]
 
 const pageOrApi = {
