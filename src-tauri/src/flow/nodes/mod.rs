@@ -8,6 +8,8 @@
 
 pub mod core;
 pub mod logic;
+pub mod streaming;
+pub mod triggers;
 
 use crate::flow::contract::node::FlowNode;
 use std::collections::HashMap;
@@ -27,6 +29,10 @@ pub const FAMILIES: &[NodeFamily] = &[
     core::FAMILY,
     // log, variable, delay (the nodes-logic lane completes this family).
     logic::FAMILY,
+    // priceAlert (its monitor is flow::triggers).
+    triggers::FAMILY,
+    // subscribeLtp, subscribeQuote, subscribeDepth, unsubscribe.
+    streaming::FAMILY,
 ];
 
 /// The nodes by type id, built once.
