@@ -348,7 +348,7 @@ fn margin_positions(
     let Some(raw) = ["positionsJson", "positions"]
         .iter()
         .filter_map(|k| data.get(*k))
-        .find(|v| !v.is_null() && !blank(*v))
+        .find(|v| !v.is_null() && !blank(v))
     else {
         return Ok(None);
     };
