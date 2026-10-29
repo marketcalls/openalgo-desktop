@@ -1,66 +1,106 @@
-//! The workflow validator (the web's `services/flow_workflow_validator.py`),
-//! with the web's signatures: [`validate_workflow`], [`migrate_legacy_node_data`]
-//! and [`trigger_config`].
+//! Structural validation for Flow workflow payloads: the web's
+//! `services/flow_workflow_validator.py`, rule for rule.
 //!
-//! This file holds the interface (the validator lane's published API) and
-//! the top-level shape checks the core routes need; the validator lane's
-//! file replaces it at restack, with the web's rules, rule for rule and
-//! message for message, under these signatures.
+//! The editor validates before it posts, but the routes are reachable
+//! directly, so without a server-side check a malformed graph is stored and
+//! only fails later, at activation or mid-execution against a live broker.
+//! A workflow that cannot be rendered or executed never reaches the database.
+//!
+//! It works over [`serde_json::Value`], as the web works over the decoded
+//! request dict, and returns the web's error list: the same `path`, `code`,
+//! `message`, `expected` and `received`, in the same order. Callers mirror
+//! the web's call sites (`blueprints/flow.py`, the executor, the Agent's
+//! `flow_gen`):
+//!
+//! | Caller | Call |
+//! | --- | --- |
+//! | create and update (editor save) | `validate_workflow(&{name, nodes, edges}, ValidateOptions::DRAFT)` |
+//! | import, replace, activate, Run Now, every trigger's run | `validate_workflow(&payload, ValidateOptions::COMPLETE)` |
+//! | Agent `validate_flow` (a draft without a name) | `ValidateOptions { require_name: false, strict: true }` |
+//! | import, replace, Agent | `migrate_legacy_node_data(nodes)` before validating |
+//! | update, replace, Agent | `trigger_config(&nodes)` before and after, compared with `!=` |
+//!
+//! | Module | What lives there |
+//! | --- | --- |
+//! | `catalog` | node types, required fields, condition and order vocabularies, limits |
+//! | `structure` | the workflow, node and edge shape, ids, handles, gate slots, trigger count |
+//! | `fields` | value rules for node fields, and the strict completeness rules |
+//! | `legs` | the Margin basket and the custom options legs |
+//! | `graph` | cycles, reachability from the trigger, gates wired to fewer inputs than declared |
+//! | `migrate` | legacy node payloads, and the trigger configuration a change re-registers |
+//! | `py` | Python's `repr`, `str`, `float()`, `int()`, `strip()` and `==` over JSON values |
+//!
+//! Deviations from the web, each a web defect fixed rather than copied (the
+//! ids are the parity checklist's, `.lane/105/parity.md`):
+//!
+//! - V-005: where the web iterates a Python `set` (the positive-number
+//!   fields, the cycle search's start node) its order differs between
+//!   processes. Here the fields go `quantity`, `splitSize`, `lots` (the
+//!   source order, and the order the web uses most often: 86 of 400 hash
+//!   seeds), and the cycle search starts from the nodes in the order listed.
+//! - V-006: input the web's validator raises on, answering a 500 (an array
+//!   or object as an edge endpoint, a node type or a gate id), is reported by
+//!   the structural checks and passed over by the handle checks.
+//! - V-053: an httpRequest timeout of `"NaN"` is refused, as its own message
+//!   says it must be; the web's range comparisons let NaN through. A custom
+//!   leg's strike of `"NaN"` or `"Infinity"` is refused for the same reason.
+//! - V-059: an optionsMultiOrder node's strategy is read as the executor
+//!   reads it (`strategy`, else `strategyType`, else `custom`), not defaulted
+//!   to `straddle`, so a node with no strategy and no legs is refused.
+//! - V-085: a gate whose integer `inputCount` exceeds the edges wired into it
+//!   is refused at the strict level with the executor's sentence; the web
+//!   accepts it and the run then fails every time.
+//! - A gate's `expected` slot list stops at [`MAX_EDGES`] entries (a gate can
+//!   never receive more); the web builds the whole list for any `inputCount`.
+//! - Unicode digits other than 0-9 are not read as numbers, and a JSON
+//!   object quoted in a message lists its keys sorted (`py`).
 
-use crate::flow::contract::model::TRIGGER_TYPES;
-use crate::flow::contract::pyfmt;
+mod catalog;
+mod fields;
+mod graph;
+mod legs;
+mod migrate;
+pub(crate) mod py;
+mod structure;
+
+#[cfg(test)]
+mod tests;
+
 use serde::Serialize;
-use serde_json::{json, Map, Value};
+use serde_json::Value;
 
-/// One problem, as the web's `_err` builds it: `{path, code, message}` plus
-/// `expected` and `received` when known.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct ValidationError {
-    pub path: String,
-    pub code: String,
-    pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expected: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub received: Option<Value>,
-}
+pub use catalog::{
+    BRANCHING_NODE_TYPES, DECORATIVE_NODE_TYPES, EITHER_REQUIRED_FIELDS, HTTP_METHODS,
+    HTTP_TIMEOUT_MAX_MS, HTTP_TIMEOUT_MIN_MS, MAX_EDGES, MAX_NODES, REQUIRED_NODE_FIELDS,
+    TRIGGER_NODE_TYPES, VALID_NODE_TYPES,
+};
+pub use migrate::{migrate_legacy_node_data, trigger_config, TriggerConfig, TRIGGER_CONFIG_FIELDS};
 
-impl ValidationError {
-    pub fn new(
-        path: &str,
-        code: &str,
-        message: &str,
-        expected: Option<Value>,
-        received: Option<Value>,
-    ) -> Self {
-        Self {
-            path: path.into(),
-            code: code.into(),
-            message: message.into(),
-            expected,
-            received,
-        }
-    }
-}
-
-/// Which checks run (the web's keyword arguments).
+/// The two levels the web validates at (its `require_name` and `strict`
+/// keyword arguments).
+///
+/// Structure (shape, ids, known node types, edge endpoints, branch handles,
+/// and every supplied value) is always checked: a graph failing it is
+/// corrupt however incomplete the user's work is. Completeness (required
+/// fields, exactly one trigger, reachability, no cycles) is `strict` only:
+/// enforced at import, activation and execution, where the workflow is
+/// presented as finished, and skipped on save so a half-built graph stays
+/// savable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ValidateOptions {
-    /// The workflow needs a non-empty name.
+    /// The workflow must carry a non-empty `name`.
     pub require_name: bool,
-    /// Completeness as well as structure: required node fields, exactly
-    /// one trigger, reachability, cycles (import, replace, activation, Run
-    /// Now and every run).
+    /// Completeness is checked as well as structure.
     pub strict: bool,
 }
 
 impl ValidateOptions {
-    /// The web's defaults.
+    /// Import, replace, activation, execution: the web's defaults.
     pub const COMPLETE: ValidateOptions = ValidateOptions {
         require_name: true,
         strict: true,
     };
-    /// A save from the editor (create, PUT): structure only, name optional.
+    /// The editor's create and update saves.
     pub const DRAFT: ValidateOptions = ValidateOptions {
         require_name: false,
         strict: false,
@@ -73,150 +113,52 @@ impl Default for ValidateOptions {
     }
 }
 
-/// Every problem with `payload`; empty means it passes.
-pub fn validate_workflow(payload: &Value, checks: ValidateOptions) -> Vec<ValidationError> {
-    let Value::Object(map) = payload else {
-        return vec![ValidationError::new(
-            "/",
-            "invalid_type",
-            "Workflow must be a JSON object",
-            Some(json!("object")),
-            Some(json!(pyfmt::type_name(payload))),
-        )];
-    };
-    let mut errors = Vec::new();
-    let name = map.get("name");
-    let named = matches!(name, Some(Value::String(s)) if !s.trim().is_empty());
-    if checks.require_name && !named {
-        errors.push(ValidationError::new(
-            "/name",
-            "required",
-            "Workflow needs a non-empty name",
-            Some(json!("string")),
-            name.filter(|v| !v.is_null()).cloned(),
-        ));
-    }
-    for (key, message) in [
-        ("nodes", "Workflow needs a nodes array"),
-        ("edges", "Workflow needs an edges array"),
-    ] {
-        match map.get(key) {
-            Some(Value::Array(_)) => {}
-            other => errors.push(ValidationError::new(
-                &format!("/{}", key),
-                "required",
-                message,
-                Some(json!("array")),
-                other
-                    .filter(|v| !v.is_null())
-                    .map(|v| json!(pyfmt::type_name(v))),
-            )),
+/// One problem, with where it is and why: the web's error dict. Serializes
+/// with the web's keys in the web's order, `expected` and `received` only
+/// when the web includes them (it leaves out a `None`).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ValidationError {
+    /// A JSON pointer into the payload, such as `/nodes/1/data/quantity`.
+    pub path: String,
+    /// A stable machine code, such as `missing_required_field`.
+    pub code: &'static str,
+    /// The sentence shown to the trader.
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub received: Option<Value>,
+}
+
+impl ValidationError {
+    pub(crate) fn new(
+        path: impl Into<String>,
+        code: &'static str,
+        message: impl Into<String>,
+    ) -> Self {
+        Self {
+            path: path.into(),
+            code,
+            message: message.into(),
+            expected: None,
+            received: None,
         }
     }
-    errors
-}
 
-/// Upgrade legacy node payloads before validation; returns the nodes and a
-/// note for each change.
-pub fn migrate_legacy_node_data(nodes: Vec<Value>) -> (Vec<Value>, Vec<String>) {
-    (nodes, Vec::new())
-}
-
-/// The trigger fields registered at activation rather than read per run
-/// (`TRIGGER_CONFIG_FIELDS`); a change in any needs the trigger
-/// re-registered.
-pub const TRIGGER_CONFIG_FIELDS: &[&str] = &[
-    "scheduleType",
-    "time",
-    "days",
-    "executeAt",
-    "intervalMinutes",
-    "intervalValue",
-    "intervalUnit",
-    "marketHoursOnly",
-    "symbol",
-    "exchange",
-    "condition",
-    "price",
-    "priceLower",
-    "priceUpper",
-    "percentage",
-    "expiration",
-    "orderId",
-    "status",
-    "trigger",
-];
-
-/// The registered configuration of a graph's trigger nodes, by trigger
-/// type; compared with `!=` as the web compares its dicts.
-pub type TriggerConfig = Value;
-
-/// The activation-relevant configuration of a graph's trigger node(s);
-/// two graphs with equal config can be swapped under a running workflow
-/// (`trigger_config`).
-pub fn trigger_config(nodes: &[Value]) -> TriggerConfig {
-    let mut config = Map::new();
-    for node in nodes {
-        let Some(t) = node.get("type").and_then(Value::as_str) else {
-            continue;
-        };
-        if !TRIGGER_TYPES.contains(&t) {
-            continue;
-        }
-        let data = match node.get("data") {
-            None | Some(Value::Null) => Map::new(),
-            Some(Value::Object(m)) => m.clone(),
-            Some(_) => continue,
-        };
-        let fields: Map<String, Value> = TRIGGER_CONFIG_FIELDS
-            .iter()
-            .filter_map(|f| data.get(*f).map(|v| (f.to_string(), v.clone())))
-            .collect();
-        config.insert(t.to_string(), Value::Object(fields));
-    }
-    Value::Object(config)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_top_level_shape_is_checked_as_the_web_checks_it() {
-        let e = validate_workflow(&json!([1]), ValidateOptions::COMPLETE);
-        assert_eq!(
-            serde_json::to_value(&e).unwrap(),
-            json!([{"path": "/", "code": "invalid_type", "message": "Workflow must be a JSON object", "expected": "object", "received": "list"}])
-        );
-        let e = validate_workflow(&json!({"nodes": "x"}), ValidateOptions::COMPLETE);
-        let msgs: Vec<&str> = e.iter().map(|x| x.message.as_str()).collect();
-        assert_eq!(
-            msgs,
-            vec![
-                "Workflow needs a non-empty name",
-                "Workflow needs a nodes array",
-                "Workflow needs an edges array"
-            ]
-        );
-        assert_eq!(e[1].received, Some(json!("str")));
-        assert_eq!(e[2].received, None);
-        assert!(
-            validate_workflow(&json!({"nodes": [], "edges": []}), ValidateOptions::DRAFT)
-                .is_empty()
-        );
+    /// What a valid value would have been.
+    pub(crate) fn expected(mut self, expected: impl Into<Value>) -> Self {
+        self.expected = Some(expected.into());
+        self
     }
 
-    #[test]
-    fn trigger_config_reads_only_registered_fields() {
-        let a = json!([{"id": "s", "type": "start", "data": {"scheduleType": "daily", "time": "09:15", "label": "x"}},
-                       {"id": "l", "type": "log", "data": {"message": "m"}}]);
-        let a = a.as_array().unwrap();
-        assert_eq!(
-            trigger_config(a),
-            json!({"start": {"scheduleType": "daily", "time": "09:15"}})
-        );
-        let b = json!([{"id": "s", "type": "start", "data": {"scheduleType": "daily", "time": "09:20"}}]);
-        assert_ne!(trigger_config(a), trigger_config(b.as_array().unwrap()));
-        assert_eq!(trigger_config(&[]), json!({}));
+    /// The value found, left out when it is `None`, as the web does.
+    pub(crate) fn received(mut self, received: &Value) -> Self {
+        self.received = (!received.is_null()).then(|| received.clone());
+        self
     }
+}
+
+/// Every problem with `payload`; an empty list means the workflow passes.
+pub fn validate_workflow(payload: &Value, options: ValidateOptions) -> Vec<ValidationError> {
+    structure::validate(payload, options)
 }
