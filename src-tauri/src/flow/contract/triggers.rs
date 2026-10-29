@@ -10,7 +10,7 @@
 
 use super::subscriptions::FeedRelease;
 use async_trait::async_trait;
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
 
 /// Why a trigger could not be registered.
 #[derive(Debug, Clone, PartialEq)]
@@ -47,6 +47,23 @@ pub trait TriggerHooks: FeedRelease {
     /// inactive while a job is still set (`_unregister_trigger`,
     /// `remove_workflow_job(strict=True)`).
     async fn unregister(&self, workflow_id: i64) -> Result<(), String>;
+
+    /// The monitors' state, as `GET /flow/api/monitor/status` answers it
+    /// (the price monitor's `get_status()` with the order-update monitor's
+    /// under `order_updates`).
+    fn status(&self) -> Value {
+        json!({
+            "running": false, "alerts_count": 0, "poll_interval": 5, "alerts": [],
+            "order_updates": {"watches_count": 0, "watches": []},
+        })
+    }
+
+    /// Account reset: every registration goes and every workflow's feed
+    /// subscriptions are given back (the rows are stood down by the reset).
+    async fn reset(&self) {}
+
+    /// App exit: stop the scheduler, the monitors and their runs.
+    async fn stop(&self) {}
 }
 
 /// The hooks before the trigger side is installed: nothing is ever

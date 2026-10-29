@@ -51,8 +51,22 @@ pub enum FeedError {
     InvalidKey,
     /// No connection (`WebSocket connection failed: {error}`).
     Connect(String),
-    /// The subscription was refused (`WebSocket subscribe failed: {message}`).
+    /// The subscription (or its release) was refused
+    /// (`WebSocket subscribe failed: {message}`, `Unsubscribe failed: ...`).
     Subscribe(String),
+    /// The feed failed outright (the web's exception: `WebSocket error: {e}`,
+    /// `Unsubscribe error: {e}`).
+    Failed(String),
+}
+
+impl FeedError {
+    /// The error's own text.
+    pub fn text(&self) -> String {
+        match self {
+            FeedError::InvalidKey => "Invalid API key".into(),
+            FeedError::Connect(m) | FeedError::Subscribe(m) | FeedError::Failed(m) => m.clone(),
+        }
+    }
 }
 
 /// The live market data feed the subscribe and price nodes read.
@@ -68,11 +82,17 @@ pub trait MarketFeed: Send + Sync {
         exchange: &str,
         mode: &str,
         timeout: Duration,
-        accept: &(dyn Fn(&Value) -> bool + Send + Sync),
+        accept: &(dyn for<'a> Fn(&'a Value) -> bool + Send + Sync),
     ) -> Result<Option<Value>, FeedError>;
 
-    /// Give back one subscription.
-    async fn unsubscribe(&self, symbol: &str, exchange: &str, mode: &str) -> Result<(), String>;
+    /// Whether the run has a feed session to work with (the web's
+    /// `verify_api_key` and `get_websocket_connection`): `InvalidKey` or
+    /// `Connect` when not.
+    async fn session(&self) -> Result<(), FeedError>;
+
+    /// Give back one subscription: `Subscribe` when the feed refused,
+    /// `Failed` when it failed.
+    async fn unsubscribe(&self, symbol: &str, exchange: &str, mode: &str) -> Result<(), FeedError>;
 }
 
 /// One outbound HTTP request, sent only to an address the guard vetted.
@@ -157,13 +177,17 @@ impl MarketFeed for Unavailable {
         _: &str,
         _: &str,
         _: Duration,
-        _: &(dyn Fn(&Value) -> bool + Send + Sync),
+        _: &(dyn for<'a> Fn(&'a Value) -> bool + Send + Sync),
     ) -> Result<Option<Value>, FeedError> {
         Err(FeedError::Connect(UNAVAILABLE.into()))
     }
 
-    async fn unsubscribe(&self, _: &str, _: &str, _: &str) -> Result<(), String> {
-        Err(UNAVAILABLE.into())
+    async fn session(&self) -> Result<(), FeedError> {
+        Err(FeedError::Connect(UNAVAILABLE.into()))
+    }
+
+    async fn unsubscribe(&self, _: &str, _: &str, _: &str) -> Result<(), FeedError> {
+        Err(FeedError::Failed(UNAVAILABLE.into()))
     }
 }
 

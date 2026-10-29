@@ -36,6 +36,7 @@ fn key() -> RunRequest {
     RunRequest {
         webhook_data: None,
         api_key: Some(Secret::new("<APIKEY>")),
+        ..Default::default()
     }
 }
 
