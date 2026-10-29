@@ -1,0 +1,166 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "subscribeLtp",
+ "scenario": "interpolated",
+ "note": "",
+ "parity": [
+  "N-subscribeLtp-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "subscribeLtp",
+  "data": {
+   "exchange": "{{webhook.ex}}",
+   "outputVariable": "ltp",
+   "symbol": "{{webhook.symbol}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "symbol": "SBIN",
+   "ex": "NSE"
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "subscribeLtp",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "{{webhook.ex}}",
+     "outputVariable": "ltp",
+     "symbol": "{{webhook.symbol}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "ticks": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "mode": 1,
+     "data": {
+      "ltp": 812.65
+     }
+    }
+   ]
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "type": "ltp",
+   "symbol": "SBIN",
+   "exchange": "NSE",
+   "ltp": 812.65,
+   "source": "websocket"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "symbol": "SBIN",
+    "ex": "NSE"
+   },
+   "ltp": {
+    "status": "success",
+    "type": "ltp",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "ltp": 812.65,
+    "source": "websocket"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Subscribing to LTP stream: SBIN (NSE)"
+   ],
+   [
+    "info",
+    "LTP for SBIN: 812.65 (via WebSocket)"
+   ],
+   [
+    "info",
+    "Stored result in variable: ltp"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null,
+  "feed": [
+   {
+    "op": "subscribe",
+    "symbols": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE"
+     }
+    ],
+    "mode": "LTP"
+   },
+   {
+    "op": "wait",
+    "timeout": 5.0
+   }
+  ],
+  "subscriptions": [
+   [
+    "SBIN",
+    "NSE",
+    "LTP"
+   ]
+  ]
+ },
+ "desktop_expected": {
+  "parity": "N-subscribeLtp-05",
+  "why": "WEB-DEFECT (decisions.md 9): store_output overwrites the documented value with the whole result dict; the desktop stores the documented value under the stripped outputVariable (the run log is unchanged).",
+  "fix": [
+   "stream_documented_value"
+  ],
+  "vars_out": {
+   "webhook": {
+    "symbol": "SBIN",
+    "ex": "NSE"
+   },
+   "ltp": 812.65
+  }
+ }
+}

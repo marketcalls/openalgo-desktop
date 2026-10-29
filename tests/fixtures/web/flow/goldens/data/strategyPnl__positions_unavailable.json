@@ -1,0 +1,150 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "strategyPnl",
+ "scenario": "positions_unavailable",
+ "note": "",
+ "parity": [
+  "N-strategyPnl-02",
+  "N-strategyPnl-05"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "strategyPnl",
+  "data": {
+   "outputVariable": "pnl"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "strategyPnl",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "pnl"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "strategy_book": [
+   {
+    "strategy": "Golden Flow",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "product": "MIS",
+    "quantity": 10.0,
+    "average_price": 800.0,
+    "realized_pnl": 50.0,
+    "today_realized_pnl": 50.0
+   },
+   {
+    "strategy": "Golden Flow",
+    "symbol": "INFY",
+    "exchange": "NSE",
+    "product": "MIS",
+    "quantity": 0.0,
+    "average_price": 0.0,
+    "realized_pnl": -20.5,
+    "today_realized_pnl": 0.0
+   },
+   {
+    "strategy": "Golden Flow",
+    "symbol": "TCS",
+    "exchange": "NSE",
+    "product": "MIS",
+    "quantity": -5.0,
+    "average_price": 3500.0,
+    "realized_pnl": 0.0,
+    "today_realized_pnl": 0.0
+   },
+   {
+    "strategy": "other",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "product": "MIS",
+    "quantity": 1.0,
+    "average_price": 1.0,
+    "realized_pnl": 1.0,
+    "today_realized_pnl": 1.0
+   }
+  ]
+ },
+ "script": [
+  {
+   "endpoint": "positionbook",
+   "reply": {
+    "status": "error",
+    "error": "Invalid openalgo apikey",
+    "code": 403
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "positionbook",
+    "endpoint": "positionbook",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "message": "Position book unavailable, cannot value open legs: Invalid openalgo apikey"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Strategy P&L error: Position book unavailable, cannot value open legs: Invalid openalgo apikey"
+   ],
+   [
+    "error",
+    "Stopping this branch: strategyPnl node failed (Position book unavailable, cannot value open legs: Invalid openalgo apikey)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "strategyPnl",
+     "message": "Position book unavailable, cannot value open legs: Invalid openalgo apikey"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

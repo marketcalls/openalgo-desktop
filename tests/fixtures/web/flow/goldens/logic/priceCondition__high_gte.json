@@ -1,0 +1,166 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "priceCondition",
+ "scenario": "high_gte",
+ "note": "",
+ "parity": [
+  "N-priceCondition-01",
+  "N-priceCondition-02",
+  "N-priceCondition-03",
+  "N-priceCondition-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "priceCondition",
+  "data": {
+   "exchange": "NSE",
+   "field": "high",
+   "operator": ">=",
+   "symbol": "SBIN",
+   "value": 818
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "pc": 800
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "priceCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "field": "high",
+     "operator": ">=",
+     "symbol": "SBIN",
+     "value": 818
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "quotes",
+   "reply": {
+    "status": "success",
+    "data": {
+     "ask": 812.6,
+     "bid": 812.4,
+     "high": 818.0,
+     "low": 805.25,
+     "ltp": 812.5,
+     "oi": 0,
+     "open": 806.0,
+     "prev_close": 800.0,
+     "volume": 1250000
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_quotes",
+    "endpoint": "quotes",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "condition": true,
+   "ltp": 812.5,
+   "field": "high",
+   "field_value": 818.0
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "pc": 800
+  },
+  "conditions_out": {
+   "n1": true
+  },
+  "logs": [
+   [
+    "info",
+    "Checking price for: SBIN"
+   ],
+   [
+    "info",
+    "Price check: high=818.0 >= 818.0 = True"
+   ]
+  ],
+  "next": [
+   "pass",
+   "true"
+  ],
+  "error": null
+ }
+}

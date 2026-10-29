@@ -1,0 +1,82 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "validation_refuses_run",
+ "note": "",
+ "parity": [
+  "V-140",
+  "E-33"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Invalid",
+  "nodes": [
+   {
+    "id": "start",
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:15"
+    }
+   },
+   {
+    "id": "o",
+    "type": "placeOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 0
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-start-o-x",
+    "source": "start",
+    "target": "o"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "result": {
+   "status": "error",
+   "message": "Workflow cannot be executed: quantity must be a positive number; 0 reaches the broker as a malformed order.",
+   "errors": [
+    {
+     "path": "/nodes/1/data/quantity",
+     "code": "invalid_quantity",
+     "message": "quantity must be a positive number; 0 reaches the broker as a malformed order.",
+     "expected": "a positive number",
+     "received": 0
+    },
+    {
+     "path": "/nodes/1/data/symbol",
+     "code": "missing_required_field",
+     "message": "A placeOrder node needs symbol. Without it the node fails at run time, not at import.",
+     "expected": "symbol"
+    }
+   ]
+  },
+  "record": null,
+  "vars_out": {},
+  "logs": []
+ }
+}

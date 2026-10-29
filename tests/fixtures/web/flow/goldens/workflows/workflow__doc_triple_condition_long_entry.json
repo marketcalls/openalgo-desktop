@@ -1,0 +1,351 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "workflows",
+ "type": "workflow",
+ "scenario": "doc_triple_condition_long_entry",
+ "note": "The example as published, run end to end with scripted replies.",
+ "parity": [
+  "IE-12",
+  "A-35"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Triple-Condition Long Entry",
+  "description": "Long RELIANCE only inside trading window, above 1500, with no existing long",
+  "nodes": [
+   {
+    "id": "node_1",
+    "type": "start",
+    "position": {
+     "x": 200,
+     "y": 20
+    },
+    "data": {
+     "scheduleType": "interval",
+     "intervalValue": 1,
+     "intervalUnit": "minutes",
+     "marketHoursOnly": true
+    }
+   },
+   {
+    "id": "node_2",
+    "type": "timeWindow",
+    "position": {
+     "x": 0,
+     "y": 140
+    },
+    "data": {
+     "startTime": "09:30",
+     "endTime": "14:30"
+    }
+   },
+   {
+    "id": "node_3",
+    "type": "priceCondition",
+    "position": {
+     "x": 200,
+     "y": 140
+    },
+    "data": {
+     "symbol": "RELIANCE",
+     "exchange": "NSE",
+     "field": "ltp",
+     "operator": ">",
+     "value": 1500
+    }
+   },
+   {
+    "id": "node_4",
+    "type": "positionCheck",
+    "position": {
+     "x": 400,
+     "y": 140
+    },
+    "data": {
+     "symbol": "RELIANCE",
+     "exchange": "NSE",
+     "product": "MIS",
+     "condition": "not_exists"
+    }
+   },
+   {
+    "id": "node_5",
+    "type": "andGate",
+    "position": {
+     "x": 200,
+     "y": 280
+    },
+    "data": {
+     "inputCount": 3
+    }
+   },
+   {
+    "id": "node_6",
+    "type": "placeOrder",
+    "position": {
+     "x": 200,
+     "y": 400
+    },
+    "data": {
+     "symbol": "RELIANCE",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 1,
+     "priceType": "MARKET",
+     "product": "MIS",
+     "outputVariable": "ord"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e1",
+    "source": "node_1",
+    "target": "node_2"
+   },
+   {
+    "id": "e2",
+    "source": "node_1",
+    "target": "node_3"
+   },
+   {
+    "id": "e3",
+    "source": "node_1",
+    "target": "node_4"
+   },
+   {
+    "id": "e4",
+    "source": "node_2",
+    "sourceHandle": "true",
+    "target": "node_5",
+    "targetHandle": "input-0"
+   },
+   {
+    "id": "e5",
+    "source": "node_3",
+    "sourceHandle": "true",
+    "target": "node_5",
+    "targetHandle": "input-1"
+   },
+   {
+    "id": "e6",
+    "source": "node_4",
+    "sourceHandle": "true",
+    "target": "node_5",
+    "targetHandle": "input-2"
+   },
+   {
+    "id": "e7",
+    "source": "node_5",
+    "sourceHandle": "true",
+    "target": "node_6"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {
+  "master_contract": [
+   {
+    "symbol": "NIFTY25NOV2624000CE",
+    "name": "NIFTY",
+    "exchange": "NFO",
+    "lotsize": 65,
+    "expiry": "25-NOV-26",
+    "strike": 24000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "NIFTYNXT5025NOV2668000CE",
+    "name": "NIFTYNXT50",
+    "exchange": "NFO",
+    "lotsize": 25,
+    "expiry": "25-NOV-26",
+    "strike": 68000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "BANKNIFTY25NOV2652000CE",
+    "name": "BANKNIFTY",
+    "exchange": "NFO",
+    "lotsize": 30,
+    "expiry": "25-NOV-26",
+    "strike": 52000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "SENSEX27NOV2680000CE",
+    "name": "SENSEX",
+    "exchange": "BFO",
+    "lotsize": 20,
+    "expiry": "27-NOV-26",
+    "strike": 80000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "CRUDEOIL17NOV265800CE",
+    "name": "CRUDEOIL",
+    "exchange": "MCX",
+    "lotsize": 100,
+    "expiry": "17-NOV-26",
+    "strike": 5800.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "GOLD25NOV26118000CE",
+    "name": "GOLD",
+    "exchange": "MCX",
+    "lotsize": 1,
+    "expiry": "25-NOV-26",
+    "strike": 118000.0,
+    "instrumenttype": "CE"
+   }
+  ],
+  "http": {
+   "resolve": {
+    "audit.example.com": [
+     "93.184.216.34"
+    ],
+    "hooks.example.com": [
+     "93.184.216.34"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "body": "{\"received\": true}",
+    "content_type": "application/json"
+   },
+   "record_headers": [
+    "authorization",
+    "x-source"
+   ]
+  },
+  "strategy_book": [],
+  "calendar_holidays": {
+   "2026": []
+  },
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "connect_error": "down"
+  }
+ },
+ "script": [
+  {
+   "endpoint": "quotes",
+   "reply": {
+    "status": "success",
+    "data": {
+     "ask": 812.6,
+     "bid": 812.4,
+     "high": 818.0,
+     "low": 805.25,
+     "ltp": 812.5,
+     "oi": 0,
+     "open": 806.0,
+     "prev_close": 800.0,
+     "volume": 1250000
+    }
+   }
+  },
+  {
+   "endpoint": "positionbook",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "product": "MIS",
+      "quantity": 10,
+      "average_price": 800.0,
+      "ltp": 812.5,
+      "pnl": 125.0
+     },
+     {
+      "symbol": "NIFTY25NOV2624000CE",
+      "exchange": "NFO",
+      "product": "NRML",
+      "quantity": -65,
+      "average_price": 110.0,
+      "ltp": 98.5,
+      "pnl": 747.5
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_quotes",
+    "endpoint": "quotes",
+    "payload": {
+     "symbol": "RELIANCE",
+     "exchange": "NSE"
+    }
+   },
+   {
+    "method": "positionbook",
+    "endpoint": "positionbook",
+    "payload": {}
+   }
+  ],
+  "result": {
+   "status": "success",
+   "message": "Workflow executed successfully"
+  },
+  "record": {
+   "status": "completed",
+   "error": null
+  },
+  "vars_out": {},
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Triple-Condition Long Entry"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "info",
+    "Time window: 09:30-14:30, in_window=True, invert=False, result=True"
+   ],
+   [
+    "info",
+    "andGate: waiting for 2 more input(s) before evaluating"
+   ],
+   [
+    "info",
+    "Checking price for: RELIANCE"
+   ],
+   [
+    "info",
+    "Price check: ltp=812.5 > 1500.0 = False"
+   ],
+   [
+    "info",
+    "andGate: waiting for 1 more input(s) before evaluating"
+   ],
+   [
+    "info",
+    "Checking position for: RELIANCE"
+   ],
+   [
+    "info",
+    "Position check: qty=0 == 0 = True"
+   ],
+   [
+    "info",
+    "AND Gate: [True, False, True] -> False"
+   ]
+  ]
+ },
+ "source": "docs/prompt/flow-import-format.md:2270"
+}

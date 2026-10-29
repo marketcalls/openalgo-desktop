@@ -1,0 +1,121 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "variable",
+ "scenario": "set_text",
+ "note": "",
+ "parity": [
+  "N-variable-01",
+  "N-variable-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "variable",
+  "data": {
+   "operation": "set",
+   "value": "LTP {{payload.data.ltp}}",
+   "variableName": "msg"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "count": 3,
+  "label": "x",
+  "payload": {
+   "data": {
+    "ltp": 812.5,
+    "rows": [
+     {
+      "q": 1
+     },
+     {
+      "q": 2
+     }
+    ]
+   }
+  },
+  "txt": "abc"
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "variable",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "operation": "set",
+     "value": "LTP {{payload.data.ltp}}",
+     "variableName": "msg"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "variable": "msg",
+   "value": "LTP 812.5"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "count": 3,
+   "label": "x",
+   "payload": {
+    "data": {
+     "ltp": 812.5,
+     "rows": [
+      {
+       "q": 1
+      },
+      {
+       "q": 2
+      }
+     ]
+    }
+   },
+   "txt": "abc",
+   "msg": "LTP 812.5"
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Set variable msg = LTP 812.5"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

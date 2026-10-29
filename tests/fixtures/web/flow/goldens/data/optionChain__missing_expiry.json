@@ -1,0 +1,100 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "optionChain",
+ "scenario": "missing_expiry",
+ "note": "",
+ "parity": [
+  "N-optionChain-01",
+  "N-common-06"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "optionChain",
+  "data": {
+   "exchange": "NSE_INDEX",
+   "expiryDate": "",
+   "outputVariable": "chain",
+   "strikeCount": 5,
+   "underlying": "NIFTY"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "optionChain",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE_INDEX",
+     "expiryDate": "",
+     "outputVariable": "chain",
+     "strikeCount": 5,
+     "underlying": "NIFTY"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "optionChain needs a resolved expiryDate in DDMMMYY format before it can run."
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "optionChain needs a resolved expiryDate in DDMMMYY format before it can run."
+   ],
+   [
+    "error",
+    "Stopping this branch: optionChain node failed (optionChain needs a resolved expiryDate in DDMMMYY format before it can run.)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "optionChain",
+     "message": "optionChain needs a resolved expiryDate in DDMMMYY format before it can run."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

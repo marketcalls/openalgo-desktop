@@ -1,0 +1,132 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "priorPeriodOhlc",
+ "scenario": "only_today",
+ "note": "",
+ "parity": [
+  "N-priorPeriodOhlc-03",
+  "N-priorPeriodOhlc-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "priorPeriodOhlc",
+  "data": {
+   "exchange": "NSE",
+   "outputVariable": "pd",
+   "period": "previous_day",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "priorPeriodOhlc",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "outputVariable": "pd",
+     "period": "previous_day",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "history",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "timestamp": 1793212200,
+      "open": 800.0,
+      "high": 802.5,
+      "low": 791.75,
+      "close": 793.75,
+      "volume": 100000
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_history",
+    "endpoint": "history",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-10-19",
+     "end_date": "2026-10-29",
+     "source": "api"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "message": "not enough history to determine previous_day"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Fetching previous_day OHLC for: SBIN (NSE)"
+   ],
+   [
+    "error",
+    "Prior period OHLC error: not enough history to determine previous_day"
+   ],
+   [
+    "error",
+    "Stopping this branch: priorPeriodOhlc node failed (not enough history to determine previous_day)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "priorPeriodOhlc",
+     "message": "not enough history to determine previous_day"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

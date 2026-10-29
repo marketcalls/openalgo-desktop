@@ -1,0 +1,176 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "modifyOrder",
+ "scenario": "interpolated_overrides",
+ "note": "",
+ "parity": [
+  "N-modifyOrder-01",
+  "N-common-24"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "modifyOrder",
+  "data": {
+   "newPrice": "{{webhook.px}}",
+   "newQuantity": "{{webhook.qty}}",
+   "newTriggerPrice": "{{webhook.tp}}",
+   "orderId": "{{webhook.id}}",
+   "priceType": "{{webhook.pt}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "symbol": "INFY",
+   "qty": "4",
+   "size": "-2",
+   "split": "2",
+   "px": "1880.5",
+   "tp": "1879",
+   "ex": "NSE",
+   "prod": "CNC",
+   "pt": "SL",
+   "tag": "tv-alert",
+   "id": "250408000123456"
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "modifyOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "newPrice": "{{webhook.px}}",
+     "newQuantity": "{{webhook.qty}}",
+     "newTriggerPrice": "{{webhook.tp}}",
+     "orderId": "{{webhook.id}}",
+     "priceType": "{{webhook.pt}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "orderstatus",
+   "reply": {
+    "status": "success",
+    "data": {
+     "action": "BUY",
+     "average_price": 0.0,
+     "exchange": "NSE",
+     "order_status": "open",
+     "orderid": "250408000123456",
+     "price": 800.0,
+     "pricetype": "LIMIT",
+     "product": "MIS",
+     "quantity": 10,
+     "symbol": "SBIN",
+     "timestamp": "2026-10-29 10:14:59",
+     "trigger_price": 0.0
+    }
+   }
+  },
+  {
+   "endpoint": "modifyorder",
+   "reply": {
+    "status": "success",
+    "message": "Order modified successfully",
+    "orderid": "250408000123456"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_order_status",
+    "endpoint": "orderstatus",
+    "payload": {
+     "orderid": "250408000123456"
+    }
+   },
+   {
+    "method": "modify_order",
+    "endpoint": "modifyorder",
+    "payload": {
+     "strategy": "flow_workflow",
+     "orderid": "250408000123456",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 4,
+     "pricetype": "SL",
+     "product": "MIS",
+     "price": 1880.5,
+     "trigger_price": 1879.0,
+     "disclosed_quantity": 0
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "message": "Order modified successfully",
+   "orderid": "250408000123456"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "symbol": "INFY",
+    "qty": "4",
+    "size": "-2",
+    "split": "2",
+    "px": "1880.5",
+    "tp": "1879",
+    "ex": "NSE",
+    "prod": "CNC",
+    "pt": "SL",
+    "tag": "tv-alert",
+    "id": "250408000123456"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Modifying order: 250408000123456 - SBIN BUY qty=4 price=1880.5 trigger=1879.0"
+   ],
+   [
+    "info",
+    "Modify order result: {'status': 'success', 'message': 'Order modified successfully', 'orderid': '250408000123456'}"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

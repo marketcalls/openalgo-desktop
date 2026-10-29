@@ -1,0 +1,106 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "smartOrder",
+ "scenario": "unresolved_position_size",
+ "note": "",
+ "parity": [
+  "N-common-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "smartOrder",
+  "data": {
+   "action": "BUY",
+   "exchange": "NSE",
+   "outputVariable": "smart",
+   "positionSize": "{{target}}",
+   "priceType": "MARKET",
+   "quantity": 5,
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "smartOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "BUY",
+     "exchange": "NSE",
+     "outputVariable": "smart",
+     "positionSize": "{{target}}",
+     "priceType": "MARKET",
+     "quantity": 5,
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "smartOrder has unresolved variable(s) in positionSize='{{target}}'. Refusing to send it with substituted values.",
+   "unresolved": [
+    "positionSize"
+   ]
+  },
+  "outputs_by": "walk",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "smartOrder has unresolved variable(s) in positionSize='{{target}}'. Refusing to send it with substituted values."
+   ],
+   [
+    "error",
+    "Stopping this branch: smartOrder node failed (smartOrder has unresolved variable(s) in positionSize='{{target}}'. Refusing to send it with substituted values.)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "smartOrder",
+     "message": "smartOrder has unresolved variable(s) in positionSize='{{target}}'. Refusing to send it with substituted values."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

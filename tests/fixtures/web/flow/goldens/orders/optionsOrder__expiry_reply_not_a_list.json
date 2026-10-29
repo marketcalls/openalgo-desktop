@@ -1,0 +1,200 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "optionsOrder",
+ "scenario": "expiry_reply_not_a_list",
+ "note": "",
+ "parity": [
+  "N-common-23"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "optionsOrder",
+  "data": {
+   "action": "BUY",
+   "exchange": "NSE_INDEX",
+   "expiryType": "current_week",
+   "offset": "ATM",
+   "optionType": "CE",
+   "outputVariable": "opt",
+   "price": 0,
+   "priceType": "MARKET",
+   "product": "NRML",
+   "quantity": 2,
+   "triggerPrice": 0,
+   "underlying": "NIFTY"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "optionsOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "BUY",
+     "exchange": "NSE_INDEX",
+     "expiryType": "current_week",
+     "offset": "ATM",
+     "optionType": "CE",
+     "outputVariable": "opt",
+     "price": 0,
+     "priceType": "MARKET",
+     "product": "NRML",
+     "quantity": 2,
+     "triggerPrice": 0,
+     "underlying": "NIFTY"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "master_contract": [
+   {
+    "symbol": "NIFTY25NOV2624000CE",
+    "name": "NIFTY",
+    "exchange": "NFO",
+    "lotsize": 65,
+    "expiry": "25-NOV-26",
+    "strike": 24000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "NIFTYNXT5025NOV2668000CE",
+    "name": "NIFTYNXT50",
+    "exchange": "NFO",
+    "lotsize": 25,
+    "expiry": "25-NOV-26",
+    "strike": 68000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "BANKNIFTY25NOV2652000CE",
+    "name": "BANKNIFTY",
+    "exchange": "NFO",
+    "lotsize": 30,
+    "expiry": "25-NOV-26",
+    "strike": 52000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "SENSEX27NOV2680000CE",
+    "name": "SENSEX",
+    "exchange": "BFO",
+    "lotsize": 20,
+    "expiry": "27-NOV-26",
+    "strike": 80000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "CRUDEOIL17NOV265800CE",
+    "name": "CRUDEOIL",
+    "exchange": "MCX",
+    "lotsize": 100,
+    "expiry": "17-NOV-26",
+    "strike": 5800.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "GOLD25NOV26118000CE",
+    "name": "GOLD",
+    "exchange": "MCX",
+    "lotsize": 1,
+    "expiry": "25-NOV-26",
+    "strike": 118000.0,
+    "instrumenttype": "CE"
+   }
+  ]
+ },
+ "script": [
+  {
+   "endpoint": "expiry",
+   "reply": {
+    "status": "success",
+    "data": 5
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_expiry",
+    "endpoint": "expiry",
+    "payload": {
+     "symbol": "NIFTY",
+     "exchange": "NFO",
+     "instrumenttype": "options"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "message": "Could not resolve expiry for current_week"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Placing options order: NIFTY CE ATM"
+   ],
+   [
+    "info",
+    "Lot size for NIFTY: 65 -> 2 lot(s) = 130"
+   ],
+   [
+    "error",
+    "Error resolving expiry: 'int' object is not iterable"
+   ],
+   [
+    "error",
+    "Options order failed: Could not resolve expiry for current_week"
+   ],
+   [
+    "error",
+    "Stopping this branch: optionsOrder node failed (Could not resolve expiry for current_week)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "optionsOrder",
+     "message": "Could not resolve expiry for current_week"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

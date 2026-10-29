@@ -1,0 +1,347 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "basketOrder",
+ "scenario": "doc_example_line1006",
+ "note": "Node example from docs/prompt/flow-import-format.md:1006, run with scripted replies.",
+ "parity": [
+  "N-basketOrder-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "basketOrder",
+  "data": {
+   "basketName": "Morning Long Book",
+   "orders": "RELIANCE,NSE,BUY,10\nINFY,NSE,BUY,5\nSBIN,NSE,SELL,20",
+   "outputVariable": "basket",
+   "price": 0,
+   "priceType": "MARKET",
+   "product": "MIS",
+   "triggerPrice": 0
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "symbol": "RELIANCE",
+   "action": "BUY",
+   "qty": 5,
+   "quantity": 5,
+   "exchange": "NSE"
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "basketOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "basketName": "Morning Long Book",
+     "orders": "RELIANCE,NSE,BUY,10\nINFY,NSE,BUY,5\nSBIN,NSE,SELL,20",
+     "outputVariable": "basket",
+     "price": 0,
+     "priceType": "MARKET",
+     "product": "MIS",
+     "triggerPrice": 0
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "master_contract": [
+   {
+    "symbol": "NIFTY25NOV2624000CE",
+    "name": "NIFTY",
+    "exchange": "NFO",
+    "lotsize": 65,
+    "expiry": "25-NOV-26",
+    "strike": 24000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "NIFTYNXT5025NOV2668000CE",
+    "name": "NIFTYNXT50",
+    "exchange": "NFO",
+    "lotsize": 25,
+    "expiry": "25-NOV-26",
+    "strike": 68000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "BANKNIFTY25NOV2652000CE",
+    "name": "BANKNIFTY",
+    "exchange": "NFO",
+    "lotsize": 30,
+    "expiry": "25-NOV-26",
+    "strike": 52000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "SENSEX27NOV2680000CE",
+    "name": "SENSEX",
+    "exchange": "BFO",
+    "lotsize": 20,
+    "expiry": "27-NOV-26",
+    "strike": 80000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "CRUDEOIL17NOV265800CE",
+    "name": "CRUDEOIL",
+    "exchange": "MCX",
+    "lotsize": 100,
+    "expiry": "17-NOV-26",
+    "strike": 5800.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "GOLD25NOV26118000CE",
+    "name": "GOLD",
+    "exchange": "MCX",
+    "lotsize": 1,
+    "expiry": "25-NOV-26",
+    "strike": 118000.0,
+    "instrumenttype": "CE"
+   }
+  ],
+  "http": {
+   "resolve": {
+    "audit.example.com": [
+     "93.184.216.34"
+    ],
+    "hooks.example.com": [
+     "93.184.216.34"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "body": "{\"received\": true}",
+    "content_type": "application/json"
+   },
+   "record_headers": [
+    "authorization",
+    "x-source"
+   ]
+  },
+  "strategy_book": [],
+  "calendar_holidays": {
+   "2026": []
+  },
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "connect_error": "down"
+  }
+ },
+ "script": [
+  {
+   "endpoint": "basketorder",
+   "reply": {
+    "status": "success",
+    "results": [
+     {
+      "orderid": "250408000300001",
+      "status": "success",
+      "symbol": "SBIN"
+     },
+     {
+      "orderid": "250408000300002",
+      "status": "success",
+      "symbol": "INFY"
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "basket_order",
+    "endpoint": "basketorder",
+    "payload": {
+     "strategy": "Morning Long Book",
+     "orders": [
+      {
+       "symbol": "RELIANCE",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "pricetype": "MARKET",
+       "price": 0.0,
+       "triggerprice": 0.0
+      },
+      {
+       "symbol": "INFY",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 5,
+       "product": "MIS",
+       "pricetype": "MARKET",
+       "price": 0.0,
+       "triggerprice": 0.0
+      },
+      {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "SELL",
+       "quantity": 20,
+       "product": "MIS",
+       "pricetype": "MARKET",
+       "price": 0.0,
+       "triggerprice": 0.0
+      }
+     ]
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "results": [
+    {
+     "orderid": "250408000300001",
+     "status": "success",
+     "symbol": "SBIN"
+    },
+    {
+     "orderid": "250408000300002",
+     "status": "success",
+     "symbol": "INFY"
+    }
+   ]
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "symbol": "RELIANCE",
+    "action": "BUY",
+    "qty": 5,
+    "quantity": 5,
+    "exchange": "NSE"
+   },
+   "basket": {
+    "status": "success",
+    "results": [
+     {
+      "orderid": "250408000300001",
+      "status": "success",
+      "symbol": "SBIN"
+     },
+     {
+      "orderid": "250408000300002",
+      "status": "success",
+      "symbol": "INFY"
+     }
+    ]
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Placing basket order 'Morning Long Book' with 3 orders"
+   ],
+   [
+    "info",
+    "  Order 1: RELIANCE NSE BUY qty=10"
+   ],
+   [
+    "info",
+    "  Order 2: INFY NSE BUY qty=5"
+   ],
+   [
+    "info",
+    "  Order 3: SBIN NSE SELL qty=20"
+   ],
+   [
+    "info",
+    "Basket order result: {'status': 'success', 'results': [{'orderid': '250408000300001', 'status': 'success', 'symbol': 'SBIN'}, {'orderid': '250408000300002', 'status': 'success', 'symbol': 'INFY'}]}"
+   ],
+   [
+    "info",
+    "Stored result in variable: basket"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ },
+ "desktop_expected": {
+  "parity": "N-basketOrder-06",
+  "why": "WEB-DEFECTs N-basketOrder-06 (rows go out as `triggerprice`, which the service never reads, so an SL row's trigger is lost) and N-basketOrder-04 (row symbols are not upper-cased): the desktop sends `trigger_price` and upper-cases the symbol.",
+  "fix": [
+   "basket_trigger_price",
+   "basket_upper_symbol"
+  ],
+  "calls": [
+   {
+    "method": "basket_order",
+    "endpoint": "basketorder",
+    "payload": {
+     "strategy": "Morning Long Book",
+     "orders": [
+      {
+       "symbol": "RELIANCE",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "pricetype": "MARKET",
+       "price": 0.0,
+       "trigger_price": 0.0
+      },
+      {
+       "symbol": "INFY",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 5,
+       "product": "MIS",
+       "pricetype": "MARKET",
+       "price": 0.0,
+       "trigger_price": 0.0
+      },
+      {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "SELL",
+       "quantity": 20,
+       "product": "MIS",
+       "pricetype": "MARKET",
+       "price": 0.0,
+       "trigger_price": 0.0
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

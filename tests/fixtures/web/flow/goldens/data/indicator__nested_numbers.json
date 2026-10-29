@@ -1,0 +1,196 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "indicator",
+ "scenario": "nested_numbers",
+ "note": "",
+ "parity": [
+  "N-indicator-04",
+  "N-indicator-05",
+  "N-indicator-06"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "indicator",
+  "data": {
+   "indicatorName": "sma",
+   "outputVariable": "nested",
+   "params": "{\"period\": 3}",
+   "sourceSeries": "{{prices}}",
+   "tailBars": 3
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "prices": [
+   101.0,
+   102.5,
+   101.75,
+   103.0,
+   104.25,
+   103.5,
+   105.0,
+   106.0,
+   105.5,
+   107.25,
+   108.0,
+   107.5
+  ]
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "indicator",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "indicatorName": "sma",
+     "outputVariable": "nested",
+     "params": "{\"period\": 3}",
+     "sourceSeries": "{{prices}}",
+     "tailBars": 3
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "indicator": "sma",
+   "nested": true,
+   "offset_bars": 0,
+   "at_offset": {
+    "value": 107.583333
+   },
+   "inputs": [
+    "data (nested)"
+   ],
+   "params": {
+    "period": 3
+   },
+   "outputs": [
+    "value"
+   ],
+   "latest": {
+    "value": 107.583333
+   },
+   "previous": {
+    "value": 106.916667
+   },
+   "series": [
+    {
+     "value": 106.25
+    },
+    {
+     "value": 106.916667
+    },
+    {
+     "value": 107.583333
+    }
+   ],
+   "bars_used": 12
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "prices": [
+    101.0,
+    102.5,
+    101.75,
+    103.0,
+    104.25,
+    103.5,
+    105.0,
+    106.0,
+    105.5,
+    107.25,
+    108.0,
+    107.5
+   ],
+   "nested": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": true,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 107.583333
+    },
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 3
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 107.583333
+    },
+    "previous": {
+     "value": 106.916667
+    },
+    "series": [
+     {
+      "value": 106.25
+     },
+     {
+      "value": 106.916667
+     },
+     {
+      "value": 107.583333
+     }
+    ],
+    "bars_used": 12
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Computing nested sma over 12 upstream values"
+   ],
+   [
+    "info",
+    "sma (nested) latest: {'value': 107.583333}"
+   ],
+   [
+    "info",
+    "Stored result in variable: nested"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

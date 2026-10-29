@@ -1,0 +1,3 @@
+# The recorder exports the web here and Python caches its modules.
+web/
+__pycache__/

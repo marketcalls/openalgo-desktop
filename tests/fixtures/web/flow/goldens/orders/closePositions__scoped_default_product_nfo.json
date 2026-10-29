@@ -1,0 +1,106 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "closePositions",
+ "scenario": "scoped_default_product_nfo",
+ "note": "",
+ "parity": [
+  "N-closePositions-03",
+  "C-08"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "closePositions",
+  "data": {
+   "exchange": "NFO",
+   "symbol": "NIFTY25NOV2624000CE"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "closePositions",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NFO",
+     "symbol": "NIFTY25NOV2624000CE"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "closeposition",
+   "reply": {
+    "status": "success",
+    "message": "All Open Positions Squared Off"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "close_position",
+    "endpoint": "closeposition",
+    "payload": {
+     "strategy": "Golden Flow",
+     "symbol": "NIFTY25NOV2624000CE",
+     "exchange": "NFO",
+     "product": "NRML"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "message": "All Open Positions Squared Off"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Closing position: NIFTY25NOV2624000CE@NFO (NRML)"
+   ],
+   [
+    "info",
+    "Close position result: {'status': 'success', 'message': 'All Open Positions Squared Off'}"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

@@ -1,0 +1,108 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "closePositions",
+ "scenario": "broker_rejects",
+ "note": "",
+ "parity": [
+  "N-closePositions-02",
+  "CL-09"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "closePositions",
+  "data": {}
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "closePositions",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {}
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "closeposition",
+   "reply": {
+    "status": "error",
+    "error": "Close position operation is not allowed in Semi-Auto mode. Please switch to Auto mode to close positions.",
+    "code": 403
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "close_all_positions",
+    "endpoint": "closeposition",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "error": "Close position operation is not allowed in Semi-Auto mode. Please switch to Auto mode to close positions.",
+   "code": 403
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Closing all positions"
+   ],
+   [
+    "error",
+    "Close all positions result: {'status': 'error', 'error': 'Close position operation is not allowed in Semi-Auto mode. Please switch to Auto mode to close positions.', 'code': 403}"
+   ],
+   [
+    "error",
+    "Stopping this branch: closePositions node failed (Close position operation is not allowed in Semi-Auto mode. Please switch to Auto mode to close positions.)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "closePositions",
+     "message": "Close position operation is not allowed in Semi-Auto mode. Please switch to Auto mode to close positions."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

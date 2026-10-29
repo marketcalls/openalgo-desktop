@@ -1,0 +1,106 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "optionSymbol",
+ "scenario": "unresolved_underlying",
+ "note": "",
+ "parity": [
+  "N-optionSymbol-01",
+  "N-common-06"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "optionSymbol",
+  "data": {
+   "exchange": "NSE_INDEX",
+   "expiryDate": "{{webhook.e}}",
+   "offset": "ATM",
+   "optionType": "CE",
+   "outputVariable": "opt",
+   "underlying": "{{webhook.u}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "optionSymbol",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE_INDEX",
+     "expiryDate": "{{webhook.e}}",
+     "offset": "ATM",
+     "optionType": "CE",
+     "outputVariable": "opt",
+     "underlying": "{{webhook.u}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "optionSymbol has unresolved variable(s) in underlying='{{webhook.u}}', expiryDate='{{webhook.e}}'. Refusing to send it with substituted values.",
+   "unresolved": [
+    "underlying",
+    "expiryDate"
+   ]
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "optionSymbol has unresolved variable(s) in underlying='{{webhook.u}}', expiryDate='{{webhook.e}}'. Refusing to send it with substituted values."
+   ],
+   [
+    "error",
+    "Stopping this branch: optionSymbol node failed (optionSymbol has unresolved variable(s) in underlying='{{webhook.u}}', expiryDate='{{webhook.e}}'. Refusing to send it with substituted values.)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "optionSymbol",
+     "message": "optionSymbol has unresolved variable(s) in underlying='{{webhook.u}}', expiryDate='{{webhook.e}}'. Refusing to send it with substituted values."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

@@ -1,0 +1,185 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "core",
+ "type": "orGate",
+ "scenario": "text_count",
+ "note": "",
+ "parity": [
+  "N-gate-03",
+  "N-gate-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "orGate",
+  "data": {
+   "inputCount": "3"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {
+  "in1": true,
+  "in2": true
+ },
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "orGate",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "inputCount": "3"
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   },
+   {
+    "id": "in1",
+    "type": "goldenProbe",
+    "position": {
+     "x": -100,
+     "y": 0
+    },
+    "data": {
+     "probe": "in1"
+    }
+   },
+   {
+    "id": "in2",
+    "type": "goldenProbe",
+    "position": {
+     "x": -100,
+     "y": 0
+    },
+    "data": {
+     "probe": "in2"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   },
+   {
+    "id": "e-in1",
+    "source": "in1",
+    "target": "n1"
+   },
+   {
+    "id": "e-in2",
+    "source": "in2",
+    "target": "n1"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "condition": true
+  },
+  "outputs_by": "walk",
+  "vars_out": {},
+  "conditions_out": {
+   "in1": true,
+   "in2": true,
+   "n1": true
+  },
+  "logs": [
+   [
+    "info",
+    "OR Gate: [True, True] -> True"
+   ]
+  ],
+  "next": [
+   "pass",
+   "true"
+  ],
+  "error": null
+ },
+ "desktop_expected": {
+  "parity": "N-gate-04",
+  "why": "decisions.md 8: AND/OR read inputCount as the validator does (int('3') = 3), so a text count is not ignored.",
+  "fix": [
+   "gate_slot_count"
+  ],
+  "outputs": null,
+  "outputs_by": "node",
+  "conditions_out": {
+   "in1": true,
+   "in2": true
+  },
+  "logs": [
+   [
+    "error",
+    "orGate is configured for 3 inputs but only 2 are wired. Wire the rest, or lower the input count, rather than evaluating on part of the condition."
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "orGate",
+     "message": "orGate is configured for 3 inputs but only 2 are wired. Wire the rest, or lower the input count, rather than evaluating on part of the condition."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

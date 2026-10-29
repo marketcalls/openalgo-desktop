@@ -1,0 +1,126 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "modifyOrder",
+ "scenario": "quantity_zero",
+ "note": "",
+ "parity": [
+  "N-modifyOrder-05"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "modifyOrder",
+  "data": {
+   "newPrice": 805.25,
+   "newQuantity": "0",
+   "orderId": "250408000123456",
+   "outputVariable": "modified"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "modifyOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "newPrice": 805.25,
+     "newQuantity": "0",
+     "orderId": "250408000123456",
+     "outputVariable": "modified"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "orderstatus",
+   "reply": {
+    "status": "success",
+    "data": {
+     "action": "BUY",
+     "average_price": 0.0,
+     "exchange": "NSE",
+     "order_status": "open",
+     "orderid": "250408000123456",
+     "price": 800.0,
+     "pricetype": "LIMIT",
+     "product": "MIS",
+     "quantity": 10,
+     "symbol": "SBIN",
+     "timestamp": "2026-10-29 10:14:59",
+     "trigger_price": 0.0
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_order_status",
+    "endpoint": "orderstatus",
+    "payload": {
+     "orderid": "250408000123456"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "message": "Modify order needs a positive quantity, got 0"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Modify order aborted: Modify order needs a positive quantity, got 0"
+   ],
+   [
+    "error",
+    "Stopping this branch: modifyOrder node failed (Modify order needs a positive quantity, got 0)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "modifyOrder",
+     "message": "Modify order needs a positive quantity, got 0"
+    }
+   ],
+   "abort": null
+  }
+ }
+}
