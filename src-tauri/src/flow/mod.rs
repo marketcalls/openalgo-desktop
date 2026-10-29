@@ -28,6 +28,7 @@ pub mod node_contracts;
 pub mod nodes;
 pub mod service;
 pub mod store;
+pub mod triggers;
 pub mod validator;
 
 use contract::env::NodeEnv;
@@ -52,6 +53,9 @@ pub fn start(ctx: &Arc<crate::state::AppState>) {
         Ok(n) => tracing::info!("Closed {} Flow run(s) the last session left unfinished", n),
         Err(e) => tracing::warn!("Could not close the Flow runs the last session left: {}", e),
     }
+    // The scheduler, the monitors and the feed, then the active workflows'
+    // triggers (`app.py` 850-880).
+    triggers::TriggerSide::install(ctx);
 }
 
 /// How long a stopped run has to write its record before it is aborted.
@@ -69,6 +73,8 @@ pub struct FlowModule {
     env: RwLock<NodeEnv>,
     /// The workflows claimed now (a run, a delete or a deactivate).
     claimed: Arc<Mutex<HashSet<i64>>>,
+    /// The public webhook's lockout after wrong secrets.
+    pub webhook_guard: service::webhook_guard::WebhookGuard,
     /// The runs in flight.
     tasks: Mutex<JoinSet<()>>,
     /// Fires for every run in flight when the app stops them; replaced
@@ -90,6 +96,7 @@ impl FlowModule {
             triggers: RwLock::new(Arc::new(NoTriggers)),
             env: RwLock::new(NodeEnv::default()),
             claimed: Arc::default(),
+            webhook_guard: Default::default(),
             tasks: Mutex::new(JoinSet::new()),
             stop: Mutex::new(CancellationToken::new()),
         }
