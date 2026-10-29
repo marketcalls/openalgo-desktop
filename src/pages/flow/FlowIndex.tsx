@@ -40,6 +40,10 @@ import {
 } from '@/api/flow'
 // Desktop: webhook URLs on the tunnel's address, and the note when they are local.
 import { getWebhookInfoForTrader } from '@/api/flowDesktop'
+import {
+  DeleteWorkflowDialog,
+  RegenerateWebhookDialog,
+} from '@/components/desktop/FlowConfirmDialogs'
 import { FlowWebhookReachability } from '@/components/desktop/FlowWebhookReachability'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -85,6 +89,9 @@ function WorkflowCard({ workflow }: { workflow: WorkflowListItem }) {
   const queryClient = useQueryClient()
   const [isWebhookOpen, setIsWebhookOpen] = useState(false)
   const [showSecret, setShowSecret] = useState(false)
+  // Desktop: Delete and Regenerate are confirmed first (FlowConfirmDialogs).
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false)
 
   const activateMutation = useMutation({
     mutationFn: () => activateWorkflow(workflow.id),
@@ -265,7 +272,7 @@ function WorkflowCard({ workflow }: { workflow: WorkflowListItem }) {
                   className="text-destructive"
                   onClick={(e) => {
                     e.stopPropagation()
-                    deleteMutation.mutate()
+                    setConfirmDelete(true)
                   }}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -539,7 +546,7 @@ Chartink payload (sent as-is):
               <div className="flex justify-end pt-2">
                 <Button
                   variant="outline"
-                  onClick={() => regenerateWebhookMutation.mutate()}
+                  onClick={() => setConfirmRegenerate(true)}
                   disabled={regenerateWebhookMutation.isPending}
                 >
                   {regenerateWebhookMutation.isPending ? (
@@ -554,6 +561,20 @@ Chartink payload (sent as-is):
           ) : null}
         </DialogContent>
       </Dialog>
+
+      {/* Desktop: confirmations the web does not ask for. */}
+      <DeleteWorkflowDialog
+        name={workflow.name}
+        isActive={workflow.is_active}
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        onConfirm={() => deleteMutation.mutate()}
+      />
+      <RegenerateWebhookDialog
+        open={confirmRegenerate}
+        onOpenChange={setConfirmRegenerate}
+        onConfirm={() => regenerateWebhookMutation.mutate()}
+      />
     </>
   )
 }

@@ -14,7 +14,7 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import { showToast } from '@/utils/toast'
 import '@xyflow/react/dist/style.css'
 import {
@@ -48,6 +48,8 @@ import {
   updateWorkflow,
 } from '@/api/flow'
 import { LogoutConfirmDialog } from '@/components/auth/LogoutConfirmDialog'
+// Desktop: the unsaved-changes guard.
+import { FlowLeaveGuard, useGuardedNavigate } from '@/components/desktop/FlowLeaveGuard'
 import { edgeTypes } from '@/components/flow/edges'
 // Import Flow components
 import { nodeTypes } from '@/components/flow/nodes'
@@ -116,7 +118,8 @@ const getNodeId = () => `node_${nodeId++}`
 
 function FlowEditorContent() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
+  // Desktop: asks before leaving unsaved changes (components/desktop/FlowLeaveGuard).
+  const navigate = useGuardedNavigate()
   const queryClient = useQueryClient()
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const { screenToFlowPosition } = useReactFlow()
@@ -804,6 +807,9 @@ function FlowEditorContent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Desktop: the unsaved-changes prompt. */}
+      <FlowLeaveGuard />
 
       <LogoutConfirmDialog
         open={showLogoutDialog}

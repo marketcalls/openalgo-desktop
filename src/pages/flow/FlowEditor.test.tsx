@@ -79,6 +79,7 @@ function renderEditor() {
             <Route path="/flow/editor/:id" element={<FlowEditor />} />
             <Route path="/flow/shortcuts" element={<p>shortcuts page</p>} />
             <Route path="/flow" element={<p>workflow list</p>} />
+            <Route path="/dashboard" element={<p>dashboard page</p>} />
           </Routes>
         </QueryClientProvider>
       </MemoryRouter>
@@ -236,5 +237,70 @@ describe('Run Now and Activate act on the graph on screen', () => {
     await user.click(screen.getByRole('button', { name: 'Deactivate' }))
     await waitFor(() => expect(api.deactivateWorkflow).toHaveBeenCalledWith(7))
     expect(await screen.findByText('Workflow inactive')).toBeInTheDocument()
+  })
+})
+
+describe('leaving with unsaved changes (desktop)', () => {
+  async function editName() {
+    const user = userEvent.setup()
+    const name = await loaded()
+    await user.type(name, ' v2')
+    expect(screen.getByText('Unsaved')).toBeInTheDocument()
+    return user
+  }
+
+  it('leaves a saved workflow without asking', async () => {
+    renderEditor()
+    await loaded()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Back to flows list' }))
+    expect(await screen.findByText('workflow list')).toBeInTheDocument()
+  })
+
+  it('asks before the back arrow discards edits, and Stay keeps them', async () => {
+    renderEditor()
+    const user = await editName()
+    await user.click(screen.getByRole('button', { name: 'Back to flows list' }))
+    expect(await screen.findByText('Leave without saving?')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Stay' }))
+    await waitFor(() => expect(screen.queryByText('Leave without saving?')).not.toBeInTheDocument())
+    expect(screen.getByDisplayValue('Opening range breakout v2')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Back to flows list' }))
+    await user.click(await screen.findByRole('button', { name: 'Leave without saving' }))
+    expect(await screen.findByText('workflow list')).toBeInTheDocument()
+    expect(api.updateWorkflow).not.toHaveBeenCalled()
+  })
+
+  it('asks before the ? key leaves', async () => {
+    renderEditor()
+    const user = await editName()
+    // Typing into the name box is not a shortcut, so leave the field first.
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    fireEvent.keyDown(window, { key: '?' })
+    await user.click(await screen.findByRole('button', { name: 'Leave without saving' }))
+    expect(await screen.findByText('shortcuts page')).toBeInTheDocument()
+  })
+
+  it('asks before a link in the header leaves', async () => {
+    renderEditor()
+    const user = await editName()
+    await user.click(screen.getByRole('link', { name: /Dashboard/ }))
+    expect(await screen.findByText('Leave without saving?')).toBeInTheDocument()
+    expect(screen.queryByText('dashboard page')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Leave without saving' }))
+    expect(await screen.findByText('dashboard page')).toBeInTheDocument()
+  })
+
+  it('asks the window to confirm a reload or close only while there are edits', async () => {
+    renderEditor()
+    await loaded()
+    const clean = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(clean)
+    expect(clean.defaultPrevented).toBe(false)
+
+    await editName()
+    const dirty = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(dirty)
+    expect(dirty.defaultPrevented).toBe(true)
   })
 })

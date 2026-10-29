@@ -214,13 +214,31 @@ describe('the actions menu', () => {
     expect(api.activateWorkflow.mock.calls[0][0]).toBe(8)
   })
 
-  it('deletes the workflow the menu belongs to', async () => {
+  it('asks before deleting, then deletes the workflow the menu belongs to (desktop)', async () => {
     api.deleteWorkflow.mockResolvedValue({ status: 'success', message: 'ok' })
     renderIndex()
-    const user = await openActions('Expiry day straddle')
+    let user = await openActions('Expiry day straddle')
     await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+    expect(await screen.findByText('Delete Expiry day straddle?')).toBeInTheDocument()
+    expect(screen.queryByText(/It is active now/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() =>
+      expect(screen.queryByText('Delete Expiry day straddle?')).not.toBeInTheDocument()
+    )
+    expect(api.deleteWorkflow).not.toHaveBeenCalled()
+
+    user = await openActions('Expiry day straddle')
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+    await user.click(await screen.findByRole('button', { name: 'Delete workflow' }))
     await waitFor(() => expect(api.deleteWorkflow).toHaveBeenCalledTimes(1))
     expect(api.deleteWorkflow.mock.calls[0][0]).toBe(8)
+  })
+
+  it('says an active workflow stops when it is deleted (desktop)', async () => {
+    renderIndex()
+    const user = await openActions('Opening range breakout')
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+    expect(await screen.findByText(/It is active now: it stops/)).toBeInTheDocument()
   })
 })
 
@@ -269,6 +287,23 @@ describe('webhook settings (desktop)', () => {
       await within(dialog).findByDisplayValue('https://desk.ngrok-free.app/flow/webhook/wf-token')
     ).toBeInTheDocument()
     expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('asks before a new URL and secret break the alerts already set up (desktop)', async () => {
+    api.getWebhookInfo.mockResolvedValue(
+      webhook('https://desk.ngrok-free.app/flow/webhook/wf-token')
+    )
+    api.regenerateWebhook.mockResolvedValue({ status: 'success' })
+    renderIndex()
+    const user = await openActions('Opening range breakout')
+    await user.click(await screen.findByRole('menuitem', { name: 'Webhook' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(await within(dialog).findByRole('button', { name: /Regenerate URL/ }))
+    expect(await screen.findByText('Regenerate the webhook URL and secret?')).toBeInTheDocument()
+    expect(api.regenerateWebhook).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Regenerate' }))
+    await waitFor(() => expect(api.regenerateWebhook).toHaveBeenCalledTimes(1))
+    expect(api.regenerateWebhook.mock.calls[0][0]).toBe(7)
   })
 
   it('switches the secret into the URL for Chartink', async () => {
