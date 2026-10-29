@@ -6,6 +6,7 @@
 //! through, as the web's executor does. The three logic gates are not
 //! nodes here: the walk evaluates them itself from their inputs' results.
 
+pub mod conditions;
 pub mod core;
 pub mod logic;
 pub mod math;
