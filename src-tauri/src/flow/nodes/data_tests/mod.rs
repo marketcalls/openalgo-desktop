@@ -1,0 +1,14 @@
+//! The data family's tests: the web's own executor replayed from its
+//! goldens (`goldens`), the web's data-node tests ported (`nodes`,
+//! `calendar`, `pnl`), the history cache (`cache`), the editor's lookups
+//! (`lookups`) and the nodes over the real in-process `/api/v1` in both
+//! analyzer and live mode (`app`).
+
+mod app;
+mod cache;
+mod calendar;
+mod goldens;
+mod lookups;
+mod nodes;
+mod pnl;
+mod support;
