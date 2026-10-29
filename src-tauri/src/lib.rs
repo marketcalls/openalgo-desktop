@@ -45,6 +45,7 @@ mod e2e;
 pub mod error;
 pub mod events;
 pub mod feed;
+pub mod flow;
 pub mod historify;
 pub mod mcp;
 pub mod messaging;
