@@ -12,6 +12,7 @@
 //!   owned run task, the record, the graph walk.
 //! - `indicator_service/`: the web's `services/indicator_service.py` on the
 //!   Agent's indicator library (pure functions the data nodes call).
+//! - `lookups`: what the editor looks up (lot sizes, option strikes).
 //! - `node_contracts`: statuses, expiry and strike vocabularies, default
 //!   product, expiry selection (the web's `flow_node_contracts.py`).
 //! - `nodes/`: the node registry, one line per node family.
@@ -27,6 +28,7 @@
 pub mod contract;
 pub mod executor;
 pub mod indicator_service;
+pub mod lookups;
 pub mod node_contracts;
 pub mod nodes;
 pub mod service;
@@ -58,6 +60,7 @@ pub fn start(ctx: &Arc<crate::state::AppState>) {
         Ok(n) => tracing::info!("Closed {} Flow run(s) the last session left unfinished", n),
         Err(e) => tracing::warn!("Could not close the Flow runs the last session left: {}", e),
     }
+    nodes::data::install_env(ctx);
 }
 
 /// How long a stopped run has to write its record before it is aborted.

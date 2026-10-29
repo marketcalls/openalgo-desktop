@@ -6,8 +6,18 @@
 //! through, as the web's executor does. The three logic gates are not
 //! nodes here: the walk evaluates them itself from their inputs' results.
 
+pub mod books;
+pub mod calendar;
 pub mod core;
+pub mod data;
+pub mod history;
+pub mod indicator;
 pub mod logic;
+pub mod pyjson;
+pub mod symbols;
+
+#[cfg(test)]
+mod data_tests;
 
 use crate::flow::contract::node::FlowNode;
 use std::collections::HashMap;
@@ -27,6 +37,8 @@ pub const FAMILIES: &[NodeFamily] = &[
     core::FAMILY,
     // log, variable, delay (the nodes-logic lane completes this family).
     logic::FAMILY,
+    // quotes, books, history, indicators, options data, calendar, margin.
+    data::FAMILY,
 ];
 
 /// The nodes by type id, built once.
