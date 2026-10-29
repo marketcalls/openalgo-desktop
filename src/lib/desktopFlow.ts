@@ -110,3 +110,8 @@ export function failedRunLog(error: Error, now: Date = new Date()): RunLogLine[]
 export function withPanelLevel<T extends { level: string }>(entry: T): T {
   return entry.level === 'warn' ? { ...entry, level: 'warning' } : entry
 }
+
+/** The log panel's one line for a run that finishes in the background (F-207). */
+export function startedInBackgroundLog(now: Date = new Date()): RunLogLine[] {
+  return [{ time: now.toISOString(), message: FLOW_STARTED_IN_BACKGROUND, level: 'info' }]
+}

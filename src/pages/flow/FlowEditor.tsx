@@ -15,6 +15,7 @@ import {
 } from '@xyflow/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
+// Desktop departures from the web file: docs/web-sync/flow-2026-10-30.md
 import { showToast } from '@/utils/toast'
 import '@xyflow/react/dist/style.css'
 import {
@@ -48,7 +49,6 @@ import {
   updateWorkflow,
 } from '@/api/flow'
 import { LogoutConfirmDialog } from '@/components/auth/LogoutConfirmDialog'
-// Desktop: the unsaved-changes guard.
 import { FlowLeaveGuard, useGuardedNavigate } from '@/components/desktop/FlowLeaveGuard'
 import { edgeTypes } from '@/components/flow/edges'
 // Import Flow components
@@ -80,8 +80,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useProfileMenuItems } from '@/hooks/useProfileMenuItems'
-// Desktop: fixes to web defects named in .lane/105/parity.md (F-156, F-207).
-import { FLOW_STARTED_IN_BACKGROUND, failedRunLog } from '@/lib/desktopFlow'
+import { FLOW_STARTED_IN_BACKGROUND, failedRunLog, startedInBackgroundLog } from '@/lib/desktopFlow'
 import { DEFAULT_NODE_DATA } from '@/lib/flow/constants'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
@@ -120,7 +119,6 @@ const getNodeId = () => `node_${nodeId++}`
 
 function FlowEditorContent() {
   const { id } = useParams<{ id: string }>()
-  // Desktop: asks before leaving unsaved changes (components/desktop/FlowLeaveGuard).
   const navigate = useGuardedNavigate()
   const queryClient = useQueryClient()
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
@@ -345,10 +343,7 @@ function FlowEditorContent() {
         // Its orders go out when the wait ends, and its result lands in the
         // execution history, so this is neither a success nor a failure yet.
         setExecutionStatus('started')
-        // Desktop: says where the result shows (parity F-207, lib/desktopFlow).
-        setExecutionLogs([
-          { time: new Date().toISOString(), message: FLOW_STARTED_IN_BACKGROUND, level: 'info' },
-        ])
+        setExecutionLogs(startedInBackgroundLog())
         showToast.info(FLOW_STARTED_IN_BACKGROUND, 'flow')
         return
       }
@@ -364,7 +359,6 @@ function FlowEditorContent() {
     },
     onError: (error: Error) => {
       setExecutionStatus('error')
-      // Desktop: keeps the per-node log a failed run's reply carries (parity F-156).
       setExecutionLogs(failedRunLog(error))
       showToast.error(error.message, 'flow')
     },
@@ -524,8 +518,6 @@ function FlowEditorContent() {
       const result = await replaceWorkflow(Number(id), parsed as never)
       // Reload the canvas from the database rather than trusting the payload,
       // so what is shown is what was actually stored.
-      // Desktop: hydration runs once per workflow id, so without this the
-      // canvas kept the old graph and a later Save put it back (parity F-169).
       hydratedIdRef.current = null
       await queryClient.invalidateQueries({ queryKey: flowQueryKeys.workflow(Number(id)) })
       setShowReplaceDialog(false)
@@ -535,7 +527,6 @@ function FlowEditorContent() {
         : ''
       if (result.needs_reactivate) {
         showToast.warning(
-          // Desktop: the server has already deactivated it (parity V-154).
           `Workflow replaced.${notes} The trigger changed, so the workflow was deactivated. Activate it again once the trigger is valid.`,
           'flow'
         )
@@ -818,9 +809,7 @@ function FlowEditorContent() {
         </DialogContent>
       </Dialog>
 
-      {/* Desktop: the unsaved-changes prompt. */}
       <FlowLeaveGuard />
-
       <LogoutConfirmDialog
         open={showLogoutDialog}
         onOpenChange={setShowLogoutDialog}
@@ -955,7 +944,6 @@ function FlowEditorContent() {
               type: 'insertable',
               animated: true,
             }}
-            // Desktop: hsl(var(--primary)) is not a colour under the oklch tokens (F-161).
             connectionLineStyle={{ stroke: 'var(--color-primary)', strokeWidth: 2 }}
             connectionRadius={30}
             connectOnClick={true}
