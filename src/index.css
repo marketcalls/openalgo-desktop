@@ -756,12 +756,23 @@
 }
 
 /* Buy/Sell badges */
+/* Desktop: the web's 46% green and 70% red text read below 4.5:1 on these
+   tints in the light theme (axe color-contrast); the light theme uses darker
+   shades, and the dark and analyzer themes keep the web's. */
 .badge-buy {
-  @apply bg-[hsl(142_76%_36%/0.15)] text-[hsl(142_76%_46%)] border border-[hsl(142_76%_36%/0.3)] rounded-md px-2 py-0.5 text-xs font-medium;
+  @apply bg-[hsl(142_76%_36%/0.15)] text-[hsl(142_76%_24%)] border border-[hsl(142_76%_36%/0.3)] rounded-md px-2 py-0.5 text-xs font-medium;
 }
 
 .badge-sell {
-  @apply bg-[hsl(0_84%_60%/0.15)] text-[hsl(0_84%_70%)] border border-[hsl(0_84%_60%/0.3)] rounded-md px-2 py-0.5 text-xs font-medium;
+  @apply bg-[hsl(0_84%_60%/0.15)] text-[hsl(0_84%_38%)] border border-[hsl(0_84%_60%/0.3)] rounded-md px-2 py-0.5 text-xs font-medium;
+}
+
+:is(.dark, .analyzer) .badge-buy {
+  @apply text-[hsl(142_76%_46%)];
+}
+
+:is(.dark, .analyzer) .badge-sell {
+  @apply text-[hsl(0_84%_70%)];
 }
 
 /* Surface background for node data rows */

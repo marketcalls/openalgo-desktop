@@ -111,6 +111,8 @@ const SIGNED_IN_PAGES = [
   '/profile',
   '/tools',
   '/health',
+  '/flow',
+  '/flow/shortcuts',
 ] as const
 
 /**
@@ -279,6 +281,64 @@ async function stubHealth(page: Page) {
   await page.route('**/health/api/stats**', (route) => route.fulfill({ status: 500, body: '' }))
 }
 
+/** One stored workflow for the Flow editor, as GET /flow/api/workflows/7 answers. */
+async function stubFlowWorkflow(page: Page) {
+  const workflow = {
+    id: 7,
+    name: 'Opening range breakout',
+    description: null,
+    nodes: [
+      {
+        id: 'node_1',
+        type: 'start',
+        position: { x: 0, y: 0 },
+        data: { scheduleType: 'daily', time: '09:20' },
+      },
+      {
+        id: 'node_2',
+        type: 'timeWindow',
+        position: { x: 0, y: 160 },
+        data: { startTime: '09:20', endTime: '15:00' },
+      },
+      {
+        id: 'node_3',
+        type: 'placeOrder',
+        position: { x: -160, y: 340 },
+        data: { symbol: 'SBIN', exchange: 'NSE', action: 'BUY', quantity: 1, priceType: 'MARKET' },
+      },
+      {
+        id: 'node_4',
+        type: 'log',
+        position: { x: 160, y: 340 },
+        data: { message: 'Outside the window', level: 'info' },
+      },
+    ],
+    edges: [
+      { id: 'e1', source: 'node_1', target: 'node_2' },
+      { id: 'e2', source: 'node_2', sourceHandle: 'true', target: 'node_3' },
+      { id: 'e3', source: 'node_2', sourceHandle: 'false', target: 'node_4' },
+    ],
+    is_active: false,
+    schedule_job_id: null,
+    webhook_token: null,
+    webhook_secret: null,
+    webhook_enabled: false,
+    webhook_auth_type: 'payload',
+    created_at: '2026-10-30T09:00:00',
+    updated_at: '2026-10-30T09:00:00',
+  }
+  await page.route('**/flow/api/workflows/7', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(workflow) })
+  )
+  await page.route('**/flow/api/index-symbols', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ status: 'success', data: [] }),
+    })
+  )
+}
+
 test.describe('Accessibility - signed in', () => {
   for (const theme of ['light', 'dark'] as const) {
     for (const path of SIGNED_IN_PAGES) {
@@ -292,6 +352,22 @@ test.describe('Accessibility - signed in', () => {
         expect(found).toEqual([...(KNOWN[path] ?? [])].sort())
       })
     }
+  }
+
+  // The Flow editor has no navbar (full width, its own header) and needs a
+  // workflow to draw, so it is scanned with one: a schedule, a condition
+  // with both branches and an order, which shows every handle colour.
+  for (const theme of ['light', 'dark'] as const) {
+    test(`/flow/editor with a workflow${theme === 'dark' ? ' (dark)' : ''}`, async ({ page }) => {
+      await signedIn(page, theme)
+      await stubFlowWorkflow(page)
+      await page.goto('/flow/editor/7')
+      await page.waitForLoadState('networkidle')
+      await expect(page.getByRole('textbox', { name: 'Workflow name' })).toBeVisible()
+      await expect(page.locator('.react-flow__node')).toHaveCount(4)
+
+      expect(await scan(page, wcag)).toEqual([])
+    })
   }
 
   // States the stub does not reach by itself: each master contract status

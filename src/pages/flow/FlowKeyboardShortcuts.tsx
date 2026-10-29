@@ -69,7 +69,8 @@ const shortcutSections: ShortcutSection[] = [
 
 function KeyBadge({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="inline-flex h-6 min-w-[24px] items-center justify-center rounded border border-border bg-muted px-1.5 font-mono text-xs font-medium text-muted-foreground">
+    // Desktop: bg-background, not bg-muted: muted text on the muted fill read 4.3:1 (axe).
+    <kbd className="inline-flex h-6 min-w-[24px] items-center justify-center rounded border border-border bg-background px-1.5 font-mono text-xs font-medium text-muted-foreground">
       {children}
     </kbd>
   )
