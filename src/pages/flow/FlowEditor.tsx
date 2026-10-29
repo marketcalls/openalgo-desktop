@@ -823,6 +823,7 @@ function FlowEditorContent() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <Input
+            aria-label="Workflow name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="h-8 w-64 border-transparent bg-transparent px-2 font-medium hover:border-border focus:border-border"

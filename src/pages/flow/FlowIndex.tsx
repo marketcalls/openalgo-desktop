@@ -677,7 +677,7 @@ export default function FlowIndex() {
           <div className="mb-4 rounded-full bg-destructive/10 p-4">
             <AlertTriangle className="h-8 w-8 text-destructive" />
           </div>
-          <h3 className="mb-2 text-lg font-medium">Could not load workflows</h3>
+          <h2 className="mb-2 text-lg font-medium">Could not load workflows</h2>
           <p className="mb-6 max-w-md text-center text-sm text-muted-foreground">
             {listError instanceof Error
               ? listError.message
@@ -696,7 +696,7 @@ export default function FlowIndex() {
           <div className="mb-4 rounded-full bg-muted p-4">
             <Plus className="h-8 w-8 text-muted-foreground" />
           </div>
-          <h3 className="mb-2 text-lg font-medium">No workflows yet</h3>
+          <h2 className="mb-2 text-lg font-medium">No workflows yet</h2>
           <p className="mb-6 text-center text-sm text-muted-foreground">
             Create your first workflow to automate your trading
           </p>
