@@ -251,6 +251,8 @@ mod agent_audit;
 mod agent_external;
 // Flow's workflow routes (blueprints/flow.py).
 mod flow;
+// Flow's trigger routes and public webhooks (blueprints/flow.py).
+mod flow_triggers;
 
 // ------------------------------------------------------------------ fixtures
 
@@ -751,6 +753,10 @@ async fn public_route_list_is_exactly_the_reviewed_one() {
             "POST /openscript/runner/host/{run}/ended",
             // Secret-verified Chartink webhook (the URL id is the credential).
             "POST /chartink/webhook/{webhook_id}",
+            // Secret-verified Flow webhook (the URL token is the credential,
+            // plus the secret when the workflow's auth type asks for it).
+            "POST /flow/webhook/{token}",
+            "POST /flow/webhook/{token}/{symbol}",
         ]
     );
 }

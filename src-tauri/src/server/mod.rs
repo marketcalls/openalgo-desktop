@@ -130,7 +130,10 @@ pub fn router(ctx: Arc<AppState>) -> (Router, socketioxide::SocketIo) {
         .fallback(fallback)
         .method_not_allowed_fallback(method_not_allowed)
         .layer(sio_layer)
-        .layer(mw::from_fn_with_state(ctx.clone(), middleware::session_layer))
+        .layer(mw::from_fn_with_state(
+            ctx.clone(),
+            middleware::session_layer,
+        ))
         .layer(DefaultBodyLimit::max(crate::config::BODY_LIMIT_BYTES))
         .layer(mw::from_fn_with_state(ctx.clone(), middleware::host_check))
         // Traffic, latency and blocked-address checks (services::monitor).
@@ -159,7 +162,9 @@ pub fn router(ctx: Arc<AppState>) -> (Router, socketioxide::SocketIo) {
         .layer(cors(ctx.clone()))
         .layer(
             TraceLayer::new_for_http().make_span_with(|req: &Request<Body>| {
-                tracing::debug_span!("http", method = %req.method(), path = %req.uri().path())
+                // Webhook paths carry their credential: never logged whole.
+                let path = crate::services::monitor::loggable_path(req.uri().path());
+                tracing::debug_span!("http", method = %req.method(), path = %path)
             }),
         )
         .with_state(ctx);

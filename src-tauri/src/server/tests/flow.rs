@@ -94,7 +94,12 @@ async fn the_workflow_routes_are_the_webs_and_need_the_user() {
     for (m, p) in want {
         assert!(got.contains(&(m.to_string(), p)), "{} {} missing", m, p);
     }
-    assert!(table.iter().all(|r| r.access == Access::User));
+    // Every route but the two public webhooks (the triggers lane's, each
+    // with its own credential) is the signed-in user's.
+    assert!(table
+        .iter()
+        .filter(|r| !r.path.starts_with("/flow/webhook/"))
+        .all(|r| r.access == Access::User));
     let h = H::new();
     h.setup();
     let (s, _) = h.json(get("/flow/api/workflows")).await;

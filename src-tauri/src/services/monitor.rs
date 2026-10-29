@@ -427,8 +427,8 @@ fn skip_traffic(path: &str) -> bool {
         || path.starts_with("/api/v1/latency/logs")
 }
 
-/// The path as it may be stored: the strategy webhook token and the
-/// Chartink webhook id replaced (security review S-06).
+/// The path as it may be stored: the strategy webhook token, the Chartink
+/// webhook id and the Flow webhook token replaced (security review S-06).
 pub fn loggable_path(path: &str) -> String {
     store::redact_secret_paths(path)
 }
@@ -816,6 +816,16 @@ mod tests {
         );
         assert_eq!(loggable_path("/api/v1/placeorder"), "/api/v1/placeorder");
         assert_eq!(loggable_path("/chartink/webhook/"), "/chartink/webhook/");
+        // T-108, D-13, X-343: Flow's token goes, its symbol stays; the query
+        // (a URL-auth secret) is never part of the logged path.
+        assert_eq!(
+            loggable_path("/flow/webhook/tok3n-SECRET_value/NIFTY"),
+            "/flow/webhook/<redacted>/NIFTY"
+        );
+        assert_eq!(
+            loggable_path("/flow/webhook/tok3n"),
+            "/flow/webhook/<redacted>"
+        );
     }
 
     use super::*;

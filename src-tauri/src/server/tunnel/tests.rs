@@ -87,6 +87,10 @@ fn only_the_public_routes_are_reachable_by_their_exact_shape() {
         "/chartink/webhook/0b9c-uuid",
         "/mcp",
         "/mcp/healthz",
+        // Flow's webhooks (T-106, D-12): the token, with or without a symbol.
+        "/flow/webhook/abc",
+        "/flow/webhook/abc/SBIN",
+        "/flow/webhook/abc/RELIANCE/",
     ] {
         assert_eq!(reach(p), Reach::App, "{}", p);
     }
@@ -124,6 +128,14 @@ fn only_the_public_routes_are_reachable_by_their_exact_shape() {
         "/openscript/runner/host/1/spec",
         "/mcp/other",
         "/e2e/scripted-broker",
+        "/flow/webhook",
+        "/flow/webhook//",
+        "/flow/webhook/a/b/c",
+        "/flow/webhook/a/../../dashboard",
+        "/flow/api/workflows",
+        "/flow/api/monitor/status",
+        "/flow",
+        "/flow/editor/1",
     ] {
         assert_eq!(reach(p), Reach::Refused, "{}", p);
     }

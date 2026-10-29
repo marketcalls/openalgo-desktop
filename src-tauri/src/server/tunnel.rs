@@ -12,7 +12,8 @@
 //!   headers say: the class never depends on what ngrok adds.
 //! - Only the public routes are reachable through it ([`reach`]): `/api/v1`
 //!   (its API key), the strategy and Chartink webhooks (the address is the
-//!   credential) and `/mcp` (its bearer token, behind the Remote MCP
+//!   credential), Flow's webhooks (the token, and the secret its auth type
+//!   asks for) and `/mcp` (its bearer token, behind the Remote MCP
 //!   switch). The app's pages, its sign-in and every session route stay on
 //!   this computer. A broker's sign-in redirect is sent on to this
 //!   computer's address, where the browser session that started it is.
@@ -84,6 +85,7 @@ pub(crate) fn reach(path: &str) -> Reach {
     match segments.as_slice() {
         ["api", "v1", ..] => Reach::App,
         ["strategy", "webhook", _] | ["chartink", "webhook", _] => Reach::App,
+        ["flow", "webhook", _] | ["flow", "webhook", _, _] => Reach::App,
         ["mcp"] | ["mcp", "healthz"] => Reach::App,
         [broker, "callback"] if catalog::ALL_BROKERS.contains(broker) => Reach::ThisComputer,
         _ => Reach::Refused,

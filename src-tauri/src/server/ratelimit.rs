@@ -7,7 +7,8 @@
 //! | LoginHour    | 25 per hour     | same                                              |
 //! | ApiKeyFail   | 10 per minute   | failed API-key checks; over it the key is not even tried |
 //! | StrategyWebhook | 100 per minute | `/strategy/webhook/<token>` per caller address |
-//! | WebhookFail  | 10 per minute   | failed strategy-webhook authentications per caller |
+//! | FlowWebhook  | 100 per minute  | `/flow/webhook/<token>[/<symbol>]` per caller address, and per token |
+//! | WebhookFail  | 10 per minute   | failed strategy, Chartink and Flow webhook authentications per caller |
 //!
 //! Sign-in to OpenAlgo itself also has a failure budget per source
 //! ([`LoginBackoff`]), whatever name is typed. Callers behind a tunnel share
@@ -58,6 +59,7 @@ fn request_window(bucket: Bucket, ip: &IpAddr) -> bool {
                     | Bucket::Guard
                     | Bucket::StrategyWebhook
                     | Bucket::ChartinkWebhook
+                    | Bucket::FlowWebhook
                     | Bucket::AgentApi
                     | Bucket::AgentStream
                     | Bucket::AgentTest
@@ -105,6 +107,12 @@ pub enum Bucket {
     /// `/chartink/webhook/<id>` by caller address (web
     /// `WEBHOOK_RATE_LIMIT`, 100 per minute).
     ChartinkWebhook,
+    /// `/flow/webhook/<token>` and `/flow/webhook/<token>/<symbol>`, one
+    /// budget for both spellings: by caller address, and by token under a
+    /// keyed digest (`middleware::limiter_key`), so a leaked token is capped
+    /// however many addresses replay it (web `WEBHOOK_RATE_LIMIT`, scopes
+    /// `flow_webhook_caller` and `flow_webhook_workflow`, 100 per minute).
+    FlowWebhook,
     /// Failed strategy and Chartink webhook authentications (unknown
     /// address, caller outside the allowlist) by caller. Spent, it refuses
     /// further invalid attempts early; never a valid webhook address.
@@ -131,7 +139,9 @@ impl Bucket {
             Bucket::LoginHour => (25, Duration::from_secs(3600)),
             Bucket::ApiKeyFail => (10, Duration::from_secs(60)),
             Bucket::Guard => (1000, Duration::from_secs(1)),
-            Bucket::StrategyWebhook | Bucket::ChartinkWebhook => (100, Duration::from_secs(60)),
+            Bucket::StrategyWebhook | Bucket::ChartinkWebhook | Bucket::FlowWebhook => {
+                (100, Duration::from_secs(60))
+            }
             Bucket::WebhookFail => (10, Duration::from_secs(60)),
             Bucket::AgentApi => (240, Duration::from_secs(60)),
             Bucket::AgentStream => (30, Duration::from_secs(60)),
