@@ -437,8 +437,10 @@ mod tests {
                 Ok(vec![json!({"date": "2026-11-09"})])
             }
         }
-        let mut env = NodeEnv::default();
-        env.calendar = Arc::new(Calendar);
+        let env = NodeEnv {
+            calendar: Arc::new(Calendar),
+            ..Default::default()
+        };
         let c = ctx().with_env(env);
         assert_eq!(c.env.calendar.holidays(2026).unwrap().len(), 1);
     }

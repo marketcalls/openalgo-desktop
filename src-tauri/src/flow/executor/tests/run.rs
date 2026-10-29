@@ -193,7 +193,7 @@ async fn a_long_wait_answers_at_once_and_a_stop_is_recorded() {
     );
     // Wait for the run's record, not on a sleep.
     for _ in 0..200 {
-        if history(&t.ctx, id).first().is_some() {
+        if !history(&t.ctx, id).is_empty() {
             break;
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
