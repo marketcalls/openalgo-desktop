@@ -230,10 +230,11 @@ impl Schedule {
                     .map(|v| crate::flow::contract::pyfmt::to_int(v).filter(|n| *n > 0))
                     .unwrap_or(Some(1))
                     .ok_or_else(invalid)?;
-                let unit = match data.get("intervalUnit").and_then(Value::as_str) {
-                    Some(u @ ("seconds" | "hours")) => u,
-                    _ => "minutes",
-                };
+                let unit = data
+                    .get("intervalUnit")
+                    .and_then(Value::as_str)
+                    .filter(|u| matches!(*u, "seconds" | "hours"))
+                    .unwrap_or("minutes");
                 let start = aligned_start(value, unit, now);
                 tracing::info!(
                     "Creating interval trigger: every {} {}, first run {}",

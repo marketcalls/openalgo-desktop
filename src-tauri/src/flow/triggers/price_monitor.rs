@@ -156,7 +156,7 @@ impl Alert {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Observed {
     /// The condition is met: run the workflow at this price.
-    Fire(Alert),
+    Fire(Box<Alert>),
     /// Not met (the price is remembered for the next poll).
     Quiet,
     /// The alert was replaced or removed meanwhile.
@@ -272,7 +272,7 @@ impl Alerts {
             pyfmt::float(ltp),
             pyfmt::float(alert.target)
         );
-        Observed::Fire(alert.clone())
+        Observed::Fire(Box::new(alert.clone()))
     }
 
     /// Clear the latch of `gen` (its run did not execute).

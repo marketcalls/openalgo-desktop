@@ -895,7 +895,7 @@ async fn alert_workflow(
     else {
         panic!("the alert should fire");
     };
-    (id, side, a)
+    (id, side, *a)
 }
 
 /// Waits (bounded) until the side has no run pending for the workflow.
@@ -933,7 +933,7 @@ async fn a_price_alert_run_trusts_its_tick_and_retires_a_one_shot() {
     else {
         panic!("re-armed alert fires again");
     };
-    side.queue_price_run(a, 812.75);
+    side.queue_price_run(*a, 812.75);
     settled(&side, id).await;
     assert!(side.alerts.get(id).is_none(), "a one-shot is spent");
     let logs = f.last_run_logs(id).await;

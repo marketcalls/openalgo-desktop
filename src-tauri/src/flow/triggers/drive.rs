@@ -233,7 +233,7 @@ impl TriggerSide {
             return;
         }
         if let Observed::Fire(fired) = self.alerts.observe(id, alert.gen, ltp) {
-            self.queue_price_run(fired, ltp);
+            self.queue_price_run(*fired, ltp);
         }
     }
 
