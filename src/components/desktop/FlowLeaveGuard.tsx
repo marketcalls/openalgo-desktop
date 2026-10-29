@@ -16,30 +16,71 @@ import { useFlowWorkflowStore } from '@/stores/flowWorkflowStore'
 /**
  * Desktop departure from the web's Flow editor (parity F-170, lead decision
  * 14): the web lets the back arrow, the ? key, the Dashboard link, the
- * profile menu and the Keyboard Shortcuts item leave the editor with unsaved
- * edits, and the store reset on unmount discards them without a word. Here a
- * trader with unsaved changes is asked first.
+ * profile menu, the Keyboard Shortcuts item and the browser's Back leave the
+ * editor with unsaved edits, and the store reset on unmount discards them
+ * without a word. Here a trader with unsaved changes is asked first.
  *
  * The app uses a declarative router, where react-router's useBlocker does not
- * work, so the guard covers the ways the editor itself leaves: its navigate
- * calls (useGuardedNavigate), any in-app link clicked inside the window, and
- * a reload or close of the window (the browser's own prompt).
+ * work, so the guard covers each way out itself: the editor's navigate calls
+ * (useGuardedNavigate), any in-app link clicked inside the window, the
+ * browser's Back (a sentinel history entry, below), and a reload or close of
+ * the window (the browser's own prompt).
  */
 
 interface PendingLeave {
   /** Where the trader asked to go, run once they choose to leave. */
   leave: (() => void) | null
-  ask: (leave: () => void) => void
+  /** What staying puts back (the Back sentinel), run when they choose to stay. */
+  stay: (() => void) | null
+  ask: (leave: () => void, stay?: () => void) => void
   clear: () => void
 }
 
 const usePendingLeave = create<PendingLeave>((set) => ({
   leave: null,
-  ask: (leave) => set({ leave }),
-  clear: () => set({ leave: null }),
+  stay: null,
+  ask: (leave, stay) => set({ leave, stay: stay ?? null }),
+  clear: () => set({ leave: null, stay: null }),
 }))
 
 const unsaved = () => useFlowWorkflowStore.getState().isModified
+
+/**
+ * The Back sentinel. While the canvas has unsaved changes, the editor's
+ * history entry is duplicated, so the browser's Back (a mouse back button,
+ * Alt+Left in WebView2) first lands on the same address: the router renders
+ * the same page and the editor stays mounted, and the guard asks. Staying
+ * puts the sentinel back; leaving goes back once more, for real.
+ */
+const SENTINEL = 'flowLeaveGuard'
+
+const onSentinel = () =>
+  Boolean((window.history.state as Record<string, unknown> | null)?.[SENTINEL])
+
+function pushSentinel() {
+  const state = (window.history.state as Record<string, unknown> | null) ?? {}
+  window.history.pushState({ ...state, [SENTINEL]: true }, '', window.location.href)
+}
+
+/**
+ * Takes the sentinel off again once the canvas is saved (or the editor goes
+ * away while still on it). The traversal is asynchronous, so a one-shot
+ * listener, registered before any later guard's, swallows the popstate it
+ * causes: the router sees the same address and nothing else may ask.
+ */
+function dropSentinel() {
+  if (!onSentinel()) return
+  window.addEventListener('popstate', (event) => event.stopImmediatePropagation(), { once: true })
+  window.history.back()
+}
+
+/**
+ * Leaving from the sentinel entry replaces it, so the browser's Back from the
+ * next page returns to the editor once, not twice.
+ */
+function leaveOptions(options?: NavigateOptions): NavigateOptions | undefined {
+  return onSentinel() ? { ...options, replace: options?.replace ?? true } : options
+}
 
 /**
  * The editor's navigate, asking before it leaves unsaved changes. Signing out
@@ -54,7 +95,7 @@ export function useGuardedNavigate() {
         navigate(to, options)
         return
       }
-      usePendingLeave.getState().ask(() => navigate(to, options))
+      usePendingLeave.getState().ask(() => navigate(to, leaveOptions(options)))
     },
     [navigate]
   )
@@ -75,11 +116,36 @@ function inAppTarget(event: MouseEvent): string | null {
   return there === here ? null : there + url.hash
 }
 
-/** The prompt, the link interception and the window-close prompt. Render once in the editor. */
+/** The browser's Back while there are unsaved changes: ask, then stay or go back for real. */
+function useBackGuard(isModified: boolean) {
+  useEffect(() => {
+    if (!isModified) return
+    const editor = window.location.href
+    pushSentinel()
+    const onPopState = () => {
+      // Only a Back that lands on the editor's own entry (off the sentinel);
+      // any other traversal is the trader's, or the guard's own way out.
+      if (!unsaved() || window.location.href !== editor || onSentinel()) return
+      usePendingLeave.getState().ask(() => {
+        window.removeEventListener('popstate', onPopState)
+        window.history.back()
+      }, pushSentinel)
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => {
+      window.removeEventListener('popstate', onPopState)
+      dropSentinel()
+    }
+  }, [isModified])
+}
+
+/** The prompt, the link and Back interception and the window-close prompt. Render once in the editor. */
 export function FlowLeaveGuard() {
   const navigate = useNavigate()
   const leave = usePendingLeave((s) => s.leave)
   const isModified = useFlowWorkflowStore((s) => s.isModified)
+
+  useBackGuard(isModified)
 
   useEffect(() => {
     if (!isModified) return
@@ -94,7 +160,7 @@ export function FlowLeaveGuard() {
       const target = inAppTarget(event)
       if (!target || !unsaved()) return
       event.preventDefault()
-      usePendingLeave.getState().ask(() => navigate(target))
+      usePendingLeave.getState().ask(() => navigate(target, leaveOptions()))
     }
     window.addEventListener('beforeunload', onBeforeUnload)
     document.addEventListener('click', onClick, true)
@@ -111,7 +177,11 @@ export function FlowLeaveGuard() {
     <AlertDialog
       open={leave !== null}
       onOpenChange={(open) => {
-        if (!open) usePendingLeave.getState().clear()
+        if (open) return
+        // Closed without leaving (Stay, Escape): put back what Back took.
+        const stay = usePendingLeave.getState().stay
+        usePendingLeave.getState().clear()
+        stay?.()
       }}
     >
       <AlertDialogContent>
