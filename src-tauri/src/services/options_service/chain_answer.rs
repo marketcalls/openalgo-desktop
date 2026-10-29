@@ -40,16 +40,25 @@ struct WindowStrike {
     index: usize,
 }
 
-/// [`super::option_chain`] with the legs the broker could not supply.
-pub async fn option_chain_answer(
+/// A chain's strikes and contracts before any leg is quoted: the
+/// underlying, its price, the listed strikes, ATM and the window.
+struct Prepared {
+    h: BrokerHandle,
+    u: Underlying,
+    uq: Quote,
+    opt_ex: String,
+    strikes: Vec<f64>,
+    atm: usize,
+    window: Vec<WindowStrike>,
+}
+
+async fn prepare(
     ctx: &AppState,
     underlying: &str,
     exchange: &str,
     expiry_date: &str,
     strike_count: Option<i64>,
-    with_greeks: bool,
-    interest_rate: Option<f64>,
-) -> Result<ChainAnswer, Reply> {
+) -> Result<Prepared, Reply> {
     let h = broker_handle(ctx)?;
     let u = resolve_underlying(ctx, underlying, exchange, Some(expiry_date), true)?;
     let uq = underlying_ltp(ctx, &h, &u, ":").await?;
@@ -64,7 +73,84 @@ pub async fn option_chain_answer(
     };
     let (start, end) = strike_window(&strikes, atm, strike_count);
     let window = window_strikes(&snap, &u, &opt_ex, &strikes[start..end], start);
-    let keys: Vec<QuoteKey> = window
+    Ok(Prepared {
+        h,
+        u,
+        uq,
+        opt_ex,
+        strikes,
+        atm,
+        window,
+    })
+}
+
+/// The chain's answer body from its rows.
+fn chain_body(
+    ctx: &AppState,
+    p: &Prepared,
+    rows: Vec<ChainRow>,
+    with_quotes: bool,
+    with_greeks: bool,
+    forward: Option<f64>,
+) -> Value {
+    let chain: Vec<Value> = rows
+        .into_iter()
+        .map(|(k, c, p)| {
+            json!({
+                "strike": float(k),
+                "ce": c.map(Value::Object).unwrap_or(Value::Null),
+                "pe": p.map(Value::Object).unwrap_or(Value::Null),
+            })
+        })
+        .collect();
+    let expiry_dt = expiry_datetime(&p.u.expiry, &p.opt_ex, None);
+    json!({
+        "status": "success",
+        "underlying": p.u.base,
+        "underlying_symbol": p.u.quote_symbol,
+        "underlying_exchange": p.u.quote_exchange,
+        "underlying_ltp": num(p.uq.ltp),
+        "underlying_prev_close": num(p.uq.close),
+        "expiry_date": p.u.expiry,
+        "expiry_ts": expiry_dt.map(|e| json!(e.timestamp())).unwrap_or(Value::Null),
+        "server_ts": ctx.now().timestamp(),
+        "atm_strike": float(p.strikes[p.atm]),
+        "quotes_included": with_quotes,
+        "greeks_included": with_quotes && with_greeks,
+        "forward_price": forward.map(num).unwrap_or(Value::Null),
+        "chain": chain,
+    })
+}
+
+/// The chain without quotes (the web's `get_option_chain(...,
+/// with_quotes=False)`): strikes, contracts, labels, lot and tick sizes and
+/// the underlying's price, every leg's price fields zero. One underlying
+/// quote, no per-strike broker call (the Flow editor's strike picker).
+pub async fn option_chain_structure(
+    ctx: &AppState,
+    underlying: &str,
+    exchange: &str,
+    expiry_date: &str,
+    strike_count: Option<i64>,
+) -> Result<Value, Reply> {
+    let p = prepare(ctx, underlying, exchange, expiry_date, strike_count).await?;
+    let rows = chain_rows(&p.window, &HashMap::new(), p.atm);
+    Ok(chain_body(ctx, &p, rows, false, false, None))
+}
+
+/// [`super::option_chain`] with the legs the broker could not supply.
+pub async fn option_chain_answer(
+    ctx: &AppState,
+    underlying: &str,
+    exchange: &str,
+    expiry_date: &str,
+    strike_count: Option<i64>,
+    with_greeks: bool,
+    interest_rate: Option<f64>,
+) -> Result<ChainAnswer, Reply> {
+    let p = prepare(ctx, underlying, exchange, expiry_date, strike_count).await?;
+    let keys: Vec<QuoteKey> = p
+        .window
         .iter()
         .flat_map(|w| [&w.ce, &w.pe])
         .flatten()
@@ -76,7 +162,7 @@ pub async fn option_chain_answer(
             "No valid option symbols found for the given parameters",
         ));
     }
-    let fetched = chain_quotes(&h, &u, &keys, strike_count).await?;
+    let fetched = chain_quotes(&p.h, &p.u, &keys, strike_count).await?;
     let quotes: HashMap<String, Quote> = fetched
         .quotes
         .into_iter()
@@ -87,42 +173,24 @@ pub async fn option_chain_answer(
         .filter(|k| !quotes.contains_key(&k.symbol))
         .map(|k| k.symbol.clone())
         .collect();
-    let mut rows = chain_rows(&window, &quotes, atm);
-    let now = ctx.now();
-    let expiry_dt = expiry_datetime(&u.expiry, &opt_ex, None);
+    let mut rows = chain_rows(&p.window, &quotes, p.atm);
     let forward = if with_greeks {
         let r = interest_rate.unwrap_or(0.0) / 100.0;
-        let t = expiry_dt.and_then(|e| time_to_expiry(e, now)).map(|t| t.1);
-        Some(add_chain_greeks(&mut rows, strikes[atm], uq.ltp, t, r))
+        let expiry_dt = expiry_datetime(&p.u.expiry, &p.opt_ex, None);
+        let t = expiry_dt
+            .and_then(|e| time_to_expiry(e, ctx.now()))
+            .map(|t| t.1);
+        Some(add_chain_greeks(
+            &mut rows,
+            p.strikes[p.atm],
+            p.uq.ltp,
+            t,
+            r,
+        ))
     } else {
         None
     };
-    let chain: Vec<Value> = rows
-        .into_iter()
-        .map(|(k, c, p)| {
-            json!({
-                "strike": float(k),
-                "ce": c.map(Value::Object).unwrap_or(Value::Null),
-                "pe": p.map(Value::Object).unwrap_or(Value::Null),
-            })
-        })
-        .collect();
-    let body = json!({
-        "status": "success",
-        "underlying": u.base,
-        "underlying_symbol": u.quote_symbol,
-        "underlying_exchange": u.quote_exchange,
-        "underlying_ltp": num(uq.ltp),
-        "underlying_prev_close": num(uq.close),
-        "expiry_date": u.expiry,
-        "expiry_ts": expiry_dt.map(|e| json!(e.timestamp())).unwrap_or(Value::Null),
-        "server_ts": now.timestamp(),
-        "atm_strike": float(strikes[atm]),
-        "quotes_included": true,
-        "greeks_included": with_greeks,
-        "forward_price": forward.map(num).unwrap_or(Value::Null),
-        "chain": chain,
-    });
+    let body = chain_body(ctx, &p, rows, true, with_greeks, forward);
     Ok(ChainAnswer {
         body,
         quote_missing,

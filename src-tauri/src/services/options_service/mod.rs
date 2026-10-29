@@ -15,7 +15,7 @@ use serde_json::{json, Map, Value};
 
 mod chain_answer;
 mod greeks;
-pub use chain_answer::{option_chain_answer, ChainAnswer};
+pub use chain_answer::{option_chain_answer, option_chain_structure, ChainAnswer};
 pub use greeks::*;
 
 const MONTHS: [&str; 12] = [
