@@ -8,6 +8,7 @@ import { useParams } from 'react-router'
 import { flowQueryKeys, getIndexSymbolsLotSizes } from '@/api/flow'
 // Desktop: webhook URLs on the tunnel's address, and the note when they are local.
 import { getWebhookInfoForTrader } from '@/api/flowDesktop'
+import { FlowUnusedAlertFieldsNote } from '@/components/desktop/FlowPanelNotes'
 import { FlowWebhookReachability } from '@/components/desktop/FlowWebhookReachability'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,6 +24,8 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+// Desktop: fixes to web defects named in .lane/105/parity.md (F-545, F-564).
+import { FIXED_SIDE_STRATEGIES, historyIntervalOptions } from '@/lib/desktopFlow'
 import type { PriceType } from '@/lib/flow/constants'
 import {
   DAYS_OF_WEEK,
@@ -300,9 +303,12 @@ export function ConfigPanel() {
   const handleClose = useCallback(() => {
     selectNode(null)
   }, [selectNode])
+  // Desktop: says so when the copy fails (parity F-512); the web toasts success regardless.
   const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text)
-    showToast.success(`${label} copied`)
+    navigator.clipboard.writeText(text).then(
+      () => showToast.success(`${label} copied`),
+      () => showToast.error(`Could not copy the ${label}. Select it and copy it by hand.`)
+    )
   }
 
   if (!selectedNode) {
@@ -472,7 +478,7 @@ export function ConfigPanel() {
                                 'days',
                                 sel
                                   ? days.filter((d) => d !== day.value)
-                                  : [...days, day.value].sort()
+                                  : [...days, day.value].sort((a, b) => a - b)
                               )
                             }
                             className={cn(
@@ -631,6 +637,8 @@ export function ConfigPanel() {
                     </SelectContent>
                   </Select>
                 </div>
+                {/* Desktop: Play Sound and Alert Message are stored but unused (parity F-587). */}
+                <FlowUnusedAlertFieldsNote />
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <Label className="text-xs">Play Sound</Label>
@@ -1175,7 +1183,11 @@ export function ConfigPanel() {
                     ))}
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    {nodeData.action === 'BUY' ? 'Long strategy' : 'Short strategy'}
+                    {FIXED_SIDE_STRATEGIES.has(nodeData.strategy as string)
+                      ? 'This strategy places fixed sides; Action does not change them.'
+                      : nodeData.action === 'BUY'
+                        ? 'Long strategy'
+                        : 'Short strategy'}
                   </p>
                 </div>
                 <QuantityField
@@ -1244,7 +1256,7 @@ export function ConfigPanel() {
                     {nodeData.strategy === 'strangle' && (
                       <>
                         <div className="flex justify-between">
-                          <span>OTM2 CE</span>
+                          <span>{(nodeData.strangleWidth as string) || 'OTM2'} CE</span>
                           <span
                             className={
                               nodeData.action === 'BUY' ? 'text-green-600' : 'text-red-600'
@@ -1254,7 +1266,7 @@ export function ConfigPanel() {
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span>OTM2 PE</span>
+                          <span>{(nodeData.strangleWidth as string) || 'OTM2'} PE</span>
                           <span
                             className={
                               nodeData.action === 'BUY' ? 'text-green-600' : 'text-red-600'
@@ -1471,9 +1483,9 @@ export function ConfigPanel() {
                     type="number"
                     min={1}
                     className="h-8"
-                    value={(nodeData.splitSize as number) || 50}
+                    value={(nodeData.splitSize as number) || 10}
                     onChange={(e) =>
-                      handleDataChange('splitSize', parseInt(e.target.value, 10) || 50)
+                      handleDataChange('splitSize', parseInt(e.target.value, 10) || 10)
                     }
                   />
                 </div>
@@ -1507,7 +1519,7 @@ export function ConfigPanel() {
                 <p className="text-[10px] text-muted-foreground">
                   Splits into{' '}
                   {Math.ceil(
-                    ((nodeData.quantity as number) || 100) / ((nodeData.splitSize as number) || 50)
+                    ((nodeData.quantity as number) || 100) / ((nodeData.splitSize as number) || 10)
                   )}{' '}
                   orders
                 </p>
@@ -1750,18 +1762,18 @@ export function ConfigPanel() {
                 <div className="space-y-2">
                   <Label className="text-xs">Interval</Label>
                   <Select
-                    value={(nodeData.interval as string) || '1d'}
+                    value={(nodeData.interval as string) || '5m'}
                     onValueChange={(v) => handleDataChange('interval', v)}
                   >
                     <SelectTrigger className="h-8">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1m">1 Min</SelectItem>
-                      <SelectItem value="5m">5 Min</SelectItem>
-                      <SelectItem value="15m">15 Min</SelectItem>
-                      <SelectItem value="1h">1 Hour</SelectItem>
-                      <SelectItem value="1d">Daily</SelectItem>
+                      {historyIntervalOptions(nodeData.interval).map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1772,8 +1784,9 @@ export function ConfigPanel() {
                     min={1}
                     max={365}
                     className="h-8"
-                    value={(nodeData.days as number) || 30}
-                    onChange={(e) => handleDataChange('days', parseInt(e.target.value, 10) || 30)}
+                    placeholder="Broker default"
+                    value={(nodeData.days as number) || ''}
+                    onChange={(e) => handleDataChange('days', parseInt(e.target.value, 10) || 0)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -1927,9 +1940,10 @@ export function ConfigPanel() {
                     }
                   />
                   <p className="text-[10px] text-muted-foreground">
-                    0 = latest closed bar. Read it via {'{{name.at_offset.value}}'} (or{' '}
-                    {'{{name.at_offset.out0}}'} for multi-output indicators). Prefer this over
-                    indexing {'{{name.series[N]}}'}, whose offsets shift with Tail Bars.
+                    0 = latest bar, which may still be forming; 1 = the last closed bar. Read it via{' '}
+                    {'{{name.at_offset.value}}'} (or {'{{name.at_offset.out0}}'} for multi-output
+                    indicators). Prefer this over indexing {'{{name.series[N]}}'}, whose offsets
+                    shift with Tail Bars.
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -2193,7 +2207,7 @@ export function ConfigPanel() {
                   <Input
                     className="h-8"
                     placeholder="quotes"
-                    value={(nodeData.outputVariable as string) || 'quotes'}
+                    value={(nodeData.outputVariable as string) || ''}
                     onChange={(e) => handleDataChange('outputVariable', e.target.value)}
                   />
                   <p className="text-[10px] text-muted-foreground">
@@ -2336,7 +2350,7 @@ export function ConfigPanel() {
                   <Input
                     className="h-8"
                     placeholder="cal"
-                    value={(nodeData.outputVariable as string) || 'cal'}
+                    value={(nodeData.outputVariable as string) || ''}
                     onChange={(e) => handleDataChange('outputVariable', e.target.value)}
                   />
                   <p className="text-[10px] text-muted-foreground">
@@ -2352,7 +2366,7 @@ export function ConfigPanel() {
                 <Input
                   className="h-8"
                   placeholder="intervals"
-                  value={(nodeData.outputVariable as string) || 'intervals'}
+                  value={(nodeData.outputVariable as string) || ''}
                   onChange={(e) => handleDataChange('outputVariable', e.target.value)}
                 />
                 <p className="text-[10px] text-muted-foreground">
@@ -2366,7 +2380,7 @@ export function ConfigPanel() {
                 <Input
                   className="h-8"
                   placeholder="orders"
-                  value={(nodeData.outputVariable as string) || 'orders'}
+                  value={(nodeData.outputVariable as string) || ''}
                   onChange={(e) => handleDataChange('outputVariable', e.target.value)}
                 />
                 <p className="text-[10px] text-muted-foreground">Use {`{{orders.data.orders}}`}</p>
@@ -2378,7 +2392,7 @@ export function ConfigPanel() {
                 <Input
                   className="h-8"
                   placeholder="trades"
-                  value={(nodeData.outputVariable as string) || 'trades'}
+                  value={(nodeData.outputVariable as string) || ''}
                   onChange={(e) => handleDataChange('outputVariable', e.target.value)}
                 />
                 <p className="text-[10px] text-muted-foreground">Use {`{{trades.data}}`}</p>
@@ -2390,7 +2404,7 @@ export function ConfigPanel() {
                 <Input
                   className="h-8"
                   placeholder="positions"
-                  value={(nodeData.outputVariable as string) || 'positions'}
+                  value={(nodeData.outputVariable as string) || ''}
                   onChange={(e) => handleDataChange('outputVariable', e.target.value)}
                 />
                 <p className="text-[10px] text-muted-foreground">Use {`{{positions.data}}`}</p>
@@ -2507,7 +2521,7 @@ export function ConfigPanel() {
                   <Input
                     className="h-8"
                     placeholder="holidays"
-                    value={(nodeData.outputVariable as string) || 'holidays'}
+                    value={(nodeData.outputVariable as string) || ''}
                     onChange={(e) => handleDataChange('outputVariable', e.target.value)}
                   />
                 </div>
@@ -2531,7 +2545,7 @@ export function ConfigPanel() {
                   <Input
                     className="h-8"
                     placeholder="timings"
-                    value={(nodeData.outputVariable as string) || 'timings'}
+                    value={(nodeData.outputVariable as string) || ''}
                     onChange={(e) => handleDataChange('outputVariable', e.target.value)}
                   />
                 </div>
@@ -2544,7 +2558,7 @@ export function ConfigPanel() {
                 <Input
                   className="h-8"
                   placeholder="holdings"
-                  value={(nodeData.outputVariable as string) || 'holdings'}
+                  value={(nodeData.outputVariable as string) || ''}
                   onChange={(e) => handleDataChange('outputVariable', e.target.value)}
                 />
                 <p className="text-[10px] text-muted-foreground">
@@ -2558,7 +2572,7 @@ export function ConfigPanel() {
                 <Input
                   className="h-8"
                   placeholder="funds"
-                  value={(nodeData.outputVariable as string) || 'funds'}
+                  value={(nodeData.outputVariable as string) || ''}
                   onChange={(e) => handleDataChange('outputVariable', e.target.value)}
                 />
                 <p className="text-[10px] text-muted-foreground">
@@ -2578,7 +2592,7 @@ export function ConfigPanel() {
                   <Input
                     className="h-8"
                     placeholder="marginResult"
-                    value={(nodeData.outputVariable as string) || 'marginResult'}
+                    value={(nodeData.outputVariable as string) || ''}
                     onChange={(e) => handleDataChange('outputVariable', e.target.value)}
                   />
                 </div>
@@ -2606,7 +2620,7 @@ export function ConfigPanel() {
                   <Input
                     className="h-8"
                     placeholder="ltp"
-                    value={(nodeData.outputVariable as string) || 'ltp'}
+                    value={(nodeData.outputVariable as string) || ''}
                     onChange={(e) => handleDataChange('outputVariable', e.target.value)}
                   />
                   <p className="text-[10px] text-muted-foreground">Real-time: {`{{ltp}}`}</p>
@@ -2634,7 +2648,7 @@ export function ConfigPanel() {
                   <Input
                     className="h-8"
                     placeholder="quote"
-                    value={(nodeData.outputVariable as string) || 'quote'}
+                    value={(nodeData.outputVariable as string) || ''}
                     onChange={(e) => handleDataChange('outputVariable', e.target.value)}
                   />
                   <p className="text-[10px] text-muted-foreground">
@@ -2664,7 +2678,7 @@ export function ConfigPanel() {
                   <Input
                     className="h-8"
                     placeholder="depth"
-                    value={(nodeData.outputVariable as string) || 'depth'}
+                    value={(nodeData.outputVariable as string) || ''}
                     onChange={(e) => handleDataChange('outputVariable', e.target.value)}
                   />
                   <p className="text-[10px] text-muted-foreground">
@@ -2882,7 +2896,7 @@ export function ConfigPanel() {
                   </Select>
                 </div>
                 {['set', 'add', 'subtract', 'multiply', 'divide', 'append', 'parse_json'].includes(
-                  nodeData.operation as string
+                  (nodeData.operation as string) || 'set'
                 ) && (
                   <div className="space-y-2">
                     <Label className="text-xs">
@@ -2949,7 +2963,7 @@ export function ConfigPanel() {
                   <Input
                     className="h-8"
                     placeholder="result"
-                    value={(nodeData.outputVariable as string) || 'result'}
+                    value={(nodeData.outputVariable as string) || ''}
                     onChange={(e) => handleDataChange('outputVariable', e.target.value)}
                   />
                 </div>

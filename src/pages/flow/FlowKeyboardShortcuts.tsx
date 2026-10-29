@@ -129,7 +129,8 @@ export default function FlowKeyboardShortcuts() {
           <li>Click the + button on edges to insert a new node between existing nodes</li>
           <li>Drag nodes to reposition them on the canvas</li>
           <li>Use the minimap in the bottom-right corner for quick navigation</li>
-          <li>Right-click nodes for context menu options</li>
+          {/* Desktop: the web's "Right-click nodes for context menu options" is
+              dropped; no node has a context menu (parity F-182). */}
         </ul>
       </div>
     </div>

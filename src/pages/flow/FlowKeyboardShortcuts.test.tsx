@@ -29,6 +29,12 @@ describe('/flow/shortcuts', () => {
     expect(within(save).getByText('S')).toBeInTheDocument()
   })
 
+  it('promises no node context menu, which the editor does not have (F-182)', () => {
+    renderPage()
+    expect(screen.queryByText(/Right-click/)).not.toBeInTheDocument()
+    expect(screen.getByText(/Click the \+ button on edges/)).toBeInTheDocument()
+  })
+
   it('leads back to the workflow list', () => {
     renderPage()
     expect(screen.getByRole('link', { name: 'Back to flows list' })).toHaveAttribute(

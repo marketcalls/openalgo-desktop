@@ -4,6 +4,7 @@
 import { AlertCircle, CheckCircle2, Clock, Terminal, X, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { withPanelLevel } from '@/lib/desktopFlow'
 import { cn } from '@/lib/utils'
 
 export interface LogEntry {
@@ -124,7 +125,8 @@ export function ExecutionLogPanel({ logs, status, onClose }: ExecutionLogPanelPr
               <p className="text-xs mt-1">Click "Run Now" to execute the workflow</p>
             </div>
           ) : (
-            logs.map((log, index) => (
+            // Desktop: a Log node's `warn` shows as a warning (parity F-643).
+            logs.map(withPanelLevel).map((log, index) => (
               <div
                 key={index}
                 className={cn(

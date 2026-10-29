@@ -80,6 +80,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useProfileMenuItems } from '@/hooks/useProfileMenuItems'
+// Desktop: fixes to web defects named in .lane/105/parity.md (F-156, F-207).
+import { FLOW_STARTED_IN_BACKGROUND, failedRunLog } from '@/lib/desktopFlow'
 import { DEFAULT_NODE_DATA } from '@/lib/flow/constants'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
@@ -343,8 +345,11 @@ function FlowEditorContent() {
         // Its orders go out when the wait ends, and its result lands in the
         // execution history, so this is neither a success nor a failure yet.
         setExecutionStatus('started')
-        setExecutionLogs([{ time: new Date().toISOString(), message: data.message, level: 'info' }])
-        showToast.info(data.message || 'Workflow started', 'flow')
+        // Desktop: says where the result shows (parity F-207, lib/desktopFlow).
+        setExecutionLogs([
+          { time: new Date().toISOString(), message: FLOW_STARTED_IN_BACKGROUND, level: 'info' },
+        ])
+        showToast.info(FLOW_STARTED_IN_BACKGROUND, 'flow')
         return
       }
       setExecutionStatus(data.status === 'success' ? 'success' : 'error')
@@ -359,7 +364,8 @@ function FlowEditorContent() {
     },
     onError: (error: Error) => {
       setExecutionStatus('error')
-      setExecutionLogs([{ time: new Date().toISOString(), message: error.message, level: 'error' }])
+      // Desktop: keeps the per-node log a failed run's reply carries (parity F-156).
+      setExecutionLogs(failedRunLog(error))
       showToast.error(error.message, 'flow')
     },
   })
@@ -518,6 +524,9 @@ function FlowEditorContent() {
       const result = await replaceWorkflow(Number(id), parsed as never)
       // Reload the canvas from the database rather than trusting the payload,
       // so what is shown is what was actually stored.
+      // Desktop: hydration runs once per workflow id, so without this the
+      // canvas kept the old graph and a later Save put it back (parity F-169).
+      hydratedIdRef.current = null
       await queryClient.invalidateQueries({ queryKey: flowQueryKeys.workflow(Number(id)) })
       setShowReplaceDialog(false)
       setReplaceJson('')
@@ -526,7 +535,8 @@ function FlowEditorContent() {
         : ''
       if (result.needs_reactivate) {
         showToast.warning(
-          `Workflow replaced.${notes} The trigger changed - deactivate and reactivate it.`,
+          // Desktop: the server has already deactivated it (parity V-154).
+          `Workflow replaced.${notes} The trigger changed, so the workflow was deactivated. Activate it again once the trigger is valid.`,
           'flow'
         )
       } else {
@@ -945,7 +955,8 @@ function FlowEditorContent() {
               type: 'insertable',
               animated: true,
             }}
-            connectionLineStyle={{ stroke: 'hsl(var(--primary))', strokeWidth: 2 }}
+            // Desktop: hsl(var(--primary)) is not a colour under the oklch tokens (F-161).
+            connectionLineStyle={{ stroke: 'var(--color-primary)', strokeWidth: 2 }}
             connectionRadius={30}
             connectOnClick={true}
           >

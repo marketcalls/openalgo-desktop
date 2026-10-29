@@ -31,3 +31,82 @@ const PASS_BRANCH: Readonly<Record<string, string>> = {
 export function passBranchHandle(nodeType: string): string | undefined {
   return PASS_BRANCH[nodeType]
 }
+
+/**
+ * Parity F-545: iron condor and both spreads place fixed sides whatever the
+ * node's Action (the executor's _generate_strategy_legs), so the panel does
+ * not caption them "Long strategy" / "Short strategy".
+ */
+export const FIXED_SIDE_STRATEGIES: ReadonlySet<string> = new Set([
+  'iron_condor',
+  'bull_call_spread',
+  'bear_put_spread',
+])
+
+/**
+ * The History node's intervals. Parity F-564: the web stores `1d` for Daily,
+ * which the OpenAlgo history API does not accept (daily is `D`), so a daily
+ * History node failed on most brokers. A stored value not in the list (a web
+ * export's `1d`, or `30m`) is offered as it is, so the Select never shows
+ * blank over a value the node still holds.
+ */
+const HISTORY_INTERVALS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: '1m', label: '1 Min' },
+  { value: '5m', label: '5 Min' },
+  { value: '15m', label: '15 Min' },
+  { value: '1h', label: '1 Hour' },
+  { value: 'D', label: 'Daily' },
+]
+
+export function historyIntervalOptions(current: unknown) {
+  const stored = typeof current === 'string' ? current.trim() : ''
+  if (!stored || HISTORY_INTERVALS.some((o) => o.value === stored)) return HISTORY_INTERVALS
+  return [{ value: stored, label: `${stored} (stored on this node)` }, ...HISTORY_INTERVALS]
+}
+
+/**
+ * Parity F-207: the web's message for a run that finishes in the background
+ * says its result "appears in the workflow's execution history", a view
+ * neither the web nor the desktop has. This says where the trader does see
+ * it.
+ */
+export const FLOW_STARTED_IN_BACKGROUND =
+  'Workflow started. It waits on a Delay or Wait Until step and finishes in the background: its orders go out when the wait ends and show in the order book.'
+
+/** One line of the editor's run log (components/flow/panels/ExecutionLogPanel's LogEntry). */
+interface RunLogLine {
+  time: string
+  message: string
+  level: 'info' | 'error' | 'warning'
+}
+
+/**
+ * The run log to show for a Run Now request that failed.
+ *
+ * Parity F-156: the execute route answers a failed run with an error status
+ * and the full per-node log in the body, but the request then rejects, and
+ * the web's editor showed only the summary sentence, throwing the log away.
+ * The log is shown when the reply carries one; otherwise the one sentence.
+ */
+export function failedRunLog(error: Error, now: Date = new Date()): RunLogLine[] {
+  const body = (error as { response?: { data?: { logs?: unknown } } }).response?.data
+  const logs = body?.logs
+  if (Array.isArray(logs) && logs.length > 0) {
+    const lines = logs as RunLogLine[]
+    const last = lines[lines.length - 1]
+    // The summary goes last unless the log already ends with it.
+    return last?.message === error.message
+      ? lines
+      : [...lines, { time: now.toISOString(), message: error.message, level: 'error' }]
+  }
+  return [{ time: now.toISOString(), message: error.message, level: 'error' }]
+}
+
+/**
+ * Parity F-643: the Log node stores its Warning level as `warn` (kept, for
+ * import compatibility) and the run passes it through, but the log panel
+ * only knows `warning`, so a warning showed untinted with a success tick.
+ */
+export function withPanelLevel<T extends { level: string }>(entry: T): T {
+  return entry.level === 'warn' ? { ...entry, level: 'warning' } : entry
+}

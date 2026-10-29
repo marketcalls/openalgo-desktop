@@ -33,6 +33,14 @@ vi.mock('@/api/flow', async (importOriginal) => {
 
 vi.mock('@/hooks/useProfileMenuItems', () => ({ useProfileMenuItems: () => [] }))
 
+const toast = vi.hoisted(() => ({
+  success: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  warning: vi.fn(),
+}))
+vi.mock('@/utils/toast', () => ({ showToast: toast }))
+
 const { default: FlowEditor } = await import('./FlowEditor')
 
 function stored(overrides: Partial<Workflow> = {}): Workflow {
@@ -97,6 +105,7 @@ async function runNow(user: ReturnType<typeof userEvent.setup>) {
 }
 
 beforeEach(() => {
+  for (const fn of Object.values(toast)) fn.mockReset()
   for (const fn of Object.values(api)) fn.mockReset()
   api.getIndexSymbolsLotSizes.mockResolvedValue([])
   api.getWorkflow.mockResolvedValue(stored())
@@ -302,5 +311,75 @@ describe('leaving with unsaved changes (desktop)', () => {
     const dirty = new Event('beforeunload', { cancelable: true })
     window.dispatchEvent(dirty)
     expect(dirty.defaultPrevented).toBe(true)
+  })
+})
+
+describe('departures from the web editor (desktop)', () => {
+  it('a failed run keeps the per-node log its reply carries (F-156)', async () => {
+    api.executeWorkflow.mockRejectedValue(
+      Object.assign(new Error('Workflow failed at Place Order'), {
+        response: {
+          status: 500,
+          data: {
+            status: 'error',
+            logs: [
+              { time: '2026-10-30T09:20:00', message: 'Getting quote for SBIN', level: 'info' },
+              { time: '2026-10-30T09:20:01', message: 'Order rejected: RMS', level: 'error' },
+            ],
+          },
+        },
+      })
+    )
+    renderEditor()
+    await loaded()
+    await runNow(userEvent.setup())
+    expect(await screen.findByText('Getting quote for SBIN')).toBeInTheDocument()
+    expect(screen.getByText('Order rejected: RMS')).toBeInTheDocument()
+    expect(screen.getByText('Workflow failed at Place Order')).toBeInTheDocument()
+  })
+
+  it('a run that waits says where its orders show, not an execution history (F-207)', async () => {
+    api.executeWorkflow.mockResolvedValue({
+      status: 'accepted',
+      message:
+        "Workflow started. It waits on a Delay or Wait Until step, so it finishes in the background; its result appears in the workflow's execution history.",
+    })
+    renderEditor()
+    await loaded()
+    await runNow(userEvent.setup())
+    expect(await screen.findByText(/show in the order book/)).toBeInTheDocument()
+    expect(screen.queryByText(/execution history/)).not.toBeInTheDocument()
+    expect(toast.info.mock.calls[0][0]).not.toMatch(/execution history/)
+  })
+
+  it('Replace from JSON reloads the canvas with what was stored (F-169, V-154)', async () => {
+    const replaced = stored({
+      nodes: [
+        ...stored().nodes,
+        { id: 'node_3', type: 'log', position: { x: 0, y: 320 }, data: { message: 'done' } },
+      ],
+    })
+    api.replaceWorkflow.mockImplementation(async () => {
+      api.getWorkflow.mockResolvedValue(replaced)
+      return { status: 'success', workflow_id: 7, needs_reactivate: true }
+    })
+    const { container } = renderEditor()
+    const user = userEvent.setup()
+    await loaded()
+    await waitFor(() => expect(container.querySelectorAll('.react-flow__node')).toHaveLength(2))
+    await user.click(screen.getByRole('button', { name: 'Workflow actions' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Replace from JSON' }))
+    const json = await screen.findByPlaceholderText(
+      '{ "name": "...", "nodes": [...], "edges": [...] }'
+    )
+    await user.click(json)
+    await user.paste(JSON.stringify({ name: 'ORB', nodes: replaced.nodes, edges: [] }))
+    await user.click(screen.getByRole('button', { name: 'Replace' }))
+
+    await waitFor(() => expect(container.querySelectorAll('.react-flow__node')).toHaveLength(3))
+    expect(screen.queryByText('Unsaved')).not.toBeInTheDocument()
+    expect(toast.warning.mock.calls[0][0]).toBe(
+      'Workflow replaced. The trigger changed, so the workflow was deactivated. Activate it again once the trigger is valid.'
+    )
   })
 })

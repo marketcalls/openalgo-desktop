@@ -15,7 +15,6 @@ interface TelegramAlertNodeProps {
 }
 
 export const TelegramAlertNode = memo(({ data, selected }: TelegramAlertNodeProps) => {
-  const nodeData = data as unknown as Record<string, unknown>
   const truncatedMessage = data.message
     ? data.message.length > 25
       ? `${data.message.substring(0, 25)}...`
@@ -38,7 +37,9 @@ export const TelegramAlertNode = memo(({ data, selected }: TelegramAlertNodeProp
           <div>
             <div className="text-xs font-medium leading-tight">Telegram</div>
             <div className="text-[9px] text-muted-foreground">
-              {(nodeData.username as string) || 'No user'}
+              {/* Desktop: no field sets a user, so the web's "No user" was always
+                  shown; alerts go to the linked Telegram account (parity F-684). */}
+              Linked account
             </div>
           </div>
         </div>

@@ -38,14 +38,12 @@ export const SplitOrderNode = memo(({ data, selected }: SplitOrderNodeProps) => 
           <div className="flex items-center justify-between text-[9px]">
             <span className={cn('font-medium', actionClass)}>{data.action || 'BUY'}</span>
             <span className="text-muted-foreground">
-              {data.quantity || 0} / {data.splitSize || 50}
+              {/* Desktop: 10 is the run's default split size (parity F-586). */}
+              {data.quantity || 0} / {data.splitSize || 10}
             </span>
           </div>
-          {data.delayMs && (
-            <div className="text-center text-[9px] text-muted-foreground">
-              {data.delayMs}ms delay
-            </div>
-          )}
+          {/* Desktop: the web's "{delayMs}ms delay" row is dropped; the run
+              never pauses between splits (parity F-677). */}
         </div>
       </div>
       <Handle type="source" position={Position.Bottom} className="!bottom-0 !translate-y-1/2" />
