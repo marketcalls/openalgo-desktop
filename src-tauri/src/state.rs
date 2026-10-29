@@ -466,6 +466,7 @@ impl AppState {
         let ctx = self;
         crate::messaging::register(ctx);
         ctx.historify.start();
+        crate::flow::start(ctx);
         crate::strategy::register(ctx);
         crate::trading::register(ctx);
         crate::scalping::register(&ctx.bus, &ctx.scalping);

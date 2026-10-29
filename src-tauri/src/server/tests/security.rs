@@ -38,8 +38,8 @@ async fn s01_account_reset_is_not_reachable_over_http() {
     assert_eq!(s, StatusCode::OK, "API key kept");
 }
 
-/// S-07: a reset leaves nothing usable behind: MCP tokens, strategy and
-/// Chartink webhook secrets, Telegram and WhatsApp links.
+/// S-07: a reset leaves nothing usable behind: MCP tokens, strategy,
+/// Chartink and Flow webhook secrets, Telegram and WhatsApp links.
 #[tokio::test]
 async fn s07_account_reset_revokes_every_outside_credential() {
     let h = H::new();
@@ -81,6 +81,13 @@ async fn s07_account_reset_revokes_every_outside_credential() {
             [],
         )
         .unwrap();
+        c.execute(
+            "INSERT INTO flow_workflows (name, is_active, webhook_token, webhook_secret,
+                 webhook_secret_nonce, webhook_enabled)
+             VALUES ('flow', 1, 'flow-token', 'ct', 'nonce', 1)",
+            [],
+        )
+        .unwrap();
         (mcp_token, strategy_hash)
     };
 
@@ -105,6 +112,17 @@ async fn s07_account_reset_revokes_every_outside_credential() {
         .unwrap();
     assert_ne!(id, "11111111-1111-4111-8111-111111111111");
     assert!(uuid::Uuid::parse_str(&id).is_ok());
+    // D-19: every Flow webhook address and secret stops working, and every
+    // workflow stops; the workflow itself is kept.
+    let flow: (String, Option<String>, bool, bool) = c
+        .query_row(
+            "SELECT webhook_token, webhook_secret, webhook_enabled, is_active FROM flow_workflows",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
+        .unwrap();
+    assert_ne!(flow.0, "flow-token");
+    assert_eq!((flow.1, flow.2, flow.3), (None, false, false));
     drop(c);
     assert_eq!(count(&h, "SELECT COUNT(*) FROM telegram_users"), 0);
     assert_eq!(count(&h, "SELECT COUNT(*) FROM whatsapp_users"), 0);

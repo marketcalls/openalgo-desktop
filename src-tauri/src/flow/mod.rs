@@ -9,6 +9,8 @@
 //!   the node trait and its context, interpolation, the client nodes reach
 //!   OpenAlgo through, the subscription record and the trigger hooks.
 //! - `nodes/`: the node registry, one line per node family.
+//! - `store/`: the workflows and their run history (migration
+//!   `100_flow_core`).
 //! - `validator/`: the web's workflow validator.
 //!
 //! Every run is a task this module owns; [`FlowModule::stop_all`] ends them
@@ -17,6 +19,7 @@
 
 pub mod contract;
 pub mod nodes;
+pub mod store;
 pub mod validator;
 
 use contract::subscriptions::Subscriptions;
@@ -27,6 +30,20 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
+
+/// At app start: close the runs a quit or crash left `running`, so the
+/// history never shows a run as going that nothing runs (lead decision 6).
+pub fn start(ctx: &Arc<crate::state::AppState>) {
+    let closed = ctx
+        .sqlite
+        .conn()
+        .and_then(|c| store::executions::close_interrupted(&c, ctx.now()));
+    match closed {
+        Ok(0) => {}
+        Ok(n) => tracing::info!("Closed {} Flow run(s) the last session left unfinished", n),
+        Err(e) => tracing::warn!("Could not close the Flow runs the last session left: {}", e),
+    }
+}
 
 /// How long a stopped run has to write its record before it is aborted.
 pub const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(2);
