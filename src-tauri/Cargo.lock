@@ -4244,7 +4244,7 @@ dependencies = [
 
 [[package]]
 name = "openalgo-desktop"
-version = "1.0.3"
+version = "1.0.4"
 dependencies = [
  "aes 0.8.4",
  "aes-gcm",

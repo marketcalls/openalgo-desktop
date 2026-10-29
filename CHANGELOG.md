@@ -3,6 +3,168 @@
 All notable changes to OpenAlgo Desktop are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## 1.0.4
+
+The Agent arrives: ask about your account and the market in plain words, on
+the `/agent` page or in the Assistant panel of the `/trading` terminal, on a
+model you choose. It reads OpenAlgo's own data, draws charts, computes 127
+indicators and asks for your approval before every order. Also from
+OpenAlgo web: the Sector Rotation tool, every chart on openalgo-charts
+2.6.9, and fixes for Dhan, Angel, Groww and RMoney. Links to web pages now
+open in your browser. If you run 1.0.3, OpenAlgo offers this update in the
+app; choose Update when no live strategy is running. On a Linux `.deb`
+install, download the new `.deb` from the Releases page: the notice's link
+did not open before 1.0.4. The update sets up the Agent's storage in your
+data by itself, after its usual backup; nothing else changes until you set
+up a model.
+
+### The Agent
+
+- Open it from the profile menu, Agent. Set up a model first in Admin,
+  Agent Config. The Agent works through your OpenAlgo API key, so generate
+  one on the API Key page if you have none.
+- Models from OpenAI, Anthropic, Ollama on your own computer, any
+  OpenAI-compatible server (LM Studio, vLLM and similar), and other
+  providers by their prefixed model name, such as `gemini/`, `groq/`,
+  `deepseek/`, `mistral/`, `xai/` or `openrouter/`. Test checks a model
+  before you use it, and each answer shows the tokens used and an estimated
+  cost.
+- A ChatGPT Plus or Pro plan: sign in once in Agent Config, and `chatgpt/`
+  models run on your plan instead of API credits. The sign-in page opens in
+  your browser.
+- Model keys and the ChatGPT sign-in are kept encrypted in OpenAlgo's data
+  on your computer, never in a file, and are never shown again once saved.
+- It answers from OpenAlgo's own services: quotes, depth, history, option
+  chains, Greeks, symbols and expiries, funds, the order, trade and position
+  books and holdings. In analyzer mode it reads your sandbox account.
+- In the chat it draws price charts with indicators, open interest, gamma
+  exposure, the volatility surface, combined premium and option payoff, and
+  live quote cards.
+- 127 technical indicators, computed inside OpenAlgo with the same results
+  as OpenAlgo web's `openalgo.ta`, and a scan of up to 15 symbols on a
+  condition such as RSI below 30.
+- Attach up to four images or text files to a question; images need a model
+  that reads them.
+- Web search, switched on per question: DuckDuckGo with no key, or Tavily or
+  Perplexity with yours. Only words from your own question are sent to the
+  search, and a daily limit applies.
+- OpenScript: ask for a study or strategy and the Agent writes it, then
+  saves it to your `/trading` scripts once you approve, never over a
+  compiled script.
+- Voice: with an OpenAI key used only for speech, talk to the Agent from
+  the microphone button. Your chosen model still writes every answer, with
+  the same tools and limits.
+
+### Orders from the Agent
+
+- Trading is off until you turn on "Allow the agent to place, modify and
+  cancel orders" in Agent Config. Then every order, modify, cancel and close
+  stops on an approval card that states it in plain words ("Buy 10 SBIN on
+  NSE, intraday (MIS), at market."), and nothing is sent until you choose
+  Approve. An approval left for 10 minutes expires and nothing is placed.
+- Trading safety, in Agent Config: a kill switch that stops every Agent
+  order, also engaged while its file exists so you can stop the Agent
+  without opening OpenAlgo; limits on orders per conversation, quantity,
+  order value, distance from the last price and share of your funds;
+  allowed exchanges, products and symbols; a duplicate-order window;
+  analyzer mode only; and whether cancel-all and close-all are allowed. The
+  limits are checked again after you approve and hold across a restart.
+- Orders follow OpenAlgo's mode: in analyzer mode they go to the sandbox,
+  and in Semi-Auto an approved order waits in Action Center for you to
+  place it.
+- A smart order sends exactly the order you approved. If your position
+  changed in the meantime, nothing is sent and the Agent tells you.
+- Every order the Agent sends carries the strategy name OpenAlgo Agent.
+  Each order call, your decision and its result are kept in an audit record
+  that stays when you delete the conversation.
+- With voice, an order asked for by voice can be approved by voice for 30
+  seconds; an order asked for on screen is approved on screen only.
+
+### The Assistant panel in `/trading`
+
+- Assistant, last on the right rail, opens a chat about the chart in front
+  of you: it reads the symbol, interval, visible bars, indicators and your
+  drawings.
+- It marks levels, trend lines and zones, finds patterns, and adds or
+  removes indicators. It never changes the chart's symbol, and clearing what
+  it drew never removes your own drawings.
+- Orders from the panel use the same switch, limits and approval card as
+  `/agent`.
+
+### Compatibility with OpenAlgo web
+
+- Sector Rotation, in Tools: every NSE sector index, or your own list of
+  stocks and indices, on a four-quadrant map against a benchmark, daily or
+  weekly, with trails; also through the API, as on OpenAlgo web. A port of
+  marketcalls/openalgo b7cdc028e, 3e37288e0 and 91e35d9fb.
+- When the connection to your broker drops after an order was sent,
+  OpenAlgo no longer reports the order as failed: it says the order may
+  have been placed and to check the order book before placing it again.
+  Zerodha orders are looked up in the order book by their tag
+  (marketcalls/openalgo#2305).
+- The scalping terminal, Option Greeks, P&L Tracker, Straddle Chart,
+  Straddle PnL, the Health Monitor and the chart test page draw with
+  openalgo-charts, as `/trading` does (marketcalls/openalgo#2297,
+  marketcalls/openalgo#2298, marketcalls/openalgo#2299,
+  marketcalls/openalgo#2300, marketcalls/openalgo#2301,
+  marketcalls/openalgo#2302, marketcalls/openalgo#2303), and the older
+  chart library is gone (marketcalls/openalgo#2304).
+- Every chart moves to openalgo-charts 2.6.9: Renko, range bar, line break
+  and point and figure bricks carry the volume traded while they formed,
+  higher-timeframe studies warm up across weekends and holidays, and OHLC
+  bars widen as you zoom in (marketcalls/openalgo 583852ba4).
+
+### Brokers
+
+- Dhan: an index's intraday chart loads after the close on every interval.
+  Dhan adds a flat bar after the close to index history, which stopped the
+  30-minute chart; it is now dropped (marketcalls/openalgo#2308).
+- Dhan: index rows are typed EQ with no expiry, and every NSE index and
+  Dhan's 17 BSE indices take their standard names
+  (marketcalls/openalgo#2306).
+- Angel: modifying an SL or SL-M order moves its trigger price. Before, the
+  modify answered success and the trigger at Angel stayed where it was
+  (marketcalls/openalgo#2279).
+- Groww: the live feed no longer drops and reconnects without end after it
+  connects (marketcalls/openalgo#2312).
+- RMoney and the other Symphony XTS brokers: a smart order finds an open
+  position that the broker lists without an instrument id, instead of
+  reading it as flat (marketcalls/openalgo#2292).
+- XTS brokers and Samco: their log lines never carry your broker
+  credentials, and every build now checks it (marketcalls/openalgo#2313,
+  marketcalls/openalgo b06c14d29).
+
+### Fixes
+
+- Links to web pages open in your browser. Since 1.0.0, the release page
+  in the update notice and every other link to a web page did nothing in
+  the OpenAlgo window.
+- Log report pages and the Telegram and WhatsApp statistics no longer hold
+  up live price handling when several are open at once.
+
+### Maintenance
+
+- Rust 1.99.1 and Tauri 2.12.4. Several tests that failed the release
+  checks at random now wait for what they check.
+
+### Known limitations
+
+- Flow (`/flow`) is not in 1.0.4; it is planned for 1.0.5. Use OpenAlgo web
+  for it until then.
+- The Agent writes OpenScript, not Python strategies as OpenAlgo web's
+  Agent does.
+- Models on Amazon Bedrock, SageMaker and Google Vertex AI are not offered.
+- Web search with no key goes through DuckDuckGo, which turns requests
+  away at busy times; the Agent then says it could not search. For search
+  you can rely on, add a Tavily or Perplexity key in Agent Config.
+- No external data server is offered to the Agent yet, as on OpenAlgo web,
+  so Agent Config has no External data section.
+- Voice needs a microphone connection in the OpenAlgo window. On a Linux
+  system whose web view has none, the microphone button says so; use voice
+  from Chrome or Firefox at OpenAlgo's address instead.
+- The MCP server for Claude Desktop and Claude Code still computes 27
+  indicators; it moves to the Agent's 127 in a later update.
+
 ## 1.0.3
 
 A built-in ngrok tunnel for TradingView, Chartink and GoCharting alerts,
