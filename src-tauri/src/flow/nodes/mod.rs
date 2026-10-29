@@ -8,6 +8,7 @@
 
 pub mod core;
 pub mod logic;
+pub mod math;
 pub mod pyjson;
 
 #[cfg(test)]
