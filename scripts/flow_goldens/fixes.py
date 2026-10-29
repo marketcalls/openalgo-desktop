@@ -114,7 +114,7 @@ FIXES.update({
     # N-mathExpression-11: an unresolved reference says so.
     "math_unresolved": [(fx.NodeExecutor, "execute_math_expression", [
         ("            # Step 2: Safely evaluate the expression\n",
-         "            _left = list(dict.fromkeys(_UNRESOLVED_PATTERN.findall(interpolated)))\n"
+         "            _left = list(dict.fromkeys(_UNRESOLVED_PATTERN.findall(interpolated))) if isinstance(interpolated, str) else []\n"
          "            if len(_left) == 1:\n"
          "                raise ValueError(f\"unresolved variable {_left[0]}\")\n"
          "            if _left:\n"
