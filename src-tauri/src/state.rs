@@ -147,6 +147,8 @@ pub struct AppState {
     pub tunnel: crate::services::tunnel::Tunnel,
     /// The Agent: its model resolver, approval hook and running turns.
     pub agent: crate::agent::AgentModule,
+    /// Flow: the node registry, the runs in flight, the trigger hooks.
+    pub flow: crate::flow::FlowModule,
 }
 
 /// Health alert type raised when Historify had to drop an unreplayable WAL.
@@ -453,6 +455,7 @@ impl AppState {
             updates: crate::services::update::UpdateService::new(env!("CARGO_PKG_VERSION")),
             tunnel: Default::default(),
             agent: crate::agent::AgentModule::configured(),
+            flow: crate::flow::FlowModule::new(),
         }
     }
 
@@ -570,6 +573,7 @@ impl AppState {
     pub async fn shutdown(&self) {
         self.shutdown.cancel();
         self.agent.stop_all();
+        self.flow.stop_all(crate::flow::STOP_GRACE).await;
         self.tunnel
             .stop(crate::services::tunnel::Off::SignedOut)
             .await;
