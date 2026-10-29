@@ -1,0 +1,148 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "unsubscribe",
+ "scenario": "exception",
+ "note": "",
+ "parity": [
+  "N-unsubscribe-08"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "unsubscribe",
+  "data": {
+   "streamType": "quote",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "unsubscribe",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "streamType": "quote",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "unsubscribe_raise": "proxy went away"
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "type": "unsubscribe",
+   "symbol": "SBIN",
+   "exchange": "NSE",
+   "stream_type": "quote",
+   "message": "Unsubscribe completed (with warnings)"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Unsubscribing from quote stream: SBIN (NSE)"
+   ],
+   [
+    "warning",
+    "Unsubscribe error: proxy went away"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null,
+  "feed": [
+   {
+    "op": "unsubscribe",
+    "symbols": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE"
+     }
+    ],
+    "mode": "Quote"
+   }
+  ]
+ },
+ "desktop_expected": {
+  "parity": "N-unsubscribe-08",
+  "why": "WEB-DEFECT: an exception is reported as success; the desktop reports it as a failure with the exception text.",
+  "fix": [
+   "unsubscribe_exception_error"
+  ],
+  "outputs": {
+   "status": "error",
+   "type": "unsubscribe",
+   "symbol": "SBIN",
+   "exchange": "NSE",
+   "stream_type": "quote",
+   "message": "proxy went away"
+  },
+  "logs": [
+   [
+    "info",
+    "Unsubscribing from quote stream: SBIN (NSE)"
+   ],
+   [
+    "warning",
+    "Unsubscribe error: proxy went away"
+   ],
+   [
+    "error",
+    "Stopping this branch: unsubscribe node failed (proxy went away)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "unsubscribe",
+     "message": "proxy went away"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

@@ -1,0 +1,226 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "history",
+ "scenario": "interpolated",
+ "note": "",
+ "parity": [
+  "N-history-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "history",
+  "data": {
+   "endDate": "{{e}}",
+   "exchange": "{{webhook.ex}}",
+   "interval": "D",
+   "outputVariable": "h",
+   "startDate": "{{s}}",
+   "symbol": "{{webhook.symbol}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "symbol": "INFY",
+   "ex": "NSE",
+   "n": "3",
+   "day": "2026-11-02",
+   "u": "NIFTY",
+   "exp": "25NOV26",
+   "it": "futures",
+   "qty": "50",
+   "px": "1880.5"
+  },
+  "s": "2026-10-01",
+  "e": "2026-10-28"
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "history",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "endDate": "{{e}}",
+     "exchange": "{{webhook.ex}}",
+     "interval": "D",
+     "outputVariable": "h",
+     "startDate": "{{s}}",
+     "symbol": "{{webhook.symbol}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "history",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "timestamp": 1792953000,
+      "open": 792.5,
+      "high": 798.75,
+      "low": 789.5,
+      "close": 796.25,
+      "volume": 101383
+     },
+     {
+      "timestamp": 1793039400,
+      "open": 796.25,
+      "high": 799.75,
+      "low": 789.25,
+      "close": 791.25,
+      "volume": 109302
+     },
+     {
+      "timestamp": 1793125800,
+      "open": 791.25,
+      "high": 795.75,
+      "low": 788.25,
+      "close": 791.25,
+      "volume": 117221
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_history",
+    "endpoint": "history",
+    "payload": {
+     "symbol": "INFY",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-10-01",
+     "end_date": "2026-10-28",
+     "source": "api"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": [
+    {
+     "timestamp": 1792953000,
+     "open": 792.5,
+     "high": 798.75,
+     "low": 789.5,
+     "close": 796.25,
+     "volume": 101383
+    },
+    {
+     "timestamp": 1793039400,
+     "open": 796.25,
+     "high": 799.75,
+     "low": 789.25,
+     "close": 791.25,
+     "volume": 109302
+    },
+    {
+     "timestamp": 1793125800,
+     "open": 791.25,
+     "high": 795.75,
+     "low": 788.25,
+     "close": 791.25,
+     "volume": 117221
+    }
+   ]
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "symbol": "INFY",
+    "ex": "NSE",
+    "n": "3",
+    "day": "2026-11-02",
+    "u": "NIFTY",
+    "exp": "25NOV26",
+    "it": "futures",
+    "qty": "50",
+    "px": "1880.5"
+   },
+   "s": "2026-10-01",
+   "e": "2026-10-28",
+   "h": {
+    "status": "success",
+    "data": [
+     {
+      "timestamp": 1792953000,
+      "open": 792.5,
+      "high": 798.75,
+      "low": 789.5,
+      "close": 796.25,
+      "volume": 101383
+     },
+     {
+      "timestamp": 1793039400,
+      "open": 796.25,
+      "high": 799.75,
+      "low": 789.25,
+      "close": 791.25,
+      "volume": 109302
+     },
+     {
+      "timestamp": 1793125800,
+      "open": 791.25,
+      "high": 795.75,
+      "low": 788.25,
+      "close": 791.25,
+      "volume": 117221
+     }
+    ]
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting history for: INFY (D)"
+   ],
+   [
+    "info",
+    "History data received"
+   ],
+   [
+    "info",
+    "Stored result in variable: h"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

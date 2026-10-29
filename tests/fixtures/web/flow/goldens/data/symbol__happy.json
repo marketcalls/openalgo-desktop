@@ -1,0 +1,153 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "symbol",
+ "scenario": "happy",
+ "note": "",
+ "parity": [
+  "N-symbol-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "symbol",
+  "data": {
+   "exchange": "NSE",
+   "outputVariable": "info",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "symbol",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "outputVariable": "info",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "symbol",
+   "reply": {
+    "status": "success",
+    "data": {
+     "brexchange": "NSE",
+     "brsymbol": "SBIN-EQ",
+     "exchange": "NSE",
+     "expiry": "",
+     "id": 1201,
+     "instrumenttype": "EQ",
+     "lotsize": 1,
+     "name": "STATE BANK OF INDIA",
+     "strike": -0.01,
+     "symbol": "SBIN",
+     "tick_size": 0.05,
+     "token": "3045"
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "symbol",
+    "endpoint": "symbol",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": {
+    "brexchange": "NSE",
+    "brsymbol": "SBIN-EQ",
+    "exchange": "NSE",
+    "expiry": "",
+    "id": 1201,
+    "instrumenttype": "EQ",
+    "lotsize": 1,
+    "name": "STATE BANK OF INDIA",
+    "strike": -0.01,
+    "symbol": "SBIN",
+    "tick_size": 0.05,
+    "token": "3045"
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "info": {
+    "status": "success",
+    "data": {
+     "brexchange": "NSE",
+     "brsymbol": "SBIN-EQ",
+     "exchange": "NSE",
+     "expiry": "",
+     "id": 1201,
+     "instrumenttype": "EQ",
+     "lotsize": 1,
+     "name": "STATE BANK OF INDIA",
+     "strike": -0.01,
+     "symbol": "SBIN",
+     "tick_size": 0.05,
+     "token": "3045"
+    }
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting symbol info for: SBIN (NSE)"
+   ],
+   [
+    "info",
+    "Symbol result: {'status': 'success', 'data': {'brexchange': 'NSE', 'brsymbol': 'SBIN-EQ', 'exchange': 'NSE', 'expiry': '', 'id': 1201, 'instrumenttype': 'EQ', 'lotsize': 1, 'name': 'STATE BANK OF INDIA', 'strike': -0.01, 'symbol': 'SBIN', 'tick_size': 0.05, 'token': '3045'}}"
+   ],
+   [
+    "info",
+    "Stored result in variable: info"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

@@ -1,0 +1,121 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "openPosition",
+ "scenario": "product_type_key",
+ "note": "",
+ "parity": [
+  "N-openPosition-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "openPosition",
+  "data": {
+   "exchange": "NSE",
+   "outputVariable": "pos",
+   "symbol": "TCS"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "openPosition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "outputVariable": "pos",
+     "symbol": "TCS"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "positionbook",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "symbol": "TCS",
+      "exchange": "NSE",
+      "product_type": "MIS",
+      "quantity": "7",
+      "pnl": -12.25
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "positionbook",
+    "endpoint": "positionbook",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "quantity": "7",
+   "pnl": -12.25
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "pos": {
+    "status": "success",
+    "quantity": "7",
+    "pnl": -12.25
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting open position for: TCS"
+   ],
+   [
+    "info",
+    "Open position result: {'status': 'success', 'quantity': '7', 'pnl': -12.25}"
+   ],
+   [
+    "info",
+    "Stored result in variable: pos"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

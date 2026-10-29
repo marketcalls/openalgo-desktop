@@ -1,0 +1,131 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "syntheticFuture",
+ "scenario": "failure",
+ "note": "",
+ "parity": [
+  "N-syntheticFuture-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "syntheticFuture",
+  "data": {
+   "exchange": "NSE_INDEX",
+   "expiryDate": "25NOV26",
+   "outputVariable": "syn",
+   "underlying": "NIFTY"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "syntheticFuture",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE_INDEX",
+     "expiryDate": "25NOV26",
+     "outputVariable": "syn",
+     "underlying": "NIFTY"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "syntheticfuture",
+   "reply": {
+    "status": "error",
+    "error": "Invalid openalgo apikey",
+    "code": 403
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "syntheticfuture",
+    "endpoint": "syntheticfuture",
+    "payload": {
+     "underlying": "NIFTY",
+     "exchange": "NSE_INDEX",
+     "expiry_date": "25NOV26"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "error": "Invalid openalgo apikey",
+   "code": 403
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "syn": {
+    "status": "error",
+    "error": "Invalid openalgo apikey",
+    "code": 403
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Calculating synthetic future for: NIFTY"
+   ],
+   [
+    "info",
+    "Synthetic future result: {'status': 'error', 'error': 'Invalid openalgo apikey', 'code': 403}"
+   ],
+   [
+    "info",
+    "Stored result in variable: syn"
+   ],
+   [
+    "error",
+    "Stopping this branch: syntheticFuture node failed (Invalid openalgo apikey)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "syntheticFuture",
+     "message": "Invalid openalgo apikey"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

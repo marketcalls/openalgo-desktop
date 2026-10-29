@@ -1,0 +1,281 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "splitOrder",
+ "scenario": "doc_example_line1036",
+ "note": "Node example from docs/prompt/flow-import-format.md:1036, run with scripted replies.",
+ "parity": [
+  "N-splitOrder-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "splitOrder",
+  "data": {
+   "action": "SELL",
+   "exchange": "NSE",
+   "outputVariable": "splitOut",
+   "price": 0,
+   "priceType": "MARKET",
+   "product": "MIS",
+   "quantity": 105,
+   "splitSize": 20,
+   "symbol": "YESBANK",
+   "triggerPrice": 0
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "symbol": "RELIANCE",
+   "action": "BUY",
+   "qty": 5,
+   "quantity": 5,
+   "exchange": "NSE"
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "splitOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "SELL",
+     "exchange": "NSE",
+     "outputVariable": "splitOut",
+     "price": 0,
+     "priceType": "MARKET",
+     "product": "MIS",
+     "quantity": 105,
+     "splitSize": 20,
+     "symbol": "YESBANK",
+     "triggerPrice": 0
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "master_contract": [
+   {
+    "symbol": "NIFTY25NOV2624000CE",
+    "name": "NIFTY",
+    "exchange": "NFO",
+    "lotsize": 65,
+    "expiry": "25-NOV-26",
+    "strike": 24000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "NIFTYNXT5025NOV2668000CE",
+    "name": "NIFTYNXT50",
+    "exchange": "NFO",
+    "lotsize": 25,
+    "expiry": "25-NOV-26",
+    "strike": 68000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "BANKNIFTY25NOV2652000CE",
+    "name": "BANKNIFTY",
+    "exchange": "NFO",
+    "lotsize": 30,
+    "expiry": "25-NOV-26",
+    "strike": 52000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "SENSEX27NOV2680000CE",
+    "name": "SENSEX",
+    "exchange": "BFO",
+    "lotsize": 20,
+    "expiry": "27-NOV-26",
+    "strike": 80000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "CRUDEOIL17NOV265800CE",
+    "name": "CRUDEOIL",
+    "exchange": "MCX",
+    "lotsize": 100,
+    "expiry": "17-NOV-26",
+    "strike": 5800.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "GOLD25NOV26118000CE",
+    "name": "GOLD",
+    "exchange": "MCX",
+    "lotsize": 1,
+    "expiry": "25-NOV-26",
+    "strike": 118000.0,
+    "instrumenttype": "CE"
+   }
+  ],
+  "http": {
+   "resolve": {
+    "audit.example.com": [
+     "93.184.216.34"
+    ],
+    "hooks.example.com": [
+     "93.184.216.34"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "body": "{\"received\": true}",
+    "content_type": "application/json"
+   },
+   "record_headers": [
+    "authorization",
+    "x-source"
+   ]
+  },
+  "strategy_book": [],
+  "calendar_holidays": {
+   "2026": []
+  },
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "connect_error": "down"
+  }
+ },
+ "script": [
+  {
+   "endpoint": "splitorder",
+   "reply": {
+    "status": "success",
+    "results": [
+     {
+      "order_num": 1,
+      "orderid": "250408000400001",
+      "quantity": 50,
+      "status": "success"
+     },
+     {
+      "order_num": 2,
+      "orderid": "250408000400002",
+      "quantity": 50,
+      "status": "success"
+     }
+    ],
+    "split_size": 50,
+    "total_quantity": 100
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "split_order",
+    "endpoint": "splitorder",
+    "payload": {
+     "strategy": "Golden Flow",
+     "symbol": "YESBANK",
+     "exchange": "NSE",
+     "action": "SELL",
+     "quantity": 105,
+     "splitsize": 20,
+     "pricetype": "MARKET",
+     "product": "MIS",
+     "price": 0.0,
+     "trigger_price": 0.0
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "results": [
+    {
+     "order_num": 1,
+     "orderid": "250408000400001",
+     "quantity": 50,
+     "status": "success"
+    },
+    {
+     "order_num": 2,
+     "orderid": "250408000400002",
+     "quantity": 50,
+     "status": "success"
+    }
+   ],
+   "split_size": 50,
+   "total_quantity": 100
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "symbol": "RELIANCE",
+    "action": "BUY",
+    "qty": 5,
+    "quantity": 5,
+    "exchange": "NSE"
+   },
+   "splitOut": {
+    "status": "success",
+    "results": [
+     {
+      "order_num": 1,
+      "orderid": "250408000400001",
+      "quantity": 50,
+      "status": "success"
+     },
+     {
+      "order_num": 2,
+      "orderid": "250408000400002",
+      "quantity": 50,
+      "status": "success"
+     }
+    ],
+    "split_size": 50,
+    "total_quantity": 100
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Placing split order: YESBANK qty=105 split=20"
+   ],
+   [
+    "info",
+    "Split order result: {'status': 'success', 'results': [{'order_num': 1, 'orderid': '250408000400001', 'quantity': 50, 'status': 'success'}, {'order_num': 2, 'orderid': '250408000400002', 'quantity': 50, 'status': 'success'}], 'split_size': 50, 'total_quantity': 100}"
+   ],
+   [
+    "info",
+    "Stored result in variable: splitOut"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

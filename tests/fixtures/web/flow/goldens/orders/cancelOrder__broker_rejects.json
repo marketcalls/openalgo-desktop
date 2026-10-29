@@ -1,0 +1,113 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "cancelOrder",
+ "scenario": "broker_rejects",
+ "note": "",
+ "parity": [
+  "N-cancelOrder-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "cancelOrder",
+  "data": {
+   "orderId": "250408000123456"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "cancelOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "orderId": "250408000123456"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "cancelorder",
+   "reply": {
+    "status": "error",
+    "error": "Order is already complete",
+    "code": 400
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "cancel_order",
+    "endpoint": "cancelorder",
+    "payload": {
+     "orderid": "250408000123456"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "error": "Order is already complete",
+   "code": 400
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Cancelling order: 250408000123456"
+   ],
+   [
+    "error",
+    "Cancel result: {'status': 'error', 'error': 'Order is already complete', 'code': 400}"
+   ],
+   [
+    "error",
+    "Stopping this branch: cancelOrder node failed (Order is already complete)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "cancelOrder",
+     "message": "Order is already complete"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

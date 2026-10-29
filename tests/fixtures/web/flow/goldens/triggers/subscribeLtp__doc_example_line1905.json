@@ -1,0 +1,240 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "subscribeLtp",
+ "scenario": "doc_example_line1905",
+ "note": "Node example from docs/prompt/flow-import-format.md:1905, run with scripted replies.",
+ "parity": [
+  "N-subscribeLtp-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "subscribeLtp",
+  "data": {
+   "exchange": "NSE",
+   "outputVariable": "rltp",
+   "symbol": "RELIANCE"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "symbol": "RELIANCE",
+   "action": "BUY",
+   "qty": 5,
+   "quantity": 5,
+   "exchange": "NSE"
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "subscribeLtp",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "outputVariable": "rltp",
+     "symbol": "RELIANCE"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "master_contract": [
+   {
+    "symbol": "NIFTY25NOV2624000CE",
+    "name": "NIFTY",
+    "exchange": "NFO",
+    "lotsize": 65,
+    "expiry": "25-NOV-26",
+    "strike": 24000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "NIFTYNXT5025NOV2668000CE",
+    "name": "NIFTYNXT50",
+    "exchange": "NFO",
+    "lotsize": 25,
+    "expiry": "25-NOV-26",
+    "strike": 68000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "BANKNIFTY25NOV2652000CE",
+    "name": "BANKNIFTY",
+    "exchange": "NFO",
+    "lotsize": 30,
+    "expiry": "25-NOV-26",
+    "strike": 52000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "SENSEX27NOV2680000CE",
+    "name": "SENSEX",
+    "exchange": "BFO",
+    "lotsize": 20,
+    "expiry": "27-NOV-26",
+    "strike": 80000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "CRUDEOIL17NOV265800CE",
+    "name": "CRUDEOIL",
+    "exchange": "MCX",
+    "lotsize": 100,
+    "expiry": "17-NOV-26",
+    "strike": 5800.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "GOLD25NOV26118000CE",
+    "name": "GOLD",
+    "exchange": "MCX",
+    "lotsize": 1,
+    "expiry": "25-NOV-26",
+    "strike": 118000.0,
+    "instrumenttype": "CE"
+   }
+  ],
+  "http": {
+   "resolve": {
+    "audit.example.com": [
+     "93.184.216.34"
+    ],
+    "hooks.example.com": [
+     "93.184.216.34"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "body": "{\"received\": true}",
+    "content_type": "application/json"
+   },
+   "record_headers": [
+    "authorization",
+    "x-source"
+   ]
+  },
+  "strategy_book": [],
+  "calendar_holidays": {
+   "2026": []
+  },
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "connect_error": "down"
+  }
+ },
+ "script": [
+  {
+   "endpoint": "quotes",
+   "reply": {
+    "status": "success",
+    "data": {
+     "ask": 812.6,
+     "bid": 812.4,
+     "high": 818.0,
+     "low": 805.25,
+     "ltp": 812.5,
+     "oi": 0,
+     "open": 806.0,
+     "prev_close": 800.0,
+     "volume": 1250000
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_quotes",
+    "endpoint": "quotes",
+    "payload": {
+     "symbol": "RELIANCE",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "type": "ltp",
+   "symbol": "RELIANCE",
+   "exchange": "NSE",
+   "ltp": 812.5,
+   "source": "rest_api"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "symbol": "RELIANCE",
+    "action": "BUY",
+    "qty": 5,
+    "quantity": 5,
+    "exchange": "NSE"
+   },
+   "rltp": {
+    "status": "success",
+    "type": "ltp",
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "ltp": 812.5,
+    "source": "rest_api"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Subscribing to LTP stream: RELIANCE (NSE)"
+   ],
+   [
+    "warning",
+    "WebSocket connection failed: down"
+   ],
+   [
+    "info",
+    "WebSocket timeout/failed, falling back to REST API for RELIANCE"
+   ],
+   [
+    "info",
+    "LTP for RELIANCE: 812.5 (via REST API)"
+   ],
+   [
+    "info",
+    "Stored result in variable: rltp"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

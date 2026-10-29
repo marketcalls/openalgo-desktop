@@ -1,0 +1,182 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "condition_reached_twice_runs_once",
+ "note": "",
+ "parity": [
+  "E-22",
+  "N-logic-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Diamond",
+  "nodes": [
+   {
+    "id": "start",
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:15"
+    }
+   },
+   {
+    "id": "l1",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "path 1"
+    }
+   },
+   {
+    "id": "l2",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "path 2"
+    }
+   },
+   {
+    "id": "c",
+    "type": "varCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "leftValue": "1",
+     "operator": "==",
+     "rightValue": "1"
+    }
+   },
+   {
+    "id": "o",
+    "type": "placeOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 1,
+     "priceType": "MARKET"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-start-l1-x",
+    "source": "start",
+    "target": "l1"
+   },
+   {
+    "id": "e-start-l2-x",
+    "source": "start",
+    "target": "l2"
+   },
+   {
+    "id": "e-l1-c-x",
+    "source": "l1",
+    "target": "c"
+   },
+   {
+    "id": "e-l2-c-x",
+    "source": "l2",
+    "target": "c"
+   },
+   {
+    "id": "e-c-o-true",
+    "source": "c",
+    "target": "o",
+    "sourceHandle": "true"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {},
+ "script": [
+  {
+   "endpoint": "placeorder",
+   "reply": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "place_order",
+    "endpoint": "placeorder",
+    "payload": {
+     "strategy": "Diamond",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 1,
+     "pricetype": "MARKET",
+     "product": "MIS",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  ],
+  "result": {
+   "status": "success",
+   "message": "Workflow executed successfully"
+  },
+  "record": {
+   "status": "completed",
+   "error": null
+  },
+  "vars_out": {},
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Diamond"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "info",
+    "[LOG] path 1"
+   ],
+   [
+    "info",
+    "Var check: 1.0 == 1.0 = True"
+   ],
+   [
+    "info",
+    "Placing order: SBIN BUY qty=1"
+   ],
+   [
+    "info",
+    "Order result: {'status': 'success', 'orderid': '250408000123456'}"
+   ],
+   [
+    "info",
+    "[LOG] path 2"
+   ]
+  ]
+ }
+}

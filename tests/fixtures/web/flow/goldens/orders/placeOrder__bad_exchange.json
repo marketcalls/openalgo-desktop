@@ -1,0 +1,105 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "placeOrder",
+ "scenario": "bad_exchange",
+ "note": "",
+ "parity": [
+  "N-common-14"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "placeOrder",
+  "data": {
+   "action": "BUY",
+   "exchange": "NASDAQ",
+   "outputVariable": "orderResult",
+   "price": 0,
+   "priceType": "MARKET",
+   "quantity": 10,
+   "symbol": "SBIN",
+   "triggerPrice": 0
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "placeOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "BUY",
+     "exchange": "NASDAQ",
+     "outputVariable": "orderResult",
+     "price": 0,
+     "priceType": "MARKET",
+     "quantity": 10,
+     "symbol": "SBIN",
+     "triggerPrice": 0
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Place order has invalid runtime order data: exchange must be one of BCD, BFO, BSE, BSE_INDEX, CDS, CRYPTO, GLOBAL_INDEX, MCX, MCX_INDEX, NCDEX, NCO, NFO, NSE, NSE_INDEX, got 'NASDAQ'"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Place order has invalid runtime order data: exchange must be one of BCD, BFO, BSE, BSE_INDEX, CDS, CRYPTO, GLOBAL_INDEX, MCX, MCX_INDEX, NCDEX, NCO, NFO, NSE, NSE_INDEX, got 'NASDAQ'"
+   ],
+   [
+    "error",
+    "Stopping this branch: placeOrder node failed (Place order has invalid runtime order data: exchange must be one of BCD, BFO, BSE, BSE_INDEX, CDS, CRYPTO, GLOBAL_INDEX, MCX, MCX_INDEX, NCDEX, NCO, NFO, NSE, NSE_INDEX, got 'NASDAQ')"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "placeOrder",
+     "message": "Place order has invalid runtime order data: exchange must be one of BCD, BFO, BSE, BSE_INDEX, CDS, CRYPTO, GLOBAL_INDEX, MCX, MCX_INDEX, NCDEX, NCO, NFO, NSE, NSE_INDEX, got 'NASDAQ'"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

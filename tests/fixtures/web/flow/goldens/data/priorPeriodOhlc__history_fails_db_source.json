@@ -1,0 +1,125 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "priorPeriodOhlc",
+ "scenario": "history_fails_db_source",
+ "note": "",
+ "parity": [
+  "N-dataCommon-13"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "priorPeriodOhlc",
+  "data": {
+   "exchange": "NSE",
+   "outputVariable": "pd",
+   "period": "previous_day",
+   "source": "db",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "priorPeriodOhlc",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "outputVariable": "pd",
+     "period": "previous_day",
+     "source": "db",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "history",
+   "reply": {
+    "status": "error",
+    "error": "No data in Historify for SBIN",
+    "code": 404
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_history",
+    "endpoint": "history",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-10-19",
+     "end_date": "2026-10-29",
+     "source": "db"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "message": "History fetch failed for SBIN (D): No data in Historify for SBIN."
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Fetching previous_day OHLC for: SBIN (NSE)"
+   ],
+   [
+    "error",
+    "History fetch failed for SBIN (D): No data in Historify for SBIN."
+   ],
+   [
+    "error",
+    "Stopping this branch: priorPeriodOhlc node failed (History fetch failed for SBIN (D): No data in Historify for SBIN.)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "priorPeriodOhlc",
+     "message": "History fetch failed for SBIN (D): No data in Historify for SBIN."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

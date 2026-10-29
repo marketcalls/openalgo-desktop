@@ -1,0 +1,151 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "margin",
+ "scenario": "single_position_interpolated",
+ "note": "",
+ "parity": [
+  "N-margin-01",
+  "CL-20"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "margin",
+  "data": {
+   "action": "sell",
+   "exchange": "{{webhook.ex}}",
+   "price": "{{webhook.px}}",
+   "quantity": "{{webhook.qty}}",
+   "symbol": "{{webhook.symbol}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "symbol": "INFY",
+   "ex": "NSE",
+   "n": "3",
+   "day": "2026-11-02",
+   "u": "NIFTY",
+   "exp": "25NOV26",
+   "it": "futures",
+   "qty": "50",
+   "px": "1880.5"
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "margin",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "sell",
+     "exchange": "{{webhook.ex}}",
+     "price": "{{webhook.px}}",
+     "quantity": "{{webhook.qty}}",
+     "symbol": "{{webhook.symbol}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "margin",
+   "reply": {
+    "status": "success",
+    "data": {
+     "total_margin_required": 81250.0,
+     "span_margin": 0.0,
+     "exposure_margin": 0.0
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "margin",
+    "endpoint": "margin",
+    "payload": {
+     "positions": [
+      {
+       "exchange": "NSE",
+       "symbol": "INFY",
+       "action": "SELL",
+       "quantity": "50",
+       "product": "MIS",
+       "pricetype": "MARKET",
+       "price": "1880.5"
+      }
+     ]
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": {
+    "total_margin_required": 81250.0,
+    "span_margin": 0.0,
+    "exposure_margin": 0.0
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "symbol": "INFY",
+    "ex": "NSE",
+    "n": "3",
+    "day": "2026-11-02",
+    "u": "NIFTY",
+    "exp": "25NOV26",
+    "it": "futures",
+    "qty": "50",
+    "px": "1880.5"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Calculating margin for: INFY (NSE)"
+   ],
+   [
+    "info",
+    "Margin result: {'status': 'success', 'data': {'total_margin_required': 81250.0, 'span_margin': 0.0, 'exposure_margin': 0.0}}"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

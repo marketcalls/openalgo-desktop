@@ -1,0 +1,162 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "failed_node_stops_branch_only",
+ "note": "",
+ "parity": [
+  "N-common-16",
+  "E-37"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Siblings",
+  "nodes": [
+   {
+    "id": "start",
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:15"
+    }
+   },
+   {
+    "id": "bad",
+    "type": "placeOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 1,
+     "priceType": "MARKET"
+    }
+   },
+   {
+    "id": "after",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "after bad"
+    }
+   },
+   {
+    "id": "other",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "sibling runs"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-start-bad-x",
+    "source": "start",
+    "target": "bad"
+   },
+   {
+    "id": "e-bad-after-x",
+    "source": "bad",
+    "target": "after"
+   },
+   {
+    "id": "e-start-other-x",
+    "source": "start",
+    "target": "other"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {},
+ "script": [
+  {
+   "endpoint": "placeorder",
+   "reply": {
+    "status": "error",
+    "error": "RMS: margin exceeds",
+    "code": 400
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "place_order",
+    "endpoint": "placeorder",
+    "payload": {
+     "strategy": "Siblings",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 1,
+     "pricetype": "MARKET",
+     "product": "MIS",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  ],
+  "result": {
+   "status": "error",
+   "message": "1 node(s) failed: placeOrder: RMS: margin exceeds",
+   "errors": [
+    {
+     "node": "bad",
+     "type": "placeOrder",
+     "message": "RMS: margin exceeds"
+    }
+   ]
+  },
+  "record": {
+   "status": "failed",
+   "error": "placeOrder: RMS: margin exceeds"
+  },
+  "vars_out": {},
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Siblings"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "info",
+    "Placing order: SBIN BUY qty=1"
+   ],
+   [
+    "error",
+    "Order result: {'status': 'error', 'error': 'RMS: margin exceeds', 'code': 400}"
+   ],
+   [
+    "error",
+    "Stopping this branch: placeOrder node failed (RMS: margin exceeds)"
+   ],
+   [
+    "info",
+    "[LOG] sibling runs"
+   ]
+  ]
+ }
+}

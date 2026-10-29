@@ -1,0 +1,101 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "closePositions",
+ "scenario": "close_all_blank_symbol",
+ "note": "",
+ "parity": [
+  "N-closePositions-02",
+  "N-common-24"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "closePositions",
+  "data": {
+   "exchange": "NSE",
+   "symbol": "  "
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "closePositions",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "symbol": "  "
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "closeposition",
+   "reply": {
+    "status": "success",
+    "message": "All Open Positions Squared Off"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "close_all_positions",
+    "endpoint": "closeposition",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "message": "All Open Positions Squared Off"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Closing all positions"
+   ],
+   [
+    "info",
+    "Close all positions result: {'status': 'success', 'message': 'All Open Positions Squared Off'}"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

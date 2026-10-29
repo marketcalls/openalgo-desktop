@@ -1,0 +1,105 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "indicator",
+ "scenario": "nested_too_short",
+ "note": "",
+ "parity": [
+  "N-indicator-06"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "indicator",
+  "data": {
+   "indicatorName": "sma",
+   "sourceSeries": "{{prices}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "prices": [
+   1.0
+  ]
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "indicator",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "indicatorName": "sma",
+     "sourceSeries": "{{prices}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "nested indicator needs at least 2 upstream values"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "prices": [
+    1.0
+   ]
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Computing nested sma over 1 upstream values"
+   ],
+   [
+    "error",
+    "Indicator error: nested indicator needs at least 2 upstream values"
+   ],
+   [
+    "error",
+    "Stopping this branch: indicator node failed (nested indicator needs at least 2 upstream values)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "indicator",
+     "message": "nested indicator needs at least 2 upstream values"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

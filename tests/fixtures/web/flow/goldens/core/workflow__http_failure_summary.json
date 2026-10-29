@@ -1,0 +1,155 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "http_failure_summary",
+ "note": "",
+ "parity": [
+  "N-httpRequest-13",
+  "E-37"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "HttpFail",
+  "nodes": [
+   {
+    "id": "start",
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:15"
+    }
+   },
+   {
+    "id": "h",
+    "type": "httpRequest",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "url": "http://api.flow-golden.test/x",
+     "method": "GET"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-start-h-x",
+    "source": "start",
+    "target": "h"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {
+  "http": {
+   "resolve": {
+    "api.flow-golden.test": [
+     "93.184.216.34"
+    ]
+   },
+   "response": {
+    "status": 500,
+    "body": "oops",
+    "content_type": "text/plain"
+   }
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "result": {
+   "status": "error",
+   "message": "1 node(s) failed: httpRequest: node failed",
+   "errors": [
+    {
+     "node": "h",
+     "type": "httpRequest",
+     "message": "node failed"
+    }
+   ]
+  },
+  "record": {
+   "status": "failed",
+   "error": "httpRequest: node failed"
+  },
+  "vars_out": {},
+  "logs": [
+   [
+    "info",
+    "Starting workflow: HttpFail"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "info",
+    "HTTP GET http://api.flow-golden.test/x"
+   ],
+   [
+    "error",
+    "Stopping this branch: httpRequest node failed (node failed)"
+   ]
+  ],
+  "http_requests": [
+   {
+    "method": "GET",
+    "path": "/x",
+    "query": "",
+    "headers": {},
+    "body": ""
+   }
+  ]
+ },
+ "desktop_expected": {
+  "parity": "N-httpRequest-13",
+  "why": "WEB-DEFECT: the run summary reads `httpRequest: node failed`; the desktop names the status.",
+  "fix": [
+   "http_status_message"
+  ],
+  "result": {
+   "status": "error",
+   "message": "1 node(s) failed: httpRequest: HTTP 500",
+   "errors": [
+    {
+     "node": "h",
+     "type": "httpRequest",
+     "message": "HTTP 500"
+    }
+   ]
+  },
+  "record": {
+   "status": "failed",
+   "error": "httpRequest: HTTP 500"
+  },
+  "logs": [
+   [
+    "info",
+    "Starting workflow: HttpFail"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "info",
+    "HTTP GET http://api.flow-golden.test/x"
+   ],
+   [
+    "error",
+    "Stopping this branch: httpRequest node failed (HTTP 500)"
+   ]
+  ]
+ }
+}

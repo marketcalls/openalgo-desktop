@@ -1,0 +1,148 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "holidays",
+ "scenario": "current_year",
+ "note": "",
+ "parity": [
+  "N-holidays-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "holidays",
+  "data": {
+   "outputVariable": "hol"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "holidays",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "hol"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "market/holidays",
+   "reply": {
+    "status": "success",
+    "year": 2026,
+    "data": [
+     {
+      "date": "2026-11-10",
+      "description": "Diwali Balipratipada",
+      "holiday_type": "TRADING_HOLIDAY",
+      "closed_exchanges": [
+       "NSE",
+       "BSE",
+       "NFO"
+      ],
+      "open_exchanges": []
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "holidays",
+    "endpoint": "market/holidays",
+    "payload": {
+     "year": null
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "year": 2026,
+   "data": [
+    {
+     "date": "2026-11-10",
+     "description": "Diwali Balipratipada",
+     "holiday_type": "TRADING_HOLIDAY",
+     "closed_exchanges": [
+      "NSE",
+      "BSE",
+      "NFO"
+     ],
+     "open_exchanges": []
+    }
+   ]
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "hol": {
+    "status": "success",
+    "year": 2026,
+    "data": [
+     {
+      "date": "2026-11-10",
+      "description": "Diwali Balipratipada",
+      "holiday_type": "TRADING_HOLIDAY",
+      "closed_exchanges": [
+       "NSE",
+       "BSE",
+       "NFO"
+      ],
+      "open_exchanges": []
+     }
+    ]
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Fetching holidays for year: current"
+   ],
+   [
+    "info",
+    "Holidays result received"
+   ],
+   [
+    "info",
+    "Stored result in variable: hol"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

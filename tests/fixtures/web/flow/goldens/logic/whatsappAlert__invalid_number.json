@@ -1,0 +1,108 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "whatsappAlert",
+ "scenario": "invalid_number",
+ "note": "",
+ "parity": [
+  "CL-21",
+  "N-whatsappAlert-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "whatsappAlert",
+  "data": {
+   "message": "x",
+   "to": "abc"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "whatsappAlert",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "x",
+     "to": "abc"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": {
+  "status": "error",
+  "error": "Invalid WhatsApp phone number: abc"
+ },
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "error": "Invalid WhatsApp phone number: abc"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Sending WhatsApp alert to abc: x"
+   ],
+   [
+    "error",
+    "WhatsApp result: {'status': 'error', 'error': 'Invalid WhatsApp phone number: abc'}"
+   ],
+   [
+    "error",
+    "Stopping this branch: whatsappAlert node failed (Invalid WhatsApp phone number: abc)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "whatsappAlert",
+     "message": "Invalid WhatsApp phone number: abc"
+    }
+   ],
+   "abort": null
+  },
+  "alerts": [
+   {
+    "channel": "whatsapp",
+    "message": "x",
+    "to": "abc"
+   }
+  ]
+ }
+}

@@ -1,0 +1,191 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "priceCondition",
+ "scenario": "missing_field",
+ "note": "",
+ "parity": [
+  "N-priceCondition-05"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "priceCondition",
+  "data": {
+   "exchange": "NSE",
+   "field": "high",
+   "operator": ">",
+   "symbol": "SBIN",
+   "value": 800
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "priceCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "field": "high",
+     "operator": ">",
+     "symbol": "SBIN",
+     "value": 800
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "quotes",
+   "reply": {
+    "status": "success",
+    "data": {
+     "ltp": 812.5
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_quotes",
+    "endpoint": "quotes",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "condition": false,
+   "ltp": 812.5,
+   "field": "high",
+   "field_value": 0.0
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {
+   "n1": false
+  },
+  "logs": [
+   [
+    "info",
+    "Checking price for: SBIN"
+   ],
+   [
+    "info",
+    "Price check: high=0.0 > 800.0 = False"
+   ]
+  ],
+  "next": [
+   "false",
+   "pass"
+  ],
+  "error": null
+ },
+ "desktop_expected": {
+  "parity": "N-priceCondition-05",
+  "why": "WEB-DEFECT: a quote missing the chosen field evaluates on 0.0; the desktop fails closed.",
+  "fix": [
+   "price_condition_missing_field"
+  ],
+  "outputs": {
+   "status": "error",
+   "condition": false,
+   "message": "the quote has no high"
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Checking price for: SBIN"
+   ],
+   [
+    "error",
+    "Price check aborted: the quote has no high"
+   ],
+   [
+    "error",
+    "priceCondition could not be evaluated (the quote has no high)"
+   ]
+  ],
+  "next": [
+   "pass"
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "priceCondition",
+     "message": "the quote has no high"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

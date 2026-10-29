@@ -1,0 +1,159 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "getOrderStatus",
+ "scenario": "happy",
+ "note": "",
+ "parity": [
+  "N-getOrderStatus-01",
+  "N-getOrderStatus-02",
+  "N-getOrderStatus-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "getOrderStatus",
+  "data": {
+   "orderId": "{{orderResult.orderid}}",
+   "outputVariable": "os"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "orderResult": {
+   "orderid": "250408000123456"
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "getOrderStatus",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "orderId": "{{orderResult.orderid}}",
+     "outputVariable": "os"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "orderstatus",
+   "reply": {
+    "status": "success",
+    "data": {
+     "action": "BUY",
+     "average_price": 0.0,
+     "exchange": "NSE",
+     "order_status": "open",
+     "orderid": "250408000123456",
+     "price": 800.0,
+     "pricetype": "LIMIT",
+     "product": "MIS",
+     "quantity": 10,
+     "symbol": "SBIN",
+     "timestamp": "2026-10-29 10:14:59",
+     "trigger_price": 0.0
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_order_status",
+    "endpoint": "orderstatus",
+    "payload": {
+     "orderid": "250408000123456"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": {
+    "action": "BUY",
+    "average_price": 0.0,
+    "exchange": "NSE",
+    "order_status": "open",
+    "orderid": "250408000123456",
+    "price": 800.0,
+    "pricetype": "LIMIT",
+    "product": "MIS",
+    "quantity": 10,
+    "symbol": "SBIN",
+    "timestamp": "2026-10-29 10:14:59",
+    "trigger_price": 0.0
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "orderResult": {
+    "orderid": "250408000123456"
+   },
+   "os": {
+    "status": "success",
+    "data": {
+     "action": "BUY",
+     "average_price": 0.0,
+     "exchange": "NSE",
+     "order_status": "open",
+     "orderid": "250408000123456",
+     "price": 800.0,
+     "pricetype": "LIMIT",
+     "product": "MIS",
+     "quantity": 10,
+     "symbol": "SBIN",
+     "timestamp": "2026-10-29 10:14:59",
+     "trigger_price": 0.0
+    }
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting order status for: 250408000123456"
+   ],
+   [
+    "info",
+    "Order status result: {'status': 'success', 'data': {'action': 'BUY', 'average_price': 0.0, 'exchange': 'NSE', 'order_status': 'open', 'orderid': '250408000123456', 'price': 800.0, 'pricetype': 'LIMIT', 'product': 'MIS', 'quantity': 10, 'symbol': 'SBIN', 'timestamp': '2026-10-29 10:14:59', 'trigger_price': 0.0}}"
+   ],
+   [
+    "info",
+    "Stored result in variable: os"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

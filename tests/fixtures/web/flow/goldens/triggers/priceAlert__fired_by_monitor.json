@@ -1,0 +1,149 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "priceAlert",
+ "scenario": "fired_by_monitor",
+ "note": "",
+ "parity": [
+  "N-priceAlert-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "priceAlert",
+  "data": {
+   "condition": "above",
+   "exchange": "NSE",
+   "outputVariable": "alert",
+   "price": 800,
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "trigger_type": "price_alert",
+   "trigger_price": 812.75,
+   "symbol": "SBIN"
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "priceAlert",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "condition": "above",
+     "exchange": "NSE",
+     "outputVariable": "alert",
+     "price": 800,
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "run_context": {
+  "trigger": "price_alert"
+ },
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "condition": true,
+   "ltp": 812.75
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "trigger_type": "price_alert",
+    "trigger_price": 812.75,
+    "symbol": "SBIN"
+   },
+   "alert": {
+    "ltp": 812.75,
+    "condition_met": true
+   }
+  },
+  "conditions_out": {
+   "n1": true
+  },
+  "logs": [
+   [
+    "info",
+    "Price alert fired by monitor: SBIN LTP=812.75 greater_than 800.0"
+   ],
+   [
+    "info",
+    "Stored result in variable: alert"
+   ]
+  ],
+  "next": [
+   "pass",
+   "true"
+  ],
+  "error": null
+ }
+}
