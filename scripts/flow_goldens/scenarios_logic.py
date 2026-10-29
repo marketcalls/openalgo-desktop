@@ -51,7 +51,13 @@ for nm, expr, extra in (
     node(F, "mathExpression", nm, {"expression": expr, **extra}, vars_in=V,
          parity=["N-mathExpression-01", "N-mathExpression-03"])
 node(F, "mathExpression", "empty_expression", {"expression": ""}, parity=["N-mathExpression-02"])
-node(F, "mathExpression", "number_expression", {"expression": 42}, parity=["N-mathExpression-12"])
+node(F, "mathExpression", "number_expression", {"expression": 42}, parity=["N-mathExpression-12"],
+     desktop_expected=de("N-mathExpression-12", "The web's text is Python's AttributeError; parity accepts any wording that names the value's type (the lane's).",
+                         outputs={"status": "error", "message": ANY},
+                         logs=[["info", "Evaluating: 42"], ["info", "Interpolated: 42"],
+                               ["error", {"$prefix": "Math expression failed: "}],
+                               ["error", {"$prefix": "Stopping this branch: mathExpression node failed ("}]],
+                         error={"errors": [{"node": "n1", "type": "mathExpression", "message": ANY}], "abort": None}))
 node(F, "mathExpression", "syntax_error", {"expression": "2 +"}, vars_in=V, parity=["N-mathExpression-10"],
      desktop_expected=de("N-mathExpression-10", "decisions.md 5: keep only the `Invalid expression syntax: ` prefix of Python's SyntaxError text.",
                          outputs={"status": "error", "message": {"$prefix": "Invalid expression syntax: "}},
@@ -411,3 +417,14 @@ node(F, "priceCondition", "interpolated_symbol_field_operator", {**PR, "symbol":
      vars_in={"s": "SBIN", "f": "high", "o": ">"}, script=[reply("quotes", QUOTE)], parity=["N-priceCondition-01"])
 node(F, "whatsappAlert", "unresolved_to_is_text", {"message": "x", "to": "{{nobody}}"},
      alert_reply={"status": "error", "error": "Invalid WhatsApp phone number: {{nobody}}"}, parity=["N-whatsappAlert-01"])
+
+
+def apply_auto():
+    """N-mathExpression-11 for every mathExpression golden (the doc examples
+    too): written only where the fix changes what the web did."""
+    for _s in __import__("lib").SCENARIOS:
+        if _s["type"] == "mathExpression" and _s["kind"] == "node" and not _s["desktop_expected"]:
+            _s["desktop_expected"] = de(
+                "N-mathExpression-11",
+                "WEB-DEFECT: an unresolved {{var}} reads `Unsupported expression type: Set`; the desktop names the unresolved variable(s).",
+                fix=["math_unresolved"])

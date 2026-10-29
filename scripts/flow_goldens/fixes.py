@@ -114,9 +114,11 @@ FIXES.update({
     # N-mathExpression-11: an unresolved reference says so.
     "math_unresolved": [(fx.NodeExecutor, "execute_math_expression", [
         ("            # Step 2: Safely evaluate the expression\n",
-         "            _left = _UNRESOLVED_PATTERN.search(interpolated)\n"
+         "            _left = list(dict.fromkeys(_UNRESOLVED_PATTERN.findall(interpolated))) if isinstance(interpolated, str) else []\n"
+         "            if len(_left) == 1:\n"
+         "                raise ValueError(f\"unresolved variable {_left[0]}\")\n"
          "            if _left:\n"
-         "                raise ValueError(f\"unresolved variable {_left.group(0)}\")\n"
+         "                raise ValueError(f\"unresolved variables {', '.join(_left)}\")\n"
          "            # Step 2: Safely evaluate the expression\n")])],
     # N-delay-05: a negative delay fails only this node.
     "delay_negative": [(fx.NodeExecutor, "execute_delay", [

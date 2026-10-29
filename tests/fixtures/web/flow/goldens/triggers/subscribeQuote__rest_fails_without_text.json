@@ -70,6 +70,7 @@
    "endpoint": "quotes",
    "reply": {
     "status": "error",
+    "error": "Unknown error",
     "code": 500
    }
   }

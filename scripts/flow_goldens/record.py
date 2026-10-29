@@ -164,6 +164,7 @@ def main() -> int:
                 shutil.rmtree(p)
     scenarios_orders.apply_auto()
     scenarios_data.apply_auto()
+    scenarios_logic.apply_auto()
     goldens: dict = {}
     for s in lib.SCENARIOS:
         fname = f"{s['type']}__{s['scenario']}.json"
