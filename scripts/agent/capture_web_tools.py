@@ -167,9 +167,9 @@ class _WebIsolation(importlib.abc.MetaPathFinder):
         return None
 
 
-#: Toolkits the desktop does not build in this version (maintainer,
-#: 2026-10-27): Python strategy generation, and Flow, which comes later.
-_NOT_IN_THIS_VERSION = frozenset({"strategy_gen", "flow_gen"})
+#: Toolkits the desktop does not build (maintainer, 2026-10-27): Python
+#: strategy generation. Flow (`flow_gen`) came with 1.0.5.
+_NOT_IN_THIS_VERSION = frozenset({"strategy_gen"})
 
 
 def _surface_names(spec, registry) -> list[str]:
