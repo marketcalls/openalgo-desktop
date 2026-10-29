@@ -1037,7 +1037,9 @@ export default function ProfilePage() {
           <Card className={!alertStore.toastsEnabled ? 'opacity-60' : ''}>
             <CardHeader>
               <CardTitle>Data & Automation</CardTitle>
-              <CardDescription>Notifications from historical data jobs</CardDescription>
+              <CardDescription>
+                Notifications from historical data and workflow automation
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {ALERT_CATEGORIES_DATA.map((category) => (
