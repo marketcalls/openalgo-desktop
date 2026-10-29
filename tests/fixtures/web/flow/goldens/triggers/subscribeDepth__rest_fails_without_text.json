@@ -70,6 +70,7 @@
    "endpoint": "depth",
    "reply": {
     "status": "error",
+    "error": "Unknown error",
     "code": 500
    }
   }

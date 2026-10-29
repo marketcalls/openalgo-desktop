@@ -92,5 +92,41 @@
    ],
    "abort": null
   }
+ },
+ "desktop_expected": {
+  "parity": "N-httpRequest-06",
+  "why": "The text in the brackets is the operating system's resolver error (the web shows Python's errno text); the desktop gives its own.",
+  "outputs": {
+   "status": "error",
+   "message": {
+    "$prefix": "refusing to send this request: host 'nowhere.flow-golden.test' could not be resolved ("
+   }
+  },
+  "logs": [
+   [
+    "error",
+    {
+     "$prefix": "HTTP request aborted: refusing to send this request: host 'nowhere.flow-golden.test' could not be resolved ("
+    }
+   ],
+   [
+    "error",
+    {
+     "$prefix": "Stopping this branch: httpRequest node failed (refusing to send this request: host 'nowhere.flow-golden.test' could not be resolved ("
+    }
+   ]
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "httpRequest",
+     "message": {
+      "$prefix": "refusing to send this request: host 'nowhere.flow-golden.test' could not be resolved ("
+     }
+    }
+   ],
+   "abort": null
+  }
  }
 }
