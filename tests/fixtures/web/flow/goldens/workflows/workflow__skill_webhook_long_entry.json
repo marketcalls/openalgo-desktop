@@ -1,0 +1,224 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "workflows",
+ "type": "workflow",
+ "scenario": "skill_webhook_long_entry",
+ "note": "The example as published, run end to end with scripted replies.",
+ "parity": [
+  "IE-12",
+  "A-35"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Webhook long entry",
+  "nodes": [
+   {
+    "id": "node_1",
+    "type": "webhookTrigger",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "TV alert"
+    }
+   },
+   {
+    "id": "node_2",
+    "type": "placeOrder",
+    "position": {
+     "x": 0,
+     "y": 120
+    },
+    "data": {
+     "symbol": "{{webhook.symbol}}",
+     "exchange": "NSE",
+     "action": "{{webhook.action}}",
+     "quantity": "{{webhook.quantity}}",
+     "product": "MIS",
+     "priceType": "MARKET",
+     "outputVariable": "orderResult"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e1",
+    "source": "node_1",
+    "target": "node_2",
+    "type": "default"
+   }
+  ]
+ },
+ "webhook": {
+  "symbol": "RELIANCE",
+  "action": "BUY",
+  "qty": 5,
+  "quantity": 5,
+  "exchange": "NSE"
+ },
+ "api_key": true,
+ "env": {
+  "master_contract": [
+   {
+    "symbol": "NIFTY25NOV2624000CE",
+    "name": "NIFTY",
+    "exchange": "NFO",
+    "lotsize": 65,
+    "expiry": "25-NOV-26",
+    "strike": 24000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "NIFTYNXT5025NOV2668000CE",
+    "name": "NIFTYNXT50",
+    "exchange": "NFO",
+    "lotsize": 25,
+    "expiry": "25-NOV-26",
+    "strike": 68000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "BANKNIFTY25NOV2652000CE",
+    "name": "BANKNIFTY",
+    "exchange": "NFO",
+    "lotsize": 30,
+    "expiry": "25-NOV-26",
+    "strike": 52000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "SENSEX27NOV2680000CE",
+    "name": "SENSEX",
+    "exchange": "BFO",
+    "lotsize": 20,
+    "expiry": "27-NOV-26",
+    "strike": 80000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "CRUDEOIL17NOV265800CE",
+    "name": "CRUDEOIL",
+    "exchange": "MCX",
+    "lotsize": 100,
+    "expiry": "17-NOV-26",
+    "strike": 5800.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "GOLD25NOV26118000CE",
+    "name": "GOLD",
+    "exchange": "MCX",
+    "lotsize": 1,
+    "expiry": "25-NOV-26",
+    "strike": 118000.0,
+    "instrumenttype": "CE"
+   }
+  ],
+  "http": {
+   "resolve": {
+    "audit.example.com": [
+     "93.184.216.34"
+    ],
+    "hooks.example.com": [
+     "93.184.216.34"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "body": "{\"received\": true}",
+    "content_type": "application/json"
+   },
+   "record_headers": [
+    "authorization",
+    "x-source"
+   ]
+  },
+  "strategy_book": [],
+  "calendar_holidays": {
+   "2026": []
+  },
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "connect_error": "down"
+  }
+ },
+ "script": [
+  {
+   "endpoint": "placeorder",
+   "reply": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "place_order",
+    "endpoint": "placeorder",
+    "payload": {
+     "strategy": "Webhook long entry",
+     "symbol": "RELIANCE",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 5,
+     "pricetype": "MARKET",
+     "product": "MIS",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  ],
+  "result": {
+   "status": "success",
+   "message": "Workflow executed successfully"
+  },
+  "record": {
+   "status": "completed",
+   "error": null
+  },
+  "vars_out": {
+   "webhook": {
+    "symbol": "RELIANCE",
+    "action": "BUY",
+    "qty": 5,
+    "quantity": 5,
+    "exchange": "NSE"
+   },
+   "orderResult": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  },
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Webhook long entry"
+   ],
+   [
+    "info",
+    "Webhook trigger activated"
+   ],
+   [
+    "info",
+    "Placing order: RELIANCE BUY qty=5"
+   ],
+   [
+    "info",
+    "Order result: {'status': 'success', 'orderid': '250408000123456'}"
+   ],
+   [
+    "info",
+    "Stored result in variable: orderResult"
+   ]
+  ]
+ },
+ "source": ".claude/skills/flow-builder/SKILL.md:48"
+}

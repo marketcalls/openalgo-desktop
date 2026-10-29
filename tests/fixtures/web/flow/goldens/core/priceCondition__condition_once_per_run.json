@@ -1,0 +1,115 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "core",
+ "type": "priceCondition",
+ "scenario": "condition_once_per_run",
+ "note": "",
+ "parity": [
+  "N-logic-04",
+  "E-22"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "priceCondition",
+  "data": {
+   "field": "ltp",
+   "operator": ">",
+   "symbol": "SBIN",
+   "value": 1
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {
+  "n1": false
+ },
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "priceCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "field": "ltp",
+     "operator": ">",
+     "symbol": "SBIN",
+     "value": 1
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": null,
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {
+   "n1": false
+  },
+  "logs": [],
+  "next": [],
+  "error": null
+ }
+}

@@ -1,0 +1,117 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "delay",
+ "scenario": "negative",
+ "note": "",
+ "parity": [
+  "N-delay-05"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "delay",
+  "data": {
+   "delayValue": -3
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "delay",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "delayValue": -3
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": null,
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Waiting for -3 seconds"
+   ],
+   [
+    "error",
+    "Error: sleep length must be non-negative"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [],
+   "abort": "sleep length must be non-negative"
+  },
+  "sleeps": [
+   -3
+  ]
+ },
+ "desktop_expected": {
+  "parity": "N-delay-05",
+  "why": "WEB-DEFECT: a negative delay raises from time.sleep and aborts the whole run; the desktop fails only this node.",
+  "fix": [
+   "delay_negative"
+  ],
+  "outputs": {
+   "status": "error",
+   "message": "sleep length must be non-negative"
+  },
+  "logs": [
+   [
+    "info",
+    "Waiting for -3 seconds"
+   ],
+   [
+    "error",
+    "Stopping this branch: delay node failed (sleep length must be non-negative)"
+   ]
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "delay",
+     "message": "sleep length must be non-negative"
+    }
+   ],
+   "abort": null
+  },
+  "sleeps": null
+ }
+}

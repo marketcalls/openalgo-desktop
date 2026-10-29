@@ -1,0 +1,282 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "workflows",
+ "type": "workflow",
+ "scenario": "doc_reliance_long_above_1500_in_window",
+ "note": "The example as published, run end to end with scripted replies.",
+ "parity": [
+  "IE-12",
+  "A-35"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "RELIANCE Long Above 1500 in Window",
+  "description": "Buy 1 share of RELIANCE only when LTP > 1500 between 09:30 and 14:30",
+  "nodes": [
+   {
+    "id": "node_1",
+    "type": "start",
+    "position": {
+     "x": 100,
+     "y": 50
+    },
+    "data": {
+     "scheduleType": "interval",
+     "intervalValue": 1,
+     "intervalUnit": "minutes",
+     "marketHoursOnly": true
+    }
+   },
+   {
+    "id": "node_2",
+    "type": "timeWindow",
+    "position": {
+     "x": 100,
+     "y": 150
+    },
+    "data": {
+     "startTime": "09:30",
+     "endTime": "14:30"
+    }
+   },
+   {
+    "id": "node_3",
+    "type": "priceCondition",
+    "position": {
+     "x": 300,
+     "y": 150
+    },
+    "data": {
+     "symbol": "RELIANCE",
+     "exchange": "NSE",
+     "field": "ltp",
+     "operator": ">",
+     "value": 1500
+    }
+   },
+   {
+    "id": "node_4",
+    "type": "andGate",
+    "position": {
+     "x": 200,
+     "y": 250
+    },
+    "data": {
+     "inputCount": 2
+    }
+   },
+   {
+    "id": "node_5",
+    "type": "placeOrder",
+    "position": {
+     "x": 200,
+     "y": 350
+    },
+    "data": {
+     "symbol": "RELIANCE",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 1,
+     "priceType": "MARKET",
+     "product": "MIS",
+     "outputVariable": "ord"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e1",
+    "source": "node_1",
+    "target": "node_2"
+   },
+   {
+    "id": "e2",
+    "source": "node_1",
+    "target": "node_3"
+   },
+   {
+    "id": "e3",
+    "source": "node_2",
+    "sourceHandle": "true",
+    "target": "node_4",
+    "targetHandle": "input-0"
+   },
+   {
+    "id": "e4",
+    "source": "node_3",
+    "sourceHandle": "true",
+    "target": "node_4",
+    "targetHandle": "input-1"
+   },
+   {
+    "id": "e5",
+    "source": "node_4",
+    "sourceHandle": "true",
+    "target": "node_5"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {
+  "master_contract": [
+   {
+    "symbol": "NIFTY25NOV2624000CE",
+    "name": "NIFTY",
+    "exchange": "NFO",
+    "lotsize": 65,
+    "expiry": "25-NOV-26",
+    "strike": 24000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "NIFTYNXT5025NOV2668000CE",
+    "name": "NIFTYNXT50",
+    "exchange": "NFO",
+    "lotsize": 25,
+    "expiry": "25-NOV-26",
+    "strike": 68000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "BANKNIFTY25NOV2652000CE",
+    "name": "BANKNIFTY",
+    "exchange": "NFO",
+    "lotsize": 30,
+    "expiry": "25-NOV-26",
+    "strike": 52000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "SENSEX27NOV2680000CE",
+    "name": "SENSEX",
+    "exchange": "BFO",
+    "lotsize": 20,
+    "expiry": "27-NOV-26",
+    "strike": 80000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "CRUDEOIL17NOV265800CE",
+    "name": "CRUDEOIL",
+    "exchange": "MCX",
+    "lotsize": 100,
+    "expiry": "17-NOV-26",
+    "strike": 5800.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "GOLD25NOV26118000CE",
+    "name": "GOLD",
+    "exchange": "MCX",
+    "lotsize": 1,
+    "expiry": "25-NOV-26",
+    "strike": 118000.0,
+    "instrumenttype": "CE"
+   }
+  ],
+  "http": {
+   "resolve": {
+    "audit.example.com": [
+     "93.184.216.34"
+    ],
+    "hooks.example.com": [
+     "93.184.216.34"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "body": "{\"received\": true}",
+    "content_type": "application/json"
+   },
+   "record_headers": [
+    "authorization",
+    "x-source"
+   ]
+  },
+  "strategy_book": [],
+  "calendar_holidays": {
+   "2026": []
+  },
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "connect_error": "down"
+  }
+ },
+ "script": [
+  {
+   "endpoint": "quotes",
+   "reply": {
+    "status": "success",
+    "data": {
+     "ask": 812.6,
+     "bid": 812.4,
+     "high": 818.0,
+     "low": 805.25,
+     "ltp": 812.5,
+     "oi": 0,
+     "open": 806.0,
+     "prev_close": 800.0,
+     "volume": 1250000
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_quotes",
+    "endpoint": "quotes",
+    "payload": {
+     "symbol": "RELIANCE",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "result": {
+   "status": "success",
+   "message": "Workflow executed successfully"
+  },
+  "record": {
+   "status": "completed",
+   "error": null
+  },
+  "vars_out": {},
+  "logs": [
+   [
+    "info",
+    "Starting workflow: RELIANCE Long Above 1500 in Window"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "info",
+    "Time window: 09:30-14:30, in_window=True, invert=False, result=True"
+   ],
+   [
+    "info",
+    "andGate: waiting for 1 more input(s) before evaluating"
+   ],
+   [
+    "info",
+    "Checking price for: RELIANCE"
+   ],
+   [
+    "info",
+    "Price check: ltp=812.5 > 1500.0 = False"
+   ],
+   [
+    "info",
+    "AND Gate: [True, False] -> False"
+   ]
+  ]
+ },
+ "source": "docs/prompt/flow-import-format.md:2416"
+}

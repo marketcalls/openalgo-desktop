@@ -1,0 +1,155 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "linear_success",
+ "note": "",
+ "parity": [
+  "E-30",
+  "E-31",
+  "E-35",
+  "E-36"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Linear",
+  "nodes": [
+   {
+    "id": "start",
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:15"
+    }
+   },
+   {
+    "id": "q",
+    "type": "getQuote",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "outputVariable": "q"
+    }
+   },
+   {
+    "id": "log",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "LTP {{q.data.ltp}}"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-start-q-x",
+    "source": "start",
+    "target": "q"
+   },
+   {
+    "id": "e-q-log-x",
+    "source": "q",
+    "target": "log"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {},
+ "script": [
+  {
+   "endpoint": "quotes",
+   "reply": {
+    "status": "success",
+    "data": {
+     "ask": 812.6,
+     "bid": 812.4,
+     "high": 818.0,
+     "low": 805.25,
+     "ltp": 812.5,
+     "oi": 0,
+     "open": 806.0,
+     "prev_close": 800.0,
+     "volume": 1250000
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_quotes",
+    "endpoint": "quotes",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "result": {
+   "status": "success",
+   "message": "Workflow executed successfully"
+  },
+  "record": {
+   "status": "completed",
+   "error": null
+  },
+  "vars_out": {
+   "q": {
+    "status": "success",
+    "data": {
+     "ask": 812.6,
+     "bid": 812.4,
+     "high": 818.0,
+     "low": 805.25,
+     "ltp": 812.5,
+     "oi": 0,
+     "open": 806.0,
+     "prev_close": 800.0,
+     "volume": 1250000
+    }
+   }
+  },
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Linear"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "info",
+    "Getting quote for: SBIN"
+   ],
+   [
+    "info",
+    "Quote result: {'status': 'success', 'data': {'ask': 812.6, 'bid': 812.4, 'high': 818.0, 'low': 805.25, 'ltp': 812.5, 'oi': 0, 'open': 806.0, 'prev_close': 800.0, 'volume': 1250000}}"
+   ],
+   [
+    "info",
+    "Stored result in variable: q"
+   ],
+   [
+    "info",
+    "[LOG] LTP 812.5"
+   ]
+  ]
+ }
+}

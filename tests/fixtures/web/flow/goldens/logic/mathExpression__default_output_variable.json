@@ -1,0 +1,115 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "mathExpression",
+ "scenario": "default_output_variable",
+ "note": "",
+ "parity": [
+  "N-mathExpression-01",
+  "N-mathExpression-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "mathExpression",
+  "data": {
+   "expression": "{{lot}} / 4"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "ltp": 812.5,
+  "lot": 10,
+  "brokerage": "20",
+  "cfg": {
+   "a": 1
+  },
+  "levels": [
+   1,
+   2
+  ]
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "mathExpression",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "expression": "{{lot}} / 4"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "expression": "{{lot}} / 4",
+   "interpolated": "10 / 4",
+   "result": 2.5,
+   "outputVariable": "result"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "ltp": 812.5,
+   "lot": 10,
+   "brokerage": "20",
+   "cfg": {
+    "a": 1
+   },
+   "levels": [
+    1,
+    2
+   ],
+   "result": 2.5
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Evaluating: {{lot}} / 4"
+   ],
+   [
+    "info",
+    "Interpolated: 10 / 4"
+   ],
+   [
+    "info",
+    "Result: result = 2.5"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

@@ -1,0 +1,171 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "positionCheck",
+ "scenario": "unknown_condition",
+ "note": "",
+ "parity": [
+  "N-positionCheck-05"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "positionCheck",
+  "data": {
+   "condition": "flat",
+   "exchange": "NSE",
+   "product": "MIS",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "positionCheck",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "condition": "flat",
+     "exchange": "NSE",
+     "product": "MIS",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "positionbook",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "product": "MIS",
+      "quantity": 10,
+      "average_price": 800.0,
+      "ltp": 812.5,
+      "pnl": 125.0
+     },
+     {
+      "symbol": "NIFTY25NOV2624000CE",
+      "exchange": "NFO",
+      "product": "NRML",
+      "quantity": -65,
+      "average_price": 110.0,
+      "ltp": 98.5,
+      "pnl": 747.5
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "positionbook",
+    "endpoint": "positionbook",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "condition": false,
+   "message": "condition 'flat' is not one this node can evaluate (exists, not_exists, quantity_above, quantity_below, pnl_above, pnl_below)"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Checking position for: SBIN"
+   ],
+   [
+    "error",
+    "Position check aborted: condition 'flat' is not one this node can evaluate (exists, not_exists, quantity_above, quantity_below, pnl_above, pnl_below)"
+   ],
+   [
+    "error",
+    "positionCheck could not be evaluated (condition 'flat' is not one this node can evaluate (exists, not_exists, quantity_above, quantity_below, pnl_above, pnl_below))"
+   ]
+  ],
+  "next": [
+   "pass"
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "positionCheck",
+     "message": "condition 'flat' is not one this node can evaluate (exists, not_exists, quantity_above, quantity_below, pnl_above, pnl_below)"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

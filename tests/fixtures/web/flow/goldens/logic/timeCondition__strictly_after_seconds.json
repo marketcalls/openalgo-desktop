@@ -1,0 +1,125 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "timeCondition",
+ "scenario": "strictly_after_seconds",
+ "note": "",
+ "parity": [
+  "N-timeCondition-01",
+  "N-timeCondition-02",
+  "N-timeCondition-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "timeCondition",
+  "data": {
+   "operator": ">",
+   "targetTime": "10:14:59"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "timeCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "operator": ">",
+     "targetTime": "10:14:59"
+    }
+   },
+   {
+    "id": "probe-yes",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "yes"
+    }
+   },
+   {
+    "id": "probe-no",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "no"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-yes",
+    "source": "n1",
+    "target": "probe-yes",
+    "sourceHandle": "yes"
+   },
+   {
+    "id": "e-no",
+    "source": "n1",
+    "target": "probe-no",
+    "sourceHandle": "no"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "condition": true,
+   "condition_type": "entry",
+   "current_time": "10:15:00",
+   "target_time": "10:14:59",
+   "operator": ">"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {
+   "n1": true
+  },
+  "logs": [
+   [
+    "info",
+    "Time condition (entry): 10:15 > 10:14:59 = True"
+   ]
+  ],
+  "next": [
+   "pass",
+   "yes"
+  ],
+  "error": null
+ }
+}

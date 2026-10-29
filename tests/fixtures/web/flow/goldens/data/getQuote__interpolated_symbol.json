@@ -1,0 +1,153 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "getQuote",
+ "scenario": "interpolated_symbol",
+ "note": "",
+ "parity": [
+  "N-getQuote-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "getQuote",
+  "data": {
+   "exchange": "{{webhook.exchange}}",
+   "outputVariable": "q",
+   "symbol": "{{webhook.symbol}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "symbol": "INFY",
+   "exchange": "NSE"
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "getQuote",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "{{webhook.exchange}}",
+     "outputVariable": "q",
+     "symbol": "{{webhook.symbol}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "quotes",
+   "reply": {
+    "status": "success",
+    "data": {
+     "ask": 812.6,
+     "bid": 812.4,
+     "high": 818.0,
+     "low": 805.25,
+     "ltp": 812.5,
+     "oi": 0,
+     "open": 806.0,
+     "prev_close": 800.0,
+     "volume": 1250000
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_quotes",
+    "endpoint": "quotes",
+    "payload": {
+     "symbol": "INFY",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": {
+    "ask": 812.6,
+    "bid": 812.4,
+    "high": 818.0,
+    "low": 805.25,
+    "ltp": 812.5,
+    "oi": 0,
+    "open": 806.0,
+    "prev_close": 800.0,
+    "volume": 1250000
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "symbol": "INFY",
+    "exchange": "NSE"
+   },
+   "q": {
+    "status": "success",
+    "data": {
+     "ask": 812.6,
+     "bid": 812.4,
+     "high": 818.0,
+     "low": 805.25,
+     "ltp": 812.5,
+     "oi": 0,
+     "open": 806.0,
+     "prev_close": 800.0,
+     "volume": 1250000
+    }
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting quote for: INFY"
+   ],
+   [
+    "info",
+    "Quote result: {'status': 'success', 'data': {'ask': 812.6, 'bid': 812.4, 'high': 818.0, 'low': 805.25, 'ltp': 812.5, 'oi': 0, 'open': 806.0, 'prev_close': 800.0, 'volume': 1250000}}"
+   ],
+   [
+    "info",
+    "Stored result in variable: q"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

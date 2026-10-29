@@ -1,0 +1,139 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "not_gate_yes_no",
+ "note": "",
+ "parity": [
+  "N-gate-07"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Not",
+  "nodes": [
+   {
+    "id": "start",
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:15"
+    }
+   },
+   {
+    "id": "a",
+    "type": "varCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "leftValue": "1",
+     "operator": ">",
+     "rightValue": "2"
+    }
+   },
+   {
+    "id": "g",
+    "type": "notGate",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {}
+   },
+   {
+    "id": "y",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "inverted"
+    }
+   },
+   {
+    "id": "nn",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "no"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-start-a-x",
+    "source": "start",
+    "target": "a"
+   },
+   {
+    "id": "e-a-g-false",
+    "source": "a",
+    "target": "g",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-g-y-yes",
+    "source": "g",
+    "target": "y",
+    "sourceHandle": "yes"
+   },
+   {
+    "id": "e-g-nn-no",
+    "source": "g",
+    "target": "nn",
+    "sourceHandle": "no"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "result": {
+   "status": "success",
+   "message": "Workflow executed successfully"
+  },
+  "record": {
+   "status": "completed",
+   "error": null
+  },
+  "vars_out": {},
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Not"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "info",
+    "Var check: 1.0 > 2.0 = False"
+   ],
+   [
+    "info",
+    "NOT Gate: False -> True"
+   ],
+   [
+    "info",
+    "[LOG] inverted"
+   ]
+  ]
+ }
+}

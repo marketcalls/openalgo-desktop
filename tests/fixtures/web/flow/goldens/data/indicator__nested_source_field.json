@@ -1,0 +1,266 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "indicator",
+ "scenario": "nested_source_field",
+ "note": "",
+ "parity": [
+  "N-indicator-05"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "indicator",
+  "data": {
+   "indicatorName": "sma",
+   "outputVariable": "n4",
+   "params": "{\"period\": 2}",
+   "sourceField": "high",
+   "sourceSeries": "{{h.data}}",
+   "tailBars": 2
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "h": {
+   "data": [
+    {
+     "timestamp": 1792521000,
+     "open": 800.0,
+     "high": 802.5,
+     "low": 791.75,
+     "close": 793.75,
+     "volume": 100000
+    },
+    {
+     "timestamp": 1792607400,
+     "open": 793.75,
+     "high": 797.25,
+     "low": 789.5,
+     "close": 792.5,
+     "volume": 107919
+    },
+    {
+     "timestamp": 1792693800,
+     "open": 792.5,
+     "high": 800.75,
+     "low": 790.5,
+     "close": 796.25,
+     "volume": 115838
+    },
+    {
+     "timestamp": 1792953000,
+     "open": 796.25,
+     "high": 798.75,
+     "low": 788.25,
+     "close": 791.25,
+     "volume": 123757
+    },
+    {
+     "timestamp": 1793039400,
+     "open": 791.25,
+     "high": 794.75,
+     "low": 789.25,
+     "close": 791.25,
+     "volume": 131676
+    },
+    {
+     "timestamp": 1793125800,
+     "open": 791.25,
+     "high": 800.75,
+     "low": 788.25,
+     "close": 796.25,
+     "volume": 139595
+    }
+   ]
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "indicator",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "indicatorName": "sma",
+     "outputVariable": "n4",
+     "params": "{\"period\": 2}",
+     "sourceField": "high",
+     "sourceSeries": "{{h.data}}",
+     "tailBars": 2
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "indicator": "sma",
+   "nested": true,
+   "offset_bars": 0,
+   "at_offset": {
+    "value": 797.75
+   },
+   "inputs": [
+    "data (nested)"
+   ],
+   "params": {
+    "period": 2
+   },
+   "outputs": [
+    "value"
+   ],
+   "latest": {
+    "value": 797.75
+   },
+   "previous": {
+    "value": 796.75
+   },
+   "series": [
+    {
+     "value": 796.75
+    },
+    {
+     "value": 797.75
+    }
+   ],
+   "bars_used": 6
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "h": {
+    "data": [
+     {
+      "timestamp": 1792521000,
+      "open": 800.0,
+      "high": 802.5,
+      "low": 791.75,
+      "close": 793.75,
+      "volume": 100000
+     },
+     {
+      "timestamp": 1792607400,
+      "open": 793.75,
+      "high": 797.25,
+      "low": 789.5,
+      "close": 792.5,
+      "volume": 107919
+     },
+     {
+      "timestamp": 1792693800,
+      "open": 792.5,
+      "high": 800.75,
+      "low": 790.5,
+      "close": 796.25,
+      "volume": 115838
+     },
+     {
+      "timestamp": 1792953000,
+      "open": 796.25,
+      "high": 798.75,
+      "low": 788.25,
+      "close": 791.25,
+      "volume": 123757
+     },
+     {
+      "timestamp": 1793039400,
+      "open": 791.25,
+      "high": 794.75,
+      "low": 789.25,
+      "close": 791.25,
+      "volume": 131676
+     },
+     {
+      "timestamp": 1793125800,
+      "open": 791.25,
+      "high": 800.75,
+      "low": 788.25,
+      "close": 796.25,
+      "volume": 139595
+     }
+    ]
+   },
+   "n4": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": true,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 797.75
+    },
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 2
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 797.75
+    },
+    "previous": {
+     "value": 796.75
+    },
+    "series": [
+     {
+      "value": 796.75
+     },
+     {
+      "value": 797.75
+     }
+    ],
+    "bars_used": 6
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Computing nested sma over 6 upstream values"
+   ],
+   [
+    "info",
+    "sma (nested) latest: {'value': 797.75}"
+   ],
+   [
+    "info",
+    "Stored result in variable: n4"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

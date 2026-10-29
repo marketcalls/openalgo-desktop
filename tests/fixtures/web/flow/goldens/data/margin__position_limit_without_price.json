@@ -1,0 +1,91 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "margin",
+ "scenario": "position_limit_without_price",
+ "note": "",
+ "parity": [
+  "N-margin-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "margin",
+  "data": {
+   "positionsJson": "[{\"symbol\": \"nifty25nov2624000ce\", \"exchange\": \"NFO\", \"action\": \"sell\", \"quantity\": 65, \"product\": \"NRML\", \"pricetype\": \"LIMIT\"}]"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "margin",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "positionsJson": "[{\"symbol\": \"nifty25nov2624000ce\", \"exchange\": \"NFO\", \"action\": \"sell\", \"quantity\": 65, \"product\": \"NRML\", \"pricetype\": \"LIMIT\"}]"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Margin position 1: LIMIT order needs a positive price, got 0.0"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Margin failed: Margin position 1: LIMIT order needs a positive price, got 0.0"
+   ],
+   [
+    "error",
+    "Stopping this branch: margin node failed (Margin position 1: LIMIT order needs a positive price, got 0.0)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "margin",
+     "message": "Margin position 1: LIMIT order needs a positive price, got 0.0"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

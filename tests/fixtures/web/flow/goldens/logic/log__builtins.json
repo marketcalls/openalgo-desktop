@@ -1,0 +1,81 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "log",
+ "scenario": "builtins",
+ "note": "",
+ "parity": [
+  "E-12",
+  "E-13"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "log",
+  "data": {
+   "message": "{{timestamp}}|{{date}}|{{time}}|{{year}}-{{month}}-{{day}} {{hour}}:{{minute}}:{{second}}|{{weekday}}|{{weekday_num}}|q{{quarter}}|w{{week_of_year}}|d{{day_of_year}}|{{iso_timestamp}}|{{session_date}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "{{timestamp}}|{{date}}|{{time}}|{{year}}-{{month}}-{{day}} {{hour}}:{{minute}}:{{second}}|{{weekday}}|{{weekday_num}}|q{{quarter}}|w{{week_of_year}}|d{{day_of_year}}|{{iso_timestamp}}|{{session_date}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "message": "2026-10-29 10:15:00|2026-10-29|10:15:00|2026-10-29 10:15:00|Thursday|4|q4|w44|d302|2026-10-29T10:15:00|2026-10-29"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "[LOG] 2026-10-29 10:15:00|2026-10-29|10:15:00|2026-10-29 10:15:00|Thursday|4|q4|w44|d302|2026-10-29T10:15:00|2026-10-29"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

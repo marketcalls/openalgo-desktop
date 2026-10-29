@@ -1,0 +1,91 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "margin",
+ "scenario": "basket_non_object",
+ "note": "",
+ "parity": [
+  "N-margin-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "margin",
+  "data": {
+   "positionsJson": "[{\"symbol\": \"SBIN\"}, 3]"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "margin",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "positionsJson": "[{\"symbol\": \"SBIN\"}, 3]"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Margin positions must all be objects; the basket contains a non-object entry."
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Margin failed: Margin positions must all be objects; the basket contains a non-object entry."
+   ],
+   [
+    "error",
+    "Stopping this branch: margin node failed (Margin positions must all be objects; the basket contains a non-object entry.)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "margin",
+     "message": "Margin positions must all be objects; the basket contains a non-object entry."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

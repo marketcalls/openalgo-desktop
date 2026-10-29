@@ -1,0 +1,319 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "optionsMultiOrder",
+ "scenario": "strategy_type_alias",
+ "note": "",
+ "parity": [
+  "N-optionsMultiOrder-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "optionsMultiOrder",
+  "data": {
+   "action": "SELL",
+   "exchange": "NSE_INDEX",
+   "expiryType": "current_week",
+   "outputVariable": "multi",
+   "priceType": "MARKET",
+   "product": "NRML",
+   "quantity": 1,
+   "strategyType": "Straddle",
+   "underlying": "NIFTY"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "optionsMultiOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "SELL",
+     "exchange": "NSE_INDEX",
+     "expiryType": "current_week",
+     "outputVariable": "multi",
+     "priceType": "MARKET",
+     "product": "NRML",
+     "quantity": 1,
+     "strategyType": "Straddle",
+     "underlying": "NIFTY"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "master_contract": [
+   {
+    "symbol": "NIFTY25NOV2624000CE",
+    "name": "NIFTY",
+    "exchange": "NFO",
+    "lotsize": 65,
+    "expiry": "25-NOV-26",
+    "strike": 24000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "NIFTYNXT5025NOV2668000CE",
+    "name": "NIFTYNXT50",
+    "exchange": "NFO",
+    "lotsize": 25,
+    "expiry": "25-NOV-26",
+    "strike": 68000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "BANKNIFTY25NOV2652000CE",
+    "name": "BANKNIFTY",
+    "exchange": "NFO",
+    "lotsize": 30,
+    "expiry": "25-NOV-26",
+    "strike": 52000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "SENSEX27NOV2680000CE",
+    "name": "SENSEX",
+    "exchange": "BFO",
+    "lotsize": 20,
+    "expiry": "27-NOV-26",
+    "strike": 80000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "CRUDEOIL17NOV265800CE",
+    "name": "CRUDEOIL",
+    "exchange": "MCX",
+    "lotsize": 100,
+    "expiry": "17-NOV-26",
+    "strike": 5800.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "GOLD25NOV26118000CE",
+    "name": "GOLD",
+    "exchange": "MCX",
+    "lotsize": 1,
+    "expiry": "25-NOV-26",
+    "strike": 118000.0,
+    "instrumenttype": "CE"
+   }
+  ]
+ },
+ "script": [
+  {
+   "endpoint": "expiry",
+   "reply": {
+    "status": "success",
+    "data": [
+     "04-NOV-26",
+     "11-NOV-26",
+     "18-NOV-26",
+     "25-NOV-26",
+     "30-DEC-26",
+     "30-MAR-27"
+    ],
+    "message": "Found 6 expiry dates for NIFTY options in NFO"
+   }
+  },
+  {
+   "endpoint": "optionsmultiorder",
+   "reply": {
+    "status": "success",
+    "results": [
+     {
+      "action": "BUY",
+      "leg": 1,
+      "offset": "ATM",
+      "option_type": "CE",
+      "orderid": "250408000223345",
+      "status": "success",
+      "symbol": "NIFTY25NOV2624000CE"
+     },
+     {
+      "action": "BUY",
+      "leg": 2,
+      "offset": "ATM",
+      "option_type": "PE",
+      "orderid": "250408000223346",
+      "status": "success",
+      "symbol": "NIFTY25NOV2624000PE"
+     }
+    ],
+    "underlying": "NIFTY",
+    "underlying_ltp": 24012.35
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_expiry",
+    "endpoint": "expiry",
+    "payload": {
+     "symbol": "NIFTY",
+     "exchange": "NFO",
+     "instrumenttype": "options"
+    }
+   },
+   {
+    "method": "options_multi_order",
+    "endpoint": "optionsmultiorder",
+    "payload": {
+     "strategy": "Golden Flow",
+     "underlying": "NIFTY",
+     "exchange": "NSE_INDEX",
+     "expiry_date": "04NOV26",
+     "strike_int": null,
+     "legs": [
+      {
+       "offset": "ATM",
+       "option_type": "CE",
+       "action": "SELL",
+       "quantity": 65,
+       "pricetype": "MARKET",
+       "product": "NRML",
+       "price": 0.0,
+       "splitsize": 0
+      },
+      {
+       "offset": "ATM",
+       "option_type": "PE",
+       "action": "SELL",
+       "quantity": 65,
+       "pricetype": "MARKET",
+       "product": "NRML",
+       "price": 0.0,
+       "splitsize": 0
+      }
+     ]
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "results": [
+    {
+     "action": "BUY",
+     "leg": 1,
+     "offset": "ATM",
+     "option_type": "CE",
+     "orderid": "250408000223345",
+     "status": "success",
+     "symbol": "NIFTY25NOV2624000CE"
+    },
+    {
+     "action": "BUY",
+     "leg": 2,
+     "offset": "ATM",
+     "option_type": "PE",
+     "orderid": "250408000223346",
+     "status": "success",
+     "symbol": "NIFTY25NOV2624000PE"
+    }
+   ],
+   "underlying": "NIFTY",
+   "underlying_ltp": 24012.35
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "multi": {
+    "status": "success",
+    "results": [
+     {
+      "action": "BUY",
+      "leg": 1,
+      "offset": "ATM",
+      "option_type": "CE",
+      "orderid": "250408000223345",
+      "status": "success",
+      "symbol": "NIFTY25NOV2624000CE"
+     },
+     {
+      "action": "BUY",
+      "leg": 2,
+      "offset": "ATM",
+      "option_type": "PE",
+      "orderid": "250408000223346",
+      "status": "success",
+      "symbol": "NIFTY25NOV2624000PE"
+     }
+    ],
+    "underlying": "NIFTY",
+    "underlying_ltp": 24012.35
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Options multi-order node_data keys: ['action', 'exchange', 'expiryType', 'outputVariable', 'priceType', 'product', 'quantity', 'strategyType', 'underlying']"
+   ],
+   [
+    "info",
+    "Strategy: straddle, Action: SELL, Quantity: 1 lots, Product: NRML"
+   ],
+   [
+    "info",
+    "Lot size for NIFTY: 65 -> 1 lot(s) = 65"
+   ],
+   [
+    "info",
+    "Resolved expiry: current_week -> 04NOV26"
+   ],
+   [
+    "info",
+    "Placing options multi-order: NIFTY straddle with 2 legs"
+   ],
+   [
+    "info",
+    "  Leg 1: ATM CE SELL qty=65"
+   ],
+   [
+    "info",
+    "  Leg 2: ATM PE SELL qty=65"
+   ],
+   [
+    "info",
+    "Options multi-order result: {'status': 'success', 'results': [{'action': 'BUY', 'leg': 1, 'offset': 'ATM', 'option_type': 'CE', 'orderid': '250408000223345', 'status': 'success', 'symbol': 'NIFTY25NOV2624000CE'}, {'action': 'BUY', 'leg': 2, 'offset': 'ATM', 'option_type': 'PE', 'orderid': '250408000223346', 'status': 'success', 'symbol': 'NIFTY25NOV2624000PE'}], 'underlying': 'NIFTY', 'underlying_ltp': 24012.35}"
+   ],
+   [
+    "info",
+    "Stored result in variable: multi"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

@@ -1,0 +1,127 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "getQuote",
+ "scenario": "unresolved_symbol_sent_as_text",
+ "note": "",
+ "parity": [
+  "N-dataCommon-09",
+  "N-dataCommon-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "getQuote",
+  "data": {
+   "outputVariable": "q",
+   "symbol": "{{sym}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "getQuote",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "q",
+     "symbol": "{{sym}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "quotes",
+   "reply": {
+    "status": "error",
+    "error": "Symbol {{sym}} not found on NSE",
+    "code": 404
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_quotes",
+    "endpoint": "quotes",
+    "payload": {
+     "symbol": "{{sym}}",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "error": "Symbol {{sym}} not found on NSE",
+   "code": 404
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "q": {
+    "status": "error",
+    "error": "Symbol {{sym}} not found on NSE",
+    "code": 404
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting quote for: {{sym}}"
+   ],
+   [
+    "info",
+    "Quote result: {'status': 'error', 'error': 'Symbol {{sym}} not found on NSE', 'code': 404}"
+   ],
+   [
+    "info",
+    "Stored result in variable: q"
+   ],
+   [
+    "error",
+    "Stopping this branch: getQuote node failed (Symbol {{sym}} not found on NSE)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "getQuote",
+     "message": "Symbol {{sym}} not found on NSE"
+    }
+   ],
+   "abort": null
+  }
+ }
+}
