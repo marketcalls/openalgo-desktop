@@ -12,6 +12,7 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Workflow } from '@/api/flow'
 import { useFlowWorkflowStore } from '@/stores/flowWorkflowStore'
+import { useThemeStore } from '@/stores/themeStore'
 import { checkA11y } from '@/test/a11y-utils'
 
 const api = vi.hoisted(() => ({
@@ -31,7 +32,9 @@ vi.mock('@/api/flow', async (importOriginal) => {
   return { ...actual, ...api }
 })
 
-vi.mock('@/hooks/useProfileMenuItems', () => ({ useProfileMenuItems: () => [] }))
+vi.mock('@/hooks/useProfileMenuItems', () => ({
+  useProfileMenuItems: () => [{ href: '/positions', label: 'Positions', icon: () => null }],
+}))
 
 const toast = vi.hoisted(() => ({
   success: vi.fn(),
@@ -88,6 +91,7 @@ function renderEditor() {
             <Route path="/flow/shortcuts" element={<p>shortcuts page</p>} />
             <Route path="/flow" element={<p>workflow list</p>} />
             <Route path="/dashboard" element={<p>dashboard page</p>} />
+            <Route path="/positions" element={<p>positions page</p>} />
           </Routes>
         </QueryClientProvider>
       </MemoryRouter>
@@ -488,5 +492,45 @@ describe('export and replace (IE-05, IE-16, V-153)', () => {
     expect(
       await screen.findByText('Edge e9 points at a node that does not exist.')
     ).toBeInTheDocument()
+  })
+})
+
+describe('the editor header is the app account controls (desktop)', () => {
+  it('offers Check for Updates in the profile menu, as every other page does', async () => {
+    renderEditor()
+    const user = userEvent.setup()
+    await loaded()
+    expect(screen.getByRole('link', { name: /Dashboard/ })).toHaveAttribute('href', '/dashboard')
+    await user.click(screen.getByRole('button', { name: 'Open user menu' }))
+    expect(await screen.findByRole('menuitem', { name: 'Check for Updates' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Logout' })).toBeInTheDocument()
+  })
+
+  it('says when the mode switches, as the navbar does', async () => {
+    const original = useThemeStore.getState().toggleAppMode
+    useThemeStore.setState({
+      appMode: 'live',
+      toggleAppMode: vi.fn(async () => {
+        useThemeStore.setState({ appMode: 'analyzer' })
+        return { success: true }
+      }),
+    })
+    renderEditor()
+    await loaded()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Switch to Analyze mode' }))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Switched to Analyze mode'))
+    useThemeStore.setState({ appMode: 'live', toggleAppMode: original })
+  })
+
+  it('asks before a profile menu entry leaves unsaved changes', async () => {
+    renderEditor()
+    const user = userEvent.setup()
+    await user.type(await loaded(), ' v2')
+    await user.click(screen.getByRole('button', { name: 'Open user menu' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Positions' }))
+    expect(await screen.findByText('Leave without saving?')).toBeInTheDocument()
+    expect(screen.queryByText('positions page')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Leave without saving' }))
+    expect(await screen.findByText('positions page')).toBeInTheDocument()
   })
 })

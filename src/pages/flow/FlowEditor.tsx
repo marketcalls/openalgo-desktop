@@ -20,24 +20,16 @@ import { showToast } from '@/utils/toast'
 import '@xyflow/react/dist/style.css'
 import {
   ArrowLeft,
-  BarChart3,
-  BookOpen,
   Download,
   FileJson,
-  Home,
   Keyboard,
   Loader2,
-  LogOut,
-  Moon,
   MoreVertical,
   Pause,
   Play,
   Save,
-  Sun,
   Terminal,
-  Zap,
 } from 'lucide-react'
-import { authApi } from '@/api/auth'
 import {
   activateWorkflow,
   deactivateWorkflow,
@@ -48,7 +40,7 @@ import {
   replaceWorkflow,
   updateWorkflow,
 } from '@/api/flow'
-import { LogoutConfirmDialog } from '@/components/auth/LogoutConfirmDialog'
+import { FlowEditorAccountControls } from '@/components/desktop/FlowEditorAccountControls'
 import { FlowLeaveGuard, useGuardedNavigate } from '@/components/desktop/FlowLeaveGuard'
 import { edgeTypes } from '@/components/flow/edges'
 // Import Flow components
@@ -60,7 +52,6 @@ import {
   type LogEntry,
   NodePalette,
 } from '@/components/flow/panels'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -74,18 +65,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { useProfileMenuItems } from '@/hooks/useProfileMenuItems'
 import { FLOW_STARTED_IN_BACKGROUND, failedRunLog, startedInBackgroundLog } from '@/lib/desktopFlow'
 import { DEFAULT_NODE_DATA } from '@/lib/flow/constants'
 import { cn } from '@/lib/utils'
-import { useAuthStore } from '@/stores/authStore'
 import { useFlowWorkflowStore } from '@/stores/flowWorkflowStore'
-import { useThemeStore } from '@/stores/themeStore'
 
 let nodeId = 0
 
@@ -145,30 +132,9 @@ function FlowEditorContent() {
   } = useFlowWorkflowStore()
 
   const [isActive, setIsActive] = useState(false)
-  const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const [showLogPanel, setShowLogPanel] = useState(false)
   const [executionLogs, setExecutionLogs] = useState<LogEntry[]>([])
   const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>('idle')
-
-  // Theme and auth stores
-  const { mode, appMode, toggleMode, toggleAppMode, isTogglingMode } = useThemeStore()
-  const { user, logout } = useAuthStore()
-  // Filtered by broker capabilities (hides crypto-only Leverage on Indian brokers, issue #1480)
-  const profileMenuItems = useProfileMenuItems()
-
-  const handleLogout = async () => {
-    try {
-      await authApi.logout()
-      logout()
-      navigate('/login')
-    } catch (_error) {
-      showToast.error('Logout failed', 'system')
-    }
-  }
-
-  const handleModeToggle = async () => {
-    await toggleAppMode()
-  }
 
   const {
     isLoading,
@@ -657,105 +623,7 @@ function FlowEditorContent() {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2 px-2">
-          {/* Mode Badge */}
-          <Badge
-            variant={appMode === 'live' ? 'default' : 'secondary'}
-            className={cn(
-              'text-xs',
-              appMode === 'analyzer' && 'bg-purple-500 hover:bg-purple-600 text-white'
-            )}
-          >
-            <span className="hidden sm:inline">
-              {appMode === 'live' ? 'Live Mode' : 'Analyze Mode'}
-            </span>
-            <span className="sm:hidden">{appMode === 'live' ? 'Live' : 'Analyze'}</span>
-          </Badge>
-
-          {/* Mode Toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={handleModeToggle}
-            disabled={isTogglingMode}
-            title={`Switch to ${appMode === 'live' ? 'Analyze' : 'Live'} mode`}
-            aria-label={`Switch to ${appMode === 'live' ? 'Analyze' : 'Live'} mode`}
-          >
-            {isTogglingMode ? (
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            ) : appMode === 'live' ? (
-              <Zap className="h-4 w-4" />
-            ) : (
-              <BarChart3 className="h-4 w-4" />
-            )}
-          </Button>
-
-          {/* Theme Toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={toggleMode}
-            disabled={appMode !== 'live'}
-            title={mode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-            aria-label={mode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
-          >
-            {mode === 'light' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
-
-          <Button variant="ghost" size="sm" className="h-7 text-xs" asChild>
-            <Link to="/dashboard">
-              <Home className="h-3.5 w-3.5 mr-1.5" />
-              Dashboard
-            </Link>
-          </Button>
-
-          {/* Profile Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-full bg-primary text-primary-foreground"
-                aria-label="Open profile menu"
-              >
-                <span className="text-sm font-medium">
-                  {user?.username?.[0]?.toUpperCase() || 'O'}
-                </span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {profileMenuItems.map((item) => (
-                <DropdownMenuItem
-                  key={item.href}
-                  onSelect={() => navigate(item.href)}
-                  className="cursor-pointer"
-                >
-                  <item.icon className="h-4 w-4 mr-2" />
-                  {item.label}
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuItem asChild>
-                <a
-                  href="https://docs.openalgo.in"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2"
-                >
-                  <BookOpen className="h-4 w-4" />
-                  Docs
-                </a>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => setShowLogoutDialog(true)}
-                className="text-destructive focus:text-destructive"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <FlowEditorAccountControls />
         </div>
       </div>
 
@@ -810,11 +678,6 @@ function FlowEditorContent() {
       </Dialog>
 
       <FlowLeaveGuard />
-      <LogoutConfirmDialog
-        open={showLogoutDialog}
-        onOpenChange={setShowLogoutDialog}
-        onConfirm={handleLogout}
-      />
 
       {/* Workflow Toolbar */}
       <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2">

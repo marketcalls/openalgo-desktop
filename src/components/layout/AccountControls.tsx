@@ -33,7 +33,15 @@ import { showToast } from '@/utils/toast'
  * breakpoints its fit test holds it to; the toolbar sizes everything to the
  * terminal's 28px controls.
  */
-export function AccountControls({ variant = 'navbar' }: { variant?: 'navbar' | 'toolbar' }) {
+export function AccountControls({
+  variant = 'navbar',
+  onNavigate,
+}: {
+  variant?: 'navbar' | 'toolbar'
+  /** Desktop: where a profile menu entry goes through, for a page that must
+   * ask before leaving (the Flow editor with unsaved changes). */
+  onNavigate?: (href: string) => void
+}) {
   const navigate = useNavigate()
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
   const { mode, appMode, toggleMode, toggleAppMode, isTogglingMode } = useThemeStore()
@@ -176,7 +184,7 @@ export function AccountControls({ variant = 'navbar' }: { variant?: 'navbar' | '
             ) : (
               <DropdownMenuItem
                 key={item.href}
-                onSelect={() => navigate(item.href)}
+                onSelect={() => (onNavigate ?? navigate)(item.href)}
                 className="cursor-pointer"
               >
                 <item.icon className="h-4 w-4 mr-2" />
