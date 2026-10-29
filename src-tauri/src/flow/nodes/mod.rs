@@ -14,6 +14,8 @@ pub mod logic;
 pub mod master;
 pub mod options;
 #[cfg(test)]
+mod order_api_tests;
+#[cfg(test)]
 pub mod order_testing;
 pub mod orders;
 
