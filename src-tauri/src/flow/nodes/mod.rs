@@ -34,7 +34,7 @@ pub struct NodeFamily {
 pub const FAMILIES: &[NodeFamily] = &[
     // start, group and the trigger nodes' run-time log lines.
     core::FAMILY,
-    // log, variable, delay (the nodes-logic lane completes this family).
+    // conditions, variables, math, timing, alerts, HTTP (lane nodes-logic).
     logic::FAMILY,
 ];
 
