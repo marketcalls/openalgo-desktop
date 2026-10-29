@@ -224,6 +224,11 @@ async fn an_option_chain_runs_on_an_embedded_expiry_and_refuses_a_bad_count() {
     )
     .await;
     let v = refused.value().cloned().unwrap_or(Value::Null);
-    assert_eq!((v["status"].clone(), v["code"].clone()), (json!("error"), json!(400)), "{}", v);
+    assert_eq!(
+        (v["status"].clone(), v["code"].clone()),
+        (json!("error"), json!(400)),
+        "{}",
+        v
+    );
     assert!(v["error"].get("strike_count").is_some(), "{}", v);
 }

@@ -474,13 +474,24 @@ async fn the_editors_indicator_defaults_run_and_feed_variables() {
                         "params": "{\"period\": 14}", "outputVariable": "ind"});
     let out = run(&c, "indicator", editor).await;
     assert!(!out.is_error(), "{:?}", out);
-    for path in ["{{ind.latest.value}}", "{{ind.previous.value}}", "{{ind.at_offset.value}}", "{{ind.series[4].value}}", "{{ind.bars_used}}"] {
+    for path in [
+        "{{ind.latest.value}}",
+        "{{ind.previous.value}}",
+        "{{ind.at_offset.value}}",
+        "{{ind.series[4].value}}",
+        "{{ind.bars_used}}",
+    ] {
         let text = c.vars.interpolate(path);
         assert!(!text.contains("{{"), "{} did not resolve", path);
     }
-    assert_eq!(c.vars.interpolate("{{ind.series[4].value}}"), c.vars.interpolate("{{ind.latest.value}}"));
+    assert_eq!(
+        c.vars.interpolate("{{ind.series[4].value}}"),
+        c.vars.interpolate("{{ind.latest.value}}")
+    );
     assert_eq!(c.vars.interpolate("{{ind.bars_used}}"), "120");
-    assert!(matches!(c.vars.resolve_raw(&json!("{{ind.series}}")), Value::Array(ref a) if a.len() == 5));
+    assert!(
+        matches!(c.vars.resolve_raw(&json!("{{ind.series}}")), Value::Array(ref a) if a.len() == 5)
+    );
 }
 
 /// Deeply nested JSON text reaching a node (a webhook value interpolated
@@ -501,7 +512,36 @@ async fn deeply_nested_text_is_a_node_error_not_a_crash() {
         "{}",
         out.failure_message()
     );
-    let out = run(&c, "indicator", json!({"indicatorName": "sma", "sourceSeries": deep})).await;
-    assert_eq!(out.failure_message(), "sourceSeries did not resolve to a JSON array");
+    let out = run(
+        &c,
+        "indicator",
+        json!({"indicatorName": "sma", "sourceSeries": deep}),
+    )
+    .await;
+    assert_eq!(
+        out.failure_message(),
+        "sourceSeries did not resolve to a JSON array"
+    );
     assert!(client.calls().is_empty());
+}
+
+/// JSON text that holds a string is "not an array", as Python reads it
+/// (json.loads gives a str), not text to parse again.
+#[tokio::test]
+async fn a_series_of_json_text_holding_a_string_is_not_an_array() {
+    let c = ctx(Arc::new(FakeFlowClient::new()));
+    let out = run(
+        &c,
+        "indicator",
+        json!({"indicatorName": "sma", "sourceSeries": "\"[1, 2, 3]\""}),
+    )
+    .await;
+    assert_eq!(
+        out.failure_message(),
+        "sourceSeries must resolve to an array"
+    );
+    assert_eq!(
+        logs(&c)[0].1,
+        "sourceSeries must resolve to an array, got: '[1, 2, 3]'"
+    );
 }

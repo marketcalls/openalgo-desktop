@@ -209,7 +209,12 @@ async fn replay(path: &Path) -> Vec<String> {
     } else {
         json!({"errors": walk.errors, "abort": abort})
     };
-    same("error", &failures_as_text(field(&want, "error")), &error, &mut diffs);
+    same(
+        "error",
+        &failures_as_text(field(&want, "error")),
+        &error,
+        &mut diffs,
+    );
     diffs
 }
 

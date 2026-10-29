@@ -102,6 +102,15 @@ fn nested_values(ctx: &NodeCtx, raw: &Value, source_field: &str) -> Result<Vec<f
         },
         other => other.clone(),
     };
+    // JSON text holding a string (`"abc"`) is not an array; handed on, it
+    // would be read as JSON a second time.
+    if list.is_string() {
+        ctx.error(format!(
+            "sourceSeries must resolve to an array, got: {}",
+            pyfmt::repr(&list)
+        ));
+        return Err("sourceSeries must resolve to an array".into());
+    }
     source_series_numbers(&list, source_field).map_err(|e| {
         ctx.error(e.log);
         e.message
