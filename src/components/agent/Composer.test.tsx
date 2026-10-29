@@ -151,6 +151,16 @@ describe('Composer prefill', () => {
  * surface can only refuse. "There is a box" is therefore not the question the
  * card is asking, and these pin the difference.
  */
+describe('the empty box', () => {
+  it('names workflows, as the web does now that the Agent can build one (parity D-71)', () => {
+    renderComposer(<Composer onSend={vi.fn()} onStop={vi.fn()} running={false} />)
+    expect(box()).toHaveAttribute(
+      'placeholder',
+      'Ask about your positions, a symbol, a strategy or a workflow'
+    )
+  })
+})
+
 describe('order controls follow the surface, not the box', () => {
   it('withholds them from a composer whose surface cannot order', () => {
     renderComposer(<Composer onSend={vi.fn()} onStop={vi.fn()} running={false} canOrder={false} />)

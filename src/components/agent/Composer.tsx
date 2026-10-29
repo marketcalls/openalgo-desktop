@@ -150,7 +150,7 @@ export function Composer({
   disabled = false,
   modelId = null,
   onCaptureChart,
-  placeholder = 'Ask about your positions, a symbol or the market',
+  placeholder = 'Ask about your positions, a symbol, a strategy or a workflow',
   className,
 }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
