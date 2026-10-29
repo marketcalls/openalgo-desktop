@@ -15,6 +15,7 @@ pub mod chartink;
 pub mod charts;
 pub mod custom_indicators;
 pub mod e2e;
+pub mod flow;
 pub mod health;
 pub mod historify;
 pub mod latency;
@@ -121,6 +122,7 @@ pub fn table() -> Vec<RouteSpec> {
         tunnel::table(),
         e2e::table(),
         agent::table(),
+        flow::table(),
     ]
     .into_iter()
     .flatten()
@@ -176,8 +178,6 @@ fn public() -> Vec<RouteSpec> {
 /// `blueprints/master_contract_status.py`).
 fn master_contract() -> Vec<RouteSpec> {
     vec![
-        // Master contract status and symbol cache (web
-        // blueprints/master_contract_status.py)
         r!(
             GET,
             "/api/master-contract/status",

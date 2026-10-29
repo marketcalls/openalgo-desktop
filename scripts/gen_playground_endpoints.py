@@ -24,7 +24,6 @@ from collections import OrderedDict
 #: Endpoints for features the desktop does not ship (CLAUDE.md, Scope decisions).
 EXCLUDED_PATH_PREFIXES = (
     "/api/v1/python",
-    "/api/v1/flow",
     "/api/v1/backtest",
     "/api/v1/portfolio/backtest",
     "/api/v1/sip",

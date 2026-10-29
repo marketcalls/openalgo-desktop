@@ -11,6 +11,7 @@
 //! - `executor/`: running a workflow: the one-run-per-workflow claim, the
 //!   owned run task, the record, the graph walk.
 //! - `nodes/`: the node registry, one line per node family.
+//! - `service/`: what the `/flow/api/...` routes do.
 //! - `store/`: the workflows and their run history (migration
 //!   `100_flow_core`).
 //! - `validator/`: the web's workflow validator.
@@ -22,6 +23,7 @@
 pub mod contract;
 pub mod executor;
 pub mod nodes;
+pub mod service;
 pub mod store;
 pub mod validator;
 
