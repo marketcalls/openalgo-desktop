@@ -22,6 +22,8 @@ pub mod prompt;
 pub mod registry;
 
 #[cfg(test)]
+mod flow_builder;
+#[cfg(test)]
 mod tests;
 
 use crate::agent::contract::tool::Surface;

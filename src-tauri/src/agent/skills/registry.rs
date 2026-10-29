@@ -15,7 +15,8 @@
 //! a test pins that every surface named here is one that toolkit is offered
 //! on, so a skill is never listed in a prompt whose tools cannot read it.
 //!
-//! Voice is deliberately absent. Authoring a script is a typing job.
+//! Voice is deliberately absent. Authoring a script or a workflow is a
+//! typing job.
 
 use crate::agent::contract::tool::{Surface, Surfaces};
 
@@ -74,14 +75,28 @@ saving it there stores the compiled program a strategy needs to run.",
     reference_suffixes: &[".md", ".txt", ".json", ".oscript"],
 };
 
+/// The Flow skill: the web's `flow-builder`, handing off to the Flow
+/// toolkit's `validate_flow` and `save_flow` (`agent::tools::flow_gen`).
+/// Its reference pages are the web's node table and the import-format
+/// contract the Flow tools cite (`docs/prompt/flow-import-format.md`,
+/// served as `reference/flow-import-format.md`; lead decision 17: the web
+/// points the model at that file and serves it nothing).
+pub const FLOW_BUILDER: SkillSpec = SkillSpec {
+    name: "flow-builder",
+    folder: ".claude/skills/flow-builder",
+    // Chat only, matching the Flow toolkit it hands off to.
+    surfaces: Surfaces::CHAT_ONLY,
+    agent_notes: "You cannot run validate.py, curl or SQL. Validate with validate_flow instead \
+of validate.py, and save with save_flow instead of the import route; it \
+imports the workflow inactive and the operator activates it in /flow. \
+validate_flow does not flag a data key nothing reads, so copy every key from \
+reference/nodes.md exactly.",
+    reference_dirs: DEFAULT_REFERENCE_DIRS,
+    reference_suffixes: DEFAULT_REFERENCE_SUFFIXES,
+};
+
 /// Every skill the Agent may read, in the order the prompt lists them.
-///
-/// Later, with Flow (not in this version, maintainer 2026-10-27): the web's
-/// `flow-builder` entry (folder `.claude/skills/flow-builder`, chat only,
-/// handing off to `validate_flow` and `save_flow`) goes here, after
-/// `openscript`, in the same change that adds the Flow toolkit, so its notes
-/// never name tools a run does not have.
-pub const SKILLS: &[SkillSpec] = &[OPENSCRIPT];
+pub const SKILLS: &[SkillSpec] = &[OPENSCRIPT, FLOW_BUILDER];
 
 /// The skills of `specs` offered on one surface, in registry order.
 pub fn skills_for_surface(specs: &[SkillSpec], surface: Surface) -> Vec<&SkillSpec> {
