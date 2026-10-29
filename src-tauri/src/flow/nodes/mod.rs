@@ -11,6 +11,7 @@ pub mod core;
 pub mod logic;
 pub mod math;
 pub mod pyjson;
+pub mod timing;
 
 #[cfg(test)]
 pub(crate) mod testkit;
