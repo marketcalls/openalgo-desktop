@@ -141,3 +141,69 @@ describe('describeSmartPreview', () => {
     ).toBe("The 'position_size' argument is invalid: x")
   })
 })
+
+describe('describeApproval for save_flow (parity A-25)', () => {
+  const graph = {
+    name: 'ORB',
+    nodes: [
+      { id: 'n1', type: 'start', data: {} },
+      { id: 'n2', type: 'placeOrder', data: {} },
+    ],
+    edges: [{ id: 'e1', source: 'n1', target: 'n2' }],
+  }
+
+  it('says what is saved, under the name the tool stores, and that it does not run', () => {
+    const words = describeApproval({
+      tool_name: 'save_flow',
+      args: { name: 'Opening range', workflow_json: JSON.stringify(graph) },
+    })
+    expect(words.sentence).toBe(
+      'Save the workflow "Opening range (imported)" to Flow. It is saved inactive and does not run until you activate it.'
+    )
+    expect(words.details).toContainEqual({
+      name: 'workflow_json',
+      label: 'Workflow',
+      value: '2 nodes, 1 connection',
+    })
+  })
+
+  it('lists a very large workflow by its size, never its text', () => {
+    const big = {
+      nodes: Array.from({ length: 4000 }, (_, i) => ({
+        id: `n${i}`,
+        type: 'log',
+        data: { message: 'x'.repeat(100) },
+      })),
+      edges: [],
+    }
+    const json = JSON.stringify(big)
+    expect(json.length).toBeGreaterThan(400_000)
+    const words = describeApproval({
+      tool_name: 'save_flow',
+      args: { name: 'Big', workflow_json: json },
+    })
+    const detail = words.details.find((d) => d.name === 'workflow_json')
+    expect(detail?.value).toBe('4000 nodes, 0 connections')
+  })
+
+  it('reads an object argument and an unreadable one', () => {
+    const asObject = describeApproval({
+      tool_name: 'save_flow',
+      args: { name: 'A', workflow_json: graph },
+    })
+    expect(asObject.details.find((d) => d.name === 'workflow_json')?.value).toBe(
+      '2 nodes, 1 connection'
+    )
+    const broken = describeApproval({
+      tool_name: 'save_flow',
+      args: { name: 'A', workflow_json: '{' },
+    })
+    expect(broken.details.find((d) => d.name === 'workflow_json')?.value).toBe(
+      'not readable as a workflow'
+    )
+  })
+
+  it('falls back to the tool name with no workflow name', () => {
+    expect(describeApproval({ tool_name: 'save_flow', args: {} }).sentence).toBe('Save flow.')
+  })
+})
