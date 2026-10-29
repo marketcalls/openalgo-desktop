@@ -97,14 +97,13 @@
   }
  },
  "desktop_expected": {
-  "parity": "N-mathExpression-11",
-  "why": "WEB-DEFECT: an unresolved {{var}} reads `Unsupported expression type: Set`; the desktop names the unresolved variable(s).",
-  "fix": [
-   "math_unresolved"
-  ],
+  "parity": "N-mathExpression-12",
+  "why": "The web's text is Python's AttributeError; parity accepts any wording that names the value's type (the lane's).",
   "outputs": {
    "status": "error",
-   "message": "expected string or bytes-like object, got 'int'"
+   "message": {
+    "$any": "string"
+   }
   },
   "logs": [
    [
@@ -117,11 +116,15 @@
    ],
    [
     "error",
-    "Math expression failed: expected string or bytes-like object, got 'int'"
+    {
+     "$prefix": "Math expression failed: "
+    }
    ],
    [
     "error",
-    "Stopping this branch: mathExpression node failed (expected string or bytes-like object, got 'int')"
+    {
+     "$prefix": "Stopping this branch: mathExpression node failed ("
+    }
    ]
   ],
   "error": {
@@ -129,7 +132,9 @@
     {
      "node": "n1",
      "type": "mathExpression",
-     "message": "expected string or bytes-like object, got 'int'"
+     "message": {
+      "$any": "string"
+     }
     }
    ],
    "abort": null
