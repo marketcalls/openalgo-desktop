@@ -742,6 +742,49 @@ pub async fn cancel_all_orders(ctx: &AppState, req: &Value, route: Route) -> Rep
     }
 }
 
+/// What Semi-Auto answers a close from an API-key client (web
+/// `close_position_service`).
+pub const CLOSE_IN_SEMI_AUTO: &str = "Close position operation is not allowed in Semi-Auto mode. Please switch to Auto mode to close positions.";
+
+/// `closeposition` scoped to one position: `req` names its `strategy`,
+/// `symbol`, `exchange` and `product` (Flow's Close Positions node with a
+/// symbol). The web's live branch ignored the filter and squared off every
+/// position (WEB-DEFECT CL-09); here a smart order to position size 0 for
+/// that one position closes it alone, decided under the position's lock by
+/// the smart-order service, in the sandbox or live as analyzer mode says.
+/// Semi-Auto refuses it as it refuses `closeposition`.
+pub async fn close_one_position(ctx: &AppState, req: &Value, route: Route) -> Reply {
+    let analyze = match route.analyze(ctx) {
+        Ok(a) => a,
+        Err(r) => return r,
+    };
+    if let Some(reply) = route.semi_auto_refusal(ctx, analyze, CLOSE_IN_SEMI_AUTO) {
+        let message = Some(reply.message());
+        let meta = meta(Mode::Live, "closeposition", safe_request(req), &reply.body);
+        publish(ctx, Event::PositionClosed { meta, message });
+        return reply;
+    }
+    let mut order = req.clone();
+    if let Some(m) = order.as_object_mut() {
+        for (k, v) in [
+            ("action", json!("BUY")),
+            ("quantity", json!(0)),
+            ("position_size", json!(0)),
+            ("pricetype", json!("MARKET")),
+            ("price", json!(0.0)),
+            ("trigger_price", json!(0.0)),
+        ] {
+            m.insert(k.into(), v);
+        }
+    }
+    // The destination was read above; Semi-Auto does not apply again.
+    let decided = Route {
+        force_live: route.force_live || !analyze,
+        internal: true,
+    };
+    place_smart_order(ctx, &order, decided).await
+}
+
 /// `closeposition`.
 pub async fn close_position(ctx: &AppState, req: &Value, route: Route) -> Reply {
     let analyze = match route.analyze(ctx) {
@@ -752,11 +795,7 @@ pub async fn close_position(ctx: &AppState, req: &Value, route: Route) -> Reply 
         meta: meta(mode, "closeposition", request, &reply.body),
         message: Some(reply.message()),
     };
-    if let Some(reply) = route.semi_auto_refusal(
-        ctx,
-        analyze,
-        "Close position operation is not allowed in Semi-Auto mode. Please switch to Auto mode to close positions.",
-    ) {
+    if let Some(reply) = route.semi_auto_refusal(ctx, analyze, CLOSE_IN_SEMI_AUTO) {
         publish(ctx, closed(Mode::Live, safe_request(req), &reply));
         return reply;
     }

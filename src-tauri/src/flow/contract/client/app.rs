@@ -99,6 +99,15 @@ impl FlowClient for AppFlowClient {
         let Some(app) = self.app.upgrade() else {
             return json!({"status": "error", "error": "OpenAlgo is shutting down.", "code": 503});
         };
+        // Strike-mode legs and a scoped close: the public schemas cannot
+        // carry them, so they take Flow's internal entry (nodes-orders).
+        if let Some(which) = crate::flow::nodes::internal::route(&call) {
+            let key = self.api_key.expose();
+            return match crate::flow::nodes::internal::run(&app, key, which, call.payload).await {
+                Ok(raw) => shaped(raw),
+                Err(t) => transport_failure(t),
+            };
+        }
         let req = match dispatch::post_request(self.api_key.expose(), call.endpoint, call.payload) {
             Ok(r) => r,
             Err(t) => return transport_failure(t),
