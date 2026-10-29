@@ -420,7 +420,7 @@ fn validate(args: &Map<String, Value>) -> ToolOutcome {
             name: prepared.payload.get("name"),
             node_count: count(&nodes),
             edge_count: count(&edges),
-            trigger: trigger_in_order(nodes.as_array().map_or(&[], Vec::as_slice)),
+            trigger: trigger_in_order(nodes.as_array().map_or(&[][..], Vec::as_slice)),
             migrations: &prepared.migrations,
             next_step: VALIDATED_NEXT_STEP,
         },
@@ -602,15 +602,24 @@ impl AgentTool for FlowTool {
         &self.spec
     }
 
-    /// The card shows `save_flow`'s workflow by its size; the shared
-    /// bounding would cut a workflow's text at 2,000 characters and leave
-    /// the card nothing to count (parity A-25).
+    /// The card shows `save_flow`'s workflow by its size, and the name as
+    /// it is stored (trimmed); the shared bounding would cut a workflow's
+    /// text at 2,000 characters and leave the card nothing to count
+    /// (parity A-25).
     fn card_args(&self, args: &Map<String, Value>) -> Map<String, Value> {
         let mut card = redact_map(args);
-        if let (Kind::Save, Some(outlined)) =
-            (self.kind, args.get("workflow_json").and_then(outline))
-        {
+        if !matches!(self.kind, Kind::Save) {
+            return card;
+        }
+        if let Some(outlined) = args.get("workflow_json").and_then(outline) {
             card.insert("workflow_json".into(), outlined);
+        }
+        let trimmed = card
+            .get("name")
+            .and_then(Value::as_str)
+            .map(|n| validator::py::strip(n).to_string());
+        if let Some(name) = trimmed {
+            card.insert("name".into(), Value::String(name));
         }
         card
     }

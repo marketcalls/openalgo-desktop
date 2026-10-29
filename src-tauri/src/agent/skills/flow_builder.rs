@@ -370,10 +370,13 @@ fn the_node_reference_agrees_with_the_desktop_validator() {
             .map(|r| r.node_type.as_str())
             .collect()
     };
-    assert_eq!(of_kind("trigger"), TRIGGER_TYPES.iter().copied().collect());
+    assert_eq!(
+        of_kind("trigger"),
+        TRIGGER_TYPES.iter().copied().collect::<BTreeSet<_>>()
+    );
     assert_eq!(
         of_kind("condition"),
-        BRANCHING_TYPES.iter().copied().collect()
+        BRANCHING_TYPES.iter().copied().collect::<BTreeSet<_>>()
     );
     assert!(of_kind("gate").iter().all(|g| GATE_TYPES.contains(g)));
     assert!(ORDER_TYPES.iter().all(|o| of_kind("order").contains(o)));

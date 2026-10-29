@@ -405,7 +405,7 @@ async fn json_that_does_not_parse_names_what_and_where() {
         ),
         (
             "{\"a\": -Infinity}",
-            "NaN and Infinity are not JSON values; write a number or null at line 1, column 7.",
+            "NaN and Infinity are not JSON values; write a number or null at line 1, column 8.",
         ),
     ] {
         let out = call(&t, "validate_flow", json!({"workflow_json": text})).await;
@@ -749,16 +749,17 @@ async fn saving_pauses_for_approval_with_a_card_that_counts_the_workflow() {
 /// The card's outline: an object argument is outlined too; text that is
 /// not a workflow is left as the shared bounding leaves it, so the card
 /// says it cannot read it; validate_flow's card is never asked for.
-#[test]
-fn the_card_outlines_a_workflow_and_leaves_anything_else() {
+#[tokio::test]
+async fn the_card_outlines_a_workflow_and_leaves_anything_else() {
     let t = app();
     let save = tool(&t, "save_flow");
     let card = save.card_args(
-        &json!({"name": "A", "workflow_json": webhook_entry()})
+        &json!({"name": " A\u{1f} ", "workflow_json": webhook_entry()})
             .as_object()
             .unwrap()
             .clone(),
     );
+    assert_eq!(card["name"], "A", "the name as it is stored");
     assert_eq!(
         card["workflow_json"]["nodes"].as_array().map(Vec::len),
         Some(2)
