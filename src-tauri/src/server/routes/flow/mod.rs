@@ -11,6 +11,8 @@
 //! id that is not a whole number answers the JSON 404, as the web's
 //! `<int:workflow_id>` converter does.
 
+pub mod lookups;
+
 use super::{Access, RouteSpec};
 use crate::flow::service::{self as svc, transfer, Body};
 use crate::server::envelope::{json_response, not_found};
@@ -46,7 +48,7 @@ fn spec(
     }
 }
 
-/// The workflow routes.
+/// The workflow routes, then the editor's lookups.
 pub fn table() -> Vec<RouteSpec> {
     vec![
         spec("/flow/api/workflows", Method::GET, || get(list)),
@@ -76,6 +78,9 @@ pub fn table() -> Vec<RouteSpec> {
             post(replace).layer(DefaultBodyLimit::max(MAX_WORKFLOW_BYTES))
         }),
     ]
+    .into_iter()
+    .chain(lookups::table())
+    .collect()
 }
 
 fn send(r: Reply) -> Response {

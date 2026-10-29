@@ -251,6 +251,8 @@ mod agent_audit;
 mod agent_external;
 // Flow's workflow routes (blueprints/flow.py).
 mod flow;
+// Flow's editor lookups (blueprints/flow.py index-symbols, symbol-lotsizes, option-strikes).
+mod flow_lookups;
 
 // ------------------------------------------------------------------ fixtures
 
