@@ -172,10 +172,12 @@ async fn one_run_per_workflow_at_a_time() {
 }
 
 /// Decision 2 and E-41: a run that waits more than ten seconds is answered
-/// at once and goes on as an owned task; stopping the app ends its wait and
-/// its record says so.
+/// at once and goes on as an owned task holding its workflow; stopping the
+/// app ends it, records it failed and frees the workflow. (Which stop
+/// sentence the record carries depends on where the walk is when the stop
+/// lands; each case is pinned on its own below and in the walk tests.)
 #[tokio::test]
-async fn a_long_wait_answers_at_once_and_a_stop_is_recorded() {
+async fn a_long_wait_answers_at_once_and_runs_as_an_owned_task() {
     let t = app();
     let nodes = json!([
         node("start", "start", json!({})),
@@ -191,28 +193,29 @@ async fn a_long_wait_answers_at_once_and_a_stop_is_recorded() {
         t.ctx.flow.try_claim(id).is_none(),
         "the run holds the workflow"
     );
-    // Wait for the run's record, not on a sleep.
-    for _ in 0..200 {
-        if !history(&t.ctx, id).is_empty() {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
-    assert_eq!(history(&t.ctx, id)[0].status, "running");
+    assert_eq!(t.ctx.flow.running(), 1);
     t.ctx.flow.stop_all(crate::flow::STOP_GRACE).await;
+    assert_eq!(history(&t.ctx, id)[0].status, "failed");
+    assert!(t.ctx.flow.try_claim(id).is_some());
+}
+
+/// A stop that comes before the run starts walking ends it at the first
+/// node, recorded with the walk's sentence (the stop token is taken when
+/// the run is claimed, so it cannot miss the run).
+#[tokio::test]
+async fn a_stop_before_the_walk_records_the_runs_stop() {
+    let t = app();
+    let nodes = json!([
+        node("start", "start", json!({})),
+        node("d", "delay", json!({"delayValue": 60}))
+    ]);
+    let id = save(&t.ctx, "A", nodes, json!([edge("start", "d", None)]));
+    let stop = tokio_util::sync::CancellationToken::new();
+    stop.cancel();
+    let out = super::super::run_claimed(&t.ctx, id, key(), stop).await;
+    assert_eq!(out["message"], super::super::walk::STOPPED);
+    assert_eq!(out["logs"][0]["message"], "Starting workflow: A");
     let row = &history(&t.ctx, id)[0];
     assert_eq!(row.status, "failed");
-    // The stop finds the run waiting in the Delay or, on a slow runner, just
-    // before it reaches the node: either way the record says it was stopped.
-    let stopped_waiting = format!(
-        "delay: {}",
-        crate::flow::nodes::logic::STOPPED_WHILE_WAITING
-    );
-    let error = row.error.clone().unwrap_or_default();
-    assert!(
-        error == stopped_waiting || error == super::super::walk::STOPPED,
-        "{}",
-        error
-    );
-    assert!(t.ctx.flow.try_claim(id).is_some());
+    assert_eq!(row.error.as_deref(), Some(super::super::walk::STOPPED));
 }

@@ -506,6 +506,47 @@ async fn an_abort_ends_the_whole_run() {
     assert!(!ran(&logs, "later"));
 }
 
+/// A stop while the walk waits in a Delay ends the wait at once: the Delay
+/// fails with its own sentence and nothing after it runs. The stop is sent
+/// only once the Delay has logged that it is waiting.
+#[tokio::test]
+async fn a_stop_during_a_delay_ends_the_wait_with_the_delays_sentence() {
+    let ctx = NodeCtx::bare(Arc::new(FakeFlowClient::new()));
+    let nodes = json!([
+        node("start", "start", json!({})),
+        node("d", "delay", json!({"delayValue": 60})),
+        node("after", "getQuote", tagged("after")),
+    ]);
+    let edges = json!([edge("start", "d", None), edge("d", "after", None)]);
+    let graph = Graph::parse(&nodes, &edges).unwrap();
+    let reg = registry();
+    let mut w = Walk::new(&graph, &reg, &ctx);
+    let waiting = async {
+        for _ in 0..5000 {
+            if ctx
+                .logs()
+                .iter()
+                .any(|l| l["message"] == "Waiting for 60 seconds")
+            {
+                ctx.cancel.cancel();
+                return true;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        }
+        false
+    };
+    let (walked, saw_wait) = tokio::join!(w.visit("start", 0), waiting);
+    assert!(saw_wait, "the Delay never logged that it was waiting");
+    assert_eq!(walked, Ok(()));
+    assert_eq!(
+        w.errors,
+        vec![
+            json!({"node": "d", "type": "delay", "message": crate::flow::nodes::logic::STOPPED_WHILE_WAITING})
+        ]
+    );
+    assert!(!ctx.logs().iter().any(|l| l["message"] == "ran after"));
+}
+
 #[tokio::test]
 async fn a_stopped_run_visits_nothing_more() {
     let ctx = NodeCtx::bare(Arc::new(FakeFlowClient::new()));
