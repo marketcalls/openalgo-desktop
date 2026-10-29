@@ -411,3 +411,14 @@ node(F, "priceCondition", "interpolated_symbol_field_operator", {**PR, "symbol":
      vars_in={"s": "SBIN", "f": "high", "o": ">"}, script=[reply("quotes", QUOTE)], parity=["N-priceCondition-01"])
 node(F, "whatsappAlert", "unresolved_to_is_text", {"message": "x", "to": "{{nobody}}"},
      alert_reply={"status": "error", "error": "Invalid WhatsApp phone number: {{nobody}}"}, parity=["N-whatsappAlert-01"])
+
+
+def apply_auto():
+    """N-mathExpression-11 for every mathExpression golden (the doc examples
+    too): written only where the fix changes what the web did."""
+    for _s in __import__("lib").SCENARIOS:
+        if _s["type"] == "mathExpression" and _s["kind"] == "node" and not _s["desktop_expected"]:
+            _s["desktop_expected"] = de(
+                "N-mathExpression-11",
+                "WEB-DEFECT: an unresolved {{var}} reads `Unsupported expression type: Set`; the desktop names the unresolved variable(s).",
+                fix=["math_unresolved"])

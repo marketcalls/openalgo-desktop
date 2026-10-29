@@ -99,7 +99,9 @@
   {
    "endpoint": "positionbook",
    "reply": {
-    "status": "error"
+    "status": "error",
+    "error": "Unknown error",
+    "code": 400
    }
   }
  ],

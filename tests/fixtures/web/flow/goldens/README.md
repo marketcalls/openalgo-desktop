@@ -101,6 +101,28 @@ Values may use wildcards where the desktop's own words replace the web's
 (the lane chooses them): `{"$any": ...}` matches anything, `{"$prefix": p}` a
 text starting with `p`.
 
+## Replay
+
+`src-tauri/src/flow/goldens/` (test `the_web_executors_goldens_replay`, run
+it with `--nocapture` to see the per-family lines) scripts core's
+`FakeFlowClient` from `script` (plus `desktop_expected.script` /
+`script_extra`), builds the node services of `contract::env` from `env`
+(`env.rs`: the master contract rows, the strategy book, a feed that answers
+from `env.feed`, an HTTP stub that answers `env.http.response` and records
+each request with whether it went to a vetted address, the holiday table),
+runs the graph through the registry and core's `Walk` (a workflow golden
+also through the run's start and end as core's executor does them), and
+compares every recorded key. It prints one line per family: total, replayed,
+matched, not built (a node type no family registers yet), needs a hook, web
+evidence only. A registered type's mismatch fails the test.
+
+Hooks the harness does not have yet, so those goldens are reported, not run:
+`run_context` (a run the price monitor started), `app` (the store:
+already-running, missing workflow, no execution record), `validator` (the
+web's validator rules, after the validator lane's restack), `feed_session`
+(an unsubscribe without a session) and `feed_exception` (a feed that raises,
+which `MarketFeed` cannot express).
+
 ## How values are compared
 
 - Numbers keep their kind (an integer is not a float; Python prints `10` and

@@ -95,5 +95,44 @@
    ],
    "abort": null
   }
+ },
+ "desktop_expected": {
+  "parity": "N-mathExpression-11",
+  "why": "WEB-DEFECT: an unresolved {{var}} reads `Unsupported expression type: Set`; the desktop names the unresolved variable(s).",
+  "fix": [
+   "math_unresolved"
+  ],
+  "outputs": {
+   "status": "error",
+   "message": "expected string or bytes-like object, got 'int'"
+  },
+  "logs": [
+   [
+    "info",
+    "Evaluating: 42"
+   ],
+   [
+    "info",
+    "Interpolated: 42"
+   ],
+   [
+    "error",
+    "Math expression failed: expected string or bytes-like object, got 'int'"
+   ],
+   [
+    "error",
+    "Stopping this branch: mathExpression node failed (expected string or bytes-like object, got 'int')"
+   ]
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "mathExpression",
+     "message": "expected string or bytes-like object, got 'int'"
+    }
+   ],
+   "abort": null
+  }
  }
 }
