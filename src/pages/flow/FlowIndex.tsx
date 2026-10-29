@@ -39,6 +39,8 @@ import {
   type WorkflowExportData,
   type WorkflowListItem,
 } from '@/api/flow'
+// Desktop: the note that a webhook URL on this computer's address is unreachable.
+import { FlowWebhookReachability } from '@/components/desktop/FlowWebhookReachability'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -368,6 +370,9 @@ function WorkflowCard({ workflow }: { workflow: WorkflowListItem }) {
                   </button>
                 </div>
               </div>
+
+              {/* Desktop: a URL on this computer's own address cannot receive alerts. */}
+              <FlowWebhookReachability webhookUrl={webhookQuery.data.webhook_url} />
 
               {/* Webhook URL */}
               <div className="space-y-2">

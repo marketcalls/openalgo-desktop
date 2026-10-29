@@ -6,6 +6,8 @@ import { Copy, Eye, EyeOff, Info, Loader2, Settings2, Trash2, X } from 'lucide-r
 import { useCallback, useState } from 'react'
 import { useParams } from 'react-router'
 import { flowQueryKeys, getIndexSymbolsLotSizes, getWebhookInfo } from '@/api/flow'
+// Desktop: the note that a webhook URL on this computer's address is unreachable.
+import { FlowWebhookReachability } from '@/components/desktop/FlowWebhookReachability'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -667,6 +669,8 @@ export function ConfigPanel() {
                   </div>
                 ) : webhookQuery.data ? (
                   <>
+                    {/* Desktop: a URL on this computer's own address cannot receive alerts. */}
+                    <FlowWebhookReachability webhookUrl={webhookQuery.data.webhook_url} compact />
                     <div className="space-y-2">
                       <Label className="text-xs">Webhook URL</Label>
                       <div className="flex gap-1">
