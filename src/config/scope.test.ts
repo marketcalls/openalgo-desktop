@@ -11,6 +11,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { nodeTypes } from '@/components/flow/nodes'
 import { desktopProfileMenuItems } from '@/lib/desktop'
 import { bottomNavItems, mobileSheetItems, navItems, profileMenuItems } from './navigation'
 
@@ -82,5 +83,11 @@ describe('Flow is a page of this version', () => {
       '/flow/shortcuts',
     ])
     expect(profileMenuItems.find((item) => item.href === '/flow')?.label).toBe('Flow Editor')
+  })
+
+  it('advertises on the Home page the node count the palette ships (parity D-55)', () => {
+    const home = readFileSync(join(SRC_DIR, 'pages', 'Home.tsx'), 'utf8')
+    const advertised = Number(home.match(/wire (\d+) node types/)?.[1])
+    expect(advertised).toBe(Object.keys(nodeTypes).length)
   })
 })

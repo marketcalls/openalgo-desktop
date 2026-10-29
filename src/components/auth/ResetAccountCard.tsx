@@ -43,9 +43,9 @@ export function ResetAccountCard() {
       </h2>
       <p className="text-muted-foreground">
         Reset account removes your OpenAlgo login, API key and saved broker keys, ends your broker
-        session, stops AI client tokens, unlinks Telegram and WhatsApp, and gives your strategy and
-        Chartink webhooks new addresses. Your trade and strategy history stays. You then create a
-        new account and connect your broker again.
+        session, stops AI client tokens, unlinks Telegram and WhatsApp, deactivates your Flow
+        workflows, and gives your strategy, Chartink and Flow webhooks new addresses. Your trade and
+        strategy history stays. You then create a new account and connect your broker again.
       </p>
       {inShell ? (
         <Button

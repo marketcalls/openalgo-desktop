@@ -44,6 +44,14 @@ describe('ResetAccountCard', () => {
     expect(screen.getByText(/only in the OpenAlgo Desktop window/)).toBeInTheDocument()
   })
 
+  it('says Flow workflows stop and their webhooks get new addresses (parity D-57, D-19)', () => {
+    renderCard()
+    expect(screen.getByText(/deactivates your Flow workflows/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/strategy, Chartink and Flow webhooks new addresses/)
+    ).toBeInTheDocument()
+  })
+
   it('in the desktop window asks the shell and goes to setup after a reset', async () => {
     tauri.inShell = true
     tauri.invoke.mockResolvedValue({ status: 'reset', message: 'Your account was removed.' })
