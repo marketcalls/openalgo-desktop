@@ -48,7 +48,8 @@ const categoryStyles: Record<NodeCategory, { border: string; iconBg: string }> =
     iconBg: 'bg-node-condition/20 text-node-condition',
   },
   data: {
-    border: 'border-l-[hsl(var(--primary))]',
+    // Desktop: hsl(var(--primary)) is not a colour under the oklch tokens (parity F-293).
+    border: 'border-l-primary',
     iconBg: 'bg-primary/20 text-primary',
   },
   utility: {

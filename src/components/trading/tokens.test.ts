@@ -32,11 +32,9 @@ const SRC_DIR = join(process.cwd(), 'src')
  * count cannot grow: a new one fails this test, and removing one of these
  * fails it too, which is what forces the list down rather than letting it rot.
  */
-const KNOWN = new Set([
-  'components/flow/nodes/BaseNode.tsx',
-  'components/ui/sidebar.tsx',
-  'pages/flow/FlowEditor.tsx',
-])
+// Desktop: the web's two Flow offenders (BaseNode, FlowEditor) are fixed here
+// (parity F-293, D-35), so only the sidebar stays.
+const KNOWN = new Set(['components/ui/sidebar.tsx'])
 
 /** The comments in TickBox and WatchlistPanel exist to explain the ban. */
 const PROSE = /^\s*(\*|\/\/)/
