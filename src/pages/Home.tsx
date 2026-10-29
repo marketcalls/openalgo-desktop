@@ -60,8 +60,9 @@ const VARSITY_COURSES = 13
 
 // The surfaces that share one broker session and feed inside a single
 // self-hosted instance. Counts come from the code: tools.length is the /tools
-// registry and the indicator count is what openalgo-charts ships.
-// Desktop: the Flow desk and backtester mentions are removed (out of scope).
+// registry, nodeTypes in components/flow/nodes is the Flow palette, and the
+// indicator count is what openalgo-charts ships.
+// Desktop: the backtester mentions are removed (out of scope).
 const platformDesks = [
   {
     icon: Server,
@@ -76,8 +77,8 @@ const platformDesks = [
   },
   {
     icon: Blocks,
-    title: 'Strategy module',
-    desc: 'Multi-leg options strategies with stop, target and trailing rules, run and monitored with risk management from one screen.',
+    title: 'No-code strategy builder',
+    desc: 'Flow is a drag-and-drop canvas: wire 61 node types from triggers to indicators, conditions and orders, then activate it to run on its own.',
   },
   {
     icon: Sigma,
@@ -278,9 +279,10 @@ export default function Home() {
               own computer.
             </p>
             <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto mb-10">
-              Connect TradingView, Amibroker or your own Python code. Trade options from the chain
-              to multi-leg execution with built-in risk management. Chart, scalp and analyse on one
-              live feed, and test everything in Sandbox mode first, across 30+ brokers.
+              Connect TradingView, Amibroker or your own Python code, or build strategies visually
+              with no code. Trade options from the chain to multi-leg execution with built-in risk
+              management. Chart, scalp and analyse on one live feed, and test everything in Sandbox
+              mode first, across 30+ brokers.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" asChild>
@@ -328,8 +330,8 @@ export default function Home() {
               <span className="block text-muted-foreground">A complete trading desk.</span>
             </h2>
             <p className="text-base sm:text-lg text-muted-foreground">
-              Execution is only the starting point. Charting, strategy building, options analytics,
-              scalping and sandbox testing all run inside the same app.
+              Execution is only the starting point. Charting, no-code strategy building, options
+              analytics, scalping and sandbox testing all run inside the same app.
             </p>
           </div>
 

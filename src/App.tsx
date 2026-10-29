@@ -96,7 +96,10 @@ const NewChartinkStrategy = lazy(() => import('@/pages/chartink/NewChartinkStrat
 const ViewChartinkStrategy = lazy(() => import('@/pages/chartink/ViewChartinkStrategy'))
 const ConfigureChartinkSymbols = lazy(() => import('@/pages/chartink/ConfigureChartinkSymbols'))
 
-// Desktop: Flow (/flow) is out of scope; its executor is Python.
+// Flow pages
+const FlowIndex = lazy(() => import('@/pages/flow/FlowIndex'))
+const FlowEditor = lazy(() => import('@/pages/flow/FlowEditor'))
+const FlowKeyboardShortcuts = lazy(() => import('@/pages/flow/FlowKeyboardShortcuts'))
 
 // Leverage page (crypto brokers only)
 const Leverage = lazy(() => import('@/pages/Leverage'))
@@ -248,6 +251,9 @@ function App() {
                   path="/chartink/:strategyId/configure"
                   element={<ConfigureChartinkSymbols />}
                 />
+                {/* Flow Editor */}
+                <Route path="/flow" element={<FlowIndex />} />
+                <Route path="/flow/shortcuts" element={<FlowKeyboardShortcuts />} />
                 {/* Leverage Configuration (crypto brokers only) */}
                 <Route path="/leverage" element={<LeverageRoute />} />
                 {/* Phase 7: Admin */}
@@ -293,6 +299,8 @@ function App() {
                 <Route path="/historify" element={<Historify />} />
                 <Route path="/historify/charts" element={<HistorifyCharts />} />
                 <Route path="/historify/charts/:symbol" element={<HistorifyCharts />} />
+                {/* Flow Editor (full-width for canvas) */}
+                <Route path="/flow/editor/:id" element={<FlowEditor />} />
               </Route>
 
               {/* 404 Not Found */}

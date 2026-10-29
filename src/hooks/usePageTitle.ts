@@ -43,11 +43,13 @@ const PAGE_TITLES: Record<string, string> = {
   '/oiprofile': 'OI Profile',
   '/websocket/test': 'WebSocket Test',
   '/websocket/order': 'Order Stream',
-  // Desktop: /python and /flow titles removed (out of scope).
+  // Desktop: /python titles removed (not in this version).
   '/strategy': 'Strategies',
   '/strategy/new': 'New Strategy',
   '/chartink': 'Chartink Strategies',
   '/chartink/new': 'New Chartink Strategy',
+  '/flow': 'Flow',
+  '/flow/shortcuts': 'Flow Shortcuts',
   '/leverage': 'Leverage',
   '/admin': 'Admin',
   '/admin/freeze': 'Freeze Qty',
@@ -76,11 +78,12 @@ const PAGE_TITLES: Record<string, string> = {
 
 /** Dynamic route patterns for parameterized routes */
 const DYNAMIC_TITLES: Array<{ pattern: RegExp; title: string }> = [
-  // Desktop: /python and /flow patterns removed (out of scope).
+  // Desktop: /python patterns removed (not in this version).
   { pattern: /^\/strategy\/[^/]+\/edit$/, title: 'Edit Strategy' },
   { pattern: /^\/strategy\/[^/]+$/, title: 'Strategy' },
   { pattern: /^\/chartink\/[^/]+\/configure$/, title: 'Configure Chartink' },
   { pattern: /^\/chartink\/[^/]+$/, title: 'View Chartink Strategy' },
+  { pattern: /^\/flow\/editor\/[^/]+$/, title: 'Flow Editor' },
   { pattern: /^\/historify\/charts\/[^/]+$/, title: 'Historify Charts' },
   { pattern: /^\/websocket\/test\/\d+$/, title: 'WebSocket Test' },
 ]

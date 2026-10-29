@@ -5,6 +5,7 @@
  *
  * The Agent (`/agent`) came back in 1.0.4 (maintainer, 2026-10-27), as a page
  * with its route, its server path and its navigation entry in one change.
+ * Flow (`/flow`) came in 1.0.5 (maintainer, 2026-10-29) the same way.
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs'
@@ -69,5 +70,17 @@ describe('the Agent is a page of this version', () => {
     expect(routerPaths()).toContain('/agent')
     expect(profileMenuItems.map((item) => item.href)).toContain('/agent')
     expect(profileMenuItems.find((item) => item.href === '/agent')?.label).toBe('Agent')
+  })
+})
+
+describe('Flow is a page of this version', () => {
+  it('has the three routes and the profile menu entry the web has', () => {
+    const paths = routerPaths()
+    expect(paths.filter((path) => path.startsWith('/flow')).sort()).toEqual([
+      '/flow',
+      '/flow/editor/:id',
+      '/flow/shortcuts',
+    ])
+    expect(profileMenuItems.find((item) => item.href === '/flow')?.label).toBe('Flow Editor')
   })
 })
