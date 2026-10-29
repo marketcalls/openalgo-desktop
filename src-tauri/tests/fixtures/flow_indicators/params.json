@@ -1,0 +1,1022 @@
+{
+ "openalgo": "2.0.5",
+ "timezone": "Asia/Kolkata",
+ "float_for_int": [
+  {
+   "name": "accelerator_oscillator",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "adx",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "adxr",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "alligator",
+   "param": "jaw_period",
+   "refusal": null
+  },
+  {
+   "name": "alligator",
+   "param": "jaw_shift",
+   "refusal": null
+  },
+  {
+   "name": "alligator",
+   "param": "teeth_period",
+   "refusal": null
+  },
+  {
+   "name": "alligator",
+   "param": "teeth_shift",
+   "refusal": null
+  },
+  {
+   "name": "alligator",
+   "param": "lips_period",
+   "refusal": null
+  },
+  {
+   "name": "alligator",
+   "param": "lips_shift",
+   "refusal": null
+  },
+  {
+   "name": "alma",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "apo",
+   "param": "fast_period",
+   "refusal": null
+  },
+  {
+   "name": "apo",
+   "param": "slow_period",
+   "refusal": null
+  },
+  {
+   "name": "aroon",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "aroon_oscillator",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "atr",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "awesome_oscillator",
+   "param": "fast_period",
+   "refusal": null
+  },
+  {
+   "name": "awesome_oscillator",
+   "param": "slow_period",
+   "refusal": null
+  },
+  {
+   "name": "bbands",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "bbpercent",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "bbwidth",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "cci",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "chaikin",
+   "param": "ema_period",
+   "refusal": null
+  },
+  {
+   "name": "chaikin",
+   "param": "roc_period",
+   "refusal": null
+  },
+  {
+   "name": "chandelier_exit",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "change",
+   "param": "length",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "'float' object cannot be interpreted as an integer"
+   }
+  },
+  {
+   "name": "cho",
+   "param": "fast_period",
+   "refusal": null
+  },
+  {
+   "name": "cho",
+   "param": "slow_period",
+   "refusal": null
+  },
+  {
+   "name": "chop",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "ckstop",
+   "param": "p",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "ckstop",
+   "param": "q",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "cmf",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "cmo",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "coppock",
+   "param": "wma_length",
+   "refusal": null
+  },
+  {
+   "name": "coppock",
+   "param": "long_roc_length",
+   "refusal": null
+  },
+  {
+   "name": "coppock",
+   "param": "short_roc_length",
+   "refusal": null
+  },
+  {
+   "name": "crsi",
+   "param": "lenrsi",
+   "refusal": null
+  },
+  {
+   "name": "crsi",
+   "param": "lenupdown",
+   "refusal": null
+  },
+  {
+   "name": "crsi",
+   "param": "lenroc",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "dema",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "dmi",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "donchian",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "dpo",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "dx",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "elderray",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "ema",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "emv",
+   "param": "length",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "emv",
+   "param": "divisor",
+   "refusal": null
+  },
+  {
+   "name": "falling",
+   "param": "length",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "'float' object cannot be interpreted as an integer"
+   }
+  },
+  {
+   "name": "fisher",
+   "param": "length",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "force_index",
+   "param": "length",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "fractals",
+   "param": "periods",
+   "refusal": null
+  },
+  {
+   "name": "frama",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "gator_oscillator",
+   "param": "jaw_period",
+   "refusal": null
+  },
+  {
+   "name": "gator_oscillator",
+   "param": "teeth_period",
+   "refusal": null
+  },
+  {
+   "name": "gator_oscillator",
+   "param": "lips_period",
+   "refusal": null
+  },
+  {
+   "name": "highest",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "hma",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "hv",
+   "param": "length",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "hv",
+   "param": "annual",
+   "refusal": null
+  },
+  {
+   "name": "hv",
+   "param": "per",
+   "refusal": null
+  },
+  {
+   "name": "ichimoku",
+   "param": "conversion_periods",
+   "refusal": null
+  },
+  {
+   "name": "ichimoku",
+   "param": "base_periods",
+   "refusal": null
+  },
+  {
+   "name": "ichimoku",
+   "param": "lagging_span2_periods",
+   "refusal": null
+  },
+  {
+   "name": "ichimoku",
+   "param": "displacement",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "slice indices must be integers or None or have an __index__ method"
+   }
+  },
+  {
+   "name": "kama",
+   "param": "length",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "kama",
+   "param": "fast_length",
+   "refusal": null
+  },
+  {
+   "name": "kama",
+   "param": "slow_length",
+   "refusal": null
+  },
+  {
+   "name": "keltner",
+   "param": "ema_period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "keltner",
+   "param": "atr_period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "kst",
+   "param": "roclen1",
+   "refusal": null
+  },
+  {
+   "name": "kst",
+   "param": "roclen2",
+   "refusal": null
+  },
+  {
+   "name": "kst",
+   "param": "roclen3",
+   "refusal": null
+  },
+  {
+   "name": "kst",
+   "param": "roclen4",
+   "refusal": null
+  },
+  {
+   "name": "kst",
+   "param": "smalen1",
+   "refusal": null
+  },
+  {
+   "name": "kst",
+   "param": "smalen2",
+   "refusal": null
+  },
+  {
+   "name": "kst",
+   "param": "smalen3",
+   "refusal": null
+  },
+  {
+   "name": "kst",
+   "param": "smalen4",
+   "refusal": null
+  },
+  {
+   "name": "kst",
+   "param": "siglen",
+   "refusal": null
+  },
+  {
+   "name": "kvo",
+   "param": "trig_len",
+   "refusal": null
+  },
+  {
+   "name": "kvo",
+   "param": "fast_x",
+   "refusal": null
+  },
+  {
+   "name": "kvo",
+   "param": "slow_x",
+   "refusal": null
+  },
+  {
+   "name": "linreg",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "linregangle",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "linregintercept",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "lowest",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "lrslope",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "lrslope",
+   "param": "interval",
+   "refusal": null
+  },
+  {
+   "name": "ma_envelopes",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "macd",
+   "param": "fast_period",
+   "refusal": null
+  },
+  {
+   "name": "macd",
+   "param": "slow_period",
+   "refusal": null
+  },
+  {
+   "name": "macd",
+   "param": "signal_period",
+   "refusal": null
+  },
+  {
+   "name": "massindex",
+   "param": "length",
+   "refusal": null
+  },
+  {
+   "name": "mcginley",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "median",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "mfi",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "midpoint",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "midprice",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "minus_dm",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "mode",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "mode",
+   "param": "bins",
+   "refusal": null
+  },
+  {
+   "name": "mom",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "natr",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "nvi_with_ema",
+   "param": "ema_length",
+   "refusal": null
+  },
+  {
+   "name": "obv_smoothed",
+   "param": "ma_length",
+   "refusal": null
+  },
+  {
+   "name": "obv_smoothed",
+   "param": "bb_length",
+   "refusal": null
+  },
+  {
+   "name": "plus_dm",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "po",
+   "param": "fast_period",
+   "refusal": null
+  },
+  {
+   "name": "po",
+   "param": "slow_period",
+   "refusal": null
+  },
+  {
+   "name": "ppo",
+   "param": "fast_period",
+   "refusal": null
+  },
+  {
+   "name": "ppo",
+   "param": "slow_period",
+   "refusal": null
+  },
+  {
+   "name": "ppo",
+   "param": "signal_period",
+   "refusal": null
+  },
+  {
+   "name": "pvi_with_signal",
+   "param": "signal_length",
+   "refusal": null
+  },
+  {
+   "name": "rising",
+   "param": "length",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "'float' object cannot be interpreted as an integer"
+   }
+  },
+  {
+   "name": "roc",
+   "param": "length",
+   "refusal": null
+  },
+  {
+   "name": "rocp",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "rocr",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "rocr100",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "rsi",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "rvi",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "rvol",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "rwi",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "sma",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "starc",
+   "param": "ma_period",
+   "refusal": null
+  },
+  {
+   "name": "starc",
+   "param": "atr_period",
+   "refusal": null
+  },
+  {
+   "name": "stc",
+   "param": "fast_length",
+   "refusal": null
+  },
+  {
+   "name": "stc",
+   "param": "slow_length",
+   "refusal": null
+  },
+  {
+   "name": "stc",
+   "param": "cycle_length",
+   "refusal": null
+  },
+  {
+   "name": "stc",
+   "param": "d1_length",
+   "refusal": null
+  },
+  {
+   "name": "stc",
+   "param": "d2_length",
+   "refusal": null
+  },
+  {
+   "name": "stdev",
+   "param": "period",
+   "refusal": null
+  },
+  {
+   "name": "stochastic",
+   "param": "k_period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "stochastic",
+   "param": "smooth_k",
+   "refusal": null
+  },
+  {
+   "name": "stochastic",
+   "param": "d_period",
+   "refusal": null
+  },
+  {
+   "name": "stochf",
+   "param": "fastk_period",
+   "refusal": null
+  },
+  {
+   "name": "stochf",
+   "param": "fastd_period",
+   "refusal": null
+  },
+  {
+   "name": "stochrsi",
+   "param": "rsi_period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "stochrsi",
+   "param": "stoch_period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "stochrsi",
+   "param": "k_period",
+   "refusal": null
+  },
+  {
+   "name": "stochrsi",
+   "param": "d_period",
+   "refusal": null
+  },
+  {
+   "name": "supertrend",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "t3",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "tema",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "trima",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "trix",
+   "param": "length",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "tsf",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "tsi",
+   "param": "long_period",
+   "refusal": null
+  },
+  {
+   "name": "tsi",
+   "param": "short_period",
+   "refusal": null
+  },
+  {
+   "name": "tsi",
+   "param": "signal_period",
+   "refusal": null
+  },
+  {
+   "name": "ultimate_oscillator",
+   "param": "period1",
+   "refusal": null
+  },
+  {
+   "name": "ultimate_oscillator",
+   "param": "period2",
+   "refusal": null
+  },
+  {
+   "name": "ultimate_oscillator",
+   "param": "period3",
+   "refusal": null
+  },
+  {
+   "name": "uo_oscillator",
+   "param": "period1",
+   "refusal": null
+  },
+  {
+   "name": "uo_oscillator",
+   "param": "period2",
+   "refusal": null
+  },
+  {
+   "name": "uo_oscillator",
+   "param": "period3",
+   "refusal": null
+  },
+  {
+   "name": "variance",
+   "param": "lookback",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "variance",
+   "param": "ema_period",
+   "refusal": null
+  },
+  {
+   "name": "variance",
+   "param": "filter_lookback",
+   "refusal": null
+  },
+  {
+   "name": "variance",
+   "param": "ema_length",
+   "refusal": null
+  },
+  {
+   "name": "vidya",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "volosc",
+   "param": "short_length",
+   "refusal": null
+  },
+  {
+   "name": "volosc",
+   "param": "long_length",
+   "refusal": null
+  },
+  {
+   "name": "vroc",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "vwma",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "williams_r",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "wma",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  },
+  {
+   "name": "zlema",
+   "param": "period",
+   "refusal": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   }
+  }
+ ]
+}

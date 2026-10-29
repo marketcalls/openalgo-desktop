@@ -1,0 +1,4839 @@
+{
+ "openalgo": "2.0.5",
+ "timezone": "Asia/Kolkata",
+ "variables": {
+  "rsi.series": [
+   {
+    "value": 44.701345
+   },
+   {
+    "value": 48.666785
+   },
+   {
+    "value": 50.225435
+   },
+   {
+    "value": 55.216978
+   },
+   {
+    "value": 61.253138
+   },
+   {
+    "value": 58.877899
+   },
+   {
+    "value": 60.710324
+   },
+   {
+    "value": 63.484691
+   },
+   {
+    "value": 63.68611
+   },
+   {
+    "value": 52.897579
+   },
+   {
+    "value": 54.834874
+   },
+   {
+    "value": 59.525898
+   },
+   {
+    "value": 54.833833
+   },
+   {
+    "value": 54.216751
+   },
+   {
+    "value": 49.157777
+   },
+   {
+    "value": 53.078041
+   },
+   {
+    "value": 50.251395
+   },
+   {
+    "value": 53.360196
+   },
+   {
+    "value": 44.246295
+   },
+   {
+    "value": 45.111615
+   },
+   {
+    "value": 42.495314
+   },
+   {
+    "value": 38.366718
+   },
+   {
+    "value": 34.737475
+   },
+   {
+    "value": 33.939138
+   },
+   {
+    "value": 32.815085
+   },
+   {
+    "value": 31.959193
+   },
+   {
+    "value": 32.801879
+   },
+   {
+    "value": 39.885277
+   },
+   {
+    "value": 36.990077
+   },
+   {
+    "value": 34.934699
+   },
+   {
+    "value": 28.60086
+   },
+   {
+    "value": 26.37844
+   },
+   {
+    "value": 24.057735
+   },
+   {
+    "value": 23.01712
+   },
+   {
+    "value": 22.992859
+   },
+   {
+    "value": 21.648606
+   },
+   {
+    "value": 28.279822
+   },
+   {
+    "value": 25.527287
+   },
+   {
+    "value": 25.51999
+   },
+   {
+    "value": 25.326185
+   },
+   {
+    "value": 31.745614
+   },
+   {
+    "value": 35.556083
+   },
+   {
+    "value": 29.592208
+   },
+   {
+    "value": 27.143022
+   },
+   {
+    "value": 41.035822
+   },
+   {
+    "value": 46.244075
+   },
+   {
+    "value": 47.389724
+   },
+   {
+    "value": 49.22088
+   },
+   {
+    "value": 45.090577
+   },
+   {
+    "value": 48.021817
+   },
+   {
+    "value": 43.844881
+   },
+   {
+    "value": 44.545047
+   },
+   {
+    "value": 45.326326
+   },
+   {
+    "value": 42.898656
+   },
+   {
+    "value": 36.605181
+   },
+   {
+    "value": 34.84641
+   },
+   {
+    "value": 35.726271
+   },
+   {
+    "value": 32.686536
+   },
+   {
+    "value": 28.270157
+   },
+   {
+    "value": 28.836545
+   }
+  ],
+  "macd.series": [
+   {
+    "out0": -12.689725,
+    "out1": -8.119425,
+    "out2": -4.5703
+   },
+   {
+    "out0": -11.278817,
+    "out1": -8.751303,
+    "out2": -2.527514
+   },
+   {
+    "out0": -9.420256,
+    "out1": -8.885094,
+    "out2": -0.535162
+   },
+   {
+    "out0": -5.727649,
+    "out1": -8.253605,
+    "out2": 2.525956
+   },
+   {
+    "out0": 0.301917,
+    "out1": -6.5425,
+    "out2": 6.844418
+   },
+   {
+    "out0": 4.168935,
+    "out1": -4.400213,
+    "out2": 8.569148
+   },
+   {
+    "out0": 8.104416,
+    "out1": -1.899288,
+    "out2": 10.003703
+   },
+   {
+    "out0": 12.6047,
+    "out1": 1.00151,
+    "out2": 11.60319
+   },
+   {
+    "out0": 16.097006,
+    "out1": 4.020609,
+    "out2": 12.076397
+   },
+   {
+    "out0": 14.8701,
+    "out1": 6.190507,
+    "out2": 8.679593
+   },
+   {
+    "out0": 14.62805,
+    "out1": 7.878016,
+    "out2": 6.750034
+   },
+   {
+    "out0": 16.597065,
+    "out1": 9.621826,
+    "out2": 6.975239
+   },
+   {
+    "out0": 16.171682,
+    "out1": 10.931797,
+    "out2": 5.239885
+   },
+   {
+    "out0": 15.415594,
+    "out1": 11.828556,
+    "out2": 3.587038
+   },
+   {
+    "out0": 12.622128,
+    "out1": 11.987271,
+    "out2": 0.634857
+   },
+   {
+    "out0": 11.973661,
+    "out1": 11.984549,
+    "out2": -0.010887
+   },
+   {
+    "out0": 10.188411,
+    "out1": 11.625321,
+    "out2": -1.43691
+   },
+   {
+    "out0": 9.999415,
+    "out1": 11.30014,
+    "out2": -1.300725
+   },
+   {
+    "out0": 5.679383,
+    "out1": 10.175989,
+    "out2": -4.496606
+   },
+   {
+    "out0": 2.577825,
+    "out1": 8.656356,
+    "out2": -6.07853
+   },
+   {
+    "out0": -1.162686,
+    "out1": 6.692548,
+    "out2": -7.855233
+   },
+   {
+    "out0": -6.287329,
+    "out1": 4.096572,
+    "out2": -10.383902
+   },
+   {
+    "out0": -12.434816,
+    "out1": 0.790295,
+    "out2": -13.22511
+   },
+   {
+    "out0": -17.618461,
+    "out1": -2.891457,
+    "out2": -14.727004
+   },
+   {
+    "out0": -22.183329,
+    "out1": -6.749831,
+    "out2": -15.433498
+   },
+   {
+    "out0": -26.035879,
+    "out1": -10.607041,
+    "out2": -15.428839
+   },
+   {
+    "out0": -28.521429,
+    "out1": -14.189918,
+    "out2": -14.331511
+   },
+   {
+    "out0": -28.057727,
+    "out1": -16.96348,
+    "out2": -11.094247
+   },
+   {
+    "out0": -28.812971,
+    "out1": -19.333378,
+    "out2": -9.479593
+   },
+   {
+    "out0": -30.158842,
+    "out1": -21.498471,
+    "out2": -8.660371
+   },
+   {
+    "out0": -34.875762,
+    "out1": -24.173929,
+    "out2": -10.701833
+   },
+   {
+    "out0": -39.902571,
+    "out1": -27.319657,
+    "out2": -12.582913
+   },
+   {
+    "out0": -45.37893,
+    "out1": -30.931512,
+    "out2": -14.447418
+   },
+   {
+    "out0": -50.10327,
+    "out1": -34.765863,
+    "out2": -15.337406
+   },
+   {
+    "out0": -53.255236,
+    "out1": -38.463738,
+    "out2": -14.791498
+   },
+   {
+    "out0": -56.296062,
+    "out1": -42.030203,
+    "out2": -14.265859
+   },
+   {
+    "out0": -56.306668,
+    "out1": -44.885496,
+    "out2": -11.421173
+   },
+   {
+    "out0": -57.720258,
+    "out1": -47.452448,
+    "out2": -10.26781
+   },
+   {
+    "out0": -58.175575,
+    "out1": -49.597074,
+    "out2": -8.578502
+   },
+   {
+    "out0": -58.008139,
+    "out1": -51.279287,
+    "out2": -6.728852
+   },
+   {
+    "out0": -55.619656,
+    "out1": -52.147361,
+    "out2": -3.472295
+   },
+   {
+    "out0": -52.095008,
+    "out1": -52.13689,
+    "out2": 0.041882
+   },
+   {
+    "out0": -52.157292,
+    "out1": -52.14097,
+    "out2": -0.016322
+   },
+   {
+    "out0": -53.318828,
+    "out1": -52.376542,
+    "out2": -0.942286
+   },
+   {
+    "out0": -49.108534,
+    "out1": -51.72294,
+    "out2": 2.614406
+   },
+   {
+    "out0": -43.121113,
+    "out1": -50.002575,
+    "out2": 6.881462
+   },
+   {
+    "out0": -37.451297,
+    "out1": -47.492319,
+    "out2": 10.041022
+   },
+   {
+    "out0": -31.816527,
+    "out1": -44.357161,
+    "out2": 12.540634
+   },
+   {
+    "out0": -28.910692,
+    "out1": -41.267867,
+    "out2": 12.357175
+   },
+   {
+    "out0": -25.136711,
+    "out1": -38.041636,
+    "out2": 12.904925
+   },
+   {
+    "out0": -23.8287,
+    "out1": -35.199049,
+    "out2": 11.370348
+   },
+   {
+    "out0": -22.271499,
+    "out1": -32.613539,
+    "out2": 10.34204
+   },
+   {
+    "out0": -20.520056,
+    "out1": -30.194842,
+    "out2": 9.674786
+   },
+   {
+    "out0": -19.949438,
+    "out1": -28.145761,
+    "out2": 8.196323
+   },
+   {
+    "out0": -22.361411,
+    "out1": -26.988891,
+    "out2": 4.627481
+   },
+   {
+    "out0": -24.982285,
+    "out1": -26.58757,
+    "out2": 1.605285
+   },
+   {
+    "out0": -26.490123,
+    "out1": -26.568081,
+    "out2": 0.077958
+   },
+   {
+    "out0": -29.03763,
+    "out1": -27.06199,
+    "out2": -1.975639
+   },
+   {
+    "out0": -33.546502,
+    "out1": -28.358893,
+    "out2": -5.187609
+   },
+   {
+    "out0": -36.541241,
+    "out1": -29.995362,
+    "out2": -6.545879
+   }
+  ],
+  "h.data": [
+   {
+    "timestamp": 1764700200,
+    "open": 1564.03,
+    "high": 1585.28,
+    "low": 1558.46,
+    "close": 1583.64,
+    "volume": 851444
+   },
+   {
+    "timestamp": 1764786600,
+    "open": 1582.42,
+    "high": 1603.38,
+    "low": 1562.83,
+    "close": 1602.95,
+    "volume": 1335121
+   },
+   {
+    "timestamp": 1764873000,
+    "open": 1602.28,
+    "high": 1614.09,
+    "low": 1599.97,
+    "close": 1610.78,
+    "volume": 584037
+   },
+   {
+    "timestamp": 1765132200,
+    "open": 1612.09,
+    "high": 1642.58,
+    "low": 1604.86,
+    "close": 1637.47,
+    "volume": 1846541
+   },
+   {
+    "timestamp": 1765218600,
+    "open": 1647.08,
+    "high": 1676.73,
+    "low": 1618.67,
+    "close": 1675.97,
+    "volume": 1697389
+   },
+   {
+    "timestamp": 1765305000,
+    "open": 1673.15,
+    "high": 1676.94,
+    "low": 1664.98,
+    "close": 1665.27,
+    "volume": 511338
+   },
+   {
+    "timestamp": 1765391400,
+    "open": 1666.84,
+    "high": 1677.95,
+    "low": 1663.71,
+    "close": 1677.22,
+    "volume": 1236667
+   },
+   {
+    "timestamp": 1765477800,
+    "open": 1683.88,
+    "high": 1698.37,
+    "low": 1682.07,
+    "close": 1696.14,
+    "volume": 983574
+   },
+   {
+    "timestamp": 1765737000,
+    "open": 1700.28,
+    "high": 1703.32,
+    "low": 1695.57,
+    "close": 1697.52,
+    "volume": 498632
+   },
+   {
+    "timestamp": 1765823400,
+    "open": 1696.36,
+    "high": 1717.13,
+    "low": 1648.01,
+    "close": 1650.14,
+    "volume": 1816005
+   },
+   {
+    "timestamp": 1765909800,
+    "open": 1653.37,
+    "high": 1670.94,
+    "low": 1651.9,
+    "close": 1661.28,
+    "volume": 1134340
+   },
+   {
+    "timestamp": 1765996200,
+    "open": 1663.1,
+    "high": 1695.55,
+    "low": 1651.99,
+    "close": 1690.43,
+    "volume": 1116533
+   },
+   {
+    "timestamp": 1766082600,
+    "open": 1695.29,
+    "high": 1704.43,
+    "low": 1662.32,
+    "close": 1668.13,
+    "volume": 2041165
+   },
+   {
+    "timestamp": 1766341800,
+    "open": 1678.19,
+    "high": 1688.08,
+    "low": 1661.77,
+    "close": 1665.14,
+    "volume": 1382081
+   },
+   {
+    "timestamp": 1766428200,
+    "open": 1656.65,
+    "high": 1665.91,
+    "low": 1629.21,
+    "close": 1639.75,
+    "volume": 539369
+   },
+   {
+    "timestamp": 1766514600,
+    "open": 1640.77,
+    "high": 1670.32,
+    "low": 1639.3,
+    "close": 1660.86,
+    "volume": 852346
+   },
+   {
+    "timestamp": 1766601000,
+    "open": 1661.1,
+    "high": 1664.99,
+    "low": 1646.15,
+    "close": 1646.56,
+    "volume": 1185381
+   },
+   {
+    "timestamp": 1766687400,
+    "open": 1644.58,
+    "high": 1667.33,
+    "low": 1642.97,
+    "close": 1663.18,
+    "volume": 1666255
+   },
+   {
+    "timestamp": 1766946600,
+    "open": 1667.75,
+    "high": 1684.94,
+    "low": 1599.21,
+    "close": 1612.31,
+    "volume": 3182050
+   },
+   {
+    "timestamp": 1767033000,
+    "open": 1619.95,
+    "high": 1620.77,
+    "low": 1616.3,
+    "close": 1616.67,
+    "volume": 1339512
+   },
+   {
+    "timestamp": 1767119400,
+    "open": 1611.99,
+    "high": 1614.12,
+    "low": 1593.97,
+    "close": 1600.61,
+    "volume": 871670
+   },
+   {
+    "timestamp": 1767205800,
+    "open": 1601.92,
+    "high": 1602.8,
+    "low": 1561.55,
+    "close": 1572.94,
+    "volume": 1003090
+   },
+   {
+    "timestamp": 1767292200,
+    "open": 1574.55,
+    "high": 1583.21,
+    "low": 1543.28,
+    "close": 1545.31,
+    "volume": 1207863
+   },
+   {
+    "timestamp": 1767551400,
+    "open": 1543.77,
+    "high": 1565.58,
+    "low": 1534.38,
+    "close": 1538.93,
+    "volume": 628556
+   },
+   {
+    "timestamp": 1767637800,
+    "open": 1538.51,
+    "high": 1547.0,
+    "low": 1528.47,
+    "close": 1530.1,
+    "volume": 847487
+   },
+   {
+    "timestamp": 1767724200,
+    "open": 1528.66,
+    "high": 1534.03,
+    "low": 1514.78,
+    "close": 1523.47,
+    "volume": 700737
+   },
+   {
+    "timestamp": 1767810600,
+    "open": 1530.44,
+    "high": 1542.02,
+    "low": 1525.14,
+    "close": 1526.43,
+    "volume": 626839
+   },
+   {
+    "timestamp": 1767897000,
+    "open": 1523.63,
+    "high": 1557.62,
+    "low": 1519.72,
+    "close": 1552.58,
+    "volume": 1021835
+   },
+   {
+    "timestamp": 1768156200,
+    "open": 1554.66,
+    "high": 1563.33,
+    "low": 1513.23,
+    "close": 1534.55,
+    "volume": 1671777
+   },
+   {
+    "timestamp": 1768242600,
+    "open": 1532.67,
+    "high": 1533.69,
+    "low": 1514.44,
+    "close": 1520.98,
+    "volume": 764603
+   },
+   {
+    "timestamp": 1768329000,
+    "open": 1517.77,
+    "high": 1521.81,
+    "low": 1460.93,
+    "close": 1470.76,
+    "volume": 1907495
+   },
+   {
+    "timestamp": 1768415400,
+    "open": 1469.14,
+    "high": 1476.13,
+    "low": 1428.27,
+    "close": 1449.09,
+    "volume": 1853216
+   },
+   {
+    "timestamp": 1768501800,
+    "open": 1447.76,
+    "high": 1459.54,
+    "low": 1411.9,
+    "close": 1424.11,
+    "volume": 1316951
+   },
+   {
+    "timestamp": 1768761000,
+    "open": 1423.29,
+    "high": 1441.51,
+    "low": 1409.24,
+    "close": 1412.19,
+    "volume": 1775539
+   },
+   {
+    "timestamp": 1768847400,
+    "open": 1422.07,
+    "high": 1428.09,
+    "low": 1409.24,
+    "close": 1411.92,
+    "volume": 880072
+   },
+   {
+    "timestamp": 1768933800,
+    "open": 1419.57,
+    "high": 1420.51,
+    "low": 1392.81,
+    "close": 1397.15,
+    "volume": 1061145
+   },
+   {
+    "timestamp": 1769020200,
+    "open": 1393.03,
+    "high": 1421.3,
+    "low": 1380.11,
+    "close": 1418.84,
+    "volume": 1092639
+   },
+   {
+    "timestamp": 1769106600,
+    "open": 1420.17,
+    "high": 1428.54,
+    "low": 1393.11,
+    "close": 1393.18,
+    "volume": 1007263
+   },
+   {
+    "timestamp": 1769365800,
+    "open": 1396.46,
+    "high": 1408.02,
+    "low": 1392.39,
+    "close": 1393.11,
+    "volume": 685373
+   },
+   {
+    "timestamp": 1769452200,
+    "open": 1390.07,
+    "high": 1399.54,
+    "low": 1386.24,
+    "close": 1391.37,
+    "volume": 1304518
+   },
+   {
+    "timestamp": 1769538600,
+    "open": 1392.09,
+    "high": 1420.52,
+    "low": 1380.26,
+    "close": 1411.38,
+    "volume": 671893
+   },
+   {
+    "timestamp": 1769625000,
+    "open": 1414.16,
+    "high": 1427.05,
+    "low": 1412.94,
+    "close": 1424.16,
+    "volume": 1086405
+   },
+   {
+    "timestamp": 1769711400,
+    "open": 1422.03,
+    "high": 1432.52,
+    "low": 1372.41,
+    "close": 1381.32,
+    "volume": 1926522
+   },
+   {
+    "timestamp": 1769970600,
+    "open": 1380.08,
+    "high": 1382.19,
+    "low": 1347.43,
+    "close": 1359.92,
+    "volume": 1305755
+   },
+   {
+    "timestamp": 1770057000,
+    "open": 1354.15,
+    "high": 1422.62,
+    "low": 1345.27,
+    "close": 1416.49,
+    "volume": 1936735
+   },
+   {
+    "timestamp": 1770143400,
+    "open": 1413.34,
+    "high": 1450.41,
+    "low": 1406.53,
+    "close": 1443.18,
+    "volume": 1076712
+   },
+   {
+    "timestamp": 1770229800,
+    "open": 1444.62,
+    "high": 1462.28,
+    "low": 1443.32,
+    "close": 1449.29,
+    "volume": 957744
+   },
+   {
+    "timestamp": 1770316200,
+    "open": 1443.51,
+    "high": 1461.02,
+    "low": 1436.46,
+    "close": 1458.89,
+    "volume": 2226795
+   },
+   {
+    "timestamp": 1770575400,
+    "open": 1452.85,
+    "high": 1458.25,
+    "low": 1433.78,
+    "close": 1435.43,
+    "volume": 1011912
+   },
+   {
+    "timestamp": 1770661800,
+    "open": 1433.96,
+    "high": 1457.29,
+    "low": 1429.28,
+    "close": 1450.07,
+    "volume": 1506820
+   },
+   {
+    "timestamp": 1770748200,
+    "open": 1446.51,
+    "high": 1461.24,
+    "low": 1409.46,
+    "close": 1425.81,
+    "volume": 1384372
+   },
+   {
+    "timestamp": 1770834600,
+    "open": 1427.11,
+    "high": 1430.87,
+    "low": 1415.75,
+    "close": 1429.08,
+    "volume": 640637
+   },
+   {
+    "timestamp": 1770921000,
+    "open": 1431.97,
+    "high": 1441.91,
+    "low": 1417.12,
+    "close": 1432.56,
+    "volume": 850266
+   },
+   {
+    "timestamp": 1771180200,
+    "open": 1431.71,
+    "high": 1432.8,
+    "low": 1414.18,
+    "close": 1419.58,
+    "volume": 1202401
+   },
+   {
+    "timestamp": 1771266600,
+    "open": 1421.54,
+    "high": 1424.26,
+    "low": 1374.9,
+    "close": 1380.89,
+    "volume": 1638091
+   },
+   {
+    "timestamp": 1771353000,
+    "open": 1381.87,
+    "high": 1383.11,
+    "low": 1366.14,
+    "close": 1368.53,
+    "volume": 1054560
+   },
+   {
+    "timestamp": 1771439400,
+    "open": 1362.45,
+    "high": 1372.2,
+    "low": 1361.33,
+    "close": 1371.8,
+    "volume": 999693
+   },
+   {
+    "timestamp": 1771525800,
+    "open": 1371.22,
+    "high": 1372.4,
+    "low": 1348.45,
+    "close": 1350.89,
+    "volume": 1268668
+   },
+   {
+    "timestamp": 1771785000,
+    "open": 1347.6,
+    "high": 1352.95,
+    "low": 1307.67,
+    "close": 1315.24,
+    "volume": 2302507
+   },
+   {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  ],
+  "numbers": [
+   1600.61,
+   1572.94,
+   1545.31,
+   1538.93,
+   1530.1,
+   1523.47,
+   1526.43,
+   1552.58,
+   1534.55,
+   1520.98,
+   1470.76,
+   1449.09,
+   1424.11,
+   1412.19,
+   1411.92,
+   1397.15,
+   1418.84,
+   1393.18,
+   1393.11,
+   1391.37,
+   1411.38,
+   1424.16,
+   1381.32,
+   1359.92,
+   1416.49,
+   1443.18,
+   1449.29,
+   1458.89,
+   1435.43,
+   1450.07,
+   1425.81,
+   1429.08,
+   1432.56,
+   1419.58,
+   1380.89,
+   1368.53,
+   1371.8,
+   1350.89,
+   1315.24,
+   1317.19
+  ],
+  "texts": [
+   "1600.61",
+   "1572.94",
+   "1545.31",
+   "1538.93",
+   "1530.1",
+   "1523.47",
+   "1526.43",
+   "1552.58",
+   "1534.55",
+   "1520.98",
+   "1470.76",
+   "1449.09",
+   "1424.11",
+   "1412.19",
+   "1411.92",
+   "1397.15",
+   "1418.84",
+   "1393.18",
+   "1393.11",
+   "1391.37",
+   "1411.38",
+   "1424.16",
+   "1381.32",
+   "1359.92",
+   "1416.49",
+   "1443.18",
+   "1449.29",
+   "1458.89",
+   "1435.43",
+   "1450.07",
+   "1425.81",
+   "1429.08",
+   "1432.56",
+   "1419.58",
+   "1380.89",
+   "1368.53",
+   "1371.8",
+   "1350.89",
+   "1315.24",
+   "1317.19"
+  ],
+  "holes": [
+   null,
+   {
+    "value": null
+   },
+   {
+    "value": 50.5
+   },
+   {
+    "out0": 49.0
+   },
+   51.25,
+   {
+    "close": "52"
+   }
+  ],
+  "bad": [
+   1.0,
+   2.0,
+   "abc"
+  ],
+  "nested_list": [
+   1.0,
+   [
+    2.0
+   ]
+  ],
+  "flags": [
+   true,
+   false,
+   1,
+   0.5
+  ],
+  "scalar": 42,
+  "dict": {
+   "value": 1
+  }
+ },
+ "cases": [
+  {
+   "label": "defaults",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": false,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 1400.375
+    },
+    "inputs": [
+     "close"
+    ],
+    "params": {
+     "period": 14
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 1400.375
+    },
+    "previous": {
+     "value": 1409.374286
+    },
+    "series": [
+     {
+      "value": 1417.931429
+     },
+     {
+      "value": 1417.251429
+     },
+     {
+      "value": 1416.606429
+     },
+     {
+      "value": 1409.374286
+     },
+     {
+      "value": 1400.375
+     }
+    ],
+    "bars_used": 150
+   },
+   "logs": [
+    [
+     "info",
+     "Computing sma for SBIN (D, 100 bars)"
+    ],
+    [
+     "info",
+     "sma latest: {'value': 1400.375}"
+    ],
+    [
+     "info",
+     "Stored result in variable: ind"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {
+    "ind": {
+     "status": "success",
+     "indicator": "sma",
+     "nested": false,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 1400.375
+     },
+     "inputs": [
+      "close"
+     ],
+     "params": {
+      "period": 14
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 1400.375
+     },
+     "previous": {
+      "value": 1409.374286
+     },
+     "series": [
+      {
+       "value": 1417.931429
+      },
+      {
+       "value": 1417.251429
+      },
+      {
+       "value": 1416.606429
+      },
+      {
+       "value": 1409.374286
+      },
+      {
+       "value": 1400.375
+      }
+     ],
+     "bars_used": 150
+    }
+   }
+  },
+  {
+   "label": "rsi_string_params",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "rsi",
+    "params": "{\"period\": 9}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "rsi",
+    "nested": false,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 23.655372
+    },
+    "inputs": [
+     "close"
+    ],
+    "params": {
+     "period": 9
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 23.655372
+    },
+    "previous": {
+     "value": 22.677503
+    },
+    "series": [
+     {
+      "value": 31.678505
+     },
+     {
+      "value": 33.186797
+     },
+     {
+      "value": 28.638606
+     },
+     {
+      "value": 22.677503
+     },
+     {
+      "value": 23.655372
+     }
+    ],
+    "bars_used": 150
+   },
+   "logs": [
+    [
+     "info",
+     "Computing rsi for SBIN (D, 100 bars)"
+    ],
+    [
+     "info",
+     "rsi latest: {'value': 23.655372}"
+    ],
+    [
+     "info",
+     "Stored result in variable: ind"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {
+    "ind": {
+     "status": "success",
+     "indicator": "rsi",
+     "nested": false,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 23.655372
+     },
+     "inputs": [
+      "close"
+     ],
+     "params": {
+      "period": 9
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 23.655372
+     },
+     "previous": {
+      "value": 22.677503
+     },
+     "series": [
+      {
+       "value": 31.678505
+      },
+      {
+       "value": 33.186797
+      },
+      {
+       "value": 28.638606
+      },
+      {
+       "value": 22.677503
+      },
+      {
+       "value": 23.655372
+      }
+     ],
+     "bars_used": 150
+    }
+   }
+  },
+  {
+   "label": "empty_params",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "sma",
+    "params": ""
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": false,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 1400.375
+    },
+    "inputs": [
+     "close"
+    ],
+    "params": {
+     "period": 14
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 1400.375
+    },
+    "previous": {
+     "value": 1409.374286
+    },
+    "series": [
+     {
+      "value": 1417.931429
+     },
+     {
+      "value": 1417.251429
+     },
+     {
+      "value": 1416.606429
+     },
+     {
+      "value": 1409.374286
+     },
+     {
+      "value": 1400.375
+     }
+    ],
+    "bars_used": 150
+   },
+   "logs": [
+    [
+     "info",
+     "Computing sma for SBIN (D, 100 bars)"
+    ],
+    [
+     "info",
+     "sma latest: {'value': 1400.375}"
+    ],
+    [
+     "info",
+     "Stored result in variable: ind"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {
+    "ind": {
+     "status": "success",
+     "indicator": "sma",
+     "nested": false,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 1400.375
+     },
+     "inputs": [
+      "close"
+     ],
+     "params": {
+      "period": 14
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 1400.375
+     },
+     "previous": {
+      "value": 1409.374286
+     },
+     "series": [
+      {
+       "value": 1417.931429
+      },
+      {
+       "value": 1417.251429
+      },
+      {
+       "value": 1416.606429
+      },
+      {
+       "value": 1409.374286
+      },
+      {
+       "value": 1400.375
+      }
+     ],
+     "bars_used": 150
+    }
+   }
+  },
+  {
+   "label": "blank_params",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "sma",
+    "params": "   "
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": false,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 1400.375
+    },
+    "inputs": [
+     "close"
+    ],
+    "params": {
+     "period": 14
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 1400.375
+    },
+    "previous": {
+     "value": 1409.374286
+    },
+    "series": [
+     {
+      "value": 1417.931429
+     },
+     {
+      "value": 1417.251429
+     },
+     {
+      "value": 1416.606429
+     },
+     {
+      "value": 1409.374286
+     },
+     {
+      "value": 1400.375
+     }
+    ],
+    "bars_used": 150
+   },
+   "logs": [
+    [
+     "info",
+     "Computing sma for SBIN (D, 100 bars)"
+    ],
+    [
+     "info",
+     "sma latest: {'value': 1400.375}"
+    ],
+    [
+     "info",
+     "Stored result in variable: ind"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {
+    "ind": {
+     "status": "success",
+     "indicator": "sma",
+     "nested": false,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 1400.375
+     },
+     "inputs": [
+      "close"
+     ],
+     "params": {
+      "period": 14
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 1400.375
+     },
+     "previous": {
+      "value": 1409.374286
+     },
+     "series": [
+      {
+       "value": 1417.931429
+      },
+      {
+       "value": 1417.251429
+      },
+      {
+       "value": 1416.606429
+      },
+      {
+       "value": 1409.374286
+      },
+      {
+       "value": 1400.375
+      }
+     ],
+     "bars_used": 150
+    }
+   }
+  },
+  {
+   "label": "object_params",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "ema",
+    "params": {
+     "period": 5
+    }
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "ema",
+    "nested": false,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 1343.104036
+    },
+    "inputs": [
+     "close"
+    ],
+    "params": {
+     "period": 5
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 1343.104036
+    },
+    "previous": {
+     "value": 1356.061055
+    },
+    "series": [
+     {
+      "value": 1397.99356
+     },
+     {
+      "value": 1389.262373
+     },
+     {
+      "value": 1376.471582
+     },
+     {
+      "value": 1356.061055
+     },
+     {
+      "value": 1343.104036
+     }
+    ],
+    "bars_used": 150
+   },
+   "logs": [
+    [
+     "warning",
+     "Indicator params were stored as an object; normalising to the JSON string form. Re-save the node to store it correctly."
+    ],
+    [
+     "info",
+     "Computing ema for SBIN (D, 100 bars)"
+    ],
+    [
+     "info",
+     "ema latest: {'value': 1343.104036}"
+    ],
+    [
+     "info",
+     "Stored result in variable: ind"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {
+    "ind": {
+     "status": "success",
+     "indicator": "ema",
+     "nested": false,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 1343.104036
+     },
+     "inputs": [
+      "close"
+     ],
+     "params": {
+      "period": 5
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 1343.104036
+     },
+     "previous": {
+      "value": 1356.061055
+     },
+     "series": [
+      {
+       "value": 1397.99356
+      },
+      {
+       "value": 1389.262373
+      },
+      {
+       "value": 1376.471582
+      },
+      {
+       "value": 1356.061055
+      },
+      {
+       "value": 1343.104036
+      }
+     ],
+     "bars_used": 150
+    }
+   }
+  },
+  {
+   "label": "bad_json",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "sma",
+    "params": "{period: 5}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "Invalid params JSON: {period: 5}"
+   },
+   "logs": [],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "list_params",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "sma",
+    "params": "[5]"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "params must resolve to a JSON object, got list"
+   },
+   "logs": [],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "number_params",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "sma",
+    "params": "5"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "params must resolve to a JSON object, got int"
+   },
+   "logs": [],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "tail_offset",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "supertrend",
+    "params": "{}",
+    "tailBars": 10,
+    "offsetBars": 3
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "supertrend",
+    "nested": false,
+    "offset_bars": 3,
+    "at_offset": {
+     "out0": 1454.695341,
+     "out1": 1.0
+    },
+    "inputs": [
+     "high",
+     "low",
+     "close"
+    ],
+    "params": {},
+    "outputs": [
+     "out0",
+     "out1"
+    ],
+    "latest": {
+     "out0": 1410.324669,
+     "out1": 1.0
+    },
+    "previous": {
+     "out0": 1421.584077,
+     "out1": 1.0
+    },
+    "series": [
+     {
+      "out0": 1464.769739,
+      "out1": 1.0
+     },
+     {
+      "out0": 1464.769739,
+      "out1": 1.0
+     },
+     {
+      "out0": 1464.769739,
+      "out1": 1.0
+     },
+     {
+      "out0": 1464.769739,
+      "out1": 1.0
+     },
+     {
+      "out0": 1464.769739,
+      "out1": 1.0
+     },
+     {
+      "out0": 1464.769739,
+      "out1": 1.0
+     },
+     {
+      "out0": 1454.695341,
+      "out1": 1.0
+     },
+     {
+      "out0": 1446.747307,
+      "out1": 1.0
+     },
+     {
+      "out0": 1421.584077,
+      "out1": 1.0
+     },
+     {
+      "out0": 1410.324669,
+      "out1": 1.0
+     }
+    ],
+    "bars_used": 150
+   },
+   "logs": [
+    [
+     "info",
+     "Computing supertrend for SBIN (D, 100 bars)"
+    ],
+    [
+     "info",
+     "supertrend latest: {'out0': 1410.324669, 'out1': 1.0}"
+    ],
+    [
+     "info",
+     "Stored result in variable: ind"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {
+    "ind": {
+     "status": "success",
+     "indicator": "supertrend",
+     "nested": false,
+     "offset_bars": 3,
+     "at_offset": {
+      "out0": 1454.695341,
+      "out1": 1.0
+     },
+     "inputs": [
+      "high",
+      "low",
+      "close"
+     ],
+     "params": {},
+     "outputs": [
+      "out0",
+      "out1"
+     ],
+     "latest": {
+      "out0": 1410.324669,
+      "out1": 1.0
+     },
+     "previous": {
+      "out0": 1421.584077,
+      "out1": 1.0
+     },
+     "series": [
+      {
+       "out0": 1464.769739,
+       "out1": 1.0
+      },
+      {
+       "out0": 1464.769739,
+       "out1": 1.0
+      },
+      {
+       "out0": 1464.769739,
+       "out1": 1.0
+      },
+      {
+       "out0": 1464.769739,
+       "out1": 1.0
+      },
+      {
+       "out0": 1464.769739,
+       "out1": 1.0
+      },
+      {
+       "out0": 1464.769739,
+       "out1": 1.0
+      },
+      {
+       "out0": 1454.695341,
+       "out1": 1.0
+      },
+      {
+       "out0": 1446.747307,
+       "out1": 1.0
+      },
+      {
+       "out0": 1421.584077,
+       "out1": 1.0
+      },
+      {
+       "out0": 1410.324669,
+       "out1": 1.0
+      }
+     ],
+     "bars_used": 150
+    }
+   }
+  },
+  {
+   "label": "lookback_text",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "macd",
+    "lookbackBars": "40",
+    "tailBars": "3"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "macd",
+    "nested": false,
+    "offset_bars": 0,
+    "at_offset": {
+     "out0": -36.52558,
+     "out1": -29.972344,
+     "out2": -6.553235
+    },
+    "inputs": [
+     "close"
+    ],
+    "params": {},
+    "outputs": [
+     "out0",
+     "out1",
+     "out2"
+    ],
+    "latest": {
+     "out0": -36.52558,
+     "out1": -29.972344,
+     "out2": -6.553235
+    },
+    "previous": {
+     "out0": -33.529588,
+     "out1": -28.334036,
+     "out2": -5.195552
+    },
+    "series": [
+     {
+      "out0": -29.019364,
+      "out1": -27.035148,
+      "out2": -1.984216
+     },
+     {
+      "out0": -33.529588,
+      "out1": -28.334036,
+      "out2": -5.195552
+     },
+     {
+      "out0": -36.52558,
+      "out1": -29.972344,
+      "out2": -6.553235
+     }
+    ],
+    "bars_used": 90
+   },
+   "logs": [
+    [
+     "info",
+     "Computing macd for SBIN (D, 40 bars)"
+    ],
+    [
+     "info",
+     "macd latest: {'out0': -36.52558, 'out1': -29.972344, 'out2': -6.553235}"
+    ],
+    [
+     "info",
+     "Stored result in variable: ind"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-08-22",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {
+    "ind": {
+     "status": "success",
+     "indicator": "macd",
+     "nested": false,
+     "offset_bars": 0,
+     "at_offset": {
+      "out0": -36.52558,
+      "out1": -29.972344,
+      "out2": -6.553235
+     },
+     "inputs": [
+      "close"
+     ],
+     "params": {},
+     "outputs": [
+      "out0",
+      "out1",
+      "out2"
+     ],
+     "latest": {
+      "out0": -36.52558,
+      "out1": -29.972344,
+      "out2": -6.553235
+     },
+     "previous": {
+      "out0": -33.529588,
+      "out1": -28.334036,
+      "out2": -5.195552
+     },
+     "series": [
+      {
+       "out0": -29.019364,
+       "out1": -27.035148,
+       "out2": -1.984216
+      },
+      {
+       "out0": -33.529588,
+       "out1": -28.334036,
+       "out2": -5.195552
+      },
+      {
+       "out0": -36.52558,
+       "out1": -29.972344,
+       "out2": -6.553235
+      }
+     ],
+     "bars_used": 90
+    }
+   }
+  },
+  {
+   "label": "big_lookback",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "atr",
+    "lookbackBars": 500
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "atr",
+    "nested": false,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 29.999547
+    },
+    "inputs": [
+     "high",
+     "low",
+     "close"
+    ],
+    "params": {},
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 29.999547
+    },
+    "previous": {
+     "value": 31.125666
+    },
+    "series": [
+     {
+      "value": 32.015483
+     },
+     {
+      "value": 30.505092
+     },
+     {
+      "value": 30.036871
+     },
+     {
+      "value": 31.125666
+     },
+     {
+      "value": 29.999547
+     }
+    ],
+    "bars_used": 200
+   },
+   "logs": [
+    [
+     "info",
+     "Computing atr for SBIN (D, 500 bars)"
+    ],
+    [
+     "info",
+     "atr latest: {'value': 29.999547}"
+    ],
+    [
+     "info",
+     "Stored result in variable: ind"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2025-12-09",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {
+    "ind": {
+     "status": "success",
+     "indicator": "atr",
+     "nested": false,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 29.999547
+     },
+     "inputs": [
+      "high",
+      "low",
+      "close"
+     ],
+     "params": {},
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 29.999547
+     },
+     "previous": {
+      "value": 31.125666
+     },
+     "series": [
+      {
+       "value": 32.015483
+      },
+      {
+       "value": 30.505092
+      },
+      {
+       "value": 30.036871
+      },
+      {
+       "value": 31.125666
+      },
+      {
+       "value": 29.999547
+      }
+     ],
+     "bars_used": 200
+    }
+   }
+  },
+  {
+   "label": "two_series",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "crossover"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "'crossover' needs two independent series (a second symbol or two already-computed signals) and cannot run from a single symbol's history. Use two Indicator nodes plus a Math Expression/Var Condition node instead."
+   },
+   "logs": [
+    [
+     "info",
+     "Computing crossover for SBIN (D, 100 bars)"
+    ],
+    [
+     "error",
+     "Indicator error: 'crossover' needs two independent series (a second symbol or two already-computed signals) and cannot run from a single symbol's history. Use two Indicator nodes plus a Math Expression/Var Condition node instead."
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "unknown",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "Nope"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "unknown indicator 'Nope'"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing Nope for SBIN (D, 100 bars)"
+    ],
+    [
+     "error",
+     "Indicator error: unknown indicator 'Nope'"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "library_value_error",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "sma",
+    "params": "{\"period\": 0}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "Period must be positive, got 0"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing sma for SBIN (D, 100 bars)"
+    ],
+    [
+     "error",
+     "Indicator error: Period must be positive, got 0"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "library_type_error",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "sma",
+    "params": "{\"bogus\": 1}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "error": {
+    "kind": "TypeError",
+    "message": "TechnicalAnalysis.sma() got an unexpected keyword argument 'bogus'"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing sma for SBIN (D, 100 bars)"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "no_symbol",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "rsi"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "Symbol is required"
+   },
+   "logs": [],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "history_error",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "rsi"
+   },
+   "history": {
+    "status": "error",
+    "message": "Interval not supported"
+   },
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "History fetch failed for SBIN (D): Interval not supported. If your broker does not support the 'D' interval, use the Intervals node to list supported ones, or set Source to Historify DB to resample it locally."
+   },
+   "logs": [
+    [
+     "info",
+     "Computing rsi for SBIN (D, 100 bars)"
+    ],
+    [
+     "error",
+     "History fetch failed for SBIN (D): Interval not supported. If your broker does not support the 'D' interval, use the Intervals node to list supported ones, or set Source to Historify DB to resample it locally."
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "history_error_db",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "rsi",
+    "source": "db"
+   },
+   "history": {
+    "status": "error",
+    "message": "No data"
+   },
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "History fetch failed for SBIN (D): No data."
+   },
+   "logs": [
+    [
+     "info",
+     "Computing rsi for SBIN (D, 100 bars)"
+    ],
+    [
+     "error",
+     "History fetch failed for SBIN (D): No data."
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "db"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "empty_history",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "rsi"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "no historical data available for this symbol/date range"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing rsi for SBIN (D, 100 bars)"
+    ],
+    [
+     "error",
+     "Indicator error: no historical data available for this symbol/date range"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "nested_rsi_series",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "{{rsi.series}}"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": true,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 32.073184
+    },
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 5
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 32.073184
+    },
+    "previous": {
+     "value": 33.626911
+    },
+    "series": [
+     {
+      "value": 40.844324
+     },
+     {
+      "value": 39.080569
+     },
+     {
+      "value": 36.552611
+     },
+     {
+      "value": 33.626911
+     },
+     {
+      "value": 32.073184
+     }
+    ],
+    "bars_used": 60
+   },
+   "logs": [
+    [
+     "info",
+     "Computing nested sma over 60 upstream values"
+    ],
+    [
+     "info",
+     "sma (nested) latest: {'value': 32.073184}"
+    ],
+    [
+     "info",
+     "Stored result in variable: n"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {
+    "n": {
+     "status": "success",
+     "indicator": "sma",
+     "nested": true,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 32.073184
+     },
+     "inputs": [
+      "data (nested)"
+     ],
+     "params": {
+      "period": 5
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 32.073184
+     },
+     "previous": {
+      "value": 33.626911
+     },
+     "series": [
+      {
+       "value": 40.844324
+      },
+      {
+       "value": 39.080569
+      },
+      {
+       "value": 36.552611
+      },
+      {
+       "value": 33.626911
+      },
+      {
+       "value": 32.073184
+      }
+     ],
+     "bars_used": 60
+    }
+   }
+  },
+  {
+   "label": "nested_macd_out0",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "{{macd.series}}"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": true,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": -30.119556
+    },
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 5
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": -30.119556
+    },
+    "previous": {
+     "value": -27.28359
+    },
+    "series": [
+     {
+      "value": -22.016938
+     },
+     {
+      "value": -22.860663
+     },
+     {
+      "value": -24.564177
+     },
+     {
+      "value": -27.28359
+     },
+     {
+      "value": -30.119556
+     }
+    ],
+    "bars_used": 60
+   },
+   "logs": [
+    [
+     "info",
+     "Computing nested sma over 60 upstream values"
+    ],
+    [
+     "info",
+     "sma (nested) latest: {'value': -30.119556}"
+    ],
+    [
+     "info",
+     "Stored result in variable: n"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {
+    "n": {
+     "status": "success",
+     "indicator": "sma",
+     "nested": true,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": -30.119556
+     },
+     "inputs": [
+      "data (nested)"
+     ],
+     "params": {
+      "period": 5
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": -30.119556
+     },
+     "previous": {
+      "value": -27.28359
+     },
+     "series": [
+      {
+       "value": -22.016938
+      },
+      {
+       "value": -22.860663
+      },
+      {
+       "value": -24.564177
+      },
+      {
+       "value": -27.28359
+      },
+      {
+       "value": -30.119556
+      }
+     ],
+     "bars_used": 60
+    }
+   }
+  },
+  {
+   "label": "nested_macd_field",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "{{macd.series}}",
+    "sourceField": "out2"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": true,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": -2.405177
+    },
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 5
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": -2.405177
+    },
+    "previous": {
+     "value": -0.170505
+    },
+    "series": [
+     {
+      "value": 6.889183
+     },
+     {
+      "value": 4.836367
+     },
+     {
+      "value": 2.506282
+     },
+     {
+      "value": -0.170505
+     },
+     {
+      "value": -2.405177
+     }
+    ],
+    "bars_used": 60
+   },
+   "logs": [
+    [
+     "info",
+     "Computing nested sma over 60 upstream values"
+    ],
+    [
+     "info",
+     "sma (nested) latest: {'value': -2.405177}"
+    ],
+    [
+     "info",
+     "Stored result in variable: n"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {
+    "n": {
+     "status": "success",
+     "indicator": "sma",
+     "nested": true,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": -2.405177
+     },
+     "inputs": [
+      "data (nested)"
+     ],
+     "params": {
+      "period": 5
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": -2.405177
+     },
+     "previous": {
+      "value": -0.170505
+     },
+     "series": [
+      {
+       "value": 6.889183
+      },
+      {
+       "value": 4.836367
+      },
+      {
+       "value": 2.506282
+      },
+      {
+       "value": -0.170505
+      },
+      {
+       "value": -2.405177
+      }
+     ],
+     "bars_used": 60
+    }
+   }
+  },
+  {
+   "label": "nested_history_close",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "{{h.data}}"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": true,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 1344.73
+    },
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 5
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 1344.73
+    },
+    "previous": {
+     "value": 1357.47
+    },
+    "series": [
+     {
+      "value": 1406.128
+     },
+     {
+      "value": 1394.672
+     },
+     {
+      "value": 1378.338
+     },
+     {
+      "value": 1357.47
+     },
+     {
+      "value": 1344.73
+     }
+    ],
+    "bars_used": 60
+   },
+   "logs": [
+    [
+     "info",
+     "Computing nested sma over 60 upstream values"
+    ],
+    [
+     "info",
+     "sma (nested) latest: {'value': 1344.73}"
+    ],
+    [
+     "info",
+     "Stored result in variable: n"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {
+    "n": {
+     "status": "success",
+     "indicator": "sma",
+     "nested": true,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 1344.73
+     },
+     "inputs": [
+      "data (nested)"
+     ],
+     "params": {
+      "period": 5
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 1344.73
+     },
+     "previous": {
+      "value": 1357.47
+     },
+     "series": [
+      {
+       "value": 1406.128
+      },
+      {
+       "value": 1394.672
+      },
+      {
+       "value": 1378.338
+      },
+      {
+       "value": 1357.47
+      },
+      {
+       "value": 1344.73
+      }
+     ],
+     "bars_used": 60
+    }
+   }
+  },
+  {
+   "label": "nested_history_high",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "{{h.data}}",
+    "sourceField": "high"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": true,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 1362.252
+    },
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 5
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 1362.252
+    },
+    "previous": {
+     "value": 1380.984
+    },
+    "series": [
+     {
+      "value": 1422.59
+     },
+     {
+      "value": 1410.856
+     },
+     {
+      "value": 1396.954
+     },
+     {
+      "value": 1380.984
+     },
+     {
+      "value": 1362.252
+     }
+    ],
+    "bars_used": 60
+   },
+   "logs": [
+    [
+     "info",
+     "Computing nested sma over 60 upstream values"
+    ],
+    [
+     "info",
+     "sma (nested) latest: {'value': 1362.252}"
+    ],
+    [
+     "info",
+     "Stored result in variable: n"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {
+    "n": {
+     "status": "success",
+     "indicator": "sma",
+     "nested": true,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 1362.252
+     },
+     "inputs": [
+      "data (nested)"
+     ],
+     "params": {
+      "period": 5
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 1362.252
+     },
+     "previous": {
+      "value": 1380.984
+     },
+     "series": [
+      {
+       "value": 1422.59
+      },
+      {
+       "value": 1410.856
+      },
+      {
+       "value": 1396.954
+      },
+      {
+       "value": 1380.984
+      },
+      {
+       "value": 1362.252
+      }
+     ],
+     "bars_used": 60
+    }
+   }
+  },
+  {
+   "label": "nested_history_missing_field",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "{{h.data}}",
+    "sourceField": "nope"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "nested indicator needs at least 2 upstream values"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing nested sma over 0 upstream values"
+    ],
+    [
+     "error",
+     "Indicator error: nested indicator needs at least 2 upstream values"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "nested_numbers",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "{{numbers}}"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": true,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 1344.73
+    },
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 5
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 1344.73
+    },
+    "previous": {
+     "value": 1357.47
+    },
+    "series": [
+     {
+      "value": 1406.128
+     },
+     {
+      "value": 1394.672
+     },
+     {
+      "value": 1378.338
+     },
+     {
+      "value": 1357.47
+     },
+     {
+      "value": 1344.73
+     }
+    ],
+    "bars_used": 40
+   },
+   "logs": [
+    [
+     "info",
+     "Computing nested sma over 40 upstream values"
+    ],
+    [
+     "info",
+     "sma (nested) latest: {'value': 1344.73}"
+    ],
+    [
+     "info",
+     "Stored result in variable: n"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {
+    "n": {
+     "status": "success",
+     "indicator": "sma",
+     "nested": true,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 1344.73
+     },
+     "inputs": [
+      "data (nested)"
+     ],
+     "params": {
+      "period": 5
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 1344.73
+     },
+     "previous": {
+      "value": 1357.47
+     },
+     "series": [
+      {
+       "value": 1406.128
+      },
+      {
+       "value": 1394.672
+      },
+      {
+       "value": 1378.338
+      },
+      {
+       "value": 1357.47
+      },
+      {
+       "value": 1344.73
+      }
+     ],
+     "bars_used": 40
+    }
+   }
+  },
+  {
+   "label": "nested_texts",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "{{texts}}"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": true,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 1344.73
+    },
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 5
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 1344.73
+    },
+    "previous": {
+     "value": 1357.47
+    },
+    "series": [
+     {
+      "value": 1406.128
+     },
+     {
+      "value": 1394.672
+     },
+     {
+      "value": 1378.338
+     },
+     {
+      "value": 1357.47
+     },
+     {
+      "value": 1344.73
+     }
+    ],
+    "bars_used": 40
+   },
+   "logs": [
+    [
+     "info",
+     "Computing nested sma over 40 upstream values"
+    ],
+    [
+     "info",
+     "sma (nested) latest: {'value': 1344.73}"
+    ],
+    [
+     "info",
+     "Stored result in variable: n"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {
+    "n": {
+     "status": "success",
+     "indicator": "sma",
+     "nested": true,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 1344.73
+     },
+     "inputs": [
+      "data (nested)"
+     ],
+     "params": {
+      "period": 5
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 1344.73
+     },
+     "previous": {
+      "value": 1357.47
+     },
+     "series": [
+      {
+       "value": 1406.128
+      },
+      {
+       "value": 1394.672
+      },
+      {
+       "value": 1378.338
+      },
+      {
+       "value": 1357.47
+      },
+      {
+       "value": 1344.73
+      }
+     ],
+     "bars_used": 40
+    }
+   }
+  },
+  {
+   "label": "nested_holes",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 2}",
+    "outputVariable": "n",
+    "sourceSeries": "{{holes}}"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": true,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 51.625
+    },
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 2
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 51.625
+    },
+    "previous": {
+     "value": 50.125
+    },
+    "series": [
+     {
+      "value": null
+     },
+     {
+      "value": null
+     },
+     {
+      "value": 49.75
+     },
+     {
+      "value": 50.125
+     },
+     {
+      "value": 51.625
+     }
+    ],
+    "bars_used": 4
+   },
+   "logs": [
+    [
+     "info",
+     "Computing nested sma over 4 upstream values"
+    ],
+    [
+     "info",
+     "sma (nested) latest: {'value': 51.625}"
+    ],
+    [
+     "info",
+     "Stored result in variable: n"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {
+    "n": {
+     "status": "success",
+     "indicator": "sma",
+     "nested": true,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 51.625
+     },
+     "inputs": [
+      "data (nested)"
+     ],
+     "params": {
+      "period": 2
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 51.625
+     },
+     "previous": {
+      "value": 50.125
+     },
+     "series": [
+      {
+       "value": null
+      },
+      {
+       "value": null
+      },
+      {
+       "value": 49.75
+      },
+      {
+       "value": 50.125
+      },
+      {
+       "value": 51.625
+      }
+     ],
+     "bars_used": 4
+    }
+   }
+  },
+  {
+   "label": "nested_bad",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "{{bad}}"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "sourceSeries contains a non-numeric value: 'abc'"
+   },
+   "logs": [
+    [
+     "error",
+     "sourceSeries contains a non-numeric value: 'abc'"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "nested_nested_list",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "{{nested_list}}"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "sourceSeries contains a non-numeric value: [2.0]"
+   },
+   "logs": [
+    [
+     "error",
+     "sourceSeries contains a non-numeric value: [2.0]"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "nested_flags",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 2}",
+    "outputVariable": "n",
+    "sourceSeries": "{{flags}}"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": true,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 0.75
+    },
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 2
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 0.75
+    },
+    "previous": {
+     "value": 0.5
+    },
+    "series": [
+     {
+      "value": null
+     },
+     {
+      "value": null
+     },
+     {
+      "value": 0.5
+     },
+     {
+      "value": 0.5
+     },
+     {
+      "value": 0.75
+     }
+    ],
+    "bars_used": 4
+   },
+   "logs": [
+    [
+     "info",
+     "Computing nested sma over 4 upstream values"
+    ],
+    [
+     "info",
+     "sma (nested) latest: {'value': 0.75}"
+    ],
+    [
+     "info",
+     "Stored result in variable: n"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {
+    "n": {
+     "status": "success",
+     "indicator": "sma",
+     "nested": true,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 0.75
+     },
+     "inputs": [
+      "data (nested)"
+     ],
+     "params": {
+      "period": 2
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 0.75
+     },
+     "previous": {
+      "value": 0.5
+     },
+     "series": [
+      {
+       "value": null
+      },
+      {
+       "value": null
+      },
+      {
+       "value": 0.5
+      },
+      {
+       "value": 0.5
+      },
+      {
+       "value": 0.75
+      }
+     ],
+     "bars_used": 4
+    }
+   }
+  },
+  {
+   "label": "nested_json_text",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "[1, 2, 3, 4, 5, 6]"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": true,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 4.0
+    },
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 5
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 4.0
+    },
+    "previous": {
+     "value": 3.0
+    },
+    "series": [
+     {
+      "value": null
+     },
+     {
+      "value": null
+     },
+     {
+      "value": null
+     },
+     {
+      "value": 3.0
+     },
+     {
+      "value": 4.0
+     }
+    ],
+    "bars_used": 6
+   },
+   "logs": [
+    [
+     "info",
+     "Computing nested sma over 6 upstream values"
+    ],
+    [
+     "info",
+     "sma (nested) latest: {'value': 4.0}"
+    ],
+    [
+     "info",
+     "Stored result in variable: n"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {
+    "n": {
+     "status": "success",
+     "indicator": "sma",
+     "nested": true,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 4.0
+     },
+     "inputs": [
+      "data (nested)"
+     ],
+     "params": {
+      "period": 5
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 4.0
+     },
+     "previous": {
+      "value": 3.0
+     },
+     "series": [
+      {
+       "value": null
+      },
+      {
+       "value": null
+      },
+      {
+       "value": null
+      },
+      {
+       "value": 3.0
+      },
+      {
+       "value": 4.0
+      }
+     ],
+     "bars_used": 6
+    }
+   }
+  },
+  {
+   "label": "nested_json_text_rows",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 2}",
+    "outputVariable": "n",
+    "sourceSeries": "[{\"value\": 1}, {\"value\": 2}, {\"value\": 3}]"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": true,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 2.5
+    },
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 2
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 2.5
+    },
+    "previous": {
+     "value": 1.5
+    },
+    "series": [
+     {
+      "value": null
+     },
+     {
+      "value": null
+     },
+     {
+      "value": null
+     },
+     {
+      "value": 1.5
+     },
+     {
+      "value": 2.5
+     }
+    ],
+    "bars_used": 3
+   },
+   "logs": [
+    [
+     "info",
+     "Computing nested sma over 3 upstream values"
+    ],
+    [
+     "info",
+     "sma (nested) latest: {'value': 2.5}"
+    ],
+    [
+     "info",
+     "Stored result in variable: n"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {
+    "n": {
+     "status": "success",
+     "indicator": "sma",
+     "nested": true,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 2.5
+     },
+     "inputs": [
+      "data (nested)"
+     ],
+     "params": {
+      "period": 2
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 2.5
+     },
+     "previous": {
+      "value": 1.5
+     },
+     "series": [
+      {
+       "value": null
+      },
+      {
+       "value": null
+      },
+      {
+       "value": null
+      },
+      {
+       "value": 1.5
+      },
+      {
+       "value": 2.5
+      }
+     ],
+     "bars_used": 3
+    }
+   }
+  },
+  {
+   "label": "nested_json_text_object",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "{\"value\": 1}"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "sourceSeries must resolve to an array"
+   },
+   "logs": [
+    [
+     "error",
+     "sourceSeries must resolve to an array, got: {'value': 1}"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "nested_unresolved",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "{{missing.series}}"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "sourceSeries did not resolve to a JSON array"
+   },
+   "logs": [
+    [
+     "error",
+     "sourceSeries did not resolve to an array: '{{missing.series}}'"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "nested_not_json",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "1, 2, 3"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "sourceSeries did not resolve to a JSON array"
+   },
+   "logs": [
+    [
+     "error",
+     "sourceSeries did not resolve to an array: '1, 2, 3'"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "nested_scalar",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "{{scalar}}"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "sourceSeries must resolve to an array"
+   },
+   "logs": [
+    [
+     "error",
+     "sourceSeries must resolve to an array, got: 42"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "nested_dict",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "{{dict}}"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "sourceSeries must resolve to an array"
+   },
+   "logs": [
+    [
+     "error",
+     "sourceSeries must resolve to an array, got: {'value': 1}"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "nested_list_value",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": [
+     3.0,
+     4.0,
+     5.0,
+     6.0,
+     7.0,
+     8.0
+    ]
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": true,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 6.0
+    },
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 5
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 6.0
+    },
+    "previous": {
+     "value": 5.0
+    },
+    "series": [
+     {
+      "value": null
+     },
+     {
+      "value": null
+     },
+     {
+      "value": null
+     },
+     {
+      "value": 5.0
+     },
+     {
+      "value": 6.0
+     }
+    ],
+    "bars_used": 6
+   },
+   "logs": [
+    [
+     "info",
+     "Computing nested sma over 6 upstream values"
+    ],
+    [
+     "info",
+     "sma (nested) latest: {'value': 6.0}"
+    ],
+    [
+     "info",
+     "Stored result in variable: n"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {
+    "n": {
+     "status": "success",
+     "indicator": "sma",
+     "nested": true,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 6.0
+     },
+     "inputs": [
+      "data (nested)"
+     ],
+     "params": {
+      "period": 5
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 6.0
+     },
+     "previous": {
+      "value": 5.0
+     },
+     "series": [
+      {
+       "value": null
+      },
+      {
+       "value": null
+      },
+      {
+       "value": null
+      },
+      {
+       "value": 5.0
+      },
+      {
+       "value": 6.0
+      }
+     ],
+     "bars_used": 6
+    }
+   }
+  },
+  {
+   "label": "nested_number_value",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": 7
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "sourceSeries must resolve to an array"
+   },
+   "logs": [
+    [
+     "error",
+     "sourceSeries must resolve to an array, got: 7"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "nested_multi_series",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "atr",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "{{rsi.series}}"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "'atr' takes more than one independent input series (e.g. high/low/close), so it cannot be nested on top of another indicator's single output series. Nest only single-series indicators (SMA, EMA, RSI, WMA, stdev, highest/lowest, ...)."
+   },
+   "logs": [
+    [
+     "info",
+     "Computing nested atr over 60 upstream values"
+    ],
+    [
+     "error",
+     "Indicator error: 'atr' takes more than one independent input series (e.g. high/low/close), so it cannot be nested on top of another indicator's single output series. Nest only single-series indicators (SMA, EMA, RSI, WMA, stdev, highest/lowest, ...)."
+    ]
+   ],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "nested_too_short",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "[5]"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "nested indicator needs at least 2 upstream values"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing nested sma over 1 upstream values"
+    ],
+    [
+     "error",
+     "Indicator error: nested indicator needs at least 2 upstream values"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "nested_tail_offset",
+   "method": "execute_indicator",
+   "node_data": {
+    "indicatorName": "sma",
+    "params": "{\"period\": 5}",
+    "outputVariable": "n",
+    "sourceSeries": "{{rsi.series}}",
+    "tailBars": 8,
+    "offsetBars": 2
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "sma",
+    "nested": true,
+    "offset_bars": 2,
+    "at_offset": {
+     "value": 36.552611
+    },
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 5
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 32.073184
+    },
+    "previous": {
+     "value": 33.626911
+    },
+    "series": [
+     {
+      "value": 45.36573
+     },
+     {
+      "value": 44.927345
+     },
+     {
+      "value": 42.644018
+     },
+     {
+      "value": 40.844324
+     },
+     {
+      "value": 39.080569
+     },
+     {
+      "value": 36.552611
+     },
+     {
+      "value": 33.626911
+     },
+     {
+      "value": 32.073184
+     }
+    ],
+    "bars_used": 60
+   },
+   "logs": [
+    [
+     "info",
+     "Computing nested sma over 60 upstream values"
+    ],
+    [
+     "info",
+     "sma (nested) latest: {'value': 32.073184}"
+    ],
+    [
+     "info",
+     "Stored result in variable: n"
+    ]
+   ],
+   "history_requests": [],
+   "stored": {
+    "n": {
+     "status": "success",
+     "indicator": "sma",
+     "nested": true,
+     "offset_bars": 2,
+     "at_offset": {
+      "value": 36.552611
+     },
+     "inputs": [
+      "data (nested)"
+     ],
+     "params": {
+      "period": 5
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 32.073184
+     },
+     "previous": {
+      "value": 33.626911
+     },
+     "series": [
+      {
+       "value": 45.36573
+      },
+      {
+       "value": 44.927345
+      },
+      {
+       "value": 42.644018
+      },
+      {
+       "value": 40.844324
+      },
+      {
+       "value": 39.080569
+      },
+      {
+       "value": 36.552611
+      },
+      {
+       "value": 33.626911
+      },
+      {
+       "value": 32.073184
+      }
+     ],
+     "bars_used": 60
+    }
+   }
+  },
+  {
+   "label": "bar_daily",
+   "method": "execute_bar_offset",
+   "node_data": {
+    "symbol": "SBIN",
+    "interval": "D",
+    "offsetBars": 2
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "offsetBars": 2,
+    "timestamp": 1771525800,
+    "open": 1371.22,
+    "high": 1372.4,
+    "low": 1348.45,
+    "close": 1350.89,
+    "volume": 1268668
+   },
+   "logs": [
+    [
+     "info",
+     "Fetching bar offset 2 for SBIN (D)"
+    ],
+    [
+     "info",
+     "Bar offset 2 for SBIN: {'status': 'success', 'symbol': 'SBIN', 'exchange': 'NSE', 'offsetBars': 2, 'timestamp': 1771525800, 'open': 1371.22, 'high': 1372.4, 'low': 1348.45, 'close': 1350.89, 'volume': 1268668}"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-10-14",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "bar_daily_text_offset",
+   "method": "execute_bar_offset",
+   "node_data": {
+    "symbol": "SBIN",
+    "interval": "D",
+    "offsetBars": "4"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "offsetBars": 4,
+    "timestamp": 1771353000,
+    "open": 1381.87,
+    "high": 1383.11,
+    "low": 1366.14,
+    "close": 1368.53,
+    "volume": 1054560
+   },
+   "logs": [
+    [
+     "info",
+     "Fetching bar offset 4 for SBIN (D)"
+    ],
+    [
+     "info",
+     "Bar offset 4 for SBIN: {'status': 'success', 'symbol': 'SBIN', 'exchange': 'NSE', 'offsetBars': 4, 'timestamp': 1771353000, 'open': 1381.87, 'high': 1383.11, 'low': 1366.14, 'close': 1368.53, 'volume': 1054560}"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-10-11",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "bar_too_far",
+   "method": "execute_bar_offset",
+   "node_data": {
+    "symbol": "SBIN",
+    "interval": "D",
+    "offsetBars": 400
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "offsetBars": 199,
+    "timestamp": 1747765800,
+    "open": 1448.41,
+    "high": 1462.34,
+    "low": 1445.14,
+    "close": 1456.91,
+    "volume": 1571713
+   },
+   "logs": [
+    [
+     "info",
+     "Fetching bar offset 199 for SBIN (D)"
+    ],
+    [
+     "info",
+     "Bar offset 199 for SBIN: {'status': 'success', 'symbol': 'SBIN', 'exchange': 'NSE', 'offsetBars': 199, 'timestamp': 1747765800, 'open': 1448.41, 'high': 1462.34, 'low': 1445.14, 'close': 1456.91, 'volume': 1571713}"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2025-12-09",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "bar_negative",
+   "method": "execute_bar_offset",
+   "node_data": {
+    "symbol": "SBIN",
+    "interval": "D",
+    "offsetBars": -3
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "offsetBars": 0,
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   },
+   "logs": [
+    [
+     "info",
+     "Fetching bar offset 0 for SBIN (D)"
+    ],
+    [
+     "info",
+     "Bar offset 0 for SBIN: {'status': 'success', 'symbol': 'SBIN', 'exchange': 'NSE', 'offsetBars': 0, 'timestamp': 1771871400, 'open': 1325.46, 'high': 1330.6, 'low': 1316.54, 'close': 1317.19, 'volume': 741057}"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-10-17",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "bar_intraday_forming",
+   "method": "execute_bar_offset",
+   "node_data": {
+    "symbol": "SBIN",
+    "interval": "5m",
+    "offsetBars": 0
+   },
+   "history": "gaps",
+   "now": "2025-06-04T13:22:00",
+   "result": {
+    "status": "success",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "offsetBars": 0,
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   },
+   "logs": [
+    [
+     "info",
+     "Fetching bar offset 0 for SBIN (5m)"
+    ],
+    [
+     "info",
+     "Bar offset 0 for SBIN: {'status': 'success', 'symbol': 'SBIN', 'exchange': 'NSE', 'offsetBars': 0, 'timestamp': 1749023100, 'open': 2695.24, 'high': 2696.22, 'low': 2691.65, 'close': 2691.88, 'volume': 586940}"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "5m",
+     "start_date": "2025-05-30",
+     "end_date": "2025-06-04",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "bar_no_symbol",
+   "method": "execute_bar_offset",
+   "node_data": {
+    "symbol": "",
+    "interval": "D"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "Symbol is required"
+   },
+   "logs": [],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "bar_history_error",
+   "method": "execute_bar_offset",
+   "node_data": {
+    "symbol": "SBIN",
+    "interval": "3m"
+   },
+   "history": {
+    "status": "error",
+    "message": "bad interval"
+   },
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "History fetch failed for SBIN (3m): bad interval. If your broker does not support the '3m' interval, use the Intervals node to list supported ones, or set Source to Historify DB to resample it locally."
+   },
+   "logs": [
+    [
+     "info",
+     "Fetching bar offset 0 for SBIN (3m)"
+    ],
+    [
+     "error",
+     "History fetch failed for SBIN (3m): bad interval. If your broker does not support the '3m' interval, use the Intervals node to list supported ones, or set Source to Historify DB to resample it locally."
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "3m",
+     "start_date": "2026-10-25",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "prior_day",
+   "method": "execute_prior_period_ohlc",
+   "node_data": {
+    "symbol": "SBIN",
+    "period": "previous_day"
+   },
+   "history": "trend",
+   "now": "2026-02-25T00:00:00",
+   "result": {
+    "status": "success",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "period": "previous_day",
+    "date": "2026-02-24",
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057,
+    "pdh": 1330.6,
+    "pdl": 1316.54,
+    "pdc": 1317.19
+   },
+   "logs": [
+    [
+     "info",
+     "Fetching previous_day OHLC for: SBIN (NSE)"
+    ],
+    [
+     "info",
+     "previous_day OHLC for SBIN: H=1330.6 L=1316.54 C=1317.19 (bucket=2026-02-24)"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-02-15",
+     "end_date": "2026-02-25",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "prior_week",
+   "method": "execute_prior_period_ohlc",
+   "node_data": {
+    "symbol": "SBIN",
+    "period": "previous_week"
+   },
+   "history": "trend",
+   "now": "2026-02-27T00:00:00",
+   "result": {
+    "status": "success",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "period": "previous_week",
+    "date": "2026-02-16/2026-02-22",
+    "open": 1431.71,
+    "high": 1432.8,
+    "low": 1348.45,
+    "close": 1350.89,
+    "volume": 6163413.0,
+    "pdh": 1432.8,
+    "pdl": 1348.45,
+    "pdc": 1350.89
+   },
+   "logs": [
+    [
+     "info",
+     "Fetching previous_week OHLC for: SBIN (NSE)"
+    ],
+    [
+     "info",
+     "previous_week OHLC for SBIN: H=1432.8 L=1348.45 C=1350.89 (bucket=2026-02-16/2026-02-22)"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-02-06",
+     "end_date": "2026-02-27",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "prior_month",
+   "method": "execute_prior_period_ohlc",
+   "node_data": {
+    "symbol": "SBIN",
+    "period": "previous_month"
+   },
+   "history": "trend",
+   "now": "2026-02-27T00:00:00",
+   "result": {
+    "status": "success",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "period": "previous_month",
+    "date": "2026-01",
+    "open": 1601.92,
+    "high": 1602.8,
+    "low": 1372.41,
+    "close": 1381.32,
+    "volume": 25041818.0,
+    "pdh": 1602.8,
+    "pdl": 1372.41,
+    "pdc": 1381.32
+   },
+   "logs": [
+    [
+     "info",
+     "Fetching previous_month OHLC for: SBIN (NSE)"
+    ],
+    [
+     "info",
+     "previous_month OHLC for SBIN: H=1602.8 L=1372.41 C=1381.32 (bucket=2026-01)"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2025-12-29",
+     "end_date": "2026-02-27",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "prior_hour",
+   "method": "execute_prior_period_ohlc",
+   "node_data": {
+    "symbol": "SBIN",
+    "period": "previous_hour"
+   },
+   "history": "gaps",
+   "now": "2025-06-04T13:21:00",
+   "result": {
+    "status": "success",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "period": "previous_hour",
+    "date": "2025-06-04 12:55",
+    "open": 2708.46,
+    "high": 2708.65,
+    "low": 2700.45,
+    "close": 2700.5,
+    "volume": 1148782,
+    "pdh": 2708.65,
+    "pdl": 2700.45,
+    "pdc": 2700.5
+   },
+   "logs": [
+    [
+     "info",
+     "Fetching previous_hour OHLC for: SBIN (NSE)"
+    ],
+    [
+     "info",
+     "previous_hour OHLC for SBIN: H=2708.65 L=2700.45 C=2700.5 (bucket=2025-06-04 12:55)"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "1h",
+     "start_date": "2025-05-30",
+     "end_date": "2025-06-04",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "prior_unknown",
+   "method": "execute_prior_period_ohlc",
+   "node_data": {
+    "symbol": "SBIN",
+    "period": "previous_quarter"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "unknown period 'previous_quarter' — expected previous_hour/previous_day/previous_week/previous_month"
+   },
+   "logs": [
+    [
+     "info",
+     "Fetching previous_quarter OHLC for: SBIN (NSE)"
+    ],
+    [
+     "error",
+     "Prior period OHLC error: unknown period 'previous_quarter' — expected previous_hour/previous_day/previous_week/previous_month"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-10-20",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "prior_empty",
+   "method": "execute_prior_period_ohlc",
+   "node_data": {
+    "symbol": "SBIN",
+    "period": "previous_day"
+   },
+   "history": "empty",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "no historical data available for this symbol/date range"
+   },
+   "logs": [
+    [
+     "info",
+     "Fetching previous_day OHLC for: SBIN (NSE)"
+    ],
+    [
+     "error",
+     "Prior period OHLC error: no historical data available for this symbol/date range"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-10-20",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "prior_no_symbol",
+   "method": "execute_prior_period_ohlc",
+   "node_data": {
+    "symbol": "",
+    "period": "previous_day"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "Symbol is required"
+   },
+   "logs": [],
+   "history_requests": [],
+   "stored": {}
+  }
+ ]
+}

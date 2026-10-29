@@ -34,7 +34,10 @@ mod discovery;
 mod json;
 mod registry;
 mod scan;
-mod ta;
+// The Flow Indicator node calls the library directly
+// (`crate::flow::indicator_service`, the port of the web's
+// `services/indicator_service.py`), without the Agent's coercion.
+pub(crate) mod ta;
 
 #[cfg(test)]
 pub(crate) mod tests;
@@ -46,7 +49,9 @@ pub(crate) use coerce::required_bars;
 pub(crate) use compute::{compute, ist_stamp, Comparison, Computed};
 pub(crate) use discovery::{describe_indicator, list_indicators, unknown_indicator};
 pub(crate) use json::Json;
-pub(crate) use registry::get_spec;
+pub(crate) use registry::{
+    all as catalogue, get_spec, required_default, Default as ParamDefault, IndicatorSpec, Kind,
+};
 pub(crate) use scan::{plan_scan, scan_symbol, ScanPlan};
 
 /// What a batch computed and what it could not.
