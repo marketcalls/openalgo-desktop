@@ -36,6 +36,9 @@ fn ctx(kit: &Kit) -> NodeCtx {
     })
 }
 
+/// Whether a broker call is the one a node makes.
+type Reached = fn(&MockCall) -> bool;
+
 fn broker_saw(kit: &Kit, f: impl Fn(&MockCall) -> bool) -> bool {
     kit.mock.calls().iter().any(f)
 }
@@ -51,7 +54,7 @@ fn status(v: &Option<Value>) -> Value {
 /// mode.
 #[tokio::test]
 async fn account_nodes_follow_analyzer_mode() {
-    let nodes: [(&str, Value, fn(&MockCall) -> bool); 8] = [
+    let nodes: [(&str, Value, Reached); 8] = [
         ("funds", json!({}), |c| matches!(c, MockCall::Funds)),
         ("orderBook", json!({}), |c| matches!(c, MockCall::OrderBook)),
         ("tradeBook", json!({}), |c| matches!(c, MockCall::TradeBook)),

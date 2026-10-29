@@ -107,7 +107,7 @@ impl HistoryCache {
 
     /// Cached answers held now.
     #[cfg(test)]
-    pub fn len(&self) -> usize {
+    pub fn held(&self) -> usize {
         self.inner.lock().entries.len()
     }
 

@@ -105,7 +105,7 @@ async fn concurrent_misses_share_one_call_and_its_failure() {
     assert_eq!(a, b);
     assert_eq!(a.map(|v| v["code"].clone()), Some(json!(429)));
     assert_eq!(client.calls.load(Ordering::SeqCst), 1);
-    assert_eq!(cache.len(), 0, "an error stays retryable");
+    assert_eq!(cache.held(), 0, "an error stays retryable");
 }
 
 /// A kept answer is reused for 30 seconds, then fetched again; an empty
@@ -126,7 +126,7 @@ async fn answers_expire_are_bounded_and_belong_to_one_account() {
     assert_eq!(client.calls().len(), 3, "expired after 30 s");
     cache.fetch(&client, "anon", &req("INFY")).await;
     cache.fetch(&client, "anon", &req("TCS")).await;
-    assert!(cache.len() <= 2, "bounded");
+    assert!(cache.held() <= 2, "bounded");
     let empty = FakeFlowClient::new();
     empty.reply("history", json!({"status": "success", "data": []}));
     cache.clear();

@@ -106,8 +106,9 @@ impl TradingCalendar for FakeCalendar {
 
 /// An environment with this book and calendar.
 pub fn env_with(book: FakeBook, calendar: FakeCalendar) -> NodeEnv {
-    let mut env = NodeEnv::default();
-    env.strategy_book = Arc::new(book);
-    env.calendar = Arc::new(calendar);
-    env
+    NodeEnv {
+        strategy_book: Arc::new(book),
+        calendar: Arc::new(calendar),
+        ..Default::default()
+    }
 }
