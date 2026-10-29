@@ -6,8 +6,15 @@
 //! through, as the web's executor does. The three logic gates are not
 //! nodes here: the walk evaluates them itself from their inputs' results.
 
+pub mod basket;
 pub mod core;
+pub mod legs;
 pub mod logic;
+pub mod master;
+pub mod options;
+#[cfg(test)]
+pub mod order_testing;
+pub mod orders;
 
 use crate::flow::contract::node::FlowNode;
 use std::collections::HashMap;
@@ -27,6 +34,11 @@ pub const FAMILIES: &[NodeFamily] = &[
     core::FAMILY,
     // log, variable, delay (the nodes-logic lane completes this family).
     logic::FAMILY,
+    // placeOrder, smartOrder, splitOrder, modifyOrder, cancelOrder,
+    // cancelAllOrders, closePositions, basketOrder.
+    orders::FAMILY,
+    // optionsOrder, optionsMultiOrder.
+    options::FAMILY,
 ];
 
 /// The nodes by type id, built once.
