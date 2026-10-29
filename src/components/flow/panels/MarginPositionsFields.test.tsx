@@ -113,6 +113,13 @@ describe('lookup cost', () => {
     // heartbeat for as long as it stayed open.
     renderEditor(CLEAN_NFO_LEG)
     await screen.findByText(/130 units/)
+    // Desktop: the mount's own 350 ms debounce timer still fires after the
+    // lookup has answered. It sets the same key, and React may render once
+    // more before it bails out of an unchanged state, so a baseline taken
+    // before that timer counted one render too few about one run in two.
+    // The heartbeat this guards against renders every 350 ms for as long as
+    // the panel is open, so the window below still catches it.
+    await settle(500)
 
     const settled = renders
     await settle(1200)
