@@ -150,7 +150,12 @@ describe('lookup cost', () => {
     await waitFor(() => expect(getSymbolLotSizes).toHaveBeenCalledTimes(1))
     expect(getSymbolLotSizes.mock.calls[0][0]).toHaveLength(1)
 
-    await userEvent.type(screen.getAllByLabelText('Symbol')[1], 'BANKNIFTY25AUG26FUT')
+    // Desktop: pasted, not typed. Typed key by key on a loaded machine the gap
+    // between keys passed the 350 ms debounce, so a partial symbol was looked
+    // up first (seen in a full local run; the test passed alone).
+    const symbol = screen.getAllByLabelText('Symbol')[1]
+    await userEvent.click(symbol)
+    await userEvent.paste('BANKNIFTY25AUG26FUT')
     await waitFor(() => expect(getSymbolLotSizes).toHaveBeenCalledTimes(2))
 
     // The first leg was already cached, so only the new contract goes over the
