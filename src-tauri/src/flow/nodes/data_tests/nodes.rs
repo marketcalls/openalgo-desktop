@@ -482,3 +482,26 @@ async fn the_editors_indicator_defaults_run_and_feed_variables() {
     assert_eq!(c.vars.interpolate("{{ind.bars_used}}"), "120");
     assert!(matches!(c.vars.resolve_raw(&json!("{{ind.series}}")), Value::Array(ref a) if a.len() == 5));
 }
+
+/// Deeply nested JSON text reaching a node (a webhook value interpolated
+/// into the Margin basket or an Indicator's sourceSeries) is this node's
+/// error, never a crash of the app: decoding stops at Python's recursion
+/// depth with its sentence.
+#[tokio::test]
+async fn deeply_nested_text_is_a_node_error_not_a_crash() {
+    let deep = "[".repeat(100_000);
+    let client = Arc::new(FakeFlowClient::new());
+    let c = ctx(client.clone());
+    c.vars.set("webhook", json!({"basket": deep.clone()}));
+    let out = run(&c, "margin", json!({"positionsJson": "{{webhook.basket}}"})).await;
+    assert!(
+        out.failure_message().starts_with(
+            "Margin positions is not valid JSON after variable interpolation: maximum recursion depth exceeded"
+        ),
+        "{}",
+        out.failure_message()
+    );
+    let out = run(&c, "indicator", json!({"indicatorName": "sma", "sourceSeries": deep})).await;
+    assert_eq!(out.failure_message(), "sourceSeries did not resolve to a JSON array");
+    assert!(client.calls().is_empty());
+}
