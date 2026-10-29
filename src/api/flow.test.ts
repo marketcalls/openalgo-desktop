@@ -14,6 +14,7 @@
 
 import type { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { answer } from '@/test/axiosAnswer'
 import { webClient } from './client'
 import {
   activateWorkflow,
@@ -306,5 +307,35 @@ describe('query keys', () => {
       'CE',
     ])
     expect(flowQueryKeys.symbolLotSizes(['NFO:A'])).toEqual(['flow', 'symbol-lotsizes', ['NFO:A']])
+  })
+})
+
+describe('a refused request reads as the server said it (V-150)', () => {
+  it('a validator refusal rejects with the server message, which the pages toast', async () => {
+    webClient.defaults.adapter = answer(400, {
+      status: 'error',
+      error: 'Invalid workflow',
+      message: 'Node "Place Order" is missing a symbol.',
+    })
+    await expect(updateWorkflow(7, { name: 'x' })).rejects.toThrow(
+      'Node "Place Order" is missing a symbol.'
+    )
+  })
+
+  it('falls back to error, then detail, and keeps a plain-text body', async () => {
+    webClient.defaults.adapter = answer(409, {
+      status: 'error',
+      error: 'Workflow is already running',
+    })
+    await expect(executeWorkflow(7)).rejects.toThrow('Workflow is already running')
+    webClient.defaults.adapter = answer(500, 'The server could not finish that.')
+    await expect(listWorkflows()).rejects.toThrow('The server could not finish that.')
+  })
+
+  it('a refused permission says so in a trader sentence', async () => {
+    webClient.defaults.adapter = answer(403, { status: 'error', message: 'CSRF token missing' })
+    await expect(getWorkflow(7)).rejects.toThrow(
+      'You do not have permission to access this resource'
+    )
   })
 })

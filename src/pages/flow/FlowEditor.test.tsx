@@ -160,6 +160,37 @@ describe('editing and saving', () => {
     expect(body.nodes.map((n: { id: string }) => n.id)).toEqual(['node_1', 'node_2'])
     expect(body.edges.map((e: { id: string }) => e.id)).toEqual(['e1'])
     await waitFor(() => expect(screen.queryByText('Unsaved')).not.toBeInTheDocument())
+    expect(toast.success).toHaveBeenCalledWith('Workflow saved', 'flow')
+  })
+
+  it('a save whose new trigger could not be registered says the workflow stopped (V-151)', async () => {
+    api.updateWorkflow.mockImplementation(async (_id: number, data: object) => ({
+      ...stored(),
+      ...data,
+      needs_reactivate: true,
+    }))
+    renderEditor()
+    const user = userEvent.setup()
+    await user.type(await loaded(), ' v2')
+    await user.click(screen.getByRole('button', { name: /Save/ }))
+    await waitFor(() =>
+      expect(toast.warning).toHaveBeenCalledWith(
+        'Saved, but the new trigger could not be registered, so the workflow was deactivated. Activate it again once the trigger is valid.',
+        'flow'
+      )
+    )
+  })
+
+  it('a refused save shows the server reason (V-151)', async () => {
+    api.updateWorkflow.mockRejectedValue(new Error('Node "Place Order" is missing a symbol.'))
+    renderEditor()
+    const user = userEvent.setup()
+    await user.type(await loaded(), ' v2')
+    await user.click(screen.getByRole('button', { name: /Save/ }))
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Node "Place Order" is missing a symbol.', 'flow')
+    )
+    expect(screen.getByText('Unsaved')).toBeInTheDocument()
   })
 
   it('adds a node from the palette without a pointer and opens its config', async () => {
@@ -381,5 +412,81 @@ describe('departures from the web editor (desktop)', () => {
     expect(toast.warning.mock.calls[0][0]).toBe(
       'Workflow replaced. The trigger changed, so the workflow was deactivated. Activate it again once the trigger is valid.'
     )
+  })
+})
+
+describe('export and replace (IE-05, IE-16, V-153)', () => {
+  async function openMenuItem(name: string) {
+    const user = userEvent.setup()
+    await loaded()
+    await user.click(screen.getByRole('button', { name: 'Workflow actions' }))
+    await user.click(await screen.findByRole('menuitem', { name }))
+    return user
+  }
+
+  it('exports the stored workflow as a JSON file named after it', async () => {
+    const exported = {
+      version: '1.0',
+      name: 'Opening Range #2',
+      description: null,
+      nodes: [],
+      edges: [],
+      exported_at: '2026-10-30T09:00:00',
+    }
+    api.exportWorkflow.mockResolvedValue(exported)
+    const createObjectURL = vi.fn((_blob: Blob) => 'blob:flow-export')
+    const revokeObjectURL = vi.fn()
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL }))
+    const clicked: HTMLAnchorElement[] = []
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
+      clicked.push(this)
+    })
+    renderEditor()
+    await openMenuItem('Export Workflow')
+    await waitFor(() => expect(clicked).toHaveLength(1))
+    expect(clicked[0].download).toBe('opening_range__2.json')
+    expect(clicked[0].href).toBe('blob:flow-export')
+    const blob = createObjectURL.mock.calls[0][0]
+    expect(blob.type).toBe('application/json')
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:flow-export')
+    expect(toast.success).toHaveBeenCalledWith('Workflow exported', 'flow')
+    click.mockRestore()
+    vi.unstubAllGlobals()
+  })
+
+  it.each([
+    ['{not json', 'That is not valid JSON.'],
+    ['{"name": "ORB"}', 'Workflow JSON needs a nodes array.'],
+  ])('refuses %s before sending it', async (text, sentence) => {
+    renderEditor()
+    const user = await openMenuItem('Replace from JSON')
+    const json = await screen.findByPlaceholderText(
+      '{ "name": "...", "nodes": [...], "edges": [...] }'
+    )
+    await user.click(json)
+    await user.paste(text)
+    await user.click(screen.getByRole('button', { name: 'Replace' }))
+    expect(await screen.findByText(sentence)).toBeInTheDocument()
+    expect(api.replaceWorkflow).not.toHaveBeenCalled()
+  })
+
+  it("shows the server's reason when it refuses the replacement", async () => {
+    api.replaceWorkflow.mockRejectedValue(
+      Object.assign(new Error('Request failed'), {
+        response: { data: { message: 'Edge e9 points at a node that does not exist.' } },
+      })
+    )
+    renderEditor()
+    const user = await openMenuItem('Replace from JSON')
+    await user.click(
+      await screen.findByPlaceholderText('{ "name": "...", "nodes": [...], "edges": [...] }')
+    )
+    await user.paste('{"name": "ORB", "nodes": [], "edges": []}')
+    await user.click(screen.getByRole('button', { name: 'Replace' }))
+    expect(
+      await screen.findByText('Edge e9 points at a node that does not exist.')
+    ).toBeInTheDocument()
   })
 })
