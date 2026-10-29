@@ -184,6 +184,7 @@ fn context(
         default_strategy: w.name.clone(),
         subscriptions: app.flow.subscriptions.clone(),
         session_boundary: (config.session_expiry_hour, config.session_expiry_minute),
+        env: app.flow.env(),
         app: Arc::downgrade(app),
     })
 }

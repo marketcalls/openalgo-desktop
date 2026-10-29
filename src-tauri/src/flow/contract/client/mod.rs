@@ -153,7 +153,10 @@ pub struct Margin {
     pub symbol: String,
     pub exchange: String,
     pub quantity: i64,
-    pub price: f64,
+    /// The price as the node read it, sent as Python's `str()` of it: a
+    /// whole `0` when the node has none (`"0"`), the number when set
+    /// (`"812.5"`, `"100.0"`), as the web's `str(price)` writes it.
+    pub price: Value,
     pub product_type: String,
     pub action: String,
     pub price_type: String,
@@ -485,7 +488,7 @@ pub trait FlowClient: Send + Sync {
             _ => vec![json!({
                 "exchange": m.exchange, "symbol": m.symbol, "action": m.action.to_uppercase(),
                 "quantity": m.quantity.to_string(), "product": m.product_type,
-                "pricetype": m.price_type, "price": super::pyfmt::float(m.price),
+                "pricetype": m.price_type, "price": super::pyfmt::str(&m.price),
             })],
         };
         self.api(ApiCall::new(
@@ -726,7 +729,7 @@ mod tests {
             symbol: "SBIN".into(),
             exchange: "NSE".into(),
             quantity: 10,
-            price: 0.0,
+            price: json!(0),
             product_type: "MIS".into(),
             action: "buy".into(),
             price_type: "MARKET".into(),
@@ -756,7 +759,7 @@ mod tests {
         assert_eq!(
             calls[2].payload["positions"][0],
             json!({"exchange": "NSE", "symbol": "SBIN", "action": "BUY", "quantity": "10",
-                   "product": "MIS", "pricetype": "MARKET", "price": "0.0"})
+                   "product": "MIS", "pricetype": "MARKET", "price": "0"})
         );
     }
 

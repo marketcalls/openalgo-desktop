@@ -19,6 +19,7 @@
 //! variables, the log, the cancel token, the clock and the workflow id.
 
 use super::client::FlowClient;
+use super::env::NodeEnv;
 use super::pyfmt;
 use super::resolve::OrderFields;
 use super::subscriptions::Subscriptions;
@@ -155,6 +156,8 @@ pub struct NodeCtx {
     /// The feed subscriptions each workflow holds, given back when it is
     /// deactivated or deleted.
     pub subscriptions: Arc<Subscriptions>,
+    /// The symbol master, strategy book, feed, HTTP and calendar.
+    pub env: NodeEnv,
     default_strategy: String,
     logs: Mutex<Vec<Value>>,
     app: Weak<AppState>,
@@ -173,6 +176,7 @@ pub struct NodeCtxParts {
     /// The trading day's boundary, IST hour and minute (the app's session
     /// expiry setting), which `{{session_date}}` turns at.
     pub session_boundary: (u32, u32),
+    pub env: NodeEnv,
     pub app: Weak<AppState>,
 }
 
@@ -190,6 +194,7 @@ impl NodeCtx {
             clock: p.clock,
             workflow_id: p.workflow_id,
             subscriptions: p.subscriptions,
+            env: p.env,
             default_strategy: strategy,
             logs: Mutex::new(Vec::new()),
             app: p.app,
@@ -207,8 +212,15 @@ impl NodeCtx {
             default_strategy: String::new(),
             subscriptions: Arc::new(Subscriptions::default()),
             session_boundary: super::vars::DEFAULT_BOUNDARY,
+            env: NodeEnv::default(),
             app: Weak::new(),
         })
+    }
+
+    /// This context with `env` (a test's or a golden replay's fakes).
+    pub fn with_env(mut self, env: NodeEnv) -> Self {
+        self.env = env;
+        self
     }
 
     /// The app, for a node that needs a service the client does not cover
@@ -415,5 +427,19 @@ mod tests {
     #[test]
     fn a_context_carries_its_workflow_id() {
         assert_eq!(ctx().workflow_id, None);
+    }
+
+    #[test]
+    fn a_test_context_takes_its_services() {
+        struct Calendar;
+        impl crate::flow::contract::env::TradingCalendar for Calendar {
+            fn holidays(&self, _: i32) -> Result<Vec<Value>, String> {
+                Ok(vec![json!({"date": "2026-11-09"})])
+            }
+        }
+        let mut env = NodeEnv::default();
+        env.calendar = Arc::new(Calendar);
+        let c = ctx().with_env(env);
+        assert_eq!(c.env.calendar.holidays(2026).unwrap().len(), 1);
     }
 }

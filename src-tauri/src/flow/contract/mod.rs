@@ -14,6 +14,9 @@
 //!   `RuntimeOrderResolver`).
 //! - [`client`]: [`client::FlowClient`], the web's `FlowOpenAlgoClient` over
 //!   the in-process `/api/v1` dispatch, and a scripted fake for tests.
+//! - [`env`]: what nodes read besides the client (symbol master, strategy
+//!   book, live feed, outbound HTTP, trading calendar), as traits the node
+//!   lanes implement and tests fake.
 //! - [`subscriptions`]: the feed subscriptions each workflow holds.
 //! - [`time`]: market time (IST), `parse_time_string`, the wait bounds.
 //! - [`triggers`]: what the core asks of the scheduler and monitors.
@@ -22,6 +25,7 @@
 //!   by the validator and every node.
 
 pub mod client;
+pub mod env;
 pub mod model;
 pub mod node;
 pub mod pyfmt;

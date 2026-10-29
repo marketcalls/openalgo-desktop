@@ -27,6 +27,7 @@ pub mod service;
 pub mod store;
 pub mod validator;
 
+use contract::env::NodeEnv;
 use contract::subscriptions::Subscriptions;
 use contract::triggers::{NoTriggers, TriggerHooks};
 use nodes::NodeRegistry;
@@ -61,6 +62,8 @@ pub struct FlowModule {
     pub subscriptions: Arc<Subscriptions>,
     /// The scheduler and monitors' side ([`NoTriggers`] until installed).
     triggers: RwLock<Arc<dyn TriggerHooks>>,
+    /// What nodes read besides the client, as the node lanes install it.
+    env: RwLock<NodeEnv>,
     /// The workflows claimed now (a run, a delete or a deactivate).
     claimed: Arc<Mutex<HashSet<i64>>>,
     /// The runs in flight.
@@ -82,6 +85,7 @@ impl FlowModule {
             nodes: NodeRegistry::default(),
             subscriptions: Arc::new(Subscriptions::default()),
             triggers: RwLock::new(Arc::new(NoTriggers)),
+            env: RwLock::new(NodeEnv::default()),
             claimed: Arc::default(),
             tasks: Mutex::new(JoinSet::new()),
             stop: Mutex::new(CancellationToken::new()),
@@ -96,6 +100,17 @@ impl FlowModule {
     /// The trigger side's hooks.
     pub fn triggers(&self) -> Arc<dyn TriggerHooks> {
         self.triggers.read().clone()
+    }
+
+    /// Install a node lane's real services (the symbol master, the feed,
+    /// ...) for every later run.
+    pub fn install_env(&self, f: impl FnOnce(&mut NodeEnv)) {
+        f(&mut self.env.write());
+    }
+
+    /// The services a new run's nodes read.
+    pub fn env(&self) -> NodeEnv {
+        self.env.read().clone()
     }
 
     /// Claim a workflow for a run, a delete or a deactivate; `None` while
@@ -166,6 +181,24 @@ impl Drop for Claim {
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    /// A lane's installed service reaches every later run's context.
+    #[test]
+    fn installed_services_reach_new_runs() {
+        struct Book;
+        impl contract::env::StrategyBook for Book {
+            fn legs(&self, strategy: &str) -> Result<Vec<serde_json::Value>, String> {
+                Ok(vec![serde_json::json!({"strategy": strategy})])
+            }
+        }
+        let flow = FlowModule::new();
+        assert!(flow.env().strategy_book.legs("s").is_err());
+        flow.install_env(|e| e.strategy_book = Arc::new(Book));
+        assert_eq!(
+            flow.env().strategy_book.legs("s").unwrap()[0]["strategy"],
+            "s"
+        );
+    }
 
     #[test]
     fn a_workflow_is_claimed_once_until_released() {

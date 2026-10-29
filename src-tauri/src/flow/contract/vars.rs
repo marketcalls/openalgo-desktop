@@ -94,6 +94,19 @@ impl VarStore {
         self.inner.lock().variables.contains_key(name)
     }
 
+    /// Every stored variable, for a test or a golden replay that checks a
+    /// node stored nothing more than the web's did.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn snapshot(&self) -> Map<String, Value> {
+        self.inner.lock().variables.clone()
+    }
+
+    /// Every condition result, for the same checks.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn conditions(&self) -> HashMap<String, bool> {
+        self.inner.lock().conditions.clone()
+    }
+
     /// Record the boolean a condition or gate evaluated to
     /// (`set_condition_result`).
     pub fn set_condition(&self, node_id: &str, met: bool) {
@@ -367,5 +380,7 @@ mod tests {
         assert_eq!(s.condition("c1"), None);
         s.set_condition("c1", false);
         assert_eq!(s.condition("c1"), Some(false));
+        assert_eq!(s.conditions().get("c1"), Some(&false));
+        assert_eq!(s.snapshot().len(), 5);
     }
 }
