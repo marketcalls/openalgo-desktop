@@ -236,6 +236,15 @@ for nm, url, env in (
     ("refuses_unresolvable", "http://nowhere.flow-golden.test/", None),
 ):
     node(F, "httpRequest", nm, {**H, "url": url}, env={"http": env} if env else None, parity=["N-httpRequest-06", "N-httpRequest-07"])
+_UNRES = "refusing to send this request: host 'nowhere.flow-golden.test' could not be resolved ("
+for _s in __import__("lib").SCENARIOS:
+    if _s["type"] == "httpRequest" and _s["scenario"] == "refuses_unresolvable":
+        _s["desktop_expected"] = de(
+            "N-httpRequest-06", "The text in the brackets is the operating system's resolver error (the web shows Python's errno text); the desktop gives its own.",
+            outputs={"status": "error", "message": {"$prefix": _UNRES}},
+            logs=[["error", {"$prefix": "HTTP request aborted: " + _UNRES}],
+                  ["error", {"$prefix": "Stopping this branch: httpRequest node failed (" + _UNRES}]],
+            error={"errors": [{"node": "n1", "type": "httpRequest", "message": {"$prefix": _UNRES}}], "abort": None})
 node(F, "httpRequest", "port_not_a_number", {**H, "url": "http://api.flow-golden.test:ab/"}, env={"http": PUBLIC},
      parity=["N-httpRequest-19"],
      desktop_expected=de("N-httpRequest-19", "WEB-DEFECT: an invalid port raises out of the guard and aborts the run; the desktop fails only the node.",
