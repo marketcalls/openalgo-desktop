@@ -43,6 +43,7 @@ use tokio_util::sync::CancellationToken;
 /// At app start: close the runs a quit or crash left `running`, so the
 /// history never shows a run as going that nothing runs (lead decision 6).
 pub fn start(ctx: &Arc<crate::state::AppState>) {
+    nodes::http::install(&ctx.flow);
     let closed = ctx
         .sqlite
         .conn()

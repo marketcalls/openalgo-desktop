@@ -9,6 +9,7 @@
 pub mod alerts;
 pub mod conditions;
 pub mod core;
+pub mod http;
 pub mod logic;
 pub mod math;
 pub mod pyjson;
