@@ -1,0 +1,202 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "basketOrder",
+ "scenario": "broker_rejects",
+ "note": "",
+ "parity": [
+  "N-basketOrder-05"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "basketOrder",
+  "data": {
+   "basketName": "morning",
+   "orders": "SBIN,NSE,BUY,10\nINFY,NSE,SELL,5",
+   "outputVariable": "basket",
+   "price": 0,
+   "priceType": "MARKET",
+   "triggerPrice": 0
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "basketOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "basketName": "morning",
+     "orders": "SBIN,NSE,BUY,10\nINFY,NSE,SELL,5",
+     "outputVariable": "basket",
+     "price": 0,
+     "priceType": "MARKET",
+     "triggerPrice": 0
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "basketorder",
+   "reply": {
+    "status": "error",
+    "error": "Invalid openalgo apikey",
+    "code": 403
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "basket_order",
+    "endpoint": "basketorder",
+    "payload": {
+     "strategy": "morning",
+     "orders": [
+      {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "pricetype": "MARKET",
+       "price": 0.0,
+       "triggerprice": 0.0
+      },
+      {
+       "symbol": "INFY",
+       "exchange": "NSE",
+       "action": "SELL",
+       "quantity": 5,
+       "product": "MIS",
+       "pricetype": "MARKET",
+       "price": 0.0,
+       "triggerprice": 0.0
+      }
+     ]
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "error": "Invalid openalgo apikey",
+   "code": 403
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "basket": {
+    "status": "error",
+    "error": "Invalid openalgo apikey",
+    "code": 403
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Placing basket order 'morning' with 2 orders"
+   ],
+   [
+    "info",
+    "  Order 1: SBIN NSE BUY qty=10"
+   ],
+   [
+    "info",
+    "  Order 2: INFY NSE SELL qty=5"
+   ],
+   [
+    "error",
+    "Basket order result: {'status': 'error', 'error': 'Invalid openalgo apikey', 'code': 403}"
+   ],
+   [
+    "info",
+    "Stored result in variable: basket"
+   ],
+   [
+    "error",
+    "Stopping this branch: basketOrder node failed (Invalid openalgo apikey)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "basketOrder",
+     "message": "Invalid openalgo apikey"
+    }
+   ],
+   "abort": null
+  }
+ },
+ "desktop_expected": {
+  "parity": "N-basketOrder-06",
+  "why": "WEB-DEFECTs N-basketOrder-06 (rows go out as `triggerprice`, which the service never reads, so an SL row's trigger is lost) and N-basketOrder-04 (row symbols are not upper-cased): the desktop sends `trigger_price` and upper-cases the symbol.",
+  "fix": [
+   "basket_trigger_price",
+   "basket_upper_symbol"
+  ],
+  "calls": [
+   {
+    "method": "basket_order",
+    "endpoint": "basketorder",
+    "payload": {
+     "strategy": "morning",
+     "orders": [
+      {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "action": "BUY",
+       "quantity": 10,
+       "product": "MIS",
+       "pricetype": "MARKET",
+       "price": 0.0,
+       "trigger_price": 0.0
+      },
+      {
+       "symbol": "INFY",
+       "exchange": "NSE",
+       "action": "SELL",
+       "quantity": 5,
+       "product": "MIS",
+       "pricetype": "MARKET",
+       "price": 0.0,
+       "trigger_price": 0.0
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

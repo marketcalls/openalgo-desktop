@@ -1,0 +1,210 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "indicator",
+ "scenario": "nested_from_indicator_series",
+ "note": "",
+ "parity": [
+  "N-indicator-05"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "indicator",
+  "data": {
+   "indicatorName": "ema",
+   "outputVariable": "n2",
+   "params": "{\"period\": 2}",
+   "sourceSeries": "{{rsi1.series}}",
+   "tailBars": 2
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "rsi1": {
+   "series": [
+    {
+     "value": 101.0
+    },
+    {
+     "value": 102.5
+    },
+    {
+     "value": 101.75
+    },
+    {
+     "value": 103.0
+    },
+    {
+     "value": 104.25
+    },
+    {
+     "value": 103.5
+    },
+    {
+     "value": null
+    }
+   ]
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "indicator",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "indicatorName": "ema",
+     "outputVariable": "n2",
+     "params": "{\"period\": 2}",
+     "sourceSeries": "{{rsi1.series}}",
+     "tailBars": 2
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "indicator": "ema",
+   "nested": true,
+   "offset_bars": 0,
+   "at_offset": {
+    "value": 103.567901
+   },
+   "inputs": [
+    "data (nested)"
+   ],
+   "params": {
+    "period": 2
+   },
+   "outputs": [
+    "value"
+   ],
+   "latest": {
+    "value": 103.567901
+   },
+   "previous": {
+    "value": 103.703704
+   },
+   "series": [
+    {
+     "value": 103.703704
+    },
+    {
+     "value": 103.567901
+    }
+   ],
+   "bars_used": 6
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "rsi1": {
+    "series": [
+     {
+      "value": 101.0
+     },
+     {
+      "value": 102.5
+     },
+     {
+      "value": 101.75
+     },
+     {
+      "value": 103.0
+     },
+     {
+      "value": 104.25
+     },
+     {
+      "value": 103.5
+     },
+     {
+      "value": null
+     }
+    ]
+   },
+   "n2": {
+    "status": "success",
+    "indicator": "ema",
+    "nested": true,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 103.567901
+    },
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 2
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 103.567901
+    },
+    "previous": {
+     "value": 103.703704
+    },
+    "series": [
+     {
+      "value": 103.703704
+     },
+     {
+      "value": 103.567901
+     }
+    ],
+    "bars_used": 6
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Computing nested ema over 6 upstream values"
+   ],
+   [
+    "info",
+    "ema (nested) latest: {'value': 103.567901}"
+   ],
+   [
+    "info",
+    "Stored result in variable: n2"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

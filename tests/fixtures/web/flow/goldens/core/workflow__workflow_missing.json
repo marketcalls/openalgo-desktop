@@ -1,0 +1,65 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "workflow_missing",
+ "note": "",
+ "parity": [
+  "E-33"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Simple",
+  "nodes": [
+   {
+    "id": "start",
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:15"
+    }
+   },
+   {
+    "id": "l",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "ran"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-start-l-x",
+    "source": "start",
+    "target": "l"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "special": "workflow_missing",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "result": {
+   "status": "error",
+   "message": "Workflow not found"
+  },
+  "record": null,
+  "vars_out": {},
+  "logs": []
+ }
+}

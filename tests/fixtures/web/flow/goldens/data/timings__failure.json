@@ -1,0 +1,114 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "timings",
+ "scenario": "failure",
+ "note": "",
+ "parity": [
+  "N-timings-01",
+  "N-timings-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "timings",
+  "data": {
+   "date": "tomorrow"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "timings",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "date": "tomorrow"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "market/timings",
+   "reply": {
+    "status": "error",
+    "error": "Invalid date format. Use YYYY-MM-DD",
+    "code": 400
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "timings",
+    "endpoint": "market/timings",
+    "payload": {
+     "date": "tomorrow"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "error": "Invalid date format. Use YYYY-MM-DD",
+   "code": 400
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Fetching market timings for date: tomorrow"
+   ],
+   [
+    "info",
+    "Timings result: {'status': 'error', 'error': 'Invalid date format. Use YYYY-MM-DD', 'code': 400}"
+   ],
+   [
+    "error",
+    "Stopping this branch: timings node failed (Invalid date format. Use YYYY-MM-DD)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "timings",
+     "message": "Invalid date format. Use YYYY-MM-DD"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

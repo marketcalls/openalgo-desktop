@@ -1,0 +1,160 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "mathExpression",
+ "scenario": "unresolved_variable",
+ "note": "",
+ "parity": [
+  "N-mathExpression-11"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "mathExpression",
+  "data": {
+   "expression": "{{missing}} * 2"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "ltp": 812.5,
+  "lot": 10,
+  "brokerage": "20",
+  "cfg": {
+   "a": 1
+  },
+  "levels": [
+   1,
+   2
+  ]
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "mathExpression",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "expression": "{{missing}} * 2"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Unsupported expression type: Set"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "ltp": 812.5,
+   "lot": 10,
+   "brokerage": "20",
+   "cfg": {
+    "a": 1
+   },
+   "levels": [
+    1,
+    2
+   ]
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Evaluating: {{missing}} * 2"
+   ],
+   [
+    "info",
+    "Interpolated: {{missing}} * 2"
+   ],
+   [
+    "error",
+    "Math expression failed: Unsupported expression type: Set"
+   ],
+   [
+    "error",
+    "Stopping this branch: mathExpression node failed (Unsupported expression type: Set)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "mathExpression",
+     "message": "Unsupported expression type: Set"
+    }
+   ],
+   "abort": null
+  }
+ },
+ "desktop_expected": {
+  "parity": "N-mathExpression-11",
+  "why": "WEB-DEFECT: an unresolved {{var}} reads `Unsupported expression type: Set`; the desktop names the unresolved variable.",
+  "fix": [
+   "math_unresolved"
+  ],
+  "outputs": {
+   "status": "error",
+   "message": "unresolved variable {{missing}}"
+  },
+  "logs": [
+   [
+    "info",
+    "Evaluating: {{missing}} * 2"
+   ],
+   [
+    "info",
+    "Interpolated: {{missing}} * 2"
+   ],
+   [
+    "error",
+    "Math expression failed: unresolved variable {{missing}}"
+   ],
+   [
+    "error",
+    "Stopping this branch: mathExpression node failed (unresolved variable {{missing}})"
+   ]
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "mathExpression",
+     "message": "unresolved variable {{missing}}"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

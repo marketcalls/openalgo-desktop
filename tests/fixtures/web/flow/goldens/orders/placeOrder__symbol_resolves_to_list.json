@@ -1,0 +1,115 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "placeOrder",
+ "scenario": "symbol_resolves_to_list",
+ "note": "",
+ "parity": [
+  "N-common-14"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "placeOrder",
+  "data": {
+   "action": "BUY",
+   "exchange": "NSE",
+   "outputVariable": "orderResult",
+   "price": 0,
+   "priceType": "MARKET",
+   "quantity": 10,
+   "symbol": "{{picks}}",
+   "triggerPrice": 0
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "picks": [
+   "SBIN",
+   "INFY"
+  ]
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "placeOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "BUY",
+     "exchange": "NSE",
+     "outputVariable": "orderResult",
+     "price": 0,
+     "priceType": "MARKET",
+     "quantity": 10,
+     "symbol": "{{picks}}",
+     "triggerPrice": 0
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Place order has invalid runtime order data: symbol must resolve to text, got ['SBIN', 'INFY']"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "picks": [
+    "SBIN",
+    "INFY"
+   ]
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Place order has invalid runtime order data: symbol must resolve to text, got ['SBIN', 'INFY']"
+   ],
+   [
+    "error",
+    "Stopping this branch: placeOrder node failed (Place order has invalid runtime order data: symbol must resolve to text, got ['SBIN', 'INFY'])"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "placeOrder",
+     "message": "Place order has invalid runtime order data: symbol must resolve to text, got ['SBIN', 'INFY']"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

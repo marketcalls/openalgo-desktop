@@ -1,0 +1,150 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "varCondition",
+ "scenario": "unresolved_right",
+ "note": "",
+ "parity": [
+  "N-varCondition-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "varCondition",
+  "data": {
+   "leftValue": "{{rsi.latest.value}}",
+   "operator": "<",
+   "rightValue": "{{threshold}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "rsi": {
+   "latest": {
+    "value": 27.4
+   }
+  },
+  "pdh": {
+   "pdh": 818
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "varCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "leftValue": "{{rsi.latest.value}}",
+     "operator": "<",
+     "rightValue": "{{threshold}}"
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "condition": false,
+   "message": "rightValue did not resolve to a number: '{{threshold}}'"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "rsi": {
+    "latest": {
+     "value": 27.4
+    }
+   },
+   "pdh": {
+    "pdh": 818
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Var check aborted: rightValue did not resolve to a number: '{{threshold}}'"
+   ],
+   [
+    "error",
+    "varCondition could not be evaluated (rightValue did not resolve to a number: '{{threshold}}')"
+   ]
+  ],
+  "next": [
+   "pass"
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "varCondition",
+     "message": "rightValue did not resolve to a number: '{{threshold}}'"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

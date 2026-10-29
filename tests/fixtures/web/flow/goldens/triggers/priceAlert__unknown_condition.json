@@ -1,0 +1,196 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "priceAlert",
+ "scenario": "unknown_condition",
+ "note": "",
+ "parity": [
+  "N-priceAlert-07"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "priceAlert",
+  "data": {
+   "condition": "near",
+   "exchange": "NSE",
+   "outputVariable": "alert",
+   "price": 800,
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "priceAlert",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "condition": "near",
+     "exchange": "NSE",
+     "outputVariable": "alert",
+     "price": 800,
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "quotes",
+   "reply": {
+    "status": "success",
+    "data": {
+     "ask": 812.6,
+     "bid": 812.4,
+     "high": 818.0,
+     "low": 805.25,
+     "ltp": 812.5,
+     "oi": 0,
+     "open": 806.0,
+     "prev_close": 800.0,
+     "volume": 1250000
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_quotes",
+    "endpoint": "quotes",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "condition": false,
+   "ltp": 812.5
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Price alert has an unrecognized condition 'near'; it can never be true."
+   ],
+   [
+    "error",
+    "priceAlert could not be evaluated (node failed)"
+   ]
+  ],
+  "next": [
+   "pass"
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "priceAlert",
+     "message": "node failed"
+    }
+   ],
+   "abort": null
+  }
+ },
+ "desktop_expected": {
+  "parity": "N-priceAlert-07",
+  "why": "WEB-DEFECT: the failure has no message; the desktop puts the logged sentence in `message`.",
+  "fix": [
+   "price_alert_message"
+  ],
+  "outputs": {
+   "status": "error",
+   "condition": false,
+   "ltp": 812.5,
+   "message": "Price alert has an unrecognized condition 'near'; it can never be true."
+  },
+  "logs": [
+   [
+    "error",
+    "Price alert has an unrecognized condition 'near'; it can never be true."
+   ],
+   [
+    "error",
+    "priceAlert could not be evaluated (Price alert has an unrecognized condition 'near'; it can never be true.)"
+   ]
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "priceAlert",
+     "message": "Price alert has an unrecognized condition 'near'; it can never be true."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

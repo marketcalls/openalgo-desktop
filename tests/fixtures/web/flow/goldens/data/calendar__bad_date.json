@@ -1,0 +1,91 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "calendar",
+ "scenario": "bad_date",
+ "note": "",
+ "parity": [
+  "N-calendar-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "calendar",
+  "data": {
+   "date": "31/12/2026"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "calendar",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "date": "31/12/2026"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Calendar date must be YYYY-MM-DD, got '31/12/2026'"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Calendar failed: Calendar date must be YYYY-MM-DD, got '31/12/2026'"
+   ],
+   [
+    "error",
+    "Stopping this branch: calendar node failed (Calendar date must be YYYY-MM-DD, got '31/12/2026')"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "calendar",
+     "message": "Calendar date must be YYYY-MM-DD, got '31/12/2026'"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

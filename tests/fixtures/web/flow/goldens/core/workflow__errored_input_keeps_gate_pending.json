@@ -1,0 +1,160 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "errored_input_keeps_gate_pending",
+ "note": "",
+ "parity": [
+  "E-25",
+  "N-gate-08"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Pending",
+  "nodes": [
+   {
+    "id": "start",
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:15"
+    }
+   },
+   {
+    "id": "a",
+    "type": "varCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "leftValue": "{{nope}}",
+     "operator": ">",
+     "rightValue": "2"
+    }
+   },
+   {
+    "id": "b",
+    "type": "varCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "leftValue": "3",
+     "operator": ">",
+     "rightValue": "2"
+    }
+   },
+   {
+    "id": "g",
+    "type": "andGate",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "inputCount": 2
+    }
+   },
+   {
+    "id": "t",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "fired"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-start-a-x",
+    "source": "start",
+    "target": "a"
+   },
+   {
+    "id": "e-start-b-x",
+    "source": "start",
+    "target": "b"
+   },
+   {
+    "id": "e-a-g-true",
+    "source": "a",
+    "target": "g",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-b-g-true",
+    "source": "b",
+    "target": "g",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-g-t-true",
+    "source": "g",
+    "target": "t",
+    "sourceHandle": "true"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "result": {
+   "status": "error",
+   "message": "1 node(s) failed: varCondition: leftValue did not resolve to a number: '{{nope}}'",
+   "errors": [
+    {
+     "node": "a",
+     "type": "varCondition",
+     "message": "leftValue did not resolve to a number: '{{nope}}'"
+    }
+   ]
+  },
+  "record": {
+   "status": "failed",
+   "error": "varCondition: leftValue did not resolve to a number: '{{nope}}'"
+  },
+  "vars_out": {},
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Pending"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "error",
+    "Var check aborted: leftValue did not resolve to a number: '{{nope}}'"
+   ],
+   [
+    "error",
+    "varCondition could not be evaluated (leftValue did not resolve to a number: '{{nope}}')"
+   ],
+   [
+    "info",
+    "Var check: 3.0 > 2.0 = True"
+   ],
+   [
+    "info",
+    "andGate: waiting for 1 more input(s) before evaluating"
+   ]
+  ]
+ }
+}

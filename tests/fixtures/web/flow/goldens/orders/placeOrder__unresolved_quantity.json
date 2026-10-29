@@ -1,0 +1,110 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "placeOrder",
+ "scenario": "unresolved_quantity",
+ "note": "",
+ "parity": [
+  "N-common-03",
+  "N-common-04",
+  "N-common-05"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "placeOrder",
+  "data": {
+   "action": "BUY",
+   "exchange": "NSE",
+   "outputVariable": "orderResult",
+   "price": 0,
+   "priceType": "MARKET",
+   "quantity": "{{webhook.qty}}",
+   "symbol": "SBIN",
+   "triggerPrice": 0
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "placeOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "BUY",
+     "exchange": "NSE",
+     "outputVariable": "orderResult",
+     "price": 0,
+     "priceType": "MARKET",
+     "quantity": "{{webhook.qty}}",
+     "symbol": "SBIN",
+     "triggerPrice": 0
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "placeOrder has unresolved variable(s) in quantity='{{webhook.qty}}'. Refusing to send it with substituted values.",
+   "unresolved": [
+    "quantity"
+   ]
+  },
+  "outputs_by": "walk",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "placeOrder has unresolved variable(s) in quantity='{{webhook.qty}}'. Refusing to send it with substituted values."
+   ],
+   [
+    "error",
+    "Stopping this branch: placeOrder node failed (placeOrder has unresolved variable(s) in quantity='{{webhook.qty}}'. Refusing to send it with substituted values.)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "placeOrder",
+     "message": "placeOrder has unresolved variable(s) in quantity='{{webhook.qty}}'. Refusing to send it with substituted values."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

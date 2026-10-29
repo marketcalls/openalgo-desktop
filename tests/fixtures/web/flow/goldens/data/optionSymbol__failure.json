@@ -1,0 +1,138 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "optionSymbol",
+ "scenario": "failure",
+ "note": "",
+ "parity": [
+  "N-optionSymbol-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "optionSymbol",
+  "data": {
+   "exchange": "NSE_INDEX",
+   "expiryDate": "25NOV26",
+   "offset": "ATM",
+   "optionType": "CE",
+   "outputVariable": "opt",
+   "underlying": "NIFTY"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "optionSymbol",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE_INDEX",
+     "expiryDate": "25NOV26",
+     "offset": "ATM",
+     "optionType": "CE",
+     "outputVariable": "opt",
+     "underlying": "NIFTY"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "optionsymbol",
+   "reply": {
+    "status": "error",
+    "error": "Invalid offset",
+    "code": 400
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "optionsymbol",
+    "endpoint": "optionsymbol",
+    "payload": {
+     "underlying": "NIFTY",
+     "exchange": "NSE_INDEX",
+     "expiry_date": "25NOV26",
+     "strike_int": null,
+     "offset": "ATM",
+     "option_type": "CE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "error": "Invalid offset",
+   "code": 400
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "opt": {
+    "status": "error",
+    "error": "Invalid offset",
+    "code": 400
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Resolving option symbol: NIFTY CE ATM"
+   ],
+   [
+    "info",
+    "Option symbol result: {'status': 'error', 'error': 'Invalid offset', 'code': 400}"
+   ],
+   [
+    "info",
+    "Stored result in variable: opt"
+   ],
+   [
+    "error",
+    "Stopping this branch: optionSymbol node failed (Invalid offset)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "optionSymbol",
+     "message": "Invalid offset"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

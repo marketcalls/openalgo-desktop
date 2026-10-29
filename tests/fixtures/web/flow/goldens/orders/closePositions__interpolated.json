@@ -1,0 +1,136 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "closePositions",
+ "scenario": "interpolated",
+ "note": "",
+ "parity": [
+  "N-closePositions-03",
+  "N-common-24"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "closePositions",
+  "data": {
+   "exchange": "{{webhook.ex}}",
+   "product": "{{webhook.prod}}",
+   "symbol": "{{webhook.symbol}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "symbol": "INFY",
+   "qty": "4",
+   "size": "-2",
+   "split": "2",
+   "px": "1880.5",
+   "tp": "1879",
+   "ex": "NSE",
+   "prod": "CNC",
+   "pt": "SL",
+   "tag": "tv-alert",
+   "id": "250408000123456"
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "closePositions",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "{{webhook.ex}}",
+     "product": "{{webhook.prod}}",
+     "symbol": "{{webhook.symbol}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "closeposition",
+   "reply": {
+    "status": "success",
+    "message": "All Open Positions Squared Off"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "close_position",
+    "endpoint": "closeposition",
+    "payload": {
+     "strategy": "Golden Flow",
+     "symbol": "INFY",
+     "exchange": "NSE",
+     "product": "CNC"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "message": "All Open Positions Squared Off"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "symbol": "INFY",
+    "qty": "4",
+    "size": "-2",
+    "split": "2",
+    "px": "1880.5",
+    "tp": "1879",
+    "ex": "NSE",
+    "prod": "CNC",
+    "pt": "SL",
+    "tag": "tv-alert",
+    "id": "250408000123456"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Closing position: INFY@NSE (CNC)"
+   ],
+   [
+    "info",
+    "Close position result: {'status': 'success', 'message': 'All Open Positions Squared Off'}"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

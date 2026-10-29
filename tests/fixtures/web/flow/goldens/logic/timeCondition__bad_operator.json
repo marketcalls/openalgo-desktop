@@ -1,0 +1,130 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "timeCondition",
+ "scenario": "bad_operator",
+ "note": "",
+ "parity": [
+  "N-timeCondition-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "timeCondition",
+  "data": {
+   "operator": "after",
+   "targetTime": "09:30"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "timeCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "operator": "after",
+     "targetTime": "09:30"
+    }
+   },
+   {
+    "id": "probe-yes",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "yes"
+    }
+   },
+   {
+    "id": "probe-no",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "no"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-yes",
+    "source": "n1",
+    "target": "probe-yes",
+    "sourceHandle": "yes"
+   },
+   {
+    "id": "e-no",
+    "source": "n1",
+    "target": "probe-no",
+    "sourceHandle": "no"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "condition": false,
+   "message": "operator 'after' is not one of >=, <=, >, <, =="
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Time condition aborted: operator 'after' is not one of >=, <=, >, <, =="
+   ],
+   [
+    "error",
+    "timeCondition could not be evaluated (operator 'after' is not one of >=, <=, >, <, ==)"
+   ]
+  ],
+  "next": [
+   "pass"
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "timeCondition",
+     "message": "operator 'after' is not one of >=, <=, >, <, =="
+    }
+   ],
+   "abort": null
+  }
+ }
+}

@@ -1,0 +1,127 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "timeCondition",
+ "scenario": "target_not_interpolated",
+ "note": "",
+ "parity": [
+  "N-timeCondition-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "timeCondition",
+  "data": {
+   "operator": ">=",
+   "targetTime": "{{t}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "t": "11:00"
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "timeCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "operator": ">=",
+     "targetTime": "{{t}}"
+    }
+   },
+   {
+    "id": "probe-yes",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "yes"
+    }
+   },
+   {
+    "id": "probe-no",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "no"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-yes",
+    "source": "n1",
+    "target": "probe-yes",
+    "sourceHandle": "yes"
+   },
+   {
+    "id": "e-no",
+    "source": "n1",
+    "target": "probe-no",
+    "sourceHandle": "no"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "condition": true,
+   "condition_type": "entry",
+   "current_time": "10:15:00",
+   "target_time": "{{t}}",
+   "operator": ">="
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "t": "11:00"
+  },
+  "conditions_out": {
+   "n1": true
+  },
+  "logs": [
+   [
+    "info",
+    "Time condition (entry): 10:15 >= {{t}} = True"
+   ]
+  ],
+  "next": [
+   "pass",
+   "yes"
+  ],
+  "error": null
+ }
+}

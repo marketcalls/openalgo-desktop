@@ -1,0 +1,177 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "subscribeQuote",
+ "scenario": "websocket_top_level_close",
+ "note": "",
+ "parity": [
+  "N-subscribeQuote-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "subscribeQuote",
+  "data": {
+   "exchange": "NSE",
+   "outputVariable": "quote",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "subscribeQuote",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "outputVariable": "quote",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "ticks": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "mode": 2,
+     "ltp": 0,
+     "close": 799.5,
+     "volume": 10
+    }
+   ]
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "type": "quote",
+   "symbol": "SBIN",
+   "exchange": "NSE",
+   "data": {
+    "ltp": 0,
+    "open": 0,
+    "high": 0,
+    "low": 0,
+    "close": 799.5,
+    "volume": 10,
+    "prev_close": 0
+   },
+   "source": "websocket"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "quote": {
+    "status": "success",
+    "type": "quote",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "data": {
+     "ltp": 0,
+     "open": 0,
+     "high": 0,
+     "low": 0,
+     "close": 799.5,
+     "volume": 10,
+     "prev_close": 0
+    },
+    "source": "websocket"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Subscribing to Quote stream: SBIN (NSE)"
+   ],
+   [
+    "info",
+    "Quote for SBIN: LTP=0 (via WebSocket)"
+   ],
+   [
+    "info",
+    "Stored result in variable: quote"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null,
+  "feed": [
+   {
+    "op": "subscribe",
+    "symbols": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE"
+     }
+    ],
+    "mode": "Quote"
+   },
+   {
+    "op": "wait",
+    "timeout": 5.0
+   }
+  ],
+  "subscriptions": [
+   [
+    "SBIN",
+    "NSE",
+    "Quote"
+   ]
+  ]
+ },
+ "desktop_expected": {
+  "parity": "N-subscribeQuote-04",
+  "why": "WEB-DEFECT (decisions.md 9): store_output overwrites the documented value with the whole result dict; the desktop stores the documented value under the stripped outputVariable (the run log is unchanged).",
+  "fix": [
+   "stream_documented_value"
+  ],
+  "vars_out": {
+   "quote": {
+    "ltp": 0,
+    "open": 0,
+    "high": 0,
+    "low": 0,
+    "close": 799.5,
+    "volume": 10,
+    "prev_close": 0
+   }
+  }
+ }
+}

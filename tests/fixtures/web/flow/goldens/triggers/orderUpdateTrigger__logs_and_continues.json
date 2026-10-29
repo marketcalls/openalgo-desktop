@@ -1,0 +1,92 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "orderUpdateTrigger",
+ "scenario": "logs_and_continues",
+ "note": "",
+ "parity": [
+  "N-orderUpdateTrigger-00",
+  "N-orderUpdateTrigger-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "orderUpdateTrigger",
+  "data": {
+   "status": "complete",
+   "trigger": "once"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "trigger_type": "order_update",
+   "orderid": "1",
+   "order_status": "complete"
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "orderUpdateTrigger",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "status": "complete",
+     "trigger": "once"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": null,
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "trigger_type": "order_update",
+    "orderid": "1",
+    "order_status": "complete"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Order-update trigger activated"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

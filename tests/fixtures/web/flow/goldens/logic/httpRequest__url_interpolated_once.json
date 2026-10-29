@@ -1,0 +1,140 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "httpRequest",
+ "scenario": "url_interpolated_once",
+ "note": "",
+ "parity": [
+  "N-httpRequest-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "httpRequest",
+  "data": {
+   "method": "GET",
+   "outputVariable": "resp",
+   "url": "http://api.flow-golden.test/r/{{webhook.path}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "path": "{{funds.data.availablecash}}"
+  },
+  "funds": {
+   "data": {
+    "availablecash": 1
+   }
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "httpRequest",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "method": "GET",
+     "outputVariable": "resp",
+     "url": "http://api.flow-golden.test/r/{{webhook.path}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "http": {
+   "resolve": {
+    "api.flow-golden.test": [
+     "93.184.216.34"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "body": "{\"ok\": true, \"id\": 7}",
+    "content_type": "application/json"
+   }
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "statusCode": 200,
+   "data": {
+    "ok": true,
+    "id": 7
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "path": "{{funds.data.availablecash}}"
+   },
+   "funds": {
+    "data": {
+     "availablecash": 1
+    }
+   },
+   "resp": {
+    "status": "success",
+    "statusCode": 200,
+    "data": {
+     "ok": true,
+     "id": 7
+    }
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "HTTP GET http://api.flow-golden.test/r/{{funds.data.availablecash}}"
+   ],
+   [
+    "info",
+    "Stored result in variable: resp"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null,
+  "http_requests": [
+   {
+    "method": "GET",
+    "path": "/r/%7B%7Bfunds.data.availablecash%7D%7D",
+    "query": "",
+    "headers": {},
+    "body": ""
+   }
+  ]
+ }
+}

@@ -1,0 +1,96 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "httpRequest",
+ "scenario": "refuses_unresolvable",
+ "note": "",
+ "parity": [
+  "N-httpRequest-06",
+  "N-httpRequest-07"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "httpRequest",
+  "data": {
+   "method": "GET",
+   "outputVariable": "resp",
+   "url": "http://nowhere.flow-golden.test/"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "httpRequest",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "method": "GET",
+     "outputVariable": "resp",
+     "url": "http://nowhere.flow-golden.test/"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "refusing to send this request: host 'nowhere.flow-golden.test' could not be resolved ([Errno 8] nodename nor servname provided, or not known)"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "HTTP request aborted: refusing to send this request: host 'nowhere.flow-golden.test' could not be resolved ([Errno 8] nodename nor servname provided, or not known)"
+   ],
+   [
+    "error",
+    "Stopping this branch: httpRequest node failed (refusing to send this request: host 'nowhere.flow-golden.test' could not be resolved ([Errno 8] nodename nor servname provided, or not known))"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "httpRequest",
+     "message": "refusing to send this request: host 'nowhere.flow-golden.test' could not be resolved ([Errno 8] nodename nor servname provided, or not known)"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

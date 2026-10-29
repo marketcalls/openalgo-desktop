@@ -1,0 +1,115 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "expiry",
+ "scenario": "failure",
+ "note": "",
+ "parity": [
+  "N-expiry-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "expiry",
+  "data": {
+   "symbol": "NIFTY"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "expiry",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "symbol": "NIFTY"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "expiry",
+   "reply": {
+    "status": "error",
+    "error": "Invalid openalgo apikey",
+    "code": 403
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_expiry",
+    "endpoint": "expiry",
+    "payload": {
+     "symbol": "NIFTY",
+     "exchange": "NFO",
+     "instrumenttype": "options"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "error": "Invalid openalgo apikey",
+   "code": 403
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting options expiry dates for: NIFTY"
+   ],
+   [
+    "info",
+    "Expiry result: {'status': 'error', 'error': 'Invalid openalgo apikey', 'code': 403}"
+   ],
+   [
+    "error",
+    "Stopping this branch: expiry node failed (Invalid openalgo apikey)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "expiry",
+     "message": "Invalid openalgo apikey"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

@@ -1,0 +1,83 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "log",
+ "scenario": "warn_level",
+ "note": "",
+ "parity": [
+  "N-log-01",
+  "F-643"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "log",
+  "data": {
+   "level": "warn",
+   "message": "careful"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "level": "warn",
+     "message": "careful"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "message": "careful"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "warn",
+    "[LOG] careful"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

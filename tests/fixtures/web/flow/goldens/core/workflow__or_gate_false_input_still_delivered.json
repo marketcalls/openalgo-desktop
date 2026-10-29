@@ -1,0 +1,156 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "or_gate_false_input_still_delivered",
+ "note": "",
+ "parity": [
+  "E-25"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "OrGate",
+  "nodes": [
+   {
+    "id": "start",
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:15"
+    }
+   },
+   {
+    "id": "a",
+    "type": "varCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "leftValue": "1",
+     "operator": ">",
+     "rightValue": "2"
+    }
+   },
+   {
+    "id": "b",
+    "type": "varCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "leftValue": "3",
+     "operator": ">",
+     "rightValue": "2"
+    }
+   },
+   {
+    "id": "g",
+    "type": "orGate",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "inputCount": 2
+    }
+   },
+   {
+    "id": "t",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "either"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-start-a-x",
+    "source": "start",
+    "target": "a"
+   },
+   {
+    "id": "e-start-b-x",
+    "source": "start",
+    "target": "b"
+   },
+   {
+    "id": "e-a-g-true",
+    "source": "a",
+    "target": "g",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-b-g-true",
+    "source": "b",
+    "target": "g",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-g-t-true",
+    "source": "g",
+    "target": "t",
+    "sourceHandle": "true"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "result": {
+   "status": "success",
+   "message": "Workflow executed successfully"
+  },
+  "record": {
+   "status": "completed",
+   "error": null
+  },
+  "vars_out": {},
+  "logs": [
+   [
+    "info",
+    "Starting workflow: OrGate"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "info",
+    "Var check: 1.0 > 2.0 = False"
+   ],
+   [
+    "info",
+    "orGate: waiting for 1 more input(s) before evaluating"
+   ],
+   [
+    "info",
+    "Var check: 3.0 > 2.0 = True"
+   ],
+   [
+    "info",
+    "OR Gate: [False, True] -> True"
+   ],
+   [
+    "info",
+    "[LOG] either"
+   ]
+  ]
+ }
+}

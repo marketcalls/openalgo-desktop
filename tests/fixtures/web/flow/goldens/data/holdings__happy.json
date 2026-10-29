@@ -1,0 +1,160 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "holdings",
+ "scenario": "happy",
+ "note": "",
+ "parity": [
+  "N-holdings-01",
+  "CL-14",
+  "N-dataCommon-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "holdings",
+  "data": {
+   "outputVariable": "book"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "holdings",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "book"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "holdings",
+   "reply": {
+    "status": "success",
+    "data": {
+     "holdings": [
+      {
+       "exchange": "NSE",
+       "pnl": 1520.0,
+       "pnlpercent": 4.2,
+       "product": "CNC",
+       "quantity": 20,
+       "symbol": "INFY"
+      }
+     ],
+     "statistics": {
+      "totalholdingvalue": 37720.0,
+      "totalinvvalue": 36200.0,
+      "totalpnlpercentage": 4.2,
+      "totalprofitandloss": 1520.0
+     }
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "holdings",
+    "endpoint": "holdings",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": {
+    "holdings": [
+     {
+      "exchange": "NSE",
+      "pnl": 1520.0,
+      "pnlpercent": 4.2,
+      "product": "CNC",
+      "quantity": 20,
+      "symbol": "INFY"
+     }
+    ],
+    "statistics": {
+     "totalholdingvalue": 37720.0,
+     "totalinvvalue": 36200.0,
+     "totalpnlpercentage": 4.2,
+     "totalprofitandloss": 1520.0
+    }
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "book": {
+    "status": "success",
+    "data": {
+     "holdings": [
+      {
+       "exchange": "NSE",
+       "pnl": 1520.0,
+       "pnlpercent": 4.2,
+       "product": "CNC",
+       "quantity": 20,
+       "symbol": "INFY"
+      }
+     ],
+     "statistics": {
+      "totalholdingvalue": 37720.0,
+      "totalinvvalue": 36200.0,
+      "totalpnlpercentage": 4.2,
+      "totalprofitandloss": 1520.0
+     }
+    }
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Fetching holdings"
+   ],
+   [
+    "info",
+    "Holdings received"
+   ],
+   [
+    "info",
+    "Stored result in variable: book"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

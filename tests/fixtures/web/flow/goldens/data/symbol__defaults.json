@@ -1,0 +1,110 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "symbol",
+ "scenario": "defaults",
+ "note": "",
+ "parity": [
+  "N-symbol-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "symbol",
+  "data": {}
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "symbol",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {}
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "symbol",
+   "reply": {
+    "status": "error",
+    "error": "Symbol not found",
+    "code": 404
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "symbol",
+    "endpoint": "symbol",
+    "payload": {
+     "symbol": "",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "error": "Symbol not found",
+   "code": 404
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting symbol info for:  (NSE)"
+   ],
+   [
+    "info",
+    "Symbol result: {'status': 'error', 'error': 'Symbol not found', 'code': 404}"
+   ],
+   [
+    "error",
+    "Stopping this branch: symbol node failed (Symbol not found)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "symbol",
+     "message": "Symbol not found"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

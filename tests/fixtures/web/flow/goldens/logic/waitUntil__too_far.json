@@ -1,0 +1,94 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "waitUntil",
+ "scenario": "too_far",
+ "note": "",
+ "parity": [
+  "N-waitUntil-01",
+  "N-waitUntil-02",
+  "N-waitUntil-03",
+  "N-waitUntil-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "waitUntil",
+  "data": {
+   "targetTime": "15:15"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "waitUntil",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "targetTime": "15:15"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Wait Until 15:15 is 18000s away, over the 1800s limit. The wait holds this workflow's lock and the request that triggered it, so every trigger in between is answered 'already running'. Use a schedule trigger at 15:15 instead, or split the square-off into its own workflow."
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Wait Until aborted: Wait Until 15:15 is 18000s away, over the 1800s limit. The wait holds this workflow's lock and the request that triggered it, so every trigger in between is answered 'already running'. Use a schedule trigger at 15:15 instead, or split the square-off into its own workflow."
+   ],
+   [
+    "error",
+    "Stopping this branch: waitUntil node failed (Wait Until 15:15 is 18000s away, over the 1800s limit. The wait holds this workflow's lock and the request that triggered it, so every trigger in between is answered 'already running'. Use a schedule trigger at 15:15 instead, or split the square-off into its own workflow.)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "waitUntil",
+     "message": "Wait Until 15:15 is 18000s away, over the 1800s limit. The wait holds this workflow's lock and the request that triggered it, so every trigger in between is answered 'already running'. Use a schedule trigger at 15:15 instead, or split the square-off into its own workflow."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

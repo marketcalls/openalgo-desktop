@@ -1,0 +1,151 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "positionCheck",
+ "scenario": "book_fails_without_text",
+ "note": "",
+ "parity": [
+  "N-positionCheck-07"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "positionCheck",
+  "data": {
+   "condition": "exists",
+   "exchange": "NSE",
+   "product": "MIS",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "positionCheck",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "condition": "exists",
+     "exchange": "NSE",
+     "product": "MIS",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "positionbook",
+   "reply": {
+    "status": "error"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "positionbook",
+    "endpoint": "positionbook",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "condition": false,
+   "message": "Unknown error"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Checking position for: SBIN"
+   ],
+   [
+    "error",
+    "Position check aborted: Unknown error"
+   ],
+   [
+    "error",
+    "positionCheck could not be evaluated (Unknown error)"
+   ]
+  ],
+  "next": [
+   "pass"
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "positionCheck",
+     "message": "Unknown error"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

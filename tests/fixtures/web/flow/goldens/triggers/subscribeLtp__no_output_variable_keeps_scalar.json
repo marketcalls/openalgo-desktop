@@ -1,0 +1,130 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "subscribeLtp",
+ "scenario": "no_output_variable_keeps_scalar",
+ "note": "",
+ "parity": [
+  "N-subscribeLtp-05"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "subscribeLtp",
+  "data": {
+   "exchange": "NSE",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "subscribeLtp",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "ticks": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "mode": 1,
+     "data": {
+      "ltp": 812.65
+     }
+    }
+   ]
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "type": "ltp",
+   "symbol": "SBIN",
+   "exchange": "NSE",
+   "ltp": 812.65,
+   "source": "websocket"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "ltp": 812.65
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Subscribing to LTP stream: SBIN (NSE)"
+   ],
+   [
+    "info",
+    "LTP for SBIN: 812.65 (via WebSocket)"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null,
+  "feed": [
+   {
+    "op": "subscribe",
+    "symbols": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE"
+     }
+    ],
+    "mode": "LTP"
+   },
+   {
+    "op": "wait",
+    "timeout": 5.0
+   }
+  ],
+  "subscriptions": [
+   [
+    "SBIN",
+    "NSE",
+    "LTP"
+   ]
+  ]
+ }
+}

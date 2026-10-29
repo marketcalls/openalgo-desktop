@@ -1,0 +1,132 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "cancelOrder",
+ "scenario": "output_variable_not_stored",
+ "note": "",
+ "parity": [
+  "N-cancelOrder-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "cancelOrder",
+  "data": {
+   "orderId": "250408000123456",
+   "outputVariable": "cancelled"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "cancelOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "orderId": "250408000123456",
+     "outputVariable": "cancelled"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "cancelorder",
+   "reply": {
+    "status": "success",
+    "message": "Order cancelled successfully",
+    "orderid": "250408000123456"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "cancel_order",
+    "endpoint": "cancelorder",
+    "payload": {
+     "orderid": "250408000123456"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "message": "Order cancelled successfully",
+   "orderid": "250408000123456"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Cancelling order: 250408000123456"
+   ],
+   [
+    "info",
+    "Cancel result: {'status': 'success', 'message': 'Order cancelled successfully', 'orderid': '250408000123456'}"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ },
+ "desktop_expected": {
+  "parity": "N-cancelOrder-02",
+  "why": "WEB-DEFECT: cancelOrder never stores its result; the desktop stores it like every other action node.",
+  "fix": [
+   "cancel_store_output"
+  ],
+  "vars_out": {
+   "cancelled": {
+    "status": "success",
+    "message": "Order cancelled successfully",
+    "orderid": "250408000123456"
+   }
+  },
+  "logs": [
+   [
+    "info",
+    "Cancelling order: 250408000123456"
+   ],
+   [
+    "info",
+    "Cancel result: {'status': 'success', 'message': 'Order cancelled successfully', 'orderid': '250408000123456'}"
+   ],
+   [
+    "info",
+    "Stored result in variable: cancelled"
+   ]
+  ]
+ }
+}

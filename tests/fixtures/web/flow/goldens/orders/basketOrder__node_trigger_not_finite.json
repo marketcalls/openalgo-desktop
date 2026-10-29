@@ -1,0 +1,101 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "basketOrder",
+ "scenario": "node_trigger_not_finite",
+ "note": "",
+ "parity": [
+  "N-basketOrder-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "basketOrder",
+  "data": {
+   "basketName": "morning",
+   "orders": "SBIN,NSE,BUY,10\nINFY,NSE,SELL,5",
+   "outputVariable": "basket",
+   "price": 0,
+   "priceType": "MARKET",
+   "triggerPrice": "nan"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "basketOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "basketName": "morning",
+     "orders": "SBIN,NSE,BUY,10\nINFY,NSE,SELL,5",
+     "outputVariable": "basket",
+     "price": 0,
+     "priceType": "MARKET",
+     "triggerPrice": "nan"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Basket order row 1: triggerPrice must be finite, got 'nan'"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Basket order failed: Basket order row 1: triggerPrice must be finite, got 'nan'"
+   ],
+   [
+    "error",
+    "Stopping this branch: basketOrder node failed (Basket order row 1: triggerPrice must be finite, got 'nan')"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "basketOrder",
+     "message": "Basket order row 1: triggerPrice must be finite, got 'nan'"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

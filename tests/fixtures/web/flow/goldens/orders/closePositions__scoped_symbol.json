@@ -1,0 +1,168 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "closePositions",
+ "scenario": "scoped_symbol",
+ "note": "",
+ "parity": [
+  "N-closePositions-03",
+  "CL-09"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "closePositions",
+  "data": {
+   "exchange": "NSE",
+   "outputVariable": "closed",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "closePositions",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "outputVariable": "closed",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "closeposition",
+   "reply": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "close_position",
+    "endpoint": "closeposition",
+    "payload": {
+     "strategy": "Golden Flow",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "product": "MIS"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "orderid": "250408000123456"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "closed": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Closing position: SBIN@NSE (MIS)"
+   ],
+   [
+    "info",
+    "Close position result: {'status': 'success', 'orderid': '250408000123456'}"
+   ],
+   [
+    "info",
+    "Stored result in variable: closed"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ },
+ "desktop_expected": {
+  "parity": "N-closePositions-03",
+  "why": "WEB-DEFECT CL-09: the web's live close ignores the symbol and squares off every position; the desktop closes only SBIN with a smart order to position size 0 (as the Agent's close_position). The exact payload is nodes-orders' to confirm.",
+  "script_extra": [
+   {
+    "endpoint": "positionbook",
+    "reply": {
+     "status": "success",
+     "data": [
+      {
+       "symbol": "SBIN",
+       "exchange": "NSE",
+       "product": "MIS",
+       "quantity": 10,
+       "pnl": 12.5
+      }
+     ]
+    }
+   },
+   {
+    "endpoint": "placesmartorder",
+    "reply": {
+     "status": "success",
+     "orderid": "250408000123456"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "positionbook",
+    "endpoint": "positionbook",
+    "payload": {}
+   },
+   {
+    "method": "place_smart_order",
+    "endpoint": "placesmartorder",
+    "payload": {
+     "strategy": "Golden Flow",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "SELL",
+     "quantity": 0,
+     "position_size": 0,
+     "pricetype": "MARKET",
+     "product": "MIS",
+     "price": 0.0,
+     "trigger_price": 0.0
+    }
+   }
+  ]
+ }
+}

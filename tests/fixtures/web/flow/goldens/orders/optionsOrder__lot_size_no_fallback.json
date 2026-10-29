@@ -1,0 +1,119 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "optionsOrder",
+ "scenario": "lot_size_no_fallback",
+ "note": "",
+ "parity": [
+  "N-common-22"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "optionsOrder",
+  "data": {
+   "action": "BUY",
+   "exchange": "NFO",
+   "expiryType": "current_week",
+   "offset": "ATM",
+   "optionType": "CE",
+   "outputVariable": "opt",
+   "price": 0,
+   "priceType": "MARKET",
+   "product": "NRML",
+   "quantity": 2,
+   "triggerPrice": 0,
+   "underlying": "TATAMOTORS"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "optionsOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "BUY",
+     "exchange": "NFO",
+     "expiryType": "current_week",
+     "offset": "ATM",
+     "optionType": "CE",
+     "outputVariable": "opt",
+     "price": 0,
+     "priceType": "MARKET",
+     "product": "NRML",
+     "quantity": 2,
+     "triggerPrice": 0,
+     "underlying": "TATAMOTORS"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "master_contract": []
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "The master contract has no NFO contracts loaded and no built-in lot size for TATAMOTORS. Download the master contract first."
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Placing options order: TATAMOTORS CE ATM"
+   ],
+   [
+    "error",
+    "Options order failed: The master contract has no NFO contracts loaded and no built-in lot size for TATAMOTORS. Download the master contract first."
+   ],
+   [
+    "error",
+    "Stopping this branch: optionsOrder node failed (The master contract has no NFO contracts loaded and no built-in lot size for TATAMOTORS. Download the master contract first.)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "optionsOrder",
+     "message": "The master contract has no NFO contracts loaded and no built-in lot size for TATAMOTORS. Download the master contract first."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

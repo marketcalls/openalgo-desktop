@@ -1,0 +1,176 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "optionChain",
+ "scenario": "happy",
+ "note": "",
+ "parity": [
+  "N-optionChain-01",
+  "N-optionChain-02",
+  "CL-16"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "optionChain",
+  "data": {
+   "exchange": "NSE_INDEX",
+   "expiryDate": "25NOV26",
+   "outputVariable": "chain",
+   "strikeCount": 5,
+   "underlying": "NIFTY"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "optionChain",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE_INDEX",
+     "expiryDate": "25NOV26",
+     "outputVariable": "chain",
+     "strikeCount": 5,
+     "underlying": "NIFTY"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "optionchain",
+   "reply": {
+    "status": "success",
+    "underlying": "NIFTY",
+    "underlying_ltp": 24012.35,
+    "expiry_date": "25NOV26",
+    "atm_strike": 24000.0,
+    "chain": [
+     {
+      "strike": 24000.0,
+      "ce": {
+       "symbol": "NIFTY25NOV2624000CE",
+       "label": "ATM",
+       "ltp": 180.5
+      },
+      "pe": {
+       "symbol": "NIFTY25NOV2624000PE",
+       "label": "ATM",
+       "ltp": 165.25
+      }
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "optionchain",
+    "endpoint": "optionchain",
+    "payload": {
+     "underlying": "NIFTY",
+     "exchange": "NSE_INDEX",
+     "expiry_date": "25NOV26",
+     "strike_count": 5
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "underlying": "NIFTY",
+   "underlying_ltp": 24012.35,
+   "expiry_date": "25NOV26",
+   "atm_strike": 24000.0,
+   "chain": [
+    {
+     "strike": 24000.0,
+     "ce": {
+      "symbol": "NIFTY25NOV2624000CE",
+      "label": "ATM",
+      "ltp": 180.5
+     },
+     "pe": {
+      "symbol": "NIFTY25NOV2624000PE",
+      "label": "ATM",
+      "ltp": 165.25
+     }
+    }
+   ]
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "chain": {
+    "status": "success",
+    "underlying": "NIFTY",
+    "underlying_ltp": 24012.35,
+    "expiry_date": "25NOV26",
+    "atm_strike": 24000.0,
+    "chain": [
+     {
+      "strike": 24000.0,
+      "ce": {
+       "symbol": "NIFTY25NOV2624000CE",
+       "label": "ATM",
+       "ltp": 180.5
+      },
+      "pe": {
+       "symbol": "NIFTY25NOV2624000PE",
+       "label": "ATM",
+       "ltp": 165.25
+      }
+     }
+    ]
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Fetching option chain for: NIFTY expiry=25NOV26"
+   ],
+   [
+    "info",
+    "Option chain result received"
+   ],
+   [
+    "info",
+    "Stored result in variable: chain"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

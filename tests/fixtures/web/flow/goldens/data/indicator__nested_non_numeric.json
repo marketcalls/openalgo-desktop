@@ -1,0 +1,105 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "indicator",
+ "scenario": "nested_non_numeric",
+ "note": "",
+ "parity": [
+  "N-indicator-05"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "indicator",
+  "data": {
+   "indicatorName": "sma",
+   "sourceSeries": "{{prices}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "prices": [
+   1.0,
+   2.0,
+   "n/a"
+  ]
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "indicator",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "indicatorName": "sma",
+     "sourceSeries": "{{prices}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "sourceSeries contains a non-numeric value: 'n/a'"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "prices": [
+    1.0,
+    2.0,
+    "n/a"
+   ]
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "sourceSeries contains a non-numeric value: 'n/a'"
+   ],
+   [
+    "error",
+    "Stopping this branch: indicator node failed (sourceSeries contains a non-numeric value: 'n/a')"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "indicator",
+     "message": "sourceSeries contains a non-numeric value: 'n/a'"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

@@ -1,0 +1,97 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "httpRequest",
+ "scenario": "headers_invalid_json",
+ "note": "",
+ "parity": [
+  "N-httpRequest-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "httpRequest",
+  "data": {
+   "headers": "{bad",
+   "method": "GET",
+   "outputVariable": "resp",
+   "url": "http://api.flow-golden.test/v1/signal"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "httpRequest",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "headers": "{bad",
+     "method": "GET",
+     "outputVariable": "resp",
+     "url": "http://api.flow-golden.test/v1/signal"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "headers is not valid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "HTTP request aborted: headers is not valid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+   ],
+   [
+    "error",
+    "Stopping this branch: httpRequest node failed (headers is not valid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1))"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "httpRequest",
+     "message": "headers is not valid JSON: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+    }
+   ],
+   "abort": null
+  }
+ }
+}
