@@ -13,6 +13,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+// Desktop: the pass branch a wire out of an inserted Logic node starts from.
+import { passBranchHandle } from '@/lib/desktopFlow'
 import { DEFAULT_NODE_DATA } from '@/lib/flow/constants'
 import { cn } from '@/lib/utils'
 
@@ -122,6 +124,8 @@ export function InsertableEdge({
       const newEdge2 = {
         id: `edge-${Date.now()}-2`,
         source: newNodeId,
+        // Desktop: a Logic node continues from its pass branch (lib/desktopFlow).
+        sourceHandle: passBranchHandle(nodeType),
         target,
         targetHandle: targetHandleId || undefined,
         type: 'insertable',
@@ -164,11 +168,14 @@ export function InsertableEdge({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
+                // Desktop: named, and visible while focused (a11y, parity F-694).
+                aria-label="Insert a node on this connection"
                 className={cn(
                   'flex h-5 w-5 items-center justify-center rounded-full border bg-background shadow-sm transition-all',
                   'hover:scale-110 hover:border-primary hover:bg-primary hover:text-primary-foreground',
                   isHovered || menuOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-75',
-                  selected && 'opacity-100 scale-100'
+                  selected && 'opacity-100 scale-100',
+                  'focus-visible:opacity-100 focus-visible:scale-100'
                 )}
               >
                 <Plus className="h-3 w-3" />
