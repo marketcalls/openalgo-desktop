@@ -8,6 +8,10 @@
 
 pub mod core;
 pub mod logic;
+pub mod pyjson;
+
+#[cfg(test)]
+pub(crate) mod testkit;
 
 use crate::flow::contract::node::FlowNode;
 use std::collections::HashMap;
