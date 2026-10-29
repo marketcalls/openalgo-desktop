@@ -1,0 +1,257 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "workflows",
+ "type": "workflow",
+ "scenario": "doc_hourly_buy_with_daily_counter",
+ "note": "The example as published, run end to end with scripted replies.",
+ "parity": [
+  "IE-12",
+  "A-35"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Hourly Buy with Daily Counter",
+  "description": "Place 1 order per hour and track count via variable.increment",
+  "nodes": [
+   {
+    "id": "node_1",
+    "type": "start",
+    "position": {
+     "x": 100,
+     "y": 60
+    },
+    "data": {
+     "scheduleType": "interval",
+     "intervalValue": 1,
+     "intervalUnit": "hours",
+     "marketHoursOnly": true
+    }
+   },
+   {
+    "id": "node_2",
+    "type": "placeOrder",
+    "position": {
+     "x": 100,
+     "y": 180
+    },
+    "data": {
+     "symbol": "TATAMOTORS",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 1,
+     "priceType": "MARKET",
+     "product": "MIS",
+     "outputVariable": "ord"
+    }
+   },
+   {
+    "id": "node_3",
+    "type": "variable",
+    "position": {
+     "x": 100,
+     "y": 300
+    },
+    "data": {
+     "variableName": "todayCount",
+     "operation": "increment"
+    }
+   },
+   {
+    "id": "node_4",
+    "type": "log",
+    "position": {
+     "x": 100,
+     "y": 420
+    },
+    "data": {
+     "message": "Order #{{todayCount}} placed: {{ord.orderid}}",
+     "level": "info"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e1",
+    "source": "node_1",
+    "target": "node_2"
+   },
+   {
+    "id": "e2",
+    "source": "node_2",
+    "target": "node_3"
+   },
+   {
+    "id": "e3",
+    "source": "node_3",
+    "target": "node_4"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {
+  "master_contract": [
+   {
+    "symbol": "NIFTY25NOV2624000CE",
+    "name": "NIFTY",
+    "exchange": "NFO",
+    "lotsize": 65,
+    "expiry": "25-NOV-26",
+    "strike": 24000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "NIFTYNXT5025NOV2668000CE",
+    "name": "NIFTYNXT50",
+    "exchange": "NFO",
+    "lotsize": 25,
+    "expiry": "25-NOV-26",
+    "strike": 68000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "BANKNIFTY25NOV2652000CE",
+    "name": "BANKNIFTY",
+    "exchange": "NFO",
+    "lotsize": 30,
+    "expiry": "25-NOV-26",
+    "strike": 52000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "SENSEX27NOV2680000CE",
+    "name": "SENSEX",
+    "exchange": "BFO",
+    "lotsize": 20,
+    "expiry": "27-NOV-26",
+    "strike": 80000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "CRUDEOIL17NOV265800CE",
+    "name": "CRUDEOIL",
+    "exchange": "MCX",
+    "lotsize": 100,
+    "expiry": "17-NOV-26",
+    "strike": 5800.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "GOLD25NOV26118000CE",
+    "name": "GOLD",
+    "exchange": "MCX",
+    "lotsize": 1,
+    "expiry": "25-NOV-26",
+    "strike": 118000.0,
+    "instrumenttype": "CE"
+   }
+  ],
+  "http": {
+   "resolve": {
+    "audit.example.com": [
+     "93.184.216.34"
+    ],
+    "hooks.example.com": [
+     "93.184.216.34"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "body": "{\"received\": true}",
+    "content_type": "application/json"
+   },
+   "record_headers": [
+    "authorization",
+    "x-source"
+   ]
+  },
+  "strategy_book": [],
+  "calendar_holidays": {
+   "2026": []
+  },
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "connect_error": "down"
+  }
+ },
+ "script": [
+  {
+   "endpoint": "placeorder",
+   "reply": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "place_order",
+    "endpoint": "placeorder",
+    "payload": {
+     "strategy": "Hourly Buy with Daily Counter",
+     "symbol": "TATAMOTORS",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 1,
+     "pricetype": "MARKET",
+     "product": "MIS",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  ],
+  "result": {
+   "status": "success",
+   "message": "Workflow executed successfully"
+  },
+  "record": {
+   "status": "completed",
+   "error": null
+  },
+  "vars_out": {
+   "ord": {
+    "status": "success",
+    "orderid": "250408000123456"
+   },
+   "todayCount": 1.0
+  },
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Hourly Buy with Daily Counter"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "info",
+    "Placing order: TATAMOTORS BUY qty=1"
+   ],
+   [
+    "info",
+    "Order result: {'status': 'success', 'orderid': '250408000123456'}"
+   ],
+   [
+    "info",
+    "Stored result in variable: ord"
+   ],
+   [
+    "info",
+    "Set variable todayCount = 1.0"
+   ],
+   [
+    "info",
+    "[LOG] Order #1.0 placed: 250408000123456"
+   ]
+  ]
+ },
+ "source": "docs/prompt/flow-import-format.md:2388"
+}

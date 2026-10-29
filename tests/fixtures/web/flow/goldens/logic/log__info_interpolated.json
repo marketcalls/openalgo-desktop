@@ -1,0 +1,97 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "log",
+ "scenario": "info_interpolated",
+ "note": "",
+ "parity": [
+  "N-log-01",
+  "E-13"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "log",
+  "data": {
+   "level": "info",
+   "message": "LTP {{q.data.ltp}} for {{sym}} at {{time}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "q": {
+   "data": {
+    "ltp": 812.5
+   }
+  },
+  "sym": "SBIN"
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "level": "info",
+     "message": "LTP {{q.data.ltp}} for {{sym}} at {{time}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "message": "LTP 812.5 for SBIN at 10:15:00"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "q": {
+    "data": {
+     "ltp": 812.5
+    }
+   },
+   "sym": "SBIN"
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "[LOG] LTP 812.5 for SBIN at 10:15:00"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

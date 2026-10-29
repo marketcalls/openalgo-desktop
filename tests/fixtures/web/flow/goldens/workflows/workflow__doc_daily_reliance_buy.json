@@ -1,0 +1,297 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "workflows",
+ "type": "workflow",
+ "scenario": "doc_daily_reliance_buy",
+ "note": "The example as published, run end to end with scripted replies.",
+ "parity": [
+  "IE-12",
+  "A-35"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Daily RELIANCE Buy",
+  "description": "Place a 10-share intraday BUY of RELIANCE at 09:20 if no existing position",
+  "nodes": [
+   {
+    "id": "node_1",
+    "type": "start",
+    "position": {
+     "x": 100,
+     "y": 100
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:20",
+     "days": [
+      0,
+      1,
+      2,
+      3,
+      4
+     ],
+     "marketHoursOnly": true
+    }
+   },
+   {
+    "id": "node_2",
+    "type": "positionCheck",
+    "position": {
+     "x": 100,
+     "y": 200
+    },
+    "data": {
+     "symbol": "RELIANCE",
+     "exchange": "NSE",
+     "product": "MIS",
+     "condition": "not_exists"
+    }
+   },
+   {
+    "id": "node_3",
+    "type": "placeOrder",
+    "position": {
+     "x": 100,
+     "y": 300
+    },
+    "data": {
+     "symbol": "RELIANCE",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 10,
+     "priceType": "MARKET",
+     "product": "MIS",
+     "outputVariable": "buyOrder"
+    }
+   },
+   {
+    "id": "node_4",
+    "type": "log",
+    "position": {
+     "x": 300,
+     "y": 300
+    },
+    "data": {
+     "message": "Skipped: position exists ({{buyOrder.orderid}} not placed)",
+     "level": "info"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e1",
+    "source": "node_1",
+    "target": "node_2"
+   },
+   {
+    "id": "e2",
+    "source": "node_2",
+    "sourceHandle": "true",
+    "target": "node_3"
+   },
+   {
+    "id": "e3",
+    "source": "node_2",
+    "sourceHandle": "false",
+    "target": "node_4"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {
+  "master_contract": [
+   {
+    "symbol": "NIFTY25NOV2624000CE",
+    "name": "NIFTY",
+    "exchange": "NFO",
+    "lotsize": 65,
+    "expiry": "25-NOV-26",
+    "strike": 24000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "NIFTYNXT5025NOV2668000CE",
+    "name": "NIFTYNXT50",
+    "exchange": "NFO",
+    "lotsize": 25,
+    "expiry": "25-NOV-26",
+    "strike": 68000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "BANKNIFTY25NOV2652000CE",
+    "name": "BANKNIFTY",
+    "exchange": "NFO",
+    "lotsize": 30,
+    "expiry": "25-NOV-26",
+    "strike": 52000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "SENSEX27NOV2680000CE",
+    "name": "SENSEX",
+    "exchange": "BFO",
+    "lotsize": 20,
+    "expiry": "27-NOV-26",
+    "strike": 80000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "CRUDEOIL17NOV265800CE",
+    "name": "CRUDEOIL",
+    "exchange": "MCX",
+    "lotsize": 100,
+    "expiry": "17-NOV-26",
+    "strike": 5800.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "GOLD25NOV26118000CE",
+    "name": "GOLD",
+    "exchange": "MCX",
+    "lotsize": 1,
+    "expiry": "25-NOV-26",
+    "strike": 118000.0,
+    "instrumenttype": "CE"
+   }
+  ],
+  "http": {
+   "resolve": {
+    "audit.example.com": [
+     "93.184.216.34"
+    ],
+    "hooks.example.com": [
+     "93.184.216.34"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "body": "{\"received\": true}",
+    "content_type": "application/json"
+   },
+   "record_headers": [
+    "authorization",
+    "x-source"
+   ]
+  },
+  "strategy_book": [],
+  "calendar_holidays": {
+   "2026": []
+  },
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "connect_error": "down"
+  }
+ },
+ "script": [
+  {
+   "endpoint": "positionbook",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "product": "MIS",
+      "quantity": 10,
+      "average_price": 800.0,
+      "ltp": 812.5,
+      "pnl": 125.0
+     },
+     {
+      "symbol": "NIFTY25NOV2624000CE",
+      "exchange": "NFO",
+      "product": "NRML",
+      "quantity": -65,
+      "average_price": 110.0,
+      "ltp": 98.5,
+      "pnl": 747.5
+     }
+    ]
+   }
+  },
+  {
+   "endpoint": "placeorder",
+   "reply": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "positionbook",
+    "endpoint": "positionbook",
+    "payload": {}
+   },
+   {
+    "method": "place_order",
+    "endpoint": "placeorder",
+    "payload": {
+     "strategy": "Daily RELIANCE Buy",
+     "symbol": "RELIANCE",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 10,
+     "pricetype": "MARKET",
+     "product": "MIS",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  ],
+  "result": {
+   "status": "success",
+   "message": "Workflow executed successfully"
+  },
+  "record": {
+   "status": "completed",
+   "error": null
+  },
+  "vars_out": {
+   "buyOrder": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  },
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Daily RELIANCE Buy"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "info",
+    "Checking position for: RELIANCE"
+   ],
+   [
+    "info",
+    "Position check: qty=0 == 0 = True"
+   ],
+   [
+    "info",
+    "Placing order: RELIANCE BUY qty=10"
+   ],
+   [
+    "info",
+    "Order result: {'status': 'success', 'orderid': '250408000123456'}"
+   ],
+   [
+    "info",
+    "Stored result in variable: buyOrder"
+   ]
+  ]
+ },
+ "source": "docs/prompt/flow-import-format.md:2017"
+}

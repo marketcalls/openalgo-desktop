@@ -1,0 +1,171 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "positionCheck",
+ "scenario": "pnl_below",
+ "note": "",
+ "parity": [
+  "N-positionCheck-01",
+  "N-positionCheck-02",
+  "N-positionCheck-03",
+  "N-positionCheck-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "positionCheck",
+  "data": {
+   "condition": "pnl_below",
+   "exchange": "NSE",
+   "product": "MIS",
+   "symbol": "SBIN",
+   "threshold": -50.5
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "limit": 20
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "positionCheck",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "condition": "pnl_below",
+     "exchange": "NSE",
+     "product": "MIS",
+     "symbol": "SBIN",
+     "threshold": -50.5
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "positionbook",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "product": "MIS",
+      "quantity": 10,
+      "average_price": 800.0,
+      "ltp": 812.5,
+      "pnl": 125.0
+     },
+     {
+      "symbol": "NIFTY25NOV2624000CE",
+      "exchange": "NFO",
+      "product": "NRML",
+      "quantity": -65,
+      "average_price": 110.0,
+      "ltp": 98.5,
+      "pnl": 747.5
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "positionbook",
+    "endpoint": "positionbook",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "condition": false,
+   "quantity": 10,
+   "pnl": 125.0
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "limit": 20
+  },
+  "conditions_out": {
+   "n1": false
+  },
+  "logs": [
+   [
+    "info",
+    "Checking position for: SBIN"
+   ],
+   [
+    "info",
+    "Position check: pnl=125.0 < -50.5 = False"
+   ]
+  ],
+  "next": [
+   "false",
+   "pass"
+  ],
+  "error": null
+ }
+}

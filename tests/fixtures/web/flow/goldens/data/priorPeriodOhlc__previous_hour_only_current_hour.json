@@ -1,0 +1,131 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "priorPeriodOhlc",
+ "scenario": "previous_hour_only_current_hour",
+ "note": "",
+ "parity": [
+  "N-priorPeriodOhlc-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "priorPeriodOhlc",
+  "data": {
+   "exchange": "NSE",
+   "outputVariable": "pd",
+   "period": "previous_hour",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "priorPeriodOhlc",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "outputVariable": "pd",
+     "period": "previous_hour",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "history",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "timestamp": 1793248200,
+      "open": 812.0,
+      "high": 814.5,
+      "low": 803.75,
+      "close": 805.75,
+      "volume": 100000
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_history",
+    "endpoint": "history",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "1h",
+     "start_date": "2026-10-24",
+     "end_date": "2026-10-29",
+     "source": "api"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "message": "not enough history to determine previous_hour"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Fetching previous_hour OHLC for: SBIN (NSE)"
+   ],
+   [
+    "error",
+    "Prior period OHLC error: not enough history to determine previous_hour"
+   ],
+   [
+    "error",
+    "Stopping this branch: priorPeriodOhlc node failed (not enough history to determine previous_hour)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "priorPeriodOhlc",
+     "message": "not enough history to determine previous_hour"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

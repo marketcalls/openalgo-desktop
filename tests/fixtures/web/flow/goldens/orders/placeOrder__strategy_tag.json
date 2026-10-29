@@ -1,0 +1,135 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "placeOrder",
+ "scenario": "strategy_tag",
+ "note": "",
+ "parity": [
+  "N-common-07",
+  "CL-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "placeOrder",
+  "data": {
+   "action": "BUY",
+   "exchange": "NSE",
+   "outputVariable": "orderResult",
+   "price": 0,
+   "priceType": "MARKET",
+   "quantity": 10,
+   "strategyTag": "gap-fade",
+   "symbol": "SBIN",
+   "triggerPrice": 0
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "placeOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "BUY",
+     "exchange": "NSE",
+     "outputVariable": "orderResult",
+     "price": 0,
+     "priceType": "MARKET",
+     "quantity": 10,
+     "strategyTag": "gap-fade",
+     "symbol": "SBIN",
+     "triggerPrice": 0
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "placeorder",
+   "reply": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "place_order",
+    "endpoint": "placeorder",
+    "payload": {
+     "strategy": "gap-fade",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": 10,
+     "pricetype": "MARKET",
+     "product": "MIS",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "orderid": "250408000123456"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "orderResult": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Placing order: SBIN BUY qty=10"
+   ],
+   [
+    "info",
+    "Order result: {'status': 'success', 'orderid': '250408000123456'}"
+   ],
+   [
+    "info",
+    "Stored result in variable: orderResult"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

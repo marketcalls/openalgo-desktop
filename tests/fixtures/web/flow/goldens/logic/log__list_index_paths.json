@@ -1,0 +1,102 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "log",
+ "scenario": "list_index_paths",
+ "note": "",
+ "parity": [
+  "E-14"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "log",
+  "data": {
+   "message": "{{h.data[0].close}} {{h.data[-1].close}} {{h.data[5].close}} {{h.data.x}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "h": {
+   "data": [
+    {
+     "close": 1.0
+    },
+    {
+     "close": 2.5
+    }
+   ]
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "{{h.data[0].close}} {{h.data[-1].close}} {{h.data[5].close}} {{h.data.x}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "message": "1.0 {{h.data[-1].close}} {{h.data[5].close}} {{h.data.x}}"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "h": {
+    "data": [
+     {
+      "close": 1.0
+     },
+     {
+      "close": 2.5
+     }
+    ]
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "[LOG] 1.0 {{h.data[-1].close}} {{h.data[5].close}} {{h.data.x}}"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

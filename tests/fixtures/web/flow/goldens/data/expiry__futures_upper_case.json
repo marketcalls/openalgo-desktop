@@ -1,0 +1,126 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "expiry",
+ "scenario": "futures_upper_case",
+ "note": "",
+ "parity": [
+  "N-expiry-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "expiry",
+  "data": {
+   "exchange": "MCX",
+   "instrumenttype": "FUTURES",
+   "outputVariable": "exp",
+   "symbol": "CRUDEOIL"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "expiry",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "MCX",
+     "instrumenttype": "FUTURES",
+     "outputVariable": "exp",
+     "symbol": "CRUDEOIL"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "expiry",
+   "reply": {
+    "status": "success",
+    "data": [
+     "17-NOV-26",
+     "16-DEC-26"
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_expiry",
+    "endpoint": "expiry",
+    "payload": {
+     "symbol": "CRUDEOIL",
+     "exchange": "MCX",
+     "instrumenttype": "futures"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": [
+    "17-NOV-26",
+    "16-DEC-26"
+   ]
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "exp": {
+    "status": "success",
+    "data": [
+     "17-NOV-26",
+     "16-DEC-26"
+    ]
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting futures expiry dates for: CRUDEOIL"
+   ],
+   [
+    "info",
+    "Expiry result: {'status': 'success', 'data': ['17-NOV-26', '16-DEC-26']}"
+   ],
+   [
+    "info",
+    "Stored result in variable: exp"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

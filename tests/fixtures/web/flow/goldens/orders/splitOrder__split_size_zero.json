@@ -1,0 +1,108 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "splitOrder",
+ "scenario": "split_size_zero",
+ "note": "",
+ "parity": [
+  "N-splitOrder-01",
+  "N-common-14"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "splitOrder",
+  "data": {
+   "action": "BUY",
+   "exchange": "NSE",
+   "outputVariable": "split",
+   "price": 0,
+   "priceType": "MARKET",
+   "quantity": 100,
+   "splitSize": 0,
+   "symbol": "SBIN",
+   "triggerPrice": 0
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "splitOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "BUY",
+     "exchange": "NSE",
+     "outputVariable": "split",
+     "price": 0,
+     "priceType": "MARKET",
+     "quantity": 100,
+     "splitSize": 0,
+     "symbol": "SBIN",
+     "triggerPrice": 0
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Split order has invalid runtime order data: splitSize must be at least 1, got 0.0"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Split order has invalid runtime order data: splitSize must be at least 1, got 0.0"
+   ],
+   [
+    "error",
+    "Stopping this branch: splitOrder node failed (Split order has invalid runtime order data: splitSize must be at least 1, got 0.0)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "splitOrder",
+     "message": "Split order has invalid runtime order data: splitSize must be at least 1, got 0.0"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

@@ -1,0 +1,127 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "fundCheck",
+ "scenario": "legacy_less_than_refused",
+ "note": "",
+ "parity": [
+  "N-fundCheck-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "fundCheck",
+  "data": {
+   "operator": "lt",
+   "threshold": 1000
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "fundCheck",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "operator": "lt",
+     "threshold": 1000
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Fund Check has a legacy 'lt' comparison, which this node cannot express - it only supports a minimum. Open the node and set Minimum Available."
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Fund Check has a legacy 'lt' comparison, which this node cannot express - it only supports a minimum. Open the node and set Minimum Available."
+   ],
+   [
+    "error",
+    "Stopping this branch: fundCheck node failed (Fund Check has a legacy 'lt' comparison, which this node cannot express - it only supports a minimum. Open the node and set Minimum Available.)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "fundCheck",
+     "message": "Fund Check has a legacy 'lt' comparison, which this node cannot express - it only supports a minimum. Open the node and set Minimum Available."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

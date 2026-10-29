@@ -1,0 +1,125 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "getOrderStatus",
+ "scenario": "failure",
+ "note": "",
+ "parity": [
+  "N-getOrderStatus-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "getOrderStatus",
+  "data": {
+   "orderId": "1",
+   "outputVariable": "os"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "getOrderStatus",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "orderId": "1",
+     "outputVariable": "os"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "orderstatus",
+   "reply": {
+    "status": "error",
+    "error": "Order not found",
+    "code": 404
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_order_status",
+    "endpoint": "orderstatus",
+    "payload": {
+     "orderid": "1"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "error": "Order not found",
+   "code": 404
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "os": {
+    "status": "error",
+    "error": "Order not found",
+    "code": 404
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting order status for: 1"
+   ],
+   [
+    "info",
+    "Order status result: {'status': 'error', 'error': 'Order not found', 'code': 404}"
+   ],
+   [
+    "info",
+    "Stored result in variable: os"
+   ],
+   [
+    "error",
+    "Stopping this branch: getOrderStatus node failed (Order not found)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "getOrderStatus",
+     "message": "Order not found"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

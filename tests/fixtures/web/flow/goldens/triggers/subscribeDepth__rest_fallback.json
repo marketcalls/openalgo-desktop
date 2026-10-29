@@ -1,0 +1,249 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "subscribeDepth",
+ "scenario": "rest_fallback",
+ "note": "",
+ "parity": [
+  "N-subscribeDepth-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "subscribeDepth",
+  "data": {
+   "exchange": "NSE",
+   "outputVariable": "depth",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "subscribeDepth",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "outputVariable": "depth",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "connect_error": "down"
+  }
+ },
+ "script": [
+  {
+   "endpoint": "depth",
+   "reply": {
+    "status": "success",
+    "data": {
+     "asks": [
+      {
+       "price": 812.6,
+       "quantity": 120
+      },
+      {
+       "price": 812.7,
+       "quantity": 80
+      }
+     ],
+     "bids": [
+      {
+       "price": 812.4,
+       "quantity": 150
+      },
+      {
+       "price": 812.3,
+       "quantity": 60
+      }
+     ],
+     "high": 818.0,
+     "low": 805.25,
+     "ltp": 812.5,
+     "ltq": 10,
+     "oi": 0,
+     "open": 806.0,
+     "prev_close": 800.0,
+     "totalbuyqty": 210,
+     "totalsellqty": 200,
+     "volume": 1250000
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_depth",
+    "endpoint": "depth",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "type": "depth",
+   "symbol": "SBIN",
+   "exchange": "NSE",
+   "data": {
+    "bids": [
+     {
+      "price": 812.4,
+      "quantity": 150
+     },
+     {
+      "price": 812.3,
+      "quantity": 60
+     }
+    ],
+    "asks": [
+     {
+      "price": 812.6,
+      "quantity": 120
+     },
+     {
+      "price": 812.7,
+      "quantity": 80
+     }
+    ],
+    "totalbuyqty": 210,
+    "totalsellqty": 200,
+    "ltp": 812.5
+   },
+   "source": "rest_api"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "depth": {
+    "status": "success",
+    "type": "depth",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "data": {
+     "bids": [
+      {
+       "price": 812.4,
+       "quantity": 150
+      },
+      {
+       "price": 812.3,
+       "quantity": 60
+      }
+     ],
+     "asks": [
+      {
+       "price": 812.6,
+       "quantity": 120
+      },
+      {
+       "price": 812.7,
+       "quantity": 80
+      }
+     ],
+     "totalbuyqty": 210,
+     "totalsellqty": 200,
+     "ltp": 812.5
+    },
+    "source": "rest_api"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Subscribing to Depth stream: SBIN (NSE)"
+   ],
+   [
+    "warning",
+    "WebSocket connection failed: down"
+   ],
+   [
+    "info",
+    "WebSocket timeout/failed, falling back to REST API for SBIN"
+   ],
+   [
+    "info",
+    "Depth for SBIN: Bid=812.4, Ask=812.6 (2 bids, 2 asks) via REST API"
+   ],
+   [
+    "info",
+    "Stored result in variable: depth"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ },
+ "desktop_expected": {
+  "parity": "N-subscribeDepth-04",
+  "why": "WEB-DEFECT (decisions.md 9): store_output overwrites the documented value with the whole result dict; the desktop stores the documented value under the stripped outputVariable (the run log is unchanged).",
+  "fix": [
+   "stream_documented_value"
+  ],
+  "vars_out": {
+   "depth": {
+    "bids": [
+     {
+      "price": 812.4,
+      "quantity": 150
+     },
+     {
+      "price": 812.3,
+      "quantity": 60
+     }
+    ],
+    "asks": [
+     {
+      "price": 812.6,
+      "quantity": 120
+     },
+     {
+      "price": 812.7,
+      "quantity": 80
+     }
+    ],
+    "totalbuyqty": 210,
+    "totalsellqty": 200,
+    "ltp": 812.5
+   }
+  }
+ }
+}

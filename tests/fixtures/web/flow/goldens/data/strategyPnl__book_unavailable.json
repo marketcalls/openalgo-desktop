@@ -1,0 +1,102 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "strategyPnl",
+ "scenario": "book_unavailable",
+ "note": "",
+ "parity": [
+  "N-strategyPnl-02",
+  "N-strategyPnl-05"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "strategyPnl",
+  "data": {
+   "outputVariable": "pnl"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "strategyPnl",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "pnl"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "strategy_book": {
+   "unavailable": "Strategy book is not initialized; per-strategy P&L is unavailable"
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Strategy book unavailable: Strategy book is not initialized; per-strategy P&L is unavailable"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Strategy P&L error: Strategy book unavailable: Strategy book is not initialized; per-strategy P&L is unavailable"
+   ],
+   [
+    "error",
+    "Stopping this branch: strategyPnl node failed (Strategy book unavailable: Strategy book is not initialized; per-strategy P&L is unavailable)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "strategyPnl",
+     "message": "Strategy book unavailable: Strategy book is not initialized; per-strategy P&L is unavailable"
+    }
+   ],
+   "abort": null
+  },
+  "server_log": [
+   [
+    "error",
+    "Strategy P&L unavailable: Strategy book is not initialized; per-strategy P&L is unavailable"
+   ]
+  ]
+ }
+}

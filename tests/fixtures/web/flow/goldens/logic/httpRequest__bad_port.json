@@ -1,0 +1,121 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "httpRequest",
+ "scenario": "bad_port",
+ "note": "",
+ "parity": [
+  "N-httpRequest-19"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "httpRequest",
+  "data": {
+   "method": "GET",
+   "outputVariable": "resp",
+   "url": "http://api.flow-golden.test:99999/"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "httpRequest",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "method": "GET",
+     "outputVariable": "resp",
+     "url": "http://api.flow-golden.test:99999/"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "http": {
+   "resolve": {
+    "api.flow-golden.test": [
+     "93.184.216.34"
+    ]
+   }
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": null,
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Error: Port out of range 0-65535"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [],
+   "abort": "Port out of range 0-65535"
+  }
+ },
+ "desktop_expected": {
+  "parity": "N-httpRequest-19",
+  "why": "WEB-DEFECT: an invalid port raises out of the guard and aborts the run; the desktop fails only the node.",
+  "fix": [
+   "http_bad_port"
+  ],
+  "outputs": {
+   "status": "error",
+   "message": "refusing to send this request: URL could not be parsed"
+  },
+  "logs": [
+   [
+    "error",
+    "HTTP request aborted: refusing to send this request: URL could not be parsed"
+   ],
+   [
+    "error",
+    "Stopping this branch: httpRequest node failed (refusing to send this request: URL could not be parsed)"
+   ]
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "httpRequest",
+     "message": "refusing to send this request: URL could not be parsed"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

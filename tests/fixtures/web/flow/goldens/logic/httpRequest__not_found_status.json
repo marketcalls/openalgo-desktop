@@ -1,0 +1,181 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "httpRequest",
+ "scenario": "not_found_status",
+ "note": "",
+ "parity": [
+  "N-httpRequest-12",
+  "N-httpRequest-13"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "httpRequest",
+  "data": {
+   "method": "GET",
+   "outputVariable": "resp",
+   "url": "http://api.flow-golden.test/v1/signal"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "httpRequest",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "method": "GET",
+     "outputVariable": "resp",
+     "url": "http://api.flow-golden.test/v1/signal"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "http": {
+   "resolve": {
+    "api.flow-golden.test": [
+     "93.184.216.34"
+    ]
+   },
+   "response": {
+    "status": 404,
+    "body": "{\"error\": \"no\"}"
+   }
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "statusCode": 404,
+   "data": {
+    "error": "no"
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "resp": {
+    "status": "error",
+    "statusCode": 404,
+    "data": {
+     "error": "no"
+    }
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "HTTP GET http://api.flow-golden.test/v1/signal"
+   ],
+   [
+    "info",
+    "Stored result in variable: resp"
+   ],
+   [
+    "error",
+    "Stopping this branch: httpRequest node failed (node failed)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "httpRequest",
+     "message": "node failed"
+    }
+   ],
+   "abort": null
+  },
+  "http_requests": [
+   {
+    "method": "GET",
+    "path": "/v1/signal",
+    "query": "",
+    "headers": {},
+    "body": ""
+   }
+  ]
+ },
+ "desktop_expected": {
+  "parity": "N-httpRequest-13",
+  "why": "WEB-DEFECT: a non-2xx result has no message, so the run reads `node failed`; the desktop adds `message: HTTP {statusCode}`.",
+  "fix": [
+   "http_status_message"
+  ],
+  "outputs": {
+   "status": "error",
+   "statusCode": 404,
+   "data": {
+    "error": "no"
+   },
+   "message": "HTTP 404"
+  },
+  "vars_out": {
+   "resp": {
+    "status": "error",
+    "statusCode": 404,
+    "data": {
+     "error": "no"
+    },
+    "message": "HTTP 404"
+   }
+  },
+  "logs": [
+   [
+    "info",
+    "HTTP GET http://api.flow-golden.test/v1/signal"
+   ],
+   [
+    "info",
+    "Stored result in variable: resp"
+   ],
+   [
+    "error",
+    "Stopping this branch: httpRequest node failed (HTTP 404)"
+   ]
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "httpRequest",
+     "message": "HTTP 404"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

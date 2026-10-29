@@ -1,0 +1,122 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "cancelAllOrders",
+ "scenario": "not_gated_on_unresolved",
+ "note": "",
+ "parity": [
+  "N-cancelAllOrders-01",
+  "N-common-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "cancelAllOrders",
+  "data": {
+   "outputVariable": "{{x}}",
+   "symbol": "{{nope}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "cancelAllOrders",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "{{x}}",
+     "symbol": "{{nope}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "cancelallorder",
+   "reply": {
+    "status": "success",
+    "canceled_orders": [
+     "250408000123456"
+    ],
+    "failed_cancellations": [],
+    "message": "Canceled 1 orders. Failed to cancel 0 orders."
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "cancel_all_orders",
+    "endpoint": "cancelallorder",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "canceled_orders": [
+    "250408000123456"
+   ],
+   "failed_cancellations": [],
+   "message": "Canceled 1 orders. Failed to cancel 0 orders."
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "{{x}}": {
+    "status": "success",
+    "canceled_orders": [
+     "250408000123456"
+    ],
+    "failed_cancellations": [],
+    "message": "Canceled 1 orders. Failed to cancel 0 orders."
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Cancelling all orders"
+   ],
+   [
+    "info",
+    "Cancel all result: {'status': 'success', 'canceled_orders': ['250408000123456'], 'failed_cancellations': [], 'message': 'Canceled 1 orders. Failed to cancel 0 orders.'}"
+   ],
+   [
+    "info",
+    "Stored result in variable: {{x}}"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

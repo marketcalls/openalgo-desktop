@@ -1,0 +1,147 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "getQuote",
+ "scenario": "happy",
+ "note": "",
+ "parity": [
+  "N-getQuote-01",
+  "N-getQuote-02",
+  "N-getQuote-03",
+  "CL-12"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "getQuote",
+  "data": {
+   "exchange": "NSE",
+   "outputVariable": "q",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "getQuote",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "outputVariable": "q",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "quotes",
+   "reply": {
+    "status": "success",
+    "data": {
+     "ask": 812.6,
+     "bid": 812.4,
+     "high": 818.0,
+     "low": 805.25,
+     "ltp": 812.5,
+     "oi": 0,
+     "open": 806.0,
+     "prev_close": 800.0,
+     "volume": 1250000
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_quotes",
+    "endpoint": "quotes",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": {
+    "ask": 812.6,
+    "bid": 812.4,
+    "high": 818.0,
+    "low": 805.25,
+    "ltp": 812.5,
+    "oi": 0,
+    "open": 806.0,
+    "prev_close": 800.0,
+    "volume": 1250000
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "q": {
+    "status": "success",
+    "data": {
+     "ask": 812.6,
+     "bid": 812.4,
+     "high": 818.0,
+     "low": 805.25,
+     "ltp": 812.5,
+     "oi": 0,
+     "open": 806.0,
+     "prev_close": 800.0,
+     "volume": 1250000
+    }
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting quote for: SBIN"
+   ],
+   [
+    "info",
+    "Quote result: {'status': 'success', 'data': {'ask': 812.6, 'bid': 812.4, 'high': 818.0, 'low': 805.25, 'ltp': 812.5, 'oi': 0, 'open': 806.0, 'prev_close': 800.0, 'volume': 1250000}}"
+   ],
+   [
+    "info",
+    "Stored result in variable: q"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

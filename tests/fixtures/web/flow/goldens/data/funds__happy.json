@@ -1,0 +1,127 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "funds",
+ "scenario": "happy",
+ "note": "",
+ "parity": [
+  "N-funds-01",
+  "CL-14",
+  "N-dataCommon-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "funds",
+  "data": {
+   "outputVariable": "book"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "funds",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "book"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "funds",
+   "reply": {
+    "status": "success",
+    "data": {
+     "availablecash": 250000.5,
+     "collateral": 0.0,
+     "m2mrealized": 0.0,
+     "m2munrealized": 0.0,
+     "utiliseddebits": 12000.0
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "funds",
+    "endpoint": "funds",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": {
+    "availablecash": 250000.5,
+    "collateral": 0.0,
+    "m2mrealized": 0.0,
+    "m2munrealized": 0.0,
+    "utiliseddebits": 12000.0
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "book": {
+    "status": "success",
+    "data": {
+     "availablecash": 250000.5,
+     "collateral": 0.0,
+     "m2mrealized": 0.0,
+     "m2munrealized": 0.0,
+     "utiliseddebits": 12000.0
+    }
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Fetching funds"
+   ],
+   [
+    "info",
+    "Funds received"
+   ],
+   [
+    "info",
+    "Stored result in variable: book"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

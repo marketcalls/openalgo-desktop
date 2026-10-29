@@ -1,0 +1,101 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "unsubscribe",
+ "scenario": "stream_without_symbol",
+ "note": "",
+ "parity": [
+  "N-unsubscribe-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "unsubscribe",
+  "data": {
+   "streamType": "ltp"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "unsubscribe",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "streamType": "ltp"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker"
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "type": "unsubscribe",
+   "message": "Unsubscribe is set to 'ltp' with no symbol. Name a symbol, or set Stream Type to 'all' if you really mean every subscription on this instance, including the Sandbox engine's."
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Unsubscribing from ltp stream: all (NSE)"
+   ],
+   [
+    "error",
+    "Unsubscribe aborted: Unsubscribe is set to 'ltp' with no symbol. Name a symbol, or set Stream Type to 'all' if you really mean every subscription on this instance, including the Sandbox engine's."
+   ],
+   [
+    "error",
+    "Stopping this branch: unsubscribe node failed (Unsubscribe is set to 'ltp' with no symbol. Name a symbol, or set Stream Type to 'all' if you really mean every subscription on this instance, including the Sandbox engine's.)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "unsubscribe",
+     "message": "Unsubscribe is set to 'ltp' with no symbol. Name a symbol, or set Stream Type to 'all' if you really mean every subscription on this instance, including the Sandbox engine's."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

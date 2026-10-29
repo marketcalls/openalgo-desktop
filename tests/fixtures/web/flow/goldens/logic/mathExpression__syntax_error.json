@@ -1,0 +1,165 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "mathExpression",
+ "scenario": "syntax_error",
+ "note": "",
+ "parity": [
+  "N-mathExpression-10"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "mathExpression",
+  "data": {
+   "expression": "2 +"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "ltp": 812.5,
+  "lot": 10,
+  "brokerage": "20",
+  "cfg": {
+   "a": 1
+  },
+  "levels": [
+   1,
+   2
+  ]
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "mathExpression",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "expression": "2 +"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Invalid expression syntax: invalid syntax (<unknown>, line 1)"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "ltp": 812.5,
+   "lot": 10,
+   "brokerage": "20",
+   "cfg": {
+    "a": 1
+   },
+   "levels": [
+    1,
+    2
+   ]
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Evaluating: 2 +"
+   ],
+   [
+    "info",
+    "Interpolated: 2 +"
+   ],
+   [
+    "error",
+    "Math expression failed: Invalid expression syntax: invalid syntax (<unknown>, line 1)"
+   ],
+   [
+    "error",
+    "Stopping this branch: mathExpression node failed (Invalid expression syntax: invalid syntax (<unknown>, line 1))"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "mathExpression",
+     "message": "Invalid expression syntax: invalid syntax (<unknown>, line 1)"
+    }
+   ],
+   "abort": null
+  }
+ },
+ "desktop_expected": {
+  "parity": "N-mathExpression-10",
+  "why": "decisions.md 5: keep only the `Invalid expression syntax: ` prefix of Python's SyntaxError text.",
+  "outputs": {
+   "status": "error",
+   "message": {
+    "$prefix": "Invalid expression syntax: "
+   }
+  },
+  "logs": [
+   [
+    "info",
+    "Evaluating: 2 +"
+   ],
+   [
+    "info",
+    "Interpolated: 2 +"
+   ],
+   [
+    "error",
+    {
+     "$prefix": "Math expression failed: Invalid expression syntax: "
+    }
+   ],
+   [
+    "error",
+    {
+     "$prefix": "Stopping this branch: mathExpression node failed (Invalid expression syntax: "
+    }
+   ]
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "mathExpression",
+     "message": {
+      "$prefix": "Invalid expression syntax: "
+     }
+    }
+   ],
+   "abort": null
+  }
+ }
+}

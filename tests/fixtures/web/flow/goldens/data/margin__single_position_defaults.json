@@ -1,0 +1,121 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "margin",
+ "scenario": "single_position_defaults",
+ "note": "",
+ "parity": [
+  "N-margin-01",
+  "C-08"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "margin",
+  "data": {
+   "exchange": "NFO",
+   "symbol": "NIFTY25NOV2624000CE"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "margin",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NFO",
+     "symbol": "NIFTY25NOV2624000CE"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "margin",
+   "reply": {
+    "status": "success",
+    "data": {
+     "total_margin_required": 81250.0,
+     "span_margin": 0.0,
+     "exposure_margin": 0.0
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "margin",
+    "endpoint": "margin",
+    "payload": {
+     "positions": [
+      {
+       "exchange": "NFO",
+       "symbol": "NIFTY25NOV2624000CE",
+       "action": "BUY",
+       "quantity": "1",
+       "product": "NRML",
+       "pricetype": "MARKET",
+       "price": "0"
+      }
+     ]
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": {
+    "total_margin_required": 81250.0,
+    "span_margin": 0.0,
+    "exposure_margin": 0.0
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Calculating margin for: NIFTY25NOV2624000CE (NFO)"
+   ],
+   [
+    "info",
+    "Margin result: {'status': 'success', 'data': {'total_margin_required': 81250.0, 'span_margin': 0.0, 'exposure_margin': 0.0}}"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

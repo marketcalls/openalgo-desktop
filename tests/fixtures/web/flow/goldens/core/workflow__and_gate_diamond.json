@@ -1,0 +1,175 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "and_gate_diamond",
+ "note": "",
+ "parity": [
+  "N-gate-02",
+  "N-gate-08",
+  "E-25"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Gate",
+  "nodes": [
+   {
+    "id": "start",
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:15"
+    }
+   },
+   {
+    "id": "a",
+    "type": "varCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "leftValue": "1",
+     "operator": "==",
+     "rightValue": "1"
+    }
+   },
+   {
+    "id": "b",
+    "type": "varCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "leftValue": "2",
+     "operator": ">",
+     "rightValue": "5"
+    }
+   },
+   {
+    "id": "g",
+    "type": "andGate",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "inputCount": 2
+    }
+   },
+   {
+    "id": "t",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "both"
+    }
+   },
+   {
+    "id": "f",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "not both"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-start-a-x",
+    "source": "start",
+    "target": "a"
+   },
+   {
+    "id": "e-start-b-x",
+    "source": "start",
+    "target": "b"
+   },
+   {
+    "id": "e-a-g-true",
+    "source": "a",
+    "target": "g",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-b-g-false",
+    "source": "b",
+    "target": "g",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-g-t-true",
+    "source": "g",
+    "target": "t",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-g-f-false",
+    "source": "g",
+    "target": "f",
+    "sourceHandle": "false"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "result": {
+   "status": "success",
+   "message": "Workflow executed successfully"
+  },
+  "record": {
+   "status": "completed",
+   "error": null
+  },
+  "vars_out": {},
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Gate"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "info",
+    "Var check: 1.0 == 1.0 = True"
+   ],
+   [
+    "info",
+    "andGate: waiting for 1 more input(s) before evaluating"
+   ],
+   [
+    "info",
+    "Var check: 2.0 > 5.0 = False"
+   ],
+   [
+    "info",
+    "AND Gate: [True, False] -> False"
+   ],
+   [
+    "info",
+    "[LOG] not both"
+   ]
+  ]
+ }
+}

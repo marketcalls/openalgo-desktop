@@ -1,0 +1,245 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "margin",
+ "scenario": "doc_example_line1686",
+ "note": "Node example from docs/prompt/flow-import-format.md:1686, run with scripted replies.",
+ "parity": [
+  "N-margin-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "margin",
+  "data": {
+   "action": "BUY",
+   "exchange": "NFO",
+   "outputVariable": "marginCalc",
+   "price": 0,
+   "priceType": "MARKET",
+   "product": "NRML",
+   "quantity": 75,
+   "symbol": "NIFTY30DEC25FUT"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "symbol": "RELIANCE",
+   "action": "BUY",
+   "qty": 5,
+   "quantity": 5,
+   "exchange": "NSE"
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "margin",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "BUY",
+     "exchange": "NFO",
+     "outputVariable": "marginCalc",
+     "price": 0,
+     "priceType": "MARKET",
+     "product": "NRML",
+     "quantity": 75,
+     "symbol": "NIFTY30DEC25FUT"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "master_contract": [
+   {
+    "symbol": "NIFTY25NOV2624000CE",
+    "name": "NIFTY",
+    "exchange": "NFO",
+    "lotsize": 65,
+    "expiry": "25-NOV-26",
+    "strike": 24000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "NIFTYNXT5025NOV2668000CE",
+    "name": "NIFTYNXT50",
+    "exchange": "NFO",
+    "lotsize": 25,
+    "expiry": "25-NOV-26",
+    "strike": 68000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "BANKNIFTY25NOV2652000CE",
+    "name": "BANKNIFTY",
+    "exchange": "NFO",
+    "lotsize": 30,
+    "expiry": "25-NOV-26",
+    "strike": 52000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "SENSEX27NOV2680000CE",
+    "name": "SENSEX",
+    "exchange": "BFO",
+    "lotsize": 20,
+    "expiry": "27-NOV-26",
+    "strike": 80000.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "CRUDEOIL17NOV265800CE",
+    "name": "CRUDEOIL",
+    "exchange": "MCX",
+    "lotsize": 100,
+    "expiry": "17-NOV-26",
+    "strike": 5800.0,
+    "instrumenttype": "CE"
+   },
+   {
+    "symbol": "GOLD25NOV26118000CE",
+    "name": "GOLD",
+    "exchange": "MCX",
+    "lotsize": 1,
+    "expiry": "25-NOV-26",
+    "strike": 118000.0,
+    "instrumenttype": "CE"
+   }
+  ],
+  "http": {
+   "resolve": {
+    "audit.example.com": [
+     "93.184.216.34"
+    ],
+    "hooks.example.com": [
+     "93.184.216.34"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "body": "{\"received\": true}",
+    "content_type": "application/json"
+   },
+   "record_headers": [
+    "authorization",
+    "x-source"
+   ]
+  },
+  "strategy_book": [],
+  "calendar_holidays": {
+   "2026": []
+  },
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "connect_error": "down"
+  }
+ },
+ "script": [
+  {
+   "endpoint": "margin",
+   "reply": {
+    "status": "success",
+    "data": {
+     "total_margin_required": 81250.0,
+     "span_margin": 0.0,
+     "exposure_margin": 0.0
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "margin",
+    "endpoint": "margin",
+    "payload": {
+     "positions": [
+      {
+       "exchange": "NFO",
+       "symbol": "NIFTY30DEC25FUT",
+       "action": "BUY",
+       "quantity": "75",
+       "product": "NRML",
+       "pricetype": "MARKET",
+       "price": "0.0"
+      }
+     ]
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": {
+    "total_margin_required": 81250.0,
+    "span_margin": 0.0,
+    "exposure_margin": 0.0
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "symbol": "RELIANCE",
+    "action": "BUY",
+    "qty": 5,
+    "quantity": 5,
+    "exchange": "NSE"
+   },
+   "marginCalc": {
+    "status": "success",
+    "data": {
+     "total_margin_required": 81250.0,
+     "span_margin": 0.0,
+     "exposure_margin": 0.0
+    }
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Calculating margin for: NIFTY30DEC25FUT (NFO)"
+   ],
+   [
+    "info",
+    "Margin result: {'status': 'success', 'data': {'total_margin_required': 81250.0, 'span_margin': 0.0, 'exposure_margin': 0.0}}"
+   ],
+   [
+    "info",
+    "Stored result in variable: marginCalc"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

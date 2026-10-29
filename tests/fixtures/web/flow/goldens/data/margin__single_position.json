@@ -1,0 +1,147 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "margin",
+ "scenario": "single_position",
+ "note": "",
+ "parity": [
+  "N-margin-01",
+  "N-margin-02",
+  "CL-20"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "margin",
+  "data": {
+   "action": "BUY",
+   "exchange": "NSE",
+   "outputVariable": "mg",
+   "price": 812.5,
+   "priceType": "LIMIT",
+   "product": "MIS",
+   "quantity": 10,
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "margin",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "BUY",
+     "exchange": "NSE",
+     "outputVariable": "mg",
+     "price": 812.5,
+     "priceType": "LIMIT",
+     "product": "MIS",
+     "quantity": 10,
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "margin",
+   "reply": {
+    "status": "success",
+    "data": {
+     "total_margin_required": 81250.0,
+     "span_margin": 0.0,
+     "exposure_margin": 0.0
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "margin",
+    "endpoint": "margin",
+    "payload": {
+     "positions": [
+      {
+       "exchange": "NSE",
+       "symbol": "SBIN",
+       "action": "BUY",
+       "quantity": "10",
+       "product": "MIS",
+       "pricetype": "LIMIT",
+       "price": "812.5"
+      }
+     ]
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": {
+    "total_margin_required": 81250.0,
+    "span_margin": 0.0,
+    "exposure_margin": 0.0
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "mg": {
+    "status": "success",
+    "data": {
+     "total_margin_required": 81250.0,
+     "span_margin": 0.0,
+     "exposure_margin": 0.0
+    }
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Calculating margin for: SBIN (NSE)"
+   ],
+   [
+    "info",
+    "Margin result: {'status': 'success', 'data': {'total_margin_required': 81250.0, 'span_margin': 0.0, 'exposure_margin': 0.0}}"
+   ],
+   [
+    "info",
+    "Stored result in variable: mg"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

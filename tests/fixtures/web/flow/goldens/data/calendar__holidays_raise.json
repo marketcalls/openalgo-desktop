@@ -1,0 +1,159 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "calendar",
+ "scenario": "holidays_raise",
+ "note": "",
+ "parity": [
+  "N-calendar-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "calendar",
+  "data": {
+   "date": "2026-11-09",
+   "outputVariable": "cal"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "calendar",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "date": "2026-11-09",
+     "outputVariable": "cal"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "calendar_holidays": {
+   "2026": "raise"
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "date": "2026-11-09",
+   "is_trading_day": true,
+   "is_trading_holiday": false,
+   "is_weekend": false,
+   "is_special_session": false,
+   "weekday": "Monday",
+   "weekday_num": 1,
+   "day": 9,
+   "month": 11,
+   "quarter": 4,
+   "year": 2026,
+   "week_of_year": 46,
+   "day_of_year": 313,
+   "is_new_day": true,
+   "is_new_week": true,
+   "is_new_month": false,
+   "is_new_quarter": false,
+   "is_new_year": false,
+   "is_last_day_of_week": false,
+   "is_last_day_of_month": false,
+   "is_last_day_of_quarter": false,
+   "is_last_day_of_year": false,
+   "prev_trading_day": "2026-11-06",
+   "next_trading_day": "2026-11-10",
+   "first_trading_day_of_week": "2026-11-09",
+   "first_trading_day_of_month": "2026-11-02",
+   "first_trading_day_of_quarter": "2026-10-01",
+   "last_trading_day_of_week": "2026-11-13",
+   "last_trading_day_of_month": "2026-11-30",
+   "last_trading_day_of_quarter": "2026-12-31"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "cal": {
+    "status": "success",
+    "date": "2026-11-09",
+    "is_trading_day": true,
+    "is_trading_holiday": false,
+    "is_weekend": false,
+    "is_special_session": false,
+    "weekday": "Monday",
+    "weekday_num": 1,
+    "day": 9,
+    "month": 11,
+    "quarter": 4,
+    "year": 2026,
+    "week_of_year": 46,
+    "day_of_year": 313,
+    "is_new_day": true,
+    "is_new_week": true,
+    "is_new_month": false,
+    "is_new_quarter": false,
+    "is_new_year": false,
+    "is_last_day_of_week": false,
+    "is_last_day_of_month": false,
+    "is_last_day_of_quarter": false,
+    "is_last_day_of_year": false,
+    "prev_trading_day": "2026-11-06",
+    "next_trading_day": "2026-11-10",
+    "first_trading_day_of_week": "2026-11-09",
+    "first_trading_day_of_month": "2026-11-02",
+    "first_trading_day_of_quarter": "2026-10-01",
+    "last_trading_day_of_week": "2026-11-13",
+    "last_trading_day_of_month": "2026-11-30",
+    "last_trading_day_of_quarter": "2026-12-31"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Calendar 2026-11-09 (Monday): trading=True newWeek=True newMonth=False newQuarter=False"
+   ],
+   [
+    "info",
+    "Stored result in variable: cal"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null,
+  "server_log": [
+   [
+    "error",
+    "Could not load holidays for 2026; assuming weekends only"
+   ]
+  ]
+ }
+}

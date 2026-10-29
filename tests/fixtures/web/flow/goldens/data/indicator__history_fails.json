@@ -1,0 +1,131 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "indicator",
+ "scenario": "history_fails",
+ "note": "",
+ "parity": [
+  "N-dataCommon-13"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "indicator",
+  "data": {
+   "exchange": "NSE",
+   "indicatorName": "sma",
+   "interval": "D",
+   "lookbackBars": 50,
+   "outputVariable": "ind",
+   "params": "{\"period\": 10}",
+   "symbol": "SBIN",
+   "tailBars": 5
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "indicator",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "indicatorName": "sma",
+     "interval": "D",
+     "lookbackBars": 50,
+     "outputVariable": "ind",
+     "params": "{\"period\": 10}",
+     "symbol": "SBIN",
+     "tailBars": 5
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "history",
+   "reply": {
+    "status": "error",
+    "error": "Too many requests",
+    "code": 429
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_history",
+    "endpoint": "history",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-08-05",
+     "end_date": "2026-10-29",
+     "source": "api"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "message": "History fetch failed for SBIN (D): Too many requests. If your broker does not support the 'D' interval, use the Intervals node to list supported ones, or set Source to Historify DB to resample it locally."
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Computing sma for SBIN (D, 50 bars)"
+   ],
+   [
+    "error",
+    "History fetch failed for SBIN (D): Too many requests. If your broker does not support the 'D' interval, use the Intervals node to list supported ones, or set Source to Historify DB to resample it locally."
+   ],
+   [
+    "error",
+    "Stopping this branch: indicator node failed (History fetch failed for SBIN (D): Too many requests. If your broker does not support the 'D' interval, use the Intervals node to list supported ones, or set Source to Historify DB to resample it locally.)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "indicator",
+     "message": "History fetch failed for SBIN (D): Too many requests. If your broker does not support the 'D' interval, use the Intervals node to list supported ones, or set Source to Historify DB to resample it locally."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

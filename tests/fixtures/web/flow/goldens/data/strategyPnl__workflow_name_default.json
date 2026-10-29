@@ -1,0 +1,257 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "strategyPnl",
+ "scenario": "workflow_name_default",
+ "note": "",
+ "parity": [
+  "N-strategyPnl-01",
+  "N-strategyPnl-02",
+  "N-strategyPnl-03",
+  "N-strategyPnl-04",
+  "N-strategyPnl-05"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "strategyPnl",
+  "data": {
+   "outputVariable": "pnl"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "strategyPnl",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "pnl"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "strategy_book": [
+   {
+    "strategy": "Golden Flow",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "product": "MIS",
+    "quantity": 10.0,
+    "average_price": 800.0,
+    "realized_pnl": 50.0,
+    "today_realized_pnl": 50.0
+   },
+   {
+    "strategy": "Golden Flow",
+    "symbol": "INFY",
+    "exchange": "NSE",
+    "product": "MIS",
+    "quantity": 0.0,
+    "average_price": 0.0,
+    "realized_pnl": -20.5,
+    "today_realized_pnl": 0.0
+   },
+   {
+    "strategy": "Golden Flow",
+    "symbol": "TCS",
+    "exchange": "NSE",
+    "product": "MIS",
+    "quantity": -5.0,
+    "average_price": 3500.0,
+    "realized_pnl": 0.0,
+    "today_realized_pnl": 0.0
+   },
+   {
+    "strategy": "other",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "product": "MIS",
+    "quantity": 1.0,
+    "average_price": 1.0,
+    "realized_pnl": 1.0,
+    "today_realized_pnl": 1.0
+   }
+  ]
+ },
+ "script": [
+  {
+   "endpoint": "positionbook",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "product": "MIS",
+      "quantity": 10,
+      "average_price": 800.0,
+      "ltp": 812.5,
+      "pnl": 125.0
+     },
+     {
+      "symbol": "NIFTY25NOV2624000CE",
+      "exchange": "NFO",
+      "product": "NRML",
+      "quantity": -65,
+      "average_price": 110.0,
+      "ltp": 98.5,
+      "pnl": 747.5
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "positionbook",
+    "endpoint": "positionbook",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "strategy": "Golden Flow",
+   "realized": 29.5,
+   "today_realized": 50.0,
+   "unrealized": 125.0,
+   "total": 154.5,
+   "open_quantity": 5.0,
+   "unpriced_legs": 1,
+   "legs": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "product": "MIS",
+     "quantity": 10.0,
+     "average_price": 800.0,
+     "ltp": 812.5,
+     "realized": 50.0,
+     "today_realized": 50.0,
+     "unrealized": 125.0
+    },
+    {
+     "symbol": "TCS",
+     "exchange": "NSE",
+     "product": "MIS",
+     "quantity": -5.0,
+     "average_price": 3500.0,
+     "ltp": null,
+     "realized": 0.0,
+     "today_realized": 0.0,
+     "unrealized": 0.0
+    },
+    {
+     "symbol": "INFY",
+     "exchange": "NSE",
+     "product": "MIS",
+     "quantity": 0.0,
+     "average_price": 0.0,
+     "ltp": null,
+     "realized": -20.5,
+     "today_realized": 0.0,
+     "unrealized": 0.0
+    }
+   ],
+   "today_total": 175.0
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "pnl": {
+    "status": "success",
+    "strategy": "Golden Flow",
+    "realized": 29.5,
+    "today_realized": 50.0,
+    "unrealized": 125.0,
+    "total": 154.5,
+    "open_quantity": 5.0,
+    "unpriced_legs": 1,
+    "legs": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "product": "MIS",
+      "quantity": 10.0,
+      "average_price": 800.0,
+      "ltp": 812.5,
+      "realized": 50.0,
+      "today_realized": 50.0,
+      "unrealized": 125.0
+     },
+     {
+      "symbol": "TCS",
+      "exchange": "NSE",
+      "product": "MIS",
+      "quantity": -5.0,
+      "average_price": 3500.0,
+      "ltp": null,
+      "realized": 0.0,
+      "today_realized": 0.0,
+      "unrealized": 0.0
+     },
+     {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "product": "MIS",
+      "quantity": 0.0,
+      "average_price": 0.0,
+      "ltp": null,
+      "realized": -20.5,
+      "today_realized": 0.0,
+      "unrealized": 0.0
+     }
+    ],
+    "today_total": 175.0
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Strategy P&L [Golden Flow]: realized=29.5 unrealized=125.0 total=154.5 openQty=5.0"
+   ],
+   [
+    "warning",
+    "1 open leg(s) had no live price and were excluded from unrealized P&L"
+   ],
+   [
+    "info",
+    "Stored result in variable: pnl"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

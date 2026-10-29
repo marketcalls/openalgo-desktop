@@ -1,0 +1,145 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "timeWindow",
+ "scenario": "invert_text_false",
+ "note": "",
+ "parity": [
+  "N-timeWindow-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "timeWindow",
+  "data": {
+   "endTime": "15:30",
+   "invertCondition": "false",
+   "startTime": "09:15"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "timeWindow",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "endTime": "15:30",
+     "invertCondition": "false",
+     "startTime": "09:15"
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "condition": false
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {
+   "n1": false
+  },
+  "logs": [
+   [
+    "info",
+    "Time window: 09:15-15:30, in_window=True, invert=True, result=False"
+   ]
+  ],
+  "next": [
+   "false",
+   "pass"
+  ],
+  "error": null
+ },
+ "desktop_expected": {
+  "parity": "N-timeWindow-04",
+  "why": "WEB-DEFECT: bool('false') is True, so the text inverts the window; the desktop reads only true/'true'/'1'.",
+  "fix": [
+   "time_window_invert_text"
+  ],
+  "outputs": {
+   "status": "success",
+   "condition": true
+  },
+  "conditions_out": {
+   "n1": true
+  },
+  "logs": [
+   [
+    "info",
+    "Time window: 09:15-15:30, in_window=True, invert=False, result=True"
+   ]
+  ],
+  "next": [
+   "pass",
+   "true"
+  ]
+ }
+}
