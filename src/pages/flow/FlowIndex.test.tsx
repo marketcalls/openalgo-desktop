@@ -32,6 +32,9 @@ vi.mock('@/api/flow', async (importOriginal) => {
   return { ...actual, ...api }
 })
 
+const tunnelGet = vi.hoisted(() => vi.fn())
+vi.mock('@/api/tunnel', () => ({ tunnelApi: { get: tunnelGet } }))
+
 const { default: FlowIndex } = await import('./FlowIndex')
 
 const ORB: WorkflowListItem = {
@@ -97,6 +100,8 @@ async function openActions(name: string) {
 beforeEach(() => {
   for (const fn of Object.values(api)) fn.mockReset()
   api.listWorkflows.mockResolvedValue([ORB, EXPIRY_DAY])
+  tunnelGet.mockReset()
+  tunnelGet.mockResolvedValue({ enabled: false, tunnel: { state: 'stopped', url: null } })
 })
 
 describe('the workflow list', () => {
@@ -231,6 +236,25 @@ describe('webhook settings (desktop)', () => {
     ).toBeInTheDocument()
     expect(within(dialog).getByRole('alert')).toHaveTextContent('built-in ngrok tunnel')
     expect(api.getWebhookInfo.mock.calls[0][0]).toBe(7)
+  })
+
+  it('shows the tunnel address while the built-in tunnel is online, without the note', async () => {
+    api.getWebhookInfo.mockResolvedValue(webhook('http://127.0.0.1:5000/flow/webhook/wf-token'))
+    tunnelGet.mockResolvedValue({
+      enabled: true,
+      tunnel: { state: 'online', url: 'https://desk.ngrok-free.app', message: 'Online' },
+    })
+    renderIndex()
+    const user = await openActions('Opening range breakout')
+    await user.click(await screen.findByRole('menuitem', { name: 'Webhook' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(
+      await within(dialog).findByDisplayValue('https://desk.ngrok-free.app/flow/webhook/wf-token')
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByDisplayValue('https://desk.ngrok-free.app/flow/webhook/wf-token/{symbol}')
+    ).toBeInTheDocument()
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('shows a public URL without the note', async () => {

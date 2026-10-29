@@ -46,6 +46,10 @@ vi.mock('@/api/flow', async (importOriginal) => {
   }
 })
 
+vi.mock('@/api/tunnel', () => ({
+  tunnelApi: { get: vi.fn(async () => ({ tunnel: { state: 'stopped', url: null } })) },
+}))
+
 const { ConfigPanel } = await import('./ConfigPanel')
 
 const definitions = Object.values(NODE_DEFINITIONS).flat()

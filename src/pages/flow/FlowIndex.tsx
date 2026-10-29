@@ -31,7 +31,6 @@ import {
   disableWebhook,
   enableWebhook,
   flowQueryKeys,
-  getWebhookInfo,
   importWorkflow,
   listWorkflows,
   regenerateWebhook,
@@ -39,7 +38,8 @@ import {
   type WorkflowExportData,
   type WorkflowListItem,
 } from '@/api/flow'
-// Desktop: the note that a webhook URL on this computer's address is unreachable.
+// Desktop: webhook URLs on the tunnel's address, and the note when they are local.
+import { getWebhookInfoForTrader } from '@/api/flowDesktop'
 import { FlowWebhookReachability } from '@/components/desktop/FlowWebhookReachability'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -122,7 +122,8 @@ function WorkflowCard({ workflow }: { workflow: WorkflowListItem }) {
   // Webhook queries and mutations
   const webhookQuery = useQuery({
     queryKey: flowQueryKeys.webhook(workflow.id),
-    queryFn: () => getWebhookInfo(workflow.id),
+    // Desktop: on the tunnel's public address while the built-in tunnel is online.
+    queryFn: () => getWebhookInfoForTrader(workflow.id),
     enabled: isWebhookOpen,
   })
 

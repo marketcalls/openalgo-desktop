@@ -5,8 +5,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Copy, Eye, EyeOff, Info, Loader2, Settings2, Trash2, X } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useParams } from 'react-router'
-import { flowQueryKeys, getIndexSymbolsLotSizes, getWebhookInfo } from '@/api/flow'
-// Desktop: the note that a webhook URL on this computer's address is unreachable.
+import { flowQueryKeys, getIndexSymbolsLotSizes } from '@/api/flow'
+// Desktop: webhook URLs on the tunnel's address, and the note when they are local.
+import { getWebhookInfoForTrader } from '@/api/flowDesktop'
 import { FlowWebhookReachability } from '@/components/desktop/FlowWebhookReachability'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -244,7 +245,8 @@ export function ConfigPanel() {
 
   const webhookQuery = useQuery({
     queryKey: flowQueryKeys.webhook(Number(workflowId)),
-    queryFn: () => getWebhookInfo(Number(workflowId)),
+    // Desktop: on the tunnel's public address while the built-in tunnel is online.
+    queryFn: () => getWebhookInfoForTrader(Number(workflowId)),
     enabled: isWebhookTrigger && !!workflowId,
   })
 
