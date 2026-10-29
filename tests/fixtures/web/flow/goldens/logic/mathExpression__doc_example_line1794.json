@@ -198,5 +198,44 @@
    ],
    "abort": null
   }
+ },
+ "desktop_expected": {
+  "parity": "N-mathExpression-11",
+  "why": "WEB-DEFECT: an unresolved {{var}} reads `Unsupported expression type: Set`; the desktop names the unresolved variable(s).",
+  "fix": [
+   "math_unresolved"
+  ],
+  "outputs": {
+   "status": "error",
+   "message": "unresolved variable {{quote.data.ltp}}"
+  },
+  "logs": [
+   [
+    "info",
+    "Evaluating: {{quote.data.ltp}} * 0.99"
+   ],
+   [
+    "info",
+    "Interpolated: {{quote.data.ltp}} * 0.99"
+   ],
+   [
+    "error",
+    "Math expression failed: unresolved variable {{quote.data.ltp}}"
+   ],
+   [
+    "error",
+    "Stopping this branch: mathExpression node failed (unresolved variable {{quote.data.ltp}})"
+   ]
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "mathExpression",
+     "message": "unresolved variable {{quote.data.ltp}}"
+    }
+   ],
+   "abort": null
+  }
  }
 }

@@ -202,6 +202,17 @@ ENDPOINTS = {
 }
 
 
+def _shaped(reply: dict) -> dict:
+    """What the web client hands the node for this reply (its
+    _handle_response): a failure always carries `error` (`Unknown error` when
+    the service gave no message) and `code`. The golden's script holds this
+    shape, which is what the desktop's FakeFlowClient answers with."""
+    if "$raise" in reply or reply.get("status") == "success":
+        return reply
+    message = reply.get("error", reply.get("message"))
+    return {"status": "error", "error": "Unknown error" if message is None else message, "code": reply.get("code", 400)}
+
+
 def _next_reply(endpoint: str) -> dict:
     """The desktop FakeFlowClient's rule: replies queued per endpoint, the
     last one repeats; an endpoint with no script answers UNSCRIPTED."""
@@ -212,6 +223,7 @@ def _next_reply(endpoint: str) -> dict:
         reply = copy.deepcopy(STATE["defaults"][endpoint])
     else:
         reply = copy.deepcopy(UNSCRIPTED)
+    reply = _shaped(reply)
     STATE["answered"].append({"endpoint": endpoint, "reply": copy.deepcopy(reply)})
     return reply
 
