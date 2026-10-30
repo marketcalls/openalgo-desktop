@@ -244,10 +244,21 @@ async fn ignored_fields_are_logged_as_a_python_list() {
 /// when that fails the workflow stands down and the answer says so.
 #[tokio::test]
 async fn replacing_an_active_trigger_registers_it_again_or_stands_down() {
+    let logs = crate::services::tunnel::fake::capture_logs();
     let t = app();
     let hooks = Arc::new(Hooks::default());
     t.ctx.flow.set_triggers(hooks.clone());
     let id = active_workflow(&t.ctx).await;
+    {
+        let conn = t.ctx.sqlite.conn().unwrap();
+        crate::flow::triggers::store::set_schedule_job_id(
+            &conn,
+            id,
+            Some("flow_workflow_kept"),
+            t.ctx.now(),
+        )
+        .unwrap();
+    }
     let graph = |time: &str| Body::Json(json!({"nodes": scheduled(time), "edges": []}));
     let r = transfer::replace(&t.ctx, id, graph("09:20")).await;
     assert_eq!(r.status, 200, "{}", r.body);
@@ -263,6 +274,16 @@ async fn replacing_an_active_trigger_registers_it_again_or_stands_down() {
             format!("register {} start 09:20", id)
         ]
     );
+    // IE-14: replace leaves the scheduler's job id alone.
+    assert_eq!(
+        load(&t.ctx, id)
+            .await
+            .unwrap()
+            .unwrap()
+            .schedule_job_id
+            .as_deref(),
+        Some("flow_workflow_kept")
+    );
     t.ctx.flow.set_triggers(Arc::new(Hooks {
         refuse_register: true,
         ..Default::default()
@@ -275,4 +296,44 @@ async fn replacing_an_active_trigger_registers_it_again_or_stands_down() {
         "Trigger changed and could not be re-registered, so the workflow was deactivated. Activate it again when the trigger is valid."
     );
     assert!(!load(&t.ctx, id).await.unwrap().unwrap().is_active);
+    // The web's lines, its booleans written as Python writes them.
+    let text = logs.text();
+    for line in [
+        format!(
+            "Replaced workflow {} from JSON (nodes=1 edges=0 reactivate=False)",
+            id
+        ),
+        format!(
+            "Replaced workflow {} from JSON (nodes=1 edges=0 reactivate=True)",
+            id
+        ),
+        format!(
+            "Could not re-register the trigger for workflow {}; deactivating it so it cannot run a stale configuration",
+            id
+        ),
+    ] {
+        assert!(text.contains(&line), "{}\n{}", line, text);
+    }
+}
+
+/// IE-13: a replace the validator refuses is logged with its first error,
+/// as the web's warning reads.
+#[tokio::test]
+async fn a_refused_replace_is_logged_with_its_first_error() {
+    let logs = crate::services::tunnel::fake::capture_logs();
+    let t = app();
+    let id = active_workflow(&t.ctx).await;
+    let bad = json!({"nodes": [{"id": "x", "type": "Nope", "position": {"x": 0, "y": 0}, "data": {}}],
+                     "edges": []});
+    let r = transfer::replace(&t.ctx, id, Body::Json(bad)).await;
+    assert_eq!(r.status, 400, "{}", r.body);
+    let first = &r.body["errors"][0];
+    let line = format!(
+        "Rejected replace of workflow {}: {} {} - {}",
+        id,
+        first["path"].as_str().unwrap(),
+        first["code"].as_str().unwrap(),
+        first["message"].as_str().unwrap()
+    );
+    assert!(logs.text().contains(&line), "{}\n{}", line, logs.text());
 }

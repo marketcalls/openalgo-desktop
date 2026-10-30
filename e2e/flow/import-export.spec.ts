@@ -117,10 +117,9 @@ test('3. the import route refuses a body that is not a workflow, as the web does
   // Nothing at all: the web's "No data provided" (R-14).
   const empty = await session.postRaw('/flow/api/workflows/import', '', 'application/json')
   expect(empty).toEqual({ status: 400, body: { error: 'No data provided' } })
-  // Not JSON: a 400 in the route's own refusal shape, never a 500.
+  // Not JSON: the web's "No data provided" too (decisions.md 24), never a 500.
   const text = await session.postRaw('/flow/api/workflows/import', 'BUY NIFTY', 'application/json')
-  expect(text.status).toBe(400)
-  expect(text.body).toMatchObject({ status: 'error', error: 'Invalid workflow format' })
+  expect(text).toEqual({ status: 400, body: { error: 'No data provided' } })
   // NaN, which Python's parser takes and the desktop refuses (decisions.md 15).
   const nan = await session.postRaw(
     '/flow/api/workflows/import',
@@ -128,6 +127,11 @@ test('3. the import route refuses a body that is not a workflow, as the web does
     'application/json'
   )
   expect(nan.status).toBe(400)
-  expect(nan.body).toMatchObject({ status: 'error', error: 'Invalid workflow format' })
+  expect(nan.body).toEqual({
+    status: 'error',
+    error: 'Invalid workflow format',
+    message:
+      'The workflow is not valid JSON (values such as NaN or Infinity are not allowed). Check it and try again.',
+  })
   expect((await session.workflows()).length).toBe(count)
 })

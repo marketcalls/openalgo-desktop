@@ -41,9 +41,9 @@ pub async fn follow_trigger_change(
         Ok(()) => false,
         Err(e) => {
             tracing::error!(
-                "Could not re-register the trigger for workflow {}; deactivating it so it cannot run a stale configuration: {}",
-                after.id,
-                e.message()
+                cause = %e.message(),
+                "Could not re-register the trigger for workflow {}; deactivating it so it cannot run a stale configuration",
+                after.id
             );
             rollback_activation(app, after.id).await;
             true

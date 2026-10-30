@@ -185,7 +185,7 @@ pub async fn replace(app: &Arc<AppState>, id: i64, body: Body) -> Reply {
         id,
         count(&after.nodes),
         count(&after.edges),
-        needs_reactivate
+        crate::flow::contract::pyfmt::str(&json!(needs_reactivate))
     );
     let message = if needs_reactivate {
         "Trigger changed and could not be re-registered, so the workflow was deactivated. Activate it again when the trigger is valid."

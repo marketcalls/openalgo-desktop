@@ -319,4 +319,37 @@ mod tests {
             logs.text()
         );
     }
+
+    /// X-199: the count pass trims only its own workflow: past the cap,
+    /// one workflow keeps its newest RETENTION_COUNT and another keeps all
+    /// of its runs.
+    #[test]
+    fn the_count_trim_keeps_another_workflows_runs() {
+        let (conn, _) = db();
+        let mine = workflow(&conn);
+        let theirs = workflow(&conn);
+        let insert = |w: i64, n: i64| {
+            for _ in 0..n {
+                conn.execute(
+                    "INSERT INTO flow_workflow_executions (workflow_id, status, started_at, logs)
+                     VALUES (?1, 'completed', ?2, '[]')",
+                    params![w, stamp(now())],
+                )
+                .unwrap();
+            }
+        };
+        insert(theirs, 4);
+        insert(mine, RETENTION_COUNT + 3);
+        insert(theirs, 2);
+        assert_eq!(prune(&conn, mine, now()).unwrap(), 3);
+        let count = |w: i64| -> i64 {
+            conn.query_row(
+                "SELECT COUNT(*) FROM flow_workflow_executions WHERE workflow_id = ?1",
+                params![w],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!((count(mine), count(theirs)), (RETENTION_COUNT, 6));
+    }
 }

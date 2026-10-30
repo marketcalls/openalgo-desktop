@@ -387,3 +387,31 @@ async fn signing_out_stops_a_run_in_flight() {
     assert_eq!(history(&t.ctx, id)[0].status, "failed");
     assert!(t.ctx.flow.try_claim(id).is_some());
 }
+
+/// D-19: a fresh start and an account reset each stop a run in flight; it
+/// is recorded failed and its workflow is free.
+#[tokio::test]
+async fn a_fresh_start_or_an_account_reset_stops_a_run_in_flight() {
+    use crate::services::auth_service::AuthService;
+    for reset in [false, true] {
+        let t = app();
+        AuthService::setup(&t.ctx, "trader", "trader@example.com", "Secret@123").unwrap();
+        let nodes = json!([
+            node("start", "start", json!({})),
+            node("d", "delay", json!({"delayValue": 60})),
+        ]);
+        let id = save(&t.ctx, "A", nodes, json!([edge("start", "d", None)]));
+        assert_eq!(execute(&t.ctx, id, key()).await["accepted"], true);
+        assert_eq!(t.ctx.flow.running(), 1);
+        if reset {
+            AuthService::reset_account_everywhere(&t.ctx).await.unwrap();
+        } else {
+            AuthService::start_fresh_everywhere(&t.ctx, "Fresh@12345", "Fresh@12345")
+                .await
+                .unwrap();
+        }
+        assert_eq!(t.ctx.flow.running(), 0, "reset={}", reset);
+        assert_eq!(history(&t.ctx, id)[0].status, "failed", "reset={}", reset);
+        assert!(t.ctx.flow.try_claim(id).is_some(), "reset={}", reset);
+    }
+}
