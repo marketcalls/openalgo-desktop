@@ -7,7 +7,8 @@
  "scenario": "no_symbol",
  "note": "",
  "parity": [
-  "N-priceAlert-03"
+  "N-priceAlert-03",
+  "N-priceAlert-02"
  ],
  "clock": "2026-10-29T10:15:00",
  "analyzer": false,
@@ -123,6 +124,34 @@
      "node": "n1",
      "type": "priceAlert",
      "message": "node failed"
+    }
+   ],
+   "abort": null
+  }
+ },
+ "desktop_expected": {
+  "parity": "N-priceAlert-02",
+  "why": "WEB-DEFECT: a priceAlert without a symbol fails with no reason, so the run reads `node failed`; the desktop names it (the triggers lane's sentence).",
+  "fix": [
+   "price_alert_no_symbol"
+  ],
+  "outputs": {
+   "status": "error",
+   "condition": false,
+   "message": "A priceAlert node needs symbol, so the alert was not evaluated."
+  },
+  "logs": [
+   [
+    "error",
+    "priceAlert could not be evaluated (A priceAlert node needs symbol, so the alert was not evaluated.)"
+   ]
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "priceAlert",
+     "message": "A priceAlert node needs symbol, so the alert was not evaluated."
     }
    ],
    "abort": null

@@ -258,7 +258,7 @@ pub async fn replay(g: &Golden) -> Verdict {
         .map(|a| json!({"channel": a.channel, "message": a.message, "to": a.to}))
         .collect();
     diff(
-        want.get("alerts").unwrap_or(&json!([])),
+        &listed(&want, "alerts"),
         &json!(alerts),
         "alerts",
         &mut diffs,
@@ -397,6 +397,15 @@ fn variables(ctx: &NodeCtx) -> Value {
     Value::Object(all)
 }
 
+/// A recorded list (`alerts`, `http_requests`): absent and `null` (a
+/// desktop_expected saying the fixed run made none) both mean `[]`.
+fn listed(want: &Value, key: &str) -> Value {
+    want.get(key)
+        .filter(|v| !v.is_null())
+        .cloned()
+        .unwrap_or(json!([]))
+}
+
 /// The feed and HTTP traffic and the subscriptions the run holds, where
 /// the golden recorded any.
 fn compare_env(want: &Value, ctx: &NodeCtx, genv: &GoldenEnv, diffs: &mut Vec<String>) {
@@ -438,7 +447,7 @@ fn compare_env(want: &Value, ctx: &NodeCtx, genv: &GoldenEnv, diffs: &mut Vec<St
         "feed",
         diffs,
     );
-    let mut want_http = want.get("http_requests").cloned().unwrap_or(json!([]));
+    let mut want_http = listed(want, "http_requests");
     for r in want_http.as_array_mut().into_iter().flatten() {
         r["vetted"] = json!(true);
         let body = r["body"].as_str().unwrap_or("").to_string();
@@ -454,7 +463,7 @@ fn compare_env(want: &Value, ctx: &NodeCtx, genv: &GoldenEnv, diffs: &mut Vec<St
         }
     }
     diff(&want_http, &got_http, "http_requests", diffs);
-    if let Some(w) = want.get("subscriptions") {
+    if let Some(w) = want.get("subscriptions").filter(|w| !w.is_null()) {
         let mut held: Vec<Value> = ctx
             .subscriptions
             .entries(1)
