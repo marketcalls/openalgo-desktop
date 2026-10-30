@@ -327,7 +327,8 @@ async fn an_order_update_from_the_bus_reaches_its_watch() {
     let mut runs = Vec::new();
     for _ in 0..200 {
         runs = crate::flow::store::executions::list(&t.ctx.sqlite.conn().unwrap(), id, 5).unwrap();
-        if !runs.is_empty() {
+        // The record is written running, then finished: wait for its end.
+        if runs.first().is_some_and(|r| r.status != "running") {
             break;
         }
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
