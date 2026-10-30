@@ -34,6 +34,20 @@ async fn the_poll_quotes_each_alert_and_fires_only_on_a_real_price() {
         }))
         .await;
     let ctx = f.h.ctx();
+    ctx.symbols
+        .load(vec![crate::brokers::common::symbols::SymToken {
+            symbol: "SBIN".into(),
+            brsymbol: "SBIN".into(),
+            name: "STATE BANK OF INDIA".into(),
+            exchange: "NSE".into(),
+            brexchange: "NSE".into(),
+            token: "3045".into(),
+            expiry: String::new(),
+            strike: 0.0,
+            lot_size: 1,
+            instrument_type: "EQ".into(),
+            tick_size: 0.05,
+        }]);
     crate::flow::store::workflows::set_active(&ctx.sqlite.conn().unwrap(), id, true, ctx.now())
         .unwrap();
     let side =
