@@ -286,7 +286,6 @@ async fn an_unreadable_minimum_never_passes_the_guard() {
     for d in [
         json!({"minAvailable": "{{typo}}"}),
         json!({"minAvailable": "abc"}),
-        json!({"minAvailable": [1]}),
         json!({"minAvailable": ""}),
         json!({"minAvailable": null}),
         json!({"threshold": "{{typo}}"}),
@@ -539,4 +538,42 @@ async fn an_empty_symbol_is_left_to_the_quote_service() {
             "Price check aborted: Symbol is required".to_string()
         ]
     );
+}
+
+/// N-logic-06, decisions.md 24: a list or dict where a number belongs ends
+/// the whole run with Python's text, before any call, as the web's
+/// get_float raised; a legacy operator it cannot express is still refused
+/// first.
+#[tokio::test]
+async fn a_list_or_dict_threshold_ends_the_run() {
+    let float_err = |t: &str| {
+        format!(
+            "float() argument must be a string or a real number, not '{}'",
+            t
+        )
+    };
+    let (client, c) = ctx();
+    let out = run(
+        &PositionCheck,
+        &c,
+        json!({"symbol": "SBIN", "condition": "exists", "threshold": [5]}),
+    )
+    .await;
+    assert_eq!(out.aborted(), Some(float_err("list").as_str()));
+    let out = run(
+        &PositionCheck,
+        &c,
+        json!({"condition": "quantity_above", "threshold": {"a": 1}}),
+    )
+    .await;
+    assert_eq!(out.aborted(), Some(float_err("dict").as_str()));
+    let out = run(&FundCheck, &c, json!({"minAvailable": [1]})).await;
+    assert_eq!(out.aborted(), Some(float_err("list").as_str()));
+    let out = run(&FundCheck, &c, json!({"threshold": {}, "operator": ">="})).await;
+    assert_eq!(out.aborted(), Some(float_err("dict").as_str()));
+    let out = run(&FundCheck, &c, json!({"threshold": {}, "operator": "lt"})).await;
+    assert_eq!(out.aborted(), None);
+    assert!(out.is_error());
+    assert!(client.calls().is_empty());
+    assert!(messages(&c).iter().all(|m| !m.starts_with("Checking")));
 }
