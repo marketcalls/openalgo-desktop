@@ -29,12 +29,36 @@ import { type Session, waitFor } from './support/http'
 const runs = async (session: Session, id: number) =>
   (await session.executions(id)).filter((r) => r.status !== 'running')
 
+/** The editor toolbar's Activate or Deactivate; the route's status. */
 async function toolbar(page: Page, button: 'Activate' | 'Deactivate', id: number) {
   const answered = page.waitForResponse((r) =>
     r.url().endsWith(`/flow/api/workflows/${id}/${button.toLowerCase()}`)
   )
   await page.getByRole('button', { name: button, exact: true }).click()
-  expect((await answered).status()).toBe(200)
+  return (await answered).status()
+}
+
+/** The web's answer to a deactivation while a run is in flight (409). */
+const STILL_RUNNING = 'This workflow is still running. Try again when it finishes.'
+
+/**
+ * Deactivate as a trader would: a schedule firing every 2 seconds can be
+ * mid-run when the button is pressed, which the web refuses with a 409 the
+ * trader reads in a toast; once that run has finished, pressing again works.
+ */
+async function deactivate(page: Page, session: Session, id: number) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const status = await toolbar(page, 'Deactivate', id)
+    if (status === 200) return
+    expect(status).toBe(409)
+    await expect(page.getByText(STILL_RUNNING).first()).toBeVisible()
+    await waitFor(
+      'the run in flight to finish',
+      async () => !(await session.executions(id)).some((r) => r.status === 'running'),
+      30_000
+    )
+  }
+  throw new Error('Deactivate kept meeting a run in flight')
 }
 
 test('5. an interval schedule fires on the clock, and stops when deactivated', async ({
@@ -72,7 +96,7 @@ test('5. an interval schedule fires on the clock, and stops when deactivated', a
     marketHoursOnly: false,
   })
 
-  await toolbar(page, 'Activate', id)
+  expect(await toolbar(page, 'Activate', id)).toBe(200)
   await expect(page.getByText('Workflow active', { exact: true })).toBeVisible()
 
   // Two runs on the clock, each with the Log node's line.
@@ -84,7 +108,7 @@ test('5. an interval schedule fires on the clock, and stops when deactivated', a
   }
   // Deactivated from the editor's toolbar.
   await page.goto(`/flow/editor/${id}`)
-  await toolbar(page, 'Deactivate', id)
+  await deactivate(page, session, id)
   await expect(page.getByText('Workflow inactive', { exact: true })).toBeVisible()
   expect((await session.workflow(id)).is_active).toBe(false)
 
