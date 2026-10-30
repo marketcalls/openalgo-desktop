@@ -415,3 +415,57 @@ describe('modifyOrder (F-553)', () => {
     expect(stored().newPrice).toBe('')
   })
 })
+
+describe('F-503: a basket stored as CSV text is shown as that text', () => {
+  const box = () =>
+    labelled('Orders (SYMBOL,EXCHANGE,ACTION,QTY)').parentElement?.querySelector(
+      'textarea'
+    ) as HTMLTextAreaElement
+
+  it('shows the stored rows as they were typed, editable, with no convert offer', () => {
+    openPanel('basketOrder', { orders: 'SBIN,NSE,BUY,1\nTCS,NSE,SELL,2' })
+    expect(box()).toHaveValue('SBIN,NSE,BUY,1\nTCS,NSE,SELL,2')
+    expect(box()).not.toHaveAttribute('readonly')
+    expect(screen.queryByRole('button', { name: 'Convert imported orders to CSV' })).toBeNull()
+  })
+
+  it('shows an empty box when no orders are stored', () => {
+    openPanel('basketOrder', { basketName: 'Opening' })
+    expect(box()).toHaveValue('')
+  })
+})
+
+describe('F-541: smartOrder symbol, exchange and price type, as placeOrder', () => {
+  it('takes the symbol typed under a RELIANCE hint', () => {
+    openPanel('smartOrder', {})
+    expect(fieldUnder('Symbol')).toHaveAttribute('placeholder', 'RELIANCE')
+    expect(fieldUnder('Symbol')).toHaveValue('')
+    fireEvent.change(fieldUnder('Symbol'), { target: { value: 'SBIN' } })
+    expect(stored().symbol).toBe('SBIN')
+  })
+
+  it('shows NSE and Market when none is stored, and stores nothing until picked', () => {
+    openPanel('smartOrder', { symbol: 'SBIN' })
+    expect(triggerUnder('Exchange')).toHaveTextContent(/^NSE$/)
+    expect(triggerUnder('Price Type')).toHaveTextContent(/^Market$/)
+    expect(isShown('Price')).toBe(false)
+    expect(isShown('Trigger Price')).toBe(false)
+    expect(stored()).toEqual({ symbol: 'SBIN' })
+  })
+})
+
+describe('F-547: the convert button, word for word', () => {
+  it('reads Convert imported orders to CSV and turns the list into CSV rows', () => {
+    openPanel('basketOrder', {
+      orders: [
+        { symbol: 'SBIN', exchange: 'NSE', action: 'BUY', quantity: 1 },
+        { symbol: 'INFY', exchange: 'NSE', action: 'SELL', quantity: 2 },
+      ],
+    })
+    const button = screen.getByRole('button', { name: 'Convert imported orders to CSV' })
+    expect(button.textContent).toBe('Convert imported orders to CSV')
+    expect(button).toHaveAttribute('type', 'button')
+    fireEvent.click(button)
+    expect(stored().orders).toBe('SBIN,NSE,BUY,1\nINFY,NSE,SELL,2')
+  })
+})

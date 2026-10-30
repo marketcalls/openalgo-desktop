@@ -337,3 +337,61 @@ describe('httpRequest (F-607)', () => {
     expect(stored().outputVariable).toBe('resp')
   })
 })
+
+describe('F-600: the delay unit and a fractional duration', () => {
+  it.each([
+    ['Hours', 'hours'],
+    ['Seconds', 'seconds'],
+  ])('stores %s as %s', (label, value) => {
+    openPanel('delay', { delayValue: 2, delayUnit: 'minutes' })
+    openSelect('Wait Duration')
+    pick(label)
+    expect(stored().delayUnit).toBe(value)
+  })
+
+  it.each([
+    ['seconds', 'Seconds'],
+    ['minutes', 'Minutes'],
+    ['hours', 'Hours'],
+  ])('a stored %s shows %s', (delayUnit, shown) => {
+    openPanel('delay', { delayValue: 2, delayUnit })
+    expect(shownUnder('Wait Duration')).toBe(shown)
+  })
+
+  it.each([
+    ['2.7', 2],
+    ['0.5', 1],
+  ])('typing %j stores the whole number %s', (typed, value) => {
+    openPanel('delay', { delayValue: 5, delayUnit: 'seconds' })
+    fireEvent.change(under('Wait Duration', 'input'), { target: { value: typed } })
+    expect(stored().delayValue).toBe(value)
+  })
+})
+
+describe('F-602: the Error log level', () => {
+  it('stores Error as error', () => {
+    openPanel('log', { level: 'info' })
+    openSelect('Log Level')
+    pick('Error')
+    expect(stored().level).toBe('error')
+  })
+
+  it.each([
+    ['warn', 'Warning'],
+    ['error', 'Error'],
+  ])('a stored %s shows %s', (level, shown) => {
+    openPanel('log', { level })
+    expect(shownUnder('Log Level')).toBe(shown)
+  })
+})
+
+describe('F-607: a fractional HTTP timeout', () => {
+  it.each([
+    ['2500.9', 2500],
+    ['0.5', 30000],
+  ])('typing %j stores %s', (typed, value) => {
+    openPanel('httpRequest', { method: 'GET', timeout: 10000 })
+    fireEvent.change(under('Timeout (ms)', 'input'), { target: { value: typed } })
+    expect(stored().timeout).toBe(value)
+  })
+})

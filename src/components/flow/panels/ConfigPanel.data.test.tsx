@@ -526,3 +526,44 @@ describe('output names show what is stored, in all fifteen boxes (F-585)', () =>
     expect(inputUnder('Output Variable')).toHaveValue('')
   })
 })
+
+describe('F-570: the previous hour and previous month periods', () => {
+  it.each([
+    ['Previous Hour', 'previous_hour'],
+    ['Previous Month', 'previous_month'],
+  ])('stores %s as %s', async (label, value) => {
+    openPanel('priorPeriodOhlc', { symbol: 'NIFTY', period: 'previous_week' })
+    await choose('Period', label)
+    expect(stored().period).toBe(value)
+  })
+
+  it.each([
+    ['previous_hour', 'Previous Hour'],
+    ['previous_month', 'Previous Month'],
+  ])('a stored %s shows %s', (period, shown) => {
+    openPanel('priorPeriodOhlc', { symbol: 'NIFTY', period })
+    expect(shownUnder('Period')).toBe(shown)
+  })
+})
+
+describe('F-575: the option symbol Option Type label and strike offset choices', () => {
+  it('names the Call and Put pair Option Type', () => {
+    openPanel('optionSymbol', { underlying: 'NIFTY' })
+    const label = screen.getByText('Option Type', { selector: 'label' })
+    const pair = [...(label.parentElement?.querySelectorAll('button') ?? [])]
+    expect(pair.map((button) => button.textContent)).toEqual(['Call', 'Put'])
+  })
+
+  it.each(['OTM12', 'ITM25', 'OTM40'])('shows a stored far offset %s', (offset) => {
+    openPanel('optionSymbol', { underlying: 'NIFTY', offset })
+    expect(shownUnder('Strike Offset')).toBe(offset)
+  })
+
+  it('stores the offset picked', () => {
+    openPanel('optionSymbol', { underlying: 'NIFTY', offset: 'ATM' })
+    // fireEvent, not userEvent: typing through 51 choices runs past the test timeout.
+    fireEvent.click(under('Strike Offset', 'button'))
+    fireEvent.click(screen.getByRole('option', { name: 'ITM7' }))
+    expect(stored().offset).toBe('ITM7')
+  })
+})

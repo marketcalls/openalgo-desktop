@@ -93,3 +93,26 @@ describe('Options Multi strategy pricing transition', () => {
     expect(getOptionsMultiStrategyUpdate(current, 'straddle')).toEqual({ strategy: 'straddle' })
   })
 })
+
+describe('F-524: only leaving custom resets a stop-loss price type', () => {
+  it.each(['SL', 'SL-M'] as const)(
+    'keeps %s when one preset is switched to another',
+    (priceType) => {
+      expect(
+        getOptionsMultiStrategyUpdate({ strategy: 'straddle', priceType }, 'iron_condor')
+      ).toEqual({ strategy: 'iron_condor' })
+    }
+  )
+
+  it.each(['SL', 'SL-M'] as const)('keeps %s when custom is picked again', (priceType) => {
+    expect(getOptionsMultiStrategyUpdate({ strategy: 'custom', priceType }, 'custom')).toEqual({
+      strategy: 'custom',
+    })
+  })
+
+  it.each(['SL', 'SL-M'] as const)('keeps %s when a preset is switched to custom', (priceType) => {
+    expect(getOptionsMultiStrategyUpdate({ strategy: 'strangle', priceType }, 'custom')).toEqual({
+      strategy: 'custom',
+    })
+  })
+})

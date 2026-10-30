@@ -11,8 +11,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { IndexSymbolInfo } from '@/api/flow'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { flowQueryKeys, type IndexSymbolInfo } from '@/api/flow'
 import { useFlowWorkflowStore } from '@/stores/flowWorkflowStore'
 
 const api = vi.hoisted(() => ({ lots: vi.fn() }))
@@ -575,5 +575,78 @@ describe('optionsMultiOrder: the custom-legs editor (F-546)', () => {
       screen.getByTestId('custom-legs').compareDocumentPosition(output) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
+  })
+})
+
+describe('F-510: the index lot sizes are kept an hour under flowQueryKeys.indexSymbols()', () => {
+  afterEach(() => vi.useRealTimers())
+
+  /** The panel on a client the test holds, so its cache can be read. */
+  function mountOn(client: QueryClient) {
+    return render(
+      <MemoryRouter>
+        <QueryClientProvider client={client}>
+          <ConfigPanel />
+        </QueryClientProvider>
+      </MemoryRouter>
+    )
+  }
+
+  it('caches the answer under that key and asks again only after an hour', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-29T06:30:00Z'))
+    useFlowWorkflowStore.setState({
+      nodes: [{ id: 'n1', type: 'optionsOrder', position: { x: 0, y: 0 }, data: OPTION }],
+      selectedNodeId: 'n1',
+    })
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
+    })
+    mountOn(client)
+    await lotSizesLoaded()
+
+    const query = client
+      .getQueryCache()
+      .find({ queryKey: flowQueryKeys.indexSymbols(), exact: true })
+    expect(query?.state.data).toEqual([NIFTY_LOT])
+    expect(query?.observers.map((observer) => observer.options.staleTime)).toEqual([3600000])
+
+    // A panel opened 59 minutes later reuses the answer.
+    vi.setSystemTime(new Date('2026-10-29T07:29:00Z'))
+    mountOn(client)
+    await act(async () => {})
+    expect(api.lots).toHaveBeenCalledTimes(1)
+
+    // One opened after the hour asks the database again.
+    vi.setSystemTime(new Date('2026-10-29T07:31:00Z'))
+    mountOn(client)
+    await vi.waitFor(() => expect(api.lots).toHaveBeenCalledTimes(2))
+  })
+})
+
+describe('F-524: a preset-to-preset switch keeps a stop-loss price type', () => {
+  it.each([
+    ['SL', 'Stop Loss Limit'],
+    ['SL-M', 'Stop Loss Market'],
+  ])('straddle to iron condor keeps %s and its trigger price', (priceType, shown) => {
+    openPanel('optionsMultiOrder', {
+      strategy: 'straddle',
+      underlying: 'NIFTY',
+      priceType,
+      triggerPrice: 99,
+    })
+    choose('Strategy', 'Iron Condor')
+    expect(stored()).toMatchObject({ strategy: 'iron_condor', priceType, triggerPrice: 99 })
+    expect(triggerUnder('Price Type')).toHaveTextContent(new RegExp(`^${shown}$`))
+    expect(screen.getByLabelText('Trigger Price')).toHaveValue(99)
+  })
+})
+
+describe('F-543: the multi-leg underlying when none is stored', () => {
+  it('shows NIFTY (NFO), stores nothing, and offers every underlying', () => {
+    openPanel('optionsMultiOrder', { strategy: 'straddle', expiryType: 'current_week' })
+    expect(triggerUnder('Underlying')).toHaveTextContent(/^NIFTY \(NFO\)$/)
+    expect(stored().underlying).toBeUndefined()
+    expect(offered('Underlying')).toEqual(UNDERLYINGS)
   })
 })

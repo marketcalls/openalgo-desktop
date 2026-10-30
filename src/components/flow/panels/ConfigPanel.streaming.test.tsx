@@ -119,3 +119,25 @@ describe('unsubscribe (F-593)', () => {
     expect(shownUnder('Exchange')).toBe('NSE')
   })
 })
+
+describe('F-593: the LTP and Depth stream choices', () => {
+  it.each([
+    ['LTP Only', 'ltp'],
+    ['Depth Only', 'depth'],
+    ['All Streams', 'all'],
+  ])('stores %s as %s', (label, value) => {
+    openPanel('unsubscribe', { streamType: 'quote' })
+    openSelect('Stream Type')
+    pick(label)
+    expect(stored().streamType).toBe(value)
+  })
+
+  it.each([
+    ['ltp', 'LTP Only'],
+    ['quote', 'Quote Only'],
+    ['depth', 'Depth Only'],
+  ])('a stored %s shows %s', (streamType, shown) => {
+    openPanel('unsubscribe', { streamType })
+    expect(shownUnder('Stream Type')).toBe(shown)
+  })
+})
