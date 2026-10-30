@@ -77,7 +77,10 @@ async fn the_smart_order_endpoint_refuses_bad_constants_before_the_broker() {
         let (status, reply) = post(&kit, "placesmartorder", body).await;
         assert_eq!(status, 400, "{reply}");
         assert_eq!(reply["status"], "error");
-        assert!(reply["message"].to_string().to_lowercase().contains(word), "{reply}");
+        assert!(
+            reply["message"].to_string().to_lowercase().contains(word),
+            "{reply}"
+        );
     }
     assert_eq!(orders_placed(&kit), 0);
 }
@@ -86,7 +89,14 @@ async fn the_smart_order_endpoint_refuses_bad_constants_before_the_broker() {
 fn mcx_rows(with_future: bool) -> Vec<crate::brokers::common::symbols::SymToken> {
     let mut rows = master_rows();
     if with_future {
-        rows.push(row("CRUDEOIL19OCT26FUT", "MCX", "FUT", "19-OCT-26", 0.0, 100));
+        rows.push(row(
+            "CRUDEOIL19OCT26FUT",
+            "MCX",
+            "FUT",
+            "19-OCT-26",
+            0.0,
+            100,
+        ));
     }
     for strike in (5800..=6200).step_by(100) {
         rows.push(row(
@@ -108,13 +118,20 @@ fn mcx_rows(with_future: bool) -> Vec<crate::brokers::common::symbols::SymToken>
 async fn a_commodity_is_priced_against_its_near_month_future() {
     let kit = Kit::new();
     kit.app().symbols.load(mcx_rows(true));
-    kit.mock.set_quote(quote("CRUDEOIL19OCT26FUT", "MCX", 6010.0));
+    kit.mock
+        .set_quote(quote("CRUDEOIL19OCT26FUT", "MCX", 6010.0));
     let body = json!({"underlying": "CRUDEOIL", "exchange": "MCX", "expiry_date": "17NOV26",
         "offset": "ATM", "option_type": "CE"});
     let (status, reply) = post(&kit, "optionsymbol", body.clone()).await;
     assert_eq!(status, 200, "{reply}");
-    assert_eq!((&reply["symbol"], &reply["exchange"]), (&json!("CRUDEOIL17NOV266000CE"), &json!("MCX")));
-    assert_eq!(quoted(&kit), [("CRUDEOIL19OCT26FUT".to_string(), "MCX".to_string())]);
+    assert_eq!(
+        (&reply["symbol"], &reply["exchange"]),
+        (&json!("CRUDEOIL17NOV266000CE"), &json!("MCX"))
+    );
+    assert_eq!(
+        quoted(&kit),
+        [("CRUDEOIL19OCT26FUT".to_string(), "MCX".to_string())]
+    );
     let kit = Kit::new();
     kit.app().symbols.load(mcx_rows(false));
     let (status, reply) = post(&kit, "optionsymbol", body).await;
@@ -133,7 +150,10 @@ async fn an_index_is_quoted_directly() {
     let (status, reply) = post(&kit, "optionsymbol", body).await;
     assert_eq!(status, 200, "{reply}");
     assert_eq!(reply["symbol"], "NIFTY27OCT2624500CE");
-    assert_eq!(quoted(&kit), [("NIFTY".to_string(), "NSE_INDEX".to_string())]);
+    assert_eq!(
+        quoted(&kit),
+        [("NIFTY".to_string(), "NSE_INDEX".to_string())]
+    );
 }
 
 /// X-078: the desktop's public leg schema gives a product-less leg MIS, as
@@ -164,7 +184,11 @@ async fn a_flow_order_in_semi_auto_is_queued() {
     let mut order = PlaceOrder::new("SBIN", "NSE", "BUY", 1);
     order.strategy = WORKFLOW.into();
     let out = client.place_order(&order).await;
-    assert_eq!((&out["status"], &out["mode"]), (&json!("success"), &json!("semi_auto")), "{out}");
+    assert_eq!(
+        (&out["status"], &out["mode"]),
+        (&json!("success"), &json!("semi_auto")),
+        "{out}"
+    );
     assert!(out["pending_order_id"].is_number(), "{out}");
     assert_eq!(orders_placed(&kit), 0);
     let pending = kit
@@ -173,8 +197,10 @@ async fn a_flow_order_in_semi_auto_is_queued() {
         .conn()
         .ok()
         .and_then(|c| {
-            c.query_row("SELECT order_data FROM pending_orders", [], |r| r.get::<_, String>(0))
-                .ok()
+            c.query_row("SELECT order_data FROM pending_orders", [], |r| {
+                r.get::<_, String>(0)
+            })
+            .ok()
         })
         .unwrap_or_default();
     assert!(pending.contains(WORKFLOW), "{pending}");

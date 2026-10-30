@@ -28,7 +28,12 @@ fn generated(strategy: &str, action: &str, width: &str) -> Vec<(String, String, 
 /// The editor's `seedLegsFromStrategy` case for `strategy`, read from
 /// `src/lib/flow/customLegs.ts` (`leg(offset, type, action)` calls), with
 /// `action` and `width` substituted for the variables.
-fn seeded(source: &str, strategy: &str, action: &str, width: &str) -> Vec<(String, String, String)> {
+fn seeded(
+    source: &str,
+    strategy: &str,
+    action: &str,
+    width: &str,
+) -> Vec<(String, String, String)> {
     let Some(start) = source.find(&format!("case '{}'", strategy)) else {
         return Vec::new();
     };
@@ -58,7 +63,8 @@ fn seeded(source: &str, strategy: &str, action: &str, width: &str) -> Vec<(Strin
 }
 
 fn custom_legs_ts() -> Option<String> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/lib/flow/customLegs.ts");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/lib/flow/customLegs.ts");
     std::fs::read_to_string(path).ok()
 }
 
@@ -68,11 +74,18 @@ fn custom_legs_ts() -> Option<String> {
 #[ignore = "reads pr/flow-ui's src/lib/flow/customLegs.ts; the lead un-ignores it at restack (decisions.md 18)"]
 fn the_editor_templates_match_the_generated_legs() {
     let source = custom_legs_ts().unwrap_or_default();
-    assert!(source.contains("seedLegsFromStrategy"), "customLegs.ts not found");
+    assert!(
+        source.contains("seedLegsFromStrategy"),
+        "customLegs.ts not found"
+    );
     for strategy in ["iron_condor", "bull_call_spread", "bear_put_spread"] {
         let backend = generated(strategy, "BUY", "OTM2");
         assert!(!backend.is_empty());
-        assert_eq!(backend, seeded(&source, strategy, "BUY", "OTM2"), "{strategy}");
+        assert_eq!(
+            backend,
+            seeded(&source, strategy, "BUY", "OTM2"),
+            "{strategy}"
+        );
     }
     for action in ["BUY", "SELL"] {
         assert_eq!(
@@ -130,8 +143,14 @@ fn the_readymade_strategies_build_the_web_legs() {
     assert_eq!(
         run.log(),
         [
-            ("warning".to_string(), "Custom strategy selected but no legs provided".to_string()),
-            ("warning".to_string(), "Unknown strategy type: butterfly".to_string())
+            (
+                "warning".to_string(),
+                "Custom strategy selected but no legs provided".to_string()
+            ),
+            (
+                "warning".to_string(),
+                "Unknown strategy type: butterfly".to_string()
+            )
         ]
     );
 }
@@ -159,7 +178,10 @@ fn strikes_print_as_python_g() {
 fn a_leg_line_names_its_selector_and_expiry() {
     let strike = json!({"strike": 24500.0, "expiry_date": "28OCT25", "option_type": "CE",
         "action": "SELL", "quantity": 65});
-    assert_eq!(leg_line(1, &strike), "  Leg 1: 24500 28OCT25 CE SELL qty=65");
+    assert_eq!(
+        leg_line(1, &strike),
+        "  Leg 1: 24500 28OCT25 CE SELL qty=65"
+    );
     let offset = json!({"offset": "OTM2", "option_type": "PE", "action": "BUY", "quantity": 130});
     assert_eq!(leg_line(2, &offset), "  Leg 2: OTM2 PE BUY qty=130");
 }

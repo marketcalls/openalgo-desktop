@@ -147,7 +147,12 @@ fn custom_leg(f: &OrderFields<'_>, d: &LegDefaults) -> Result<CustomLeg, String>
     let option_type = f.choice("optionType", &OPTION_TYPES, None, &[])?;
     let action = f.choice("action", &VALID_ACTIONS, None, &[])?;
     let quantity_lots = f.integer("quantity", None, &[], Some(1))?;
-    let product = f.choice("product", &VALID_PRODUCT_TYPES, Some(d.product.as_str()), &[])?;
+    let product = f.choice(
+        "product",
+        &VALID_PRODUCT_TYPES,
+        Some(d.product.as_str()),
+        &[],
+    )?;
     let pricetype = f.choice(
         "priceType",
         &VALID_PRICE_TYPES,

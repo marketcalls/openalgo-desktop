@@ -17,11 +17,36 @@ fn payload(run: &Run) -> Value {
 #[test]
 fn prices_are_refused_with_the_web_sentences() {
     let cases = [
-        ("LIMIT", f64::NAN, 0.0, Some("LIMIT order needs a finite price, got nan")),
-        ("sl", 1.0, f64::INFINITY, Some("SL order needs a finite trigger price, got inf")),
-        ("LIMIT", 0.0, 0.0, Some("LIMIT order needs a positive price, got 0.0")),
-        ("SL", -2.5, 1.0, Some("SL order needs a positive price, got -2.5")),
-        ("SL-M", 0.0, 0.0, Some("SL-M order needs a positive trigger price, got 0.0")),
+        (
+            "LIMIT",
+            f64::NAN,
+            0.0,
+            Some("LIMIT order needs a finite price, got nan"),
+        ),
+        (
+            "sl",
+            1.0,
+            f64::INFINITY,
+            Some("SL order needs a finite trigger price, got inf"),
+        ),
+        (
+            "LIMIT",
+            0.0,
+            0.0,
+            Some("LIMIT order needs a positive price, got 0.0"),
+        ),
+        (
+            "SL",
+            -2.5,
+            1.0,
+            Some("SL order needs a positive price, got -2.5"),
+        ),
+        (
+            "SL-M",
+            0.0,
+            0.0,
+            Some("SL-M order needs a positive trigger price, got 0.0"),
+        ),
         ("", 0.0, 0.0, None),
         ("MARKET", 0.0, 0.0, None),
         ("SL-M", 0.0, 99.5, None),
@@ -49,7 +74,9 @@ async fn the_first_bad_field_is_reported_and_nothing_is_sent() {
     assert!(errors[0]["message"]
         .as_str()
         .unwrap_or_default()
-        .starts_with("Place order has invalid runtime order data: exchange must be one of BCD, BFO,"));
+        .starts_with(
+            "Place order has invalid runtime order data: exchange must be one of BCD, BFO,"
+        ));
     assert!(run.calls().is_empty());
     let run = Run::new();
     let o = run.node("placeOrder", json!({"exchange": "NSE"})).await;
@@ -87,7 +114,10 @@ async fn the_product_follows_the_exchange_unless_chosen() {
     let data = json!({"symbol": "CRUDEOIL", "exchange": "MCX", "quantity": 2, "splitSize": 1});
     run.node("splitOrder", data).await;
     assert_eq!(payload(&run)["product"], "NRML");
-    for (node, endpoint) in [("placeOrder", "placeorder"), ("smartOrder", "placesmartorder")] {
+    for (node, endpoint) in [
+        ("placeOrder", "placeorder"),
+        ("smartOrder", "placesmartorder"),
+    ] {
         let run = Run::new();
         run.reply(endpoint, placed());
         let data = json!({"symbol": "X", "exchange": "NFO", "quantity": 1, "positionSize": 1, "product": "MIS"});
@@ -155,17 +185,25 @@ async fn smart_and_split_prices_reach_the_client() {
         "positionSize": 5, "product": "MIS", "priceType": "LIMIT", "price": 625, "triggerPrice": 0});
     run.node("smartOrder", data).await;
     let p = payload(&run);
-    assert_eq!((&p["quantity"], &p["price"], &p["trigger_price"]), (&json!(0), &json!(625.0), &json!(0.0)));
+    assert_eq!(
+        (&p["quantity"], &p["price"], &p["trigger_price"]),
+        (&json!(0), &json!(625.0), &json!(0.0))
+    );
     let run = Run::new();
     run.reply("splitorder", placed());
     let data = json!({"symbol": "SBIN", "exchange": "NSE", "action": "SELL", "quantity": 4,
         "splitSize": 2, "product": "MIS", "priceType": "SL", "price": 625, "triggerPrice": 624});
     run.node("splitOrder", data).await;
     let p = payload(&run);
-    assert_eq!((&p["quantity"], &p["price"], &p["trigger_price"]), (&json!(4), &json!(625.0), &json!(624.0)));
+    assert_eq!(
+        (&p["quantity"], &p["price"], &p["trigger_price"]),
+        (&json!(4), &json!(625.0), &json!(624.0))
+    );
     assert_eq!(p["splitsize"], 2);
     let run = Run::new();
-    run.ctx.vars.set("runtime", json!({"price": 0, "trigger": 0}));
+    run.ctx
+        .vars
+        .set("runtime", json!({"price": 0, "trigger": 0}));
     let smart = json!({"symbol": "SBIN", "exchange": "NSE", "quantity": 1, "positionSize": 1,
         "priceType": "LIMIT", "price": "{{runtime.price}}"});
     assert!(run.node("smartOrder", smart).await.is_error());
@@ -180,11 +218,21 @@ fn order_data(node: &str, quantity: Value, price: Value) -> Value {
     let mut d = json!({"action": "BUY", "product": "MIS", "priceType": "LIMIT", "price": price});
     let extra = match node {
         "placeOrder" => json!({"symbol": "SBIN", "exchange": "NSE", "quantity": quantity}),
-        "smartOrder" => json!({"symbol": "SBIN", "exchange": "NSE", "quantity": quantity, "positionSize": 0}),
-        "splitOrder" => json!({"symbol": "SBIN", "exchange": "NSE", "quantity": quantity, "splitSize": 1}),
-        "optionsOrder" => json!({"underlying": "NIFTY", "expiryType": "current_week", "offset": "ATM", "optionType": "CE", "quantity": quantity}),
-        "optionsMultiOrder" => json!({"underlying": "NIFTY", "expiryType": "current_week", "strategy": "straddle", "quantity": quantity}),
-        _ => json!({"orders": [{"symbol": "SBIN", "exchange": "NSE", "action": "BUY", "quantity": quantity}]}),
+        "smartOrder" => {
+            json!({"symbol": "SBIN", "exchange": "NSE", "quantity": quantity, "positionSize": 0})
+        }
+        "splitOrder" => {
+            json!({"symbol": "SBIN", "exchange": "NSE", "quantity": quantity, "splitSize": 1})
+        }
+        "optionsOrder" => {
+            json!({"underlying": "NIFTY", "expiryType": "current_week", "offset": "ATM", "optionType": "CE", "quantity": quantity})
+        }
+        "optionsMultiOrder" => {
+            json!({"underlying": "NIFTY", "expiryType": "current_week", "strategy": "straddle", "quantity": quantity})
+        }
+        _ => {
+            json!({"orders": [{"symbol": "SBIN", "exchange": "NSE", "action": "BUY", "quantity": quantity}]})
+        }
     };
     if let (Some(m), Value::Object(e)) = (d.as_object_mut(), extra) {
         m.extend(e);
@@ -208,7 +256,11 @@ async fn refused(node: &str, runtime: Value, data: Value) {
     run.ctx.vars.set("runtime", runtime.clone());
     let o = run.node(node, data).await;
     assert!(o.is_error(), "{node} {runtime}: {:?}", o);
-    assert!(run.calls().is_empty(), "{node} {runtime}: {:?}", run.calls());
+    assert!(
+        run.calls().is_empty(),
+        "{node} {runtime}: {:?}",
+        run.calls()
+    );
 }
 
 /// X-079, X-080: a resolved bad quantity never becomes an order size.
@@ -228,10 +280,20 @@ async fn a_resolved_bad_quantity_never_reaches_a_client() {
     ];
     for node in SIX {
         for value in &bad {
-            refused(node, value.clone(), order_data(node, json!("{{runtime}}"), json!(100))).await;
+            refused(
+                node,
+                value.clone(),
+                order_data(node, json!("{{runtime}}"), json!(100)),
+            )
+            .await;
         }
         if node != "smartOrder" {
-            refused(node, json!(0), order_data(node, json!("{{runtime}}"), json!(100))).await;
+            refused(
+                node,
+                json!(0),
+                order_data(node, json!("{{runtime}}"), json!(100)),
+            )
+            .await;
         }
     }
 }
@@ -242,7 +304,12 @@ async fn a_resolved_bad_quantity_never_reaches_a_client() {
 async fn a_resolved_bad_price_or_trigger_never_reaches_a_client() {
     for node in SIX {
         for value in [json!(0), json!("nan"), json!("inf"), json!("-inf")] {
-            refused(node, value, order_data(node, json!(1), json!("{{runtime}}"))).await;
+            refused(
+                node,
+                value,
+                order_data(node, json!(1), json!("{{runtime}}")),
+            )
+            .await;
         }
         for value in [json!(0), json!("nan"), json!("inf")] {
             let mut data = order_data(node, json!(1), json!(100));
@@ -270,10 +337,15 @@ fn live_order() -> Value {
 #[tokio::test]
 async fn a_modify_keeps_the_live_orders_attributes() {
     let run = Run::new();
-    run.reply("orderstatus", live_order())
-        .reply("modifyorder", json!({"status": "success", "orderid": "25082800018"}));
+    run.reply("orderstatus", live_order()).reply(
+        "modifyorder",
+        json!({"status": "success", "orderid": "25082800018"}),
+    );
     let o = run
-        .node("modifyOrder", json!({"orderId": "25082800018", "newPrice": "19.25"}))
+        .node(
+            "modifyOrder",
+            json!({"orderId": "25082800018", "newPrice": "19.25"}),
+        )
         .await;
     assert!(!o.is_error());
     let sent = Value::Object(run.client.calls_to("modifyorder")[0].payload.clone());
@@ -288,11 +360,18 @@ async fn a_modify_keeps_the_live_orders_attributes() {
         "Modifying order: 25082800018 - YESBANK SELL qty=500 price=19.25 trigger=0.0"
     );
     let run = Run::new();
-    run.reply("orderstatus", live_order()).reply("modifyorder", placed());
-    run.node("modifyOrder", json!({"orderId": "25082800018", "newQuantity": "250"}))
-        .await;
+    run.reply("orderstatus", live_order())
+        .reply("modifyorder", placed());
+    run.node(
+        "modifyOrder",
+        json!({"orderId": "25082800018", "newQuantity": "250"}),
+    )
+    .await;
     let sent = &run.client.calls_to("modifyorder")[0].payload;
-    assert_eq!((&sent["quantity"], &sent["price"]), (&json!(250), &json!(18.5)));
+    assert_eq!(
+        (&sent["quantity"], &sent["price"]),
+        (&json!(250), &json!(18.5))
+    );
 }
 
 /// X-164 and parity N-modifyOrder-02..05: the refusals, each before a
@@ -332,14 +411,22 @@ async fn a_modify_refuses_what_it_cannot_read_or_parse() {
         run.reply("orderstatus", status);
         let o = run.node("modifyOrder", data).await;
         assert_eq!(message(&o), want);
-        assert_eq!(run.log().last().map(|l| l.1.clone()), Some(format!("Modify order aborted: {want}")));
+        assert_eq!(
+            run.log().last().map(|l| l.1.clone()),
+            Some(format!("Modify order aborted: {want}"))
+        );
         assert!(run.client.calls_to("modifyorder").is_empty());
     }
     // An infinite quantity is the web's uncaught OverflowError: the run ends.
     let run = Run::new();
     run.reply("orderstatus", live_order());
-    let o = run.node("modifyOrder", json!({"orderId": "7", "newQuantity": "inf"})).await;
-    assert_eq!(o.aborted(), Some("cannot convert float infinity to integer"));
+    let o = run
+        .node("modifyOrder", json!({"orderId": "7", "newQuantity": "inf"}))
+        .await;
+    assert_eq!(
+        o.aborted(),
+        Some("cannot convert float infinity to integer")
+    );
 }
 
 /// parity N-modifyOrder-07: a LIMIT modify to price 0 reaches the service
@@ -347,8 +434,10 @@ async fn a_modify_refuses_what_it_cannot_read_or_parse() {
 #[tokio::test]
 async fn a_modify_to_a_zero_price_reaches_the_service() {
     let run = Run::new();
-    run.reply("orderstatus", live_order()).reply("modifyorder", placed());
-    run.node("modifyOrder", json!({"orderId": "7", "newPrice": "0"})).await;
+    run.reply("orderstatus", live_order())
+        .reply("modifyorder", placed());
+    run.node("modifyOrder", json!({"orderId": "7", "newPrice": "0"}))
+        .await;
     assert_eq!(run.client.calls_to("modifyorder")[0].payload["price"], 0.0);
 }
 
@@ -360,14 +449,23 @@ async fn a_cancel_stores_its_result() {
     let run = Run::new();
     let reply = json!({"status": "success", "orderid": "1"});
     run.reply("cancelorder", reply.clone());
-    run.node("cancelOrder", json!({"orderId": "1", "outputVariable": "cancelled"}))
-        .await;
+    run.node(
+        "cancelOrder",
+        json!({"orderId": "1", "outputVariable": "cancelled"}),
+    )
+    .await;
     assert_eq!(run.ctx.vars.get("cancelled"), Some(reply));
     assert_eq!(run.messages()[2], "Stored result in variable: cancelled");
     // The id is sent as written, an empty one included (the service refuses).
     let run = Run::new();
-    run.reply("cancelorder", json!({"status": "error", "error": "Order ID is missing", "code": 400}));
-    assert!(run.node("cancelOrder", json!({"orderId": ""})).await.is_error());
+    run.reply(
+        "cancelorder",
+        json!({"status": "error", "error": "Order ID is missing", "code": 400}),
+    );
+    assert!(run
+        .node("cancelOrder", json!({"orderId": ""}))
+        .await
+        .is_error());
     assert_eq!(run.only_call().payload["orderid"], "");
     assert_eq!(run.messages()[0], "Cancelling order: ");
 }
@@ -376,8 +474,12 @@ async fn a_cancel_stores_its_result() {
 #[tokio::test]
 async fn cancel_all_stores_its_result() {
     let run = Run::new();
-    run.reply("cancelallorder", json!({"status": "success", "cancelled": 3}));
-    run.node("cancelAllOrders", json!({"outputVariable": "cancelled"})).await;
+    run.reply(
+        "cancelallorder",
+        json!({"status": "success", "cancelled": 3}),
+    );
+    run.node("cancelAllOrders", json!({"outputVariable": "cancelled"}))
+        .await;
     assert_eq!(run.ctx.vars.interpolate("{{cancelled.cancelled}}"), "3");
 }
 
@@ -385,7 +487,10 @@ async fn cancel_all_stores_its_result() {
 /// exchange.
 #[tokio::test]
 async fn only_a_symbol_scopes_a_close() {
-    for data in [json!({"symbol": "", "exchange": "NSE", "product": "MIS"}), json!({})] {
+    for data in [
+        json!({"symbol": "", "exchange": "NSE", "product": "MIS"}),
+        json!({}),
+    ] {
         let run = Run::new();
         run.reply("closeposition", json!({"status": "success"}));
         run.node("closePositions", data).await;
@@ -395,8 +500,11 @@ async fn only_a_symbol_scopes_a_close() {
     for (symbol, exchange, product) in [("SBIN", "NSE", "MIS"), ("GOLDM", "MCX", "NRML")] {
         let run = Run::new();
         run.reply("closeposition", json!({"status": "success"}));
-        run.node("closePositions", json!({"symbol": symbol, "exchange": exchange}))
-            .await;
+        run.node(
+            "closePositions",
+            json!({"symbol": symbol, "exchange": exchange}),
+        )
+        .await;
         let call = run.only_call();
         assert_eq!(call.method, "close_position");
         assert_eq!(
@@ -420,14 +528,19 @@ async fn a_lost_answer_is_never_sent_again_and_stops_the_branch() {
         json!({"status": "error", "error": NO_ANSWER, "code": 504, "error_type": UNKNOWN_OUTCOME}),
     );
     let errors = run
-        .walk("placeOrder", json!({"symbol": "SBIN", "exchange": "NSE", "quantity": 1}))
+        .walk(
+            "placeOrder",
+            json!({"symbol": "SBIN", "exchange": "NSE", "quantity": 1}),
+        )
         .await;
     assert_eq!(run.calls().len(), 1);
     assert_eq!(errors[0]["message"], NO_ANSWER);
     assert!(NO_ANSWER.contains("may have been placed"));
     assert_eq!(
         run.log().last().map(|l| l.1.clone()),
-        Some(format!("Stopping this branch: placeOrder node failed ({NO_ANSWER})"))
+        Some(format!(
+            "Stopping this branch: placeOrder node failed ({NO_ANSWER})"
+        ))
     );
 }
 
@@ -440,7 +553,10 @@ fn supplied_reads_the_first_filled_key() {
     let d = crate::flow::nodes::order_testing::object(
         json!({"a": "  ", "b": 0, "c": "{{x}}", "d": "NSE"}),
     );
-    assert_eq!(supplied(&run.ctx, &d, &["a", "b", "c", "d"]).as_deref(), Some("NFO"));
+    assert_eq!(
+        supplied(&run.ctx, &d, &["a", "b", "c", "d"]).as_deref(),
+        Some("NFO")
+    );
     assert_eq!(supplied(&run.ctx, &d, &["a", "b", "missing"]), None);
 }
 

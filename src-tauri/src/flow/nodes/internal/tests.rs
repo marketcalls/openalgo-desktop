@@ -59,7 +59,11 @@ async fn a_scoped_close_closes_only_that_position() {
         .await;
     assert_eq!(out["status"], "success", "{}", out);
     let calls = kit.mock.calls();
-    assert!(!calls.iter().any(|c| matches!(c, MockCall::CloseAll)), "{:?}", calls);
+    assert!(
+        !calls.iter().any(|c| matches!(c, MockCall::CloseAll)),
+        "{:?}",
+        calls
+    );
     let sent = placed(&kit);
     assert_eq!(sent.len(), 1, "{:?}", sent);
     assert_eq!(sent[0].0, "SBIN");
@@ -67,7 +71,9 @@ async fn a_scoped_close_closes_only_that_position() {
     assert!(sent[0].1.to_uppercase().contains("SELL"), "{:?}", sent);
     // Nothing held: nothing is sent, and the trader is told so.
     *kit.mock.positions.lock() = Some(Ok(vec![position("INFY", 5)]));
-    let out = client(&kit).close_position("SBIN", "NSE", "MIS", "Golden Flow").await;
+    let out = client(&kit)
+        .close_position("SBIN", "NSE", "MIS", "Golden Flow")
+        .await;
     assert_eq!(placed(&kit).len(), 1, "{}", out);
 }
 
@@ -78,7 +84,11 @@ async fn an_unscoped_close_still_closes_everything() {
     let kit = Kit::new();
     *kit.mock.positions.lock() = Some(Ok(vec![position("SBIN", 10)]));
     client(&kit).close_all_positions().await;
-    assert!(kit.mock.calls().iter().any(|c| matches!(c, MockCall::CloseAll)));
+    assert!(kit
+        .mock
+        .calls()
+        .iter()
+        .any(|c| matches!(c, MockCall::CloseAll)));
 }
 
 /// Semi-Auto refuses a scoped close from Flow as it refuses
@@ -88,7 +98,9 @@ async fn semi_auto_refuses_a_scoped_close() {
     let kit = Kit::new();
     *kit.mock.positions.lock() = Some(Ok(vec![position("SBIN", 10)]));
     ApiKeyService::set_order_mode(kit.app(), "semi_auto").unwrap_or_default();
-    let out = client(&kit).close_position("SBIN", "NSE", "MIS", "Golden Flow").await;
+    let out = client(&kit)
+        .close_position("SBIN", "NSE", "MIS", "Golden Flow")
+        .await;
     assert_eq!(
         out,
         json!({"status": "error", "error": order_service::CLOSE_IN_SEMI_AUTO, "code": 403})
@@ -115,9 +127,11 @@ fn strike_order(strike: f64) -> OptionsMultiOrder {
         underlying: "NIFTY".into(),
         exchange: "NSE_INDEX".into(),
         expiry_date: "27OCT26".into(),
-        legs: vec![json!({"strike": strike, "option_type": "CE", "action": "BUY",
+        legs: vec![
+            json!({"strike": strike, "option_type": "CE", "action": "BUY",
             "pricetype": "MARKET", "product": "NRML", "price": 0.0, "trigger_price": 0.0,
-            "splitsize": 0, "quantity": 75})],
+            "splitsize": 0, "quantity": 75}),
+        ],
         strategy: "Golden Flow".into(),
         strike_int: None,
     }
@@ -129,21 +143,31 @@ fn strike_order(strike: f64) -> OptionsMultiOrder {
 #[tokio::test]
 async fn a_strike_leg_is_placed_on_its_listed_contract() {
     let kit = Kit::new();
-    let out = client(&kit).options_multi_order(&strike_order(24500.0)).await;
+    let out = client(&kit)
+        .options_multi_order(&strike_order(24500.0))
+        .await;
     assert_eq!(out["status"], "success", "{}", out);
     let leg = &out["results"][0];
     assert_eq!(leg["symbol"], "NIFTY27OCT2624500CE", "{}", out);
-    assert_eq!((&leg["strike"], &leg["offset"]), (&json!(24500.0), &Value::Null));
+    assert_eq!(
+        (&leg["strike"], &leg["offset"]),
+        (&json!(24500.0), &Value::Null)
+    );
     assert_eq!(leg["status"], "success", "{}", out);
     let sent = placed(&kit);
-    assert_eq!(sent, [("NIFTY27OCT2624500CE".to_string(), sent[0].1.clone(), 75)]);
+    assert_eq!(
+        sent,
+        [("NIFTY27OCT2624500CE".to_string(), sent[0].1.clone(), 75)]
+    );
 }
 
 /// An unlisted strike is refused by name, before anything is sent.
 #[tokio::test]
 async fn an_unlisted_strike_is_refused_by_name() {
     let kit = Kit::new();
-    let out = client(&kit).options_multi_order(&strike_order(24550.0)).await;
+    let out = client(&kit)
+        .options_multi_order(&strike_order(24550.0))
+        .await;
     assert_eq!(
         out["results"][0]["message"],
         "Option symbol NIFTY27OCT2624550CE not found in NFO. Check that strike 24550.0 is listed for NIFTY 27OCT26, or re-download the master contract."
@@ -178,7 +202,9 @@ async fn the_public_api_still_refuses_strike_legs() {
 async fn a_strike_leg_in_analyzer_mode_never_reaches_the_broker() {
     let kit = Kit::new();
     kit.analyzer(true);
-    let out = client(&kit).options_multi_order(&strike_order(24500.0)).await;
+    let out = client(&kit)
+        .options_multi_order(&strike_order(24500.0))
+        .await;
     assert_eq!(out["mode"], "analyze", "{}", out);
     assert!(placed(&kit).is_empty());
     let out = client(&kit)
@@ -213,7 +239,9 @@ async fn a_scoped_close_in_analyzer_mode_closes_only_that_position() {
     kit.mock.set_quote(ltp("INFY", 1500.0));
     let c = client(&kit);
     for (symbol, qty) in [("SBIN", 10), ("INFY", 5)] {
-        let out = c.place_order(&PlaceOrder::new(symbol, "NSE", "BUY", qty)).await;
+        let out = c
+            .place_order(&PlaceOrder::new(symbol, "NSE", "BUY", qty))
+            .await;
         assert_eq!(out["status"], "success", "{}", out);
     }
     assert_eq!(sandbox_quantity(&c, "SBIN").await, json!(10));
@@ -221,5 +249,8 @@ async fn a_scoped_close_in_analyzer_mode_closes_only_that_position() {
     assert_eq!(out["status"], "success", "{}", out);
     assert_eq!(sandbox_quantity(&c, "SBIN").await, json!(0));
     assert_eq!(sandbox_quantity(&c, "INFY").await, json!(5));
-    assert!(placed(&kit).is_empty(), "the sandbox never reaches the broker");
+    assert!(
+        placed(&kit).is_empty(),
+        "the sandbox never reaches the broker"
+    );
 }

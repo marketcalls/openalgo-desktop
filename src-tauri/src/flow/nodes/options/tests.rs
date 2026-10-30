@@ -17,10 +17,18 @@ fn pair(q: &str, o: &str) -> (String, String) {
 #[test]
 fn the_underlying_decides_where_it_is_quoted_and_traded() {
     for u in ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "NIFTYNXT50"] {
-        assert_eq!(resolve_option_exchanges(u, ""), pair("NSE_INDEX", "NFO"), "{u}");
+        assert_eq!(
+            resolve_option_exchanges(u, ""),
+            pair("NSE_INDEX", "NFO"),
+            "{u}"
+        );
     }
     for u in ["SENSEX", "BANKEX", "SENSEX50"] {
-        assert_eq!(resolve_option_exchanges(u, ""), pair("BSE_INDEX", "BFO"), "{u}");
+        assert_eq!(
+            resolve_option_exchanges(u, ""),
+            pair("BSE_INDEX", "BFO"),
+            "{u}"
+        );
     }
     for u in MCX_OPTION_UNDERLYINGS {
         assert_eq!(resolve_option_exchanges(u, ""), pair("MCX", "MCX"), "{u}");
@@ -29,12 +37,28 @@ fn the_underlying_decides_where_it_is_quoted_and_traded() {
         assert_eq!(resolve_option_exchanges(u, ""), pair("MCX", "MCX"), "{u}");
     }
     for u in ["", "NOTAPRODUCT"] {
-        assert_eq!(resolve_option_exchanges(u, ""), pair("NSE_INDEX", "NFO"), "{u}");
+        assert_eq!(
+            resolve_option_exchanges(u, ""),
+            pair("NSE_INDEX", "NFO"),
+            "{u}"
+        );
     }
-    assert_eq!(resolve_option_exchanges("SENSEX", "NSE_INDEX"), pair("BSE_INDEX", "BFO"));
-    assert_eq!(resolve_option_exchanges("CRUDEOIL", "NSE_INDEX"), pair("MCX", "MCX"));
-    assert_eq!(resolve_option_exchanges("MENTHAOIL", "MCX"), pair("MCX", "MCX"));
-    assert_eq!(resolve_option_exchanges("NIFTY", "NFO"), pair("NSE_INDEX", "NFO"));
+    assert_eq!(
+        resolve_option_exchanges("SENSEX", "NSE_INDEX"),
+        pair("BSE_INDEX", "BFO")
+    );
+    assert_eq!(
+        resolve_option_exchanges("CRUDEOIL", "NSE_INDEX"),
+        pair("MCX", "MCX")
+    );
+    assert_eq!(
+        resolve_option_exchanges("MENTHAOIL", "MCX"),
+        pair("MCX", "MCX")
+    );
+    assert_eq!(
+        resolve_option_exchanges("NIFTY", "NFO"),
+        pair("NSE_INDEX", "NFO")
+    );
 }
 
 /// WEB-DEFECT X-134 (fixed): a stock option declared on NFO (or BFO) is
@@ -44,15 +68,27 @@ fn the_underlying_decides_where_it_is_quoted_and_traded() {
 #[test]
 fn a_stock_option_is_quoted_on_the_equity_segment() {
     assert_eq!(resolve_option_exchanges("SBIN", "NFO"), pair("NSE", "NFO"));
-    assert_eq!(resolve_option_exchanges("sbin", " nse "), pair("NSE", "NFO"));
-    assert_eq!(resolve_option_exchanges("RELIANCE", "BFO"), pair("BSE", "BFO"));
+    assert_eq!(
+        resolve_option_exchanges("sbin", " nse "),
+        pair("NSE", "NFO")
+    );
+    assert_eq!(
+        resolve_option_exchanges("RELIANCE", "BFO"),
+        pair("BSE", "BFO")
+    );
     // What the desktop service makes of the pair: quote SBIN on NSE, trade
     // its options on NFO.
     let quote = crate::services::options_service::quote_exchange("SBIN", "NSE");
     assert_eq!(quote, "NSE");
-    assert_eq!(crate::services::options_service::option_exchange(&quote), "NFO");
+    assert_eq!(
+        crate::services::options_service::option_exchange(&quote),
+        "NFO"
+    );
     // The index segment, declared explicitly, stays the web's.
-    assert_eq!(resolve_option_exchanges("SBIN", "NSE_INDEX"), pair("NSE_INDEX", "NFO"));
+    assert_eq!(
+        resolve_option_exchanges("SBIN", "NSE_INDEX"),
+        pair("NSE_INDEX", "NFO")
+    );
 }
 
 /// X-135: every exchange without a spot is declarable and quotes and
@@ -60,14 +96,19 @@ fn a_stock_option_is_quoted_on_the_equity_segment() {
 #[test]
 fn every_no_spot_exchange_is_declarable() {
     for ex in NO_SPOT_EXCHANGES {
-        assert_eq!(resolve_option_exchanges("ANYTHING", ex), pair(ex, ex), "{ex}");
+        assert_eq!(
+            resolve_option_exchanges("ANYTHING", ex),
+            pair(ex, ex),
+            "{ex}"
+        );
         assert_eq!(crate::services::options_service::option_exchange(ex), ex);
     }
 }
 
 /// The `INDEX_SYMBOLS` entries the editor lists on MCX.
 fn editor_mcx_symbols() -> Vec<String> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/lib/flow/constants.ts");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/lib/flow/constants.ts");
     let source = std::fs::read_to_string(path).unwrap_or_default();
     let Some(start) = source.find("export const INDEX_SYMBOLS = [") else {
         return Vec::new();
@@ -77,7 +118,13 @@ fn editor_mcx_symbols() -> Vec<String> {
     block
         .lines()
         .filter(|l| l.contains("exchange: 'MCX'"))
-        .filter_map(|l| l.split("value: '").nth(1)?.split('\'').next().map(str::to_string))
+        .filter_map(|l| {
+            l.split("value: '")
+                .nth(1)?
+                .split('\'')
+                .next()
+                .map(str::to_string)
+        })
         .collect()
 }
 
@@ -86,12 +133,18 @@ fn editor_mcx_symbols() -> Vec<String> {
 #[test]
 fn the_dropdown_and_the_resolver_list_the_same_commodities() {
     let mut listed = editor_mcx_symbols();
-    assert!(!listed.is_empty(), "INDEX_SYMBOLS not found in constants.ts");
+    assert!(
+        !listed.is_empty(),
+        "INDEX_SYMBOLS not found in constants.ts"
+    );
     for u in &listed {
         assert_eq!(resolve_option_exchanges(u, ""), pair("MCX", "MCX"), "{u}");
     }
     listed.sort();
-    let mut ours: Vec<String> = MCX_OPTION_UNDERLYINGS.iter().map(|s| s.to_string()).collect();
+    let mut ours: Vec<String> = MCX_OPTION_UNDERLYINGS
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
     ours.sort();
     assert_eq!(listed, ours);
 }
@@ -105,7 +158,12 @@ fn lot(run: &Run, u: &str, ex: &str) -> Result<i64, String> {
 #[test]
 fn the_lot_size_comes_from_the_master_and_fails_closed() {
     let master = vec![
-        master_row("NIFTYNXT5025NOV2668000CE", "NIFTYNXT50 25 Nov 26 68000 CE", "NFO", 25),
+        master_row(
+            "NIFTYNXT5025NOV2668000CE",
+            "NIFTYNXT50 25 Nov 26 68000 CE",
+            "NFO",
+            25,
+        ),
         master_row("NIFTY25NOV2624000CE", "NIFTY 25 Nov 26 24000 CE", "NFO", 75),
         master_row("BANKNIFTY25NOV2652000CE", "BANKNIFTY", "NFO", 0),
         master_row("BANKNIFTY25NOV2652100CE", "BANKNIFTY", "NFO", 30),
@@ -136,7 +194,10 @@ fn the_lot_size_comes_from_the_master_and_fails_closed() {
     let run = Run::at("2026-10-29T10:15:00", None);
     assert_eq!(
         lot(&run, "NIFTY", "NFO"),
-        Err("Could not read the lot size for NIFTY on NFO. Refusing to size an order on a guess.".into())
+        Err(
+            "Could not read the lot size for NIFTY on NFO. Refusing to size an order on a guess."
+                .into()
+        )
     );
 }
 
@@ -158,7 +219,10 @@ async fn an_unusable_expiry_reply_is_logged_and_resolves_nothing() {
     for (reply, want) in cases {
         let run = Run::new();
         run.reply("expiry", reply);
-        assert_eq!(resolve_expiry_date(&run.ctx, "NIFTY", "NFO", "current_week").await, None);
+        assert_eq!(
+            resolve_expiry_date(&run.ctx, "NIFTY", "NFO", "current_week").await,
+            None
+        );
         assert_eq!(run.log(), [("error".to_string(), want.to_string())]);
     }
 }
@@ -168,7 +232,10 @@ async fn an_unusable_expiry_reply_is_logged_and_resolves_nothing() {
 #[tokio::test]
 async fn a_monthly_expiry_is_counted_in_ist() {
     let run = Run::at("2026-11-01T01:30:00", Some(Vec::new()));
-    run.reply("expiry", json!({"status": "success", "data": ["27-OCT-26", "24-NOV-26", "29-DEC-26"]}));
+    run.reply(
+        "expiry",
+        json!({"status": "success", "data": ["27-OCT-26", "24-NOV-26", "29-DEC-26"]}),
+    );
     let got = resolve_expiry_date(&run.ctx, "NIFTY", "NFO", "current_month").await;
     assert_eq!(got.as_deref(), Some("24NOV26"));
 }
@@ -182,8 +249,10 @@ fn expiries() -> Value {
 async fn place_legs(legs: Value) -> (NodeOutcome, Run) {
     let master = vec![master_row("NIFTY28AUG2624000CE", "NIFTY", "NFO", 75)];
     let run = Run::at("2026-08-20T10:00:00", Some(master));
-    run.reply("expiry", expiries())
-        .reply("optionsmultiorder", json!({"status": "success", "results": []}));
+    run.reply("expiry", expiries()).reply(
+        "optionsmultiorder",
+        json!({"status": "success", "results": []}),
+    );
     let data = json!({"strategy": "custom", "underlying": "NIFTY", "quantity": 1,
         "expiryType": "current_week", "priceType": "MARKET", "product": "NRML", "action": "SELL",
         "legs": legs});
@@ -208,18 +277,32 @@ async fn a_leg_reaches_the_service_as_built() {
         {"strikeMode": "STRIKE", "strike": 24500, "expiry": "25NOV25", "optionType": "CE", "action": "BUY", "quantity": 2}
     ]))
     .await;
-    assert_eq!(o.value().map(|v| v["status"].clone()), Some(json!("success")));
+    assert_eq!(
+        o.value().map(|v| v["status"].clone()),
+        Some(json!("success"))
+    );
     let legs = sent(&run)["legs"].clone();
     assert_eq!(
-        (legs[0]["expiry_date"].clone(), legs[1]["expiry_date"].clone()),
+        (
+            legs[0]["expiry_date"].clone(),
+            legs[1]["expiry_date"].clone()
+        ),
         (json!("28OCT25"), json!("25NOV25"))
     );
-    assert_eq!((legs[0]["strike"].clone(), legs[1]["strike"].clone()), (json!(24500.0), json!(24500.0)));
-    assert_eq!((legs[0]["action"].clone(), legs[1]["action"].clone()), (json!("SELL"), json!("BUY")));
+    assert_eq!(
+        (legs[0]["strike"].clone(), legs[1]["strike"].clone()),
+        (json!(24500.0), json!(24500.0))
+    );
+    assert_eq!(
+        (legs[0]["action"].clone(), legs[1]["action"].clone()),
+        (json!("SELL"), json!("BUY"))
+    );
     assert_eq!(legs[1]["quantity"], 150);
     let (_, run) = place_legs(json!([{"offset": "OTM2", "expiryType": "next_month", "optionType": "PE", "action": "BUY", "quantity": 1}])).await;
     assert_eq!(sent(&run)["legs"][0]["expiry_date"], "25SEP26");
-    let (_, run) = place_legs(json!([{"offset": "ATM", "optionType": "PE", "action": "SELL", "quantity": 1}])).await;
+    let (_, run) =
+        place_legs(json!([{"offset": "ATM", "optionType": "PE", "action": "SELL", "quantity": 1}]))
+            .await;
     assert!(sent(&run)["legs"][0].get("expiry_date").is_none());
     assert_eq!(sent(&run)["expiry_date"], "28AUG26");
     let (_, run) = place_legs(json!([
@@ -229,7 +312,9 @@ async fn a_leg_reaches_the_service_as_built() {
     .await;
     let legs = sent(&run)["legs"].clone();
     assert!(legs[0].get("offset").is_none() && legs[1].get("strike").is_none());
-    let (_, run) = place_legs(json!([{"offset": "ATM", "optionType": "CE", "action": "BUY", "quantity": 3}])).await;
+    let (_, run) =
+        place_legs(json!([{"offset": "ATM", "optionType": "CE", "action": "BUY", "quantity": 3}]))
+            .await;
     assert_eq!(sent(&run)["legs"][0]["quantity"], 225);
 }
 
@@ -254,8 +339,14 @@ async fn a_bad_leg_stops_the_basket_before_anything_fills() {
 fn final_fix_run(runtime: Value) -> Run {
     let master = vec![master_row("NIFTY27AUG2624000CE", "NIFTY", "NFO", 10)];
     let run = Run::at("2026-08-20T10:00:00", Some(master));
-    run.reply("expiry", json!({"status": "success", "data": ["27-AUG-26"]}))
-        .reply("optionsmultiorder", json!({"status": "success", "results": []}));
+    run.reply(
+        "expiry",
+        json!({"status": "success", "data": ["27-AUG-26"]}),
+    )
+    .reply(
+        "optionsmultiorder",
+        json!({"status": "success", "results": []}),
+    );
     run.ctx.vars.set("runtime", runtime);
     run
 }
@@ -276,7 +367,9 @@ async fn raw_legs_resolve_with_common_fields_and_overrides() {
         {"offset": "otm2", "optionType": "pe", "action": "sell", "quantity": 3,
          "product": " nrml ", "priceType": " limit ", "price": 120, "triggerPrice": 0}
     ]));
-    let o = run.node("optionsMultiOrder", custom_multi(json!("{{runtime}}"))).await;
+    let o = run
+        .node("optionsMultiOrder", custom_multi(json!("{{runtime}}")))
+        .await;
     assert!(!o.is_error(), "{:?}", o);
     let methods: Vec<&str> = run.calls().iter().map(|c| c.method).collect();
     assert_eq!(methods, ["get_expiry", "options_multi_order"]);
@@ -304,9 +397,18 @@ async fn a_raw_list_passes_the_unresolved_order_field_check() {
             json!([{"quantity": "{{qty}}", "expiryDate": "{{missing.legacy_expiry}}"}]),
         );
         run.ctx.vars.set("qty", json!(2));
-        let node = if field == "legs" { "optionsMultiOrder" } else { "basketOrder" };
-        let errors = run.walk(node, json!({field: "{{runtime}}", "strategy": "custom"})).await;
-        let text = errors.first().map(|e| e["message"].to_string()).unwrap_or_default();
+        let node = if field == "legs" {
+            "optionsMultiOrder"
+        } else {
+            "basketOrder"
+        };
+        let errors = run
+            .walk(node, json!({field: "{{runtime}}", "strategy": "custom"}))
+            .await;
+        let text = errors
+            .first()
+            .map(|e| e["message"].to_string())
+            .unwrap_or_default();
         assert!(!text.contains("has unresolved variable"), "{field}: {text}");
     }
 }
@@ -314,8 +416,10 @@ async fn a_raw_list_passes_the_unresolved_order_field_check() {
 /// X-088: the legacy `orderLegs` from a variable still runs.
 #[tokio::test]
 async fn legacy_order_legs_resolve() {
-    let run = final_fix_run(json!([{"offset": "ATM", "optionType": "CE", "action": "BUY",
-        "quantity": 1, "product": "MIS", "pricetype": "MARKET"}]));
+    let run = final_fix_run(
+        json!([{"offset": "ATM", "optionType": "CE", "action": "BUY",
+        "quantity": 1, "product": "MIS", "pricetype": "MARKET"}]),
+    );
     let mut data = custom_multi(Value::Null);
     if let Some(m) = data.as_object_mut() {
         m.remove("legs");
@@ -331,9 +435,16 @@ async fn legacy_order_legs_resolve() {
 /// call, naming the field.
 #[tokio::test]
 async fn an_unusable_leg_fails_before_any_call() {
-    for runtime in [json!([]), json!({}), json!(["not-an-object"]), json!("{{still.missing}}")] {
+    for runtime in [
+        json!([]),
+        json!({}),
+        json!(["not-an-object"]),
+        json!("{{still.missing}}"),
+    ] {
         let run = final_fix_run(runtime.clone());
-        let o = run.node("optionsMultiOrder", custom_multi(json!("{{runtime}}"))).await;
+        let o = run
+            .node("optionsMultiOrder", custom_multi(json!("{{runtime}}")))
+            .await;
         assert!(o.is_error(), "{runtime}");
         assert!(run.calls().is_empty(), "{runtime}");
     }
@@ -341,7 +452,11 @@ async fn an_unusable_leg_fails_before_any_call() {
         (json!({"offset": "BAD"}), Value::Null, "offset"),
         (json!({"optionType": "XX"}), Value::Null, "optiontype"),
         (json!({"action": "HOLD"}), Value::Null, "action"),
-        (json!({"quantity": "{{runtime}}"}), json!("not-a-number"), "quantity"),
+        (
+            json!({"quantity": "{{runtime}}"}),
+            json!("not-a-number"),
+            "quantity",
+        ),
         (json!({"product": "BAD"}), Value::Null, "product"),
         (json!({"pricetype": "BAD"}), Value::Null, "pricetype"),
         (json!({"price": "{{runtime}}"}), json!("nan"), "price"),
@@ -354,8 +469,14 @@ async fn an_unusable_leg_fails_before_any_call() {
             m.extend(u);
         }
         let run = final_fix_run(runtime);
-        let o = run.node("optionsMultiOrder", custom_multi(json!([leg]))).await;
-        assert!(message(&o).to_lowercase().contains(field), "{field}: {}", message(&o));
+        let o = run
+            .node("optionsMultiOrder", custom_multi(json!([leg])))
+            .await;
+        assert!(
+            message(&o).to_lowercase().contains(field),
+            "{field}: {}",
+            message(&o)
+        );
         assert!(run.calls().is_empty(), "{field}");
     }
 }
@@ -365,19 +486,35 @@ async fn an_unusable_leg_fails_before_any_call() {
 #[tokio::test]
 async fn options_default_to_nrml() {
     let run = Run::new();
-    run.reply("expiry", json!({"status": "success", "data": ["04-NOV-26"]}))
-        .reply("optionsorder", json!({"status": "success"}));
-    let data = json!({"underlying": "NIFTY", "exchange": "NSE_INDEX", "expiryType": "current_week"});
+    run.reply(
+        "expiry",
+        json!({"status": "success", "data": ["04-NOV-26"]}),
+    )
+    .reply("optionsorder", json!({"status": "success"}));
+    let data =
+        json!({"underlying": "NIFTY", "exchange": "NSE_INDEX", "expiryType": "current_week"});
     run.node("optionsOrder", data).await;
-    assert_eq!(run.client.calls_to("optionsorder")[0].payload["product"], "NRML");
+    assert_eq!(
+        run.client.calls_to("optionsorder")[0].payload["product"],
+        "NRML"
+    );
     let run = Run::new();
-    run.reply("expiry", json!({"status": "success", "data": ["04-NOV-26"]}))
-        .reply("optionsmultiorder", json!({"status": "success"}));
+    run.reply(
+        "expiry",
+        json!({"status": "success", "data": ["04-NOV-26"]}),
+    )
+    .reply("optionsmultiorder", json!({"status": "success"}));
     let data = json!({"underlying": "NIFTY", "strategy": "straddle", "expiryType": "current_week"});
     run.node("optionsMultiOrder", data).await;
     let legs = sent(&run)["legs"].clone();
-    assert_eq!((legs[0]["product"].clone(), legs[1]["product"].clone()), (json!("NRML"), json!("NRML")));
-    assert_eq!(legs[0]["action"], "SELL", "a multi-leg node's default action is SELL");
+    assert_eq!(
+        (legs[0]["product"].clone(), legs[1]["product"].clone()),
+        (json!("NRML"), json!("NRML"))
+    );
+    assert_eq!(
+        legs[0]["action"], "SELL",
+        "a multi-leg node's default action is SELL"
+    );
 }
 
 /// X-136, N-optionsOrder-07: both options nodes trade a commodity on MCX,
@@ -387,16 +524,26 @@ async fn options_default_to_nrml() {
 async fn both_options_nodes_trade_commodities_on_mcx() {
     let monthly = json!({"status": "success", "data": ["17-NOV-26", "16-DEC-26"]});
     let run = Run::new();
-    run.reply("expiry", monthly.clone()).reply("optionsorder", json!({"status": "success"}));
-    let data = json!({"underlying": "CRUDEOIL", "exchange": "NSE_INDEX", "expiryType": "current_week"});
+    run.reply("expiry", monthly.clone())
+        .reply("optionsorder", json!({"status": "success"}));
+    let data =
+        json!({"underlying": "CRUDEOIL", "exchange": "NSE_INDEX", "expiryType": "current_week"});
     run.node("optionsOrder", data).await;
     let calls = run.calls();
-    assert_eq!(calls[0].payload["exchange"], "MCX", "the expiry is read on MCX");
+    assert_eq!(
+        calls[0].payload["exchange"], "MCX",
+        "the expiry is read on MCX"
+    );
     let p = &calls[1].payload;
-    assert_eq!((&p["exchange"], &p["quantity"], &p["expiry_date"]), (&json!("MCX"), &json!(100), &json!("17NOV26")));
+    assert_eq!(
+        (&p["exchange"], &p["quantity"], &p["expiry_date"]),
+        (&json!("MCX"), &json!(100), &json!("17NOV26"))
+    );
     let run = Run::new();
-    run.reply("expiry", monthly).reply("optionsmultiorder", json!({"status": "success"}));
-    let data = json!({"underlying": "CRUDEOIL", "strategy": "straddle", "expiryType": "current_week"});
+    run.reply("expiry", monthly)
+        .reply("optionsmultiorder", json!({"status": "success"}));
+    let data =
+        json!({"underlying": "CRUDEOIL", "strategy": "straddle", "expiryType": "current_week"});
     run.node("optionsMultiOrder", data).await;
     assert_eq!(sent(&run)["exchange"], "MCX");
     assert_eq!(sent(&run)["legs"][0]["quantity"], 100);
@@ -407,8 +554,14 @@ async fn both_options_nodes_trade_commodities_on_mcx() {
 #[tokio::test]
 async fn a_generated_strategy_logs_as_the_web() {
     let run = Run::new();
-    run.reply("expiry", json!({"status": "success", "data": ["04-NOV-26", "11-NOV-26"]}))
-        .reply("optionsmultiorder", json!({"status": "success", "results": []}));
+    run.reply(
+        "expiry",
+        json!({"status": "success", "data": ["04-NOV-26", "11-NOV-26"]}),
+    )
+    .reply(
+        "optionsmultiorder",
+        json!({"status": "success", "results": []}),
+    );
     let data = json!({"underlying": "NIFTY", "strategy": "straddle", "action": "SELL",
         "quantity": 2, "expiryType": "current_week", "outputVariable": "multi"});
     run.node("optionsMultiOrder", data).await;
