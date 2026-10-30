@@ -89,3 +89,95 @@ fn a_depth_snapshot_carries_its_book_as_depth_buy_and_sell() {
         "a tick has no book"
     );
 }
+
+/// N-stream-10, X-350: on the app's own feed manager, the wait listens
+/// before it subscribes (a tick that arrives the moment the subscription
+/// is taken is read), passes over another instrument's tick, ends at its
+/// timeout with nothing, and drops its listener on every path; Flow holds
+/// one reference for the instrument however often it waits.
+#[tokio::test]
+async fn the_wait_reads_the_managers_ticks_and_ends_at_its_timeout() {
+    use crate::brokers::common::symbols::SymToken;
+    use std::sync::Arc;
+    let t = crate::state::testing::build(
+        crate::brokers::BrokerRegistry::new(),
+        "2026-11-03T04:00:00Z".parse().unwrap(),
+    );
+    let app = t.ctx.clone();
+    app.security
+        .install(&crate::security::Unlocked::random().unwrap());
+    app.set_broker_session(Some(crate::state::BrokerSession {
+        broker_id: "zerodha".into(),
+        auth_token: "mock-access-token".into(),
+        feed_token: None,
+        user_id: "AB1234".into(),
+        user_name: None,
+        authenticated_at: app.now(),
+    }));
+    app.symbols.load(vec![SymToken {
+        symbol: "SBIN".into(),
+        brsymbol: "SBIN-EQ".into(),
+        name: "STATE BANK OF INDIA".into(),
+        exchange: "NSE".into(),
+        brexchange: "NSE".into(),
+        token: "3045".into(),
+        expiry: String::new(),
+        strike: 0.0,
+        lot_size: 1,
+        instrument_type: "EQ".into(),
+        tick_size: 0.05,
+    }]);
+    let feed = Arc::new(AppFeed::new(Arc::downgrade(&app)));
+    let before = app.websocket.tick_listeners();
+    let waiting = {
+        let feed = feed.clone();
+        tokio::spawn(async move {
+            feed.first_frame("SBIN", "NSE", "LTP", Duration::from_secs(5), &|_| true)
+                .await
+        })
+    };
+    for _ in 0..500 {
+        if app.websocket.instrument_count() == 1 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(2)).await;
+    }
+    assert_eq!(app.websocket.instrument_count(), 1, "subscribed");
+    assert_eq!(
+        app.websocket.tick_listeners(),
+        before + 1,
+        "and already listening"
+    );
+    let FeedEvent::Tick(mut other) = tick(1) else {
+        unreachable!()
+    };
+    other.symbol = "TCS".into();
+    app.websocket.emit(Arc::new(FeedEvent::Tick(other)));
+    app.websocket.emit(Arc::new(tick(1)));
+    let got = waiting.await.unwrap().unwrap().expect("the SBIN tick");
+    assert_eq!(
+        (got["symbol"].as_str(), got["data"]["ltp"].as_f64()),
+        (Some("SBIN"), Some(812.5))
+    );
+    assert_eq!(
+        app.websocket.tick_listeners(),
+        before,
+        "the listener is dropped"
+    );
+
+    let none = feed
+        .first_frame("SBIN", "NSE", "LTP", Duration::from_millis(50), &|_| true)
+        .await
+        .unwrap();
+    assert!(none.is_none(), "nothing within the timeout");
+    assert_eq!(
+        app.websocket.tick_listeners(),
+        before,
+        "dropped after a timeout too"
+    );
+    assert_eq!(
+        app.websocket.subscriptions().len(),
+        1,
+        "one reference for Flow"
+    );
+}

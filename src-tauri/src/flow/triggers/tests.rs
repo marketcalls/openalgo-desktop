@@ -351,6 +351,8 @@ async fn an_order_update_from_the_bus_reaches_its_watch() {
 /// subscription for the same key during an unsubscribe.
 struct Feed {
     refuse: std::sync::atomic::AtomicBool,
+    /// Symbols starting with FAIL are refused while this is set.
+    refuse_fail: std::sync::atomic::AtomicBool,
     calls: std::sync::atomic::AtomicUsize,
     resubscribe: Option<Arc<crate::flow::contract::subscriptions::Subscriptions>>,
 }
@@ -362,13 +364,16 @@ impl FeedRelease for Feed {
         if let Some(s) = &self.resubscribe {
             s.record(Some(1), symbol, exchange, mode);
         }
-        !self.refuse.load(std::sync::atomic::Ordering::SeqCst) && !symbol.starts_with("FAIL")
+        let fail = symbol.starts_with("FAIL")
+            && self.refuse_fail.load(std::sync::atomic::Ordering::SeqCst);
+        !self.refuse.load(std::sync::atomic::Ordering::SeqCst) && !fail
     }
 }
 
 fn feed(refuse: bool) -> Feed {
     Feed {
         refuse: std::sync::atomic::AtomicBool::new(refuse),
+        refuse_fail: std::sync::atomic::AtomicBool::new(true),
         calls: Default::default(),
         resubscribe: None,
     }
@@ -542,6 +547,38 @@ async fn the_market_hours_gate_skips_a_scheduled_run_silently() {
     );
 }
 
+/// T-021, T-101 (decision 25): the scheduler's gate is the nodes' one, on
+/// `effective_session_window`: on Republic Day 2026 (a trading holiday
+/// that does not list NCO) NCO and CRYPTO are open, NSE is shut, as on
+/// the web. A second copy over `timings_for_date` shut all three.
+#[tokio::test]
+async fn a_holiday_that_does_not_list_the_exchange_leaves_it_open() {
+    let t = app();
+    // Monday 2026-01-26, 12:00 IST.
+    t.clock.set("2026-01-26T06:30:00Z".parse().unwrap());
+    let gated = |exchange: &str| {
+        save(
+            &t.ctx,
+            node(
+                "start",
+                json!({"scheduleType": "daily", "marketHoursOnly": true,
+                    "marketHoursExchange": exchange}),
+            ),
+            true,
+        )
+    };
+    let (nco, crypto, nse) = (gated("NCO"), gated("crypto"), gated("NSE"));
+    let s = side(&t);
+    for id in [nco, crypto, nse] {
+        s.scheduled_run(id, true).await;
+    }
+    let runs =
+        |id| crate::flow::store::executions::list(&t.ctx.sqlite.conn().unwrap(), id, 5).unwrap();
+    assert_eq!(runs(nco).len(), 1, "NCO is not listed on the holiday");
+    assert_eq!(runs(crypto).len(), 1, "CRYPTO never closes");
+    assert!(runs(nse).is_empty(), "NSE is shut on the holiday");
+}
+
 /// X-344, T-090: the app's own shutdown stops the trigger side (its alerts
 /// and watches go, the monitor reports stopped).
 #[tokio::test]
@@ -595,3 +632,6 @@ async fn an_expired_alert_stands_its_workflow_down() {
         "stood down, so a restart does not re-arm it"
     );
 }
+
+mod lifecycle;
+mod monitor_runs;

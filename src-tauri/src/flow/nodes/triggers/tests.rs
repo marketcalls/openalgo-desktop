@@ -256,3 +256,30 @@ async fn an_unresolved_level_fails_closed() {
         "Price alert: SBIN LTP=812.5 greater_than 0 = True"
     );
 }
+
+/// parity N-orderUpdateTrigger-00, -01: every trigger-lane node type is in
+/// the registry the executor builds (a type missing from it fails the run
+/// as unknown); the order-update trigger node writes its line and lets its
+/// children run.
+#[tokio::test]
+async fn the_trigger_nodes_are_in_the_executors_registry() {
+    let registry = crate::flow::nodes::NodeRegistry::default();
+    for kind in [
+        "start",
+        "webhookTrigger",
+        "priceAlert",
+        "orderUpdateTrigger",
+        "subscribeLtp",
+        "subscribeQuote",
+        "subscribeDepth",
+        "unsubscribe",
+    ] {
+        assert!(registry.get(kind).is_some(), "{} is not registered", kind);
+    }
+    let node = registry.get("orderUpdateTrigger").unwrap();
+    let ctx = NodeCtx::bare(Arc::new(FakeFlowClient::new()));
+    let out = node.run(&ctx, &Map::new()).await;
+    assert!(!out.is_error());
+    let lines: Vec<Value> = ctx.logs().iter().map(|l| l["message"].clone()).collect();
+    assert_eq!(lines, vec![json!("Order-update trigger activated")]);
+}

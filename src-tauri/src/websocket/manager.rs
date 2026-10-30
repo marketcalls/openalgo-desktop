@@ -193,6 +193,19 @@ impl WebSocketManager {
         self.events.subscribe()
     }
 
+    /// Test hook: hand `event` to every tick listener, as the feed task
+    /// does.
+    #[cfg(test)]
+    pub(crate) fn emit(&self, event: MarketEvent) {
+        let _ = self.events.send(event);
+    }
+
+    /// Test hook: how many listen for ticks now.
+    #[cfg(test)]
+    pub(crate) fn tick_listeners(&self) -> usize {
+        self.events.receiver_count()
+    }
+
     /// Current feed status.
     pub fn status(&self) -> FeedStatus {
         self.status.borrow().clone()
