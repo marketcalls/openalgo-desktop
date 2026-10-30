@@ -45,9 +45,11 @@ impl TriggerSide {
         {
             Ok(rows) => rows,
             Err(e) => {
-                tracing::error!("Failed to restore Flow order-update watches: {}", e);
-                tracing::error!("Failed to restore Flow price alerts: {}", e);
-                tracing::error!("Failed to reconcile Flow scheduler jobs: {}", e);
+                // One read serves the three steps `app.py` runs, so a failed
+                // read fails each, with the web's line for each.
+                tracing::error!(error = %e, "Failed to restore Flow order-update watches");
+                tracing::error!(error = %e, "Failed to restore Flow price alerts");
+                tracing::error!(error = %e, "Failed to reconcile Flow scheduler jobs");
                 return;
             }
         };
@@ -100,8 +102,23 @@ impl TriggerSide {
                 .get("symbol")
                 .filter(|v| crate::flow::contract::pyfmt::truthy(v));
             let alert = match symbol {
-                None => Err("no symbol configured".to_string()),
-                Some(_) => price_monitor::Alert::from_node(row.id, &data, self.now()),
+                None => {
+                    tracing::warn!(
+                        "Cannot restore price alert for workflow {}: no symbol configured",
+                        row.id
+                    );
+                    Err("no symbol configured".to_string())
+                }
+                Some(_) => {
+                    price_monitor::Alert::from_node(row.id, &data, self.now()).map_err(|e| {
+                        tracing::warn!(
+                            "Skipping invalid price alert for workflow {}: {}",
+                            row.id,
+                            e
+                        );
+                        e
+                    })
+                }
             };
             match alert {
                 Ok(a) => {
@@ -109,7 +126,6 @@ impl TriggerSide {
                     restored += 1;
                 }
                 Err(e) => {
-                    tracing::warn!("Cannot restore price alert for workflow {}: {}", row.id, e);
                     self.stand_down(
                         row.id,
                         &format!("Workflow {} was deactivated at start-up: its price alert could not be restored ({}).", row.id, e),
@@ -131,14 +147,19 @@ impl TriggerSide {
             let Some(data) = first(row, "start") else {
                 continue;
             };
+            if scheduler::scheduled_kind(&data).is_none() {
+                continue;
+            }
+            // `add_workflow_job` clears the workflow's previous job first.
+            self.scheduler.remove(row.id);
             let schedule = match scheduler::Schedule::restored(&data, now) {
                 Ok(Some(s)) => s,
                 Ok(None) => continue,
                 Err(e) => {
-                    tracing::warn!(
-                        "Could not restore the scheduler job for active workflow {}; it will not fire until it is reactivated: {}",
-                        row.id,
-                        e
+                    tracing::error!(
+                        error = %e,
+                        "Could not restore the scheduler job for active workflow {}; it will not fire until it is reactivated",
+                        row.id
                     );
                     self.stand_down(
                         row.id,
@@ -156,6 +177,10 @@ impl TriggerSide {
                 .restore(row.id, schedule, gated, row.next_run_at, now);
             if self.record_job(row.id, next).await.is_ok() {
                 restored += 1;
+                tracing::warn!(
+                    "Restored missing scheduler job for active workflow {}.",
+                    row.id
+                );
             }
         }
         if restored > 0 {

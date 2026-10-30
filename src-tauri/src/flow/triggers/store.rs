@@ -122,13 +122,25 @@ pub fn set_next_run(conn: &Connection, id: i64, next: Option<DateTime<Utc>>) -> 
 }
 
 /// Stand a workflow down: inactive, no job id, no next run. `false` when
-/// it is gone.
+/// it is gone. Clearing a recorded job id writes the web's
+/// `set_schedule_job_id(workflow_id, None)` line (S-21).
 pub fn deactivate(conn: &Connection, id: i64, now: DateTime<Utc>) -> Result<bool> {
-    Ok(conn.execute(
+    let job: Option<Option<String>> = conn
+        .query_row(
+            "SELECT schedule_job_id FROM flow_workflows WHERE id = ?1",
+            params![id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let n = conn.execute(
         "UPDATE flow_workflows SET is_active = 0, schedule_job_id = NULL, next_run_at = NULL,
              updated_at = ?1 WHERE id = ?2",
         params![stamp(now), id],
-    )? > 0)
+    )?;
+    if n > 0 && job.flatten().is_some() {
+        tracing::info!("Set schedule job ID None for workflow {}", id);
+    }
+    Ok(n > 0)
 }
 
 /// A trigger that fired while it could not run (no broker session): one

@@ -635,4 +635,5 @@ async fn an_expired_alert_stands_its_workflow_down() {
 
 mod lifecycle;
 mod monitor_runs;
+mod schedule_logs;
 mod support;

@@ -221,6 +221,11 @@ impl TriggerSide {
         workflow_id: i64,
         data: &Map<String, Value>,
     ) -> Result<(), TriggerError> {
+        if scheduler::scheduled_kind(data).is_none() {
+            return Ok(());
+        }
+        // `add_workflow_job` clears the workflow's previous job first.
+        self.scheduler.remove(workflow_id);
         let now = self.now();
         let Some(schedule) =
             scheduler::Schedule::from_node(data, now).map_err(TriggerError::Invalid)?
@@ -329,6 +334,8 @@ impl TriggerHooks for TriggerSide {
     }
 
     async fn stop(&self) {
+        // The web's shutdowns are idempotent: a second stop writes nothing.
+        let first = !self.stop.is_cancelled();
         self.stop.cancel();
         self.watches.detach();
         self.scheduler.clear();
@@ -347,7 +354,13 @@ impl TriggerHooks for TriggerSide {
             tasks.abort_all();
             while tasks.join_next().await.is_some() {}
         }
-        tracing::info!("Flow triggers stopped");
+        // After the poll's own `Price monitoring stopped`, as the web's
+        // `_stop_monitoring` comes before its shutdown line.
+        if first {
+            tracing::info!("Flow Scheduler shutdown");
+            tracing::info!("FlowPriceMonitor shutdown");
+            tracing::info!("FlowOrderUpdateMonitor shutdown");
+        }
     }
 }
 

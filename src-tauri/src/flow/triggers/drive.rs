@@ -107,9 +107,9 @@ impl TriggerSide {
             Ok(Some((true, nodes))) => market_hours_config(&nodes),
             Err(e) => {
                 tracing::error!(
-                    "Could not read scheduling config for workflow {}; using the schedule's stored setting: {}",
-                    id,
-                    e
+                    error = %e,
+                    "Could not read scheduling config for workflow {}; using the schedule's stored setting",
+                    id
                 );
                 MarketHours {
                     enabled: stored_gate,
