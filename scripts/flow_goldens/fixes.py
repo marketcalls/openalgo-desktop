@@ -245,6 +245,10 @@ FIXES.update({
                  failure='{"status": "error", "message": _bad}',
                  assign='        target_time_str = _res.get("targetTime", target_time_str)\n'))]),
     ],
+    # N-priceAlert-02 (the triggers lane's sentence): a missing symbol says so.
+    "price_alert_no_symbol": [(fx.NodeExecutor, "execute_price_alert", [
+        ('        if not symbol:\n            return {"status": "error", "condition": False}\n',
+         '        if not symbol:\n            return {"status": "error", "condition": False, "message": "A priceAlert node needs symbol, so the alert was not evaluated."}\n')])],
     # N-gate-04 (decision 8): AND/OR read inputCount as the validator does.
     "gate_slot_count": [(harness, "_orig_chain", [
         ('        declared = node_data.get("inputCount")\n',
