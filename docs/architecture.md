@@ -466,6 +466,8 @@ reference](mcp-tool-reference.md).
 | Configuration | `.env` | Settings in `openalgo.db`, changed in the app |
 | Secrets | `APP_KEY` and `API_KEY_PEPPER` in `.env` | Generated at setup, wrapped with the password in `key_vault` |
 | Users | One per deployment | One per installation, one broker session at a time |
-| Strategies in Python, Flow, pandas backtesters, Agent | Present | Not in the desktop |
+| Strategies in Python, pandas backtesters | Present | Not in the desktop |
+| Flow (`/flow`) | Python executor; APScheduler jobs in server-local time | Native Rust (`src-tauri/src/flow/`); schedules in IST, run while the app is open; nodes call `/api/v1` in process |
+| Agent | Python, on agno | Native Rust (`src-tauri/src/agent/`), from 1.0.4 |
 | OpenScript live runs | In the browser page that started them | In a hidden window per run, fed by Rust |
 | Order outcomes | Accepted or failed | Accepted, refused or uncertain, settled by the order reconciler |

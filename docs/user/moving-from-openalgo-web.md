@@ -86,6 +86,8 @@ desktop:
 
 - Strategies (each gets a new webhook URL; update your TradingView alerts)
 - Chartink strategies and their webhook URLs
+- Flow workflows: export each from the web's editor and import it here (see
+  [Flow workflows](#flow-workflows)); each gets a new webhook URL and secret
 - Telegram bot token, WhatsApp pairing, SMTP settings
 - Sandbox capital and settings (the sandbox starts fresh at 1 crore)
 - Historify data (download it again from the Historify page)
@@ -106,7 +108,7 @@ OpenAlgo Desktop has ngrok built in, so there is nothing to install:
 
 Your Host Server URL is then `https://<your domain>`, as `HOST_SERVER` was
 on the web, whether the tunnel is online or not: the webhook addresses on
-the TradingView, GoCharting, Chartink and strategy pages use it, and so
+the TradingView, GoCharting, Chartink, strategy and Flow pages use it, and so
 does the automatic broker redirect URL
 (`https://<your domain>/<broker>/callback`, which you may already have
 registered with your broker for the web). The tunnel opens
@@ -122,6 +124,30 @@ tunnel makes the login page reachable from the internet, so use a strong
 password and turn on two-factor login on the **TOTP** tab in Profile.
 
 Your own scripts, Amibroker and Excel on the same computer need no tunnel.
+
+## Flow workflows
+
+Flow is in the desktop from 1.0.5, natively (no Python), and reads the same
+workflow JSON as the web. To move a workflow:
+
+1. In OpenAlgo web, open it in the Flow editor, then **...**, **Export
+   Workflow**.
+2. In OpenAlgo Desktop, open the profile menu, **Flow Editor**, **Import**,
+   and pick the file. It arrives inactive as `<name> (imported)`.
+3. Open its **Webhook** settings, switch the webhook on, and put the new URL
+   and secret into TradingView or Chartink. The web's address does not carry
+   over.
+4. Run it once in analyzer mode, then activate it.
+
+What behaves differently, in short: every time is IST whatever the
+computer's time zone; schedules run only while the app is open and you are
+signed in with your broker logged in (a missed run is skipped, not
+replayed); a **Daily** schedule honours its ticked days; every webhook needs
+its secret; the workflow uses the app's current API key, never a stored one;
+Flow's `.env` settings (history cache, run history, webhook limits) are
+fixed at the web's defaults. The full list:
+[21 - Flow Visual Builder](../userguide/21-flow-visual-builder/README.md#import-and-export-moving-workflows-to-and-from-openalgo-web)
+and the [import format](../prompt/flow-import-format.md).
 
 ## The market data feed
 
@@ -173,8 +199,9 @@ differently, it is on purpose:
 - Python strategies written by the Agent: the desktop's Agent writes
   OpenScript instead, and does not offer models on Amazon Bedrock,
   SageMaker or Google Vertex AI.
-- Flow (planned for 1.0.5), and the pandas backtesters (Portfolio
-  Backtester, SIP Backtester, Portfolio Analyzer).
+- The pandas backtesters (Portfolio Backtester, SIP Backtester, Portfolio
+  Analyzer). Flow is in the desktop from 1.0.5: see
+  [Flow workflows](#flow-workflows).
 - The Socket.IO `/market` namespace of the web's WebSocket example page.
   It needs a signed-in browser session and no SDK, trading platform or
   page of the app uses it; the market data feed on port 8765 serves the

@@ -103,13 +103,13 @@ Docker, use [OpenAlgo web](https://github.com/marketcalls/openalgo)
 | OpenScript in `/trading`: backtests and live runs | [openscript.md](openscript.md) |
 | Sandbox mode (analyzer mode) | [user/sandbox.md](user/sandbox.md) |
 | MCP server for AI clients (stdio through `openalgo-desktop mcp`, and HTTP at `/mcp`) | [user/mcp.md](user/mcp.md) · [mcp-tool-reference.md](mcp-tool-reference.md) |
+| Flow (`/flow`): the visual workflow builder, its webhooks and triggers, import and export with OpenAlgo web | [User guide chapter 21](userguide/21-flow-visual-builder/README.md) · [the workflow JSON format](prompt/flow-import-format.md) |
 | The Agent: `/agent`, Agent Config under Admin, and the Assistant panel in `/trading` | [The Chart Assistant](userguide/32-charting-terminal/README.md#the-chart-assistant) · [what 1.0.4 brings](../CHANGELOG.md#104) |
 | Telegram and WhatsApp (native in the desktop, no Python) | [api/telegram-services/](api/telegram-services/) · [api/whatsapp-services/](api/whatsapp-services/) · [port/messaging-manual-test.md](port/messaging-manual-test.md) |
 | The market data feed: how broker ticks reach the app, your scripts and the sandbox | [websocket-architecture.md](websocket-architecture.md) |
 
-Not in the desktop: the Python Strategy Host (`/python`), Flow (`/flow`,
-planned for 1.0.5) and the pandas backtesters (Portfolio Backtester, SIP
-Backtester, Portfolio Analyzer). The app has no pages for them; README,
+Not in the desktop: the Python Strategy Host (`/python`) and the pandas
+backtesters (Portfolio Backtester, SIP Backtester, Portfolio Analyzer). The app has no pages for them; README,
 [What is included, and what is not](../README.md#what-is-included-and-what-is-not)
 says what to use instead. The web's scanner architecture page describes a
 separate service built on the web's stack, not a page of the app, and has no
