@@ -2394,6 +2394,910 @@
    "stored": {}
   },
   {
+   "label": "nan_period",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "sma",
+    "params": "{\"period\": NaN}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "error": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing sma for SBIN (D, 100 bars)"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "quoted_nan_period",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "sma",
+    "params": "{\"period\": \"NaN\"}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "error": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'str'>"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing sma for SBIN (D, 100 bars)"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "nan_length",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "roc",
+    "params": "{\"length\": NaN}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "cannot convert float NaN to integer"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing roc for SBIN (D, 100 bars)"
+    ],
+    [
+     "error",
+     "Indicator error: cannot convert float NaN to integer"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "overflow_period",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "rsi",
+    "params": "{\"period\": 1e999}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "error": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'float'>"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing rsi for SBIN (D, 100 bars)"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "nan_std_dev",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "bbands",
+    "params": "{\"std_dev\": NaN}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "bbands",
+    "nested": false,
+    "offset_bars": 0,
+    "at_offset": {
+     "out0": null,
+     "out1": 1402.085,
+     "out2": null
+    },
+    "inputs": [
+     "close"
+    ],
+    "params": {
+     "std_dev": "nan"
+    },
+    "outputs": [
+     "out0",
+     "out1",
+     "out2"
+    ],
+    "latest": {
+     "out0": null,
+     "out1": 1402.085,
+     "out2": null
+    },
+    "previous": {
+     "out0": null,
+     "out1": 1405.794,
+     "out2": null
+    },
+    "series": [
+     {
+      "out0": null,
+      "out1": 1414.154,
+      "out2": null
+     },
+     {
+      "out0": null,
+      "out1": 1411.802,
+      "out2": null
+     },
+     {
+      "out0": null,
+      "out1": 1409.6875,
+      "out2": null
+     },
+     {
+      "out0": null,
+      "out1": 1405.794,
+      "out2": null
+     },
+     {
+      "out0": null,
+      "out1": 1402.085,
+      "out2": null
+     }
+    ],
+    "bars_used": 150
+   },
+   "logs": [
+    [
+     "info",
+     "Computing bbands for SBIN (D, 100 bars)"
+    ],
+    [
+     "info",
+     "bbands latest: {'out0': None, 'out1': 1402.085, 'out2': None}"
+    ],
+    [
+     "info",
+     "Stored result in variable: ind"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {
+    "ind": {
+     "status": "success",
+     "indicator": "bbands",
+     "nested": false,
+     "offset_bars": 0,
+     "at_offset": {
+      "out0": null,
+      "out1": 1402.085,
+      "out2": null
+     },
+     "inputs": [
+      "close"
+     ],
+     "params": {
+      "std_dev": "nan"
+     },
+     "outputs": [
+      "out0",
+      "out1",
+      "out2"
+     ],
+     "latest": {
+      "out0": null,
+      "out1": 1402.085,
+      "out2": null
+     },
+     "previous": {
+      "out0": null,
+      "out1": 1405.794,
+      "out2": null
+     },
+     "series": [
+      {
+       "out0": null,
+       "out1": 1414.154,
+       "out2": null
+      },
+      {
+       "out0": null,
+       "out1": 1411.802,
+       "out2": null
+      },
+      {
+       "out0": null,
+       "out1": 1409.6875,
+       "out2": null
+      },
+      {
+       "out0": null,
+       "out1": 1405.794,
+       "out2": null
+      },
+      {
+       "out0": null,
+       "out1": 1402.085,
+       "out2": null
+      }
+     ],
+     "bars_used": 150
+    }
+   }
+  },
+  {
+   "label": "infinity_std_dev",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "bbands",
+    "params": "{\"std_dev\": Infinity}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "bbands",
+    "nested": false,
+    "offset_bars": 0,
+    "at_offset": {
+     "out0": "inf",
+     "out1": 1402.085,
+     "out2": "-inf"
+    },
+    "inputs": [
+     "close"
+    ],
+    "params": {
+     "std_dev": "inf"
+    },
+    "outputs": [
+     "out0",
+     "out1",
+     "out2"
+    ],
+    "latest": {
+     "out0": "inf",
+     "out1": 1402.085,
+     "out2": "-inf"
+    },
+    "previous": {
+     "out0": "inf",
+     "out1": 1405.794,
+     "out2": "-inf"
+    },
+    "series": [
+     {
+      "out0": "inf",
+      "out1": 1414.154,
+      "out2": "-inf"
+     },
+     {
+      "out0": "inf",
+      "out1": 1411.802,
+      "out2": "-inf"
+     },
+     {
+      "out0": "inf",
+      "out1": 1409.6875,
+      "out2": "-inf"
+     },
+     {
+      "out0": "inf",
+      "out1": 1405.794,
+      "out2": "-inf"
+     },
+     {
+      "out0": "inf",
+      "out1": 1402.085,
+      "out2": "-inf"
+     }
+    ],
+    "bars_used": 150
+   },
+   "logs": [
+    [
+     "info",
+     "Computing bbands for SBIN (D, 100 bars)"
+    ],
+    [
+     "info",
+     "bbands latest: {'out0': inf, 'out1': 1402.085, 'out2': -inf}"
+    ],
+    [
+     "info",
+     "Stored result in variable: ind"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {
+    "ind": {
+     "status": "success",
+     "indicator": "bbands",
+     "nested": false,
+     "offset_bars": 0,
+     "at_offset": {
+      "out0": "inf",
+      "out1": 1402.085,
+      "out2": "-inf"
+     },
+     "inputs": [
+      "close"
+     ],
+     "params": {
+      "std_dev": "inf"
+     },
+     "outputs": [
+      "out0",
+      "out1",
+      "out2"
+     ],
+     "latest": {
+      "out0": "inf",
+      "out1": 1402.085,
+      "out2": "-inf"
+     },
+     "previous": {
+      "out0": "inf",
+      "out1": 1405.794,
+      "out2": "-inf"
+     },
+     "series": [
+      {
+       "out0": "inf",
+       "out1": 1414.154,
+       "out2": "-inf"
+      },
+      {
+       "out0": "inf",
+       "out1": 1411.802,
+       "out2": "-inf"
+      },
+      {
+       "out0": "inf",
+       "out1": 1409.6875,
+       "out2": "-inf"
+      },
+      {
+       "out0": "inf",
+       "out1": 1405.794,
+       "out2": "-inf"
+      },
+      {
+       "out0": "inf",
+       "out1": 1402.085,
+       "out2": "-inf"
+      }
+     ],
+     "bars_used": 150
+    }
+   }
+  },
+  {
+   "label": "minus_infinity_multiplier",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "supertrend",
+    "params": "{\"multiplier\": -Infinity}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "Multiplier must be positive, got -inf"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing supertrend for SBIN (D, 100 bars)"
+    ],
+    [
+     "error",
+     "Indicator error: Multiplier must be positive, got -inf"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "nan_ma_type",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "obv_smoothed",
+    "params": "{\"ma_type\": NaN}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "Unsupported ma_type: nan"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing obv_smoothed for SBIN (D, 100 bars)"
+    ],
+    [
+     "error",
+     "Indicator error: Unsupported ma_type: nan"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "nan_signal_type",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "pvi_with_signal",
+    "params": "{\"signal_type\": NaN}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "error": {
+    "kind": "AttributeError",
+    "message": "'float' object has no attribute 'upper'"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing pvi_with_signal for SBIN (D, 100 bars)"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "nan_flag",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "dpo",
+    "params": "{\"is_centered\": NaN}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "success",
+    "indicator": "dpo",
+    "nested": false,
+    "offset_bars": 0,
+    "at_offset": {
+     "value": 33.855238
+    },
+    "inputs": [
+     "close"
+    ],
+    "params": {
+     "is_centered": "nan"
+    },
+    "outputs": [
+     "value"
+    ],
+    "latest": {
+     "value": 33.855238
+    },
+    "previous": {
+     "value": 53.7
+    },
+    "series": [
+     {
+      "value": 3.145714
+     },
+     {
+      "value": 31.042857
+     },
+     {
+      "value": 40.388571
+     },
+     {
+      "value": 53.7
+     },
+     {
+      "value": 33.855238
+     }
+    ],
+    "bars_used": 150
+   },
+   "logs": [
+    [
+     "info",
+     "Computing dpo for SBIN (D, 100 bars)"
+    ],
+    [
+     "info",
+     "dpo latest: {'value': 33.855238}"
+    ],
+    [
+     "info",
+     "Stored result in variable: ind"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {
+    "ind": {
+     "status": "success",
+     "indicator": "dpo",
+     "nested": false,
+     "offset_bars": 0,
+     "at_offset": {
+      "value": 33.855238
+     },
+     "inputs": [
+      "close"
+     ],
+     "params": {
+      "is_centered": "nan"
+     },
+     "outputs": [
+      "value"
+     ],
+     "latest": {
+      "value": 33.855238
+     },
+     "previous": {
+      "value": 53.7
+     },
+     "series": [
+      {
+       "value": 3.145714
+      },
+      {
+       "value": 31.042857
+      },
+      {
+       "value": 40.388571
+      },
+      {
+       "value": 53.7
+      },
+      {
+       "value": 33.855238
+      }
+     ],
+     "bars_used": 150
+    }
+   }
+  },
+  {
+   "label": "nan_in_list",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "macd",
+    "params": "{\"fast_period\": [NaN]}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "error": {
+    "kind": "TypeError",
+    "message": "'<=' not supported between instances of 'list' and 'int'"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing macd for SBIN (D, 100 bars)"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "nan_top_level",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "sma",
+    "params": "NaN"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "params must resolve to a JSON object, got float"
+   },
+   "logs": [],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "infinity_top_level",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "sma",
+    "params": " -Infinity "
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "params must resolve to a JSON object, got float"
+   },
+   "logs": [],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "lowercase_nan",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "sma",
+    "params": "{\"period\": nan}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "result": {
+    "status": "error",
+    "message": "Invalid params JSON: {\"period\": nan}"
+   },
+   "logs": [],
+   "history_requests": [],
+   "stored": {}
+  },
+  {
+   "label": "written_order",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "sma",
+    "params": "{\"zzz\": 1, \"aaa\": 2}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "error": {
+    "kind": "TypeError",
+    "message": "TechnicalAnalysis.sma() got an unexpected keyword argument 'zzz'"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing sma for SBIN (D, 100 bars)"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "repeated_key",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "sma",
+    "params": "{\"period\": 5, \"zzz\": 1, \"period\": NaN}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "error": {
+    "kind": "TypeError",
+    "message": "TechnicalAnalysis.sma() got an unexpected keyword argument 'zzz'"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing sma for SBIN (D, 100 bars)"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
+   "label": "nested_object",
+   "method": "execute_indicator",
+   "node_data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "interval": "D",
+    "outputVariable": "ind",
+    "indicatorName": "sma",
+    "params": "{\"period\": {\"a\": NaN, \"b\": [1, {\"c\": \"}\"}]}}"
+   },
+   "history": "trend",
+   "now": "2026-10-30T11:00:00",
+   "error": {
+    "kind": "TypeError",
+    "message": "Period must be an integer, got <class 'dict'>"
+   },
+   "logs": [
+    [
+     "info",
+     "Computing sma for SBIN (D, 100 bars)"
+    ]
+   ],
+   "history_requests": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-05-18",
+     "end_date": "2026-10-30",
+     "source": "api"
+    }
+   ],
+   "stored": {}
+  },
+  {
    "label": "history_error",
    "method": "execute_indicator",
    "node_data": {

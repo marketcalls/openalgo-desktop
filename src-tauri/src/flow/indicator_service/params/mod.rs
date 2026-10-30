@@ -12,24 +12,32 @@
 //! | --- | --- |
 //! | `python` | a value as Python holds it, and each operation's semantics and sentences |
 //! | `rules` | the operations each parameter goes through, mode-dependent ones included |
+//! | `text` | `json.loads` of the params text with Python's key order and `NaN` |
 
-use serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
 use serde_json::{Map, Value};
 
 use super::IndicatorError;
 use crate::agent::indicators::ta::{ParamValue, Params};
 use crate::agent::indicators::{required_default, IndicatorSpec, Kind, ParamDefault};
-use crate::flow::contract::pyfmt::{self, truthy, type_name};
+use crate::flow::contract::pyfmt::{self, truthy};
 
 mod python;
 mod rules;
+mod text;
 
 use python::Py;
+use text::Loaded;
 
 /// The node's parameters, keys in the order the trader wrote them (a Python
-/// dict keeps insertion order; a `serde_json` map sorts its keys).
+/// dict keeps insertion order; a `serde_json` map sorts its keys). A value
+/// the text wrote as `NaN` or `Infinity` is a float to the method; JSON
+/// cannot hold it, so it is kept as its Python text and listed in
+/// `non_finite`.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct IndicatorParams(Vec<(String, Value)>);
+pub struct IndicatorParams {
+    pairs: Vec<(String, Value)>,
+    non_finite: Vec<String>,
+}
 
 impl IndicatorParams {
     /// Parameters from pairs, in the order given (a repeated key keeps its
@@ -37,7 +45,7 @@ impl IndicatorParams {
     pub fn from_pairs(pairs: impl IntoIterator<Item = (String, Value)>) -> Self {
         let mut params = Self::default();
         for (key, value) in pairs {
-            params.insert(key, value);
+            params.insert(key, value, false);
         }
         params
     }
@@ -48,38 +56,61 @@ impl IndicatorParams {
         Self::from_pairs(map.iter().map(|(k, v)| (k.clone(), v.clone())))
     }
 
-    /// `json.loads(params_raw) if params_raw.strip() else {}` and the two
-    /// refusals the executor answers with, word for word.
+    /// `json.loads(params_raw) if params_raw.strip() else {}` (Python's
+    /// `NaN` and `Infinity` included) and the two refusals the executor
+    /// answers with, word for word.
     pub fn parse(raw: &str) -> Result<Self, String> {
         if raw.trim().is_empty() {
             return Ok(Self::default());
         }
-        let invalid = || format!("Invalid params JSON: {raw}");
-        let parsed: Value = serde_json::from_str(raw).map_err(|_| invalid())?;
-        if !parsed.is_object() {
-            return Err(format!(
-                "params must resolve to a JSON object, got {}",
-                type_name(&parsed)
-            ));
+        match text::loads(raw) {
+            None => Err(format!("Invalid params JSON: {raw}")),
+            Some(Loaded::Other(kind)) => {
+                Err(format!("params must resolve to a JSON object, got {kind}"))
+            }
+            Some(Loaded::Object(members)) => {
+                let mut params = Self::default();
+                for (key, value, float) in members {
+                    params.insert(key, value, float);
+                }
+                Ok(params)
+            }
         }
-        let ordered: Ordered = serde_json::from_str(raw).map_err(|_| invalid())?;
-        Ok(ordered.0)
     }
 
     /// The pairs, in order.
     pub fn pairs(&self) -> &[(String, Value)] {
-        &self.0
+        &self.pairs
     }
 
-    /// The parameters as a JSON object (keys sorted, as every map here is).
+    /// The parameters as a JSON object (keys sorted, as every map here is;
+    /// a non-finite float as its Python text).
     pub fn to_value(&self) -> Value {
-        Value::Object(self.0.iter().cloned().collect())
+        Value::Object(self.pairs.iter().cloned().collect())
     }
 
-    fn insert(&mut self, key: String, value: Value) {
-        match self.0.iter_mut().find(|(k, _)| *k == key) {
+    /// The float `key` holds when the text wrote it as `NaN`, `Infinity`
+    /// or a number past any float.
+    pub(crate) fn non_finite(&self, key: &str) -> Option<f64> {
+        if !self.non_finite.iter().any(|k| k == key) {
+            return None;
+        }
+        let text = self.pairs.iter().find(|(k, _)| k == key)?.1.as_str()?;
+        Some(match text {
+            "nan" => f64::NAN,
+            "-inf" => f64::NEG_INFINITY,
+            _ => f64::INFINITY,
+        })
+    }
+
+    fn insert(&mut self, key: String, value: Value, float: bool) {
+        self.non_finite.retain(|k| *k != key);
+        if float {
+            self.non_finite.push(key.clone());
+        }
+        match self.pairs.iter_mut().find(|(k, _)| *k == key) {
             Some(slot) => slot.1 = value,
-            None => self.0.push((key, value)),
+            None => self.pairs.push((key, value)),
         }
     }
 
@@ -88,34 +119,11 @@ impl IndicatorParams {
     pub(crate) fn resolved(&self, name: &str) -> Self {
         let mut out = self.clone();
         if let Some((key, value)) = required_default(name) {
-            if !out.0.iter().any(|(k, _)| k == key) {
-                out.0.push((key.to_string(), Value::from(value)));
+            if !out.pairs.iter().any(|(k, _)| k == key) {
+                out.pairs.push((key.to_string(), Value::from(value)));
             }
         }
         out
-    }
-}
-
-/// A JSON object read with its keys in written order.
-struct Ordered(IndicatorParams);
-
-impl<'de> Deserialize<'de> for Ordered {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct ObjectVisitor;
-        impl<'de> Visitor<'de> for ObjectVisitor {
-            type Value = Ordered;
-            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("a JSON object")
-            }
-            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Ordered, A::Error> {
-                let mut params = IndicatorParams::default();
-                while let Some((key, value)) = map.next_entry::<String, Value>()? {
-                    params.insert(key, value);
-                }
-                Ok(Ordered(params))
-            }
-        }
-        deserializer.deserialize_map(ObjectVisitor)
     }
 }
 
@@ -197,7 +205,10 @@ fn library_value(
     if kind == Kind::Bool {
         return Ok(Some(ParamValue::Bool(truthy(value))));
     }
-    let mut read = Py::from_json(value);
+    let mut read = match params.non_finite(param) {
+        Some(float) => Py::Float(float),
+        None => Py::from_json(value),
+    };
     for step in rules::steps_for(spec.name, param, params).unwrap_or(&[]) {
         read = python::apply(*step, read, bars)?;
     }

@@ -864,6 +864,25 @@ def executor_cases(svc, Executor, shapes) -> dict:
         ("library_value_error", {"indicatorName": "sma", "params": '{"period": 0}'}),
         ("library_type_error", {"indicatorName": "sma", "params": '{"bogus": 1}'}),
         ("no_symbol", {"symbol": "", "indicatorName": "rsi"}),
+        # The params text as json.loads reads it: NaN and Infinity are
+        # floats, keys keep their written order, a repeated key its place.
+        ("nan_period", {"indicatorName": "sma", "params": '{"period": NaN}'}),
+        ("quoted_nan_period", {"indicatorName": "sma", "params": '{"period": "NaN"}'}),
+        ("nan_length", {"indicatorName": "roc", "params": '{"length": NaN}'}),
+        ("overflow_period", {"indicatorName": "rsi", "params": '{"period": 1e999}'}),
+        ("nan_std_dev", {"indicatorName": "bbands", "params": '{"std_dev": NaN}'}),
+        ("infinity_std_dev", {"indicatorName": "bbands", "params": '{"std_dev": Infinity}'}),
+        ("minus_infinity_multiplier", {"indicatorName": "supertrend", "params": '{"multiplier": -Infinity}'}),
+        ("nan_ma_type", {"indicatorName": "obv_smoothed", "params": '{"ma_type": NaN}'}),
+        ("nan_signal_type", {"indicatorName": "pvi_with_signal", "params": '{"signal_type": NaN}'}),
+        ("nan_flag", {"indicatorName": "dpo", "params": '{"is_centered": NaN}'}),
+        ("nan_in_list", {"indicatorName": "macd", "params": '{"fast_period": [NaN]}'}),
+        ("nan_top_level", {"indicatorName": "sma", "params": "NaN"}),
+        ("infinity_top_level", {"indicatorName": "sma", "params": " -Infinity "}),
+        ("lowercase_nan", {"indicatorName": "sma", "params": '{"period": nan}'}),
+        ("written_order", {"indicatorName": "sma", "params": '{"zzz": 1, "aaa": 2}'}),
+        ("repeated_key", {"indicatorName": "sma", "params": '{"period": 5, "zzz": 1, "period": NaN}'}),
+        ("nested_object", {"indicatorName": "sma", "params": '{"period": {"a": NaN, "b": [1, {"c": "}"}]}}'}),
     ):
         node("execute_indicator", {**base, **extra}, label)
     node("execute_indicator", {**base, "indicatorName": "rsi"}, "history_error",

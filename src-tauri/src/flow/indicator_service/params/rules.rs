@@ -242,8 +242,10 @@ pub(crate) fn steps_for(
             .find(|(k, _)| k == key)
             .map(|(_, v)| v)
     };
+    // Text, or `None` for anything else (a `NaN` written in the params
+    // text is a float, though JSON keeps it as text).
     let text = |key: &str, default: &'static str| match other(key) {
-        Some(Value::String(s)) => Some(s.clone()),
+        Some(Value::String(s)) if params.non_finite(key).is_none() => Some(s.clone()),
         None => Some(default.to_string()),
         Some(_) => None,
     };
