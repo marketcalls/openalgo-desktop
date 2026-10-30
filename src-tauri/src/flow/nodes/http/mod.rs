@@ -106,14 +106,17 @@ fn compact_json(v: &Value) -> String {
 }
 
 /// The body of a POST, PUT or PATCH and whether it is JSON: text that
-/// parses as JSON is re-sent as JSON, other text as it is, an empty body as
-/// `{}`, and an object or array as JSON (the web raised on those).
+/// parses as JSON is re-sent as JSON, except JSON `null`, which is no body
+/// at all (httpx's `json=None`, decisions.md 32); other text as it is, an
+/// empty body as `{}`, and an object or array as JSON (the web raised on
+/// those).
 fn encode_body(body: &Value) -> (Vec<u8>, bool) {
     if !pyfmt::truthy(body) {
         return (b"{}".to_vec(), true);
     }
     match body {
         Value::String(s) => match pyjson::loads(s) {
+            Ok(Value::Null) => (Vec::new(), false),
             Ok(v) => (compact_json(&v).into_bytes(), true),
             Err(_) => (s.clone().into_bytes(), false),
         },

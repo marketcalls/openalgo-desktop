@@ -179,6 +179,15 @@ impl OutboundHttp for GuardedHttp {
             req = req.header(k.as_str(), v.as_str());
         }
         if let Some(body) = call.body {
+            // An empty body still states its length, as httpx does
+            // (Content-Length: 0): a server may refuse a POST without one.
+            let stated = call
+                .headers
+                .iter()
+                .any(|(k, _)| k.eq_ignore_ascii_case("content-length"));
+            if body.is_empty() && !stated {
+                req = req.header("content-length", "0");
+            }
             req = req.body(body);
         }
         let mut resp = req.send().await.map_err(|e| reason(&e))?;

@@ -322,6 +322,39 @@ async fn bodies_are_sent_as_httpx_sends_them() {
     assert!(http.sent.lock().is_empty());
 }
 
+/// decisions.md 32: a body that is JSON `null` sends no body, as the web's
+/// `json=None` does: no bytes and no JSON type (the client states the
+/// empty length). A node-data null is still the web's empty body, `{}`.
+#[tokio::test]
+async fn a_null_body_is_no_body() {
+    for d in [
+        json!({"method": "POST", "body": "null"}),
+        json!({"method": "PUT", "body": " null\n"}),
+        json!({"method": "patch", "body": "null"}),
+    ] {
+        let mut d = d;
+        d["url"] = json!("http://api.example.com/v1");
+        let (out, _, http) = send(d.clone()).await;
+        assert_eq!(answer(&out)["status"], "success", "{}", d);
+        let sent = http.sent.lock().clone();
+        assert_eq!(sent[0].body.as_deref(), Some(&b""[..]), "{}", d);
+        assert!(
+            !sent[0]
+                .headers
+                .iter()
+                .any(|(k, _)| k.eq_ignore_ascii_case("content-type")),
+            "{}",
+            d
+        );
+    }
+    let (_, _, http) =
+        send(json!({"url": "http://api.example.com/v1", "method": "POST", "body": null})).await;
+    assert_eq!(
+        http.sent.lock().clone()[0].body.as_deref(),
+        Some(&b"{}"[..])
+    );
+}
+
 /// N-httpRequest-12, N-httpRequest-13: the answer is stored, success or
 /// not, and a non-2xx says its status. The web's had no message, so the run
 /// read "node failed" (fails on the web).
