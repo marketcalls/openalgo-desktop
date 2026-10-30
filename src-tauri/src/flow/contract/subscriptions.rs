@@ -160,12 +160,7 @@ impl Subscriptions {
                 self.forget(workflow_id, &entry, version);
                 released += 1;
             } else {
-                tracing::warn!(
-                    "Flow could not give back the {} subscription on {}:{}; it is kept for a retry",
-                    mode,
-                    exchange,
-                    symbol
-                );
+                tracing::error!("Failed to release {} on {}:{}", mode, exchange, symbol);
             }
         }
         if total > 0 {
@@ -270,6 +265,41 @@ mod tests {
         );
         assert!(!s.has(1));
         assert!(s.has(2));
+    }
+
+    /// X-315 (the web's test_failed_flow_unsubscribe_keeps_each_owner_until_retry):
+    /// 100 workflows, each refused once (0 released, its entry kept) and
+    /// then released (1); 200 unsubscribes, and no residue: no workflow
+    /// is left in the registry, not even with an empty record. A dropped
+    /// claim and a shared feed's release leave none either.
+    #[tokio::test]
+    async fn a_failed_release_leaves_no_residue_once_retried() {
+        let s = Subscriptions::default();
+        let f = feed(false);
+        for id in 100_000..100_100 {
+            let entry: Entry = (format!("SYM{}", id), "NSE".into(), "LTP".into());
+            s.record(Some(id), &entry.0, "NSE", "LTP");
+            assert_eq!(s.release(id, &f).await, 0);
+            assert_eq!(s.entries(id), vec![entry]);
+            f.ok.store(true, Ordering::SeqCst);
+            assert_eq!(s.release(id, &f).await, 1);
+            assert!(!s.inner.lock().held.contains_key(&id), "{}", id);
+            f.ok.store(false, Ordering::SeqCst);
+        }
+        assert_eq!(f.calls.load(Ordering::SeqCst), 200);
+        assert!(s.inner.lock().held.is_empty());
+        let entry: Entry = ("SBIN".into(), "NSE".into(), "LTP".into());
+        s.record(Some(1), "SBIN", "NSE", "LTP");
+        s.forget_entry(Some(1), &entry);
+        assert!(s.inner.lock().held.is_empty(), "a dropped claim");
+        s.record(Some(1), "SBIN", "NSE", "LTP");
+        s.record(Some(2), "SBIN", "NSE", "LTP");
+        assert_eq!(s.release(1, &f).await, 1);
+        assert_eq!(
+            s.inner.lock().held.keys().copied().collect::<Vec<_>>(),
+            vec![2],
+            "a shared feed's release"
+        );
     }
 
     #[test]

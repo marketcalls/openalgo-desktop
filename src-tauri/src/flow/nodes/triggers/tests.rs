@@ -16,8 +16,13 @@ struct Run {
 }
 
 async fn run_with(data: Value, vars: Value, trigger: RunTrigger) -> Run {
+    run_quoted(data, vars, trigger, serde_json::from_str(QUOTE).unwrap()).await
+}
+
+/// One run of the node answering its quote with `quote`.
+async fn run_quoted(data: Value, vars: Value, trigger: RunTrigger, quote: Value) -> Run {
     let client = Arc::new(FakeFlowClient::new());
-    client.reply("quotes", serde_json::from_str(QUOTE).unwrap());
+    client.reply("quotes", quote);
     let ctx = NodeCtx::bare(client.clone()).with_trigger(trigger);
     for (k, v) in vars.as_object().unwrap() {
         ctx.vars.set(k, v.clone());
@@ -282,4 +287,185 @@ async fn the_trigger_nodes_are_in_the_executors_registry() {
     assert!(!out.is_error());
     let lines: Vec<Value> = ctx.logs().iter().map(|l| l["message"].clone()).collect();
     assert_eq!(lines, vec![json!("Order-update trigger activated")]);
+}
+
+/// One run of the node on `quote` instead of the usual SBIN quote.
+async fn run_on(data: Value, quote: Value) -> Run {
+    run_quoted(data, json!({}), RunTrigger::Manual, quote).await
+}
+
+fn ltp(v: f64) -> Value {
+    json!({"status": "success", "data": {"ltp": v}})
+}
+
+/// parity N-priceAlert-01 (decisions.md 24, 36): a list or dict price or
+/// bound ends the whole run with Python's text, as the web's get_float
+/// raised: before the symbol is checked, before any quote, for a bound the
+/// condition does not even read.
+#[tokio::test]
+async fn a_list_or_dict_level_ends_the_run() {
+    let float_err = |t: &str| {
+        format!(
+            "float() argument must be a string or a real number, not '{}'",
+            t
+        )
+    };
+    for (key, value, kind) in [
+        ("price", json!([800]), "list"),
+        ("price", json!({"v": 800}), "dict"),
+        ("priceLower", json!([790]), "list"),
+        ("priceUpper", json!({}), "dict"),
+    ] {
+        let mut data = alert("above", json!(800));
+        data[key] = value;
+        let r = run(data.clone()).await;
+        assert_eq!(r.out.aborted(), Some(float_err(kind).as_str()), "{}", key);
+        assert!(r.client.calls().is_empty(), "{}: nothing is quoted", key);
+        assert!(r.logs.is_empty(), "{:?}", r.logs);
+        data["symbol"] = json!("");
+        assert_eq!(
+            run(data).await.out.aborted(),
+            Some(float_err(kind).as_str()),
+            "{}: the level is read before the symbol",
+            key
+        );
+    }
+    // The web reads price first.
+    let mut data = alert("above", json!([1]));
+    data["priceLower"] = json!({});
+    assert_eq!(
+        run(data).await.out.aborted(),
+        Some(float_err("list").as_str())
+    );
+    // A number, text or bool is no abort.
+    let mut data = alert("above", json!(true));
+    data["priceUpper"] = json!("900");
+    assert_eq!(run(data).await.out.aborted(), None);
+}
+
+/// parity N-priceAlert-05: a failed quote with no text is the web's bare
+/// `{status error, condition false}`; a successful quote with no data or
+/// no ltp reads ltp 0 and is evaluated (the web's `float(... or 0)`).
+#[tokio::test]
+async fn a_quote_without_text_or_ltp_reads_as_the_web() {
+    for reply in [
+        json!({"status": "error"}),
+        json!({"status": "error", "message": "", "error": null}),
+        json!({"status": "failed", "data": {"ltp": 900}}),
+    ] {
+        let r = run_on(alert("above", json!(800)), reply.clone()).await;
+        assert_eq!(
+            r.out.value(),
+            Some(&json!({"status": "error", "condition": false})),
+            "{}",
+            reply
+        );
+        assert!(r.logs.is_empty());
+        assert_eq!(r.ctx.vars.get("alert"), None);
+    }
+    for reply in [
+        json!({"status": "success"}),
+        json!({"status": "success", "data": null}),
+        json!({"status": "success", "data": {}}),
+        json!({"status": "success", "data": {"bid": 812.4}}),
+    ] {
+        let r = run_on(alert("below", json!(800)), reply.clone()).await;
+        assert_eq!(
+            r.out.value(),
+            Some(&json!({"status": "success", "condition": true, "ltp": 0.0})),
+            "{}",
+            reply
+        );
+        assert_eq!(
+            r.logs[0].1,
+            "Price alert: SBIN LTP=0.0 less_than 800.0 = True"
+        );
+        assert_eq!(
+            r.ctx.vars.get("alert"),
+            Some(json!({"ltp": 0.0, "condition_met": true}))
+        );
+    }
+}
+
+/// parity N-priceAlert-06: the node's crossing tolerance is the level's
+/// 0.1 % (`price * 0.001`), inclusive: at 1000 the band is exactly 999 to
+/// 1001. A smaller factor misses the edges, a larger one or the LTP's 0.1 %
+/// (the monitor's) takes 1001.0005.
+#[tokio::test]
+async fn the_crossing_band_is_the_levels_tenth_of_a_percent() {
+    for (at, met) in [
+        (1001.0, true),
+        (999.0, true),
+        (1000.0, true),
+        (1001.0005, false),
+        (1001.001, false),
+        (998.999, false),
+    ] {
+        let r = run_on(alert("crossing", json!(1000)), ltp(at)).await;
+        assert_eq!(r.out.condition_met(), Some(met), "LTP {}", at);
+        assert!(!r.out.is_error());
+    }
+}
+
+/// parity N-priceAlert-07: the unknown-condition sentence quotes the
+/// condition as stored, not its canonical word, and a number as a number.
+#[tokio::test]
+async fn an_unknown_condition_is_quoted_as_stored() {
+    let r = run(alert("Near-By", json!(800))).await;
+    let sentence = "Price alert has an unrecognized condition 'Near-By'; it can never be true.";
+    assert_eq!(
+        r.out.value(),
+        Some(&json!({"status": "error", "condition": false, "ltp": 812.5, "message": sentence}))
+    );
+    assert_eq!(r.logs, vec![("error".to_string(), sentence.to_string())]);
+    let mut data = alert("", json!(800));
+    data["condition"] = json!(7);
+    assert_eq!(
+        run(data).await.out.failure_message(),
+        "Price alert has an unrecognized condition 7; it can never be true."
+    );
+}
+
+/// parity N-priceAlert-09: an unresolved bound fails closed under every
+/// channel condition, the lower one included, and under no other.
+#[tokio::test]
+async fn an_unresolved_bound_fails_closed_under_every_channel_condition() {
+    for condition in [
+        "inside_channel",
+        "entering_channel",
+        "exiting_channel",
+        "outside_channel",
+    ] {
+        for (key, name) in [("priceLower", "lower price"), ("priceUpper", "upper price")] {
+            let mut data = alert(condition, json!(800));
+            data["priceLower"] = json!(790);
+            data["priceUpper"] = json!(820);
+            data[key] = json!("{{band}}");
+            let r = run(data).await;
+            assert_eq!(
+                r.out.failure_message(),
+                format!(
+                    "Price alert {} '{{{{band}}}}' is not a number, so the alert was not evaluated.",
+                    name
+                ),
+                "{} {}",
+                condition,
+                key
+            );
+            assert_eq!(r.out.condition_met(), Some(false));
+            assert!(r.client.calls().is_empty(), "{} {}", condition, key);
+            assert_eq!(r.logs[0].0, "error");
+        }
+    }
+    for condition in [
+        "above",
+        "below",
+        "crossing",
+        "crosses_above",
+        "crosses_below",
+    ] {
+        let mut data = alert(condition, json!(800));
+        data["priceLower"] = json!("{{band}}");
+        assert!(!run(data).await.out.is_error(), "{}", condition);
+    }
 }

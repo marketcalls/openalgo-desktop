@@ -46,7 +46,8 @@ const NEEDS_PREVIOUS_TICK: &[&str] = &[
 ];
 
 /// A price level as the node reads it: absent (the web's default 0), a
-/// number, or given but not a number.
+/// number, or given but not a number (a list or dict has ended the run
+/// before it is read).
 #[derive(Debug, Clone, PartialEq)]
 enum Level {
     Absent,
@@ -163,6 +164,13 @@ impl FlowNode for PriceAlert {
         let symbol = ctx.get_str(data, "symbol", "");
         let exchange = ctx.get_str(data, "exchange", "NSE");
         let condition = normalize_condition(&ctx.get_str(data, "condition", "greater_than"));
+        // The web's get_float raises on a list or dict level, before the
+        // symbol is checked, and the run ends (decisions.md 24).
+        for key in ["price", "priceLower", "priceUpper"] {
+            if let Err(abort) = ctx.try_get_float(data, key, 0.0) {
+                return abort.into();
+            }
+        }
         let price = Level::read(ctx, data, "price");
         let lower = Level::read(ctx, data, "priceLower");
         let upper = Level::read(ctx, data, "priceUpper");
