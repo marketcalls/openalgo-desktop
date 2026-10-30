@@ -16,7 +16,7 @@
 use serde_json::Value;
 
 use super::IndicatorError;
-use crate::agent::tools::values::py_str;
+use crate::flow::contract::pyfmt;
 
 /// The hint pandas appends when a cell breaks the guessed format.
 const HINT: &str = " You might want to try:\n    - passing `format` if your strings have a \
@@ -91,7 +91,7 @@ fn strict(cells: &[Option<&Value>], format: &str) -> Result<(), IndicatorError> 
         let text = match value {
             Value::String(s) if NAT_TEXT.contains(&s.as_str()) => continue,
             Value::String(s) => s.clone(),
-            other => py_str(other),
+            other => pyfmt::str(other),
         };
         let problem = match parse(format, &text) {
             Parsed::Valid(_) => continue,

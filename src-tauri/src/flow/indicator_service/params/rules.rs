@@ -13,7 +13,7 @@ use serde_json::Value;
 use super::python::Side::{Left as L, Right as R};
 use super::python::Step::{self, *};
 use super::IndicatorParams;
-use crate::agent::tools::values::truthy;
+use crate::flow::contract::pyfmt::truthy;
 
 /// `(method, parameter, steps)`; the mode-dependent ones are in
 /// `steps_for`.

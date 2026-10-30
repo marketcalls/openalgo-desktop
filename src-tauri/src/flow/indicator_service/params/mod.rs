@@ -19,7 +19,7 @@ use serde_json::{Map, Value};
 use super::IndicatorError;
 use crate::agent::indicators::ta::{ParamValue, Params};
 use crate::agent::indicators::{required_default, IndicatorSpec, Kind, ParamDefault};
-use crate::agent::tools::values::{py_repr, truthy, type_name};
+use crate::flow::contract::pyfmt::{self, truthy, type_name};
 
 mod python;
 mod rules;
@@ -214,7 +214,7 @@ fn library_value(
                 "{}: {} = {} is outside what this indicator can compute",
                 spec.name,
                 param,
-                py_repr(value)
+                pyfmt::repr(value)
             )))
         }
     })

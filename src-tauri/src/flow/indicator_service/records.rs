@@ -6,8 +6,8 @@ use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, NaiveTime};
 use serde_json::Value;
 
 use super::IndicatorError;
-use crate::agent::tools::values::{py_str, quote};
 use crate::clock::ist_offset;
+use crate::flow::contract::pyfmt;
 
 /// The candle columns the web converts to numbers.
 pub(crate) const OHLCV: [&str; 5] = ["open", "high", "low", "close", "volume"];
@@ -49,29 +49,9 @@ pub(crate) fn numeric(value: Option<&Value>) -> f64 {
     match value {
         Some(Value::Number(n)) => n.as_f64().unwrap_or(f64::NAN),
         Some(Value::Bool(flag)) => f64::from(u8::from(*flag)),
-        Some(Value::String(text)) => py_float(text).unwrap_or(f64::NAN),
+        Some(Value::String(text)) => pyfmt::parse_float(text).unwrap_or(f64::NAN),
         _ => f64::NAN,
     }
-}
-
-/// Python's `float(text)`: surrounding whitespace ignored, `_` allowed
-/// between two digits, `inf` and `nan` in any case.
-pub(crate) fn py_float(text: &str) -> Option<f64> {
-    let text = text.trim();
-    let chars: Vec<char> = text.chars().collect();
-    let digit_at = |i: Option<usize>| {
-        i.and_then(|i| chars.get(i))
-            .is_some_and(char::is_ascii_digit)
-    };
-    let underscores_ok = chars
-        .iter()
-        .enumerate()
-        .filter(|(_, c)| **c == '_')
-        .all(|(i, _)| digit_at(i.checked_sub(1)) && digit_at(Some(i + 1)));
-    if !underscores_ok {
-        return None;
-    }
-    text.replace('_', "").parse().ok()
 }
 
 /// `_parse_timestamp`: a record's timestamp as IST wall time. Epoch seconds
@@ -83,9 +63,9 @@ pub(crate) fn parse_timestamp(value: Option<&Value>) -> Result<NaiveDateTime, In
         Some(Value::Number(n)) => return from_epoch(n.as_f64().unwrap_or(f64::NAN)),
         Some(Value::Bool(flag)) => return from_epoch(f64::from(u8::from(*flag))),
         None | Some(Value::Null) => "None".to_string(),
-        Some(other) => py_str(other),
+        Some(other) => pyfmt::str(other),
     };
-    if let Some(epoch) = py_float(&text) {
+    if let Some(epoch) = pyfmt::parse_float(&text) {
         return from_epoch(epoch);
     }
     let text = text.replace('Z', "+00:00");
@@ -94,7 +74,7 @@ pub(crate) fn parse_timestamp(value: Option<&Value>) -> Result<NaiveDateTime, In
         Some((wall, None)) => Ok(wall),
         None => Err(IndicatorError::value(match iso_range_error(&text) {
             Some(range) => range.to_string(),
-            None => format!("Invalid isoformat string: {}", quote(&text)),
+            None => format!("Invalid isoformat string: {}", pyfmt::quote(&text)),
         })),
     }
 }

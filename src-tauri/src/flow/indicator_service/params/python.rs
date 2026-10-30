@@ -10,9 +10,8 @@
 
 use serde_json::Value;
 
-use super::super::records::py_float;
 use super::super::IndicatorError;
-use crate::agent::tools::values::{py_str, quote};
+use crate::flow::contract::pyfmt;
 
 /// Which side of the operator the value is on (`value <= 0` is `Left`).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -173,12 +172,12 @@ fn python_str(value: &Py) -> String {
     match value {
         Py::Str(s) => s.clone(),
         Py::Int(i) => i.to_string(),
-        Py::Float(f) => py_str(&Value::from(*f)),
+        Py::Float(f) => pyfmt::float(*f),
         Py::Bool(true) => "True".into(),
         Py::Bool(false) => "False".into(),
         Py::None => "None".into(),
-        Py::List(items) => py_str(&Value::Array(items.clone())),
-        Py::Dict(v) | Py::Big(v) => py_str(v),
+        Py::List(items) => pyfmt::str(&Value::Array(items.clone())),
+        Py::Dict(v) | Py::Big(v) => pyfmt::str(v),
         Py::Default => String::new(),
     }
 }
@@ -200,7 +199,7 @@ fn int_call(value: Py) -> Result<Py, IndicatorError> {
             Some(parsed) => Ok(parsed),
             None => Err(IndicatorError::value(format!(
                 "invalid literal for int() with base 10: {}",
-                quote(&s)
+                pyfmt::quote(&s)
             ))),
         },
         other => Err(type_error(format!(
@@ -240,8 +239,11 @@ fn float_call(value: Py, assign: bool) -> Result<Py, IndicatorError> {
         Py::Bool(b) => Ok(Py::Float(f64::from(u8::from(b)))),
         Py::Float(_) => Ok(value),
         Py::Big(v) => Ok(Py::Float(v.as_f64().unwrap_or(f64::NAN))),
-        Py::Str(s) => py_float(&s).map(Py::Float).ok_or_else(|| {
-            IndicatorError::value(format!("could not convert string to float: {}", quote(&s)))
+        Py::Str(s) => pyfmt::parse_float(&s).map(Py::Float).ok_or_else(|| {
+            IndicatorError::value(format!(
+                "could not convert string to float: {}",
+                pyfmt::quote(&s)
+            ))
         }),
         Py::None if assign => Ok(Py::Float(f64::NAN)),
         Py::List(_) if assign => Err(IndicatorError::value(
