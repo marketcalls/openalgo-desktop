@@ -101,7 +101,11 @@ export class Session {
     return this.send('DELETE', url)
   }
 
-  /** A raw body with its own content type (the 400 journeys). */
+  /**
+   * A raw body with its own content type (the 400 journeys), sent byte for
+   * byte: Playwright JSON-encodes a string `data` under a JSON content type,
+   * so `BUY NIFTY` reached the server as the JSON string "BUY NIFTY".
+   */
   postRaw(url: string, body: string, contentType: string): Promise<Answer> {
     return this.signedIn(async () => {
       const r = await this.ctx.post(url, {
@@ -110,7 +114,7 @@ export class Session {
           'Content-Type': contentType,
           [CSRF_HEADER]: await csrfToken(this.ctx),
         },
-        data: body,
+        data: Buffer.from(body, 'utf8'),
       })
       return { status: r.status(), body: await r.json().catch(() => null) }
     })

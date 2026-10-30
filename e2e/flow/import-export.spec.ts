@@ -127,6 +127,11 @@ test('3. the import route refuses a body that is not a workflow, as the web does
     'application/json'
   )
   expect(nan.status).toBe(400)
-  expect(nan.body).toMatchObject({ status: 'error', error: 'Invalid workflow format' })
+  expect(nan.body).toEqual({
+    status: 'error',
+    error: 'Invalid workflow format',
+    message:
+      'The workflow is not valid JSON (values such as NaN or Infinity are not allowed). Check it and try again.',
+  })
   expect((await session.workflows()).length).toBe(count)
 })
