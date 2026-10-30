@@ -21,6 +21,10 @@ pub(crate) const WINDOW: &str =
 pub(crate) const BARS: &str = include_str!("../../../../tests/fixtures/flow_indicators/bars.json");
 pub(crate) const EXECUTOR: &str =
     include_str!("../../../../tests/fixtures/flow_indicators/executor.json");
+pub(crate) const TYPES: &str =
+    include_str!("../../../../tests/fixtures/flow_indicators/types.json");
+pub(crate) const EDITOR_LISTS: &str =
+    include_str!("../../../../tests/fixtures/flow_indicators/editor.json");
 
 /// Every value matches within one unit in the sixth place, the rounding the
 /// web applies (the tolerance the Agent's compute goldens use).

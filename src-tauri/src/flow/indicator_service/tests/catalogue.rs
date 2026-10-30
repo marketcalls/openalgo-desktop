@@ -1,12 +1,13 @@
 //! The catalogue against the web: the names the node runs, which nest, the
 //! refusal sets, the required defaults, what a float does to each integer
 //! parameter (`params.json`), and the editor's own lists
-//! (`src/lib/flow/constants.ts`, carried from the web).
+//! (`src/lib/flow/constants.ts`, carried from the web) against the library
+//! and against the web editor's (`editor.json`).
 
 use regex::Regex;
 use serde_json::{json as value, Value};
 
-use super::support::{json, Failures, CATALOGUE, PARAMS};
+use super::support::{json, Failures, CATALOGUE, EDITOR_LISTS, PARAMS};
 use crate::agent::indicators::{get_spec, required_default, Kind, ParamDefault};
 use crate::flow::indicator_service::params::bind;
 use crate::flow::indicator_service::{
@@ -57,18 +58,9 @@ fn required_defaults_are_the_webs() {
     }
 }
 
-/// The integer parameters the web's method uses as a number.
-const USED_AS_NUMBER: [(&str, &str); 4] = [
-    ("hv", "annual"),
-    ("hv", "per"),
-    ("lrslope", "interval"),
-    ("pvi_with_signal", "signal_length"),
-];
-
 /// What a fractional float does to each integer parameter is the web's:
-/// computed, or refused with the library's `TypeError` (the
-/// `validate_period` arguments and the four that reach `range()` or a
-/// slice).
+/// computed (with the fraction where the method uses the number), or
+/// refused with the library's `TypeError`.
 #[test]
 fn a_float_for_an_integer_is_refused_where_the_web_refuses_it() {
     let fixture = json(PARAMS);
@@ -88,23 +80,14 @@ fn a_float_for_an_integer_is_refused_where_the_web_refuses_it() {
                     _ => 14.5,
                 }),
             )]),
+            150,
         );
         let refused = got
             .err()
             .map(|e| value!({"kind": e.kind, "message": e.message}));
         // Binding decides the type refusals; a library error comes later.
-        // The four parameters the web's method uses as a number compute
-        // there with the fraction; the desktop refuses it (a recorded
-        // deviation, `params::FRACTION_REFUSED`).
         let want = match case["refusal"]["kind"].as_str() {
             Some("TypeError") => case["refusal"].clone(),
-            _ if USED_AS_NUMBER.contains(&(name, param)) => value!({
-                "kind": "TypeError",
-                "message": format!("{name}: {param} must be a whole number, got {}", match p.default {
-                    ParamDefault::Int(v) => format!("{}", v as f64 + 0.5),
-                    _ => "14.5".into(),
-                }),
-            }),
             _ => Value::Null,
         };
         if refused.as_ref().unwrap_or(&Value::Null) != &want {
@@ -222,4 +205,89 @@ fn the_editors_parameter_fields_are_the_librarys() {
     }
     assert_eq!(editor.len(), list_supported_indicators().len());
     failures.check(editor.len());
+}
+
+/// The editor's categories and catalogue entries are the web editor's, label
+/// and category included, and every entry's category is one of the
+/// categories (F-250).
+#[test]
+fn the_editors_catalogue_is_the_webs() {
+    let web = json(EDITOR_LISTS);
+    let editor = EDITOR.replace("\r\n", "\n");
+    let categories_block = block(&editor, "export const INDICATOR_CATEGORIES", "] as const");
+    let category = Regex::new(r"(?m)^  '([^']+)',$").expect("regex");
+    let categories: Vec<String> = category
+        .captures_iter(categories_block)
+        .map(|c| c[1].to_string())
+        .collect();
+    assert_eq!(value!(categories), web["categories"]);
+    let entry = Regex::new(r"\{ value: '([^']+)', label: '([^']+)', category: '([^']+)' \}")
+        .expect("regex");
+    let catalog: Vec<Value> = entry
+        .captures_iter(block(
+            &editor,
+            "export const INDICATOR_CATALOG",
+            "] as const",
+        ))
+        .map(|c| value!({"value": &c[1], "label": &c[2], "category": &c[3]}))
+        .collect();
+    assert_eq!(value!(catalog), web["catalog"]);
+    for item in &catalog {
+        assert!(categories.iter().any(|c| *c == item["category"]), "{item}");
+    }
+}
+
+/// Every parameter field's label and choices are the web editor's, and
+/// where the library names the values it accepts, the choices are exactly
+/// those (F-251; names, types and defaults are pinned against the library
+/// by `the_editors_parameter_fields_are_the_librarys`).
+#[test]
+fn the_editors_parameter_labels_and_choices_are_the_webs() {
+    let web = json(EDITOR_LISTS);
+    let editor = EDITOR.replace("\r\n", "\n");
+    let params = block(&editor, "export const INDICATOR_PARAMS", "\n}\n");
+    let key = Regex::new(r"(?m)^  ([a-z0-9_]+): \[").expect("regex");
+    let field = Regex::new(
+        r"(?s)\{\s*name: '([^']+)',\s*label: '([^']+)',\s*type: '(\w+)',\s*default: ([^,}\n]+?),?\s*(?:choices: \[([^\]]*)\],?\s*)?\}",
+    )
+    .expect("regex");
+    let quoted = Regex::new(r"'([^']*)'").expect("regex");
+    let starts: Vec<(usize, String)> = key
+        .captures_iter(params)
+        .filter_map(|c| Some((c.get(0)?.start(), c[1].to_string())))
+        .collect();
+    let mut failures = Failures::default();
+    for (i, (at, name)) in starts.iter().enumerate() {
+        let end = starts.get(i + 1).map_or(params.len(), |(next, _)| *next);
+        let fields: Vec<Value> = field
+            .captures_iter(&params[*at..end])
+            .map(|c| {
+                let choices = c.get(5).map(|m| {
+                    quoted
+                        .captures_iter(m.as_str())
+                        .map(|q| q[1].to_string())
+                        .collect::<Vec<_>>()
+                });
+                value!({"name": &c[1], "label": &c[2], "type": &c[3],
+                        "default": c[4].trim(), "choices": choices})
+            })
+            .collect();
+        if value!(fields) != web["params"][name] {
+            failures.push(name, format!("{fields:?} vs {}", web["params"][name]));
+        }
+        let spec = get_spec(name).expect("a library method");
+        for f in &fields {
+            let allowed = spec
+                .param(f["name"].as_str().unwrap_or_default())
+                .map(|p| p.allowed);
+            if let (Some(allowed), Some(choices)) = (allowed, f["choices"].as_array()) {
+                if !allowed.is_empty() && value!(allowed) != value!(choices) {
+                    failures.push(name, format!("choices {choices:?} vs library {allowed:?}"));
+                }
+            }
+        }
+    }
+    let total = web["params"].as_object().map_or(0, |m| m.len());
+    assert_eq!(starts.len(), total);
+    failures.check(starts.len());
 }

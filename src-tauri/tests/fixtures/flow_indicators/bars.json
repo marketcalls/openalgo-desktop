@@ -6801,6 +6801,1417 @@
    "result": null
   },
   {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:20:00",
+   "interval": "1m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:21:00",
+   "interval": "1m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:20:00",
+   "interval": " 1M ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:21:00",
+   "interval": " 1M ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:22:00",
+   "interval": "3m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:23:00",
+   "interval": "3m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:22:00",
+   "interval": " 3M ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:23:00",
+   "interval": " 3M ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:24:00",
+   "interval": "5m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:25:00",
+   "interval": "5m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:24:00",
+   "interval": " 5M ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:25:00",
+   "interval": " 5M ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:29:00",
+   "interval": "10m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:30:00",
+   "interval": "10m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:29:00",
+   "interval": " 10M ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:30:00",
+   "interval": " 10M ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:34:00",
+   "interval": "15m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:35:00",
+   "interval": "15m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:34:00",
+   "interval": " 15M ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:35:00",
+   "interval": " 15M ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:49:00",
+   "interval": "30m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:50:00",
+   "interval": "30m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:49:00",
+   "interval": " 30M ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T13:50:00",
+   "interval": " 30M ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T14:19:00",
+   "interval": "1h",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T14:20:00",
+   "interval": "1h",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T14:19:00",
+   "interval": " 1H ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T14:20:00",
+   "interval": " 1H ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T14:19:00",
+   "interval": "60m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T14:20:00",
+   "interval": "60m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T14:19:00",
+   "interval": " 60M ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T14:20:00",
+   "interval": " 60M ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T15:19:00",
+   "interval": "2h",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T15:20:00",
+   "interval": "2h",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T15:19:00",
+   "interval": " 2H ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T15:20:00",
+   "interval": " 2H ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T16:19:00",
+   "interval": "3h",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T16:20:00",
+   "interval": "3h",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T16:19:00",
+   "interval": " 3H ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T16:20:00",
+   "interval": " 3H ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T17:19:00",
+   "interval": "4h",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T17:20:00",
+   "interval": "4h",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "edge_forming",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T17:19:00",
+   "interval": " 4H ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023100,
+    "open": 2695.24,
+    "high": 2696.22,
+    "low": 2691.65,
+    "close": 2691.88,
+    "volume": 586940
+   }
+  },
+  {
+   "label": "edge_closed",
+   "candles": {
+    "shape": "gaps"
+   },
+   "now": "2025-06-04T17:20:00",
+   "interval": " 4H ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1749023400,
+    "open": 2689.22,
+    "high": 2699.29,
+    "low": 2687.04,
+    "close": 2692.96,
+    "volume": 1616224
+   }
+  },
+  {
+   "label": "keys_same_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-24T15:00:00",
+   "interval": "d",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771785000,
+    "open": 1347.6,
+    "high": 1352.95,
+    "low": 1307.67,
+    "close": 1315.24,
+    "volume": 2302507
+   }
+  },
+  {
+   "label": "keys_next_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-25T00:00:00",
+   "interval": "d",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_week",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-03-03T00:00:00",
+   "interval": "d",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_same_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-24T15:00:00",
+   "interval": "D",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771785000,
+    "open": 1347.6,
+    "high": 1352.95,
+    "low": 1307.67,
+    "close": 1315.24,
+    "volume": 2302507
+   }
+  },
+  {
+   "label": "keys_next_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-25T00:00:00",
+   "interval": "D",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_week",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-03-03T00:00:00",
+   "interval": "D",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_same_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-24T15:00:00",
+   "interval": "1d",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771785000,
+    "open": 1347.6,
+    "high": 1352.95,
+    "low": 1307.67,
+    "close": 1315.24,
+    "volume": 2302507
+   }
+  },
+  {
+   "label": "keys_next_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-25T00:00:00",
+   "interval": "1d",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_week",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-03-03T00:00:00",
+   "interval": "1d",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_same_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-24T15:00:00",
+   "interval": "1D",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771785000,
+    "open": 1347.6,
+    "high": 1352.95,
+    "low": 1307.67,
+    "close": 1315.24,
+    "volume": 2302507
+   }
+  },
+  {
+   "label": "keys_next_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-25T00:00:00",
+   "interval": "1D",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_week",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-03-03T00:00:00",
+   "interval": "1D",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_same_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-24T15:00:00",
+   "interval": "day",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771785000,
+    "open": 1347.6,
+    "high": 1352.95,
+    "low": 1307.67,
+    "close": 1315.24,
+    "volume": 2302507
+   }
+  },
+  {
+   "label": "keys_next_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-25T00:00:00",
+   "interval": "day",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_week",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-03-03T00:00:00",
+   "interval": "day",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_same_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-24T15:00:00",
+   "interval": "DAY",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771785000,
+    "open": 1347.6,
+    "high": 1352.95,
+    "low": 1307.67,
+    "close": 1315.24,
+    "volume": 2302507
+   }
+  },
+  {
+   "label": "keys_next_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-25T00:00:00",
+   "interval": "DAY",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_week",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-03-03T00:00:00",
+   "interval": "DAY",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_same_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-24T15:00:00",
+   "interval": " d ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771785000,
+    "open": 1347.6,
+    "high": 1352.95,
+    "low": 1307.67,
+    "close": 1315.24,
+    "volume": 2302507
+   }
+  },
+  {
+   "label": "keys_next_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-25T00:00:00",
+   "interval": " d ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_week",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-03-03T00:00:00",
+   "interval": " d ",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_same_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-24T15:00:00",
+   "interval": "q",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-25T00:00:00",
+   "interval": "q",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_week",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-03-03T00:00:00",
+   "interval": "q",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_same_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-24T15:00:00",
+   "interval": "y",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-25T00:00:00",
+   "interval": "y",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_week",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-03-03T00:00:00",
+   "interval": "y",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_same_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-24T15:00:00",
+   "interval": "2m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-25T00:00:00",
+   "interval": "2m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_week",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-03-03T00:00:00",
+   "interval": "2m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_same_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-24T15:00:00",
+   "interval": "25m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-25T00:00:00",
+   "interval": "25m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_week",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-03-03T00:00:00",
+   "interval": "25m",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_same_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-24T15:00:00",
+   "interval": "1s",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-25T00:00:00",
+   "interval": "1s",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_week",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-03-03T00:00:00",
+   "interval": "1s",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_same_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-24T15:00:00",
+   "interval": "",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_day",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-02-25T00:00:00",
+   "interval": "",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
+   "label": "keys_next_week",
+   "candles": {
+    "shape": "trend"
+   },
+   "now": "2026-03-03T00:00:00",
+   "interval": "",
+   "offset": 0,
+   "result": {
+    "timestamp": 1771871400,
+    "open": 1325.46,
+    "high": 1330.6,
+    "low": 1316.54,
+    "close": 1317.19,
+    "volume": 741057
+   }
+  },
+  {
    "label": "bad_timestamp",
    "records": [
     {
@@ -8056,6 +9467,104 @@
    "error": {
     "kind": "ValueError",
     "message": "no historical data available for this symbol/date range"
+   }
+  }
+ ],
+ "parse_timestamp": [
+  {
+   "value": 1771905600,
+   "result": "2026-02-24T09:30:00"
+  },
+  {
+   "value": 1771905600.75,
+   "result": "2026-02-24T09:30:00.750000"
+  },
+  {
+   "value": "1771905600",
+   "result": "2026-02-24T09:30:00"
+  },
+  {
+   "value": " 1771905600.5 ",
+   "result": "2026-02-24T09:30:00.500000"
+  },
+  {
+   "value": "2026-02-24T03:45:00Z",
+   "result": "2026-02-24T09:15:00"
+  },
+  {
+   "value": "2026-02-24T03:45:00+00:00",
+   "result": "2026-02-24T09:15:00"
+  },
+  {
+   "value": "2026-02-23T23:15:00-04:30",
+   "result": "2026-02-24T09:15:00"
+  },
+  {
+   "value": "2026-02-24T09:15:00+0530",
+   "result": "2026-02-24T09:15:00"
+  },
+  {
+   "value": "2026-02-24T09:15:00.123456+05:30",
+   "result": "2026-02-24T09:15:00.123456"
+  },
+  {
+   "value": "2026-02-24 09:15:00",
+   "result": "2026-02-24T09:15:00"
+  },
+  {
+   "value": "2026-02-24T09:15",
+   "result": "2026-02-24T09:15:00"
+  },
+  {
+   "value": "2026-02-24T09",
+   "result": "2026-02-24T09:00:00"
+  },
+  {
+   "value": "2026-02-24",
+   "result": "2026-02-24T00:00:00"
+  },
+  {
+   "value": "20260224",
+   "result": "1970-08-23T17:20:24"
+  },
+  {
+   "value": "20260224T091500",
+   "result": "2026-02-24T09:15:00"
+  },
+  {
+   "value": "2026-02-24 09:15:00Z",
+   "result": "2026-02-24T14:45:00"
+  },
+  {
+   "value": "yesterday",
+   "error": {
+    "kind": "ValueError",
+    "message": "Invalid isoformat string: 'yesterday'"
+   }
+  },
+  {
+   "value": "",
+   "error": {
+    "kind": "ValueError",
+    "message": "Invalid isoformat string: ''"
+   }
+  },
+  {
+   "value": null,
+   "error": {
+    "kind": "ValueError",
+    "message": "Invalid isoformat string: 'None'"
+   }
+  },
+  {
+   "value": true,
+   "result": "1970-01-01T05:30:01"
+  },
+  {
+   "value": "2026-13-01",
+   "error": {
+    "kind": "ValueError",
+    "message": "month must be in 1..12"
    }
   }
  ]

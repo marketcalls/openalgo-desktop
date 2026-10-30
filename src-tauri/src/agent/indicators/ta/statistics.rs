@@ -33,14 +33,15 @@ fn lrslope(a: &Args) -> TaResult {
     let p = a.p();
     let period = p.int("period")?;
     validate_period(period + 1, data.len())?;
-    let interval = p.int("interval")?;
-    if interval <= 0 {
+    // A number, as Python divides by it (Flow passes a fraction through).
+    let interval = p.float("interval")?;
+    if interval <= 0.0 {
         return Err(TaError::value(format!(
             "Interval must be positive, got {}",
-            interval
+            p.shown("interval")?
         )));
     }
-    one(oa_core::lrslope(data, us(period)?, interval as f64))
+    one(oa_core::lrslope(data, us(period)?, interval))
 }
 
 /// `CORREL.calculate`: two independent price series.

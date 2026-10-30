@@ -15,6 +15,7 @@
 //! | `catalogue` | the names the node runs, the two-series and unsupported refusals, input columns |
 //! | `params` | the node's `params` JSON, bound to the library as Python binds keyword arguments |
 //! | `records` | history records read as the web's DataFrame reads them, timestamps in IST |
+//! | `timestamps` | the timestamp column as `pd.to_datetime` reads it: whether it raises |
 //! | `compute` | `compute_indicator`: nested mode, the fixed-length tail, the offset bar |
 //! | `nested` | the executor's reading of `sourceSeries` into numbers |
 //! | `window` | the bar and calendar ceilings: `clamp_bars`, `history_window`, `clamp_history_range`, `trim_records` |
@@ -35,6 +36,7 @@ mod compute;
 mod nested;
 mod params;
 mod records;
+mod timestamps;
 mod window;
 
 #[cfg(test)]
@@ -90,11 +92,15 @@ impl IndicatorError {
         }
     }
 
-    /// True for a `ValueError` (or a subclass the web raises as one), the
-    /// kind the Indicator and Prior Period OHLC nodes catch and report as a
+    /// True for a `ValueError` or one of the subclasses the web raises
+    /// (pandas' `DateParseError` and `OutOfBoundsDatetime`): the kinds the
+    /// web's Indicator and Prior Period OHLC nodes catch and report as a
     /// node error. Anything else stops the web's run.
     pub fn is_value_error(&self) -> bool {
-        self.kind == "ValueError"
+        matches!(
+            self.kind,
+            "ValueError" | "DateParseError" | "OutOfBoundsDatetime"
+        )
     }
 }
 

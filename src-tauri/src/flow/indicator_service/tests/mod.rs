@@ -10,6 +10,7 @@
 //! | `golden_compute` | `compute_indicator`: every indicator, shape, refusal; IND-049 |
 //! | `golden_bars` | `bar_at_offset` (IND-062) and `prior_period_ohlc` |
 //! | `golden_window` | the bar and calendar ceilings |
+//! | `golden_types` | every parameter given values of every type (IND-042) |
 //! | `catalogue` | names, nesting, defaults, float binding, the editor's lists |
 //! | `executor` | the web executor's Indicator node, composed from this API |
 
@@ -18,5 +19,6 @@ mod catalogue;
 mod executor;
 mod golden_bars;
 mod golden_compute;
+mod golden_types;
 mod golden_window;
 mod support;

@@ -92,10 +92,55 @@ pub(crate) fn parse_timestamp(value: Option<&Value>) -> Result<NaiveDateTime, In
     match parse_iso(&text) {
         Some((wall, Some(offset))) => Ok(in_ist(wall, offset)),
         Some((wall, None)) => Ok(wall),
-        None => Err(IndicatorError::value(format!(
-            "Invalid isoformat string: {}",
-            quote(&text)
-        ))),
+        None => Err(IndicatorError::value(match iso_range_error(&text) {
+            Some(range) => range.to_string(),
+            None => format!("Invalid isoformat string: {}", quote(&text)),
+        })),
+    }
+}
+
+/// Why `datetime.fromisoformat` refuses text laid out as an ISO date and
+/// time with a part outside its range: the `datetime` constructor's own
+/// sentence, checked in its order.
+fn iso_range_error(text: &str) -> Option<&'static str> {
+    let number = |part: Option<&str>| -> Option<u32> {
+        let part = part?;
+        part.bytes()
+            .all(|b| b.is_ascii_digit())
+            .then(|| part.parse().ok())?
+    };
+    let (year, month, day, rest) = if text.get(4..5) == Some("-") && text.get(7..8) == Some("-") {
+        (
+            text.get(..4),
+            text.get(5..7),
+            text.get(8..10),
+            text.get(10..)?,
+        )
+    } else {
+        (
+            text.get(..4),
+            text.get(4..6),
+            text.get(6..8),
+            text.get(8..)?,
+        )
+    };
+    let (year, month, day) = (number(year)?, number(month)?, number(day)?);
+    if !(1..=12).contains(&month) {
+        return Some("month must be in 1..12");
+    }
+    if NaiveDate::from_ymd_opt(year as i32, month, day).is_none() {
+        return Some("day is out of range for month");
+    }
+    let mut chars = rest.chars();
+    chars.next()?;
+    let clock = chars.as_str();
+    let clock = &clock[..clock.find(['+', '-', '.', ',']).unwrap_or(clock.len())];
+    let [hour, minute, second] = clock_fields(clock)?;
+    match (hour, minute, second) {
+        (24.., _, _) => Some("hour must be in 0..23"),
+        (_, 60.., _) => Some("minute must be in 0..59"),
+        (_, _, 60..) => Some("second must be in 0..59"),
+        _ => None,
     }
 }
 

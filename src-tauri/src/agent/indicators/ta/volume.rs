@@ -254,11 +254,12 @@ fn pvi_with_signal(a: &Args) -> TaResult {
     let [close, volume] = a.aligned::<2>()?;
     let p = a.p();
     let line = pvi_line(close, volume, p.float("initial_value")?);
-    let length = p.int("signal_length")?;
     let signal_type = p.text("signal_type")?;
+    // The EMA's smoothing factor takes any number, as Python's does (Flow
+    // passes a fraction through); the SMA's window is an integer.
     let signal = match signal_type.to_uppercase().as_str() {
-        "EMA" => skip_nan_ema(&line, length),
-        "SMA" => valid_mean(&line, length),
+        "EMA" => skip_nan_ema(&line, p.float("signal_length")?),
+        "SMA" => valid_mean(&line, p.int("signal_length")?),
         _ => {
             return Err(TaError::value(format!(
                 "Invalid signal_type: {}. Must be 'EMA' or 'SMA'",
@@ -270,10 +271,10 @@ fn pvi_with_signal(a: &Args) -> TaResult {
 }
 
 /// `PVI._calculate_ema`: seeded at the first value, NaN bars carry it.
-fn skip_nan_ema(data: &[f64], period: i64) -> Vec<f64> {
+fn skip_nan_ema(data: &[f64], period: f64) -> Vec<f64> {
     let n = data.len();
     let mut out = nan_vec(n);
-    let alpha = 2.0 / (period as f64 + 1.0);
+    let alpha = 2.0 / (period + 1.0);
     let Some(first) = data.iter().position(|x| !x.is_nan()) else {
         return out;
     };

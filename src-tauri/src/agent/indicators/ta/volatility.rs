@@ -239,24 +239,26 @@ fn hv(a: &Args) -> TaResult {
     let p = a.p();
     let length = p.int("length")?;
     validate_period(length + 1, close.len())?;
-    let annual = p.int("annual")?;
-    let per = p.int("per")?;
+    // Numbers, as Python uses them: a fractional `annual` or `per` scales
+    // by its own value (Flow passes JSON values through untouched).
+    let annual = p.float("annual")?;
+    let per = p.float("per")?;
     if length < 1 {
         return Err(TaError::value(format!(
             "Length must be at least 1, got {}",
             length
         )));
     }
-    if annual <= 0 {
+    if annual <= 0.0 {
         return Err(TaError::value(format!(
             "Annual periods must be positive, got {}",
-            annual
+            p.shown("annual")?
         )));
     }
-    if per <= 0 {
+    if per <= 0.0 {
         return Err(TaError::value(format!(
             "Per periods must be positive, got {}",
-            per
+            p.shown("per")?
         )));
     }
     let n = close.len();
@@ -267,7 +269,7 @@ fn hv(a: &Args) -> TaResult {
         }
     }
     let sd = oa_core::win_std(&log_returns, us(length)?);
-    let scale = (annual as f64 / per as f64).sqrt();
+    let scale = (annual / per).sqrt();
     one(sd.iter().map(|s| 100.0 * s * scale).collect())
 }
 
