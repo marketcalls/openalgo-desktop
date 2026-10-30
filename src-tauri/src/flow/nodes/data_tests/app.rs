@@ -109,9 +109,10 @@ async fn analyzer_funds_are_the_sandboxs() {
     let out = run(&ctx(&kit), "funds", json!({"outputVariable": "funds"})).await;
     let cash = out
         .value()
-        .and_then(|v| v["data"]["availablecash"].as_str().map(String::from))
+        .and_then(|v| v["data"]["availablecash"].as_f64())
         .unwrap_or_default();
-    assert!(cash.starts_with("10000000"), "{:?}", out);
+    assert_eq!(cash, 10_000_000.0, "{:?}", out);
+    assert_eq!(out.value().map(|v| v["mode"].clone()), Some(json!("analyze")));
 }
 
 /// Quotes, depth and margin have no analyzer branch: live data in both
@@ -170,7 +171,7 @@ async fn an_option_symbol_with_a_bad_type_is_refused_by_the_api() {
     let v = out.value().cloned().unwrap_or(Value::Null);
     assert_eq!(v["status"], "error");
     assert_eq!(v["code"], 400, "{}", v);
-    assert!(v["error"].get("option_type").is_some(), "{}", v);
+    assert_eq!(v["error"], "Validation error", "{}", v);
     assert!(!broker_saw(&kit, |c| matches!(c, MockCall::Quote(_))));
 }
 
@@ -233,5 +234,5 @@ async fn an_option_chain_runs_on_an_embedded_expiry_and_refuses_a_bad_count() {
         "{}",
         v
     );
-    assert!(v["error"].get("strike_count").is_some(), "{}", v);
+    assert_eq!(v["error"], "Validation error", "{}", v);
 }
