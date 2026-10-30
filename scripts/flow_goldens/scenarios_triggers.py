@@ -184,3 +184,13 @@ node(F, "unsubscribe", "interpolated", {"symbol": "{{webhook.symbol}}", "exchang
      vars_in={"webhook": {"symbol": "SBIN"}, "st": "depth"}, env={"feed": FEED}, parity=["N-unsubscribe-05"])
 node(F, "priceAlert", "interpolated_symbol_and_price", {**PA, "symbol": "{{webhook.symbol}}", "price": "{{lvl}}"},
      vars_in={"webhook": {"symbol": "SBIN"}, "lvl": "810"}, script=[reply("quotes", QUOTE)], parity=["N-priceAlert-01"])
+
+
+# decisions.md 9: `unsubscribe all` releases only this workflow's subscriptions.
+for _s in __import__("lib").SCENARIOS:
+    if _s["type"] == "unsubscribe" and _s["graph"]["nodes"][0]["data"].get("streamType", "all") == "all" \
+            and not _s["desktop_expected"]:
+        _s["desktop_expected"] = de(
+            "N-unsubscribe-03",
+            "decisions.md 9: `all` releases only the subscriptions this workflow holds (none here), never the instance's whole feed, so nothing is refused.",
+            fix=["unsubscribe_all_own"])
