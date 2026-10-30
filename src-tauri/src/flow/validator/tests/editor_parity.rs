@@ -9,7 +9,7 @@
 use super::*;
 use crate::flow::validator::{BRANCHING_NODE_TYPES, TRIGGER_NODE_TYPES, VALID_NODE_TYPES};
 use serde_json::json;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 fn repo_file(relative: &str) -> String {
@@ -184,10 +184,16 @@ fn every_json_example_in_the_import_format_is_a_valid_workflow() {
     let fence = regex::Regex::new(r"(?ms)^```json\s*\n(.*?)^```\s*$").unwrap();
     let mut checked = 0;
     let mut failures = Vec::new();
+    let mut multi_value = BTreeMap::new();
     for (index, caps) in fence.captures_iter(&prompt).enumerate() {
-        let values = serde_json::Deserializer::from_str(&caps[1]).into_iter::<Value>();
+        let values: Vec<Value> = serde_json::Deserializer::from_str(&caps[1])
+            .into_iter::<Value>()
+            .map(|v| v.unwrap_or_else(|e| panic!("fence {}: {e}", index + 1)))
+            .collect();
+        if values.len() > 1 {
+            multi_value.insert(index + 1, values.len());
+        }
         for value in values {
-            let value = value.unwrap_or_else(|e| panic!("fence {}: {e}", index + 1));
             let Some(payload) = as_workflow_example(&value) else {
                 continue;
             };
@@ -207,4 +213,8 @@ fn every_json_example_in_the_import_format_is_a_valid_workflow() {
     }
     assert!(checked > 30, "only {checked} examples found");
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+    // The web's MULTI_VALUE_JSON_FENCES: only these fences hold several
+    // concatenated values, and each holds exactly this many, so a fence that
+    // gains a stray value is caught instead of validating piecemeal.
+    assert_eq!(multi_value, BTreeMap::from([(5, 2), (28, 2), (39, 5)]));
 }

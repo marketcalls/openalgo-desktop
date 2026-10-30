@@ -75,7 +75,9 @@ pub fn float(f: f64) -> String {
 }
 
 /// Python's `repr()` of a string: single quotes unless the text holds a
-/// single quote and no double quote.
+/// single quote and no double quote; a character `str.isprintable()`
+/// refuses is escaped as `\xNN`, `\uNNNN` or `\UNNNNNNNN`. The one
+/// helper for Python text (decision 25): the validator and every node use it.
 pub fn quote(s: &str) -> String {
     let q = if s.contains('\'') && !s.contains('"') {
         '"'
@@ -94,14 +96,37 @@ pub fn quote(s: &str) -> String {
                 out.push('\\');
                 out.push(c);
             }
-            c if (c as u32) < 0x20 || c as u32 == 0x7f => {
-                out.push_str(&format!("\\x{:02x}", c as u32))
+            c if c.is_ascii() && (c as u32) >= 0x20 && c as u32 != 0x7f => out.push(c),
+            c if !c.is_ascii() && is_printable(c) => out.push(c),
+            c => {
+                let code = c as u32;
+                if code <= 0xff {
+                    out.push_str(&format!("\\x{:02x}", code));
+                } else if code <= 0xffff {
+                    out.push_str(&format!("\\u{:04x}", code));
+                } else {
+                    out.push_str(&format!("\\U{:08x}", code));
+                }
             }
-            c => out.push(c),
         }
     }
     out.push(q);
     out
+}
+
+/// `str.isprintable()` for one non-ASCII character: false for control,
+/// separator (other than the space), format, private-use and
+/// non-characters. Unassigned code points, which Python also escapes, pass
+/// through (Rust's standard library carries no category table).
+fn is_printable(c: char) -> bool {
+    let code = c as u32;
+    let format = matches!(code, 0xad | 0x600..=0x605 | 0x61c | 0x6dd | 0x70f | 0x890..=0x891 | 0x8e2
+        | 0x180e | 0x200b..=0x200f | 0x202a..=0x202e | 0x2060..=0x2064 | 0x2066..=0x206f
+        | 0xfeff | 0xfff9..=0xfffb | 0x110bd | 0x110cd | 0x13430..=0x1343f
+        | 0x1bca0..=0x1bca3 | 0x1d173..=0x1d17a | 0xe0001 | 0xe0020..=0xe007f);
+    let private_use = matches!(code, 0xe000..=0xf8ff | 0xf0000..=0xffffd | 0x100000..=0x10fffd);
+    let non_character = matches!(code, 0xfdd0..=0xfdef) || code & 0xfffe == 0xfffe;
+    !(c.is_control() || c.is_whitespace() || format || private_use || non_character)
 }
 
 /// Python's `json.dumps(value)` with its defaults: `", "` and `": "`
@@ -286,6 +311,20 @@ mod tests {
             "{'ltp': 1.5, 's': \"it's\"}"
         );
         assert_eq!(str(&json!([1, "a", false])), "[1, 'a', False]");
+    }
+
+    /// CPython 3.12: `repr("caf\u00e9 \u00a0\u200b\u20b9\u00ad\u2028\U0001F600
+    /// \U000E0001\ue000\ufffe\x85\u3000x")`, and the ASCII escapes.
+    #[test]
+    fn text_is_escaped_as_python_repr_escapes_it() {
+        let s = "caf\u{e9} \u{a0}\u{200b}\u{20b9}\u{ad}\u{2028}\u{1F600}\u{E0001}\u{e000}\u{fffe}\u{85}\u{3000}x";
+        assert_eq!(
+            quote(s),
+            "'caf\u{e9} \\xa0\\u200b\u{20b9}\\xad\\u2028\u{1F600}\\U000e0001\\ue000\\ufffe\\x85\\u3000x'"
+        );
+        assert_eq!(quote("a\tb\n\x01\x7f\\"), "'a\\tb\\n\\x01\\x7f\\\\'");
+        assert_eq!(quote("it's"), "\"it's\"");
+        assert_eq!(quote("'\""), "'\\'\"'");
     }
 
     #[test]

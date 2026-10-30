@@ -22,21 +22,26 @@ const EXPORT_FROM_WEB: &str = r##"{
   ]
 }"##;
 
-struct F {
+pub(super) struct F {
     h: H,
     cookie: String,
     csrf: String,
 }
 
 impl F {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         let h = H::new();
         h.setup();
         let (cookie, csrf) = h.session(true);
         F { h, cookie, csrf }
     }
 
-    async fn call(&self, method: Method, path: &str, body: Option<&str>) -> (StatusCode, Value) {
+    pub(super) async fn call(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<&str>,
+    ) -> (StatusCode, Value) {
         let mut b = Request::builder()
             .method(method)
             .uri(path)
@@ -50,7 +55,7 @@ impl F {
             .await
     }
 
-    async fn create(&self, body: Value) -> Value {
+    pub(super) async fn create(&self, body: Value) -> Value {
         let (s, v) = self
             .call(Method::POST, "/flow/api/workflows", Some(&body.to_string()))
             .await;

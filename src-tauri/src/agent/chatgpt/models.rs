@@ -24,9 +24,13 @@ use std::collections::HashMap;
 /// The plan's provider id in the catalogue.
 pub const PROVIDER: &str = "chatgpt";
 
-/// Bare name and context window: models measured against a real plan
-/// (the web's `SUPPLEMENTAL`). The rest LiteLLM 1.104.0 already lists.
-pub const SUPPLEMENTAL: &[(&str, u64)] = &[("gpt-6-astra", 922_000)];
+/// Bare name and context window: models a real plan answered with before
+/// the bundled catalogue listed them (the web's `SUPPLEMENTAL`). Empty
+/// since LiteLLM 1.106.6 shipped the last one, `gpt-6-astra` (web
+/// 8a2fbf1d0). The lag recurs, so the mechanism stays; a name goes back in
+/// only once a real subscription has answered with it, never because it
+/// appears upstream.
+pub const SUPPLEMENTAL: &[(&str, u64)] = &[];
 
 /// The output limit every entry shares (the web's `_BASE`).
 const MAX_OUTPUT_TOKENS: u64 = 128_000;
@@ -58,8 +62,18 @@ pub fn register(
     entries: &mut HashMap<String, Entry>,
     providers: &mut Vec<(String, Vec<String>)>,
 ) -> Vec<String> {
+    register_from(SUPPLEMENTAL, entries, providers)
+}
+
+/// [`register`] for the models in `supplement` (the tests put the last
+/// shipped one back, so the guards keep running while the list is empty).
+pub(crate) fn register_from(
+    supplement: &[(&str, u64)],
+    entries: &mut HashMap<String, Entry>,
+    providers: &mut Vec<(String, Vec<String>)>,
+) -> Vec<String> {
     let mut added = Vec::new();
-    for (name, max_input) in SUPPLEMENTAL {
+    for (name, max_input) in supplement {
         let id = format!("{}/{}", PROVIDER, name);
         if is_plan_entry(entries, &id) || is_plan_entry(entries, name) {
             continue;

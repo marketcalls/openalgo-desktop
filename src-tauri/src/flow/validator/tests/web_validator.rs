@@ -4,6 +4,7 @@
 //! `tests/fixtures/flow/`.
 
 use super::*;
+use crate::flow::contract::pyfmt;
 use crate::flow::node_contracts::parse_underlying_symbol;
 use crate::flow::validator::{
     migrate_legacy_node_data, BRANCHING_NODE_TYPES, TRIGGER_NODE_TYPES, VALID_NODE_TYPES,
@@ -1084,11 +1085,7 @@ fn create_route(data: &Value) -> Vec<ValidationError> {
     if !sent_graph {
         return Vec::new();
     }
-    let or_empty = |key: &str| {
-        data.get(key)
-            .filter(|v| crate::flow::validator::py::truthy(v))
-            .cloned()
-    };
+    let or_empty = |key: &str| data.get(key).filter(|v| pyfmt::truthy(v)).cloned();
     draft(&json!({
         "name": or_empty("name").unwrap_or(json!("")),
         "nodes": or_empty("nodes").unwrap_or(json!([])),

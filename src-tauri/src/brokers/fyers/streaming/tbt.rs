@@ -4,8 +4,8 @@
 
 use super::request_with_auth;
 use crate::brokers::common::streaming::{
-    now_ms, round2, BrokerFeed, FeedEvent, FeedSubscription, Message, NormalizedDepth,
-    PrepareError, WsRequest,
+    now_ms, BrokerFeed, FeedEvent, FeedSubscription, Message, NormalizedDepth, PrepareError,
+    WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::{AuthToken, DepthLevel};
@@ -320,21 +320,14 @@ impl TbtFeed {
             .filter(|l| l.price > 0.0)
             .copied()
             .collect();
-        let (bb, ba) = (
-            buy.first().map(|l| l.price).unwrap_or(0.0),
-            sell.first().map(|l| l.price).unwrap_or(0.0),
-        );
-        let ltp = if bb > 0.0 && ba > 0.0 {
-            (bb + ba) / 2.0
-        } else if bb > 0.0 {
-            bb
-        } else {
-            ba
-        };
+        // TBT depth has no LTP, so none is set (0): the bridge gives the
+        // frame the quote feed's last traded price, never the bid/ask
+        // midpoint the web used to invent (web #2318,
+        // `fyers_websocket_adapter.py` `get_last_ltp`).
         Some(NormalizedDepth {
             symbol,
             exchange,
-            ltp: round2(ltp),
+            ltp: 0.0,
             buy,
             sell,
             total_buy_quantity: book.tbq,

@@ -221,6 +221,8 @@ fn cookie_from(headers: &axum::http::HeaderMap) -> Option<String> {
 
 // Findings of the 2026-10-09 security review, one test group per finding.
 mod security;
+// A login from before the daily boundary is not a current one (web e2bdd061e).
+mod session_rollover;
 // Every catalogue broker's sign-in, started the way the broker page does.
 mod sign_in;
 // Broker Configuration and Select Broker: keys per broker, one logged in.
@@ -255,6 +257,8 @@ mod flow;
 mod flow_lookups;
 // Flow's trigger routes and public webhooks (blueprints/flow.py).
 mod flow_triggers;
+// Flow's legacy node upgrade at import and replace, and nowhere else.
+mod flow_migrations;
 
 // ------------------------------------------------------------------ fixtures
 

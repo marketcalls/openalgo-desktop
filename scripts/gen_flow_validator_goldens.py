@@ -47,7 +47,9 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import math
 import os
+import re
 import subprocess
 import sys
 import tarfile
@@ -215,7 +217,7 @@ def handle_cases():
     for source_type, data in [
         ("varCondition", condition),
         ("priceAlert", {"symbol": "X", "exchange": "NSE", "condition": "above", "price": 1}),
-        ("andGate", {}),
+        ("andGate", {"inputCount": 1}),
         ("getQuote", {"symbol": "X", "exchange": "NSE"}),
         ("start", {}),
         ("group", {}),
@@ -965,16 +967,133 @@ def desktop_differs(payload, level):
             continue
         if n.get("type") == "optionsMultiOrder" and "strategy" not in data:
             return "V-059: the strategy defaults to custom, as the executor reads it"
-        declared = data.get("inputCount")
+        declared = executor_input_count(n.get("type"), data)
         wired = sum(1 for e in edges if e.get("target") == n.get("id"))
-        if (
-            LEVELS[level]["strict"]
-            and n.get("type") in ("andGate", "orGate", "notGate")
-            and isinstance(declared, int)
-            and declared > wired
-        ):
+        if LEVELS[level]["strict"] and declared is not None and declared > wired:
             return "V-085: a gate wired to fewer inputs than it declares is refused"
     return None
+
+
+def executor_input_count(node_type, data):
+    """The inputs the desktop's executor counts for a gate
+    (``executor::walk::declared_inputs``): AND and OR read an absent, null,
+    blank or unreadable ``inputCount`` as 2 and never less than 1; NOT reads
+    only a whole number or a boolean."""
+    raw = data.get("inputCount", MISSING)
+    if node_type == "notGate":
+        return int(raw) if isinstance(raw, int) else None
+    if node_type not in ("andGate", "orGate"):
+        return None
+    if raw is MISSING or raw is None or (isinstance(raw, str) and raw == ""):
+        return 2
+    if isinstance(raw, bool) or isinstance(raw, int):
+        slots = int(raw)
+    elif isinstance(raw, float):
+        slots = math.trunc(raw) if math.isfinite(raw) else 2
+    elif isinstance(raw, str):
+        text = raw.strip()
+        slots = int(text) if re.fullmatch(r"[+-]?[0-9]+", text) else 2
+    else:
+        slots = 2
+    return max(slots, 1)
+
+
+MISSING = object()
+
+
+def migration_differs(nodes):
+    """Why the desktop deliberately migrates these nodes differently, or None."""
+    for n in nodes:
+        if not isinstance(n, dict) or n.get("type") != "positionCheck":
+            continue
+        data = n.get("data") if isinstance(n.get("data"), dict) else {}
+        operator = str(data.get("operator") or "").strip().lower()
+        if "condition" not in data and operator in ("gte", "ge", ">=", "lte", "le", "<="):
+            return "V-113: an inclusive operator keeps its meaning by moving the threshold"
+    return None
+
+
+def python_json_cases():
+    """JSON written as text that only Python's json.loads reads: NaN and
+    Infinity (V-052, V-055)."""
+    for i, headers in enumerate(['{"A": NaN}', '{"A": Infinity, "B": -Infinity}', '{"A": [NaN]}', "NaN"]):
+        yield f"py_json_headers_{i}", single("httpRequest", {"url": "https://x.com", "headers": headers}), (
+            "complete",
+            "draft",
+        )
+    for i, positions in enumerate(
+        [
+            '[{"symbol": "SBIN", "exchange": "NSE", "action": "BUY", "quantity": 1, "product": "MIS", '
+            '"pricetype": "MARKET", "price": NaN}]',
+            '[{"symbol": "SBIN", "exchange": "NSE", "action": "BUY", "quantity": 1, "product": "MIS", '
+            '"pricetype": "MARKET", "price": 0, "extra": Infinity}]',
+        ]
+    ):
+        yield f"py_json_margin_{i}", single("margin", {"positionsJson": positions}), ("complete", "draft")
+
+
+def option_leg_spelling_cases():
+    """An option leg naming both priceType and pricetype: both are checked
+    (V-057)."""
+    base = {"strategy": "custom", "underlying": "NIFTY", "quantity": 1}
+    leg = {"offset": "ATM", "optionType": "CE", "action": "BUY", "quantity": 1}
+    for i, extra in enumerate(
+        [
+            {"priceType": "LIMIT", "price": 1, "pricetype": "BOGUS"},
+            {"priceType": "LIMIT", "price": 1, "pricetype": 5},
+            {"priceType": "LIMIT", "price": 1, "pricetype": " sl-m "},
+            {"priceType": "BOGUS", "pricetype": "LIMIT"},
+            {"pricetype": "BOGUS"},
+        ]
+    ):
+        yield f"option_leg_spellings_{i}", single("optionsMultiOrder", {**base, "legs": [{**leg, **extra}]}), (
+            "complete",
+            "draft",
+        )
+
+
+def runtime_only_cases():
+    """Fields the web's validator leaves to the run: the httpRequest address
+    (V-102), option expiries, offsets and strategy names (V-103), and the
+    presence-only fields (V-104). Each passes validation as on the web."""
+    for i, url in enumerate(
+        ["http://127.0.0.1:5000/api", "http://10.0.0.1/", "http://169.254.169.254/latest", "ftp://x.com/f",
+         "file:///etc/passwd", "not a url", "localhost"]
+    ):
+        yield f"runtime_http_url_{i}", single("httpRequest", {"url": url}), ("complete",)
+    option_nodes = [
+        ("optionSymbol", {"underlying": "NIFTY", "optionType": "CE", "expiryDate": "2026-08-28"}),
+        ("optionSymbol", {"underlying": "NIFTY", "optionType": "XX", "expiryDate": "junk", "offset": "DEEP"}),
+        ("optionChain", {"underlying": "NIFTY", "expiryDate": "28-08-2026"}),
+        ("syntheticFuture", {"underlying": "NIFTY", "expiryDate": "AUG"}),
+        ("optionsOrder", {"underlying": "NIFTY", "action": "BUY", "quantity": 1, "expiryType": "next_year",
+                          "offset": "DEEP", "expiryDate": "tomorrow"}),
+        ("optionsMultiOrder", {"underlying": "NIFTY", "quantity": 1, "strategy": "butterfly",
+                               "expiryType": "someday", "strangleWidth": "WIDE"}),
+        ("optionsMultiOrder", {"underlying": "NIFTY", "quantity": 1, "strategy": "strangle",
+                               "strangleWidth": "OTM99", "offset": "?"}),
+    ]
+    for i, (node_type, data) in enumerate(option_nodes):
+        yield f"runtime_option_{i}", single(node_type, data), ("complete",)
+    presence_only = [
+        ("mathExpression", {"expression": "((1 +"}),
+        ("mathExpression", {"expression": "__import__('os').system('x')"}),
+        ("varCondition", {"leftValue": "1", "operator": "??", "rightValue": "x"}),
+        ("priceCondition", {"symbol": "SBIN", "exchange": "NSE", "operator": "between-ish", "value": "abc"}),
+        ("timeWindow", {"startTime": "25:99", "endTime": "noon"}),
+        ("timeCondition", {"targetTime": "99:99", "operator": "whenever"}),
+        ("delay", {"delayValue": "-5", "delayUnit": "fortnights"}),
+        ("waitUntil", {"targetTime": "yesterday"}),
+        ("history", {"symbol": "SBIN", "exchange": "NSE", "interval": "7x"}),
+        ("indicator", {"symbol": "SBIN", "exchange": "NSE", "indicatorName": "not_an_indicator",
+                       "params": "{not json"}),
+        ("basketOrder", {"orders": "garbage;;;"}),
+        ("basketOrder", {"orders": [1, "x", None]}),
+        ("multiQuotes", {"symbols": "!!!"}),
+        ("multiQuotes", {"symbols": [{"nope": 1}]}),
+    ]
+    for i, (node_type, data) in enumerate(presence_only):
+        yield f"runtime_presence_{i}", single(node_type, data), ("complete",)
 
 
 def crash_cases():
@@ -1016,6 +1135,9 @@ ALL_CASES = (
     options_multi_cases,
     ported_test_cases,
     doc_example_cases,
+    python_json_cases,
+    option_leg_spelling_cases,
+    runtime_only_cases,
     crash_cases,
 )
 
@@ -1398,6 +1520,10 @@ def main() -> int:
     }
     for name, nodes in migrate_cases():
         nodes = as_desktop_sees_it(nodes)
+        reason = migration_differs(nodes)
+        if reason:
+            SKIPPED.append(f"migrate {name}: {reason}")
+            continue
         migrated, notes = validator.migrate_legacy_node_data(json.loads(json.dumps(nodes)))
         goldens["migrate"].append({"name": name, "nodes": nodes, "migrated": migrated, "notes": notes})
     for name, nodes in trigger_config_cases():
@@ -1420,11 +1546,11 @@ def main() -> int:
             if isinstance(value, list) and value:
                 handle.write("[\n")
                 for i, item in enumerate(value):
-                    handle.write(json.dumps(item, sort_keys=True, ensure_ascii=False))
+                    handle.write(json.dumps(item, sort_keys=True, ensure_ascii=False, allow_nan=False))
                     handle.write(",\n" if i < len(value) - 1 else "\n")
                 handle.write("]")
             else:
-                handle.write(json.dumps(value, sort_keys=True, ensure_ascii=False, indent=1))
+                handle.write(json.dumps(value, sort_keys=True, ensure_ascii=False, indent=1, allow_nan=False))
             handle.write(",\n" if s < len(sections) - 1 else "\n")
         handle.write("}\n")
     total = sum(len(e["levels"]) for e in goldens["validate"])
