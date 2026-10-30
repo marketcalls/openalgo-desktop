@@ -43,11 +43,42 @@ pub fn error(status: StatusCode, msg: impl Into<String>) -> Response {
     json_response(status, json!({"status": "error", "message": msg.into()}))
 }
 
+/// The web's 404 body, with its path's webhook credential masked.
 pub fn not_found(path: &str) -> Response {
     json_response(
         StatusCode::NOT_FOUND,
-        json!({"status": "error", "message": "Not found", "path": path}),
+        json!({"status": "error", "message": "Not found", "path": redact_path(path)}),
     )
+}
+
+/// Webhook addresses whose next segment is the credential.
+const CREDENTIAL_PREFIXES: [&str; 3] =
+    ["/strategy/webhook/", "/flow/webhook/", "/chartink/webhook/"];
+
+/// The web's `redact_url_credentials` on a request path: the segment after
+/// a webhook prefix (any case) becomes `<redacted>`, so a 404 never echoes
+/// a token (parity R-05).
+pub fn redact_path(path: &str) -> String {
+    let lower = path.to_ascii_lowercase();
+    let mut out = String::with_capacity(path.len());
+    let mut at = 0;
+    while let Some((start, len)) = CREDENTIAL_PREFIXES
+        .iter()
+        .filter_map(|p| lower[at..].find(p).map(|i| (at + i, p.len())))
+        .min()
+    {
+        let token = start + len;
+        let end = path[token..]
+            .find(|c: char| c.is_whitespace() || "/?#'\"<>".contains(c))
+            .map_or(path.len(), |i| token + i);
+        out.push_str(&path[at..token]);
+        if end > token {
+            out.push_str("<redacted>");
+        }
+        at = end;
+    }
+    out.push_str(&path[at..]);
+    out
 }
 
 pub fn unexpected() -> Response {
@@ -284,6 +315,29 @@ impl IntoResponse for crate::error::AppError {
 mod tests {
     use super::*;
     use serde::Deserialize;
+
+    /// The web's `redact_url_credentials` cases for a path (R-05).
+    #[test]
+    fn a_webhook_credential_is_masked_in_a_path() {
+        for (path, shown) in [
+            ("/flow/webhook/abc", "/flow/webhook/<redacted>"),
+            ("/flow/webhook/abc/NIFTY", "/flow/webhook/<redacted>/NIFTY"),
+            ("/strategy/webhook/abc", "/strategy/webhook/<redacted>"),
+            (
+                "/Chartink/Webhook/abc?x=1",
+                "/Chartink/Webhook/<redacted>?x=1",
+            ),
+            ("/flow/webhook/", "/flow/webhook/"),
+            (
+                "/flow/webhook/a/flow/webhook/b",
+                "/flow/webhook/<redacted>/flow/webhook/<redacted>",
+            ),
+            ("/api/v1/flow/webhook", "/api/v1/flow/webhook"),
+            ("/flow/api/workflows/abc", "/flow/api/workflows/abc"),
+        ] {
+            assert_eq!(redact_path(path), shown, "{}", path);
+        }
+    }
 
     #[derive(Debug, Deserialize)]
     #[serde(deny_unknown_fields)]
