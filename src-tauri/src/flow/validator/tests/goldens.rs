@@ -35,6 +35,22 @@ pub(super) fn web_case(name: &str) -> &'static Value {
         .unwrap_or_else(|| panic!("no golden case {name}"))
 }
 
+/// The desktop's answer for a recorded case at a level (`complete` or
+/// `draft`), after checking it is the web's recorded answer.
+pub(super) fn checked_answer(
+    name: &str,
+    level: &str,
+) -> Vec<crate::flow::validator::ValidationError> {
+    let case = web_case(name);
+    let errors = validate_workflow(&case["payload"], self::level(level));
+    assert_eq!(
+        serde_json::to_value(&errors).unwrap(),
+        case["levels"][level]["errors"],
+        "{name} ({level}) differs from the web"
+    );
+    errors
+}
+
 /// The web's recorded `TRIGGER_CONFIG_FIELDS`, in its order.
 pub(super) fn web_trigger_config_fields() -> Vec<&'static str> {
     GOLDENS["trigger_config_fields"]

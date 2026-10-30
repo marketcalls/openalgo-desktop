@@ -6,10 +6,12 @@
 //! | `web_regressions` | the validator parts of the web's other Flow tests |
 //! | `goldens` | every error, field for field, as the web's own validator returned it |
 //! | `ordering` | the order errors come in, named over recorded cases |
+//! | `branches` | rule branches the main families miss, named over recorded cases |
 //! | `rules` | rules the web's tests leave unpinned, and the desktop's fixes |
 //! | `py_values` | Python's `repr`, `float()`, `int()` and `==` over JSON values |
 //! | `editor_parity` | the web's tests over the editor's sources and the import-format doc (ignored until carried) |
 
+mod branches;
 mod editor_parity;
 mod editor_parity_docs;
 mod goldens;

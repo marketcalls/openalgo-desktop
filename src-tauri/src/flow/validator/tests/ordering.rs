@@ -5,29 +5,13 @@
 //! configuration's field order. Each case is also a golden recorded from the
 //! web, so these name what the goldens compare.
 
-use super::goldens::{web_case, web_trigger_config_fields};
+use super::goldens::{checked_answer as answer, web_trigger_config_fields};
 use super::*;
 use crate::flow::validator::TRIGGER_CONFIG_FIELDS;
 
 /// `(path, code)` of every error, in order.
 fn order(errors: &[ValidationError]) -> Vec<(String, &'static str)> {
     errors.iter().map(|e| (e.path.clone(), e.code)).collect()
-}
-
-/// The desktop's answer for a recorded case, checked against the web's.
-fn answer(name: &str, level: &str) -> Vec<ValidationError> {
-    let case = web_case(name);
-    let errors = if level == "draft" {
-        draft(&case["payload"])
-    } else {
-        strict(&case["payload"])
-    };
-    assert_eq!(
-        serde_json::to_value(&errors).unwrap(),
-        case["levels"][level]["errors"],
-        "{name} ({level}) differs from the web"
-    );
-    errors
 }
 
 fn pairs(list: &[(&str, &'static str)]) -> Vec<(String, &'static str)> {
