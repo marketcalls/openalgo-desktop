@@ -66,6 +66,39 @@ fn params_keep_the_order_written() {
     );
 }
 
+/// The params text is read as Python's `json.loads` reads it: `NaN` and
+/// `Infinity` are floats (kept as their Python text, JSON holding no such
+/// value), a quoted `"NaN"` stays text, and the keys keep their written
+/// order, a repeated key its first place.
+#[test]
+fn params_read_nan_and_infinity_as_python_does() {
+    let params = IndicatorParams::parse(
+        r#"{"b": NaN, "a": "NaN", "c": -Infinity, "d": 1e999, "b": Infinity}"#,
+    )
+    .expect("parses");
+    let keys: Vec<&str> = params.pairs().iter().map(|(k, _)| k.as_str()).collect();
+    assert_eq!(keys, ["b", "a", "c", "d"]);
+    assert_eq!(params.non_finite("b"), Some(f64::INFINITY));
+    assert_eq!(params.non_finite("a"), None);
+    assert_eq!(params.non_finite("c"), Some(f64::NEG_INFINITY));
+    assert_eq!(params.non_finite("d"), Some(f64::INFINITY));
+    assert!(params.non_finite("e").is_none());
+    let nan = IndicatorParams::parse(r#"{"period": NaN}"#).expect("parses");
+    assert!(nan.non_finite("period").is_some_and(f64::is_nan));
+    assert_eq!(
+        IndicatorParams::parse(" NaN ").unwrap_err(),
+        "params must resolve to a JSON object, got float"
+    );
+    assert_eq!(
+        IndicatorParams::parse(r#""NaN""#).unwrap_err(),
+        "params must resolve to a JSON object, got str"
+    );
+    assert_eq!(
+        IndicatorParams::parse(r#"{"period": nan}"#).unwrap_err(),
+        r#"Invalid params JSON: {"period": nan}"#
+    );
+}
+
 #[test]
 fn a_tail_is_always_the_length_asked_for() {
     let records = closes(120);
