@@ -40,6 +40,7 @@ import {
   type StrikeMode,
   seedLegsFromStrategy,
   serializeCustomLegs,
+  upperOutsideReferences,
   validateCustomLeg,
   validateCustomLegs,
 } from '@/lib/flow/customLegs'
@@ -537,7 +538,7 @@ function LegRow({
                 aria-invalid={Boolean(problems.expiry)}
                 aria-describedby={describedBy('expiry')}
                 onChange={(e) =>
-                  onUpdate({ expiryMode: 'DATE', expiry: e.target.value.toUpperCase() })
+                  onUpdate({ expiryMode: 'DATE', expiry: upperOutsideReferences(e.target.value) })
                 }
               />
             ) : (
