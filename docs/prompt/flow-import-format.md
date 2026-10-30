@@ -10,6 +10,14 @@ If you are writing a tool that produces flow JSON (an LLM agent, a script,
 another editor), feed this file in as a system prompt - it is written in a
 flat declarative style suitable for that purpose.
 
+**This is OpenAlgo Desktop's copy.** The format is OpenAlgo web's, unchanged:
+a workflow exported from OpenAlgo web imports into the desktop as it is, and a
+desktop export imports into the web. The desktop runs Flow natively, with no
+Python, and where it behaves differently from the web the text says so in a
+sentence starting **Desktop**. The Agent's `flow-builder` skill serves this
+file as its `reference/flow-import-format.md` page, and the Agent's
+`validate_flow` and `save_flow` tools run the same validator as the importer.
+
 ---
 
 ## 0. Output contract - read before generating anything
@@ -23,7 +31,11 @@ flat declarative style suitable for that purpose.
 
 * `name` (string), `nodes` (array), `edges` (array) are **required at the top
   level**. Any other top-level shape is rejected with *"Invalid workflow
-  format. Must have name, nodes, and edges."*
+  format. Must have name, nodes, and edges."* That sentence is the Import
+  dialog's own check, made before it sends anything; the import route answers
+  400 with `"error": "Invalid workflow format"`, the validator's first problem
+  as `message` (for a missing name, `Workflow needs a non-empty name`) and
+  every problem in `errors`. See [Importer validation](#importer-validation).
 * Every node must be `{ "id", "type", "position": {"x","y"}, "data": {} }`.
 * **`type` must be copied verbatim from the list below.** Do not invent node
   types, and do not translate a strategy description into your own schema.
@@ -112,16 +124,25 @@ and active state:
 
 * **In the editor** - the workflow menu, **Replace from JSON**. Paste or pick a
   file.
-* **From a terminal** - `uv run python scripts/update_flow_workflow.py --id <id> --file strategy.json`
-  (add `--dry-run` to see what would change first).
 * **Over HTTP** - `POST /flow/api/workflows/<id>/replace` with the same body an
-  import takes.
+  import takes. This is the call the editor makes, so it needs the signed-in
+  OpenAlgo session; it is not an API-key endpoint.
 
-All three apply the rules in this document, so a graph that would be rejected at
-import is not written through a side door. If the **trigger** configuration
-changes on an active workflow, deactivate and reactivate it: the schedule and any
-price or order watch are registered at activation, not read per run. Node changes
-apply from the next run without any action.
+Both apply the rules in this document, so a graph that would be rejected at
+import is not written through a side door. `name` may be left out (the current
+name is kept), and the workflow's id, webhook address and secret, active state
+and run history are kept. If the **trigger** configuration changes on an active
+workflow, the replace registers the new trigger at once; if that fails, the
+workflow is deactivated rather than left on its old trigger, and the answer
+carries `needs_reactivate: true`: activate it again once the trigger is valid.
+Node changes apply from the next run without any action.
+
+**Desktop:** OpenAlgo web also documents operator scripts for a server checkout
+(`scripts/update_flow_workflow.py`, which does what Replace does, and
+`scripts/flow_diagnose.py`). The desktop has no Python and does not carry
+them: use Replace from JSON, and the editor's Run Now and Execution Log to
+diagnose. The Agent's `save_flow` always saves a new workflow, as import
+does.
 
 ---
 
@@ -142,11 +163,24 @@ below is a *shape diagram*, not import-ready - see §8 for runnable examples):
 
 | Key | Required for import | Required for execution | Notes |
 |---|---|---|---|
-| `name` | **yes** | no | Importer rejects without it. The UI suffixes `(imported)` to whatever you supply. |
+| `name` | **yes** | no | Importer rejects without it. The import route appends ` (imported)` to whatever you supply. |
 | `description` | no | no | Free-text. Defaults to empty. |
 | `nodes` | **yes** (array, can be empty) | yes | See §2 + §7. |
 | `edges` | **yes** (array, can be empty) | yes | See §3. |
-| `viewport` | no | no | Restores canvas position only. Importers may omit. |
+| `viewport` | no | no | Ignored: export never writes it and import never reads it. |
+
+An export is `{"name", "description", "nodes", "edges", "version": "1.0",
+"exported_at"}`, with the nodes and edges exactly as stored (UI-only keys
+included). Import reads only `name`, `description`, `nodes` and `edges`;
+`version`, `exported_at` and any other top-level key are ignored. Every import
+makes a **new**, inactive workflow with its own new webhook address and secret
+and the webhook switched off, whatever the file holds.
+
+**Desktop:** a workflow file never carries an API key. The desktop does not
+store one per workflow: every run uses the app's current API key, read when the
+run starts, so regenerating the key on the API Key page needs no change to any
+workflow. An `api_key` in an imported file is ignored, and export never writes
+one.
 
 ### Value validation
 
@@ -170,8 +204,8 @@ call. See
 
 ### Importer validation
 
-The importer (`POST /api/workflows/import`, called from the Flow Editor's
-**Import** dialog) runs this check on the parsed JSON before saving:
+The Flow page's **Import** dialog runs this check on the parsed JSON before it
+calls the importer (`POST /flow/api/workflows/import`):
 
 ```js
 if (!parsed.name || !Array.isArray(parsed.nodes) || !Array.isArray(parsed.edges)) {
@@ -183,6 +217,23 @@ If `JSON.parse` itself throws (smart quotes, missing comma, real newline
 inside a string, BOM at the start), the message is the more generic
 **"Invalid JSON format. Please check the workflow data."** - that always
 indicates a syntax problem with the JSON text itself, not a missing field.
+
+The importer itself then upgrades legacy field names (the answer lists them as
+`migrations`) and runs the complete validator: structure, the value checks
+above, and every field a node needs to run, the same rules as activation. A
+graph that fails is not saved; the answer is 400:
+
+```jsonc
+{ "status": "error", "error": "Invalid workflow format",
+  "message": "<the first problem>", "errors": [ { "path", "code", "message", ... } ] }
+```
+
+**Desktop:** a body that is not a JSON object (a JSON array, for example) is
+answered 400 with the message `Workflow must be a JSON object`, and JSON
+carrying a bare `NaN` or `Infinity` (which a Python script can write) is
+answered 400 with `The workflow is not valid JSON (values such as NaN or
+Infinity are not allowed). Check it and try again.` OpenAlgo web fails on the
+first with a server error and parses the second.
 
 ### Persisted vs minimal node
 
@@ -299,24 +350,52 @@ a variable, or branch on a condition node first.
 ### Schedules run on the clock, and inside market hours
 
 **An `interval` schedule is anchored to the clock, not to activation.** "Every
-minute" fires at HH:MM:05 and "every 5 minutes" at :00, :05, :10, whenever the
-workflow happened to be switched on. It used to count from activation time, so
-the phase changed on every restart, which decides by luck whether a bar-reading
-strategy sees the candle that just closed. A small offset (`FLOW_INTERVAL_ALIGN_OFFSET`,
-default 2 seconds) puts the run just inside the new bar rather than racing the
-one that is closing. Sub-minute intervals are left unaligned; there is no
-meaningful boundary.
+minute" fires at HH:MM:02 and "every 5 minutes" at :00, :05, :10 (each 2
+seconds past), whenever the workflow happened to be switched on. It used to
+count from activation time, so the phase changed on every restart, which
+decides by luck whether a bar-reading strategy sees the candle that just
+closed. A small offset of 2 seconds puts the run just inside the new bar
+rather than racing the one that is closing. Sub-minute intervals are left
+unaligned; there is no meaningful boundary. **Desktop:** the offset is fixed at
+2 seconds (OpenAlgo web reads it from `FLOW_INTERVAL_ALIGN_OFFSET`; the desktop
+has no `.env`), and the boundaries are those of the IST clock.
 
-**A schedule is only as fresh as the history cache.** The indicator and history
-nodes reuse a fetch for `FLOW_HISTORY_CACHE_TTL` seconds, 30 by default. That is
-well under a 5-minute candle and half of a 1-minute one, so lower it for a
-1-minute strategy or it can act on the previous bar.
+**A schedule is only as fresh as the history cache.** The `indicator`,
+`barOffset` and `priorPeriodOhlc` nodes reuse an identical history fetch for 30
+seconds (the `history` node always fetches afresh). That is well under a
+5-minute candle and half of a 1-minute one. A 1-minute schedule runs 60 seconds
+after its previous run, so it never reuses its own last fetch, but it does
+reuse one that another node or workflow made for the same symbol, interval and
+range in the last 30 seconds, which can still hold the previous bar.
+**Desktop:** the 30 seconds are fixed; OpenAlgo web lets an operator lower them
+with `FLOW_HISTORY_CACHE_TTL`.
 
 **The window narrows the exchange's session, it never reopens it.** A holiday
 or a weekend stays shut whatever `marketHoursStart` and `marketHoursEnd` say,
 because the day is resolved through the platform's own market calendar. Set
 `marketHoursExchange` to what you trade so MCX and CRYPTO inherit their real
-hours instead of equity ones.
+hours instead of equity ones. Only scheduled runs are gated: a webhook, price
+alert, order update or Run Now runs whatever the time.
+
+**Desktop: schedules run in IST, while the app is open.** Every schedule time
+(`time`, `days`, `executeAt`, the interval boundaries and the market-hours
+window) is India time (Asia/Kolkata), whatever time zone the computer is set
+to; OpenAlgo web reads the server's own clock. A schedule fires only while
+OpenAlgo Desktop is running, as OpenAlgo web's fires only while its server
+runs: a run that fell due while the app was closed (or the computer asleep)
+runs once if the app is back within 60 seconds of it, and is otherwise
+skipped; the next run is then worked out from the clock. Missed runs never
+run in a burst.
+
+**Desktop: signed out or no broker means skipped, not stopped.** While
+OpenAlgo is signed out, or no broker is logged in, a schedule, price alert or
+order update that fires does not run the workflow: the run history records a
+failed run whose log says why (`Skipped: OpenAlgo was signed out when this
+schedule fired, ...`), and the triggers run again after you sign in and log in
+to your broker. Signing out and the daily 03:00 IST session end do not
+deactivate a workflow. A run that was still going when the app closed is
+recorded as failed at the next start: `OpenAlgo closed while this run was in
+progress; it did not finish.`
 
 ### What a node does when something fails
 
@@ -336,31 +415,59 @@ The failure message is the broker's or the service's own text - "insufficient
 funds", "RMS blocked", "symbol not found" - in the run record and in the webhook
 response.
 
+**Desktop:** nodes reach OpenAlgo through the same `/api/v1` handlers an SDK
+client uses, in process, so analyzer mode, Semi-Auto (the order goes to the
+Action Center, and the node's result is the queue's answer rather than a
+broker order id), the API rate limits and the order alerts apply to them
+unchanged. A call that gets no answer within 120 seconds fails the node with
+`OpenAlgo did not answer in time. If this was an order, it may have been
+placed: check the order book before running the workflow again.` and the
+branch stops; a node never sends an order twice. Strict validation also
+refuses a gate configured for more inputs than are wired (`andGate is
+configured for 3 inputs but only 2 are wired. ...`) at import and activation,
+where OpenAlgo web accepts it and fails every run, and an AND or OR gate with
+no `inputCount` counts as 2 inputs.
+
 **A window that crosses midnight is expressed directly.** `timeWindow` with
 `startTime` after `endTime`, such as `22:00` to `02:00`, is treated as spanning
 midnight rather than as an empty window.
 
 **`unsubscribe` needs a symbol** unless `streamType` is `all`. A specific mode
-with no symbol is refused, because the underlying call clears every
-subscription on the instance, including the ones the Sandbox engine uses to
-trigger pending SL and LIMIT orders.
+with no symbol is refused. On OpenAlgo web the underlying call would clear
+every subscription on the instance, including the ones sandbox mode uses to
+fill pending SL and LIMIT orders. **Desktop:** `all` gives back only the
+subscriptions this workflow opened, never the ones the trading terminal,
+sandbox mode, your SDK clients or another workflow hold, and a named symbol is
+dropped from the feed only when no other workflow still holds it.
 
 **Subscriptions are released with the workflow.** A subscribe node opens a
-broker-side subscription against a process-wide client, so one left behind is
-held for the life of the worker and counts against the per-broker symbol
-ceiling that `/trading` and the Sandbox engine share. Deactivating or deleting
-a workflow now gives back everything it opened. You still do not need an
-`unsubscribe` node for cleanup; use one only to drop a stream mid-run.
+subscription on the app's market data feed, the one `/trading` and sandbox
+mode use too, so one left behind counts against the broker's symbol limit for
+as long as it is held. Deactivating or deleting a workflow gives back
+everything it opened. You still do not need an `unsubscribe` node for cleanup;
+use one only to drop a stream mid-run. **Desktop:** a workflow that stands
+down by itself (a one-time trigger that fired, an expired price alert) gives
+its subscriptions back too.
 
 **A condition evaluates once per run.** A condition reachable by two paths used
 to evaluate once per path and follow its branch each time, so a diamond placed
 two orders from one trigger. Gates already behaved this way; conditions now
-match.
+match. **Desktop:** `priceAlert`, which branches like a condition, is evaluated
+once per run too (OpenAlgo web evaluates it once per path). Any other node
+reached by two paths still runs once per path, as on the web: two paths into
+one order node place two orders.
 
-**`waitUntil` is bounded.** The wait holds the workflow's lock and the request
-that triggered the run, so a target more than 30 minutes away is refused with a
-message pointing at a schedule trigger instead. Use `start` for a square-off
-hours later.
+**`waitUntil` is bounded.** The wait holds the workflow's lock, so a target
+more than 30 minutes away is refused with a message pointing at a schedule
+trigger instead. Use `start` for a square-off hours later. **Desktop:** a wait
+never holds the request that started the run. A run whose `delay` and
+`waitUntil` steps add up to more than 10 seconds is answered at once (HTTP 202,
+`"status": "accepted"`, `Workflow started. It waits on a Delay or Wait Until
+step and finishes in the background: its orders go out when the wait ends and
+show in the order book.`) and finishes in the background; a shorter one is
+answered with its result, so a webhook sender still gets the broker's answer.
+A run belongs to the app, not to the request: a sender that hangs up mid-run
+never stops it between two orders.
 
 ### Path grammar
 
@@ -375,8 +482,9 @@ the workflow does **not** error out. Useful for spotting typos in logs.
 
 ### Built-in variables
 
-These resolve to the runtime value of the executor process clock at the moment
-the node fires:
+These resolve to the time at the moment the node fires. **Desktop:** it is
+India time (IST, Asia/Kolkata) whatever time zone the computer is set to;
+OpenAlgo web reads its server's local clock.
 
 | Token | Example value |
 |---|---|
@@ -446,7 +554,27 @@ fields, then to raw text:
 field, and plain text has nowhere to put one, so such a request is refused with
 401 rather than reaching the workflow. Send JSON, or switch the webhook to URL
 auth and pass `?secret=...`. A body carrying no secret is refused the same way,
-so plain text only reaches a workflow that requires none.
+so plain text only reaches a workflow that requires none. With `payload` auth
+the `secret` field is removed before the workflow sees the body.
+
+**Desktop: every webhook requires its secret.** Each workflow gets a secret
+when it is created or imported, so plain text reaches a workflow only with URL
+auth. OpenAlgo web runs a workflow whose secret is empty on its address alone.
+
+The addresses are `POST /flow/webhook/<token>` and
+`POST /flow/webhook/<token>/<symbol>`; a symbol in the address replaces any
+`symbol` in the body. The webhook must be switched on (403 `Webhook is
+disabled`) and the workflow active (403 `Workflow is not active`). Each address
+takes 100 requests a minute per caller and 100 a minute per workflow (429 with
+`Retry-After`). **Desktop:** a body is read up to 2 MB; ten wrong secrets for
+one workflow within 10 minutes lock its webhook for 15 minutes (403 even with
+the right secret) or until its secret is regenerated or the webhook is switched
+off and on; while OpenAlgo is signed out a webhook answers 503 and nothing
+runs, as the strategy and Chartink webhooks do. The address to give
+TradingView or Chartink is the one the workflow's webhook settings show: the
+built-in ngrok tunnel's address while the tunnel is on, else the Host Server
+URL, else this computer's own address (`http://127.0.0.1:5000`), which only
+programs on this computer can reach.
 
 **Casing.** `action`, `product`, `priceType`, `exchange` and `optionType` are
 upper-cased before validation, so `"buy"` and `"BUY"` both work. `symbol` on the
@@ -458,10 +586,11 @@ does not control its own casing. The data nodes (`getQuote`, `history`, ...) do
 
 ## 5. Condition source handles
 
-Six node types fan out into a TRUE branch and a FALSE branch:
+These node types fan out into a TRUE branch and a FALSE branch:
 
 | Node | Handle vocabulary used in `sourceHandle` |
 |---|---|
+| `priceAlert` | `"true"` / `"false"` |
 | `positionCheck` | `"true"` / `"false"` |
 | `fundCheck` | `"true"` / `"false"` |
 | `priceCondition` | `"true"` / `"false"` |
@@ -554,18 +683,17 @@ Fires on a clock schedule.
 |---|---|---|---|
 | `scheduleType` | `"once"` \| `"daily"` \| `"weekly"` \| `"interval"` | `"daily"` | |
 | `time` | `"HH:MM"` | `"09:15"` | Required for `once` / `daily` / `weekly`. |
-| `days` | `number[]` | `[0,1,2,3,4]` | **`weekly` only.** 0=Mon, 1=Tue, ..., 6=Sun. The `daily` branch builds a cron trigger from `time` alone and never reads `days`, so `scheduleType: "daily"` with `days: [0,1,2,3,4]` still fires on Saturday and Sunday. Use `weekly` for a weekday-only schedule, and set `marketHoursOnly` as well: an imported JSON that omits it is not gated. |
-| `executeAt` | `"YYYY-MM-DD"` | - | Required when `scheduleType="once"`. |
+| `days` | `number[]` | `[0,1,2,3,4]` | 0=Mon, 1=Tue, ..., 6=Sun. Required for `weekly`. On OpenAlgo web the `daily` branch builds a cron trigger from `time` alone and never reads `days`, so `scheduleType: "daily"` with `days: [0,1,2,3,4]` still fires on Saturday and Sunday there. **Desktop:** `daily` honours `days` when they are given (no `days` means every day). Use `weekly` for a weekday-only schedule that behaves the same in both, and set `marketHoursOnly` as well: an imported JSON that omits it is not gated. |
+| `executeAt` | `"YYYY-MM-DD"` | - | Required when `scheduleType="once"`. **Desktop:** a date alone runs at the node's `time` (default `09:15`) in IST; a full ISO date-time is used as given. A time already past is refused at activation, and the workflow is deactivated once its time has come, whether the run went ahead or was skipped. OpenAlgo web reads a date alone as midnight. |
 | `intervalValue` | number | `1` | For `interval` mode. |
 | `intervalUnit` | `"seconds"` \| `"minutes"` \| `"hours"` | `"minutes"` | For `interval` mode. |
 | `marketHoursOnly` | boolean | **`false` when the key is absent** | Skip runs outside the trading window. The editor writes `true` into every new schedule node, so a workflow built there is gated. A hand-written or imported JSON that omits the key **runs around the clock**: set it explicitly. |
-| `marketHoursStart` | `"HH:MM"` | `"09:15"` | Start of the window. |
-| `marketHoursEnd` | `"HH:MM"` | `"15:15"` | End of the window. |
-| `marketHoursExchange` | exchange code | `"NSE"` | Which calendar to read. MCX runs to 23:55 and CRYPTO never closes, so this matters for anything but equity. |
-| `marketHoursOnly` | boolean | **`false` when the key is absent** | Skip runs outside the trading window. The editor writes `true` into every new schedule node, so a workflow built there is gated. A hand-written or imported JSON that omits the key **runs around the clock**: set it explicitly. |
-| `marketHoursExchange` | string | `"NSE"` | Which exchange calendar sets the window. `MCX` runs to 23:55, `CRYPTO` never closes. |
-| `marketHoursStart` | `"HH:MM"` | exchange open | Narrows or widens the start. Omit to use the exchange's own open. |
-| `marketHoursEnd` | `"HH:MM"` | exchange close | Narrows or widens the end. Omit to use the exchange's own close. |
+| `marketHoursExchange` | exchange code | `"NSE"` | Which exchange calendar sets the window. `MCX` runs to 23:55, `CRYPTO` never closes, so this matters for anything but equity. |
+| `marketHoursStart` | `"HH:MM"` | exchange open | Narrows or widens the start. Omit to use the exchange's own open. The editor writes `"09:15"`. |
+| `marketHoursEnd` | `"HH:MM"` | exchange close | Narrows or widens the end. Omit to use the exchange's own close. The editor writes `"15:15"`. |
+
+Every time on this node is IST (see
+[Schedules run on the clock, and inside market hours](#schedules-run-on-the-clock-and-inside-market-hours)).
 
 The window is resolved from the market calendar, not from fixed times, so
 weekends, trading holidays and special sessions (muhurat) are handled for you
@@ -595,21 +723,30 @@ next run without deactivating and reactivating the workflow.
 
 #### priceAlert - Price Alert Trigger
 
-Fires when an LTP condition is met. The price-monitor service polls the
-configured symbol on a 1-second tick.
+Fires when an LTP condition is met. The price monitor quotes the configured
+symbol every 5 seconds while the workflow is active.
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
 | `symbol` | string | - | OpenAlgo symbol format. |
 | `exchange` | string | `"NSE"` | See [§9 Exchange codes](#9-exchanges). |
-| `condition` | `"above"` \| `"below"` \| `"crosses_above"` \| `"crosses_below"` | `"above"` | |
+| `condition` | `"above"` \| `"below"` \| `"crosses_above"` \| `"crosses_below"` | `"above"` | The editor offers these four. An imported or Agent-built workflow may also use `crosses` (within 0.1% of `price`), `entering_channel` / `inside_channel` / `exiting_channel` / `outside_channel` (with `priceLower` and `priceUpper`), `moving_up` / `moving_down` (against the previous quote), and `moving_up_percent` / `moving_down_percent` (with `percentage`). |
 | `price` | number | - | Target price. For channel modes, see `priceLower`/`priceUpper`. |
 | `priceLower` | number | - | Used by `entering_channel` / `inside_channel` / etc. (advanced). |
 | `priceUpper` | number | - | |
-| `trigger` | `"once"` \| `"every_time"` | `"once"` | Whether to re-fire after first match. |
-| `expiration` | `"none"` \| `"1h"` \| `"4h"` \| `"1d"` \| `"1w"` | `"none"` | Auto-disable after this duration. |
-| `playSound` | boolean | `true` | UI-only. |
-| `message` | string | - | Optional custom message. |
+| `percentage` | number | - | Used by `moving_up_percent` / `moving_down_percent`. |
+| `trigger` | `"once"` \| `"every_time"` | `"once"` | `once` runs the workflow on the first match and then deactivates it; `every_time` keeps watching. |
+| `expiration` | `"none"` \| `"1h"` \| `"4h"` \| `"1d"` \| `"1w"` | `"none"` | Stop watching after this long. **Desktop:** an expired alert also deactivates the workflow; OpenAlgo web keeps showing it active. |
+| `playSound` | boolean | `true` | Stored and carried between OpenAlgo web and the desktop; nothing reads it. |
+| `message` | string | - | Stored and carried; nothing reads it. |
+
+The run the monitor starts sees `{{webhook.trigger_type}}` (`price_alert`),
+`{{webhook.trigger_price}}` (the LTP that matched) and
+`{{webhook.triggered_at}}`. In that run the node takes its `true` branch
+without quoting again; in a Run Now it quotes the symbol and evaluates the
+condition itself. **Desktop:** only a run the price monitor started skips the
+quote: a webhook body that claims `"trigger_type": "price_alert"` does not,
+where OpenAlgo web trusts it.
 
 ```json
 {
@@ -630,8 +767,10 @@ configured symbol on a 1-second tick.
 #### webhookTrigger - Webhook Trigger
 
 Fires when an external system POSTs to the workflow's webhook URL. The URL and
-secret are minted by the server when the workflow is saved; you cannot
-hand-write them.
+secret are minted by the server when the workflow is created or imported; you
+cannot hand-write them, and a file carries neither. See
+[Webhook payload](#webhook-payload) for the addresses, the secret and the
+limits.
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
@@ -659,7 +798,10 @@ The body is exposed as `{{webhook.<key>}}` to every downstream node, so
 #### orderUpdateTrigger - Order Update Trigger
 
 Fires when an order changes status (fill, rejection, cancellation), pushed
-from the account order-update stream - no polling.
+from the account order-update stream - no polling. **Desktop:** the stream is
+the app's own order-update events, so sandbox fills in analyzer mode fire it
+too. An `every_time` watch whose run is still going keeps the newest update
+that arrives meanwhile and runs once more for it (OpenAlgo web drops it).
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
@@ -667,7 +809,7 @@ from the account order-update stream - no polling.
 | `symbol` | string | - | OpenAlgo symbol. |
 | `exchange` | string | `""` | Empty = any exchange. An explicit value must match. |
 | `status` | `"any"` \| `"open"` \| `"trigger pending"` \| `"complete"` \| `"rejected"` \| `"cancelled"` | `"complete"` | |
-| `trigger` | `"once"` \| `"every_time"` | `"once"` | |
+| `trigger` | `"once"` \| `"every_time"` | `"once"` | `once` deactivates the workflow after its run. |
 
 At least one of `orderId` / `symbol` is required; an unfiltered watch would
 fire on every order in the account. The event is exposed to downstream nodes
@@ -802,7 +944,7 @@ Single-leg options order resolved from underlying + offset + option type.
 | `product` | `"MIS"` \| `"NRML"` | `"NRML"` | Always a derivative; does not follow `exchange`. |
 | `price` | number | `0` | For `LIMIT`/`SL`. |
 | `triggerPrice` | number | `0` | For `SL`/`SL-M`. |
-| `splitSize` | int | `0` | If >0, splits into chunks. |
+| `splitSize` | int | - | Omit it to place the order whole. When present it must be a positive whole number and splits the order into chunks of that size: the validator refuses `0`, on OpenAlgo web too, although the node itself reads 0 as "do not split". |
 | `outputVariable` | string | - | |
 
 ```json
@@ -854,8 +996,8 @@ default cannot misroute a SENSEX or CRUDEOIL order.
 `quantity` is in **lots** for every underlying. The lot size comes from the
 master contract, so one lot of CRUDEOIL is 100 barrels on every broker. Kite
 reports `lot_size = 1` for MCX because it counts order quantity in contracts;
-`broker/zerodha` writes the real lot and converts at its own API boundary, so
-nothing here has to know that.
+the Zerodha adapter (`src-tauri/src/brokers/zerodha/`) writes the real lot and
+converts at its own API boundary, so nothing here has to know that.
 
 #### optionsMultiOrder - Multi-Leg Options Strategy
 
@@ -1124,6 +1266,11 @@ products. With a `symbol`, closes only that position.
 `exchange` and `product` do not filter on their own - without a `symbol` this is
 an unconditional square-off however they are set.
 
+**Desktop:** a close scoped to a `symbol` sends a smart order to a position of
+zero for that one position, in live mode and in analyzer mode alike. On
+OpenAlgo web only analyzer mode honours the scope; its live mode squares off
+every position.
+
 ```json
 { "id": "node_3", "type": "closePositions", "position": { "x": 100, "y": 300 }, "data": {} }
 ```
@@ -1364,14 +1511,18 @@ schemas.
 | Field | Type | Default | Notes |
 |---|---|---|---|
 | `symbol`, `exchange` | | | |
-| `interval` | `"1m"` \| `"5m"` \| `"15m"` \| `"1h"` \| `"1d"` (or any interval the broker supports - call `intervals` first) | `"5m"` | |
-| `days` | int | `30` | When positive, derives a range from now back this many calendar days. |
+| `interval` | `"1m"` \| `"5m"` \| `"15m"` \| `"1h"` \| `"1d"` (or any interval the broker supports - call `intervals` first) | `"5m"` | **Desktop:** `1d` is sent to the history service as `D`, the same daily interval. |
+| `days` | int | `30` in the editor, `0` when absent | When positive, derives a range from now back this many calendar days. |
 | `startDate` | `"YYYY-MM-DD"` | - | Optional explicit range start; supply together with `endDate`. |
 | `endDate` | `"YYYY-MM-DD"` | - | Optional explicit range end; supply together with `startDate`. |
 | `outputVariable` | string | - | |
 
 When both `startDate` and `endDate` are non-empty, that explicit range takes
 precedence over `days`. Otherwise a positive `days` value derives both dates.
+Dates are IST dates. **Desktop:** with neither a range nor a positive `days`,
+the node fails with the history service's own message, because the desktop's
+history API needs a date range; OpenAlgo web passes the empty range to the
+broker.
 
 ```json
 {
@@ -1404,7 +1555,7 @@ another indicator's output series.
 | `params` | string | `"{}"` | JSON object of the indicator's own args, e.g. `"{\"period\": 14}"`. |
 | `lookbackBars` | int | `100` | Capped at 200. |
 | `tailBars` | int | `5` | Length of the returned `series` array. |
-| `offsetBars` | int | `0` | Which bar `at_offset` reads. 0 = latest closed. |
+| `offsetBars` | int | `0` | Which bar `at_offset` reads: 0 = the latest bar, which may still be forming; 1 = the last closed bar. |
 | `sourceSeries` | string | - | Nest over another series, e.g. `{{rsi.series}}` or a raw `{{h.data}}`. |
 | `sourceField` | string | `""` | Field to read per `sourceSeries` row. Blank = auto (`value`, `out0`, `close`). |
 | `outputVariable` | string | - | |
@@ -1413,6 +1564,15 @@ Exposes `{{name.latest.*}}`, `{{name.previous.*}}`, `{{name.at_offset.*}}`,
 `{{name.series}}`, `{{name.outputs}}`, `{{name.bars_used}}`. Single-output
 indicators use `value`; multi-output use `out0`, `out1`, … (macd: line/signal/
 histogram; supertrend: level/direction; bbands: upper/middle/lower).
+
+`latest` is the last bar the history returned, which during the session is
+usually the bar still forming; `previous` is the bar before it, the last closed
+one. **Desktop:** the numbers come from the desktop's own indicator library
+(the one the Agent uses) and match the web's. A bar where an output has no
+value reads as empty for that bar, so a reference to it stays unresolved and a
+`varCondition` on it takes neither branch; OpenAlgo web reports an earlier
+bar's value in its place (ichimoku's lagging span, for example, comes from 25
+bars back there).
 
 `crossover`, `crossunder`, `cross`, `correlation`, `beta` are **not
 available** - they need two independent series. Build a crossover from two
@@ -1535,7 +1695,7 @@ position is already flat and realized P&L still exceeds the target.
 | `symbol`, `exchange` | string | - | |
 | `interval` | string | `"D"` | Free text. |
 | `source` | `"api"` \| `"db"` | `"api"` | |
-| `offsetBars` | int | `0` | 0 = most recent **closed** bar; today's forming candle is excluded. Counts bars, not calendar days. |
+| `offsetBars` | int | `0` | 0 = most recent **closed** bar; today's forming candle is excluded. Counts bars, not calendar days. **Desktop:** on a weekly or monthly interval the forming week or month is excluded too; OpenAlgo web returns it from the second day of the period. |
 | `outputVariable` | string | - | |
 
 Exposes `{{name.open/high/low/close/volume/timestamp}}`.
@@ -1717,10 +1877,20 @@ Useful interpolations: `{{orders.data.orders[0].orderid}}`,
 
 #### telegramAlert - Telegram Alert
 
-Sends a Telegram message via the per-user Telegram bot configured in OpenAlgo
-settings. Delivery is owned by the workflow API key: the message goes to the
-Telegram account paired for that API-key owner. A workflow cannot supply a
+Sends a Telegram message via the Telegram bot configured in OpenAlgo.
+Delivery is owned by the workflow API key: the message goes to the Telegram
+account linked for that API-key owner. A workflow cannot supply a
 recipient override to target another OpenAlgo user.
+
+**Desktop:** the bot is the desktop's own (**Telegram Bot** in the profile
+menu), and the workflow API key is the app's current API key, so the message
+goes to the Telegram account you linked with `/link`. The bot must be running,
+your account linked and its notifications on; otherwise the node fails with
+`Telegram bot is stopped`, `No Telegram account linked for user: ...` or
+`Telegram notifications are disabled`, and the branch below it stops. Place an
+alert after the order it reports, not before it, so a stopped bot never holds
+an order back. The message is queued, so the run does not wait for Telegram;
+it reads `*Flow Alert*`, a rule, your text and `Time: HH:MM:SS` in IST.
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
@@ -1742,9 +1912,16 @@ recipient override to target another OpenAlgo user.
 Sends a WhatsApp message via the paired bot device. Requires pairing from the
 `/whatsapp` page first.
 
+**Desktop:** the bot is the desktop's own (**WhatsApp Bot** in the profile
+menu, page `/whatsapp`), paired as one of your WhatsApp linked devices. An
+unpaired or disconnected device fails the node with the page's own reason (for
+example `WhatsApp is not paired or not connected. Pair the device from
+/whatsapp.`), and a `to` that is not a phone number fails it with `Invalid
+WhatsApp phone number: ...`; the branch below it stops.
+
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `to` | string | `""` | Phone digits, e.g. `919876543210`. Blank sends to the paired device itself. |
+| `to` | string | `""` | Phone digits with the country code, e.g. `919876543210`. Blank sends to the paired account itself. |
 | `message` | string | - | Supports `{{vars}}`. |
 
 ```json
@@ -1764,7 +1941,7 @@ JSON, or division by zero returns an error and leaves the target unchanged.
 
 | Operation | Behaviour |
 |---|---|
-| `"set"` | Stores `value` under `variableName`. JSON-shaped strings (starting with `{` or `[`) are auto-parsed via `json.loads`, so you can carry structured data. |
+| `"set"` | Stores `value` under `variableName`. JSON-shaped strings (starting with `{` or `[`) are auto-parsed as JSON, so you can carry structured data. |
 | `"get"` | Copies the raw value from `sourceVariable`. Optional `jsonPath` traverses dotted object keys and bracketed list indexes. |
 | `"add"` | `current + value` (numeric coercion). Initialises to 0 if unset. |
 | `"subtract"` | `current - value` (numeric coercion). Initialises to 0 if unset. |
@@ -1832,6 +2009,15 @@ from workflow variables, and a webhook trigger puts its caller's JSON body into
 that context. Redirects are not followed. Logged URLs have their query string
 redacted, so a token in a query parameter is not written to the execution log.
 
+**Desktop:** the shared address range `100.64.0.0/10` (carrier-grade NAT, and
+the addresses Tailscale gives your own devices) is refused too. The request
+connects only to the address that was checked, never to a second lookup of the
+name, ignores the computer's proxy settings, and stops at 5 MB: a larger
+answer fails the node with `the response is larger than 5 MB, so it was not
+read`. A non-2xx answer fails the node with `HTTP <code>`, and a `body` given
+as a JSON object is sent as JSON. The same rules mean a workflow cannot call
+OpenAlgo Desktop itself (`127.0.0.1`) or a program on your network.
+
 ```json
 {
   "id": "node_3",
@@ -1855,9 +2041,13 @@ redacted, so a token in a query parameter is not written to the execution log.
 | `delayValue` | int | `1` | |
 | `delayUnit` | `"seconds"` \| `"minutes"` \| `"hours"` | `"seconds"` | |
 
-Capped at 300 seconds. The delay blocks the workflow's lock and, for a webhook
-trigger, the request that fired it, so longer waits belong in a schedule or a
-`waitUntil` node. A longer value waits the maximum and logs a warning.
+Capped at 300 seconds. The delay holds the workflow's lock (no second run of
+it starts meanwhile), so longer waits belong in a schedule or a `waitUntil`
+node. A longer value waits the maximum and logs a warning. On OpenAlgo web it
+also holds the request that fired the run. **Desktop:** a run whose waits add
+up to more than 10 seconds is answered `accepted` at once and finishes in the
+background (see [What a node does when something fails](#what-a-node-does-when-something-fails)),
+and a wait ends at once when the run is stopped (sign-out, quitting the app).
 
 ```json
 { "id": "node_3", "type": "delay", "position": { "x": 100, "y": 300 }, "data": { "delayValue": 30, "delayUnit": "seconds" } }
@@ -1867,7 +2057,7 @@ trigger, the request that fired it, so longer waits belong in a schedule or a
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `targetTime` | `"HH:MM"` or `"HH:MM:SS"` | `"09:30"` | Seconds are honoured. If already past, the node returns immediately. |
+| `targetTime` | `"HH:MM"` or `"HH:MM:SS"` | `"09:30"` | Seconds are honoured. If already past, the node returns immediately. More than 30 minutes away is refused. **Desktop:** IST, whatever the computer's time zone. |
 | `label` | string | - | UI-only. |
 
 ```json
@@ -1894,6 +2084,16 @@ subscription alive across runs of the same workflow.
 
 If WebSocket is unavailable for any reason, every stream node falls back to a
 single REST call. Behaviour is identical from the workflow's point of view.
+
+**Desktop:** the stream is the app's own market data feed, which runs while a
+broker is logged in. A node waits up to 5 seconds (3 for depth) for the first
+update of its kind, then falls back to the REST quote or depth. The output
+variable holds the value this section documents (the LTP itself for
+`subscribeLtp`, the quote fields for `subscribeQuote`, the book for
+`subscribeDepth`). OpenAlgo web documents the same but stores the node's whole
+result under the variable, so there `{{rltp}}` prints a dict and the price is
+`{{rltp.ltp}}`, and a quote is `{{quote.data.ltp}}`. A workflow written against
+the web's runtime paths needs `{{rltp}}` and `{{quote.ltp}}` here.
 
 #### subscribeLtp - Subscribe LTP
 
@@ -1984,7 +2184,7 @@ upper/middle/lower, adx: +DI/-DI/ADX, stochastic: %K/%D).
 | `optionsOrder` | `{status, orderid, symbol, exchange, underlying, underlying_ltp, offset, option_type, mode}` | `{{ce.orderid}}`, `{{ce.symbol}}` |
 | `optionsMultiOrder`, `basketOrder`, `splitOrder` | `{status, results: [{...}]}` | `{{b.results[0].orderid}}` |
 
-`mode` is `"analyze"` in Analyzer mode and `"live"` otherwise - useful for a
+`mode` is `"analyze"` in analyzer mode and `"live"` otherwise - useful for a
 guard that refuses to run live.
 
 **Symbols and options**
@@ -2058,7 +2258,8 @@ position does not already exist.
 
 ### 8.2 Webhook-triggered options buy with expiry resolution
 
-TradingView posts `{ "symbol": "NIFTY", "action": "BUY" }` to the webhook.
+TradingView posts `{ "symbol": "NIFTY", "action": "BUY" }` to the webhook
+(with the webhook's `secret` field, which every desktop webhook requires).
 The workflow fetches the nearest weekly expiry, resolves the ATM CE symbol,
 and places a 1-lot BUY.
 
@@ -2293,9 +2494,12 @@ Time-window AND price-above AND no-existing-position. Demonstrates
 ### 8.9 Place order, wait, then auto-cancel
 
 Demonstrates `delay` + variable interpolation of an upstream order id. Places a
-LIMIT BUY at LTP - 0.5%, waits 90s, and cancels if it hasn't filled yet. The
-broker will silently no-op the cancel if the order already completed, so this
-is safe.
+LIMIT BUY at LTP - 0.5%, waits 90s, and cancels if it hasn't filled yet. If the
+order has already filled, the cancel is refused (sandbox mode answers `Cannot
+cancel order in complete status`; a broker answers in its own words): the
+cancel node fails, the run is recorded as `failed` and the log after it does
+not run. Nothing is placed or changed, so this is safe. The 90-second wait
+means the run is answered `accepted` and finishes in the background.
 
 ```json
 {
@@ -2324,14 +2528,17 @@ is safe.
 ### 8.10 Wait until square-off, then close + log
 
 Use `waitUntil` to pause execution until 15:15 IST, then close all open
-positions and log the action. Useful as a tail-end of any intraday flow.
+positions and log the action. `waitUntil` refuses a target more than 30
+minutes away, so the schedule starts the run at 14:50, 25 minutes before it.
+For a square-off hours after an entry, give the square-off its own `start`
+schedule instead.
 
 ```json
 {
   "name": "Intraday Square-Off at 15:15",
   "description": "Wait until 15:15 IST, close all open positions, log the squareoff",
   "nodes": [
-    { "id": "node_1", "type": "start",          "position": { "x": 100, "y":  60 }, "data": { "scheduleType": "daily", "time": "09:25", "days": [0,1,2,3,4], "marketHoursOnly": true } },
+    { "id": "node_1", "type": "start",          "position": { "x": 100, "y":  60 }, "data": { "scheduleType": "daily", "time": "14:50", "days": [0,1,2,3,4], "marketHoursOnly": true } },
     { "id": "node_2", "type": "waitUntil",      "position": { "x": 100, "y": 180 }, "data": { "targetTime": "15:15", "label": "Square-off window" } },
     { "id": "node_3", "type": "closePositions", "position": { "x": 100, "y": 300 }, "data": {} },
     { "id": "node_4", "type": "log",            "position": { "x": 100, "y": 420 }, "data": { "message": "Daily square-off completed at {{time}} IST", "level": "info" } },
@@ -2404,8 +2611,9 @@ explicit reset is needed at the workflow's first run.
 
 > **Counter scope.** `variable` storage is per-workflow-run today. Across
 > separate scheduled runs the counter resets to 0 each time. For a true
-> daily-persistent counter, write to the DB via an `httpRequest` to your
-> own endpoint, or use the broker's order-book and count the orders.
+> daily-persistent counter, use the broker's order book and count the
+> orders, or send an `httpRequest` to a service of your own on the
+> internet (the node cannot reach this computer or your network).
 
 ### 8.13 Compound condition (AND gate, two inputs)
 
@@ -2637,7 +2845,9 @@ funds (outputVariable=f)
 - **Missing top-level `name` on import.** The Flow Editor's import dialog
   rejects any JSON missing a `name` field with *"Invalid workflow format.
   Must have name, nodes, and edges."* The executor itself never reads it -
-  only the importer does. See §1.
+  only the importer does. Sent straight to the import route, the same file
+  is answered 400 `Invalid workflow format` with the message `Workflow needs
+  a non-empty name`. See §1.
 - **`JSON.parse` failures during paste.** *"Invalid JSON format. Please
   check the workflow data."* always means the text isn't valid JSON. Common
   causes: smart-quote conversion (`"` → `"` `"`) by Slack/Discord/word
@@ -2656,20 +2866,24 @@ funds (outputVariable=f)
   Both vocabularies are accepted, but be consistent within a workflow.
 - **AND/OR gate target slots.** Without `targetHandle: "input-N"`, multiple
   edges into a gate are treated ambiguously. Always pin them.
-- **Webhook trigger without saved workflow.** The webhook URL is minted on
-  save. Importing a workflow with a `webhookTrigger` node and trying to use
-  the URL before saving will fail. Save first, then copy the URL from the
-  ConfigPanel.
+- **Webhook address and switch.** The webhook URL and secret are minted when
+  the workflow is created or imported, a new pair for every import, so an
+  address used with OpenAlgo web does not carry over. Copy them from the
+  workflow's **Webhook** settings (the Flow page's card menu) or the Webhook
+  node's panel, switch the webhook on and activate the workflow: until then
+  alerts are refused with 403 `Webhook is disabled` or `Workflow is not
+  active`.
 - **`expiryDate` format.** Strings like `"30DEC25"` (no separator, uppercase
-  month). The `expiry` node returns `"30-DEC-25"` (with hyphens) - pass that
-  through `_format_expiry_for_api` if hand-converting, or use `expiryType`
-  presets which the executor resolves automatically.
+  month). The `expiry` node returns `"30-DEC-25"` (with hyphens) - remove the
+  hyphens if hand-converting, or use `expiryType` presets which the executor
+  resolves automatically.
 - **History is capped at 200 bars.** Every history-reading node
   (`history`, `indicator`, `barOffset`, `priorPeriodOhlc`) requests at most
   the latest 200 bars for the chosen interval, and the cap is applied when
   sizing the request window - a 10-year 1-minute range (~900k rows) never
-  reaches the broker. Tunable via `FLOW_MAX_HISTORY_BARS`.
-- **Identical history requests are cached** for a short TTL and collapse to
+  reaches the broker. **Desktop:** fixed at 200 (OpenAlgo web reads
+  `FLOW_MAX_HISTORY_BARS`; the desktop has no `.env`).
+- **Identical history requests are cached** for 30 seconds and collapse to
   one broker call, so several indicators on the same symbol/interval do not
   multiply rate-limit pressure. Distinct requests still cost a call each.
 - **`interval` is free text, not an enum.** Broker support varies; use the
@@ -2679,11 +2893,12 @@ funds (outputVariable=f)
   interpolation (which passes `{{...}}` through as literal text), this node
   refuses to evaluate so a typo cannot route a trade. Order nodes refuse for the
   same reason -- see [Unresolved references on order nodes](#unresolved-references-on-order-nodes).
-- **Execution history is pruned.** Each run stores its full node trace, so the
-  newest `FLOW_EXECUTION_RETENTION_COUNT` runs per workflow (default 500) and
-  anything newer than `FLOW_EXECUTION_RETENTION_DAYS` (default 30) are kept;
-  older rows are deleted as new ones are written. Set either to `0` to disable
-  that limit. Export anything you need to keep.
+- **Execution history is pruned.** Each run stores its full node trace, so a
+  run is kept while it is among the newest 500 runs of its workflow and no
+  more than 30 days old; older rows are deleted as new ones are written.
+  Export anything you need to keep. **Desktop:** both limits are fixed;
+  OpenAlgo web reads them from `FLOW_EXECUTION_RETENTION_COUNT` and
+  `FLOW_EXECUTION_RETENTION_DAYS`.
 - **A failed node stops its branch and fails the run.** When a node returns
   an error - a broker rejection, an unreachable URL, a guard that cannot be
   evaluated - nothing downstream of it executes, the run is recorded as
@@ -2692,18 +2907,21 @@ funds (outputVariable=f)
   trigger.
 - **One-shot triggers deactivate the workflow when they fire.** A `priceAlert`
   or `orderUpdateTrigger` with `trigger: "once"` clears `is_active` after its
-  run, so it is not re-armed by a later restart. Use `trigger: "every_time"`
-  for a standing watch. The trigger is spent only by a run that actually
-  reached the graph: if the workflow was already running, or the run could not
-  be queued, the trigger stays armed for the next event rather than being
-  silently consumed. A run the broker rejected still counts as spent - it ran.
-- **Editing a trigger on an active workflow re-arms it during the save.** The
-  scheduler and monitors snapshot the trigger node, so a save that changes it
-  tears the old registration down and installs the new one. If that fails the
-  workflow is **deactivated** rather than left running a stale registration,
-  and the response carries `needs_reactivate: true`. Node bodies outside the
-  trigger apply immediately either way, because the graph is re-read on every
-  run.
+  run, so a later restart does not watch for it again. Use
+  `trigger: "every_time"` for a standing watch. The trigger is spent only by a
+  run that actually reached the graph: if the workflow was already running, or
+  the run could not be queued, the trigger keeps watching for the next event
+  rather than being silently consumed. A run the broker rejected still counts
+  as spent - it ran. **Desktop:** a `once` schedule deactivates the workflow
+  the same way, and a run skipped because OpenAlgo was signed out or no broker
+  was logged in does not spend a one-shot price alert or order watch.
+- **Editing a trigger on an active workflow registers the new one during the
+  save.** The scheduler and monitors snapshot the trigger node, so a save that
+  changes it tears the old registration down and installs the new one. If that
+  fails the workflow is **deactivated** rather than left running a stale
+  registration, and the response carries `needs_reactivate: true`. Node bodies
+  outside the trigger apply immediately either way, because the graph is
+  re-read on every run.
 - **Lot size handling differs per node.** `optionsOrder` and
   `optionsMultiOrder` accept `quantity` **in lots** (multiplied by lot size
   internally). `placeOrder` / `smartOrder` / `splitOrder` / `basketOrder`
@@ -2717,27 +2935,49 @@ funds (outputVariable=f)
 
 ## 14. Where this is enforced
 
-- Node type strings: `services/flow_executor_service.py` (top-level
-  `execute_node_chain` dispatch).
-- Per-node field reads: each `execute_*` method in
-  `services/flow_executor_service.py`.
-- UI defaults: `frontend/src/lib/flow/constants.ts` (`DEFAULT_NODE_DATA`).
-- UI ↔ field mapping: `frontend/src/components/flow/panels/ConfigPanel.tsx`.
-- Edge filtering: `services/flow_executor_service.py:execute_node_chain`
-  → the `if result and "condition" in result:` block.
+In OpenAlgo Desktop (paths from the repository root):
+
+- Node type strings: `src-tauri/src/flow/contract/model.rs` (`NODE_TYPES`,
+  `TRIGGER_TYPES`, `BRANCHING_TYPES`, `GATE_TYPES`) and the node registry,
+  one line per node family, in `src-tauri/src/flow/nodes/mod.rs`
+  (`FAMILIES`).
+- Per-node field reads: one file per node family under
+  `src-tauri/src/flow/nodes/` (orders: `orders.rs`, `options.rs`, `legs.rs`,
+  `basket.rs`; data: `data.rs`, `books.rs`, `symbols.rs`, `history.rs`,
+  `indicator.rs`, `calendar.rs`; logic: `conditions.rs`, `logic.rs`,
+  `math/`, `timing.rs`, `alerts.rs`, `http/`; triggers and streams:
+  `triggers.rs`, `streaming.rs`; `core.rs`). The indicator numbers:
+  `src-tauri/src/flow/indicator_service/`.
+- UI defaults: `src/lib/flow/constants.ts` (`DEFAULT_NODE_DATA`).
+- UI ↔ field mapping: `src/components/flow/panels/ConfigPanel.tsx`.
+- Edge filtering, gates and the once-per-run rule: the graph walk in
+  `src-tauri/src/flow/executor/walk.rs`; the wait estimate behind the
+  `accepted` answer: `src-tauri/src/flow/executor/waits.rs`.
 - Required fields, checked at import, save and activation:
-  `services/flow_workflow_validator.py` (`REQUIRED_NODE_FIELDS`,
-  `CONDITIONAL_REQUIRED_FIELDS`, `EITHER_REQUIRED_FIELDS`).
-- Trigger registration and its lifecycle: `blueprints/flow.py` (activate,
-  deactivate), `services/flow_scheduler_service.py`,
-  `services/flow_price_monitor_service.py`,
-  `services/flow_order_update_monitor_service.py`.
-- HTTP destination rules: `NodeExecutor._check_http_destination` in
-  `services/flow_executor_service.py`.
-- Unresolved-reference checks on order nodes: `ORDER_NODE_TYPES`,
-  `ORDER_CRITICAL_FIELDS` and `NodeExecutor.unresolved_order_fields` in
-  `services/flow_executor_service.py`.
-- Execution-history retention: `prune_workflow_executions` in
-  `database/flow_db.py`.
+  `src-tauri/src/flow/validator/catalog.rs` (`REQUIRED_NODE_FIELDS`,
+  `EITHER_REQUIRED_FIELDS`, and `PRICE_ALERT_CONDITIONS`, the web's
+  `CONDITIONAL_REQUIRED_FIELDS`), with the rules in `fields.rs`, `legs.rs`,
+  `structure.rs` and `graph.rs` beside it; legacy upgrades in `migrate.rs`.
+- Import, export and replace: `src-tauri/src/flow/service/transfer.rs`.
+- Trigger registration and its lifecycle: `src-tauri/src/flow/service/activation.rs`
+  (activate, deactivate) and `src-tauri/src/flow/triggers/` (`scheduler.rs`,
+  `market_hours.rs`, `price_monitor.rs`, `order_monitor.rs`, `drive.rs`,
+  `restore.rs`, `runs.rs`).
+- Webhooks: `src-tauri/src/flow/service/webhooks.rs` (secret, payload),
+  `src-tauri/src/flow/service/webhook_guard.rs` (lockout) and the public routes
+  in `src-tauri/src/server/routes/flow/triggers.rs` (rate limits).
+- HTTP destination rules: `src-tauri/src/flow/nodes/http/guard.rs` and the
+  node's own client, `src-tauri/src/flow/nodes/http/client.rs`.
+- Unresolved-reference checks on order nodes: `ORDER_TYPES` and
+  `ORDER_CRITICAL_FIELDS` in `src-tauri/src/flow/contract/model.rs`, applied by
+  `unresolved_order_fields` in `src-tauri/src/flow/executor/walk.rs`.
+- How a node reaches OpenAlgo (the in-process `/api/v1` calls, the 120-second
+  answer limit): `src-tauri/src/flow/contract/client/`.
+- Execution-history retention: `prune` in
+  `src-tauri/src/flow/store/executions.rs`.
+
+OpenAlgo web enforces the same rules in `services/flow_executor_service.py`,
+`services/flow_workflow_validator.py`, `blueprints/flow.py`,
+`database/flow_db.py` and its scheduler and monitor services.
 
 If this doc and the code disagree, the code wins. Open a PR.
