@@ -129,8 +129,11 @@ impl MarketFeed for Feed {
         exchange: &str,
         mode: &str,
         timeout: Duration,
-        accept: &(dyn Fn(&Value) -> bool + Send + Sync),
+        accept: &(dyn for<'a> Fn(&'a Value) -> bool + Send + Sync),
     ) -> Result<Option<Value>, FeedError> {
+        if let Some(e) = self.spec["verify_raise"].as_str() {
+            return Err(FeedError::Failed(e.to_string()));
+        }
         if self.spec.get("username").is_some_and(Value::is_null) {
             return Err(FeedError::InvalidKey);
         }
@@ -144,25 +147,36 @@ impl MarketFeed for Feed {
         if let Some(e) = self.spec["subscribe_error"].as_str() {
             return Err(FeedError::Subscribe(e.to_string()));
         }
-        // `accept` takes frames of the caller's lifetime (async_trait names
-        // the elided lifetime inside `dyn Fn(&Value)`), so a frame the fake
-        // owns cannot be lent to it; each scripted frame is leaked instead,
-        // a few small values per test run.
         for tick in self.spec["ticks"].as_array().into_iter().flatten() {
-            let frame: &'static Value = Box::leak(Box::new(tick.clone()));
-            if accept(frame) {
-                return Ok(Some(frame.clone()));
+            if accept(tick) {
+                return Ok(Some(tick.clone()));
             }
         }
         Ok(None)
     }
 
-    async fn unsubscribe(&self, symbol: &str, exchange: &str, mode: &str) -> Result<(), String> {
+    async fn session(&self) -> Result<(), FeedError> {
+        if let Some(e) = self.spec["verify_raise"].as_str() {
+            return Err(FeedError::Failed(e.to_string()));
+        }
+        if self.spec.get("username").is_some_and(Value::is_null) {
+            return Err(FeedError::InvalidKey);
+        }
+        if let Some(e) = self.spec["connect_error"].as_str() {
+            return Err(FeedError::Connect(e.to_string()));
+        }
+        Ok(())
+    }
+
+    async fn unsubscribe(&self, symbol: &str, exchange: &str, mode: &str) -> Result<(), FeedError> {
         self.ops.lock().push(
             json!({"op": "unsubscribe", "symbol": symbol, "exchange": exchange, "mode": mode}),
         );
+        if let Some(e) = self.spec["unsubscribe_raise"].as_str() {
+            return Err(FeedError::Failed(e.to_string()));
+        }
         match self.spec.get("unsubscribe_error") {
-            Some(e) => Err(e.as_str().unwrap_or("").to_string()),
+            Some(e) => Err(FeedError::Subscribe(e.as_str().unwrap_or("").to_string())),
             None => Ok(()),
         }
     }
