@@ -10,6 +10,8 @@
 //!   OpenAlgo through, the subscription record and the trigger hooks.
 //! - `executor/`: running a workflow: the one-run-per-workflow claim, the
 //!   owned run task, the record, the graph walk.
+//! - `indicator_service/`: the web's `services/indicator_service.py` on the
+//!   Agent's indicator library (pure functions the data nodes call).
 //! - `nodes/`: the node registry, one line per node family.
 //! - `service/`: what the `/flow/api/...` routes do.
 //! - `store/`: the workflows and their run history (migration
@@ -22,6 +24,7 @@
 
 pub mod contract;
 pub mod executor;
+pub mod indicator_service;
 pub mod nodes;
 pub mod service;
 pub mod store;
