@@ -402,3 +402,131 @@ async fn a_put_of_edges_is_checked_with_the_stored_nodes() {
     );
     assert_eq!(w.get(id).await["edges"], json!([e("s", "l")]));
 }
+
+/// R-16: a create the database refuses is the web's 500, in its words,
+/// whether or not a graph was sent; nothing is stored.
+#[tokio::test]
+async fn a_create_the_database_refuses_is_a_500() {
+    let w = W::new();
+    w.sql(
+        "CREATE TRIGGER no_new BEFORE INSERT ON flow_workflows
+         BEGIN SELECT RAISE(ABORT, 'held'); END;",
+    );
+    for body in [json!({"name": "Held"}), runnable("Held")] {
+        let (s, v) = w.post("/flow/api/workflows", &body).await;
+        assert_eq!(
+            (s, v),
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json!({"error": "Failed to create workflow"})
+            ),
+            "{}",
+            body
+        );
+    }
+    assert_eq!(w.list().await, json!([]));
+}
+
+/// V-139 (`edges or []`): replace reads absent or falsy edges as none and
+/// stores that, so the stored edges never outlive the graph they wired.
+#[tokio::test]
+async fn replace_reads_absent_or_falsy_edges_as_none() {
+    let w = W::new();
+    let path_of = |id: i64| format!("/flow/api/workflows/{}/replace", id);
+    let mut cases = vec![json!({"nodes": [start()]})];
+    for edges in [json!({}), json!(""), json!(0), Value::Null] {
+        cases.push(json!({"nodes": [start()], "edges": edges}));
+    }
+    for body in cases {
+        let id = w.create(runnable("Wired")).await;
+        let (s, v) = w.post(&path_of(id), &body).await;
+        assert_eq!(s, StatusCode::OK, "{} {}", body, v);
+        let stored = w.get(id).await;
+        assert_eq!(
+            (stored["nodes"].clone(), stored["edges"].clone()),
+            (json!([start()]), json!([])),
+            "{}",
+            body
+        );
+    }
+}
+
+/// IE-14: replace keeps the stored description when the file has none or
+/// a null one (the web's `is not None`).
+#[tokio::test]
+async fn replace_keeps_the_description_when_none_is_sent() {
+    let w = W::new();
+    let mut described = runnable("Keep");
+    described["description"] = json!("Exit at 15:10");
+    let id = w.create(described).await;
+    let path = format!("/flow/api/workflows/{}/replace", id);
+    let mut next = runnable("Keep");
+    for description in [None, Some(Value::Null)] {
+        if let Some(d) = description {
+            next["description"] = d;
+        }
+        let (s, v) = w.post(&path, &next).await;
+        assert_eq!(s, StatusCode::OK, "{} {}", next, v);
+        assert_eq!(w.get(id).await["description"], "Exit at 15:10", "{}", next);
+    }
+}
+
+/// IE-01: `exported_at` is `datetime.utcnow().isoformat()`: the UTC wall
+/// time (the clock reads 10:00 IST), no zone, microseconds as six digits
+/// when there are any and left out when there are none; below a
+/// microsecond is dropped, as Python's clock reading floors.
+#[tokio::test]
+async fn the_export_is_stamped_as_python_writes_utc_now() {
+    let w = W::new();
+    let id = w.create(runnable("Stamped")).await;
+    let path = format!("/flow/api/workflows/{}/export", id);
+    for (now, want) in [
+        ("2026-10-05T04:30:00Z", "2026-10-05T04:30:00"),
+        ("2026-10-05T04:45:00.1Z", "2026-10-05T04:45:00.100000"),
+        ("2026-10-05T04:45:00.000042Z", "2026-10-05T04:45:00.000042"),
+        (
+            "2026-10-05T04:45:00.123456789Z",
+            "2026-10-05T04:45:00.123456",
+        ),
+        ("2026-10-05T04:45:00.000000999Z", "2026-10-05T04:45:00"),
+    ] {
+        w.h.t.clock.set(now.parse().unwrap());
+        let (s, v) = w.call(Method::GET, &path, None).await;
+        assert_eq!(
+            (s, v["exported_at"].clone()),
+            (StatusCode::OK, json!(want)),
+            "{}",
+            now
+        );
+    }
+}
+
+/// IE-07: an import whose name a workflow already has is another workflow
+/// with the same name (the web checks no collision).
+#[tokio::test]
+async fn an_import_with_a_taken_name_is_another_workflow() {
+    let w = W::new();
+    let mut ids = Vec::new();
+    for _ in 0..2 {
+        let (s, v) = w
+            .post("/flow/api/workflows/import", &runnable("Same"))
+            .await;
+        assert_eq!(s, StatusCode::CREATED, "{}", v);
+        ids.push(v["workflow_id"].as_i64().unwrap());
+    }
+    assert_ne!(ids[0], ids[1]);
+    for id in ids {
+        assert_eq!(w.get(id).await["name"], "Same (imported)");
+    }
+}
+
+/// IE-07: a long name is imported whole (the web caps none).
+#[tokio::test]
+async fn an_import_with_a_long_name_keeps_it_whole() {
+    let w = W::new();
+    let name = "Nifty opening range breakout ".repeat(200);
+    let (s, v) = w.post("/flow/api/workflows/import", &runnable(&name)).await;
+    assert_eq!(s, StatusCode::CREATED, "{}", v);
+    let id = v["workflow_id"].as_i64().unwrap();
+    assert_eq!(w.get(id).await["name"], format!("{} (imported)", name));
+}
