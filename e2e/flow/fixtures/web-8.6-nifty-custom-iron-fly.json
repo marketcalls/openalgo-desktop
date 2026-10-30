@@ -1,0 +1,24 @@
+{
+  "name": "NIFTY Custom Iron Fly",
+  "description": "ATM straddle hedged with OTM3 wings, current-week expiry",
+  "nodes": [
+    { "id": "node_1", "type": "start",             "position": { "x": 100, "y": 100 }, "data": { "scheduleType": "daily", "time": "09:25", "days": [0,1,2,3,4], "marketHoursOnly": true } },
+    { "id": "node_2", "type": "optionsMultiOrder", "position": { "x": 100, "y": 240 }, "data": {
+      "strategy": "custom",
+      "underlying": "NIFTY",
+      "expiryType": "current_week",
+      "action": "SELL",
+      "quantity": 1,
+      "priceType": "MARKET",
+      "product": "NRML",
+      "legs": [
+        { "offset": "ATM",  "optionType": "CE", "action": "SELL", "quantity": 1 },
+        { "offset": "ATM",  "optionType": "PE", "action": "SELL", "quantity": 1 },
+        { "offset": "OTM3", "optionType": "CE", "action": "BUY",  "quantity": 1 },
+        { "offset": "OTM3", "optionType": "PE", "action": "BUY",  "quantity": 1 }
+      ],
+      "outputVariable": "ironFly"
+    } }
+  ],
+  "edges": [ { "id": "e1", "source": "node_1", "target": "node_2" } ]
+}
