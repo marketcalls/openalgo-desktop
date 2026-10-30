@@ -181,7 +181,10 @@ impl FlowNode for OptionChainNode {
         let underlying = ctx.get_str(data, "underlying", "NIFTY");
         let exchange = ctx.get_str(data, "exchange", "NSE_INDEX");
         let expiry = ctx.get_str(data, "expiryDate", "");
-        let strike_count = ctx.get_int(data, "strikeCount", 10);
+        let strike_count = match ctx.try_get_int(data, "strikeCount", 10) {
+            Ok(v) => v,
+            Err(abort) => return abort.into(),
+        };
         ctx.info(format!(
             "Fetching option chain for: {} expiry={}",
             underlying, expiry

@@ -377,7 +377,10 @@ impl FlowNode for HistoryNode {
         let mut start = ctx.get_str(data, "startDate", "");
         let mut end = ctx.get_str(data, "endDate", "");
         if start.is_empty() || end.is_empty() {
-            let days = ctx.get_int(data, "days", 0);
+            let days = match ctx.try_get_int(data, "days", 0) {
+                Ok(v) => v,
+                Err(abort) => return abort.into(),
+            };
             if days > 0 {
                 let now = ist_now(ctx.clock.as_ref());
                 let first = Days::try_days(days)
@@ -504,7 +507,11 @@ impl FlowNode for BarOffsetNode {
         let exchange = ctx.get_str(data, "exchange", "NSE");
         let interval = ctx.get_str(data, "interval", "D");
         let source = ctx.get_str(data, "source", "api");
-        let requested = ctx.get_int(data, "offsetBars", 0).saturating_add(1);
+        let requested = match ctx.try_get_int(data, "offsetBars", 0) {
+            Ok(v) => v,
+            Err(abort) => return abort.into(),
+        }
+        .saturating_add(1);
         let offset_bars = clamp_bars(requested, "offset bars") - 1;
         if symbol.is_empty() {
             return NodeOutcome::error("Symbol is required");

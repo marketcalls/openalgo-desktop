@@ -626,3 +626,79 @@ async fn an_unreadable_bar_time_fails_only_the_node() {
     );
     assert_eq!(c.vars.get("b"), None);
 }
+
+/// N-dataCommon-01, decision 24: a list or dict where the web reads a number
+/// with int()/float(), or `inf` where it reads a whole number, raises there
+/// and ends the whole run; the node stops at that field, before any call.
+#[tokio::test]
+async fn a_list_or_dict_where_a_number_belongs_ends_the_run() {
+    let int_list =
+        "int() argument must be a string, a bytes-like object or a real number, not 'list'";
+    let int_dict =
+        "int() argument must be a string, a bytes-like object or a real number, not 'dict'";
+    let float_dict = "float() argument must be a string or a real number, not 'dict'";
+    let infinity = "cannot convert float infinity to integer";
+    let cases = [
+        ("holidays", json!({"year": [2026]}), int_list),
+        (
+            "history",
+            json!({"symbol": "SBIN", "days": {"n": 3}}),
+            int_dict,
+        ),
+        (
+            "history",
+            json!({"symbol": "SBIN", "days": "inf"}),
+            infinity,
+        ),
+        (
+            "barOffset",
+            json!({"symbol": "SBIN", "offsetBars": [1]}),
+            int_list,
+        ),
+        (
+            "indicator",
+            json!({"symbol": "SBIN", "tailBars": {"n": 5}}),
+            int_dict,
+        ),
+        (
+            "indicator",
+            json!({"symbol": "SBIN", "lookbackBars": "{{big}}"}),
+            infinity,
+        ),
+        (
+            "optionChain",
+            json!({"underlying": "NIFTY", "expiryDate": "27OCT26", "strikeCount": [5]}),
+            int_list,
+        ),
+        (
+            "margin",
+            json!({"symbol": "SBIN", "quantity": {"n": 1}}),
+            int_dict,
+        ),
+        (
+            "margin",
+            json!({"symbol": "SBIN", "price": {"p": 1.5}}),
+            float_dict,
+        ),
+    ];
+    for (node, data, message) in cases {
+        shared_cache().clear();
+        let client = Arc::new(FakeFlowClient::new());
+        let c = ctx(client.clone());
+        c.vars.set("big", json!("1e400"));
+        let out = run(&c, node, data.clone()).await;
+        assert_eq!(out.aborted(), Some(message), "{} {}", node, data);
+        assert!(client.calls().is_empty(), "{} called the client", node);
+    }
+    // A number written as text, a bool and a float still read as the web's
+    // int() reads them.
+    let client = Arc::new(FakeFlowClient::new());
+    client.reply("market/holidays", json!({"status": "success", "data": []}));
+    let c = ctx(client.clone());
+    for year in [json!("2026"), json!(2026.7), json!(true)] {
+        assert_eq!(
+            run(&c, "holidays", json!({"year": year})).await.aborted(),
+            None
+        );
+    }
+}

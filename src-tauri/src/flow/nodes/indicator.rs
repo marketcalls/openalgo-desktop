@@ -14,7 +14,7 @@
 
 use super::history::{fetch_cached, history_error, records_of, today_ist};
 use super::pyjson;
-use crate::flow::contract::node::{FlowNode, NodeCtx, NodeOutcome, WARNING};
+use crate::flow::contract::node::{FlowNode, NodeAbort, NodeCtx, NodeOutcome, WARNING};
 use crate::flow::contract::pyfmt;
 use crate::flow::indicator_service::{
     compute_indicator, history_window, source_series_numbers, IndicatorOutput, IndicatorParams,
@@ -26,7 +26,7 @@ use serde_json::{Map, Value};
 /// The Indicator node.
 pub struct IndicatorNode;
 
-/// The node's numeric settings (`get_int` with the web's defaults).
+/// The node's numeric settings (`int()` with the web's defaults).
 struct Bars {
     lookback: i64,
     tail: i64,
@@ -41,10 +41,11 @@ impl FlowNode for IndicatorNode {
 
     async fn run(&self, ctx: &NodeCtx, data: &Map<String, Value>) -> NodeOutcome {
         let name = ctx.get_str(data, "indicatorName", "sma");
-        let bars = Bars {
-            lookback: ctx.get_int(data, "lookbackBars", 100),
-            tail: ctx.get_int(data, "tailBars", 5),
-            offset: ctx.get_int(data, "offsetBars", 0),
+        // Read in the web's order; a list or dict (or `inf`) where a whole
+        // number belongs ends the run as the web's int() does (decision 24).
+        let bars = match read_bars(ctx, data) {
+            Ok(b) => b,
+            Err(abort) => return abort.into(),
         };
         let source_field = ctx.get_str(data, "sourceField", "");
         let params = match read_params(ctx, data) {
@@ -56,6 +57,14 @@ impl FlowNode for IndicatorNode {
             None => from_history(ctx, data, &name, &params, &bars).await,
         }
     }
+}
+
+fn read_bars(ctx: &NodeCtx, data: &Map<String, Value>) -> Result<Bars, NodeAbort> {
+    Ok(Bars {
+        lookback: ctx.try_get_int(data, "lookbackBars", 100)?,
+        tail: ctx.try_get_int(data, "tailBars", 5)?,
+        offset: ctx.try_get_int(data, "offsetBars", 0)?,
+    })
 }
 
 /// Nested mode is chosen by a `sourceSeries` that is set: not null, not

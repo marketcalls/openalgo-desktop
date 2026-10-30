@@ -235,7 +235,10 @@ impl FlowNode for Holidays {
     }
 
     async fn run(&self, ctx: &NodeCtx, data: &Map<String, Value>) -> NodeOutcome {
-        let year = ctx.get_int(data, "year", 0);
+        let year = match ctx.try_get_int(data, "year", 0) {
+            Ok(v) => v,
+            Err(abort) => return abort.into(),
+        };
         let shown_year = if year == 0 {
             "current".to_string()
         } else {
