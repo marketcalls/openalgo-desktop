@@ -5,7 +5,12 @@
 use super::*;
 
 fn read(body: &str, form: bool) -> Value {
-    Value::Object(read_payload(body.as_bytes(), form))
+    let fields = if form {
+        urlencoded_fields(body.as_bytes())
+    } else {
+        Map::new()
+    };
+    Value::Object(read_payload(body.as_bytes(), &fields))
 }
 
 /// X-106: JSON is read whatever the sender declared (the route never looks
@@ -65,6 +70,17 @@ fn malformed_json_is_kept_as_text_rather_than_dropped() {
         json!({"message": r#"{"secret": "s""#})
     );
     assert_eq!(read("null", false), json!({"message": "null"}));
+}
+
+/// T-073 (decision 24): Python's json.loads reads TradingView's bare
+/// `NaN` and `Infinity`, so the body is a dict and its secret is found (a
+/// strict JSON reader kept it as text under `message`).
+#[test]
+fn nan_and_infinity_from_tradingview_are_json() {
+    assert_eq!(
+        read(r#"{"secret": "s", "price": NaN, "stop": -Infinity}"#, false),
+        json!({"secret": "s", "price": "nan", "stop": "-inf"})
+    );
 }
 
 fn workflow(auth: &str) -> Workflow {
