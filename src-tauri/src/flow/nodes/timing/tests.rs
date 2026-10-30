@@ -151,8 +151,8 @@ async fn wait_until_waits_to_the_second_or_says_it_passed() {
         (
             "2026-10-29T10:15:00",
             json!({"targetTime": "{{t}}"}),
-            false,
-            "Target time {{t}} already passed",
+            true,
+            "Waiting until 10:20 (~300s)",
         ),
         (
             "2026-10-29T10:15:00",
@@ -258,14 +258,6 @@ async fn time_windows_follow_the_web_including_overnight() {
     .await;
     assert!(!met);
     assert!(line.ends_with("invert=True, result=False"));
-    // Raw text, not interpolated.
-    let (met, line) = window(
-        "2026-10-29T10:15:00",
-        json!({"startTime": "{{open}}", "endTime": "{{close}}"}),
-    )
-    .await;
-    assert!(met);
-    assert!(line.starts_with("Time window: {{open}}-{{close}}"));
 }
 
 /// E-49, X-099: 00:00-23:59 is open all day, 22:00-02:00 wraps midnight,
@@ -607,4 +599,78 @@ fn the_gate_reads_the_apps_calendar() {
         ..nse
     };
     assert!(is_within_market_hours(&c, now("03:00", 8), &crypto));
+}
+
+/// Time fields resolve their `{{...}}` references; one that does not
+/// resolve to a time fails the node, naming the field. The web read the
+/// reference as a malformed time and used the default (fails on the web:
+/// `{{open}}`-`{{close}}` became 09:15-15:30 and answered True at 10:15).
+#[tokio::test(start_paused = true)]
+async fn time_fields_resolve_their_references_or_fail() {
+    let c = at("2026-10-29T10:15:00");
+    c.vars.set("open", json!("11:00"));
+    c.vars.set("close", json!("12:00"));
+    c.vars.set("t", json!("11:00"));
+    c.vars.set("bad", json!("soon"));
+    let out = run(
+        &TimeWindow,
+        &c,
+        json!({"startTime": "{{open}}", "endTime": "{{close}}"}),
+    )
+    .await;
+    assert_eq!(out.condition_met(), Some(false));
+    assert_eq!(
+        messages(&c)[0],
+        "Time window: 11:00-12:00, in_window=False, invert=False, result=False"
+    );
+    let out = run(
+        &TimeCondition,
+        &c,
+        json!({"targetTime": "{{t}}", "operator": ">="}),
+    )
+    .await;
+    assert_eq!(answer(&out)["condition"], false);
+    assert_eq!(answer(&out)["target_time"], "11:00");
+    let out = run(&TimeWindow, &c, json!({"startTime": "{{nope}}"})).await;
+    assert_eq!(
+        answer(&out),
+        json!({"status": "error", "condition": false,
+               "message": "startTime did not resolve to a time (HH:MM or HH:MM:SS): '{{nope}}'"})
+    );
+    let out = run(&TimeWindow, &c, json!({"endTime": "{{bad}}"})).await;
+    assert_eq!(
+        out.failure_message(),
+        "endTime did not resolve to a time (HH:MM or HH:MM:SS): 'soon'"
+    );
+    let out = run(&TimeCondition, &c, json!({"targetTime": "{{nope}}"})).await;
+    assert_eq!(out.condition_met(), Some(false));
+    assert!(out.is_error());
+    let c = at("2026-10-29T10:15:00");
+    let out = run(&WaitUntil, &c, json!({"targetTime": "{{nope}}"})).await;
+    assert_eq!(
+        answer(&out),
+        json!({"status": "error", "message": "targetTime did not resolve to a time (HH:MM or HH:MM:SS): '{{nope}}'"})
+    );
+    assert_eq!(
+        logs(&c)[0],
+        (
+            "error".into(),
+            "Wait Until aborted: targetTime did not resolve to a time (HH:MM or HH:MM:SS): '{{nope}}'".into()
+        )
+    );
+    // A built-in resolves too; a literal keeps the web's forgiving reading.
+    let out = run(
+        &TimeCondition,
+        &at("2026-10-29T10:15:00"),
+        json!({"targetTime": "{{time}}", "operator": "=="}),
+    )
+    .await;
+    assert_eq!(answer(&out)["condition"], true);
+    let out = run(
+        &TimeCondition,
+        &at("2026-10-29T10:15:00"),
+        json!({"targetTime": "25:99"}),
+    )
+    .await;
+    assert_eq!(answer(&out)["condition"], false);
 }

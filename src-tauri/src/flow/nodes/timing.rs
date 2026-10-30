@@ -26,6 +26,49 @@ use std::time::Duration;
 /// What a wait cut short by the run stopping answers.
 pub const STOPPED_WHILE_WAITING: &str = "The workflow was stopped while it was waiting.";
 
+/// Whether text is a clock time, `HH:MM` or `HH:MM:SS` (one or two digits
+/// per part, within the day).
+fn is_clock_time(text: &str) -> bool {
+    let parts: Vec<&str> = text.trim().split(':').collect();
+    let limits = [23u32, 59, 59];
+    (2..=3).contains(&parts.len())
+        && parts.iter().zip(limits).all(|(p, max)| {
+            (1..=2).contains(&p.len())
+                && p.chars().all(|c| c.is_ascii_digit())
+                && p.parse::<u32>().is_ok_and(|n| n <= max)
+        })
+}
+
+/// A time field, interpolated once. The web read `{{...}}` in these
+/// fields as a malformed time and silently used the default, which could
+/// open or close a trading window at the wrong time; here a field that
+/// held a reference must resolve to `HH:MM[:SS]`, or the node fails with a
+/// sentence naming the field (lead decision, goldens lane report). A
+/// literal time keeps the web's forgiving reading.
+fn time_field(
+    ctx: &NodeCtx,
+    data: &Map<String, Value>,
+    key: &str,
+    default: &str,
+) -> Result<Value, String> {
+    let raw = data.get(key).cloned().unwrap_or(json!(default));
+    let Value::String(text) = &raw else {
+        return Ok(raw);
+    };
+    if !text.contains("{{") {
+        return Ok(raw);
+    }
+    let resolved = ctx.vars.interpolate(text);
+    if is_clock_time(&resolved) {
+        return Ok(Value::String(resolved.trim().to_string()));
+    }
+    Err(format!(
+        "{} did not resolve to a time (HH:MM or HH:MM:SS): {}",
+        key,
+        pyfmt::quote(&resolved)
+    ))
+}
+
 fn py_bool(b: bool) -> &'static str {
     if b {
         "True"
@@ -201,7 +244,13 @@ impl FlowNode for WaitUntil {
     }
 
     async fn run(&self, ctx: &NodeCtx, data: &Map<String, Value>) -> NodeOutcome {
-        let raw = data.get("targetTime").cloned().unwrap_or(json!("09:30"));
+        let raw = match time_field(ctx, data, "targetTime", "09:30") {
+            Ok(v) => v,
+            Err(message) => {
+                ctx.error(format!("Wait Until aborted: {}", message));
+                return NodeOutcome::error(message);
+            }
+        };
         let shown = pyfmt::str(&raw);
         let (h, m, s) = parse_time_string(raw.as_str(), 9, 30);
         let target = (h * 3600 + m * 60 + s) as i64;
@@ -247,8 +296,15 @@ impl FlowNode for TimeWindow {
     }
 
     async fn run(&self, ctx: &NodeCtx, data: &Map<String, Value>) -> NodeOutcome {
-        let start_raw = data.get("startTime").cloned().unwrap_or(json!("09:15"));
-        let end_raw = data.get("endTime").cloned().unwrap_or(json!("15:30"));
+        let fields = time_field(ctx, data, "startTime", "09:15")
+            .and_then(|s| time_field(ctx, data, "endTime", "15:30").map(|e| (s, e)));
+        let (start_raw, end_raw) = match fields {
+            Ok(f) => f,
+            Err(message) => {
+                ctx.error(format!("Time window aborted: {}", message));
+                return NodeOutcome::undecided(message);
+            }
+        };
         let invert = switched_on(data.get("invertCondition"));
         let now = now_time(ctx);
         let (sh, sm, _) = parse_time_string(start_raw.as_str(), 9, 15);
@@ -283,7 +339,13 @@ impl FlowNode for TimeCondition {
     }
 
     async fn run(&self, ctx: &NodeCtx, data: &Map<String, Value>) -> NodeOutcome {
-        let target_raw = data.get("targetTime").cloned().unwrap_or(json!("09:30"));
+        let target_raw = match time_field(ctx, data, "targetTime", "09:30") {
+            Ok(v) => v,
+            Err(message) => {
+                ctx.error(format!("Time condition aborted: {}", message));
+                return NodeOutcome::undecided(message);
+            }
+        };
         let operator = data.get("operator").cloned().unwrap_or(json!(">="));
         let condition_type = data.get("conditionType").cloned().unwrap_or(json!("entry"));
         let now = now_time(ctx);
