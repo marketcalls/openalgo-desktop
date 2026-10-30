@@ -5,8 +5,9 @@
 use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime};
 use serde_json::{Map, Value};
 
-use super::records::{from_epoch, numeric, parse_iso, parse_timestamp, py_float};
+use super::records::{from_epoch, numeric, parse_iso, parse_timestamp};
 use super::IndicatorError;
+use crate::flow::contract::pyfmt;
 
 /// `_INTERVAL_MINUTES`: minutes per bar for the intraday spellings.
 fn interval_minutes(key: &str) -> Option<i64> {
@@ -212,7 +213,7 @@ fn record_times(records: &[Value]) -> Vec<Option<NaiveDateTime>> {
                 return from_epoch(numeric(Some(stamp))).ok();
             }
             let text = stamp.as_str()?;
-            if py_float(text).is_some() {
+            if pyfmt::parse_float(text).is_some() {
                 return None;
             }
             parse_iso(text).map(|(wall, _)| wall)

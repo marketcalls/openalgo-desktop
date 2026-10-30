@@ -9,9 +9,8 @@ use chrono::NaiveDate;
 use serde_json::{json as value, Map, Value};
 
 use super::support::{diff, json, records, wall_time, Failures, EXECUTOR};
-use crate::agent::tools::values::{py_str, truthy};
+use crate::flow::contract::pyfmt::{self, truthy};
 use crate::flow::indicator_service::compute::compute_indicator_as_web;
-use crate::flow::indicator_service::records::py_float;
 use crate::flow::indicator_service::{
     bar_at_offset, clamp_bars, history_window, prior_period_ohlc, source_series_numbers,
     trim_records, IndicatorParams, IndicatorRequest, IndicatorSource,
@@ -32,7 +31,7 @@ fn get_int(node: &Value, key: &str, default: i64) -> i64 {
     match node.get(key) {
         None | Some(Value::Null) => default,
         Some(Value::String(text)) if text.is_empty() => default,
-        Some(Value::String(text)) => py_float(text).map_or(default, |f| f as i64),
+        Some(Value::String(text)) => pyfmt::parse_float(text).map_or(default, |f| f as i64),
         Some(Value::Bool(flag)) => i64::from(*flag),
         Some(other) => other
             .as_i64()
@@ -45,7 +44,7 @@ fn get_int(node: &Value, key: &str, default: i64) -> i64 {
 /// context resolves only whole tokens).
 fn get_str(node: &Value, key: &str, default: &str) -> String {
     match node.get(key) {
-        Some(value) if truthy(value) => py_str(value),
+        Some(value) if truthy(value) => pyfmt::str(value),
         _ => default.to_string(),
     }
 }

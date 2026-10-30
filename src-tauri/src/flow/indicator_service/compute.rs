@@ -8,6 +8,7 @@ use serde_json::{json, Value};
 use super::catalogue::{self, input_columns, normalise, takes_one_series};
 use super::params::{bind, library_params, IndicatorParams};
 use super::records::Columns;
+use super::timestamps;
 use super::window::clamp_bars;
 use super::{IndicatorError, INDICATOR_WARMUP_BARS, MAX_HISTORY_BARS};
 use crate::agent::indicators::ta::{self, Series as LibrarySeries, TaError};
@@ -228,6 +229,9 @@ fn candle_input(
             "no historical data available for this symbol/date range",
         ));
     }
+    // The web indexes the frame by `pd.to_datetime(df["timestamp"])`
+    // before anything else, so a column pandas cannot read is the error.
+    timestamps::check(records)?;
     let frame = Columns::read(records);
     // The warm-up rows are already in the fetched response, so keeping them
     // costs no extra call and lets recursive indicators settle.
@@ -264,7 +268,7 @@ fn run(
     input: &Input,
     params: &IndicatorParams,
 ) -> Result<Vec<LibrarySeries>, IndicatorError> {
-    let bound = bind(spec, params)?;
+    let bound = bind(spec, params, input.bars)?;
     let series: Vec<&[f64]> = input.series.iter().map(Vec::as_slice).collect();
     match ta::call(spec.name, &series, &library_params(spec, &bound)) {
         Some(result) => {

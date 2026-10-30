@@ -7,8 +7,8 @@ use super::support::{ctx, logs, run};
 use crate::flow::contract::client::fake::FakeFlowClient;
 use crate::flow::contract::client::{ApiCall, FlowClient, History};
 use crate::flow::nodes::history::{
-    api_interval, shared_cache, HistoryCache, HISTORY_CACHE_MAXSIZE, HISTORY_CACHE_TTL,
-    HISTORY_FLIGHT_TIMEOUT,
+    api_interval, broker_account_tag, shared_cache, HistoryCache, HISTORY_CACHE_MAXSIZE,
+    HISTORY_CACHE_TTL, HISTORY_FLIGHT_TIMEOUT,
 };
 use async_trait::async_trait;
 use parking_lot::Mutex;
@@ -139,6 +139,46 @@ async fn answers_expire_are_bounded_and_belong_to_one_account() {
     off.fetch(&client, "anon", &req("SBIN"), None).await;
     off.fetch(&client, "anon", &req("SBIN"), None).await;
     assert_eq!(client.calls().len(), 7, "a zero TTL disables the cache");
+}
+
+/// The cache key's account part (IND-011, decision 21): the first 12 hex
+/// digits of `sha256("broker:user")` of the broker session, one per
+/// account, never the ids themselves. Pinned to values computed apart.
+#[test]
+fn the_account_tag_is_a_short_hash_of_the_broker_account() {
+    assert_eq!(broker_account_tag("zerodha", "AB1234"), "dc4a384014d7");
+    assert_eq!(broker_account_tag("zerodha", "CD5678"), "bd7416bf56b5");
+    assert_eq!(broker_account_tag("dhan", "AB1234"), "d9ab8eb7fd4e");
+    let tag = broker_account_tag("zerodha", "AB1234");
+    assert_eq!(tag.len(), 12);
+    assert!(tag.bytes().all(|b| b.is_ascii_hexdigit()));
+    assert!(!tag.contains("AB1234") && !tag.contains("zerodha"));
+}
+
+/// `clear_history_cache` (IND-014): every kept answer is dropped, so the
+/// next identical request reaches the client again.
+#[tokio::test]
+async fn clear_drops_every_cached_answer() {
+    let cache = HistoryCache::new(HISTORY_CACHE_TTL, 8, HISTORY_FLIGHT_TIMEOUT);
+    let client = FakeFlowClient::new();
+    client.reply("history", rows());
+    cache.fetch(&client, "anon", &req("SBIN"), None).await;
+    cache.fetch(&client, "anon", &req("INFY"), None).await;
+    cache.fetch(&client, "anon", &req("SBIN"), None).await;
+    assert_eq!(cache.held(), 2);
+    assert_eq!(
+        client.calls().len(),
+        2,
+        "the second SBIN is served from the cache"
+    );
+    cache.clear();
+    assert_eq!(cache.held(), 0);
+    cache.fetch(&client, "anon", &req("SBIN"), None).await;
+    assert_eq!(
+        client.calls().len(),
+        3,
+        "after clear the request is made again"
+    );
 }
 
 /// A caller whose leader never answers fetches itself after the wait.

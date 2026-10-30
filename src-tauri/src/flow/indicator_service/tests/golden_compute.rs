@@ -27,7 +27,7 @@ fn with_request<T>(case: &Value, run: impl FnOnce(&IndicatorRequest<'_>) -> T) -
             IndicatorSource::Nested(&nested)
         }
         None => {
-            candles = records(&case["candles"]);
+            candles = with_timestamps(records(&case["candles"]), case.get("timestamps"));
             IndicatorSource::Candles {
                 records: &candles,
                 lookback_bars: case["lookback_bars"].as_i64().expect("lookback"),
@@ -43,10 +43,30 @@ fn with_request<T>(case: &Value, run: impl FnOnce(&IndicatorRequest<'_>) -> T) -
     })
 }
 
+/// The records with the case's own timestamp column, when it has one
+/// (`{"missing": true}` drops the key).
+fn with_timestamps(mut rows: Vec<Value>, stamps: Option<&Value>) -> Vec<Value> {
+    let Some(stamps) = stamps.and_then(Value::as_array) else {
+        return rows;
+    };
+    for (row, stamp) in rows.iter_mut().zip(stamps) {
+        let Some(row) = row.as_object_mut() else {
+            continue;
+        };
+        if stamp.get("missing").is_some() {
+            row.remove("timestamp");
+        } else {
+            row.insert("timestamp".into(), stamp.clone());
+        }
+    }
+    rows
+}
+
 fn label(case: &Value) -> String {
     format!(
-        "[{}] {} {} {}",
+        "[{} {}] {} {} {}",
         case["tag"].as_str().unwrap_or_default(),
+        case["label"].as_str().unwrap_or_default(),
         case["name"],
         case["params"],
         case.get("candles")
@@ -55,59 +75,27 @@ fn label(case: &Value) -> String {
     )
 }
 
-/// A value of the wrong type stops the run on the web and here. Where the
-/// web's sentence is the library's period check, it is matched word for
-/// word; elsewhere the desktop names the field instead of quoting the
-/// interpreter (a recorded deviation), and stops the run where the web,
-/// by accident of the method, computes (`adxr` with `"14"`).
-fn mistyped_diff(got: &Result<IndicatorOutput, IndicatorError>, case: &Value) -> Option<String> {
-    let want = case.get("error");
-    match (got, want) {
-        (Err(e), Some(w))
-            if w["message"]
-                .as_str()
-                .is_some_and(|m| m.starts_with("Period must")) =>
-        {
-            error_diff(e, w)
-        }
-        (Err(e), _) if !e.is_value_error() && e.message.contains(" must be ") => None,
-        (other, _) => Some(format!("expected the run to stop, got {other:?}")),
-    }
-}
-
-/// The four integer parameters the web's method uses as a number: a
-/// fractional value computes there, and is refused here (see
-/// `params::FRACTION_REFUSED`).
-fn refused_fraction(case: &Value) -> bool {
-    const USED_AS_NUMBER: [(&str, &str); 4] = [
-        ("hv", "annual"),
-        ("hv", "per"),
-        ("lrslope", "interval"),
-        ("pvi_with_signal", "signal_length"),
-    ];
-    let params = pairs(&case["params"]);
-    case["tag"] == "float_for_int"
-        && params.iter().any(|(key, value)| {
-            value.as_f64().is_some_and(|v| v.fract() != 0.0)
-                && USED_AS_NUMBER
-                    .contains(&(case["name"].as_str().unwrap_or_default(), key.as_str()))
-        })
-}
-
-fn fraction_diff(got: &Result<IndicatorOutput, IndicatorError>, case: &Value) -> Option<String> {
-    match got {
-        Err(e)
-            if e.message.contains(" must be a whole number, got ")
-                && case.get("result").is_some() =>
-        {
-            None
-        }
-        other => Some(format!(
-            "expected the fractional value refused, got {other:?}"
+/// The first difference between an answer and the web's (`result` or
+/// `error`).
+pub(super) fn answer_diff(
+    got: &Result<IndicatorOutput, IndicatorError>,
+    case: &Value,
+) -> Option<String> {
+    match (got, case.get("result"), case.get("error")) {
+        (Ok(out), Some(want), _) => diff(&out.to_value(), want),
+        (Err(e), _, Some(want)) => error_diff(e, want),
+        (Ok(out), None, Some(want)) => Some(format!(
+            "computed {} but the web raised {want}",
+            out.to_value()
         )),
+        (Err(e), Some(_), None) => Some(format!("raised {e:?} but the web computed")),
+        _ => Some("malformed case".into()),
     }
 }
 
+/// Every case, word for word and number for number: every refusal, every
+/// value of the wrong type (IND-042) and every timestamp column (IND-045)
+/// included.
 #[test]
 fn every_case_matches_the_web() {
     let fixture = json(COMPUTE);
@@ -115,22 +103,7 @@ fn every_case_matches_the_web() {
     let mut failures = Failures::default();
     for case in cases {
         let got = with_request(case, compute_indicator_as_web);
-        let problem = if case["tag"] == "mistyped" {
-            mistyped_diff(&got, case)
-        } else if refused_fraction(case) {
-            fraction_diff(&got, case)
-        } else {
-            match (&got, case.get("result"), case.get("error")) {
-                (Ok(out), Some(want), _) => diff(&out.to_value(), want),
-                (Err(e), _, Some(want)) => error_diff(e, want),
-                (Ok(out), None, Some(want)) => Some(format!(
-                    "computed {} but the web raised {want}",
-                    out.to_value()
-                )),
-                (Err(e), Some(_), None) => Some(format!("raised {e:?} but the web computed")),
-                _ => Some("malformed case".into()),
-            }
-        };
+        let problem = answer_diff(&got, case);
         if let Some(problem) = problem {
             failures.push(label(case), problem);
         }

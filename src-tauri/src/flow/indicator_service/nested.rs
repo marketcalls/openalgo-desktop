@@ -5,8 +5,7 @@
 
 use serde_json::Value;
 
-use super::records::py_float;
-use crate::agent::tools::values::py_repr;
+use crate::flow::contract::pyfmt;
 
 /// Why `sourceSeries` could not be read: the node's error `message`, and
 /// the line the executor logs at error level.
@@ -33,7 +32,7 @@ pub fn source_series_numbers(
             message: "sourceSeries did not resolve to a JSON array".into(),
             log: format!(
                 "sourceSeries did not resolve to an array: {}",
-                py_repr(resolved)
+                pyfmt::repr(resolved)
             ),
         })?;
         list = &parsed;
@@ -43,7 +42,7 @@ pub fn source_series_numbers(
             message: "sourceSeries must resolve to an array".into(),
             log: format!(
                 "sourceSeries must resolve to an array, got: {}",
-                py_repr(list)
+                pyfmt::repr(list)
             ),
         });
     };
@@ -59,12 +58,12 @@ pub fn source_series_numbers(
         let Some(value) = value.filter(|v| !v.is_null()) else {
             continue;
         };
-        match as_float(value) {
+        match pyfmt::to_float(value) {
             Some(number) => numbers.push(number),
             None => {
                 let message = format!(
                     "sourceSeries contains a non-numeric value: {}",
-                    py_repr(value)
+                    pyfmt::repr(value)
                 );
                 return Err(SourceSeriesError {
                     log: message.clone(),
@@ -74,14 +73,4 @@ pub fn source_series_numbers(
         }
     }
     Ok(numbers)
-}
-
-/// Python's `float(value)` for a JSON value.
-fn as_float(value: &Value) -> Option<f64> {
-    match value {
-        Value::Number(n) => n.as_f64(),
-        Value::Bool(flag) => Some(f64::from(u8::from(*flag))),
-        Value::String(text) => py_float(text),
-        _ => None,
-    }
 }

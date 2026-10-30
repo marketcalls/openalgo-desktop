@@ -11,6 +11,9 @@ fixed candles and writes what they return:
   of ``agent_indicators/candles.csv``, the lookback, tail and offset
   arithmetic, nested mode, parameter binding, and every refusal.
 * ``params.json``: what a float does to each integer parameter.
+* ``types.json``: every parameter given values of each Python type (text,
+  null, lists, objects, fractions), with each mode of the methods whose
+  other parameters change how one is read.
 * ``window.json``: ``clamp_bars``, ``calendar_days_for_bars``,
   ``history_window``, ``clamp_history_range`` and ``trim_records``.
 * ``bars.json``: ``bar_at_offset`` and ``prior_period_ohlc``.
@@ -19,6 +22,8 @@ fixed candles and writes what they return:
   their logs and the history window they asked for.
 * ``catalogue.json``: ``list_supported_indicators`` and
   ``is_single_series_indicator``.
+* ``editor.json``: the web editor's indicator categories, catalogue entries
+  and parameter fields (``frontend/src/lib/flow/constants.ts``).
 
 Candles come from ``src-tauri/tests/fixtures/agent_indicators/candles.csv``; a
 case names them by a recipe (shape, row range, columns dropped, filled or
@@ -46,12 +51,13 @@ import csv
 import json
 import math
 import os
+import re
 import shutil
 import sys
 import tempfile
 import textwrap
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 os.environ["TZ"] = "Asia/Kolkata"
@@ -288,6 +294,31 @@ class Compute:
             }
         )
 
+    def stamped(self, label, stamps):
+        """``sma`` over 30 trend bars whose timestamps are ``stamps`` (the
+        web's ``pd.to_datetime`` reads the column; ``MISSING`` drops the key)."""
+        recipe = {"shape": "trend", "end": 30}
+        rows = records(self.shapes, recipe)
+        for row, stamp in zip(rows, stamps):
+            if stamp == MISSING:
+                row.pop("timestamp")
+            else:
+                row["timestamp"] = stamp
+        self.cases.append(
+            {
+                "tag": "timestamps",
+                "label": label,
+                "name": "sma",
+                "params": [["period", 5]],
+                "candles": recipe,
+                "timestamps": stamps,
+                "lookback_bars": 100,
+                "tail_bars": 5,
+                "offset_bars": 0,
+                **outcome(lambda: self.svc.compute_indicator(rows, "sma", params={"period": 5})),
+            }
+        )
+
     def nested(self, name, values, params=None, tail=5, offset=0, tag=""):
         params = params or {}
         self.cases.append(
@@ -438,6 +469,10 @@ def compute_cases(svc, ta, shapes) -> list[dict]:
     c.candles("rsi", recipe={"shape": "trend", "fill": {"close": "n/a"}}, tag="records")
     c.candles("adx", recipe={"shape": "gaps", "start": 150}, lookback=30, tag="records")
 
+    # The timestamp column as pandas reads it (IND-045).
+    for label, stamps in timestamp_columns(shapes).items():
+        c.stamped(label, stamps)
+
     # Nested mode: an indicator over another indicator's series.
     trend = shapes["trend"]["close"]
     rsi = [round(v, 6) for v in ta.rsi(trend, 14)[-150:]]
@@ -459,6 +494,39 @@ def compute_cases(svc, ta, shapes) -> list[dict]:
     return c.cases
 
 
+MISSING = {"missing": True}
+
+
+def timestamp_columns(shapes) -> dict:
+    """Timestamp columns of every shape a history source could send."""
+    epochs = shapes["trend"]["timestamp"][:30]
+    iso = [iso_ist(t) for t in epochs]
+    return {
+        "ints": list(epochs),
+        "floats": [float(t) for t in epochs],
+        "null_first": [None] + epochs[1:],
+        "missing_first": [MISSING] + epochs[1:],
+        "bools": [True] * 30,
+        "iso_offset": iso,
+        "iso_z": [datetime.fromtimestamp(t, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") for t in epochs],
+        "iso_space": [t.replace("T", " ").replace("+05:30", "") for t in iso],
+        "iso_minutes": [t[:16] for t in iso],
+        "iso_fraction": [t.replace("+05:30", ".250000+05:30") for t in iso],
+        "date_only": [t[:10] for t in iso],
+        "slash_dates": [t[:10].replace("-", "/") for t in iso],
+        "empty_first": [""] + iso[1:],
+        "epoch_text": [str(t) for t in epochs],
+        "bad_first": ["yesterday"] + iso[1:],
+        "bad_later": iso[:5] + ["yesterday"] + iso[6:],
+        "date_then_datetime": [iso[0][:10]] + iso[1:],
+        "datetime_then_date": iso[:-1] + [iso[-1][:10]],
+        "mixed_offsets": [iso[0].replace("+05:30", "+00:00")] + iso[1:],
+        "int_then_iso": [epochs[0]] + iso[1:],
+        "list_first": [[1]] + epochs[1:],
+        "huge_first": [10**19] + epochs[1:],
+    }
+
+
 def signature_params(svc, ta, name):
     """``(name, default)`` of each scalar parameter, required ones at their fill."""
     import inspect
@@ -472,6 +540,56 @@ def signature_params(svc, ta, name):
             default = svc.REQUIRED_PARAM_DEFAULTS[name][p.name]
         out.append((p.name, default))
     return out
+
+
+#: Methods whose parameters are read differently by another parameter's
+#: value: each mode is recorded as well as the defaults.
+MODES = {
+    "obv_smoothed": [{"ma_type": m} for m in (
+        "SMA", "SMA + Bollinger Bands", "EMA", "SMMA (RMA)", "WMA", "VWMA", "sma", "zzz")],
+    "variance": [{"return_components": True}, {"mode": "LR"}, {"return_components": "yes"}],
+    "pvi_with_signal": [{"signal_type": t} for t in ("SMA", "sma", "EMA", "ema", "zzz")],
+}
+
+
+def probes(default):
+    """Values of every Python type a node's params JSON can carry, around
+    the parameter's default."""
+    if isinstance(default, bool):
+        return [0, 1, 0.0, "", "False", "yes", None, [], [1], {}]
+    if isinstance(default, int):
+        return [default + 0.5, float(default), str(default), f" {default} ", f"{default}.5",
+                f"+{default}", "1_0", "abc", "", None, [default], {"v": default}, True]
+    if isinstance(default, float):
+        return [str(default), str(int(default)), " 1e1 ", "abc", "", None, [default],
+                [default, default], [], ["2", "x"], {"v": default}, True, int(default) or 1]
+    return [1, 1.5, None, True, [default], {"v": default}, default.lower(), default.upper(),
+            f" {default} ", ""]
+
+
+def type_cases(svc, ta, shapes) -> list[dict]:
+    """``compute_indicator`` with every parameter set to values of each type:
+    the latest row, or the exception, as the web answers."""
+    rows = records(shapes, {"shape": "trend"})
+
+    def answer(name, params):
+        try:
+            out = svc.compute_indicator(rows, name, dict(params))
+            return {"result": jsonable({k: out.get(k) for k in ("status", "latest", "message")})}
+        except Exception as error:  # noqa: BLE001 - every exception is an answer
+            return {"error": {"kind": type(error).__name__, "message": str(error)}}
+
+    cases = []
+    for name in svc.list_supported_indicators():
+        for mode in [{}] + MODES.get(name, []):
+            for pname, default in signature_params(svc, ta, name):
+                if pname in mode:
+                    continue
+                for value in probes(default):
+                    params = [*mode.items(), (pname, value)]
+                    cases.append({"name": name, "params": [[k, v] for k, v in params],
+                                  **answer(name, dict(params))})
+    return cases
 
 
 def float_params(svc, ta, shapes) -> list[dict]:
@@ -581,6 +699,29 @@ def bars_cases(svc, shapes) -> dict:
              "interval": "D", "offset": 0,
              **outcome(lambda: svc.bar_at_offset(rows, 0, interval="D", now=nows["daily_next_day"][1]))}
         )
+    # Every interval key at the edge of its forming window.
+    gaps = records(shapes, intraday)
+    minutes = {"1m": 1, "3m": 3, "5m": 5, "10m": 10, "15m": 15, "30m": 30, "1h": 60,
+                "60m": 60, "2h": 120, "3h": 180, "4h": 240}
+    for key, length in minutes.items():
+        for spelled in (key, f" {key.upper()} "):
+            for label, now in (("forming", last_intraday + timedelta(minutes=length - 1)),
+                               ("closed", last_intraday + timedelta(minutes=length))):
+                offsets.append(
+                    {"label": f"edge_{label}", "candles": intraday, "now": now.isoformat(),
+                     "interval": spelled, "offset": 0,
+                     **outcome(lambda: svc.bar_at_offset(gaps, 0, interval=spelled, now=now))}
+                )
+    daily_rows = records(shapes, daily)
+    for spelled in ("d", "D", "1d", "1D", "day", "DAY", " d ", "q", "y", "2m", "25m", "1s", ""):
+        for label, now in (("same_day", last_daily.replace(hour=15)),
+                           ("next_day", last_daily + timedelta(days=1)),
+                           ("next_week", last_daily + timedelta(days=7))):
+            offsets.append(
+                {"label": f"keys_{label}", "candles": daily, "now": now.isoformat(),
+                 "interval": spelled, "offset": 0,
+                 **outcome(lambda: svc.bar_at_offset(daily_rows, 0, interval=spelled, now=now))}
+            )
     bad = [{"timestamp": "yesterday", "close": 1}]
     offsets.append(
         {"label": "bad_timestamp", "records": bad, "now": "2026-10-30T11:00:00", "interval": "D",
@@ -621,7 +762,17 @@ def bars_cases(svc, shapes) -> dict:
                     {"candles": recipe, "now": now.isoformat(), "period": period,
                      **outcome(lambda: svc.prior_period_ohlc(rows, period))}
                 )
-    return {"bar_at_offset": offsets, "prior_period_ohlc": prior}
+    stamps = [
+        1771905600, 1771905600.75, "1771905600", " 1771905600.5 ", "2026-02-24T03:45:00Z",
+        "2026-02-24T03:45:00+00:00", "2026-02-23T23:15:00-04:30", "2026-02-24T09:15:00+0530",
+        "2026-02-24T09:15:00.123456+05:30", "2026-02-24 09:15:00", "2026-02-24T09:15",
+        "2026-02-24T09", "2026-02-24", "20260224", "20260224T091500", "2026-02-24 09:15:00Z",
+        "yesterday", "", None, True, "2026-13-01",
+    ]
+    parsed = [
+        {"value": v, **outcome(lambda: svc._parse_timestamp(v).isoformat())} for v in stamps
+    ]
+    return {"bar_at_offset": offsets, "prior_period_ohlc": prior, "parse_timestamp": parsed}
 
 
 def catalogue_cases(svc, ta) -> dict:
@@ -778,6 +929,37 @@ def executor_cases(svc, Executor, shapes) -> dict:
     return {"variables": variables, "cases": cases}
 
 
+def editor_lists(web: Path) -> dict:
+    """The web editor's indicator lists (``frontend/src/lib/flow/constants.ts``):
+    categories, catalogue entries and parameter fields, as written."""
+    text = (web / "frontend/src/lib/flow/constants.ts").read_text().replace("\r\n", "\n")
+
+    def block(start, end):
+        rest = text[text.index(start):]
+        return rest[: rest.index(end)]
+
+    categories = re.findall(r"^  '([^']+)',$", block("export const INDICATOR_CATEGORIES", "] as const"), re.M)
+    catalog = [
+        {"value": v, "label": l, "category": c}
+        for v, l, c in re.findall(
+            r"\{ value: '([^']+)', label: '([^']+)', category: '([^']+)' \}",
+            block("export const INDICATOR_CATALOG", "] as const"),
+        )
+    ]
+    params_text = block("export const INDICATOR_PARAMS", "\n}\n")
+    starts = [(m.start(), m.group(1)) for m in re.finditer(r"^  ([a-z0-9_]+): \[", params_text, re.M)]
+    params = {}
+    for i, (at, name) in enumerate(starts):
+        end = starts[i + 1][0] if i + 1 < len(starts) else len(params_text)
+        fields = []
+        for f in re.finditer(r"\{\s*name: '([^']+)',\s*label: '([^']+)',\s*type: '(\w+)',\s*default: ([^,}\n]+?),?\s*(?:choices: \[([^\]]*)\],?\s*)?\}", params_text[at:end], re.S):
+            choices = re.findall(r"'([^']*)'", f.group(5)) if f.group(5) is not None else None
+            fields.append({"name": f.group(1), "label": f.group(2), "type": f.group(3),
+                           "default": f.group(4).strip(), "choices": choices})
+        params[name] = fields
+    return {"categories": categories, "catalog": catalog, "params": params}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--web", type=Path, required=True, help="read-only OpenAlgo web checkout")
@@ -802,6 +984,8 @@ def main() -> None:
         write(args.out, "catalogue.json", {**meta, **catalogue_cases(svc, ta)})
         write(args.out, "compute.json", {**meta, "cases": compute_cases(svc, ta, shapes)})
         write(args.out, "params.json", {**meta, "float_for_int": float_params(svc, ta, shapes)})
+        write(args.out, "types.json", {**meta, "cases": type_cases(svc, ta, shapes)})
+        write(args.out, "editor.json", {**meta, **editor_lists(args.web.resolve())})
         write(args.out, "window.json", {**meta, **window_cases(svc)})
         write(args.out, "bars.json", {**meta, **bars_cases(svc, shapes)})
         write(args.out, "executor.json", {**meta, **executor_cases(svc, Executor, shapes)})

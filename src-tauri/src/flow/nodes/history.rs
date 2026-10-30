@@ -272,16 +272,22 @@ pub fn shared_cache() -> Arc<HistoryCache> {
 /// recorder clears the cache per scenario for the same reason).
 fn account_tag(ctx: &NodeCtx) -> (String, Option<Arc<dyn FlowClient>>) {
     match ctx.app().and_then(|a| a.get_broker_session()) {
-        Some(s) => {
-            let digest = Sha256::digest(format!("{}:{}", s.broker_id, s.user_id).as_bytes());
-            (hex::encode(digest).chars().take(12).collect(), None)
-        }
+        Some(s) => (broker_account_tag(&s.broker_id, &s.user_id), None),
         None if ctx.app().is_some() => ("anon".into(), None),
         None => (
             format!("run:{:p}", Arc::as_ptr(&ctx.client)),
             Some(ctx.client.clone()),
         ),
     }
+}
+
+/// The tag of a broker account (decision 21: the history cache is keyed by
+/// broker account, never by the API key as the web's is): the first 12 hex
+/// digits of `sha256("broker:user")`, so the account's ids never appear in a
+/// key that may reach a log line.
+pub(crate) fn broker_account_tag(broker_id: &str, user_id: &str) -> String {
+    let digest = Sha256::digest(format!("{broker_id}:{user_id}").as_bytes());
+    hex::encode(digest).chars().take(12).collect()
 }
 
 /// One cached history fetch for a node: the range and the source it asked

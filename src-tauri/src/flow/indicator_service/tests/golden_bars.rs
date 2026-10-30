@@ -1,5 +1,7 @@
-//! `bar_at_offset` and `prior_period_ohlc` against `bars.json` (the web's
-//! answers with a frozen IST "now").
+//! `bar_at_offset`, `prior_period_ohlc` and `_parse_timestamp` against
+//! `bars.json` (the web's answers with a frozen IST "now"). The Bar Offset
+//! cases cover every interval key at both edges of its forming window
+//! (IND-005, IND-061).
 //!
 //! One deliberate difference is pinned next to the web's answer (IND-062):
 //! the web treats a weekly or monthly bar as forming only on the date its
@@ -119,6 +121,36 @@ fn prior_period_ohlc_matches_the_web() {
         };
         if let Some(problem) = problem {
             failures.push(label, problem);
+        }
+    }
+    failures.check(cases.len());
+}
+
+/// `_parse_timestamp` (IND-060): epoch numbers and epoch text in IST, ISO
+/// text with `Z` or any offset converted to IST wall time, naive ISO text as
+/// written, and Python's own sentence for what it cannot read.
+#[test]
+fn parse_timestamp_matches_the_web() {
+    let fixture = json(BARS);
+    let cases = fixture["parse_timestamp"].as_array().expect("cases");
+    let mut failures = Failures::default();
+    for case in cases {
+        let value = &case["value"];
+        let got = parse_timestamp(Some(value).filter(|v| !v.is_null()));
+        let problem = match (&got, case.get("result"), case.get("error")) {
+            (Ok(at), Some(want), _) => {
+                let shown = if at.and_utc().timestamp_subsec_micros() == 0 {
+                    at.format("%Y-%m-%dT%H:%M:%S").to_string()
+                } else {
+                    at.format("%Y-%m-%dT%H:%M:%S%.6f").to_string()
+                };
+                (want.as_str() != Some(shown.as_str())).then(|| format!("{shown} != {want}"))
+            }
+            (Err(e), _, Some(want)) => error_diff(e, want),
+            (other, _, _) => Some(format!("{other:?} vs {case}")),
+        };
+        if let Some(problem) = problem {
+            failures.push(value, problem);
         }
     }
     failures.check(cases.len());

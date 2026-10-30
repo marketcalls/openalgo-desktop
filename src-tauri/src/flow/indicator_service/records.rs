@@ -6,8 +6,8 @@ use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, NaiveTime};
 use serde_json::Value;
 
 use super::IndicatorError;
-use crate::agent::tools::values::{py_str, quote};
 use crate::clock::ist_offset;
+use crate::flow::contract::pyfmt;
 
 /// The candle columns the web converts to numbers.
 pub(crate) const OHLCV: [&str; 5] = ["open", "high", "low", "close", "volume"];
@@ -49,29 +49,9 @@ pub(crate) fn numeric(value: Option<&Value>) -> f64 {
     match value {
         Some(Value::Number(n)) => n.as_f64().unwrap_or(f64::NAN),
         Some(Value::Bool(flag)) => f64::from(u8::from(*flag)),
-        Some(Value::String(text)) => py_float(text).unwrap_or(f64::NAN),
+        Some(Value::String(text)) => pyfmt::parse_float(text).unwrap_or(f64::NAN),
         _ => f64::NAN,
     }
-}
-
-/// Python's `float(text)`: surrounding whitespace ignored, `_` allowed
-/// between two digits, `inf` and `nan` in any case.
-pub(crate) fn py_float(text: &str) -> Option<f64> {
-    let text = text.trim();
-    let chars: Vec<char> = text.chars().collect();
-    let digit_at = |i: Option<usize>| {
-        i.and_then(|i| chars.get(i))
-            .is_some_and(char::is_ascii_digit)
-    };
-    let underscores_ok = chars
-        .iter()
-        .enumerate()
-        .filter(|(_, c)| **c == '_')
-        .all(|(i, _)| digit_at(i.checked_sub(1)) && digit_at(Some(i + 1)));
-    if !underscores_ok {
-        return None;
-    }
-    text.replace('_', "").parse().ok()
 }
 
 /// `_parse_timestamp`: a record's timestamp as IST wall time. Epoch seconds
@@ -83,19 +63,64 @@ pub(crate) fn parse_timestamp(value: Option<&Value>) -> Result<NaiveDateTime, In
         Some(Value::Number(n)) => return from_epoch(n.as_f64().unwrap_or(f64::NAN)),
         Some(Value::Bool(flag)) => return from_epoch(f64::from(u8::from(*flag))),
         None | Some(Value::Null) => "None".to_string(),
-        Some(other) => py_str(other),
+        Some(other) => pyfmt::str(other),
     };
-    if let Some(epoch) = py_float(&text) {
+    if let Some(epoch) = pyfmt::parse_float(&text) {
         return from_epoch(epoch);
     }
     let text = text.replace('Z', "+00:00");
     match parse_iso(&text) {
         Some((wall, Some(offset))) => Ok(in_ist(wall, offset)),
         Some((wall, None)) => Ok(wall),
-        None => Err(IndicatorError::value(format!(
-            "Invalid isoformat string: {}",
-            quote(&text)
-        ))),
+        None => Err(IndicatorError::value(match iso_range_error(&text) {
+            Some(range) => range.to_string(),
+            None => format!("Invalid isoformat string: {}", pyfmt::quote(&text)),
+        })),
+    }
+}
+
+/// Why `datetime.fromisoformat` refuses text laid out as an ISO date and
+/// time with a part outside its range: the `datetime` constructor's own
+/// sentence, checked in its order.
+fn iso_range_error(text: &str) -> Option<&'static str> {
+    let number = |part: Option<&str>| -> Option<u32> {
+        let part = part?;
+        part.bytes()
+            .all(|b| b.is_ascii_digit())
+            .then(|| part.parse().ok())?
+    };
+    let (year, month, day, rest) = if text.get(4..5) == Some("-") && text.get(7..8) == Some("-") {
+        (
+            text.get(..4),
+            text.get(5..7),
+            text.get(8..10),
+            text.get(10..)?,
+        )
+    } else {
+        (
+            text.get(..4),
+            text.get(4..6),
+            text.get(6..8),
+            text.get(8..)?,
+        )
+    };
+    let (year, month, day) = (number(year)?, number(month)?, number(day)?);
+    if !(1..=12).contains(&month) {
+        return Some("month must be in 1..12");
+    }
+    if NaiveDate::from_ymd_opt(year as i32, month, day).is_none() {
+        return Some("day is out of range for month");
+    }
+    let mut chars = rest.chars();
+    chars.next()?;
+    let clock = chars.as_str();
+    let clock = &clock[..clock.find(['+', '-', '.', ',']).unwrap_or(clock.len())];
+    let [hour, minute, second] = clock_fields(clock)?;
+    match (hour, minute, second) {
+        (24.., _, _) => Some("hour must be in 0..23"),
+        (_, 60.., _) => Some("minute must be in 0..59"),
+        (_, _, 60..) => Some("second must be in 0..59"),
+        _ => None,
     }
 }
 

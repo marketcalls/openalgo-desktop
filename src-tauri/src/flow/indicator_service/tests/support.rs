@@ -6,8 +6,8 @@ use chrono::{DateTime, NaiveDateTime};
 use serde_json::{json, Map, Value};
 
 use crate::agent::indicators::tests::support::{json_diff, shape};
-use crate::agent::tools::values::float_repr;
 use crate::clock::ist_offset;
+use crate::flow::contract::pyfmt;
 use crate::flow::indicator_service::IndicatorError;
 
 pub(crate) const COMPUTE: &str =
@@ -21,6 +21,10 @@ pub(crate) const WINDOW: &str =
 pub(crate) const BARS: &str = include_str!("../../../../tests/fixtures/flow_indicators/bars.json");
 pub(crate) const EXECUTOR: &str =
     include_str!("../../../../tests/fixtures/flow_indicators/executor.json");
+pub(crate) const TYPES: &str =
+    include_str!("../../../../tests/fixtures/flow_indicators/types.json");
+pub(crate) const EDITOR_LISTS: &str =
+    include_str!("../../../../tests/fixtures/flow_indicators/editor.json");
 
 /// Every value matches within one unit in the sixth place, the rounding the
 /// web applies (the tolerance the Agent's compute goldens use).
@@ -84,7 +88,7 @@ pub(crate) fn records(recipe: &Value) -> Vec<Value> {
                     if let Some(number) = value.as_f64() {
                         value = json!(match value.as_i64() {
                             Some(int) => int.to_string(),
-                            None => float_repr(number),
+                            None => pyfmt::float(number),
                         });
                     }
                 }

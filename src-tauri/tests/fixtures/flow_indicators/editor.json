@@ -1,0 +1,2271 @@
+{
+ "openalgo": "2.0.5",
+ "timezone": "Asia/Kolkata",
+ "categories": [
+  "Trend",
+  "Momentum",
+  "Volatility",
+  "Volume",
+  "Oscillators",
+  "Statistical",
+  "Hybrid",
+  "Price Transform",
+  "Utility"
+ ],
+ "catalog": [
+  {
+   "value": "alligator",
+   "label": "Alligator",
+   "category": "Trend"
+  },
+  {
+   "value": "alma",
+   "label": "ALMA",
+   "category": "Trend"
+  },
+  {
+   "value": "ckstop",
+   "label": "Ckstop",
+   "category": "Trend"
+  },
+  {
+   "value": "dema",
+   "label": "DEMA",
+   "category": "Trend"
+  },
+  {
+   "value": "ema",
+   "label": "EMA",
+   "category": "Trend"
+  },
+  {
+   "value": "frama",
+   "label": "FRAMA",
+   "category": "Trend"
+  },
+  {
+   "value": "hma",
+   "label": "HMA",
+   "category": "Trend"
+  },
+  {
+   "value": "ichimoku",
+   "label": "Ichimoku",
+   "category": "Trend"
+  },
+  {
+   "value": "kama",
+   "label": "KAMA",
+   "category": "Trend"
+  },
+  {
+   "value": "ma_envelopes",
+   "label": "Ma Envelopes",
+   "category": "Trend"
+  },
+  {
+   "value": "mcginley",
+   "label": "Mcginley",
+   "category": "Trend"
+  },
+  {
+   "value": "sma",
+   "label": "SMA",
+   "category": "Trend"
+  },
+  {
+   "value": "supertrend",
+   "label": "Supertrend",
+   "category": "Trend"
+  },
+  {
+   "value": "t3",
+   "label": "T3",
+   "category": "Trend"
+  },
+  {
+   "value": "tema",
+   "label": "TEMA",
+   "category": "Trend"
+  },
+  {
+   "value": "trima",
+   "label": "TRIMA",
+   "category": "Trend"
+  },
+  {
+   "value": "vidya",
+   "label": "VIDYA",
+   "category": "Trend"
+  },
+  {
+   "value": "vwma",
+   "label": "VWMA",
+   "category": "Trend"
+  },
+  {
+   "value": "wma",
+   "label": "WMA",
+   "category": "Trend"
+  },
+  {
+   "value": "zlema",
+   "label": "ZLEMA",
+   "category": "Trend"
+  },
+  {
+   "value": "apo",
+   "label": "APO",
+   "category": "Momentum"
+  },
+  {
+   "value": "bop",
+   "label": "BOP",
+   "category": "Momentum"
+  },
+  {
+   "value": "cci",
+   "label": "CCI",
+   "category": "Momentum"
+  },
+  {
+   "value": "cmo",
+   "label": "CMO",
+   "category": "Momentum"
+  },
+  {
+   "value": "crsi",
+   "label": "CRSI",
+   "category": "Momentum"
+  },
+  {
+   "value": "dpo",
+   "label": "DPO",
+   "category": "Momentum"
+  },
+  {
+   "value": "elderray",
+   "label": "Elderray",
+   "category": "Momentum"
+  },
+  {
+   "value": "fisher",
+   "label": "Fisher",
+   "category": "Momentum"
+  },
+  {
+   "value": "macd",
+   "label": "MACD",
+   "category": "Momentum"
+  },
+  {
+   "value": "mom",
+   "label": "MOM",
+   "category": "Momentum"
+  },
+  {
+   "value": "po",
+   "label": "PO",
+   "category": "Momentum"
+  },
+  {
+   "value": "ppo",
+   "label": "PPO",
+   "category": "Momentum"
+  },
+  {
+   "value": "rsi",
+   "label": "RSI",
+   "category": "Momentum"
+  },
+  {
+   "value": "stochastic",
+   "label": "Stochastic",
+   "category": "Momentum"
+  },
+  {
+   "value": "stochf",
+   "label": "Stochf",
+   "category": "Momentum"
+  },
+  {
+   "value": "stochrsi",
+   "label": "Stochrsi",
+   "category": "Momentum"
+  },
+  {
+   "value": "trix",
+   "label": "TRIX",
+   "category": "Momentum"
+  },
+  {
+   "value": "williams_r",
+   "label": "Williams R",
+   "category": "Momentum"
+  },
+  {
+   "value": "atr",
+   "label": "ATR",
+   "category": "Volatility"
+  },
+  {
+   "value": "bbands",
+   "label": "Bbands",
+   "category": "Volatility"
+  },
+  {
+   "value": "bbpercent",
+   "label": "Bbpercent",
+   "category": "Volatility"
+  },
+  {
+   "value": "bbwidth",
+   "label": "Bbwidth",
+   "category": "Volatility"
+  },
+  {
+   "value": "chaikin",
+   "label": "Chaikin",
+   "category": "Volatility"
+  },
+  {
+   "value": "chandelier_exit",
+   "label": "Chandelier Exit",
+   "category": "Volatility"
+  },
+  {
+   "value": "donchian",
+   "label": "Donchian",
+   "category": "Volatility"
+  },
+  {
+   "value": "hv",
+   "label": "HV",
+   "category": "Volatility"
+  },
+  {
+   "value": "keltner",
+   "label": "Keltner",
+   "category": "Volatility"
+  },
+  {
+   "value": "massindex",
+   "label": "Massindex",
+   "category": "Volatility"
+  },
+  {
+   "value": "natr",
+   "label": "NATR",
+   "category": "Volatility"
+  },
+  {
+   "value": "rvi",
+   "label": "RVI",
+   "category": "Volatility"
+  },
+  {
+   "value": "starc",
+   "label": "STARC",
+   "category": "Volatility"
+  },
+  {
+   "value": "true_range",
+   "label": "True Range",
+   "category": "Volatility"
+  },
+  {
+   "value": "ultimate_oscillator",
+   "label": "Ultimate Oscillator",
+   "category": "Volatility"
+  },
+  {
+   "value": "uo_oscillator",
+   "label": "Uo Oscillator",
+   "category": "Volatility"
+  },
+  {
+   "value": "adl",
+   "label": "ADL",
+   "category": "Volume"
+  },
+  {
+   "value": "cmf",
+   "label": "CMF",
+   "category": "Volume"
+  },
+  {
+   "value": "emv",
+   "label": "EMV",
+   "category": "Volume"
+  },
+  {
+   "value": "force_index",
+   "label": "Force Index",
+   "category": "Volume"
+  },
+  {
+   "value": "kvo",
+   "label": "KVO",
+   "category": "Volume"
+  },
+  {
+   "value": "mfi",
+   "label": "MFI",
+   "category": "Volume"
+  },
+  {
+   "value": "nvi",
+   "label": "NVI",
+   "category": "Volume"
+  },
+  {
+   "value": "nvi_with_ema",
+   "label": "Nvi With Ema",
+   "category": "Volume"
+  },
+  {
+   "value": "obv",
+   "label": "OBV",
+   "category": "Volume"
+  },
+  {
+   "value": "obv_smoothed",
+   "label": "Obv Smoothed",
+   "category": "Volume"
+  },
+  {
+   "value": "pvi",
+   "label": "PVI",
+   "category": "Volume"
+  },
+  {
+   "value": "pvi_with_signal",
+   "label": "Pvi With Signal",
+   "category": "Volume"
+  },
+  {
+   "value": "pvt",
+   "label": "PVT",
+   "category": "Volume"
+  },
+  {
+   "value": "rvol",
+   "label": "RVOL",
+   "category": "Volume"
+  },
+  {
+   "value": "volosc",
+   "label": "Volosc",
+   "category": "Volume"
+  },
+  {
+   "value": "vroc",
+   "label": "VROC",
+   "category": "Volume"
+  },
+  {
+   "value": "vwap",
+   "label": "VWAP",
+   "category": "Volume"
+  },
+  {
+   "value": "accelerator_oscillator",
+   "label": "Accelerator Oscillator",
+   "category": "Oscillators"
+  },
+  {
+   "value": "aroon_oscillator",
+   "label": "Aroon Oscillator",
+   "category": "Oscillators"
+  },
+  {
+   "value": "awesome_oscillator",
+   "label": "Awesome Oscillator",
+   "category": "Oscillators"
+  },
+  {
+   "value": "cho",
+   "label": "CHO",
+   "category": "Oscillators"
+  },
+  {
+   "value": "chop",
+   "label": "CHOP",
+   "category": "Oscillators"
+  },
+  {
+   "value": "coppock",
+   "label": "Coppock",
+   "category": "Oscillators"
+  },
+  {
+   "value": "gator_oscillator",
+   "label": "Gator Oscillator",
+   "category": "Oscillators"
+  },
+  {
+   "value": "kst",
+   "label": "KST",
+   "category": "Oscillators"
+  },
+  {
+   "value": "roc",
+   "label": "ROC",
+   "category": "Oscillators"
+  },
+  {
+   "value": "rocp",
+   "label": "ROCP",
+   "category": "Oscillators"
+  },
+  {
+   "value": "rocr",
+   "label": "ROCR",
+   "category": "Oscillators"
+  },
+  {
+   "value": "rocr100",
+   "label": "Rocr100",
+   "category": "Oscillators"
+  },
+  {
+   "value": "stc",
+   "label": "STC",
+   "category": "Oscillators"
+  },
+  {
+   "value": "tsi",
+   "label": "TSI",
+   "category": "Oscillators"
+  },
+  {
+   "value": "linreg",
+   "label": "Linreg",
+   "category": "Statistical"
+  },
+  {
+   "value": "linregangle",
+   "label": "Linregangle",
+   "category": "Statistical"
+  },
+  {
+   "value": "linregintercept",
+   "label": "Linregintercept",
+   "category": "Statistical"
+  },
+  {
+   "value": "lrslope",
+   "label": "Lrslope",
+   "category": "Statistical"
+  },
+  {
+   "value": "median",
+   "label": "Median",
+   "category": "Statistical"
+  },
+  {
+   "value": "mode",
+   "label": "MODE",
+   "category": "Statistical"
+  },
+  {
+   "value": "tsf",
+   "label": "TSF",
+   "category": "Statistical"
+  },
+  {
+   "value": "variance",
+   "label": "Variance",
+   "category": "Statistical"
+  },
+  {
+   "value": "adx",
+   "label": "ADX",
+   "category": "Hybrid"
+  },
+  {
+   "value": "adxr",
+   "label": "ADXR",
+   "category": "Hybrid"
+  },
+  {
+   "value": "aroon",
+   "label": "AROON",
+   "category": "Hybrid"
+  },
+  {
+   "value": "dmi",
+   "label": "DMI",
+   "category": "Hybrid"
+  },
+  {
+   "value": "dx",
+   "label": "DX",
+   "category": "Hybrid"
+  },
+  {
+   "value": "fractals",
+   "label": "Fractals",
+   "category": "Hybrid"
+  },
+  {
+   "value": "minus_dm",
+   "label": "Minus Dm",
+   "category": "Hybrid"
+  },
+  {
+   "value": "pivot_points",
+   "label": "Pivot Points",
+   "category": "Hybrid"
+  },
+  {
+   "value": "plus_dm",
+   "label": "Plus Dm",
+   "category": "Hybrid"
+  },
+  {
+   "value": "psar",
+   "label": "PSAR",
+   "category": "Hybrid"
+  },
+  {
+   "value": "rwi",
+   "label": "RWI",
+   "category": "Hybrid"
+  },
+  {
+   "value": "avgprice",
+   "label": "Avgprice",
+   "category": "Price Transform"
+  },
+  {
+   "value": "medprice",
+   "label": "Medprice",
+   "category": "Price Transform"
+  },
+  {
+   "value": "midpoint",
+   "label": "Midpoint",
+   "category": "Price Transform"
+  },
+  {
+   "value": "midprice",
+   "label": "Midprice",
+   "category": "Price Transform"
+  },
+  {
+   "value": "typprice",
+   "label": "Typprice",
+   "category": "Price Transform"
+  },
+  {
+   "value": "wclprice",
+   "label": "Wclprice",
+   "category": "Price Transform"
+  },
+  {
+   "value": "change",
+   "label": "Change",
+   "category": "Utility"
+  },
+  {
+   "value": "falling",
+   "label": "Falling",
+   "category": "Utility"
+  },
+  {
+   "value": "highest",
+   "label": "Highest",
+   "category": "Utility"
+  },
+  {
+   "value": "lowest",
+   "label": "Lowest",
+   "category": "Utility"
+  },
+  {
+   "value": "rising",
+   "label": "Rising",
+   "category": "Utility"
+  },
+  {
+   "value": "stdev",
+   "label": "STDEV",
+   "category": "Utility"
+  }
+ ],
+ "params": {
+  "accelerator_oscillator": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "5",
+    "choices": null
+   }
+  ],
+  "adl": [],
+  "adx": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "adxr": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "alligator": [
+   {
+    "name": "jaw_period",
+    "label": "Jaw Period",
+    "type": "int",
+    "default": "13",
+    "choices": null
+   },
+   {
+    "name": "jaw_shift",
+    "label": "Jaw Shift",
+    "type": "int",
+    "default": "8",
+    "choices": null
+   },
+   {
+    "name": "teeth_period",
+    "label": "Teeth Period",
+    "type": "int",
+    "default": "8",
+    "choices": null
+   },
+   {
+    "name": "teeth_shift",
+    "label": "Teeth Shift",
+    "type": "int",
+    "default": "5",
+    "choices": null
+   },
+   {
+    "name": "lips_period",
+    "label": "Lips Period",
+    "type": "int",
+    "default": "5",
+    "choices": null
+   },
+   {
+    "name": "lips_shift",
+    "label": "Lips Shift",
+    "type": "int",
+    "default": "3",
+    "choices": null
+   }
+  ],
+  "alma": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "21",
+    "choices": null
+   },
+   {
+    "name": "offset",
+    "label": "Offset",
+    "type": "float",
+    "default": "0.85",
+    "choices": null
+   },
+   {
+    "name": "sigma",
+    "label": "Sigma",
+    "type": "float",
+    "default": "6.0",
+    "choices": null
+   }
+  ],
+  "apo": [
+   {
+    "name": "fast_period",
+    "label": "Fast Period",
+    "type": "int",
+    "default": "12",
+    "choices": null
+   },
+   {
+    "name": "slow_period",
+    "label": "Slow Period",
+    "type": "int",
+    "default": "26",
+    "choices": null
+   },
+   {
+    "name": "ma_type",
+    "label": "MA Type",
+    "type": "string",
+    "default": "'SMA'",
+    "choices": [
+     "SMA",
+     "EMA"
+    ]
+   }
+  ],
+  "aroon": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "25",
+    "choices": null
+   }
+  ],
+  "aroon_oscillator": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "atr": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "avgprice": [],
+  "awesome_oscillator": [
+   {
+    "name": "fast_period",
+    "label": "Fast Period",
+    "type": "int",
+    "default": "5",
+    "choices": null
+   },
+   {
+    "name": "slow_period",
+    "label": "Slow Period",
+    "type": "int",
+    "default": "34",
+    "choices": null
+   }
+  ],
+  "bbands": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   },
+   {
+    "name": "std_dev",
+    "label": "Std Dev",
+    "type": "float",
+    "default": "2.0",
+    "choices": null
+   }
+  ],
+  "bbpercent": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   },
+   {
+    "name": "std_dev",
+    "label": "Std Dev",
+    "type": "float",
+    "default": "2.0",
+    "choices": null
+   }
+  ],
+  "bbwidth": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   },
+   {
+    "name": "std_dev",
+    "label": "Std Dev",
+    "type": "float",
+    "default": "2.0",
+    "choices": null
+   }
+  ],
+  "bop": [],
+  "cci": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   }
+  ],
+  "chaikin": [
+   {
+    "name": "ema_period",
+    "label": "EMA Period",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   },
+   {
+    "name": "roc_period",
+    "label": "ROC Period",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   }
+  ],
+  "chandelier_exit": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "22",
+    "choices": null
+   },
+   {
+    "name": "multiplier",
+    "label": "Multiplier",
+    "type": "float",
+    "default": "3.0",
+    "choices": null
+   }
+  ],
+  "change": [
+   {
+    "name": "length",
+    "label": "Length",
+    "type": "int",
+    "default": "1",
+    "choices": null
+   }
+  ],
+  "cho": [
+   {
+    "name": "fast_period",
+    "label": "Fast Period",
+    "type": "int",
+    "default": "3",
+    "choices": null
+   },
+   {
+    "name": "slow_period",
+    "label": "Slow Period",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   }
+  ],
+  "chop": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "ckstop": [
+   {
+    "name": "p",
+    "label": "ATR Length",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   },
+   {
+    "name": "x",
+    "label": "ATR Coefficient",
+    "type": "float",
+    "default": "1.0",
+    "choices": null
+   },
+   {
+    "name": "q",
+    "label": "Stop Length",
+    "type": "int",
+    "default": "9",
+    "choices": null
+   }
+  ],
+  "cmf": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   }
+  ],
+  "cmo": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "coppock": [
+   {
+    "name": "wma_length",
+    "label": "WMA Length",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   },
+   {
+    "name": "long_roc_length",
+    "label": "Long ROC Length",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   },
+   {
+    "name": "short_roc_length",
+    "label": "Short ROC Length",
+    "type": "int",
+    "default": "11",
+    "choices": null
+   }
+  ],
+  "crsi": [
+   {
+    "name": "lenrsi",
+    "label": "RSI Length",
+    "type": "int",
+    "default": "3",
+    "choices": null
+   },
+   {
+    "name": "lenupdown",
+    "label": "Up/Down Length",
+    "type": "int",
+    "default": "2",
+    "choices": null
+   },
+   {
+    "name": "lenroc",
+    "label": "ROC Length",
+    "type": "int",
+    "default": "100",
+    "choices": null
+   }
+  ],
+  "dema": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "dmi": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "donchian": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   }
+  ],
+  "dpo": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "21",
+    "choices": null
+   },
+   {
+    "name": "is_centered",
+    "label": "Is Centered",
+    "type": "bool",
+    "default": "false",
+    "choices": null
+   }
+  ],
+  "dx": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "elderray": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "13",
+    "choices": null
+   }
+  ],
+  "ema": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "emv": [
+   {
+    "name": "length",
+    "label": "Length",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   },
+   {
+    "name": "divisor",
+    "label": "Divisor",
+    "type": "int",
+    "default": "10000",
+    "choices": null
+   }
+  ],
+  "falling": [
+   {
+    "name": "length",
+    "label": "Length",
+    "type": "int",
+    "default": "1",
+    "choices": null
+   }
+  ],
+  "fisher": [
+   {
+    "name": "length",
+    "label": "Length",
+    "type": "int",
+    "default": "9",
+    "choices": null
+   }
+  ],
+  "force_index": [
+   {
+    "name": "length",
+    "label": "Length",
+    "type": "int",
+    "default": "13",
+    "choices": null
+   }
+  ],
+  "fractals": [
+   {
+    "name": "periods",
+    "label": "Periods",
+    "type": "int",
+    "default": "2",
+    "choices": null
+   }
+  ],
+  "frama": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "26",
+    "choices": null
+   }
+  ],
+  "gator_oscillator": [
+   {
+    "name": "jaw_period",
+    "label": "Jaw Period",
+    "type": "int",
+    "default": "13",
+    "choices": null
+   },
+   {
+    "name": "teeth_period",
+    "label": "Teeth Period",
+    "type": "int",
+    "default": "8",
+    "choices": null
+   },
+   {
+    "name": "lips_period",
+    "label": "Lips Period",
+    "type": "int",
+    "default": "5",
+    "choices": null
+   }
+  ],
+  "highest": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "hma": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "hv": [
+   {
+    "name": "length",
+    "label": "Length",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   },
+   {
+    "name": "annual",
+    "label": "Annual Periods",
+    "type": "int",
+    "default": "365",
+    "choices": null
+   },
+   {
+    "name": "per",
+    "label": "Timeframe Periods",
+    "type": "int",
+    "default": "1",
+    "choices": null
+   }
+  ],
+  "ichimoku": [
+   {
+    "name": "conversion_periods",
+    "label": "Conversion Periods",
+    "type": "int",
+    "default": "9",
+    "choices": null
+   },
+   {
+    "name": "base_periods",
+    "label": "Base Periods",
+    "type": "int",
+    "default": "26",
+    "choices": null
+   },
+   {
+    "name": "lagging_span2_periods",
+    "label": "Lagging Span B Periods",
+    "type": "int",
+    "default": "52",
+    "choices": null
+   },
+   {
+    "name": "displacement",
+    "label": "Displacement",
+    "type": "int",
+    "default": "26",
+    "choices": null
+   }
+  ],
+  "kama": [
+   {
+    "name": "length",
+    "label": "Length",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   },
+   {
+    "name": "fast_length",
+    "label": "Fast Length",
+    "type": "int",
+    "default": "2",
+    "choices": null
+   },
+   {
+    "name": "slow_length",
+    "label": "Slow Length",
+    "type": "int",
+    "default": "30",
+    "choices": null
+   }
+  ],
+  "keltner": [
+   {
+    "name": "ema_period",
+    "label": "EMA Period",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   },
+   {
+    "name": "atr_period",
+    "label": "ATR Period",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   },
+   {
+    "name": "multiplier",
+    "label": "Multiplier",
+    "type": "float",
+    "default": "2.0",
+    "choices": null
+   }
+  ],
+  "kst": [
+   {
+    "name": "roclen1",
+    "label": "ROC Length 1",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   },
+   {
+    "name": "roclen2",
+    "label": "ROC Length 2",
+    "type": "int",
+    "default": "15",
+    "choices": null
+   },
+   {
+    "name": "roclen3",
+    "label": "ROC Length 3",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   },
+   {
+    "name": "roclen4",
+    "label": "ROC Length 4",
+    "type": "int",
+    "default": "30",
+    "choices": null
+   },
+   {
+    "name": "smalen1",
+    "label": "SMA Length 1",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   },
+   {
+    "name": "smalen2",
+    "label": "SMA Length 2",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   },
+   {
+    "name": "smalen3",
+    "label": "SMA Length 3",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   },
+   {
+    "name": "smalen4",
+    "label": "SMA Length 4",
+    "type": "int",
+    "default": "15",
+    "choices": null
+   },
+   {
+    "name": "siglen",
+    "label": "Signal Length",
+    "type": "int",
+    "default": "9",
+    "choices": null
+   }
+  ],
+  "kvo": [
+   {
+    "name": "trig_len",
+    "label": "Trigger Length",
+    "type": "int",
+    "default": "13",
+    "choices": null
+   },
+   {
+    "name": "fast_x",
+    "label": "Fast X",
+    "type": "int",
+    "default": "34",
+    "choices": null
+   },
+   {
+    "name": "slow_x",
+    "label": "Slow X",
+    "type": "int",
+    "default": "55",
+    "choices": null
+   }
+  ],
+  "linreg": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "linregangle": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "linregintercept": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "lowest": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "lrslope": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "100",
+    "choices": null
+   },
+   {
+    "name": "interval",
+    "label": "Interval",
+    "type": "int",
+    "default": "1",
+    "choices": null
+   }
+  ],
+  "ma_envelopes": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   },
+   {
+    "name": "percentage",
+    "label": "Percentage",
+    "type": "float",
+    "default": "2.5",
+    "choices": null
+   },
+   {
+    "name": "ma_type",
+    "label": "MA Type",
+    "type": "string",
+    "default": "'SMA'",
+    "choices": [
+     "SMA",
+     "EMA"
+    ]
+   }
+  ],
+  "macd": [
+   {
+    "name": "fast_period",
+    "label": "Fast Period",
+    "type": "int",
+    "default": "12",
+    "choices": null
+   },
+   {
+    "name": "slow_period",
+    "label": "Slow Period",
+    "type": "int",
+    "default": "26",
+    "choices": null
+   },
+   {
+    "name": "signal_period",
+    "label": "Signal Period",
+    "type": "int",
+    "default": "9",
+    "choices": null
+   }
+  ],
+  "massindex": [
+   {
+    "name": "length",
+    "label": "Length",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   }
+  ],
+  "mcginley": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "median": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "3",
+    "choices": null
+   }
+  ],
+  "medprice": [],
+  "mfi": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "midpoint": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "midprice": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "minus_dm": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "mode": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   },
+   {
+    "name": "bins",
+    "label": "Bins",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   }
+  ],
+  "mom": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   }
+  ],
+  "natr": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "nvi": [],
+  "nvi_with_ema": [
+   {
+    "name": "ema_length",
+    "label": "EMA Length",
+    "type": "int",
+    "default": "255",
+    "choices": null
+   }
+  ],
+  "obv": [],
+  "obv_smoothed": [
+   {
+    "name": "ma_type",
+    "label": "MA Type",
+    "type": "string",
+    "default": "'None'",
+    "choices": [
+     "None",
+     "SMA",
+     "SMA + Bollinger Bands",
+     "EMA",
+     "SMMA (RMA)",
+     "WMA",
+     "VWMA"
+    ]
+   },
+   {
+    "name": "ma_length",
+    "label": "MA Length",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   },
+   {
+    "name": "bb_length",
+    "label": "BB Length",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   },
+   {
+    "name": "bb_mult",
+    "label": "BB Mult",
+    "type": "float",
+    "default": "2.0",
+    "choices": null
+   }
+  ],
+  "pivot_points": [],
+  "plus_dm": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "po": [
+   {
+    "name": "fast_period",
+    "label": "Fast Period",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   },
+   {
+    "name": "slow_period",
+    "label": "Slow Period",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   },
+   {
+    "name": "ma_type",
+    "label": "MA Type",
+    "type": "string",
+    "default": "'SMA'",
+    "choices": [
+     "SMA",
+     "EMA"
+    ]
+   }
+  ],
+  "ppo": [
+   {
+    "name": "fast_period",
+    "label": "Fast Period",
+    "type": "int",
+    "default": "12",
+    "choices": null
+   },
+   {
+    "name": "slow_period",
+    "label": "Slow Period",
+    "type": "int",
+    "default": "26",
+    "choices": null
+   },
+   {
+    "name": "signal_period",
+    "label": "Signal Period",
+    "type": "int",
+    "default": "9",
+    "choices": null
+   }
+  ],
+  "psar": [
+   {
+    "name": "acceleration",
+    "label": "Acceleration",
+    "type": "float",
+    "default": "0.02",
+    "choices": null
+   },
+   {
+    "name": "maximum",
+    "label": "Maximum",
+    "type": "float",
+    "default": "0.2",
+    "choices": null
+   }
+  ],
+  "pvi": [
+   {
+    "name": "initial_value",
+    "label": "Initial Value",
+    "type": "float",
+    "default": "100.0",
+    "choices": null
+   }
+  ],
+  "pvi_with_signal": [
+   {
+    "name": "initial_value",
+    "label": "Initial Value",
+    "type": "float",
+    "default": "100.0",
+    "choices": null
+   },
+   {
+    "name": "signal_type",
+    "label": "Signal Type",
+    "type": "string",
+    "default": "'EMA'",
+    "choices": [
+     "EMA",
+     "SMA"
+    ]
+   },
+   {
+    "name": "signal_length",
+    "label": "Signal Length",
+    "type": "int",
+    "default": "255",
+    "choices": null
+   }
+  ],
+  "pvt": [],
+  "rising": [
+   {
+    "name": "length",
+    "label": "Length",
+    "type": "int",
+    "default": "1",
+    "choices": null
+   }
+  ],
+  "roc": [
+   {
+    "name": "length",
+    "label": "Length",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "rocp": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   }
+  ],
+  "rocr": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   }
+  ],
+  "rocr100": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   }
+  ],
+  "rsi": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "rvi": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   }
+  ],
+  "rvol": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   }
+  ],
+  "rwi": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "sma": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "starc": [
+   {
+    "name": "ma_period",
+    "label": "MA Period",
+    "type": "int",
+    "default": "5",
+    "choices": null
+   },
+   {
+    "name": "atr_period",
+    "label": "ATR Period",
+    "type": "int",
+    "default": "15",
+    "choices": null
+   },
+   {
+    "name": "multiplier",
+    "label": "Multiplier",
+    "type": "float",
+    "default": "1.33",
+    "choices": null
+   }
+  ],
+  "stc": [
+   {
+    "name": "fast_length",
+    "label": "Fast Length",
+    "type": "int",
+    "default": "23",
+    "choices": null
+   },
+   {
+    "name": "slow_length",
+    "label": "Slow Length",
+    "type": "int",
+    "default": "50",
+    "choices": null
+   },
+   {
+    "name": "cycle_length",
+    "label": "Cycle Length",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   },
+   {
+    "name": "d1_length",
+    "label": "D1 Length",
+    "type": "int",
+    "default": "3",
+    "choices": null
+   },
+   {
+    "name": "d2_length",
+    "label": "D2 Length",
+    "type": "int",
+    "default": "3",
+    "choices": null
+   }
+  ],
+  "stdev": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "stochastic": [
+   {
+    "name": "k_period",
+    "label": "K Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   },
+   {
+    "name": "smooth_k",
+    "label": "Smooth K",
+    "type": "int",
+    "default": "3",
+    "choices": null
+   },
+   {
+    "name": "d_period",
+    "label": "D Period",
+    "type": "int",
+    "default": "3",
+    "choices": null
+   }
+  ],
+  "stochf": [
+   {
+    "name": "fastk_period",
+    "label": "Fast K Period",
+    "type": "int",
+    "default": "5",
+    "choices": null
+   },
+   {
+    "name": "fastd_period",
+    "label": "Fast D Period",
+    "type": "int",
+    "default": "3",
+    "choices": null
+   }
+  ],
+  "stochrsi": [
+   {
+    "name": "rsi_period",
+    "label": "RSI Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   },
+   {
+    "name": "stoch_period",
+    "label": "Stoch Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   },
+   {
+    "name": "k_period",
+    "label": "K Period",
+    "type": "int",
+    "default": "3",
+    "choices": null
+   },
+   {
+    "name": "d_period",
+    "label": "D Period",
+    "type": "int",
+    "default": "3",
+    "choices": null
+   }
+  ],
+  "supertrend": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   },
+   {
+    "name": "multiplier",
+    "label": "Multiplier",
+    "type": "float",
+    "default": "3.0",
+    "choices": null
+   }
+  ],
+  "t3": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "21",
+    "choices": null
+   },
+   {
+    "name": "v_factor",
+    "label": "Volume Factor",
+    "type": "float",
+    "default": "0.7",
+    "choices": null
+   }
+  ],
+  "tema": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "trima": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   }
+  ],
+  "trix": [
+   {
+    "name": "length",
+    "label": "Length",
+    "type": "int",
+    "default": "18",
+    "choices": null
+   }
+  ],
+  "true_range": [],
+  "tsf": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "tsi": [
+   {
+    "name": "long_period",
+    "label": "Long Period",
+    "type": "int",
+    "default": "25",
+    "choices": null
+   },
+   {
+    "name": "short_period",
+    "label": "Short Period",
+    "type": "int",
+    "default": "13",
+    "choices": null
+   },
+   {
+    "name": "signal_period",
+    "label": "Signal Period",
+    "type": "int",
+    "default": "13",
+    "choices": null
+   }
+  ],
+  "typprice": [],
+  "ultimate_oscillator": [
+   {
+    "name": "period1",
+    "label": "Period 1",
+    "type": "int",
+    "default": "7",
+    "choices": null
+   },
+   {
+    "name": "period2",
+    "label": "Period 2",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   },
+   {
+    "name": "period3",
+    "label": "Period 3",
+    "type": "int",
+    "default": "28",
+    "choices": null
+   }
+  ],
+  "uo_oscillator": [
+   {
+    "name": "period1",
+    "label": "Period 1",
+    "type": "int",
+    "default": "7",
+    "choices": null
+   },
+   {
+    "name": "period2",
+    "label": "Period 2",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   },
+   {
+    "name": "period3",
+    "label": "Period 3",
+    "type": "int",
+    "default": "28",
+    "choices": null
+   }
+  ],
+  "variance": [
+   {
+    "name": "lookback",
+    "label": "Lookback",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   },
+   {
+    "name": "mode",
+    "label": "Mode",
+    "type": "string",
+    "default": "'PR'",
+    "choices": [
+     "PR",
+     "LR"
+    ]
+   },
+   {
+    "name": "ema_period",
+    "label": "EMA Period",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   },
+   {
+    "name": "filter_lookback",
+    "label": "Filter Lookback",
+    "type": "int",
+    "default": "20",
+    "choices": null
+   },
+   {
+    "name": "ema_length",
+    "label": "EMA Length",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   },
+   {
+    "name": "return_components",
+    "label": "Return Components",
+    "type": "bool",
+    "default": "false",
+    "choices": null
+   }
+  ],
+  "vidya": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   },
+   {
+    "name": "alpha",
+    "label": "Alpha",
+    "type": "float",
+    "default": "0.2",
+    "choices": null
+   }
+  ],
+  "volosc": [
+   {
+    "name": "short_length",
+    "label": "Short Length",
+    "type": "int",
+    "default": "5",
+    "choices": null
+   },
+   {
+    "name": "long_length",
+    "label": "Long Length",
+    "type": "int",
+    "default": "10",
+    "choices": null
+   },
+   {
+    "name": "check_volume_validity",
+    "label": "Check Volume Validity",
+    "type": "bool",
+    "default": "true",
+    "choices": null
+   }
+  ],
+  "vroc": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "25",
+    "choices": null
+   }
+  ],
+  "vwap": [
+   {
+    "name": "anchor",
+    "label": "Anchor",
+    "type": "string",
+    "default": "'Session'",
+    "choices": [
+     "Session",
+     "Week",
+     "Month",
+     "Quarter",
+     "Year",
+     "12M",
+     "6M",
+     "3M",
+     "D",
+     "4H",
+     "1H",
+     "30m",
+     "15m",
+     "5m",
+     "1m"
+    ]
+   },
+   {
+    "name": "source",
+    "label": "Source",
+    "type": "string",
+    "default": "'hlc3'",
+    "choices": [
+     "hlc3",
+     "hl2",
+     "ohlc4",
+     "close"
+    ]
+   },
+   {
+    "name": "stdev_mult_1",
+    "label": "Stdev Mult 1",
+    "type": "float",
+    "default": "1.0",
+    "choices": null
+   },
+   {
+    "name": "stdev_mult_2",
+    "label": "Stdev Mult 2",
+    "type": "float",
+    "default": "2.0",
+    "choices": null
+   },
+   {
+    "name": "stdev_mult_3",
+    "label": "Stdev Mult 3",
+    "type": "float",
+    "default": "3.0",
+    "choices": null
+   },
+   {
+    "name": "percent_mult_1",
+    "label": "Percent Mult 1",
+    "type": "float",
+    "default": "0.236",
+    "choices": null
+   },
+   {
+    "name": "percent_mult_2",
+    "label": "Percent Mult 2",
+    "type": "float",
+    "default": "0.382",
+    "choices": null
+   },
+   {
+    "name": "percent_mult_3",
+    "label": "Percent Mult 3",
+    "type": "float",
+    "default": "0.618",
+    "choices": null
+   }
+  ],
+  "vwma": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "wclprice": [],
+  "williams_r": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "wma": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ],
+  "zlema": [
+   {
+    "name": "period",
+    "label": "Period",
+    "type": "int",
+    "default": "14",
+    "choices": null
+   }
+  ]
+ }
+}
