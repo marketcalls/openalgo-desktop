@@ -150,16 +150,15 @@ impl FlowClient for AppFlowClient {
             .sqlite
             .conn()
             .and_then(|c| crate::messaging::telegram::db::get_user_by_username(&c, &username));
-        let user = match user {
-            Ok(Some(u)) => u,
-            Ok(None) => {
-                tracing::info!("No telegram user linked for username: {}", username);
-                return json!({"status": "error", "error": format!("No Telegram account linked for user: {}", username)});
-            }
-            Err(e) => {
-                tracing::error!("Could not read the linked Telegram account: {}", e);
-                return json!({"status": "error", "error": "The linked Telegram account could not be read."});
-            }
+        // A read that fails is no linked account, as the web's lookup
+        // answers None for it (decision 34).
+        let user = user.unwrap_or_else(|e| {
+            tracing::error!("Failed to get telegram user by username: {}", e);
+            None
+        });
+        let Some(user) = user else {
+            tracing::info!("No telegram user linked for username: {}", username);
+            return json!({"status": "error", "error": format!("No Telegram account linked for user: {}", username)});
         };
         if !user.notifications_enabled {
             tracing::info!("Notifications disabled for telegram user: {}", username);
@@ -457,6 +456,20 @@ mod tests {
         assert_eq!(
             client.telegram("hi").await,
             json!({"status": "success", "data": {"message": "Alert queued successfully"}})
+        );
+        // A linked account that cannot be read is no linked account, as the
+        // web's lookup answers (decision 34).
+        conn.execute_batch("ALTER TABLE telegram_users RENAME TO telegram_users_gone")
+            .unwrap();
+        assert_eq!(
+            client.telegram("hi").await,
+            json!({"status": "error", "error": "No Telegram account linked for user: trader"})
+        );
+        assert!(
+            logs.text()
+                .contains("Failed to get telegram user by username: "),
+            "{}",
+            logs.text()
         );
     }
 
