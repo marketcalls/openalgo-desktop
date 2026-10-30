@@ -425,3 +425,69 @@ async fn an_update_checks_the_graph_before_the_workflow_exists() {
         )
     );
 }
+
+/// R-18: a PUT whose body is JSON but not an object is the validator's
+/// refusal, with its errors.
+#[tokio::test]
+async fn an_update_that_is_not_an_object_is_refused() {
+    let g = G::new();
+    let id = g.create(runnable("Edit me")).await;
+    let (s, v) = g
+        .call(
+            Method::PUT,
+            &format!("/flow/api/workflows/{}", id),
+            Some("[1]"),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{}", v);
+    assert_eq!(
+        (
+            v["status"].clone(),
+            v["error"].clone(),
+            v["message"].clone()
+        ),
+        (
+            json!("error"),
+            json!("Invalid workflow structure"),
+            json!("Workflow must be a JSON object")
+        )
+    );
+    assert_eq!(v["errors"][0]["received"], "list", "{}", v);
+}
+
+/// IE-07, V-137, T-086: an import or a delete the database refuses is the
+/// web's 500, in its words.
+#[tokio::test]
+async fn an_import_or_delete_the_database_refuses_is_a_500() {
+    let g = G::new();
+    let id = g.create(runnable("Stays")).await;
+    g.h.ctx()
+        .sqlite
+        .conn()
+        .unwrap()
+        .execute_batch(
+            "CREATE TRIGGER no_new BEFORE INSERT ON flow_workflows
+             BEGIN SELECT RAISE(ABORT, 'held'); END;
+             CREATE TRIGGER no_gone BEFORE DELETE ON flow_workflows
+             BEGIN SELECT RAISE(ABORT, 'held'); END;",
+        )
+        .unwrap();
+    let (s, v) = g.post("/flow/api/workflows/import", &runnable("New")).await;
+    assert_eq!(
+        (s, v),
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            json!({"error": "Failed to import workflow"})
+        )
+    );
+    let (s, v) = g
+        .call(Method::DELETE, &format!("/flow/api/workflows/{}", id), None)
+        .await;
+    assert_eq!(
+        (s, v),
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            json!({"error": "Failed to delete workflow"})
+        )
+    );
+}
