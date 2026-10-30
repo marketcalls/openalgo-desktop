@@ -270,4 +270,55 @@ mod tests {
         assert_eq!(flow.running(), 0);
         assert!(!flow.stop_token().is_cancelled());
     }
+
+    /// Every non-test source under `dir`, with its path.
+    fn sources(dir: &std::path::Path, out: &mut Vec<(String, String)>) {
+        for entry in std::fs::read_dir(dir).unwrap().flatten() {
+            let path = entry.path();
+            let name = path.to_string_lossy().into_owned();
+            if entry.file_name().to_string_lossy().contains("test") {
+                continue;
+            }
+            if path.is_dir() {
+                sources(&path, out);
+            } else if name.ends_with(".rs") {
+                out.push((name, std::fs::read_to_string(&path).unwrap()));
+            }
+        }
+    }
+
+    /// X-019 / X-020: the offset pattern, the expiry types and the leg
+    /// strike modes are written once, in `node_contracts.rs`; the
+    /// validator, the executor and the nodes import them, so a second copy
+    /// that could drift fails here.
+    #[test]
+    fn the_node_contracts_are_written_once() {
+        let flow = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/flow");
+        let mut files = Vec::new();
+        for dir in ["validator", "executor", "nodes"] {
+            sources(&flow.join(dir), &mut files);
+        }
+        assert!(files.len() > 20, "{} sources", files.len());
+        let expiry_list = regex::Regex::new(
+            r#"\[\s*"(?:current|next)_(?:week|month)"\s*,\s*"(?:current|next)_(?:week|month)""#,
+        )
+        .unwrap();
+        let strike_modes = regex::Regex::new(r#""OFFSET"\s*,\s*"STRIKE""#).unwrap();
+        for (name, text) in &files {
+            assert!(!text.contains("ITM|OTM"), "an offset pattern in {}", name);
+            assert!(
+                !expiry_list.is_match(text),
+                "an expiry type list in {}",
+                name
+            );
+            assert!(
+                !strike_modes.is_match(text),
+                "a strike mode list in {}",
+                name
+            );
+        }
+        let contracts = std::fs::read_to_string(flow.join("node_contracts.rs")).unwrap();
+        assert!(contracts.contains("ITM|OTM") && expiry_list.is_match(&contracts));
+        assert!(strike_modes.is_match(&contracts));
+    }
 }
