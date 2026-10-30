@@ -187,10 +187,10 @@ fn litellm_target(catalog: &Catalog, id: &str) -> Result<Target, String> {
 
 /// The adapter one request goes to: the row's own, except that an OpenAI
 /// request for a GPT-5.4 or later model that carries tools goes to the
-/// Responses API, as LiteLLM bridges it (`responses_api_bridge_check` in
-/// 1.104.0). Chat Completions refuses function tools while such a model
-/// reasons ("Function tools with reasoning_effort are not supported ... use
-/// /v1/responses"), and it reasons unless the effort is `none`, which the
+/// Responses API, as LiteLLM bridges it (`responses_api_bridge_check`,
+/// unchanged for these requests from 1.104.0 to 1.106.6). Chat Completions
+/// refuses function tools while such a model reasons ("Function tools with
+/// reasoning_effort are not supported ... use /v1/responses"), and it reasons unless the effort is `none`, which the
 /// desktop never sends: a row left at `off` sends no effort and OpenAI
 /// reasons at its own default. A server that is not OpenAI's own (an
 /// OpenAI-compatible endpoint) is bridged only when an effort is sent, as

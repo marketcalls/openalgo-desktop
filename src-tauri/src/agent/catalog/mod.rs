@@ -9,7 +9,9 @@
 //! refreshes the table once at startup from the same address with the same
 //! 5 s timeout (`refresh`). The catalogue is advisory: a model it does not
 //! list can still be added by name, and one it cannot price shows its
-//! tokens with an unknown cost, never a guessed one or zero.
+//! tokens with an unknown cost, never a guessed one or zero. At LiteLLM
+//! 1.106.6 the table lists no OpenRouter model, so its picker is empty and
+//! its models are added by name, as on the web (8a2fbf1d0).
 //!
 //! - `brands`: names, icons and what each provider needs.
 //! - `load`: the snapshot and a fetched table as a [`Catalog`].
