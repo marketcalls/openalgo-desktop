@@ -539,6 +539,14 @@ fn a_malformed_override_falls_back_to_the_calendar() {
     assert_eq!(parse_hhmm(&json!(" 9 : 5 ")), Some(545));
     assert_eq!(parse_hhmm(&json!("+09:05")), Some(545));
     assert_eq!(parse_hhmm(&json!(915)), None);
+    // Python's int(): a sign and digit underscores are fine (a u32 parse
+    // would refuse both and fall back to the calendar).
+    assert_eq!(parse_hhmm(&json!("-0:15")), Some(15));
+    assert_eq!(parse_hhmm(&json!("0_9:15")), Some(555));
+    assert_eq!(parse_hhmm(&json!("9:1_5")), Some(555));
+    assert_eq!(parse_hhmm(&json!("09:15:30")), None);
+    assert_eq!(parse_hhmm(&json!("9__0:15")), None);
+    assert!(inside(nse(), "09:10", Some("-0:15"), None));
 }
 
 #[test]

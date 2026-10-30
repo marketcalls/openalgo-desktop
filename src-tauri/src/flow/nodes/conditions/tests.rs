@@ -511,3 +511,32 @@ fn comparisons_take_symbols_and_words() {
         assert_eq!(compare(1.0, op, 2.0), want, "{}", op);
     }
 }
+
+/// N-priceCondition-06: the node does not check the symbol itself; an
+/// empty one reaches the quote service, whose refusal is the node's answer
+/// (the validator is what requires a symbol).
+#[tokio::test]
+async fn an_empty_symbol_is_left_to_the_quote_service() {
+    let (client, c) = ctx();
+    client.reply_error("quotes", "Symbol is required", 400);
+    let out = run(
+        &PriceCondition,
+        &c,
+        json!({"symbol": "", "exchange": "NSE", "field": "ltp", "operator": ">", "value": 1}),
+    )
+    .await;
+    let calls = client.calls_to("quotes");
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].payload["symbol"], "");
+    assert_eq!(
+        answer(&out),
+        json!({"status": "error", "condition": false, "message": "Symbol is required"})
+    );
+    assert_eq!(
+        messages(&c),
+        vec![
+            "Checking price for: ".to_string(),
+            "Price check aborted: Symbol is required".to_string()
+        ]
+    );
+}
