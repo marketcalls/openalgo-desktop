@@ -157,6 +157,46 @@ pub fn active_ids(conn: &Connection) -> Result<Vec<i64>> {
     Ok(v)
 }
 
+/// The names of the active workflows that wait on something while the app
+/// runs: a schedule, a price alert, an order watch or a webhook (a manual
+/// start with its webhook off waits on nothing). For the quit warning.
+pub fn active_waiting_names(conn: &Connection) -> Result<Vec<String>> {
+    let mut st = conn.prepare(
+        "SELECT name, nodes, webhook_enabled FROM flow_workflows WHERE is_active = 1 ORDER BY name, id",
+    )?;
+    let rows = st
+        .query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                json_col(r.get(1)?),
+                r.get::<_, bool>(2)?,
+            ))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(rows
+        .into_iter()
+        .filter(|(_, nodes, webhook)| *webhook || waits_on_a_trigger(nodes))
+        .map(|(name, _, _)| name)
+        .collect())
+}
+
+/// Whether a graph's trigger fires on its own: any trigger but a manual
+/// start. A graph that cannot be read counts as waiting.
+fn waits_on_a_trigger(nodes: &Value) -> bool {
+    let Ok(graph) = crate::flow::contract::model::Graph::parse(nodes, &Value::Array(Vec::new()))
+    else {
+        return true;
+    };
+    match graph.trigger() {
+        None => false,
+        Some(t) if t.node_type == "start" => !matches!(
+            t.data.get("scheduleType").and_then(Value::as_str),
+            None | Some("manual") | Some("")
+        ),
+        Some(_) => true,
+    }
+}
+
 /// What a new workflow is made of.
 pub struct NewWorkflow<'a> {
     pub name: &'a str,
@@ -457,6 +497,62 @@ mod tests {
         assert_eq!(l[1].last_execution_status.as_deref(), Some("running"));
         assert_eq!(l[0].last_execution_status, None);
         assert_eq!(active_ids(&conn).unwrap(), vec![a.id]);
+    }
+
+    #[test]
+    fn only_workflows_that_wait_on_a_trigger_are_named() {
+        let (conn, sec) = db();
+        let mk = |name: &str, nodes: Value| {
+            let w = create(
+                &conn,
+                &sec,
+                &NewWorkflow {
+                    name,
+                    description: None,
+                    nodes: &nodes,
+                    edges: &json!([]),
+                },
+                now(),
+            )
+            .unwrap();
+            set_active(&conn, w.id, true, now()).unwrap();
+            w.id
+        };
+        mk(
+            "Daily open",
+            json!([{"id": "s", "type": "start", "data": {"scheduleType": "daily", "time": "09:15"}}]),
+        );
+        mk(
+            "Alert",
+            json!([{"id": "p", "type": "priceAlert", "data": {}}]),
+        );
+        let manual = mk(
+            "Manual",
+            json!([{"id": "s", "type": "start", "data": {"scheduleType": "manual"}}]),
+        );
+        mk(
+            "Manual hooked",
+            json!([{"id": "s", "type": "start", "data": {}}]),
+        );
+        let hooked = get(&conn, &sec, manual + 1).unwrap().unwrap();
+        set_webhook_enabled(&conn, hooked.id, true, now()).unwrap();
+        let inactive = create(
+            &conn,
+            &sec,
+            &NewWorkflow {
+                name: "Off",
+                description: None,
+                nodes: &json!([{"id": "w", "type": "webhookTrigger", "data": {}}]),
+                edges: &json!([]),
+            },
+            now(),
+        )
+        .unwrap();
+        assert!(!inactive.is_active);
+        assert_eq!(
+            active_waiting_names(&conn).unwrap(),
+            vec!["Alert", "Daily open", "Manual hooked"]
+        );
     }
 
     #[test]

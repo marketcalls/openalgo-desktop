@@ -587,16 +587,6 @@ pub fn handle_response(status: u16, body: &Value) -> Value {
     Value::Object(out)
 }
 
-/// The failure text of a client dict (or a node's own result): `message`,
-/// else `error`, else `None` (the executor's `message or error`).
-pub fn failure_text(result: &Value) -> Option<String> {
-    ["message", "error"]
-        .iter()
-        .filter_map(|k| result.get(*k))
-        .find(|v| super::pyfmt::truthy(v))
-        .map(super::pyfmt::str)
-}
-
 #[cfg(test)]
 mod tests {
     use super::fake::FakeFlowClient;
@@ -787,18 +777,5 @@ mod tests {
             handle_response(500, &json!("not json")),
             json!({"status": "error", "error": "Unknown error", "code": 500})
         );
-    }
-
-    #[test]
-    fn a_failure_reads_its_message_or_its_error() {
-        assert_eq!(
-            failure_text(&json!({"status": "error", "error": "Broker session expired"})).as_deref(),
-            Some("Broker session expired")
-        );
-        assert_eq!(
-            failure_text(&json!({"status": "error", "message": "", "error": "x"})).as_deref(),
-            Some("x")
-        );
-        assert_eq!(failure_text(&json!({"status": "error"})), None);
     }
 }

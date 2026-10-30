@@ -31,10 +31,15 @@ pub struct Activity {
     pub unsettled_orders: u32,
     /// Something running could not be checked.
     pub checks_failed: bool,
+    /// Flow workflow runs in progress while analyzer mode is off (or
+    /// cannot be read): their orders go to the broker.
+    pub live_flow_runs: u32,
     pub sandbox_strategies: u32,
     pub sandbox_openscript_runs: u32,
     pub sandbox_scalping_stops: u32,
     pub sandbox_open_orders: u32,
+    /// Flow workflow runs in progress in analyzer mode.
+    pub sandbox_flow_runs: u32,
 }
 
 impl Activity {
@@ -44,6 +49,7 @@ impl Activity {
             + self.live_scalping_stops
             + self.live_open_orders
             + self.unsettled_orders
+            + self.live_flow_runs
             > 0
             || self.live_orders_unknown
             || self.checks_failed
@@ -54,6 +60,7 @@ impl Activity {
             + self.sandbox_openscript_runs
             + self.sandbox_scalping_stops
             + self.sandbox_open_orders
+            + self.sandbox_flow_runs
             > 0
     }
 
@@ -83,6 +90,8 @@ impl Activity {
                 confirmed.sandbox_scalping_stops,
             )
             && within(self.sandbox_open_orders, confirmed.sandbox_open_orders)
+            && within(self.live_flow_runs, confirmed.live_flow_runs)
+            && within(self.sandbox_flow_runs, confirmed.sandbox_flow_runs)
     }
 }
 
@@ -109,6 +118,15 @@ pub async fn activity(ctx: &AppState) -> Activity {
         Err(e) => {
             tracing::warn!("Update: could not read the running strategies: {}", e);
             a.checks_failed = true;
+        }
+    }
+    // A Flow run's orders go where analyzer mode sends them; one that
+    // cannot be read counts as Live.
+    let flow_runs = ctx.flow.running() as u32;
+    if flow_runs > 0 {
+        match crate::services::core::analyze_mode(ctx) {
+            Ok(true) => a.sandbox_flow_runs = flow_runs,
+            _ => a.live_flow_runs = flow_runs,
         }
     }
     for run in ctx.trading.runner.running() {
@@ -200,5 +218,24 @@ mod tests {
             serde_json::from_value(serde_json::json!({"live_strategies": 2})).unwrap();
         assert_eq!(partial.live_strategies, 2);
         assert!(!partial.checks_failed);
+    }
+
+    /// A Flow run in progress is something a restart interrupts, and a
+    /// confirmation given before it started does not cover it.
+    #[tokio::test]
+    async fn a_flow_run_in_progress_is_counted() {
+        let t =
+            crate::state::testing::build(crate::brokers::BrokerRegistry::new(), chrono::Utc::now());
+        let quiet = activity(&t.ctx).await;
+        assert_eq!(quiet.live_flow_runs, 0);
+        t.ctx.flow.spawn(std::future::pending());
+        let a = activity(&t.ctx).await;
+        assert_eq!((a.live_flow_runs, a.sandbox_flow_runs), (1, 0));
+        assert!(a.has_live());
+        assert!(!a.covered_by(&quiet));
+        t.ctx
+            .flow
+            .stop_all(std::time::Duration::from_millis(10))
+            .await;
     }
 }
