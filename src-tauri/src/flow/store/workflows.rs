@@ -350,6 +350,9 @@ pub fn ensure_webhook_credentials(
     if w.webhook_secret.is_none() {
         put_secret(conn, sec, id, &generate_webhook_secret())?;
     }
+    if w.webhook_token.is_none() || w.webhook_secret.is_none() {
+        tracing::info!("Generated webhook credentials for workflow {}", id);
+    }
     Ok(true)
 }
 
