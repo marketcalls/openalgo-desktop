@@ -277,3 +277,49 @@ fn every_run_reads_the_calendar_afresh() {
         "the second run reads again"
     );
 }
+
+/// N-calendar-04, decision 32: a calendar the app cannot read degrades to
+/// weekends only and logs the web's warning, at warning level, whatever the
+/// cause (the web's service catches its failure and answers success=False).
+#[test]
+fn a_failed_calendar_read_logs_the_webs_unavailable_warning() {
+    #[derive(Clone, Default)]
+    struct Captured(std::sync::Arc<parking_lot::Mutex<Vec<u8>>>);
+    impl std::io::Write for Captured {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    for cause in [
+        crate::flow::contract::env::UNAVAILABLE.to_string(),
+        "The market calendar could not be read: no such table".to_string(),
+    ] {
+        let captured = Captured::default();
+        let writer = captured.clone();
+        let sub = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::INFO)
+            .with_ansi(false)
+            .with_writer(move || writer.clone())
+            .finish();
+        let mut years = HashMap::new();
+        years.insert(2026, Err(cause.clone()));
+        let cal = FakeCalendar(years);
+        let trading = tracing::subscriber::with_default(sub, || {
+            TradingDays::new(&cal).is_trading_day(d(2026, 1, 26))
+        });
+        assert!(trading, "weekends only: a Monday trades");
+        let text = String::from_utf8(captured.0.lock().clone()).unwrap_or_default();
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), 1, "{:?}", lines);
+        assert!(lines[0].contains(" WARN "), "{}", lines[0]);
+        assert!(
+            lines[0].ends_with("Holiday list for 2026 unavailable; assuming weekends only"),
+            "{}",
+            lines[0]
+        );
+    }
+}
