@@ -79,11 +79,8 @@ pub async fn execute(app: &Arc<AppState>, workflow_id: i64, req: RunRequest) -> 
         // Nobody awaits a background run's answer, so a failure is logged
         // (`_run_waiting_workflow`); an inline run's caller reads it.
         if waits_long && out["status"] != "success" {
-            tracing::warn!(
-                "Background workflow {} ended: {}",
-                workflow_id,
-                pyfmt::str(out.get("message").unwrap_or(&Value::Null))
-            );
+            let message = pyfmt::str(out.get("message").unwrap_or(&Value::Null));
+            tracing::warn!("Background workflow {} ended: {}", workflow_id, message);
         }
         let _ = tx.send(out);
     });
