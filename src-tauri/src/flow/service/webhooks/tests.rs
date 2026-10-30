@@ -185,3 +185,46 @@ fn no_secret_never_authenticates() {
         401
     );
 }
+
+/// R-55: the answer's message is the triggered text for a success, the
+/// run's own message otherwise, and the triggered text again when a failed
+/// run gave none (`result.get("message") or triggered`).
+#[test]
+fn the_answer_message_falls_back_to_the_triggered_text() {
+    let triggered = "Workflow 'TV long' triggered";
+    for (result, status, want) in [
+        (
+            json!({"status": "success", "message": "done"}),
+            "success",
+            triggered,
+        ),
+        (
+            json!({"status": "error", "message": "insufficient margin"}),
+            "error",
+            "insufficient margin",
+        ),
+        (json!({"status": "error"}), "error", triggered),
+        (
+            json!({"status": "error", "message": ""}),
+            "error",
+            triggered,
+        ),
+        (
+            json!({"status": "error", "message": null}),
+            "error",
+            triggered,
+        ),
+        (
+            json!({"status": "accepted", "message": "Started"}),
+            "accepted",
+            "Started",
+        ),
+    ] {
+        assert_eq!(
+            answer_message(&result, status, "TV long"),
+            want,
+            "{}",
+            result
+        );
+    }
+}

@@ -375,35 +375,65 @@ pub fn set_webhook_auth_type(
 }
 
 /// Make the webhook token and secret if either is missing or the secret
-/// can no longer be read (`ensure_webhook_credentials`). `false` when the
-/// workflow is gone.
+/// can no longer be read (`ensure_webhook_credentials`), in one
+/// transaction. `false` when the workflow is gone, or when the writes
+/// failed: rolled back and logged as the web does (S-20).
 pub fn ensure_webhook_credentials(
     conn: &Connection,
     sec: &SecurityManager,
     id: i64,
     now: DateTime<Utc>,
-) -> Result<bool> {
-    let Some(w) = get(conn, sec, id)? else {
-        return Ok(false);
+) -> bool {
+    match mint_missing(conn, sec, id, now) {
+        Ok(Some(minted)) => {
+            if minted {
+                tracing::info!("Generated webhook credentials for workflow {}", id);
+            }
+            true
+        }
+        Ok(None) => false,
+        Err(e) => {
+            tracing::error!(
+                "Error ensuring webhook credentials for workflow {}: {}",
+                id,
+                e
+            );
+            false
+        }
+    }
+}
+
+/// The writes of [`ensure_webhook_credentials`], committed together:
+/// whether anything was minted, `None` when the workflow is gone.
+fn mint_missing(
+    conn: &Connection,
+    sec: &SecurityManager,
+    id: i64,
+    now: DateTime<Utc>,
+) -> Result<Option<bool>> {
+    let tx = crate::db::sqlite::write_transaction(conn)?;
+    let Some(w) = get(&tx, sec, id)? else {
+        return Ok(None);
     };
     if w.webhook_token.is_none() {
-        conn.execute(
+        tx.execute(
             "UPDATE flow_workflows SET webhook_token = ?1 WHERE id = ?2",
             params![generate_webhook_token(), id],
         )?;
     }
     if w.webhook_secret.is_none() {
-        put_secret(conn, sec, id, &generate_webhook_secret())?;
+        put_secret(&tx, sec, id, &generate_webhook_secret())?;
     }
-    if w.webhook_token.is_none() || w.webhook_secret.is_none() {
+    let minted = w.webhook_token.is_none() || w.webhook_secret.is_none();
+    if minted {
         // The web's row `onupdate` moves updated_at with any change.
-        conn.execute(
+        tx.execute(
             "UPDATE flow_workflows SET updated_at = ?1 WHERE id = ?2",
             params![stamp(now), id],
         )?;
-        tracing::info!("Generated webhook credentials for workflow {}", id);
     }
-    Ok(true)
+    tx.commit()?;
+    Ok(Some(minted))
 }
 
 /// A new webhook token; the old address stops working at once
@@ -414,42 +444,63 @@ pub fn regenerate_webhook_token(
     now: DateTime<Utc>,
 ) -> Result<Option<String>> {
     let token = generate_webhook_token();
-    let n = conn.execute(
-        "UPDATE flow_workflows SET webhook_token = ?1, updated_at = ?2 WHERE id = ?3",
-        params![token, stamp(now), id],
-    )?;
+    let n = conn
+        .execute(
+            "UPDATE flow_workflows SET webhook_token = ?1, updated_at = ?2 WHERE id = ?3",
+            params![token, stamp(now), id],
+        )
+        .inspect_err(|e| {
+            tracing::error!(
+                "Error regenerating webhook token for workflow {}: {}",
+                id,
+                e
+            )
+        })?;
     if n > 0 {
         tracing::info!("Regenerated webhook token for workflow {}", id);
     }
     Ok((n > 0).then_some(token))
 }
 
-/// A new webhook secret; the old one stops working at once
-/// (`regenerate_webhook_secret`).
+/// A new webhook secret, committed with its `updated_at`; the old one stops
+/// working at once (`regenerate_webhook_secret`).
 pub fn regenerate_webhook_secret(
     conn: &Connection,
     sec: &SecurityManager,
     id: i64,
     now: DateTime<Utc>,
 ) -> Result<Option<Secret>> {
-    let exists: Option<i64> = conn
-        .query_row(
-            "SELECT id FROM flow_workflows WHERE id = ?1",
-            params![id],
-            |r| r.get(0),
-        )
-        .optional()?;
-    if exists.is_none() {
-        return Ok(None);
+    let rotated = (|| -> Result<Option<Secret>> {
+        let tx = crate::db::sqlite::write_transaction(conn)?;
+        let exists: Option<i64> = tx
+            .query_row(
+                "SELECT id FROM flow_workflows WHERE id = ?1",
+                params![id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if exists.is_none() {
+            return Ok(None);
+        }
+        let secret = generate_webhook_secret();
+        put_secret(&tx, sec, id, &secret)?;
+        tx.execute(
+            "UPDATE flow_workflows SET updated_at = ?1 WHERE id = ?2",
+            params![stamp(now), id],
+        )?;
+        tx.commit()?;
+        Ok(Some(Secret::new(secret)))
+    })();
+    match &rotated {
+        Ok(Some(_)) => tracing::info!("Regenerated webhook secret for workflow {}", id),
+        Ok(None) => {}
+        Err(e) => tracing::error!(
+            "Error regenerating webhook secret for workflow {}: {}",
+            id,
+            e
+        ),
     }
-    let secret = generate_webhook_secret();
-    put_secret(conn, sec, id, &secret)?;
-    conn.execute(
-        "UPDATE flow_workflows SET updated_at = ?1 WHERE id = ?2",
-        params![stamp(now), id],
-    )?;
-    tracing::info!("Regenerated webhook secret for workflow {}", id);
-    Ok(Some(Secret::new(secret)))
+    rotated
 }
 
 #[cfg(test)]
@@ -489,6 +540,22 @@ mod tests {
         assert_eq!(
             w.webhook_secret.as_ref().map(|s| s.expose().len()),
             Some(64)
+        );
+        // S-07, R-46: `token_hex(32)` is lower-case hex; `token_urlsafe(32)`
+        // is base64url without padding.
+        let secret = w.webhook_secret.as_ref().unwrap().expose().to_string();
+        assert!(
+            secret.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f')),
+            "{}",
+            secret
+        );
+        let token = w.webhook_token.clone().unwrap();
+        assert!(
+            token
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'),
+            "{}",
+            token
         );
         assert_eq!(w.nodes[0]["position"], json!({"x": 0, "y": 0}));
         assert_eq!(w.created_at.as_deref(), Some("2026-10-30T03:45:00"));
@@ -659,13 +726,13 @@ mod tests {
             .unwrap()
             .webhook_secret
             .is_none());
-        assert!(ensure_webhook_credentials(&conn, &sec, w.id, now()).unwrap());
+        assert!(ensure_webhook_credentials(&conn, &sec, w.id, now()));
         assert!(get(&conn, &sec, w.id)
             .unwrap()
             .unwrap()
             .webhook_secret
             .is_some());
-        assert!(!ensure_webhook_credentials(&conn, &sec, 999, now()).unwrap());
+        assert!(!ensure_webhook_credentials(&conn, &sec, 999, now()));
     }
 
     #[test]
@@ -701,10 +768,10 @@ mod tests {
         let w = new_workflow(&conn, &sec, "A");
         let stamp_of = |conn: &Connection| get(conn, &sec, w.id).unwrap().unwrap().updated_at;
         let later = now() + chrono::Duration::hours(1);
-        assert!(ensure_webhook_credentials(&conn, &sec, w.id, later).unwrap());
+        assert!(ensure_webhook_credentials(&conn, &sec, w.id, later));
         assert_eq!(stamp_of(&conn), w.updated_at, "nothing was missing");
         super::super::drop_secrets(&conn).unwrap();
-        assert!(ensure_webhook_credentials(&conn, &sec, w.id, later).unwrap());
+        assert!(ensure_webhook_credentials(&conn, &sec, w.id, later));
         assert_eq!(stamp_of(&conn).as_deref(), Some("2026-10-30T04:45:00"));
         let latest = later + chrono::Duration::hours(1);
         assert!(crate::flow::triggers::store::set_schedule_job_id(
@@ -732,7 +799,7 @@ mod tests {
         regenerate_webhook_token(&conn, id, now()).unwrap();
         regenerate_webhook_secret(&conn, &sec, id, now()).unwrap();
         super::super::drop_secrets(&conn).unwrap();
-        ensure_webhook_credentials(&conn, &sec, id, now()).unwrap();
+        ensure_webhook_credentials(&conn, &sec, id, now());
         delete(&conn, id).unwrap();
         let text = logs.text();
         let updated = format!("Updated workflow {}", id);
@@ -799,5 +866,90 @@ mod tests {
             text
         );
         assert!(!text.contains("Updated workflow"), "{}", text);
+    }
+
+    /// Refuse every update of `column`, as a database that cannot be
+    /// written answers.
+    fn refuse(conn: &Connection, column: &str) {
+        conn.execute_batch(&format!(
+            "CREATE TRIGGER refuse_{column} BEFORE UPDATE OF {column} ON flow_workflows
+             BEGIN SELECT RAISE(ABORT, 'refused'); END;"
+        ))
+        .unwrap();
+    }
+
+    fn credentials(conn: &Connection, id: i64) -> (Option<String>, Option<String>) {
+        conn.query_row(
+            "SELECT webhook_token, webhook_secret FROM flow_workflows WHERE id = ?1",
+            params![id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap()
+    }
+
+    /// S-20 (decision 36): minting the missing credentials is one
+    /// transaction; a write that fails rolls back the token written before
+    /// it, is logged with the web's words and answers false.
+    #[test]
+    fn minting_credentials_is_one_transaction_and_false_on_failure() {
+        let logs = crate::services::tunnel::fake::capture_logs();
+        let (conn, sec) = db();
+        let w = new_workflow(&conn, &sec, "A");
+        super::super::drop_secrets(&conn).unwrap();
+        conn.execute(
+            "UPDATE flow_workflows SET webhook_token = NULL WHERE id = ?1",
+            params![w.id],
+        )
+        .unwrap();
+        refuse(&conn, "webhook_secret");
+        assert!(!ensure_webhook_credentials(&conn, &sec, w.id, now()));
+        assert_eq!(credentials(&conn, w.id), (None, None), "rolled back");
+        let text = logs.text();
+        assert!(
+            text.contains(&format!(
+                "Error ensuring webhook credentials for workflow {}: ",
+                w.id
+            )),
+            "{}",
+            text
+        );
+        assert!(!text.contains("Generated webhook credentials"), "{}", text);
+        conn.execute_batch("DROP TRIGGER refuse_webhook_secret")
+            .unwrap();
+        assert!(ensure_webhook_credentials(&conn, &sec, w.id, now()));
+        let (token, secret) = credentials(&conn, w.id);
+        assert!(token.is_some() && secret.is_some());
+    }
+
+    /// S-17, S-18 (decision 36): each rotation writes the web's line once,
+    /// here where the web writes it; a rotation whose write fails writes
+    /// the web's error line and changes nothing.
+    #[test]
+    fn a_rotation_is_logged_once_and_its_failure_with_the_webs_words() {
+        let logs = crate::services::tunnel::fake::capture_logs();
+        let (conn, sec) = db();
+        let w = new_workflow(&conn, &sec, "A");
+        regenerate_webhook_token(&conn, w.id, now()).unwrap();
+        regenerate_webhook_secret(&conn, &sec, w.id, now()).unwrap();
+        let text = logs.text();
+        for line in [
+            format!("Regenerated webhook token for workflow {}", w.id),
+            format!("Regenerated webhook secret for workflow {}", w.id),
+        ] {
+            assert_eq!(text.matches(&line).count(), 1, "{}\n{}", line, text);
+        }
+        let before = credentials(&conn, w.id);
+        refuse(&conn, "webhook_token");
+        refuse(&conn, "webhook_secret");
+        assert!(regenerate_webhook_token(&conn, w.id, now()).is_err());
+        assert!(regenerate_webhook_secret(&conn, &sec, w.id, now()).is_err());
+        assert_eq!(credentials(&conn, w.id), before);
+        let text = logs.text();
+        for line in [
+            format!("Error regenerating webhook token for workflow {}: ", w.id),
+            format!("Error regenerating webhook secret for workflow {}: ", w.id),
+        ] {
+            assert!(text.contains(&line), "{}\n{}", line, text);
+        }
     }
 }
