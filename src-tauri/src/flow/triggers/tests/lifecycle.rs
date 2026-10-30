@@ -469,3 +469,161 @@ async fn the_webhook_payload_never_reaches_the_log() {
         assert!(!m.contains(&secret), "{}", m);
     }
 }
+
+/// An app with an account and its API key (made before any workflow).
+fn keyed() -> crate::state::testing::TestCtx {
+    let t = app();
+    crate::services::auth_service::AuthService::setup(
+        &t.ctx,
+        "trader",
+        "trader@example.com",
+        "Secret@123",
+    )
+    .unwrap();
+    t
+}
+
+async fn wait_for(logs: &Logged, line: &str) {
+    for _ in 0..500 {
+        if logs.has(line) {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    panic!("never logged {:?}: {:?}", line, logs.0.lock());
+}
+
+/// T-040: each monitor run's result is logged as the web logs it,
+/// `Workflow {id} execution result: {status}`, for a price alert and for
+/// an order update.
+#[tokio::test]
+async fn a_monitor_run_logs_its_result() {
+    let t = keyed();
+    let s = side(&t);
+    s.watches.attach();
+    let alert = save(&t.ctx, alert_node(), true);
+    let watched = json!({"symbol": "SBIN", "status": "complete"});
+    let watch = save(&t.ctx, node("orderUpdateTrigger", watched.clone()), true);
+    s.register(watch, "orderUpdateTrigger", &data(watched))
+        .await
+        .unwrap();
+    let (_guard, logs) = logged();
+    let gen = s.alerts.add(
+        price_monitor::Alert::from_node(
+            alert,
+            &data(json!({"symbol": "SBIN", "condition": "above", "price": 800})),
+            t.ctx.now(),
+        )
+        .unwrap(),
+    );
+    let price_monitor::Observed::Fire(fired) = s.alerts.observe(alert, gen, 812.0) else {
+        panic!("the alert should fire at 812");
+    };
+    s.queue_price_run(*fired, 812.0);
+    wait_for(
+        &logs,
+        &format!("Workflow {} execution result: success", alert),
+    )
+    .await;
+    s.on_order_update(&crate::events::OrderUpdate {
+        orderid: "3001".into(),
+        symbol: "SBIN".into(),
+        exchange: "NSE".into(),
+        order_status: "complete".into(),
+        ..Default::default()
+    });
+    wait_for(
+        &logs,
+        &format!("Workflow {} execution result: success", watch),
+    )
+    .await;
+}
+
+/// T-042: retiring a one-shot alert that was replaced leaves the new one
+/// and logs the web's debug line.
+#[tokio::test]
+async fn retiring_a_replaced_one_shot_says_so() {
+    let t = app();
+    let s = side(&t);
+    let id = save(&t.ctx, alert_node(), true);
+    let alert = || {
+        price_monitor::Alert::from_node(
+            id,
+            &data(json!({"symbol": "SBIN", "condition": "above", "price": 800})),
+            t.ctx.now(),
+        )
+        .unwrap()
+    };
+    let old = s.alerts.add(alert());
+    let newer = s.alerts.add(alert());
+    let (_guard, logs) = logged();
+    assert!(!s.alerts.retire(id, old));
+    assert!(logs.has(&format!(
+        "One-shot price alert for workflow {} was already replaced; leaving the current registration alone.",
+        id
+    )));
+    assert_eq!(s.alerts.get(id).unwrap().gen, newer);
+}
+
+/// R-53: a webhook for a workflow while no API key exists logs the web's
+/// error line naming the workflow.
+#[tokio::test]
+async fn a_webhook_without_a_key_logs_the_webs_line() {
+    let t = app();
+    let (token, secret) = live_hook(
+        &t.ctx,
+        json!([{"id": "w", "type": "webhookTrigger", "position": {"x": 0, "y": 0}, "data": {}}]),
+        json!([]),
+    );
+    let id = workflows::get_by_token(&t.ctx.sqlite.conn().unwrap(), &t.ctx.security, &token)
+        .unwrap()
+        .unwrap()
+        .id;
+    let (_guard, logs) = logged();
+    let a = crate::flow::service::webhooks::trigger(&t.ctx, hook_call(&token, &secret)).await;
+    assert_eq!(a.reply.status, 500, "{}", a.reply.body);
+    assert!(logs.has(&format!("Webhook: No API key for workflow {}", id)));
+}
+
+/// T-053: a watch does not filter by mode, as the web's: an order update
+/// from analyzer mode (the sandbox's `mode: analyze`) fires it and runs
+/// the workflow like a live one.
+#[tokio::test]
+async fn an_analyzer_mode_order_update_fires_the_watch() {
+    let t = keyed();
+    let s = side(&t);
+    s.watches.attach();
+    let watched = json!({"symbol": "SBIN", "status": "complete", "trigger": "every_time"});
+    let id = save(&t.ctx, node("orderUpdateTrigger", watched.clone()), true);
+    s.register(id, "orderUpdateTrigger", &data(watched))
+        .await
+        .unwrap();
+    for (n, mode) in ["analyze", "live"].into_iter().enumerate() {
+        s.on_order_update(&crate::events::OrderUpdate {
+            mode: mode.into(),
+            broker: if mode == "analyze" {
+                "sandbox"
+            } else {
+                "zerodha"
+            }
+            .into(),
+            orderid: format!("400{}", n),
+            symbol: "SBIN".into(),
+            exchange: "NSE".into(),
+            order_status: "complete".into(),
+            ..Default::default()
+        });
+        for _ in 0..500 {
+            if run_count(&t.ctx, id) == n + 1 && !s.watches.get(id).unwrap().triggered {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert_eq!(
+            run_count(&t.ctx, id),
+            n + 1,
+            "{} mode ran the workflow",
+            mode
+        );
+    }
+}
