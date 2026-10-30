@@ -26,6 +26,25 @@ fn section(name: &str) -> &'static [Value] {
     GOLDENS[name].as_array().unwrap()
 }
 
+/// One recorded validation case by name: its payload and, per level, the
+/// web's answer.
+pub(super) fn web_case(name: &str) -> &'static Value {
+    section("validate")
+        .iter()
+        .find(|c| c["name"] == name)
+        .unwrap_or_else(|| panic!("no golden case {name}"))
+}
+
+/// The web's recorded `TRIGGER_CONFIG_FIELDS`, in its order.
+pub(super) fn web_trigger_config_fields() -> Vec<&'static str> {
+    GOLDENS["trigger_config_fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f.as_str().unwrap())
+        .collect()
+}
+
 fn level(name: &str) -> ValidateOptions {
     match name {
         "complete" => ValidateOptions::COMPLETE,

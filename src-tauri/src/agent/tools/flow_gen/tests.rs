@@ -15,7 +15,7 @@ use crate::agent::tools::{select, spec_contract, TOOLKITS};
 use crate::flow::contract::model::Workflow;
 use crate::flow::service::{transfer, Body};
 use crate::flow::store::workflows;
-use crate::flow::validator::{validate_workflow, ValidateOptions};
+use crate::flow::validator::{validate_workflow, ValidateOptions, TRIGGER_CONFIG_FIELDS};
 use crate::state::testing::{build, TestCtx};
 use axum::http::StatusCode;
 use serde_json::{json, Value};
@@ -236,6 +236,46 @@ async fn a_valid_workflow_is_described_and_nothing_is_saved() {
     assert_eq!(
         (p["valid"].clone(), p["name"].clone()),
         (json!(true), Value::Null)
+    );
+}
+
+/// V-120: the trigger configuration lists every field the web registers,
+/// in TRIGGER_CONFIG_FIELDS order, whatever order the node's data is
+/// written in.
+#[tokio::test]
+async fn the_trigger_lists_every_registered_field_in_the_webs_order() {
+    let t = app();
+    let mut data = serde_json::Map::new();
+    for (i, field) in TRIGGER_CONFIG_FIELDS.iter().enumerate().rev() {
+        data.insert((*field).to_string(), json!(i));
+    }
+    data.insert("label".into(), json!("not registered"));
+    let wf = json!({
+        "name": "Every field",
+        "nodes": [
+            {"id": "s", "type": "start", "position": {"x": 0, "y": 0}, "data": data},
+            {"id": "l", "type": "log", "position": {"x": 0, "y": 1}, "data": {"message": "x"}}
+        ],
+        "edges": [{"id": "e", "source": "s", "target": "l"}]
+    });
+    let out = call(
+        &t,
+        "validate_flow",
+        json!({"workflow_json": wf.to_string()}),
+    )
+    .await;
+    let (_, text) = block(out.text());
+    let fields: Vec<String> = TRIGGER_CONFIG_FIELDS
+        .iter()
+        .enumerate()
+        .map(|(i, f)| format!("\"{f}\":{i}"))
+        .collect();
+    assert!(
+        text.contains(&format!(
+            "\"trigger\":{{\"start\":{{{}}}}}",
+            fields.join(",")
+        )),
+        "{text}"
     );
 }
 

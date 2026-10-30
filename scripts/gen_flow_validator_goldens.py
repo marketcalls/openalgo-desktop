@@ -1018,6 +1018,39 @@ def migration_differs(nodes):
     return None
 
 
+def order_cases():
+    """The order the web reports errors in (V-004, V-005, V-019, V-094)."""
+    # Every pass in one payload: both size limits, a node failing id, type,
+    # data and position, edge pass-1 errors after later handle errors in
+    # index order, and no trigger.
+    nodes = [{"id": "", "type": 5, "data": [], "position": "x"}]
+    nodes += [node(f"n{i}", "log") for i in range(1, 501)]
+    edges = [{"id": "", "source": "", "target": 5}]
+    edges.append({"id": "e1", "source": "n1", "target": "n2", "targetHandle": "input-1"})
+    edges.append({"id": "e2", "source": "n1", "target": "n2", "sourceHandle": "x"})
+    edges.append({"id": "e1", "source": "ghost", "target": "n2"})
+    edges += [edge(f"e{i}", "n1", "n2") for i in range(4, 1001)]
+    yield "error_order_every_pass", wf(nodes, edges), ("complete",)
+    # The cycle search follows each node's edges in the order they are listed:
+    # a reaches two cycles, b<->c and d<->e, and whichever edge out of a is
+    # listed first decides which one is reported, once.
+    chain = [node("t", "start")] + [node(x, "log") for x in "abcde"]
+    to_bc = [edge("e1", "a", "b"), edge("e2", "b", "c"), edge("e3", "c", "b")]
+    to_de = [edge("e4", "a", "d"), edge("e5", "d", "e"), edge("e6", "e", "d")]
+    yield "error_order_cycle_bc_first", wf(chain, [edge("e0", "t", "a")] + to_bc + to_de), ("complete",)
+    yield "error_order_cycle_de_first", wf(chain, [edge("e0", "t", "a")] + to_de + to_bc), ("complete",)
+    # Two disjoint cycles, neither reachable from the trigger: one cycle error.
+    loops = [node("t", "start"), node("l", "log"), node("x", "log"), node("y", "log"), node("z", "log"),
+             node("w", "log")]
+    loop_edges = [edge("e0", "t", "l"), edge("e1", "x", "y"), edge("e2", "y", "x"), edge("e3", "z", "w"),
+                  edge("e4", "w", "z")]
+    yield "error_order_two_disjoint_cycles", wf(loops, loop_edges), ("complete",)
+    # Every enum field wrong on one node, with a bad quantity after them.
+    bad = {"exchange": "NSEE", "action": "BUYY", "product": "X", "priceType": "Y", "pricetype": "Z",
+           "operation": "w", "quantity": -1, "symbol": "SBIN"}
+    yield "error_order_enum_fields", single("placeOrder", bad), ("complete", "draft")
+
+
 def unicode_digit_cases():
     """Digits as Python's \\d and int() read them, Unicode included (V-084):
     ARABIC-INDIC THREE, ONE, and MATHEMATICAL DOUBLE-STRUCK DIGIT ONE."""
@@ -1152,6 +1185,7 @@ ALL_CASES = (
     options_multi_cases,
     ported_test_cases,
     doc_example_cases,
+    order_cases,
     unicode_digit_cases,
     python_json_cases,
     option_leg_spelling_cases,
@@ -1530,6 +1564,7 @@ def main() -> int:
 
     goldens = {
         "web_commit": commit,
+        "trigger_config_fields": list(validator.TRIGGER_CONFIG_FIELDS),
         "validate": record_validate(validator),
         "migrate": [],
         "trigger_config": [],
