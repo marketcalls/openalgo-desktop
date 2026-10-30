@@ -19,3 +19,18 @@ export function FlowUnusedAlertFieldsNote() {
     </p>
   )
 }
+
+/**
+ * Parity F-586 with decision 20: the web shows 30 days on a History node that
+ * stores none and then asks the broker with no range; the desktop refuses a
+ * history request with no range before the broker. The field is blank when
+ * nothing is stored, and this says the run needs it.
+ */
+export function FlowHistoryDaysNote() {
+  return (
+    <p className="text-[10px] text-muted-foreground">
+      How many days of candles to fetch. Required: with no days the node stops before asking the
+      broker.
+    </p>
+  )
+}
