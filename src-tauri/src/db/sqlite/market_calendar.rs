@@ -577,6 +577,122 @@ pub fn timings_for_date(conn: &Connection, date: NaiveDate) -> Result<Vec<OpenWi
     Ok(normal(SUPPORTED_EXCHANGES))
 }
 
+/// One exchange's trading window on a date, epoch ms (web
+/// `get_effective_session_window`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SessionWindow {
+    pub start_ms: i64,
+    pub end_ms: i64,
+    /// A special session or a holiday's own window, not the usual hours.
+    pub is_special: bool,
+}
+
+/// What the holiday table says about one exchange on one date.
+enum CalendarDay {
+    Window(SessionWindow),
+    Closed,
+    Usual,
+}
+
+/// Steps 2-5 of [`effective_session_window`].
+fn calendar_day(conn: &Connection, date: NaiveDate, exchange: &str) -> Result<CalendarDay> {
+    let day = date.format("%Y-%m-%d").to_string();
+    let first_of = |kind: &str| -> Result<Option<i64>> {
+        Ok(conn
+            .query_row(
+                "SELECT id FROM market_holidays WHERE holiday_date = ?1 AND holiday_type = ?2
+                 ORDER BY id LIMIT 1",
+                params![day, kind],
+                |r| r.get(0),
+            )
+            .optional()?)
+    };
+    if let Some(id) = first_of("SPECIAL_SESSION")? {
+        let row: Option<(Option<i64>, Option<i64>)> = conn
+            .query_row(
+                "SELECT start_time, end_time FROM market_holiday_exchanges
+                 WHERE holiday_id = ?1 AND exchange_code = ?2 AND is_open = 1 ORDER BY id LIMIT 1",
+                params![id, exchange],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?;
+        if let Some((Some(start_ms), Some(end_ms))) = row {
+            return Ok(CalendarDay::Window(SessionWindow {
+                start_ms,
+                end_ms,
+                is_special: true,
+            }));
+        }
+    }
+    if let Some(id) = first_of("TRADING_HOLIDAY")? {
+        let row: Option<(bool, Option<i64>, Option<i64>)> = conn
+            .query_row(
+                "SELECT is_open, start_time, end_time FROM market_holiday_exchanges
+                 WHERE holiday_id = ?1 AND exchange_code = ?2 ORDER BY id LIMIT 1",
+                params![id, exchange],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()?;
+        match row {
+            Some((false, _, _)) => return Ok(CalendarDay::Closed),
+            Some((true, Some(start_ms), Some(end_ms))) => {
+                return Ok(CalendarDay::Window(SessionWindow {
+                    start_ms,
+                    end_ms,
+                    is_special: true,
+                }))
+            }
+            // Open without times, or not listed on the holiday: the usual
+            // hours, as the web reads it.
+            _ => {}
+        }
+    }
+    if matches!(date.weekday(), Weekday::Sat | Weekday::Sun) {
+        return Ok(CalendarDay::Closed);
+    }
+    Ok(CalendarDay::Usual)
+}
+
+/// The trading window of `exchange` on `date`, `None` when it is shut
+/// (web `get_effective_session_window`, the one answer the Flow
+/// market-hours gate reads): CRYPTO always open; a special session for the
+/// exchange; a trading holiday that closes it, or keeps it open with its
+/// own times; a weekend; else the configured hours. A trading holiday that
+/// does not list the exchange leaves it open with its usual hours (unlike
+/// [`timings_for_date`]); any read failure counts as shut.
+pub fn effective_session_window(
+    conn: &Connection,
+    date: NaiveDate,
+    exchange: &str,
+) -> Option<SessionWindow> {
+    if exchange.is_empty() {
+        return None;
+    }
+    let ex = exchange.to_uppercase();
+    let midnight = ist_midnight_ms(date);
+    // The web falls back to its defaults when the timings cannot be read.
+    let offs = offsets(conn).unwrap_or_default();
+    let usual = || {
+        offset_for(&offs, &ex).map(|(s, e)| SessionWindow {
+            start_ms: midnight + s,
+            end_ms: midnight + e,
+            is_special: false,
+        })
+    };
+    if CRYPTO_EXCHANGES.contains(&ex.as_str()) {
+        return usual();
+    }
+    match calendar_day(conn, date, &ex) {
+        Ok(CalendarDay::Window(w)) => Some(w),
+        Ok(CalendarDay::Closed) => None,
+        Ok(CalendarDay::Usual) => usual(),
+        Err(e) => {
+            tracing::debug!("effective session window for {} {} failed: {}", date, ex, e);
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -691,5 +807,71 @@ mod tests {
         assert_eq!(sat[0].exchange, "CRYPTO");
         let republic = timings_for_date(&c, NaiveDate::from_ymd_opt(2026, 1, 26).unwrap()).unwrap();
         assert!(republic.is_empty() || republic.iter().all(|w| w.exchange != "NSE"));
+    }
+
+    /// N-marketHours-05/06: the web's `get_effective_session_window` order,
+    /// including the case `timings_for_date` answers differently (a trading
+    /// holiday that does not list the exchange leaves it open).
+    #[test]
+    fn effective_windows_follow_the_web_calendar() {
+        let c = legacy_db();
+        migrate(&c).unwrap();
+        let day = |m, d| NaiveDate::from_ymd_opt(2026, m, d).unwrap();
+        let at = |m, d, hhmm: &str| ist_midnight_ms(day(m, d)) + parse_hhmm(hhmm).unwrap();
+        let usual = |m, d, s: &str, e: &str| {
+            Some(SessionWindow {
+                start_ms: at(m, d, s),
+                end_ms: at(m, d, e),
+                is_special: false,
+            })
+        };
+        assert_eq!(
+            effective_session_window(&c, day(10, 1), "nse"),
+            usual(10, 1, "09:15", "15:30")
+        );
+        assert_eq!(
+            effective_session_window(&c, day(10, 1), "NFO"),
+            usual(10, 1, "09:15", "15:40")
+        );
+        assert_eq!(
+            effective_session_window(&c, day(10, 1), "MCX"),
+            usual(10, 1, "09:00", "23:55")
+        );
+        // Weekend: shut, CRYPTO aside.
+        assert_eq!(effective_session_window(&c, day(10, 3), "NSE"), None);
+        assert!(effective_session_window(&c, day(10, 3), "CRYPTO").is_some());
+        // A holiday closing the exchange; one keeping MCX open with its times.
+        assert_eq!(effective_session_window(&c, day(1, 26), "NSE"), None);
+        assert_eq!(
+            effective_session_window(&c, day(1, 15), "MCX"),
+            Some(SessionWindow {
+                start_ms: 1_768_476_600_000,
+                end_ms: 1_768_501_500_000,
+                is_special: true,
+            })
+        );
+        // Not listed on the holiday: open with the usual hours (the web's
+        // gate), where timings_for_date leaves it out.
+        assert_eq!(
+            effective_session_window(&c, day(1, 26), "NCO"),
+            usual(1, 26, "09:00", "23:55")
+        );
+        assert!(timings_for_date(&c, day(1, 26))
+            .unwrap()
+            .iter()
+            .all(|w| w.exchange != "NCO"));
+        // A Sunday special session opens the listed exchanges only.
+        let muhurat = effective_session_window(&c, day(11, 8), "NSE").unwrap();
+        assert!(muhurat.is_special);
+        assert_eq!(muhurat.start_ms, 1_794_141_000_000);
+        assert_eq!(effective_session_window(&c, day(11, 8), "NCO"), None);
+        // The trader's own hours, and an exchange with none.
+        update_timing(&c, "NSE", "09:20", "15:25").unwrap();
+        assert_eq!(
+            effective_session_window(&c, day(10, 1), "NSE"),
+            usual(10, 1, "09:20", "15:25")
+        );
+        assert_eq!(effective_session_window(&c, day(10, 1), "XYZ"), None);
+        assert_eq!(effective_session_window(&c, day(10, 1), ""), None);
     }
 }

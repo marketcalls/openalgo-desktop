@@ -6,22 +6,27 @@
 //! through, as the web's executor does. The three logic gates are not
 //! nodes here: the walk evaluates them itself from their inputs' results.
 
+pub mod alerts;
 pub mod basket;
 pub mod books;
 pub mod calendar;
+pub mod conditions;
 pub mod core;
 pub mod data;
 pub mod history;
+pub mod http;
 pub mod indicator;
 pub mod internal;
 pub mod legs;
 pub mod logic;
 pub mod master;
+pub mod math;
 pub mod options;
 pub mod orders;
 pub mod pyjson;
 pub mod streaming;
 pub mod symbols;
+pub mod timing;
 pub mod triggers;
 
 #[cfg(test)]
@@ -30,6 +35,8 @@ mod data_tests;
 mod order_api_tests;
 #[cfg(test)]
 pub mod order_testing;
+#[cfg(test)]
+pub(crate) mod testkit;
 
 use crate::flow::contract::node::FlowNode;
 use std::collections::HashMap;
@@ -47,7 +54,7 @@ pub struct NodeFamily {
 pub const FAMILIES: &[NodeFamily] = &[
     // start, group and the trigger nodes' run-time log lines.
     core::FAMILY,
-    // log, variable, delay (the nodes-logic lane completes this family).
+    // conditions, variables, math, timing, alerts, HTTP (lane nodes-logic).
     logic::FAMILY,
     // quotes, books, history, indicators, options data, calendar, margin.
     data::FAMILY,

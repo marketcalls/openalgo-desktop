@@ -1,27 +1,51 @@
-//! Log, Delay and Variable (the web's `execute_log`, `execute_delay`,
-//! `execute_variable`, `flow_executor_service.py` 2860-3057). The
-//! nodes-logic lane adds the rest of the family here (conditions, math,
-//! alerts, HTTP, Wait Until).
+//! The logic family (lane nodes-logic): Log and Variable here (the web's
+//! `execute_log`, `execute_variable` and its JSON path walk,
+//! `flow_executor_service.py` 2935-3057), and the registration of the
+//! family's other nodes: the conditions, Math Expression, the timing
+//! nodes, the alerts and HTTP Request.
 
+use super::alerts::{TelegramAlert, WhatsappAlert};
+use super::conditions::{FundCheck, PositionCheck, PriceCondition, VarCondition};
+use super::http::HttpRequest;
+use super::math::MathExpression;
+use super::pyjson::{self, float_value};
+use super::timing::{Delay, TimeCondition, TimeWindow, WaitUntil};
 use super::NodeFamily;
-use crate::flow::contract::node::{FlowNode, NodeCtx, NodeOutcome, WARNING};
+use crate::flow::contract::node::{FlowNode, NodeCtx, NodeOutcome};
 use crate::flow::contract::pyfmt;
-use crate::flow::contract::time::DELAY_MAX_SECONDS;
 use async_trait::async_trait;
 use serde_json::{json, Map, Value};
 use std::sync::Arc;
-use std::time::Duration;
+
+/// What a wait cut short by the run stopping answers (core's walk tests
+/// read it here, where core's Delay kept it).
+pub use super::timing::STOPPED_WHILE_WAITING;
 
 pub const FAMILY: NodeFamily = NodeFamily {
     key: "logic",
-    build: || vec![Arc::new(Log), Arc::new(Delay), Arc::new(Variable)],
+    build: || {
+        vec![
+            Arc::new(Log),
+            Arc::new(Variable),
+            Arc::new(Delay),
+            Arc::new(WaitUntil),
+            Arc::new(TimeWindow),
+            Arc::new(TimeCondition),
+            Arc::new(PositionCheck),
+            Arc::new(FundCheck),
+            Arc::new(PriceCondition),
+            Arc::new(VarCondition),
+            Arc::new(MathExpression),
+            Arc::new(TelegramAlert),
+            Arc::new(WhatsappAlert),
+            Arc::new(HttpRequest),
+        ]
+    },
 };
 
-/// What a wait cut short by the run stopping answers.
-pub const STOPPED_WHILE_WAITING: &str = "The workflow was stopped while it was waiting.";
-
-/// Log: write the interpolated message at the node's level.
-struct Log;
+/// Log: write the interpolated message at the node's level (any text the
+/// author chose; only `error` also goes to the app's own log as a warning).
+pub struct Log;
 
 #[async_trait]
 impl FlowNode for Log {
@@ -43,72 +67,9 @@ impl FlowNode for Log {
     }
 }
 
-/// Delay: wait `delayValue` `delayUnit`s (or the legacy `delayMs`), at most
-/// [`DELAY_MAX_SECONDS`].
-struct Delay;
-
-impl Delay {
-    /// The wait as the node computes it: whole seconds from `delayValue`,
-    /// fractional from `delayMs`; `None` when the value is not a number.
-    fn seconds(data: &Map<String, Value>) -> Option<Value> {
-        match data.get("delayValue") {
-            Some(v) if !v.is_null() => {
-                let n = pyfmt::to_int(v)?;
-                let unit = match data.get("delayUnit").and_then(Value::as_str) {
-                    Some("minutes") => 60,
-                    Some("hours") => 3600,
-                    _ => 1,
-                };
-                Some(json!(n.checked_mul(unit)?))
-            }
-            _ => {
-                let ms = match data.get("delayMs") {
-                    None => 1000,
-                    Some(v) => pyfmt::to_int(v)?,
-                };
-                Some(json!(ms as f64 / 1000.0))
-            }
-        }
-    }
-}
-
-#[async_trait]
-impl FlowNode for Delay {
-    fn node_type(&self) -> &'static str {
-        "delay"
-    }
-
-    async fn run(&self, ctx: &NodeCtx, data: &Map<String, Value>) -> NodeOutcome {
-        let Some(mut seconds) = Self::seconds(data) else {
-            let message = "Delay needs a whole number of seconds, minutes or hours.";
-            ctx.error(message);
-            return NodeOutcome::error(message);
-        };
-        if seconds.as_f64().unwrap_or(0.0) > DELAY_MAX_SECONDS as f64 {
-            ctx.log(
-                format!(
-                    "Delay of {}s exceeds the {}s maximum; waiting the maximum instead.",
-                    pyfmt::str(&seconds),
-                    DELAY_MAX_SECONDS
-                ),
-                WARNING,
-            );
-            seconds = json!(DELAY_MAX_SECONDS);
-        }
-        let text = pyfmt::str(&seconds);
-        ctx.info(format!("Waiting for {} seconds", text));
-        let wait = Duration::from_secs_f64(seconds.as_f64().unwrap_or(0.0).max(0.0));
-        if !ctx.sleep(wait).await {
-            ctx.error(STOPPED_WHILE_WAITING);
-            return NodeOutcome::error(STOPPED_WHILE_WAITING);
-        }
-        NodeOutcome::result(json!({"status": "success", "message": format!("Waited {}s", text)}))
-    }
-}
-
 /// Variable: set, get, arithmetic, JSON parse/stringify and append on a
 /// run variable, stored only when the whole operation succeeded.
-struct Variable;
+pub struct Variable;
 
 #[async_trait]
 impl FlowNode for Variable {
@@ -123,10 +84,7 @@ impl FlowNode for Variable {
             .or_else(|| data.get("name"))
             .map(pyfmt::str)
             .unwrap_or_default();
-        let operation = data
-            .get("operation")
-            .map(pyfmt::str)
-            .unwrap_or_else(|| "set".into());
+        let operation = data.get("operation").cloned().unwrap_or(json!("set"));
         let value = ctx
             .vars
             .interpolate_value(data.get("value").unwrap_or(&json!("")));
@@ -135,7 +93,7 @@ impl FlowNode for Variable {
             Err(e) => {
                 let message = format!(
                     "Variable operation {} failed: {}",
-                    pyfmt::quote(&operation),
+                    pyfmt::repr(&operation),
                     e
                 );
                 ctx.error(message.clone());
@@ -156,68 +114,66 @@ fn float_of(v: &Value) -> Result<f64, String> {
         Value::Number(_) | Value::Bool(_) => {
             pyfmt::to_float(v).ok_or_else(|| "float() argument is not a number".into())
         }
-        Value::Null => {
-            Err("float() argument must be a string or a real number, not 'NoneType'".into())
-        }
-        Value::Array(_) => {
-            Err("float() argument must be a string or a real number, not 'list'".into())
-        }
-        Value::Object(_) => {
-            Err("float() argument must be a string or a real number, not 'dict'".into())
-        }
+        other => Err(format!(
+            "float() argument must be a string or a real number, not '{}'",
+            pyfmt::type_name(other)
+        )),
     }
 }
 
-/// The result of one Variable operation, or the reason it failed (the
-/// text of the exception the web catches).
+/// The result of one Variable operation, or the text of the exception the
+/// web catches.
 fn variable_operation(
     ctx: &NodeCtx,
     data: &Map<String, Value>,
     name: &str,
-    operation: &str,
+    operation: &Value,
     value: &Value,
 ) -> Result<Value, String> {
     let current = || ctx.vars.get(name).unwrap_or(json!(0));
-    let number = |n: f64| json!(n);
-    match operation {
-        "set" => Ok(match value {
+    match operation.as_str() {
+        Some("set") => Ok(match value {
             Value::String(s) if s.starts_with('{') || s.starts_with('[') => {
-                serde_json::from_str(s).unwrap_or_else(|_| value.clone())
+                pyjson::loads(s).unwrap_or_else(|_| value.clone())
             }
             other => other.clone(),
         }),
-        "get" => lookup_source(ctx, data.get("sourceVariable"), data.get("jsonPath")),
-        "add" | "subtract" | "multiply" | "divide" => {
+        Some("get") => lookup_source(ctx, data.get("sourceVariable"), data.get("jsonPath")),
+        Some(op @ ("add" | "subtract" | "multiply" | "divide")) => {
             let (a, b) = (float_of(&current())?, float_of(value)?);
-            match operation {
-                "add" => Ok(number(a + b)),
-                "subtract" => Ok(number(a - b)),
-                "multiply" => Ok(number(a * b)),
-                _ if b == 0.0 => Err("Cannot divide by zero".into()),
-                _ => Ok(number(a / b)),
-            }
+            let r = match op {
+                "add" => a + b,
+                "subtract" => a - b,
+                "multiply" => a * b,
+                _ if b == 0.0 => return Err("Cannot divide by zero".into()),
+                _ => a / b,
+            };
+            Ok(float_value(r))
         }
-        "increment" => Ok(number(float_of(&current())? + 1.0)),
-        "decrement" => Ok(number(float_of(&current())? - 1.0)),
-        "parse_json" => match value {
-            Value::String(s) => serde_json::from_str(s).map_err(|e| e.to_string()),
+        Some("increment") => Ok(float_value(float_of(&current())? + 1.0)),
+        Some("decrement") => Ok(float_value(float_of(&current())? - 1.0)),
+        Some("parse_json") => match value {
+            Value::String(s) => pyjson::loads(s),
             other => Err(format!(
                 "the JSON object must be str, bytes or bytearray, not {}",
                 pyfmt::type_name(other)
             )),
         },
-        "stringify" => Ok(json!(pyfmt::json_dumps(&lookup_source(
+        Some("stringify") => Ok(json!(pyfmt::json_dumps(&lookup_source(
             ctx,
             data.get("sourceVariable"),
             None
         )?))),
-        "append" => Ok(if ctx.vars.contains(name) {
+        Some("append") => Ok(if ctx.vars.contains(name) {
             let before = ctx.vars.get(name).unwrap_or(json!(""));
             json!(format!("{}{}", pyfmt::str(&before), pyfmt::str(value)))
         } else {
             json!(pyfmt::str(value))
         }),
-        other => Err(format!("Unknown variable operation: {}", other)),
+        _ => Err(format!(
+            "Unknown variable operation: {}",
+            pyfmt::str(operation)
+        )),
     }
 }
 
@@ -304,187 +260,4 @@ fn walk_json_path(mut value: Value, json_path: &str) -> Result<Value, String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::flow::contract::client::fake::FakeFlowClient;
-
-    fn ctx() -> NodeCtx {
-        NodeCtx::bare(Arc::new(FakeFlowClient::new()))
-    }
-
-    fn data(v: Value) -> Map<String, Value> {
-        v.as_object().cloned().unwrap_or_default()
-    }
-
-    async fn variable(c: &NodeCtx, d: Value) -> NodeOutcome {
-        Variable.run(c, &data(d)).await
-    }
-
-    #[tokio::test]
-    async fn log_writes_the_interpolated_message_at_its_level() {
-        let c = ctx();
-        c.vars.set("sym", json!("SBIN"));
-        let out = Log
-            .run(
-                &c,
-                &data(json!({"message": "Bought {{sym}}", "level": "warning"})),
-            )
-            .await;
-        assert_eq!(
-            out.value(),
-            Some(&json!({"status": "success", "message": "Bought SBIN"}))
-        );
-        let entry = &c.logs()[0];
-        assert_eq!(entry["message"], "[LOG] Bought SBIN");
-        assert_eq!(entry["level"], "warning");
-    }
-
-    #[test]
-    fn delays_are_read_as_the_web_reads_them() {
-        assert_eq!(
-            Delay::seconds(&data(json!({"delayValue": 2, "delayUnit": "minutes"}))),
-            Some(json!(120))
-        );
-        assert_eq!(
-            Delay::seconds(&data(json!({"delayValue": "5"}))),
-            Some(json!(5))
-        );
-        assert_eq!(Delay::seconds(&data(json!({}))), Some(json!(1.0)));
-        assert_eq!(
-            Delay::seconds(&data(json!({"delayMs": 1500}))),
-            Some(json!(1.5))
-        );
-        assert_eq!(Delay::seconds(&data(json!({"delayValue": "soon"}))), None);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn a_long_delay_waits_the_maximum() {
-        let c = ctx();
-        let out = Delay
-            .run(&c, &data(json!({"delayValue": 2, "delayUnit": "hours"})))
-            .await;
-        assert_eq!(
-            out.value(),
-            Some(&json!({"status": "success", "message": "Waited 300s"}))
-        );
-        let logs = c.logs();
-        assert_eq!(
-            logs[0]["message"],
-            "Delay of 7200s exceeds the 300s maximum; waiting the maximum instead."
-        );
-        assert_eq!(logs[0]["level"], "warning");
-        assert_eq!(logs[1]["message"], "Waiting for 300 seconds");
-    }
-
-    #[tokio::test]
-    async fn a_stopped_run_ends_a_delay() {
-        let c = ctx();
-        c.cancel.cancel();
-        let out = Delay.run(&c, &data(json!({"delayValue": 60}))).await;
-        assert!(out.is_error());
-        assert_eq!(out.failure_message(), STOPPED_WHILE_WAITING);
-    }
-
-    #[tokio::test]
-    async fn variables_set_compute_and_read_paths() {
-        let c = ctx();
-        let set = variable(
-            &c,
-            json!({"variableName": "cfg", "value": "{\"legs\": [{\"qty\": 50}]}"}),
-        )
-        .await;
-        assert_eq!(
-            set.value().unwrap()["value"],
-            json!({"legs": [{"qty": 50}]})
-        );
-        let got = variable(&c, json!({"variableName": "q", "operation": "get", "sourceVariable": "cfg", "jsonPath": "legs[0].qty"})).await;
-        assert_eq!(got.value().unwrap()["value"], json!(50));
-        variable(&c, json!({"variableName": "n", "value": "4"})).await;
-        let added = variable(
-            &c,
-            json!({"variableName": "n", "operation": "add", "value": "2.5"}),
-        )
-        .await;
-        assert_eq!(added.value().unwrap()["value"], json!(6.5));
-        assert_eq!(c.logs().last().unwrap()["message"], "Set variable n = 6.5");
-        let inc = variable(
-            &c,
-            json!({"variableName": "fresh", "operation": "increment"}),
-        )
-        .await;
-        assert_eq!(inc.value().unwrap()["value"], json!(1.0));
-        let appended = variable(
-            &c,
-            json!({"variableName": "msg", "operation": "append", "value": "a"}),
-        )
-        .await;
-        assert_eq!(appended.value().unwrap()["value"], json!("a"));
-        let text = variable(
-            &c,
-            json!({"variableName": "s", "operation": "stringify", "sourceVariable": "cfg"}),
-        )
-        .await;
-        assert_eq!(
-            text.value().unwrap()["value"],
-            json!("{\"legs\": [{\"qty\": 50}]}")
-        );
-    }
-
-    #[tokio::test]
-    async fn a_failed_operation_stores_nothing_and_says_why() {
-        let c = ctx();
-        let div = variable(
-            &c,
-            json!({"variableName": "x", "operation": "divide", "value": "0"}),
-        )
-        .await;
-        assert_eq!(
-            div.failure_message(),
-            "Variable operation 'divide' failed: Cannot divide by zero"
-        );
-        assert!(!c.vars.contains("x"));
-        let missing = variable(
-            &c,
-            json!({"variableName": "y", "operation": "get", "sourceVariable": "nope"}),
-        )
-        .await;
-        assert_eq!(
-            missing.failure_message(),
-            "Variable operation 'get' failed: 'Source variable not found: nope'"
-        );
-        let nan = variable(
-            &c,
-            json!({"variableName": "z", "operation": "add", "value": "abc"}),
-        )
-        .await;
-        assert_eq!(
-            nan.failure_message(),
-            "Variable operation 'add' failed: could not convert string to float: 'abc'"
-        );
-        let bad = variable(&c, json!({"variableName": "z", "operation": "pow"})).await;
-        assert_eq!(
-            bad.failure_message(),
-            "Variable operation 'pow' failed: Unknown variable operation: pow"
-        );
-    }
-
-    #[test]
-    fn json_paths_refuse_what_they_cannot_walk() {
-        let v = json!({"a": [{"b": 1}]});
-        assert_eq!(walk_json_path(v.clone(), "a[0].b"), Ok(json!(1)));
-        assert_eq!(
-            walk_json_path(v.clone(), "a[x]"),
-            Err("Invalid jsonPath index: x".into())
-        );
-        assert_eq!(
-            walk_json_path(v.clone(), "a.b"),
-            Err("jsonPath key requires an object".into())
-        );
-        assert_eq!(
-            walk_json_path(v.clone(), "a[3]"),
-            Err("list index out of range".into())
-        );
-        assert_eq!(walk_json_path(v.clone(), "c"), Err("'c'".into()));
-        assert_eq!(walk_json_path(v, "a]"), Err("Invalid jsonPath: a]".into()));
-    }
-}
+mod tests;

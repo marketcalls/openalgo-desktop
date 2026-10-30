@@ -164,10 +164,7 @@ impl FlowClient for AppFlowClient {
         if !user.notifications_enabled {
             return json!({"status": "error", "error": "Telegram notifications are disabled"});
         }
-        let time = app.now().with_timezone(&chrono::Local).format("%H:%M:%S");
-        // The web's header: a 21-character rule under "Flow Alert".
-        let rule = "\u{2500}".repeat(21);
-        let text = format!("*Flow Alert*\n{}\n{}\n\nTime: {}", rule, message, time);
+        let text = telegram_text(app.now(), message);
         // Queued, as the web's alert executor queues it: the run goes on.
         let owner = app.clone();
         let telegram_id = user.telegram_id;
@@ -205,6 +202,17 @@ impl FlowClient for AppFlowClient {
         }
         json!({"status": "success", "data": data})
     }
+}
+
+/// The web's Telegram alert text: a 21-character rule under "Flow Alert",
+/// stamped in market time on any machine (lead decision 1; the web wrote
+/// the host's local time).
+fn telegram_text(now: chrono::DateTime<chrono::Utc>, message: &str) -> String {
+    let time = now
+        .with_timezone(&chrono_tz::Asia::Kolkata)
+        .format("%H:%M:%S");
+    let rule = "\u{2500}".repeat(21);
+    format!("*Flow Alert*\n{}\n{}\n\nTime: {}", rule, message, time)
 }
 
 #[cfg(test)]
@@ -278,6 +286,19 @@ mod tests {
         assert_eq!(
             client.whatsapp("hi", None).await,
             json!({"status": "error", "error": WHATSAPP_NOT_READY})
+        );
+    }
+    /// N-telegramAlert-04: the alert's time is IST whatever the machine's
+    /// zone (fails under TZ=UTC or America/New_York with the host clock).
+    #[test]
+    fn telegram_alerts_are_stamped_in_market_time() {
+        let now = "2026-10-30T03:45:07Z".parse().unwrap();
+        assert_eq!(
+            telegram_text(now, "Bought SBIN"),
+            format!(
+                "*Flow Alert*\n{}\nBought SBIN\n\nTime: 09:15:07",
+                "\u{2500}".repeat(21)
+            )
         );
     }
 }

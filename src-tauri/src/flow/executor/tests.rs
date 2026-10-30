@@ -50,8 +50,10 @@ const TEST_FAMILY: NodeFamily = NodeFamily {
     },
 };
 
+/// The scripted nodes first: a type registered twice keeps the first, and
+/// the logic family registers the real priceCondition and telegramAlert.
 fn registry() -> NodeRegistry {
-    NodeRegistry::new(&[FAMILIES[0], FAMILIES[1], TEST_FAMILY])
+    NodeRegistry::new(&[TEST_FAMILY, FAMILIES[0], FAMILIES[1]])
 }
 
 /// A node as the editor saves it, with a position.

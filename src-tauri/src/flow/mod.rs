@@ -54,6 +54,7 @@ use tokio_util::sync::CancellationToken;
 pub fn start(ctx: &Arc<crate::state::AppState>) {
     // The master contract the order nodes size options from.
     nodes::master::SymbolStoreMaster::install(ctx);
+    nodes::http::install(&ctx.flow);
     let closed = ctx
         .sqlite
         .conn()
