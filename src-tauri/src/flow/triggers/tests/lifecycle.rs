@@ -183,11 +183,15 @@ async fn minting_webhook_credentials_is_logged() {
     )
     .unwrap();
     let (_guard, logs) = logged();
-    assert!(workflows::ensure_webhook_credentials(&conn, &t.ctx.security, id).unwrap());
+    assert!(
+        workflows::ensure_webhook_credentials(&conn, &t.ctx.security, id, t.ctx.now()).unwrap()
+    );
     let line = format!("Generated webhook credentials for workflow {}", id);
     assert!(logs.has(&line));
     logs.0.lock().clear();
-    assert!(workflows::ensure_webhook_credentials(&conn, &t.ctx.security, id).unwrap());
+    assert!(
+        workflows::ensure_webhook_credentials(&conn, &t.ctx.security, id, t.ctx.now()).unwrap()
+    );
     assert!(!logs.has(&line), "nothing was missing");
 }
 
