@@ -261,6 +261,8 @@ mod flow_triggers;
 mod flow_migrations;
 // Flow's import, export, replace and run rules the audit asked to pin.
 mod flow_rules;
+// Flow's read routes when the database fails, and a PUT with nothing to write.
+mod flow_reads;
 
 // ------------------------------------------------------------------ fixtures
 

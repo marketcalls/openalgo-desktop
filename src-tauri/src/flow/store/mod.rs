@@ -158,6 +158,9 @@ pub(crate) mod testing {
 }
 
 #[cfg(test)]
+mod reads_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

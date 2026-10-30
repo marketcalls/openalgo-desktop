@@ -108,6 +108,12 @@ fn failed(what: &str, e: crate::error::AppError) -> Reply {
     Reply::new(500, json!({"error": format!("Failed to {}", what)}))
 }
 
+/// A read the store could not make and has logged in the web's words:
+/// a 500, never an empty answer (decision 34).
+fn read_failed(what: &str) -> Reply {
+    Reply::new(500, json!({"error": format!("Failed to {}", what)}))
+}
+
 /// The workflow as the create and update routes answer it (no
 /// `schedule_job_id`).
 fn saved_json(w: &Workflow) -> Map<String, Value> {
@@ -170,7 +176,7 @@ pub async fn list(app: &Arc<AppState>) -> Reply {
             ),
         ),
         // A failed read is an error, never an empty list (SM-04).
-        Err(e) => failed("list workflows", e),
+        Err(_) => read_failed("list workflows"),
     }
 }
 
@@ -270,7 +276,7 @@ pub async fn get(app: &Arc<AppState>, id: i64) -> Reply {
             Reply::new(200, Value::Object(m))
         }
         Ok(None) => workflow_not_found(),
-        Err(e) => failed("read the workflow", e),
+        Err(_) => read_failed("read the workflow"),
     }
 }
 
@@ -505,7 +511,7 @@ pub async fn history(app: &Arc<AppState>, id: i64, limit: Option<&str>) -> Reply
                     .collect(),
             ),
         ),
-        Err(e) => failed("read the run history", e),
+        Err(_) => read_failed("read the run history"),
     }
 }
 
