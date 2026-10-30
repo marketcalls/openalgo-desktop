@@ -22,6 +22,7 @@ import {
   Settings,
   TrendingUp,
   User,
+  Workflow,
   Wrench,
   Zap,
 } from 'lucide-react'
@@ -84,9 +85,9 @@ export const profileMenuItems: NavItem[] = [
   { href: '/telegram', label: 'Telegram Bot', icon: MessageSquare },
   { href: '/whatsapp', label: 'WhatsApp Bot', icon: MessageCircle },
   { href: '/holdings', label: 'Holdings', icon: ClipboardList },
+  { href: '/flow', label: 'Flow Editor', icon: Workflow },
   { href: '/scalping', label: 'Scalping', icon: Zap },
-  // Desktop: Flow Editor and Python Strategies entries removed (not in this
-  // version).
+  // Desktop: the Python Strategies entry is removed (not in this version).
   { href: '/pnl-tracker', label: 'PnL Tracker', icon: BarChart3 },
   { href: '/historify', label: 'Historify', icon: Database },
   { href: '/search/token', label: 'Search', icon: Search },

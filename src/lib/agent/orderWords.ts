@@ -58,6 +58,28 @@ const LABELS: Record<string, string> = {
   price_type: 'Price type',
   price: 'Limit price',
   trigger_price: 'Trigger price',
+  workflow_json: 'Workflow',
+}
+
+/**
+ * A Flow workflow as the approval card lists it: its size, not the JSON
+ * itself, which can run to hundreds of thousands of characters (parity A-25).
+ */
+function workflowSize(value: unknown): string {
+  let graph: unknown = value
+  if (typeof value === 'string') {
+    try {
+      graph = JSON.parse(value)
+    } catch {
+      return 'not readable as a workflow'
+    }
+  }
+  const { nodes, edges } = (graph ?? {}) as { nodes?: unknown; edges?: unknown }
+  const count = (list: unknown, one: string) => {
+    const n = Array.isArray(list) ? list.length : 0
+    return `${n} ${one}${n === 1 ? '' : 's'}`
+  }
+  return `${count(nodes, 'node')}, ${count(edges, 'connection')}`
 }
 
 function text(value: unknown): string {
@@ -175,6 +197,13 @@ function sentence(tool: string, args: Record<string, unknown>): string | null {
       return `Close ${position(args)}, ${product(args.product)}, at market.`
     case 'close_all_positions':
       return 'Close every open position on the account at market, including positions opened by hand and by other strategies.'
+    case 'save_flow': {
+      // The tool stores the name with " (imported)", as the /flow import does.
+      const name = text(args.name)
+      return name
+        ? `Save the workflow "${name} (imported)" to Flow. It is saved inactive and does not run until you activate it.`
+        : null
+    }
     default:
       return null
   }
@@ -186,7 +215,12 @@ function details(args: Record<string, unknown>): ApprovalWords['details'] {
     .map(([k, v]) => ({
       name: k,
       label: LABELS[k] ?? k.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()),
-      value: typeof v === 'object' ? JSON.stringify(v) : String(v),
+      value:
+        k === 'workflow_json'
+          ? workflowSize(v)
+          : typeof v === 'object'
+            ? JSON.stringify(v)
+            : String(v),
     }))
 }
 

@@ -199,7 +199,12 @@ const ALERT_CATEGORIES_DATA: {
     label: 'Historify',
     description: 'Historical data jobs, file uploads, downloads, and schedules',
   },
-  // Desktop: Python Strategy and Flow alert categories removed (out of scope).
+  // Desktop: the Python Strategy alert category is removed (not in this version).
+  {
+    key: 'flow',
+    label: 'Flow Workflows',
+    description: 'Visual workflow creation, execution, and management',
+  },
 ]
 
 const ALERT_CATEGORIES_ADMIN: {
@@ -1032,7 +1037,9 @@ export default function ProfilePage() {
           <Card className={!alertStore.toastsEnabled ? 'opacity-60' : ''}>
             <CardHeader>
               <CardTitle>Data & Automation</CardTitle>
-              <CardDescription>Notifications from historical data jobs</CardDescription>
+              <CardDescription>
+                Notifications from historical data and workflow automation
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {ALERT_CATEGORIES_DATA.map((category) => (
@@ -1191,6 +1198,9 @@ export default function ProfilePage() {
                   <li>
                     <strong>Historify:</strong> Historical data jobs, uploads, downloads (67 toasts
                     - highest volume)
+                  </li>
+                  <li>
+                    <strong>Flow:</strong> Visual workflow execution and management
                   </li>
                 </ul>
               </div>

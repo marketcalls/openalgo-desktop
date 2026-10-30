@@ -5,6 +5,7 @@
     "src/api/agent.ts": "web",
     "src/api/strategy_module.ts": "web",
     "src/components/agent/config/RegisteredModelsTable.tsx": "web",
+    "src/components/flow/panels/ConfigPanel.tsx": "web",
     "src/components/trading/ChartPane.tsx": "web",
     "src/components/trading/ScriptPanel.tsx": "web",
     "src/components/trading/WatchlistPanel.tsx": "web",

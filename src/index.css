@@ -161,6 +161,17 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  /* Desktop: the Flow nodes' buy/sell and node-category utilities (bg-buy,
+     text-sell, border-l-node-trigger, bg-node-condition/20) had no theme
+     mapping, so they never rendered and every branch handle looked the same
+     (parity F-673). Their channels are HSL triplets. */
+  --color-buy: hsl(var(--buy));
+  --color-sell: hsl(var(--sell));
+  --color-node-trigger: hsl(var(--node-trigger));
+  --color-node-action: hsl(var(--node-action));
+  --color-node-condition: hsl(var(--node-condition));
+  --color-node-data: hsl(var(--node-data));
+  --color-node-utility: hsl(var(--node-utility));
 }
 
 :root {
@@ -472,7 +483,302 @@
   background-color: rgba(128, 90, 213, 0.2);
 }
 
-/* Desktop: Flow editor styles removed; Flow (/flow) is out of scope. */
+/* =============================================================================
+   FLOW EDITOR STYLES
+   ============================================================================= */
+
+/* Desktop: the web writes hsl(var(--background)) and the like here, but those
+   tokens are full oklch() colours in this app, so the browser dropped every
+   such declaration (parity F-293; the web's tokens.test.ts explains). They
+   read the Tailwind theme names instead, which resolve in every theme. The
+   --node-* channels below are this block's own HSL triplets and stay hsl(). */
+
+/* Flow Node Colors */
+:root {
+  --node-trigger: 38 92% 50%;
+  --node-action: 217 91% 60%;
+  --node-condition: 270 60% 60%;
+  --node-data: 142 76% 36%;
+  --node-utility: 200 70% 50%;
+}
+
+.dark {
+  --node-trigger: 38 92% 55%;
+  --node-action: 217 91% 65%;
+  --node-condition: 270 60% 65%;
+  --node-data: 142 76% 46%;
+  --node-utility: 200 70% 55%;
+}
+
+/* ReactFlow Base Styles */
+.react-flow__background {
+  background-color: var(--color-background) !important;
+}
+
+.react-flow__node {
+  box-shadow: none;
+}
+
+.react-flow__node.selected {
+  outline: none;
+  box-shadow: none;
+}
+
+.react-flow__handle {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+  background: var(--color-foreground) !important;
+  border-color: var(--color-background) !important;
+  transition: box-shadow 0.2s ease;
+}
+
+/* Multi-color neon glow on handle hover */
+.react-flow__handle:hover {
+  box-shadow:
+    0 0 4px #e879f9,
+    0 0 8px #e879f9,
+    0 0 12px rgba(232, 121, 249, 0.6),
+    0 0 16px rgba(34, 211, 238, 0.3);
+}
+
+/* Glow during connection drag */
+.react-flow__handle.connectingto,
+.react-flow__handle.connectingfrom {
+  box-shadow:
+    0 0 4px #e879f9,
+    0 0 8px #e879f9,
+    0 0 12px rgba(232, 121, 249, 0.6),
+    0 0 16px rgba(34, 211, 238, 0.3);
+}
+
+/* Bright cyan glow when hovering over valid target */
+.react-flow__handle.valid {
+  background: #22d3ee !important;
+  box-shadow:
+    0 0 4px #22d3ee,
+    0 0 8px #22d3ee,
+    0 0 12px rgba(34, 211, 238, 0.6),
+    0 0 16px rgba(232, 121, 249, 0.3);
+}
+
+.react-flow__edge-path {
+  stroke: #888888;
+  stroke-width: 2px;
+}
+
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: #ffffff;
+}
+
+/* Ensure edge paths are visible */
+.react-flow__edge path {
+  stroke: #888888;
+  stroke-width: 2px;
+}
+
+/* Edge animation for animated edges */
+@keyframes dashdraw {
+  from {
+    stroke-dashoffset: 10;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Connection line style */
+.react-flow__connection-line {
+  stroke: var(--color-primary);
+  stroke-width: 2px;
+}
+
+.react-flow__controls {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-card) !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+}
+
+.react-flow__controls-button {
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: transparent !important;
+  fill: var(--color-foreground) !important;
+}
+
+.react-flow__controls-button:hover {
+  background: var(--color-accent) !important;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: 0;
+}
+
+.react-flow__minimap {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-card) !important;
+}
+
+.react-flow__minimap-mask {
+  fill: color-mix(in oklab, var(--color-background) 90%, transparent) !important;
+}
+
+.react-flow__minimap-node {
+  fill: var(--color-muted-foreground) !important;
+  stroke: none !important;
+}
+
+/* Custom Workflow Node Styles */
+.workflow-node {
+  @apply rounded-lg border border-border bg-card;
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.workflow-node:hover {
+  border-color: #e879f9;
+  box-shadow:
+    /* Pink/magenta - subtle outer glow */
+    0 0 3px #e879f9,
+    0 0 6px rgba(232, 121, 249, 0.5),
+    /* Cyan accent */
+    inset 0 0 2px rgba(34, 211, 238, 0.3);
+}
+
+.workflow-node.selected {
+  border-color: #22d3ee;
+  box-shadow:
+    /* Cyan - subtle outer glow */
+    0 0 3px #22d3ee,
+    0 0 6px rgba(34, 211, 238, 0.5),
+    /* Pink accent */
+    inset 0 0 2px rgba(232, 121, 249, 0.3);
+}
+
+/* Node type indicators */
+.node-trigger {
+  @apply border-l-2;
+  border-left-color: hsl(var(--node-trigger));
+}
+
+.node-start {
+  @apply border-l-2;
+  border-left-color: hsl(var(--node-trigger));
+}
+
+.node-action {
+  @apply border-l-2;
+  border-left-color: hsl(var(--node-action));
+}
+
+.node-condition {
+  @apply border-l-2;
+  border-left-color: hsl(var(--node-condition));
+}
+
+.node-data {
+  @apply border-l-2;
+  border-left-color: var(--color-primary);
+}
+
+.node-utility {
+  @apply border-l-2;
+  border-left-color: var(--color-muted-foreground);
+}
+
+/* Node icon styles */
+.node-icon {
+  @apply flex h-8 w-8 items-center justify-center rounded-md;
+}
+
+.node-trigger .node-icon,
+.node-start .node-icon {
+  @apply bg-[hsl(var(--node-trigger))]/10 text-[hsl(var(--node-trigger))];
+}
+
+.node-action .node-icon {
+  @apply bg-[hsl(var(--node-action))]/10 text-[hsl(var(--node-action))];
+}
+
+.node-condition .node-icon {
+  @apply bg-[hsl(var(--node-condition))]/10 text-[hsl(var(--node-condition))];
+}
+
+.node-data .node-icon {
+  @apply bg-primary/20 text-primary;
+}
+
+.node-utility .node-icon {
+  @apply bg-muted text-muted-foreground;
+}
+
+/* Flow status indicators */
+.flow-status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+}
+
+.flow-status-dot.active {
+  background-color: hsl(var(--node-data));
+}
+
+.flow-status-dot.inactive {
+  background-color: color-mix(in oklab, var(--color-muted-foreground) 50%, transparent);
+}
+
+.flow-status-dot.running {
+  background-color: hsl(var(--node-trigger));
+  animation: flow-pulse 2s ease-in-out infinite;
+}
+
+.flow-status-dot.error {
+  background-color: var(--color-destructive);
+}
+
+@keyframes flow-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Monospace data display */
+.mono-data {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  @apply tracking-tight tabular-nums;
+}
+
+/* Buy/Sell badges */
+/* Desktop: the web's 46% green and 70% red text read below 4.5:1 on these
+   tints in the light theme (axe color-contrast); the light theme uses darker
+   shades, and the dark and analyzer themes keep the web's. */
+.badge-buy {
+  @apply bg-[hsl(142_76%_36%/0.15)] text-[hsl(142_76%_24%)] border border-[hsl(142_76%_36%/0.3)] rounded-md px-2 py-0.5 text-xs font-medium;
+}
+
+.badge-sell {
+  @apply bg-[hsl(0_84%_60%/0.15)] text-[hsl(0_84%_38%)] border border-[hsl(0_84%_60%/0.3)] rounded-md px-2 py-0.5 text-xs font-medium;
+}
+
+:is(.dark, .analyzer) .badge-buy {
+  @apply text-[hsl(142_76%_46%)];
+}
+
+:is(.dark, .analyzer) .badge-sell {
+  @apply text-[hsl(0_84%_70%)];
+}
+
+/* Surface background for node data rows */
+.bg-surface-2 {
+  @apply bg-muted/50;
+}
 
 /* =============================================================================
    CUSTOM SCROLLBAR STYLES

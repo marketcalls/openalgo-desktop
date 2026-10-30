@@ -5,11 +5,13 @@
  *
  * The Agent (`/agent`) came back in 1.0.4 (maintainer, 2026-10-27), as a page
  * with its route, its server path and its navigation entry in one change.
+ * Flow (`/flow`) came in 1.0.5 (maintainer, 2026-10-29) the same way.
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { nodeTypes } from '@/components/flow/nodes'
 import { desktopProfileMenuItems } from '@/lib/desktop'
 import { bottomNavItems, mobileSheetItems, navItems, profileMenuItems } from './navigation'
 
@@ -69,5 +71,23 @@ describe('the Agent is a page of this version', () => {
     expect(routerPaths()).toContain('/agent')
     expect(profileMenuItems.map((item) => item.href)).toContain('/agent')
     expect(profileMenuItems.find((item) => item.href === '/agent')?.label).toBe('Agent')
+  })
+})
+
+describe('Flow is a page of this version', () => {
+  it('has the three routes and the profile menu entry the web has', () => {
+    const paths = routerPaths()
+    expect(paths.filter((path) => path.startsWith('/flow')).sort()).toEqual([
+      '/flow',
+      '/flow/editor/:id',
+      '/flow/shortcuts',
+    ])
+    expect(profileMenuItems.find((item) => item.href === '/flow')?.label).toBe('Flow Editor')
+  })
+
+  it('advertises on the Home page the node count the palette ships (parity D-55)', () => {
+    const home = readFileSync(join(SRC_DIR, 'pages', 'Home.tsx'), 'utf8')
+    const advertised = Number(home.match(/wire (\d+) node types/)?.[1])
+    expect(advertised).toBe(Object.keys(nodeTypes).length)
   })
 })
