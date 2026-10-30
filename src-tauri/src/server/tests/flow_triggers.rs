@@ -1156,5 +1156,6 @@ async fn a_webhook_to_a_waiting_workflow_is_answered_at_once() {
     assert!(ctx.flow.try_claim(id).is_some());
 }
 
+mod key_rotation;
 mod monitors;
 mod public;
