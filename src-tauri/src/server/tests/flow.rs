@@ -681,9 +681,9 @@ async fn an_unknown_webhook_path_does_not_echo_its_token() {
             "/flow/webhook/<redacted>/SBIN/x",
         ),
         (
-            Method::DELETE,
-            "/flow/webhook/tok3n-abc/SBIN",
-            "/flow/webhook/<redacted>/SBIN",
+            Method::GET,
+            "/flow/webhook/tok3n-abc/SBIN/x?secret=s",
+            "/flow/webhook/<redacted>/SBIN/x",
         ),
         (
             Method::POST,
