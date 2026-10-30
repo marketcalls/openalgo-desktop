@@ -101,7 +101,7 @@ fn every_case_matches_the_web() {
     let fixture = json(COMPUTE);
     let cases = fixture["cases"].as_array().expect("cases");
     let mut failures = Failures::default();
-    for case in cases {
+    for case in cases.iter().filter(|c| !is_python_attribute(c)) {
         let got = with_request(case, compute_indicator_as_web);
         let problem = answer_diff(&got, case);
         if let Some(problem) = problem {
@@ -109,6 +109,39 @@ fn every_case_matches_the_web() {
         }
     }
     failures.check(cases.len());
+}
+
+/// A name the web's `getattr(ta, name)` resolves to a Python attribute
+/// rather than an indicator (`__init__`, `__class__`, `_sma`).
+fn is_python_attribute(case: &Value) -> bool {
+    case["name"]
+        .as_str()
+        .is_some_and(|n| n.trim().starts_with('_'))
+}
+
+/// A Python attribute of the web's `ta` object that is no indicator: the
+/// web's `getattr` reaches it and then fails with the interpreter's error
+/// (or reads the candles first); the desktop answers "unknown indicator"
+/// before anything else (IND-034, the parity rule that only the library's
+/// methods are names).
+#[test]
+fn python_attributes_are_unknown_indicators() {
+    let fixture = json(COMPUTE);
+    let cases: Vec<&Value> = fixture["cases"]
+        .as_array()
+        .expect("cases")
+        .iter()
+        .filter(|c| is_python_attribute(c))
+        .collect();
+    assert!(cases.len() >= 8, "{} attribute cases", cases.len());
+    for case in cases {
+        let name = case["name"].as_str().expect("name");
+        let got = with_request(case, compute_indicator).expect_err("refused");
+        assert_eq!(got.kind, "ValueError", "{name:?}");
+        assert_eq!(got.message, format!("unknown indicator '{name}'"));
+        let web = case["error"]["message"].as_str().expect("the web raised");
+        assert_ne!(web, got.message, "the web's getattr found {name:?}");
+    }
 }
 
 /// The rows the desktop reports differ from the web's only for outputs

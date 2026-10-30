@@ -1,6 +1,121 @@
 {
  "openalgo": "2.0.5",
  "timezone": "Asia/Kolkata",
+ "logged": [
+  {
+   "call": "clamp_bars",
+   "args": [
+    500,
+    "bars"
+   ],
+   "lines": [
+    [
+     "INFO",
+     "Requested 500 bars exceeds the 200-bar ceiling; using the latest 200"
+    ]
+   ]
+  },
+  {
+   "call": "clamp_bars",
+   "args": [
+    201,
+    "offset bars"
+   ],
+   "lines": [
+    [
+     "INFO",
+     "Requested 201 offset bars exceeds the 200-bar ceiling; using the latest 200"
+    ]
+   ]
+  },
+  {
+   "call": "clamp_bars",
+   "args": [
+    200,
+    "bars"
+   ],
+   "lines": []
+  },
+  {
+   "call": "trim_records",
+   "args": [
+    201
+   ],
+   "lines": [
+    [
+     "INFO",
+     "History returned 201 bars; trimming to the latest 200"
+    ]
+   ]
+  },
+  {
+   "call": "trim_records",
+   "args": [
+    200
+   ],
+   "lines": []
+  },
+  {
+   "call": "history_window",
+   "args": [
+    500,
+    null,
+    "1m"
+   ],
+   "lines": [
+    [
+     "INFO",
+     "Requested 500 history bars exceeds the 200-bar ceiling; using the latest 200"
+    ]
+   ]
+  },
+  {
+   "call": "history_window",
+   "args": [
+    200,
+    null,
+    "Y"
+   ],
+   "lines": [
+    [
+     "INFO",
+     "200 Y bars would span 80005 days; capping the request at 4000 days"
+    ]
+   ]
+  },
+  {
+   "call": "history_window",
+   "args": [
+    100,
+    5000,
+    "D"
+   ],
+   "lines": []
+  },
+  {
+   "call": "clamp_history_range",
+   "args": [
+    "2016-01-01",
+    "2026-10-30",
+    "1m"
+   ],
+   "lines": [
+    [
+     "INFO",
+     "History range 2016-01-01..2026-10-30 at 1m exceeds the 200-bar ceiling; starting from 2026-10-25 instead"
+    ]
+   ]
+  },
+  {
+   "call": "clamp_history_range",
+   "args": [
+    "2026-10-01",
+    "2026-10-30",
+    "D"
+   ],
+   "lines": []
+  }
+ ],
  "clamp_bars": [
   {
    "requested": -5,
@@ -2985,6 +3100,24 @@
    ]
   },
   {
+   "lookback_bars": 100,
+   "lookback_days": 5000,
+   "interval": "D",
+   "result": [
+    "2013-02-20",
+    "2026-10-30"
+   ]
+  },
+  {
+   "lookback_bars": 100,
+   "lookback_days": 10000,
+   "interval": "D",
+   "result": [
+    "1999-06-14",
+    "2026-10-30"
+   ]
+  },
+  {
    "lookback_bars": 200,
    "lookback_days": null,
    "interval": "W",
@@ -3094,6 +3227,33 @@
    "result": [
     "2015-11-17",
     "2026-10-30"
+   ]
+  },
+  {
+   "start": "20261001",
+   "end": "20261030",
+   "interval": "D",
+   "result": [
+    "20261001",
+    "20261030"
+   ]
+  },
+  {
+   "start": "2026-10-01T09:15:00+05:30",
+   "end": "2026-10-30T15:30:00+05:30",
+   "interval": "D",
+   "result": [
+    "2026-10-01T09:15:00+05:30",
+    "2026-10-30T15:30:00+05:30"
+   ]
+  },
+  {
+   "start": "2026-10-01 garbage after",
+   "end": "2026-10-30 end",
+   "interval": "D",
+   "result": [
+    "2026-10-01 garbage after",
+    "2026-10-30 end"
    ]
   }
  ],
