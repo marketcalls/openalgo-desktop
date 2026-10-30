@@ -401,6 +401,9 @@ mod tests {
             "Secret@123",
         )
         .unwrap();
+        // A new account starts with the bot off; switch it on again.
+        conn.execute_batch("UPDATE bot_config SET is_active = 1")
+            .unwrap();
         assert_eq!(
             client.telegram("hi").await,
             json!({"status": "error", "error": "No Telegram account linked for user: trader"})

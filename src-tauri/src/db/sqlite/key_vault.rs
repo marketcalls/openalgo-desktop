@@ -633,6 +633,7 @@ mod tests {
             "INSERT INTO ag_secret (name, ciphertext) VALUES ('provider:openai', 'v1:an:ac')",
         )
         .unwrap();
+        let w = witness(&conn).unwrap().unwrap();
         assert_eq!(
             w.aad,
             Aad::new("ag_secret", "ciphertext", "provider:openai")
