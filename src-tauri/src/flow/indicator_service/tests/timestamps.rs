@@ -12,6 +12,9 @@ use crate::flow::indicator_service::{
     IndicatorSource,
 };
 
+/// Bar `i`'s timestamp.
+type Stamp = Box<dyn Fn(usize) -> Value>;
+
 /// `sma(5)` over 30 bars whose timestamps are `stamp(i)`.
 fn sma_over(stamp: impl Fn(usize) -> Value) -> Result<IndicatorOutput, IndicatorError> {
     let records: Vec<Value> = (0..30)
@@ -82,7 +85,7 @@ fn day_first_dates_and_month_names_are_refused() {
 #[test]
 fn iso_offsets_epoch_seconds_and_slash_dates_read() {
     let epoch = |i: usize| 1_738_381_500 + i as i64 * 86_400;
-    let reads: [(&str, Box<dyn Fn(usize) -> Value>); 7] = [
+    let reads: [(&str, Stamp); 7] = [
         ("epoch seconds", Box::new(move |i| json!(epoch(i)))),
         (
             "fractional epoch seconds",
