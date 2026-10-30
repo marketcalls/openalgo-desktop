@@ -1,0 +1,2865 @@
+{
+ "web_commit": "96e5927e5",
+ "python": "3.12.12",
+ "math": [
+  {
+   "expr": "1",
+   "ok": "1.0"
+  },
+  {
+   "expr": "0",
+   "ok": "0.0"
+  },
+  {
+   "expr": "00",
+   "ok": "0.0"
+  },
+  {
+   "expr": "0_0",
+   "ok": "0.0"
+  },
+  {
+   "expr": "1_000",
+   "ok": "1000.0"
+  },
+  {
+   "expr": "0x10",
+   "ok": "16.0"
+  },
+  {
+   "expr": "0X1f",
+   "ok": "31.0"
+  },
+  {
+   "expr": "0o17",
+   "ok": "15.0"
+  },
+  {
+   "expr": "0b101",
+   "ok": "5.0"
+  },
+  {
+   "expr": "1e3",
+   "ok": "1000.0"
+  },
+  {
+   "expr": ".5",
+   "ok": "0.5"
+  },
+  {
+   "expr": "5.",
+   "ok": "5.0"
+  },
+  {
+   "expr": "1.5e-3",
+   "ok": "0.0015"
+  },
+  {
+   "expr": "1_0.2_5",
+   "ok": "10.25"
+  },
+  {
+   "expr": "1e400",
+   "ok": "inf"
+  },
+  {
+   "expr": "-1e400",
+   "ok": "-inf"
+  },
+  {
+   "expr": "1E+2",
+   "ok": "100.0"
+  },
+  {
+   "expr": "0e0",
+   "ok": "0.0"
+  },
+  {
+   "expr": "123456789012345678901234567890",
+   "ok": "1.2345678901234568e+29"
+  },
+  {
+   "expr": "9007199254740993",
+   "ok": "9007199254740992.0"
+  },
+  {
+   "expr": "2**53 + 1",
+   "ok": "9007199254740992.0"
+  },
+  {
+   "expr": "(2**60 + 1) - 2**60",
+   "ok": "1.0"
+  },
+  {
+   "expr": "10 ** 20",
+   "ok": "1e+20"
+  },
+  {
+   "expr": "10 ** 22",
+   "ok": "1e+22"
+  },
+  {
+   "expr": "10 ** 23",
+   "ok": "1e+23"
+  },
+  {
+   "expr": "2 ** 1023 * 2",
+   "err": "Exponent too large: 1023 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "2 ** 100 * 2 ** 100 * 2 ** 100 * 2 ** 100 * 2 ** 100 * 2 ** 100 * 2 ** 100 * 2 ** 100 * 2 ** 100 * 2 ** 100 * 2 ** 100",
+   "err": "int too large to convert to float",
+   "kind": "OverflowError"
+  },
+  {
+   "expr": "2 + 3",
+   "ok": "5.0"
+  },
+  {
+   "expr": "2 - 3",
+   "ok": "-1.0"
+  },
+  {
+   "expr": "2 * 3",
+   "ok": "6.0"
+  },
+  {
+   "expr": "7 / 2",
+   "ok": "3.5"
+  },
+  {
+   "expr": "-7 / 2",
+   "ok": "-3.5"
+  },
+  {
+   "expr": "1 / 3",
+   "ok": "0.3333333333333333"
+  },
+  {
+   "expr": "2 / 3",
+   "ok": "0.6666666666666666"
+  },
+  {
+   "expr": "10 / 4",
+   "ok": "2.5"
+  },
+  {
+   "expr": "6 / 3",
+   "ok": "2.0"
+  },
+  {
+   "expr": "-2 ** 2",
+   "ok": "-4.0"
+  },
+  {
+   "expr": "(-2) ** 2",
+   "ok": "4.0"
+  },
+  {
+   "expr": "2 ** 3 ** 2",
+   "ok": "512.0"
+  },
+  {
+   "expr": "2 ** -1",
+   "ok": "0.5"
+  },
+  {
+   "expr": "2 ** -2 ** 2",
+   "ok": "0.0625"
+  },
+  {
+   "expr": "-2 ** -2",
+   "ok": "-0.25"
+  },
+  {
+   "expr": "+3",
+   "ok": "3.0"
+  },
+  {
+   "expr": "-(-3)",
+   "ok": "3.0"
+  },
+  {
+   "expr": "- - 3",
+   "ok": "3.0"
+  },
+  {
+   "expr": "+-+3",
+   "ok": "-3.0"
+  },
+  {
+   "expr": "2 * -3",
+   "ok": "-6.0"
+  },
+  {
+   "expr": "2 ** 10 % 7 - -1",
+   "ok": "3.0"
+  },
+  {
+   "expr": "1 + 2 * 3 - 4 / 2",
+   "ok": "5.0"
+  },
+  {
+   "expr": "(1 + 2) * 3",
+   "ok": "9.0"
+  },
+  {
+   "expr": "((((1))))",
+   "ok": "1.0"
+  },
+  {
+   "expr": "  2+3  ",
+   "ok": "5.0"
+  },
+  {
+   "expr": "(1 +\n 2)",
+   "ok": "3.0"
+  },
+  {
+   "expr": "(1 + # c\n 2)",
+   "ok": "3.0"
+  },
+  {
+   "expr": "1 + 2 # trailing",
+   "ok": "3.0"
+  },
+  {
+   "expr": "1 \\\n + 2",
+   "ok": "3.0"
+  },
+  {
+   "expr": "-7 % 3",
+   "ok": "2.0"
+  },
+  {
+   "expr": "7 % -3",
+   "ok": "-2.0"
+  },
+  {
+   "expr": "-7 % -3",
+   "ok": "-1.0"
+  },
+  {
+   "expr": "7 % 3",
+   "ok": "1.0"
+  },
+  {
+   "expr": "-7.5 % 2",
+   "ok": "0.5"
+  },
+  {
+   "expr": "7.5 % -2",
+   "ok": "-0.5"
+  },
+  {
+   "expr": "5 % 2.5",
+   "ok": "0.0"
+  },
+  {
+   "expr": "-0.0 % 5",
+   "ok": "0.0"
+  },
+  {
+   "expr": "0.0 % -5",
+   "ok": "-0.0"
+  },
+  {
+   "expr": "10 ** 30 % 7",
+   "ok": "1.0"
+  },
+  {
+   "expr": "-(10 ** 30) % 7",
+   "ok": "6.0"
+  },
+  {
+   "expr": "(2**70) % (2**35 + 3)",
+   "ok": "9.0"
+  },
+  {
+   "expr": "-(2**70) % (2**35 + 3)",
+   "ok": "34359738362.0"
+  },
+  {
+   "expr": "(2**70) % -(2**35 + 3)",
+   "ok": "-34359738362.0"
+  },
+  {
+   "expr": "5.5 % 1e300",
+   "ok": "5.5"
+  },
+  {
+   "expr": "1e300 % 7",
+   "ok": "1.0"
+  },
+  {
+   "expr": "(10**30) / 3",
+   "ok": "3.333333333333333e+29"
+  },
+  {
+   "expr": "(10**30 + 1) / (10**15)",
+   "ok": "1000000000000000.0"
+  },
+  {
+   "expr": "(2**80 + 1) / 2**27",
+   "ok": "9007199254740992.0"
+  },
+  {
+   "expr": "(3 * 2**60) / 2**3",
+   "ok": "4.323455642275676e+17"
+  },
+  {
+   "expr": "1 / (10**400)",
+   "err": "Exponent too large: 400 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(10**400) / (10**399)",
+   "err": "Exponent too large: 400 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(10**400) / 3",
+   "err": "Exponent too large: 400 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(2**1100) / (2**1000)",
+   "err": "Exponent too large: 1100 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(2**1100) / 3",
+   "err": "Exponent too large: 1100 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(2**2000) / (2**10)",
+   "err": "Exponent too large: 2000 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(2**1074 + 1) / 2**2148",
+   "err": "Exponent too large: 1074 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 / 2**1074",
+   "err": "Exponent too large: 1074 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 / 2**1075",
+   "err": "Exponent too large: 1075 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "3 / 2**1075",
+   "err": "Exponent too large: 1075 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(2**53 + 1) / 1",
+   "ok": "9007199254740992.0"
+  },
+  {
+   "expr": "(2**54 + 2) / 2",
+   "ok": "9007199254740992.0"
+  },
+  {
+   "expr": "(2**54 + 6) / 2",
+   "ok": "9007199254740996.0"
+  },
+  {
+   "expr": "-(10**30) / 7",
+   "ok": "-1.4285714285714285e+29"
+  },
+  {
+   "expr": "0 / 5",
+   "ok": "0.0"
+  },
+  {
+   "expr": "0 / -5",
+   "ok": "-0.0"
+  },
+  {
+   "expr": "-0.0 / 5",
+   "ok": "-0.0"
+  },
+  {
+   "expr": "0.0 / -5",
+   "ok": "-0.0"
+  },
+  {
+   "expr": "floor(3.9)",
+   "ok": "3.0"
+  },
+  {
+   "expr": "floor(2 + 2.8)",
+   "ok": "4.0"
+  },
+  {
+   "expr": "floor(-2.5)",
+   "ok": "-3.0"
+  },
+  {
+   "expr": "floor(5)",
+   "ok": "5.0"
+  },
+  {
+   "expr": "floor(-0.5)",
+   "ok": "-1.0"
+  },
+  {
+   "expr": "floor(1e20)",
+   "ok": "1e+20"
+  },
+  {
+   "expr": "floor(1e300) / 10**290",
+   "err": "Exponent too large: 290 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "floor(10**30 / 7)",
+   "ok": "1.4285714285714285e+29"
+  },
+  {
+   "expr": "floor(  7.2  )",
+   "ok": "7.0"
+  },
+  {
+   "expr": "floor((1, 2)[0])",
+   "err": "Unsupported expression type: Subscript",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "floor(1e308 * 10)",
+   "err": "cannot convert float infinity to integer",
+   "kind": "OverflowError"
+  },
+  {
+   "expr": "floor(-1e308 * 10)",
+   "err": "cannot convert float infinity to integer",
+   "kind": "OverflowError"
+  },
+  {
+   "expr": "floor(1e308 * 10 - 1e308 * 10)",
+   "err": "cannot convert float NaN to integer",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "floor(((-8) ** 0.5))",
+   "err": "must be real number, not complex",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "2 ** 100",
+   "ok": "1.2676506002282294e+30"
+  },
+  {
+   "expr": "2 ** 101",
+   "err": "Exponent too large: 101 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "2 ** -100",
+   "ok": "7.888609052210118e-31"
+  },
+  {
+   "expr": "2 ** -101",
+   "err": "Exponent too large: -101 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "2.5 ** 2",
+   "ok": "6.25"
+  },
+  {
+   "expr": "4 ** 0.5",
+   "ok": "2.0"
+  },
+  {
+   "expr": "0 ** 0",
+   "ok": "1.0"
+  },
+  {
+   "expr": "0.0 ** 0",
+   "ok": "1.0"
+  },
+  {
+   "expr": "0 ** -1",
+   "err": "0.0 cannot be raised to a negative power",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "0.0 ** -1",
+   "err": "0.0 cannot be raised to a negative power",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "0 ** -1.5",
+   "err": "0.0 cannot be raised to a negative power",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "0.0 ** 2",
+   "ok": "0.0"
+  },
+  {
+   "expr": "(-0.0) ** 3",
+   "ok": "-0.0"
+  },
+  {
+   "expr": "(-0.0) ** 2",
+   "ok": "0.0"
+  },
+  {
+   "expr": "(-2) ** 3",
+   "ok": "-8.0"
+  },
+  {
+   "expr": "(-2.0) ** 3",
+   "ok": "-8.0"
+  },
+  {
+   "expr": "(-2.0) ** 4",
+   "ok": "16.0"
+  },
+  {
+   "expr": "(-8) ** 0.5",
+   "err": "float() argument must be a string or a real number, not 'complex'",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "(-8) ** (1/3)",
+   "err": "float() argument must be a string or a real number, not 'complex'",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "(-1) ** 0.5",
+   "err": "float() argument must be a string or a real number, not 'complex'",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "(-8.0) ** 0.5 + 1",
+   "err": "float() argument must be a string or a real number, not 'complex'",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "(-8) ** 0.5 * 2",
+   "err": "float() argument must be a string or a real number, not 'complex'",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "(-8) ** 0.5 - (-8) ** 0.5",
+   "err": "float() argument must be a string or a real number, not 'complex'",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "(-8) ** 0.5 / 2",
+   "err": "float() argument must be a string or a real number, not 'complex'",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "2 / (-8) ** 0.5",
+   "err": "float() argument must be a string or a real number, not 'complex'",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "(-8) ** 0.5 / 0",
+   "err": "complex division by zero",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "((-8) ** 0.5) ** 2",
+   "err": "float() argument must be a string or a real number, not 'complex'",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "((-8) ** 0.5) ** 0.5",
+   "err": "float() argument must be a string or a real number, not 'complex'",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "((-8) ** 0.5) ** -1",
+   "err": "float() argument must be a string or a real number, not 'complex'",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "((-1) ** 0.5) ** 101",
+   "err": "Exponent too large: 101 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "((-1) ** 0.5) ** 100.5",
+   "err": "Exponent too large: 100.5 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(0 * (-1) ** 0.5) ** -1",
+   "err": "0.0 to a negative or complex power",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "2 ** ((-1) ** 0.5)",
+   "err": "float() argument must be a string or a real number, not 'complex'",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "(-8) ** 0.5 % 2",
+   "err": "unsupported operand type(s) for %: 'complex' and 'int'",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "2 % (-8) ** 0.5",
+   "err": "unsupported operand type(s) for %: 'int' and 'complex'",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "-((-8) ** 0.5)",
+   "err": "float() argument must be a string or a real number, not 'complex'",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "+((-8) ** 0.5)",
+   "err": "float() argument must be a string or a real number, not 'complex'",
+   "kind": "TypeError"
+  },
+  {
+   "expr": "1e300 ** 2",
+   "err": "(34, 'Result too large')",
+   "kind": "OverflowError"
+  },
+  {
+   "expr": "10.0 ** 308",
+   "err": "Exponent too large: 308 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "10.0 ** 309",
+   "err": "Exponent too large: 309 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "10.0 ** -310",
+   "err": "Exponent too large: -310 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "10.0 ** -400",
+   "err": "Exponent too large: -400 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(-10.0) ** 309",
+   "err": "Exponent too large: 309 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1e308 * 10",
+   "ok": "inf"
+  },
+  {
+   "expr": "-1e308 * 10",
+   "ok": "-inf"
+  },
+  {
+   "expr": "1e308 * 10 - 1e308 * 10",
+   "ok": "nan"
+  },
+  {
+   "expr": "1e308 * 10 * 0",
+   "ok": "nan"
+  },
+  {
+   "expr": "(1e308 * 10) ** 0",
+   "ok": "1.0"
+  },
+  {
+   "expr": "(1e308 * 10) ** -1",
+   "ok": "0.0"
+  },
+  {
+   "expr": "(-1e308 * 10) ** 3",
+   "ok": "-inf"
+  },
+  {
+   "expr": "(-1e308 * 10) ** 2",
+   "ok": "inf"
+  },
+  {
+   "expr": "(-1e308 * 10) ** -3",
+   "ok": "-0.0"
+  },
+  {
+   "expr": "1 ** (1e308 * 10)",
+   "err": "Exponent too large: inf (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "0.5 ** (1e308 * 10)",
+   "err": "Exponent too large: inf (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "2 ** (1e308 * 10)",
+   "err": "Exponent too large: inf (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "0.5 ** (-1e308 * 10)",
+   "err": "Exponent too large: -inf (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(1e308 * 10 - 1e308 * 10) ** 0",
+   "ok": "1.0"
+  },
+  {
+   "expr": "(1e308 * 10 - 1e308 * 10) ** 2",
+   "ok": "nan"
+  },
+  {
+   "expr": "1 ** (1e308 * 10 - 1e308 * 10)",
+   "ok": "1.0"
+  },
+  {
+   "expr": "2 ** (1e308 * 10 - 1e308 * 10)",
+   "ok": "nan"
+  },
+  {
+   "expr": "(-1) ** 1e18",
+   "err": "Exponent too large: 1e+18 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(-1.0) ** 3.0",
+   "ok": "-1.0"
+  },
+  {
+   "expr": "1.0 ** 101",
+   "err": "Exponent too large: 101 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(10 ** 100) ** 4",
+   "err": "int too large to convert to float",
+   "kind": "OverflowError"
+  },
+  {
+   "expr": "(10 ** 100) ** 3",
+   "ok": "1e+300"
+  },
+  {
+   "expr": "(10 ** 100) ** -1",
+   "ok": "1e-100"
+  },
+  {
+   "expr": "(10 ** 400) ** -1",
+   "err": "Exponent too large: 400 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(10 ** 400) * 1.0",
+   "err": "Exponent too large: 400 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(10 ** 400) + 0.5",
+   "err": "Exponent too large: 400 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(10 ** 400) / 2",
+   "err": "Exponent too large: 400 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(10 ** 400) - (10 ** 400) + 0.5",
+   "err": "Exponent too large: 400 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "2 ** 1024 / 1",
+   "err": "Exponent too large: 1024 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "2 ** 100.5",
+   "err": "Exponent too large: 100.5 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "2 ** -100.0",
+   "ok": "7.888609052210118e-31"
+  },
+  {
+   "expr": "2 ** 100.0",
+   "ok": "1.2676506002282294e+30"
+  },
+  {
+   "expr": "2 ** 101.0",
+   "err": "Exponent too large: 101.0 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1e300 ** -2",
+   "ok": "0.0"
+  },
+  {
+   "expr": "5 ** (10 ** 100 - 10 ** 100 + 2)",
+   "ok": "25.0"
+  },
+  {
+   "expr": "1 / 0",
+   "err": "division by zero",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "1.5 / 0",
+   "err": "float division by zero",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "1 / 0.0",
+   "err": "float division by zero",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "0 / 0",
+   "err": "division by zero",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "(1e308 * 10 - 1e308 * 10) / 0",
+   "err": "float division by zero",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "7 % 0",
+   "err": "integer modulo by zero",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "7.5 % 0",
+   "err": "float modulo",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "7 % 0.0",
+   "err": "float modulo",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "(10 ** 400) % 0",
+   "err": "Exponent too large: 400 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(10 ** 400) / 0",
+   "err": "Exponent too large: 400 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "",
+   "err": "Empty expression",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "   ",
+   "err": "Empty expression",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "a",
+   "err": "Unsupported expression type: Name",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "lot * 2",
+   "err": "Unsupported expression type: Name",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "floor",
+   "err": "Unsupported expression type: Name",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "True",
+   "err": "Unsupported constant: True",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "False + 1",
+   "err": "Unsupported constant: False",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "None",
+   "err": "Unsupported constant: None",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "...",
+   "err": "Unsupported constant: Ellipsis",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "'10' * 2",
+   "err": "Unsupported constant: 10",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "\"x\"",
+   "err": "Unsupported constant: x",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "b'x'",
+   "err": "Unsupported constant: b'x'",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "b'\\x00\\n'",
+   "err": "Unsupported constant: b'\\x00\\n'",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "'a' 'b'",
+   "err": "Unsupported constant: ab",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1j",
+   "err": "Unsupported constant: 1j",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1j * 2",
+   "err": "Unsupported constant: 1j",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1.5J",
+   "err": "Unsupported constant: 1.5j",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "0j",
+   "err": "Unsupported constant: 0j",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1e16j",
+   "err": "Unsupported constant: 1e+16j",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "f'{1}'",
+   "err": "Unsupported expression type: JoinedStr",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "'a' f'b'",
+   "err": "Unsupported expression type: JoinedStr",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "abs(-1)",
+   "err": "Only floor(expression) is supported",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "ceil(1.1)",
+   "err": "Only floor(expression) is supported",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "math.floor(2.2)",
+   "err": "Only floor(expression) is supported",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "floor()",
+   "err": "Only floor(expression) is supported",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "floor(1, 2)",
+   "err": "Only floor(expression) is supported",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "floor(x=1)",
+   "err": "Only floor(expression) is supported",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "floor(unknown(1))",
+   "err": "Only floor(expression) is supported",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "__import__('os').system('echo unsafe')",
+   "err": "Only floor(expression) is supported",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "floor(*[1])",
+   "err": "Unsupported expression type: Starred",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "floor(**{})",
+   "err": "Only floor(expression) is supported",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(floor)(2.5)",
+   "ok": "2.0"
+  },
+  {
+   "expr": "floor(2.5)(1)",
+   "err": "Only floor(expression) is supported",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "floor(1).real",
+   "err": "Unsupported expression type: Attribute",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 // 2",
+   "err": "Unsupported operator: FloorDiv",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 ^ 2",
+   "err": "Unsupported operator: BitXor",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 << 2",
+   "err": "Unsupported operator: LShift",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 >> 2",
+   "err": "Unsupported operator: RShift",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 | 2",
+   "err": "Unsupported operator: BitOr",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 & 2",
+   "err": "Unsupported operator: BitAnd",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 @ 2",
+   "err": "Unsupported operator: MatMult",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "~1",
+   "err": "Unsupported unary operator: Invert",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "not 1",
+   "err": "Unsupported unary operator: Not",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "not (1 / 0)",
+   "err": "division by zero",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "1 < 2",
+   "err": "Unsupported expression type: Compare",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 == 1",
+   "err": "Unsupported expression type: Compare",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 < 2 < 3",
+   "err": "Unsupported expression type: Compare",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 in 2",
+   "err": "Unsupported expression type: Compare",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 is 1",
+   "err": "Unsupported expression type: Compare",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 and 2",
+   "err": "Unsupported expression type: BoolOp",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 or 2",
+   "err": "Unsupported expression type: BoolOp",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 if 2 else 3",
+   "err": "Unsupported expression type: IfExp",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "[1]",
+   "err": "Unsupported expression type: List",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(1, 2)",
+   "err": "Unsupported expression type: Tuple",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "()",
+   "err": "Unsupported expression type: Tuple",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(1,)",
+   "err": "Unsupported expression type: Tuple",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1, 2",
+   "err": "Unsupported expression type: Tuple",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "{}",
+   "err": "Unsupported expression type: Dict",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "{1: 2}",
+   "err": "Unsupported expression type: Dict",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "{1}",
+   "err": "Unsupported expression type: Set",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "{**{}}",
+   "err": "Unsupported expression type: Dict",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "[x for x in y]",
+   "err": "Unsupported expression type: ListComp",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "{x for x in y}",
+   "err": "Unsupported expression type: SetComp",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "{x: 1 for x in y}",
+   "err": "Unsupported expression type: DictComp",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(x for x in y)",
+   "err": "Unsupported expression type: GeneratorExp",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "floor(x for x in y)",
+   "err": "Unsupported expression type: GeneratorExp",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "lambda: 1",
+   "err": "Unsupported expression type: Lambda",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "lambda x, y=2: x",
+   "err": "Unsupported expression type: Lambda",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "x.y",
+   "err": "Unsupported expression type: Attribute",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "x[0]",
+   "err": "Unsupported expression type: Subscript",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "x[1:2]",
+   "err": "Unsupported expression type: Subscript",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "x[::2, 1]",
+   "err": "Unsupported expression type: Subscript",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(x := 1)",
+   "err": "Unsupported expression type: NamedExpr",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 + (2 if 3 else 4)",
+   "err": "Unsupported expression type: IfExp",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "-[1]",
+   "err": "Unsupported expression type: List",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "+{}",
+   "err": "Unsupported expression type: Dict",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(1 / 0) // 2",
+   "err": "division by zero",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "x // (1 / 0)",
+   "err": "Unsupported expression type: Name",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(1 / 0) + x",
+   "err": "division by zero",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "x + (1 / 0)",
+   "err": "Unsupported expression type: Name",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "2 ** (1 / 0)",
+   "err": "division by zero",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "(1 / 0) ** 200",
+   "err": "division by zero",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "2 ** 200 ** 0",
+   "ok": "2.0"
+  },
+  {
+   "expr": "2 ** x",
+   "err": "Unsupported expression type: Name",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "2 ** 1000 / 0",
+   "err": "Exponent too large: 1000 (max 100)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "floor(1 / 0)",
+   "err": "division by zero",
+   "kind": "ZeroDivisionError"
+  },
+  {
+   "expr": "{{x}} * 2",
+   "err": "Unsupported expression type: Set",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "{{x}}",
+   "err": "Unsupported expression type: Set",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "{'a': 1}",
+   "err": "Unsupported expression type: Dict",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "[1, 2]",
+   "err": "Unsupported expression type: List",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(1 / 0, 2)",
+   "err": "Unsupported expression type: Tuple",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "await x",
+   "err": "Unsupported expression type: Await",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(yield)",
+   "err": "Unsupported expression type: Yield",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 + 2 * (3 - x)",
+   "err": "Unsupported expression type: Name",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "*a",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "*a, b",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "f(a)(b)",
+   "err": "Only floor(expression) is supported",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 .real",
+   "err": "Unsupported expression type: Attribute",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1.0.real",
+   "err": "Unsupported expression type: Attribute",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1if 1 else 2",
+   "err": "Unsupported expression type: IfExp",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "2 +",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(1 + 2",
+   "err": "Invalid expression syntax: '(' was never closed (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 + 2)",
+   "err": "Invalid expression syntax: unmatched ')' (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "[1, 2",
+   "err": "Invalid expression syntax: '[' was never closed (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(1]",
+   "err": "Invalid expression syntax: closing parenthesis ']' does not match opening parenthesis '(' (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 2",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 = 2",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 +* 2",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "01",
+   "err": "Invalid expression syntax: leading zeros in decimal integer literals are not permitted; use an 0o prefix for octal integers (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1__0",
+   "err": "Invalid expression syntax: invalid decimal literal (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1_",
+   "err": "Invalid expression syntax: invalid decimal literal (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "0x",
+   "err": "Invalid expression syntax: invalid hexadecimal literal (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "0b2",
+   "err": "Invalid expression syntax: invalid digit '2' in binary literal (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "0o8",
+   "err": "Invalid expression syntax: invalid digit '8' in octal literal (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1e",
+   "err": "Invalid expression syntax: invalid decimal literal (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "'abc",
+   "err": "Invalid expression syntax: unterminated string literal (detected at line 1) (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "'''abc",
+   "err": "Invalid expression syntax: unterminated triple-quoted string literal (detected at line 1) (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1;2",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1\n2",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 2)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "x := 1",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "lambda",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 +\n2",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "$",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 ! 2",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "f(x=1, 2)",
+   "err": "Invalid expression syntax: positional argument follows keyword argument (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "f(x for x in y, 1)",
+   "err": "Invalid expression syntax: Generator expression must be parenthesized (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "[*]",
+   "err": "Invalid expression syntax: Invalid star expression (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1.e",
+   "err": "Invalid expression syntax: invalid decimal literal (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "..",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1..2",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "a b",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "if",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "else",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "(1 if 2)",
+   "err": "Invalid expression syntax: expected 'else' after 'if' expression (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 + ",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "()()",
+   "err": "Only floor(expression) is supported",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 <> 2",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  },
+  {
+   "expr": "1 === 2",
+   "err": "Invalid expression syntax: invalid syntax (<unknown>, line 1)",
+   "kind": "ValueError"
+  }
+ ],
+ "json": [
+  {
+   "text": "{bad",
+   "err": "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+  },
+  {
+   "text": "nope",
+   "err": "Expecting value: line 1 column 1 (char 0)"
+  },
+  {
+   "text": "{\"a\":1,}",
+   "err": "Expecting property name enclosed in double quotes: line 1 column 8 (char 7)"
+  },
+  {
+   "text": "[1,]",
+   "err": "Expecting value: line 1 column 4 (char 3)"
+  },
+  {
+   "text": "\"abc",
+   "err": "Unterminated string starting at: line 1 column 1 (char 0)"
+  },
+  {
+   "text": "\"a\\x\"",
+   "err": "Invalid \\escape: line 1 column 3 (char 2)"
+  },
+  {
+   "text": "{\"a\" 1}",
+   "err": "Expecting ':' delimiter: line 1 column 6 (char 5)"
+  },
+  {
+   "text": "{\"a\":1 \"b\"}",
+   "err": "Expecting ',' delimiter: line 1 column 8 (char 7)"
+  },
+  {
+   "text": "1 2",
+   "err": "Extra data: line 1 column 3 (char 2)"
+  },
+  {
+   "text": "﻿1",
+   "err": "Unexpected UTF-8 BOM (decode using utf-8-sig): line 1 column 1 (char 0)"
+  },
+  {
+   "text": "\"\\u12\"",
+   "err": "Invalid \\uXXXX escape: line 1 column 3 (char 2)"
+  },
+  {
+   "text": "\"\\u12zz\"",
+   "err": "Invalid \\uXXXX escape: line 1 column 3 (char 2)"
+  },
+  {
+   "text": "[",
+   "err": "Expecting value: line 1 column 2 (char 1)"
+  },
+  {
+   "text": "",
+   "err": "Expecting value: line 1 column 1 (char 0)"
+  },
+  {
+   "text": "  ",
+   "err": "Expecting value: line 1 column 3 (char 2)"
+  },
+  {
+   "text": "-",
+   "err": "Expecting value: line 1 column 1 (char 0)"
+  },
+  {
+   "text": "01",
+   "err": "Extra data: line 1 column 2 (char 1)"
+  },
+  {
+   "text": "1.",
+   "err": "Extra data: line 1 column 2 (char 1)"
+  },
+  {
+   "text": "NaN",
+   "ok": "nan"
+  },
+  {
+   "text": "-Infinity",
+   "ok": "-inf"
+  },
+  {
+   "text": "Infinity",
+   "ok": "inf"
+  },
+  {
+   "text": "1e400",
+   "ok": "inf"
+  },
+  {
+   "text": "\"a\tb\"",
+   "err": "Invalid control character at: line 1 column 3 (char 2)"
+  },
+  {
+   "text": "{\"ok\": true}",
+   "ok": "{'ok': True}"
+  },
+  {
+   "text": "[1, 2.5, \"x\"]",
+   "ok": "[1, 2.5, 'x']"
+  },
+  {
+   "text": "{\"k\": [true, null]}",
+   "ok": "{'k': [True, None]}"
+  },
+  {
+   "text": "  {\"a\" : 1 }  ",
+   "ok": "{'a': 1}"
+  },
+  {
+   "text": "{\"a\": {\"b\": [1, {\"c\": \"d\"}]}}",
+   "ok": "{'a': {'b': [1, {'c': 'd'}]}}"
+  },
+  {
+   "text": "\"\\ud83d\\ude00\"",
+   "ok": "'😀'"
+  },
+  {
+   "text": "\"\\u00e9\"",
+   "ok": "'é'"
+  },
+  {
+   "text": "\"café\"",
+   "ok": "'café'"
+  },
+  {
+   "text": "\"\\/\\b\\f\\n\\r\\t\\\"\\\\\"",
+   "ok": "'/\\x08\\x0c\\n\\r\\t\"\\\\'"
+  },
+  {
+   "text": "-0",
+   "ok": "0"
+  },
+  {
+   "text": "-0.0",
+   "ok": "-0.0"
+  },
+  {
+   "text": "1E5",
+   "ok": "100000.0"
+  },
+  {
+   "text": "1e-5",
+   "ok": "1e-05"
+  },
+  {
+   "text": "0.1",
+   "ok": "0.1"
+  },
+  {
+   "text": "123456789012345678901234567890",
+   "ok": "123456789012345678901234567890"
+  },
+  {
+   "text": "[1,2,]",
+   "err": "Expecting value: line 1 column 6 (char 5)"
+  },
+  {
+   "text": "{\"a\":}",
+   "err": "Expecting value: line 1 column 6 (char 5)"
+  },
+  {
+   "text": "{,}",
+   "err": "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+  },
+  {
+   "text": "{\"a\"",
+   "err": "Expecting ':' delimiter: line 1 column 5 (char 4)"
+  },
+  {
+   "text": "{\"a\":",
+   "err": "Expecting value: line 1 column 6 (char 5)"
+  },
+  {
+   "text": "{\"a\":1",
+   "err": "Expecting ',' delimiter: line 1 column 7 (char 6)"
+  },
+  {
+   "text": "[1",
+   "err": "Expecting ',' delimiter: line 1 column 3 (char 2)"
+  },
+  {
+   "text": "[1,",
+   "err": "Expecting value: line 1 column 4 (char 3)"
+  },
+  {
+   "text": "true",
+   "ok": "True"
+  },
+  {
+   "text": "false",
+   "ok": "False"
+  },
+  {
+   "text": "null",
+   "ok": "None"
+  },
+  {
+   "text": "tru",
+   "err": "Expecting value: line 1 column 1 (char 0)"
+  },
+  {
+   "text": "nul",
+   "err": "Expecting value: line 1 column 1 (char 0)"
+  },
+  {
+   "text": "\"x\" junk",
+   "err": "Extra data: line 1 column 5 (char 4)"
+  },
+  {
+   "text": "\n\n  x",
+   "err": "Expecting value: line 3 column 3 (char 4)"
+  },
+  {
+   "text": "[\n1,\n2\n,]",
+   "err": "Expecting value: line 4 column 2 (char 8)"
+  },
+  {
+   "text": "{\"a\":1}\n",
+   "ok": "{'a': 1}"
+  },
+  {
+   "text": "{1: 2}",
+   "err": "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+  },
+  {
+   "text": "{'a': 1}",
+   "err": "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+  },
+  {
+   "text": "\"\\",
+   "err": "Unterminated string starting at: line 1 column 1 (char 0)"
+  },
+  {
+   "text": "\"abc\\",
+   "err": "Unterminated string starting at: line 1 column 1 (char 0)"
+  },
+  {
+   "text": "\"\\u\"",
+   "err": "Invalid \\uXXXX escape: line 1 column 3 (char 2)"
+  },
+  {
+   "text": "[-]",
+   "err": "Expecting value: line 1 column 2 (char 1)"
+  },
+  {
+   "text": "[-x]",
+   "err": "Expecting value: line 1 column 2 (char 1)"
+  },
+  {
+   "text": "1.5e",
+   "err": "Extra data: line 1 column 4 (char 3)"
+  },
+  {
+   "text": "2.",
+   "err": "Extra data: line 1 column 2 (char 1)"
+  },
+  {
+   "text": ".5",
+   "err": "Expecting value: line 1 column 1 (char 0)"
+  },
+  {
+   "text": "+1",
+   "err": "Expecting value: line 1 column 1 (char 0)"
+  },
+  {
+   "text": "0x10",
+   "err": "Extra data: line 1 column 2 (char 1)"
+  },
+  {
+   "text": "[1 2]",
+   "err": "Expecting ',' delimiter: line 1 column 4 (char 3)"
+  },
+  {
+   "text": "{\"a\":1,\"a\":2}",
+   "ok": "{'a': 2}"
+  },
+  {
+   "text": "\" \"",
+   "ok": "'\\u2028'"
+  },
+  {
+   "text": "{\"a\": NaN}",
+   "ok": "{'a': nan}"
+  },
+  {
+   "text": "[Infinity, -Infinity]",
+   "ok": "[inf, -inf]"
+  }
+ ],
+ "urls": [
+  {
+   "url": "https://api.example.com/send?token=SECRET",
+   "scheme": "https",
+   "hostname": "api.example.com",
+   "port": null,
+   "redacted": "https://api.example.com/send?<redacted>"
+  },
+  {
+   "url": "http://user:pw@Api.Example.COM:8080/v1?key=x#frag",
+   "scheme": "http",
+   "hostname": "api.example.com",
+   "port": 8080,
+   "redacted": "http://api.example.com:8080/v1?<redacted>"
+  },
+  {
+   "url": "http://[::1]/",
+   "scheme": "http",
+   "hostname": "::1",
+   "port": null,
+   "redacted": "http://::1/"
+  },
+  {
+   "url": "http://[::1]:8080/a",
+   "scheme": "http",
+   "hostname": "::1",
+   "port": 8080,
+   "redacted": "http://::1:8080/a"
+  },
+  {
+   "url": "HTTP://EXAMPLE.com",
+   "scheme": "http",
+   "hostname": "example.com",
+   "port": null,
+   "redacted": "http://example.com"
+  },
+  {
+   "url": "http://example.com",
+   "scheme": "http",
+   "hostname": "example.com",
+   "port": null,
+   "redacted": "http://example.com"
+  },
+  {
+   "url": "http://h:99999/",
+   "scheme": "http",
+   "hostname": "h",
+   "port_error": "Port out of range 0-65535",
+   "redact_error": "Port out of range 0-65535"
+  },
+  {
+   "url": "http://h:ab/",
+   "scheme": "http",
+   "hostname": "h",
+   "port_error": "Port could not be cast to integer value as 'ab'",
+   "redact_error": "Port could not be cast to integer value as 'ab'"
+  },
+  {
+   "url": "http://h:0/",
+   "scheme": "http",
+   "hostname": "h",
+   "port": 0,
+   "redacted": "http://h/"
+  },
+  {
+   "url": "http://h:/",
+   "scheme": "http",
+   "hostname": "h",
+   "port": null,
+   "redacted": "http://h/"
+  },
+  {
+   "url": "http:///path",
+   "scheme": "http",
+   "hostname": null,
+   "port": null,
+   "redacted": "http:///path"
+  },
+  {
+   "url": "api.x/x",
+   "scheme": "",
+   "hostname": null,
+   "port": null,
+   "redacted": "api.x/x"
+  },
+  {
+   "url": "ftp://h/x",
+   "scheme": "ftp",
+   "hostname": "h",
+   "port": null,
+   "redacted": "ftp://h/x"
+  },
+  {
+   "url": "12345",
+   "scheme": "",
+   "hostname": null,
+   "port": null,
+   "redacted": "12345"
+  },
+  {
+   "url": "http://[::1/",
+   "split_error": "Invalid IPv6 URL"
+  },
+  {
+   "url": "http://::1]/",
+   "split_error": "Invalid IPv6 URL"
+  },
+  {
+   "url": "http://a@b@c/",
+   "scheme": "http",
+   "hostname": "c",
+   "port": null,
+   "redacted": "http://c/"
+  },
+  {
+   "url": "http://a.com\\@b.com/",
+   "scheme": "http",
+   "hostname": "b.com",
+   "port": null,
+   "redacted": "http://b.com/"
+  },
+  {
+   "url": "  http://h/x",
+   "scheme": "http",
+   "hostname": "h",
+   "port": null,
+   "redacted": "http://h/x"
+  },
+  {
+   "url": "http://h/x y",
+   "scheme": "http",
+   "hostname": "h",
+   "port": null,
+   "redacted": "http://h/x y"
+  },
+  {
+   "url": "http://h/r/{{x}}",
+   "scheme": "http",
+   "hostname": "h",
+   "port": null,
+   "redacted": "http://h/r/{{x}}"
+  },
+  {
+   "url": "https://h?q",
+   "scheme": "https",
+   "hostname": "h",
+   "port": null,
+   "redacted": "https://h?<redacted>"
+  },
+  {
+   "url": "https://h#f?q",
+   "scheme": "https",
+   "hostname": "h",
+   "port": null,
+   "redacted": "https://h"
+  },
+  {
+   "url": "//h/x",
+   "scheme": "",
+   "hostname": "h",
+   "port": null,
+   "redacted": "//h/x"
+  },
+  {
+   "url": "mailto:x@y",
+   "scheme": "mailto",
+   "hostname": null,
+   "port": null,
+   "redacted": "mailto:x@y"
+  },
+  {
+   "url": "http:h",
+   "scheme": "http",
+   "hostname": null,
+   "port": null,
+   "redacted": "http:h"
+  },
+  {
+   "url": "http://[v1.fe]/",
+   "scheme": "http",
+   "hostname": "v1.fe",
+   "port": null,
+   "redacted": "http://v1.fe/"
+  },
+  {
+   "url": "http://[1.2.3.4]/",
+   "split_error": "An IPv4 address cannot be in brackets"
+  },
+  {
+   "url": "http://[zz]/",
+   "split_error": "'zz' does not appear to be an IPv4 or IPv6 address"
+  },
+  {
+   "url": "http://h\t/x",
+   "scheme": "http",
+   "hostname": "h",
+   "port": null,
+   "redacted": "http://h/x"
+  },
+  {
+   "url": "http://h:080/",
+   "scheme": "http",
+   "hostname": "h",
+   "port": 80,
+   "redacted": "http://h:80/"
+  },
+  {
+   "url": "http://xn--caf-dma.com/",
+   "scheme": "http",
+   "hostname": "xn--caf-dma.com",
+   "port": null,
+   "redacted": "http://xn--caf-dma.com/"
+  },
+  {
+   "url": "http://café.com/",
+   "scheme": "http",
+   "hostname": "café.com",
+   "port": null,
+   "redacted": "http://café.com/"
+  }
+ ],
+ "addresses": [
+  {
+   "address": "0.0.0.0",
+   "web_refuses": true
+  },
+  {
+   "address": "0.0.0.1",
+   "web_refuses": true
+  },
+  {
+   "address": "0.255.255.255",
+   "web_refuses": true
+  },
+  {
+   "address": "1.1.1.1",
+   "web_refuses": false
+  },
+  {
+   "address": "10.0.0.0",
+   "web_refuses": true
+  },
+  {
+   "address": "10.0.0.1",
+   "web_refuses": true
+  },
+  {
+   "address": "10.255.255.255",
+   "web_refuses": true
+  },
+  {
+   "address": "100.127.255.255",
+   "web_refuses": false
+  },
+  {
+   "address": "100.128.0.0",
+   "web_refuses": false
+  },
+  {
+   "address": "100.63.255.255",
+   "web_refuses": false
+  },
+  {
+   "address": "100.64.0.0",
+   "web_refuses": false
+  },
+  {
+   "address": "100.64.0.1",
+   "web_refuses": false
+  },
+  {
+   "address": "11.0.0.0",
+   "web_refuses": false
+  },
+  {
+   "address": "127.0.0.0",
+   "web_refuses": true
+  },
+  {
+   "address": "127.0.0.1",
+   "web_refuses": true
+  },
+  {
+   "address": "127.255.255.255",
+   "web_refuses": true
+  },
+  {
+   "address": "169.254.0.0",
+   "web_refuses": true
+  },
+  {
+   "address": "169.254.0.1",
+   "web_refuses": true
+  },
+  {
+   "address": "169.254.255.255",
+   "web_refuses": true
+  },
+  {
+   "address": "172.15.255.255",
+   "web_refuses": false
+  },
+  {
+   "address": "172.16.0.0",
+   "web_refuses": true
+  },
+  {
+   "address": "172.16.0.1",
+   "web_refuses": true
+  },
+  {
+   "address": "172.31.255.255",
+   "web_refuses": true
+  },
+  {
+   "address": "172.32.0.0",
+   "web_refuses": false
+  },
+  {
+   "address": "192.0.0.0",
+   "web_refuses": true
+  },
+  {
+   "address": "192.0.0.1",
+   "web_refuses": true
+  },
+  {
+   "address": "192.0.0.10",
+   "web_refuses": false
+  },
+  {
+   "address": "192.0.0.170",
+   "web_refuses": true
+  },
+  {
+   "address": "192.0.0.171",
+   "web_refuses": true
+  },
+  {
+   "address": "192.0.0.255",
+   "web_refuses": true
+  },
+  {
+   "address": "192.0.0.9",
+   "web_refuses": false
+  },
+  {
+   "address": "192.0.2.0",
+   "web_refuses": true
+  },
+  {
+   "address": "192.0.2.1",
+   "web_refuses": true
+  },
+  {
+   "address": "192.0.2.255",
+   "web_refuses": true
+  },
+  {
+   "address": "192.167.255.255",
+   "web_refuses": false
+  },
+  {
+   "address": "192.168.0.0",
+   "web_refuses": true
+  },
+  {
+   "address": "192.168.0.1",
+   "web_refuses": true
+  },
+  {
+   "address": "192.168.255.255",
+   "web_refuses": true
+  },
+  {
+   "address": "192.169.0.0",
+   "web_refuses": false
+  },
+  {
+   "address": "192.88.99.0",
+   "web_refuses": false
+  },
+  {
+   "address": "192.88.99.1",
+   "web_refuses": false
+  },
+  {
+   "address": "192.88.99.255",
+   "web_refuses": false
+  },
+  {
+   "address": "198.17.255.255",
+   "web_refuses": false
+  },
+  {
+   "address": "198.18.0.0",
+   "web_refuses": true
+  },
+  {
+   "address": "198.18.0.1",
+   "web_refuses": true
+  },
+  {
+   "address": "198.19.255.255",
+   "web_refuses": true
+  },
+  {
+   "address": "198.20.0.0",
+   "web_refuses": false
+  },
+  {
+   "address": "198.51.100.0",
+   "web_refuses": true
+  },
+  {
+   "address": "198.51.100.1",
+   "web_refuses": true
+  },
+  {
+   "address": "198.51.100.255",
+   "web_refuses": true
+  },
+  {
+   "address": "203.0.113.0",
+   "web_refuses": true
+  },
+  {
+   "address": "203.0.113.1",
+   "web_refuses": true
+  },
+  {
+   "address": "203.0.113.255",
+   "web_refuses": true
+  },
+  {
+   "address": "223.255.255.255",
+   "web_refuses": false
+  },
+  {
+   "address": "224.0.0.0",
+   "web_refuses": true
+  },
+  {
+   "address": "224.0.0.1",
+   "web_refuses": true
+  },
+  {
+   "address": "239.255.255.255",
+   "web_refuses": true
+  },
+  {
+   "address": "240.0.0.0",
+   "web_refuses": true
+  },
+  {
+   "address": "240.0.0.1",
+   "web_refuses": true
+  },
+  {
+   "address": "255.255.255.255",
+   "web_refuses": true
+  },
+  {
+   "address": "8.8.8.8",
+   "web_refuses": false
+  },
+  {
+   "address": "9.255.255.255",
+   "web_refuses": false
+  },
+  {
+   "address": "93.184.216.34",
+   "web_refuses": false
+  },
+  {
+   "address": "1000::",
+   "web_refuses": true
+  },
+  {
+   "address": "1000::1",
+   "web_refuses": true
+  },
+  {
+   "address": "100:0:0:1::",
+   "web_refuses": true
+  },
+  {
+   "address": "100::",
+   "web_refuses": true
+  },
+  {
+   "address": "100::1",
+   "web_refuses": true
+  },
+  {
+   "address": "100::ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "1ff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "1fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "2000::",
+   "web_refuses": false
+  },
+  {
+   "address": "2000::1",
+   "web_refuses": false
+  },
+  {
+   "address": "2000:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:1::",
+   "web_refuses": true
+  },
+  {
+   "address": "2001:1::1",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:1::2",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:1::3",
+   "web_refuses": true
+  },
+  {
+   "address": "2001:1f:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "2001:1ff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "2001:200::",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:20::",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:20::1",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:2::1",
+   "web_refuses": true
+  },
+  {
+   "address": "2001:2:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "2001:2f:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:30::",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:30::1",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:3::",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:3::1",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:3:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:3f:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:40::",
+   "web_refuses": true
+  },
+  {
+   "address": "2001:40::1",
+   "web_refuses": true
+  },
+  {
+   "address": "2001:4860:4860::8888",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:4:111:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "2001:4:112::",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:4:112::1",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:4:112:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:4:113::",
+   "web_refuses": true
+  },
+  {
+   "address": "2001:4::",
+   "web_refuses": true
+  },
+  {
+   "address": "2001::",
+   "web_refuses": true
+  },
+  {
+   "address": "2001::1",
+   "web_refuses": true
+  },
+  {
+   "address": "2001:db7:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:db8::",
+   "web_refuses": true
+  },
+  {
+   "address": "2001:db8::1",
+   "web_refuses": true
+  },
+  {
+   "address": "2001:db8:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "2001:db9::",
+   "web_refuses": false
+  },
+  {
+   "address": "2001:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": false
+  },
+  {
+   "address": "2002::",
+   "web_refuses": true
+  },
+  {
+   "address": "2002::1",
+   "web_refuses": true
+  },
+  {
+   "address": "2002:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "2003::",
+   "web_refuses": false
+  },
+  {
+   "address": "200::",
+   "web_refuses": true
+  },
+  {
+   "address": "200::1",
+   "web_refuses": true
+  },
+  {
+   "address": "2404:6800::1",
+   "web_refuses": false
+  },
+  {
+   "address": "2606:4700:4700::1111",
+   "web_refuses": false
+  },
+  {
+   "address": "3ff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "3ffe:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": false
+  },
+  {
+   "address": "3fff:1000::",
+   "web_refuses": false
+  },
+  {
+   "address": "3fff::",
+   "web_refuses": true
+  },
+  {
+   "address": "3fff::1",
+   "web_refuses": true
+  },
+  {
+   "address": "3fff:fff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "3fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": false
+  },
+  {
+   "address": "4000::",
+   "web_refuses": true
+  },
+  {
+   "address": "4000::1",
+   "web_refuses": true
+  },
+  {
+   "address": "400::",
+   "web_refuses": true
+  },
+  {
+   "address": "400::1",
+   "web_refuses": true
+  },
+  {
+   "address": "5fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "6000::",
+   "web_refuses": true
+  },
+  {
+   "address": "6000::1",
+   "web_refuses": true
+  },
+  {
+   "address": "64:ff9a:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "64:ff9b:0:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "64:ff9b:1::",
+   "web_refuses": true
+  },
+  {
+   "address": "64:ff9b:1::1",
+   "web_refuses": true
+  },
+  {
+   "address": "64:ff9b:1:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "64:ff9b:2::",
+   "web_refuses": true
+  },
+  {
+   "address": "64:ff9b::",
+   "web_refuses": true
+  },
+  {
+   "address": "64:ff9b::1",
+   "web_refuses": true
+  },
+  {
+   "address": "64:ff9b::1:0:0",
+   "web_refuses": true
+  },
+  {
+   "address": "64:ff9b::7f00:1",
+   "web_refuses": true
+  },
+  {
+   "address": "64:ff9b::808:808",
+   "web_refuses": true
+  },
+  {
+   "address": "64:ff9b::ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "7ff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "7fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "8000::",
+   "web_refuses": true
+  },
+  {
+   "address": "8000::1",
+   "web_refuses": true
+  },
+  {
+   "address": "800::",
+   "web_refuses": true
+  },
+  {
+   "address": "800::1",
+   "web_refuses": true
+  },
+  {
+   "address": "9fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "::",
+   "web_refuses": true
+  },
+  {
+   "address": "::1",
+   "web_refuses": true
+  },
+  {
+   "address": "::1:0:0:0",
+   "web_refuses": true
+  },
+  {
+   "address": "::2",
+   "web_refuses": true
+  },
+  {
+   "address": "::7f00:1",
+   "web_refuses": true
+  },
+  {
+   "address": "::808:808",
+   "web_refuses": true
+  },
+  {
+   "address": "::fffe:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "::ffff:0.0.0.0",
+   "web_refuses": true
+  },
+  {
+   "address": "::ffff:0.0.0.1",
+   "web_refuses": true
+  },
+  {
+   "address": "::ffff:10.0.0.1",
+   "web_refuses": true
+  },
+  {
+   "address": "::ffff:100.64.0.1",
+   "web_refuses": false
+  },
+  {
+   "address": "::ffff:127.0.0.1",
+   "web_refuses": true
+  },
+  {
+   "address": "::ffff:169.254.169.254",
+   "web_refuses": true
+  },
+  {
+   "address": "::ffff:224.0.0.1",
+   "web_refuses": true
+  },
+  {
+   "address": "::ffff:255.255.255.255",
+   "web_refuses": true
+  },
+  {
+   "address": "::ffff:8.8.8.8",
+   "web_refuses": false
+  },
+  {
+   "address": "a000::",
+   "web_refuses": true
+  },
+  {
+   "address": "a000::1",
+   "web_refuses": true
+  },
+  {
+   "address": "bfff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "c000::",
+   "web_refuses": true
+  },
+  {
+   "address": "c000::1",
+   "web_refuses": true
+  },
+  {
+   "address": "dfff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "e000::",
+   "web_refuses": true
+  },
+  {
+   "address": "e000::1",
+   "web_refuses": true
+  },
+  {
+   "address": "efff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "f000::",
+   "web_refuses": true
+  },
+  {
+   "address": "f000::1",
+   "web_refuses": true
+  },
+  {
+   "address": "f7ff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "f800::",
+   "web_refuses": true
+  },
+  {
+   "address": "f800::1",
+   "web_refuses": true
+  },
+  {
+   "address": "fbff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "fc00::",
+   "web_refuses": true
+  },
+  {
+   "address": "fc00::1",
+   "web_refuses": true
+  },
+  {
+   "address": "fd00:ec2::254",
+   "web_refuses": true
+  },
+  {
+   "address": "fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "fe00::",
+   "web_refuses": true
+  },
+  {
+   "address": "fe00::1",
+   "web_refuses": true
+  },
+  {
+   "address": "fe7f:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "fe80::",
+   "web_refuses": true
+  },
+  {
+   "address": "fe80::1",
+   "web_refuses": true
+  },
+  {
+   "address": "febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "fec0::",
+   "web_refuses": false
+  },
+  {
+   "address": "fec0::1",
+   "web_refuses": false
+  },
+  {
+   "address": "feff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": false
+  },
+  {
+   "address": "ff00::",
+   "web_refuses": true
+  },
+  {
+   "address": "ff00::1",
+   "web_refuses": true
+  },
+  {
+   "address": "ff02::1",
+   "web_refuses": true
+  },
+  {
+   "address": "ff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  },
+  {
+   "address": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+   "web_refuses": true
+  }
+ ]
+}

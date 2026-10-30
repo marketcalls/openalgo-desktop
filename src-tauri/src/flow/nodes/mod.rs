@@ -7,17 +7,27 @@
 //! nodes here: the walk evaluates them itself from their inputs' results.
 
 pub mod basket;
+pub mod books;
+pub mod calendar;
 pub mod core;
+pub mod data;
+pub mod history;
+pub mod indicator;
 pub mod internal;
 pub mod legs;
 pub mod logic;
 pub mod master;
 pub mod options;
+pub mod orders;
+pub mod pyjson;
+pub mod symbols;
+
+#[cfg(test)]
+mod data_tests;
 #[cfg(test)]
 mod order_api_tests;
 #[cfg(test)]
 pub mod order_testing;
-pub mod orders;
 
 use crate::flow::contract::node::FlowNode;
 use std::collections::HashMap;
@@ -37,6 +47,8 @@ pub const FAMILIES: &[NodeFamily] = &[
     core::FAMILY,
     // log, variable, delay (the nodes-logic lane completes this family).
     logic::FAMILY,
+    // quotes, books, history, indicators, options data, calendar, margin.
+    data::FAMILY,
     // placeOrder, smartOrder, splitOrder, modifyOrder, cancelOrder,
     // cancelAllOrders, closePositions, basketOrder.
     orders::FAMILY,
