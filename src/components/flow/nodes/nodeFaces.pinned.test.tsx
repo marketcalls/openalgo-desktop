@@ -120,6 +120,20 @@ describe('F-674 the Start node', () => {
     expect(row(face('start', { scheduleType: 'daily' }), 'Time:')).toBe('09:15')
   })
 
+  // Desktop (web defect): the web showed "Schedule" and Time: 09:15, but no
+  // type or "manual" is never scheduled; the face now matches the panel.
+  it.each([
+    ['no type', {}],
+    ['manual', { scheduleType: 'manual', time: '10:45', days: [0, 2] }],
+  ])('says there is no schedule for %s, with no time or days', (_case, data) => {
+    const el = face('start', data)
+    expect(subtitle(el, 'Start')).toBe('No schedule')
+    expect(has(el, 'Run it with Run Now')).toBe(true)
+    expect(has(el, 'Time:')).toBe(false)
+    expect(has(el, 'Every:')).toBe(false)
+    expect(has(el, 'Days:')).toBe(false)
+  })
+
   it('spells the chosen days as M T W T F S S letters only for a partial week', () => {
     expect(row(face('start', { scheduleType: 'daily', days: [0, 2, 4] }), 'Days:')).toBe('MWF')
     expect(row(face('start', { scheduleType: 'weekly', days: [5, 6] }), 'Days:')).toBe('SS')
