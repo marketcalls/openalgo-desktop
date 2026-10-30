@@ -339,3 +339,41 @@ describe('a refused request reads as the server said it (V-150)', () => {
     )
   })
 })
+
+describe('what a call sends and hands back (F-206, F-215)', () => {
+  it('runs a workflow with no body', async () => {
+    await executeWorkflow(7)
+    expect(sent[0]).toMatchObject({ method: 'POST', url: '/flow/api/workflows/7/execute' })
+    expect(sent[0].body).toBeUndefined()
+  })
+
+  it('hands back the whole Replace reply, migrations and reactivation included', async () => {
+    reply = {
+      status: 'success',
+      message: 'Workflow replaced',
+      migrations: ["positionCheck 'n3': operator 'gt' -> condition 'quantity_above'"],
+      needs_reactivate: true,
+    }
+    expect(await replaceWorkflow(7, EXPORTED)).toEqual(reply)
+  })
+})
+
+describe('the rest of the refusal rules (V-150)', () => {
+  it('reads a body that carries only a detail', async () => {
+    webClient.defaults.adapter = answer(422, { detail: 'Only the detail says why.' })
+    await expect(listWorkflows()).rejects.toThrow('Only the detail says why.')
+  })
+
+  it('sends a signed-out user to the sign-in page', async () => {
+    const original = window.location
+    const location = { ...original, href: 'http://localhost/flow' }
+    Object.defineProperty(window, 'location', { configurable: true, value: location })
+    try {
+      webClient.defaults.adapter = answer(401, { status: 'error', message: 'Session expired' })
+      await expect(listWorkflows()).rejects.toBeTruthy()
+      expect(location.href).toBe('/login')
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: original })
+    }
+  })
+})
