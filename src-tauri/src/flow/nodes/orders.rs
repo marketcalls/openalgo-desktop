@@ -83,7 +83,7 @@ pub fn resolve_standard_order(
     allow_zero_quantity: bool,
 ) -> Result<StandardOrder, String> {
     let symbol = f.text("symbol", None, &[])?.to_uppercase();
-    let exchange = f.choice("exchange", &VALID_EXCHANGES, Some("NSE"), &[])?;
+    let exchange = f.choice("exchange", VALID_EXCHANGES, Some("NSE"), &[])?;
     let action = f.choice("action", &VALID_ACTIONS, Some("BUY"), &[])?;
     let minimum = if allow_zero_quantity { 0 } else { 1 };
     let quantity = f.integer("quantity", Some(1), &[], Some(minimum))?;
