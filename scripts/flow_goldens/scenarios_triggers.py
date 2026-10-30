@@ -164,7 +164,9 @@ node(F, "unsubscribe", "default_all", {}, env={"feed": FEED}, parity=["N-unsubsc
 for st, mode in (("ltp", "LTP"), ("quote", "Quote"), ("depth", "Depth"), ("candles", "Quote")):
     node(F, "unsubscribe", f"symbol_{st}", {"symbol": "SBIN", "exchange": "NSE", "streamType": st}, env={"feed": FEED},
          parity=["N-unsubscribe-05", "N-unsubscribe-07"])
-node(F, "unsubscribe", "stream_without_symbol", {"streamType": "ltp"}, env={"feed": FEED}, parity=["N-unsubscribe-04"])
+node(F, "unsubscribe", "stream_without_symbol", {"streamType": "ltp"}, env={"feed": FEED}, parity=["N-unsubscribe-04"],
+     desktop_expected=de("N-unsubscribe-04", "decisions.md 9: `all` gives back only this workflow's subscriptions, so the refusal says that instead of warning about the instance's whole feed and the Sandbox engine's.",
+                         fix=["unsubscribe_refusal_own"]))
 node(F, "unsubscribe", "invalid_api_key", {"streamType": "all"}, env={"feed": {"username": None}}, parity=["N-unsubscribe-02"])
 node(F, "unsubscribe", "no_connection", {"symbol": "SBIN", "streamType": "ltp"},
      env={"feed": {**FEED, "connect_error": "down"}}, parity=["N-unsubscribe-02"])

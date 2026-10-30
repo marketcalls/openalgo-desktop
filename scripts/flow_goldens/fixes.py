@@ -200,6 +200,13 @@ FIXES.update({
          "                    _ok, _res, _ = unsubscribe_from_symbols(username, broker, [{\"symbol\": _s, \"exchange\": _e}], _m)\n"
          "                    if not _ok:\n"
          "                        unsub_success, unsub_result = _ok, _res\n")])],
+    # decisions.md 9 (N-unsubscribe-04): the refusal says what `all` does on
+    # the desktop (the triggers lane's sentence).
+    "unsubscribe_refusal_own": [(fx.NodeExecutor, "execute_unsubscribe", [
+        ('                    f"symbol, or set Stream Type to \'all\' if you really mean every "\n'
+         '                    f"subscription on this instance, including the Sandbox engine\'s."\n',
+         '                    f"symbol, or set Stream Type to \'all\' to give back every "\n'
+         '                    f"subscription this workflow holds."\n')])],
     # N-gate-04 (decision 8): AND/OR read inputCount as the validator does.
     "gate_slot_count": [(harness, "_orig_chain", [
         ('        declared = node_data.get("inputCount")\n',
