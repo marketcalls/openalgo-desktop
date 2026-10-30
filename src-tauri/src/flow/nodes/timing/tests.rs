@@ -682,3 +682,62 @@ async fn time_fields_resolve_their_references_or_fail() {
     .await;
     assert_eq!(answer(&out)["condition"], false);
 }
+
+/// N-logic-10: parts beyond the third are ignored, and a time that is not
+/// text reads as the node's default.
+#[tokio::test]
+async fn extra_parts_are_ignored_and_a_number_reads_as_the_default() {
+    let d = json!({"targetTime": "10:45:30:99", "operator": ">="});
+    let early = time_condition("2026-10-29T10:45:29", d.clone()).await.0;
+    assert_eq!(early["condition"], false);
+    assert_eq!(
+        time_condition("2026-10-29T10:45:30", d).await.0["condition"],
+        true
+    );
+    // 1000 is not text: the default 09:30, not 10:00.
+    let d = json!({"targetTime": 1000, "operator": ">="});
+    assert_eq!(
+        time_condition("2026-10-29T09:45:00", d).await.0["condition"],
+        true
+    );
+    let w = json!({"startTime": 1000, "endTime": "15:30"});
+    assert!(window("2026-10-29T09:20:00", w).await.0);
+}
+
+/// N-delay-01: a null delayValue takes the legacy delayMs path.
+#[tokio::test(start_paused = true)]
+async fn a_null_delay_value_reads_the_legacy_milliseconds() {
+    let c = at("2026-10-29T10:15:00");
+    let d = json!({"delayValue": null, "delayMs": 2500, "delayUnit": "minutes"});
+    let out = run(&Delay, &c, d).await;
+    assert_eq!(answer(&out)["message"], "Waited 2.5s");
+}
+
+/// N-timeWindow-01: seconds are dropped from both ends, and a malformed
+/// part takes that part's default (09:15 and 15:30).
+#[tokio::test]
+async fn window_times_drop_seconds_and_default_bad_parts() {
+    let w = json!({"startTime": "10:15:30", "endTime": "10:20:30"});
+    assert!(window("2026-10-29T10:15:10", w.clone()).await.0);
+    assert!(!window("2026-10-29T10:20:45", w).await.0);
+    let w = json!({"startTime": "10:zz", "endTime": "aa:bb"});
+    assert!(!window("2026-10-29T10:14:00", w.clone()).await.0);
+    assert!(window("2026-10-29T10:15:00", w.clone()).await.0);
+    assert!(window("2026-10-29T15:30:00", w.clone()).await.0);
+    assert!(!window("2026-10-29T15:30:01", w).await.0);
+}
+
+/// N-timeCondition-01: the operator is read raw, never interpolated.
+#[tokio::test]
+async fn the_operator_is_not_interpolated() {
+    let c = at("2026-10-29T10:15:00");
+    c.vars.set("op", json!(">="));
+    let d = json!({"targetTime": "09:30", "operator": "{{op}}"});
+    let out = run(&TimeCondition, &c, d).await;
+    assert_eq!(
+        out.failure_message(),
+        "operator '{{op}}' is not one of >=, <=, >, <, =="
+    );
+}
+
+mod gate;
