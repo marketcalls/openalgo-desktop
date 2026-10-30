@@ -159,6 +159,25 @@ async fn a_smart_order_keeps_a_resolved_zero_quantity() {
     );
 }
 
+/// N-smartOrder-01: a smart order node with no positionSize (an imported
+/// node, or one saved before the field existed) targets a flat position,
+/// as the web's `integer("positionSize", default=0)`: it sends
+/// position_size 0, never refuses the node, never another default.
+#[tokio::test]
+async fn a_smart_order_without_position_size_targets_flat() {
+    let run = Run::new();
+    run.reply("placesmartorder", placed());
+    let data = json!({"symbol": "SBIN", "exchange": "NSE", "action": "SELL", "quantity": 5});
+    let o = run.node("smartOrder", data).await;
+    assert!(!o.is_error(), "{:?}", o);
+    let sent = payload(&run);
+    assert_eq!(sent["position_size"], json!(0));
+    assert_eq!(
+        (&sent["quantity"], &sent["action"]),
+        (&json!(5), &json!("SELL"))
+    );
+}
+
 /// X-084 (executor half): trimmed, lower-case constants reach the client
 /// canonical.
 #[tokio::test]
