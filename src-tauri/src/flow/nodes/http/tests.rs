@@ -536,3 +536,93 @@ async fn an_unreadable_timeout_ends_the_run() {
     let (_, _, http) = send(json!({"url": "http://api.example.com/", "timeout": "soon"})).await;
     assert_eq!(http.sent.lock().clone()[0].timeout.as_secs_f64(), 30.0);
 }
+
+/// N-httpRequest-03 (decisions.md 36): header text of NaN or Infinity is a
+/// Python float; a float or a bool is named as Python names it; an empty
+/// URL is answered before the headers are read, with no log line.
+#[tokio::test]
+async fn header_types_are_named_as_python_names_them() {
+    for (headers, kind) in [
+        (json!("NaN"), "float"),
+        (json!(" -Infinity "), "float"),
+        (json!("Infinity"), "float"),
+        (json!("1.5"), "float"),
+        (json!(1.5), "float"),
+        (json!("true"), "bool"),
+        (json!(false), "bool"),
+        (json!("\"NaN\""), "str"),
+    ] {
+        let d = json!({"url": "http://api.example.com/", "headers": headers});
+        let (out, c, http) = send(d.clone()).await;
+        assert_eq!(
+            out.failure_message(),
+            format!("headers must be a JSON object, got {}", kind),
+            "{}",
+            d
+        );
+        assert_eq!(logs(&c)[0].0, "error");
+        assert!(http.sent.lock().is_empty());
+    }
+    let (out, c, http) = send(json!({"url": "", "headers": "{bad"})).await;
+    assert_eq!(
+        answer(&out),
+        json!({"status": "error", "message": "No URL specified"})
+    );
+    assert!(logs(&c).is_empty());
+    assert!(http.sent.lock().is_empty());
+}
+
+/// N-httpRequest-01: the method is interpolated and upper-cased.
+#[tokio::test]
+async fn the_method_is_interpolated_and_upper_cased() {
+    let http = stub(reply(200, "{}"));
+    let c = ctx_with(http.clone());
+    c.vars.set("verb", json!("post"));
+    let d = json!({"url": "http://api.example.com/v1", "method": "{{verb}}", "body": "{\"a\": 1}"});
+    run(&HttpRequest, &c, d).await;
+    let sent = http.sent.lock().clone();
+    assert_eq!(sent[0].method, "POST");
+    assert_eq!(sent[0].body.as_deref(), Some(&b"{\"a\":1}"[..]));
+    assert_eq!(messages(&c)[0], "HTTP POST http://api.example.com/v1");
+}
+
+/// N-httpRequest-17: analyzer mode changes nothing: a run with analyzer
+/// mode on sends the request on Flow's client.
+#[tokio::test]
+async fn analyzer_mode_still_sends_the_request() {
+    let t = crate::state::testing::build(
+        crate::brokers::BrokerRegistry::new(),
+        "2026-08-04T06:30:00Z".parse().unwrap(),
+    );
+    t.ctx.flow.triggers().stop().await;
+    t.ctx
+        .security
+        .install(&crate::security::Unlocked::random().unwrap());
+    t.ctx.sqlite.set_analyze_mode(true).unwrap();
+    let http = stub(reply(200, "{\"ok\": true}"));
+    let installed: Arc<dyn OutboundHttp> = http.clone();
+    t.ctx.flow.install_env(move |env| env.http = installed);
+    let nodes = json!([
+        {"id": "s", "type": "start", "position": {"x": 0, "y": 0},
+         "data": {"scheduleType": "daily", "time": "09:15"}},
+        {"id": "h", "type": "httpRequest", "position": {"x": 0, "y": 100},
+         "data": {"url": "http://api.example.com/v1", "method": "GET"}}
+    ]);
+    let edges = json!([{"id": "e", "source": "s", "target": "h"}]);
+    let conn = t.ctx.sqlite.conn().unwrap();
+    let new = crate::flow::store::workflows::NewWorkflow {
+        name: "Analyzer",
+        description: None,
+        nodes: &nodes,
+        edges: &edges,
+    };
+    let w =
+        crate::flow::store::workflows::create(&conn, &t.ctx.security, &new, t.ctx.now()).unwrap();
+    let req = crate::flow::executor::RunRequest {
+        api_key: Some(crate::security::Secret::new("k")),
+        ..Default::default()
+    };
+    let result = crate::flow::executor::execute(&t.ctx, w.id, req).await;
+    assert_eq!(http.sent.lock().len(), 1, "{}", result);
+    assert_eq!(result["status"], "success", "{}", result);
+}
