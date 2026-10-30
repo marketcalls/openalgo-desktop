@@ -81,6 +81,15 @@ The module list in `src-tauri/src/services/mod.rs` is the current inventory.
 
 ## Not in the desktop
 
-The web services behind Flow, the Python Strategy Host, the Portfolio and SIP
-backtesters and the Agent have no desktop equivalent. Those features are not
-in the desktop; use OpenAlgo web for them.
+The web services behind the Python Strategy Host and the Portfolio and SIP
+backtesters have no desktop equivalent. Those features are not in the
+desktop; use OpenAlgo web for them.
+
+Flow and the Agent are native Rust in the desktop rather than ports of the
+web's services: Flow (`services/flow_*.py` on the web) is
+`src-tauri/src/flow/` from 1.0.5, and the Agent is `src-tauri/src/agent/`
+from 1.0.4. Both reach the services in this document the way an API client
+does, through the `/api/v1` handlers run in process with the API key, so
+analyzer mode, Semi-Auto and the answers documented here apply to their
+orders and reads unchanged. Flow's workflow format is in
+[flow-import-format.md](flow-import-format.md).

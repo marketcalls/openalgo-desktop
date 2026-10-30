@@ -989,7 +989,10 @@ The same list as the web, each pinned by a test in
 - **`trigger_source` for API starts.** An API-key start records `manual`, as
   on the web.
 - **Account-level RMS caps across strategies.** Not in the desktop either.
-  The web's Flow `riskGuard` idea does not apply: Flow is not in the desktop.
+  The web's idea of a Flow `riskGuard` node on the shared risk core is not
+  built on the web either, and the desktop's Flow (from 1.0.5) has no such
+  node: a workflow's orders take the same `/api/v1` path as any API client's,
+  with no strategy-level stop or target of its own.
 - **Webhook audit and IP-allowlist controls on the strategy page.** The
   session API serves webhook audit rows and accepts `webhook_ip_allowlist` on
   create and PATCH, but the Detail page does not show the audit and the
