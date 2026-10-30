@@ -97,5 +97,41 @@
    ],
    "abort": null
   }
+ },
+ "desktop_expected": {
+  "parity": "N-unsubscribe-04",
+  "why": "decisions.md 9: `all` gives back only this workflow's subscriptions, so the refusal says that instead of warning about the instance's whole feed and the Sandbox engine's.",
+  "fix": [
+   "unsubscribe_refusal_own"
+  ],
+  "outputs": {
+   "status": "error",
+   "type": "unsubscribe",
+   "message": "Unsubscribe is set to 'ltp' with no symbol. Name a symbol, or set Stream Type to 'all' to give back every subscription this workflow holds."
+  },
+  "logs": [
+   [
+    "info",
+    "Unsubscribing from ltp stream: all (NSE)"
+   ],
+   [
+    "error",
+    "Unsubscribe aborted: Unsubscribe is set to 'ltp' with no symbol. Name a symbol, or set Stream Type to 'all' to give back every subscription this workflow holds."
+   ],
+   [
+    "error",
+    "Stopping this branch: unsubscribe node failed (Unsubscribe is set to 'ltp' with no symbol. Name a symbol, or set Stream Type to 'all' to give back every subscription this workflow holds.)"
+   ]
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "unsubscribe",
+     "message": "Unsubscribe is set to 'ltp' with no symbol. Name a symbol, or set Stream Type to 'all' to give back every subscription this workflow holds."
+    }
+   ],
+   "abort": null
+  }
  }
 }

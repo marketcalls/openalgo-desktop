@@ -107,5 +107,35 @@
     "op": "unsubscribe_all"
    }
   ]
+ },
+ "desktop_expected": {
+  "parity": "N-unsubscribe-03",
+  "why": "decisions.md 9: `all` releases only the subscriptions this workflow holds (none here), never the instance's whole feed, so nothing is refused.",
+  "fix": [
+   "unsubscribe_all_own"
+  ],
+  "outputs": {
+   "status": "success",
+   "type": "unsubscribe",
+   "symbol": "",
+   "exchange": "NSE",
+   "stream_type": "all",
+   "message": "Unsubscribed from all stream"
+  },
+  "logs": [
+   [
+    "info",
+    "Unsubscribing from all stream: all (NSE)"
+   ],
+   [
+    "info",
+    "Unsubscribed from all streams"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null,
+  "feed": null
  }
 }
