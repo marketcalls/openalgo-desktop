@@ -152,7 +152,7 @@ test('1. build a workflow in the editor, save it, reload it unchanged', async ({
   await page.reload()
   await expect(canvasNodes(page)).toHaveCount(7)
   await expect(canvasEdges(page)).toHaveCount(6)
-  await expect(page.getByLabel('Workflow name')).toHaveValue(name)
+  await expect(page.getByLabel('Workflow name', { exact: true })).toHaveValue(name)
   await expect(page.getByText('Unsaved', { exact: true })).toHaveCount(0)
   panel = await openNode(page, nodeOfType(page, 'getQuote'), 'Get Quote')
   await expect(field(panel, 'Symbol')).toHaveValue('NIFTY')

@@ -34,7 +34,7 @@ test('3. import a web export, run it, export it in the web format', async ({ pag
   await page.goto('/flow')
   await page.getByRole('button', { name: 'Import', exact: true }).click()
   const dialog = page.getByRole('dialog')
-  await dialog.getByLabel('Workflow JSON').fill(WEB_EXPORT)
+  await dialog.getByLabel('Workflow JSON', { exact: true }).fill(WEB_EXPORT)
   const imported = page.waitForResponse(
     (r) => r.request().method() === 'POST' && r.url().endsWith('/flow/api/workflows/import')
   )
@@ -45,7 +45,7 @@ test('3. import a web export, run it, export it in the web format', async ({ pag
   await page.waitForURL(/\/flow\/editor\/\d+$/)
   const id = editorId(page)
   const storedName = `${web.name} (imported)`
-  await expect(page.getByLabel('Workflow name')).toHaveValue(storedName)
+  await expect(page.getByLabel('Workflow name', { exact: true })).toHaveValue(storedName)
   await expect(canvasNodes(page)).toHaveCount(web.nodes.length)
   await expect(canvasEdges(page)).toHaveCount(web.edges.length)
 

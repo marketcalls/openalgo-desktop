@@ -50,7 +50,7 @@ test('6. the Agent saves a workflow after the trader approves it', async ({ page
       base_url: provider.endpoint,
       api_key: ['local', 'e2e', 'provider'].join('-'),
     })
-    expect(added.status, JSON.stringify(added.body)).toBe(200)
+    expect(added.status, JSON.stringify(added.body)).toBe(201)
     const tested = await session.post(`/agent/api/models/${added.body.data.id}/test`)
     expect(tested.body).toMatchObject({ ok: true })
 

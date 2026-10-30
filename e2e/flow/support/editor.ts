@@ -25,11 +25,11 @@ export function nodeOfType(page: Page, type: string, nth = 0): Locator {
 export async function createWorkflow(page: Page, name: string): Promise<number> {
   await page.goto('/flow')
   await page.getByRole('button', { name: 'New Workflow' }).click()
-  await page.getByLabel('Workflow Name').fill(name)
-  await page.getByRole('dialog').getByRole('button', { name: 'Create' }).click()
+  await page.getByLabel('Workflow Name', { exact: true }).fill(name)
+  await page.getByRole('dialog').getByRole('button', { name: 'Create', exact: true }).click()
   await page.waitForURL(/\/flow\/editor\/\d+$/)
   await expect(page.locator('.react-flow__pane')).toBeVisible()
-  await expect(page.getByLabel('Workflow name')).toHaveValue(name)
+  await expect(page.getByLabel('Workflow name', { exact: true })).toHaveValue(name)
   return Number(/\/flow\/editor\/(\d+)/.exec(page.url())![1])
 }
 
