@@ -148,19 +148,26 @@ impl TriggerSide {
     /// otherwise.
     pub async fn poll_prices(self: Arc<Self>) {
         let mut paused = false;
+        let mut watching = false;
         while self.app().is_some() {
             if self.alerts.is_empty() {
+                watching = monitoring_stopped(watching);
                 tokio::select! {
                     _ = self.wake_prices.notified() => continue,
-                    _ = self.stop.cancelled() => return,
+                    _ = self.stop.cancelled() => break,
                 }
+            }
+            if !watching {
+                watching = true;
+                tracing::info!("Price monitoring started with {} alerts", self.alerts.len());
             }
             paused = self.check_prices(paused).await;
             tokio::select! {
                 _ = tokio::time::sleep(super::price_monitor::POLL_INTERVAL) => {}
-                _ = self.stop.cancelled() => return,
+                _ = self.stop.cancelled() => break,
             }
         }
+        monitoring_stopped(watching);
     }
 
     /// One poll over every alert (`_check_all_alerts`); `true` while it is
@@ -250,11 +257,7 @@ impl TriggerSide {
             if alert.one_shot() {
                 if fired.executed() {
                     if me.alerts.retire(id, alert.gen) {
-                        me.stand_down(
-                            id,
-                            &format!("One-shot price alert for workflow {} consumed; workflow deactivated.", id),
-                        )
-                        .await;
+                        me.spend_one_shot(id, "price alert").await;
                     }
                 } else {
                     me.alerts.rearm(id, alert.gen);
@@ -324,11 +327,7 @@ impl TriggerSide {
             match self.watches.after_run(id, gen, fired.executed()) {
                 After::Again(next) => update = *next,
                 After::Retire => {
-                    self.stand_down(
-                        id,
-                        &format!("One-shot order-update watch for workflow {} consumed; workflow deactivated.", id),
-                    )
-                    .await;
+                    self.spend_one_shot(id, "order-update watch").await;
                     return;
                 }
                 After::Rearmed | After::Done => return,
@@ -366,6 +365,15 @@ impl TriggerSide {
         tracing::info!("Workflow {} execution result: {}", id, fired.status());
         fired
     }
+}
+
+/// The web's line when the price monitor stops (its last alert went, or
+/// the app is closing); `false`, the poll is idle.
+fn monitoring_stopped(watching: bool) -> bool {
+    if watching {
+        tracing::info!("Price monitoring stopped");
+    }
+    false
 }
 
 /// The bus subscriber (`FlowOrderUpdateMonitor`, critical lane: a fill the

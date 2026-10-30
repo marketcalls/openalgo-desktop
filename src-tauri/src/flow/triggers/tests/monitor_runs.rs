@@ -159,8 +159,9 @@ async fn each_monitor_run_carries_its_own_payload() {
 }
 
 /// N-orderUpdateTrigger-01, T-055, T-056: an order update runs its
-/// workflow with the web's payload keys, and a one-shot watch is spent by
-/// that run: the watch is gone and the workflow stood down.
+/// workflow with the web's nine payload keys (`rejection_reason` empty for
+/// a fill, `triggered_at` the IST time it fired), and a one-shot watch is
+/// spent by that run: the watch is gone and the workflow stood down.
 #[tokio::test]
 async fn an_order_update_run_reads_the_order_and_spends_a_one_shot() {
     let t = keyed_app();
@@ -172,7 +173,7 @@ async fn an_order_update_run_reads_the_order_and_spends_a_one_shot() {
         logged_after(
             "orderUpdateTrigger",
             watched.clone(),
-            "{{webhook.trigger_type}} {{webhook.orderid}} {{webhook.symbol}} {{webhook.exchange}} {{webhook.order_status}} {{webhook.filled_quantity}} {{webhook.average_price}}",
+            "{{webhook.trigger_type}} {{webhook.orderid}} {{webhook.symbol}} {{webhook.exchange}} {{webhook.order_status}} {{webhook.filled_quantity}} {{webhook.average_price}} [{{webhook.rejection_reason}}] at {{webhook.triggered_at}}",
         ),
     );
     s.register(id, "orderUpdateTrigger", &data(watched))
@@ -181,8 +182,10 @@ async fn an_order_update_run_reads_the_order_and_spends_a_one_shot() {
     s.on_order_update(&update("2511030001"));
     let run = &finished(&t.ctx, id, 1).await[0];
     assert!(
-        log_lines(run)
-            .contains(&"[LOG] order_update 2511030001 SBIN NSE complete 10 812.5".to_string()),
+        log_lines(run).contains(
+            &"[LOG] order_update 2511030001 SBIN NSE complete 10 812.5 [] at 2026-11-03T09:30:00"
+                .to_string()
+        ),
         "{:?}",
         log_lines(run)
     );
