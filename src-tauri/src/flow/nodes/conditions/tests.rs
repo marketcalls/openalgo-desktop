@@ -149,7 +149,7 @@ async fn position_check_refuses_rather_than_reading_zero() {
     // X-205: a known condition still evaluates.
     client.reply(
         "positionbook",
-        json!({"status": "success", "data": [{"symbol": "S", "exchange": "NSE", "quantity": 5, "pnl": 100}]}),
+        json!({"status": "success", "data": [{"symbol": "S", "exchange": "NSE", "product": "MIS", "quantity": 5, "pnl": 100}]}),
     );
     let out = run(
         &PositionCheck,
