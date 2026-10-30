@@ -142,16 +142,6 @@ async fn a_workflow_is_created_and_read_as_the_web_answers() {
     assert_eq!(s, StatusCode::OK);
     assert_eq!(one["schedule_job_id"], Value::Null);
     assert_eq!(one["webhook_secret"], v["webhook_secret"]);
-    let null_name = f.create(json!({"name": null})).await;
-    assert_eq!(null_name["name"], "Untitled Workflow", "never a 500 (R-16)");
-    let falsy = f
-        .create(json!({"name": "x", "nodes": {}, "edges": ""}))
-        .await;
-    assert_eq!(
-        (falsy["nodes"].clone(), falsy["edges"].clone()),
-        (json!([]), json!([])),
-        "what was checked is what is stored (V-131)"
-    );
     let (s, v) = f.call(Method::GET, "/flow/api/workflows/9999", None).await;
     assert_eq!(
         (s, v),
@@ -453,14 +443,40 @@ async fn a_web_export_round_trips_unchanged() {
     assert_eq!(out["version"], "1.0");
     assert_eq!(out["nodes"], web["nodes"]);
     assert_eq!(out["edges"], web["edges"]);
+}
+
+/// WEB-DEFECT R-16: a null name is the default, never a failed insert (the
+/// web answers 500).
+#[tokio::test]
+async fn a_null_name_is_the_default() {
+    let f = F::new();
+    let v = f.create(json!({"name": null})).await;
+    assert_eq!(v["name"], "Untitled Workflow");
+}
+
+/// WEB-DEFECT V-131: create stores the graph it checked, so a falsy
+/// non-list is stored as an empty list.
+#[tokio::test]
+async fn create_stores_the_graph_it_checked() {
+    let f = F::new();
+    let v = f
+        .create(json!({"name": "x", "nodes": {}, "edges": ""}))
+        .await;
+    assert_eq!(
+        (v["nodes"].clone(), v["edges"].clone()),
+        (json!([]), json!([]))
+    );
+}
+
+/// WEB-DEFECT IE-06: an import body that is not an object is a 400 (the
+/// web answers 500).
+#[tokio::test]
+async fn an_import_that_is_not_an_object_is_refused() {
+    let f = F::new();
     let (s, v) = f
         .call(Method::POST, "/flow/api/workflows/import", Some("[1]"))
         .await;
-    assert_eq!(
-        s,
-        StatusCode::BAD_REQUEST,
-        "an array is a 400, never the web's 500 (IE-06)"
-    );
+    assert_eq!(s, StatusCode::BAD_REQUEST);
     assert_eq!(v["error"], "Invalid workflow format");
 }
 
