@@ -137,7 +137,7 @@ fn a_stand_down_is_logged_as_the_web_logs_it() {
 fn a_history_read_returns_at_most_200_runs() {
     let (conn, sec) = db();
     let id = workflow(&conn, &sec, "A");
-    assert!(RETENTION_COUNT > 205);
+    const { assert!(RETENTION_COUNT > 205) };
     for _ in 0..205 {
         conn.execute(
             "INSERT INTO flow_workflow_executions (workflow_id, status, started_at, logs)
