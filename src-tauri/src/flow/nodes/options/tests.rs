@@ -593,3 +593,222 @@ async fn a_generated_strategy_logs_as_the_web() {
         ]
     );
 }
+
+/// N-common-19: a declared BSE_INDEX routes to BFO; each exchange without a
+/// spot named on its own quotes and trades on itself.
+#[test]
+fn every_declared_exchange_routes_as_the_web() {
+    for (declared, want) in [
+        ("BSE_INDEX", ("BSE_INDEX", "BFO")),
+        ("bse_index ", ("BSE_INDEX", "BFO")),
+        ("NSE_INDEX", ("NSE_INDEX", "NFO")),
+        ("MCX", ("MCX", "MCX")),
+        ("CDS", ("CDS", "CDS")),
+        ("BCD", ("BCD", "BCD")),
+        ("NCDEX", ("NCDEX", "NCDEX")),
+        ("NCO", ("NCO", "NCO")),
+        ("LSE", ("NSE_INDEX", "NFO")),
+    ] {
+        assert_eq!(
+            resolve_option_exchanges("ANYTHING", declared),
+            pair(want.0, want.1),
+            "{declared}"
+        );
+    }
+}
+
+/// N-common-22: every entry of the built-in table, used only when the
+/// exchange has no contracts loaded.
+#[test]
+fn the_built_in_lot_sizes_are_the_webs() {
+    for (underlying, exchange, lot) in [
+        ("NIFTY", "NFO", 65),
+        ("BANKNIFTY", "NFO", 30),
+        ("FINNIFTY", "NFO", 60),
+        ("MIDCPNIFTY", "NFO", 120),
+        ("NIFTYNXT50", "NFO", 25),
+        ("SENSEX", "BFO", 20),
+        ("BANKEX", "BFO", 30),
+        ("SENSEX50", "BFO", 25),
+    ] {
+        let run = Run::at("2026-10-29T10:15:00", Some(Vec::new()));
+        assert_eq!(
+            resolve_lot_size(&run.ctx, underlying, exchange),
+            Ok(lot),
+            "{underlying}"
+        );
+    }
+}
+
+/// N-optionsOrder-01: a node with no fields sends the executor's defaults:
+/// NIFTY, current_week, ATM, CE, BUY, MARKET, NRML, one lot, no split, no
+/// prices.
+#[tokio::test]
+async fn a_bare_options_order_sends_the_executor_defaults() {
+    let run = Run::new();
+    run.reply(
+        "expiry",
+        json!({"status": "success", "data": ["04-NOV-26", "11-NOV-26"]}),
+    )
+    .reply("optionsorder", json!({"status": "success"}));
+    let o = run.node("optionsOrder", json!({})).await;
+    assert!(!o.is_error(), "{:?}", o);
+    let calls = run.calls();
+    assert_eq!(
+        Value::Object(calls[0].payload.clone()),
+        json!({"symbol": "NIFTY", "exchange": "NFO", "instrumenttype": "options"})
+    );
+    assert_eq!(
+        Value::Object(calls[1].payload.clone()),
+        json!({"strategy": crate::flow::nodes::order_testing::WORKFLOW, "underlying": "NIFTY",
+               "exchange": "NSE_INDEX", "action": "BUY", "quantity": 75, "expiry_date": "04NOV26",
+               "offset": "ATM", "option_type": "CE", "pricetype": "MARKET", "product": "NRML",
+               "price": 0.0, "trigger_price": 0.0, "splitsize": 0})
+    );
+}
+
+/// N-optionsMultiOrder-02: a generated strategy with no underlying or
+/// expiry type trades NIFTY's current_week; one with no strategy at all is
+/// custom and needs legs.
+#[tokio::test]
+async fn a_bare_multi_order_trades_nifty_this_week() {
+    let run = Run::new();
+    run.reply(
+        "expiry",
+        json!({"status": "success", "data": ["04-NOV-26", "11-NOV-26"]}),
+    )
+    .reply("optionsmultiorder", json!({"status": "success"}));
+    run.node("optionsMultiOrder", json!({"strategy": "straddle"}))
+        .await;
+    let calls = run.calls();
+    assert_eq!(calls[0].payload["symbol"], "NIFTY");
+    let p = sent(&run);
+    assert_eq!(
+        (&p["underlying"], &p["exchange"], &p["expiry_date"]),
+        (&json!("NIFTY"), &json!("NSE_INDEX"), &json!("04NOV26"))
+    );
+    assert_eq!(
+        (&p["legs"][0]["action"], &p["legs"][0]["quantity"]),
+        (&json!("SELL"), &json!(75))
+    );
+    let run = Run::new();
+    let o = run.node("optionsMultiOrder", json!({})).await;
+    assert_eq!(
+        message(&o),
+        "Options multi-order has invalid runtime order data: legs is required"
+    );
+}
+
+/// N-optionsMultiOrder-05, N-common-15: a leg's required fields, its
+/// expiry type read in any case, and an optional expiry that is null,
+/// blank or padded.
+#[tokio::test]
+async fn a_legs_required_and_optional_fields_read_as_the_web() {
+    let leg = |extra: Value| {
+        let mut l = json!({"optionType": "CE", "action": "BUY", "quantity": 1});
+        if let (Some(m), Value::Object(e)) = (l.as_object_mut(), extra) {
+            for (k, v) in e {
+                if v == json!("$drop") {
+                    m.remove(&k);
+                } else {
+                    m.insert(k, v);
+                }
+            }
+        }
+        l
+    };
+    for (l, want) in [
+        (leg(json!({})), "leg 1: offset is required"),
+        (
+            leg(json!({"offset": "ATM", "action": "$drop"})),
+            "leg 1: action is required",
+        ),
+        (
+            leg(json!({"offset": "ATM", "optionType": "$drop"})),
+            "leg 1: optionType is required",
+        ),
+        (
+            leg(json!({"offset": "ATM", "quantity": "$drop"})),
+            "leg 1: quantity is required",
+        ),
+        (
+            leg(json!({"strikeMode": "STRIKE"})),
+            "leg 1: strike is required",
+        ),
+    ] {
+        let (o, run) = place_legs(json!([l.clone()])).await;
+        assert_eq!(
+            message(&o),
+            format!("Options multi-order has invalid runtime order data: {want}"),
+            "{l}"
+        );
+        assert!(run.calls().is_empty());
+    }
+    let (o, run) = place_legs(json!([
+        leg(json!({"offset": "ATM", "expiryType": " Next_Month "})),
+        leg(json!({"offset": "ATM", "expiry": null})),
+        leg(json!({"offset": "ATM", "expiry": "   "})),
+        leg(json!({"offset": "ATM", "expiry": "  25sep26 "}))
+    ]))
+    .await;
+    assert!(!o.is_error(), "{:?}", o);
+    let legs = sent(&run)["legs"].clone();
+    assert_eq!(
+        legs[0]["expiry_date"], "25SEP26",
+        "expiry type read lower-cased"
+    );
+    assert!(
+        legs[1].get("expiry_date").is_none(),
+        "a null expiry inherits"
+    );
+    assert!(
+        legs[2].get("expiry_date").is_none(),
+        "a blank expiry inherits"
+    );
+    assert_eq!(legs[3]["expiry_date"], "25SEP26", "an expiry is trimmed");
+}
+
+/// N-optionsMultiOrder-08: the generated-legs defences, unreachable through
+/// the node (its field checks refuse first) and kept as the web keeps them:
+/// SL/SL-M have no trigger to carry, and a LIMIT without a price is
+/// refused. The run logs either with `Options multi-order failed: `, the
+/// branch the unresolvable leg-expiry golden pins.
+#[tokio::test]
+async fn the_generated_legs_defences_say_the_web_words() {
+    let run = Run::new();
+    let node = |price_type: &str, price: f64| MultiNode {
+        underlying: "NIFTY".into(),
+        expiry: ("current_week".into(), String::new()),
+        strategy_type: "straddle".into(),
+        action: "SELL".into(),
+        quantity_lots: 1,
+        product: "NRML".into(),
+        strangle_width: "OTM2".into(),
+        price_type: price_type.into(),
+        price,
+        trigger_price: 0.0,
+    };
+    let sized = Sized {
+        quote_exchange: "NSE_INDEX".into(),
+        fo_exchange: "NFO".into(),
+        lot_size: 75,
+        expiry_date: "04NOV26".into(),
+    };
+    for pt in ["SL", "SL-M"] {
+        let got = OptionsMultiOrderNode::legs(&run.ctx, &node(pt, 100.0), None, &sized).await;
+        assert_eq!(
+            got,
+            Err(format!(
+                "{pt} is not available for a generated straddle strategy: its legs carry no trigger price. Use MARKET or LIMIT, or build the legs individually as custom legs where each can set its own trigger price."
+            ))
+        );
+    }
+    let got = OptionsMultiOrderNode::legs(&run.ctx, &node("LIMIT", 0.0), None, &sized).await;
+    assert_eq!(
+        got,
+        Err("LIMIT order needs a positive price, got 0.0".into())
+    );
+    let got = OptionsMultiOrderNode::legs(&run.ctx, &node("LIMIT", 120.5), None, &sized).await;
+    assert_eq!(got.map(|l| l.len()), Ok(2));
+    assert!(run.calls().is_empty());
+}
