@@ -25,12 +25,12 @@ pub fn float_value(f: f64) -> Value {
 /// `json.loads(text)`: the value, or the `JSONDecodeError` text.
 pub fn loads(text: &str) -> Result<Value, String> {
     let s: Vec<char> = text.chars().collect();
-    let d = Decoder { s: &s, depth: 0 };
+    let d = Decoder { s: &s };
     if s.first() == Some(&'\u{feff}') {
         return Err(d.message("Unexpected UTF-8 BOM (decode using utf-8-sig)", 0));
     }
     let start = d.skip_ws(0);
-    let (value, end) = match d.clone().scan(start) {
+    let (value, end) = match d.decode(start) {
         Ok(v) => v,
         Err(Stop::At(i)) => return Err(d.message("Expecting value", i)),
         Err(Stop::Fail(m)) => return Err(m),
@@ -49,14 +49,42 @@ enum Stop {
     Fail(String),
 }
 
-#[derive(Clone)]
+/// A container being filled: an array, or an object and the key whose
+/// value comes next.
+enum Open {
+    Array(Vec<Value>),
+    Object(Map<String, Value>, String),
+}
+
 struct Decoder<'a> {
     s: &'a [char],
-    depth: usize,
 }
 
 fn is_ws(c: char) -> bool {
     matches!(c, ' ' | '\t' | '\n' | '\r')
+}
+
+/// Python's sentence when nesting passes the limit.
+fn too_deep(kind: &str) -> Stop {
+    Stop::Fail(format!(
+        "maximum recursion depth exceeded while decoding a JSON {} from a unicode string",
+        kind
+    ))
+}
+
+/// A container just opened: empty (the value and its end), or open with
+/// where its first value starts.
+enum Opened {
+    Empty(Value, usize),
+    Filling(Open, usize),
+}
+
+/// What comes after a value inside a container.
+enum Next {
+    /// Another value starts here.
+    Value(usize),
+    /// The outermost value is complete and ends here.
+    Done(Value, usize),
 }
 
 impl Decoder<'_> {
@@ -92,33 +120,118 @@ impl Decoder<'_> {
             .all(|(k, c)| self.at(i + k) == Some(c))
     }
 
-    fn scan(&mut self, i: usize) -> Result<(Value, usize), Stop> {
+    /// One value from `start` (`scan_once`), without recursion: open
+    /// containers are kept on `stack`, so no nesting can exhaust the
+    /// thread's stack; past [`MAX_DEPTH`] it fails with Python's sentence.
+    fn decode(&self, start: usize) -> Result<(Value, usize), Stop> {
+        let mut stack: Vec<Open> = Vec::new();
+        let mut i = start;
+        loop {
+            let (value, end) = match self.at(i) {
+                Some(c @ ('[' | '{')) => {
+                    if stack.len() >= MAX_DEPTH {
+                        return Err(too_deep(if c == '[' { "array" } else { "object" }));
+                    }
+                    match self.open(c, i + 1)? {
+                        Opened::Empty(value, end) => (value, end),
+                        Opened::Filling(open, next) => {
+                            stack.push(open);
+                            i = next;
+                            continue;
+                        }
+                    }
+                }
+                _ => match self.scalar(i) {
+                    Err(Stop::At(at)) if !stack.is_empty() => {
+                        return Err(self.fail("Expecting value", at))
+                    }
+                    other => other?,
+                },
+            };
+            match self.close(&mut stack, value, end)? {
+                Next::Value(next) => i = next,
+                Next::Done(v, end) => return Ok((v, end)),
+            }
+        }
+    }
+
+    /// After `[` or `{` at `i - 1`.
+    fn open(&self, c: char, i: usize) -> Result<Opened, Stop> {
+        let i = self.skip_ws(i);
+        if c == '[' {
+            if self.at(i) == Some(']') {
+                return Ok(Opened::Empty(Value::Array(Vec::new()), i + 1));
+            }
+            return Ok(Opened::Filling(Open::Array(Vec::new()), i));
+        }
+        if self.at(i) == Some('}') {
+            return Ok(Opened::Empty(Value::Object(Map::new()), i + 1));
+        }
+        let (key, value_at) = self.key(i)?;
+        Ok(Opened::Filling(Open::Object(Map::new(), key), value_at))
+    }
+
+    /// An object key at `i` and its `:`; where the value starts.
+    fn key(&self, i: usize) -> Result<(String, usize), Stop> {
+        if self.at(i) != Some('"') {
+            return Err(self.fail("Expecting property name enclosed in double quotes", i));
+        }
+        let (key, next) = self.string(i + 1)?;
+        let colon = self.skip_ws(next);
+        if self.at(colon) != Some(':') {
+            return Err(self.fail("Expecting ':' delimiter", colon));
+        }
+        Ok((key, self.skip_ws(colon + 1)))
+    }
+
+    /// Put a finished value into the innermost open container, closing
+    /// every container that ends right after it.
+    fn close(&self, stack: &mut Vec<Open>, mut value: Value, mut end: usize) -> Result<Next, Stop> {
+        loop {
+            let Some(top) = stack.last_mut() else {
+                return Ok(Next::Done(value, end));
+            };
+            let j = self.skip_ws(end);
+            let closer = match top {
+                Open::Array(list) => {
+                    list.push(value);
+                    ']'
+                }
+                Open::Object(map, key) => {
+                    map.insert(std::mem::take(key), value);
+                    '}'
+                }
+            };
+            if self.at(j) == Some(closer) {
+                value = match stack.pop() {
+                    Some(Open::Array(list)) => Value::Array(list),
+                    Some(Open::Object(map, _)) => Value::Object(map),
+                    None => Value::Null,
+                };
+                end = j + 1;
+                continue;
+            }
+            if self.at(j) != Some(',') {
+                return Err(self.fail("Expecting ',' delimiter", j));
+            }
+            let next = self.skip_ws(j + 1);
+            if let Some(Open::Object(_, key)) = stack.last_mut() {
+                let (k, value_at) = self.key(next)?;
+                *key = k;
+                return Ok(Next::Value(value_at));
+            }
+            return Ok(Next::Value(next));
+        }
+    }
+
+    /// A string, a constant or a number at `i`.
+    fn scalar(&self, i: usize) -> Result<(Value, usize), Stop> {
         let Some(c) = self.at(i) else {
             return Err(Stop::At(i));
         };
-        match c {
-            '"' => {
-                let (text, end) = self.string(i + 1)?;
-                return Ok((Value::String(text), end));
-            }
-            '{' | '[' => {
-                self.depth += 1;
-                if self.depth > MAX_DEPTH {
-                    let what = if c == '{' { "object" } else { "array" };
-                    return Err(Stop::Fail(format!(
-                        "maximum recursion depth exceeded while decoding a JSON {} from a unicode string",
-                        what
-                    )));
-                }
-                let out = if c == '{' {
-                    self.object(i + 1)
-                } else {
-                    self.array(i + 1)
-                };
-                self.depth -= 1;
-                return out;
-            }
-            _ => {}
+        if c == '"' {
+            let (text, end) = self.string(i + 1)?;
+            return Ok((Value::String(text), end));
         }
         for (w, v) in [
             ("null", Value::Null),
@@ -133,64 +246,6 @@ impl Decoder<'_> {
             }
         }
         self.number(i)
-    }
-
-    fn object(&mut self, mut i: usize) -> Result<(Value, usize), Stop> {
-        let mut map = Map::new();
-        i = self.skip_ws(i);
-        if self.at(i) == Some('}') {
-            return Ok((Value::Object(map), i + 1));
-        }
-        loop {
-            if self.at(i) != Some('"') {
-                return Err(self.fail("Expecting property name enclosed in double quotes", i));
-            }
-            let (key, next) = self.string(i + 1)?;
-            i = self.skip_ws(next);
-            if self.at(i) != Some(':') {
-                return Err(self.fail("Expecting ':' delimiter", i));
-            }
-            i = self.skip_ws(i + 1);
-            let (value, next) = self.nested(i)?;
-            map.insert(key, value);
-            i = self.skip_ws(next);
-            if self.at(i) == Some('}') {
-                return Ok((Value::Object(map), i + 1));
-            }
-            if self.at(i) != Some(',') {
-                return Err(self.fail("Expecting ',' delimiter", i));
-            }
-            i = self.skip_ws(i + 1);
-        }
-    }
-
-    fn array(&mut self, mut i: usize) -> Result<(Value, usize), Stop> {
-        let mut list = Vec::new();
-        i = self.skip_ws(i);
-        if self.at(i) == Some(']') {
-            return Ok((Value::Array(list), i + 1));
-        }
-        loop {
-            let (value, next) = self.nested(i)?;
-            list.push(value);
-            i = self.skip_ws(next);
-            if self.at(i) == Some(']') {
-                return Ok((Value::Array(list), i + 1));
-            }
-            if self.at(i) != Some(',') {
-                return Err(self.fail("Expecting ',' delimiter", i));
-            }
-            i = self.skip_ws(i + 1);
-        }
-    }
-
-    /// A value inside an object or array: no value here is "Expecting
-    /// value" at this position.
-    fn nested(&mut self, i: usize) -> Result<(Value, usize), Stop> {
-        match self.scan(i) {
-            Err(Stop::At(at)) => Err(self.fail("Expecting value", at)),
-            other => other,
-        }
     }
 
     /// A string body from just after its opening quote (`scanstring`).
@@ -362,5 +417,67 @@ mod tests {
         assert_eq!(loads("NaN"), Ok(json!("nan")));
         assert_eq!(loads("\"\\ud83d\\ude00\""), Ok(json!("\u{1F600}")));
         assert_eq!(loads("{\"a\":1,\"a\":2}"), Ok(json!({"a": 2})));
+    }
+
+    /// Nesting far past the limit is refused with Python's sentence and
+    /// never overflows a tokio worker's 2 MiB stack (debug build frames).
+    #[test]
+    fn very_deep_nesting_is_refused_on_a_worker_sized_stack() {
+        let decoded = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(|| {
+                let arrays = "[".repeat(100_000);
+                let objects = "{\"a\": ".repeat(100_000);
+                let mixed = "[{\"a\": ".repeat(50_000);
+                (loads(&arrays), loads(&objects), loads(&mixed))
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+        let sentence = |kind: &str| {
+            Err(format!(
+                "maximum recursion depth exceeded while decoding a JSON {} from a unicode string",
+                kind
+            ))
+        };
+        assert_eq!(decoded.0, sentence("array"));
+        assert_eq!(decoded.1, sentence("object"));
+        assert!(decoded.2 == sentence("array") || decoded.2 == sentence("object"));
+        // Within the limit, deep values still decode.
+        let fine = format!("{}1{}", "[".repeat(MAX_DEPTH), "]".repeat(MAX_DEPTH));
+        assert!(loads(&fine).is_ok());
+    }
+
+    /// Every text in `logic_vectors.json` decodes as Python 3.12's
+    /// `json.loads` decodes it, or fails with its sentence. Values a JSON
+    /// value cannot hold (non-finite floats, integers past 64 bits) and a
+    /// repr Python escapes (U+2028) are checked to decode, not by repr.
+    #[test]
+    fn every_vector_decodes_as_python() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/flow/logic_vectors.json");
+        let v: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        let unrepresentable = |ok: &str| {
+            ok.contains("nan")
+                || ok.contains("inf")
+                || ok.contains("\\u2028")
+                || (ok.len() > 25 && ok.chars().all(|c| c.is_ascii_digit()))
+        };
+        let mut checked = 0;
+        for case in v["json"].as_array().unwrap() {
+            let text = case["text"].as_str().unwrap();
+            let got = loads(text);
+            if let Some(err) = case["err"].as_str() {
+                assert_eq!(got, Err(err.to_string()), "{:?}", text);
+            } else {
+                let ok = case["ok"].as_str().unwrap();
+                let value = got.unwrap_or_else(|e| panic!("{:?}: {}", text, e));
+                if !unrepresentable(ok) {
+                    assert_eq!(pyfmt::repr(&value), ok, "{:?}", text);
+                }
+            }
+            checked += 1;
+        }
+        assert!(checked > 60);
     }
 }
