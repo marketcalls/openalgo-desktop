@@ -166,12 +166,13 @@ It never takes the false branch as if the check had run.
 
 ### Streams (Stream tab)
 
-**Subscribe LTP**, **Subscribe Quote** and **Subscribe Depth** read the live
-market data feed (the one the trading terminal uses) and fall back to a quote
-when no update comes within a few seconds. **Unsubscribe** drops a stream.
-Subscriptions are given back when the workflow is deactivated or deleted, and
-Unsubscribe with **all** drops only this workflow's own, never the trading
-terminal's or the sandbox's.
+| Node | Does |
+| --- | --- |
+| **Subscribe LTP**, **Subscribe Quote**, **Subscribe Depth** | Read the live market data feed (the one the trading terminal uses), and fall back to a quote when no update comes within a few seconds |
+| **Unsubscribe** | Drops a stream. With **all** it drops only this workflow's own subscriptions, never the trading terminal's or the sandbox's |
+
+Subscriptions are also given back when the workflow is deactivated or
+deleted.
 
 ### Utilities (Util tab)
 

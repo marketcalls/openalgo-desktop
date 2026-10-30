@@ -228,12 +228,13 @@ graph that fails is not saved; the answer is 400:
   "message": "<the first problem>", "errors": [ { "path", "code", "message", ... } ] }
 ```
 
-**Desktop:** a body that is not a JSON object (a JSON array, for example) is
-answered 400 with the message `Workflow must be a JSON object`, and JSON
-carrying a bare `NaN` or `Infinity` (which a Python script can write) is
-answered 400 with `The workflow is not valid JSON (values such as NaN or
-Infinity are not allowed). Check it and try again.` OpenAlgo web fails on the
-first with a server error and parses the second.
+A body that is not JSON at all is answered 400 `{"error": "No data provided"}`
+(OpenAlgo web's server answers it with its own error page). **Desktop:** a JSON body that is not an object (a JSON
+array, for example) is answered 400 with the message `Workflow must be a JSON
+object`, and JSON carrying a bare `NaN` or `Infinity` (which a Python script
+can write) is answered 400 with `The workflow is not valid JSON (values such as
+NaN or Infinity are not allowed). Check it and try again.` OpenAlgo web fails
+on the first with a server error and parses the second.
 
 ### Persisted vs minimal node
 
@@ -557,9 +558,13 @@ fields, then to raw text:
 | Body | Becomes |
 |---|---|
 | JSON object, any declared type | its own keys |
-| Form-encoded | its own fields |
+| Form-encoded or multipart | its own fields |
 | JSON that is not an object (a list, a bare number) | `{{webhook.message}}` plus `{{webhook.payload}}` |
 | Anything else | `{{webhook.message}}` holding the raw text |
+
+The JSON is read as Python reads it, so a bare `NaN` or `Infinity` (TradingView
+writes `NaN` for a value its chart does not have) is a number, not a reason to
+fall back to raw text.
 
 **A secret in the payload requires JSON.** With `payload` auth the secret is a
 field, and plain text has nowhere to put one, so such a request is refused with
@@ -1412,8 +1417,8 @@ cannot silently route the else-path into a trade.
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `startTime` | `"HH:MM"` | `"09:15"` | |
-| `endTime` | `"HH:MM"` | `"15:30"` | |
+| `startTime` | `"HH:MM"` | `"09:15"` | Accepts a `{{variable}}`; one that does not resolve to a time fails the node. |
+| `endTime` | `"HH:MM"` | `"15:30"` | As `startTime`. |
 | `invertCondition` | boolean | `false` | If true, fires when **outside** the window. |
 
 ```json
@@ -1431,7 +1436,7 @@ cannot silently route the else-path into a trade.
 |---|---|---|---|
 | `conditionType` | `"entry"` \| `"exit"` \| `"custom"` | - | UI-only categorization. |
 | `operator` | `"=="` \| `">="` \| `"<="` \| `">"` \| `"<"` | `">="` | |
-| `targetTime` | `"HH:MM"` or `"HH:MM:SS"` | `"09:30"` | Seconds are honoured when given. |
+| `targetTime` | `"HH:MM"` or `"HH:MM:SS"` | `"09:30"` | Seconds are honoured when given. Accepts a `{{variable}}`; one that does not resolve to a time fails the node. |
 | `label` | string | - | Optional. |
 
 ```json
@@ -2068,7 +2073,7 @@ and a wait ends at once when the run is stopped (sign-out, quitting the app).
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `targetTime` | `"HH:MM"` or `"HH:MM:SS"` | `"09:30"` | Seconds are honoured. If already past, the node returns immediately. More than 30 minutes away is refused. **Desktop:** IST, whatever the computer's time zone. |
+| `targetTime` | `"HH:MM"` or `"HH:MM:SS"` | `"09:30"` | Seconds are honoured. If already past, the node returns immediately. More than 30 minutes away is refused. Accepts a `{{variable}}`; one that does not resolve to a time fails the node. **Desktop:** IST, whatever the computer's time zone. |
 | `label` | string | - | UI-only. |
 
 ```json
@@ -2972,8 +2977,11 @@ In OpenAlgo Desktop (paths from the repository root):
 - Import, export and replace: `src-tauri/src/flow/service/transfer.rs`.
 - Trigger registration and its lifecycle: `src-tauri/src/flow/service/activation.rs`
   (activate, deactivate) and `src-tauri/src/flow/triggers/` (`scheduler.rs`,
-  `market_hours.rs`, `price_monitor.rs`, `order_monitor.rs`, `drive.rs`,
-  `restore.rs`, `runs.rs`).
+  `price_monitor.rs`, `order_monitor.rs`, `drive.rs`, `restore.rs`,
+  `runs.rs`).
+- The scheduler's market-hours gate: `market_hours_config` and
+  `is_within_market_hours` in `src-tauri/src/flow/nodes/timing.rs`, on
+  `effective_session_window` in `src-tauri/src/db/sqlite/market_calendar.rs`.
 - Webhooks: `src-tauri/src/flow/service/webhooks.rs` (secret, payload),
   `src-tauri/src/flow/service/webhook_guard.rs` (lockout) and the public routes
   in `src-tauri/src/server/routes/flow/triggers.rs` (rate limits).
