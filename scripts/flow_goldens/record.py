@@ -92,7 +92,7 @@ def desktop(s: dict, expected: dict, web_script: list) -> dict:
     if script_extra:
         out["script_extra"] = script_extra
     out.update(harness.to_json(sets))
-    if set(out) <= {"parity", "why", "fix"}:
+    if names and set(out) <= {"parity", "why", "fix"}:
         return None  # the fix changes nothing in this scenario
     return out
 
