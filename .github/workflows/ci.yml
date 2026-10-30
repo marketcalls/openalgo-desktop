@@ -160,7 +160,9 @@ jobs:
         # and process with nothing else running, so the descriptor, task
         # and RSS counts are its own. Ignored in the full suite for that
         # reason. Windows has no /dev/fd or ps, so there it checks the
-        # registrations and tasks only.
+        # registrations and tasks only. It runs even when the full suite
+        # failed, so the measurement is always in the log.
+        if: ${{ !cancelled() }}
         working-directory: src-tauri
         run: >-
           cargo nextest run --locked --lib --config-file ../.github/nextest.toml

@@ -144,6 +144,25 @@ impl TriggerSide {
     /// inactive. One path for every cause (T-043; the web skipped the
     /// subscriptions here).
     pub async fn stand_down(&self, workflow_id: i64, reason: &str) {
+        let failed = format!("Could not deactivate workflow {} ({})", workflow_id, reason);
+        self.deactivate_logged(workflow_id, reason, &failed).await;
+    }
+
+    /// A one-shot `what` (`price alert`, `order-update watch`) that fired:
+    /// stood down with the web's sentences for both outcomes.
+    pub async fn spend_one_shot(&self, workflow_id: i64, what: &str) {
+        let done = format!(
+            "One-shot {} for workflow {} consumed; workflow deactivated.",
+            what, workflow_id
+        );
+        let failed = format!(
+            "Could not deactivate workflow {} after its one-shot {} fired",
+            workflow_id, what
+        );
+        self.deactivate_logged(workflow_id, &done, &failed).await;
+    }
+
+    async fn deactivate_logged(&self, workflow_id: i64, reason: &str, failed: &str) {
         let Some(app) = self.app() else {
             return;
         };
@@ -157,12 +176,7 @@ impl TriggerSide {
             .await;
         match done {
             Ok(_) => tracing::info!("{}", reason),
-            Err(e) => tracing::error!(
-                "Could not deactivate workflow {} ({}): {}",
-                workflow_id,
-                reason,
-                e
-            ),
+            Err(e) => tracing::error!("{}: {}", failed, e),
         }
     }
 

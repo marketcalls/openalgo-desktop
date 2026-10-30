@@ -249,12 +249,11 @@ async fn opening_the_app_restores_its_active_triggers() {
     };
     let first = open();
     first.security.install(&Unlocked::random().unwrap());
+    // This app's own start-up restore runs on its own task and could read
+    // the row after the save; stopped first, the save is restored only by
+    // the next open.
+    first.flow.triggers().stop().await;
     let id = save(&first, alert_node(), true);
-    assert_eq!(
-        first.flow.triggers().status()["alerts_count"],
-        0,
-        "saved, not registered"
-    );
     first.shutdown().await;
     for _ in 0..1000 {
         if Arc::strong_count(&first) == 1 {
@@ -276,4 +275,197 @@ async fn opening_the_app_restores_its_active_triggers() {
     assert_eq!(restored["alerts_count"], 1, "{}", restored);
     assert_eq!(restored["alerts"][0]["workflow_id"], id);
     again.shutdown().await;
+}
+
+impl Logged {
+    fn starting_with(&self, prefix: &str) -> Vec<String> {
+        self.0
+            .lock()
+            .iter()
+            .filter(|m| m.starts_with(prefix))
+            .cloned()
+            .collect()
+    }
+}
+
+/// Refuse every update of `column` on the workflows table, as a database
+/// that cannot be written answers.
+fn refuse_updates(app: &Arc<AppState>, name: &str, column: &str) {
+    app.sqlite
+        .conn()
+        .unwrap()
+        .execute_batch(&format!(
+            "CREATE TRIGGER {name} BEFORE UPDATE OF {column} ON flow_workflows
+             BEGIN SELECT RAISE(ABORT, 'refused'); END;"
+        ))
+        .unwrap();
+}
+
+/// T-006 (decision 32): the interval log echoes the unit the node gave,
+/// as the web's `interval_unit or "minutes"`; an unknown one runs as
+/// minutes.
+#[tokio::test]
+async fn the_interval_log_names_the_unit_given() {
+    let now = "2026-11-03T04:37:31Z".parse().unwrap();
+    let (_guard, logs) = logged();
+    for (unit, line) in [
+        (
+            json!("fortnights"),
+            "every 1 fortnights, first run 10:08:02",
+        ),
+        (json!(""), "every 1 minutes, first run 10:08:02"),
+        (json!("seconds"), "every 1 seconds, first run 10:07:32"),
+    ] {
+        let s = scheduler::Schedule::from_node(
+            &data(json!({"scheduleType": "interval", "intervalUnit": unit.clone()})),
+            now,
+        )
+        .unwrap()
+        .unwrap();
+        assert!(
+            logs.has(&format!("Creating interval trigger: {}", line)),
+            "{:?}",
+            logs.0.lock()
+        );
+        if unit == json!("fortnights") {
+            let scheduler::Schedule::Interval { every, .. } = s else {
+                panic!("{:?}", s)
+            };
+            assert_eq!(every, chrono::Duration::minutes(1));
+        }
+    }
+}
+
+/// T-033 (decision 32): the price monitor writes the web's lines when it
+/// starts watching and when it stops.
+#[tokio::test]
+async fn the_price_monitor_says_when_it_starts_and_stops() {
+    let t = app();
+    let s = side(&t);
+    let (_guard, logs) = logged();
+    s.start_drivers();
+    let id = save(&t.ctx, alert_node(), false);
+    s.register(
+        id,
+        "priceAlert",
+        &data(json!({"symbol": "SBIN", "exchange": "NSE", "condition": "above", "price": 800})),
+    )
+    .await
+    .unwrap();
+    for _ in 0..500 {
+        if logs.has("Price monitoring started with 1 alerts") {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert!(logs.has("Price monitoring started with 1 alerts"));
+    assert!(!logs.has("Price monitoring stopped"));
+    TriggerHooks::stop(s.as_ref()).await;
+    assert!(logs.has("Price monitoring stopped"));
+    assert_eq!(logs.starting_with("Price monitoring started").len(), 1);
+}
+
+/// T-056 (decision 32): a spent one-shot whose workflow cannot be written
+/// says so in the web's words; once it can, the web's consumed line.
+#[tokio::test]
+async fn a_spent_one_shot_logs_the_webs_lines() {
+    let t = app();
+    let s = side(&t);
+    let id = save(&t.ctx, alert_node(), true);
+    refuse_updates(&t.ctx, "refuse_active", "is_active");
+    let (_guard, logs) = logged();
+    for what in ["order-update watch", "price alert"] {
+        s.spend_one_shot(id, what).await;
+        let failed = format!(
+            "Could not deactivate workflow {} after its one-shot {} fired: ",
+            id, what
+        );
+        assert_eq!(logs.starting_with(&failed).len(), 1, "{:?}", logs.0.lock());
+    }
+    assert!(active(&t.ctx, id), "the write was refused");
+    t.ctx
+        .sqlite
+        .conn()
+        .unwrap()
+        .execute_batch("DROP TRIGGER refuse_active")
+        .unwrap();
+    s.spend_one_shot(id, "order-update watch").await;
+    assert!(logs.has(&format!(
+        "One-shot order-update watch for workflow {} consumed; workflow deactivated.",
+        id
+    )));
+    assert!(!active(&t.ctx, id));
+}
+
+/// T-081: activation's two 500s: the active flag cannot be written; the
+/// trigger's registration fails, which rolls the flag back.
+#[tokio::test]
+async fn activation_answers_500_when_it_cannot_persist_or_register() {
+    let t = app();
+    crate::services::auth_service::AuthService::setup(
+        &t.ctx,
+        "trader",
+        "trader@example.com",
+        "Secret@123",
+    )
+    .unwrap();
+    let daily = node("start", json!({"scheduleType": "daily", "time": "09:15"}));
+    let id = save(&t.ctx, daily.clone(), false);
+    refuse_updates(&t.ctx, "refuse_active", "is_active");
+    let r = crate::flow::service::activation::activate(&t.ctx, id).await;
+    assert_eq!(
+        (r.status, r.body),
+        (500, json!({"error": "Could not activate workflow"}))
+    );
+    assert!(!active(&t.ctx, id));
+    let conn = t.ctx.sqlite.conn().unwrap();
+    conn.execute_batch("DROP TRIGGER refuse_active").unwrap();
+    refuse_updates(&t.ctx, "refuse_job", "schedule_job_id");
+    let r = crate::flow::service::activation::activate(&t.ctx, id).await;
+    assert_eq!(
+        (r.status, r.body),
+        (
+            500,
+            json!({"error": "Could not record the scheduler job id for this workflow"})
+        )
+    );
+    assert!(!active(&t.ctx, id), "rolled back");
+}
+
+/// R-56 (decision 29): a webhook run logs that data was injected, naming
+/// the workflow, and nothing of the payload or its secret reaches the
+/// app's log.
+#[tokio::test]
+async fn the_webhook_payload_never_reaches_the_log() {
+    let t = app();
+    crate::services::auth_service::AuthService::setup(
+        &t.ctx,
+        "trader",
+        "trader@example.com",
+        "Secret@123",
+    )
+    .unwrap();
+    let (token, secret) = live_hook(
+        &t.ctx,
+        json!([
+            {"id": "w", "type": "webhookTrigger", "position": {"x": 0, "y": 0}, "data": {}},
+            {"id": "l", "type": "log", "position": {"x": 0, "y": 100}, "data": {"message": "alert in"}}
+        ]),
+        json!([{"id": "e", "source": "w", "target": "l"}]),
+    );
+    let id = workflows::get_by_token(&t.ctx.sqlite.conn().unwrap(), &t.ctx.security, &token)
+        .unwrap()
+        .unwrap()
+        .id;
+    let mut call = hook_call(&token, &secret);
+    call.payload
+        .insert("note".into(), json!("SENSITIVE-NOTE-7731"));
+    let (_guard, logs) = logged();
+    let a = crate::flow::service::webhooks::trigger(&t.ctx, call).await;
+    assert_eq!(a.reply.status, 200, "{}", a.reply.body);
+    assert!(logs.has(&format!("Webhook data injected into workflow {}", id)));
+    for m in logs.0.lock().iter() {
+        assert!(!m.contains("SENSITIVE-NOTE-7731"), "{}", m);
+        assert!(!m.contains(&secret), "{}", m);
+    }
 }
