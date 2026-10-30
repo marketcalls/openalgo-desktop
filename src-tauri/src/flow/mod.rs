@@ -37,6 +37,8 @@ pub mod triggers;
 pub mod validator;
 
 #[cfg(test)]
+mod doc_tests;
+#[cfg(test)]
 mod goldens;
 
 use contract::env::NodeEnv;
