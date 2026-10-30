@@ -50,7 +50,7 @@ async fn a_wide_graph_ends_on_the_visit_cap() {
             ));
         }
     }
-    assert!(12 < MAX_NODE_DEPTH);
+    const { assert!(12 < MAX_NODE_DEPTH) };
     let (_, _, abort) = walk(json!(nodes), json!(edges)).await;
     assert_eq!(
         abort.as_deref(),
