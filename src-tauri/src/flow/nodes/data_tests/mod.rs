@@ -11,6 +11,7 @@ mod app;
 mod cache;
 mod calendar;
 mod lookups;
+mod margin;
 mod nodes;
 mod pnl;
 mod support;

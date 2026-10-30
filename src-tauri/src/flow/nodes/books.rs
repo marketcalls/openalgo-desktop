@@ -421,7 +421,8 @@ fn margin_position(ctx: &NodeCtx, p: &Map<String, Value>) -> Result<Value, Strin
     let price_type = f.choice("pricetype", &VALID_PRICE_TYPES, None, &[])?;
     let price = f.number("price", Some(0.0), &[])?;
     let trigger = f.number("trigger_price", Some(0.0), &["triggerPrice"])?;
-    if let Some(reason) = invalid_price_reason(&price_type, price, trigger) {
+    // The order nodes' own check (`_invalid_price_reason`), one copy.
+    if let Some(reason) = super::orders::invalid_price_reason(&price_type, price, trigger) {
         return Err(reason);
     }
     let mut out = p.clone();
@@ -449,43 +450,4 @@ fn numeric_text(n: f64) -> String {
     } else {
         pyfmt::float(n)
     }
-}
-
-/// `_invalid_price_reason`: why a price type cannot be sent with these
-/// prices (a LIMIT or SL at zero executes at an unintended level).
-fn invalid_price_reason(price_type: &str, price: f64, trigger: f64) -> Option<String> {
-    let kind = if price_type.is_empty() {
-        "MARKET".to_string()
-    } else {
-        price_type.to_uppercase()
-    };
-    if !price.is_finite() {
-        return Some(format!(
-            "{} order needs a finite price, got {}",
-            kind,
-            pyfmt::float(price)
-        ));
-    }
-    if !trigger.is_finite() {
-        return Some(format!(
-            "{} order needs a finite trigger price, got {}",
-            kind,
-            pyfmt::float(trigger)
-        ));
-    }
-    if matches!(kind.as_str(), "LIMIT" | "SL") && price <= 0.0 {
-        return Some(format!(
-            "{} order needs a positive price, got {}",
-            kind,
-            pyfmt::float(price)
-        ));
-    }
-    if matches!(kind.as_str(), "SL" | "SL-M") && trigger <= 0.0 {
-        return Some(format!(
-            "{} order needs a positive trigger price, got {}",
-            kind,
-            pyfmt::float(trigger)
-        ));
-    }
-    None
 }
