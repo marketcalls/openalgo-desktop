@@ -589,3 +589,4 @@ async fn a_stopped_run_visits_nothing_more() {
 // --- a run, end to end ------------------------------------------------------
 
 mod run;
+mod walk_rules;

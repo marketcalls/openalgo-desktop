@@ -250,4 +250,127 @@ mod tests {
         assert_eq!(flow.running(), 0);
         assert!(!flow.stop_token().is_cancelled());
     }
+
+    /// Every non-test source under `dir`, with its path.
+    fn sources(dir: &std::path::Path, out: &mut Vec<(String, String)>) {
+        for entry in std::fs::read_dir(dir).unwrap().flatten() {
+            let path = entry.path();
+            let name = path.to_string_lossy().into_owned();
+            if entry.file_name().to_string_lossy().contains("test") {
+                continue;
+            }
+            if path.is_dir() {
+                sources(&path, out);
+            } else if name.ends_with(".rs") {
+                out.push((name, std::fs::read_to_string(&path).unwrap()));
+            }
+        }
+    }
+
+    /// X-019 / X-020: the offset pattern, the expiry types and the leg
+    /// strike modes are written once, in `node_contracts.rs`; the
+    /// validator, the executor and the nodes import them, so a second copy
+    /// that could drift fails here.
+    #[test]
+    fn the_node_contracts_are_written_once() {
+        let flow = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/flow");
+        let mut files = Vec::new();
+        for dir in ["validator", "executor", "nodes"] {
+            sources(&flow.join(dir), &mut files);
+        }
+        assert!(files.len() > 20, "{} sources", files.len());
+        let expiry_list = regex::Regex::new(
+            r#"\[\s*"(?:current|next)_(?:week|month)"\s*,\s*"(?:current|next)_(?:week|month)""#,
+        )
+        .unwrap();
+        let strike_modes = regex::Regex::new(r#""OFFSET"\s*,\s*"STRIKE""#).unwrap();
+        for (name, text) in &files {
+            assert!(!text.contains("ITM|OTM"), "an offset pattern in {}", name);
+            assert!(
+                !expiry_list.is_match(text),
+                "an expiry type list in {}",
+                name
+            );
+            assert!(
+                !strike_modes.is_match(text),
+                "a strike mode list in {}",
+                name
+            );
+        }
+        let contracts = std::fs::read_to_string(flow.join("node_contracts.rs")).unwrap();
+        assert!(contracts.contains("ITM|OTM") && expiry_list.is_match(&contracts));
+        assert!(strike_modes.is_match(&contracts));
+    }
+
+    /// D-22 / D-23 (decision 11): the monitors start at most four runs at
+    /// once each, the web's fixed defaults.
+    #[test]
+    fn the_monitors_run_four_at_a_time() {
+        assert_eq!(triggers::price_monitor::WORKERS, 4);
+        assert_eq!(triggers::order_monitor::WORKERS, 4);
+    }
+
+    /// X-054: every option exchange the resolver can answer is one orders
+    /// are placed on as derivatives.
+    #[test]
+    fn option_exchanges_are_derivative_exchanges() {
+        use crate::flow::node_contracts::DERIVATIVE_EXCHANGES;
+        for underlying in [
+            "NIFTY", "SENSEX", "BANKEX", "CRUDEOIL", "GOLD", "RELIANCE", "usdinr", "",
+        ] {
+            for declared in [
+                "NFO",
+                "NSE",
+                "NSE_INDEX",
+                "BFO",
+                "BSE",
+                "BSE_INDEX",
+                "MCX",
+                "CDS",
+                "BCD",
+                "NCO",
+                "NCDEX",
+                "",
+                "junk",
+            ] {
+                let (_, options) = nodes::options::resolve_option_exchanges(underlying, declared);
+                assert!(
+                    DERIVATIVE_EXCHANGES.contains(&options.as_str()),
+                    "{} on {} -> {}",
+                    underlying,
+                    declared,
+                    options
+                );
+            }
+        }
+    }
+
+    /// The quoted strings of the TypeScript constant `name` in the editor's
+    /// constants file.
+    fn editor_list(name: &str, key: &str) -> Vec<String> {
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/lib/flow/constants.ts");
+        let text = std::fs::read_to_string(path).unwrap();
+        let start = text.find(&format!("export const {} =", name)).unwrap();
+        let body = &text[start..];
+        let end = body.find("\n]").unwrap();
+        let pattern = regex::Regex::new(&format!(r"{}'([^']+)'", key)).unwrap();
+        pattern
+            .captures_iter(&body[..end])
+            .map(|c| c[1].to_string())
+            .collect()
+    }
+
+    /// X-059 and C-06: the editor and the run agree on the derivative
+    /// exchanges (the default product) and the expiry types.
+    #[test]
+    fn the_editor_and_the_run_share_their_lists() {
+        use crate::flow::node_contracts::{DERIVATIVE_EXCHANGES, VALID_EXPIRY_TYPES};
+        let mut derivative = editor_list("DERIVATIVE_EXCHANGES", "");
+        derivative.sort();
+        assert_eq!(derivative, DERIVATIVE_EXCHANGES.to_vec());
+        let mut expiry = editor_list("EXPIRY_TYPES", "value: ");
+        expiry.sort();
+        assert_eq!(expiry, VALID_EXPIRY_TYPES.to_vec());
+    }
 }

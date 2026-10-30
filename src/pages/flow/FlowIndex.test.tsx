@@ -115,7 +115,17 @@ describe('the workflow list', () => {
     await checkA11y(container)
   })
 
-  it('opens a workflow from its card, by click or by keyboard', async () => {
+  it('dates each workflow in IST, the server sending UTC', async () => {
+    // Saved at 01:30 IST on the 30th (20:00 UTC on the 29th).
+    api.listWorkflows.mockResolvedValue([{ ...ORB, updated_at: '2026-10-29T20:00:00' }])
+    renderIndex()
+    const oct30 = new Date(Date.UTC(2026, 9, 30, 6, 30)).toLocaleDateString(undefined, {
+      timeZone: 'Asia/Kolkata',
+    })
+    expect(await screen.findByText(oct30)).toBeInTheDocument()
+  })
+
+    it('opens a workflow from its card, by click or by keyboard', async () => {
     renderIndex()
     const user = userEvent.setup()
     const card = await screen.findByRole('link', { name: 'Open workflow Expiry day straddle' })

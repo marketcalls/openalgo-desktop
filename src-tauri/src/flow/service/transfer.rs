@@ -64,7 +64,7 @@ fn migrate_nodes(data: &mut Map<String, Value>) -> Vec<String> {
 pub async fn import(app: &Arc<AppState>, body: Body) -> Reply {
     let mut data = match body {
         Body::Nothing => return no_data(),
-        Body::Unreadable => return unreadable("Invalid workflow format"),
+        Body::NonFinite => return unreadable("Invalid workflow format"),
         Body::Json(Value::Object(m)) => m,
         // The web fails a JSON array here with a 500 (parity IE-06).
         Body::Json(other) => {
@@ -99,6 +99,15 @@ pub async fn import(app: &Arc<AppState>, body: Body) -> Reply {
     }
 }
 
+/// `payload[key] or []`: what replace checks, and so what it stores.
+fn graph_or_empty(payload: &Map<String, Value>, key: &str) -> Value {
+    payload
+        .get(key)
+        .filter(|v| crate::flow::contract::pyfmt::truthy(v))
+        .cloned()
+        .unwrap_or_else(|| json!([]))
+}
+
 /// What replace writes: the graph, the name when one is given, the
 /// description when present (an empty one clears it).
 fn replace_edit(payload: &Map<String, Value>) -> workflows::Edit {
@@ -111,8 +120,8 @@ fn replace_edit(payload: &Map<String, Value>) -> workflows::Edit {
             .get("description")
             .filter(|v| !v.is_null())
             .map(|v| super::text_field(Some(v))),
-        nodes: Some(super::graph_field(payload, "nodes")),
-        edges: Some(super::graph_field(payload, "edges")),
+        nodes: Some(graph_or_empty(payload, "nodes")),
+        edges: Some(graph_or_empty(payload, "edges")),
     }
 }
 
@@ -126,7 +135,7 @@ pub async fn replace(app: &Arc<AppState>, id: i64, body: Body) -> Reply {
     };
     let mut payload = match body {
         Body::Nothing => return no_data(),
-        Body::Unreadable => return unreadable("Invalid workflow structure"),
+        Body::NonFinite => return unreadable("Invalid workflow structure"),
         Body::Json(Value::Object(m)) => m,
         Body::Json(_) => {
             return Reply::new(
@@ -145,8 +154,8 @@ pub async fn replace(app: &Arc<AppState>, id: i64, body: Body) -> Reply {
     };
     let check = json!({
         "name": truthy_or("name", json!(before.name)),
-        "nodes": truthy_or("nodes", json!([])),
-        "edges": truthy_or("edges", json!([])),
+        "nodes": graph_or_empty(&payload, "nodes"),
+        "edges": graph_or_empty(&payload, "edges"),
     });
     let errors = validator::validate_workflow(&check, ValidateOptions::COMPLETE);
     if let Some(first) = errors.first() {

@@ -98,6 +98,29 @@ pub fn drop_secrets(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// The first stored webhook secret, to prove a key is the one Flow's
+/// secrets were written with (the key vault's witness, after every other
+/// encrypted value); `None` when no workflow holds one.
+pub fn witness(conn: &Connection) -> Result<Option<crate::db::sqlite::key_vault::Witness>> {
+    use rusqlite::OptionalExtension;
+    let first: Option<(i64, String, String)> = conn
+        .query_row(
+            "SELECT id, webhook_secret, webhook_secret_nonce FROM flow_workflows
+             WHERE webhook_secret IS NOT NULL AND webhook_secret <> ''
+               AND webhook_secret_nonce IS NOT NULL ORDER BY id LIMIT 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional()?;
+    Ok(first.map(
+        |(id, ciphertext, nonce)| crate::db::sqlite::key_vault::Witness {
+            ciphertext,
+            nonce,
+            aad: workflows::secret_aad(id),
+        },
+    ))
+}
+
 /// The account was reset: every webhook address and secret anyone holds
 /// stops working, and every workflow stops (nothing may trade for an
 /// account that no longer exists). History is kept.

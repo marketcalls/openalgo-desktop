@@ -1116,3 +1116,48 @@ async fn triggers_do_not_leak() {
         assert!(!ctx.flow.subscriptions.has(*id));
     }
 }
+
+/// X-324 (decision 2): a webhook to a workflow that waits is answered 202
+/// at once, the message saying it finishes in the background; a second
+/// trigger meanwhile is refused 409; the workflow is free once the run
+/// ends.
+#[tokio::test]
+async fn a_webhook_to_a_waiting_workflow_is_answered_at_once() {
+    let f = F::new();
+    let mut g = webhook_graph("Waits");
+    g["nodes"][1] = json!({"id": "l", "type": "delay", "position": {"x": 0, "y": 100},
+        "data": {"delayValue": 60}});
+    let id = f.create(g).await;
+    let (s, v) = f
+        .post(&format!("/flow/api/workflows/{}/webhook/enable", id))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    let (s, active) = f
+        .post(&format!("/flow/api/workflows/{}/activate", id))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{}", active);
+    let url = format!("/flow/webhook/{}", v["webhook_token"].as_str().unwrap());
+    let body = json!({"secret": v["webhook_secret"]}).to_string();
+    let (s, _, first) = f.send_hook(&url, &body, "127.0.0.1").await;
+    assert_eq!(s, StatusCode::ACCEPTED, "{}", first);
+    assert_eq!(first["status"], "accepted");
+    assert!(
+        first["message"].as_str().unwrap().contains("background"),
+        "{}",
+        first
+    );
+    let (s, _, second) = f.send_hook(&url, &body, "127.0.0.1").await;
+    assert_eq!(s, StatusCode::CONFLICT, "{}", second);
+    assert!(
+        second["message"]
+            .as_str()
+            .unwrap()
+            .to_lowercase()
+            .contains("already running"),
+        "{}",
+        second
+    );
+    let ctx = f.h.ctx().clone();
+    ctx.flow.stop_all(crate::flow::STOP_GRACE).await;
+    assert!(ctx.flow.try_claim(id).is_some());
+}

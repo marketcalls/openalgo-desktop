@@ -46,6 +46,42 @@ pub trait FlowNode: Send + Sync {
     async fn run(&self, ctx: &NodeCtx, data: &Map<String, Value>) -> NodeOutcome;
 }
 
+/// A field the web's accessor could not read: its `int()` or `float()`
+/// raised, nothing in the node caught it, and the web's run ended there
+/// (`Error: {text}` in the log, the run failed). The text is Python's.
+/// A node stops at the field, before any call, with `?` inside a block
+/// that answers `Result<NodeOutcome, NodeAbort>`, converted with `.into()`:
+///
+/// ```ignore
+/// async {
+///     let quantity = ctx.try_get_int(data, "quantity", 1)?;
+///     Ok(place(ctx, quantity).await)
+/// }
+/// .await
+/// .into()
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NodeAbort(String);
+
+impl NodeAbort {
+    /// Python's exception text.
+    pub fn message(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<NodeAbort> for NodeOutcome {
+    fn from(a: NodeAbort) -> Self {
+        NodeOutcome::abort(a.0)
+    }
+}
+
+impl From<Result<NodeOutcome, NodeAbort>> for NodeOutcome {
+    fn from(r: Result<NodeOutcome, NodeAbort>) -> Self {
+        r.unwrap_or_else(NodeOutcome::from)
+    }
+}
+
 /// What a node answered: the web's result dict, or nothing (`None` for
 /// the nodes that only log, as `start` and `group`), or an abort.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -353,6 +389,54 @@ impl NodeCtx {
         self.get_float_opt(data, key).unwrap_or(default)
     }
 
+    /// The web's `get_int` where it raises: as [`NodeCtx::get_int`], but a
+    /// list or dict (`int()`'s TypeError) or text that reads as infinity
+    /// (`int(float("inf"))`'s OverflowError) ends the run. Text that is not
+    /// a number, or NaN, is the web's caught ValueError: `default`.
+    pub fn try_get_int(
+        &self,
+        data: &Map<String, Value>,
+        key: &str,
+        default: i64,
+    ) -> Result<i64, NodeAbort> {
+        match data.get(key) {
+            None | Some(Value::Null) => Ok(default),
+            Some(Value::String(s)) if s.is_empty() => Ok(default),
+            Some(Value::String(s)) => match pyfmt::parse_float(&self.vars.interpolate(s)) {
+                Some(f) if f.is_infinite() => {
+                    Err(NodeAbort("cannot convert float infinity to integer".into()))
+                }
+                Some(f) if f.is_finite() => Ok(f.trunc() as i64),
+                _ => Ok(default),
+            },
+            Some(v @ (Value::Array(_) | Value::Object(_))) => Err(NodeAbort(format!(
+                "int() argument must be a string, a bytes-like object or a real number, not '{}'",
+                pyfmt::type_name(v)
+            ))),
+            Some(other) => Ok(pyfmt::to_int(other).unwrap_or(default)),
+        }
+    }
+
+    /// The web's `get_float` where it raises: as [`NodeCtx::get_float`],
+    /// but a list or dict (`float()`'s TypeError) ends the run. Text
+    /// reads as Python's `float()` (`inf` and `nan` included); text that
+    /// is not a number is `default`. The web's `str()` cannot raise, so
+    /// [`NodeCtx::get_str`] has no fallible form.
+    pub fn try_get_float(
+        &self,
+        data: &Map<String, Value>,
+        key: &str,
+        default: f64,
+    ) -> Result<f64, NodeAbort> {
+        match data.get(key) {
+            Some(v @ (Value::Array(_) | Value::Object(_))) => Err(NodeAbort(format!(
+                "float() argument must be a string or a real number, not '{}'",
+                pyfmt::type_name(v)
+            ))),
+            _ => Ok(self.get_float(data, key, default)),
+        }
+    }
+
     fn get_float_opt(&self, data: &Map<String, Value>, key: &str) -> Option<f64> {
         match data.get(key)? {
             Value::Null => None,
@@ -463,6 +547,77 @@ mod tests {
         assert_eq!(c.get_str(&d, "qty", ""), "25");
     }
 
+    /// N-common-11/12: where the web's `int()`/`float()` raises, the run
+    /// ends with Python's text, and the node stops before its call.
+    #[tokio::test]
+    async fn a_list_or_dict_where_a_number_belongs_ends_the_run() {
+        let c = ctx();
+        c.vars.set("big", json!("1e400"));
+        let d = data(
+            json!({"legs": [1], "opts": {}, "inf": "inf", "big": "{{big}}",
+                            "nan": "nan", "qty": "{{nope}}", "n": 3.9, "flag": true,
+                            "blank": "", "none": null, "neg": "-inf"}),
+        );
+        let int_err = |k: &str| c.try_get_int(&d, k, 1).unwrap_err().message().to_string();
+        assert_eq!(
+            int_err("legs"),
+            "int() argument must be a string, a bytes-like object or a real number, not 'list'"
+        );
+        assert_eq!(
+            int_err("opts"),
+            "int() argument must be a string, a bytes-like object or a real number, not 'dict'"
+        );
+        for k in ["inf", "big", "neg"] {
+            assert_eq!(
+                int_err(k),
+                "cannot convert float infinity to integer",
+                "{}",
+                k
+            );
+        }
+        // The web's caught ValueError and the forgiving cases.
+        for (k, want) in [
+            ("nan", 1),
+            ("qty", 1),
+            ("n", 3),
+            ("flag", 1),
+            ("blank", 1),
+            ("none", 1),
+            ("absent", 1),
+        ] {
+            assert_eq!(c.try_get_int(&d, k, 1), Ok(want), "{}", k);
+        }
+        assert_eq!(
+            c.try_get_float(&d, "legs", 0.0).unwrap_err().message(),
+            "float() argument must be a string or a real number, not 'list'"
+        );
+        assert_eq!(
+            c.try_get_float(&d, "opts", 0.0).unwrap_err().message(),
+            "float() argument must be a string or a real number, not 'dict'"
+        );
+        assert_eq!(c.try_get_float(&d, "inf", 0.0), Ok(f64::INFINITY));
+        assert_eq!(c.try_get_float(&d, "n", 0.0), Ok(3.9));
+        assert_eq!(c.try_get_float(&d, "qty", 2.5), Ok(2.5));
+        // A node using `?` stops at the field: no call is made.
+        let calls = std::sync::atomic::AtomicUsize::new(0);
+        let outcome: NodeOutcome = async {
+            let quantity = c.try_get_int(&d, "legs", 1)?;
+            calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(NodeOutcome::result(json!({"quantity": quantity})))
+        }
+        .await
+        .into();
+        assert_eq!(
+            outcome.aborted(),
+            Some(
+                "int() argument must be a string, a bytes-like object or a real number, not 'list'"
+            )
+        );
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+        let fine: NodeOutcome = Ok::<_, NodeAbort>(NodeOutcome::none()).into();
+        assert_eq!(fine, NodeOutcome::none());
+    }
+
     #[test]
     fn output_is_stored_under_the_trimmed_name_and_logged() {
         let c = ctx();
@@ -494,9 +649,36 @@ mod tests {
         assert!(!c.sleep(Duration::from_secs(3600)).await);
     }
 
+    /// E-52 / X-105 (the web's `WorkflowContext(workflow_id=42)`), and
+    /// N-common-08 / N-logic-07: every entry carries its time, the IST
+    /// isoformat, whole seconds without a fraction and microseconds when
+    /// there are some.
     #[test]
     fn a_context_carries_its_workflow_id() {
         assert_eq!(ctx().workflow_id, None);
+        let clock = crate::clock::ManualClock::new("2026-10-30T03:45:00Z".parse().unwrap());
+        let c = NodeCtx::new(NodeCtxParts {
+            client: Arc::new(FakeFlowClient::new()),
+            clock: clock.clone(),
+            cancel: CancellationToken::new(),
+            workflow_id: Some(42),
+            default_strategy: String::new(),
+            subscriptions: Arc::new(Subscriptions::default()),
+            session_boundary: super::super::vars::DEFAULT_BOUNDARY,
+            env: NodeEnv::default(),
+            app: Weak::new(),
+        });
+        assert_eq!(c.workflow_id, Some(42));
+        c.info("first");
+        clock.advance(chrono::Duration::microseconds(250));
+        c.error("second");
+        assert_eq!(
+            c.logs(),
+            vec![
+                json!({"time": "2026-10-30T09:15:00", "message": "first", "level": "info"}),
+                json!({"time": "2026-10-30T09:15:00.000250", "message": "second", "level": "error"}),
+            ]
+        );
     }
 
     #[test]

@@ -338,7 +338,8 @@ pub struct Witness {
 
 /// The first encrypted value in the database: the account's TOTP secret,
 /// else the API key, else saved broker keys, else a stored broker session,
-/// else the tunnel's ngrok authtoken, else an Agent key.
+/// else the tunnel's ngrok authtoken, else an Agent key, else a Flow
+/// webhook secret.
 /// `None` when nothing is encrypted yet (then any key will do).
 pub fn witness(conn: &Connection) -> Result<Option<Witness>> {
     let first = |sql: &str| -> Result<Option<(String, String, String)>> {
@@ -390,7 +391,10 @@ pub fn witness(conn: &Connection) -> Result<Option<Witness>> {
     if let Some(w) = super::tunnel::witness(conn)? {
         return Ok(Some(w));
     }
-    crate::agent::models::secrets::witness(conn)
+    if let Some(w) = crate::agent::models::secrets::witness(conn)? {
+        return Ok(Some(w));
+    }
+    crate::flow::store::witness(conn)
 }
 
 /// Every value the data key encrypts, dropped for a fresh start (a
@@ -407,7 +411,8 @@ pub fn witness(conn: &Connection) -> Result<Option<Witness>> {
 /// the Telegram bot token and linked users' saved API keys, the WhatsApp
 /// pairing, the tunnel's ngrok authtoken (its switch and domain stay), and
 /// the Agent's keys and ChatGPT sign-in (its models stay, untested where
-/// they needed one: `agent::models::secrets::wipe`).
+/// they needed one: `agent::models::secrets::wipe`), and every Flow
+/// webhook secret, with its webhook turned off (`flow::store::drop_secrets`).
 ///
 /// A new encrypted column must be added here and to `witness` (and the
 /// test that fills every one of them).
@@ -504,7 +509,10 @@ mod tests {
              INSERT INTO ag_provider_model (provider_kind, model_name, display_name,
                  is_default, last_test_ok, created_at, updated_at)
              VALUES ('openai', 'gpt-4o', 'GPT-4o', 1, 1, 't', 't');
-             INSERT INTO ag_setting (key, value) VALUES ('trading_enabled', 'true');",
+             INSERT INTO ag_setting (key, value) VALUES ('trading_enabled', 'true');
+             INSERT INTO flow_workflows (name, nodes, edges, webhook_token, webhook_secret,
+                 webhook_secret_nonce, webhook_enabled, created_at, updated_at)
+             VALUES ('Gap fade', '[]', '[]', 'tok', 'c', 'n', 1, 't', 't');",
         )
         .unwrap();
         conn.execute_batch("BEGIN IMMEDIATE").unwrap();
@@ -547,6 +555,15 @@ mod tests {
         assert_eq!(one("SELECT ngrok_authtoken FROM settings"), None);
         assert_eq!(n("SELECT COUNT(*) FROM ag_secret"), 0);
         assert_eq!(
+            one("SELECT webhook_secret || webhook_secret_nonce FROM flow_workflows"),
+            None
+        );
+        assert_eq!(
+            n("SELECT webhook_enabled FROM flow_workflows"),
+            0,
+            "a webhook never runs without its secret"
+        );
+        assert_eq!(
             n("SELECT COUNT(*) FROM ag_provider_model WHERE is_default = 1 OR last_test_ok = 1"),
             0,
             "a model whose key went is tested again before it runs"
@@ -581,6 +598,10 @@ mod tests {
             one("SELECT value FROM ag_setting WHERE key = 'trading_enabled'").as_deref(),
             Some("true")
         );
+        assert_eq!(
+            one("SELECT name || webhook_token FROM flow_workflows").as_deref(),
+            Some("Gap fadetok")
+        );
     }
 
     #[test]
@@ -595,6 +616,24 @@ mod tests {
         .unwrap();
         let w = witness(&conn).unwrap().unwrap();
         assert_eq!((w.ciphertext.as_str(), w.nonce.as_str()), ("ac", "an"));
+        // A Flow webhook secret comes after it, and is a witness alone.
+        conn.execute_batch(
+            "INSERT INTO flow_workflows (id, name, nodes, edges, webhook_secret,
+                 webhook_secret_nonce, created_at, updated_at)
+             VALUES (7, 'w', '[]', '[]', 'fc', 'fn', 't', 't');",
+        )
+        .unwrap();
+        let w = witness(&conn).unwrap().unwrap();
+        assert_eq!((w.ciphertext.as_str(), w.nonce.as_str()), ("ac", "an"));
+        conn.execute_batch("DELETE FROM ag_secret").unwrap();
+        let w = witness(&conn).unwrap().unwrap();
+        assert_eq!((w.ciphertext.as_str(), w.nonce.as_str()), ("fc", "fn"));
+        assert_eq!(w.aad, Aad::new("flow_workflows", "webhook_secret", "7"));
+        conn.execute_batch(
+            "INSERT INTO ag_secret (name, ciphertext) VALUES ('provider:openai', 'v1:an:ac')",
+        )
+        .unwrap();
+        let w = witness(&conn).unwrap().unwrap();
         assert_eq!(
             w.aad,
             Aad::new("ag_secret", "ciphertext", "provider:openai")

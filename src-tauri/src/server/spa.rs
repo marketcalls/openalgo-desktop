@@ -28,7 +28,8 @@ struct Assets;
 /// part of this version (maintainer, 2026-10-12): its paths get the app's 404
 /// page. The Agent (`/agent`, `/agent/config`) is back in 1.0.4; Flow
 /// (`/flow`, `/flow/shortcuts`, `/flow/editor/:id`) comes in 1.0.5. `:x`
-/// matches one path segment.
+/// matches one path segment; in a route of [`WHOLE_NUMBER_ROUTES`], only
+/// one of digits.
 pub const SPA_ROUTES: &[&str] = &[
     "/",
     "/:broker/auth",
@@ -128,6 +129,10 @@ pub const SPA_ROUTES: &[&str] = &[
     "/whatsapp",
 ];
 
+/// Routes whose `:x` the web declares `<int:...>`: any other segment
+/// there is the app's 404 page, as on the web (`/flow/editor/abc`).
+const WHOLE_NUMBER_ROUTES: &[&str] = &["/flow/editor/:id"];
+
 pub fn is_spa_route(path: &str) -> bool {
     let path = if path.len() > 1 {
         path.trim_end_matches('/')
@@ -136,12 +141,16 @@ pub fn is_spa_route(path: &str) -> bool {
     };
     let segs: Vec<&str> = path.split('/').collect();
     SPA_ROUTES.iter().any(|r| {
+        let whole = WHOLE_NUMBER_ROUTES.contains(r);
         let rs: Vec<&str> = r.split('/').collect();
         rs.len() == segs.len()
-            && rs
-                .iter()
-                .zip(segs.iter())
-                .all(|(a, b)| a.starts_with(':') && !b.is_empty() || a == b)
+            && rs.iter().zip(segs.iter()).all(|(a, b)| {
+                if a.starts_with(':') {
+                    !b.is_empty() && (!whole || b.bytes().all(|c| c.is_ascii_digit()))
+                } else {
+                    a == b
+                }
+            })
     })
 }
 
@@ -225,7 +234,14 @@ mod tests {
         assert!(is_spa_route("/flow"));
         assert!(is_spa_route("/flow/shortcuts"));
         assert!(is_spa_route("/flow/editor/7"));
+        assert!(is_spa_route("/flow/editor/7/"));
         assert!(!is_spa_route("/flow/editor"));
+        // The web's route is `<int:workflow_id>` (parity F-101).
+        assert!(!is_spa_route("/flow/editor/abc"));
+        assert!(!is_spa_route("/flow/editor/-1"));
+        assert!(!is_spa_route("/flow/editor/7x"));
+        // Other parameters still take any segment.
+        assert!(is_spa_route("/chartink/abc/configure"));
         assert!(!is_spa_route("/broker/angel/totp/x"));
     }
 

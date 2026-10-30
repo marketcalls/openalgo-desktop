@@ -33,12 +33,12 @@ use std::sync::Arc;
 /// What a request body was.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Body {
-    /// Empty, or JSON Python reads as false (`null`, `{}`, `[]`, `""`, `0`):
-    /// the web's `if not data`.
+    /// Empty, JSON Python reads as false (`null`, `{}`, `[]`, `""`, `0`),
+    /// or not JSON at all (decision 24): the web's `if not data`.
     Nothing,
-    /// Not JSON at all (bare `NaN` and `Infinity` included, which the web's
-    /// parser takes and the desktop's does not).
-    Unreadable,
+    /// JSON only Python's parser takes (bare `NaN`, `Infinity`, a number
+    /// past any float): refused with its own sentence (decision 15).
+    NonFinite,
     Json(Value),
 }
 
@@ -50,7 +50,10 @@ impl Body {
         match serde_json::from_slice::<Value>(bytes) {
             Ok(v) if pyfmt::truthy(&v) => Body::Json(v),
             Ok(_) => Body::Nothing,
-            Err(_) => Body::Unreadable,
+            Err(_) => match std::str::from_utf8(bytes).map(crate::flow::nodes::pyjson::loads) {
+                Ok(Ok(_)) => Body::NonFinite,
+                _ => Body::Nothing,
+            },
         }
     }
 }
@@ -60,9 +63,9 @@ pub fn no_data() -> Reply {
     Reply::new(400, json!({"error": "No data provided"}))
 }
 
-/// What a body that is not JSON answers, in the shape of the route's own
-/// refusal (`error_title` is "Invalid workflow structure" or "Invalid
-/// workflow format").
+/// What a body with `NaN` or `Infinity` answers, in the shape of the
+/// route's own refusal (`error_title` is "Invalid workflow structure" or
+/// "Invalid workflow format").
 pub fn unreadable(error_title: &str) -> Reply {
     Reply::new(
         400,
@@ -203,14 +206,14 @@ fn text_field(v: Option<&Value>) -> Option<String> {
     }
 }
 
-/// `nodes` / `edges` as given, or `[]` when absent or empty in Python's
-/// sense. The web validates `nodes or []` but stores the raw value, so a
-/// `{}` or `""` passed the check and was stored as is (parity V-131); the
-/// desktop stores what it checked.
+/// `nodes` / `edges` as sent, or `[]` when absent or null. The web
+/// validates `nodes or []` but stores the raw value, so a `{}` or `""`
+/// passed the check and was stored as is (parity V-131); the desktop
+/// checks and stores the same value, so those are refused (decision 23).
 fn graph_field(data: &Map<String, Value>, key: &str) -> Value {
     match data.get(key) {
-        Some(v) if pyfmt::truthy(v) => v.clone(),
-        _ => json!([]),
+        None | Some(Value::Null) => json!([]),
+        Some(v) => v.clone(),
     }
 }
 
@@ -219,15 +222,15 @@ fn graph_field(data: &Map<String, Value>, key: &str) -> Value {
 pub async fn create(app: &Arc<AppState>, body: Body) -> Reply {
     let data = match body {
         Body::Nothing => return no_data(),
-        Body::Unreadable => return unreadable("Invalid workflow structure"),
+        Body::NonFinite => return unreadable("Invalid workflow structure"),
         Body::Json(Value::Object(m)) => m,
         Body::Json(other) => return not_an_object(&other),
     };
     if data.contains_key("nodes") || data.contains_key("edges") {
         let payload = json!({
             "name": data.get("name").filter(|v| pyfmt::truthy(v)).cloned().unwrap_or(json!("")),
-            "nodes": data.get("nodes").filter(|v| pyfmt::truthy(v)).cloned().unwrap_or(json!([])),
-            "edges": data.get("edges").filter(|v| pyfmt::truthy(v)).cloned().unwrap_or(json!([])),
+            "nodes": graph_field(&data, "nodes"),
+            "edges": graph_field(&data, "edges"),
         });
         let errors = validator::validate_workflow(&payload, ValidateOptions::DRAFT);
         if let Some(first) = errors.first() {
@@ -280,7 +283,7 @@ const EDITABLE: &[&str] = &["name", "description", "nodes", "edges"];
 pub async fn update(app: &Arc<AppState>, id: i64, body: Body) -> Reply {
     let data = match body {
         Body::Nothing => return no_data(),
-        Body::Unreadable => return unreadable("Invalid workflow structure"),
+        Body::NonFinite => return unreadable("Invalid workflow structure"),
         Body::Json(Value::Object(m)) => m,
         Body::Json(other) => return not_an_object(&other),
     };
@@ -291,8 +294,8 @@ pub async fn update(app: &Arc<AppState>, id: i64, body: Body) -> Reply {
     rejected.sort();
     if !rejected.is_empty() {
         tracing::warn!(
-            "Ignoring non-editable field(s) {:?} in PUT for workflow {}",
-            rejected,
+            "Ignoring non-editable field(s) {} in PUT for workflow {}",
+            pyfmt::str(&json!(rejected)),
             id
         );
     }
@@ -373,11 +376,11 @@ pub async fn delete(app: &Arc<AppState>, id: i64) -> Reply {
             json!({"error": "This workflow is still running. Try again when it finishes."}),
         );
     };
-    let w = match load(app, id).await {
-        Ok(Some(w)) => w,
+    match load(app, id).await {
+        Ok(Some(_)) => {}
         Ok(None) => return workflow_not_found(),
         Err(e) => return failed("delete workflow", e),
-    };
+    }
     let hooks = app.flow.triggers();
     app.flow.subscriptions.release(id, hooks.as_ref()).await;
     if app.flow.subscriptions.has(id) {
@@ -386,14 +389,14 @@ pub async fn delete(app: &Arc<AppState>, id: i64) -> Reply {
             json!({"error": "The workflow feed is still connected. Try again shortly."}),
         );
     }
-    if w.is_active {
-        if let Err(e) = hooks.unregister(id).await {
-            tracing::warn!(
-                "A trigger of workflow {} could not be removed before it was deleted: {}",
-                id,
-                e
-            );
-        }
+    // Every registration goes, whatever the row says: one left by a
+    // failed deactivate would otherwise fire for a deleted workflow (T-086).
+    if let Err(e) = hooks.unregister(id).await {
+        tracing::warn!(
+            "A trigger of workflow {} could not be removed before it was deleted: {}",
+            id,
+            e
+        );
     }
     match app
         .blocking(move |c| workflows::delete(&*c.sqlite.conn()?, id))
