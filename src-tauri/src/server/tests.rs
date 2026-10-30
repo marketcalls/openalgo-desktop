@@ -263,6 +263,8 @@ mod flow_migrations;
 mod flow_rules;
 // Flow's read routes when the database fails, and a PUT with nothing to write.
 mod flow_reads;
+// Flow's route rules the wave-6 sweep asked to pin.
+mod flow_rules_w6;
 
 // ------------------------------------------------------------------ fixtures
 
