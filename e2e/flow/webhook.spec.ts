@@ -148,7 +148,7 @@ test('4. a webhook with its secret runs; without it, refused', async ({
       workflow_id: id,
     })
     const run = (await session.executions(id))[0]
-    expect(run.status).toBe('success')
+    expect(run.status).toBe('completed')
     const logged = JSON.stringify(run.logs)
     expect(logged).toContain(`[LOG] Alert for ${future}: TV long`)
     expect(logged).toContain(`Placing order: ${future} BUY qty=${LOT}`)

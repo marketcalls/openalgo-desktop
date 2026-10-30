@@ -22,7 +22,7 @@ test('7. delete asks first; Cancel keeps the workflow, Delete removes it', async
   const askDelete = async () => {
     await card.getByRole('button', { name: 'Workflow actions' }).click()
     await page.getByRole('menuitem', { name: 'Delete' }).click()
-    const confirm = page.getByRole('alertdialog')
+    const confirm = page.getByRole('dialog').filter({ hasText: `Delete ${name}?` })
     await expect(confirm.getByRole('heading', { name: `Delete ${name}?` })).toBeVisible()
     return confirm
   }
@@ -52,7 +52,7 @@ test('7. leaving the editor with unsaved changes asks first', async ({ page, ses
   // An unsaved edit: a second node on the canvas.
   await dropNode(page, 'Util', 'Log', 'log', { x: 300, y: 260 })
   await expect(page.getByText('Unsaved', { exact: true })).toBeVisible()
-  const guard = page.getByRole('alertdialog').filter({ hasText: 'Leave without saving?' })
+  const guard = page.getByRole('dialog').filter({ hasText: 'Leave without saving?' })
 
   // The back arrow: Stay keeps the editor and the edit.
   await page.getByRole('button', { name: 'Back to flows list' }).click()

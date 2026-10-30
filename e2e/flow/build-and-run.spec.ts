@@ -201,7 +201,7 @@ test('2. run it now in analyzer mode: the run log, the sandbox order book', asyn
 
   // The run's record.
   const runs = await session.executions(workflowId)
-  expect(runs[0].status).toBe('success')
+  expect(runs[0].status).toBe('completed')
 
   // The Order Book page: the sandbox order, filled, with its sandbox id.
   await page.goto('/orderbook')

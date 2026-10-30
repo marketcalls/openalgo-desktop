@@ -93,7 +93,7 @@ test('6. the Agent saves a workflow after the trader approves it', async ({ page
     const toolResult = provider.requests
       .flatMap((r) => r.body?.messages ?? [])
       .find((m: any) => m.role === 'tool')
-    expect(JSON.stringify(toolResult)).toContain(`"workflow_id":${saved.id}`)
+    expect(toolResult.content).toContain(`"workflow_id":${saved.id}`)
   } finally {
     await provider.close()
   }

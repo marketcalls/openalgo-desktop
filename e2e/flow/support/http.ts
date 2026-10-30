@@ -125,7 +125,7 @@ export class Session {
   }
 
   async executions(id: number): Promise<any[]> {
-    const { status, body } = await this.get(`/flow/api/workflows/${id}/executions?limit=50`)
+    const { status, body } = await this.get(`/flow/api/workflows/${id}/executions?limit=200`)
     if (status !== 200) throw new Error(`Executions of ${id}: ${status} ${JSON.stringify(body)}`)
     return Array.isArray(body) ? body : []
   }

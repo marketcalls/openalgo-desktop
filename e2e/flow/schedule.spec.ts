@@ -79,15 +79,9 @@ test('5. an interval schedule fires on the clock, and stops when deactivated', a
   await waitFor('two scheduled runs', async () => (await runs(session, id)).length >= 2, 30_000)
   const fired = await runs(session, id)
   for (const run of fired.slice(0, 2)) {
-    expect(run.status).toBe('success')
+    expect(run.status).toBe('completed')
     expect(JSON.stringify(run.logs)).toMatch(/\[LOG\] Scheduled tick at \d{2}:\d{2}:\d{2}/)
   }
-  // The Flow list shows the last run.
-  await page.goto('/flow')
-  await expect(page.getByRole('link', { name: `Open workflow ${name}` })).toContainText(
-    'Last: success'
-  )
-
   // Deactivated from the editor's toolbar.
   await page.goto(`/flow/editor/${id}`)
   await toolbar(page, 'Deactivate', id)
@@ -135,6 +129,11 @@ test('5. an interval schedule fires on the clock, and stops when deactivated', a
     const settled = (await session.executions(id)).length
     await witnessed(3)
     expect((await session.executions(id)).length).toBe(settled)
+    // Settled, the Flow list shows its last run (the web's status word).
+    await page.goto('/flow')
+    await expect(page.getByRole('link', { name: `Open workflow ${name}` })).toContainText(
+      'Last: completed'
+    )
   } finally {
     await session.post(`/flow/api/workflows/${witnessId}/deactivate`)
   }
