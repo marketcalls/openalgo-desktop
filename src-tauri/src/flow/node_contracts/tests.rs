@@ -265,6 +265,28 @@ fn an_underlying_may_carry_its_expiry() {
     );
 }
 
+/// C-12: the base is letters only (`[A-Z]+`), so an underlying whose name
+/// has digits never splits: NIFTYNXT5028AUG26 stays whole, as the web's
+/// `parse_underlying_symbol` answers (checked in its Python), and so does
+/// a name with any other character.
+#[test]
+fn a_base_with_digits_never_splits() {
+    for whole in [
+        "NIFTYNXT5028AUG26",
+        "NIFTYNXT5028AUG26FUT",
+        "niftynxt5028aug26",
+        "NIFTYNXT50",
+        "M&M28AUG26",
+    ] {
+        assert_eq!(
+            parse_underlying_symbol(whole),
+            (whole.to_uppercase(), None),
+            "{}",
+            whole
+        );
+    }
+}
+
 #[test]
 fn price_conditions_accept_the_editor_spellings() {
     for (raw, canonical) in [
