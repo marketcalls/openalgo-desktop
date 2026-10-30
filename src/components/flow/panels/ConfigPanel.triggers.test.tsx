@@ -198,6 +198,17 @@ describe('start: run-on days (F-531)', () => {
     expect(labelled('Run On Days')).toBeInTheDocument()
   })
 
+  it('shows Daily with its time and days when no schedule type is stored (desktop)', () => {
+    // The web showed Daily but hid the days; the panel now reads one type.
+    openPanel('start', {})
+    expect(triggerUnder('Schedule Type')).toHaveTextContent('Daily')
+    expect(labelled('Time')).toBeInTheDocument()
+    expect(labelled('Run On Days')).toBeInTheDocument()
+    expect(selected()).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri'])
+    expect(screen.queryByText('Repeat Every')).not.toBeInTheDocument()
+    expect(screen.queryByText('Date', { selector: 'label' })).not.toBeInTheDocument()
+  })
+
   it.each(['once', 'interval'])('has no days for %s', (scheduleType) => {
     openPanel('start', { scheduleType })
     expect(screen.queryByText('Run On Days')).not.toBeInTheDocument()

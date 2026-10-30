@@ -334,6 +334,9 @@ export function ConfigPanel() {
   const nodeData = selectedNode.data as Record<string, unknown>
   const nodeType = selectedNode.type || 'unknown'
   const orderPriceType = (nodeData.priceType as PriceType | undefined) || 'MARKET'
+  // Desktop: one reading of a start node's type for every field it gates, so
+  // a node with none stored shows Daily with its days (parity F-530, F-531).
+  const startSchedule = (nodeData.scheduleType as string) || 'daily'
   // Desktop: a multi-leg node with no strategy runs as custom (parity F-586).
   const multiStrategy = (nodeData.strategy as string) || 'custom'
   // What the Product control shows. A product the author picked is stored on
@@ -386,7 +389,7 @@ export function ConfigPanel() {
                 <div className="space-y-2">
                   <Label className="text-xs">Schedule Type</Label>
                   <Select
-                    value={(nodeData.scheduleType as string) || 'daily'}
+                    value={startSchedule}
                     onValueChange={(v) => handleDataChange('scheduleType', v)}
                   >
                     <SelectTrigger className="h-8">
@@ -401,7 +404,7 @@ export function ConfigPanel() {
                     </SelectContent>
                   </Select>
                 </div>
-                {nodeData.scheduleType !== 'interval' && (
+                {startSchedule !== 'interval' && (
                   <div className="space-y-2">
                     <Label className="text-xs">Time</Label>
                     <Input
@@ -412,7 +415,7 @@ export function ConfigPanel() {
                     />
                   </div>
                 )}
-                {nodeData.scheduleType === 'interval' && (
+                {startSchedule === 'interval' && (
                   <div className="space-y-2">
                     <Label className="text-xs">Repeat Every</Label>
                     <div className="flex gap-2">
@@ -441,7 +444,7 @@ export function ConfigPanel() {
                     </div>
                   </div>
                 )}
-                {(nodeData.scheduleType === 'daily' || nodeData.scheduleType === 'weekly') && (
+                {(startSchedule === 'daily' || startSchedule === 'weekly') && (
                   <div className="space-y-2">
                     <Label className="text-xs">Run On Days</Label>
                     <div className="flex flex-wrap gap-1 mb-2">
@@ -497,7 +500,7 @@ export function ConfigPanel() {
                     </div>
                   </div>
                 )}
-                {nodeData.scheduleType === 'once' && (
+                {startSchedule === 'once' && (
                   <div className="space-y-2">
                     <Label className="text-xs">Date</Label>
                     <Input

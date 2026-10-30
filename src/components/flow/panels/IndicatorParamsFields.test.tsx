@@ -14,6 +14,7 @@ import { useState } from 'react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useFlowWorkflowStore } from '@/stores/flowWorkflowStore'
+import { checkA11y } from '@/test/a11y-utils'
 
 vi.mock('@/api/flow', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/api/flow')>()
@@ -54,7 +55,7 @@ function Controlled({ indicatorName, initial }: { indicatorName: string; initial
   return <IndicatorParamsFields indicatorName={indicatorName} value={value} onChange={setValue} />
 }
 
-/** The control under a field's label (the labels are not tied to their inputs). */
+/** The control under a field's label (labels are tied too: see "labels name their controls"). */
 function field(label: string, within_: HTMLElement = document.body): HTMLElement {
   const holder = within(within_).getByText(label, { selector: 'label' }).parentElement
   const control = holder?.querySelector<HTMLElement>('input, button')
@@ -63,6 +64,9 @@ function field(label: string, within_: HTMLElement = document.body): HTMLElement
 }
 
 const input = (label: string) => field(label) as HTMLInputElement
+
+const REFERENCE_REASON = 'Fields cannot show a {{variable}} reference. Remove it to use fields.'
+const MALFORMED_REASON = 'Fix the JSON, or clear the box, to use fields.'
 
 const JSON_HELP =
   'Raw kwargs passed to the indicator. Use this for {{variable}} references, which are interpolated before the JSON is parsed - the fields view cannot represent them.'
@@ -230,15 +234,16 @@ describe('F-668 JSON mode', () => {
     expect(onChange).toHaveBeenLastCalledWith('')
   })
 
-  it('holds a {{variable}} params text in JSON mode, showing the parser message', async () => {
+  it('holds a {{variable}} params text in JSON mode, showing the parser message', () => {
     const raw = '{"period": {{len}}}'
     renderFields('alma', raw)
     expect((screen.getByPlaceholderText('{"period": 14}') as HTMLInputElement).value).toBe(raw)
     expect(screen.getByText(parseError(raw))).toHaveClass('text-destructive')
     expect(screen.queryByText(JSON_HELP)).toBeNull()
-
-    await userEvent.click(screen.getByRole('button', { name: 'Use fields' }))
-    expect(screen.getByPlaceholderText('{"period": 14}')).toBeInTheDocument()
+    // Desktop (F-668): "Use fields" did nothing here; it is disabled and says why.
+    const useFields = screen.getByRole('button', { name: 'Use fields' })
+    expect(useFields).toBeDisabled()
+    expect(useFields).toHaveAccessibleDescription(REFERENCE_REASON)
     expect(screen.queryByText('Period', { selector: 'label' })).toBeNull()
   })
 
@@ -312,5 +317,101 @@ describe('IND-084 a fresh editor per node and per indicator', () => {
 
     act(() => useFlowWorkflowStore.getState().updateNodeData('a', { indicatorName: 'ema' }))
     expect(period().value).toBe('9')
+  })
+})
+
+describe('desktop: labels name their controls (F-668, a11y)', () => {
+  it('ties every field label to its control', () => {
+    renderFields('alma')
+    expect(screen.getByLabelText('Period')).toBe(input('Period'))
+    expect(screen.getByLabelText('Offset')).toBe(input('Offset'))
+    expect(screen.getByLabelText('Sigma')).toBe(input('Sigma'))
+  })
+
+  it('names a switch, a select and a text box by their labels', () => {
+    const { unmount } = render(
+      <>
+        <IndicatorParamsFields indicatorName="dpo" value="" onChange={vi.fn()} />
+        <IndicatorParamsFields indicatorName="apo" value="" onChange={vi.fn()} />
+        <IndicatorParamsFields indicatorName="probe_text" value="" onChange={vi.fn()} />
+      </>
+    )
+    expect(screen.getByRole('switch', { name: 'Is Centered' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'MA Type' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Column' })).toBeInTheDocument()
+    unmount()
+  })
+
+  it('names the JSON box Parameters', async () => {
+    renderFields('alma', '{"period": 9}')
+    await userEvent.click(screen.getByRole('button', { name: 'Edit as JSON' }))
+    expect(screen.getByRole('textbox', { name: 'Parameters' })).toHaveValue('{"period": 9}')
+  })
+
+  it.each([
+    ['fields', 'apo', ''],
+    ['a switch', 'dpo', ''],
+    ['JSON with a reference', 'alma', '{"period": "{{len}}"}'],
+    ['malformed JSON', 'alma', '{"period": 9'],
+  ])('passes axe with %s', async (_case, name, value) => {
+    const { container } = render(
+      <IndicatorParamsFields indicatorName={name} value={value} onChange={vi.fn()} />
+    )
+    await checkA11y(container)
+  })
+})
+
+describe('desktop: when the fields view cannot be used (F-668)', () => {
+  it('opens a quoted {{reference}} in JSON mode, like an unquoted one', () => {
+    renderFields('alma', '{"period": "{{len}}"}')
+    expect(screen.getByRole('textbox', { name: 'Parameters' })).toHaveValue('{"period": "{{len}}"}')
+    expect(screen.queryByRole('spinbutton')).toBeNull()
+    expect(screen.getByText(JSON_HELP)).toBeInTheDocument()
+    const useFields = screen.getByRole('button', { name: 'Use fields' })
+    expect(useFields).toBeDisabled()
+    expect(useFields).toHaveAccessibleDescription(REFERENCE_REASON)
+  })
+
+  it('disables Use fields while the JSON is malformed, and says why', () => {
+    const raw = '{"period": 9'
+    renderFields('alma', raw)
+    expect(screen.getByText(parseError(raw))).toHaveClass('text-destructive')
+    const useFields = screen.getByRole('button', { name: 'Use fields' })
+    expect(useFields).toBeDisabled()
+    expect(useFields).toHaveAccessibleDescription(MALFORMED_REASON)
+    expect(screen.getByText(MALFORMED_REASON)).toBeInTheDocument()
+  })
+
+  it('switches back to fields once the JSON is fixed or the reference removed', () => {
+    render(<Controlled indicatorName="alma" initial='{"period": "{{len}}"}' />)
+    const box = screen.getByRole('textbox', { name: 'Parameters' })
+    fireEvent.change(box, { target: { value: '{"period": 9' } })
+    expect(screen.getByRole('button', { name: 'Use fields' })).toBeDisabled()
+    // Valid again: the fields view returns on its own, as the web does after malformed JSON.
+    fireEvent.change(box, { target: { value: '{"period": 9}' } })
+    expect(input('Period').value).toBe('9')
+    expect(screen.queryByText(MALFORMED_REASON)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Edit as JSON' })).toBeEnabled()
+  })
+
+  it('enables Use fields again in a JSON view the trader chose', async () => {
+    render(<Controlled indicatorName="alma" initial='{"period": 9}' />)
+    await userEvent.click(screen.getByRole('button', { name: 'Edit as JSON' }))
+    const box = screen.getByRole('textbox', { name: 'Parameters' })
+    fireEvent.change(box, { target: { value: '{"period": 9' } })
+    expect(screen.getByRole('button', { name: 'Use fields' })).toBeDisabled()
+    fireEvent.change(box, { target: { value: '{"period": 10}' } })
+    const useFields = screen.getByRole('button', { name: 'Use fields' })
+    expect(useFields).toBeEnabled()
+    expect(useFields).not.toHaveAttribute('aria-describedby')
+    await userEvent.click(useFields)
+    expect(input('Period').value).toBe('10')
+  })
+
+  it('keeps Edit as JSON enabled with no reason in the fields view', () => {
+    renderFields('alma', '{"period": 9}')
+    const edit = screen.getByRole('button', { name: 'Edit as JSON' })
+    expect(edit).toBeEnabled()
+    expect(edit).not.toHaveAttribute('aria-describedby')
   })
 })

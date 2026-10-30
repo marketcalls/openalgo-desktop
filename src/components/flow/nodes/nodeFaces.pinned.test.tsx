@@ -294,6 +294,21 @@ describe('F-677 the order nodes', () => {
     expect(has(blank, 'MARKET')).toBe(true)
   })
 
+  it.each([
+    ['placeOrder', 'badge-buy', 'badge-sell'],
+    ['smartOrder', 'badge-buy', 'badge-sell'],
+    ['optionsOrder', 'badge-buy', 'badge-sell'],
+    ['splitOrder', 'text-green-500', 'text-red-500'],
+  ])(
+    '%s with no stored side shows BUY in the buy colour (desktop: the web drew it red)',
+    (type, buy, sell) => {
+      const side = leaf(face(type), 'BUY')
+      expect(side.classList.contains(buy)).toBe(true)
+      expect(side.classList.contains(sell)).toBe(false)
+      expect(leaf(face(type, { action: 'SELL' }), 'SELL').classList.contains(sell)).toBe(true)
+    }
+  )
+
   it('Multi-Leg: strategy, leg count, expiry and the side, SELL by default', () => {
     const el = face('optionsMultiOrder', {
       underlying: 'FINNIFTY',

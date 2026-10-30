@@ -588,6 +588,15 @@ export default function FlowIndex() {
   const [importJson, setImportJson] = useState('')
   const [importError, setImportError] = useState<string | null>(null)
 
+  // Every way out of the import dialog leaves it empty for the next import.
+  const handleImportOpenChange = (open: boolean) => {
+    setIsImportOpen(open)
+    if (!open) {
+      setImportJson('')
+      setImportError(null)
+    }
+  }
+
   const {
     data: workflows,
     isLoading,
@@ -763,16 +772,7 @@ export default function FlowIndex() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={isImportOpen}
-        onOpenChange={(open) => {
-          setIsImportOpen(open)
-          if (!open) {
-            setImportJson('')
-            setImportError(null)
-          }
-        }}
-      >
+      <Dialog open={isImportOpen} onOpenChange={handleImportOpenChange}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Import Workflow</DialogTitle>
@@ -815,7 +815,8 @@ export default function FlowIndex() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsImportOpen(false)}>
+            {/* Desktop: Cancel clears the pasted text as Escape does (parity F-123). */}
+            <Button variant="outline" onClick={() => handleImportOpenChange(false)}>
               Cancel
             </Button>
             <Button
