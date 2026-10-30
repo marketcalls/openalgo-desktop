@@ -17,12 +17,12 @@ mod lexer;
 mod num;
 mod parser;
 
+use self::num::Num;
+use self::parser::{BinOp, Expr, ParseError, UnOp};
 use super::pyjson::float_value;
 use crate::flow::contract::node::{FlowNode, NodeCtx, NodeOutcome};
 use crate::flow::contract::pyfmt;
 use async_trait::async_trait;
-use self::num::Num;
-use self::parser::{BinOp, Expr, ParseError, UnOp};
 use serde_json::{json, Map, Value};
 
 /// The largest exponent `**` accepts, either sign.

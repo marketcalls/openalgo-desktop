@@ -393,7 +393,6 @@ mod tests {
         assert!(loads(&fine).is_ok());
     }
 
-
     /// Every text in `logic_vectors.json` decodes as Python 3.12's
     /// `json.loads` decodes it, or fails with its sentence. Values a JSON
     /// value cannot hold (non-finite floats, integers past 64 bits) and a
@@ -404,7 +403,10 @@ mod tests {
             .join("tests/fixtures/flow/logic_vectors.json");
         let v: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
         let unrepresentable = |ok: &str| {
-            ok.contains("nan") || ok.contains("inf") || ok.contains("\\u2028") || (ok.len() > 25 && ok.chars().all(|c| c.is_ascii_digit()))
+            ok.contains("nan")
+                || ok.contains("inf")
+                || ok.contains("\\u2028")
+                || (ok.len() > 25 && ok.chars().all(|c| c.is_ascii_digit()))
         };
         let mut checked = 0;
         for case in v["json"].as_array().unwrap() {
@@ -423,5 +425,4 @@ mod tests {
         }
         assert!(checked > 60);
     }
-
 }
