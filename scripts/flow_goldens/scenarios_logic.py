@@ -411,6 +411,9 @@ node(F, "timeWindow", "times_not_interpolated", {"startTime": "{{open}}", "endTi
 node(F, "timeCondition", "target_not_interpolated", {"targetTime": "{{t}}", "operator": ">="}, vars_in={"t": "11:00"},
      parity=["N-timeCondition-01"])
 node(F, "waitUntil", "target_not_interpolated", {"targetTime": "{{t}}"}, vars_in={"t": "10:20"}, parity=["N-waitUntil-01"])
+node(F, "timeWindow", "time_unresolved", {"startTime": "{{nope}}", "endTime": "15:30"}, parity=["N-timeWindow-01"])
+node(F, "timeCondition", "target_unresolved", {"targetTime": "{{nope}}", "operator": ">="}, parity=["N-timeCondition-01"])
+node(F, "waitUntil", "target_unresolved", {"targetTime": "{{nope}}"}, parity=["N-waitUntil-01"])
 node(F, "positionCheck", "interpolated_symbol", {**PC, "symbol": "{{webhook.symbol}}", "exchange": "{{webhook.ex}}"},
      vars_in={"webhook": {"symbol": "SBIN", "ex": "NSE"}}, script=[reply("positionbook", POSITIONS)], parity=["N-positionCheck-01"])
 node(F, "priceCondition", "interpolated_symbol_field_operator", {**PR, "symbol": "{{s}}", "field": "{{f}}", "operator": "{{o}}"},
@@ -419,9 +422,19 @@ node(F, "whatsappAlert", "unresolved_to_is_text", {"message": "x", "to": "{{nobo
      alert_reply={"status": "error", "error": "Invalid WhatsApp phone number: {{nobody}}"}, parity=["N-whatsappAlert-01"])
 
 
+_TIME_PIDS = {"timeWindow": "N-timeWindow-01", "timeCondition": "N-timeCondition-01", "waitUntil": "N-waitUntil-01"}
+
+
 def apply_auto():
     """N-mathExpression-11 for every mathExpression golden (the doc examples
-    too): written only where the fix changes what the web did."""
+    too), and the time-field decision for every time node: written only
+    where the fix changes what the web did."""
+    for _s in __import__("lib").SCENARIOS:
+        if _s["type"] in _TIME_PIDS and _s["kind"] == "node" and not _s["desktop_expected"]:
+            _s["desktop_expected"] = de(
+                _TIME_PIDS[_s["type"]],
+                "The lead's decision (via nodes-logic): a time field's {{...}} reference is resolved (the web reads the text as a time and falls back to the default), and one that does not resolve to HH:MM or HH:MM:SS fails the node.",
+                fix=["time_fields_interpolated"])
     for _s in __import__("lib").SCENARIOS:
         if _s["type"] == "mathExpression" and _s["kind"] == "node" and not _s["desktop_expected"]:
             _s["desktop_expected"] = de(
