@@ -32,6 +32,7 @@ import {
   PRICE_TYPES,
   PRODUCT_TYPES,
   SCHEDULE_TYPES,
+  STRIKE_OFFSETS,
   strikeOffsetOptions,
 } from './constants'
 
@@ -656,5 +657,22 @@ describe('the indicator catalogue (IND-080)', () => {
       expect(INDICATOR_CATEGORIES, entry.value).toContain(entry.category)
       expect(entry.label.trim(), entry.value).not.toBe('')
     }
+  })
+})
+
+describe('the strike offsets (F-244)', () => {
+  it('describes ATM as At The Money', () => {
+    expect(STRIKE_OFFSETS[0]).toEqual({ value: 'ATM', label: 'ATM', description: 'At The Money' })
+  })
+
+  it('reads a stored offset trimmed: a listed one adds nothing, an unlisted one is offered as stored', () => {
+    expect(strikeOffsetOptions('  OTM2 ')).toBe(STRIKE_OFFSETS)
+    const options = strikeOffsetOptions(' OTM60 ')
+    expect(options[0]).toEqual({
+      value: 'OTM60',
+      label: 'OTM60',
+      description: 'Stored on this node',
+    })
+    expect(options).toHaveLength(STRIKE_OFFSETS.length + 1)
   })
 })
