@@ -93,8 +93,10 @@ impl Run {
             .map(|t| t.with_timezone(&chrono::Utc))
             .unwrap_or_default();
         let client = Arc::new(FakeFlowClient::new());
-        let mut env = NodeEnv::default();
-        env.symbols = Arc::new(Master(master));
+        let env = NodeEnv {
+            symbols: Arc::new(Master(master)),
+            ..NodeEnv::default()
+        };
         let ctx = NodeCtx::new(NodeCtxParts {
             client: client.clone(),
             clock: ManualClock::new(now),
@@ -111,7 +113,7 @@ impl Run {
 
     /// The usual run: 29 October 2026, 10:15 IST, the standard master.
     pub fn new() -> Run {
-        Self::at("2026-10-29T10:15:00", Some(standard_master()))
+        Self::default()
     }
 
     /// Script `endpoint`'s reply.
@@ -172,6 +174,12 @@ impl Run {
     /// Only the messages of the run log.
     pub fn messages(&self) -> Vec<String> {
         self.log().into_iter().map(|(_, m)| m).collect()
+    }
+}
+
+impl Default for Run {
+    fn default() -> Self {
+        Self::at("2026-10-29T10:15:00", Some(standard_master()))
     }
 }
 
