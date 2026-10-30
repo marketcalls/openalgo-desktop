@@ -228,6 +228,8 @@ export function ExpiryField({ value, onChange, options }: ExpiryFieldProps) {
       fallback="current_week"
       placeholder="{{webhook.expiry}}"
       hint="A relative type, an exact date such as 28OCT25, or a reference."
+      // Desktop: an exact date (or one being typed) stays in the text box.
+      isText={(v) => typeof v === 'string' && !options.some((o) => o.value === v)}
     >
       <Select value={value as string} onValueChange={onChange}>
         <SelectTrigger className="h-8">

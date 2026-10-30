@@ -174,7 +174,9 @@ async fn an_option_symbol_with_a_bad_type_is_refused_by_the_api() {
     let v = out.value().cloned().unwrap_or(Value::Null);
     assert_eq!(v["status"], "error");
     assert_eq!(v["code"], 400, "{}", v);
-    assert_eq!(v["error"], "Validation error", "{}", v);
+    // The API's field errors, as the web's direct call reports them
+    // (decision 21, N-dataCommon-04), not its "Validation error" envelope.
+    assert!(v["error"]["option_type"].is_array(), "{}", v);
     assert!(!broker_saw(&kit, |c| matches!(c, MockCall::Quote(_))));
 }
 
@@ -237,7 +239,7 @@ async fn an_option_chain_runs_on_an_embedded_expiry_and_refuses_a_bad_count() {
         "{}",
         v
     );
-    assert_eq!(v["error"], "Validation error", "{}", v);
+    assert!(v["error"]["strike_count"].is_array(), "{}", v);
 }
 
 /// N-history-05: a History node with neither dates nor days. The web's node

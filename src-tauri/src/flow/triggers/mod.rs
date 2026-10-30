@@ -182,7 +182,7 @@ impl TriggerSide {
         let saved = app
             .blocking(move |c| {
                 let conn = c.sqlite.conn()?;
-                let found = store::set_schedule_job_id(&conn, workflow_id, Some(&id))?;
+                let found = store::set_schedule_job_id(&conn, workflow_id, Some(&id), c.now())?;
                 store::set_next_run(&conn, workflow_id, next)?;
                 Ok(found)
             })

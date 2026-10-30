@@ -91,10 +91,16 @@ pub fn graph(conn: &Connection, id: i64) -> Result<Option<(bool, Value)>> {
 
 /// Record (or clear) the scheduler job id (`set_schedule_job_id`); `false`
 /// when the workflow is gone.
-pub fn set_schedule_job_id(conn: &Connection, id: i64, job_id: Option<&str>) -> Result<bool> {
+pub fn set_schedule_job_id(
+    conn: &Connection,
+    id: i64,
+    job_id: Option<&str>,
+    now: DateTime<Utc>,
+) -> Result<bool> {
+    // The web's row `onupdate` moves updated_at with the job id.
     let n = conn.execute(
-        "UPDATE flow_workflows SET schedule_job_id = ?1 WHERE id = ?2",
-        params![job_id, id],
+        "UPDATE flow_workflows SET schedule_job_id = ?1, updated_at = ?2 WHERE id = ?3",
+        params![job_id, stamp(now), id],
     )?;
     if n > 0 {
         tracing::info!(

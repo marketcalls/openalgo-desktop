@@ -259,6 +259,8 @@ mod flow_lookups;
 mod flow_triggers;
 // Flow's legacy node upgrade at import and replace, and nowhere else.
 mod flow_migrations;
+// Flow's import, export, replace and run rules the audit asked to pin.
+mod flow_rules;
 
 // ------------------------------------------------------------------ fixtures
 

@@ -31,7 +31,7 @@ pub fn generate_webhook_secret() -> String {
     hex::encode(b)
 }
 
-fn secret_aad(id: i64) -> Aad {
+pub(crate) fn secret_aad(id: i64) -> Aad {
     Aad::new("flow_workflows", "webhook_secret", &id.to_string())
 }
 
@@ -213,6 +213,20 @@ pub fn create(
     w: &NewWorkflow,
     now: DateTime<Utc>,
 ) -> Result<Workflow> {
+    let made = insert(conn, sec, w, now);
+    match &made {
+        Ok(saved) => tracing::info!("Created workflow: {} (id={})", saved.name, saved.id),
+        Err(e) => tracing::error!("Error creating workflow: {}", e),
+    }
+    made
+}
+
+fn insert(
+    conn: &Connection,
+    sec: &SecurityManager,
+    w: &NewWorkflow,
+    now: DateTime<Utc>,
+) -> Result<Workflow> {
     let tx = crate::db::sqlite::write_transaction(conn)?;
     let at = stamp(now);
     tx.execute(
@@ -276,7 +290,21 @@ pub fn update(
     if changed == 0 {
         return Ok(None);
     }
+    updated(id);
     get(conn, sec, id)
+}
+
+/// The web's `update_workflow` log line, written by every writer it backs.
+fn updated(id: i64) {
+    tracing::info!("Updated workflow {}", id);
+}
+
+/// `n` rows changed by one of `update_workflow`'s writers: logged when one did.
+fn changed(n: usize, id: i64) -> bool {
+    if n > 0 {
+        updated(id);
+    }
+    n > 0
 }
 
 /// Delete a workflow and its run history (`delete_workflow`; the
@@ -289,15 +317,19 @@ pub fn delete(conn: &Connection, id: i64) -> Result<bool> {
     )?;
     let n = tx.execute("DELETE FROM flow_workflows WHERE id = ?1", params![id])?;
     tx.commit()?;
+    if n > 0 {
+        tracing::info!("Deleted workflow {}", id);
+    }
     Ok(n > 0)
 }
 
 /// Set the active flag (`activate_workflow` / `deactivate_workflow`).
 pub fn set_active(conn: &Connection, id: i64, active: bool, now: DateTime<Utc>) -> Result<bool> {
-    Ok(conn.execute(
+    let n = conn.execute(
         "UPDATE flow_workflows SET is_active = ?1, updated_at = ?2 WHERE id = ?3",
         params![active, stamp(now), id],
-    )? > 0)
+    )?;
+    Ok(changed(n, id))
 }
 
 /// Turn the webhook on or off (`enable_webhook` / `disable_webhook`).
@@ -307,10 +339,11 @@ pub fn set_webhook_enabled(
     enabled: bool,
     now: DateTime<Utc>,
 ) -> Result<bool> {
-    Ok(conn.execute(
+    let n = conn.execute(
         "UPDATE flow_workflows SET webhook_enabled = ?1, updated_at = ?2 WHERE id = ?3",
         params![enabled, stamp(now), id],
-    )? > 0)
+    )?;
+    Ok(changed(n, id))
 }
 
 /// Set how a webhook proves itself, `payload` or `url`
@@ -322,12 +355,14 @@ pub fn set_webhook_auth_type(
     now: DateTime<Utc>,
 ) -> Result<bool> {
     if auth_type != "payload" && auth_type != "url" {
+        tracing::error!("Invalid webhook auth type: {}", auth_type);
         return Ok(false);
     }
-    Ok(conn.execute(
+    let n = conn.execute(
         "UPDATE flow_workflows SET webhook_auth_type = ?1, updated_at = ?2 WHERE id = ?3",
         params![auth_type, stamp(now), id],
-    )? > 0)
+    )?;
+    Ok(changed(n, id))
 }
 
 /// Make the webhook token and secret if either is missing or the secret
@@ -337,6 +372,7 @@ pub fn ensure_webhook_credentials(
     conn: &Connection,
     sec: &SecurityManager,
     id: i64,
+    now: DateTime<Utc>,
 ) -> Result<bool> {
     let Some(w) = get(conn, sec, id)? else {
         return Ok(false);
@@ -349,6 +385,14 @@ pub fn ensure_webhook_credentials(
     }
     if w.webhook_secret.is_none() {
         put_secret(conn, sec, id, &generate_webhook_secret())?;
+    }
+    if w.webhook_token.is_none() || w.webhook_secret.is_none() {
+        // The web's row `onupdate` moves updated_at with any change.
+        conn.execute(
+            "UPDATE flow_workflows SET updated_at = ?1 WHERE id = ?2",
+            params![stamp(now), id],
+        )?;
+        tracing::info!("Generated webhook credentials for workflow {}", id);
     }
     Ok(true)
 }
@@ -365,6 +409,9 @@ pub fn regenerate_webhook_token(
         "UPDATE flow_workflows SET webhook_token = ?1, updated_at = ?2 WHERE id = ?3",
         params![token, stamp(now), id],
     )?;
+    if n > 0 {
+        tracing::info!("Regenerated webhook token for workflow {}", id);
+    }
     Ok((n > 0).then_some(token))
 }
 
@@ -392,6 +439,7 @@ pub fn regenerate_webhook_secret(
         "UPDATE flow_workflows SET updated_at = ?1 WHERE id = ?2",
         params![stamp(now), id],
     )?;
+    tracing::info!("Regenerated webhook secret for workflow {}", id);
     Ok(Some(Secret::new(secret)))
 }
 
@@ -602,13 +650,13 @@ mod tests {
             .unwrap()
             .webhook_secret
             .is_none());
-        assert!(ensure_webhook_credentials(&conn, &sec, w.id).unwrap());
+        assert!(ensure_webhook_credentials(&conn, &sec, w.id, now()).unwrap());
         assert!(get(&conn, &sec, w.id)
             .unwrap()
             .unwrap()
             .webhook_secret
             .is_some());
-        assert!(!ensure_webhook_credentials(&conn, &sec, 999).unwrap());
+        assert!(!ensure_webhook_credentials(&conn, &sec, 999, now()).unwrap());
     }
 
     #[test]
@@ -632,6 +680,83 @@ mod tests {
         assert_eq!(
             get(&conn, &sec, w.id).unwrap().unwrap().webhook_auth_type,
             "url"
+        );
+    }
+
+    /// S-02: the writers the web's row `onupdate` covers move updated_at,
+    /// making missing webhook credentials and recording the scheduler job
+    /// included; ensuring credentials that are all there changes nothing.
+    #[test]
+    fn every_write_moves_updated_at() {
+        let (conn, sec) = db();
+        let w = new_workflow(&conn, &sec, "A");
+        let stamp_of = |conn: &Connection| get(conn, &sec, w.id).unwrap().unwrap().updated_at;
+        let later = now() + chrono::Duration::hours(1);
+        assert!(ensure_webhook_credentials(&conn, &sec, w.id, later).unwrap());
+        assert_eq!(stamp_of(&conn), w.updated_at, "nothing was missing");
+        super::super::drop_secrets(&conn).unwrap();
+        assert!(ensure_webhook_credentials(&conn, &sec, w.id, later).unwrap());
+        assert_eq!(stamp_of(&conn).as_deref(), Some("2026-10-30T04:45:00"));
+        let latest = later + chrono::Duration::hours(1);
+        assert!(crate::flow::triggers::store::set_schedule_job_id(
+            &conn,
+            w.id,
+            Some("flow_workflow_1"),
+            latest
+        )
+        .unwrap());
+        assert_eq!(stamp_of(&conn).as_deref(), Some("2026-10-30T05:45:00"));
+    }
+
+    /// S-10, S-13, S-14 and the webhook writers: the web's `flow_db` lines.
+    #[test]
+    fn writes_are_logged_as_the_web_logs_them() {
+        let logs = crate::services::tunnel::fake::capture_logs();
+        let (conn, sec) = db();
+        let w = new_workflow(&conn, &sec, "Gap fade");
+        let id = w.id;
+        update(&conn, &sec, id, &Edit::default(), now()).unwrap();
+        set_active(&conn, id, true, now()).unwrap();
+        set_webhook_enabled(&conn, id, true, now()).unwrap();
+        set_webhook_auth_type(&conn, id, "url", now()).unwrap();
+        set_webhook_auth_type(&conn, id, "header", now()).unwrap();
+        regenerate_webhook_token(&conn, id, now()).unwrap();
+        regenerate_webhook_secret(&conn, &sec, id, now()).unwrap();
+        super::super::drop_secrets(&conn).unwrap();
+        ensure_webhook_credentials(&conn, &sec, id, now()).unwrap();
+        delete(&conn, id).unwrap();
+        let text = logs.text();
+        let updated = format!("Updated workflow {}", id);
+        assert_eq!(text.matches(&updated).count(), 4, "{}", text);
+        for line in [
+            format!("Created workflow: Gap fade (id={})", id),
+            "Invalid webhook auth type: header".to_string(),
+            format!("Regenerated webhook token for workflow {}", id),
+            format!("Regenerated webhook secret for workflow {}", id),
+            format!("Generated webhook credentials for workflow {}", id),
+            format!("Deleted workflow {}", id),
+        ] {
+            assert!(text.contains(&line), "{}\n{}", line, text);
+        }
+        conn.execute_batch("ALTER TABLE flow_workflows RENAME TO gone")
+            .unwrap();
+        let nodes = json!([]);
+        let made = create(
+            &conn,
+            &sec,
+            &NewWorkflow {
+                name: "B",
+                description: None,
+                nodes: &nodes,
+                edges: &nodes,
+            },
+            now(),
+        );
+        assert!(made.is_err());
+        assert!(
+            logs.text().contains("Error creating workflow: "),
+            "{}",
+            logs.text()
         );
     }
 }

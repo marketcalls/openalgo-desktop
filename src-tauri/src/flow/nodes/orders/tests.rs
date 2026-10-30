@@ -374,6 +374,41 @@ async fn a_modify_keeps_the_live_orders_attributes() {
     );
 }
 
+/// X-225: a default modify node (only the order id) keeps an NFO order on
+/// NFO: exchange, action, product and quantity come from the live order,
+/// never a default (the old editor default NSE/BUY turned a live NFO SELL
+/// into an NSE BUY).
+#[tokio::test]
+async fn a_default_modify_keeps_an_nfo_order_on_nfo() {
+    let run = Run::new();
+    let live = json!({"status": "success", "data": {"orderid": "25082800019",
+        "symbol": "NIFTY28AUG2624000CE", "exchange": "NFO", "action": "SELL", "product": "NRML",
+        "pricetype": "LIMIT", "quantity": "150", "price": 42.5, "trigger_price": 0}});
+    run.reply("orderstatus", live)
+        .reply("modifyorder", placed());
+    let o = run
+        .node(
+            "modifyOrder",
+            json!({"orderId": "25082800019", "newPrice": "44.0"}),
+        )
+        .await;
+    assert!(!o.is_error(), "{:?}", o);
+    let sent = Value::Object(run.client.calls_to("modifyorder")[0].payload.clone());
+    assert_eq!(
+        (
+            &sent["exchange"],
+            &sent["action"],
+            &sent["product"],
+            &sent["quantity"]
+        ),
+        (&json!("NFO"), &json!("SELL"), &json!("NRML"), &json!(150))
+    );
+    assert_eq!(
+        (&sent["symbol"], &sent["price"]),
+        (&json!("NIFTY28AUG2624000CE"), &json!(44.0))
+    );
+}
+
 /// X-164 and parity N-modifyOrder-02..05: the refusals, each before a
 /// modify is sent, in the web's words.
 #[tokio::test]

@@ -59,8 +59,9 @@ pub const MCX_OPTION_UNDERLYINGS: [&str; 11] = [
 const BSE_OPTION_INDICES: [&str; 3] = ["SENSEX", "BANKEX", "SENSEX50"];
 
 /// Exchanges with no spot instrument: a declared one quotes and trades on
-/// itself.
-pub const NO_SPOT_EXCHANGES: [&str; 5] = ["MCX", "CDS", "BCD", "NCDEX", "NCO"];
+/// itself. The desktop option-symbol service's own list (X-135), never a
+/// Flow copy.
+pub use crate::services::options_service::NO_SPOT as NO_SPOT_EXCHANGES;
 
 /// `DEFAULT_OPTION_EXCHANGES`.
 pub const DEFAULT_OPTION_EXCHANGES: (&str, &str) = ("NSE_INDEX", "NFO");

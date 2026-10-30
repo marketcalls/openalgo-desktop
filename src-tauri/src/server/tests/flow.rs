@@ -464,14 +464,34 @@ async fn a_null_name_is_the_default() {
     assert_eq!(v["name"], "Untitled Workflow");
 }
 
-/// WEB-DEFECT V-131: create stores the graph it checked, so a falsy
-/// non-list is stored as an empty list.
+/// WEB-DEFECT V-131 (decision 23): create checks the graph it stores, as
+/// sent: a falsy non-list is refused, never stored or swapped for `[]`;
+/// absent or null is the empty list.
 #[tokio::test]
-async fn create_stores_the_graph_it_checked() {
+async fn create_checks_the_graph_it_stores() {
     let f = F::new();
-    let v = f
-        .create(json!({"name": "x", "nodes": {}, "edges": ""}))
-        .await;
+    for (graph, msg) in [
+        (
+            json!({"name": "x", "nodes": {}}),
+            "Workflow needs a nodes array",
+        ),
+        (
+            json!({"name": "x", "nodes": [], "edges": ""}),
+            "Workflow needs an edges array",
+        ),
+    ] {
+        let (s, v) = f
+            .call(
+                Method::POST,
+                "/flow/api/workflows",
+                Some(&graph.to_string()),
+            )
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{}", v);
+        assert_eq!(v["error"], "Invalid workflow structure", "{}", v);
+        assert_eq!(v["message"], msg, "{}", v);
+    }
+    let v = f.create(json!({"name": "x", "nodes": null})).await;
     assert_eq!(
         (v["nodes"].clone(), v["edges"].clone()),
         (json!([]), json!([]))
@@ -584,4 +604,119 @@ async fn no_workflow_holds_an_api_key() {
         )
         .unwrap();
     assert_eq!(held, 0);
+}
+
+/// R-14, R-18, IE-06, IE-13 (decision 24): a body that is not JSON is the
+/// web's "No data provided" on every session JSON route; one with NaN or
+/// Infinity keeps decision 15's own sentence.
+#[tokio::test]
+async fn a_body_that_is_not_json_has_no_data() {
+    let f = F::new();
+    let id = f.create(graph()).await["id"].as_i64().unwrap();
+    let routes = [
+        (
+            Method::POST,
+            "/flow/api/workflows".to_string(),
+            "Invalid workflow structure",
+        ),
+        (
+            Method::PUT,
+            format!("/flow/api/workflows/{}", id),
+            "Invalid workflow structure",
+        ),
+        (
+            Method::POST,
+            "/flow/api/workflows/import".to_string(),
+            "Invalid workflow format",
+        ),
+        (
+            Method::POST,
+            format!("/flow/api/workflows/{}/replace", id),
+            "Invalid workflow structure",
+        ),
+    ];
+    for (method, path, title) in routes {
+        for text in ["BUY NIFTY", "{\"name\": "] {
+            let (s, v) = f.call(method.clone(), &path, Some(text)).await;
+            assert_eq!(
+                (s, v),
+                (
+                    StatusCode::BAD_REQUEST,
+                    json!({"error": "No data provided"})
+                ),
+                "{} {}",
+                path,
+                text
+            );
+        }
+        let (s, v) = f
+            .call(
+                method.clone(),
+                &path,
+                Some("{\"name\": \"x\", \"nodes\": [NaN]}"),
+            )
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{}", path);
+        assert_eq!(
+            (v["error"].clone(), v["message"].clone()),
+            (
+                json!(title),
+                json!("The workflow is not valid JSON (values such as NaN or Infinity are not allowed). Check it and try again.")
+            ),
+            "{}",
+            path
+        );
+    }
+}
+
+/// R-05 (decision 23): a 404 under the webhook address never echoes the
+/// token, as the web's `redact_url_credentials` masks it.
+#[tokio::test]
+async fn an_unknown_webhook_path_does_not_echo_its_token() {
+    let f = F::new();
+    for (method, path, shown) in [
+        (
+            Method::GET,
+            "/flow/webhook/tok3n-abc/SBIN/x",
+            "/flow/webhook/<redacted>/SBIN/x",
+        ),
+        (
+            Method::POST,
+            "/flow/webhook/tok3n-abc/SBIN/x",
+            "/flow/webhook/<redacted>/SBIN/x",
+        ),
+        (
+            Method::GET,
+            "/flow/webhook/tok3n-abc/SBIN/x?secret=s",
+            "/flow/webhook/<redacted>/SBIN/x",
+        ),
+        (
+            Method::POST,
+            "/FLOW/WEBHOOK/tok3n-abc/x/y",
+            "/FLOW/WEBHOOK/<redacted>/x/y",
+        ),
+    ] {
+        let (s, v) = f.call(method, path, None).await;
+        assert_eq!(s, StatusCode::NOT_FOUND, "{}", path);
+        assert_eq!(
+            v,
+            json!({"status": "error", "message": "Not found", "path": shown}),
+            "{}",
+            path
+        );
+    }
+}
+
+/// F-101 / F-409 (decision 28): the editor's address takes a workflow
+/// number only, as the web's `<int:workflow_id>`; anything else is the
+/// app's 404 page.
+#[tokio::test]
+async fn an_editor_address_without_a_number_is_not_a_page() {
+    let f = F::new();
+    for p in ["/flow/editor/abc", "/flow/editor/-1", "/flow/editor/7x"] {
+        let (s, _, _) = f.h.send(get(p)).await;
+        assert_eq!(s, StatusCode::NOT_FOUND, "{}", p);
+    }
+    let (s, _, _) = f.h.send(get("/flow/editor/12")).await;
+    assert_eq!(s, StatusCode::OK);
 }
