@@ -530,3 +530,85 @@ async fn an_import_with_a_long_name_keeps_it_whole() {
     let id = v["workflow_id"].as_i64().unwrap();
     assert_eq!(w.get(id).await["name"], format!("{} (imported)", name));
 }
+
+/// The session layer's refusal of a write without its CSRF token.
+fn csrf_refused() -> (StatusCode, Value) {
+    (
+        StatusCode::BAD_REQUEST,
+        json!({"status": "error", "message": "Your session has expired. Refresh the page and try again."}),
+    )
+}
+
+/// F-411: a PUT without the session's CSRF token (none, or a wrong one) is
+/// refused before the route, and the workflow is unchanged.
+#[tokio::test]
+async fn a_put_without_the_token_is_refused() {
+    let w = W::new();
+    let id = w.create(runnable("Kept")).await;
+    let path = format!("/flow/api/workflows/{}", id);
+    for token in [None, Some("nope")] {
+        let req = W::request(Method::PUT, &path, Some(r#"{"name": "Changed"}"#));
+        let got = w.h.json(with_session(req, &w.cookie, token)).await;
+        assert_eq!(got, csrf_refused(), "{:?}", token);
+    }
+    assert_eq!(w.get(id).await["name"], "Kept");
+}
+
+/// F-411: a DELETE without the session's CSRF token (none, or a wrong
+/// one) is refused before the route, and the workflow stays.
+#[tokio::test]
+async fn a_delete_without_the_token_is_refused() {
+    let w = W::new();
+    let id = w.create(runnable("Kept")).await;
+    let path = format!("/flow/api/workflows/{}", id);
+    for token in [None, Some("nope")] {
+        let req = W::request(Method::DELETE, &path, None);
+        let got = w.h.json(with_session(req, &w.cookie, token)).await;
+        assert_eq!(got, csrf_refused(), "{:?}", token);
+    }
+    assert_eq!(w.get(id).await["name"], "Kept");
+}
+
+/// S-08, D-69 (decision 3): activation, the web's only writer of a
+/// workflow's API key, leaves the column empty on the desktop: a schedule
+/// (whose job id activation writes to the same row) and a webhook trigger.
+#[tokio::test]
+async fn activation_leaves_the_api_key_column_empty() {
+    let w = W::new();
+    // The app's own trigger side restores active workflows at start-up on
+    // its own task; stopped, only the activation below registers.
+    w.h.ctx().flow.triggers().stop().await;
+    let mut daily = runnable("Daily");
+    daily["nodes"][0]["data"] = json!({"scheduleType": "daily", "time": "09:15"});
+    let hook = json!({"name": "Hook", "nodes": [n("s", "webhookTrigger", json!({"label": "TV"})), log("hello")],
+                      "edges": [e("s", "l")]});
+    for (graph, trigger) in [(daily, "start"), (hook, "webhookTrigger")] {
+        let id = w.create(graph).await;
+        let (s, v) = w
+            .call(
+                Method::POST,
+                &format!("/flow/api/workflows/{}/activate", id),
+                None,
+            )
+            .await;
+        assert_eq!(
+            (s, v),
+            (
+                StatusCode::OK,
+                json!({"status": "success", "message": format!("Workflow activated with {} trigger", trigger)})
+            )
+        );
+        let (active, key): (bool, Option<String>) =
+            w.h.ctx()
+                .sqlite
+                .conn()
+                .unwrap()
+                .query_row(
+                    "SELECT is_active, api_key FROM flow_workflows WHERE id = ?1",
+                    [id],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .unwrap();
+        assert_eq!((active, key), (true, None), "{}", trigger);
+    }
+}
