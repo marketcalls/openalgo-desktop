@@ -406,9 +406,11 @@ async fn unsubscribe_reports_what_the_feed_said() {
     let t2 = t(Feed::default(), Some(1), Arc::new(Subscriptions::default()));
     let out = run(&t2, "unsubscribe", json!({"streamType": "ltp"})).await;
     assert!(out.is_error());
-    assert!(out
-        .failure_message()
-        .starts_with("Unsubscribe is set to 'ltp' with no symbol."));
+    assert_eq!(
+        out.failure_message(),
+        "Unsubscribe is set to 'ltp' with no symbol. Name a symbol, or set Stream Type to 'all' to give back every subscription this workflow holds.",
+        "decisions.md 9: `all` is this workflow's own, never the sandbox's"
+    );
     assert!(t2.feed.ops.lock().is_empty());
 
     let t3 = t(

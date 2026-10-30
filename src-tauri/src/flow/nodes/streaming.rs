@@ -18,7 +18,9 @@
 //! - `unsubscribe all` gives back this workflow's own subscriptions, never
 //!   the feed's others (`/trading`, the sandbox, the SDK clients); a named
 //!   symbol drops this workflow's claim, and the feed only when no other
-//!   workflow holds it (N-unsubscribe-03, N-unsubscribe-05).
+//!   workflow holds it (N-unsubscribe-03, N-unsubscribe-05). The refusal
+//!   of a mode with no symbol says so, instead of the web's warning that
+//!   `all` clears the sandbox's subscriptions too.
 //! - A feed that fails during an unsubscribe is reported as a failure, not
 //!   as success (N-unsubscribe-08).
 
@@ -507,7 +509,7 @@ impl FlowNode for Unsubscribe {
         }
         if symbol.is_empty() {
             let message = format!(
-                "Unsubscribe is set to '{}' with no symbol. Name a symbol, or set Stream Type to 'all' if you really mean every subscription on this instance, including the Sandbox engine's.",
+                "Unsubscribe is set to '{}' with no symbol. Name a symbol, or set Stream Type to 'all' to give back every subscription this workflow holds.",
                 stream_type
             );
             ctx.error(format!("Unsubscribe aborted: {}", message));
