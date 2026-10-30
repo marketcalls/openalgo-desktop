@@ -1,9 +1,10 @@
 /**
  * Starts the app's real server (`src-tauri/examples/e2e_server.rs`) for the
- * Flow journeys and prepares the trader every journey starts as: an account,
- * signed in, logged in to the scripted broker (the Dhan (Sandbox) slot of
- * CI's native test build), analyzer mode on. The returned function is the
- * global teardown: it stops the server and removes its folder.
+ * Flow journeys and creates the trader's account; each journey signs in to
+ * it fresh (support/signin.ts: logged in to the scripted broker, the Dhan
+ * (Sandbox) slot of CI's native test build, analyzer mode on), so a run that
+ * spans 03:00 IST does not meet a signed-out session. The returned function
+ * is the global teardown: it stops the server and removes its folder.
  *
  * The server never outlives the run: its standard input is a pipe from this
  * process, and it exits when that pipe closes, so a runner that crashes or is
@@ -28,7 +29,7 @@ import path from 'node:path'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
 import { request } from '@playwright/test'
-import { CSRF_HEADER, csrfToken, SLOT, waitFor } from './http'
+import { clearOfBoundary, postForm, signIn, type Trader } from './signin'
 
 const PREFIX = 'openalgo-flow-e2e-'
 const READY = /^OPENALGO_E2E_SERVER (http:\/\/127\.0\.0\.1:\d+)\s*$/
@@ -138,64 +139,31 @@ function waitReady(child: ChildProcess, logPath: string): Promise<string> {
   })
 }
 
-/** The trader every journey starts as. Returns the storage state path. */
-async function prepareTrader(base: string, folder: string): Promise<string> {
+/**
+ * The account every journey signs in to: created on the setup page, then
+ * signed in once (broker login, analyzer mode) so a broken start fails here
+ * rather than in the first journey. Each journey signs in again itself
+ * (support/signin.ts).
+ */
+async function createTrader(base: string): Promise<Trader> {
+  const trader: Trader = {
+    username: 'trader',
+    password: `Aa1!${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`,
+  }
   const ctx = await request.newContext({ baseURL: base })
   try {
-    const password = `Aa1!${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
-    const form = async (url: string, fields: Record<string, string>) => {
-      const token = await csrfToken(ctx)
-      const r = await ctx.post(url, {
-        form: { ...fields, csrf_token: token },
-        headers: { [CSRF_HEADER]: token, Accept: 'application/json' },
-      })
-      const body = await r.json().catch(() => ({}))
-      if (r.status() !== 200 || body.status !== 'success') {
-        throw new Error(`${url} answered ${r.status()}: ${JSON.stringify(body)}`)
-      }
-    }
-    const json = async (method: 'post' | 'put', url: string, data: unknown) => {
-      const token = await csrfToken(ctx)
-      const r = await ctx[method](url, {
-        data,
-        headers: { [CSRF_HEADER]: token, Accept: 'application/json' },
-      })
-      const body = await r.json().catch(() => ({}))
-      if (r.status() !== 200)
-        throw new Error(`${url} answered ${r.status()}: ${JSON.stringify(body)}`)
-      return body
-    }
-    await form('/setup', {
-      username: 'trader',
+    await postForm(ctx, '/setup', {
+      username: trader.username,
       email: 'trader@example.com',
-      password,
-      confirm_password: password,
+      password: trader.password,
+      confirm_password: trader.password,
     })
-    await form('/auth/login', { username: 'trader', password })
-    // Broker Configuration: the slot's keys; Select Broker: log in with them.
-    await json('put', `/api/broker/credentials/${SLOT}`, {
-      api_key: '1000000001',
-      api_secret: 'scripted',
-    })
-    const login = await json('post', `/${SLOT}/callback`, {})
-    if (login.status !== 'success') throw new Error(`Broker login: ${JSON.stringify(login)}`)
-    await waitFor('the scripted master contract', async () => {
-      const r = await ctx.get('/api/master-contract/ready', {
-        headers: { Accept: 'application/json' },
-      })
-      return r.ok() && (await r.json()).ready === true
-    })
-    // The navigation bar's Live/Analyze switch.
-    const toggled = await json('post', '/auth/analyzer-toggle', {})
-    if (toggled?.data?.analyze_mode !== true) {
-      throw new Error(`Analyzer mode did not turn on: ${JSON.stringify(toggled)}`)
-    }
-    const state = path.join(folder, 'state.json')
-    await ctx.storageState({ path: state })
-    return state
   } finally {
     await ctx.dispose()
   }
+  await clearOfBoundary()
+  await signIn(base, trader)
+  return trader
 }
 
 export default async function globalSetup(): Promise<() => Promise<void>> {
@@ -229,9 +197,10 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
 
   try {
     const base = await waitReady(child, logPath)
-    const state = await prepareTrader(base, folder)
+    const trader = await createTrader(base)
     process.env.OPENALGO_E2E_BASE = base
-    process.env.OPENALGO_E2E_STATE = state
+    // For the workers' own sign-ins; a throwaway account on a throwaway server.
+    process.env.OPENALGO_E2E_TRADER = JSON.stringify(trader)
     process.env.OPENALGO_E2E_SERVER_LOG = logPath
   } catch (e) {
     await teardown()
