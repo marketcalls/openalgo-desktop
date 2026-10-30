@@ -239,3 +239,63 @@ async fn an_option_chain_runs_on_an_embedded_expiry_and_refuses_a_bad_count() {
     );
     assert_eq!(v["error"], "Validation error", "{}", v);
 }
+
+/// N-history-05: a History node with neither dates nor days. The web's node
+/// and history service fill no range (they hand empty dates to the broker,
+/// whose own parsing then fails the call); the desktop's `/api/v1/history`
+/// refuses the empty range before any broker call. Either way the node
+/// fails and stores the failure, and the branch stops.
+#[tokio::test]
+async fn a_history_without_a_range_fails_before_the_broker() {
+    let kit = Kit::new();
+    let c = ctx(&kit);
+    let out = run(
+        &c,
+        "history",
+        json!({"symbol": "SBIN", "exchange": "NSE", "interval": "D", "outputVariable": "h"}),
+    )
+    .await;
+    let v = out.value().cloned().unwrap_or(Value::Null);
+    assert_eq!(
+        (v["status"].clone(), v["code"].clone()),
+        (json!("error"), json!(400)),
+        "{}",
+        v
+    );
+    assert_eq!(c.vars.get("h"), Some(v));
+    assert!(!broker_saw(&kit, |c| matches!(c, MockCall::History(_))));
+}
+
+/// N-optionChain-04: the web's chain service never clamps strikeCount (0
+/// is the ATM row alone, a large count the whole chain); the desktop keeps
+/// `/api/v1/optionchain`'s 1..100 and refuses the rest with its own
+/// validation answer (decisions.md 4: the public schema is not widened), so
+/// a count of 0 or 150 fails the node before any broker call.
+#[tokio::test]
+async fn a_strike_count_outside_the_api_range_is_refused_not_clamped() {
+    for count in [0, 101, 150] {
+        let kit = Kit::new();
+        let out = run(
+            &ctx(&kit),
+            "optionChain",
+            json!({"underlying": "NIFTY", "exchange": "NSE_INDEX", "expiryDate": "27OCT26", "strikeCount": count}),
+        )
+        .await;
+        let v = out.value().cloned().unwrap_or(Value::Null);
+        assert_eq!(
+            (v["status"].clone(), v["code"].clone()),
+            (json!("error"), json!(400)),
+            "{}: {}",
+            count,
+            v
+        );
+        assert!(
+            !broker_saw(&kit, |c| matches!(
+                c,
+                MockCall::Quote(_) | MockCall::MultiQuotes(_)
+            )),
+            "{}",
+            count
+        );
+    }
+}
