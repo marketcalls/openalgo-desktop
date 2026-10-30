@@ -6,21 +6,13 @@
 import { Handle, Position } from '@xyflow/react'
 import { TrendingUp } from 'lucide-react'
 import { memo } from 'react'
+import { historyFaceInterval, historyFaceRange } from '@/lib/desktopFlow'
 import { cn } from '@/lib/utils'
 import type { HistoryNodeData } from '@/types/flow'
 
 interface HistoryNodeProps {
   data: HistoryNodeData
   selected?: boolean
-}
-
-const intervalLabels: Record<string, string> = {
-  '1m': '1 Min',
-  '5m': '5 Min',
-  '15m': '15 Min',
-  '30m': '30 Min',
-  '1h': '1 Hour',
-  '1d': 'Daily',
 }
 
 export const HistoryNode = memo(({ data, selected }: HistoryNodeProps) => {
@@ -43,8 +35,9 @@ export const HistoryNode = memo(({ data, selected }: HistoryNodeProps) => {
             <span className="mono-data text-[10px] font-medium">{data.symbol || '-'}</span>
           </div>
           <div className="flex items-center justify-between text-[9px] text-muted-foreground">
-            <span>{intervalLabels[data.interval] || data.interval || '1d'}</span>
-            <span>{data.days || 30} days</span>
+            {/* Desktop: the run's interval and range (decision 32), not 1d and 30 days. */}
+            <span>{historyFaceInterval(data.interval)}</span>
+            <span>{historyFaceRange(data as unknown as Record<string, unknown>)}</span>
           </div>
         </div>
       </div>

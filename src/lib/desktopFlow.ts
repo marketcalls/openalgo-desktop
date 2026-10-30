@@ -86,6 +86,37 @@ export function historyIntervalOptions(current: unknown) {
 }
 
 /**
+ * Decision 32: the History node's face shows the interval and range the run
+ * uses (src-tauri/src/flow/nodes/history.rs), not the web's `1d` and
+ * `30 days` fallbacks: 5 Min when no interval is stored, a stored `1d` as
+ * Daily (the run sends it as `D`), any other unlisted value as stored.
+ */
+export function historyFaceInterval(value: unknown): string {
+  const stored = typeof value === 'string' ? value.trim() : ''
+  const sent = stored === '1d' ? 'D' : stored || '5m'
+  return HISTORY_INTERVALS.find((o) => o.value === sent)?.label ?? stored
+}
+
+/**
+ * The range the run asks for: a start and end date when both are stored,
+ * else the last N days, else nothing, which stops the node before the broker
+ * (decision 20), so the face says the days are required.
+ */
+export function historyFaceRange(data: {
+  days?: unknown
+  startDate?: unknown
+  endDate?: unknown
+}): string {
+  const start = typeof data.startDate === 'string' ? data.startDate.trim() : ''
+  const end = typeof data.endDate === 'string' ? data.endDate.trim() : ''
+  if (start && end) return `${start} to ${end}`
+  const { days } = data
+  if (typeof days === 'string' && days.includes('{{')) return `${days.trim()} days`
+  const count = typeof days === 'number' || typeof days === 'string' ? Number(days) : 0
+  return count > 0 ? `${count} days` : 'Days required'
+}
+
+/**
  * Parity F-207: the web's message for a run that finishes in the background
  * says its result "appears in the workflow's execution history", a view
  * neither the web nor the desktop has. This says where the trader does see
