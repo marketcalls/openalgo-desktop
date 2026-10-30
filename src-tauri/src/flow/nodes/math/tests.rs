@@ -238,3 +238,68 @@ async fn a_non_finite_result_is_kept_as_python_writes_it() {
     assert_eq!(c.vars.interpolate("{{x}}"), "inf");
     assert_eq!(logs(&c)[2].1, "Result: x = inf");
 }
+
+/// Wait (bounded) until no evaluation thread is running; on Linux also
+/// until no thread named `flow-math` is left in the process.
+fn evaluation_threads_settle() -> bool {
+    use std::sync::atomic::Ordering;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        let live = LIVE.load(Ordering::SeqCst);
+        let named = named_threads("flow-math");
+        if live == 0 && named == 0 {
+            return true;
+        }
+        if std::time::Instant::now() > deadline {
+            eprintln!("live {} named {}", live, named);
+            return false;
+        }
+        std::thread::yield_now();
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn named_threads(name: &str) -> usize {
+    std::fs::read_dir("/proc/self/task")
+        .map(|d| {
+            d.flatten()
+                .filter(|t| {
+                    std::fs::read_to_string(t.path().join("comm")).is_ok_and(|c| c.trim() == name)
+                })
+                .count()
+        })
+        .unwrap_or(0)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn named_threads(_: &str) -> usize {
+    0
+}
+
+/// fd-audit: 1,000 evaluations, failing ones included, leave no thread
+/// behind; a panic inside the thread is joined and reported; a run
+/// dropped mid-evaluation still joins its thread.
+#[test]
+fn every_evaluation_thread_is_joined() {
+    for i in 0..1000 {
+        let e = ["1 + 2", "1 / 0", "(", "x", "(-8) ** 0.5"][i % 5];
+        let _ = safe_eval(e);
+    }
+    assert!(evaluation_threads_settle());
+    let panicked: Result<(), String> = on_large_stack(|| panic!("evaluator bug"));
+    assert_eq!(panicked, Err(NO_THREAD.to_string()));
+    assert!(evaluation_threads_settle());
+}
+
+#[tokio::test]
+async fn a_dropped_run_still_joins_its_evaluation() {
+    let long = vec!["2 ** 100"; 800].join(" * ");
+    for _ in 0..20 {
+        let fut = safe_eval_detached(long.clone());
+        let _ = tokio::time::timeout(std::time::Duration::ZERO, fut).await;
+    }
+    let settled = tokio::task::spawn_blocking(evaluation_threads_settle)
+        .await
+        .unwrap();
+    assert!(settled);
+}

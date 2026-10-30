@@ -42,13 +42,46 @@ const NO_THREAD: &str = "the expression could not be evaluated right now; try ag
 /// text of what the web raises.
 pub fn safe_eval(expression: &str) -> Result<f64, String> {
     let text = expression.to_string();
+    on_large_stack(move || evaluate(&text))?
+}
+
+/// Evaluation threads running now (tests check every one is joined).
+#[cfg(test)]
+static LIVE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+#[cfg(test)]
+struct Live;
+
+#[cfg(test)]
+impl Live {
+    fn new() -> Self {
+        LIVE.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Live
+    }
+}
+
+#[cfg(test)]
+impl Drop for Live {
+    fn drop(&mut self) {
+        LIVE.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// Run `f` on a thread of its own with [`EVAL_STACK_BYTES`] of stack and
+/// join it before returning, on every path (a panic inside reads as
+/// [`NO_THREAD`]); never a detached thread.
+fn on_large_stack<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
     std::thread::Builder::new()
         .name("flow-math".into())
         .stack_size(EVAL_STACK_BYTES)
-        .spawn(move || evaluate(&text))
+        .spawn(move || {
+            #[cfg(test)]
+            let _live = Live::new();
+            f()
+        })
         .map_err(|_| NO_THREAD.to_string())?
         .join()
-        .map_err(|_| NO_THREAD.to_string())?
+        .map_err(|_| NO_THREAD.to_string())
 }
 
 /// [`safe_eval`] from a run, without holding up the async worker.
