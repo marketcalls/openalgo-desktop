@@ -212,6 +212,48 @@ impl TradingCalendar for Unavailable {
 mod tests {
     use super::*;
 
+    /// A feed that owns its frames, as a real feed and a golden replay do.
+    struct Ticks(Vec<Value>);
+
+    #[async_trait]
+    impl MarketFeed for Ticks {
+        async fn first_frame(
+            &self,
+            _: &str,
+            _: &str,
+            _: &str,
+            _: Duration,
+            accept: &(dyn for<'a> Fn(&'a Value) -> bool + Send + Sync),
+        ) -> Result<Option<Value>, FeedError> {
+            for frame in self.0.clone() {
+                if accept(&frame) {
+                    return Ok(Some(frame));
+                }
+            }
+            Ok(None)
+        }
+
+        async fn unsubscribe(&self, _: &str, _: &str, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
+    /// The feed can hand `accept` frames it owns (the elided lifetime tied it
+    /// to the call's own borrows).
+    #[tokio::test]
+    async fn a_feed_offers_its_own_frames_to_accept() {
+        let feed = Ticks(vec![
+            serde_json::json!({"ltp": 0}),
+            serde_json::json!({"ltp": 812.5}),
+        ]);
+        let frame = feed
+            .first_frame("SBIN", "NSE", "LTP", Duration::from_secs(1), &|f| {
+                f["ltp"].as_f64().is_some_and(|p| p > 0.0)
+            })
+            .await;
+        assert_eq!(frame, Ok(Some(serde_json::json!({"ltp": 812.5}))));
+    }
+
     #[tokio::test]
     async fn a_service_nobody_installed_says_so() {
         let env = NodeEnv::default();
