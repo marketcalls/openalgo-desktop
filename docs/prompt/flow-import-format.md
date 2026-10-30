@@ -387,15 +387,26 @@ runs once if the app is back within 60 seconds of it, and is otherwise
 skipped; the next run is then worked out from the clock. Missed runs never
 run in a burst.
 
-**Desktop: signed out or no broker means skipped, not stopped.** While
-OpenAlgo is signed out, or no broker is logged in, a schedule, price alert or
-order update that fires does not run the workflow: the run history records a
-failed run whose log says why (`Skipped: OpenAlgo was signed out when this
-schedule fired, ...`), and the triggers run again after you sign in and log in
-to your broker. Signing out and the daily 03:00 IST session end do not
-deactivate a workflow. A run that was still going when the app closed is
-recorded as failed at the next start: `OpenAlgo closed while this run was in
-progress; it did not finish.`
+**Desktop: signed out means skipped, not stopped.** From the app's start
+until you sign in, and after you log out, nothing runs, exactly as for the
+strategy and Chartink webhooks: a Flow webhook answers 503, and a schedule,
+price alert or order update that fires is recorded in the run history as
+skipped, with the reason (`Skipped: OpenAlgo was signed out when this
+schedule fired, ...`). The triggers run again once you sign in. Signing out
+does not deactivate a workflow.
+
+**Desktop: signed in with no broker logged in, workflows run.** With no
+broker session (none logged in yet, or the 03:00 IST session end has passed),
+a workflow runs as it does on OpenAlgo web and as the strategy and Chartink
+webhooks do: in analyzer mode its orders and account reads go to the sandbox
+(quotes, history and sandbox fills still need a broker's prices); in live
+mode each node that needs the broker fails with a message that no broker is
+logged in and its branch stops; nodes that need no broker (alerts, HTTP
+requests, variables, maths, time checks) run.
+
+A run that was still going when the app closed is recorded as failed at the
+next start: `OpenAlgo closed while this run was in progress; it did not
+finish.`
 
 ### What a node does when something fails
 
@@ -2913,8 +2924,8 @@ funds (outputVariable=f)
   the run could not be queued, the trigger keeps watching for the next event
   rather than being silently consumed. A run the broker rejected still counts
   as spent - it ran. **Desktop:** a `once` schedule deactivates the workflow
-  the same way, and a run skipped because OpenAlgo was signed out or no broker
-  was logged in does not spend a one-shot price alert or order watch.
+  the same way, and a run skipped because OpenAlgo was signed out does not
+  spend a one-shot price alert or order watch.
 - **Editing a trigger on an active workflow registers the new one during the
   save.** The scheduler and monitors snapshot the trigger node, so a save that
   changes it tears the old registration down and installs the new one. If that

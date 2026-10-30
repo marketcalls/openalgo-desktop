@@ -26,9 +26,13 @@ workflow in analyzer mode first.
 
 ## What you need
 
-- OpenAlgo Desktop open and signed in, with your broker logged in. A trigger
-  that fires while you are signed out, or while no broker is logged in, does
-  not run the workflow (see [When a workflow does not run](#when-a-workflow-does-not-run)).
+- OpenAlgo Desktop open and signed in. A trigger that fires while you are
+  signed out does not run the workflow (see
+  [When a workflow does not run](#when-a-workflow-does-not-run)).
+- Your broker logged in, for live orders and market data. Without one a
+  workflow still runs: in analyzer mode its orders go to the sandbox (fills
+  still need your broker's prices), and in live mode each node that needs the
+  broker fails.
 - An API key on the **API Key** page. Workflows trade with the app's current
   key, read each time a run starts, so regenerating the key needs no change to
   any workflow.
@@ -351,7 +355,8 @@ its own branch from the trigger.
 
 | Situation | What happens |
 | --- | --- |
-| You are signed out, or no broker is logged in, when a trigger fires | The workflow does not run. The run history records a failed run that says why, and the triggers run again after you sign in and log in to your broker. Signing out and the 03:00 IST session end do not deactivate a workflow |
+| You are signed out when a trigger fires (from the app's start until you sign in, or after you log out) | The workflow does not run. Webhook alerts are refused; a schedule, price alert or order update is recorded in the run history as skipped, with the reason. The triggers run again once you sign in. Signing out does not deactivate a workflow |
+| You are signed in but no broker is logged in (not yet, or after the 03:00 IST session end) | The workflow runs. In analyzer mode its orders and account reads go to the sandbox (quotes and fills still need your broker's prices). In live mode each node that needs the broker fails with a message that no broker is logged in, and its branch stops; alerts, HTTP requests, variables and time checks still run. Log in to your broker from **Select Broker** |
 | You sign out or quit while a run is going | The run stops where it is. One cut off by quitting is recorded at the next start as "OpenAlgo closed while this run was in progress; it did not finish." Check your orders and positions |
 | The app was closed when a schedule fell due | Skipped, unless the app was back within a minute |
 | Outside market hours, with **Market hours only** on | The schedule skips that run |
@@ -458,7 +463,8 @@ Positions (no symbol: everything), Telegram "Squared off at {{time}}".
 | Problem | Check |
 | --- | --- |
 | Activate says a field is missing | The message names the node and field; open the node and fill it |
-| The workflow never runs on schedule | Active? **Market hours only** on outside the session? Signed in and broker logged in? The app open at that time? |
+| The workflow never runs on schedule | Active? **Market hours only** on outside the session? Signed in? The app open at that time? |
+| Orders fail, saying no broker is logged in | Log in to your broker (again after 03:00 IST) from **Select Broker** |
 | TradingView alerts do nothing | Webhook switched on, workflow active, the tunnel online, the address copied after the tunnel came online, `secret` in the message |
 | "Invalid webhook secret" | The secret in the alert differs from the dialog's; after several, the webhook locks for 15 minutes |
 | A condition takes neither branch | Its data did not arrive or a variable did not resolve: read the Execution Log |
@@ -472,8 +478,9 @@ Positions (no symbol: everything), Telegram "Squared off at {{time}}".
 - Flow is native: no Python, and the workflow format is OpenAlgo web's.
 - Every time is IST, on any computer.
 - Schedules, price alerts and order updates run only while the app is open and
-  you are signed in with your broker logged in; a skipped run is recorded with
-  its reason, and nothing is deactivated by a sign-out.
+  you are signed in; a run skipped while signed out is recorded with its
+  reason, and nothing is deactivated by a sign-out. With no broker logged in,
+  workflows still run, as on OpenAlgo web: live broker calls fail per node.
 - Every webhook needs its secret, wrong secrets lock it for a while, and the
   addresses follow the built-in tunnel.
 - The API key is never stored with a workflow or written into an export.

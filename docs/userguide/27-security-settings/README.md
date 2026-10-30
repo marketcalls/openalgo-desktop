@@ -47,7 +47,7 @@ and after you log out):
   strategy and Flow webhooks are refused the same way. Nothing is placed.
 - Flow's schedules, price alerts and order updates do not run their
   workflows; each skip is written in the workflow's run history, and they
-  run again once you sign in and log in to your broker.
+  run again once you sign in.
 - Your broker session does not resume and the Telegram and WhatsApp bots do
   not run.
 

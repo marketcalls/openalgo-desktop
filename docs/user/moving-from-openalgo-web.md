@@ -141,8 +141,7 @@ workflow JSON as the web. To move a workflow:
 
 What behaves differently, in short: every time is IST whatever the
 computer's time zone; schedules run only while the app is open and you are
-signed in with your broker logged in (a missed run is skipped, not
-replayed); a **Daily** schedule honours its ticked days; every webhook needs
+signed in (a missed run is skipped, not replayed); a **Daily** schedule honours its ticked days; every webhook needs
 its secret; the workflow uses the app's current API key, never a stored one;
 Flow's `.env` settings (history cache, run history, webhook limits) are
 fixed at the web's defaults. The full list:

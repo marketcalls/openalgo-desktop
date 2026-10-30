@@ -73,7 +73,7 @@ keychain. The key is locked with your OpenAlgo password, inside
 | REST API (`/api/v1`) | Off. Programs are told "Sign in to OpenAlgo to use the API." | On |
 | Market data WebSocket | Off. Clients are told OpenAlgo is locked | On |
 | TradingView, Chartink, strategy and Flow webhooks | Refused; nothing is placed | On |
-| Flow schedules, price alerts and order updates | Do not run; each skip is written in the workflow's run history | Run, once your broker is logged in |
+| Flow schedules, price alerts and order updates | Do not run; each skip is written in the workflow's run history | Run (live orders need your broker logged in) |
 | AI clients (MCP) | Told that OpenAlgo is locked | On |
 | Your broker session | Not resumed | Resumed if still from today |
 | Telegram and WhatsApp bots | Not running | Running, if you switched them on |
