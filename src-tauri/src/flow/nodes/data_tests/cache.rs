@@ -3,7 +3,7 @@
 //! requests, shared by concurrent callers, kept 30 seconds, only when it has
 //! rows, never more than its bound; and the nodes that use it.
 
-use super::support::{ctx, logs, run};
+use super::support::{ctx, logs, run, ServerLog};
 use crate::flow::contract::client::fake::FakeFlowClient;
 use crate::flow::contract::client::{ApiCall, FlowClient, History};
 use crate::flow::nodes::history::{
@@ -181,9 +181,12 @@ async fn clear_drops_every_cached_answer() {
     );
 }
 
-/// A caller whose leader never answers fetches itself after the wait.
+/// A caller whose leader never answers fetches itself after the wait, and
+/// says so in the server log at warning level, as the web does
+/// (N-dataCommon-12).
 #[tokio::test(start_paused = true)]
 async fn a_waiter_fetches_itself_when_the_leader_is_stuck() {
+    let log = ServerLog::capture();
     let cache = Arc::new(HistoryCache::new(
         HISTORY_CACHE_TTL,
         8,
@@ -199,6 +202,14 @@ async fn a_waiter_fetches_itself_when_the_leader_is_stuck() {
     let got = cache.fetch(&quick, "anon", &req("SBIN"), None).await;
     assert_eq!(got, rows());
     assert_eq!(quick.calls().len(), 1);
+    assert!(
+        log.has(
+            "WARN",
+            "History single-flight wait timed out for SBIN D; fetching directly"
+        ),
+        "{:?}",
+        log.lines()
+    );
     leader.abort();
 }
 
@@ -284,4 +295,44 @@ async fn runs_without_the_app_keep_their_own_answers() {
             Some(json!(close))
         );
     }
+}
+
+/// Sixty daily bars ending well before the clock's day.
+fn daily_bars() -> Value {
+    let bars: Vec<Value> = (0..60)
+        .map(|i| json!({"timestamp": 1_788_000_000 + i * 86_400, "open": 1.0, "high": 2.0, "low": 0.5, "close": 1.0 + i as f64, "volume": 10}))
+        .collect();
+    json!({"status": "success", "data": bars})
+}
+
+/// N-priorPeriodOhlc-02: Prior Period OHLC reads history through the
+/// shared cache, so a second identical node in the run makes no call.
+#[tokio::test]
+async fn prior_period_ohlc_reads_through_the_cache() {
+    shared_cache().clear();
+    let client = Arc::new(FakeFlowClient::new());
+    client.reply("history", daily_bars());
+    let c = ctx(client.clone());
+    let node = json!({"symbol": "SBIN", "period": "previous_day"});
+    let first = run(&c, "priorPeriodOhlc", node.clone()).await;
+    let second = run(&c, "priorPeriodOhlc", node).await;
+    assert_eq!(first.value(), second.value());
+    assert_eq!(first.value().map(|v| v["pdc"].clone()), Some(json!(60.0)));
+    assert_eq!(client.calls_to("history").len(), 1);
+}
+
+/// N-barOffset-02: Bar Offset reads history through the shared cache, so a
+/// second identical node in the run makes no call.
+#[tokio::test]
+async fn bar_offset_reads_through_the_cache() {
+    shared_cache().clear();
+    let client = Arc::new(FakeFlowClient::new());
+    client.reply("history", daily_bars());
+    let c = ctx(client.clone());
+    let node = json!({"symbol": "SBIN", "interval": "D", "offsetBars": 2});
+    let first = run(&c, "barOffset", node.clone()).await;
+    let second = run(&c, "barOffset", node).await;
+    assert_eq!(first.value().map(|v| v["close"].clone()), Some(json!(58.0)));
+    assert_eq!(first.value(), second.value());
+    assert_eq!(client.calls_to("history").len(), 1);
 }

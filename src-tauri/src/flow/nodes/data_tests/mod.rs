@@ -8,6 +8,7 @@
 //! and the web's server-log lines (`server_log`).
 
 mod app;
+mod bars;
 mod cache;
 mod calendar;
 mod defaults;
@@ -15,4 +16,5 @@ mod lookups;
 mod margin;
 mod nodes;
 mod pnl;
+mod server_log;
 mod support;
