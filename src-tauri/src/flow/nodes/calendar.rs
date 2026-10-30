@@ -64,12 +64,21 @@ impl<'a> TradingDays<'a> {
     fn load(&self, year: i32) -> Year {
         let entries = match self.source.holidays(year) {
             Ok(e) => e,
-            Err(e) => {
+            // The web's two server-log sentences: a calendar that answers
+            // "unavailable", and one whose read failed.
+            Err(e) if e == crate::flow::contract::env::UNAVAILABLE => {
                 tracing::warn!(
-                    "Holiday list for {} unavailable; assuming weekends only ({})",
-                    year,
-                    e
+                    "Holiday list for {} unavailable; assuming weekends only",
+                    year
                 );
+                return Year::default();
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Could not load holidays for {}; assuming weekends only",
+                    year
+                );
+                tracing::debug!("Holiday read for {} failed: {}", year, e);
                 return Year::default();
             }
         };

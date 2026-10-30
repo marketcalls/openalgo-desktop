@@ -545,3 +545,84 @@ async fn a_series_of_json_text_holding_a_string_is_not_an_array() {
         "sourceSeries must resolve to an array, got: '[1, 2, 3]'"
     );
 }
+
+/// IND-070: a node with no indicator, exchange or interval reads the
+/// executor's defaults: sma on NSE daily bars over 100 bars.
+#[tokio::test]
+async fn an_indicator_without_settings_uses_the_executors_defaults() {
+    shared_cache().clear();
+    let client = Arc::new(FakeFlowClient::new());
+    client.reply("history", candles(120));
+    let c = ctx(client.clone());
+    run(&c, "indicator", json!({"symbol": "SBIN"})).await;
+    assert_eq!(logs(&c)[0].1, "Computing sma for SBIN (D, 100 bars)");
+    assert_eq!(
+        Value::Object(client.calls()[0].payload.clone()),
+        json!({"symbol": "SBIN", "exchange": "NSE", "interval": "D",
+               "start_date": "2026-05-17", "end_date": "2026-10-29", "source": "api"})
+    );
+}
+
+/// IND-076: a multi-output indicator's variables: `{{name.outputs}}` and
+/// `{{name.at_offset.out0}}`.
+#[tokio::test]
+async fn a_multi_output_indicator_feeds_its_named_outputs() {
+    shared_cache().clear();
+    let client = Arc::new(FakeFlowClient::new());
+    client.reply("history", candles(120));
+    let c = ctx(client);
+    let out = run(
+        &c,
+        "indicator",
+        json!({"symbol": "SBIN", "indicatorName": "macd", "params": "", "offsetBars": 1, "outputVariable": "m"}),
+    )
+    .await;
+    assert!(!out.is_error(), "{:?}", out);
+    assert_eq!(
+        c.vars.interpolate("{{m.outputs}}"),
+        "['out0', 'out1', 'out2']"
+    );
+    for path in [
+        "{{m.at_offset.out0}}",
+        "{{m.at_offset.out2}}",
+        "{{m.latest.out1}}",
+    ] {
+        let text = c.vars.interpolate(path);
+        assert!(text.parse::<f64>().is_ok(), "{} read {}", path, text);
+    }
+    assert_eq!(
+        c.vars.interpolate("{{m.at_offset.out0}}"),
+        c.vars.interpolate("{{m.previous.out0}}"),
+        "offset 1 is the previous bar"
+    );
+}
+
+/// N-barOffset-02, decision 21: a history row whose time cannot be read
+/// fails only this node (`Bar offset error: ...`); the web raised and ended
+/// the whole run.
+#[tokio::test]
+async fn an_unreadable_bar_time_fails_only_the_node() {
+    shared_cache().clear();
+    let client = Arc::new(FakeFlowClient::new());
+    client.reply(
+        "history",
+        json!({"status": "success", "data": [{"timestamp": "garbage", "close": 1.0}]}),
+    );
+    let c = ctx(client);
+    let out = run(
+        &c,
+        "barOffset",
+        json!({"symbol": "SBIN", "outputVariable": "b"}),
+    )
+    .await;
+    assert_eq!(out.aborted(), None, "the run goes on");
+    assert!(out.is_error());
+    assert_eq!(out.failure_message(), "Invalid isoformat string: 'garbage'");
+    assert!(
+        logs(&c)
+            .iter()
+            .any(|(l, m)| l == "error"
+                && m == "Bar offset error: Invalid isoformat string: 'garbage'")
+    );
+    assert_eq!(c.vars.get("b"), None);
+}

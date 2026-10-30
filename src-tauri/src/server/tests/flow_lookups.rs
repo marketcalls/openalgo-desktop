@@ -268,3 +268,122 @@ async fn option_strikes_come_from_the_desktops_services_without_leg_quotes() {
     });
     assert!(!quoted_legs, "no per-strike quotes");
 }
+
+/// R-60: a symbol that merely starts with the index's name never sizes it.
+/// NIFTY has no row named for it here, and the first NFO contract starting
+/// with "NIFTY" is a NIFTYNXT50 one (lot 25); the extract_underlying check
+/// skips it and finds NIFTY's own contract (lot 65).
+#[tokio::test]
+async fn an_index_is_sized_by_its_own_contracts_only() {
+    let l = L::new();
+    l.h.ctx().symbols.load(vec![
+        row(
+            "NIFTYNXT5027OCT2668000CE",
+            "NIFTY NEXT 50 OPTION",
+            "NFO",
+            "CE",
+            "27-OCT-26",
+            68000.0,
+            25,
+        ),
+        row(
+            "NIFTY27OCT2624000CE",
+            "NIFTY 50 INDEX OPTION",
+            "NFO",
+            "CE",
+            "27-OCT-26",
+            24000.0,
+            65,
+        ),
+    ]);
+    let (s, v) = l.get("/flow/api/index-symbols").await;
+    assert_eq!(s, StatusCode::OK);
+    let nifty = v["data"]
+        .as_array()
+        .and_then(|d| d.iter().find(|x| x["value"] == "NIFTY").cloned());
+    assert_eq!(
+        nifty.map(|n| n["lotSize"].clone()),
+        Some(json!(65)),
+        "{}",
+        v
+    );
+}
+
+/// R-62, decision 24: a fractional lot size (Delta spot's 0.0001 BTC, kept
+/// exact beside the row's whole lot of 1) is not a lot and answers null,
+/// as the web's `int(lotsize) >= 1 and == lotsize` check does.
+#[tokio::test]
+async fn a_fractional_lot_size_answers_null() {
+    let l = L::new();
+    let mut master = crate::brokers::types::MasterContract::new(vec![
+        row("BTCINR", "BTC", "CRYPTO", "SPOT", "", 0.0, 1),
+        row("BTCUSDFUT", "BTC", "CRYPTO", "FUT", "", 0.0, 1),
+    ]);
+    master.lot_sizes.insert("CRYPTO:BTCINR".into(), 0.0001);
+    l.h.ctx().symbols.load_master(master);
+    let body = json!({"symbols": [
+        {"symbol": "BTCINR", "exchange": "CRYPTO"},
+        {"symbol": "BTCUSDFUT", "exchange": "CRYPTO"}
+    ]});
+    let (s, v) = l.post("/flow/api/symbol-lotsizes", &body.to_string()).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(
+        v,
+        json!({"status": "success", "lotSizes": {"CRYPTO:BTCINR": null, "CRYPTO:BTCUSDFUT": 1}})
+    );
+}
+
+/// N-holidays-02, N-timings-02: a calendar the service cannot read answers
+/// the web service's own sentences, not the route's catch-all.
+#[tokio::test]
+async fn the_calendar_routes_answer_the_services_failure_sentences() {
+    let h = H::new();
+    let key = h.setup();
+    h.ctx()
+        .sqlite
+        .conn()
+        .unwrap()
+        .execute_batch(
+            "ALTER TABLE market_holidays RENAME TO market_holidays_gone;
+             ALTER TABLE market_timings RENAME TO market_timings_gone;",
+        )
+        .unwrap();
+    let (s, v) = h
+        .json(post_json(
+            "/api/v1/market/holidays",
+            json!({"apikey": key, "year": 2026}),
+        ))
+        .await;
+    assert_eq!(
+        (s, v),
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            json!({"status": "error", "message": "An error occurred while fetching holidays"})
+        )
+    );
+    let (s, v) = h
+        .json(post_json(
+            "/api/v1/market/timings",
+            json!({"apikey": key, "date": "2026-10-09"}),
+        ))
+        .await;
+    assert_eq!(
+        (s, v),
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            json!({"status": "error", "message": "An error occurred while fetching market timings"})
+        )
+    );
+    // The schema's refusal stays the REST route's answer, as on the web.
+    let (s, v) = h
+        .json(post_json(
+            "/api/v1/market/holidays",
+            json!({"apikey": key, "year": 1999}),
+        ))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        v["message"]["year"],
+        json!(["Must be greater than or equal to 2020 and less than or equal to 2050."])
+    );
+}
