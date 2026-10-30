@@ -146,6 +146,7 @@ impl Activity {
                 ),
             ));
         }
+        items.extend(self.flow_item());
         items.extend(self.order_items(words, &at));
         if self.checks_failed {
             items.push(format!(
@@ -154,6 +155,19 @@ impl Activity {
             ));
         }
         items
+    }
+
+    /// Flow workflow runs in progress: stopped when OpenAlgo closes.
+    fn flow_item(&self) -> Option<String> {
+        let n = self.live_flow_runs;
+        (n > 0).then(|| {
+            format!(
+                "{} in progress. {} when OpenAlgo closes; an order {} already sent stays at your broker.",
+                count(n, "Flow workflow run", "Flow workflow runs"),
+                pick(n, "It stops", "They stop"),
+                pick(n, "it", "they"),
+            )
+        })
     }
 
     /// Orders at the broker: open ones, an unreadable book, and placements
@@ -222,6 +236,17 @@ impl Activity {
                 self.sandbox_open_orders,
                 "open sandbox order",
                 "open sandbox orders",
+            ));
+        }
+        let n = self.sandbox_flow_runs;
+        if n > 0 {
+            items.push(format!(
+                "{} (stopped when OpenAlgo closes)",
+                count(
+                    n,
+                    "Flow workflow run in analyzer mode",
+                    "Flow workflow runs in analyzer mode"
+                ),
             ));
         }
         items
@@ -296,6 +321,28 @@ fn capitalise(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn flow_runs_are_named_in_a_traders_words() {
+        let live = Activity {
+            live_flow_runs: 2,
+            ..Default::default()
+        };
+        assert_eq!(
+            live.warning(None).unwrap().items,
+            vec!["2 Flow workflow runs in progress. They stop when OpenAlgo closes; an order they already sent stays at your broker."]
+        );
+        let sandbox = Activity {
+            sandbox_flow_runs: 1,
+            ..Default::default()
+        };
+        let w = sandbox.warning(None).unwrap();
+        assert_eq!(w.level, "sandbox");
+        assert_eq!(
+            w.items,
+            vec!["1 Flow workflow run in analyzer mode (stopped when OpenAlgo closes)."]
+        );
+    }
 
     #[test]
     fn a_live_warning_names_every_item_in_a_traders_words() {

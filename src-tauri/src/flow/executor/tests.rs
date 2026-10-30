@@ -193,6 +193,31 @@ async fn a_failed_node_stops_its_branch_only() {
     ));
 }
 
+/// The run's errors keep a node's failure as it gave it, a dict of field
+/// errors included (golden data/multiQuotes__empty); the log line and the
+/// run summary read it as Python's `str()`.
+#[tokio::test]
+async fn a_failed_node_is_recorded_with_its_raw_message() {
+    let nodes = json!([
+        node("start", "start", json!({})),
+        node(
+            "q",
+            "getQuote",
+            json!({"tag": "quotes", "answer": {"status": "error",
+            "error": {"symbols": ["Shorter than minimum length 1."]}, "code": 400}})
+        ),
+    ]);
+    let (logs, errors, _) = walk(nodes, json!([edge("start", "q", None)])).await;
+    assert_eq!(
+        errors,
+        vec![json!({"node": "q", "type": "getQuote",
+                    "message": {"symbols": ["Shorter than minimum length 1."]}})]
+    );
+    assert!(logs.contains(
+        &"Stopping this branch: getQuote node failed ({'symbols': ['Shorter than minimum length 1.']})".to_string()
+    ));
+}
+
 /// The web's diamond defect: a condition reached by two paths placed two
 /// orders. It is evaluated once per run.
 #[tokio::test]
@@ -504,6 +529,47 @@ async fn an_abort_ends_the_whole_run() {
     let (logs, _, abort) = walk(nodes, edges).await;
     assert_eq!(abort.as_deref(), Some("Symbol master is not loaded"));
     assert!(!ran(&logs, "later"));
+}
+
+/// A stop while the walk waits in a Delay ends the wait at once: the Delay
+/// fails with its own sentence and nothing after it runs. The stop is sent
+/// only once the Delay has logged that it is waiting.
+#[tokio::test]
+async fn a_stop_during_a_delay_ends_the_wait_with_the_delays_sentence() {
+    let ctx = NodeCtx::bare(Arc::new(FakeFlowClient::new()));
+    let nodes = json!([
+        node("start", "start", json!({})),
+        node("d", "delay", json!({"delayValue": 60})),
+        node("after", "getQuote", tagged("after")),
+    ]);
+    let edges = json!([edge("start", "d", None), edge("d", "after", None)]);
+    let graph = Graph::parse(&nodes, &edges).unwrap();
+    let reg = registry();
+    let mut w = Walk::new(&graph, &reg, &ctx);
+    let waiting = async {
+        for _ in 0..5000 {
+            if ctx
+                .logs()
+                .iter()
+                .any(|l| l["message"] == "Waiting for 60 seconds")
+            {
+                ctx.cancel.cancel();
+                return true;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        }
+        false
+    };
+    let (walked, saw_wait) = tokio::join!(w.visit("start", 0), waiting);
+    assert!(saw_wait, "the Delay never logged that it was waiting");
+    assert_eq!(walked, Ok(()));
+    assert_eq!(
+        w.errors,
+        vec![
+            json!({"node": "d", "type": "delay", "message": crate::flow::nodes::logic::STOPPED_WHILE_WAITING})
+        ]
+    );
+    assert!(!ctx.logs().iter().any(|l| l["message"] == "ran after"));
 }
 
 #[tokio::test]

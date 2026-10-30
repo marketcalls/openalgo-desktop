@@ -58,6 +58,18 @@ fn waiting(ctx: &AppState) -> Vec<String> {
             unread = true;
         }
     }
+    match ctx
+        .sqlite
+        .conn()
+        .and_then(|c| crate::flow::store::workflows::active_waiting_names(&c))
+    {
+        Ok(n) if !n.is_empty() => items.push(flow_waiting(&n)),
+        Ok(_) => {}
+        Err(e) => {
+            tracing::warn!("Quit: could not read the active Flow workflows: {}", e);
+            unread = true;
+        }
+    }
     let starts = scheduled_starts(ctx, &mut unread);
     if !starts.is_empty() {
         items.push(format!(
@@ -69,6 +81,23 @@ fn waiting(ctx: &AppState) -> Vec<String> {
         items.push("OpenAlgo could not check which strategies wait for alerts or schedules. Check them before you quit.".into());
     }
     items
+}
+
+/// Active Flow workflows: their schedules, alerts, order watches and
+/// webhooks do not run while the app is closed.
+fn flow_waiting(active: &[String]) -> String {
+    let (one, them) = if active.len() == 1 {
+        ("is", "its")
+    } else {
+        ("are", "their")
+    };
+    format!(
+        "Flow {} {} {} active; {} schedules, price alerts, order watches and webhooks do not run while OpenAlgo is closed.",
+        if active.len() == 1 { "workflow" } else { "workflows" },
+        names(active),
+        one,
+        them
+    )
 }
 
 /// Strategies and OpenScript deployments that start on a schedule.
@@ -158,6 +187,47 @@ impl QuitGate {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn active_flow_workflows_are_named() {
+        assert_eq!(
+            flow_waiting(&["Gap fade".into()]),
+            "Flow workflow Gap fade is active; its schedules, price alerts, order watches and webhooks do not run while OpenAlgo is closed."
+        );
+        assert_eq!(
+            flow_waiting(&["A".into(), "B".into()]),
+            "Flow workflows A and B are active; their schedules, price alerts, order watches and webhooks do not run while OpenAlgo is closed."
+        );
+    }
+
+    #[tokio::test]
+    async fn quitting_names_the_active_flow_workflows() {
+        let t =
+            crate::state::testing::build(crate::brokers::BrokerRegistry::new(), chrono::Utc::now());
+        t.ctx
+            .security
+            .install(&crate::security::Unlocked::random().unwrap());
+        let conn = t.ctx.sqlite.conn().unwrap();
+        let nodes =
+            serde_json::json!([{"id": "s", "type": "start", "data": {"scheduleType": "daily"}}]);
+        let w = crate::flow::store::workflows::create(
+            &conn,
+            &t.ctx.security,
+            &crate::flow::store::workflows::NewWorkflow {
+                name: "Opening range",
+                description: None,
+                nodes: &nodes,
+                edges: &serde_json::json!([]),
+            },
+            t.ctx.now(),
+        )
+        .unwrap();
+        crate::flow::store::workflows::set_active(&conn, w.id, true, t.ctx.now()).unwrap();
+        drop(conn);
+        assert!(waiting(&t.ctx)
+            .iter()
+            .any(|i| i.starts_with("Flow workflow Opening range is active;")));
+    }
 
     #[test]
     fn a_long_list_of_names_is_cut_short() {
