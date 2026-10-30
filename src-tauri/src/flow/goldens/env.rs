@@ -129,7 +129,7 @@ impl MarketFeed for Feed {
         exchange: &str,
         mode: &str,
         timeout: Duration,
-        accept: &(dyn Fn(&Value) -> bool + Send + Sync),
+        accept: &(dyn for<'a> Fn(&'a Value) -> bool + Send + Sync),
     ) -> Result<Option<Value>, FeedError> {
         if self.spec.get("username").is_some_and(Value::is_null) {
             return Err(FeedError::InvalidKey);
