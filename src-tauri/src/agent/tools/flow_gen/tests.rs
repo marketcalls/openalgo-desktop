@@ -239,6 +239,35 @@ async fn a_valid_workflow_is_described_and_nothing_is_saved() {
     );
 }
 
+/// V-143, decision 17: validate_flow carries none of the skill check's
+/// warnings. A data key nothing reads (the check's first warning) still
+/// validates, and the answer is the web's nine keys and nothing about it.
+#[tokio::test]
+async fn validate_flow_adds_no_warnings() {
+    let t = app();
+    let mut wf = webhook_entry();
+    wf["nodes"][1]["data"]["strikeOffset"] = json!("OTM2");
+    wf["nodes"][1]["data"]["message"] = json!("{{nothing.here}}");
+    let out = call(&t, "validate_flow", json!({"workflow_json": wf})).await;
+    let (p, raw) = block(out.text());
+    let keys: Vec<&str> = p.as_object().unwrap().keys().map(String::as_str).collect();
+    let mut expected = [
+        "ok",
+        "valid",
+        "saved",
+        "name",
+        "node_count",
+        "edge_count",
+        "trigger",
+        "migrations",
+        "next_step",
+    ];
+    expected.sort_unstable();
+    assert_eq!(keys, expected, "{}", raw);
+    assert_eq!(p["valid"], true);
+    assert!(!raw.contains("strikeOffset") && !raw.contains("nothing.here"));
+}
+
 /// A-09, A-10: strict, always; the validator's own errors in a Retry with
 /// the web's sentences.
 #[tokio::test]
