@@ -270,7 +270,7 @@ pub fn read_payload(body: &[u8], form: bool) -> Map<String, Value> {
             }
         }
     }
-    if form {
+    if form && !text.is_empty() {
         let mut m = Map::new();
         for (k, v) in url::form_urlencoded::parse(body) {
             m.entry(k.into_owned()).or_insert(json!(v.into_owned()));

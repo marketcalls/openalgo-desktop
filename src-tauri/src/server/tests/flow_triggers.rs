@@ -190,7 +190,11 @@ async fn the_trigger_routes_need_the_user_and_only_the_webhooks_are_public() {
         .body(Body::empty())
         .unwrap();
     let (s, _) = f.h.json(with_session(req, &f.cookie, None)).await;
-    assert_eq!(s, StatusCode::FORBIDDEN);
+    assert_eq!(
+        s,
+        StatusCode::BAD_REQUEST,
+        "the session layer's CSRF refusal"
+    );
     let (s, _, v) = f
         .send_hook("/flow/webhook/not-a-token", "{}", "127.0.0.1")
         .await;
@@ -386,7 +390,7 @@ async fn a_webhook_runs_its_workflow_with_the_payload() {
     assert!(v["execution_id"].as_i64().is_some());
     let logs = f.last_run_logs(id).await;
     assert!(
-        logs.contains(&"Got SBIN x5 secret={{webhook.secret}}".to_string()),
+        logs.contains(&"[LOG] Got SBIN x5 secret={{webhook.secret}}".to_string()),
         "{:?}",
         logs
     );
@@ -398,7 +402,7 @@ async fn a_webhook_runs_its_workflow_with_the_payload() {
     assert!(f
         .last_run_logs(id)
         .await
-        .contains(&"Got INFY x5 secret={{webhook.secret}}".to_string()));
+        .contains(&"[LOG] Got INFY x5 secret={{webhook.secret}}".to_string()));
 }
 
 /// R-52, T-072 and the WEB-DEFECTs: a missing secret, a wrong one, one
@@ -642,7 +646,11 @@ async fn a_webhook_without_a_broker_session_runs_and_says_why_a_node_failed() {
     let sentence = crate::strategy::dispatch::NO_BROKER_SESSION;
     assert_eq!(v["errors"][0]["message"], sentence);
     let logs = f.last_run_logs(id).await;
-    assert!(logs.contains(&"before the quote".to_string()), "{:?}", logs);
+    assert!(
+        logs.contains(&"[LOG] before the quote".to_string()),
+        "{:?}",
+        logs
+    );
     assert!(
         logs.contains(&format!("priceAlert could not be evaluated ({})", sentence)),
         "{:?}",
@@ -968,7 +976,11 @@ async fn a_price_alert_run_trusts_its_tick_and_retires_a_one_shot() {
         "{:?}",
         logs
     );
-    assert!(logs.contains(&"Bought at 812.75".to_string()), "{:?}", logs);
+    assert!(
+        logs.contains(&"[LOG] Bought at 812.75".to_string()),
+        "{:?}",
+        logs
+    );
     let (_, w) = f
         .call(Method::GET, &format!("/flow/api/workflows/{}", id), None)
         .await;

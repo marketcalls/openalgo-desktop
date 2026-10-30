@@ -55,7 +55,8 @@ fn registry() -> NodeRegistry {
 }
 
 fn node(id: &str, t: &str, data: Value) -> Value {
-    json!({"id": id, "type": t, "data": data})
+    // A position, as every saved node has one (the validator asks for it).
+    json!({"id": id, "type": t, "position": {"x": 0, "y": 0}, "data": data})
 }
 
 fn edge(s: &str, t: &str, handle: Option<&str>) -> Value {

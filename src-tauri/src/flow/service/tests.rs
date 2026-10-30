@@ -101,7 +101,8 @@ fn app() -> crate::state::testing::TestCtx {
 }
 
 fn scheduled(time: &str) -> Value {
-    json!([{"id": "s", "type": "start", "data": {"scheduleType": "daily", "time": time}}])
+    json!([{"id": "s", "type": "start", "position": {"x": 0, "y": 0},
+        "data": {"scheduleType": "daily", "time": time}}])
 }
 
 async fn active_workflow(app: &Arc<AppState>) -> i64 {

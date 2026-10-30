@@ -467,7 +467,7 @@ async fn a_webhook_needs_a_key_and_a_runnable_workflow() {
     use crate::flow::service::webhooks::trigger;
     let t = app();
     let incomplete = node("webhookTrigger", json!({}));
-    let (token, secret) = live_hook(&t.ctx, incomplete, json!([]));
+    let (token, secret) = live_hook(&t.ctx, incomplete.clone(), json!([]));
     let a = trigger(&t.ctx, hook_call(&token, &secret)).await;
     assert_eq!(
         (a.reply.status, a.reply.body.clone()),
@@ -476,6 +476,9 @@ async fn a_webhook_needs_a_key_and_a_runnable_workflow() {
             json!({"error": "No API key configured for workflow execution. Please re-activate the workflow."})
         )
     );
+    // With an account and its key (made before the workflow: a new
+    // account's keys drop every earlier webhook secret).
+    let t = app();
     crate::services::auth_service::AuthService::setup(
         &t.ctx,
         "trader",
@@ -483,6 +486,7 @@ async fn a_webhook_needs_a_key_and_a_runnable_workflow() {
         "Secret@123",
     )
     .unwrap();
+    let (token, secret) = live_hook(&t.ctx, incomplete, json!([]));
     let a = trigger(&t.ctx, hook_call(&token, &secret)).await;
     assert_eq!(a.reply.status, 400, "{}", a.reply.body);
     assert_eq!(a.reply.body["error"], "Workflow cannot be executed");
