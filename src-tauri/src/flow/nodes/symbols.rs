@@ -2,9 +2,9 @@
 //! Synthetic Future (the web's `execute_symbol`, `execute_expiry`,
 //! `execute_option_symbol`, `execute_option_chain`,
 //! `execute_synthetic_future`), with the option-expiry check the web's
-//! dispatcher runs before the three option nodes (`option_expiry_error`),
-//! and the underlying-to-exchange table the editor's lookups share
-//! (`resolve_option_exchanges`).
+//! dispatcher runs before the three option nodes (`option_expiry_error`).
+//! The underlying-to-exchange table is the options nodes' one
+//! (`options::resolve_option_exchanges`, decision 25).
 //!
 //! One web defect is fixed (N-optionChain-03, lead decision 10): an explicit
 //! `expiryDate` wins over an expiry embedded in the underlying, as it does
@@ -17,44 +17,6 @@ use crate::flow::contract::vars::has_unresolved;
 use crate::flow::node_contracts::{is_expiry_date, parse_underlying_symbol};
 use async_trait::async_trait;
 use serde_json::{json, Map, Value};
-
-/// MCX commodities the options nodes offer (`MCX_OPTION_UNDERLYINGS`); their
-/// options trade on MCX itself, priced against the near-month future.
-pub const MCX_OPTION_UNDERLYINGS: [&str; 11] = [
-    "GOLD",
-    "GOLDM",
-    "SILVER",
-    "SILVERM",
-    "CRUDEOIL",
-    "CRUDEOILM",
-    "NATURALGAS",
-    "NATGASMINI",
-    "COPPER",
-    "ZINC",
-    "MCXBULLDEX",
-];
-
-/// `resolve_option_exchanges`: (where the underlying is quoted, where its
-/// options trade). A named underlying decides on its own; otherwise the
-/// node's declared exchange; otherwise NSE.
-pub fn resolve_option_exchanges(underlying: &str, declared: &str) -> (&'static str, &'static str) {
-    let name = underlying.trim().to_uppercase();
-    if matches!(name.as_str(), "SENSEX" | "BANKEX" | "SENSEX50") {
-        return ("BSE_INDEX", "BFO");
-    }
-    if MCX_OPTION_UNDERLYINGS.contains(&name.as_str()) {
-        return ("MCX", "MCX");
-    }
-    match declared.trim().to_uppercase().as_str() {
-        "BFO" | "BSE" | "BSE_INDEX" => ("BSE_INDEX", "BFO"),
-        "MCX" => ("MCX", "MCX"),
-        "CDS" => ("CDS", "CDS"),
-        "BCD" => ("BCD", "BCD"),
-        "NCDEX" => ("NCDEX", "NCDEX"),
-        "NCO" => ("NCO", "NCO"),
-        _ => ("NSE_INDEX", "NFO"),
-    }
-}
 
 /// Store and return a client reply, logging it as `{label}: {result}`.
 fn reply(ctx: &NodeCtx, data: &Map<String, Value>, label: &str, result: Value) -> NodeOutcome {
