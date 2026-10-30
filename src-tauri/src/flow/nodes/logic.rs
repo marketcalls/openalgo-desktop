@@ -17,6 +17,10 @@ use async_trait::async_trait;
 use serde_json::{json, Map, Value};
 use std::sync::Arc;
 
+/// What a wait cut short by the run stopping answers (core's walk tests
+/// read it here, where core's Delay kept it).
+pub use super::timing::STOPPED_WHILE_WAITING;
+
 pub const FAMILY: NodeFamily = NodeFamily {
     key: "logic",
     build: || {
