@@ -54,8 +54,9 @@ fn registry() -> NodeRegistry {
     NodeRegistry::new(&[FAMILIES[0], FAMILIES[1], TEST_FAMILY])
 }
 
+/// A node as the editor saves it, with a position.
 fn node(id: &str, t: &str, data: Value) -> Value {
-    json!({"id": id, "type": t, "data": data})
+    json!({"id": id, "type": t, "position": {"x": 0, "y": 0}, "data": data})
 }
 
 fn edge(s: &str, t: &str, handle: Option<&str>) -> Value {
