@@ -91,6 +91,22 @@ _LOG_ONLY = (
     'if isinstance(node_data.get("outputVariable"), str) and node_data["outputVariable"].strip() else None'
 )
 
+_TIME_CHECK = (
+    "        _bad = None\n"
+    "        _res = {{}}\n"
+    "        for _k, _raw in {fields}:\n"
+    "            if isinstance(_raw, str) and \"{{{{\" in _raw:\n"
+    "                _t = self.context.interpolate(_raw).strip()\n"
+    "                if not re.fullmatch(r\"\\d{{1,2}}:\\d{{2}}(?::\\d{{2}})?\", _t):\n"
+    "                    _bad = f\"{{_k}} did not resolve to a time (HH:MM or HH:MM:SS): {{_t!r}}\"\n"
+    "                    break\n"
+    "                _res[_k] = _t\n"
+    "        if _bad:\n"
+    "            self.log(f\"{prefix}{{_bad}}\", \"error\")\n"
+    "            return {failure}\n"
+    "{assign}"
+)
+
 FIXES.update({
     # IND-049 (decisions.md 10): an offset counts bars, a NaN bar reads None.
     "indicator_offset_counts_bars": [(ind, "compute_indicator", [
@@ -207,6 +223,32 @@ FIXES.update({
          '                    f"subscription on this instance, including the Sandbox engine\'s."\n',
          '                    f"symbol, or set Stream Type to \'all\' to give back every "\n'
          '                    f"subscription this workflow holds."\n')])],
+    # The lead's decision (via nodes-logic): a time field's {{...}} is
+    # resolved, and one that does not resolve to HH:MM[:SS] fails the node.
+    "time_fields_interpolated": [
+        (fx.NodeExecutor, "execute_time_window", [
+            ('        end_time_str = node_data.get("endTime", "15:30")\n',
+             '        end_time_str = node_data.get("endTime", "15:30")\n' + _TIME_CHECK.format(
+                 fields='(("startTime", start_time_str), ("endTime", end_time_str))', prefix="Time window aborted: ",
+                 failure='{"status": "error", "condition": False, "message": _bad}',
+                 assign='        start_time_str = _res.get("startTime", start_time_str)\n        end_time_str = _res.get("endTime", end_time_str)\n'))]),
+        (fx.NodeExecutor, "execute_time_condition", [
+            ('        target_time_str = node_data.get("targetTime", "09:30")\n',
+             '        target_time_str = node_data.get("targetTime", "09:30")\n' + _TIME_CHECK.format(
+                 fields='(("targetTime", target_time_str),)', prefix="Time condition aborted: ",
+                 failure='{"status": "error", "condition": False, "message": _bad}',
+                 assign='        target_time_str = _res.get("targetTime", target_time_str)\n'))]),
+        (fx.NodeExecutor, "execute_wait_until", [
+            ('        target_time_str = node_data.get("targetTime", "09:30")\n',
+             '        target_time_str = node_data.get("targetTime", "09:30")\n' + _TIME_CHECK.format(
+                 fields='(("targetTime", target_time_str),)', prefix="Wait Until aborted: ",
+                 failure='{"status": "error", "message": _bad}',
+                 assign='        target_time_str = _res.get("targetTime", target_time_str)\n'))]),
+    ],
+    # N-priceAlert-02 (the triggers lane's sentence): a missing symbol says so.
+    "price_alert_no_symbol": [(fx.NodeExecutor, "execute_price_alert", [
+        ('        if not symbol:\n            return {"status": "error", "condition": False}\n',
+         '        if not symbol:\n            return {"status": "error", "condition": False, "message": "A priceAlert node needs symbol, so the alert was not evaluated."}\n')])],
     # N-gate-04 (decision 8): AND/OR read inputCount as the validator does.
     "gate_slot_count": [(harness, "_orig_chain", [
         ('        declared = node_data.get("inputCount")\n',

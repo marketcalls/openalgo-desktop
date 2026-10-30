@@ -59,7 +59,9 @@ node(F, "priceAlert", "condition_absent_unknown", {k: v for k, v in PA.items() i
 node(F, "priceAlert", "quote_fails", PA, script=[reply("quotes", SESSION_EXPIRED)], parity=["N-priceAlert-05"],
      desktop_expected=de("N-priceAlert-05", "WEB-DEFECT: the client's error text is dropped (`node failed`); the desktop carries it as `message`.",
                          fix=STREAM_FIX))
-node(F, "priceAlert", "no_symbol", {**PA, "symbol": ""}, parity=["N-priceAlert-03"])
+node(F, "priceAlert", "no_symbol", {**PA, "symbol": ""}, parity=["N-priceAlert-03", "N-priceAlert-02"],
+     desktop_expected=de("N-priceAlert-02", "WEB-DEFECT: a priceAlert without a symbol fails with no reason, so the run reads `node failed`; the desktop names it (the triggers lane's sentence).",
+                         fix=["price_alert_no_symbol"]))
 node(F, "priceAlert", "fired_by_monitor", PA, run_context={"trigger": "price_alert"},
      vars_in={"webhook": {"trigger_type": "price_alert", "trigger_price": 812.75, "symbol": "SBIN"}},
      parity=["N-priceAlert-04"])
@@ -196,3 +198,12 @@ for _s in __import__("lib").SCENARIOS:
             "N-unsubscribe-03",
             "decisions.md 9: `all` releases only the subscriptions this workflow holds (none here), never the instance's whole feed, so nothing is refused.",
             fix=["unsubscribe_all_own"])
+
+
+def apply_auto():
+    """decisions.md 9 for every subscribe golden, the doc examples included:
+    written only where the fix changes what the web stored."""
+    pids = {"subscribeLtp": "N-subscribeLtp-05", "subscribeQuote": "N-subscribeQuote-04", "subscribeDepth": "N-subscribeDepth-04"}
+    for _s in __import__("lib").SCENARIOS:
+        if _s["type"] in pids and _s["kind"] == "node" and not _s["desktop_expected"]:
+            _s["desktop_expected"] = {**SFIX, "parity": pids[_s["type"]]}

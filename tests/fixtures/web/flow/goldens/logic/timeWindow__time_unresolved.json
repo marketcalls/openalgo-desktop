@@ -1,0 +1,155 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "timeWindow",
+ "scenario": "time_unresolved",
+ "note": "",
+ "parity": [
+  "N-timeWindow-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "timeWindow",
+  "data": {
+   "endTime": "15:30",
+   "startTime": "{{nope}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "timeWindow",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "endTime": "15:30",
+     "startTime": "{{nope}}"
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "condition": true
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {
+   "n1": true
+  },
+  "logs": [
+   [
+    "info",
+    "Time window: {{nope}}-15:30, in_window=True, invert=False, result=True"
+   ]
+  ],
+  "next": [
+   "pass",
+   "true"
+  ],
+  "error": null
+ },
+ "desktop_expected": {
+  "parity": "N-timeWindow-01",
+  "why": "The lead's decision (via nodes-logic): a time field's {{...}} reference is resolved (the web reads the text as a time and falls back to the default), and one that does not resolve to HH:MM or HH:MM:SS fails the node.",
+  "fix": [
+   "time_fields_interpolated"
+  ],
+  "outputs": {
+   "status": "error",
+   "condition": false,
+   "message": "startTime did not resolve to a time (HH:MM or HH:MM:SS): '{{nope}}'"
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Time window aborted: startTime did not resolve to a time (HH:MM or HH:MM:SS): '{{nope}}'"
+   ],
+   [
+    "error",
+    "timeWindow could not be evaluated (startTime did not resolve to a time (HH:MM or HH:MM:SS): '{{nope}}')"
+   ]
+  ],
+  "next": [
+   "pass"
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "timeWindow",
+     "message": "startTime did not resolve to a time (HH:MM or HH:MM:SS): '{{nope}}'"
+    }
+   ],
+   "abort": null
+  }
+ }
+}
