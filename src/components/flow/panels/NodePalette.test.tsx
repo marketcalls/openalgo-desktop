@@ -345,3 +345,45 @@ describe("every entry's icon and colours (F-632..F-637)", () => {
     }
   })
 })
+
+/**
+ * F-631: an entry is type="button", so a palette inside a form never submits
+ * it. F-630: the palette has no search box, as on the web. The tab's
+ * ScrollArea, the 28px tile and the truncated label and description are
+ * styling (decision 35) and carry no test.
+ */
+describe('the entries submit nothing and there is no search box (F-630, F-631)', () => {
+  it.each(TABS)('every %s entry is a plain button that submits no form', async (tab, entries) => {
+    const onAdd = vi.fn()
+    const submitted = vi.fn()
+    render(
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          submitted()
+        }}
+      >
+        <NodePalette onAdd={onAdd} onDragStart={vi.fn()} />
+      </form>
+    )
+    await userEvent.setup().click(screen.getByRole('tab', { name: tab }))
+    const buttons = within(screen.getByRole('tabpanel')).getAllByRole('button')
+    expect(buttons).toHaveLength(entries.length)
+    for (const button of buttons) {
+      expect(button).toHaveAttribute('type', 'button')
+      fireEvent.click(button)
+    }
+    expect(onAdd).toHaveBeenCalledTimes(entries.length)
+    expect(submitted).not.toHaveBeenCalled()
+  })
+
+  it('has no search box on any tab', async () => {
+    renderPalette()
+    const user = userEvent.setup()
+    for (const [tab] of TABS) {
+      await user.click(screen.getByRole('tab', { name: tab }))
+      expect(screen.queryByRole('textbox'), tab).toBeNull()
+      expect(screen.queryByRole('searchbox'), tab).toBeNull()
+    }
+  })
+})

@@ -371,6 +371,8 @@ describe('F-691 the insert menu', () => {
     ['Data', 'Open Position', 'openPosition'],
     ['Utility', 'Wait Until', 'waitUntil'],
     ['Utility', 'Telegram Alert', 'telegramAlert'],
+    ['Utility', 'Log', 'log'],
+    ['Utility', 'Variable', 'variable'],
   ])('%s > %s inserts a %s node', async (category, label, type) => {
     renderCanvas()
     await insert(category, label)

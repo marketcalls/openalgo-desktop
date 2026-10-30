@@ -22,11 +22,16 @@ const THEME = CSS.slice(
   CSS.indexOf('}', CSS.indexOf('@theme inline {'))
 )
 
-/** The declarations of the first rule whose selector is exactly `selector`. */
+/**
+ * The declarations of the first rule that lists `selector` whole, alone or in
+ * a selector list (`.a,\n.b {` lists both `.a` and `.b`).
+ */
 function rule(selector: string): string {
-  const at = FLOW.indexOf(`${selector} {`)
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const at = FLOW.search(new RegExp(`^${escaped}\\s*[,{]`, 'm'))
   expect(at, selector).toBeGreaterThan(-1)
-  return FLOW.slice(at, FLOW.indexOf('}', at))
+  const open = FLOW.indexOf('{', at)
+  return FLOW.slice(open + 1, FLOW.indexOf('}', open))
 }
 
 describe('the Flow editor block is restored (D-53, F-292, F-405, F-672)', () => {
@@ -36,6 +41,8 @@ describe('the Flow editor block is restored (D-53, F-292, F-405, F-672)', () => 
     '.react-flow__handle',
     '.react-flow__handle:hover',
     '.react-flow__handle.valid',
+    '.react-flow__handle.connectingto',
+    '.react-flow__handle.connectingfrom',
     '.react-flow__edge-path',
     '.react-flow__connection-line',
     '.react-flow__controls',
@@ -53,6 +60,12 @@ describe('the Flow editor block is restored (D-53, F-292, F-405, F-672)', () => 
     '.node-data',
     '.node-utility',
     '.node-icon',
+    '.node-trigger .node-icon',
+    '.node-start .node-icon',
+    '.node-action .node-icon',
+    '.node-condition .node-icon',
+    '.node-data .node-icon',
+    '.node-utility .node-icon',
     '.flow-status-dot',
     '.flow-status-dot.running',
     '.mono-data',
@@ -60,7 +73,7 @@ describe('the Flow editor block is restored (D-53, F-292, F-405, F-672)', () => 
     '.badge-sell',
     '.bg-surface-2',
   ])('styles %s', (selector) => {
-    expect(rule(selector).length).toBeGreaterThan(selector.length + 2)
+    expect(rule(selector)).toMatch(/[\w-]+:|@apply /)
   })
 
   it('defines the node colour channels for light and dark, and the edge and status animations', () => {
@@ -107,5 +120,61 @@ describe('the node and buy/sell colours are theme colours (F-673)', () => {
     expect(rule('.badge-sell')).toContain('text-[hsl(0_84%_38%)]')
     expect(FLOW).toContain(':is(.dark, .analyzer) .badge-buy {\n  @apply text-[hsl(142_76%_46%)];')
     expect(FLOW).toContain(':is(.dark, .analyzer) .badge-sell {\n  @apply text-[hsl(0_84%_70%)];')
+  })
+})
+
+/**
+ * F-672. The run-state dots carry meaning (active green, running amber,
+ * inactive greyed, error red), so their colours are pinned. The web paints
+ * inactive and error with hsl(var(--muted-foreground) / 0.5) and
+ * hsl(var(--destructive)), which this app's oklch tokens turn into dropped
+ * declarations; the desktop reads the theme names instead (intended, F-293).
+ * The 9px subtitle and the node-icon size are styling (decision 35).
+ */
+describe('the run-state dots keep their colours (F-672)', () => {
+  it.each([
+    ['.flow-status-dot.active', 'background-color: hsl(var(--node-data));'],
+    ['.flow-status-dot.running', 'background-color: hsl(var(--node-trigger));'],
+    [
+      '.flow-status-dot.inactive',
+      'background-color: color-mix(in oklab, var(--color-muted-foreground) 50%, transparent);',
+    ],
+    ['.flow-status-dot.error', 'background-color: var(--color-destructive);'],
+  ])('%s paints %s', (selector, declaration) => {
+    expect(rule(selector)).toContain(declaration)
+  })
+
+  it('pulses only the running dot', () => {
+    expect(rule('.flow-status-dot.running')).toContain(
+      'animation: flow-pulse 2s ease-in-out infinite;'
+    )
+    for (const state of ['active', 'inactive', 'error']) {
+      expect(rule(`.flow-status-dot.${state}`), state).not.toContain('animation')
+    }
+  })
+})
+
+/**
+ * F-672. The --node-* channels are this block's own HSL triplets, not the
+ * app's oklch tokens, so they carry over from the web unchanged. These are the
+ * web's values at 96e5927e5 (frontend/src/index.css, :root and .dark); the
+ * desktop must equal them.
+ */
+const WEB_NODE_CHANNELS: Array<[block: string, token: string, value: string]> = [
+  [':root', 'trigger', '38 92% 50%'],
+  [':root', 'action', '217 91% 60%'],
+  [':root', 'condition', '270 60% 60%'],
+  [':root', 'data', '142 76% 36%'],
+  [':root', 'utility', '200 70% 50%'],
+  ['.dark', 'trigger', '38 92% 55%'],
+  ['.dark', 'action', '217 91% 65%'],
+  ['.dark', 'condition', '270 60% 65%'],
+  ['.dark', 'data', '142 76% 46%'],
+  ['.dark', 'utility', '200 70% 55%'],
+]
+
+describe("the node colour channels equal the web's (F-672)", () => {
+  it.each(WEB_NODE_CHANNELS)('%s sets --node-%s to %s', (block, token, value) => {
+    expect(rule(block)).toContain(`--node-${token}: ${value};`)
   })
 })
