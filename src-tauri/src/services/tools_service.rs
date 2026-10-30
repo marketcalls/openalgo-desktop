@@ -101,7 +101,7 @@ where
 
 // ------------------------------------------------------------ exchanges
 
-pub const NO_SPOT: &[&str] = &["MCX", "CDS", "BCD", "NCDEX", "NCO"];
+pub use super::options_service::NO_SPOT;
 pub const CRYPTO: &str = "CRYPTO";
 
 const NSE_INDEX_TOOLS: &[&str] = &[

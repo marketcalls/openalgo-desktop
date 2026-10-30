@@ -91,17 +91,30 @@ fn a_stock_option_is_quoted_on_the_equity_segment() {
     );
 }
 
-/// X-135: every exchange without a spot is declarable and quotes and
-/// trades on itself, and the desktop's option service treats each so.
+/// X-135: every exchange the desktop option-symbol service treats as
+/// having no spot (its own list, which the tools service and the options
+/// nodes read too) is declarable and quotes and trades on itself; an
+/// exchange outside that list is not.
 #[test]
 fn every_no_spot_exchange_is_declarable() {
-    for ex in NO_SPOT_EXCHANGES {
+    use crate::services::options_service::{option_exchange, NO_SPOT};
+    assert_eq!(NO_SPOT, crate::services::tools_service::NO_SPOT);
+    assert!(!NO_SPOT.is_empty());
+    for &ex in NO_SPOT {
         assert_eq!(
             resolve_option_exchanges("ANYTHING", ex),
             pair(ex, ex),
             "{ex}"
         );
-        assert_eq!(crate::services::options_service::option_exchange(ex), ex);
+        assert_eq!(option_exchange(ex), ex);
+    }
+    for ex in ["NSE", "BSE", "NFO", "CRYPTO"] {
+        assert!(!NO_SPOT.contains(&ex));
+        assert_ne!(
+            resolve_option_exchanges("ANYTHING", ex),
+            pair(ex, ex),
+            "{ex}"
+        );
     }
 }
 
