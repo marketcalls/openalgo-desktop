@@ -406,3 +406,22 @@ async fn an_unrunnable_workflow_is_still_managed() {
         assert_eq!(s, StatusCode::OK, "{} {}", path, v);
     }
 }
+
+/// V-132: a PUT to a workflow that does not exist is checked first: an
+/// invalid graph is the validator's 400, a valid edit the 404.
+#[tokio::test]
+async fn an_update_checks_the_graph_before_the_workflow_exists() {
+    let g = G::new();
+    let path = "/flow/api/workflows/9999";
+    let (s, v) = g.call(Method::PUT, path, Some(r#"{"nodes": "x"}"#)).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{}", v);
+    assert_eq!(v["error"], "Invalid workflow structure");
+    let (s, v) = g.call(Method::PUT, path, Some(r#"{"name": "x"}"#)).await;
+    assert_eq!(
+        (s, v),
+        (
+            StatusCode::NOT_FOUND,
+            json!({"error": "Workflow not found"})
+        )
+    );
+}

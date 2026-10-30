@@ -236,7 +236,16 @@ impl crate::flow::contract::env::MarketFeed for PanickingFeed {
         panic!("a defect in the feed")
     }
 
-    async fn unsubscribe(&self, _: &str, _: &str, _: &str) -> Result<(), String> {
+    async fn session(&self) -> Result<(), crate::flow::contract::env::FeedError> {
+        Ok(())
+    }
+
+    async fn unsubscribe(
+        &self,
+        _: &str,
+        _: &str,
+        _: &str,
+    ) -> Result<(), crate::flow::contract::env::FeedError> {
         Ok(())
     }
 }
