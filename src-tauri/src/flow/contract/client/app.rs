@@ -31,7 +31,7 @@ pub const FLOW_CALLER: IpAddr = IpAddr::V6(Ipv6Addr::new(0x100, 0, 0, 0, 0, 0, 0
 pub const CALL_TIMEOUT: Duration = dispatch::SDK_TIMEOUT;
 
 /// What the web's client answers when the bot cannot send.
-const WHATSAPP_NOT_READY: &str =
+pub(crate) const WHATSAPP_NOT_READY: &str =
     "WhatsApp is not paired or not connected. Pair the device from /whatsapp.";
 
 /// The real client for one run: the app and the trader's API key.
@@ -183,15 +183,41 @@ impl FlowClient for AppFlowClient {
             return json!({"status": "error", "error": "OpenAlgo is shutting down."});
         };
         let wa = &app.messaging.whatsapp;
-        if !wa.is_ready(&app) {
-            return json!({"status": "error", "error": wa.unavailable_reason().unwrap_or(WHATSAPP_NOT_READY)});
-        }
-        let targets = match whatsapp_targets(to) {
-            Ok(t) => t,
-            Err(refused) => return refused,
-        };
-        whatsapp_answer(&wa.send(&app, &targets, message).await)
+        let state = (wa.is_ready(&app), wa.unavailable_reason());
+        let sender = app.clone();
+        whatsapp_reply(state, to, move |targets| async move {
+            sender
+                .messaging
+                .whatsapp
+                .send(&sender, &targets, message)
+                .await
+        })
+        .await
     }
+}
+
+/// The web client's `whatsapp()` over the service's state `(ready,
+/// unavailable reason)` and its send: not ready answers the service's own
+/// reason (logged out) or the web's sentence; a `to` that is not 7-15
+/// digits is refused; a failed recipient's error (else "send failed") or
+/// the report.
+pub(crate) async fn whatsapp_reply<F, Fut>(
+    (ready, reason): (bool, Option<&str>),
+    to: Option<&str>,
+    send: F,
+) -> Value
+where
+    F: FnOnce(Vec<String>) -> Fut,
+    Fut: std::future::Future<Output = crate::messaging::whatsapp::Report>,
+{
+    if !ready {
+        return json!({"status": "error", "error": reason.unwrap_or(WHATSAPP_NOT_READY)});
+    }
+    let targets = match whatsapp_targets(to) {
+        Ok(t) => t,
+        Err(refused) => return refused,
+    };
+    whatsapp_answer(&send(targets).await)
 }
 
 /// Where a WhatsApp alert goes: the number given, as its chat id, or the

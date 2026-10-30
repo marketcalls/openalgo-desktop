@@ -144,6 +144,11 @@ impl FlowNode for PositionCheck {
             default_product_for_exchange(Some(exchange.as_str())),
         );
         let condition = ctx.get_str(data, "condition", "exists");
+        // The web's get_float raises on a list or dict here, before the
+        // symbol is even checked, and the run ends (decisions.md 24).
+        if let Err(abort) = ctx.try_get_float(data, "threshold", 0.0) {
+            return abort.into();
+        }
         let threshold = read_number(ctx, data, "threshold");
         if symbol.is_empty() {
             return undecided(
@@ -247,6 +252,8 @@ impl FundCheck {
             )
         };
         if data.contains_key("minAvailable") {
+            ctx.try_get_float(data, "minAvailable", 0.0)
+                .map_err(NodeOutcome::from)?;
             return match read_number(ctx, data, "minAvailable") {
                 Number::Value(f) => Ok(f),
                 Number::Missing => Err(undecided(ctx, "", NO_MINIMUM.into())),
@@ -271,6 +278,8 @@ impl FundCheck {
             ctx.error(message.clone());
             return Err(NodeOutcome::error(message));
         }
+        ctx.try_get_float(data, "threshold", 0.0)
+            .map_err(NodeOutcome::from)?;
         let min = match read_number(ctx, data, "threshold") {
             Number::Value(f) => f,
             Number::Missing => return Err(undecided(ctx, "", NO_MINIMUM.into())),

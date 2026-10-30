@@ -475,3 +475,31 @@ fn refused_addresses_match_python() {
         assert_eq!(guard::is_refused(ip), want, "{}", ip);
     }
 }
+
+/// N-logic-06, decisions.md 24: a timeout the web's int() cannot read (a
+/// list, a dict, infinity) ends the whole run before anything else, even
+/// before the empty-URL check; text that is not a number is the default.
+#[tokio::test]
+async fn an_unreadable_timeout_ends_the_run() {
+    for (t, raised) in [
+        (
+            json!([1]),
+            "int() argument must be a string, a bytes-like object or a real number, not 'list'",
+        ),
+        (
+            json!({"ms": 5}),
+            "int() argument must be a string, a bytes-like object or a real number, not 'dict'",
+        ),
+        (json!("inf"), "cannot convert float infinity to integer"),
+    ] {
+        let (out, c, http) =
+            send(json!({"url": "http://api.example.com/", "timeout": t.clone()})).await;
+        assert_eq!(out.aborted(), Some(raised), "{}", t);
+        assert!(http.sent.lock().is_empty());
+        assert!(messages(&c).is_empty());
+        let (out, _, _) = send(json!({"timeout": t.clone()})).await;
+        assert_eq!(out.aborted(), Some(raised), "{}", t);
+    }
+    let (_, _, http) = send(json!({"url": "http://api.example.com/", "timeout": "soon"})).await;
+    assert_eq!(http.sent.lock().clone()[0].timeout.as_secs_f64(), 30.0);
+}

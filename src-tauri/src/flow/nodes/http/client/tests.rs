@@ -150,3 +150,68 @@ async fn literal_addresses_resolve_to_themselves() {
     );
     assert_eq!(http.resolve("::1").await, Ok(vec!["::1".parse().unwrap()]));
 }
+
+const PROXY_CHILD: &str = "FLOW_GUARDED_HTTP_PROXY_CHILD";
+
+/// N-httpRequest-17, decisions.md 12: the system's proxy settings are not
+/// honoured. A child process runs `proxy_child` with every proxy variable
+/// pointing at a listener here; the request must reach its server
+/// directly, and the listener must see no connection.
+#[test]
+fn system_proxy_settings_are_ignored() {
+    let proxy = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    proxy.set_nonblocking(true).unwrap();
+    let url = format!("http://{}", proxy.local_addr().unwrap());
+    let mut cmd = std::process::Command::new(std::env::current_exe().unwrap());
+    cmd.args([
+        "flow::nodes::http::client::tests::proxy_child",
+        "--exact",
+        "--include-ignored",
+        "--nocapture",
+    ])
+    .env(PROXY_CHILD, "1")
+    .env("NO_PROXY", "")
+    .env("no_proxy", "");
+    for var in [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ] {
+        cmd.env(var, &url);
+    }
+    let out = cmd.output().unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success(),
+        "{}{}",
+        text,
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(text.contains("1 passed"), "{}", text);
+    assert!(
+        matches!(proxy.accept(), Err(e) if e.kind() == std::io::ErrorKind::WouldBlock),
+        "the request went through the system proxy"
+    );
+}
+
+/// The child half of `system_proxy_settings_are_ignored`.
+#[tokio::test]
+#[ignore = "run by system_proxy_settings_are_ignored in a process with proxy variables set"]
+async fn proxy_child() {
+    if std::env::var(PROXY_CHILD).is_err() {
+        return;
+    }
+    let (port, seen, task) = server().await;
+    let http = GuardedHttp::new().unwrap();
+    let url = format!("http://flow-check.invalid:{}/ok", port);
+    let reply = http
+        .send(call(url, port, Duration::from_secs(5)))
+        .await
+        .unwrap();
+    assert_eq!(reply.status, 200);
+    assert_eq!(seen.lock().len(), 1);
+    task.abort();
+}

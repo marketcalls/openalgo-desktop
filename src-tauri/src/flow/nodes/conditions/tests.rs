@@ -286,7 +286,6 @@ async fn an_unreadable_minimum_never_passes_the_guard() {
     for d in [
         json!({"minAvailable": "{{typo}}"}),
         json!({"minAvailable": "abc"}),
-        json!({"minAvailable": [1]}),
         json!({"minAvailable": ""}),
         json!({"minAvailable": null}),
         json!({"threshold": "{{typo}}"}),
@@ -510,4 +509,71 @@ fn comparisons_take_symbols_and_words() {
     ] {
         assert_eq!(compare(1.0, op, 2.0), want, "{}", op);
     }
+}
+
+/// N-priceCondition-06: the node does not check the symbol itself; an
+/// empty one reaches the quote service, whose refusal is the node's answer
+/// (the validator is what requires a symbol).
+#[tokio::test]
+async fn an_empty_symbol_is_left_to_the_quote_service() {
+    let (client, c) = ctx();
+    client.reply_error("quotes", "Symbol is required", 400);
+    let out = run(
+        &PriceCondition,
+        &c,
+        json!({"symbol": "", "exchange": "NSE", "field": "ltp", "operator": ">", "value": 1}),
+    )
+    .await;
+    let calls = client.calls_to("quotes");
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].payload["symbol"], "");
+    assert_eq!(
+        answer(&out),
+        json!({"status": "error", "condition": false, "message": "Symbol is required"})
+    );
+    assert_eq!(
+        messages(&c),
+        vec![
+            "Checking price for: ".to_string(),
+            "Price check aborted: Symbol is required".to_string()
+        ]
+    );
+}
+
+/// N-logic-06, decisions.md 24: a list or dict where a number belongs ends
+/// the whole run with Python's text, before any call, as the web's
+/// get_float raised; a legacy operator it cannot express is still refused
+/// first.
+#[tokio::test]
+async fn a_list_or_dict_threshold_ends_the_run() {
+    let float_err = |t: &str| {
+        format!(
+            "float() argument must be a string or a real number, not '{}'",
+            t
+        )
+    };
+    let (client, c) = ctx();
+    let out = run(
+        &PositionCheck,
+        &c,
+        json!({"symbol": "SBIN", "condition": "exists", "threshold": [5]}),
+    )
+    .await;
+    assert_eq!(out.aborted(), Some(float_err("list").as_str()));
+    let out = run(
+        &PositionCheck,
+        &c,
+        json!({"condition": "quantity_above", "threshold": {"a": 1}}),
+    )
+    .await;
+    assert_eq!(out.aborted(), Some(float_err("dict").as_str()));
+    let out = run(&FundCheck, &c, json!({"minAvailable": [1]})).await;
+    assert_eq!(out.aborted(), Some(float_err("list").as_str()));
+    let out = run(&FundCheck, &c, json!({"threshold": {}, "operator": ">="})).await;
+    assert_eq!(out.aborted(), Some(float_err("dict").as_str()));
+    let out = run(&FundCheck, &c, json!({"threshold": {}, "operator": "lt"})).await;
+    assert_eq!(out.aborted(), None);
+    assert!(out.is_error());
+    assert!(client.calls().is_empty());
+    assert!(messages(&c).iter().all(|m| !m.starts_with("Checking")));
 }

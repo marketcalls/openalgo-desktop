@@ -21,7 +21,7 @@ pub use client::install;
 
 use super::pyjson;
 use crate::flow::contract::env::{HttpCall, HttpReply};
-use crate::flow::contract::node::{FlowNode, NodeCtx, NodeOutcome};
+use crate::flow::contract::node::{FlowNode, NodeAbort, NodeCtx, NodeOutcome};
 use crate::flow::contract::pyfmt;
 use async_trait::async_trait;
 use base64::Engine;
@@ -196,12 +196,14 @@ fn aborted(ctx: &NodeCtx, message: String) -> NodeOutcome {
 }
 
 impl HttpRequest {
-    fn timeout(ctx: &NodeCtx, data: &Map<String, Value>) -> Duration {
-        let mut ms = ctx.get_int(data, "timeout", HTTP_TIMEOUT_DEFAULT_MS);
+    /// The timeout in milliseconds, defaulted and capped; a list, dict or
+    /// infinity ends the run as the web's `int()` does (decisions.md 24).
+    fn timeout(ctx: &NodeCtx, data: &Map<String, Value>) -> Result<Duration, NodeAbort> {
+        let mut ms = ctx.try_get_int(data, "timeout", HTTP_TIMEOUT_DEFAULT_MS)?;
         if ms <= 0 {
             ms = HTTP_TIMEOUT_DEFAULT_MS;
         }
-        Duration::from_millis(ms.min(HTTP_TIMEOUT_MAX_MS) as u64)
+        Ok(Duration::from_millis(ms.min(HTTP_TIMEOUT_MAX_MS) as u64))
     }
 }
 
@@ -218,7 +220,10 @@ impl FlowNode for HttpRequest {
             None => String::new(),
             Some(v) => pyfmt::str(v),
         };
-        let timeout = Self::timeout(ctx, data);
+        let timeout = match Self::timeout(ctx, data) {
+            Ok(t) => t,
+            Err(abort) => return abort.into(),
+        };
         if raw_url.is_empty() {
             return NodeOutcome::error("No URL specified");
         }
