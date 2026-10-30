@@ -43,8 +43,11 @@ and after you log out):
 
 - `/api/v1` answers 503 with "Sign in to OpenAlgo to use the API. The API is
   off after OpenAlgo starts and after you log out, until you sign in again."
-- The market data feed, AI clients (MCP) and the TradingView, Chartink and
-  strategy webhooks are refused the same way. Nothing is placed.
+- The market data feed, AI clients (MCP) and the TradingView, Chartink,
+  strategy and Flow webhooks are refused the same way. Nothing is placed.
+- Flow's schedules, price alerts and order updates do not run their
+  workflows; each skip is written in the workflow's run history, and they
+  run again once you sign in.
 - Your broker session does not resume and the Telegram and WhatsApp bots do
   not run.
 

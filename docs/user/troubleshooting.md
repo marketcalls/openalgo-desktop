@@ -271,7 +271,7 @@ two-factor login secret encrypted, and locks the key that opens them with your
 OpenAlgo password. Nothing is kept in your computer's keychain.
 
 - **After OpenAlgo starts, sign in first.** Until you do, the API, the market
-  data feed, TradingView and Chartink webhooks, AI clients (MCP) and your
+  data feed, TradingView, Chartink and Flow webhooks, AI clients (MCP) and your
   broker connection stay off. Your saved broker session comes back when you
   sign in, if it is still from today, and Telegram and WhatsApp bots you had
   switched on start again. Logging out (or quitting OpenAlgo) turns them off

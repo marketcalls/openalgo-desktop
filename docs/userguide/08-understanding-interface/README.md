@@ -67,6 +67,7 @@ Choose your initial at the right of the top bar.
 | **Telegram Bot** | Telegram alerts and commands |
 | **WhatsApp Bot** | WhatsApp alerts and commands |
 | **Holdings** | Your delivery holdings (not shown for a crypto broker) |
+| **Flow Editor** | Drag-and-drop workflows: triggers, conditions, orders and alerts ([chapter 21](../21-flow-visual-builder/README.md)) |
 | **Scalping** | The keyboard-driven scalping terminal |
 | **PnL Tracker** | Intraday MTM curve |
 | **Historify** | Download and browse historical data |
@@ -79,9 +80,9 @@ Choose your initial at the right of the top bar.
 | **Docs** | [docs.openalgo.in](https://docs.openalgo.in) in your browser |
 | **Logout** | Sign out after a confirmation |
 
-In the desktop the menu has no Flow Editor or Python Strategies entries:
-those are not in this version. **Server Settings** and **Check for
-Updates** exist only in the desktop.
+In the desktop the menu has no Python Strategies entry: the Python Strategy
+Host is not in this version. **Server Settings** and **Check for Updates**
+exist only in the desktop.
 
 ### Logging out
 

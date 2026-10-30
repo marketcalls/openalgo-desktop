@@ -353,6 +353,24 @@ Order approval for manual control:
 - **Semi-Auto mode**: orders wait in the Action Center for your approval
 - Approve or reject orders one at a time, or approve them all
 
+### Flow Visual Builder (`/flow`)
+
+A drag-and-drop canvas for automations, native in the desktop (no Python):
+
+- 61 node types: schedules, webhooks, price alerts and order updates as
+  triggers; quotes, history, 116 indicators, books and option data;
+  conditions and AND/OR/NOT gates; orders, options strategies, baskets,
+  alerts and HTTP calls
+- Activate a workflow and it runs on its own while the app is open, in
+  analyzer mode or live, with Semi-Auto approval if you choose it
+- Each workflow has its own secret webhook address, reachable through the
+  built-in ngrok tunnel
+- Import and export the same JSON as OpenAlgo web; the Agent can write a
+  workflow for your approval
+
+[Flow user guide](docs/userguide/21-flow-visual-builder/README.md) ·
+[import format](docs/prompt/flow-import-format.md)
+
 ### ChartInk Integration
 
 Scanner alerts by webhook:
@@ -710,7 +728,7 @@ A copy of the folder is useless to anyone without your password.
 What this means day to day:
 
 - **Sign in after OpenAlgo starts.** Until you do, the API (`/api/v1`), the
-  market data feed, TradingView and Chartink webhooks, AI clients (MCP) and
+  market data feed, TradingView, Chartink and Flow webhooks, AI clients (MCP) and
   your broker connection stay off: programs are told "Sign in to OpenAlgo to
   use the API". Telegram and WhatsApp bots that you had switched on start
   when you sign in. Everything goes off again when you log out, and the
@@ -797,7 +815,8 @@ says so and changes nothing. Details:
 Included: everything you use in OpenAlgo web for trading. The dashboard, order
 book, trade book, positions and holdings; the `/trading` charting terminal and
 scalping; the strategy module with risk management; TradingView, GoCharting
-and Chartink webhooks; Action Center for semi-automatic orders; options tools
+and Chartink webhooks; Flow (`/flow`), the visual workflow builder, from
+1.0.5; Action Center for semi-automatic orders; options tools
 (option chain, Greeks, OI tracker, max pain, IV charts, GEX, straddles, strategy
 builder, Sector Rotation); Historify; OpenScript; the Playground; API key
 management; logs, latency and traffic monitoring; Telegram and WhatsApp
@@ -809,7 +828,6 @@ a model you choose and asks for your approval before every order.
 Not included in this version:
 
 - the Python Strategy Host (`/python`)
-- Flow (`/flow`), planned for 1.0.5
 - the pandas-based backtesters: Portfolio Backtester, SIP Backtester and
   Portfolio Analyzer
 

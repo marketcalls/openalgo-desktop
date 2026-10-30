@@ -67,7 +67,8 @@ Until you sign in:
 | --- | --- |
 | A program calling `/api/v1` | 503: "Sign in to OpenAlgo to use the API. The API is off after OpenAlgo starts and after you log out, until you sign in again." |
 | The market data feed (port 8765) | "OpenAlgo is locked. Sign in to OpenAlgo to stream market data..." |
-| A strategy or Chartink webhook | "OpenAlgo is locked, so this alert was not acted on..." |
+| A strategy, Chartink or Flow webhook | "OpenAlgo is locked, so this alert was not acted on..." |
+| A Flow schedule, price alert or order update | Nothing runs; the workflow's run history says "Skipped: OpenAlgo was signed out when this schedule fired..." |
 | An AI client (MCP) | A sign-in message; nothing runs |
 
 Your API key is not the problem. Sign in to OpenAlgo in its window (or in a

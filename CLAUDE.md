@@ -51,6 +51,8 @@ skill instead of improvising the procedure:
 - **`version-bump`**: changing the app version and preparing a release.
 - **`chart-indicator`** and **`openscript`**: writing a custom chart indicator
   or an OpenScript study for the `/trading` terminal.
+- **`flow-builder`**: writing, editing or debugging a Flow workflow JSON; it
+  checks the result against the desktop's own validator.
 
 ## The compatibility contract
 
@@ -481,8 +483,8 @@ no Python runtime:
 - pandas-based backtesters: Portfolio Backtester, SIP Backtester, Portfolio
   Analyzer
 
-Flow (`/flow`) was on this list until 2026-10-29; it is now planned for 1.0.5
-(see Decided).
+Flow (`/flow`) was on this list until 2026-10-29; it is in the desktop from
+1.0.5 (see Decided).
 
 **Removed from this version** (maintainer, 2026-10-12): the Python Strategy
 Host. No code for it ships, and nothing in the UI leads to it: no route,
@@ -491,18 +493,29 @@ unknown page (the app's 404 page) and its API paths are the JSON 404.
 
 Decided:
 
-- **Flow comes in 1.0.5, native Rust** (maintainer, 2026-10-29; 1.0.4 ships
-  first). Parity with the web's `/flow`: the editor, every node type, the
-  workflow validator, the scheduler, the price and order-update monitors,
+- **Flow is native Rust, in the desktop from 1.0.5** (maintainer,
+  2026-10-29). Parity with the web's `/flow`: the editor, every node type,
+  the workflow validator, the scheduler, the price and order-update monitors,
   webhooks and the import format (`docs/prompt/flow-import-format.md`), plus
   the Agent's Flow tools (`flow_gen`) and the `flow-builder` skill. The
+  backend is `src-tauri/src/flow/` (start at its `mod.rs`): nodes reach
+  OpenAlgo through the in-process `/api/v1` path the Agent and MCP use, so
+  analyzer mode and Semi-Auto apply. The session routes are under
+  `/flow/api/`; the public webhook `/flow/webhook/<token>[/<symbol>]` is
+  secret-verified, rate limited and reachable through the tunnel. The
+  frontend is the web's, carried over by diff (`src/**/flow*`; desktop-only
+  glue in `src/components/desktop/Flow*`, `src/lib/desktopFlow.ts` and
+  `src/api/flowDesktop.ts`). The
   Indicator node runs on `oa_core`, the Rust core of the openalgo library
   that `agent/indicators` already uses (the same 127 indicators as the web's
-  `openalgo.ta`), so Flow needs no Python. The web computes that node in
+  `openalgo.ta`), so Flow needs no Python; Flow's port of the web's
   `services/indicator_service.py` (nested series, the fixed-length tail,
-  bar offsets), which is a different dispatcher from the Agent's: port it,
-  do not reuse the Agent's shape. Until Flow lands it has no route, menu
-  entry or docs claiming it.
+  bar offsets) is `flow/indicator_service/`, a different dispatcher from
+  the Agent's. Where the desktop departs from the web (IST everywhere,
+  schedules only while the app is open, a webhook secret always required,
+  no stored API key, the httpRequest guard), the import format says so in
+  sentences starting **Desktop**, and the user guide's chapter 21 for
+  traders.
 - **OpenScript** runs on the existing TypeScript engine (`openalgo-script`).
   Backtests already run in a Web Worker. Live runs use the same engine in a
   hidden Tauri window: the app reads new bars every 10 s (`bar_poll`) and
@@ -534,7 +547,8 @@ Decided:
   surfaces, approval list) and reach OpenAlgo through the in-process
   `/api/v1` path MCP uses (`agent/tools/service.rs`). The stream frames and
   the system prompt are pinned byte for byte against fixtures recorded from
-  the web (`scripts/agent/`). Flow (`flow_gen`) comes with Flow in
+  the web (`scripts/agent/`). The Flow tools (`flow_gen`: `validate_flow`,
+  `save_flow`, chat only) and the `flow-builder` skill ship with Flow in
   1.0.5; Python strategy generation (`strategy_gen`) stays out.
   - **A model that passes its Test can still fail every chat turn.** The
     Test sends no tools (as the web's does), and OpenAI refuses tools on

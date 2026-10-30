@@ -199,6 +199,7 @@ The desktop serves no `/api/v1` endpoint that OpenAlgo web lacks.
 ### Other Entry Points
 
 - **Chartink webhook**: `POST http://127.0.0.1:5000/chartink/webhook/<webhook_id>`, the address shown for each Chartink strategy.
+- **Flow webhook**: `POST http://127.0.0.1:5000/flow/webhook/<token>` and `/flow/webhook/<token>/<symbol>`, the addresses shown in each workflow's webhook settings, with the workflow's secret in the JSON body (`"secret"`) or as `?secret=`. See [21 - Flow Visual Builder](../userguide/21-flow-visual-builder/README.md#webhook-tradingview-chartink-and-your-own-programs).
 - **MCP** for AI clients: the `openalgo-desktop mcp` command (stdio) and streamable HTTP at `http://127.0.0.1:5000/mcp`, with a token from the API Key page. See [MCP](../user/mcp.md).
 
 ## WebSocket Streaming
