@@ -125,7 +125,7 @@ describe('the workflow list', () => {
     expect(await screen.findByText(oct30)).toBeInTheDocument()
   })
 
-    it('opens a workflow from its card, by click or by keyboard', async () => {
+  it('opens a workflow from its card, by click or by keyboard', async () => {
     renderIndex()
     const user = userEvent.setup()
     const card = await screen.findByRole('link', { name: 'Open workflow Expiry day straddle' })
