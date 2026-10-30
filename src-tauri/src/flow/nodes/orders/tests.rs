@@ -638,3 +638,153 @@ fn the_ten_order_nodes_are_registered() {
         assert_eq!(ORDER_TYPES.contains(&t), t != "cancelAllOrders", "{t}");
     }
 }
+
+/// N-placeOrder-01, N-common-17: a node naming only its symbol sends the
+/// executor's defaults (NSE, BUY, 1, MARKET, the exchange's MIS, no
+/// prices, the workflow's tag).
+#[tokio::test]
+async fn a_bare_place_order_sends_the_executor_defaults() {
+    let run = Run::new();
+    run.reply("placeorder", placed());
+    run.node("placeOrder", json!({"symbol": "SBIN"})).await;
+    assert_eq!(
+        payload(&run),
+        json!({"strategy": WORKFLOW, "symbol": "SBIN", "exchange": "NSE", "action": "BUY",
+               "quantity": 1, "pricetype": "MARKET", "product": "MIS", "price": 0.0,
+               "trigger_price": 0.0, "disclosed_quantity": 0})
+    );
+}
+
+/// N-common-17: the standard orders read `priceType` only; the service
+/// spelling `pricetype` is not an alias here (it is on multi-order legs and
+/// modifyOrder), so a node carrying only `pricetype` keeps MARKET.
+#[tokio::test]
+async fn the_standard_orders_take_no_pricetype_alias() {
+    for (node, endpoint, extra) in [
+        ("placeOrder", "placeorder", json!({})),
+        ("smartOrder", "placesmartorder", json!({"positionSize": 1})),
+        ("splitOrder", "splitorder", json!({"splitSize": 1})),
+    ] {
+        let run = Run::new();
+        run.reply(endpoint, placed());
+        let mut data = json!({"symbol": "SBIN", "exchange": "NSE", "quantity": 2,
+            "pricetype": "LIMIT", "price": 101.5});
+        if let (Some(m), Value::Object(e)) = (data.as_object_mut(), extra) {
+            m.extend(e);
+        }
+        let o = run.node(node, data).await;
+        assert!(!o.is_error(), "{node}: {:?}", o);
+        assert_eq!(payload(&run)["pricetype"], "MARKET", "{node}");
+    }
+}
+
+/// N-modifyOrder-01: `triggerPrice` is the alias of `newTriggerPrice`
+/// (the first one supplied wins), as `quantity` and `price` are of theirs.
+#[tokio::test]
+async fn a_modify_reads_the_trigger_price_alias() {
+    let sl_order = json!({"status": "success", "data": {"symbol": "SBIN", "exchange": "NSE",
+        "action": "SELL", "product": "MIS", "pricetype": "SL", "quantity": 10, "price": 99.0,
+        "trigger_price": 100.0}});
+    for (data, want) in [
+        (json!({"orderId": "7", "triggerPrice": "98.5"}), 98.5),
+        (
+            json!({"orderId": "7", "newTriggerPrice": "97", "triggerPrice": "98.5"}),
+            97.0,
+        ),
+        (
+            json!({"orderId": "7", "newTriggerPrice": " ", "triggerPrice": "98.5"}),
+            98.5,
+        ),
+        (json!({"orderId": "7"}), 100.0),
+    ] {
+        let run = Run::new();
+        run.reply("orderstatus", sl_order.clone())
+            .reply("modifyorder", placed());
+        run.node("modifyOrder", data.clone()).await;
+        let sent = &run.client.calls_to("modifyorder")[0].payload;
+        assert_eq!(sent["trigger_price"], json!(want), "{data}");
+    }
+}
+
+/// N-modifyOrder-03: the reason read back is the reply's `message`, else
+/// its `error`, else `order not found`.
+#[tokio::test]
+async fn a_modify_names_why_the_order_could_not_be_read() {
+    for (reply, why) in [
+        (
+            json!({"status": "error", "message": "Order not in book", "error": "Not found"}),
+            "Order not in book",
+        ),
+        (
+            json!({"status": "error", "message": "Broker session expired"}),
+            "Broker session expired",
+        ),
+        (
+            json!({"status": "error", "message": "", "error": "Invalid openalgo apikey"}),
+            "Invalid openalgo apikey",
+        ),
+        (
+            json!({"status": "success", "data": {}, "message": "No order 7"}),
+            "No order 7",
+        ),
+        (
+            json!({"status": "success", "data": null}),
+            "order not found",
+        ),
+    ] {
+        let run = Run::new();
+        run.reply("orderstatus", reply.clone());
+        let o = run
+            .node("modifyOrder", json!({"orderId": "7", "newPrice": 1}))
+            .await;
+        assert_eq!(
+            message(&o),
+            format!("Could not read order 7 to modify it: {why}"),
+            "{reply}"
+        );
+    }
+}
+
+/// N-modifyOrder-04: every attribute the live order does not report is
+/// named, in the web's order.
+#[tokio::test]
+async fn a_modify_names_every_attribute_the_order_did_not_report() {
+    for (live, missing) in [
+        (
+            json!({"action": "BUY", "product": "MIS", "pricetype": "LIMIT"}),
+            "symbol, exchange",
+        ),
+        (
+            json!({"symbol": "SBIN", "action": "BUY", "pricetype": "LIMIT"}),
+            "exchange, product",
+        ),
+        (
+            json!({"orderid": "7"}),
+            "symbol, exchange, action, product, priceType",
+        ),
+    ] {
+        let run = Run::new();
+        run.reply("orderstatus", json!({"status": "success", "data": live}));
+        let o = run
+            .node("modifyOrder", json!({"orderId": "7", "newPrice": 1}))
+            .await;
+        assert_eq!(
+            message(&o),
+            format!("Order 7 did not report {missing}; refusing to modify it with a guessed value")
+        );
+        assert!(run.client.calls_to("modifyorder").is_empty());
+    }
+}
+
+/// N-cancelOrder-01: the id is sent as interpolated, surrounding spaces
+/// included (the web does not strip it).
+#[tokio::test]
+async fn a_cancel_sends_its_id_unstripped() {
+    let run = Run::new();
+    run.ctx.vars.set("o", json!({"orderid": "250408000123456"}));
+    run.reply("cancelorder", placed());
+    run.node("cancelOrder", json!({"orderId": " {{o.orderid}} "}))
+        .await;
+    assert_eq!(run.only_call().payload["orderid"], " 250408000123456 ");
+    assert_eq!(run.messages()[0], "Cancelling order:  250408000123456 ");
+}
