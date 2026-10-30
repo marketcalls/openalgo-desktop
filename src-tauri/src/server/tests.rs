@@ -257,6 +257,8 @@ mod flow;
 mod flow_lookups;
 // Flow's trigger routes and public webhooks (blueprints/flow.py).
 mod flow_triggers;
+// Flow's legacy node upgrade at import and replace, and nowhere else.
+mod flow_migrations;
 
 // ------------------------------------------------------------------ fixtures
 

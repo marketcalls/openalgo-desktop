@@ -3,7 +3,8 @@
 //! the serialized error shape, and rules the web's own tests leave open.
 
 use super::*;
-use crate::flow::validator::{trigger_config, MAX_EDGES};
+use crate::flow::contract::pyfmt;
+use crate::flow::validator::{migrate_legacy_node_data, trigger_config, MAX_EDGES};
 use serde_json::json;
 
 // ---------------------------------------------------------------- V-005
@@ -200,14 +201,66 @@ fn v085_a_gate_wired_to_fewer_inputs_than_it_declares_is_refused() {
     assert_eq!(error.received, Some(json!(2)));
 }
 
+/// The gate's input count with its `inputCount` taken out.
+fn without_count(mut payload: Value) -> Value {
+    if let Some(data) = payload["nodes"][1]["data"].as_object_mut() {
+        data.remove("inputCount");
+    }
+    payload
+}
+
+/// One unwired-input error, with the counts the executor would print.
+fn assert_unwired(errors: &[ValidationError], gate: &str, declared: i64, wired: usize) {
+    assert_eq!(codes(errors), vec!["unwired_gate_input"], "{errors:?}");
+    assert_eq!(
+        errors[0].message,
+        format!(
+            "{gate} is configured for {declared} inputs but only {wired} are wired. Wire the rest, \
+             or lower the input count, rather than evaluating on part of the condition."
+        )
+    );
+    assert_eq!(errors[0].expected, Some(json!(declared)));
+}
+
+/// The count is the executor's (`declared_inputs`, lead decision 25): an AND
+/// or OR gate with no readable `inputCount` has the two slots the editor
+/// draws, and text or a fraction is read as a whole number, so whatever the
+/// run would refuse is refused here.
 #[test]
-fn v085_a_fully_wired_or_unnumbered_gate_passes() {
+fn v085_counts_the_inputs_as_the_executor_does() {
+    for (gate, count, wires, declared) in [
+        ("andGate", json!("3"), 2, 3),
+        ("andGate", json!(3.0), 2, 3),
+        ("andGate", json!(3.9), 2, 3),
+        ("orGate", json!(" 3 "), 1, 3),
+        ("andGate", Value::Null, 1, 2),
+        ("andGate", json!(""), 1, 2),
+        ("orGate", json!("abc"), 1, 2),
+        ("orGate", json!([3]), 1, 2),
+    ] {
+        let errors = strict(&gate_workflow(gate, count.clone(), wires));
+        assert_unwired(&errors, gate, declared, wires);
+    }
+    let absent = strict(&without_count(gate_workflow("andGate", Value::Null, 1)));
+    assert_unwired(&absent, "andGate", 2, 1);
+}
+
+#[test]
+fn v085_a_fully_wired_gate_passes() {
     assert_eq!(strict(&gate_workflow("andGate", json!(2), 2)), vec![]);
-    assert_eq!(strict(&gate_workflow("orGate", json!(2), 2)), vec![]);
-    // Only an integer count is compared, as the executor compares it.
-    assert_eq!(strict(&gate_workflow("andGate", json!("3"), 2)), vec![]);
-    assert_eq!(strict(&gate_workflow("andGate", json!(3.0), 2)), vec![]);
+    assert_eq!(strict(&gate_workflow("orGate", json!("2"), 2)), vec![]);
     assert_eq!(strict(&gate_workflow("andGate", Value::Null, 2)), vec![]);
+    assert_eq!(strict(&gate_workflow("andGate", json!(0), 1)), vec![]);
+    assert_eq!(
+        strict(&without_count(gate_workflow("orGate", Value::Null, 2))),
+        vec![]
+    );
+    // A NOT gate counts only a whole number, as the executor does.
+    assert_eq!(strict(&gate_workflow("notGate", json!("3"), 1)), vec![]);
+    assert_eq!(
+        strict(&without_count(gate_workflow("notGate", Value::Null, 1))),
+        vec![]
+    );
 }
 
 #[test]
@@ -232,6 +285,157 @@ fn v085_comes_after_the_webs_graph_errors() {
         codes(&strict(&payload)),
         vec!["unreachable", "unwired_gate_input"]
     );
+}
+
+// ---------------------------------------------------------------- V-113
+
+fn migrated_position_check(data: Value) -> (Value, Vec<String>) {
+    let (nodes, notes) = migrate_legacy_node_data(vec![node("p", "positionCheck", data)]);
+    (nodes[0]["data"].clone(), notes)
+}
+
+/// Lead decision 23: a legacy `>=` keeps `>=`. The node compares a
+/// whole-number quantity strictly, so the threshold moves by one and every
+/// quantity gets the decision the legacy node gave it.
+#[test]
+fn v113_an_inclusive_legacy_operator_keeps_its_meaning() {
+    for (operator, threshold, condition, moved) in [
+        (">=", json!(5), "quantity_above", 4),
+        ("gte", json!(5), "quantity_above", 4),
+        ("ge", json!("5"), "quantity_above", 4),
+        (">=", json!(5.5), "quantity_above", 5),
+        (">=", json!(0), "quantity_above", -1),
+        ("<=", json!(5), "quantity_below", 6),
+        ("lte", json!(5.5), "quantity_below", 6),
+        ("le", json!(-2), "quantity_below", -1),
+    ] {
+        let (data, notes) =
+            migrated_position_check(json!({"operator": operator, "threshold": threshold}));
+        assert_eq!(
+            data,
+            json!({"condition": condition, "threshold": moved}),
+            "{operator} {threshold}"
+        );
+        assert_eq!(
+            notes,
+            vec![format!(
+                "positionCheck 'p': operator '{operator}' -> condition '{condition}' (threshold {} \
+                 -> {moved}, which keeps '{operator}' on whole-number quantities)",
+                pyfmt::str(&threshold)
+            )]
+        );
+        let t = pyfmt::to_float(&threshold).unwrap();
+        for qty in -10i64..=10 {
+            let legacy = if condition == "quantity_above" {
+                qty as f64 >= t
+            } else {
+                qty as f64 <= t
+            };
+            let now = if condition == "quantity_above" {
+                qty > moved
+            } else {
+                qty < moved
+            };
+            assert_eq!(legacy, now, "{operator} {threshold} at quantity {qty}");
+        }
+    }
+}
+
+#[test]
+fn v113_a_strict_legacy_operator_keeps_its_threshold() {
+    let (data, notes) = migrated_position_check(json!({"operator": ">", "threshold": 5}));
+    assert_eq!(data, json!({"condition": "quantity_above", "threshold": 5}));
+    assert_eq!(
+        notes,
+        vec!["positionCheck 'p': operator '>' -> condition 'quantity_above' (threshold kept)"]
+    );
+}
+
+#[test]
+fn v113_an_inclusive_operator_without_a_number_is_left_for_the_trader() {
+    for data in [
+        json!({"operator": ">=", "threshold": "{{webhook.qty}}"}),
+        json!({"operator": "<=", "threshold": "abc"}),
+        json!({"operator": ">="}),
+    ] {
+        let (after, notes) = migrated_position_check(data.clone());
+        assert_eq!(after, data);
+        assert!(notes[0]
+            .ends_with("has no equivalent condition. Left unchanged; set the condition yourself."));
+    }
+}
+
+// --------------------------------------------------------- V-052, V-055
+
+/// Lead decision 24: JSON written as text is read as Python's json.loads
+/// reads it, so `NaN` and `Infinity` parse as on the web and in the run.
+#[test]
+fn v052_headers_holding_nan_or_infinity_parse_as_python_parses_them() {
+    for headers in [r#"{"A": NaN}"#, r#"{"A": Infinity, "B": -Infinity}"#] {
+        let errors = draft(&single_action(
+            "httpRequest",
+            json!({"url": "https://x.com", "headers": headers}),
+        ));
+        assert!(!has_path(&errors, "/headers"), "{headers}: {errors:?}");
+    }
+    for headers in ["{not json}", "NaN"] {
+        let errors = draft(&single_action(
+            "httpRequest",
+            json!({"url": "https://x.com", "headers": headers}),
+        ));
+        assert!(has(&errors, "invalid_headers", "/headers"), "{headers}");
+    }
+}
+
+#[test]
+fn v055_a_margin_basket_holding_nan_parses_as_python_parses_it() {
+    let leg = |pricetype: &str| {
+        format!(
+            r#"[{{"symbol": "SBIN", "exchange": "NSE", "action": "BUY", "quantity": 1, "product": "MIS", "pricetype": "{pricetype}", "price": NaN}}]"#
+        )
+    };
+    assert_eq!(
+        strict(&single_action(
+            "margin",
+            json!({"positionsJson": leg("MARKET")})
+        )),
+        vec![]
+    );
+    // A NaN price is unpriceable, as on the web; the number is kept as its
+    // Python text, so the sentence quotes it.
+    let errors = strict(&single_action(
+        "margin",
+        json!({"positionsJson": leg("LIMIT")}),
+    ));
+    let error = errors.iter().find(|e| e.code == "invalid_price").unwrap();
+    assert_eq!(error.path, "/nodes/1/data/positionsJson/0/price");
+    assert_eq!(
+        error.message,
+        "A LIMIT order needs a positive price; 'nan' cannot be priced."
+    );
+    let errors = strict(&single_action("margin", json!({"positionsJson": "[NaN]"})));
+    assert_eq!(
+        errors[0].message,
+        "Every Margin position must be an object."
+    );
+}
+
+// ---------------------------------------------------------------- V-057
+
+/// An option leg that names `priceType` and also carries the API spelling
+/// `pricetype` has both checked.
+#[test]
+fn v057_an_option_leg_naming_both_price_type_spellings_has_both_checked() {
+    let leg = json!({"offset": "ATM", "optionType": "CE", "action": "BUY", "quantity": 1,
+        "priceType": "LIMIT", "price": 1, "pricetype": "BOGUS"});
+    let data = json!({"strategy": "custom", "underlying": "NIFTY", "quantity": 1, "legs": [leg]});
+    let errors = draft(&single_action("optionsMultiOrder", data));
+    let error = errors
+        .iter()
+        .find(|e| e.path.ends_with("/legs/0/pricetype"))
+        .unwrap();
+    assert_eq!(error.code, "invalid_constant");
+    assert_eq!(error.message, "'BOGUS' is not a valid pricetype constant.");
 }
 
 // ------------------------------------------------- gate slot list bound

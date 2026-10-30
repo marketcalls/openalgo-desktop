@@ -4,8 +4,9 @@
 //! sound.
 
 use super::catalog::{is_one_of, DECORATIVE_NODE_TYPES, GATE_NODE_TYPES};
-use super::structure::{get, NodeIds, NULL};
-use super::{py, ValidationError};
+use super::structure::{get, NodeIds};
+use super::ValidationError;
+use crate::flow::executor::walk::declared_inputs;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
@@ -107,9 +108,10 @@ pub(super) fn graph_errors(
 /// the web's validator lacks). The executor refuses such a gate on every
 /// run rather than evaluating part of the condition, so a workflow holding
 /// one could never complete; it is refused here, at import and activation,
-/// with the executor's own sentence. Counted as the executor counts: an
-/// integer `inputCount` (a JSON `true` reads as 1, as Python's `int` does)
-/// against every edge that targets the gate.
+/// with the executor's own sentence. Counted by the executor's own rule
+/// (`declared_inputs`: an AND or OR gate with no readable `inputCount` has
+/// the two slots the editor draws, lead decision 25) against every edge
+/// that targets the gate.
 fn unwired_gate_errors(nodes: &[Value], edges: &[Value]) -> Vec<ValidationError> {
     let mut errors = Vec::new();
     for (i, node) in nodes.iter().enumerate() {
@@ -117,14 +119,14 @@ fn unwired_gate_errors(nodes: &[Value], edges: &[Value]) -> Vec<ValidationError>
             continue;
         };
         let node_type = get(node, "type").as_str().unwrap_or_default();
+        let Some(data) = get(node, "data").as_object() else {
+            continue;
+        };
         if !is_one_of(&GATE_NODE_TYPES, node_type) {
             continue;
         }
-        let declared = get(node, "data").get("inputCount").unwrap_or(&NULL);
-        let count = match declared {
-            Value::Bool(b) => Some(i64::from(*b)),
-            Value::Number(n) if !n.is_f64() => Some(n.as_i64().unwrap_or(i64::MAX)),
-            _ => None,
+        let Some(declared) = declared_inputs(node_type, data) else {
+            continue;
         };
         let id = get(node, "id");
         let wired = edges
@@ -132,7 +134,7 @@ fn unwired_gate_errors(nodes: &[Value], edges: &[Value]) -> Vec<ValidationError>
             .filter_map(Value::as_object)
             .filter(|e| get(e, "target") == id)
             .count();
-        if !count.is_some_and(|c| c > i64::try_from(wired).unwrap_or(i64::MAX)) {
+        if declared <= i64::try_from(wired).unwrap_or(i64::MAX) {
             continue;
         }
         errors.push(
@@ -140,13 +142,12 @@ fn unwired_gate_errors(nodes: &[Value], edges: &[Value]) -> Vec<ValidationError>
                 format!("/nodes/{i}/data/inputCount"),
                 "unwired_gate_input",
                 format!(
-                    "{node_type} is configured for {} inputs but only {wired} are wired. Wire the \
-                     rest, or lower the input count, rather than evaluating on part of the \
-                     condition.",
-                    py::str_of(declared)
+                    "{node_type} is configured for {declared} inputs but only {wired} are wired. \
+                     Wire the rest, or lower the input count, rather than evaluating on part of \
+                     the condition."
                 ),
             )
-            .expected(declared.clone())
+            .expected(declared)
             .received(&Value::from(wired)),
         );
     }

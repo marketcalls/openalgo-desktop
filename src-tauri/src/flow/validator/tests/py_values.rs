@@ -1,6 +1,9 @@
-//! Python's printing and parsing of JSON values, which every message quotes.
-//! Expected strings are what CPython 3.12 prints for the same values.
+//! Python's printing and parsing of JSON values, which every message quotes:
+//! core's `pyfmt` (the one copy, lead decision 25) as the validator relies on
+//! it, and the validator's own `str.strip()` and `==`. Expected strings are
+//! what CPython 3.12 prints and parses for the same values.
 
+use crate::flow::contract::pyfmt;
 use crate::flow::validator::py;
 use serde_json::{json, Value};
 
@@ -28,7 +31,7 @@ fn repr_matches_python() {
         ),
     ];
     for (value, want) in cases {
-        assert_eq!(py::repr(&value), want, "{value}");
+        assert_eq!(pyfmt::repr(&value), want, "{value}");
     }
 }
 
@@ -51,7 +54,7 @@ fn float_repr_matches_python() {
         (f64::NAN, "nan"),
     ];
     for (value, want) in cases {
-        assert_eq!(py::float_repr(value), want, "{value}");
+        assert_eq!(pyfmt::float(value), want, "{value}");
     }
 }
 
@@ -67,7 +70,7 @@ fn type_names_match_python() {
         (json!([]), "list"),
         (json!({}), "dict"),
     ] {
-        assert_eq!(py::type_name(&value), want, "{value}");
+        assert_eq!(pyfmt::type_name(&value), want, "{value}");
     }
 }
 
@@ -86,17 +89,17 @@ fn float_parsing_matches_python() {
         ("-inf", f64::NEG_INFINITY),
     ];
     for (text, want) in accepted {
-        assert_eq!(py::float_from_str(text), Some(want), "{text:?}");
+        assert_eq!(pyfmt::parse_float(text), Some(want), "{text:?}");
     }
-    assert!(py::float_from_str("NaN").is_some_and(f64::is_nan));
+    assert!(pyfmt::parse_float("NaN").is_some_and(f64::is_nan));
     for text in [
         "", " ", "abc", "1__0", "_1", "1_", "1e", "0x10", "1,000", ".", "infinit",
     ] {
-        assert_eq!(py::float_from_str(text), None, "{text:?}");
+        assert_eq!(pyfmt::parse_float(text), None, "{text:?}");
     }
-    assert_eq!(py::float_of(&json!(true)), Some(1.0));
-    assert_eq!(py::float_of(&json!(null)), None);
-    assert_eq!(py::float_of(&json!([1])), None);
+    assert_eq!(pyfmt::to_float(&json!(true)), Some(1.0));
+    assert_eq!(pyfmt::to_float(&json!(null)), None);
+    assert_eq!(pyfmt::to_float(&json!([1])), None);
 }
 
 #[test]
@@ -114,9 +117,21 @@ fn int_parsing_matches_python() {
         (json!(false), Some(0)),
         (json!([3]), None),
     ] {
-        assert_eq!(py::int_of(&value), want, "{value}");
+        assert_eq!(pyfmt::to_int(&value), want, "{value}");
     }
-    assert_eq!(py::int_from_str(&"9".repeat(4301)), None);
+}
+
+/// `float()` and `int()` strip less than `str.strip()`: CPython refuses
+/// `float('\x1c12\x1f')` and `int('\x1c3')` though `str.isspace()` counts
+/// those separators, so a quantity written that way is not a number while a
+/// name written that way is not blank.
+#[test]
+fn number_parsing_strips_less_than_strip_does() {
+    assert_eq!(pyfmt::parse_float("\u{1c}12\u{1f}"), None);
+    assert_eq!(pyfmt::to_int(&json!("\u{1c}3")), None);
+    assert_eq!(pyfmt::parse_float("\u{a0}7"), Some(7.0));
+    assert_eq!(pyfmt::parse_float("\u{3000}7.5 "), Some(7.5));
+    assert_eq!(py::strip("\u{1c}12\u{1f}"), "12");
 }
 
 #[test]
@@ -149,7 +164,7 @@ fn truthiness_matches_python() {
         json!([]),
         json!({}),
     ] {
-        assert!(!py::truthy(&value), "{value}");
+        assert!(!pyfmt::truthy(&value), "{value}");
     }
     for value in [
         json!(true),
@@ -158,6 +173,6 @@ fn truthiness_matches_python() {
         json!([0]),
         json!({"a": null}),
     ] {
-        assert!(py::truthy(&value), "{value}");
+        assert!(pyfmt::truthy(&value), "{value}");
     }
 }

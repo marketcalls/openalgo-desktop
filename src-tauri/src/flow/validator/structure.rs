@@ -8,11 +8,12 @@ use super::catalog::{
 };
 use super::{fields, graph, py, ValidateOptions, ValidationError};
 use crate::agent::tools::values::Pattern;
+use crate::flow::contract::pyfmt;
 use serde_json::{Map, Value};
 use std::collections::HashSet;
 
 /// The value a missing key reads as.
-pub(super) static NULL: Value = Value::Null;
+static NULL: Value = Value::Null;
 
 /// `input-N`, the numbered input slot a gate renders.
 static GATE_SLOT: Pattern = Pattern::new(r"^input-([0-9]+)$");
@@ -36,7 +37,7 @@ pub(super) fn validate(payload: &Value, options: ValidateOptions) -> Vec<Validat
         return vec![
             ValidationError::new("/", "invalid_type", "Workflow must be a JSON object")
                 .expected("object")
-                .received(&Value::from(py::type_name(payload))),
+                .received(&Value::from(pyfmt::type_name(payload))),
         ];
     };
     let mut errors = Vec::new();
@@ -109,7 +110,7 @@ fn type_name_unless_null(value: &Value) -> Value {
     if value.is_null() {
         Value::Null
     } else {
-        Value::from(py::type_name(value))
+        Value::from(pyfmt::type_name(value))
     }
 }
 
@@ -125,7 +126,7 @@ fn check_nodes(nodes: &[Value], strict: bool, errors: &mut Vec<ValidationError>)
             errors.push(
                 ValidationError::new(base, "invalid_type", "Node must be an object")
                     .expected("object")
-                    .received(&Value::from(py::type_name(node))),
+                    .received(&Value::from(pyfmt::type_name(node))),
             );
             continue;
         };
@@ -211,7 +212,7 @@ fn check_node_type(
         ),
         Some(t) if !t.is_empty() => {
             if is_one_of(&TRIGGER_NODE_TYPES, t) {
-                ids.triggers.push(py::str_of(get(node, "id")));
+                ids.triggers.push(pyfmt::str(get(node, "id")));
             }
         }
         _ => errors.push(
@@ -260,7 +261,7 @@ fn check_edges(edges: &[Value], ids: &NodeIds, errors: &mut Vec<ValidationError>
             errors.push(
                 ValidationError::new(base, "invalid_type", "Edge must be an object")
                     .expected("object")
-                    .received(&Value::from(py::type_name(edge))),
+                    .received(&Value::from(pyfmt::type_name(edge))),
             );
             continue;
         };
@@ -352,7 +353,7 @@ fn check_source_handles(nodes: &[Value], edges: &[Value], errors: &mut Vec<Valid
         let branching = source_type
             .as_str()
             .is_some_and(|t| is_one_of(&BRANCHING_NODE_TYPES, t));
-        let shown = py::str_of(handle);
+        let shown = pyfmt::str(handle);
         let path = format!("/edges/{i}/sourceHandle");
         if branching && !BRANCHING_HANDLES.contains(&shown.as_str()) {
             errors.push(
@@ -362,13 +363,13 @@ fn check_source_handles(nodes: &[Value], edges: &[Value], errors: &mut Vec<Valid
                     format!(
                         "'{shown}' is not a branch of a {} node, so this edge is never followed and \
                          its branch is silently dropped.",
-                        py::str_of(source_type)
+                        pyfmt::str(source_type)
                     ),
                 )
                 .expected(BRANCHING_HANDLES.to_vec())
                 .received(handle),
             );
-        } else if !branching && py::truthy(source_type) {
+        } else if !branching && pyfmt::truthy(source_type) {
             // Non-branching nodes render a single unnamed source handle, so
             // any named one points at a socket that does not exist.
             errors.push(
@@ -378,7 +379,7 @@ fn check_source_handles(nodes: &[Value], edges: &[Value], errors: &mut Vec<Valid
                     format!(
                         "A {} node has no '{shown}' output handle; it emits a single unconditional \
                          output.",
-                        py::str_of(source_type)
+                        pyfmt::str(source_type)
                     ),
                 )
                 .expected("no sourceHandle")
@@ -390,16 +391,16 @@ fn check_source_handles(nodes: &[Value], edges: &[Value], errors: &mut Vec<Valid
 
 /// A gate's input count, tolerant of a malformed value (the web's
 /// `_slot_count`): two when unset or unreadable, never fewer than one.
-fn slot_count(value: &Value) -> i128 {
+fn slot_count(value: &Value) -> i64 {
     if value.is_null() || value.as_str() == Some("") {
         return 2;
     }
-    py::int_of(value).map_or(2, |n| n.max(1))
+    pyfmt::to_int(value).map_or(2, |n| n.max(1))
 }
 
 /// The input count of the gate `target` names, if it names an AND or OR
 /// gate. Keyed like the web's dict: any hashable id, the last node wins.
-fn gate_slots(nodes: &[Value], target: &Value) -> Option<i128> {
+fn gate_slots(nodes: &[Value], target: &Value) -> Option<i64> {
     nodes
         .iter()
         .rev()
@@ -423,18 +424,18 @@ fn check_gate_slots(nodes: &[Value], edges: &[Value], errors: &mut Vec<Validatio
         if handle.is_null() || handle.as_str() == Some("") {
             continue;
         }
-        let shown = py::str_of(handle);
+        let shown = pyfmt::str(handle);
         let slot = GATE_SLOT
             .captures(&shown)
             .and_then(|caps| caps.get(1))
-            .map(|n| py::int_from_str(n.as_str()).unwrap_or(i128::MAX));
+            .map(|n| n.as_str().parse::<i64>().unwrap_or(i64::MAX));
         let path = format!("/edges/{i}/targetHandle");
         let Some(slots) = gate_slots(nodes, get(edge, "target")) else {
             // Only gates render numbered input slots.
             if slot.is_some() {
                 let target_type = type_of(nodes, get(edge, "target"));
-                let kind = if py::truthy(target_type) {
-                    py::str_of(target_type)
+                let kind = if pyfmt::truthy(target_type) {
+                    pyfmt::str(target_type)
                 } else {
                     "non-gate".to_string()
                 };

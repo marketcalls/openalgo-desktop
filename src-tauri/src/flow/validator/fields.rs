@@ -13,9 +13,11 @@ use super::catalog::{
 };
 use super::structure::get;
 use super::{legs, py, ValidationError};
+use crate::flow::contract::pyfmt;
 use crate::flow::node_contracts::{
     normalize_condition, normalize_status, parse_underlying_symbol, VALID_STATUSES,
 };
+use crate::flow::nodes::pyjson;
 use serde_json::{Map, Value};
 
 /// The value as a positive finite number, or None (`_positive_number`).
@@ -23,7 +25,7 @@ pub(super) fn positive_number(value: &Value) -> Option<f64> {
     if value.is_boolean() {
         return None;
     }
-    py::float_of(value).filter(|n| n.is_finite() && *n > 0.0)
+    pyfmt::to_float(value).filter(|n| n.is_finite() && *n > 0.0)
 }
 
 /// Whether an order quantity is positive, or non-negative when zero is
@@ -32,7 +34,7 @@ pub(super) fn valid_quantity(value: &Value, allow_zero: bool) -> bool {
     if value.is_boolean() {
         return false;
     }
-    match py::float_of(value) {
+    match pyfmt::to_float(value) {
         Some(n) if n.is_finite() => {
             if allow_zero {
                 n >= 0.0
@@ -96,8 +98,8 @@ fn enum_errors(base: &str, data: &Map<String, Value>) -> Vec<ValidationError> {
                     "invalid_constant",
                     format!(
                         "{field} must be one of the {field} constants written as a string; {} is a {}.",
-                        py::repr(value),
-                        py::type_name(value)
+                        pyfmt::repr(value),
+                        pyfmt::type_name(value)
                     ),
                 )
                 .expected(vocabulary.sorted())
@@ -154,7 +156,7 @@ fn positive_number_errors(
         if valid_quantity(value, allow_zero) {
             continue;
         }
-        let shown = py::repr(value);
+        let shown = pyfmt::repr(value);
         let (expectation, message) = if allow_zero {
             (
                 "a non-negative number",
@@ -244,7 +246,7 @@ pub(super) fn priced_order_errors(
                     "invalid_price",
                     format!(
                         "A {canonical} order needs a positive {field}; {} cannot be priced.",
-                        py::repr(value)
+                        pyfmt::repr(value)
                     ),
                 )
                 .expected("a positive number")
@@ -285,7 +287,7 @@ fn order_update_value_errors(base: &str, data: &Map<String, Value>) -> Vec<Valid
                     format!(
                         "orderUpdateTrigger {field} must be a string filter; {} cannot match an \
                          order update.",
-                        py::type_name(value)
+                        pyfmt::type_name(value)
                     ),
                 )
                 .expected("string")
@@ -295,8 +297,8 @@ fn order_update_value_errors(base: &str, data: &Map<String, Value>) -> Vec<Valid
     }
     let default_status = Value::from("complete");
     let status = data.get("status").unwrap_or(&default_status);
-    let text = if py::truthy(status) {
-        py::str_of(status)
+    let text = if pyfmt::truthy(status) {
+        pyfmt::str(status)
     } else {
         String::new()
     };
@@ -307,8 +309,8 @@ fn order_update_value_errors(base: &str, data: &Map<String, Value>) -> Vec<Valid
                 "invalid_status",
                 format!(
                     "orderUpdateTrigger status must be one of {}, got {}",
-                    py::repr(&Value::from(VALID_STATUSES.to_vec())),
-                    py::repr(status)
+                    pyfmt::repr(&Value::from(VALID_STATUSES.to_vec())),
+                    pyfmt::repr(status)
                 ),
             )
             .expected(VALID_STATUSES.to_vec())
@@ -342,7 +344,9 @@ fn http_request_errors(base: &str, data: &Map<String, Value>) -> Vec<ValidationE
     let headers = get(data, "headers");
     if let Some(text) = headers.as_str() {
         if !py::is_blank(text) && !text.contains("{{") {
-            let parsed: Option<Value> = serde_json::from_str(text).ok();
+            // Read as Python's json.loads reads it, NaN and Infinity
+            // included, as the executor does (lead decision 24).
+            let parsed: Option<Value> = pyjson::loads(text).ok();
             if !parsed.is_some_and(|p| p.is_object()) {
                 found.push(
                     ValidationError::new(
@@ -360,7 +364,7 @@ fn http_request_errors(base: &str, data: &Map<String, Value>) -> Vec<ValidationE
     }
     let timeout = get(data, "timeout");
     if !timeout.is_null() && !py::is_template(timeout) {
-        let in_range = py::float_of(timeout).is_some_and(|ms| {
+        let in_range = pyfmt::to_float(timeout).is_some_and(|ms| {
             ms >= f64::from(HTTP_TIMEOUT_MIN_MS) && ms <= f64::from(HTTP_TIMEOUT_MAX_MS)
         });
         if !in_range {
@@ -514,7 +518,7 @@ fn price_alert_errors(
 ) -> (Vec<&'static str>, Vec<ValidationError>) {
     let empty = Value::from("");
     let selector = data.get("condition").unwrap_or(&empty);
-    let chosen = normalize_condition(&py::str_of(selector));
+    let chosen = normalize_condition(&pyfmt::str(selector));
     let mut found = Vec::new();
     let needed = PRICE_ALERT_CONDITIONS
         .iter()
@@ -531,7 +535,7 @@ fn price_alert_errors(
                 format!(
                     "'{}' is not a condition the price monitor can evaluate, so this alert could \
                      never fire.",
-                    py::str_of(selector)
+                    pyfmt::str(selector)
                 ),
             )
             .expected(known)
@@ -564,7 +568,7 @@ fn alert_threshold_errors(
                     format!(
                         "{field} must be a positive number for a '{condition}' alert; {} can never \
                          be reached.",
-                        py::repr(value)
+                        pyfmt::repr(value)
                     ),
                 )
                 .expected("a positive number")
@@ -576,8 +580,10 @@ fn alert_threshold_errors(
     let upper = positive_number(get(data, "priceUpper"));
     if let (true, Some(lower), Some(upper)) = (required.contains(&"priceLower"), lower, upper) {
         if lower >= upper {
-            let (shown_lower, shown_upper) =
-                (py::repr(&Value::from(lower)), py::repr(&Value::from(upper)));
+            let (shown_lower, shown_upper) = (
+                pyfmt::repr(&Value::from(lower)),
+                pyfmt::repr(&Value::from(upper)),
+            );
             found.push(
                 ValidationError::new(
                     format!("{base}/data/priceLower"),
@@ -606,7 +612,7 @@ pub(super) fn leg_constant_error(
     ValidationError::new(
         format!("{base}/{field}"),
         "invalid_constant",
-        format!("'{}' is not a valid {field} constant.", py::str_of(value)),
+        format!("'{}' is not a valid {field} constant.", pyfmt::str(value)),
     )
     .expected(vocabulary.sorted())
     .received(value)
