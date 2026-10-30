@@ -4,7 +4,6 @@
 use super::*;
 use crate::flow::store::workflows::NewWorkflow;
 use crate::security::Unlocked;
-use std::time::Duration;
 
 fn app() -> crate::state::testing::TestCtx {
     let t = crate::state::testing::build(
