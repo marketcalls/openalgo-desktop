@@ -87,8 +87,8 @@ mod tests {
     /// parity N-common-21: the prefix query is the web's half-open range
     /// (case-sensitive, never matching a shorter symbol), and an empty
     /// prefix does not panic.
-    #[test]
-    fn a_query_reads_the_loaded_master() {
+    #[tokio::test]
+    async fn a_query_reads_the_loaded_master() {
         let t =
             crate::state::testing::build(crate::brokers::BrokerRegistry::new(), chrono::Utc::now());
         t.ctx.symbols.load(rows());
