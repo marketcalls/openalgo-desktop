@@ -254,3 +254,31 @@ async fn a_scoped_close_in_analyzer_mode_closes_only_that_position() {
         "the sandbox never reaches the broker"
     );
 }
+
+/// parity N-optionsMultiOrder-12 (web `resolve_leg_symbol_by_strike`): a
+/// strike that names no contract (zero, negative, text, a boolean) is
+/// refused with the web's sentence, its value printed as Python's repr,
+/// and nothing is sent.
+#[tokio::test]
+async fn a_strike_that_names_no_contract_is_refused_in_the_web_words() {
+    let kit = Kit::new();
+    for (strike, shown) in [
+        (json!(0.0), "0.0"),
+        (json!(-24500), "-24500"),
+        (json!("abc"), "'abc'"),
+        (json!(true), "True"),
+    ] {
+        let mut order = strike_order(24500.0);
+        if let Some(leg) = order.legs[0].as_object_mut() {
+            leg.insert("strike".into(), strike.clone());
+        }
+        let out = client(&kit).options_multi_order(&order).await;
+        assert_eq!(
+            out["results"][0]["message"],
+            format!("Invalid strike: {shown}. Strike must be a positive number."),
+            "{strike}: {out}"
+        );
+        assert_eq!(out["results"][0]["strike"], strike);
+    }
+    assert!(placed(&kit).is_empty());
+}
