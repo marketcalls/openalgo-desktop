@@ -667,9 +667,9 @@ async fn a_webhook_without_a_broker_session_runs_and_says_why_a_node_failed() {
     assert_eq!(v["error"], crate::services::core::WEBHOOK_LOCKED);
 }
 
-/// R-10, R-11, T-077, T-109, D-10, D-11, X-143..X-150: 100 a minute per
-/// caller address and per token, both spellings on one budget; over it
-/// the web's JSON 429 with `Retry-After`, never a redirect.
+/// R-10, R-11, T-077, T-109, D-10, D-11, X-143..X-148, X-150: 100 a minute
+/// per token, both spellings on one budget, from any address; over it the
+/// web's JSON 429 with `Retry-After`, never a redirect.
 #[tokio::test]
 async fn webhooks_are_rate_limited_per_caller_and_per_token() {
     let f = F::new();
@@ -714,15 +714,8 @@ async fn webhooks_are_rate_limited_per_caller_and_per_token() {
         )
         .await;
     assert_eq!(s, StatusCode::FORBIDDEN);
-    // One address cannot buy budget by changing tokens.
-    for _ in 0..99 {
-        f.send_hook(&format!("/flow/webhook/{}", other_token), "{}", LAN_A)
-            .await;
-    }
-    let (s, _, _) = f
-        .send_hook(&format!("/flow/webhook/{}", other_token), "{}", LAN_A)
-        .await;
-    assert_eq!(s, StatusCode::TOO_MANY_REQUESTS);
+    // The per-address budget across tokens: public.rs
+    // one_address_cannot_buy_budget_by_changing_tokens.
 }
 
 /// D-10: an unknown token counts against the caller's failure budget; once
@@ -1039,9 +1032,10 @@ async fn settled_fds(ctx: &AppState) -> usize {
 /// fd-audit (T-111, CLAUDE.md "Measure, do not just read"): activating and
 /// deactivating a schedule, a price alert, an order-update watch and a
 /// webhook workflow 100 times, with a feed subscription given back each
-/// time, leaves descriptors, tasks, registrations and memory flat. Run
-/// alone: `cargo test --lib flow_triggers::triggers_do_not_leak -- --ignored
-/// --nocapture --test-threads=1`.
+/// time, leaves descriptors, tasks, registrations and memory flat. CI runs
+/// it alone in its own step (decision 27, ci.yml "Flow triggers leak
+/// nothing"); by hand: `cargo test --lib flow_triggers::triggers_do_not_leak
+/// -- --ignored --nocapture --test-threads=1`.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "measures the process: run alone"]
 async fn triggers_do_not_leak() {
@@ -1161,3 +1155,6 @@ async fn a_webhook_to_a_waiting_workflow_is_answered_at_once() {
     ctx.flow.stop_all(crate::flow::STOP_GRACE).await;
     assert!(ctx.flow.try_claim(id).is_some());
 }
+
+mod monitors;
+mod public;

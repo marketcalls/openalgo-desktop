@@ -26,11 +26,10 @@ fn a_watch_needs_a_literal_order_id_or_a_symbol_and_a_known_status() {
         watch(json!({})).unwrap_err(),
         "orderUpdateTrigger needs an Order ID or a Symbol to watch"
     );
-    assert!(watch(json!({"orderId": "{{webhook.orderid}}"}))
-        .unwrap_err()
-        .starts_with(
-            "orderUpdateTrigger Order ID must be a literal order id, not a {{variable}} reference"
-        ));
+    assert_eq!(
+        watch(json!({"orderId": "{{webhook.orderid}}"})).unwrap_err(),
+        "orderUpdateTrigger Order ID must be a literal order id, not a {{variable}} reference - a trigger node has no upstream node to resolve it from. Leave it blank and filter by Symbol instead."
+    );
     assert_eq!(
         watch(json!({"symbol": "SBIN", "status": "filled"})).unwrap_err(),
         "orderUpdateTrigger status must be one of ['any', 'cancelled', 'complete', 'open', 'rejected', 'trigger pending'], got 'filled'"

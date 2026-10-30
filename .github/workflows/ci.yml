@@ -154,6 +154,18 @@ jobs:
           | test(/^server::tests::credentials_lifecycle::sec0[234]/)
           | test(=db::sqlite::data_migrations::tests::upgrade_from_previous_build_keeps_every_secret_readable)
           | test(/^cache::tests::/) | test(/^services::apikey_service::tests::/)'
+      - name: Flow triggers leak nothing, measured alone
+        # Decision 27 (T-111, X-346): the fd-audit measurement, activating
+        # and deactivating every trigger kind 100 times, in its own step
+        # and process with nothing else running, so the descriptor, task
+        # and RSS counts are its own. Ignored in the full suite for that
+        # reason. Windows has no /dev/fd or ps, so there it checks the
+        # registrations and tasks only.
+        working-directory: src-tauri
+        run: >-
+          cargo nextest run --locked --lib --config-file ../.github/nextest.toml
+          --run-ignored only --no-tests=fail --no-capture
+          -E 'test(=server::tests::flow_triggers::triggers_do_not_leak)'
       - name: Upload JUnit report
         if: always()
         uses: actions/upload-artifact@v7

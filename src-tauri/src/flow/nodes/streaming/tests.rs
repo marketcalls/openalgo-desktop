@@ -464,3 +464,40 @@ async fn unsubscribe_reports_what_the_feed_said() {
         "warning Unsubscribe error: proxy went away"
     );
 }
+
+/// parity N-unsubscribe-06: a refusal that says nothing reads `unsubscribe
+/// was rejected`, for one symbol and for `all` when the feed keeps a
+/// subscription this workflow holds.
+#[tokio::test]
+async fn a_silent_refusal_reads_unsubscribe_was_rejected() {
+    let rejected =
+        json!({"status": "error", "type": "unsubscribe", "message": "unsubscribe was rejected"});
+    let silent = || Feed {
+        refuse: Some(FeedError::Subscribe(String::new())),
+        ..Default::default()
+    };
+    let one = t(silent(), Some(1), Arc::new(Subscriptions::default()));
+    let out = run(
+        &one,
+        "unsubscribe",
+        json!({"symbol": "SBIN", "streamType": "ltp"}),
+    )
+    .await;
+    assert_eq!(out.value(), Some(&rejected));
+    assert_eq!(
+        logs(&one.ctx)[2],
+        "error Unsubscribe failed: unsubscribe was rejected"
+    );
+
+    let subs = Arc::new(Subscriptions::default());
+    subs.record(Some(1), "SBIN", "NSE", "LTP");
+    let all = t(silent(), Some(1), subs.clone());
+    let out = run(&all, "unsubscribe", json!({"streamType": "all"})).await;
+    assert_eq!(out.value(), Some(&rejected));
+    assert_eq!(*all.feed.ops.lock(), vec!["unsubscribe NSE:SBIN LTP"]);
+    assert!(subs.has(1), "the feed kept it, so the record stays");
+    assert_eq!(
+        logs(&all.ctx).last().map(String::as_str),
+        Some("error Unsubscribe failed: unsubscribe was rejected")
+    );
+}

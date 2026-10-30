@@ -8,7 +8,6 @@
 //! | File | What |
 //! |---|---|
 //! | `scheduler` | schedule types, next fire times in IST, the jobs, `tick` |
-//! | `market_hours` | the scheduler's market-hours gate on the desktop calendar |
 //! | `price_monitor` | price alerts: conditions, latch, expiry, one run at a time |
 //! | `order_monitor` | order-update watches: matching, claim, follow-up |
 //! | `feed` | the market feed the subscribe nodes read |
@@ -30,7 +29,6 @@
 
 pub mod drive;
 pub mod feed;
-pub mod market_hours;
 pub mod order_monitor;
 pub mod price_monitor;
 pub mod restore;

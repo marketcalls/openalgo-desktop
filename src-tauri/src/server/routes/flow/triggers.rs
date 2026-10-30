@@ -21,12 +21,12 @@ use crate::server::source::{Source, PROXIED_CALLER};
 use crate::state::AppState;
 use axum::{
     body::Bytes,
-    extract::{OriginalUri, Path, Request, State},
+    extract::{FromRequest, Multipart, OriginalUri, Path, Request, State},
     http::{header, HeaderValue, Method, StatusCode},
     response::Response,
     routing::{get, post},
 };
-use serde_json::json;
+use serde_json::{json, Map, Value};
 use std::sync::Arc;
 
 type Ctx = State<Arc<AppState>>;
@@ -194,6 +194,40 @@ async fn admit(
 /// The largest webhook body read (the server's default request limit).
 const MAX_BODY_BYTES: usize = 2 * 1024 * 1024;
 
+/// The web's `request.form`: the text fields of a body declared
+/// urlencoded or multipart (a file part is not a field), first value per
+/// key; nothing for any other body, or one that does not parse.
+async fn form_fields(content_type: &str, body: &Bytes) -> Map<String, Value> {
+    let declared = content_type.to_ascii_lowercase();
+    if declared.starts_with("application/x-www-form-urlencoded") {
+        return webhooks::urlencoded_fields(body);
+    }
+    if !declared.starts_with("multipart/form-data") {
+        return Map::new();
+    }
+    let req = Request::builder()
+        .header(header::CONTENT_TYPE, content_type)
+        .body(axum::body::Body::from(body.clone()));
+    let Ok(req) = req else {
+        return Map::new();
+    };
+    let mut fields = Map::new();
+    let Ok(mut parts) = Multipart::from_request(req, &()).await else {
+        return fields;
+    };
+    while let Ok(Some(part)) = parts.next_field().await {
+        let name = part.name().unwrap_or_default().to_string();
+        if part.file_name().is_some() {
+            continue;
+        }
+        let Ok(text) = part.text().await else {
+            break;
+        };
+        fields.entry(name).or_insert(json!(text));
+    }
+    fields
+}
+
 /// What both public routes share.
 async fn run_webhook(
     ctx: Arc<AppState>,
@@ -209,11 +243,12 @@ async fn run_webhook(
     if known && !ctx.security.is_unlocked() {
         return crate::server::envelope::webhook_while_locked("error");
     }
-    let form = req
+    let content_type = req
         .headers()
         .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
-        .is_some_and(|t| t.starts_with("application/x-www-form-urlencoded"));
+        .unwrap_or_default()
+        .to_string();
     let url_secret = req.uri().query().and_then(|q| {
         url::form_urlencoded::parse(q.as_bytes())
             .find(|(k, _)| k == "secret")
@@ -225,7 +260,8 @@ async fn run_webhook(
             json!({"error": "The alert is too large."}),
         );
     };
-    let mut payload = webhooks::read_payload(&body, form);
+    let form = form_fields(&content_type, &body).await;
+    let mut payload = webhooks::read_payload(&body, &form);
     if let Some(s) = symbol {
         payload.insert("symbol".into(), json!(s));
     }

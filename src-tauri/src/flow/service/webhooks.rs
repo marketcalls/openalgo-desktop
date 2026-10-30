@@ -251,15 +251,19 @@ pub async fn set_auth_type(app: &Arc<AppState>, id: i64, body: Body) -> Reply {
     }
 }
 
-/// `_read_webhook_payload`: whatever the sender declared, a JSON object is
-/// the payload; other JSON keeps its text under `message` and its value
-/// under `payload`; a form body becomes its fields (first value per key);
-/// other text lands under `message`; an empty body is `{}`.
-pub fn read_payload(body: &[u8], form: bool) -> Map<String, Value> {
+/// `_read_webhook_payload`: whatever the sender declared, a JSON object
+/// (read as Python's `json.loads` reads it) is the payload; other JSON
+/// keeps its text under `message` and its value under `payload`; a body
+/// the sender declared a form becomes its fields (`form`, the web's
+/// `request.form`: urlencoded or multipart, first value per key); other
+/// text lands under `message`; an empty body is `{}`.
+pub fn read_payload(body: &[u8], form: &Map<String, Value>) -> Map<String, Value> {
     let raw = String::from_utf8_lossy(body);
     let text = raw.trim();
     if !text.is_empty() {
-        match serde_json::from_str::<Value>(text) {
+        // Python's json.loads: TradingView's bare NaN and Infinity parse
+        // as on the web (decision 24).
+        match crate::flow::nodes::pyjson::loads(text) {
             Ok(Value::Object(m)) => return m,
             Ok(Value::Null) | Err(_) => {}
             Ok(other) => {
@@ -270,18 +274,21 @@ pub fn read_payload(body: &[u8], form: bool) -> Map<String, Value> {
             }
         }
     }
-    if form && !text.is_empty() {
-        let mut m = Map::new();
-        for (k, v) in url::form_urlencoded::parse(body) {
-            m.entry(k.into_owned()).or_insert(json!(v.into_owned()));
-        }
-        if !m.is_empty() {
-            return m;
-        }
+    if !text.is_empty() && !form.is_empty() {
+        return form.clone();
     }
     let mut m = Map::new();
     if !text.is_empty() {
         m.insert("message".into(), json!(text));
+    }
+    m
+}
+
+/// The fields of an urlencoded body, as text, first value per key.
+pub fn urlencoded_fields(body: &[u8]) -> Map<String, Value> {
+    let mut m = Map::new();
+    for (k, v) in url::form_urlencoded::parse(body) {
+        m.entry(k.into_owned()).or_insert(json!(v.into_owned()));
     }
     m
 }
