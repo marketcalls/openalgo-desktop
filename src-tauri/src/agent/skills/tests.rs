@@ -1,6 +1,7 @@
 //! The skills: registry, loader, paged tools and prompt section (the web's
 //! `test/test_agent_skills.py`), against a demo library built in the test,
-//! and the shipped OpenScript skill against its folder in the repository.
+//! and the shipped OpenScript and Flow skills against their folders in the
+//! repository.
 //!
 //! The web's live-reload test (an edit seen on the next call) has no
 //! counterpart: the desktop embeds the folders when it is built, and
@@ -501,8 +502,9 @@ fn the_real_registry_never_reaches_a_surface_the_toolkit_is_not_built_for() {
 }
 
 /// Every tool a skill's notes name, that exists at all, is offered on every
-/// surface the skill is (the flow-builder entry would fail this while the
-/// Flow toolkit is absent, which is why it waits for Flow).
+/// surface the skill is: flow-builder's `validate_flow` and `save_flow` on
+/// chat, with every capability combination (the entry waited for the Flow
+/// toolkit for this reason).
 #[tokio::test]
 async fn every_tool_a_skill_note_names_is_offered_where_the_skill_is() {
     let t = crate::state::testing::build(crate::brokers::BrokerRegistry::new(), chrono::Utc::now());
@@ -511,15 +513,18 @@ async fn every_tool_a_skill_note_names_is_offered_where_the_skill_is() {
         web_search_enabled: true,
         mcp_enabled: true,
     };
-    let names_on = |s| -> Vec<&'static str> {
-        crate::agent::tools::build_tools(crate::agent::tools::TOOLKITS, &ctx(t.ctx.clone(), s, all))
-            .iter()
-            .map(|x| x.spec().name)
-            .collect()
+    let names_on = |s, caps| -> Vec<&'static str> {
+        crate::agent::tools::build_tools(
+            crate::agent::tools::TOOLKITS,
+            &ctx(t.ctx.clone(), s, caps),
+        )
+        .iter()
+        .map(|x| x.spec().name)
+        .collect()
     };
     let everything: Vec<&str> = [Surface::Chat, Surface::Chart, Surface::Voice]
         .into_iter()
-        .flat_map(names_on)
+        .flat_map(|s| names_on(s, all))
         .collect();
     let word = regex::Regex::new(r"\b[a-z]+(?:_[a-z]+)+\b").unwrap();
     for skill in registry::SKILLS {
@@ -529,11 +534,15 @@ async fn every_tool_a_skill_note_names_is_offered_where_the_skill_is() {
             .filter(|n| everything.contains(n))
             .collect();
         assert!(named.contains(&"save_openscript") || skill.name != "openscript");
+        assert!(
+            (named.contains(&"validate_flow") && named.contains(&"save_flow"))
+                || skill.name != "flow-builder"
+        );
         for s in [Surface::Chat, Surface::Chart, Surface::Voice]
             .into_iter()
             .filter(|s| skill.offered_on(*s))
         {
-            let here = names_on(s);
+            let here = names_on(s, all);
             for n in &named {
                 assert!(
                     here.contains(n),
@@ -542,6 +551,20 @@ async fn every_tool_a_skill_note_names_is_offered_where_the_skill_is() {
                     n,
                     s.as_str()
                 );
+            }
+            // The authoring tools need no capability: every combination.
+            for (trading_enabled, web_search_enabled, mcp_enabled) in [
+                (false, false, false),
+                (true, false, false),
+                (false, true, true),
+            ] {
+                let caps = Capabilities {
+                    trading_enabled,
+                    web_search_enabled,
+                    mcp_enabled,
+                };
+                let some = names_on(s, caps);
+                assert!(named.iter().all(|n| some.contains(n)), "{:?}", caps);
             }
         }
     }
@@ -772,10 +795,74 @@ fn openscript_loads_with_its_references_and_examples() {
         .unwrap()
         .contains("# The OpenScript library"));
     assert!(set.find("openscript", Surface::Voice).is_none());
-    assert!(
-        set.find("flow-builder", Surface::Chat).is_none(),
-        "Flow is not in this version"
+}
+
+/// The web's `test_flow_builder_loads_with_its_node_reference`, with the
+/// desktop's second page: the import-format contract the Flow tools cite
+/// (lead decision 17). The scripts are never references.
+#[test]
+fn flow_builder_loads_with_its_node_reference_and_the_import_format() {
+    let set = shipped();
+    let (spec, skill) = set.find("flow-builder", Surface::Chat).unwrap();
+    assert_eq!(spec, &registry::FLOW_BUILDER);
+    let skill = skill.unwrap();
+    assert!(!skill.description.is_empty());
+    assert_eq!(
+        skill.references,
+        ["reference/flow-import-format.md", "reference/nodes.md"]
     );
+    assert!(skill
+        .read_reference("reference/nodes.md")
+        .unwrap()
+        .starts_with("# Flow node reference"));
+    assert_eq!(
+        skill.read_reference("flow-import-format.md").unwrap(),
+        normalise(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../docs/prompt/flow-import-format.md"
+        )))
+    );
+    for script in ["validate.py", "coverage.py", "generate_reference.py"] {
+        assert!(skill.read_reference(script).is_err(), "{}", script);
+    }
+}
+
+/// The web's `test_flow_builder_is_not_offered_where_the_flow_tools_are_not`:
+/// chat only, as the Flow toolkit is.
+#[test]
+fn flow_builder_is_not_offered_where_the_flow_tools_are_not() {
+    let set = shipped();
+    assert!(set.find("flow-builder", Surface::Chart).is_none());
+    assert!(set.find("flow-builder", Surface::Voice).is_none());
+    assert!(set.find("openscript", Surface::Voice).is_none());
+    let flow = &crate::agent::tools::flow_gen::GROUP;
+    for s in [Surface::Chat, Surface::Chart, Surface::Voice] {
+        assert_eq!(
+            registry::FLOW_BUILDER.offered_on(s),
+            flow.surfaces.contains(s)
+        );
+    }
+}
+
+/// A-37: the chat prompt lists both skills, flow-builder with its
+/// description and its notes; the chart panel lists only openscript; voice
+/// none.
+#[test]
+fn the_skills_section_lists_flow_builder_on_chat_only() {
+    let chat = skills_section(&shipped(), Surface::Chat).unwrap().render();
+    let flow = shipped()
+        .available(Surface::Chat)
+        .into_iter()
+        .find(|s| s.name() == "flow-builder")
+        .map(|s| s.description.clone())
+        .unwrap();
+    assert!(flow.starts_with("Build, edit or debug an OpenAlgo Flow workflow"));
+    assert!(chat.contains(&format!("- flow-builder: {}", flow)));
+    assert!(chat.contains("Here: You cannot run validate.py, curl or SQL. Validate with validate_flow instead of validate.py, and save with save_flow instead of the import route;"));
+    assert!(chat.find("- openscript:") < chat.find("- flow-builder:"));
+    let chart = skills_section(&shipped(), Surface::Chart).unwrap().render();
+    assert!(chart.contains("- openscript:") && !chart.contains("flow-builder"));
+    assert!(skills_section(&shipped(), Surface::Voice).is_none());
 }
 
 #[tokio::test]
@@ -840,6 +927,15 @@ fn the_embedded_skill_is_the_repository_folder() {
                 }
             }
         }
+        for (served, _) in folder.borrowed {
+            assert!(
+                !on_disk.iter().any(|p| p == served),
+                "{} is borrowed; it must not also be in {}",
+                served,
+                folder.folder
+            );
+            on_disk.push(served.to_string());
+        }
         on_disk.sort();
         let mut embedded: Vec<String> = folder.files.iter().map(|(p, _)| p.to_string()).collect();
         embedded.sort();
@@ -849,12 +945,12 @@ fn the_embedded_skill_is_the_repository_folder() {
             folder.folder
         );
         for (path, text) in folder.files {
-            assert_eq!(
-                std::fs::read_to_string(base.join(path)).unwrap(),
-                *text,
-                "{}",
-                path
-            );
+            let source = folder
+                .borrowed
+                .iter()
+                .find(|(served, _)| served == path)
+                .map_or_else(|| base.join(path), |(_, from)| root.join(from));
+            assert_eq!(std::fs::read_to_string(source).unwrap(), *text, "{}", path);
         }
     }
 }

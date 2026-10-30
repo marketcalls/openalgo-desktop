@@ -1836,6 +1836,59 @@
       },
       "needs_approval": true
     },
+    "validate_flow": {
+      "description": "Check Flow workflow JSON against the real Flow validator, saving nothing.\nUse this while you are still writing the graph. It runs exactly the\nchecks the /flow import endpoint runs, so a workflow that passes here\nwill import, and nothing is written to the database either way. The\nworkflow name is not required at this stage because save_flow takes it\nas its own argument.\n\nWhen the workflow is invalid this tool does not return: it comes back as\nan error carrying the validator's own errors[], each entry a\n{path, code, message}. Correct exactly those paths and call again. Do\nnot invent a node type to satisfy an error; if a requirement has no\nmatching node type, say so to the user in prose.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "workflow_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ],
+            "description": "The complete workflow as a JSON object string (or\nthe object itself), of the form\n``{\"name\": ..., \"nodes\": [...], \"edges\": [...]}``. Node\ntypes, node data fields, edge shapes and the handle vocabulary\nare defined in docs/prompt/flow-import-format.md; copy type\nnames from it verbatim."
+          }
+        },
+        "required": [
+          "workflow_json"
+        ]
+      },
+      "needs_approval": false
+    },
+    "save_flow": {
+      "description": "Validate Flow workflow JSON and import it as a new INACTIVE workflow.\nThe workflow is validated first, with the same validator and the same\nstrictness the /flow import endpoint uses. An invalid workflow is never\nsaved: the call comes back as an error carrying the validator's own\nerrors[], and you correct those paths and call again.\n\nA workflow imported this way is created INACTIVE and does not run. The\nuser opens /flow, reviews it and activates it there, which is also where\nits webhook and API key are set up. Say that in your answer: this tool\ncannot activate a workflow and cannot execute one.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name for the workflow, for example\n``NIFTY opening range breakout``. Up to 200 characters. It is\nstored with \" (imported)\" appended, the same way the /flow\nimport screen stores one, and it overrides any name inside the\nJSON."
+          },
+          "workflow_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ],
+            "description": "The complete workflow as a JSON object string (or\nthe object itself), of the form\n``{\"name\": ..., \"nodes\": [...], \"edges\": [...]}``. Node\ntypes, node data fields, edge shapes and the handle vocabulary\nare defined in docs/prompt/flow-import-format.md; copy type\nnames from it verbatim and never invent one."
+          }
+        },
+        "required": [
+          "name",
+          "workflow_json"
+        ]
+      },
+      "needs_approval": true
+    },
     "web_search": {
       "description": "Search the public web and get back a list of pages with short extracts.\nUse this to find sources, recent news, filings, exchange circulars or\nanything else that is not in the platform's own data. A figure an\nexchange publishes, such as market breadth or a 52-week high, comes from\ncall_mcp_tool first when that tool is offered. It returns links,\nnot conclusions: read the snippets, follow up with the operator, and say\nwhich source a claim came from. It is never a source for a price, a\nposition or an order status, all of which come from a platform tool.\n\nThe query that actually goes out is built from the operator's own words,\nso a term they never used is dropped before the call. Ask for what they\nasked for, in their words.",
       "parameters": {

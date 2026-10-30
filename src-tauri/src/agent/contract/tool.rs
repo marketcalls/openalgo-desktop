@@ -227,6 +227,15 @@ pub trait AgentTool: Send + Sync {
     /// against the schema (`agent::tool_guard`): a call missing a required
     /// argument never reaches here. Long work watches `ctx.cancel`.
     async fn call(&self, ctx: &ToolCtx, args: Map<String, Value>) -> ToolOutcome;
+
+    /// The arguments as the trader's approval card shows them (the paused
+    /// call's requirement, and the decision row): every secret removed and
+    /// every size bounded. The tool still runs on the arguments as sent. A
+    /// tool whose card reads an argument the bounding would cut overrides
+    /// this.
+    fn card_args(&self, args: &Map<String, Value>) -> Map<String, Value> {
+        crate::agent::redact::redact_map(args)
+    }
 }
 
 /// Everything a tool knows about the run it serves (the web's

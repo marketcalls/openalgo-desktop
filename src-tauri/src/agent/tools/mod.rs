@@ -11,13 +11,14 @@
 //! specs from [`specs`] (the web's wording, captured); every registered
 //! toolkit is pinned against the web by `spec_contract`.
 //!
-//! Flow (`flow_gen`) and Python strategy generation (`strategy_gen`) are not
-//! in this version (maintainer, 2026-10-27). Flow comes later: its line goes
-//! in the marked place below, chat surface only, as on the web.
+//! Python strategy generation (`strategy_gen`) is not in this version
+//! (maintainer, 2026-10-27). Flow (`flow_gen`) came with 1.0.5, chat surface
+//! only, as on the web.
 
 pub mod account;
 pub mod answer;
 pub mod chart;
+pub mod flow_gen;
 pub mod indicators;
 pub mod instrument;
 pub mod live;
@@ -66,7 +67,8 @@ pub const TOOLKITS: &[ToolGroup] = &[
     skills::GROUP,
     // Order 65, chat and chart.
     openscript_gen::GROUP,
-    // Later: flow_gen::GROUP (order 70, chat only), not in this version.
+    // Order 70, chat only.
+    flow_gen::GROUP,
     // Order 80, every surface, requires WebSearch.
     websearch::GROUP,
     // Order 85, every surface, requires Mcp.

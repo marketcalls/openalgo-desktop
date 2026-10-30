@@ -53,14 +53,15 @@ mod tests {
     use crate::agent::tools::spec_contract;
 
     /// The shipped specs are the capture's, tool for tool, for every toolkit
-    /// of this version (Python strategy generation and Flow left out).
+    /// of this version (Python strategy generation left out; Flow's two
+    /// tools in since 1.0.5).
     #[test]
     fn the_shipped_specs_are_the_web_capture() {
         let fixture = spec_contract::fixture();
         let mut expected = Vec::new();
         for t in fixture["tools"].as_array().into_iter().flatten() {
             let toolkit = t["toolkit"].as_str().unwrap_or_default();
-            if toolkit == "strategy_gen" || toolkit == "flow_gen" {
+            if toolkit == "strategy_gen" {
                 assert!(web(t["name"].as_str().unwrap_or_default()).is_none());
                 continue;
             }
@@ -69,8 +70,10 @@ mod tests {
             spec_contract::assert_tool(&spec);
             expected.push(name);
         }
-        assert_eq!(expected.len(), 59);
-        assert_eq!(SPECS["tools"].as_object().map(|m| m.len()), Some(59));
+        assert_eq!(expected.len(), 61);
+        assert_eq!(SPECS["tools"].as_object().map(|m| m.len()), Some(61));
+        assert!(web("validate_flow").is_some_and(|s| !s.needs_approval));
+        assert!(web("save_flow").is_some_and(|s| s.needs_approval));
         assert_eq!(SPECS["web_commit"], fixture["web_commit"]);
     }
 

@@ -110,11 +110,6 @@ pub(crate) const DESKTOP_WORDING: &[(&str, &str, &str)] = &[
         "    python:     # ema_crossover.py\n    javascript: // vwap_bands.js\n    sql:        -- open_positions.sql",
     ),
     (
-        "code_output",
-        "```json flow-ema-crossover.json",
-        "```json watchlist.json",
-    ),
-    (
         "openalgo_sdk",
         "It is already\ninstalled.",
         "The operator runs\nit with Python and the `openalgo` package on this computer.",
@@ -548,7 +543,6 @@ mod tests {
             "strategy host",
             "what the host guarantees",
             "strategies/",
-            "flow-",
             "mounts an editor",
             "already\ninstalled",
         ] {
@@ -556,6 +550,8 @@ mod tests {
         }
         assert!(p.contains("from the API Key page"));
         assert!(p.contains("analyzer mode first"));
+        // Flow ships with 1.0.5: the web's JSON artifact example stays.
+        assert!(p.contains("```json flow-ema-crossover.json"));
         assert!(p.contains(r#"os.getenv("HOST_SERVER", "http://127.0.0.1:5500")"#));
         assert!(p.contains(r#"os.getenv("WEBSOCKET_URL", "ws://127.0.0.1:8766")"#));
     }

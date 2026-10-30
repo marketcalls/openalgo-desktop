@@ -216,7 +216,7 @@ fn pending(call: &ToolCall, tool: &Arc<dyn AgentTool>, args: Map<String, Value>)
             id: format!("req-{}", uuid::Uuid::new_v4()),
             tool_call_id: call.call_id.clone(),
             tool_name: spec.name.into(),
-            args: redact_map(&args),
+            args: tool.card_args(&args),
             missing: tool_guard::missing_arguments(&spec.parameters, &args),
             kind: "confirmation".into(),
         },
