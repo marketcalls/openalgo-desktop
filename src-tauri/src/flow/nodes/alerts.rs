@@ -76,4 +76,6 @@ impl FlowNode for WhatsappAlert {
 }
 
 #[cfg(test)]
+mod client_tests;
+#[cfg(test)]
 mod tests;

@@ -416,6 +416,13 @@ impl WhatsAppService {
         self.is_running() && self.client.read().is_some() && Self::is_paired(ctx)
     }
 
+    /// What the bot task records when WhatsApp logs the device out, for
+    /// tests of what callers then answer.
+    #[cfg(test)]
+    pub(crate) fn mark_logged_out(&self) {
+        self.logged_out.store(true, Ordering::SeqCst);
+    }
+
     /// Web `unavailable_reason`.
     pub fn unavailable_reason(&self) -> Option<&'static str> {
         (self.logged_out.load(Ordering::SeqCst) && !self.is_running()).then_some(LOGGED_OUT_MESSAGE)
