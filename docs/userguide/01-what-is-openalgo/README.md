@@ -59,6 +59,7 @@ With OpenAlgo Desktop:
 | Basket and split orders | Many symbols in one request, or one large order in pieces ([chapter 13](../13-basket-orders/README.md)) |
 | Market data WebSocket | Live LTP, quotes and depth for your SDK and trading platforms |
 | Strategies with risk management | Multi-leg strategies with stops, targets and trailing rules, started by webhook or by you |
+| Flow | Build automations on a drag-and-drop canvas: a schedule, webhook or price alert, conditions and indicators, then orders and alerts ([chapter 21](../21-flow-visual-builder/README.md)) |
 | Action Center | Semi-Auto mode: orders wait for your approval |
 | Charting terminal and scalping | Trade from the chart (`/trading`) and from the keyboard (`/scalping`) |
 
@@ -173,7 +174,8 @@ webhooks).
 | Users and brokers | One user, one broker per instance | One user; keys for many brokers, one logged in at a time |
 | Raspberry Pi | Supported | Not supported: use OpenAlgo web |
 | Runs | All day on a server | While the app is open and you are signed in |
-| Python Strategy Host, Flow, pandas backtesters | Included | Not included in this version (Flow is planned for 1.0.5) |
+| Flow | Included | Included from 1.0.5, native (no Python); workflows import and export as on the web |
+| Python Strategy Host, pandas backtesters | Included | Not included in this version |
 
 Everything that talks to OpenAlgo web (the Python SDK, TradingView, Amibroker,
 Chartink, GoCharting, Excel, MCP clients) talks to OpenAlgo Desktop the same

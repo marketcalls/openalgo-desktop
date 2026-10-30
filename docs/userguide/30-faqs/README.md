@@ -42,14 +42,13 @@ is entered inside it.
 | Not in OpenAlgo Desktop | Use instead |
 | --- | --- |
 | The Python Strategy Host (`/python`) | Run your Python scripts yourself with the OpenAlgo SDK against the desktop's API, or use OpenAlgo web. See [20 - Python Strategies](../20-python-strategies/README.md) |
-| Flow (`/flow`) | OpenAlgo web. See [21 - Flow Visual Builder](../21-flow-visual-builder/README.md) |
 | Portfolio Backtester, SIP Backtester, Portfolio Analyzer | OpenAlgo web |
 
 The app has no pages, menu entries or buttons for these. The Python Strategy
 Host and the pandas backtesters were left out so the desktop needs no Python
-runtime (maintainer decisions, 2026-10-03 and 2026-10-12). Flow is planned
-for OpenAlgo Desktop 1.0.5. The Agent, left out of 1.0.0 to 1.0.3, is
-included from 1.0.4.
+runtime (maintainer decisions, 2026-10-03 and 2026-10-12). The Agent, left
+out of 1.0.0 to 1.0.3, is included from 1.0.4, and Flow from 1.0.5, both
+native, with no Python.
 
 ### Can I have several users or several brokers at once?
 
@@ -67,7 +66,10 @@ menu) and restart. Only one copy of OpenAlgo Desktop can run at a time.
 
 No. OpenAlgo trades only while it is open and the computer is awake. Closing
 it stops the API, the feed, strategies, OpenScript runs and stop and target
-tracking; it asks first if something is running. Orders already at your
+tracking; it asks first if something is running. Active Flow workflows stop
+too: their schedules, price alerts and webhooks do nothing until you open
+OpenAlgo and sign in again, and a schedule missed meanwhile is skipped (the
+question on quitting does not list workflows). Orders already at your
 broker stay there. When the computer wakes, OpenAlgo reconnects and catches
 up. See [Quitting OpenAlgo, and when the computer sleeps](../../user/troubleshooting.md#quitting-openalgo-and-when-the-computer-sleeps).
 
@@ -212,6 +214,15 @@ Profile (Broker tab, **Server Configuration**), or run a tunnel yourself and
 enter its address as **Host Server URL** there. See [18 - ChartInk](../18-chartink-integration/README.md) and
 [19 - GoCharting](../19-gocharting-integration/README.md). Your own scripts,
 Amibroker and Excel on the same computer need no tunnel.
+
+### Is Flow in the desktop? Do my OpenAlgo web workflows work?
+
+Yes, from 1.0.5: profile menu, **Flow Editor**. It runs natively, with no
+Python. Export a workflow from OpenAlgo web's editor and import it on the
+desktop's Flow page; it arrives inactive with a new webhook address and
+secret. Times are IST on any computer, and schedules run only while the app
+is open and you are signed in. See
+[21 - Flow Visual Builder](../21-flow-visual-builder/README.md).
 
 ### How do I use the Python SDK?
 

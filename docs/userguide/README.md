@@ -48,7 +48,7 @@ so and points to OpenAlgo web.
 ## Strategy building (chapters 20-22)
 
 - [20 - Python strategies](./20-python-strategies/README.md): the Python Strategy Host is not in the desktop; your scripts still run with the Python SDK
-- [21 - Flow visual builder](./21-flow-visual-builder/README.md): not in the desktop
+- [21 - Flow visual builder](./21-flow-visual-builder/README.md): drag-and-drop workflows, their triggers and webhooks, import and export with OpenAlgo web, and the Agent building them
 - [22 - Action Center](./22-action-center/README.md)
 
 ## Monitoring and alerts (chapters 23-26)
@@ -87,6 +87,7 @@ so and points to OpenAlgo web.
 | Test without real money | [Chapter 15](./15-analyzer-mode/README.md) |
 | Find a symbol's OpenAlgo name | [Symbol format guide](./symbol-format/README.md) |
 | Receive TradingView alerts | [Chapter 16](./16-tradingview-integration/README.md) |
+| Automate a strategy without code | [Chapter 21](./21-flow-visual-builder/README.md) |
 | Connect Claude Desktop or Claude Code | [MCP guide](../user/mcp.md) |
 | Get Telegram or WhatsApp alerts | [Chapter 23](./23-telegram-bot/README.md) |
 | Use the options tools | [Chapter 31](./31-tools/README.md) |
