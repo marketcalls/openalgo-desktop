@@ -46,6 +46,10 @@ table and the traps below apply as written. What differs:
   read-only. `settings.analyze_mode` is the app's analyzer mode switch.
 - **No `.env`.** The history cache and the other web settings are fixed at the
   web's defaults.
+- **`unsubscribe` with `all`** releases only this workflow's own streams (the
+  web's call cleared every stream of the instance, the ones sandbox mode fills
+  orders from included), and the wording is the desktop's: sandbox mode and
+  analyzer mode.
 
 ## The one rule
 
@@ -156,9 +160,10 @@ wire two and the gate errors rather than evaluating on part of the condition.
 **`timeWindow` may cross midnight.** `22:00` to `02:00` spans midnight rather
 than being empty, so an overnight MCX or crypto guard works as written.
 
-**`unsubscribe` needs a symbol** unless `streamType` is `all`, because the
-underlying call clears every subscription on the instance - including the ones
-the Sandbox engine uses to trigger pending SL and LIMIT orders.
+**`unsubscribe` needs a symbol** unless `streamType` is `all`. With `all` it
+releases every stream this workflow's own subscribe nodes opened, and nothing
+else: another workflow's streams, and the ones sandbox mode fills pending SL and
+LIMIT orders from, stay open.
 
 **Subscriptions end with the workflow.** Deactivating or deleting it releases
 everything its subscribe nodes opened, so no cleanup node is needed for that.
@@ -217,8 +222,8 @@ SELECT id, status, logs FROM flow_workflow_executions ORDER BY id DESC LIMIT 1;
 
 The log lines are the evidence: they name the values each node actually used, so
 a field that silently kept its default shows up as a mismatch against the
-payload you sent. **Check `settings.analyze_mode` first** - `1` routes orders to
-the Sandbox engine, `0` sends them to a live broker.
+payload you sent. **Check `settings.analyze_mode` first** - `1` is analyzer
+mode, which routes orders to sandbox mode, `0` sends them to a live broker.
 
 ## Files
 

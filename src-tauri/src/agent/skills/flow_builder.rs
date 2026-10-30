@@ -594,10 +594,22 @@ fn the_skill_states_what_the_desktop_does() {
         "FLOW_HISTORY_CACHE_TTL",
         "Set it to 2-3",
         "| `validate.py` |",
+        "clears every subscription on the instance",
+        "Sandbox engine",
     ] {
         assert!(!skill_md.contains(web_only), "{}", web_only);
     }
     assert!(skill_md.contains("## Desktop: where this differs from the web skill"));
+    // Lead decision 9: `unsubscribe` with `all` releases this workflow's own
+    // streams only.
+    assert!(skill_md.contains("With `all` it\nreleases every stream this workflow's own subscribe nodes opened, and nothing\nelse"));
+    for word in ["paper", "virtual", "Sandbox engine"] {
+        assert!(
+            !skill_md.to_lowercase().contains(&word.to_lowercase()),
+            "{}",
+            word
+        );
+    }
     assert!(skill_md.contains("flow_builder::check_the_workflow_file"));
     // The frontmatter is the web's, word for word.
     assert!(skill_md.starts_with("---\nname: flow-builder\ndescription: Build, edit or debug an OpenAlgo Flow workflow - the no-code node graph at /flow. Use when asked to create a workflow, wire a webhook or TradingView alert to an order, add a node, port a strategy into Flow, or work out why a workflow imported but did nothing. Produces a workflow JSON that is validated against the real importer before it is handed over.\n---\n"));
