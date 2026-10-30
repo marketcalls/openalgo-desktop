@@ -60,6 +60,10 @@ async fn breakout(f: &F, symbol: &str) -> i64 {
 async fn the_poll_quotes_each_alert_and_fires_only_on_a_real_price() {
     let f = F::new();
     let ctx = f.h.ctx();
+    // The app's own trigger side restores the active workflows at start-up
+    // on its own task; when that read comes after the save below, it holds
+    // the same alert and polls the broker too. Stopped, only this side polls.
+    ctx.flow.triggers().stop().await;
     ctx.symbols
         .load(vec![listed("SBIN", "3045"), listed("INFY", "1594")]);
     let (sbin, infy) = (breakout(&f, "SBIN").await, breakout(&f, "INFY").await);
