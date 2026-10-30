@@ -88,15 +88,33 @@ pub fn open_pool(
     max_size: u32,
     durability: Durability,
 ) -> Result<Pool<SqliteConnectionManager>> {
-    let manager = SqliteConnectionManager::file(path).with_init(move |c| {
-        c.execute_batch("PRAGMA journal_mode=WAL;")?;
-        c.execute_batch(durability.pragma())?;
-        c.execute_batch("PRAGMA foreign_keys=ON;")?;
-        c.busy_handler(Some(retry_busy))
-    });
+    let manager =
+        SqliteConnectionManager::file(path).with_init(move |c| init_connection(c, durability));
     let pool = build_pool(manager, max_size, POOL_WAIT, FIRST_CONNECTION_LIMIT)?;
     crate::security::fsperm::restrict_db_files(path)?;
     Ok(pool)
+}
+
+/// Every pooled connection's set-up. The busy handler comes first: a
+/// connection opened while another holds the file (switching a new file to
+/// WAL takes it exclusively, and pools open connections on their own
+/// threads while the start-up migrations and first writes run) waits for it
+/// instead of failing its first pragma with "database is locked".
+fn init_connection(c: &mut rusqlite::Connection, durability: Durability) -> rusqlite::Result<()> {
+    c.busy_handler(Some(retry_busy))?;
+    c.execute_batch("PRAGMA journal_mode=WAL;")?;
+    c.execute_batch(durability.pragma())?;
+    c.execute_batch("PRAGMA foreign_keys=ON;")
+}
+
+/// Connections that failed to open because another held the file, in this
+/// process (a start must have none).
+static LOCKED_OPENS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// How many connections failed to open on a locked file so far.
+#[cfg(test)]
+pub(crate) fn locked_opens() -> usize {
+    LOCKED_OPENS.load(std::sync::atomic::Ordering::SeqCst)
 }
 
 /// Why a connection the pool tried to open failed: logged, and kept for
@@ -106,6 +124,12 @@ struct ConnectFailure(Arc<parking_lot::Mutex<Option<rusqlite::Error>>>);
 
 impl r2d2::HandleError<rusqlite::Error> for ConnectFailure {
     fn handle_error(&self, error: rusqlite::Error) {
+        if matches!(
+            error.sqlite_error_code(),
+            Some(rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked)
+        ) {
+            LOCKED_OPENS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
         tracing::error!("A database connection could not be opened: {}", error);
         *self.0.lock() = Some(error);
     }
@@ -362,6 +386,35 @@ mod tests {
     /// behind a 350 ms transaction none of its tries fall in the pause, so
     /// it misses every time; `retry_busy` tries every millisecond (every
     /// timer tick where sleeps are coarser) and gets in each time.
+    /// A connection opened while another holds a new (not yet WAL) file
+    /// waits for it: its set-up's first pragma failed at once with
+    /// "database is locked" when the busy handler was installed last.
+    #[test]
+    fn a_connection_opened_while_the_file_is_held_waits_for_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("t.db");
+        let holder = rusqlite::Connection::open(&path).unwrap();
+        holder
+            .execute_batch("CREATE TABLE t (v INTEGER); BEGIN EXCLUSIVE; INSERT INTO t VALUES (1);")
+            .unwrap();
+        let (go, wait) = std::sync::mpsc::channel::<()>();
+        let release = std::thread::spawn(move || {
+            wait.recv().unwrap();
+            // The lock is held a while after the new connection starts its
+            // set-up, as a start-up writer holds it.
+            std::thread::sleep(Duration::from_millis(200));
+            holder.execute_batch("COMMIT").unwrap();
+        });
+        let mut c = rusqlite::Connection::open(&path).unwrap();
+        go.send(()).unwrap();
+        init_connection(&mut c, Durability::MAIN).unwrap();
+        release.join().unwrap();
+        let mode: String = c
+            .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(mode, "wal");
+    }
+
     #[test]
     fn a_waiting_write_gets_in_at_the_first_pause() {
         let dir = tempfile::tempdir().unwrap();

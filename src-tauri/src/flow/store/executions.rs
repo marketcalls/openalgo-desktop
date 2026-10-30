@@ -127,6 +127,16 @@ pub fn list(conn: &Connection, workflow_id: i64, limit: i64) -> Result<Vec<Execu
 /// [`INTERRUPTED`], so the history never shows a run as still going that
 /// nothing is running. How many there were.
 pub fn close_interrupted(conn: &Connection, now: DateTime<Utc>) -> Result<usize> {
+    // Read first: a start with nothing to close (the usual case, and every
+    // fresh folder) takes no write lock while the other stores open.
+    let open: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM flow_workflow_executions WHERE status IN ('running', 'pending')",
+        [],
+        |r| r.get(0),
+    )?;
+    if open == 0 {
+        return Ok(0);
+    }
     Ok(conn.execute(
         "UPDATE flow_workflow_executions SET status = 'failed', error = ?1, completed_at = ?2
           WHERE status IN ('running', 'pending')",
