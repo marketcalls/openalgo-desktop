@@ -362,3 +362,43 @@ async fn replace_reads_falsy_nodes_as_none() {
         );
     }
 }
+
+/// R-20, V-132: a PUT of nodes alone is checked with the stored edges:
+/// dropping a node a stored edge still points to is refused (an empty
+/// edge list would pass it), and nothing is written.
+#[tokio::test]
+async fn a_put_of_nodes_is_checked_with_the_stored_edges() {
+    let w = W::new();
+    let id = w.create(runnable("Wired")).await;
+    let (s, v) = w.put(id, &json!({"nodes": [start()]})).await;
+    assert_eq!(
+        (s, v),
+        (
+            StatusCode::BAD_REQUEST,
+            json!({"status": "error", "error": "Invalid workflow structure",
+                   "message": "Edge target 'l' is not a node in this workflow",
+                   "errors": [{"path": "/edges/0/target", "code": "dangling_edge",
+                               "message": "Edge target 'l' is not a node in this workflow",
+                               "expected": "an existing node id", "received": "l"}]})
+        )
+    );
+    assert_eq!(w.get(id).await["nodes"], runnable("Wired")["nodes"]);
+}
+
+/// R-20, V-132: a PUT of edges alone is checked with the stored nodes: an
+/// edge to a node the workflow does not have is refused (an empty node
+/// list would pass it), and nothing is written.
+#[tokio::test]
+async fn a_put_of_edges_is_checked_with_the_stored_nodes() {
+    let w = W::new();
+    let id = w.create(runnable("Wired")).await;
+    let (s, v) = w.put(id, &json!({"edges": [e("s", "x")]})).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{}", v);
+    assert_eq!(
+        v["errors"],
+        json!([{"path": "/edges/0/target", "code": "dangling_edge",
+                "message": "Edge target 'x' is not a node in this workflow",
+                "expected": "an existing node id", "received": "x"}])
+    );
+    assert_eq!(w.get(id).await["edges"], json!([e("s", "l")]));
+}
