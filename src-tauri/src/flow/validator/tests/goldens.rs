@@ -113,6 +113,26 @@ fn every_web_doc_example_was_recorded_valid() {
     }
 }
 
+/// V-102, V-103, V-104: what the web's validator leaves to the run (the
+/// httpRequest address, which the node's outbound guard checks; option
+/// expiries, offsets and strategy names; the presence-only fields such as
+/// a mathExpression, an operator, a time or a basket row) passes validation
+/// here as it does there. Adding a check for any of them fails this test.
+#[test]
+fn fields_left_to_the_run_pass_validation_as_on_the_web() {
+    let cases: Vec<&Value> = section("validate")
+        .iter()
+        .filter(|c| c["name"].as_str().unwrap().starts_with("runtime_"))
+        .collect();
+    assert!(cases.len() >= 28, "{} runtime cases", cases.len());
+    for case in cases {
+        let recorded = &case["levels"]["complete"]["errors"];
+        assert_eq!(recorded, &serde_json::json!([]), "{}", case["name"]);
+        let errors = validate_workflow(&case["payload"], ValidateOptions::COMPLETE);
+        assert_eq!(errors, vec![], "{}", case["name"]);
+    }
+}
+
 #[test]
 fn legacy_nodes_migrate_as_the_web_migrates_them() {
     for case in section("migrate") {

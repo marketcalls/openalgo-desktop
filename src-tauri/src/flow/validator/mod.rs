@@ -47,13 +47,25 @@
 //! - V-059: an optionsMultiOrder node's strategy is read as the executor
 //!   reads it (`strategy`, else `strategyType`, else `custom`), not defaulted
 //!   to `straddle`, so a node with no strategy and no legs is refused.
-//! - V-085: a gate whose integer `inputCount` exceeds the edges wired into it
-//!   is refused at the strict level with the executor's sentence; the web
-//!   accepts it and the run then fails every time.
+//! - V-085: a gate wired to fewer inputs than the executor counts for it
+//!   (`executor::walk::declared_inputs`: an AND or OR gate with no readable
+//!   `inputCount` has two) is refused at the strict level with the
+//!   executor's sentence; the web accepts it and the run then fails every
+//!   time (lead decisions 8 and 25).
+//! - V-113: a legacy positionCheck `>=` or `<=` keeps its inclusive meaning:
+//!   the node's conditions are strict and read whole-number quantities, so
+//!   the threshold moves by one (`>= 5` becomes `quantity_above` 4). The web
+//!   maps it onto the strict condition unchanged (lead decision 23).
 //! - A gate's `expected` slot list stops at [`MAX_EDGES`] entries (a gate can
 //!   never receive more); the web builds the whole list for any `inputCount`.
 //! - Unicode digits other than 0-9 are not read as numbers, and a JSON
 //!   object quoted in a message lists its keys sorted (`py`).
+//!
+//! JSON written as text (httpRequest `headers`, Margin `positionsJson`) is
+//! read with `flow::nodes::pyjson`, Python's `json.loads`, so `NaN` and
+//! `Infinity` parse as on the web (lead decision 24); such a number is kept
+//! as its Python text (`'nan'`), so a sentence that quotes it shows quotes
+//! the web's does not.
 
 mod catalog;
 mod fields;

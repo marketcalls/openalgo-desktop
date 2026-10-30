@@ -321,7 +321,7 @@ impl<'a> Walk<'a> {
 /// check when it was absent, so a default AND gate with one wire deleted
 /// decided on one input: parity N-gate-04, lead decision 8). NOT keeps the
 /// web's rule: only a whole number (or a boolean, as Python counts it).
-fn declared_inputs(node_type: &str, data: &Map<String, Value>) -> Option<i64> {
+pub(crate) fn declared_inputs(node_type: &str, data: &Map<String, Value>) -> Option<i64> {
     let raw = data.get("inputCount");
     if node_type == "notGate" {
         return match raw {

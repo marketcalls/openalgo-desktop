@@ -81,28 +81,71 @@ fn migrate_fund_check(id: &str, data: &mut Map<String, Value>) -> String {
     }
 }
 
+/// How a legacy positionCheck operator maps onto the node's conditions.
+#[derive(Clone, Copy)]
+enum LegacyComparison {
+    /// `>` or `<`: the condition compares the same way.
+    Strict(&'static str),
+    /// `>=`: `quantity_above` a threshold one lower.
+    AtLeast,
+    /// `<=`: `quantity_below` a threshold one higher.
+    AtMost,
+}
+
 /// Keep the comparison rather than flattening every legacy operator to
 /// "exists", which would turn a quantity-based exit into an unconditional one.
+///
+/// The node's `quantity_above` and `quantity_below` are strict, and it reads
+/// the position's quantity as a whole number, so an inclusive legacy
+/// operator keeps its meaning by moving the threshold: `qty >= t` is
+/// `qty > ceil(t) - 1` and `qty <= t` is `qty < floor(t) + 1`. The web maps
+/// `>=` straight onto the strict condition, so a legacy "quantity at least 1"
+/// stops passing at exactly 1 (parity V-113, a web defect fixed by lead
+/// decision 23). A threshold that is not a number cannot be moved, so that
+/// node is left for the trader to restate.
 fn migrate_position_check(id: &str, data: &mut Map<String, Value>) -> String {
     let operator = legacy_operator(data, "");
-    let condition = match operator.as_str() {
-        "gt" | ">" | "gte" | "ge" | ">=" => Some("quantity_above"),
-        "lt" | "<" | "lte" | "le" | "<=" => Some("quantity_below"),
+    let comparison = match operator.as_str() {
+        "gt" | ">" => Some(LegacyComparison::Strict("quantity_above")),
+        "lt" | "<" => Some(LegacyComparison::Strict("quantity_below")),
+        "gte" | "ge" | ">=" => Some(LegacyComparison::AtLeast),
+        "lte" | "le" | "<=" => Some(LegacyComparison::AtMost),
         _ => None,
     };
-    match condition {
-        Some(condition) => {
-            data.insert("condition".to_string(), Value::from(condition));
-            data.remove("operator");
-            format!(
-                "positionCheck '{id}': operator '{operator}' -> condition '{condition}' (threshold kept)"
-            )
-        }
-        None => format!(
+    let unchanged = || {
+        format!(
             "positionCheck '{id}': operator '{operator}' has no equivalent condition. Left \
              unchanged; set the condition yourself."
-        ),
-    }
+        )
+    };
+    let (condition, moved) = match comparison {
+        None => return unchanged(),
+        Some(LegacyComparison::Strict(condition)) => (condition, None),
+        Some(inclusive) => {
+            let Some(t) = py::float_of(get(data, "threshold")).filter(|t| t.is_finite()) else {
+                return unchanged();
+            };
+            match inclusive {
+                LegacyComparison::AtLeast => ("quantity_above", Some(t.ceil() - 1.0)),
+                _ => ("quantity_below", Some(t.floor() + 1.0)),
+            }
+        }
+    };
+    data.insert("condition".to_string(), Value::from(condition));
+    data.remove("operator");
+    let Some(threshold) = moved else {
+        return format!(
+            "positionCheck '{id}': operator '{operator}' -> condition '{condition}' (threshold kept)"
+        );
+    };
+    let was = py::str_of(get(data, "threshold"));
+    // A whole number within any position size; `as` saturates past i64.
+    let now = threshold as i64;
+    data.insert("threshold".to_string(), Value::from(now));
+    format!(
+        "positionCheck '{id}': operator '{operator}' -> condition '{condition}' (threshold {was} \
+         -> {now}, which keeps '{operator}' on whole-number quantities)"
+    )
 }
 
 /// Trigger fields registered with the scheduler or a monitor at activation

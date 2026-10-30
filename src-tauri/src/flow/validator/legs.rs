@@ -12,6 +12,7 @@ use super::fields::{leg_constant_error, priced_order_errors, valid_quantity, Pri
 use super::structure::get;
 use super::{py, ValidationError};
 use crate::flow::node_contracts::{is_expiry_date, is_option_offset, VALID_EXPIRY_TYPES};
+use crate::flow::nodes::pyjson;
 use serde_json::{Map, Value};
 
 /// How a leg names its price type and prices.
@@ -71,7 +72,9 @@ pub(super) fn margin_errors(
             if text.contains("{{") {
                 return Vec::new();
             }
-            let Ok(value) = serde_json::from_str::<Value>(text) else {
+            // Python's json.loads, NaN and Infinity included, as the
+            // executor reads it (lead decision 24).
+            let Ok(value) = pyjson::loads(text) else {
                 return vec![ValidationError::new(
                     raw_base,
                     "invalid_positions",

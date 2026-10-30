@@ -12,7 +12,7 @@ use serde_json::{Map, Value};
 use std::collections::HashSet;
 
 /// The value a missing key reads as.
-pub(super) static NULL: Value = Value::Null;
+static NULL: Value = Value::Null;
 
 /// `input-N`, the numbered input slot a gate renders.
 static GATE_SLOT: Pattern = Pattern::new(r"^input-([0-9]+)$");

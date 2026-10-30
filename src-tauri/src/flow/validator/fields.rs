@@ -16,6 +16,7 @@ use super::{legs, py, ValidationError};
 use crate::flow::node_contracts::{
     normalize_condition, normalize_status, parse_underlying_symbol, VALID_STATUSES,
 };
+use crate::flow::nodes::pyjson;
 use serde_json::{Map, Value};
 
 /// The value as a positive finite number, or None (`_positive_number`).
@@ -342,7 +343,9 @@ fn http_request_errors(base: &str, data: &Map<String, Value>) -> Vec<ValidationE
     let headers = get(data, "headers");
     if let Some(text) = headers.as_str() {
         if !py::is_blank(text) && !text.contains("{{") {
-            let parsed: Option<Value> = serde_json::from_str(text).ok();
+            // Read as Python's json.loads reads it, NaN and Infinity
+            // included, as the executor does (lead decision 24).
+            let parsed: Option<Value> = pyjson::loads(text).ok();
             if !parsed.is_some_and(|p| p.is_object()) {
                 found.push(
                     ValidationError::new(
