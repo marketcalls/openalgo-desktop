@@ -3,7 +3,7 @@
 //! (N-calendar-05), `date.fromisoformat` and the Calendar node's IST
 //! session date on a machine outside IST (N-dataCommon-10).
 
-use super::support::{ctx_at, env_with, logs, run, FakeBook, FakeCalendar};
+use super::support::{ctx_at, env_with, logs, run, FakeBook, FakeCalendar, ServerLog};
 use crate::flow::contract::client::fake::FakeFlowClient;
 use crate::flow::nodes::calendar::{from_isoformat, Period, TradingDays};
 use chrono::NaiveDate;
@@ -283,43 +283,48 @@ fn every_run_reads_the_calendar_afresh() {
 /// cause (the web's service catches its failure and answers success=False).
 #[test]
 fn a_failed_calendar_read_logs_the_webs_unavailable_warning() {
-    #[derive(Clone, Default)]
-    struct Captured(std::sync::Arc<parking_lot::Mutex<Vec<u8>>>);
-    impl std::io::Write for Captured {
-        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-            self.0.lock().extend_from_slice(buf);
-            Ok(buf.len())
-        }
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
     for cause in [
         crate::flow::contract::env::UNAVAILABLE.to_string(),
         "The market calendar could not be read: no such table".to_string(),
     ] {
-        let captured = Captured::default();
-        let writer = captured.clone();
-        let sub = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::INFO)
-            .with_ansi(false)
-            .with_writer(move || writer.clone())
-            .finish();
         let mut years = HashMap::new();
         years.insert(2026, Err(cause.clone()));
         let cal = FakeCalendar(years);
-        let trading = tracing::subscriber::with_default(sub, || {
-            TradingDays::new(&cal).is_trading_day(d(2026, 1, 26))
-        });
+        let log = ServerLog::capture();
+        let trading = TradingDays::new(&cal).is_trading_day(d(2026, 1, 26));
         assert!(trading, "weekends only: a Monday trades");
-        let text = String::from_utf8(captured.0.lock().clone()).unwrap_or_default();
-        let lines: Vec<&str> = text.lines().collect();
-        assert_eq!(lines.len(), 1, "{:?}", lines);
-        assert!(lines[0].contains(" WARN "), "{}", lines[0]);
-        assert!(
-            lines[0].ends_with("Holiday list for 2026 unavailable; assuming weekends only"),
-            "{}",
-            lines[0]
+        assert_eq!(
+            log.lines(),
+            vec![(
+                "WARN".to_string(),
+                "Holiday list for 2026 unavailable; assuming weekends only".to_string()
+            )]
         );
     }
+}
+
+/// N-calendar-04: the previous and next trading day are searched at most
+/// 30 days out, as the web bounds its loop; past a longer closure the day
+/// the search stopped on is returned (31 days away), not the open day
+/// beyond it.
+#[test]
+fn the_trading_day_search_stops_after_thirty_days() {
+    let first = d(2026, 2, 1);
+    let closed: Vec<Value> = (0..45)
+        .map(|i| {
+            let day = first + chrono::Duration::days(i);
+            json!({"date": day.format("%Y-%m-%d").to_string(), "holiday_type": "TRADING_HOLIDAY", "closed_exchanges": ["NSE"]})
+        })
+        .collect();
+    let mut years = HashMap::new();
+    years.insert(2026, Ok(closed));
+    let cal = FakeCalendar(years);
+    let t = TradingDays::new(&cal);
+    // Closed 1 Feb .. 17 Mar 2026; 30 Jan and 18 Mar trade.
+    assert!(t.is_trading_day(d(2026, 1, 30)) && t.is_trading_day(d(2026, 3, 18)));
+    assert_eq!(t.prev_trading_day(d(2026, 3, 18)), d(2026, 2, 15));
+    assert_eq!(t.next_trading_day(d(2026, 1, 31)), d(2026, 3, 3));
+    // Within the bound the search reaches the open day.
+    assert_eq!(t.prev_trading_day(d(2026, 3, 19)), d(2026, 3, 18));
+    assert_eq!(t.next_trading_day(d(2026, 3, 10)), d(2026, 3, 18));
 }
