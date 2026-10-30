@@ -50,6 +50,17 @@ for nm, expr, extra in (
 ):
     node(F, "mathExpression", nm, {"expression": expr, **extra}, vars_in=V,
          parity=["N-mathExpression-01", "N-mathExpression-03"])
+_OVF = "(34, 'Numerical result out of range')"
+for _s in __import__("lib").SCENARIOS:
+    if _s["type"] == "mathExpression" and _s["scenario"] == "float_overflow":
+        _s["desktop_expected"] = de(
+            "N-mathExpression-09",
+            "decisions.md 24: the web runs on Linux, whose strerror for a float overflow is `Numerical result out of range` (this golden was recorded on macOS, `Result too large`); the desktop writes the Linux text on every OS.",
+            outputs={"status": "error", "message": _OVF},
+            logs=[["info", "Evaluating: 1e300 ** 2"], ["info", "Interpolated: 1e300 ** 2"],
+                  ["error", f"Math expression failed: {_OVF}"],
+                  ["error", f"Stopping this branch: mathExpression node failed ({_OVF})"]],
+            error={"errors": [{"node": "n1", "type": "mathExpression", "message": _OVF}], "abort": None})
 node(F, "mathExpression", "empty_expression", {"expression": ""}, parity=["N-mathExpression-02"])
 node(F, "mathExpression", "number_expression", {"expression": 42}, parity=["N-mathExpression-12"],
      desktop_expected=de("N-mathExpression-12", "The web's text is Python's AttributeError; parity accepts any wording that names the value's type (the lane's).",

@@ -118,5 +118,41 @@
    ],
    "abort": null
   }
+ },
+ "desktop_expected": {
+  "parity": "N-mathExpression-09",
+  "why": "decisions.md 24: the web runs on Linux, whose strerror for a float overflow is `Numerical result out of range` (this golden was recorded on macOS, `Result too large`); the desktop writes the Linux text on every OS.",
+  "outputs": {
+   "status": "error",
+   "message": "(34, 'Numerical result out of range')"
+  },
+  "logs": [
+   [
+    "info",
+    "Evaluating: 1e300 ** 2"
+   ],
+   [
+    "info",
+    "Interpolated: 1e300 ** 2"
+   ],
+   [
+    "error",
+    "Math expression failed: (34, 'Numerical result out of range')"
+   ],
+   [
+    "error",
+    "Stopping this branch: mathExpression node failed ((34, 'Numerical result out of range'))"
+   ]
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "mathExpression",
+     "message": "(34, 'Numerical result out of range')"
+    }
+   ],
+   "abort": null
+  }
  }
 }

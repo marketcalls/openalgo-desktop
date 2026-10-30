@@ -324,11 +324,9 @@ node(F, "closePositions", "scoped_symbol", {"symbol": "SBIN", "exchange": "NSE",
      parity=["N-closePositions-03", "CL-09"],
      desktop_expected={
          "parity": "N-closePositions-03",
-         "why": "WEB-DEFECT CL-09: the web's live close ignores the symbol and squares off every position; the desktop closes only SBIN with a smart order to position size 0 (as the Agent's close_position). The exact payload is nodes-orders' to confirm.",
-         "script_extra": [reply("positionbook", ok(data=[{"symbol": "SBIN", "exchange": "NSE", "product": "MIS", "quantity": 10, "pnl": 12.5}])),
-                          reply("placesmartorder", ORDER)],
-         "calls": [{"method": "positionbook", "endpoint": "positionbook", "payload": {}},
-                   {"method": "place_smart_order", "endpoint": "placesmartorder", "payload": SCOPED_SQUAREOFF}],
+         # A note only: the node sends the web's payload and the desktop
+         # client routes it (nodes-orders, f6106ffb).
+         "why": "WEB-DEFECT CL-09: the web's live close ignores the symbol and squares off every position. The desktop node calls the client's close_position as the web does (same payload); the desktop client sends a call that names a symbol to an internal entry that closes only that position with a smart order to position size 0, under the position's lock, with Semi-Auto refusing it as it refuses closeposition (src-tauri/src/flow/nodes/internal.rs, services/order_service.rs close_one_position; pinned by flow::nodes::internal::tests).",
      })
 node(F, "closePositions", "scoped_default_product_nfo", {"symbol": "NIFTY25NOV2624000CE", "exchange": "NFO"},
      script=[reply("closeposition", CLOSE)], parity=["N-closePositions-03", "C-08"])

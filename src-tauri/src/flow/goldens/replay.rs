@@ -10,6 +10,7 @@ use crate::flow::contract::pyfmt;
 use crate::flow::contract::subscriptions::Subscriptions;
 use crate::flow::executor::walk::Walk;
 use crate::flow::nodes::{NodeFamily, NodeRegistry, FAMILIES};
+use crate::flow::validator::{validate_workflow, ValidateOptions};
 use async_trait::async_trait;
 use chrono::{NaiveDateTime, TimeZone};
 use chrono_tz::Asia::Kolkata;
@@ -487,6 +488,19 @@ fn compare_env(want: &Value, ctx: &NodeCtx, genv: &GoldenEnv, diffs: &mut Vec<St
     }
 }
 
+/// The strict validator's refusal of a stored workflow, as the executor
+/// answers it before a run starts.
+fn not_runnable(wf: &Value) -> Option<Value> {
+    let payload = json!({"name": wf["name"], "nodes": wf["nodes"], "edges": wf["edges"]});
+    let errors = validate_workflow(&payload, ValidateOptions::COMPLETE);
+    let first = errors.first()?;
+    Some(json!({
+        "status": "error",
+        "message": format!("Workflow cannot be executed: {}", first.message),
+        "errors": errors,
+    }))
+}
+
 async fn run_workflow(
     v: &Value,
     ctx: &NodeCtx,
@@ -494,10 +508,18 @@ async fn run_workflow(
     want: &Value,
     diffs: &mut Vec<String>,
 ) {
+    let wf = &v["workflow"];
+    if let Some(refusal) = not_runnable(wf) {
+        // The run's gate: the strict validator refuses before any record,
+        // context or log exists (the executor's `not_runnable`).
+        diff(&want["result"], &refusal, "result", diffs);
+        diff(&want["record"], &Value::Null, "record", diffs);
+        diff(&want["vars_out"], &variables(ctx), "vars_out", diffs);
+        return;
+    }
     if let Some(w) = v.get("webhook").filter(|w| pyfmt::truthy(w)) {
         ctx.vars.set("webhook", w.clone());
     }
-    let wf = &v["workflow"];
     let name = wf["name"].as_str().unwrap_or("");
     let walked: Result<Vec<Value>, String> = async {
         if v["api_key"] == false {
