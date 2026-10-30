@@ -48,12 +48,13 @@ use tower_http::trace::TraceLayer;
 /// An unknown path there is a mistyped or removed endpoint, never a page, so
 /// it answers the JSON 404 on every method instead of the app's 404 page: an
 /// API caller gets a body it can parse. The web's 404 handler does this for
-/// `/api/`; the desktop extends it to the per-area API prefixes, where the web
-/// still answers with its page.
+/// `/api/` and Flow's `/flow/webhook/`; the desktop extends it to the
+/// per-area API prefixes, where the web still answers with its page.
 fn is_api_path(path: &str) -> bool {
     let mut segments = path.strip_prefix('/').unwrap_or(path).split('/');
     match (segments.next(), segments.next()) {
         (Some("api"), Some(_)) => true,
+        (Some("flow"), Some("webhook")) => true,
         (Some(area), Some("api")) => !area.is_empty(),
         _ => false,
     }

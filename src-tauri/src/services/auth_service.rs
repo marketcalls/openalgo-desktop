@@ -398,6 +398,7 @@ impl AuthService {
     ) -> Result<()> {
         Self::check_new_password(new, confirm)?;
         ctx.agent.stop_all();
+        ctx.flow.stop_all(crate::flow::STOP_GRACE).await;
         if let Err(e) = crate::services::broker_auth_service::BrokerAuthService::revoke(
             ctx,
             crate::events::SessionEndReason::Logout,
@@ -439,6 +440,7 @@ impl AuthService {
     pub async fn lock_everything(ctx: &std::sync::Arc<AppState>) {
         ctx.security.lock_with(|| ctx.sessions.clear());
         ctx.agent.stop_all();
+        ctx.flow.stop_all(crate::flow::STOP_GRACE).await;
         ctx.messaging.shutdown().await;
         ctx.tunnel
             .stop(crate::services::tunnel::Off::SignedOut)
@@ -491,8 +493,9 @@ impl AuthService {
     /// everything tied to it, and replace the keys so nothing written before
     /// can be decrypted. Every credential that reaches this machine from
     /// outside stops working in the same transaction: MCP tokens are
-    /// revoked, strategy and Chartink webhooks get new secret addresses
-    /// (nobody holds them yet), and Telegram and WhatsApp links are removed.
+    /// revoked, strategy, Chartink and Flow webhooks get new secret addresses
+    /// (nobody holds them yet; every Flow workflow is stopped), and Telegram
+    /// and WhatsApp links are removed.
     /// Strategy, Chartink and log history is kept.
     ///
     /// Only the desktop window calls this (the `reset_account` command,
@@ -510,6 +513,7 @@ impl AuthService {
                 conn.execute("DELETE FROM pending_oauth", [])?;
                 crate::mcp::store::revoke_all(&conn, now)?;
                 Self::rotate_webhook_secrets(&conn)?;
+                crate::flow::store::reset_credentials(&conn)?;
                 conn.execute("DELETE FROM telegram_users", [])?;
                 conn.execute(
                     "UPDATE bot_config SET token = NULL, is_active = 0 WHERE id = 1",
@@ -581,6 +585,7 @@ impl AuthService {
     /// which deletes the stored row), then sign every window out.
     pub async fn reset_account_everywhere(ctx: &std::sync::Arc<AppState>) -> Result<()> {
         ctx.agent.stop_all();
+        ctx.flow.stop_all(crate::flow::STOP_GRACE).await;
         if let Err(e) = crate::services::broker_auth_service::BrokerAuthService::revoke(
             ctx,
             crate::events::SessionEndReason::Logout,

@@ -430,6 +430,7 @@ pub fn drop_encrypted_values(conn: &Connection) -> Result<()> {
     crate::messaging::whatsapp::db::clear_session(conn)?;
     super::tunnel::forget_authtoken(conn)?;
     crate::agent::models::secrets::wipe(conn)?;
+    crate::flow::store::drop_secrets(conn)?;
     Ok(())
 }
 

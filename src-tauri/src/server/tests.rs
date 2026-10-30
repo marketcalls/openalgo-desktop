@@ -249,6 +249,8 @@ mod agent_chatgpt_search;
 mod agent_audit;
 // The Agent's external data routes (the MCP part of blueprints/agent.py).
 mod agent_external;
+// Flow's workflow routes (blueprints/flow.py).
+mod flow;
 
 // ------------------------------------------------------------------ fixtures
 
@@ -688,6 +690,8 @@ fn api_namespaces_are_told_apart_from_pages() {
         "/agent/api",
         "/agent/api/x",
         "/scalping/api/nope",
+        "/flow/api/workflows/abc",
+        "/flow/webhook/token/a/b",
     ] {
         assert!(super::is_api_path(path), "{}", path);
     }
@@ -701,6 +705,8 @@ fn api_namespaces_are_told_apart_from_pages() {
         "/trading",
         "//api",
         "/a/b/api",
+        "/flow",
+        "/flow/editor/3",
     ] {
         assert!(!super::is_api_path(path), "{}", path);
     }
