@@ -64,8 +64,10 @@ struct T {
 fn t(feed: Feed, workflow: Option<i64>, subs: Arc<Subscriptions>) -> T {
     let feed = Arc::new(feed);
     let client = Arc::new(FakeFlowClient::new());
-    let mut env = NodeEnv::default();
-    env.feed = feed.clone();
+    let env = NodeEnv {
+        feed: feed.clone(),
+        ..Default::default()
+    };
     let mut ctx = NodeCtx::bare(client.clone()).with_env(env);
     ctx.workflow_id = workflow;
     ctx.subscriptions = subs;

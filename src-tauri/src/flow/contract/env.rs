@@ -233,7 +233,11 @@ mod tests {
             Ok(None)
         }
 
-        async fn unsubscribe(&self, _: &str, _: &str, _: &str) -> Result<(), String> {
+        async fn session(&self) -> Result<(), FeedError> {
+            Ok(())
+        }
+
+        async fn unsubscribe(&self, _: &str, _: &str, _: &str) -> Result<(), FeedError> {
             Ok(())
         }
     }
