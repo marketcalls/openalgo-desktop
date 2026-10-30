@@ -17,6 +17,10 @@ use std::collections::HashMap;
 struct Fixture {
     asked: Mutex<Vec<(String, String, String, i64)>>,
     expiries_asked: Mutex<Vec<(String, String)>>,
+    /// What the expiry service answers instead of the three expiries.
+    expiries_reply: Option<Reply>,
+    /// What the chain service answers instead of the chain.
+    chain_reply: Option<Reply>,
 }
 
 #[async_trait]
@@ -25,6 +29,9 @@ impl StrikeSource for Fixture {
         self.expiries_asked
             .lock()
             .push((symbol.into(), exchange.into()));
+        if let Some(r) = &self.expiries_reply {
+            return r.clone();
+        }
         Reply::ok(json!({"status": "success", "data": ["28-AUG-26", "25-SEP-26", "29-OCT-26"]}))
     }
 
@@ -38,6 +45,9 @@ impl StrikeSource for Fixture {
         self.asked
             .lock()
             .push((symbol.into(), exchange.into(), expiry.into(), count));
+        if let Some(r) = &self.chain_reply {
+            return Err(r.clone());
+        }
         let leg = |strike: i64, side: &str, label: &str| json!({"symbol": format!("GOLDM{}{}{}", expiry, strike, side), "label": label});
         Ok(json!({
             "expiry_date": expiry,
@@ -197,5 +207,81 @@ fn listed_expiries_sort_as_codes_with_unreadable_ones_last() {
     assert_eq!(
         sorted_expiry_codes(&raw),
         vec!["28AUG26", "25SEP26", "01JAN27", "WEEKLY", "31-FEB-26"]
+    );
+}
+
+/// R-63: the side's refusal sentence.
+#[tokio::test]
+async fn an_unknown_side_is_refused_in_the_webs_words() {
+    let f = Fixture::default();
+    assert_eq!(
+        ask(&f, &[("underlying", "GOLDM"), ("optionType", "XX")]).await,
+        (
+            400,
+            json!({"status": "error", "message": "optionType must be CE or PE"})
+        )
+    );
+    // An empty side is the default CE; whitespace is not.
+    assert_eq!(
+        ask(&f, &[("underlying", "GOLDM"), ("optionType", "")])
+            .await
+            .0,
+        200
+    );
+    assert_eq!(
+        ask(&f, &[("underlying", "GOLDM"), ("optionType", " ")])
+            .await
+            .0,
+        400
+    );
+}
+
+/// R-64: no listed expiry answers 404 naming the base symbol and the
+/// options exchange; a failed expiry read passes its answer through as is.
+#[tokio::test]
+async fn no_listed_expiry_and_a_failed_read_answer_as_the_web() {
+    let empty = Fixture {
+        expiries_reply: Some(Reply::ok(json!({"status": "success", "data": []}))),
+        ..Default::default()
+    };
+    assert_eq!(
+        ask(&empty, &[("underlying", "nifty28aug26")]).await,
+        (
+            404,
+            json!({"status": "error", "message": "No option expiries found for NIFTY on NFO"})
+        )
+    );
+    let failed = Fixture {
+        expiries_reply: Some(Reply::error(503, "Broker is busy")),
+        ..Default::default()
+    };
+    let r = option_strikes_from(&failed, true, &query(&[("underlying", "GOLDM")])).await;
+    assert_eq!(
+        (r.status, r.body),
+        (503, Reply::error(503, "Broker is busy").body)
+    );
+    assert!(
+        failed.asked.lock().is_empty(),
+        "no chain after a failed read"
+    );
+}
+
+/// R-66: a failed chain read passes its answer and status through.
+#[tokio::test]
+async fn a_failed_chain_read_passes_through() {
+    let f = Fixture {
+        chain_reply: Some(Reply::error(
+            404,
+            "No strikes found for GOLDM expiring 28AUG26.",
+        )),
+        ..Default::default()
+    };
+    let r = option_strikes_from(&f, true, &query(&[("underlying", "GOLDM")])).await;
+    assert_eq!(
+        (r.status, r.body),
+        (
+            404,
+            json!({"status": "error", "message": "No strikes found for GOLDM expiring 28AUG26."})
+        )
     );
 }

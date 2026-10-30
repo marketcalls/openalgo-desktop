@@ -235,7 +235,10 @@ impl FlowNode for Holidays {
     }
 
     async fn run(&self, ctx: &NodeCtx, data: &Map<String, Value>) -> NodeOutcome {
-        let year = ctx.get_int(data, "year", 0);
+        let year = match ctx.try_get_int(data, "year", 0) {
+            Ok(v) => v,
+            Err(abort) => return abort.into(),
+        };
         let shown_year = if year == 0 {
             "current".to_string()
         } else {
@@ -244,10 +247,25 @@ impl FlowNode for Holidays {
         ctx.info(format!("Fetching holidays for year: {}", shown_year));
         // A year beyond what the service reads is still its own refusal.
         let asked = (year != 0).then(|| i32::try_from(year).unwrap_or(i32::MAX));
-        let result = ctx.client.holidays(asked).await;
+        let result = service_year_refusal(ctx.client.holidays(asked).await);
         ctx.info("Holidays result received");
         keep(ctx, data, result)
     }
+}
+
+/// The web's Flow asked the holidays service itself, which refuses a year
+/// outside 2020..2050 with `Year must be between 2020 and 2050`; the
+/// in-process `/api/v1/market/holidays` refuses it first with its schema's
+/// field error (as the web's REST route does). The node reads the service's
+/// sentence, as on the web (N-holidays-02, decision 24).
+fn service_year_refusal(result: Value) -> Value {
+    let range = json!({"year": [
+        "Must be greater than or equal to 2020 and less than or equal to 2050."
+    ]});
+    if result.get("code") == Some(&json!(400)) && result.get("error") == Some(&range) {
+        return json!({"status": "error", "error": "Year must be between 2020 and 2050", "code": 400});
+    }
+    result
 }
 
 /// Timings: the exchanges' trading windows on a date (blank is today in

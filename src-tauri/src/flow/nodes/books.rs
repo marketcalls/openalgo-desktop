@@ -292,8 +292,17 @@ impl FlowNode for MarginNode {
         let exchange = ctx.get_str(data, "exchange", "NSE");
         let default_product =
             crate::flow::node_contracts::default_product_for_exchange(Some(&exchange));
+        // `get_int` / `get_float` as the web reads them: a list or dict (or
+        // `inf` for the quantity) ends the run (decision 24).
+        let quantity = match ctx.try_get_int(data, "quantity", 1) {
+            Ok(v) => v,
+            Err(abort) => return abort.into(),
+        };
+        if let Err(abort) = ctx.try_get_float(data, "price", 0.0) {
+            return abort.into();
+        }
         let order = Margin {
-            quantity: ctx.get_int(data, "quantity", 1),
+            quantity,
             price: margin_price(ctx, data),
             product_type: ctx.get_str(data, "product", default_product),
             action: ctx.get_str(data, "action", "BUY"),

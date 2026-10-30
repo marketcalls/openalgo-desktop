@@ -15,7 +15,7 @@ use crate::flow::contract::pyfmt;
 use crate::flow::node_contracts::{
     format_expiry_for_api, parse_underlying_symbol, select_expiry, VALID_EXPIRY_TYPES,
 };
-use crate::flow::nodes::symbols::{resolve_option_exchanges, MCX_OPTION_UNDERLYINGS};
+use crate::flow::nodes::options::{resolve_option_exchanges, MCX_OPTION_UNDERLYINGS};
 use crate::services::core::Reply;
 use crate::state::AppState;
 use async_trait::async_trait;
@@ -117,12 +117,25 @@ pub fn symbol_lot_sizes(app: &AppState, body: Option<&Value>) -> Reply {
         .map(|(symbol, exchange)| {
             let lot = snap
                 .by_symbol(exchange, symbol)
-                .map(|r| r.lot_size)
-                .filter(|lot| *lot >= 1);
+                .and_then(|r| whole_lot(&snap, r));
             (format!("{}:{}", exchange, symbol), json!(lot))
         })
         .collect();
     Reply::new(200, json!({"status": "success", "lotSizes": sizes}))
+}
+
+/// A row's lot size as a whole number of units, or `None`: a size counts
+/// only when `int(lotsize) >= 1` and equals the size itself, so a fractional
+/// size (Delta spot's 0.0001, kept exact beside the row's whole lot of 1)
+/// is not a lot (R-62, decision 24).
+fn whole_lot(
+    snap: &crate::brokers::common::symbols::SymbolGeneration,
+    r: &crate::brokers::common::symbols::SymToken,
+) -> Option<i64> {
+    match snap.exact_lot_size(&r.exchange, &r.token) {
+        Some(exact) => (exact >= 1.0 && exact.fract() == 0.0).then_some(exact as i64),
+        None => (r.lot_size >= 1).then_some(i64::from(r.lot_size)),
+    }
 }
 
 /// Where the leg builder's expiries and chain come from (the in-process
@@ -221,6 +234,7 @@ pub async fn option_strikes_from(src: &dyn StrikeSource, has_key: bool, q: &Stri
         return refusal(401, "API key not configured. Generate one at /apikey");
     }
     let (_, fo_exchange) = resolve_option_exchanges(&q.underlying, &q.exchange);
+    let fo_exchange = fo_exchange.as_str();
     let (base, _) = parse_underlying_symbol(&q.underlying);
     let listed_reply = src.expiries(&base, fo_exchange).await;
     if listed_reply.status != 200 {

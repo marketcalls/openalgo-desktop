@@ -253,3 +253,27 @@ async fn a_bad_date_fails_without_storing() {
     );
     assert_eq!(ctx.vars.get("cal"), None);
 }
+
+/// N-calendar-04, decision 21: holidays are read fresh on every run (no
+/// 24-hour cache), so an edit on the Holidays page applies to the next run.
+#[test]
+fn every_run_reads_the_calendar_afresh() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    struct Counting(AtomicUsize);
+    impl crate::flow::contract::env::TradingCalendar for Counting {
+        fn holidays(&self, _: i32) -> Result<Vec<Value>, String> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Ok(Vec::new())
+        }
+    }
+    let source = Counting(AtomicUsize::new(0));
+    TradingDays::new(&source).describe(d(2026, 8, 3));
+    let first = source.0.load(Ordering::SeqCst);
+    assert!(first >= 1);
+    TradingDays::new(&source).describe(d(2026, 8, 3));
+    assert_eq!(
+        source.0.load(Ordering::SeqCst),
+        2 * first,
+        "the second run reads again"
+    );
+}
