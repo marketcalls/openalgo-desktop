@@ -359,6 +359,42 @@ async fn price_condition_fails_rather_than_guessing() {
     }
 }
 
+/// N-priceCondition-02: the checks run in the web's order, field, then
+/// operator, then value, so a node with several bad settings reports the
+/// first of them (and reads no quote).
+#[tokio::test]
+async fn price_condition_reports_the_first_bad_setting() {
+    let q = quote(json!({"ltp": 100.0}));
+    for (d, message) in [
+        (
+            json!({"symbol": "S", "field": "close", "operator": "~=", "value": "abc"}),
+            "field 'close' is not one of change_percent, high, low, ltp, open, prev_close",
+        ),
+        (
+            json!({"symbol": "S", "field": "close", "operator": ">", "value": "abc"}),
+            "field 'close' is not one of change_percent, high, low, ltp, open, prev_close",
+        ),
+        (
+            json!({"symbol": "S", "field": "ltp", "operator": "~=", "value": "abc"}),
+            "operator '~=' is not one of !=, <, <=, ==, >, >=, eq, gt, gte, lt, lte, neq",
+        ),
+        (
+            json!({"symbol": "S", "field": "ltp", "operator": ">", "value": "abc"}),
+            "value did not resolve to a number: 'abc'",
+        ),
+    ] {
+        let (out, logs, calls) = price(d.clone(), q.clone()).await;
+        assert_eq!(out.failure_message(), message, "{}", d);
+        assert_eq!(
+            logs,
+            vec![format!("Price check aborted: {}", message)],
+            "{}",
+            d
+        );
+        assert_eq!(calls, 0, "{}", d);
+    }
+}
+
 /// X-202, X-203: valid configurations still evaluate.
 #[tokio::test]
 async fn price_condition_still_evaluates() {
@@ -448,6 +484,26 @@ async fn var_condition_compares_resolved_numbers() {
         var(json!({"leftValue": " 1e2 ", "operator": "", "rightValue": "{{pdh.pdh}}"})).await;
     assert_eq!(answer(&out)["operator"], ">");
     assert_eq!(logs[0].1, "Var check: 100.0 > 818.0 = False");
+}
+
+/// N-varCondition-05: Variable Condition stores nothing, even when its
+/// data names an output variable (the web's node never calls
+/// store_output); only the run's existing variables remain.
+#[tokio::test]
+async fn var_condition_stores_no_output_variable() {
+    let (_, c) = ctx();
+    c.vars.set("rsi", json!({"latest": {"value": 27.4}}));
+    let before = c.vars.snapshot();
+    for d in [
+        json!({"leftValue": "{{rsi.latest.value}}", "operator": "<", "rightValue": "30",
+               "outputVariable": "verdict"}),
+        json!({"leftValue": "", "rightValue": "1", "outputVariable": "verdict"}),
+    ] {
+        let out = run(&VarCondition, &c, d.clone()).await;
+        assert!(out.condition_met().is_some(), "{}", d);
+        assert!(!c.vars.contains("verdict"), "{}", d);
+        assert_eq!(c.vars.snapshot(), before, "{}", d);
+    }
 }
 
 /// N-varCondition-02/03/05 (qa 1687-1720): an operand or operator it
