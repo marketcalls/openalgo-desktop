@@ -21,6 +21,9 @@ paths-ignore:
   - src-tauri/tests/**
   - src-tauri/src/server/tests/**
   - "src-tauri/src/**/tests.rs"
+  # Shared test kits, declared `#[cfg(test)] pub(crate) mod testkit;` and
+  # never compiled into the app (checked 2026-10-31: agent/tools/testkit.rs).
+  - "src-tauri/src/**/testkit.rs"
   - "**/*.test.ts"
   - "**/*.test.tsx"
   - e2e/**

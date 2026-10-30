@@ -33,9 +33,12 @@ const MIN_POLL: Duration = Duration::from_millis(10);
 pub struct Endpoints {
     /// The origin the redirect URI is built from (`CHATGPT_AUTH_BASE`).
     pub auth_base: String,
-    pub device_code: String,
-    pub device_token: String,
-    pub oauth_token: String,
+    /// Where a sign-in code is asked for.
+    pub device_code_url: String,
+    /// Where the approved code is polled for.
+    pub device_poll_url: String,
+    /// OpenAI's token endpoint (an address, not a credential).
+    pub token_url: String,
     /// The page the trader opens to enter the code.
     pub verify: String,
 }
@@ -46,9 +49,9 @@ impl Endpoints {
         let base = auth_base.trim_end_matches('/');
         Endpoints {
             auth_base: base.to_string(),
-            device_code: format!("{}/api/accounts/deviceauth/usercode", base),
-            device_token: format!("{}/api/accounts/deviceauth/token", base),
-            oauth_token: format!("{}/oauth/token", base),
+            device_code_url: format!("{}/api/accounts/deviceauth/usercode", base),
+            device_poll_url: format!("{}/api/accounts/deviceauth/token", base),
+            token_url: format!("{}/oauth/token", base),
             verify: format!("{}/codex/device", base),
         }
     }
@@ -158,7 +161,7 @@ pub struct Device {
 /// Ask for a code (the web's `_request_device_code`).
 pub async fn request_code(e: &Endpoints) -> Result<Device, &'static str> {
     let reply = post(
-        &e.device_code,
+        &e.device_code_url,
         Payload::Json(json!({"client_id": CLIENT_ID})),
     )
     .await?;
@@ -224,7 +227,7 @@ pub async fn await_approval(flow: &Flow, device: &Device) -> Result<Tokens, Ende
             return Err(Ended::Expired);
         }
         let reply = post(
-            &flow.endpoints.device_token,
+            &flow.endpoints.device_poll_url,
             Payload::Json(json!({
                 "device_auth_id": device.device_auth_id.expose(),
                 "user_code": device.user_code.expose(),
@@ -259,7 +262,7 @@ async fn exchange(e: &Endpoints, approval: &Map<String, Value>) -> Result<Tokens
         "grant_type=authorization_code&code={}&redirect_uri={}/deviceauth/callback&client_id={}&code_verifier={}",
         code, e.auth_base, CLIENT_ID, verifier
     ));
-    let reply = post(&e.oauth_token, Payload::Form(body))
+    let reply = post(&e.token_url, Payload::Form(body))
         .await
         .map_err(Ended::Failed)?;
     if reply.status != 200 {
@@ -300,7 +303,7 @@ pub enum RenewFailure {
 /// back for the caller to keep.
 pub async fn renew(e: &Endpoints, refresh_token: &str) -> Result<Tokens, RenewFailure> {
     let reply = post(
-        &e.oauth_token,
+        &e.token_url,
         Payload::Json(json!({
             "client_id": CLIENT_ID,
             "grant_type": "refresh_token",
