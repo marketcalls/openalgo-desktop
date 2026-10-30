@@ -215,3 +215,21 @@ async fn proxy_child() {
     assert_eq!(seen.lock().len(), 1);
     task.abort();
 }
+
+/// decisions.md 32: an empty body (a node's JSON `null`) goes out as httpx
+/// sends it: no bytes, no type, and its length stated once.
+#[tokio::test]
+async fn an_empty_body_states_its_length() {
+    let (port, seen, task) = server().await;
+    let http = GuardedHttp::new().unwrap();
+    let url = format!("http://flow-check.invalid:{}/ok", port);
+    let mut c = call(url, port, Duration::from_secs(5));
+    c.method = "POST".into();
+    c.body = Some(Vec::new());
+    let reply = http.send(c).await.unwrap();
+    assert_eq!(reply.status, 200);
+    let head = seen.lock()[0].to_lowercase();
+    assert_eq!(head.matches("content-length: 0\r\n").count(), 1, "{}", head);
+    assert!(!head.contains("content-type"), "{}", head);
+    task.abort();
+}
