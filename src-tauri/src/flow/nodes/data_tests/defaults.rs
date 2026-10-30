@@ -20,7 +20,7 @@ async fn sent(node: &str, data: Value, endpoint: &str, reply: Value) -> (Value, 
     let payload = client
         .calls_to(endpoint)
         .first()
-        .map(|call| call.payload.clone())
+        .map(|call| Value::Object(call.payload.clone()))
         .unwrap_or(Value::Null);
     (payload, out.value().cloned())
 }

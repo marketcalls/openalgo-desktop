@@ -382,8 +382,7 @@ fn index_symbols_list_every_underlying_in_the_editors_order() {
     .map(|(i, (n, e))| (n.to_string(), e.to_string(), i as i64 + 1))
     .collect();
     assert_eq!(listed, want);
-    let mut zero = vec![named("NIFTY", "NFO", 0)];
-    zero.push(named("GOLD", "MCX", 0));
+    let zero = [named("NIFTY", "NFO", 0), named("GOLD", "MCX", 0)];
     assert!(index_symbol_rows(&zero).is_empty());
 }
 

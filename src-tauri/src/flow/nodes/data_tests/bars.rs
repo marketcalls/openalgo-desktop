@@ -203,7 +203,7 @@ async fn the_indicator_logs_its_lookback_as_set_and_fetches_its_source() {
     let calls = client.calls_to("history");
     assert_eq!(calls.len(), 1);
     assert_eq!(
-        calls[0].payload,
+        Value::Object(calls[0].payload.clone()),
         json!({"symbol": "SBIN", "exchange": "NSE", "interval": "D", "source": "db",
                "start_date": "2025-12-08", "end_date": "2026-10-29"})
     );
