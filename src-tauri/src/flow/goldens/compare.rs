@@ -111,10 +111,19 @@ pub fn same_line(want: &str, got: &str) -> bool {
         return true;
     }
     let (w, g) = (super::pyrepr::split(want), super::pyrepr::split(got));
-    w.len() == g.len()
-        && w.iter()
-            .zip(&g)
-            .all(|(a, b)| super::pyrepr::same_piece(a, b, close))
+    if w.len() != g.len() {
+        return false;
+    }
+    // A list right after `keys: ` lists a dict's keys (decisions.md 19,
+    // extended by the lead for `Options multi-order node_data keys: [...]`):
+    // the same keys in any order.
+    let after_keys = |i: usize| {
+        i > 0 && matches!(&w[i - 1], super::pyrepr::Piece::Text(t) if t.ends_with("keys: "))
+    };
+    w.iter().zip(&g).enumerate().all(|(i, (a, b))| {
+        super::pyrepr::same_piece(a, b, close)
+            || (after_keys(i) && super::pyrepr::same_key_list(a, b))
+    })
 }
 
 #[cfg(test)]

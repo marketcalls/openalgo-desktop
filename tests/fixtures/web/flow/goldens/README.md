@@ -135,9 +135,10 @@ which `MarketFeed` cannot express).
 - Log lines (decisions.md 19): a Python dict or list written in a line is
   compared as a value with dict keys in any order; everything else byte for
   byte, including each value's spelling (`'a'`, `True`, `None`, `100.0`).
-- Node data keys are written sorted: the desktop keeps JSON maps in key
-  order, and one web line (`Options multi-order node_data keys: [...]`)
-  lists them as stored.
+- A list right after `keys: ` in a log line lists a dict's keys
+  (`Options multi-order node_data keys: [...]`, in stored order on the web,
+  key order on the desktop): the same keys in any order, each spelled the
+  same. The node goldens also write node data keys sorted.
 
 ## Recording
 
