@@ -36,6 +36,11 @@ fn every_vector_evaluates_as_the_web() {
                     exact_syntax += 1;
                 }
             }
+            // The vectors were recorded on macOS; the desktop writes the
+            // web server's (Linux) ERANGE text everywhere (decisions.md 24).
+            (_, Some("(34, 'Result too large')")) => {
+                assert_eq!(got, Err(num::FLOAT_POW_OVERFLOW.to_string()), "{:?}", expr)
+            }
             (_, Some(err)) => assert_eq!(got, Err(err.to_string()), "{:?}", expr),
             _ => panic!("bad vector {}", case),
         }
@@ -302,4 +307,19 @@ async fn a_dropped_run_still_joins_its_evaluation() {
         .await
         .unwrap();
     assert!(settled);
+}
+
+/// N-mathExpression-09, decisions.md 24: a float power that overflows
+/// reads the web's Linux sentence on every OS (macOS and Windows Python
+/// would write "Result too large").
+#[test]
+fn a_float_power_overflow_reads_the_webs_linux_text() {
+    assert_eq!(
+        safe_eval("1e300 ** 2"),
+        Err("(34, 'Numerical result out of range')".into())
+    );
+    assert_eq!(
+        safe_eval("(-10.0) ** 99 * 10.0 ** 99 * 10.0 ** 99 * 10.0 ** 99"),
+        Ok(f64::NEG_INFINITY)
+    );
 }

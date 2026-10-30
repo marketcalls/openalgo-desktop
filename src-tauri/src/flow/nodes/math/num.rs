@@ -16,10 +16,10 @@ pub enum Num {
 /// What an operation raised: Python's `str()` of the exception.
 pub type Raised = String;
 
-/// The macOS and Windows text of the C library's ERANGE, which Python's
-/// float `**` reports as `(34, '...')` on overflow (Linux writes
-/// "Numerical result out of range"; one text is kept on every platform).
-pub const FLOAT_POW_OVERFLOW: &str = "(34, 'Result too large')";
+/// What Python's float `**` reports on overflow: the C library's ERANGE
+/// text, here the web's own (Linux glibc) on every platform (decisions.md
+/// 24; macOS and Windows write "Result too large").
+pub const FLOAT_POW_OVERFLOW: &str = "(34, 'Numerical result out of range')";
 
 impl Num {
     fn type_name(&self) -> &'static str {
