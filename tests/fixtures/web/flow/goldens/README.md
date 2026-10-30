@@ -4,7 +4,7 @@ What OpenAlgo web's own Flow executor (`services/flow_executor_service.py` at
 web commit `96e5927e5`) did, node by node and workflow by workflow, recorded
 against a scripted, recording stand-in for the services `FlowOpenAlgoClient`
 calls. The desktop replays every file through its node registry and walk
-(`src-tauri/src/flow/goldens/`, test `the_web_executors_goldens_replay`) and
+(`src-tauri/src/flow/goldens/`, tests `goldens_<family>`) and
 must do the same: the same client calls with the same payloads, the same
 result, variables, condition results, run log, branch and failures.
 
@@ -103,8 +103,8 @@ text starting with `p`.
 
 ## Replay
 
-`src-tauri/src/flow/goldens/` (test `the_web_executors_goldens_replay`, run
-it with `--nocapture` to see the per-family lines) scripts core's
+`src-tauri/src/flow/goldens/` (one test per family, `flow::goldens::goldens_<family>`;
+run with `--nocapture` to see the per-family lines) scripts core's
 `FakeFlowClient` from `script` (plus `desktop_expected.script` /
 `script_extra`), builds the node services of `contract::env` from `env`
 (`env.rs`: the master contract rows, the strategy book, a feed that answers
