@@ -116,12 +116,11 @@ compares every recorded key. It prints one line per family: total, replayed,
 matched, not built (a node type no family registers yet), needs a hook, web
 evidence only. A registered type's mismatch fails the test.
 
-Hooks the harness does not have yet, so those goldens are reported, not run:
-`run_context` (a run the price monitor started), `app` (the store:
-already-running, missing workflow, no execution record), `validator` (the
-web's validator rules, after the validator lane's restack), `feed_session`
-(an unsubscribe without a session) and `feed_exception` (a feed that raises,
-which `MarketFeed` cannot express).
+A workflow golden goes through the run's own gate first: the strict
+validator (`ValidateOptions::COMPLETE`), whose refusal answers before any
+record, context or log exists, as the executor does. Hooks the harness does
+not have yet, so those goldens are reported, not run: `app` (the store:
+already-running, missing workflow, no execution record).
 
 ## How values are compared
 
