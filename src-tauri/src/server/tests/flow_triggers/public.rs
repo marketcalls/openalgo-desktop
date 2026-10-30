@@ -328,22 +328,33 @@ async fn a_webhook_runs_a_workflow_whose_trigger_is_not_a_webhook_node() {
 }
 
 /// R-56: a payload left empty once the secret is taken out injects
-/// nothing, so a reference to it stays as written.
+/// nothing: `{{webhook}}` stays as written (an injected `{}` would read
+/// `{}`), while a payload with data is the variable.
 #[tokio::test]
 async fn an_empty_payload_injects_nothing() {
     let f = F::new();
-    let (id, token, secret) = f.live_webhook("Empty").await;
-    let (s, _, v) = f
-        .send_hook(
-            &format!("/flow/webhook/{}", token),
-            &json!({"secret": secret}).to_string(),
-            "127.0.0.1",
-        )
+    let mut g = webhook_graph("Empty");
+    g["nodes"][1]["data"]["message"] = json!("payload={{webhook}}");
+    let id = f.create(g).await;
+    let (_, v) = f
+        .post(&format!("/flow/api/workflows/{}/webhook/enable", id))
         .await;
-    assert_eq!(s, StatusCode::OK, "{}", v);
-    assert!(f.last_run_logs(id).await.contains(
-        &"[LOG] Got {{webhook.symbol}} x{{webhook.qty}} secret={{webhook.secret}}".to_string()
-    ));
+    f.post(&format!("/flow/api/workflows/{}/activate", id))
+        .await;
+    let url = format!("/flow/webhook/{}", v["webhook_token"].as_str().unwrap());
+    let secret = v["webhook_secret"].as_str().unwrap().to_string();
+    for (body, line) in [
+        (json!({"secret": secret}), "[LOG] payload={{webhook}}"),
+        (
+            json!({"secret": secret, "qty": 2}),
+            "[LOG] payload={'qty': 2}",
+        ),
+    ] {
+        let (s, _, r) = f.send_hook(&url, &body.to_string(), "127.0.0.1").await;
+        assert_eq!(s, StatusCode::OK, "{}", r);
+        let logs = f.last_run_logs(id).await;
+        assert!(logs.contains(&line.to_string()), "{:?}", logs);
+    }
 }
 
 /// T-085: replacing an active workflow with a trigger that cannot be
