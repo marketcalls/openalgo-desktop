@@ -82,7 +82,10 @@ async fn telegram_refuses_as_the_web_refuses() {
         client(&t).telegram("hi").await,
         json!({"status": "error", "error": "Invalid API key"})
     );
+    // Creating the account makes new keys and drops what was saved before
+    // them, the bot's switch included (key_vault::drop_encrypted_values).
     sign_up(&t);
+    activate(&t, None);
     assert_eq!(
         client(&t).telegram("hi").await,
         json!({"status": "error", "error": "No Telegram account linked for user: trader"})
@@ -181,8 +184,8 @@ async fn held_bot_api() -> (Arc<HeldBotApi>, String, tokio::task::JoinHandle<()>
 async fn telegram_queues_the_alert_to_the_owner_without_waiting() {
     let t = app();
     let token = format!("{}:{}", 123456, "FLOW-TEST");
-    activate(&t, Some(token.clone()));
     sign_up(&t);
+    activate(&t, Some(token.clone()));
     link(&t);
     let (api, base, task) = held_bot_api().await;
     t.ctx.messaging.telegram.set_api_base(&base);
