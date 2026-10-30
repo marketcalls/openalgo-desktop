@@ -13,7 +13,16 @@
  */
 
 import { type ChildProcess, spawn } from 'node:child_process'
-import { createWriteStream, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import {
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
@@ -21,6 +30,7 @@ import { fileURLToPath } from 'node:url'
 import { request } from '@playwright/test'
 import { CSRF_HEADER, csrfToken, SLOT, waitFor } from './http'
 
+const PREFIX = 'openalgo-flow-e2e-'
 const READY = /^OPENALGO_E2E_SERVER (http:\/\/127\.0\.0\.1:\d+)\s*$/
 const START_DEADLINE_MS = 120_000
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
@@ -64,6 +74,33 @@ async function within(p: Promise<void>, ms: number): Promise<boolean> {
   const done = await Promise.race([p.then(() => true), late])
   clearTimeout(timer)
   return done
+}
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The folders of earlier runs whose runner was killed before its teardown
+ * (the server itself exits when its pipe closes): removed once their server
+ * is gone. Only this harness's own prefix, and only with a dead server.
+ */
+function sweepLeftovers(): void {
+  for (const name of readdirSync(os.tmpdir())) {
+    if (!name.startsWith(PREFIX)) continue
+    const folder = path.join(os.tmpdir(), name)
+    try {
+      const pid = Number(readFileSync(path.join(folder, 'server.pid'), 'utf8'))
+      if (pid > 0 && !alive(pid)) rmSync(folder, { recursive: true, force: true })
+    } catch {
+      // No pid file yet (a run starting now) or unreadable: left alone.
+    }
+  }
 }
 
 /** Close the pipe, then SIGTERM, then SIGKILL; resolves once it has exited. */
@@ -163,7 +200,8 @@ async function prepareTrader(base: string, folder: string): Promise<string> {
 
 export default async function globalSetup(): Promise<() => Promise<void>> {
   const bin = serverBinary()
-  const folder = mkdtempSync(path.join(os.tmpdir(), 'openalgo-flow-e2e-'))
+  sweepLeftovers()
+  const folder = mkdtempSync(path.join(os.tmpdir(), PREFIX))
   const data = path.join(folder, 'data')
   mkdirSync(data)
   const logDir = path.join(ROOT, 'test-results', 'flow-server')
@@ -175,6 +213,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     env: freshEnv(path.join(folder, 'home')),
     stdio: ['pipe', 'pipe', 'pipe'],
   })
+  if (child.pid) writeFileSync(path.join(folder, 'server.pid'), String(child.pid))
   const lastResort = () => {
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
   }
