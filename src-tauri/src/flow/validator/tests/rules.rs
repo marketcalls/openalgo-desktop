@@ -374,6 +374,50 @@ fn v113_an_inclusive_operator_without_a_number_is_left_for_the_trader() {
     }
 }
 
+// ---------------------------------------------------------------- IE-11
+
+/// Every legacy "greater" operator (gt, gte, ge, >, >=, any case and
+/// spacing, or none at all) moves a fundCheck's threshold to minAvailable;
+/// a "less" one is left for the trader.
+#[test]
+fn ie11_every_greater_operator_moves_a_fund_check_threshold_to_its_minimum() {
+    for operator in [
+        json!("gt"),
+        json!("gte"),
+        json!("ge"),
+        json!(">"),
+        json!(">="),
+        json!(" GT "),
+        Value::Null,
+    ] {
+        let mut data = json!({"threshold": 10000});
+        if !operator.is_null() {
+            data["operator"] = operator.clone();
+        }
+        let (nodes, notes) = migrate_legacy_node_data(vec![node("f", "fundCheck", data)]);
+        assert_eq!(
+            nodes[0]["data"],
+            json!({"minAvailable": 10000}),
+            "{operator}"
+        );
+        assert_eq!(
+            notes,
+            vec!["fundCheck 'f': threshold -> minAvailable (10000)"],
+            "{operator}"
+        );
+    }
+    let (nodes, notes) = migrate_legacy_node_data(vec![node(
+        "f",
+        "fundCheck",
+        json!({"operator": "<", "threshold": 10000}),
+    )]);
+    assert_eq!(
+        nodes[0]["data"],
+        json!({"operator": "<", "threshold": 10000})
+    );
+    assert!(notes[0].contains("has no equivalent - this node only supports a minimum."));
+}
+
 // --------------------------------------------------------- V-052, V-055
 
 /// Lead decision 24: JSON written as text is read as Python's json.loads

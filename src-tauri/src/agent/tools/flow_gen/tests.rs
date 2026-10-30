@@ -239,6 +239,53 @@ async fn a_valid_workflow_is_described_and_nothing_is_saved() {
     );
 }
 
+/// V-115: the tools upgrade legacy nodes before validating, so a workflow
+/// only its upgraded form lets through is accepted, reported with the
+/// upgrade's note, and saved upgraded. As written, the positionCheck lacks
+/// the `condition` strict validation requires.
+#[tokio::test]
+async fn a_legacy_node_is_upgraded_before_it_is_validated() {
+    let t = app();
+    let wf = json!({
+        "name": "Legacy guard",
+        "nodes": [
+            {"id": "s", "type": "start", "position": {"x": 0, "y": 0}, "data": {"scheduleType": "manual"}},
+            {"id": "p", "type": "positionCheck", "position": {"x": 0, "y": 1},
+             "data": {"symbol": "SBIN", "exchange": "NSE", "operator": "gt", "threshold": 5}}
+        ],
+        "edges": [{"id": "e", "source": "s", "target": "p"}]
+    });
+    let raw = validate_workflow(&wf, ValidateOptions::COMPLETE);
+    assert_eq!(raw[0].path, "/nodes/1/data/condition", "the raw form fails");
+    let note = "positionCheck 'p': operator 'gt' -> condition 'quantity_above' (threshold kept)";
+    let out = call(
+        &t,
+        "validate_flow",
+        json!({"workflow_json": wf.to_string()}),
+    )
+    .await;
+    let (payload, _) = block(out.text());
+    assert_eq!(payload["valid"], true, "{}", out.text());
+    assert_eq!(payload["migrations"], json!([note]));
+    let out = call(
+        &t,
+        "save_flow",
+        json!({"name": "Guard", "workflow_json": wf.to_string()}),
+    )
+    .await;
+    assert_eq!(
+        block(out.text()).0["migrations"],
+        json!([note]),
+        "{}",
+        out.text()
+    );
+    let saved = rows(&t);
+    assert_eq!(
+        saved[0].nodes[1]["data"],
+        json!({"symbol": "SBIN", "exchange": "NSE", "condition": "quantity_above", "threshold": 5})
+    );
+}
+
 /// V-120: the trigger configuration lists every field the web registers,
 /// in TRIGGER_CONFIG_FIELDS order, whatever order the node's data is
 /// written in.

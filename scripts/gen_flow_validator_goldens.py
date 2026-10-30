@@ -1297,6 +1297,9 @@ def migrate_cases():
             (5, {}),
             ("gt", {"minAvailable": 1}),
             ("gt", {"threshold": None}),
+            (">", {}),
+            ("gte", {}),
+            ("GT", {}),
         ]
     ):
         data = {"threshold": 10000, **extra}
