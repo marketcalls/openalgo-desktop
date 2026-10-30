@@ -31,6 +31,9 @@ pub mod store;
 pub mod triggers;
 pub mod validator;
 
+#[cfg(test)]
+mod goldens;
+
 use contract::env::NodeEnv;
 use contract::subscriptions::Subscriptions;
 use contract::triggers::{NoTriggers, TriggerHooks};
