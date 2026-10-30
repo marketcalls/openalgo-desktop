@@ -199,8 +199,7 @@ pub fn normalize_status(value: &str) -> String {
 /// `("NIFTY", None)`.
 pub fn parse_underlying_symbol(underlying: &str) -> (String, Option<String>) {
     let upper = underlying.to_uppercase();
-    let split = UNDERLYING_WITH_EXPIRY.as_ref().and_then(|re| {
-        let caps = re.captures(&upper)?;
+    let split = UNDERLYING_WITH_EXPIRY.captures(&upper).and_then(|caps| {
         Some((
             caps.get(1)?.as_str().to_string(),
             caps.get(2)?.as_str().to_string(),
