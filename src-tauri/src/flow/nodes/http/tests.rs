@@ -82,8 +82,10 @@ fn stub(answer: Result<HttpReply, String>) -> Arc<Stub> {
 }
 
 fn ctx_with(http: Arc<Stub>) -> NodeCtx {
-    let mut env = NodeEnv::default();
-    env.http = http;
+    let env = NodeEnv {
+        http,
+        ..Default::default()
+    };
     ctx_at(Arc::new(FakeFlowClient::new()), "2026-10-29T10:15:00", env)
 }
 
