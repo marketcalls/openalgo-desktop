@@ -25,8 +25,11 @@ Dashboard**.
 | Error | Kept for the web's export format. The desktop leaves it empty: the status code says how the request ended |
 
 Never recorded: request or response bodies, query strings, headers other than
-Host, and your API key. The secret part of a strategy webhook address and of
-a Chartink webhook address is replaced before the path is stored.
+Host, and your API key. The secret part of a strategy webhook address, of
+a Chartink webhook address and of a Flow webhook address is replaced before
+the path is stored (a Flow address keeps a symbol after it, as in
+`/flow/webhook/<redacted>/SBIN`); a `?secret=` is never stored, as no query
+string is.
 
 Not recorded, to keep the log readable: the app's own files (scripts, styles,
 images), the live-update connection the pages use, and the traffic page's own

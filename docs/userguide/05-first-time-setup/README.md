@@ -72,7 +72,8 @@ keychain. The key is locked with your OpenAlgo password, inside
 | --- | --- | --- |
 | REST API (`/api/v1`) | Off. Programs are told "Sign in to OpenAlgo to use the API." | On |
 | Market data WebSocket | Off. Clients are told OpenAlgo is locked | On |
-| TradingView, Chartink and strategy webhooks | Refused; nothing is placed | On |
+| TradingView, Chartink, strategy and Flow webhooks | Refused; nothing is placed | On |
+| Flow schedules, price alerts and order updates | Do not run; each skip is written in the workflow's run history | Run, once your broker is logged in |
 | AI clients (MCP) | Told that OpenAlgo is locked | On |
 | Your broker session | Not resumed | Resumed if still from today |
 | Telegram and WhatsApp bots | Not running | Running, if you switched them on |
@@ -101,12 +102,16 @@ and history. Because the old password locked them, you then:
   broker;
 - copy the new API key from the **API Key** page into every tool that uses it;
 - set up two-factor sign-in again, if you used it;
-- add your Telegram bot again and pair WhatsApp again, if you used them.
+- add your Telegram bot again and pair WhatsApp again, if you used them;
+- open each Flow workflow's **Webhook** settings to give it a new secret,
+  switch its webhook on again and put the secret into TradingView or
+  Chartink, if you used Flow webhooks.
 
 The same page offers **Reset account**, to start over with a new account. It
 removes your login, API key and saved broker keys, ends your broker session,
-stops AI client tokens, unlinks Telegram and WhatsApp, and gives your strategy
-and Chartink webhooks new addresses. Your trade and strategy history stays.
+stops AI client tokens, unlinks Telegram and WhatsApp, gives your strategy,
+Chartink and Flow webhooks new addresses, and deactivates every Flow
+workflow. Your trade and strategy history and your workflows stay.
 
 In the desktop, a forgotten password is never reset by email or with an
 authenticator code: OpenAlgo web's email reset is not part of the desktop.

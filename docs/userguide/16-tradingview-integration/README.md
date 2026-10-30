@@ -85,7 +85,7 @@ domain that is not on your ngrok account, another ngrok agent using your
 domain, no internet). It never falls back to another address.
 
 Through the built-in tunnel only alerts and API calls (with your API key),
-strategy and Chartink webhooks, and AI clients (with **Remote MCP** on)
+strategy, Chartink and Flow webhooks, and AI clients (with **Remote MCP** on)
 reach OpenAlgo. The OpenAlgo pages and the sign-in page stay on your
 computer: opening the tunnel's address in a browser shows a short notice.
 
