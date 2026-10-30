@@ -466,7 +466,11 @@ fn hook_call(token: &str, secret: &str) -> crate::flow::service::webhooks::Webho
 async fn a_webhook_needs_a_key_and_a_runnable_workflow() {
     use crate::flow::service::webhooks::trigger;
     let t = app();
-    let incomplete = node("webhookTrigger", json!({}));
+    // A Log node the trigger never reaches: the strict validator refuses it.
+    let incomplete = json!([
+        {"id": "w", "type": "webhookTrigger", "position": {"x": 0, "y": 0}, "data": {}},
+        {"id": "l", "type": "log", "position": {"x": 0, "y": 100}, "data": {"message": "x"}}
+    ]);
     let (token, secret) = live_hook(&t.ctx, incomplete.clone(), json!([]));
     let a = trigger(&t.ctx, hook_call(&token, &secret)).await;
     assert_eq!(

@@ -615,13 +615,13 @@ async fn a_webhook_without_a_broker_session_runs_and_says_why_a_node_failed() {
     let mut g = webhook_graph("No broker");
     g["nodes"][1]["data"]["message"] = json!("before the quote");
     g["nodes"].as_array_mut().unwrap().push(
-        json!({"id": "p", "type": "priceAlert", "position": {"x": 0, "y": 200},
-            "data": {"symbol": "SBIN", "exchange": "NSE", "condition": "above", "price": 1}}),
+        json!({"id": "q", "type": "subscribeLtp", "position": {"x": 0, "y": 200},
+            "data": {"symbol": "SBIN", "exchange": "NSE", "outputVariable": "ltp"}}),
     );
     g["edges"]
         .as_array_mut()
         .unwrap()
-        .push(json!({"id": "e2", "source": "l", "target": "p"}));
+        .push(json!({"id": "e2", "source": "l", "target": "q"}));
     let id = f.create(g).await;
     f.post(&format!("/flow/api/workflows/{}/webhook/enable", id))
         .await;
@@ -652,7 +652,10 @@ async fn a_webhook_without_a_broker_session_runs_and_says_why_a_node_failed() {
         logs
     );
     assert!(
-        logs.contains(&format!("priceAlert could not be evaluated ({})", sentence)),
+        logs.contains(&format!(
+            "Stopping this branch: subscribeLtp node failed ({})",
+            sentence
+        )),
         "{:?}",
         logs
     );
