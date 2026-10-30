@@ -114,13 +114,27 @@ impl NodeOutcome {
             == Some("error")
     }
 
-    /// The failure as the run records it: `message`, else `error`, else
-    /// "node failed".
+    /// The failure as the run logs it: `message`, else `error`, else
+    /// "node failed", as Python's `str()` of the value.
     pub fn failure_message(&self) -> String {
+        pyfmt::str(&self.failure_value())
+    }
+
+    /// The failure as the run's errors list keeps it: the raw `message`
+    /// (else `error`) value, which may be a dict of field errors, else
+    /// "node failed" (the web's `result.get("message") or
+    /// result.get("error") or "node failed"`).
+    pub fn failure_value(&self) -> Value {
         self.result
             .as_ref()
-            .and_then(super::client::failure_text)
-            .unwrap_or_else(|| "node failed".into())
+            .and_then(|v| {
+                ["message", "error"]
+                    .iter()
+                    .filter_map(|k| v.get(*k))
+                    .find(|x| pyfmt::truthy(x))
+                    .cloned()
+            })
+            .unwrap_or_else(|| Value::String("node failed".into()))
     }
 
     /// `Some(met)` when the dict carries a `condition` (read as Python's
@@ -368,6 +382,33 @@ mod tests {
         assert_eq!(
             NodeOutcome::result(json!({"condition": 1})).condition_met(),
             Some(true)
+        );
+    }
+
+    /// The run's errors keep the failure as the node gave it: text, or a
+    /// dict of field errors (golden data/multiQuotes__empty), first
+    /// `message` then `error`, else "node failed"; the log line reads it as
+    /// Python's `str()`.
+    #[test]
+    fn a_failure_keeps_its_raw_message() {
+        let fields = NodeOutcome::result(json!({
+            "status": "error",
+            "error": {"symbols": ["Shorter than minimum length 1."]},
+            "code": 400
+        }));
+        assert_eq!(
+            fields.failure_value(),
+            json!({"symbols": ["Shorter than minimum length 1."]})
+        );
+        assert_eq!(
+            fields.failure_message(),
+            "{'symbols': ['Shorter than minimum length 1.']}"
+        );
+        let text = NodeOutcome::result(json!({"status": "error", "message": "", "error": "x"}));
+        assert_eq!(text.failure_value(), json!("x"));
+        assert_eq!(
+            NodeOutcome::result(json!({"status": "error"})).failure_value(),
+            json!("node failed")
         );
     }
 

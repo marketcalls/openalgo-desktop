@@ -80,7 +80,9 @@ impl<'a> Walk<'a> {
         }
     }
 
-    fn record_error(&mut self, node_id: &str, node_type: &str, message: &str) {
+    /// One failed node, its message kept as the node gave it (text, or a
+    /// dict of field errors), as the web's `executor.errors` keeps it.
+    fn record_error(&mut self, node_id: &str, node_type: &str, message: Value) {
         self.errors
             .push(json!({"node": node_id, "type": node_type, "message": message}));
     }
@@ -121,7 +123,7 @@ impl<'a> Walk<'a> {
             }
             if outcome.is_error() {
                 let message = outcome.failure_message();
-                self.record_error(node_id, node_type, &message);
+                self.record_error(node_id, node_type, outcome.failure_value());
                 if outcome.condition_met().is_some() {
                     self.ctx.log(
                         format!("{} could not be evaluated ({})", node_type, message),
@@ -277,7 +279,7 @@ impl<'a> Walk<'a> {
                 wired.len()
             );
             self.ctx.error(message.clone());
-            self.record_error(node_id, node_type, &message);
+            self.record_error(node_id, node_type, Value::String(message));
             return None;
         }
         Some(self.evaluate_gate(node_type, &inputs))

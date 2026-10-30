@@ -193,6 +193,31 @@ async fn a_failed_node_stops_its_branch_only() {
     ));
 }
 
+/// The run's errors keep a node's failure as it gave it, a dict of field
+/// errors included (golden data/multiQuotes__empty); the log line and the
+/// run summary read it as Python's `str()`.
+#[tokio::test]
+async fn a_failed_node_is_recorded_with_its_raw_message() {
+    let nodes = json!([
+        node("start", "start", json!({})),
+        node(
+            "q",
+            "getQuote",
+            json!({"tag": "quotes", "answer": {"status": "error",
+            "error": {"symbols": ["Shorter than minimum length 1."]}, "code": 400}})
+        ),
+    ]);
+    let (logs, errors, _) = walk(nodes, json!([edge("start", "q", None)])).await;
+    assert_eq!(
+        errors,
+        vec![json!({"node": "q", "type": "getQuote",
+                    "message": {"symbols": ["Shorter than minimum length 1."]}})]
+    );
+    assert!(logs.contains(
+        &"Stopping this branch: getQuote node failed ({'symbols': ['Shorter than minimum length 1.']})".to_string()
+    ));
+}
+
 /// The web's diamond defect: a condition reached by two paths placed two
 /// orders. It is evaluated once per run.
 #[tokio::test]
