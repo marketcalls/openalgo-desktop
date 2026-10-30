@@ -254,14 +254,18 @@ is created or imported. Open the workflow card's menu, **Webhook**:
 4. Activate the workflow.
 
 The addresses shown are the ones the alert service should call: the built-in
-ngrok tunnel's while the tunnel is online, otherwise your Host Server URL. When
-they are on this computer's own address (`http://127.0.0.1:5000`), the dialog
-says **Webhook URL not accessible!**: TradingView and Chartink cannot reach
-your computer. Turn on the tunnel in **Profile**, **Broker** tab, **Server
-Configuration**, as in
-[chapter 16](../16-tradingview-integration/README.md#step-1-turn-on-the-built-in-tunnel).
-Through the tunnel, only the webhook addresses reach Flow: the Flow pages and
-the workflows' settings stay on your computer.
+ngrok tunnel's while the tunnel is online, such as
+`https://<your ngrok domain>/flow/webhook/<token>` (or
+`/flow/webhook/<token>/<symbol>` with the symbol in it), otherwise your Host
+Server URL. When they are on this computer's own address
+(`http://127.0.0.1:5000/flow/webhook/<token>`), the dialog says **Webhook URL
+not accessible!**: TradingView and Chartink cannot reach your computer. Turn on
+the built-in ngrok tunnel in **Profile**, **Broker** tab, **Server
+Configuration**, **Enable Ngrok Tunnel**, as in
+[chapter 16](../16-tradingview-integration/README.md#step-1-turn-on-the-built-in-tunnel);
+the dialog then shows the tunnel's address. Through the tunnel, only the
+webhook addresses reach Flow: the Flow pages and the workflows' settings stay
+on your computer.
 
 A TradingView alert message for a workflow that reads `{{webhook.symbol}}`,
 `{{webhook.action}}` and `{{webhook.quantity}}`:
@@ -293,13 +297,17 @@ why not. Things to know:
 
 - The webhook must be switched on (otherwise "Webhook is disabled") and the
   workflow active ("Workflow is not active").
-- Every webhook needs its secret. A missing or wrong secret is refused, and
-  ten wrong secrets within 10 minutes lock that workflow's webhook for 15
-  minutes. Regenerate the secret, or switch the webhook off and on, to unlock
-  it at once.
+- Every webhook needs its secret. A missing or wrong secret is refused
+  ("Invalid webhook secret"), and ten wrong secrets within 10 minutes lock
+  that workflow's webhook for 15 minutes. Regenerate the secret, or switch the
+  webhook off and on, to unlock it at once.
 - Each address takes up to 100 alerts a minute.
 - While OpenAlgo is signed out, alerts are refused and nothing is placed, as
-  for the strategy and Chartink webhooks.
+  for the strategy and Chartink webhooks: "OpenAlgo is locked, so this alert
+  was not acted on. Alerts are refused after OpenAlgo starts and after you log
+  out: sign in to OpenAlgo to receive them again." Signed in with no broker
+  logged in, an alert still runs the workflow (see
+  [When a workflow does not run](#when-a-workflow-does-not-run)).
 - **Regenerate URL & Secret** asks first: every alert set up with the old
   address or secret stops working.
 - Keep the address and the secret private. The traffic log stores the address
@@ -384,15 +392,24 @@ The run history keeps the newest 500 runs of each workflow, up to 30 days.
 - **Export Workflow** (the editor's **...** menu) downloads the last saved
   version as a `.json` file. It never contains your webhook address, secret or
   API key.
-- **Import** (the Flow page) takes a file or pasted JSON. The workflow is
-  checked as Activate checks it, and a problem is named before anything is
-  saved. It becomes a new, inactive workflow called `<name> (imported)` with
-  its own new webhook address and secret, the webhook switched off.
+- **Import** (the Flow page) opens **Import Workflow**: choose **Upload File**
+  or paste the JSON, then **Import**. Text that is not JSON is refused there
+  with "Invalid JSON format. Please check the workflow data.", and JSON
+  without a name, nodes and edges with "Invalid workflow format. Must have
+  name, nodes, and edges." The workflow is then checked as Activate checks it,
+  and the first problem is named before anything is saved, for example
+  "Workflow has more than 500 nodes". It becomes a new, inactive workflow
+  called `<name> (imported)` with its own new webhook address and secret, the
+  webhook switched off; the message says `Workflow "<name>" imported` and the
+  editor opens.
 - **Replace from JSON** (the editor's **...** menu) swaps the nodes and
   connections of this workflow for the file's and keeps its webhook address,
-  secret, active state and history, so alerts pointing at it keep working. If
-  the new trigger cannot start, the workflow is deactivated and the message
-  says so.
+  secret, active state and history, so alerts pointing at it keep working.
+  Text that is not JSON is refused with "That is not valid JSON.", and JSON
+  without nodes with "Workflow JSON needs a nodes array." Done, it says
+  "Workflow replaced."; if the new trigger cannot start, "Workflow replaced.
+  The trigger changed, so the workflow was deactivated. Activate it again once
+  the trigger is valid."
 
 A workflow exported from OpenAlgo web imports unchanged, and a desktop export
 imports into OpenAlgo web. A few things behave differently in the desktop:

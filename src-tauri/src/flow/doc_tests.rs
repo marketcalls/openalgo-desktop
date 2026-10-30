@@ -16,8 +16,9 @@ use crate::flow::service::webhook_guard::{LOCKOUT_FAILURES, LOCKOUT_WINDOW, LOCK
 use crate::flow::store::executions::{INTERRUPTED, RETENTION_COUNT, RETENTION_DAYS};
 use crate::flow::triggers::price_monitor::POLL_INTERVAL;
 use crate::flow::triggers::scheduler::{INTERVAL_ALIGN_OFFSET_SECONDS, MISFIRE_GRACE_SECS};
-use crate::flow::validator::{validate_workflow, ValidateOptions, VALID_NODE_TYPES};
+use crate::flow::validator::{validate_workflow, ValidateOptions, MAX_NODES, VALID_NODE_TYPES};
 use crate::server::ratelimit::Bucket;
+use crate::services::core::WEBHOOK_LOCKED;
 use regex::Regex;
 use serde_json::json;
 use std::collections::BTreeSet;
@@ -549,6 +550,7 @@ fn chapter_21_lists_only_the_nodes_flow_has() {
         "History tab",
         "View Execution History",
         "ngrok http",
+        "Duration:",
     ] {
         assert!(!raw.contains(invented), "chapter 21 says {invented:?}");
     }
@@ -608,4 +610,114 @@ fn chapter_21_describes_the_editors_real_controls() {
         );
         assert!(repo(file).contains(label), "{file} has no {label:?}");
     }
+}
+
+/// F-413: the webhook section names the addresses the public routes serve
+/// and the built-in tunnel reaches, where the trader turns the tunnel on,
+/// and the answers decisions 13 and 16 give.
+#[test]
+fn chapter_21_names_the_tunnel_address_and_the_webhook_answers() {
+    let raw = repo(CHAPTER_21);
+    let needs = flat(section(&raw, "## What you need"));
+    let webhook = flat(section(&raw, "### Webhook"));
+    assert!(needs.contains("the built-in ngrok tunnel"));
+    let routes = repo("src-tauri/src/server/routes/flow/triggers.rs");
+    let tunnel = repo("src-tauri/src/server/tunnel.rs");
+    assert!(tunnel.contains(r#"["flow", "webhook", _] | ["flow", "webhook", _, _] => Reach::App"#));
+    for path in ["/flow/webhook/{token}", "/flow/webhook/{token}/{symbol}"] {
+        assert!(
+            routes.contains(&format!("path: \"{path}\"")),
+            "no route {path}"
+        );
+        let shown = path.replace('{', "<").replace('}', ">");
+        assert!(
+            webhook.contains(&shown),
+            "the webhook section does not show {shown:?}"
+        );
+    }
+    assert!(webhook.contains("`https://<your ngrok domain>/flow/webhook/<token>`"));
+    // The settings show the tunnel's address while it is online
+    // (decision 13), else this computer's, which the dialog flags.
+    assert!(repo("src/api/flowDesktop.ts").contains("tunnel?.state === 'online'"));
+    let reachability = repo("src/components/desktop/FlowWebhookReachability.tsx");
+    assert!(webhook.contains("**Webhook URL not accessible!**"));
+    assert!(
+        webhook.contains("the built-in ngrok tunnel")
+            && reachability.contains("built-in ngrok tunnel")
+    );
+    let profile = repo("src/pages/Profile.tsx");
+    for label in ["Server Configuration", "Enable Ngrok Tunnel"] {
+        assert!(webhook.contains(&format!("**{label}**")), "{label}");
+        assert!(profile.contains(label), "{label}");
+    }
+    // Decision 13: a secret always, its refusals; decision 16: signed out,
+    // the locked answer; signed in without a broker, the run goes ahead.
+    let service = repo("src-tauri/src/flow/service/webhooks.rs");
+    for answer in [
+        "Webhook is disabled",
+        "Workflow is not active",
+        "Invalid webhook secret",
+    ] {
+        assert!(webhook.contains(&format!("\"{answer}\"")), "{answer}");
+        assert!(service.contains(&format!("\"{answer}\"")), "{answer}");
+    }
+    assert!(webhook.contains("Every webhook needs its secret"));
+    assert!(webhook.contains(&format!("\"{WEBHOOK_LOCKED}\"")));
+    assert!(routes.contains("webhook_while_locked"));
+    assert!(
+        webhook.contains("Signed in with no broker logged in, an alert still runs the workflow")
+    );
+}
+
+/// F-413: the Import and Replace sections quote the dialogs' own sentences
+/// and the route's own answer.
+#[test]
+fn chapter_21_import_section_quotes_the_dialogs_and_the_routes_sentences() {
+    let import = flat(section(&repo(CHAPTER_21), "## Import and export:"));
+    let index = repo("src/pages/flow/FlowIndex.tsx");
+    let editor = repo("src/pages/flow/FlowEditor.tsx");
+    for (said, source, text) in [
+        ("**Import**", &index, "Import"),
+        ("**Import Workflow**", &index, "Import Workflow"),
+        ("**Upload File**", &index, "Upload File"),
+        (
+            "\"Invalid JSON format. Please check the workflow data.\"",
+            &index,
+            "'Invalid JSON format. Please check the workflow data.'",
+        ),
+        (
+            "\"Invalid workflow format. Must have name, nodes, and edges.\"",
+            &index,
+            "'Invalid workflow format. Must have name, nodes, and edges.'",
+        ),
+        ("`Workflow \"<name>\" imported`", &index, "`Workflow \"${data.name}\" imported`"),
+        ("\"That is not valid JSON.\"", &editor, "'That is not valid JSON.'"),
+        (
+            "\"Workflow JSON needs a nodes array.\"",
+            &editor,
+            "'Workflow JSON needs a nodes array.'",
+        ),
+        ("\"Workflow replaced.\"", &editor, "`Workflow replaced.${notes}`"),
+        (
+            "\"Workflow replaced. The trigger changed, so the workflow was deactivated. Activate it again once the trigger is valid.\"",
+            &editor,
+            "The trigger changed, so the workflow was deactivated. Activate it again once the trigger is valid.",
+        ),
+    ] {
+        assert!(import.contains(said), "the import section does not say {said}");
+        assert!(source.contains(text), "the dialog does not say {text}");
+    }
+    // The route's own answer: the first problem the validator names.
+    let nodes: Vec<serde_json::Value> = (0..=MAX_NODES)
+        .map(|i| json!({"id": format!("n{i}"), "type": "log", "position": {"x": 0, "y": 0}, "data": {}}))
+        .collect();
+    let errors = validate_workflow(
+        &json!({"name": "W", "nodes": nodes, "edges": []}),
+        ValidateOptions::COMPLETE,
+    );
+    let too_many = format!("Workflow has more than {MAX_NODES} nodes");
+    assert!(errors.iter().any(|e| e.message == too_many), "{errors:?}");
+    assert!(import.contains(&format!("\"{too_many}\"")));
+    assert!(repo("src-tauri/src/flow/service/transfer.rs").contains("\"{} (imported)\""));
+    assert!(import.contains("`<name> (imported)`"));
 }
