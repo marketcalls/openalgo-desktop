@@ -373,11 +373,11 @@ pub async fn delete(app: &Arc<AppState>, id: i64) -> Reply {
             json!({"error": "This workflow is still running. Try again when it finishes."}),
         );
     };
-    let w = match load(app, id).await {
-        Ok(Some(w)) => w,
+    match load(app, id).await {
+        Ok(Some(_)) => {}
         Ok(None) => return workflow_not_found(),
         Err(e) => return failed("delete workflow", e),
-    };
+    }
     let hooks = app.flow.triggers();
     app.flow.subscriptions.release(id, hooks.as_ref()).await;
     if app.flow.subscriptions.has(id) {
@@ -386,14 +386,14 @@ pub async fn delete(app: &Arc<AppState>, id: i64) -> Reply {
             json!({"error": "The workflow feed is still connected. Try again shortly."}),
         );
     }
-    if w.is_active {
-        if let Err(e) = hooks.unregister(id).await {
-            tracing::warn!(
-                "A trigger of workflow {} could not be removed before it was deleted: {}",
-                id,
-                e
-            );
-        }
+    // Active or not (decision 24, T-086): a registration left behind would
+    // keep matching events for a workflow that no longer exists.
+    if let Err(e) = hooks.unregister(id).await {
+        tracing::warn!(
+            "A trigger of workflow {} could not be removed before it was deleted: {}",
+            id,
+            e
+        );
     }
     match app
         .blocking(move |c| workflows::delete(&*c.sqlite.conn()?, id))
