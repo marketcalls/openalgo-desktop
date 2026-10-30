@@ -10,8 +10,9 @@
 //!   price_alert`, so a webhook caller could post one and take the `true`
 //!   branch without the price ever being checked. The desktop reads the
 //!   run's own trigger, which no payload can set.
-//! - A failure carries its reason as `message` (N-priceAlert-05,
-//!   N-priceAlert-07), so the run log says why instead of `node failed`.
+//! - A failure carries its reason as `message` (N-priceAlert-02,
+//!   N-priceAlert-05, N-priceAlert-07), so the run log says why instead of
+//!   `node failed`.
 //! - A level that is given but does not resolve to a number fails closed
 //!   (N-priceAlert-09): the web read `above {{typo}}` as `above 0`, true on
 //!   any positive price.
@@ -29,6 +30,11 @@ pub const FAMILY: NodeFamily = NodeFamily {
     key: "triggers",
     build: || vec![Arc::new(PriceAlert)],
 };
+
+/// A priceAlert with no symbol (the validator's words for the field, and
+/// what follows): the web answered no reason, so the run read only "node
+/// failed".
+pub const NO_SYMBOL: &str = "A priceAlert node needs symbol, so the alert was not evaluated.";
 
 /// The conditions that compare against the previous tick, which only the
 /// monitor keeps.
@@ -161,7 +167,7 @@ impl FlowNode for PriceAlert {
         let lower = Level::read(ctx, data, "priceLower");
         let upper = Level::read(ctx, data, "priceUpper");
         if symbol.is_empty() {
-            return NodeOutcome::result(json!({"status": "error", "condition": false}));
+            return NodeOutcome::undecided(NO_SYMBOL);
         }
         if let Some(refusal) = unreadable_level(
             &condition,

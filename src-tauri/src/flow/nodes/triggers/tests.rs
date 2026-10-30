@@ -136,23 +136,20 @@ async fn each_condition_is_tested_on_one_quote_as_the_web_does() {
     );
 }
 
-/// parity N-priceAlert-02: no symbol is an undecided failure with no
-/// message, as on the web.
+/// parity N-priceAlert-02 (WEB-DEFECT): no symbol is an undecided failure
+/// before any quote, saying what is missing (the web gave no reason, so the
+/// run read only "node failed").
 #[tokio::test]
 async fn no_symbol_is_a_failure_without_a_quote() {
-    let r = run(alert("above", json!(800))
-        .as_object()
-        .map(|m| {
-            let mut m = m.clone();
-            m.insert("symbol".into(), json!(""));
-            Value::Object(m)
-        })
-        .unwrap())
-    .await;
+    let mut data = alert("above", json!(800));
+    data["symbol"] = json!("");
+    let r = run(data).await;
     assert_eq!(
         r.out.value(),
-        Some(&json!({"status": "error", "condition": false}))
+        Some(&json!({"status": "error", "condition": false,
+            "message": "A priceAlert node needs symbol, so the alert was not evaluated."}))
     );
+    assert_eq!(r.out.failure_message(), NO_SYMBOL);
     assert!(r.client.calls().is_empty());
     assert!(r.logs.is_empty());
 }
