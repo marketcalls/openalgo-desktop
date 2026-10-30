@@ -5,7 +5,7 @@
  * keeps the edits on screen.
  */
 
-import { canvasNodes, createWorkflow, dropNode, save } from './support/editor'
+import { canvasNodes, clearToasts, createWorkflow, dropNode, save } from './support/editor'
 import { expect, test, unique } from './support/fixtures'
 
 test('7. delete asks first; Cancel keeps the workflow, Delete removes it', async ({
@@ -20,6 +20,7 @@ test('7. delete asks first; Cancel keeps the workflow, Delete removes it', async
   await page.goto('/flow')
   const card = page.getByRole('link', { name: `Open workflow ${name}` })
   const askDelete = async () => {
+    await clearToasts(page)
     await card.getByRole('button', { name: 'Workflow actions' }).click()
     await page.getByRole('menuitem', { name: 'Delete' }).click()
     const confirm = page.getByRole('dialog').filter({ hasText: `Delete ${name}?` })

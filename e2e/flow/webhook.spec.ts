@@ -9,6 +9,7 @@
  */
 
 import type { APIRequestContext, Locator, Page } from '@playwright/test'
+import { clearToasts } from './support/editor'
 import { expect, test, unique } from './support/fixtures'
 import { LOT, type Session } from './support/http'
 
@@ -60,6 +61,7 @@ function webhookWorkflow(name: string) {
 async function openWebhookSettings(page: Page, name: string): Promise<Locator> {
   await page.goto('/flow')
   const card = page.getByRole('link', { name: `Open workflow ${name}` })
+  await clearToasts(page)
   await card.getByRole('button', { name: 'Workflow actions' }).click()
   await page.getByRole('menuitem', { name: 'Webhook' }).click()
   const dialog = page.getByRole('dialog').filter({ hasText: 'Webhook Settings' })
@@ -110,6 +112,7 @@ test('4. a webhook with its secret runs; without it, refused', async ({
 
   // Activate it from its card.
   const card = page.getByRole('link', { name: `Open workflow ${storedName}` })
+  await clearToasts(page)
   await card.getByRole('button', { name: 'Workflow actions' }).click()
   const activated = page.waitForResponse((r) =>
     r.url().endsWith(`/flow/api/workflows/${id}/activate`)

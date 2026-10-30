@@ -12,6 +12,7 @@
 
 import type { Page } from '@playwright/test'
 import {
+  clearToasts,
   closePanel,
   connect,
   createWorkflow,
@@ -34,6 +35,7 @@ async function toolbar(page: Page, button: 'Activate' | 'Deactivate', id: number
   const answered = page.waitForResponse((r) =>
     r.url().endsWith(`/flow/api/workflows/${id}/${button.toLowerCase()}`)
   )
+  await clearToasts(page)
   await page.getByRole('button', { name: button, exact: true }).click()
   return (await answered).status()
 }

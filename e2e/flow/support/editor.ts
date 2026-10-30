@@ -133,12 +133,24 @@ export function targetHandle(node: Locator): Locator {
   return node.locator('.react-flow__handle.target').first()
 }
 
+/**
+ * Toasts stack over the top right of the window, where the editor's toolbar
+ * buttons and the first workflow cards' menus are, and a pointer resting on
+ * one keeps it open. Before pressing a control there, move the pointer off
+ * and let the toasts go, as a trader would wait for them.
+ */
+export async function clearToasts(page: Page): Promise<void> {
+  await page.mouse.move(1, 1)
+  await expect(page.locator('[data-sonner-toast]')).toHaveCount(0, { timeout: 20_000 })
+}
+
 /** The toolbar's Save, waiting for the stored answer. */
 export async function save(page: Page, id: number): Promise<void> {
   await expect(page.getByText('Unsaved', { exact: true })).toBeVisible()
   const stored = page.waitForResponse(
     (r) => r.request().method() === 'PUT' && r.url().endsWith(`/flow/api/workflows/${id}`)
   )
+  await clearToasts(page)
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   expect((await stored).status()).toBe(200)
   await expect(page.getByText('Unsaved', { exact: true })).toHaveCount(0)
@@ -146,6 +158,7 @@ export async function save(page: Page, id: number): Promise<void> {
 
 /** The editor's actions menu (the toolbar's three dots). */
 export async function editorAction(page: Page, item: string): Promise<void> {
+  await clearToasts(page)
   await page.getByRole('button', { name: 'Workflow actions' }).click()
   await page.getByRole('menuitem', { name: item }).click()
 }
