@@ -296,9 +296,7 @@ function WorkflowCard({ workflow }: { workflow: WorkflowListItem }) {
                   : 'No executions'}
               </span>
             </div>
-            <span className="text-xs text-muted-foreground">
-              {listDate(workflow.updated_at)}
-            </span>
+            <span className="text-xs text-muted-foreground">{listDate(workflow.updated_at)}</span>
           </div>
         </CardContent>
       </Card>
