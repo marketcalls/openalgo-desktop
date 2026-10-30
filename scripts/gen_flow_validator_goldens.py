@@ -826,6 +826,11 @@ def options_multi_cases():
         {"offset": ""},
         {},
         {"strike": " 1_000 "},
+        {"strike": "NaN"},
+        {"strike": "Infinity"},
+        {"strike": " +inf "},
+        {"strike": "-inf"},
+        {"strike": "NaN", "offset": "OTM99"},
     ]
     for strike in strikes:
         datas.append(
@@ -1013,6 +1018,18 @@ def migration_differs(nodes):
     return None
 
 
+def unicode_digit_cases():
+    """Digits as Python's \\d and int() read them, Unicode included (V-084):
+    ARABIC-INDIC THREE, ONE, and MATHEMATICAL DOUBLE-STRUCK DIGIT ONE."""
+    for i, handle in enumerate(["input-\u0663", "input-\u0661", "input-\U0001d7d9", "input-1\u0661", "input-\u00b2"]):
+        for j, (target_type, data) in enumerate([("log", {}), ("andGate", {}), ("orGate", {"inputCount": "\u0663"})]):
+            nodes = [node("t", "start"), node("s", "log"), node("g", target_type, data)]
+            yield f"unicode_digits_{i}_{j}", wf(nodes, [edge("e1", "t", "s"), edge("e2", "s", "g", targetHandle=handle)]), ("draft",)
+    for i, count in enumerate(["\u0663", " \u0661\u0662 ", "\U0001d7d9"]):
+        nodes = [node("t", "start"), node("s", "log"), node("g", "andGate", {"inputCount": count})]
+        yield f"unicode_count_{i}", wf(nodes, [edge("e1", "t", "s"), edge("e2", "s", "g", targetHandle="input-5")]), ("draft",)
+
+
 def python_json_cases():
     """JSON written as text that only Python's json.loads reads: NaN and
     Infinity (V-052, V-055)."""
@@ -1135,6 +1152,7 @@ ALL_CASES = (
     options_multi_cases,
     ported_test_cases,
     doc_example_cases,
+    unicode_digit_cases,
     python_json_cases,
     option_leg_spelling_cases,
     runtime_only_cases,

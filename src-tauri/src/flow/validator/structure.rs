@@ -16,7 +16,8 @@ use std::collections::HashSet;
 static NULL: Value = Value::Null;
 
 /// `input-N`, the numbered input slot a gate renders.
-static GATE_SLOT: Pattern = Pattern::new(r"^input-([0-9]+)$");
+/// Python's `\d` takes every Unicode decimal digit, and so does this.
+static GATE_SLOT: Pattern = Pattern::new(r"^input-(\d+)$");
 
 /// `mapping.get(key)`: a missing key reads as `None`.
 pub(super) fn get<'a>(map: &'a Map<String, Value>, key: &str) -> &'a Value {
@@ -395,7 +396,11 @@ fn slot_count(value: &Value) -> i64 {
     if value.is_null() || value.as_str() == Some("") {
         return 2;
     }
-    pyfmt::to_int(value).map_or(2, |n| n.max(1))
+    let read = match value {
+        Value::String(text) => pyfmt::to_int(&Value::from(py::ascii_digits(text))),
+        other => pyfmt::to_int(other),
+    };
+    read.map_or(2, |n| n.max(1))
 }
 
 /// The input count of the gate `target` names, if it names an AND or OR
@@ -428,7 +433,11 @@ fn check_gate_slots(nodes: &[Value], edges: &[Value], errors: &mut Vec<Validatio
         let slot = GATE_SLOT
             .captures(&shown)
             .and_then(|caps| caps.get(1))
-            .map(|n| n.as_str().parse::<i64>().unwrap_or(i64::MAX));
+            .map(|n| {
+                py::ascii_digits(n.as_str())
+                    .parse::<i64>()
+                    .unwrap_or(i64::MAX)
+            });
         let path = format!("/edges/{i}/targetHandle");
         let Some(slots) = gate_slots(nodes, get(edge, "target")) else {
             // Only gates render numbered input slots.

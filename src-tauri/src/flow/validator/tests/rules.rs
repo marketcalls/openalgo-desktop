@@ -98,13 +98,22 @@ fn v053_a_nan_timeout_is_refused() {
     }
 }
 
+/// Lead decision 36 (V-063): a strike written as `"NaN"` or `"Infinity"`
+/// passes as on the web, whose check is `numeric is None or numeric <= 0`;
+/// `"-inf"` compares `<= 0` and is refused there and here.
 #[test]
-fn v053_a_strike_that_is_not_finite_names_no_contract() {
-    for strike in ["NaN", "Infinity", "inf"] {
+fn v063_a_strike_is_refused_only_when_unreadable_or_not_above_zero() {
+    let errors_for = |strike: Value| {
         let leg = json!({"optionType": "CE", "action": "BUY", "quantity": 1, "strike": strike});
         let data =
             json!({"strategy": "custom", "underlying": "NIFTY", "quantity": 1, "legs": [leg]});
-        let errors = draft(&single_action("optionsMultiOrder", data));
+        draft(&single_action("optionsMultiOrder", data))
+    };
+    for strike in ["NaN", "nan", "Infinity", "inf", " +INF "] {
+        assert!(!has_path(&errors_for(json!(strike)), "/strike"), "{strike}");
+    }
+    for strike in ["-inf", "-Infinity", "0", "abc"] {
+        let errors = errors_for(json!(strike));
         let error = errors.iter().find(|e| e.code == "invalid_strike").unwrap();
         assert_eq!(
             error.message,
@@ -436,6 +445,57 @@ fn v057_an_option_leg_naming_both_price_type_spellings_has_both_checked() {
         .unwrap();
     assert_eq!(error.code, "invalid_constant");
     assert_eq!(error.message, "'BOGUS' is not a valid pricetype constant.");
+}
+
+// ---------------------------------------------------------------- V-084
+
+fn slot_errors(target_type: &str, data: Value, handle: &str) -> Vec<ValidationError> {
+    draft(&wf(
+        vec![
+            node("t", "start", json!({})),
+            node("s", "log", json!({})),
+            node("g", target_type, data),
+        ],
+        vec![
+            edge("e1", "t", "s"),
+            json!({"id": "e2", "source": "s", "target": "g", "targetHandle": handle}),
+        ],
+    ))
+}
+
+/// Lead decision 36: a slot's digits are read as Python's `\d` and `int()`
+/// read them, Unicode decimal digits included (ARABIC-INDIC ONE and THREE,
+/// MATHEMATICAL DOUBLE-STRUCK ONE); a superscript two is not a decimal digit.
+#[test]
+fn v084_slot_digits_are_read_as_pythons_int_reads_them() {
+    let on_log = slot_errors("log", json!({}), "input-\u{663}");
+    assert_eq!(
+        on_log[0].message,
+        "Only gate nodes have numbered input slots; a log node has no 'input-\u{663}'."
+    );
+    assert!(slot_errors("log", json!({}), "input-\u{b2}").is_empty());
+    for handle in ["input-\u{661}", "input-\u{1d7d9}"] {
+        assert_eq!(
+            slot_errors("andGate", json!({}), handle),
+            vec![],
+            "{handle}"
+        );
+    }
+    let three = slot_errors("andGate", json!({}), "input-\u{663}");
+    assert_eq!(codes(&three), vec!["invalid_target_handle"]);
+    // An inputCount written in Arabic-Indic digits is three slots.
+    let counted = slot_errors("orGate", json!({"inputCount": "\u{663}"}), "input-5");
+    assert!(counted[0]
+        .message
+        .ends_with("which has 3. The gate would wait for an input that never arrives."));
+    assert_eq!(
+        slot_errors(
+            "orGate",
+            json!({"inputCount": " \u{661}\u{662} "}),
+            "input-5"
+        ),
+        vec![]
+    );
 }
 
 // ------------------------------------------------- gate slot list bound

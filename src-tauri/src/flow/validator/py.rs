@@ -2,10 +2,52 @@
 //! `flow::contract::pyfmt` (Python's `repr`, `str`, `type(...).__name__`,
 //! truthiness, `float()` and `int()`, the one copy every Flow module uses,
 //! lead decision 25) does not already answer: `str.strip()` and the blank
-//! test the web's validator applies to text, its `{{` template test, and
-//! Python's `==` between decoded values.
+//! test the web's validator applies to text, its `{{` template test,
+//! Python's `==` between decoded values, and the Unicode decimal digits its
+//! `\d` and `int()` read.
 
+use crate::agent::tools::values::Pattern;
 use serde_json::Value;
+
+/// One Unicode decimal digit (category Nd), what Python's `\d` matches.
+static DECIMAL_DIGIT: Pattern = Pattern::new(r"^\p{Nd}$");
+
+fn is_decimal_digit(c: char) -> bool {
+    c.is_ascii_digit() || (!c.is_ascii() && DECIMAL_DIGIT.is_match(c.encode_utf8(&mut [0; 4])))
+}
+
+/// The value of a Unicode decimal digit, as Python's `int()` reads it.
+/// Unicode encodes every decimal digit in contiguous runs of ten from zero to
+/// nine, so the value is how many digits precede it in its run, modulo ten.
+fn decimal_value(c: char) -> Option<u32> {
+    if let Some(d) = c.to_digit(10) {
+        return Some(d);
+    }
+    if !is_decimal_digit(c) {
+        return None;
+    }
+    let mut before = 0u32;
+    let mut code = c as u32;
+    while let Some(prev) = code.checked_sub(1).and_then(char::from_u32) {
+        if !is_decimal_digit(prev) {
+            break;
+        }
+        before += 1;
+        code -= 1;
+    }
+    Some(before % 10)
+}
+
+/// The text with every Unicode decimal digit written as its ASCII digit, so
+/// `pyfmt::to_int` reads it as Python's `int()` does (`int('٣')` is 3).
+pub(crate) fn ascii_digits(text: &str) -> String {
+    text.chars()
+        .map(|c| match decimal_value(c) {
+            Some(d) if !c.is_ascii_digit() => char::from_digit(d, 10).unwrap_or(c),
+            _ => c,
+        })
+        .collect()
+}
 
 /// `str.isspace()` for one character: Unicode white space plus the four
 /// ASCII information separators Python also counts.

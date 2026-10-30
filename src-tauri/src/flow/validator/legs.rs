@@ -414,15 +414,19 @@ fn strike_and_expiry_errors(
     found
 }
 
-/// A strike as a positive number. A boolean is not one (True would
-/// otherwise pass as strike 1), and neither is NaN or infinity.
+/// A strike the web accepts: a number or numeric text that is not `<= 0`.
+/// A boolean is not one (True would otherwise pass as strike 1). As on the
+/// web (`numeric is None or numeric <= 0`), `"NaN"` and `"Infinity"` text
+/// pass, since neither compares `<= 0`; the executor refuses them when it
+/// resolves the strike (lead decision 36).
 fn strike_number(strike: &Value) -> Option<f64> {
     let numeric = match strike {
         Value::Number(n) => n.as_f64(),
         Value::String(s) => pyfmt::parse_float(s),
         _ => None,
     };
-    numeric.filter(|n| n.is_finite() && *n > 0.0)
+    // Not `<= 0`: above zero, or NaN, which compares false to everything.
+    numeric.filter(|n| *n > 0.0 || n.is_nan())
 }
 
 fn expiry_errors(base: &str, leg: &Map<String, Value>) -> Vec<ValidationError> {
