@@ -4,7 +4,7 @@
  * node and edge types, every canvas prop and child the web sets, and the
  * click handlers that select a node, an edge, or nothing.
  *
- * Pins: F-140 F-160 F-161.
+ * Pins: F-140 F-159 F-160 F-161.
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -15,6 +15,7 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { edgeTypes } from '@/components/flow/edges'
 import { nodeTypes } from '@/components/flow/nodes'
+import { DEFAULT_NODE_DATA } from '@/lib/flow/constants'
 import { useFlowWorkflowStore } from '@/stores/flowWorkflowStore'
 
 const captured = vi.hoisted(() => ({
@@ -25,6 +26,9 @@ const captured = vi.hoisted(() => ({
   panel: undefined as Record<string, unknown> | undefined,
   stylesheet: false,
 }))
+
+/** The canvas's screen-to-flow conversion, identity unless a test says otherwise. */
+const toFlow = vi.hoisted(() => vi.fn((position: { x: number; y: number }) => position))
 
 vi.mock('@xyflow/react/dist/style.css', () => {
   captured.stylesheet = true
@@ -58,9 +62,7 @@ vi.mock('@xyflow/react', async () => {
       captured.panel = props
       return <>{children}</>
     },
-    useReactFlow: () => ({
-      screenToFlowPosition: (position: { x: number; y: number }) => position,
-    }),
+    useReactFlow: () => ({ screenToFlowPosition: toFlow }),
   }
 })
 
@@ -105,6 +107,9 @@ beforeEach(() => {
   captured.controls = 0
   captured.panel = undefined
   useFlowWorkflowStore.getState().resetWorkflow()
+  toFlow.mockReset()
+  toFlow.mockImplementation((position) => position)
+  vi.restoreAllMocks()
   getWorkflow.mockReset()
   getWorkflow.mockResolvedValue({
     id: 7,
@@ -223,5 +228,51 @@ describe('F-160 clicking on the canvas', () => {
     act(() => store().selectEdge('e1'))
     act(() => props.onPaneClick?.(click))
     expect(store().selectedEdgeId).toBeNull()
+  })
+})
+
+describe('F-159 adding a node from the palette without a pointer', () => {
+  /** The box the canvas wrapper reports, or none at all. */
+  function canvasBox(box: Partial<DOMRect> | undefined) {
+    const wrapper = screen.getByTestId('flow-canvas').parentElement as HTMLElement
+    vi.spyOn(wrapper, 'getBoundingClientRect').mockReturnValue(box as DOMRect)
+  }
+
+  it('places it at the middle of the visible canvas, in flow coordinates, and selects it', async () => {
+    renderEditor()
+    await canvas()
+    canvasBox({ x: 224, y: 56, width: 800, height: 600 })
+    // A canvas panned and zoomed: flow coordinates differ from the screen's.
+    toFlow.mockImplementation(({ x, y }) => ({ x: (x - 100) / 2, y: (y - 40) / 2 }))
+    act(() => screen.getByRole('button', { name: 'Add Price Alert node' }).click())
+
+    expect(toFlow).toHaveBeenLastCalledWith({ x: 624, y: 356 })
+    const added = store().nodes.at(-1)
+    expect(added).toMatchObject({
+      id: 'node_3',
+      type: 'priceAlert',
+      position: { x: 262, y: 158 },
+      data: DEFAULT_NODE_DATA.priceAlert,
+    })
+    expect(added?.data).not.toBe(DEFAULT_NODE_DATA.priceAlert)
+    expect(store().selectedNodeId).toBe('node_3')
+    expect(store().isModified).toBe(true)
+  })
+
+  it('falls back to the middle of the window when the canvas has no box', async () => {
+    renderEditor()
+    await canvas()
+    canvasBox(undefined)
+    act(() => screen.getByRole('button', { name: 'Add Order Update node' }).click())
+
+    expect(toFlow).toHaveBeenLastCalledWith({
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    })
+    expect(store().nodes.at(-1)).toMatchObject({
+      type: 'orderUpdateTrigger',
+      position: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+    })
+    expect(store().selectedNodeId).toBe(store().nodes.at(-1)?.id)
   })
 })

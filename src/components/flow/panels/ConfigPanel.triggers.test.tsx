@@ -236,6 +236,13 @@ describe('start: run-on days (F-531)', () => {
     expect(stored().days).toEqual([0, 1, 2, 3, 4, 5])
   })
 
+  it('sorts the days as numbers, not as text (the web sorted 10 before 2)', () => {
+    // Only a stored value past 9 tells the two apart: a text sort puts "10" first.
+    openPanel('start', { scheduleType: 'daily', days: [10] })
+    fireEvent.click(day('Wed'))
+    expect(stored().days).toEqual([2, 10])
+  })
+
   it('turns a selected day off', () => {
     openPanel('start', { scheduleType: 'daily', days: [0, 2, 4] })
     fireEvent.click(day('Wed'))
