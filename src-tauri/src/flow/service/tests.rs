@@ -246,6 +246,11 @@ async fn ignored_fields_are_logged_as_a_python_list() {
 async fn replacing_an_active_trigger_registers_it_again_or_stands_down() {
     let logs = crate::services::tunnel::fake::capture_logs();
     let t = app();
+    // The app's own trigger side restores the active workflows at start-up
+    // on its own task; when that read comes after the workflow is made
+    // active below, it registers it and rewrites the job id. Stopped, only
+    // the test's hooks act.
+    t.ctx.flow.triggers().stop().await;
     let hooks = Arc::new(Hooks::default());
     t.ctx.flow.set_triggers(hooks.clone());
     let id = active_workflow(&t.ctx).await;
