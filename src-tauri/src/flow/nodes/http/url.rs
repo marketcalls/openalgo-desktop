@@ -200,11 +200,10 @@ fn urlunsplit(scheme: &str, netloc: &str, path: &str) -> String {
             url = format!("/{}", url);
         }
         url = format!("//{}{}", netloc, url);
-    } else if url.starts_with("//") {
-        url = format!("//{}", url);
-    } else if !scheme.is_empty()
-        && USES_NETLOC.contains(&scheme)
-        && (url.is_empty() || url.starts_with('/'))
+    } else if url.starts_with("//")
+        || (!scheme.is_empty()
+            && USES_NETLOC.contains(&scheme)
+            && (url.is_empty() || url.starts_with('/')))
     {
         url = format!("//{}", url);
     }
