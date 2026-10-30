@@ -161,7 +161,7 @@ async fn market_data_is_live_in_both_modes() {
 
 /// X-349: the web's client called the option-symbol resolver directly and
 /// skipped the API schema; here the in-process `/api/v1/optionsymbol` refuses
-/// a bad option type with its validation message, before any quote.
+/// a bad option type with its field errors, before any quote.
 #[tokio::test]
 async fn an_option_symbol_with_a_bad_type_is_refused_by_the_api() {
     let kit = Kit::new();
@@ -174,7 +174,14 @@ async fn an_option_symbol_with_a_bad_type_is_refused_by_the_api() {
     let v = out.value().cloned().unwrap_or(Value::Null);
     assert_eq!(v["status"], "error");
     assert_eq!(v["code"], 400, "{}", v);
-    assert_eq!(v["error"], "Validation error", "{}", v);
+    // The API's field errors, as the client hands them to the node
+    // (decision 21, N-dataCommon-04).
+    assert_eq!(
+        v["error"],
+        json!({"option_type": ["Must be one of: CE, PE, ce, pe."]}),
+        "{}",
+        v
+    );
     assert!(!broker_saw(&kit, |c| matches!(c, MockCall::Quote(_))));
 }
 
@@ -198,6 +205,131 @@ async fn the_app_installs_the_book_and_the_calendar() {
         "{:?}",
         cal
     );
+    // N-calendar-06: the seeded calendar, read through the app. A
+    // weekends-only calendar would call this Friday a trading day and the
+    // Sunday Muhurat session a closed day.
+    let flags = |v: Option<&Value>| {
+        v.map(|v| {
+            (
+                v["is_trading_day"].clone(),
+                v["is_trading_holiday"].clone(),
+                v["is_special_session"].clone(),
+            )
+        })
+    };
+    let gandhi = run(&c, "calendar", json!({"date": "2026-10-02"})).await;
+    assert_eq!(
+        flags(gandhi.value()),
+        Some((json!(false), json!(true), json!(false)))
+    );
+    let muhurat = run(&c, "calendar", json!({"date": "2026-11-08"})).await;
+    assert_eq!(
+        flags(muhurat.value()),
+        Some((json!(true), json!(false), json!(true)))
+    );
+}
+
+/// N-holidays-02: a year outside 2020..2050 reads the web service's sentence
+/// (the web's Flow asked the service, not the REST route's schema).
+#[tokio::test]
+async fn a_holidays_year_out_of_range_reads_the_services_sentence() {
+    let kit = Kit::new();
+    let c = ctx(&kit);
+    let out = run(
+        &c,
+        "holidays",
+        json!({"year": 1999, "outputVariable": "hol"}),
+    )
+    .await;
+    assert_eq!(
+        out.value().cloned(),
+        Some(
+            json!({"status": "error", "error": "Year must be between 2020 and 2050", "code": 400})
+        )
+    );
+    let ok = run(&c, "holidays", json!({"year": 2026})).await;
+    assert_eq!(ok.value().map(|v| v["year"].clone()), Some(json!(2026)));
+}
+
+/// N-dataCommon-05, N-getDepth-03: the market-data, option and calendar
+/// nodes have no analyzer branch; in analyzer mode they answer exactly as
+/// live and the market-data ones reach the broker.
+#[tokio::test]
+async fn data_nodes_answer_live_in_analyzer_mode() {
+    let quote = || Quote {
+        symbol: "NIFTY".into(),
+        exchange: "NSE_INDEX".into(),
+        ltp: 24412.0,
+        ..Default::default()
+    };
+    let opt = json!({"underlying": "NIFTY", "exchange": "NSE_INDEX", "expiryDate": "27OCT26"});
+    let mut chain = opt.clone();
+    chain["strikeCount"] = json!(2);
+    let mut symbol = opt.clone();
+    symbol["offset"] = json!("ATM");
+    let nodes: [(&str, Value, Option<Reached>); 11] = [
+        (
+            "getDepth",
+            json!({"symbol": "SBIN"}),
+            Some(|c| matches!(c, MockCall::Depth(_))),
+        ),
+        (
+            "history",
+            json!({"symbol": "SBIN", "interval": "D", "startDate": "2026-10-01", "endDate": "2026-10-08"}),
+            Some(|c| matches!(c, MockCall::History(_))),
+        ),
+        (
+            "multiQuotes",
+            json!({"symbols": "SBIN,INFY"}),
+            Some(|c| matches!(c, MockCall::MultiQuotes(_))),
+        ),
+        (
+            "optionSymbol",
+            symbol,
+            Some(|c| matches!(c, MockCall::Quote(_))),
+        ),
+        (
+            "optionChain",
+            chain,
+            Some(|c| matches!(c, MockCall::Quote(_))),
+        ),
+        (
+            "syntheticFuture",
+            opt,
+            Some(|c| matches!(c, MockCall::Quote(_))),
+        ),
+        ("symbol", json!({"symbol": "SBIN"}), None),
+        (
+            "expiry",
+            json!({"symbol": "NIFTY", "exchange": "NFO"}),
+            None,
+        ),
+        ("intervals", json!({}), None),
+        ("holidays", json!({"year": 2026}), None),
+        ("timings", json!({"date": "2026-10-09"}), None),
+    ];
+    for (node, data, reached) in nodes {
+        let mut answers = Vec::new();
+        for analyzer in [true, false] {
+            let kit = Kit::new();
+            kit.analyzer(analyzer);
+            kit.mock.set_quote(quote());
+            answers.push(run(&ctx(&kit), node, data.clone()).await.value().cloned());
+            if let (true, Some(r)) = (analyzer, reached) {
+                assert!(
+                    broker_saw(&kit, r),
+                    "{} did not reach the broker in analyzer mode",
+                    node
+                );
+            }
+        }
+        assert_eq!(
+            answers[0], answers[1],
+            "{} differs between analyzer and live",
+            node
+        );
+        assert!(answers[0].is_some(), "{}", node);
+    }
 }
 
 /// N-optionChain-04: the desktop's `/api/v1/optionchain` takes the blank
@@ -237,7 +369,12 @@ async fn an_option_chain_runs_on_an_embedded_expiry_and_refuses_a_bad_count() {
         "{}",
         v
     );
-    assert_eq!(v["error"], "Validation error", "{}", v);
+    assert_eq!(
+        v["error"],
+        json!({"strike_count": ["Must be greater than or equal to 1 and less than or equal to 100."]}),
+        "{}",
+        v
+    );
 }
 
 /// N-history-05: a History node with neither dates nor days. The web's node
