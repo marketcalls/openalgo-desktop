@@ -269,7 +269,7 @@ pub fn update(
     e: &Edit,
     now: DateTime<Utc>,
 ) -> Result<Option<Workflow>> {
-    let changed = conn.execute(
+    let written = conn.execute(
         "UPDATE flow_workflows SET
              name = COALESCE(?1, name),
              description = CASE WHEN ?2 THEN ?3 ELSE description END,
@@ -286,50 +286,59 @@ pub fn update(
             stamp(now),
             id
         ],
-    )?;
-    if changed == 0 {
+    );
+    if !changed(written, id)? {
         return Ok(None);
     }
-    updated(id);
     get(conn, sec, id)
 }
 
-/// The web's `update_workflow` log line, written by every writer it backs.
-fn updated(id: i64) {
-    tracing::info!("Updated workflow {}", id);
-}
-
-/// `n` rows changed by one of `update_workflow`'s writers: logged when one did.
-fn changed(n: usize, id: i64) -> bool {
-    if n > 0 {
-        updated(id);
+/// What one of the writers the web's `update_workflow` backs did, logged
+/// as the web logs it: `Updated workflow {id}` when a row changed, `Error
+/// updating workflow {id}: {e}` when the write failed.
+fn changed(written: rusqlite::Result<usize>, id: i64) -> Result<bool> {
+    match written {
+        Ok(n) => {
+            if n > 0 {
+                tracing::info!("Updated workflow {}", id);
+            }
+            Ok(n > 0)
+        }
+        Err(e) => {
+            tracing::error!("Error updating workflow {}: {}", id, e);
+            Err(e.into())
+        }
     }
-    n > 0
 }
 
 /// Delete a workflow and its run history (`delete_workflow`; the
 /// executions go by the foreign key's cascade). `false` when it was gone.
 pub fn delete(conn: &Connection, id: i64) -> Result<bool> {
-    let tx = crate::db::sqlite::write_transaction(conn)?;
-    tx.execute(
-        "DELETE FROM flow_workflow_executions WHERE workflow_id = ?1",
-        params![id],
-    )?;
-    let n = tx.execute("DELETE FROM flow_workflows WHERE id = ?1", params![id])?;
-    tx.commit()?;
-    if n > 0 {
-        tracing::info!("Deleted workflow {}", id);
+    let deleted = (|| -> Result<bool> {
+        let tx = crate::db::sqlite::write_transaction(conn)?;
+        tx.execute(
+            "DELETE FROM flow_workflow_executions WHERE workflow_id = ?1",
+            params![id],
+        )?;
+        let n = tx.execute("DELETE FROM flow_workflows WHERE id = ?1", params![id])?;
+        tx.commit()?;
+        Ok(n > 0)
+    })();
+    match &deleted {
+        Ok(true) => tracing::info!("Deleted workflow {}", id),
+        Ok(false) => {}
+        Err(e) => tracing::error!("Error deleting workflow {}: {}", id, e),
     }
-    Ok(n > 0)
+    deleted
 }
 
 /// Set the active flag (`activate_workflow` / `deactivate_workflow`).
 pub fn set_active(conn: &Connection, id: i64, active: bool, now: DateTime<Utc>) -> Result<bool> {
-    let n = conn.execute(
+    let written = conn.execute(
         "UPDATE flow_workflows SET is_active = ?1, updated_at = ?2 WHERE id = ?3",
         params![active, stamp(now), id],
-    )?;
-    Ok(changed(n, id))
+    );
+    changed(written, id)
 }
 
 /// Turn the webhook on or off (`enable_webhook` / `disable_webhook`).
@@ -339,11 +348,11 @@ pub fn set_webhook_enabled(
     enabled: bool,
     now: DateTime<Utc>,
 ) -> Result<bool> {
-    let n = conn.execute(
+    let written = conn.execute(
         "UPDATE flow_workflows SET webhook_enabled = ?1, updated_at = ?2 WHERE id = ?3",
         params![enabled, stamp(now), id],
-    )?;
-    Ok(changed(n, id))
+    );
+    changed(written, id)
 }
 
 /// Set how a webhook proves itself, `payload` or `url`
@@ -358,11 +367,11 @@ pub fn set_webhook_auth_type(
         tracing::error!("Invalid webhook auth type: {}", auth_type);
         return Ok(false);
     }
-    let n = conn.execute(
+    let written = conn.execute(
         "UPDATE flow_workflows SET webhook_auth_type = ?1, updated_at = ?2 WHERE id = ?3",
         params![auth_type, stamp(now), id],
-    )?;
-    Ok(changed(n, id))
+    );
+    changed(written, id)
 }
 
 /// Make the webhook token and secret if either is missing or the secret
@@ -758,5 +767,37 @@ mod tests {
             "{}",
             logs.text()
         );
+    }
+
+    /// S-13 and T-086: a write that fails is logged with the web's words,
+    /// and the failure reaches the caller.
+    #[test]
+    fn failed_writes_are_logged_as_the_web_logs_them() {
+        let logs = crate::services::tunnel::fake::capture_logs();
+        let (conn, sec) = db();
+        let w = new_workflow(&conn, &sec, "A");
+        conn.execute_batch(
+            "CREATE TRIGGER frozen BEFORE UPDATE ON flow_workflows
+             BEGIN SELECT RAISE(ABORT, 'held'); END;
+             CREATE TRIGGER kept BEFORE DELETE ON flow_workflows
+             BEGIN SELECT RAISE(ABORT, 'held'); END;",
+        )
+        .unwrap();
+        let edit = Edit {
+            name: Some("B".into()),
+            ..Default::default()
+        };
+        assert!(update(&conn, &sec, w.id, &edit, now()).is_err());
+        assert!(set_active(&conn, w.id, true, now()).is_err());
+        assert!(delete(&conn, w.id).is_err());
+        let text = logs.text();
+        let failed = format!("Error updating workflow {}: held", w.id);
+        assert_eq!(text.matches(&failed).count(), 2, "{}", text);
+        assert!(
+            text.contains(&format!("Error deleting workflow {}: ", w.id)),
+            "{}",
+            text
+        );
+        assert!(!text.contains("Updated workflow"), "{}", text);
     }
 }

@@ -172,7 +172,8 @@ fn json_string(s: &str) -> String {
             '\t' => out.push_str("\\t"),
             '\u{08}' => out.push_str("\\b"),
             '\u{0c}' => out.push_str("\\f"),
-            c if (c as u32) < 0x20 || (c as u32) > 0x7f => {
+            // Python escapes everything outside space..tilde, DEL included.
+            c if (c as u32) < 0x20 || (c as u32) >= 0x7f => {
                 let mut buf = [0u16; 2];
                 for unit in c.encode_utf16(&mut buf) {
                     out.push_str(&format!("\\u{:04x}", unit));
@@ -343,6 +344,11 @@ mod tests {
         assert_eq!(
             json_dumps(&json!({"a": [1, 2.0, null, true], "b": "caf\u{e9} \"x\""})),
             "{\"a\": [1, 2.0, null, true], \"b\": \"caf\\u00e9 \\\"x\\\"\"}"
+        );
+        // CPython 3.12: json.dumps("a\x7fb\x1f\u00e9") == '"a\\u007fb\\u001f\\u00e9"'.
+        assert_eq!(
+            json_dumps(&json!("a\u{7f}b\u{1f}\u{e9}")),
+            "\"a\\u007fb\\u001f\\u00e9\""
         );
     }
 

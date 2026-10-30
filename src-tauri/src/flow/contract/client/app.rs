@@ -153,7 +153,7 @@ impl FlowClient for AppFlowClient {
         let user = match user {
             Ok(Some(u)) => u,
             Ok(None) => {
-                tracing::info!("No Telegram account is linked for the Flow alert");
+                tracing::info!("No telegram user linked for username: {}", username);
                 return json!({"status": "error", "error": format!("No Telegram account linked for user: {}", username)});
             }
             Err(e) => {
@@ -162,6 +162,7 @@ impl FlowClient for AppFlowClient {
             }
         };
         if !user.notifications_enabled {
+            tracing::info!("Notifications disabled for telegram user: {}", username);
             return json!({"status": "error", "error": "Telegram notifications are disabled"});
         }
         let text = telegram_text(app.now(), message);
@@ -407,6 +408,7 @@ mod tests {
     /// web's refusals in turn, then queues the alert.
     #[tokio::test]
     async fn telegram_alerts_answer_as_the_web_answers() {
+        let logs = crate::services::tunnel::fake::capture_logs();
         let t =
             crate::state::testing::build(crate::brokers::BrokerRegistry::new(), chrono::Utc::now());
         t.ctx
@@ -443,6 +445,13 @@ mod tests {
             client.telegram("hi").await,
             json!({"status": "error", "error": "Telegram notifications are disabled"})
         );
+        let text = logs.text();
+        for line in [
+            "No telegram user linked for username: trader",
+            "Notifications disabled for telegram user: trader",
+        ] {
+            assert!(text.contains(line), "{}\n{}", line, text);
+        }
         conn.execute_batch("UPDATE telegram_users SET notifications_enabled = 1")
             .unwrap();
         assert_eq!(
