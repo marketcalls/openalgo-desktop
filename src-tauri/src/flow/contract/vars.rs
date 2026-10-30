@@ -383,4 +383,26 @@ mod tests {
         assert_eq!(s.conditions().get("c1"), Some(&false));
         assert_eq!(s.snapshot().len(), 5);
     }
+
+    /// E-15: the web's segment rule, quirks kept: `a[x]` reads key `x`,
+    /// `a..b` reads `a.b`, a key keeps the spaces inside the braces' trim,
+    /// and only a whole-number index reads a list.
+    #[test]
+    fn paths_keep_the_webs_quirks() {
+        let v = store();
+        v.set("a", json!({"x": 1, "b": 2, "b c": 3, "l": [10, 20]}));
+        v.set("a ", json!({"b": 4}));
+        for (text, want) in [
+            ("{{a[x]}}", "1"),
+            ("{{a..b}}", "2"),
+            ("{{a.b c}}", "3"),
+            ("{{a .b}}", "4"),
+            ("{{ a.b }}", "2"),
+            ("{{a.l[1]}}", "20"),
+            ("{{a.l.[0]}}", "10"),
+            ("{{a.l[-1]}}", "{{a.l[-1]}}"),
+        ] {
+            assert_eq!(v.interpolate(text), want, "{}", text);
+        }
+    }
 }

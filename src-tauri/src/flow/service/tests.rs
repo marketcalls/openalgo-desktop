@@ -239,3 +239,40 @@ async fn ignored_fields_are_logged_as_a_python_list() {
     );
     assert!(logs.text().contains(&want), "{}", logs.text());
 }
+
+/// IE-15 / V-122: replacing an active workflow's trigger registers it again;
+/// when that fails the workflow stands down and the answer says so.
+#[tokio::test]
+async fn replacing_an_active_trigger_registers_it_again_or_stands_down() {
+    let t = app();
+    let hooks = Arc::new(Hooks::default());
+    t.ctx.flow.set_triggers(hooks.clone());
+    let id = active_workflow(&t.ctx).await;
+    let graph = |time: &str| Body::Json(json!({"nodes": scheduled(time), "edges": []}));
+    let r = transfer::replace(&t.ctx, id, graph("09:20")).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.body["needs_reactivate"], false);
+    assert_eq!(
+        r.body["message"],
+        "Workflow replaced. Changes apply from the next run."
+    );
+    assert_eq!(
+        *hooks.calls.lock(),
+        vec![
+            format!("unregister {}", id),
+            format!("register {} start 09:20", id)
+        ]
+    );
+    t.ctx.flow.set_triggers(Arc::new(Hooks {
+        refuse_register: true,
+        ..Default::default()
+    }));
+    let r = transfer::replace(&t.ctx, id, graph("09:30")).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(r.body["needs_reactivate"], true);
+    assert_eq!(
+        r.body["message"],
+        "Trigger changed and could not be re-registered, so the workflow was deactivated. Activate it again when the trigger is valid."
+    );
+    assert!(!load(&t.ctx, id).await.unwrap().unwrap().is_active);
+}

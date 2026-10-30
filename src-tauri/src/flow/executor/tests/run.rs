@@ -219,3 +219,162 @@ async fn a_stop_before_the_walk_records_the_runs_stop() {
     assert_eq!(row.status, "failed");
     assert_eq!(row.error.as_deref(), Some(super::super::walk::STOPPED));
 }
+
+/// A feed that fails the way a defect would: it panics.
+struct PanickingFeed;
+
+#[async_trait]
+impl crate::flow::contract::env::MarketFeed for PanickingFeed {
+    async fn first_frame(
+        &self,
+        _: &str,
+        _: &str,
+        _: &str,
+        _: std::time::Duration,
+        _: &(dyn for<'a> Fn(&'a Value) -> bool + Send + Sync),
+    ) -> Result<Option<Value>, crate::flow::contract::env::FeedError> {
+        panic!("a defect in the feed")
+    }
+
+    async fn unsubscribe(&self, _: &str, _: &str, _: &str) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+/// X-161: a run that panics inside the walk is recorded failed with the
+/// run's own sentence, and its workflow is free for the next run.
+#[tokio::test]
+async fn a_run_that_panics_is_recorded_failed_and_frees_its_workflow() {
+    let t = app();
+    t.ctx.flow.install_env(|e| e.feed = Arc::new(PanickingFeed));
+    let nodes = json!([
+        node("start", "start", json!({})),
+        node(
+            "s",
+            "subscribeLtp",
+            json!({"symbol": "SBIN", "exchange": "NSE"})
+        ),
+    ]);
+    let id = save(&t.ctx, "A", nodes, json!([edge("start", "s", None)]));
+    let out = execute(&t.ctx, id, key()).await;
+    assert_eq!(out["status"], "error", "{}", out);
+    assert_eq!(
+        out["message"],
+        "The workflow stopped on an unexpected error."
+    );
+    let row = &history(&t.ctx, id)[0];
+    assert_eq!(
+        (row.status.as_str(), row.error.as_deref()),
+        (
+            "failed",
+            Some("The workflow stopped on an unexpected error.")
+        )
+    );
+    assert!(
+        t.ctx.flow.try_claim(id).is_some(),
+        "the claim ends with the run"
+    );
+}
+
+/// E-33: a run whose record cannot be written does not run, and says so
+/// with the web's sentence.
+#[tokio::test]
+async fn a_run_that_cannot_be_recorded_does_not_run() {
+    let t = app();
+    let id = save(
+        &t.ctx,
+        "A",
+        json!([node("start", "start", json!({}))]),
+        json!([]),
+    );
+    t.ctx
+        .sqlite
+        .conn()
+        .unwrap()
+        .execute_batch(
+            "CREATE TRIGGER no_runs BEFORE INSERT ON flow_workflow_executions
+             BEGIN SELECT RAISE(ABORT, 'held'); END;",
+        )
+        .unwrap();
+    assert_eq!(
+        execute(&t.ctx, id, key()).await,
+        json!({"status": "error", "message": "Failed to create execution record"})
+    );
+    assert!(t.ctx.flow.try_claim(id).is_some());
+}
+
+/// E-34: an empty webhook payload stores nothing (the web's `if
+/// webhook_data`), so `{{webhook}}` stays as written.
+#[tokio::test]
+async fn an_empty_webhook_payload_stores_nothing() {
+    let t = app();
+    let nodes = json!([
+        node("start", "start", json!({})),
+        node("l", "log", json!({"message": "got {{webhook}}"})),
+    ]);
+    let id = save(&t.ctx, "A", nodes, json!([edge("start", "l", None)]));
+    let req = RunRequest {
+        webhook_data: Some(json!({})),
+        ..key()
+    };
+    let out = execute(&t.ctx, id, req).await;
+    assert_eq!(out["status"], "success", "{}", out);
+    let logged: Vec<&str> = out["logs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|l| l["message"].as_str())
+        .collect();
+    assert!(logged.contains(&"[LOG] got {{webhook}}"), "{:?}", logged);
+}
+
+/// S-26: a trigger refused because the workflow is running writes no
+/// record of its own.
+#[tokio::test]
+async fn a_refused_second_trigger_records_nothing() {
+    let t = app();
+    let id = save(
+        &t.ctx,
+        "A",
+        json!([node("start", "start", json!({}))]),
+        json!([]),
+    );
+    let held = t.ctx.flow.try_claim(id).unwrap();
+    assert_eq!(execute(&t.ctx, id, key()).await["already_running"], true);
+    assert!(history(&t.ctx, id).is_empty());
+    drop(held);
+}
+
+/// X-330 / X-324: a short wait runs inline and is answered with the run's
+/// result, and the workflow is free once the run ends on its own.
+#[tokio::test]
+async fn a_short_wait_runs_inline_and_frees_its_workflow() {
+    let t = app();
+    let nodes = json!([
+        node("start", "start", json!({})),
+        node("d", "delay", json!({"delayValue": 1})),
+    ]);
+    let id = save(&t.ctx, "A", nodes, json!([edge("start", "d", None)]));
+    let out = execute(&t.ctx, id, key()).await;
+    assert_eq!(out["status"], "success", "{}", out);
+    assert_eq!(history(&t.ctx, id)[0].status, "completed");
+    assert!(t.ctx.flow.try_claim(id).is_some());
+}
+
+/// D-18: signing out stops a run in flight; it is recorded failed and its
+/// workflow is free.
+#[tokio::test]
+async fn signing_out_stops_a_run_in_flight() {
+    let t = app();
+    let nodes = json!([
+        node("start", "start", json!({})),
+        node("d", "delay", json!({"delayValue": 60})),
+    ]);
+    let id = save(&t.ctx, "A", nodes, json!([edge("start", "d", None)]));
+    assert_eq!(execute(&t.ctx, id, key()).await["accepted"], true);
+    assert_eq!(t.ctx.flow.running(), 1);
+    crate::services::auth_service::AuthService::lock_everything(&t.ctx).await;
+    assert_eq!(t.ctx.flow.running(), 0);
+    assert_eq!(history(&t.ctx, id)[0].status, "failed");
+    assert!(t.ctx.flow.try_claim(id).is_some());
+}

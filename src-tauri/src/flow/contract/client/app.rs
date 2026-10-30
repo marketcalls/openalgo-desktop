@@ -186,22 +186,38 @@ impl FlowClient for AppFlowClient {
         if !wa.is_ready(&app) {
             return json!({"status": "error", "error": wa.unavailable_reason().unwrap_or(WHATSAPP_NOT_READY)});
         }
-        let mut targets = Vec::new();
-        if let Some(raw) = to.filter(|t| !t.is_empty()) {
-            let digits = crate::messaging::whatsapp::normalize_phone(&json!(raw));
-            if digits.is_empty() {
-                return json!({"status": "error", "error": format!("Invalid WhatsApp phone number: {}", raw)});
-            }
-            targets.push(crate::messaging::whatsapp::phone_to_jid(&digits));
-        }
-        let report = wa.send(&app, &targets, message).await;
-        let data = serde_json::to_value(&report).unwrap_or(Value::Null);
-        if let Some(first) = report.failed.first() {
-            let error = first.get("error").cloned().unwrap_or(json!("send failed"));
-            return json!({"status": "error", "error": error, "data": data});
-        }
-        json!({"status": "success", "data": data})
+        let targets = match whatsapp_targets(to) {
+            Ok(t) => t,
+            Err(refused) => return refused,
+        };
+        whatsapp_answer(&wa.send(&app, &targets, message).await)
     }
+}
+
+/// Where a WhatsApp alert goes: the number given, as its chat id, or the
+/// paired owner when none is given; a number that is not one is refused.
+fn whatsapp_targets(to: Option<&str>) -> Result<Vec<String>, Value> {
+    let Some(raw) = to.filter(|t| !t.is_empty()) else {
+        return Ok(Vec::new());
+    };
+    let digits = crate::messaging::whatsapp::normalize_phone(&json!(raw));
+    if digits.is_empty() {
+        return Err(
+            json!({"status": "error", "error": format!("Invalid WhatsApp phone number: {}", raw)}),
+        );
+    }
+    Ok(vec![crate::messaging::whatsapp::phone_to_jid(&digits)])
+}
+
+/// The web's answer to a send: its first failure's error (`send failed`
+/// when it gave none) with the report, else success with the report.
+fn whatsapp_answer(report: &crate::messaging::whatsapp::Report) -> Value {
+    let data = serde_json::to_value(report).unwrap_or(Value::Null);
+    if let Some(first) = report.failed.first() {
+        let error = first.get("error").cloned().unwrap_or(json!("send failed"));
+        return json!({"status": "error", "error": error, "data": data});
+    }
+    json!({"status": "success", "data": data})
 }
 
 /// The web's Telegram alert text: a 21-character rule under "Flow Alert",
@@ -320,5 +336,102 @@ mod tests {
             "{}",
             outcome.failure_message()
         );
+    }
+
+    /// CL-21: a number that is not one is refused before any send, none
+    /// means the paired owner, and a send is answered as the web answers it.
+    #[test]
+    fn whatsapp_alerts_answer_as_the_web_answers() {
+        use crate::messaging::whatsapp::Report;
+        assert_eq!(
+            whatsapp_targets(Some("call me")),
+            Err(json!({"status": "error", "error": "Invalid WhatsApp phone number: call me"}))
+        );
+        assert_eq!(
+            whatsapp_targets(Some("+91 98765 43210")),
+            Ok(vec!["919876543210@s.whatsapp.net".to_string()])
+        );
+        assert_eq!(whatsapp_targets(None), Ok(vec![]));
+        assert_eq!(whatsapp_targets(Some("")), Ok(vec![]));
+        let sent = Report {
+            sent: vec!["919876543210@s.whatsapp.net".into()],
+            ..Default::default()
+        };
+        assert_eq!(
+            whatsapp_answer(&sent),
+            json!({"status": "success", "data": {"sent": ["919876543210@s.whatsapp.net"], "failed": [], "skipped": 0}})
+        );
+        let failed = Report {
+            failed: vec![
+                json!({"to": "x", "error": "not on WhatsApp"}),
+                json!({"to": "y"}),
+            ],
+            ..Default::default()
+        };
+        assert_eq!(whatsapp_answer(&failed)["error"], "not on WhatsApp");
+        assert_eq!(whatsapp_answer(&failed)["data"]["failed"][1]["to"], "y");
+        let bare = Report {
+            failed: vec![json!({"to": "x"})],
+            ..Default::default()
+        };
+        assert_eq!(whatsapp_answer(&bare)["error"], "send failed");
+    }
+
+    /// CL-22: with the bot running, the Telegram alert answers each of the
+    /// web's refusals in turn, then queues the alert.
+    #[tokio::test]
+    async fn telegram_alerts_answer_as_the_web_answers() {
+        let t =
+            crate::state::testing::build(crate::brokers::BrokerRegistry::new(), chrono::Utc::now());
+        t.ctx
+            .security
+            .install(&crate::security::Unlocked::random().unwrap());
+        let conn = t.ctx.sqlite.conn().unwrap();
+        conn.execute_batch("UPDATE bot_config SET is_active = 1")
+            .unwrap();
+        let client = AppFlowClient::new(std::sync::Arc::downgrade(&t.ctx), Secret::new("k"));
+        assert_eq!(
+            client.telegram("hi").await,
+            json!({"status": "error", "error": "Invalid API key"})
+        );
+        crate::services::auth_service::AuthService::setup(
+            &t.ctx,
+            "trader",
+            "trader@example.com",
+            "Secret@123",
+        )
+        .unwrap();
+        assert_eq!(
+            client.telegram("hi").await,
+            json!({"status": "error", "error": "No Telegram account linked for user: trader"})
+        );
+        conn.execute_batch(
+            "INSERT INTO telegram_users (telegram_id, openalgo_username, notifications_enabled)
+             VALUES (7, 'trader', 0)",
+        )
+        .unwrap();
+        assert_eq!(
+            client.telegram("hi").await,
+            json!({"status": "error", "error": "Telegram notifications are disabled"})
+        );
+        conn.execute_batch("UPDATE telegram_users SET notifications_enabled = 1")
+            .unwrap();
+        assert_eq!(
+            client.telegram("hi").await,
+            json!({"status": "success", "data": {"message": "Alert queued successfully"}})
+        );
+    }
+
+    /// CL-08: cancel-all sends the `strategy` the desktop's /api/v1
+    /// requires, so the API reads the body and answers on the key (403),
+    /// not on a missing field (400).
+    #[tokio::test]
+    async fn cancel_all_sends_the_strategy_the_api_requires() {
+        let t =
+            crate::state::testing::build(crate::brokers::BrokerRegistry::new(), chrono::Utc::now());
+        let client = AppFlowClient::new(std::sync::Arc::downgrade(&t.ctx), Secret::new("k"));
+        let v = client.cancel_all_orders().await;
+        assert_eq!(v["status"], "error", "{}", v);
+        assert_eq!(v["code"], 403, "{}", v);
     }
 }

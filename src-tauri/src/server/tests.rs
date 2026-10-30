@@ -255,6 +255,8 @@ mod flow;
 mod flow_lookups;
 // Flow's trigger routes and public webhooks (blueprints/flow.py).
 mod flow_triggers;
+// Flow's import, export, replace and run rules the audit asked to pin.
+mod flow_rules;
 
 // ------------------------------------------------------------------ fixtures
 

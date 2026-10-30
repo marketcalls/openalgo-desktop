@@ -649,9 +649,36 @@ mod tests {
         assert!(!c.sleep(Duration::from_secs(3600)).await);
     }
 
+    /// E-52 / X-105 (the web's `WorkflowContext(workflow_id=42)`), and
+    /// N-common-08 / N-logic-07: every entry carries its time, the IST
+    /// isoformat, whole seconds without a fraction and microseconds when
+    /// there are some.
     #[test]
     fn a_context_carries_its_workflow_id() {
         assert_eq!(ctx().workflow_id, None);
+        let clock = crate::clock::ManualClock::new("2026-10-30T03:45:00Z".parse().unwrap());
+        let c = NodeCtx::new(NodeCtxParts {
+            client: Arc::new(FakeFlowClient::new()),
+            clock: clock.clone(),
+            cancel: CancellationToken::new(),
+            workflow_id: Some(42),
+            default_strategy: String::new(),
+            subscriptions: Arc::new(Subscriptions::default()),
+            session_boundary: super::super::vars::DEFAULT_BOUNDARY,
+            env: NodeEnv::default(),
+            app: Weak::new(),
+        });
+        assert_eq!(c.workflow_id, Some(42));
+        c.info("first");
+        clock.advance(chrono::Duration::microseconds(250));
+        c.error("second");
+        assert_eq!(
+            c.logs(),
+            vec![
+                json!({"time": "2026-10-30T09:15:00", "message": "first", "level": "info"}),
+                json!({"time": "2026-10-30T09:15:00.000250", "message": "second", "level": "error"}),
+            ]
+        );
     }
 
     #[test]
