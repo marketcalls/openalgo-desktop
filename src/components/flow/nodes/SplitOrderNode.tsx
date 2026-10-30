@@ -15,7 +15,8 @@ interface SplitOrderNodeProps {
 }
 
 export const SplitOrderNode = memo(({ data, selected }: SplitOrderNodeProps) => {
-  const actionClass = data.action === 'BUY' ? 'text-green-500' : 'text-red-500'
+  // Desktop: the colour follows the side shown, BUY when none is stored (parity F-677).
+  const actionClass = (data.action || 'BUY') === 'BUY' ? 'text-green-500' : 'text-red-500'
 
   return (
     <div className={cn('workflow-node node-action min-w-[120px]', selected && 'selected')}>

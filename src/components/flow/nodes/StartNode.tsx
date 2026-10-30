@@ -25,6 +25,9 @@ const scheduleLabels: Record<string, string> = {
 
 export const StartNode = memo(({ data, selected }: StartNodeProps) => {
   const Icon = scheduleIcons[data.scheduleType] || Clock
+  // Desktop: no type, or "manual", is never scheduled (the scheduler skips it),
+  // so the face says so rather than showing a 09:15 time (parity F-674).
+  const noSchedule = !data.scheduleType || (data.scheduleType as string) === 'manual'
 
   // Format interval display
   const getIntervalDisplay = () => {
@@ -44,13 +47,15 @@ export const StartNode = memo(({ data, selected }: StartNodeProps) => {
           <div>
             <div className="text-xs font-medium leading-tight">Start</div>
             <div className="text-[9px] text-muted-foreground">
-              {scheduleLabels[data.scheduleType] || 'Schedule'}
+              {noSchedule ? 'No schedule' : scheduleLabels[data.scheduleType] || 'Schedule'}
             </div>
           </div>
         </div>
         <div className="rounded bg-muted/50 px-1.5 py-1 text-[10px]">
           {/* Show interval for interval schedule, time for others */}
-          {data.scheduleType === 'interval' ? (
+          {noSchedule ? (
+            <div className="text-muted-foreground">Run it with Run Now</div>
+          ) : data.scheduleType === 'interval' ? (
             <div className="flex items-center justify-between gap-2">
               <span className="text-muted-foreground">Every:</span>
               <span className="mono-data font-medium">{getIntervalDisplay()}</span>

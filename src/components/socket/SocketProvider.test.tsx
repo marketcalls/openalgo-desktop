@@ -572,7 +572,9 @@ describe('order event hooks on the shared connection', () => {
       useOrderEventRefresh(panelA, { events: ['order_event', 'close_position_event'], delay: 0 })
       useOrderEventRefresh(panelB, { events: ['order_event', 'analyzer_update'], delay: 0 })
       const { socket, isConnected } = useSocketConnection()
-      seen.push({ connected: isConnected, sameSocket: socket === (sio.created[0] ?? null) })
+      // The mocked `io()` hands out a FakeSocket where the hook's type says Socket.
+      const first: unknown = sio.created[0] ?? null
+      seen.push({ connected: isConnected, sameSocket: socket === first })
       return <p>panels</p>
     }
 

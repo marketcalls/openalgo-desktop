@@ -584,7 +584,10 @@ describe('F-123 IE-09 V-152 the import dialog', () => {
     expect(api.importWorkflow).not.toHaveBeenCalled()
   })
 
-  it('closing it clears the text and the error', async () => {
+  it.each([
+    ['Escape', 'escape'],
+    ['Cancel (desktop: the web kept the text)', 'cancel'],
+  ])('closing it with %s clears the text and the error', async (_how, how) => {
     renderIndex()
     let { user, dialog } = await openImport()
     await user.click(within(dialog).getByLabelText('Workflow JSON'))
@@ -593,7 +596,8 @@ describe('F-123 IE-09 V-152 the import dialog', () => {
     expect(
       within(dialog).getByText('Invalid JSON format. Please check the workflow data.')
     ).toBeInTheDocument()
-    await user.keyboard('{Escape}')
+    if (how === 'escape') await user.keyboard('{Escape}')
+    else await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     ;({ user, dialog } = await openImport())
     expect(within(dialog).getByLabelText('Workflow JSON')).toHaveValue('')

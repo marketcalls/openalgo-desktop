@@ -26,6 +26,9 @@ const ORDER = {
   type: 'MARKET' as const,
   qty: 1,
   product: 'MIS' as const,
+  // What the terminal sends. Live is checked only against a cached server
+  // mode, so it adds no request to the ones counted here.
+  mode: 'live' as const,
 }
 
 // The server's answer in Semi-Auto mode (services/order_router.rs).

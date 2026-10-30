@@ -88,7 +88,7 @@ function harness(failWrite = false, transitionPending = false) {
 }
 async function open() {
   const user = userEvent.setup()
-  await user.click(screen.getByRole('button', { name: 'Workspaces', exact: true }))
+  await user.click(screen.getByRole('button', { name: 'Workspaces' }))
   await waitFor(() => expect(screen.queryByText('Loading workspaces...')).not.toBeInTheDocument())
   return user
 }
@@ -98,7 +98,7 @@ describe('named workspace menu', () => {
   it('keeps cancellation accessible inside the modal while chart loading blocks other actions', async () => {
     const host = harness(false, true),
       user = await open()
-    expect(screen.getByRole('button', { name: 'Refresh', exact: true })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Cancel workspace loading' }))
     expect(host.cancel).toHaveBeenCalledOnce()
   })
@@ -116,7 +116,7 @@ describe('named workspace menu', () => {
     await user.click(screen.getByRole('button', { name: 'Save as' }))
     await screen.findByRole('option', { name: 'Morning' })
     expect(host.saved()?.workspaces[0].panes).toEqual(payload.panes)
-    await user.click(screen.getByRole('button', { name: 'Open', exact: true }))
+    await user.click(screen.getByRole('button', { name: 'Open' }))
     expect(host.opened).toHaveBeenCalledWith(expect.objectContaining({ name: 'Morning' }))
     await user.clear(screen.getByLabelText('Saved workspace name'))
     await user.type(screen.getByLabelText('Saved workspace name'), 'Afternoon')
@@ -124,13 +124,13 @@ describe('named workspace menu', () => {
     await screen.findByRole('option', { name: 'Afternoon' })
     await user.click(screen.getByRole('button', { name: 'Duplicate' }))
     await screen.findByRole('option', { name: 'Afternoon copy' })
-    await user.click(screen.getByRole('button', { name: 'Delete', exact: true }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
     expect(screen.getByRole('alertdialog', { name: 'Delete workspace' })).toHaveTextContent(
       'Delete the saved workspace Afternoon copy?'
     )
     await user.click(screen.getByRole('button', { name: 'Keep workspace' }))
     expect(host.saved()?.workspaces).toHaveLength(2)
-    await user.click(screen.getByRole('button', { name: 'Delete', exact: true }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
     await user.click(screen.getByRole('button', { name: 'Delete workspace' }))
     await waitFor(() => expect(host.saved()?.workspaces).toHaveLength(1))
   })

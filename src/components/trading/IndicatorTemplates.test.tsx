@@ -42,7 +42,7 @@ function harness(options: { failWrite?: boolean; noTarget?: boolean } = {}) {
 
 async function open() {
   const user = userEvent.setup()
-  await user.click(screen.getByRole('button', { name: 'Templates', exact: true }))
+  await user.click(screen.getByRole('button', { name: 'Templates' }))
   await waitFor(() => expect(screen.queryByText('Loading templates…')).not.toBeInTheDocument())
   return user
 }
@@ -214,7 +214,7 @@ describe('named indicator templates', () => {
       target: () => null,
     }
     const { rerender } = render(<IndicatorTemplates {...props} />)
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Templates', exact: true }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Templates' }))
     expect(screen.getByRole('button', { name: 'Save current studies' })).toBeDisabled()
     rerender(<IndicatorTemplates {...props} loading={false} pending />)
     fireEvent.change(screen.getByLabelText('New template name'), { target: { value: 'Busy' } })

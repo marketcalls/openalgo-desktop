@@ -62,7 +62,7 @@ describe('the alert list on the rail', () => {
     // The name is fixed when the alert is made and a drag moves the price
     // without touching it, so the row reads the level off the alert itself.
     const { view } = viewOf([
-      alert({ title: 'Renamed by hand', source: { kind: 'price', price: 1290.55, paneIndex: 0 } }),
+      alert({ title: 'Renamed by hand', source: { kind: 'price', price: 1290.55 } }),
     ])
     render(<AlertsPanel {...props} view={view} />)
     expect(screen.getByText('Crossing up 1290.55')).toBeInTheDocument()

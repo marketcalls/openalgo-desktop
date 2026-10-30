@@ -714,7 +714,7 @@ describe('built-in volume and average', () => {
       expect(
         state.chart
           .getState()
-          .series.filter((s) => s.priceScaleId === '')
+          .series?.filter((s) => s.priceScaleId === '')
           .every((s) => s.style.visible === false)
       ).toBe(true)
       expect(terminal.volumeVisible()).toBe(true)
@@ -724,7 +724,7 @@ describe('built-in volume and average', () => {
       expect(
         state.chart
           .getState()
-          .series.filter((s) => s.priceScaleId === '')
+          .series?.filter((s) => s.priceScaleId === '')
           .every((s) => s.style.visible === true)
       ).toBe(true)
     }
@@ -1549,7 +1549,7 @@ describe('symbol load lifecycle', () => {
     vi.spyOn(terminal, 'api').mockReturnValue(lookup.promise)
     state.rest = { getBars: async () => [bar(300, 999)] }
     const before = [...state.rawBars]
-    const load = terminal.loadSymbol(state.sym)
+    const load = terminal.loadSymbol({ ...state.sym })
     terminal.destroy()
     lookup.resolve({ data: {} })
 
@@ -1563,7 +1563,7 @@ describe('symbol load lifecycle', () => {
     vi.spyOn(terminal, 'api').mockResolvedValue({ data: {} })
     const pending = pendingHistory(state)
     const before = [...state.rawBars]
-    const load = terminal.loadSymbol(state.sym)
+    const load = terminal.loadSymbol({ ...state.sym })
     await Promise.resolve() // The metadata response starts the history request.
     terminal.destroy()
     pending.resolve([bar(300, 999)])
@@ -1580,7 +1580,7 @@ describe('symbol load lifecycle', () => {
       vi.spyOn(terminal, 'api').mockResolvedValue({ data: {} })
       vi.spyOn(console, 'error').mockImplementation(() => {})
       const pending = pendingHistory(state)
-      const first = terminal.loadSymbol(state.sym)
+      const first = terminal.loadSymbol({ ...state.sym })
       await Promise.resolve()
       const newer = [bar(300, 200), bar(360, 201)]
       state.rest = { getBars: async () => newer }

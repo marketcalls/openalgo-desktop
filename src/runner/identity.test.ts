@@ -62,7 +62,7 @@ function bar(i: number, up: boolean): HostBar {
 interface Asked {
   run: number
   ids: number[]
-  sides: string[]
+  sides: OrderIntent['side'][]
 }
 
 function harness(answer: (call: number) => Error | null) {

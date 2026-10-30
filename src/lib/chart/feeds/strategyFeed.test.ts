@@ -1,5 +1,10 @@
+import type { BarsRequest } from 'openalgo-charts'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { MultiStrikeOIResponse, StrategyChartResponse } from '@/api/strategy-chart'
+import type {
+  MultiStrikeOIResponse,
+  StrategyChartData,
+  StrategyChartResponse,
+} from '@/api/strategy-chart'
 import {
   createMultiStrikeOIFeed,
   createStrategyChartFeed,
@@ -51,7 +56,7 @@ function request(overrides: Partial<StrategyFeedRequest> = {}): StrategyFeedRequ
   }
 }
 
-function premium(underlying: string, series: StrategyChartResponse['data']): StrategyChartResponse {
+function premium(underlying: string, overrides: Partial<StrategyChartData>): StrategyChartResponse {
   return {
     status: 'success',
     data: {
@@ -64,12 +69,20 @@ function premium(underlying: string, series: StrategyChartResponse['data']): Str
       legs_used: 1,
       underlying_available: true,
       series: [],
-      ...series,
-    } as NonNullable<StrategyChartResponse['data']>,
+      ...overrides,
+    },
   }
 }
 
 const ask = { symbol: 'NIFTY PREMIUM', exchange: 'NFO', interval: '5m' }
+
+/**
+ * A scroll into older history as the engine asks for it: anchored with
+ * `before`, which it sends to `getBars` without declaring it on `BarsRequest`.
+ */
+function olderPage(): BarsRequest & { before: number } {
+  return { ...ask, from: 1_699_000_000, to: 1_700_000_000, before: 1_700_000_000 }
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -279,7 +292,7 @@ describe('createStrategyChartFeed', () => {
     // the only thing that distinguishes a page from a fresh load of an old
     // range. A host that mistook one for the other would shrink every overlay
     // to the older window.
-    await feed.getBars({ ...ask, from: 1_699_000_000, to: 1_700_000_000, before: 1_700_000_000 })
+    await feed.getBars(olderPage())
 
     expect(onPayload).toHaveBeenCalledWith(expect.anything(), { paging: true })
   })
@@ -289,9 +302,7 @@ describe('createStrategyChartFeed', () => {
     const onPayload = vi.fn()
     const feed = createStrategyChartFeed({ read: () => request(), onPayload })
 
-    await expect(
-      feed.getBars({ ...ask, from: 1_699_000_000, to: 1_700_000_000, before: 1_700_000_000 })
-    ).rejects.toThrow('broker said no')
+    await expect(feed.getBars(olderPage())).rejects.toThrow('broker said no')
 
     // A page that could not be fetched is no news about the range already
     // drawn. The engine shows its own failed-page row; clearing the host's

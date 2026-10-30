@@ -122,7 +122,7 @@ describe('order node types accept every price type the server does (X-258..X-260
 
 describe('the palette and config titles cover every node (X-261, X-262)', () => {
   it('offers every registered node in the palette (X-261)', () => {
-    const palette = new Set(
+    const palette = new Set<string>(
       Object.values(NODE_DEFINITIONS)
         .flat()
         .map((d) => d.type)

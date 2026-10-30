@@ -24,6 +24,7 @@ function market(overrides: Partial<ResolvedLegMarket> = {}): ResolvedLegMarket {
     expiryTs: 1_786_400_000,
     lotSize: 75,
     tickSize: 0.05,
+    contractValid: true,
     marketPrice: 125,
     iv: 12,
     forwardPrice: 24_620,

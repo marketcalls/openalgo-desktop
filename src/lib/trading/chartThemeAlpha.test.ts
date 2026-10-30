@@ -83,9 +83,10 @@ let original: typeof HTMLCanvasElement.prototype.getContext
 
 beforeEach(() => {
   original = HTMLCanvasElement.prototype.getContext
+  // One 2d stub cannot satisfy every overload of the real method.
   HTMLCanvasElement.prototype.getContext = function getContext() {
     return new FakeContext() as unknown as CanvasRenderingContext2D
-  } as typeof HTMLCanvasElement.prototype.getContext
+  } as unknown as typeof HTMLCanvasElement.prototype.getContext
 })
 
 afterEach(() => {

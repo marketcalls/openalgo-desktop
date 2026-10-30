@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react'
 import type { Bar } from 'openalgo-charts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fakeWidgetState, moveCrosshair } from '@/test/fakeChart'
-import { StrategyChartShell } from './StrategyChartShell'
+import { StrategyChartShell, type StrategyChartShellProps } from './StrategyChartShell'
 
 const mocks = vi.hoisted(() => ({
   chartState: { current: null as ReturnType<typeof fakeWidgetState> | null },
@@ -23,16 +23,14 @@ vi.mock('@/components/chart/OpenAlgoChart', async () => {
 
 const BAR: Bar = { time: 1_700_000_000, open: 1, high: 1, low: 1, close: 1 }
 
-function renderShell(overrides: Record<string, unknown> = {}) {
-  const props = {
+function renderShell(overrides: Partial<StrategyChartShellProps> = {}) {
+  const props: StrategyChartShellProps = {
     feed: { getBars: async (): Promise<Bar[]> => [BAR] },
     symbol: 'NIFTY PREMIUM',
     exchange: 'NFO',
     interval: '5m',
     intervals: ['5m', '15m'],
     onIntervalChange: vi.fn(),
-    days: '3',
-    onDaysChange: vi.fn(),
     reloadKey: 'a',
     busy: false,
     onBusyChange: vi.fn(),
@@ -40,7 +38,7 @@ function renderShell(overrides: Record<string, unknown> = {}) {
     onReady: vi.fn(),
     ...overrides,
   }
-  const view = render(<StrategyChartShell {...(props as never)} />)
+  const view = render(<StrategyChartShell {...props} />)
   return { view, props }
 }
 
@@ -74,9 +72,9 @@ describe('StrategyChartShell loading state', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(600)
     })
-    ;(props.onBusyChange as ReturnType<typeof vi.fn>).mockClear()
+    vi.mocked(props.onBusyChange).mockClear()
 
-    view.rerender(<StrategyChartShell {...(props as never)} reloadKey="b" />)
+    view.rerender(<StrategyChartShell {...props} reloadKey="b" />)
     await act(async () => {
       await vi.advanceTimersByTimeAsync(300)
     })
@@ -96,7 +94,7 @@ describe('StrategyChartShell loading state', () => {
 
     // A template pick rewrites the legs several times in a few milliseconds.
     for (const key of ['b', 'c', 'd']) {
-      view.rerender(<StrategyChartShell {...(props as never)} reloadKey={key} />)
+      view.rerender(<StrategyChartShell {...props} reloadKey={key} />)
       await act(async () => {
         await vi.advanceTimersByTimeAsync(50)
       })

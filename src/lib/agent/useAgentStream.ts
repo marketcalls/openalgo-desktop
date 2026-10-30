@@ -61,7 +61,7 @@ const FRAME_MS = 16
 const hasAnimationFrame = typeof requestAnimationFrame === 'function'
 
 function requestFrame(callback: () => void): number {
-  return hasAnimationFrame ? requestAnimationFrame(callback) : setTimeout(callback, FRAME_MS)
+  return hasAnimationFrame ? requestAnimationFrame(callback) : window.setTimeout(callback, FRAME_MS)
 }
 
 function cancelFrame(handle: number): void {

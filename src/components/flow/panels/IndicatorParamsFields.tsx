@@ -15,7 +15,7 @@
 // {{variable}} interpolation, which execute_indicator applies to the whole
 // params string before parsing it.
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -53,6 +53,18 @@ function parseParams(raw: string): { values: Record<string, unknown>; error: str
   }
 }
 
+/**
+ * Desktop: why the fields view is unavailable, or null when it is not (parity
+ * F-668). A {{reference}} anywhere, quoted or not, has no field to show it in;
+ * malformed JSON would be discarded by editing it as fields.
+ */
+function fieldsBlockedReason(raw: string, error: string | null): string | null {
+  if ((raw || '').includes('{{')) {
+    return 'Fields cannot show a {{variable}} reference. Remove it to use fields.'
+  }
+  return error === null ? null : 'Fix the JSON, or clear the box, to use fields.'
+}
+
 /** Serialize back, keeping the spec order first and any unknown keys after. */
 function serialize(specs: readonly IndicatorParam[], values: Record<string, unknown>): string {
   const known = new Set(specs.map((s) => s.name))
@@ -78,10 +90,17 @@ export function IndicatorParamsFields({
   // it and only parseable text is committed to the node.
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [jsonMode, setJsonMode] = useState(false)
+  // Desktop: every label names its control (parity F-668, a11y).
+  const baseId = useId()
+  const idFor = (name: string) => `${baseId}-${name}`
+  const jsonId = `${baseId}-json`
+  const reasonId = `${baseId}-reason`
 
   // Malformed JSON (hand-written, or interpolated) has no field representation
   // - editing it as fields would silently discard whatever is in there.
-  const showJson = jsonMode || error !== null
+  // Desktop: nor has a quoted {{reference}}, which the number box showed empty.
+  const blockedReason = fieldsBlockedReason(value, error)
+  const showJson = jsonMode || blockedReason !== null
 
   const commit = (name: string, next: ParamValue) => {
     onChange(serialize(specs, { ...values, [name]: next }))
@@ -97,8 +116,14 @@ export function IndicatorParamsFields({
     if (spec.type === 'bool') {
       return (
         <div key={spec.name} className="flex items-center justify-between rounded-lg border p-3">
-          <Label className="text-xs">{spec.label}</Label>
-          <Switch checked={Boolean(current(spec))} onCheckedChange={(v) => commit(spec.name, v)} />
+          <Label className="text-xs" htmlFor={idFor(spec.name)}>
+            {spec.label}
+          </Label>
+          <Switch
+            id={idFor(spec.name)}
+            checked={Boolean(current(spec))}
+            onCheckedChange={(v) => commit(spec.name, v)}
+          />
         </div>
       )
     }
@@ -106,9 +131,11 @@ export function IndicatorParamsFields({
     if (spec.choices) {
       return (
         <div key={spec.name} className="space-y-2">
-          <Label className="text-xs">{spec.label}</Label>
+          <Label className="text-xs" htmlFor={idFor(spec.name)}>
+            {spec.label}
+          </Label>
           <Select value={String(current(spec))} onValueChange={(v) => commit(spec.name, v)}>
-            <SelectTrigger className="h-8">
+            <SelectTrigger id={idFor(spec.name)} className="h-8">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -126,8 +153,11 @@ export function IndicatorParamsFields({
     if (spec.type === 'string') {
       return (
         <div key={spec.name} className="space-y-2">
-          <Label className="text-xs">{spec.label}</Label>
+          <Label className="text-xs" htmlFor={idFor(spec.name)}>
+            {spec.label}
+          </Label>
           <Input
+            id={idFor(spec.name)}
             className="h-8"
             placeholder={String(spec.default)}
             value={String(current(spec))}
@@ -140,8 +170,11 @@ export function IndicatorParamsFields({
     const draft = drafts[spec.name]
     return (
       <div key={spec.name} className="space-y-2">
-        <Label className="text-xs">{spec.label}</Label>
+        <Label className="text-xs" htmlFor={idFor(spec.name)}>
+          {spec.label}
+        </Label>
         <Input
+          id={idFor(spec.name)}
           type="number"
           step={spec.type === 'float' ? 'any' : 1}
           className="h-8"
@@ -168,13 +201,18 @@ export function IndicatorParamsFields({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <Label className="text-xs">Parameters</Label>
+        <Label className="text-xs" htmlFor={showJson ? jsonId : undefined}>
+          Parameters
+        </Label>
         <Button
           type="button"
           variant="ghost"
           size="sm"
           className="h-6 px-2 text-[10px]"
           onClick={() => setJsonMode((m) => !m)}
+          // Desktop: "Use fields" would do nothing here; say why instead.
+          disabled={blockedReason !== null}
+          aria-describedby={blockedReason !== null ? reasonId : undefined}
         >
           {showJson ? 'Use fields' : 'Edit as JSON'}
         </Button>
@@ -183,6 +221,7 @@ export function IndicatorParamsFields({
       {showJson ? (
         <div className="space-y-2">
           <Input
+            id={jsonId}
             className="h-8"
             placeholder='{"period": 14}'
             value={value}
@@ -194,6 +233,11 @@ export function IndicatorParamsFields({
             <p className="text-[10px] text-muted-foreground">
               Raw kwargs passed to the indicator. Use this for {'{{variable}}'} references, which
               are interpolated before the JSON is parsed - the fields view cannot represent them.
+            </p>
+          )}
+          {blockedReason !== null && (
+            <p id={reasonId} className="text-[10px] text-muted-foreground">
+              {blockedReason}
             </p>
           )}
         </div>

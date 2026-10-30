@@ -11,8 +11,19 @@ vi.mock('@/components/socket/SocketProvider', () => ({
   useSocketContext: () => ({ playAlertSound: () => {}, socket: shared.socket }),
 }))
 
+/** The REST state answer: the run it read and that run's checkpoints. */
+interface StateAnswer {
+  data: {
+    status: string
+    run_id: number | null
+    data: { ts: string; pnl_total: number; leg_state: Record<string, unknown> }[]
+  }
+}
+
 const rest = vi.hoisted(() => ({
-  get: vi.fn(async () => ({ data: { status: 'success', data: [], run_id: null } })),
+  get: vi.fn(
+    async (): Promise<StateAnswer> => ({ data: { status: 'success', data: [], run_id: null } })
+  ),
 }))
 
 vi.mock('@/api/client', () => ({

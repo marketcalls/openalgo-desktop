@@ -33,7 +33,8 @@ export const PlaceOrderNode = memo(({ data, selected }: PlaceOrderNodeProps) => 
             <span
               className={cn(
                 'rounded px-1 py-0.5 text-[9px] font-semibold',
-                data.action === 'BUY' ? 'badge-buy' : 'badge-sell'
+                // Desktop: the colour follows the side shown (parity F-677).
+                (data.action || 'BUY') === 'BUY' ? 'badge-buy' : 'badge-sell'
               )}
             >
               {data.action || 'BUY'}

@@ -61,7 +61,7 @@ describe('finding what is open', () => {
     const trades = [trade(), trade({ index: 2 }), trade({ index: 3, isOpen: false })]
 
     expect(openCountOf(trades)).toBe(2)
-    expect(openPositionOf(trades)?.index ?? 1).toBeTruthy()
+    expect(openPositionOf(trades)).not.toBeNull()
   })
 })
 

@@ -120,6 +120,20 @@ describe('F-674 the Start node', () => {
     expect(row(face('start', { scheduleType: 'daily' }), 'Time:')).toBe('09:15')
   })
 
+  // Desktop (web defect): the web showed "Schedule" and Time: 09:15, but no
+  // type or "manual" is never scheduled; the face now matches the panel.
+  it.each([
+    ['no type', {}],
+    ['manual', { scheduleType: 'manual', time: '10:45', days: [0, 2] }],
+  ])('says there is no schedule for %s, with no time or days', (_case, data) => {
+    const el = face('start', data)
+    expect(subtitle(el, 'Start')).toBe('No schedule')
+    expect(has(el, 'Run it with Run Now')).toBe(true)
+    expect(has(el, 'Time:')).toBe(false)
+    expect(has(el, 'Every:')).toBe(false)
+    expect(has(el, 'Days:')).toBe(false)
+  })
+
   it('spells the chosen days as M T W T F S S letters only for a partial week', () => {
     expect(row(face('start', { scheduleType: 'daily', days: [0, 2, 4] }), 'Days:')).toBe('MWF')
     expect(row(face('start', { scheduleType: 'weekly', days: [5, 6] }), 'Days:')).toBe('SS')
@@ -293,6 +307,21 @@ describe('F-677 the order nodes', () => {
     expect(has(blank, 'NRML')).toBe(true)
     expect(has(blank, 'MARKET')).toBe(true)
   })
+
+  it.each([
+    ['placeOrder', 'badge-buy', 'badge-sell'],
+    ['smartOrder', 'badge-buy', 'badge-sell'],
+    ['optionsOrder', 'badge-buy', 'badge-sell'],
+    ['splitOrder', 'text-green-500', 'text-red-500'],
+  ])(
+    '%s with no stored side shows BUY in the buy colour (desktop: the web drew it red)',
+    (type, buy, sell) => {
+      const side = leaf(face(type), 'BUY')
+      expect(side.classList.contains(buy)).toBe(true)
+      expect(side.classList.contains(sell)).toBe(false)
+      expect(leaf(face(type, { action: 'SELL' }), 'SELL').classList.contains(sell)).toBe(true)
+    }
+  )
 
   it('Multi-Leg: strategy, leg count, expiry and the side, SELL by default', () => {
     const el = face('optionsMultiOrder', {

@@ -301,6 +301,12 @@ jobs:
         run: npx biome ci --reporter=github ./src
       - name: Type check
         run: npx tsc -b
+      - name: Type check tests
+        # tsc -b checks tsconfig.app.json alone, which leaves out every test
+        # file and src/test/, and vitest strips types without checking them,
+        # so a test could keep passing against a field or prop that no longer
+        # exists (docs/audit/2026-10-03/06-build-ci.md, 6.4).
+        run: npx tsc -p tsconfig.test.json --noEmit
       - name: Chart engine references match the pinned openalgo-charts
         # The web's chart-indicator-skill job: a version bump that leaves the
         # chart-indicator skill's export index or the generated drawing-tool

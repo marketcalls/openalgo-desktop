@@ -263,7 +263,7 @@ describe('chart pane preparation ownership', () => {
         simulated: false,
       })
     )
-    fireEvent.click(view.getByRole('button', { name: 'Replay', exact: true }))
+    fireEvent.click(view.getByRole('button', { name: 'Replay' }))
     expect(start).toHaveBeenCalledExactlyOnceWith('saved')
     expect(fake.owners[0].startReplay).not.toHaveBeenCalled()
     expect(view.queryByRole('button', { name: 'Play' })).toBeNull()
@@ -282,11 +282,11 @@ describe('chart pane preparation ownership', () => {
     const view = render(panes('left'))
     await act(async () => fake.owners.forEach((owner) => owner.resolve()))
     expect(view.getAllByRole('toolbar', { name: 'Chart controls' })).toHaveLength(1)
-    fireEvent.click(within(host).getByRole('button', { name: 'Alerts', exact: true }))
+    fireEvent.click(within(host).getByRole('button', { name: 'Alerts' }))
     expect(fake.owners[0].openAlerts).toHaveBeenCalledOnce()
     expect(fake.owners[1].openAlerts).not.toHaveBeenCalled()
     view.rerender(panes('right'))
-    fireEvent.click(within(host).getByRole('button', { name: 'Alerts', exact: true }))
+    fireEvent.click(within(host).getByRole('button', { name: 'Alerts' }))
     expect(fake.owners[1].openAlerts).toHaveBeenCalledOnce()
     expect(fake.owners).toHaveLength(2)
     expect(fake.owners.every((owner) => owner.destroy.mock.calls.length === 0)).toBe(true)
@@ -294,14 +294,14 @@ describe('chart pane preparation ownership', () => {
 
   it('keeps controls absent until their shared host is available', () => {
     const view = render(<ChartPane {...props} toolbarHost={null} focused />)
-    expect(view.queryByRole('button', { name: 'Alerts', exact: true })).toBeNull()
+    expect(view.queryByRole('button', { name: 'Alerts' })).toBeNull()
   })
 
   it('selects the pane through keyboard focus and exposes the selected pane', async () => {
     const focus = vi.fn()
     const view = render(<ChartPane {...props} paneLabel="Chart 2" focused onFocusPane={focus} />)
     await act(async () => fake.owners[0].resolve())
-    const chart = view.getByRole('region', { name: 'Chart 2', exact: true })
+    const chart = view.getByRole('region', { name: 'Chart 2' })
     expect(chart).toHaveAttribute('tabindex', '0')
     expect(chart).toHaveAttribute('data-chart-focused', 'true')
     fireEvent.focus(chart)
@@ -312,19 +312,19 @@ describe('chart pane preparation ownership', () => {
     const host = render(<div data-testid="shared-toolbar" />).getByTestId('shared-toolbar')
     const view = render(<ChartPane {...props} toolbarHost={host} focused paneLabel="Chart 1" />)
     await act(async () => fake.owners[0].resolve())
-    const chart = view.getByRole('region', { name: 'Chart 1', exact: true })
-    expect(within(host).getByRole('button', { name: 'Alerts', exact: true })).toBeVisible()
+    const chart = view.getByRole('region', { name: 'Chart 1' })
+    expect(within(host).getByRole('button', { name: 'Alerts' })).toBeVisible()
     try {
       Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: chart })
       fireEvent(document, new Event('fullscreenchange'))
       expect(host).toBeEmptyDOMElement()
-      fireEvent.click(within(chart).getByRole('button', { name: 'Alerts', exact: true }))
+      fireEvent.click(within(chart).getByRole('button', { name: 'Alerts' }))
       expect(fake.owners[0].openAlerts).toHaveBeenCalledOnce()
     } finally {
       Object.defineProperty(document, 'fullscreenElement', { configurable: true, value: null })
       fireEvent(document, new Event('fullscreenchange'))
     }
-    expect(within(host).getByRole('button', { name: 'Alerts', exact: true })).toBeVisible()
+    expect(within(host).getByRole('button', { name: 'Alerts' })).toBeVisible()
     expect(fake.owners).toHaveLength(1)
   })
 
@@ -356,7 +356,7 @@ describe('chart pane preparation ownership', () => {
         alert: { label: 'Create price alert', source },
       })
     )
-    fireEvent.click(view.getByRole('button', { name: 'Create price alert', exact: true }))
+    fireEvent.click(view.getByRole('button', { name: 'Create price alert' }))
     expect(owner.createAlertAt).toHaveBeenCalledWith(source)
     expect(owner.openAlerts).not.toHaveBeenCalled()
   })
@@ -378,9 +378,9 @@ describe('chart pane preparation ownership', () => {
       })
     )
     fireEvent.scroll(view.getByRole('toolbar', { name: 'Chart controls' }))
-    expect(view.getByRole('button', { name: 'Create price alert', exact: true })).toBeVisible()
+    expect(view.getByRole('button', { name: 'Create price alert' })).toBeVisible()
     fireEvent.scroll(window)
-    expect(view.queryByRole('button', { name: 'Create price alert', exact: true })).toBeNull()
+    expect(view.queryByRole('button', { name: 'Create price alert' })).toBeNull()
   })
 
   it('offers no second alert entry in the menu', async () => {
@@ -399,14 +399,14 @@ describe('chart pane preparation ownership', () => {
         alert: { label: 'Create price alert', source: { kind: 'price' as const, price: 105 } },
       })
     )
-    expect(view.getByRole('button', { name: 'Create price alert', exact: true })).toBeVisible()
+    expect(view.getByRole('button', { name: 'Create price alert' })).toBeVisible()
     expect(view.queryByRole('button', { name: /^Create alert/ })).not.toBeInTheDocument()
   })
 
   it('opens alerts from the pane toolbar', async () => {
     const view = render(<ChartPane {...props} />)
     await act(async () => fake.owners[0].resolve())
-    fireEvent.click(view.getByRole('button', { name: 'Alerts', exact: true }))
+    fireEvent.click(view.getByRole('button', { name: 'Alerts' }))
     expect(fake.owners[0].openAlerts).toHaveBeenCalledOnce()
   })
 

@@ -54,7 +54,7 @@ describe('the rule', () => {
   })
 
   it('names only exchanges the editor actually offers', () => {
-    const offered = new Set(EXCHANGES.map((e) => e.value))
+    const offered = new Set<string>(EXCHANGES.map((e) => e.value))
     for (const exchange of DERIVATIVE_EXCHANGES) expect(offered.has(exchange)).toBe(true)
   })
 
