@@ -163,14 +163,14 @@ async fn object_params_are_not_interpolated() {
     for params in [json!("{\"period\": {{p}}}"), json!({"period": "{{p}}"})] {
         shared_cache().clear();
         let client = Arc::new(FakeFlowClient::new());
-        client.reply("history", daily(20..=29));
+        client.reply("history", daily(20..=28));
         let c = ctx(client);
         c.vars.set("p", json!(3));
         answers.push(run(&c, "indicator", node(params)).await.value().cloned());
     }
     assert_eq!(
         answers[0].as_ref().map(|v| v["latest"].clone()),
-        Some(json!({"value": 28.0}))
+        Some(json!({"value": 27.0}))
     );
     let object = answers[1].clone().unwrap_or(Value::Null);
     assert_eq!(object["status"], "error", "{}", object);

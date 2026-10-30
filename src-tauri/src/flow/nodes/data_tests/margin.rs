@@ -79,6 +79,16 @@ async fn a_blank_positions_json_falls_back_to_positions() {
         .await;
         assert_eq!(positions, Some(json!([sent("INFY")])), "{:?}", blank);
     }
+    // Both keys blank or null: the single position is priced.
+    let (positions, _) =
+        margin_sent(json!({"positionsJson": null, "positions": " ", "symbol": "TCS"})).await;
+    assert_eq!(
+        positions,
+        Some(
+            json!([{"exchange": "NSE", "symbol": "TCS", "action": "BUY", "quantity": "1",
+                    "product": "MIS", "pricetype": "MARKET", "price": "0"}])
+        )
+    );
 }
 
 /// N-margin-07: a basket wins over the node's single position, even when
