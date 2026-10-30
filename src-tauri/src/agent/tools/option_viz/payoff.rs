@@ -198,12 +198,12 @@ pub struct Market {
 }
 
 /// The legs in `StrategyLeg` shape, the spot, and the mean implied
-/// volatility (a leg with none of its own falls back to it). `iv` inverts
+/// volatility (a leg with none of its own falls back to it). `implied_vol` inverts
 /// an option's market price against its forward.
 pub fn priced_legs(
     legs: &[PayoffLeg],
     market: &Market,
-    iv: impl Fn(&PayoffLeg, f64, f64) -> f64,
+    implied_vol: impl Fn(&PayoffLeg, f64, f64) -> f64,
     notices: &mut Vec<String>,
 ) -> (Vec<Value>, Option<f64>, Option<f64>) {
     let Some(first) = legs.first() else {
@@ -217,7 +217,7 @@ pub fn priced_legs(
         ))
         .copied();
     let mut priced = Vec::new();
-    let mut ivs = Vec::new();
+    let mut implied_vols = Vec::new();
     for (i, leg) in legs.iter().enumerate() {
         let c = &leg.contract;
         let quoted = market
@@ -238,25 +238,30 @@ pub fn priced_legs(
             .get(&c.expiry)
             .copied()
             .filter(|f| *f != 0.0);
-        let leg_iv = match (option, forward, quoted.filter(|m| *m != 0.0)) {
-            (true, Some(f), Some(m)) => iv(leg, f, m),
+        let leg_vol = match (option, forward, quoted.filter(|m| *m != 0.0)) {
+            (true, Some(f), Some(m)) => implied_vol(leg, f, m),
             _ => 0.0,
         };
-        if leg_iv > 0.0 {
-            ivs.push(leg_iv);
+        if leg_vol > 0.0 {
+            implied_vols.push(leg_vol);
         }
         priced.push(strategy_leg(
             i + 1,
             leg,
             price,
-            leg_iv,
+            leg_vol,
             quoted,
             spot,
             forward,
         ));
     }
-    let atm_iv = (!ivs.is_empty()).then(|| py_round(ivs.iter().sum::<f64>() / ivs.len() as f64, 4));
-    (priced, spot, atm_iv)
+    let atm_vol = (!implied_vols.is_empty()).then(|| {
+        py_round(
+            implied_vols.iter().sum::<f64>() / implied_vols.len() as f64,
+            4,
+        )
+    });
+    (priced, spot, atm_vol)
 }
 
 /// One leg as `StrategyLeg` declares it, in the web's key order.
@@ -264,7 +269,7 @@ fn strategy_leg(
     n: usize,
     leg: &PayoffLeg,
     price: f64,
-    iv: f64,
+    implied_vol: f64,
     market: Option<f64>,
     spot: Option<f64>,
     forward: Option<f64>,
@@ -278,7 +283,7 @@ fn strategy_leg(
     m.insert("lotSize".into(), json!(c.lot_size));
     m.insert("expiry".into(), json!(c.expiry));
     m.insert("price".into(), json!(py_round(price, 6)));
-    m.insert("iv".into(), json!(py_round(iv, 4)));
+    m.insert("iv".into(), json!(py_round(implied_vol, 4)));
     m.insert("active".into(), json!(true));
     m.insert("symbol".into(), json!(c.symbol));
     m.insert("exchange".into(), json!(c.exchange));
@@ -424,7 +429,7 @@ fn payoff_spec(
     ctx: &ToolCtx,
     head: &Contract,
     spot: f64,
-    atm_iv: Option<f64>,
+    atm_vol: Option<f64>,
     legs: Vec<Value>,
     excluded: &[Excluded],
     notices: &[String],
@@ -437,7 +442,7 @@ fn payoff_spec(
         json!(head.underlying_exchange),
     );
     spec.insert("spot".into(), json!(spot));
-    spec.insert("atm_iv".into(), json!(atm_iv));
+    spec.insert("atm_iv".into(), json!(atm_vol));
     spec.insert("currency".into(), json!(CURRENCY));
     spec.insert("mode".into(), json!(current_mode(ctx)));
     spec.insert(
@@ -495,7 +500,7 @@ pub async fn plot_payoff(
         notices.push(format!("The operator also holds {}, which is {} and cannot be a leg of this curve. The diagram therefore understates a covered or hedged position: say so.", row.symbol, row.reason));
     }
     let market = market_for(ctx, &chosen).await?;
-    let (resolved, spot, atm_iv) = priced_legs(
+    let (resolved, spot, atm_vol) = priced_legs(
         &chosen,
         &market,
         |l, f, m| implied_volatility(ctx, l, f, m),
@@ -514,7 +519,7 @@ pub async fn plot_payoff(
         ctx,
         &head,
         spot,
-        atm_iv,
+        atm_vol,
         resolved.clone(),
         &excluded,
         &notices,
