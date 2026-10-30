@@ -8,6 +8,7 @@ use serde_json::{Map, Value};
 use super::records::{from_epoch, numeric, parse_iso, parse_timestamp};
 use super::IndicatorError;
 use crate::flow::contract::pyfmt;
+use crate::flow::nodes::pyjson;
 
 /// `_INTERVAL_MINUTES`: minutes per bar for the intraday spellings.
 fn interval_minutes(key: &str) -> Option<i64> {
@@ -276,7 +277,8 @@ fn nan_extreme(values: &[f64], pick: fn(f64, f64) -> f64) -> f64 {
         .unwrap_or(f64::NAN)
 }
 
-/// A float as JSON (`float(...)` in the web's dict); NaN becomes null.
+/// A float as the run keeps it (`float(...)` in the web's dict): a number,
+/// or a non-finite one's Python text (`pyjson`).
 fn number(value: f64) -> Value {
-    Value::from(value)
+    pyjson::float_value(value)
 }

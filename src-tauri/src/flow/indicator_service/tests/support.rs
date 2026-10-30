@@ -124,22 +124,11 @@ pub(crate) fn numbers(value: &Value) -> Vec<f64> {
         .collect()
 }
 
-/// The web's result with non-finite values as null, which is how the port
-/// writes them (JSON carries no NaN or infinity).
-pub(crate) fn finite(value: &Value) -> Value {
-    match value {
-        Value::String(s) if matches!(s.as_str(), "nan" | "inf" | "-inf") => Value::Null,
-        Value::Array(items) => Value::Array(items.iter().map(finite).collect()),
-        Value::Object(map) => {
-            Value::Object(map.iter().map(|(k, v)| (k.clone(), finite(v))).collect())
-        }
-        other => other.clone(),
-    }
-}
-
 /// The first difference between a result and the web's, within tolerance.
 pub(crate) fn diff(got: &Value, want: &Value) -> Option<String> {
-    json_diff("result", got, &finite(want), ABS, REL)
+    // The recorder writes a non-finite float as its Python text, which is
+    // how the run keeps one (`pyjson::float_value`).
+    json_diff("result", got, want, ABS, REL)
 }
 
 /// The first difference between an error and the web's exception.

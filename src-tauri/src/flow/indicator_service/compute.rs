@@ -14,6 +14,7 @@ use super::{IndicatorError, INDICATOR_WARMUP_BARS, MAX_HISTORY_BARS};
 use crate::agent::indicators::ta::{self, Series as LibrarySeries, TaError};
 use crate::agent::indicators::IndicatorSpec;
 use crate::agent::tools::numbers::py_round;
+use crate::flow::nodes::pyjson;
 
 /// Decimal places kept on every returned value.
 const ROUND_DP: usize = 6;
@@ -120,12 +121,13 @@ impl IndicatorOutput {
     }
 }
 
-/// A row as a JSON object; a non-finite value (which JSON cannot carry)
-/// becomes null.
+/// A row as a JSON object; a non-finite value, which JSON cannot carry, is
+/// kept as its Python text as the run keeps every one (`pyjson`), so
+/// `{{ind.latest.out0}}` reads `inf` as on the web.
 fn row_value(row: &Row) -> Value {
     Value::Object(
         row.iter()
-            .map(|(name, value)| (name.clone(), value.map_or(Value::Null, Value::from)))
+            .map(|(name, value)| (name.clone(), value.map_or(Value::Null, pyjson::float_value)))
             .collect(),
     )
 }
