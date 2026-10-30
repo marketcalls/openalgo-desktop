@@ -7,6 +7,7 @@
 use super::catalog::{is_one_of, TRIGGER_NODE_TYPES};
 use super::py;
 use super::structure::get;
+use crate::flow::contract::pyfmt;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -22,7 +23,7 @@ pub fn migrate_legacy_node_data(nodes: Vec<Value>) -> (Vec<Value>, Vec<String>) 
                 return node;
             };
             let node_type = get(object, "type").as_str().unwrap_or_default().to_string();
-            let id = py::str_of(get(object, "id"));
+            let id = pyfmt::str(get(object, "id"));
             if let Some(data) = object.get_mut("data").and_then(Value::as_object_mut) {
                 if let Some(note) = migrate_data(&node_type, &id, data) {
                     notes.push(note);
@@ -54,8 +55,8 @@ fn migrate_data(node_type: &str, id: &str, data: &mut Map<String, Value>) -> Opt
 /// `operator or default`, trimmed and lower-cased, as the web reads it.
 fn legacy_operator(data: &Map<String, Value>, default: &str) -> String {
     let operator = get(data, "operator");
-    let text = if py::truthy(operator) {
-        py::str_of(operator)
+    let text = if pyfmt::truthy(operator) {
+        pyfmt::str(operator)
     } else {
         default.to_string()
     };
@@ -69,7 +70,7 @@ fn migrate_fund_check(id: &str, data: &mut Map<String, Value>) -> String {
     let operator = legacy_operator(data, "gt");
     if matches!(operator.as_str(), "gt" | "gte" | "ge" | ">" | ">=") {
         let threshold = data.remove("threshold").unwrap_or_default();
-        let shown = py::str_of(&threshold);
+        let shown = pyfmt::str(&threshold);
         data.insert("minAvailable".to_string(), threshold);
         data.remove("operator");
         format!("fundCheck '{id}': threshold -> minAvailable ({shown})")
@@ -122,7 +123,7 @@ fn migrate_position_check(id: &str, data: &mut Map<String, Value>) -> String {
         None => return unchanged(),
         Some(LegacyComparison::Strict(condition)) => (condition, None),
         Some(inclusive) => {
-            let Some(t) = py::float_of(get(data, "threshold")).filter(|t| t.is_finite()) else {
+            let Some(t) = pyfmt::to_float(get(data, "threshold")).filter(|t| t.is_finite()) else {
                 return unchanged();
             };
             match inclusive {
@@ -138,7 +139,7 @@ fn migrate_position_check(id: &str, data: &mut Map<String, Value>) -> String {
             "positionCheck '{id}': operator '{operator}' -> condition '{condition}' (threshold kept)"
         );
     };
-    let was = py::str_of(get(data, "threshold"));
+    let was = pyfmt::str(get(data, "threshold"));
     // A whole number within any position size; `as` saturates past i64.
     let now = threshold as i64;
     data.insert("threshold".to_string(), Value::from(now));
@@ -215,14 +216,14 @@ pub fn trigger_config(nodes: &[Value]) -> TriggerConfig {
         let data = get(node, "data");
         let fields = match data {
             Value::Object(fields) => fields.clone(),
-            other if !py::truthy(other) => Map::new(),
+            other if !pyfmt::truthy(other) => Map::new(),
             _ => continue,
         };
         let captured: Map<String, Value> = TRIGGER_CONFIG_FIELDS
             .iter()
             .filter_map(|f| fields.get(*f).map(|v| ((*f).to_string(), v.clone())))
             .collect();
-        config.insert(py::str_of(node_type), Value::Object(captured));
+        config.insert(pyfmt::str(node_type), Value::Object(captured));
     }
     TriggerConfig(config)
 }

@@ -11,6 +11,7 @@ use super::catalog::Vocabulary;
 use super::fields::{leg_constant_error, priced_order_errors, valid_quantity, PriceKeys};
 use super::structure::get;
 use super::{py, ValidationError};
+use crate::flow::contract::pyfmt;
 use crate::flow::node_contracts::{is_expiry_date, is_option_offset, VALID_EXPIRY_TYPES};
 use crate::flow::nodes::pyjson;
 use serde_json::{Map, Value};
@@ -332,7 +333,7 @@ fn static_order_leg_errors(
                     "invalid_quantity",
                     format!(
                         "quantity must be a positive number; {} cannot execute.",
-                        py::repr(quantity)
+                        pyfmt::repr(quantity)
                     ),
                 )
                 .expected("a positive number")
@@ -379,7 +380,7 @@ fn strike_and_expiry_errors(
                     "invalid_strike",
                     format!(
                         "strike must be a positive number; {} names no contract.",
-                        py::repr(strike)
+                        pyfmt::repr(strike)
                     ),
                 )
                 .expected("a positive number")
@@ -387,13 +388,13 @@ fn strike_and_expiry_errors(
             );
         }
     } else if !py::is_unset(offset) {
-        let text = py::strip(&py::str_of(offset)).to_uppercase();
+        let text = py::strip(&pyfmt::str(offset)).to_uppercase();
         if !py::is_template(offset) && !is_option_offset(&text) {
             found.push(
                 ValidationError::new(
                     format!("{base}/offset"),
                     "invalid_constant",
-                    format!("'{}' is not a valid offset.", py::str_of(offset)),
+                    format!("'{}' is not a valid offset.", pyfmt::str(offset)),
                 )
                 .expected("ATM, ITM1-ITM50 or OTM1-OTM50")
                 .received(offset),
@@ -418,7 +419,7 @@ fn strike_and_expiry_errors(
 fn strike_number(strike: &Value) -> Option<f64> {
     let numeric = match strike {
         Value::Number(n) => n.as_f64(),
-        Value::String(s) => py::float_from_str(s),
+        Value::String(s) => pyfmt::parse_float(s),
         _ => None,
     };
     numeric.filter(|n| n.is_finite() && *n > 0.0)
@@ -428,7 +429,7 @@ fn expiry_errors(base: &str, leg: &Map<String, Value>) -> Vec<ValidationError> {
     let mut found = Vec::new();
     let expiry = get(leg, "expiry");
     if !expiry.is_null() && !py::is_template(expiry) {
-        let text = py::strip(&py::str_of(expiry)).to_uppercase();
+        let text = py::strip(&pyfmt::str(expiry)).to_uppercase();
         if !text.is_empty() && !is_expiry_date(&text) {
             found.push(
                 ValidationError::new(
@@ -436,7 +437,7 @@ fn expiry_errors(base: &str, leg: &Map<String, Value>) -> Vec<ValidationError> {
                     "invalid_expiry",
                     format!(
                         "expiry must be in DDMMMYY format such as 28OCT25; got {}.",
-                        py::repr(expiry)
+                        pyfmt::repr(expiry)
                     ),
                 )
                 .expected("DDMMMYY")
@@ -446,7 +447,7 @@ fn expiry_errors(base: &str, leg: &Map<String, Value>) -> Vec<ValidationError> {
     }
     let expiry_type = get(leg, "expiryType");
     if !expiry_type.is_null() && !py::is_template(expiry_type) {
-        let text = py::strip(&py::str_of(expiry_type)).to_lowercase();
+        let text = py::strip(&pyfmt::str(expiry_type)).to_lowercase();
         if !text.is_empty() && !VALID_EXPIRY_TYPES.contains(&text.as_str()) {
             found.push(
                 ValidationError::new(
@@ -454,7 +455,7 @@ fn expiry_errors(base: &str, leg: &Map<String, Value>) -> Vec<ValidationError> {
                     "invalid_constant",
                     format!(
                         "'{}' is not a valid expiryType constant.",
-                        py::str_of(expiry_type)
+                        pyfmt::str(expiry_type)
                     ),
                 )
                 .expected(VALID_EXPIRY_TYPES.to_vec())

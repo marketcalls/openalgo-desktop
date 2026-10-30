@@ -28,7 +28,7 @@
 //! | `legs` | the Margin basket and the custom options legs |
 //! | `graph` | cycles, reachability from the trigger, gates wired to fewer inputs than declared |
 //! | `migrate` | legacy node payloads, and the trigger configuration a change re-registers |
-//! | `py` | Python's `repr`, `str`, `float()`, `int()`, `strip()` and `==` over JSON values |
+//! | `py` | Python's `str.strip()`, the template test and `==` over JSON values (`repr`, `str`, `float()` and `int()` are core's `flow::contract::pyfmt`) |
 //!
 //! Deviations from the web, each a web defect fixed rather than copied (the
 //! ids are the parity checklist's, `.lane/105/parity.md`):
@@ -59,7 +59,7 @@
 //! - A gate's `expected` slot list stops at [`MAX_EDGES`] entries (a gate can
 //!   never receive more); the web builds the whole list for any `inputCount`.
 //! - Unicode digits other than 0-9 are not read as numbers, and a JSON
-//!   object quoted in a message lists its keys sorted (`py`).
+//!   object quoted in a message lists its keys sorted (`pyfmt`).
 //!
 //! JSON written as text (httpRequest `headers`, Margin `positionsJson`) is
 //! read with `flow::nodes::pyjson`, Python's `json.loads`, so `NaN` and

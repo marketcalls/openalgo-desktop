@@ -3,6 +3,7 @@
 //! the serialized error shape, and rules the web's own tests leave open.
 
 use super::*;
+use crate::flow::contract::pyfmt;
 use crate::flow::validator::{migrate_legacy_node_data, trigger_config, MAX_EDGES};
 use serde_json::json;
 
@@ -320,10 +321,10 @@ fn v113_an_inclusive_legacy_operator_keeps_its_meaning() {
             vec![format!(
                 "positionCheck 'p': operator '{operator}' -> condition '{condition}' (threshold {} \
                  -> {moved}, which keeps '{operator}' on whole-number quantities)",
-                crate::flow::validator::py::str_of(&threshold)
+                pyfmt::str(&threshold)
             )]
         );
-        let t = crate::flow::validator::py::float_of(&threshold).unwrap();
+        let t = pyfmt::to_float(&threshold).unwrap();
         for qty in -10i64..=10 {
             let legacy = if condition == "quantity_above" {
                 qty as f64 >= t
