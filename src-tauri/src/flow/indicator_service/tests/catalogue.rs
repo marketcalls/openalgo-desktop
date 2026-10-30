@@ -117,32 +117,34 @@ fn a_float_for_an_integer_is_refused_where_the_web_refuses_it() {
     failures.check(cases.len());
 }
 
-/// The block of `constants.ts` that starts at `start` and ends at the first
-/// line that closes it.
-fn block<'a>(start: &str, end: &str) -> &'a str {
-    let from = EDITOR.find(start).expect("block start");
-    let rest = &EDITOR[from..];
+/// The block of `text` that starts at `start` and ends at the first `end`.
+fn block<'a>(text: &'a str, start: &str, end: &str) -> &'a str {
+    let from = text.find(start).expect("block start");
+    let rest = &text[from..];
     &rest[..rest.find(end).expect("block end")]
 }
 
-/// The editor offers exactly the names the node runs (IND-092).
-#[test]
-fn the_editor_lists_the_supported_names() {
-    let catalog = block("export const INDICATOR_CATALOG", "] as const");
+/// The editor's `INDICATOR_CATALOG` values, sorted. Line endings are
+/// normalised first: a Windows checkout writes the file with CRLF.
+fn catalog_values(editor: &str) -> Vec<String> {
+    let editor = editor.replace("\r\n", "\n");
+    let catalog = block(&editor, "export const INDICATOR_CATALOG", "] as const");
     let values = Regex::new(r"\{ value: '([a-z0-9_]+)'").expect("regex");
-    let mut offered: Vec<&str> = values
+    let mut offered: Vec<String> = values
         .captures_iter(catalog)
-        .map(|c| c.get(1).map_or("", |m| m.as_str()))
+        .map(|c| c[1].to_string())
         .collect();
     offered.sort_unstable();
-    assert_eq!(offered, list_supported_indicators());
+    offered
 }
 
-/// Every parameter field the editor renders is the library's parameter,
-/// with its type and default (required ones at `REQUIRED_PARAM_DEFAULTS`).
-#[test]
-fn the_editors_parameter_fields_are_the_librarys() {
-    let params = block("export const INDICATOR_PARAMS", "\n}\n");
+/// One editor field: name, type and default as written.
+type Field = (String, String, String);
+
+/// The editor's `INDICATOR_PARAMS`: each indicator's fields, in order.
+fn editor_params(editor: &str) -> Vec<(String, Vec<Field>)> {
+    let editor = editor.replace("\r\n", "\n");
+    let params = block(&editor, "export const INDICATOR_PARAMS", "\n}\n");
     let key = Regex::new(r"(?m)^  ([a-z0-9_]+): \[").expect("regex");
     let field =
         Regex::new(r"(?s)\{\s*name: '([a-z0-9_]+)',.*?type: '(\w+)',\s*default: ([^,}\n]+)")
@@ -151,15 +153,48 @@ fn the_editors_parameter_fields_are_the_librarys() {
         .captures_iter(params)
         .filter_map(|c| Some((c.get(0)?.start(), c.get(1)?.as_str())))
         .collect();
+    starts
+        .iter()
+        .enumerate()
+        .map(|(i, (at, name))| {
+            let end = starts.get(i + 1).map_or(params.len(), |(next, _)| *next);
+            let fields: Vec<Field> = field
+                .captures_iter(&params[*at..end])
+                .map(|c| (c[1].to_string(), c[2].to_string(), c[3].trim().to_string()))
+                .collect();
+            (name.to_string(), fields)
+        })
+        .collect()
+}
+
+/// The editor offers exactly the names the node runs (IND-092).
+#[test]
+fn the_editor_lists_the_supported_names() {
+    assert_eq!(catalog_values(EDITOR), list_supported_indicators());
+}
+
+/// A Windows checkout (CRLF line endings) reads the same as LF.
+#[test]
+fn the_editor_file_reads_the_same_with_crlf_line_endings() {
+    let crlf = EDITOR.replace("\r\n", "\n").replace('\n', "\r\n");
+    assert!(crlf.contains("\r\n"));
+    assert_eq!(catalog_values(&crlf), catalog_values(EDITOR));
+    assert_eq!(editor_params(&crlf), editor_params(EDITOR));
+    assert_eq!(
+        editor_params(&crlf).len(),
+        list_supported_indicators().len()
+    );
+}
+
+/// Every parameter field the editor renders is the library's parameter,
+/// with its type and default (required ones at `REQUIRED_PARAM_DEFAULTS`).
+#[test]
+fn the_editors_parameter_fields_are_the_librarys() {
+    let editor = editor_params(EDITOR);
     let mut failures = Failures::default();
-    for (i, (at, name)) in starts.iter().enumerate() {
-        let end = starts.get(i + 1).map_or(params.len(), |(next, _)| *next);
+    for (name, fields) in &editor {
         let spec = get_spec(name).expect("a library method");
-        let fields: Vec<(String, String, String)> = field
-            .captures_iter(&params[*at..end])
-            .map(|c| (c[1].to_string(), c[2].to_string(), c[3].trim().to_string()))
-            .collect();
-        let library: Vec<(String, String, String)> = spec
+        let library: Vec<Field> = spec
             .params
             .iter()
             .map(|p| {
@@ -181,10 +216,10 @@ fn the_editors_parameter_fields_are_the_librarys() {
                 (p.name.to_string(), kind.to_string(), default)
             })
             .collect();
-        if fields != library {
+        if *fields != library {
             failures.push(name, format!("editor {fields:?} vs library {library:?}"));
         }
     }
-    assert_eq!(starts.len(), list_supported_indicators().len());
-    failures.check(starts.len());
+    assert_eq!(editor.len(), list_supported_indicators().len());
+    failures.check(editor.len());
 }
