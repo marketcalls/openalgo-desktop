@@ -64,12 +64,13 @@ async fn key_ok(ctx: &AppState, key: &str, ip: IpAddr) -> bool {
     crate::server::api_v1::authorize(ctx, key, ip, crate::server::api_v1::Auth::KeyOnly).await
 }
 
-fn unexpected(e: impl std::fmt::Display) -> Response {
-    tracing::error!("Market calendar request failed: {}", e);
-    error(
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "An unexpected error occurred",
-    )
+/// A calendar read that failed, in the web service's own sentence
+/// (`market_calendar_service.get_holidays` / `get_timings` catch their
+/// exception and answer it; the route's "An unexpected error occurred" is
+/// for what escapes the service).
+fn service_failed(e: impl std::fmt::Display, sentence: &str) -> Response {
+    tracing::error!("Market calendar read failed: {}", e);
+    error(StatusCode::INTERNAL_SERVER_ERROR, sentence)
 }
 
 /// POST /api/v1/market/holidays (json: apikey, year?)
@@ -128,7 +129,7 @@ pub async fn holidays(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> 
     }
     match svc::holidays_api(&ctx, year.map(|y| y as i32)) {
         Ok(v) => json_response(StatusCode::OK, v),
-        Err(e) => unexpected(e),
+        Err(e) => service_failed(e, "An error occurred while fetching holidays"),
     }
 }
 
@@ -182,6 +183,6 @@ pub async fn timings(State(ctx): Ctx, ClientIp(ip): ClientIp, req: Request) -> R
             StatusCode::OK,
             serde_json::json!({"status": "success", "data": svc::timings_api_json(&w)}),
         ),
-        Err(e) => unexpected(e),
+        Err(e) => service_failed(e, "An error occurred while fetching market timings"),
     }
 }
