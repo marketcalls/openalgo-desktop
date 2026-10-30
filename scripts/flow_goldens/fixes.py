@@ -191,6 +191,22 @@ FIXES.update({
         (fx.NodeExecutor, "execute_subscribe_quote", [STREAM_STORE[1], ("self.store_output(node_data, streaming_result)", _LOG_ONLY, 2)]),
         (fx.NodeExecutor, "execute_subscribe_depth", [STREAM_STORE[2], ("self.store_output(node_data, streaming_result)", _LOG_ONLY, 2)]),
     ],
+    # decisions.md 9 (N-unsubscribe-03): `all` releases only this workflow's
+    # own subscriptions; with none held there is nothing to refuse.
+    "unsubscribe_all_own": [(fx.NodeExecutor, "execute_unsubscribe", [
+        ("                unsub_success, unsub_result, _ = unsubscribe_all(username, broker)\n",
+         "                unsub_success, unsub_result = True, {}\n"
+         "                for _s, _e, _m in sorted(_workflow_subscriptions.get(self.context.workflow_id, set())):\n"
+         "                    _ok, _res, _ = unsubscribe_from_symbols(username, broker, [{\"symbol\": _s, \"exchange\": _e}], _m)\n"
+         "                    if not _ok:\n"
+         "                        unsub_success, unsub_result = _ok, _res\n")])],
+    # decisions.md 9 (N-unsubscribe-04): the refusal says what `all` does on
+    # the desktop (the triggers lane's sentence).
+    "unsubscribe_refusal_own": [(fx.NodeExecutor, "execute_unsubscribe", [
+        ('                    f"symbol, or set Stream Type to \'all\' if you really mean every "\n'
+         '                    f"subscription on this instance, including the Sandbox engine\'s."\n',
+         '                    f"symbol, or set Stream Type to \'all\' to give back every "\n'
+         '                    f"subscription this workflow holds."\n')])],
     # N-gate-04 (decision 8): AND/OR read inputCount as the validator does.
     "gate_slot_count": [(harness, "_orig_chain", [
         ('        declared = node_data.get("inputCount")\n',

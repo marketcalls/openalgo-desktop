@@ -96,5 +96,13 @@
     "op": "unsubscribe_all"
    }
   ]
+ },
+ "desktop_expected": {
+  "parity": "N-unsubscribe-03",
+  "why": "decisions.md 9: `all` releases only the subscriptions this workflow holds (none here), never the instance's whole feed, so nothing is refused.",
+  "fix": [
+   "unsubscribe_all_own"
+  ],
+  "feed": null
  }
 }

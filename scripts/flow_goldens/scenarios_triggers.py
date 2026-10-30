@@ -164,7 +164,9 @@ node(F, "unsubscribe", "default_all", {}, env={"feed": FEED}, parity=["N-unsubsc
 for st, mode in (("ltp", "LTP"), ("quote", "Quote"), ("depth", "Depth"), ("candles", "Quote")):
     node(F, "unsubscribe", f"symbol_{st}", {"symbol": "SBIN", "exchange": "NSE", "streamType": st}, env={"feed": FEED},
          parity=["N-unsubscribe-05", "N-unsubscribe-07"])
-node(F, "unsubscribe", "stream_without_symbol", {"streamType": "ltp"}, env={"feed": FEED}, parity=["N-unsubscribe-04"])
+node(F, "unsubscribe", "stream_without_symbol", {"streamType": "ltp"}, env={"feed": FEED}, parity=["N-unsubscribe-04"],
+     desktop_expected=de("N-unsubscribe-04", "decisions.md 9: `all` gives back only this workflow's subscriptions, so the refusal says that instead of warning about the instance's whole feed and the Sandbox engine's.",
+                         fix=["unsubscribe_refusal_own"]))
 node(F, "unsubscribe", "invalid_api_key", {"streamType": "all"}, env={"feed": {"username": None}}, parity=["N-unsubscribe-02"])
 node(F, "unsubscribe", "no_connection", {"symbol": "SBIN", "streamType": "ltp"},
      env={"feed": {**FEED, "connect_error": "down"}}, parity=["N-unsubscribe-02"])
@@ -184,3 +186,13 @@ node(F, "unsubscribe", "interpolated", {"symbol": "{{webhook.symbol}}", "exchang
      vars_in={"webhook": {"symbol": "SBIN"}, "st": "depth"}, env={"feed": FEED}, parity=["N-unsubscribe-05"])
 node(F, "priceAlert", "interpolated_symbol_and_price", {**PA, "symbol": "{{webhook.symbol}}", "price": "{{lvl}}"},
      vars_in={"webhook": {"symbol": "SBIN"}, "lvl": "810"}, script=[reply("quotes", QUOTE)], parity=["N-priceAlert-01"])
+
+
+# decisions.md 9: `unsubscribe all` releases only this workflow's subscriptions.
+for _s in __import__("lib").SCENARIOS:
+    if _s["type"] == "unsubscribe" and _s["graph"]["nodes"][0]["data"].get("streamType", "all") == "all" \
+            and not _s["desktop_expected"]:
+        _s["desktop_expected"] = de(
+            "N-unsubscribe-03",
+            "decisions.md 9: `all` releases only the subscriptions this workflow holds (none here), never the instance's whole feed, so nothing is refused.",
+            fix=["unsubscribe_all_own"])

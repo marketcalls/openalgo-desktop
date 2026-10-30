@@ -168,6 +168,23 @@ pub fn same_piece(a: &Piece, b: &Piece, close: fn(f64, f64) -> bool) -> bool {
     }
 }
 
+/// A list of a dict's keys (the web's `... keys: [...]` line lists a node's
+/// data keys as stored; the desktop keeps JSON maps in key order): the same
+/// keys in any order, each spelled the same.
+pub fn same_key_list(a: &Piece, b: &Piece) -> bool {
+    match (a, b) {
+        (Piece::Lit(Lit::List(x)), Piece::Lit(Lit::List(y))) => {
+            let spelled = |l: &[Lit]| {
+                let mut v: Vec<String> = l.iter().map(|e| format!("{e:?}")).collect();
+                v.sort();
+                v
+            };
+            spelled(x) == spelled(y)
+        }
+        _ => false,
+    }
+}
+
 fn same_lit(a: &Lit, b: &Lit, close: fn(f64, f64) -> bool) -> bool {
     match (a, b) {
         (Lit::Leaf(x), Lit::Leaf(y)) => match (number(x), number(y)) {
@@ -202,5 +219,13 @@ mod tests {
         assert!(matches!(&p[1], Piece::Lit(Lit::Dict(e)) if e.len() == 2));
         assert_eq!(split("{{x}} and [unclosed").len(), 1);
         assert_eq!(split("keys: ['a', 'b']").len(), 2);
+    }
+
+    #[test]
+    fn a_key_list_is_a_set() {
+        let a = &split("['b', 'a']")[0];
+        assert!(same_key_list(a, &split("['a', 'b']")[0]));
+        assert!(!same_key_list(a, &split("['a', 'c']")[0]));
+        assert!(!same_key_list(a, &split("[\"a\", 'b']")[0]));
     }
 }
