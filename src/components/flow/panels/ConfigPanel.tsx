@@ -334,9 +334,11 @@ export function ConfigPanel() {
   const nodeData = selectedNode.data as Record<string, unknown>
   const nodeType = selectedNode.type || 'unknown'
   const orderPriceType = (nodeData.priceType as PriceType | undefined) || 'MARKET'
-  // Desktop: one reading of a start node's type for every field it gates, so
-  // a node with none stored shows Daily with its days (parity F-530, F-531).
-  const startSchedule = (nodeData.scheduleType as string) || 'daily'
+  // Desktop: one reading of a start node's type for every field it gates. No
+  // type (or "manual") is no schedule, as the scheduler reads it (here and
+  // in the web's flow_scheduler_service), not Daily (parity F-530, F-531).
+  const storedSchedule = (nodeData.scheduleType as string) || ''
+  const startSchedule = storedSchedule === 'manual' ? '' : storedSchedule
   // Desktop: a multi-leg node with no strategy runs as custom (parity F-586).
   const multiStrategy = (nodeData.strategy as string) || 'custom'
   // What the Product control shows. A product the author picked is stored on
@@ -393,7 +395,7 @@ export function ConfigPanel() {
                     onValueChange={(v) => handleDataChange('scheduleType', v)}
                   >
                     <SelectTrigger className="h-8">
-                      <SelectValue />
+                      <SelectValue placeholder="No schedule (run it with Run Now or a trigger node)" />
                     </SelectTrigger>
                     <SelectContent>
                       {SCHEDULE_TYPES.map((t) => (
@@ -404,7 +406,7 @@ export function ConfigPanel() {
                     </SelectContent>
                   </Select>
                 </div>
-                {startSchedule !== 'interval' && (
+                {startSchedule !== '' && startSchedule !== 'interval' && (
                   <div className="space-y-2">
                     <Label className="text-xs">Time</Label>
                     <Input

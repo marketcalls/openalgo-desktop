@@ -127,10 +127,35 @@ beforeEach(() => {
 })
 
 describe('start: schedule type, time and interval (F-530)', () => {
-  it('offers Once, Daily, Weekly and Interval, Daily when none is stored', () => {
-    openPanel('start', {})
+  it('offers Once, Daily, Weekly and Interval', () => {
+    openPanel('start', { scheduleType: 'daily' })
     expect(triggerUnder('Schedule Type')).toHaveTextContent('Daily')
     expect(offered('Schedule Type')).toEqual(['Once', 'Daily', 'Weekly', 'Interval'])
+  })
+
+  // Desktop (web defect): the web showed Daily, but its scheduler and ours
+  // read no type, or "manual", as no schedule at all.
+  it.each([
+    ['no type', {}],
+    ['manual', { scheduleType: 'manual' }],
+  ])('reads %s as no schedule, with no time or days', (_case, data) => {
+    openPanel('start', data)
+    expect(triggerUnder('Schedule Type')).toHaveTextContent(
+      'No schedule (run it with Run Now or a trigger node)'
+    )
+    expect(screen.queryByText('Time', { selector: 'label' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Run On Days')).not.toBeInTheDocument()
+    expect(screen.queryByText('Repeat Every')).not.toBeInTheDocument()
+    expect(screen.queryByText('Date', { selector: 'label' })).not.toBeInTheDocument()
+  })
+
+  it('stores daily when Daily is picked on a node with no schedule, then shows its fields', () => {
+    openPanel('start', {})
+    choose('Schedule Type', 'Daily')
+    expect(stored().scheduleType).toBe('daily')
+    expect(triggerUnder('Schedule Type')).toHaveTextContent('Daily')
+    expect(labelled('Time')).toBeInTheDocument()
+    expect(labelled('Run On Days')).toBeInTheDocument()
   })
 
   it.each([
@@ -198,18 +223,7 @@ describe('start: run-on days (F-531)', () => {
     expect(labelled('Run On Days')).toBeInTheDocument()
   })
 
-  it('shows Daily with its time and days when no schedule type is stored (desktop)', () => {
-    // The web showed Daily but hid the days; the panel now reads one type.
-    openPanel('start', {})
-    expect(triggerUnder('Schedule Type')).toHaveTextContent('Daily')
-    expect(labelled('Time')).toBeInTheDocument()
-    expect(labelled('Run On Days')).toBeInTheDocument()
-    expect(selected()).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri'])
-    expect(screen.queryByText('Repeat Every')).not.toBeInTheDocument()
-    expect(screen.queryByText('Date', { selector: 'label' })).not.toBeInTheDocument()
-  })
-
-  it.each(['once', 'interval'])('has no days for %s', (scheduleType) => {
+  it.each(['once', 'interval', 'manual', undefined])('has no days for %s', (scheduleType) => {
     openPanel('start', { scheduleType })
     expect(screen.queryByText('Run On Days')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Mon' })).not.toBeInTheDocument()
