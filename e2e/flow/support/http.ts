@@ -47,22 +47,45 @@ export interface Answer {
   body: any
 }
 
-/** The signed-in trader's JSON calls, with the session's CSRF token. */
+/**
+ * The signed-in trader's JSON calls, with the session's CSRF token. A 401
+ * (a session signed out: the 03:00 IST boundary, a sign-out) signs in again
+ * through `reauth` and the call is made once more (decisions.md 28);
+ * `reauths` counts how often that happened.
+ */
 export class Session {
-  constructor(private readonly ctx: APIRequestContext) {}
+  reauths = 0
 
-  private async send(method: string, url: string, data?: unknown): Promise<Answer> {
-    const headers: Record<string, string> = { Accept: 'application/json' }
-    if (method !== 'GET') headers[CSRF_HEADER] = await csrfToken(this.ctx)
-    const r = await this.ctx.fetch(url, { method, headers, data })
-    const text = await r.text()
-    let body: any = text
-    try {
-      body = text ? JSON.parse(text) : null
-    } catch {
-      // Not JSON: kept as text for the assertion that reads it.
+  constructor(
+    private readonly ctx: APIRequestContext,
+    private readonly reauth: () => Promise<void> = async () => {
+      throw new Error('This session cannot sign in again')
     }
-    return { status: r.status(), body }
+  ) {}
+
+  /** `call`, once more after signing in again if it answered 401. */
+  private async signedIn(call: () => Promise<Answer>): Promise<Answer> {
+    const first = await call()
+    if (first.status !== 401) return first
+    this.reauths += 1
+    await this.reauth()
+    return call()
+  }
+
+  private send(method: string, url: string, data?: unknown): Promise<Answer> {
+    return this.signedIn(async () => {
+      const headers: Record<string, string> = { Accept: 'application/json' }
+      if (method !== 'GET') headers[CSRF_HEADER] = await csrfToken(this.ctx)
+      const r = await this.ctx.fetch(url, { method, headers, data })
+      const text = await r.text()
+      let body: any = text
+      try {
+        body = text ? JSON.parse(text) : null
+      } catch {
+        // Not JSON: kept as text for the assertion that reads it.
+      }
+      return { status: r.status(), body }
+    })
   }
 
   get(url: string) {
@@ -79,16 +102,18 @@ export class Session {
   }
 
   /** A raw body with its own content type (the 400 journeys). */
-  async postRaw(url: string, body: string, contentType: string): Promise<Answer> {
-    const r = await this.ctx.post(url, {
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': contentType,
-        [CSRF_HEADER]: await csrfToken(this.ctx),
-      },
-      data: body,
+  postRaw(url: string, body: string, contentType: string): Promise<Answer> {
+    return this.signedIn(async () => {
+      const r = await this.ctx.post(url, {
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': contentType,
+          [CSRF_HEADER]: await csrfToken(this.ctx),
+        },
+        data: body,
+      })
+      return { status: r.status(), body: await r.json().catch(() => null) }
     })
-    return { status: r.status(), body: await r.json().catch(() => null) }
   }
 
   /** The account's API key, as the API Key page reads it. */
