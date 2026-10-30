@@ -12,6 +12,12 @@
 //! (LOG-08): a split holds back the chunks after it, and the reply carries
 //! that outcome (`Reply::placement`) beside the web's wire shape, for the
 //! Action Center and every other in-process caller (PROD-TR-02).
+//!
+//! A multi-order leg may name an absolute `strike` instead of an `offset`
+//! (web `resolve_leg_symbol_by_strike`). The public `/api/v1` leg schema
+//! requires `offset`, as the web's does, so only Flow's internal entry
+//! (`flow::nodes::internal`) and the Action Center's replay of a request it
+//! queued reach that path; the public API is not widened.
 
 use super::batch_order_service::{
     buy_then_sell, split_chunks, too_many_orders, SplitRows, SPLIT_PAUSE,
@@ -20,8 +26,11 @@ use super::core::{
     analyzer_request, broker_handle, i, meta, mode_of, num, publish, s, safe_request, BrokerHandle,
     Reply,
 };
-use super::options_service::{resolve_option, OptionPick, ResolvedOption};
+use super::options_service::{
+    option_exchange, parse_underlying, resolve_option, OptionPick, ResolvedOption,
+};
 use super::order_service::{place_admitted, route_to_pending, uncertain_legs, Route};
+use crate::brokers::common::master_contract::format_strike;
 use crate::events::Event;
 use crate::state::AppState;
 use serde_json::{json, Map, Value};
@@ -260,10 +269,12 @@ struct MultiOrder<'a> {
 /// definite answer from the broker: they may have been placed (LOG-08).
 type LegOutcome = (Value, Vec<String>);
 
-/// What a leg's reply entry repeats from the leg.
+/// What a leg's reply entry repeats from the leg: its offset or its
+/// strike (the other is `null`), side and action.
 struct LegHead {
     leg_no: i64,
-    offset: String,
+    offset: Value,
+    strike: Value,
     ot: String,
     action: String,
 }
@@ -271,9 +282,14 @@ struct LegHead {
 impl MultiOrder<'_> {
     /// Resolve and place one leg.
     async fn leg(&self, leg: &Value) -> LegOutcome {
+        let strike = leg.get("strike").filter(|v| !v.is_null()).cloned();
         let head = LegHead {
             leg_no: i(leg, "_leg"),
-            offset: s(leg, "offset"),
+            offset: match &strike {
+                Some(_) => leg.get("offset").cloned().unwrap_or(Value::Null),
+                None => json!(s(leg, "offset")),
+            },
+            strike: strike.clone().unwrap_or(Value::Null),
             ot: s(leg, "option_type").to_ascii_uppercase(),
             action: s(leg, "action").to_ascii_uppercase(),
         };
@@ -281,25 +297,96 @@ impl MultiOrder<'_> {
             .get("expiry_date")
             .and_then(Value::as_str)
             .or_else(|| self.req.get("expiry_date").and_then(Value::as_str));
-        let pick = OptionPick {
-            expiry_date: expiry,
-            offset: &head.offset,
-            option_type: &head.ot,
-            known_ltp: self.shared_ltp,
-            ..OptionPick::from_request(self.req)
+        let resolved = match &strike {
+            Some(strike) => self.by_strike(expiry, strike, &s(leg, "option_type")),
+            None => {
+                let offset = s(leg, "offset");
+                let pick = OptionPick {
+                    expiry_date: expiry,
+                    offset: &offset,
+                    option_type: &head.ot,
+                    known_ltp: self.shared_ltp,
+                    ..OptionPick::from_request(self.req)
+                };
+                resolve_option(self.ctx, self.h, &pick).await
+            }
         };
-        let (leg_no, offset, ot, action) = (head.leg_no, &head.offset, &head.ot, &head.action);
-        match resolve_option(self.ctx, self.h, &pick).await {
+        match resolved {
             Ok(opt) if i(leg, "splitsize") > 0 => self.place_split_leg(leg, &opt, &head).await,
             Ok(opt) => self.place_leg(leg, &opt, &head).await,
             Err(r) => (
                 json!({
-                    "leg": leg_no, "offset": offset, "strike": null, "option_type": ot,
-                    "action": action, "status": "error", "message": r.message(),
+                    "leg": head.leg_no, "offset": head.offset, "strike": head.strike,
+                    "option_type": head.ot, "action": head.action, "status": "error",
+                    "message": r.message(),
                 }),
                 Vec::new(),
             ),
         }
+    }
+
+    /// A leg that names its own strike (web `resolve_leg_symbol_by_strike`):
+    /// the strike is taken as given and only has to be listed in the
+    /// master contract.
+    fn by_strike(
+        &self,
+        expiry: Option<&str>,
+        strike: &Value,
+        option_type: &str,
+    ) -> Result<ResolvedOption, Reply> {
+        let value = match strike {
+            Value::Number(n) => n.as_f64().filter(|f| f.is_finite() && *f > 0.0),
+            _ => None,
+        };
+        let Some(value) = value else {
+            return Err(Reply::error(
+                400,
+                format!(
+                    "Invalid strike: {}. Strike must be a positive number.",
+                    py_text(strike, true)
+                ),
+            ));
+        };
+        let ot = option_type.trim().to_ascii_uppercase();
+        if ot != "CE" && ot != "PE" {
+            return Err(Reply::error(
+                400,
+                format!(
+                    "Invalid option_type: '{}'. Supported option types are CE and PE.",
+                    option_type
+                ),
+            ));
+        }
+        let (base, embedded) = parse_underlying(&s(self.req, "underlying"));
+        let Some(expiry) = embedded
+            .or(expiry.map(str::to_string))
+            .filter(|e| !e.is_empty())
+        else {
+            return Err(Reply::error(
+                400,
+                "No expiry date available to resolve the leg symbol.",
+            ));
+        };
+        let opt_ex = option_exchange(&s(self.req, "exchange"));
+        let symbol = format!("{}{}{}{}", base, expiry, format_strike(value), ot);
+        let Some(row) = self.ctx.symbols.by_symbol(&opt_ex, &symbol) else {
+            return Err(Reply::error(
+                404,
+                format!(
+                    "Option symbol {} not found in {}. Check that strike {} is listed for {} {}, or re-download the master contract.",
+                    symbol, opt_ex, py_text(strike, false), base, expiry
+                ),
+            ));
+        };
+        Ok(ResolvedOption {
+            freeze_qty: self.ctx.freeze.for_option(&row.symbol, &row.exchange),
+            symbol: row.symbol,
+            exchange: row.exchange,
+            lotsize: i64::from(row.lot_size),
+            tick_size: row.tick_size,
+            underlying_ltp: self.shared_ltp.unwrap_or(f64::NAN),
+            strike: value,
+        })
     }
 
     /// One leg in chunks of its `splitsize`.
@@ -310,12 +397,13 @@ impl MultiOrder<'_> {
         head: &LegHead,
     ) -> LegOutcome {
         let (leg_no, offset, ot, action) = (head.leg_no, &head.offset, &head.ot, &head.action);
+        let strike = &head.strike;
         let qty = i(leg, "quantity");
         let size = i(leg, "splitsize");
         let Some(chunks) = split_chunks(qty, size) else {
             let entry = json!({
                 "leg": leg_no, "symbol": opt.symbol, "exchange": opt.exchange, "offset": offset,
-                "strike": null, "option_type": ot, "action": action, "status": "error",
+                "strike": strike, "option_type": ot, "action": action, "status": "error",
                 "message": "Split orders would exceed maximum limit of 100 per leg",
             });
             return (entry, Vec::new());
@@ -329,7 +417,7 @@ impl MultiOrder<'_> {
             .collect();
         let entry = json!({
             "leg": leg_no, "symbol": opt.symbol, "exchange": opt.exchange,
-            "product": s(leg, "product"), "offset": offset, "strike": null,
+            "product": s(leg, "product"), "offset": offset, "strike": strike,
             "option_type": ot, "action": action,
             "status": if any_ok { "success" } else { "error" },
             "total_quantity": qty, "split_size": size, "split_results": split.results,
@@ -341,6 +429,7 @@ impl MultiOrder<'_> {
     /// One leg as one order.
     async fn place_leg(&self, leg: &Value, opt: &ResolvedOption, head: &LegHead) -> LegOutcome {
         let (leg_no, offset, ot, action) = (head.leg_no, &head.offset, &head.ot, &head.action);
+        let strike = &head.strike;
         let body = order_body(self.req, leg, opt, i(leg, "quantity"));
         let r = place_admitted(self.ctx, &body, self.analyze, false).await;
         let uncertain = r
@@ -356,7 +445,7 @@ impl MultiOrder<'_> {
         if r.is_success() {
             let entry = json!({
                 "leg": leg_no, "symbol": opt.symbol, "exchange": opt.exchange,
-                "product": s(leg, "product"), "offset": offset, "strike": null,
+                "product": s(leg, "product"), "offset": offset, "strike": strike,
                 "option_type": ot, "action": action, "status": "success",
                 "orderid": r.body.get("orderid").cloned().unwrap_or(Value::Null),
                 "mode": r.body.get("mode").cloned().unwrap_or(json!("live")),
@@ -366,10 +455,26 @@ impl MultiOrder<'_> {
         let msg = r.message();
         let entry = json!({
             "leg": leg_no, "symbol": opt.symbol, "exchange": opt.exchange, "offset": offset,
-            "strike": null, "option_type": ot, "action": action, "status": "error",
+            "strike": strike, "option_type": ot, "action": action, "status": "error",
             "message": if msg.is_empty() { "Order placement failed".to_string() } else { msg },
         });
         (entry, uncertain)
+    }
+}
+
+/// Python's `repr()` (`repr`) or `str()` of a leg value, as the web's
+/// strike messages print it.
+fn py_text(v: &Value, repr: bool) -> String {
+    match v {
+        Value::String(t) if repr => super::schema::py_repr_str(t),
+        Value::String(t) => t.clone(),
+        Value::Bool(b) => if *b { "True" } else { "False" }.to_string(),
+        Value::Null => "None".to_string(),
+        Value::Number(n) => match n.as_i64() {
+            Some(i) => i.to_string(),
+            None => super::schemas::py_float_repr(n.as_f64().unwrap_or(f64::NAN)),
+        },
+        other => other.to_string(),
     }
 }
 
