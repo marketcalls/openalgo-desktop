@@ -85,9 +85,10 @@ fn fractals(a: &Args) -> TaResult {
     let [high, low] = a.aligned::<2>()?;
     let periods = a.p().int("periods")?;
     if periods < 2 {
+        // The value as Python prints it (`True` for a flag Flow passes on).
         return Err(TaError::value(format!(
             "Periods must be at least 2, got {}",
-            periods
+            a.p().shown("periods")?
         )));
     }
     let (up, down) = oa_core::williams_fractals(high, low, us(periods)?);
