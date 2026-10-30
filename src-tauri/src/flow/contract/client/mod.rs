@@ -22,6 +22,8 @@
 pub mod app;
 #[cfg(any(test, feature = "test-support"))]
 pub mod fake;
+#[cfg(test)]
+mod reply_tests;
 
 use async_trait::async_trait;
 use serde_json::{json, Map, Value};
