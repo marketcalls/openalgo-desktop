@@ -100,7 +100,7 @@ fn deep_nesting_is_refused_not_overflowed() {
 }
 
 fn deep_nesting_cases() {
-    let deep = format!("{}1{}", "(".repeat(150), ")".repeat(150));
+    let deep = format!("{}1{}", "(".repeat(60), ")".repeat(60));
     assert!(safe_eval(&deep).unwrap_err().starts_with(SYNTAX));
     let long = vec!["1"; 5000].join("+");
     assert_eq!(
@@ -112,10 +112,10 @@ fn deep_nesting_cases() {
         safe_eval(&unary),
         Err("maximum recursion depth exceeded".into())
     );
-    assert_eq!(safe_eval(&vec!["1"; 500].join("+")), Ok(500.0));
-    let nested = format!("{}-1{}", "(-".repeat(99), ")".repeat(99));
+    assert_eq!(safe_eval(&vec!["1"; 150].join("+")), Ok(150.0));
+    let nested = format!("{}-1{}", "(-".repeat(49), ")".repeat(49));
     assert_eq!(safe_eval(&nested), Ok(1.0));
-    let powers = format!("{}2{}", "(1 ** ".repeat(99), ")".repeat(99));
+    let powers = format!("{}2{}", "(1 ** ".repeat(49), ")".repeat(49));
     assert_eq!(safe_eval(&powers), Ok(1.0));
 }
 

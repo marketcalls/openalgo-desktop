@@ -7,9 +7,10 @@
 use super::lexer::{SyntaxError, Tok, Token};
 use super::num::Num;
 
-/// Deepest tree the evaluator walks; Python's own walk would hit its
-/// recursion limit about here.
-pub const MAX_DEPTH: u32 = 900;
+/// Deepest tree the evaluator builds and walks. Python's own walk stops
+/// near 1,000; this stays far inside a worker thread's stack in a debug
+/// build, where the parser's frames are largest.
+pub const MAX_DEPTH: u32 = 200;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinOp {

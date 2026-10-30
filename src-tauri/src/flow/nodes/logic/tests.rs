@@ -290,3 +290,61 @@ fn the_family_registers_every_logic_node() {
         assert!(reg.get(t).is_some(), "{} is not registered", t);
     }
 }
+
+/// Nesting a webhook can send (100,000 levels) fails the node with
+/// Python's sentence and never overflows a tokio worker's 2 MiB stack in a
+/// debug build: the JSON decoder keeps no recursion, the evaluator stops
+/// long before its frames add up.
+#[test]
+fn deep_input_fails_the_node_on_a_worker_sized_stack() {
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            rt.block_on(deep_inputs());
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+async fn deep_inputs() {
+    use crate::flow::nodes::math::MathExpression;
+    let (_, c) = ctx();
+    for (text, kind) in [
+        ("[".repeat(100_000), "array"),
+        ("{\"a\": ".repeat(100_000), "object"),
+    ] {
+        for op in ["parse_json", "set"] {
+            let out = run(
+                &Variable,
+                &c,
+                json!({"variableName": "x", "operation": op, "value": text}),
+            )
+            .await;
+            if op == "set" {
+                // Text that is not JSON is kept as text.
+                assert_eq!(c.vars.get("x"), Some(json!(text)));
+                continue;
+            }
+            assert_eq!(
+                out.failure_message(),
+                format!("Variable operation 'parse_json' failed: maximum recursion depth exceeded while decoding a JSON {} from a unicode string", kind)
+            );
+        }
+    }
+    let unary = format!("{}1", "-".repeat(100_000));
+    let out = run(&MathExpression, &c, json!({"expression": unary})).await;
+    assert_eq!(out.failure_message(), "maximum recursion depth exceeded");
+    let sum = vec!["1"; 100_000].join("+");
+    let out = run(&MathExpression, &c, json!({"expression": sum})).await;
+    assert_eq!(out.failure_message(), "maximum recursion depth exceeded");
+    let parens = "(".repeat(100_000);
+    let out = run(&MathExpression, &c, json!({"expression": parens})).await;
+    assert!(out
+        .failure_message()
+        .starts_with("Invalid expression syntax: "));
+}

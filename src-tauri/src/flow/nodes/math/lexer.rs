@@ -61,9 +61,9 @@ const OPS: &[&str] = &[
     "^", "~", "<", ">", "(", ")", "[", "]", "{", "}", ",", ":", ";", ".", "=", "!",
 ];
 
-/// Deepest bracket nesting accepted (Python's tokenizer allows 200; the
-/// evaluator's recursion stays well inside a worker thread's stack at 100).
-const MAX_BRACKETS: usize = 100;
+/// Deepest bracket nesting accepted (Python's tokenizer allows 200; each
+/// level costs the parser a chain of frames, so the desktop stops at 50).
+const MAX_BRACKETS: usize = 50;
 
 /// Keywords a number may run into without a space (`1if x else y`).
 const NUMBER_FOLLOWERS: &[&str] = &["and", "else", "for", "if", "in", "is", "not", "or"];
