@@ -88,18 +88,34 @@ pub fn open_pool(
     max_size: u32,
     durability: Durability,
 ) -> Result<Pool<SqliteConnectionManager>> {
+    switch_to_wal(path)?;
     let manager =
         SqliteConnectionManager::file(path).with_init(move |c| init_connection(c, durability));
-    let pool = build_pool(manager, max_size, POOL_WAIT, FIRST_CONNECTION_LIMIT)?;
+    let file = path
+        .file_name()
+        .map(|f| f.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let pool = build_pool(manager, file, max_size, POOL_WAIT, FIRST_CONNECTION_LIMIT)?;
     crate::security::fsperm::restrict_db_files(path)?;
     Ok(pool)
 }
 
-/// Every pooled connection's set-up. The busy handler comes first: a
-/// connection opened while another holds the file (switching a new file to
-/// WAL takes it exclusively, and pools open connections on their own
-/// threads while the start-up migrations and first writes run) waits for it
-/// instead of failing its first pragma with "database is locked".
+/// Put the file in WAL mode, on one connection, before the pool opens any.
+/// A pool opens its first two connections at once on its own threads (one
+/// for `min_idle`, one for the first checkout); on a new file both switched
+/// it to WAL, and SQLite refuses one of them at once, without a busy wait
+/// (each held the read lock the other needed gone): "database is locked" on
+/// every start with a new data folder. The mode is kept in the file, so a
+/// pooled connection's own pragma then only reads it.
+fn switch_to_wal(path: &Path) -> Result<()> {
+    let c = rusqlite::Connection::open(path)?;
+    c.busy_handler(Some(retry_busy))?;
+    c.execute_batch("PRAGMA journal_mode=WAL;")?;
+    Ok(())
+}
+
+/// Every pooled connection's set-up, its busy handler first so the set-up
+/// waits for a held file the way every later statement does.
 fn init_connection(c: &mut rusqlite::Connection, durability: Durability) -> rusqlite::Result<()> {
     c.busy_handler(Some(retry_busy))?;
     c.execute_batch("PRAGMA journal_mode=WAL;")?;
@@ -107,31 +123,30 @@ fn init_connection(c: &mut rusqlite::Connection, durability: Durability) -> rusq
     c.execute_batch("PRAGMA foreign_keys=ON;")
 }
 
-/// Connections that failed to open because another held the file, in this
-/// process (a start must have none).
-static LOCKED_OPENS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-
-/// How many connections failed to open on a locked file so far.
+/// The files a connection failed to open on in this test process.
 #[cfg(test)]
-pub(crate) fn locked_opens() -> usize {
-    LOCKED_OPENS.load(std::sync::atomic::Ordering::SeqCst)
-}
+static FAILED_OPENS: parking_lot::Mutex<Vec<String>> = parking_lot::Mutex::new(Vec::new());
 
-/// Why a connection the pool tried to open failed: logged, and kept for
-/// [`build_pool`]'s wait for the first one.
+/// Why a connection the pool tried to open failed: logged with its file,
+/// and kept for [`build_pool`]'s wait for the first one.
 #[derive(Debug)]
-struct ConnectFailure(Arc<parking_lot::Mutex<Option<rusqlite::Error>>>);
+struct ConnectFailure {
+    why: Arc<parking_lot::Mutex<Option<rusqlite::Error>>>,
+    file: String,
+}
 
 impl r2d2::HandleError<rusqlite::Error> for ConnectFailure {
     fn handle_error(&self, error: rusqlite::Error) {
-        if matches!(
-            error.sqlite_error_code(),
-            Some(rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked)
-        ) {
-            LOCKED_OPENS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        }
-        tracing::error!("A database connection could not be opened: {}", error);
-        *self.0.lock() = Some(error);
+        #[cfg(test)]
+        FAILED_OPENS
+            .lock()
+            .push(format!("{}: {}", self.file, error));
+        tracing::error!(
+            "A database connection could not be opened ({}): {}",
+            self.file,
+            error
+        );
+        *self.why.lock() = Some(error);
     }
 }
 
@@ -156,6 +171,7 @@ fn workers() -> Arc<scheduled_thread_pool::ScheduledThreadPool> {
 /// opened, up to `limit`, and a failure to open it ends the wait.
 fn build_pool(
     manager: SqliteConnectionManager,
+    file: String,
     max_size: u32,
     wait: Duration,
     limit: Duration,
@@ -166,7 +182,10 @@ fn build_pool(
         .min_idle(Some(1))
         .connection_timeout(wait)
         .idle_timeout(Some(Duration::from_secs(300)))
-        .error_handler(Box::new(ConnectFailure(failure.clone())))
+        .error_handler(Box::new(ConnectFailure {
+            why: failure.clone(),
+            file,
+        }))
         .thread_pool(workers())
         .build_unchecked(manager);
     let started = std::time::Instant::now();
@@ -346,6 +365,7 @@ mod tests {
         });
         let pool = build_pool(
             manager,
+            "slow.db".into(),
             2,
             Duration::from_millis(50),
             Duration::from_secs(60),
@@ -362,6 +382,7 @@ mod tests {
         let started = std::time::Instant::now();
         let refused = build_pool(
             manager,
+            "x.db".into(),
             2,
             Duration::from_millis(50),
             Duration::from_secs(60),
@@ -377,6 +398,59 @@ mod tests {
         assert!(e.to_string().contains("unable to open"), "{}", e);
     }
 
+    /// The opens refused because another connection held the file, as
+    /// `file: reason`.
+    fn locked_opens() -> Vec<String> {
+        FAILED_OPENS
+            .lock()
+            .iter()
+            .filter(|f| f.contains("locked") || f.contains("busy"))
+            .cloned()
+            .collect()
+    }
+
+    /// A pool on a new file opens its first two connections at once; both
+    /// switched the file to WAL and SQLite refused one, without a wait.
+    #[test]
+    fn a_new_file_opens_its_first_connections_first_time() {
+        let dir = tempfile::tempdir().unwrap();
+        let files: Vec<String> = (0..20).map(|i| format!("new-{}.db", i)).collect();
+        for f in &files {
+            let pool = open_pool(&dir.path().join(f), 4, Durability::MAIN).unwrap();
+            let c = pool.get().unwrap();
+            let mode: String = c
+                .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(mode, "wal");
+            // The pool's second connection has finished opening.
+            let _second = pool.get().unwrap();
+        }
+        let ours: Vec<String> = locked_opens()
+            .into_iter()
+            .filter(|f| files.iter().any(|n| f.starts_with(&format!("{}: ", n))))
+            .collect();
+        assert_eq!(ours, Vec::<String>::new());
+    }
+
+    /// The app's start on a new data folder opens every database
+    /// connection the first time (the e2e lane saw "database is locked"
+    /// logged on every start on a temporary folder).
+    #[tokio::test]
+    async fn a_fresh_app_start_opens_every_connection_first_time() {
+        let mut files = Vec::new();
+        for _ in 0..5 {
+            let t = crate::state::testing::build(
+                crate::brokers::BrokerRegistry::new(),
+                chrono::Utc::now(),
+            );
+            assert!(t.ctx.sqlite.get_settings().is_ok());
+            for e in std::fs::read_dir(t.dir.path()).unwrap().flatten() {
+                files.push(e.file_name().to_string_lossy().into_owned());
+            }
+        }
+        assert_eq!(locked_opens(), Vec::<String>::new(), "files: {:?}", files);
+    }
+
     /// DB-01: a write waiting behind a transaction gets in during the
     /// master replacement's pause that follows it, every time. Checked by
     /// order, not by the clock: the holder counts the rows at the start of
@@ -386,35 +460,6 @@ mod tests {
     /// behind a 350 ms transaction none of its tries fall in the pause, so
     /// it misses every time; `retry_busy` tries every millisecond (every
     /// timer tick where sleeps are coarser) and gets in each time.
-    /// A connection opened while another holds a new (not yet WAL) file
-    /// waits for it: its set-up's first pragma failed at once with
-    /// "database is locked" when the busy handler was installed last.
-    #[test]
-    fn a_connection_opened_while_the_file_is_held_waits_for_it() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("t.db");
-        let holder = rusqlite::Connection::open(&path).unwrap();
-        holder
-            .execute_batch("CREATE TABLE t (v INTEGER); BEGIN EXCLUSIVE; INSERT INTO t VALUES (1);")
-            .unwrap();
-        let (go, wait) = std::sync::mpsc::channel::<()>();
-        let release = std::thread::spawn(move || {
-            wait.recv().unwrap();
-            // The lock is held a while after the new connection starts its
-            // set-up, as a start-up writer holds it.
-            std::thread::sleep(Duration::from_millis(200));
-            holder.execute_batch("COMMIT").unwrap();
-        });
-        let mut c = rusqlite::Connection::open(&path).unwrap();
-        go.send(()).unwrap();
-        init_connection(&mut c, Durability::MAIN).unwrap();
-        release.join().unwrap();
-        let mode: String = c
-            .query_row("PRAGMA journal_mode", [], |r| r.get(0))
-            .unwrap();
-        assert_eq!(mode, "wal");
-    }
-
     #[test]
     fn a_waiting_write_gets_in_at_the_first_pause() {
         let dir = tempfile::tempdir().unwrap();
