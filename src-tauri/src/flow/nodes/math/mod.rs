@@ -28,9 +28,38 @@ use serde_json::{json, Map, Value};
 /// The largest exponent `**` accepts, either sign.
 const MAX_EXPONENT: u64 = 100;
 
-/// Evaluate `expression` as the web's `_safe_eval_math` does: the float
-/// result, or the text of what the web raises.
+/// The stack an evaluation runs on. The parser recurses once per nesting
+/// level, as Python's does, up to the web's limits (200 brackets, about
+/// 900 levels); in a debug build that needs several megabytes, more than a
+/// tokio worker's 2 MiB, so it never runs on one.
+pub const EVAL_STACK_BYTES: usize = 32 * 1024 * 1024;
+
+/// What the node says if the evaluation thread cannot be started.
+const NO_THREAD: &str = "the expression could not be evaluated right now; try again";
+
+/// Evaluate `expression` as the web's `_safe_eval_math` does, on a thread
+/// of its own with [`EVAL_STACK_BYTES`] of stack: the float result, or the
+/// text of what the web raises.
 pub fn safe_eval(expression: &str) -> Result<f64, String> {
+    let text = expression.to_string();
+    std::thread::Builder::new()
+        .name("flow-math".into())
+        .stack_size(EVAL_STACK_BYTES)
+        .spawn(move || evaluate(&text))
+        .map_err(|_| NO_THREAD.to_string())?
+        .join()
+        .map_err(|_| NO_THREAD.to_string())?
+}
+
+/// [`safe_eval`] from a run, without holding up the async worker.
+async fn safe_eval_detached(expression: String) -> Result<f64, String> {
+    tokio::task::spawn_blocking(move || safe_eval(&expression))
+        .await
+        .map_err(|_| NO_THREAD.to_string())?
+}
+
+/// `_safe_eval_math` itself, on the calling thread's stack.
+fn evaluate(expression: &str) -> Result<f64, String> {
     // str.strip(): Unicode whitespace, which in Python includes the
     // information separators 0x1c-0x1f.
     let cleaned =
@@ -152,7 +181,7 @@ impl FlowNode for MathExpression {
             Value::String(text) => {
                 let refs = unresolved_refs(text);
                 if refs.is_empty() {
-                    safe_eval(text)
+                    safe_eval_detached(text.clone()).await
                 } else {
                     Err(unresolved_message(&refs))
                 }

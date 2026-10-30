@@ -100,8 +100,13 @@ fn deep_nesting_is_refused_not_overflowed() {
 }
 
 fn deep_nesting_cases() {
-    let deep = format!("{}1{}", "(".repeat(60), ")".repeat(60));
-    assert!(safe_eval(&deep).unwrap_err().starts_with(SYNTAX));
+    let deep = format!("{}1{}", "(".repeat(201), ")".repeat(201));
+    assert_eq!(
+        safe_eval(&deep),
+        Err("Invalid expression syntax: too many nested parentheses (<unknown>, line 1)".into())
+    );
+    let deepest = format!("{}1{}", "(".repeat(200), ")".repeat(200));
+    assert_eq!(safe_eval(&deepest), Ok(1.0));
     let long = vec!["1"; 5000].join("+");
     assert_eq!(
         safe_eval(&long),
@@ -112,10 +117,14 @@ fn deep_nesting_cases() {
         safe_eval(&unary),
         Err("maximum recursion depth exceeded".into())
     );
-    assert_eq!(safe_eval(&vec!["1"; 150].join("+")), Ok(150.0));
-    let nested = format!("{}-1{}", "(-".repeat(49), ")".repeat(49));
+    assert_eq!(safe_eval(&vec!["1"; 900].join("+")), Ok(900.0));
+    assert_eq!(
+        safe_eval(&vec!["1"; 1000].join("+")),
+        Err("maximum recursion depth exceeded".into())
+    );
+    let nested = format!("{}-1{}", "(-".repeat(199), ")".repeat(199));
     assert_eq!(safe_eval(&nested), Ok(1.0));
-    let powers = format!("{}2{}", "(1 ** ".repeat(49), ")".repeat(49));
+    let powers = format!("{}2{}", "(1 ** ".repeat(199), ")".repeat(199));
     assert_eq!(safe_eval(&powers), Ok(1.0));
 }
 

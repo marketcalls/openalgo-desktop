@@ -7,10 +7,11 @@
 use super::lexer::{SyntaxError, Tok, Token};
 use super::num::Num;
 
-/// Deepest tree the evaluator builds and walks. Python's own walk stops
-/// near 1,000; this stays far inside a worker thread's stack in a debug
-/// build, where the parser's frames are largest.
-pub const MAX_DEPTH: u32 = 200;
+/// Deepest tree the evaluator builds and walks: where the web's own walk
+/// meets Python's recursion limit (1,000 frames, less the executor's own;
+/// a sum of 900 terms evaluates there, 1,000 do not). The parse and walk
+/// run on their own thread with [`super::EVAL_STACK_BYTES`] of stack.
+pub const MAX_DEPTH: u32 = 900;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinOp {
