@@ -165,12 +165,11 @@ async fn carrier_grade_nat_is_refused() {
 async fn the_request_goes_to_the_vetted_address() {
     let (out, _, http) = send(json!({"url": "https://dual.example.com:8443/x"})).await;
     assert!(!out.is_error());
-    let sent = http.sent.lock();
+    let sent = http.sent.lock().clone();
     assert_eq!(
         sent[0].connect_to,
         "93.184.216.34:8443".parse::<SocketAddr>().unwrap()
     );
-    drop(sent);
     let (out, _, http) = send(json!({"url": "http://api.example.com\\@router.example.com/"})).await;
     assert_eq!(
         out.failure_message(),
@@ -241,7 +240,7 @@ async fn fields_are_interpolated_once() {
         json!({"url": "http://api.example.com/r/{{webhook.path}}", "headers": "{\"X-Note\": \"{{note}}\", \"X-Num\": 1.0}"}),
     )
     .await;
-    let sent = http.sent.lock();
+    let sent = http.sent.lock().clone();
     assert!(
         sent[0].url.ends_with("/r/%7B%7Bsecret%7D%7D") || sent[0].url.ends_with("/r/{{secret}}")
     );
@@ -298,7 +297,7 @@ async fn bodies_are_sent_as_httpx_sends_them() {
         d["url"] = json!("http://api.example.com/v1");
         let (out, _, http) = send(d.clone()).await;
         assert_eq!(answer(&out)["status"], "success", "{}", d);
-        let sent = http.sent.lock();
+        let sent = http.sent.lock().clone();
         assert_eq!(
             sent[0]
                 .body
@@ -408,13 +407,12 @@ async fn logged_urls_are_redacted_and_credentials_sent_as_a_header() {
         messages(&c)[0],
         "HTTP GET http://api.example.com:8080/v1?<redacted>"
     );
-    let sent = http.sent.lock();
+    let sent = http.sent.lock().clone();
     assert_eq!(sent[0].url, "http://api.example.com:8080/v1?key=k");
     assert!(sent[0].headers.contains(&(
         "authorization".to_string(),
         "Basic dXNlcjpwQHNz".to_string()
     )));
-    drop(sent);
     let (out, _, _) = send(json!({})).await;
     assert_eq!(
         answer(&out),
