@@ -1020,7 +1020,7 @@ async fn s03_spoofed_forwarded_address_does_not_pass_the_webhook_allowlist() {
 
 // ------------------------------------------- S-09 live updates after logout
 
-type Ws =
+pub(super) type Ws =
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 /// The app served on an ephemeral loopback port, as the trader's browser
@@ -1058,7 +1058,7 @@ pub(super) async fn serve(h: &H) -> Served {
 
 /// A live update connection for the browser session `cookie`, joined to
 /// the default namespace. `None` when the server refuses it.
-async fn live_updates(s: &Served, cookie: &str) -> Option<Ws> {
+pub(super) async fn live_updates(s: &Served, cookie: &str) -> Option<Ws> {
     use futures_util::{SinkExt, StreamExt};
     use tokio_tungstenite::tungstenite::{client::IntoClientRequest, Message};
     let mut req = format!(
@@ -1099,7 +1099,7 @@ async fn live_updates(s: &Served, cookie: &str) -> Option<Ws> {
 
 /// Whether the server closes the connection (a namespace disconnect or a
 /// closed socket) within `secs`.
-async fn closed_within(ws: &mut Ws, secs: u64) -> bool {
+pub(super) async fn closed_within(ws: &mut Ws, secs: u64) -> bool {
     use futures_util::StreamExt;
     use tokio_tungstenite::tungstenite::Message;
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(secs);

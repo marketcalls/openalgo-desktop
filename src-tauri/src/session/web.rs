@@ -48,6 +48,14 @@ impl std::fmt::Debug for WebSession {
 }
 
 impl WebSession {
+    /// Whether it was signed in (or, anonymous, created) at or after
+    /// `boundary`: what a daily boundary keeps (SES-02).
+    pub fn since(&self, boundary: DateTime<Utc>) -> bool {
+        self.authenticated_at
+            .or(self.created_at)
+            .is_some_and(|t| t >= boundary)
+    }
+
     /// Forget a sign-in waiting for its authenticator code, and the keys
     /// its password opened (KEY-01: they leave memory with it).
     pub fn forget_pending_sign_in(&mut self) {
@@ -197,11 +205,7 @@ impl WebSessionStore {
         let n = {
             let mut map = self.map.lock();
             let before = map.len();
-            map.retain(|_, s| {
-                s.authenticated_at
-                    .or(s.created_at)
-                    .is_some_and(|t| t >= boundary)
-            });
+            map.retain(|_, s| s.since(boundary));
             before - map.len()
         };
         if n > 0 {
