@@ -459,6 +459,9 @@ fn csrf_exempt(path: &str) -> bool {
         // The OpenScript runner page: each call carries its run's secret.
         || path.starts_with("/openscript/runner/host/")
         || path.starts_with("/chartink/webhook/")
+        // Flow's webhook: its token and secret (the web exempts both views,
+        // `app.py` 452-453).
+        || path.starts_with("/flow/webhook/")
         // MCP: bearer token, never the browser session.
         || path == "/mcp"
         // Broker form-POST redirects (state-verified in the handler).
@@ -753,6 +756,7 @@ fn credential_route(path: &str) -> bool {
         || path == "/mcp"
         || path.starts_with("/strategy/webhook/")
         || path.starts_with("/chartink/webhook/")
+        || path.starts_with("/flow/webhook/")
 }
 
 /// Whether the request's session cookie names a signed-in session.

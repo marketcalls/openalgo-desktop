@@ -148,6 +148,24 @@ impl NodeOutcome {
     }
 }
 
+/// What started a run, as the code that started it says (never a payload
+/// field, which a webhook caller controls).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RunTrigger {
+    /// Run Now, the Agent, a bare test context.
+    #[default]
+    Manual,
+    /// A `/flow/webhook/...` call.
+    Webhook,
+    /// The scheduler.
+    Schedule,
+    /// The price monitor, which has already evaluated the alert on the
+    /// tick that fired it.
+    PriceAlert,
+    /// The order-update monitor.
+    OrderUpdate,
+}
+
 /// The level names a log entry is written with (the Log node may write any
 /// text the author chose; only these three come from the executor).
 pub const INFO: &str = "info";
@@ -172,6 +190,9 @@ pub struct NodeCtx {
     pub subscriptions: Arc<Subscriptions>,
     /// The symbol master, strategy book, feed, HTTP and calendar.
     pub env: NodeEnv,
+    /// What started the run ([`RunTrigger::Manual`] unless the starter set
+    /// it with [`NodeCtx::with_trigger`]).
+    pub trigger: RunTrigger,
     default_strategy: String,
     logs: Mutex<Vec<Value>>,
     app: Weak<AppState>,
@@ -209,6 +230,7 @@ impl NodeCtx {
             workflow_id: p.workflow_id,
             subscriptions: p.subscriptions,
             env: p.env,
+            trigger: RunTrigger::Manual,
             default_strategy: strategy,
             logs: Mutex::new(Vec::new()),
             app: p.app,
@@ -234,6 +256,13 @@ impl NodeCtx {
     /// This context with `env` (a test's or a golden replay's fakes).
     pub fn with_env(mut self, env: NodeEnv) -> Self {
         self.env = env;
+        self
+    }
+
+    /// This context as started by `trigger` (a monitor's run, or a golden
+    /// replay of one).
+    pub fn with_trigger(mut self, trigger: RunTrigger) -> Self {
+        self.trigger = trigger;
         self
     }
 

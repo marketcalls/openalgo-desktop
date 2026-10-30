@@ -514,7 +514,7 @@ fn ltt(t: &NormalizedTick) -> Option<i64> {
 
 /// A tick. A non-index full tick is served at Quote: its book follows as a
 /// separate `Depth` event.
-fn tick_update(key: InstrumentKey, t: &NormalizedTick) -> MarketUpdate {
+pub(crate) fn tick_update(key: InstrumentKey, t: &NormalizedTick) -> MarketUpdate {
     let raw = Mode::from_u8(t.mode).unwrap_or(Mode::Ltp);
     let mode = if raw == Mode::Depth && !key.is_index() {
         Mode::Quote
@@ -535,7 +535,7 @@ fn tick_update(key: InstrumentKey, t: &NormalizedTick) -> MarketUpdate {
 
 /// A depth snapshot for Depth holders, with the quote fields of the latest
 /// tick for the instrument.
-fn depth_update(
+pub(crate) fn depth_update(
     key: InstrumentKey,
     d: &NormalizedDepth,
     last: Option<&NormalizedTick>,

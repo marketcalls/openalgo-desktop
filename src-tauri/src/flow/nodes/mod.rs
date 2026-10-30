@@ -20,7 +20,9 @@ pub mod master;
 pub mod options;
 pub mod orders;
 pub mod pyjson;
+pub mod streaming;
 pub mod symbols;
+pub mod triggers;
 
 #[cfg(test)]
 mod data_tests;
@@ -54,6 +56,10 @@ pub const FAMILIES: &[NodeFamily] = &[
     orders::FAMILY,
     // optionsOrder, optionsMultiOrder.
     options::FAMILY,
+    // priceAlert (its monitor is flow::triggers).
+    triggers::FAMILY,
+    // subscribeLtp, subscribeQuote, subscribeDepth, unsubscribe.
+    streaming::FAMILY,
 ];
 
 /// The nodes by type id, built once.

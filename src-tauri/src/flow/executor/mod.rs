@@ -20,7 +20,7 @@ pub mod walk;
 
 use crate::flow::contract::client::app::AppFlowClient;
 use crate::flow::contract::model::{RunStatus, Workflow};
-use crate::flow::contract::node::{NodeCtx, NodeCtxParts, ERROR};
+use crate::flow::contract::node::{NodeCtx, NodeCtxParts, RunTrigger, ERROR};
 use crate::flow::contract::pyfmt;
 use crate::flow::contract::time::ist_now;
 use crate::flow::store::{executions, workflows};
@@ -39,6 +39,10 @@ pub struct RunRequest {
     pub webhook_data: Option<Value>,
     /// The trader's API key at the moment of the trigger.
     pub api_key: Option<Secret>,
+    /// What started the run, set by the code that started it (never read
+    /// from the payload): the price monitor's runs are the only ones the
+    /// priceAlert node trusts without a quote (parity N-priceAlert-04).
+    pub trigger: RunTrigger,
 }
 
 /// What a run that the app stopped answers its caller.
@@ -126,7 +130,7 @@ async fn run_claimed(
             return json!({"status": "error", "message": "Failed to create execution record"});
         }
     };
-    let ctx = context(app, &workflow, req.api_key.clone(), stop);
+    let ctx = context(app, &workflow, req.api_key.clone(), stop).with_trigger(req.trigger);
     if let Some(data) = req.webhook_data.filter(pyfmt::truthy) {
         ctx.vars.set("webhook", data);
         tracing::info!("Webhook data injected into workflow {}", workflow_id);

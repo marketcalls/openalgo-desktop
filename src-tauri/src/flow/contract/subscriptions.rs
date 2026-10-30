@@ -107,6 +107,35 @@ impl Subscriptions {
             .any(|(other, m)| *other != workflow_id && m.contains_key(entry))
     }
 
+    /// Whether a workflow other than `workflow_id` holds `entry` (its feed
+    /// must stay when this one lets go).
+    pub fn held_by_another(&self, workflow_id: Option<i64>, entry: &Entry) -> bool {
+        match workflow_id {
+            Some(id) => self.shared(id, entry),
+            None => self
+                .inner
+                .lock()
+                .held
+                .values()
+                .any(|m| m.contains_key(entry)),
+        }
+    }
+
+    /// Drop `workflow_id`'s claim on `entry`, whatever its version (an
+    /// Unsubscribe node gave it back). A run with no workflow has none.
+    pub fn forget_entry(&self, workflow_id: Option<i64>, entry: &Entry) {
+        let Some(id) = workflow_id else {
+            return;
+        };
+        let mut inner = self.inner.lock();
+        if let Some(map) = inner.held.get_mut(&id) {
+            map.remove(entry);
+            if map.is_empty() {
+                inner.held.remove(&id);
+            }
+        }
+    }
+
     /// Give back every subscription of `workflow_id`; failures stay recorded
     /// for a later retry. Safe for a workflow that never subscribed and
     /// safe to call twice. Returns how many were released.

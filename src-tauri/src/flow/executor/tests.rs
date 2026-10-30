@@ -56,6 +56,7 @@ fn registry() -> NodeRegistry {
 
 /// A node as the editor saves it, with a position.
 fn node(id: &str, t: &str, data: Value) -> Value {
+    // A position, as every saved node has one (the validator asks for it).
     json!({"id": id, "type": t, "position": {"x": 0, "y": 0}, "data": data})
 }
 

@@ -40,6 +40,11 @@ const HOOKS: &[&str] = &[
     "feed",
     "trading_calendar",
     "validator",
+    // The triggers lane: a run the price monitor started, the feed's
+    // session check, a feed that fails outright.
+    "run_context",
+    "feed_session",
+    "feed_exception",
 ];
 
 pub struct Golden {
@@ -327,6 +332,12 @@ fn context(v: &Value, client: Arc<FakeFlowClient>) -> NodeCtx {
         env: Default::default(),
         app: Weak::new(),
     });
+    let ctx = match v.pointer("/run_context/trigger").and_then(Value::as_str) {
+        Some("price_alert") => {
+            ctx.with_trigger(crate::flow::contract::node::RunTrigger::PriceAlert)
+        }
+        _ => ctx,
+    };
     for (k, val) in v["vars_in"].as_object().into_iter().flatten() {
         ctx.vars.set(k, val.clone());
     }

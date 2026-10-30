@@ -74,7 +74,7 @@ pub async fn reregister(app: &Arc<AppState>, w: &Workflow) -> Result<(), Trigger
 pub async fn rollback_activation(app: &Arc<AppState>, workflow_id: i64) {
     if let Err(e) = app.flow.triggers().unregister(workflow_id).await {
         tracing::error!(
-            "Could not roll back the triggers of workflow {} after a failed activation; it may need to be deactivated manually: {}",
+            "Could not roll back the scheduler job for workflow {} after a failed activation; it may need to be deactivated manually: {}",
             workflow_id,
             e
         );
@@ -85,7 +85,7 @@ pub async fn rollback_activation(app: &Arc<AppState>, workflow_id: i64) {
         .await;
     if let Err(e) = cleared {
         tracing::error!(
-            "Could not roll back the active flag of workflow {} after a failed activation: {}",
+            "Could not roll back the active flag for workflow {} after a failed activation; it may need to be deactivated manually: {}",
             workflow_id,
             e
         );

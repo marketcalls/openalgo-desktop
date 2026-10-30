@@ -574,6 +574,8 @@ impl AppState {
     pub async fn shutdown(&self) {
         self.shutdown.cancel();
         self.agent.stop_all();
+        // The scheduler, the monitors and their runs (which ends the runs).
+        self.flow.triggers().stop().await;
         self.flow.stop_all(crate::flow::STOP_GRACE).await;
         self.tunnel
             .stop(crate::services::tunnel::Off::SignedOut)

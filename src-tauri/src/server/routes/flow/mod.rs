@@ -4,7 +4,8 @@
 //! deactivate, webhook settings, the public webhooks, monitor status) and
 //! the data lookups (index symbols, lot sizes, option strikes) join the
 //! table from their own files. Every route here needs the signed-in user
-//! and carries the session's CSRF token on writes; none is public.
+//! and carries the session's CSRF token on writes, except the two public
+//! webhooks (`triggers`), each with its own credential.
 //!
 //! The handlers read the request and call one function in
 //! `crate::flow::service`, which answers the web's codes and shapes. A path
@@ -12,6 +13,7 @@
 //! `<int:workflow_id>` converter does.
 
 pub mod lookups;
+pub mod triggers;
 
 use super::{Access, RouteSpec};
 use crate::flow::service::{self as svc, transfer, Body};
@@ -80,6 +82,7 @@ pub fn table() -> Vec<RouteSpec> {
     ]
     .into_iter()
     .chain(lookups::table())
+    .chain(triggers::table())
     .collect()
 }
 

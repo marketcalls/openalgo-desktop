@@ -586,6 +586,9 @@ impl AuthService {
     pub async fn reset_account_everywhere(ctx: &std::sync::Arc<AppState>) -> Result<()> {
         ctx.agent.stop_all();
         ctx.flow.stop_all(crate::flow::STOP_GRACE).await;
+        // Every schedule, alert and watch goes, with the workflows' feed
+        // subscriptions; the reset below stands every workflow down (D-19).
+        ctx.flow.triggers().reset().await;
         if let Err(e) = crate::services::broker_auth_service::BrokerAuthService::revoke(
             ctx,
             crate::events::SessionEndReason::Logout,
