@@ -196,3 +196,12 @@ for _s in __import__("lib").SCENARIOS:
             "N-unsubscribe-03",
             "decisions.md 9: `all` releases only the subscriptions this workflow holds (none here), never the instance's whole feed, so nothing is refused.",
             fix=["unsubscribe_all_own"])
+
+
+def apply_auto():
+    """decisions.md 9 for every subscribe golden, the doc examples included:
+    written only where the fix changes what the web stored."""
+    pids = {"subscribeLtp": "N-subscribeLtp-05", "subscribeQuote": "N-subscribeQuote-04", "subscribeDepth": "N-subscribeDepth-04"}
+    for _s in __import__("lib").SCENARIOS:
+        if _s["type"] in pids and _s["kind"] == "node" and not _s["desktop_expected"]:
+            _s["desktop_expected"] = {**SFIX, "parity": pids[_s["type"]]}
