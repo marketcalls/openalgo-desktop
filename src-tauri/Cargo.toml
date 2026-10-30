@@ -231,6 +231,12 @@ e2e-debug-port = []
 # A scripted broker (src/brokers/scripted.rs) in the place of Dhan (Sandbox).
 e2e-broker = ["test-support"]
 
+# The real server for the Flow end-to-end journeys (examples/e2e_server.rs,
+# CI's e2e-flow job): only with the scripted broker, so never in a release.
+[[example]]
+name = "e2e_server"
+required-features = ["e2e-broker"]
+
 [profile.release]
 panic = "abort"
 codegen-units = 1

@@ -1,0 +1,92 @@
+name: E2E Flow
+
+# Flow's end-to-end journeys (e2e/flow/, playwright.flow.config.ts) in
+# Chromium against the app's real Rust server: the e2e_server example
+# (src-tauri/examples/e2e_server.rs) serves the built pages and every route
+# the app serves, with Flow's scheduler, monitors and webhooks running, on a
+# port the system picks, over a fresh data folder, with the scripted broker
+# of the native test build (src-tauri/src/brokers/scripted.rs) quoting a
+# small NIFTY market. Everything runs in analyzer mode; no order reaches a
+# broker and nothing leaves the runner (the Agent's model is a local fake).
+#
+# The journeys: build a workflow in the editor, save and reload it; Run Now
+# and read the run log and the sandbox order book; import a web export, run
+# and export it; a webhook with and without its secret; a schedule firing
+# and stopping; the Agent saving a workflow; the delete confirmation and the
+# unsaved-changes guard.
+#
+# A job of every CI run (ci.yml calls this workflow; ci-ok needs it), and
+# by hand on any branch.
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  NODE_VERSION: "22"
+
+jobs:
+  journeys:
+    name: e2e-flow (Playwright chromium, real server)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 75
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/linux-tauri-deps
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          check-latest: true
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - name: Build the pages the server serves
+        # Debug builds read dist/ from disk (src-tauri/src/server/spa.rs).
+        run: npx vite build
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: 1.99.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: src-tauri -> target
+          shared-key: e2e-flow-ubuntu-22.04
+          cache-on-failure: true
+      - name: Build the e2e server (debug, scripted broker)
+        working-directory: src-tauri
+        run: cargo build --locked --example e2e_server --features e2e-broker
+      - name: Bound apt network waits
+        # A stalled Ubuntu mirror otherwise holds apt-get (run by
+        # --with-deps) until the job timeout; fail the request and retry.
+        run: |
+          printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "5";\n' \
+            | sudo tee /etc/apt/apt.conf.d/99ci-network >/dev/null
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+      - name: Flow journeys
+        # The global setup starts the server and stops it when the run ends.
+        run: npx playwright test --config playwright.flow.config.ts
+      - name: Upload the report, traces and the server log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-flow-report
+          path: |
+            playwright-report-flow/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7

@@ -108,6 +108,7 @@ coverage/
 *.lcov
 test-results/
 playwright-report/
+playwright-report-flow/
 blob-report/
 playwright/.cache/
 junit*.xml

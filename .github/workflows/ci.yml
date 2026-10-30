@@ -12,6 +12,8 @@ name: CI
 #   (a release ships tauri-build's bundles of its master run, signed for
 #   in-app updates by release.yml, not rebuilt: scripts/ci/release_bundles.py)
 #   e2e (Playwright against vite preview)
+#   e2e-flow (Flow's journeys in Playwright against the real Rust server:
+#             e2e-flow.yml)
 #   secret-scan (gitleaks, full history)
 #   code-health (size, dead code and suppression ratchet; CLAUDE.md "Code health")
 #
@@ -403,6 +405,12 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # Flow's journeys against the app's real server (the e2e_server example,
+  # scripted broker, analyzer mode): e2e-flow.yml.
+  e2e-flow:
+    name: e2e-flow
+    uses: ./.github/workflows/e2e-flow.yml
+
   # ------------------------------------------------------------ Secrets
   secret-scan:
     name: secret-scan (gitleaks)
@@ -598,6 +606,7 @@ jobs:
       - frontend
       - frontend-test
       - e2e
+      - e2e-flow
       - secret-scan
       - code-health
       - tauri-build
