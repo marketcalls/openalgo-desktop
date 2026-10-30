@@ -827,6 +827,34 @@ fn flow_builder_loads_with_its_node_reference_and_the_import_format() {
     }
 }
 
+/// A-26: the registry entry is the web's (`services/agent/skills/registry.py`
+/// :102-114), every field, the agent notes word for word, and the prompt
+/// carries the notes whole.
+#[test]
+fn the_flow_builder_entry_is_the_webs() {
+    const WEB_NOTES: &str = "You cannot run validate.py, curl or SQL. Validate with validate_flow instead of validate.py, and save with save_flow instead of the import route; it imports the workflow inactive and the operator activates it in /flow. validate_flow does not flag a data key nothing reads, so copy every key from reference/nodes.md exactly.";
+    let spec = &registry::FLOW_BUILDER;
+    assert_eq!(spec.name, "flow-builder");
+    assert_eq!(spec.folder, ".claude/skills/flow-builder");
+    assert_eq!(spec.surfaces, Surfaces::CHAT_ONLY);
+    assert_eq!(spec.agent_notes, WEB_NOTES);
+    assert_eq!(spec.reference_dirs, ["reference", "references"]);
+    assert_eq!(spec.reference_suffixes, [".md", ".txt", ".json"]);
+    assert_eq!(
+        registry::SKILLS.iter().map(|s| s.name).collect::<Vec<_>>(),
+        ["openscript", "flow-builder"]
+    );
+    let chat = skills_section(&shipped(), Surface::Chat).unwrap().render();
+    assert!(
+        chat.contains(&format!("\n  Here: {}", WEB_NOTES)),
+        "{}",
+        chat
+    );
+    let set = shipped();
+    let (_, skill) = set.find("flow-builder", Surface::Chat).unwrap();
+    assert_eq!(skill.unwrap().spec.agent_notes, WEB_NOTES);
+}
+
 /// The web's `test_flow_builder_is_not_offered_where_the_flow_tools_are_not`:
 /// chat only, as the Flow toolkit is.
 #[test]

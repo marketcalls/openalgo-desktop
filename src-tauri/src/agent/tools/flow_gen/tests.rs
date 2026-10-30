@@ -607,6 +607,39 @@ fn audit_rows(t: &TestCtx) -> Vec<Value> {
     rows
 }
 
+/// A-23: a save logs the web's line (`flow_gen.py:236`) at info, naming the
+/// stored name and the new id, and nothing of the graph.
+#[tokio::test]
+async fn a_save_logs_the_webs_line() {
+    let logs = crate::services::tunnel::fake::capture_logs();
+    let t = app();
+    call(
+        &t,
+        "save_flow",
+        json!({"name": "Logged", "workflow_json": webhook_entry()}),
+    )
+    .await;
+    let id = rows(&t)[0].id;
+    let text = logs.text();
+    let line = text
+        .lines()
+        .find(|l| l.contains("Agent imported Flow workflow"))
+        .unwrap_or_else(|| panic!("no import line in:\n{}", text));
+    assert!(
+        line.ends_with(&format!(
+            "Agent imported Flow workflow Logged (imported) as id {}",
+            id
+        )),
+        "{}",
+        line
+    );
+    assert!(line.contains(" INFO "), "{}", line);
+    assert!(
+        !text.contains("webhook.symbol"),
+        "the graph is never logged"
+    );
+}
+
 /// A-21: the attempt row before the write, the result row after, the stored
 /// name and the graph's size, never the graph.
 #[tokio::test]
