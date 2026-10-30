@@ -10,6 +10,8 @@
 //!   OpenAlgo through, the subscription record and the trigger hooks.
 //! - `executor/`: running a workflow: the one-run-per-workflow claim, the
 //!   owned run task, the record, the graph walk.
+//! - `indicator_service`: the port of `services/indicator_service.py` the
+//!   Indicator, Bar Offset, Prior Period OHLC and History nodes compute with.
 //! - `node_contracts`: statuses, expiry and strike vocabularies, default
 //!   product, expiry selection (the web's `flow_node_contracts.py`).
 //! - `nodes/`: the node registry, one line per node family.
@@ -24,6 +26,7 @@
 
 pub mod contract;
 pub mod executor;
+pub mod indicator_service;
 pub mod node_contracts;
 pub mod nodes;
 pub mod service;
