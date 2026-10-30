@@ -1,0 +1,99 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "indicator",
+ "scenario": "missing_symbol",
+ "note": "",
+ "parity": [
+  "N-indicator-07"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "indicator",
+  "data": {
+   "exchange": "NSE",
+   "indicatorName": "sma",
+   "interval": "D",
+   "lookbackBars": 50,
+   "outputVariable": "ind",
+   "params": "{\"period\": 10}",
+   "tailBars": 5
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "indicator",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "indicatorName": "sma",
+     "interval": "D",
+     "lookbackBars": 50,
+     "outputVariable": "ind",
+     "params": "{\"period\": 10}",
+     "tailBars": 5
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Symbol is required"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Stopping this branch: indicator node failed (Symbol is required)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "indicator",
+     "message": "Symbol is required"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

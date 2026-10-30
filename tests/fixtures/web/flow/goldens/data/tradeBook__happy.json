@@ -1,0 +1,145 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "tradeBook",
+ "scenario": "happy",
+ "note": "",
+ "parity": [
+  "N-tradeBook-01",
+  "CL-14",
+  "N-dataCommon-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "tradeBook",
+  "data": {
+   "outputVariable": "book"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "tradeBook",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "book"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "tradebook",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "action": "BUY",
+      "average_price": 812.5,
+      "exchange": "NSE",
+      "orderid": "250408000123456",
+      "product": "MIS",
+      "quantity": 10,
+      "symbol": "SBIN",
+      "timestamp": "10:14:59",
+      "trade_value": 8125.0
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "tradebook",
+    "endpoint": "tradebook",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": [
+    {
+     "action": "BUY",
+     "average_price": 812.5,
+     "exchange": "NSE",
+     "orderid": "250408000123456",
+     "product": "MIS",
+     "quantity": 10,
+     "symbol": "SBIN",
+     "timestamp": "10:14:59",
+     "trade_value": 8125.0
+    }
+   ]
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "book": {
+    "status": "success",
+    "data": [
+     {
+      "action": "BUY",
+      "average_price": 812.5,
+      "exchange": "NSE",
+      "orderid": "250408000123456",
+      "product": "MIS",
+      "quantity": 10,
+      "symbol": "SBIN",
+      "timestamp": "10:14:59",
+      "trade_value": 8125.0
+     }
+    ]
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Fetching trade book"
+   ],
+   [
+    "info",
+    "Trade book received"
+   ],
+   [
+    "info",
+    "Stored result in variable: book"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

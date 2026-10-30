@@ -1,0 +1,174 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "multiQuotes",
+ "scenario": "interpolated",
+ "note": "",
+ "parity": [
+  "N-multiQuotes-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "multiQuotes",
+  "data": {
+   "outputVariable": "mq",
+   "symbols": "{{watch}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "watch": "SBIN,INFY"
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "multiQuotes",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "mq",
+     "symbols": "{{watch}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "multiquotes",
+   "reply": {
+    "status": "success",
+    "results": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "data": {
+       "ltp": 812.5,
+       "open": 806.0
+      }
+     },
+     {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "data": {
+       "ltp": 1886.0,
+       "open": 1880.0
+      }
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_multi_quotes",
+    "endpoint": "multiquotes",
+    "payload": {
+     "symbols": [
+      {
+       "symbol": "SBIN",
+       "exchange": "NSE"
+      },
+      {
+       "symbol": "INFY",
+       "exchange": "NSE"
+      }
+     ]
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "results": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "data": {
+      "ltp": 812.5,
+      "open": 806.0
+     }
+    },
+    {
+     "symbol": "INFY",
+     "exchange": "NSE",
+     "data": {
+      "ltp": 1886.0,
+      "open": 1880.0
+     }
+    }
+   ]
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "watch": "SBIN,INFY",
+   "mq": {
+    "status": "success",
+    "results": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "data": {
+       "ltp": 812.5,
+       "open": 806.0
+      }
+     },
+     {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "data": {
+       "ltp": 1886.0,
+       "open": 1880.0
+      }
+     }
+    ]
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting quotes for 2 symbols"
+   ],
+   [
+    "info",
+    "Multi quotes result: {'status': 'success', 'results': [{'symbol': 'SBIN', 'exchange': 'NSE', 'data': {'ltp': 812.5, 'open': 806.0}}, {'symbol': 'INFY', 'exchange': 'NSE', 'data': {'ltp': 1886.0, 'open': 1880.0}}]}"
+   ],
+   [
+    "info",
+    "Stored result in variable: mq"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

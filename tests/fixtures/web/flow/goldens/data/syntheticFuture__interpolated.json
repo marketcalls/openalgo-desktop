@@ -1,0 +1,138 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "syntheticFuture",
+ "scenario": "interpolated",
+ "note": "",
+ "parity": [
+  "N-syntheticFuture-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "syntheticFuture",
+  "data": {
+   "exchange": "NSE_INDEX",
+   "expiryDate": "{{webhook.exp}}",
+   "underlying": "{{webhook.u}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "symbol": "INFY",
+   "ex": "NSE",
+   "n": "3",
+   "day": "2026-11-02",
+   "u": "NIFTY",
+   "exp": "25NOV26",
+   "it": "futures",
+   "qty": "50",
+   "px": "1880.5"
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "syntheticFuture",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE_INDEX",
+     "expiryDate": "{{webhook.exp}}",
+     "underlying": "{{webhook.u}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "syntheticfuture",
+   "reply": {
+    "status": "success",
+    "underlying": "NIFTY",
+    "underlying_ltp": 24012.35,
+    "expiry": "25NOV26",
+    "atm_strike": 24000.0,
+    "synthetic_future_price": 24015.25
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "syntheticfuture",
+    "endpoint": "syntheticfuture",
+    "payload": {
+     "underlying": "NIFTY",
+     "exchange": "NSE_INDEX",
+     "expiry_date": "25NOV26"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "underlying": "NIFTY",
+   "underlying_ltp": 24012.35,
+   "expiry": "25NOV26",
+   "atm_strike": 24000.0,
+   "synthetic_future_price": 24015.25
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "symbol": "INFY",
+    "ex": "NSE",
+    "n": "3",
+    "day": "2026-11-02",
+    "u": "NIFTY",
+    "exp": "25NOV26",
+    "it": "futures",
+    "qty": "50",
+    "px": "1880.5"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Calculating synthetic future for: NIFTY"
+   ],
+   [
+    "info",
+    "Synthetic future result: {'status': 'success', 'underlying': 'NIFTY', 'underlying_ltp': 24012.35, 'expiry': '25NOV26', 'atm_strike': 24000.0, 'synthetic_future_price': 24015.25}"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

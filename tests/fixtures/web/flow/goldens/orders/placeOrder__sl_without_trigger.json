@@ -1,0 +1,105 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "placeOrder",
+ "scenario": "sl_without_trigger",
+ "note": "",
+ "parity": [
+  "N-common-18"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "placeOrder",
+  "data": {
+   "action": "BUY",
+   "exchange": "NSE",
+   "outputVariable": "orderResult",
+   "price": 801,
+   "priceType": "SL",
+   "quantity": 10,
+   "symbol": "SBIN",
+   "triggerPrice": 0
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "placeOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "BUY",
+     "exchange": "NSE",
+     "outputVariable": "orderResult",
+     "price": 801,
+     "priceType": "SL",
+     "quantity": 10,
+     "symbol": "SBIN",
+     "triggerPrice": 0
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Place order has invalid runtime order data: SL order needs a positive trigger price, got 0.0"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Place order has invalid runtime order data: SL order needs a positive trigger price, got 0.0"
+   ],
+   [
+    "error",
+    "Stopping this branch: placeOrder node failed (Place order has invalid runtime order data: SL order needs a positive trigger price, got 0.0)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "placeOrder",
+     "message": "Place order has invalid runtime order data: SL order needs a positive trigger price, got 0.0"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

@@ -1,0 +1,157 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "modifyOrder",
+ "scenario": "overrides_and_aliases",
+ "note": "",
+ "parity": [
+  "N-modifyOrder-01",
+  "N-modifyOrder-04",
+  "N-common-24"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "modifyOrder",
+  "data": {
+   "action": "sell",
+   "exchange": "NSE",
+   "orderId": "250408000123456",
+   "price": "810",
+   "pricetype": "limit",
+   "product": "CNC",
+   "quantity": "20",
+   "symbol": "sbin",
+   "triggerPrice": " "
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "modifyOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "sell",
+     "exchange": "NSE",
+     "orderId": "250408000123456",
+     "price": "810",
+     "pricetype": "limit",
+     "product": "CNC",
+     "quantity": "20",
+     "symbol": "sbin",
+     "triggerPrice": " "
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "orderstatus",
+   "reply": {
+    "status": "success",
+    "data": {
+     "action": "BUY",
+     "average_price": 0.0,
+     "exchange": "NSE",
+     "order_status": "open",
+     "orderid": "250408000123456",
+     "price": 800.0,
+     "pricetype": "LIMIT",
+     "product": "MIS",
+     "quantity": 10,
+     "symbol": "SBIN",
+     "timestamp": "2026-10-29 10:14:59",
+     "trigger_price": 0.0
+    }
+   }
+  },
+  {
+   "endpoint": "modifyorder",
+   "reply": {
+    "status": "success",
+    "message": "Order modified successfully",
+    "orderid": "250408000123456"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_order_status",
+    "endpoint": "orderstatus",
+    "payload": {
+     "orderid": "250408000123456"
+    }
+   },
+   {
+    "method": "modify_order",
+    "endpoint": "modifyorder",
+    "payload": {
+     "strategy": "flow_workflow",
+     "orderid": "250408000123456",
+     "symbol": "sbin",
+     "exchange": "NSE",
+     "action": "SELL",
+     "quantity": 20,
+     "pricetype": "LIMIT",
+     "product": "CNC",
+     "price": 810.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "message": "Order modified successfully",
+   "orderid": "250408000123456"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Modifying order: 250408000123456 - sbin SELL qty=20 price=810.0 trigger=0.0"
+   ],
+   [
+    "info",
+    "Modify order result: {'status': 'success', 'message': 'Order modified successfully', 'orderid': '250408000123456'}"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

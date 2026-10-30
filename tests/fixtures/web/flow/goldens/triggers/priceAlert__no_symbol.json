@@ -1,0 +1,160 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "priceAlert",
+ "scenario": "no_symbol",
+ "note": "",
+ "parity": [
+  "N-priceAlert-03",
+  "N-priceAlert-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "priceAlert",
+  "data": {
+   "condition": "above",
+   "exchange": "NSE",
+   "outputVariable": "alert",
+   "price": 800,
+   "symbol": ""
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "priceAlert",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "condition": "above",
+     "exchange": "NSE",
+     "outputVariable": "alert",
+     "price": 800,
+     "symbol": ""
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "condition": false
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "priceAlert could not be evaluated (node failed)"
+   ]
+  ],
+  "next": [
+   "pass"
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "priceAlert",
+     "message": "node failed"
+    }
+   ],
+   "abort": null
+  }
+ },
+ "desktop_expected": {
+  "parity": "N-priceAlert-02",
+  "why": "WEB-DEFECT: a priceAlert without a symbol fails with no reason, so the run reads `node failed`; the desktop names it (the triggers lane's sentence).",
+  "fix": [
+   "price_alert_no_symbol"
+  ],
+  "outputs": {
+   "status": "error",
+   "condition": false,
+   "message": "A priceAlert node needs symbol, so the alert was not evaluated."
+  },
+  "logs": [
+   [
+    "error",
+    "priceAlert could not be evaluated (A priceAlert node needs symbol, so the alert was not evaluated.)"
+   ]
+  ],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "priceAlert",
+     "message": "A priceAlert node needs symbol, so the alert was not evaluated."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

@@ -1,0 +1,133 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "subscribeLtp",
+ "scenario": "rest_raises",
+ "note": "The web client lets a service exception through; the desktop client never raises (CL-26), so this golden is web evidence only.",
+ "parity": [
+  "N-subscribeLtp-04",
+  "CL-26"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "subscribeLtp",
+  "data": {
+   "exchange": "NSE",
+   "outputVariable": "ltp",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "subscribeLtp",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "outputVariable": "ltp",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "connect_error": "down"
+  }
+ },
+ "script": [
+  {
+   "endpoint": "quotes",
+   "reply": {
+    "$raise": "connection reset by broker"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_quotes",
+    "endpoint": "quotes",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "type": "ltp",
+   "symbol": "SBIN",
+   "exchange": "NSE",
+   "error": "connection reset by broker"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Subscribing to LTP stream: SBIN (NSE)"
+   ],
+   [
+    "warning",
+    "WebSocket connection failed: down"
+   ],
+   [
+    "info",
+    "WebSocket timeout/failed, falling back to REST API for SBIN"
+   ],
+   [
+    "error",
+    "Subscribe LTP exception: connection reset by broker"
+   ],
+   [
+    "error",
+    "Stopping this branch: subscribeLtp node failed (connection reset by broker)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "subscribeLtp",
+     "message": "connection reset by broker"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

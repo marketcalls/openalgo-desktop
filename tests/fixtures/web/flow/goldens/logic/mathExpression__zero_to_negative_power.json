@@ -1,0 +1,122 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "mathExpression",
+ "scenario": "zero_to_negative_power",
+ "note": "",
+ "parity": [
+  "N-mathExpression-01",
+  "N-mathExpression-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "mathExpression",
+  "data": {
+   "expression": "0.0 ** -1"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "ltp": 812.5,
+  "lot": 10,
+  "brokerage": "20",
+  "cfg": {
+   "a": 1
+  },
+  "levels": [
+   1,
+   2
+  ]
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "mathExpression",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "expression": "0.0 ** -1"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "0.0 cannot be raised to a negative power"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "ltp": 812.5,
+   "lot": 10,
+   "brokerage": "20",
+   "cfg": {
+    "a": 1
+   },
+   "levels": [
+    1,
+    2
+   ]
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Evaluating: 0.0 ** -1"
+   ],
+   [
+    "info",
+    "Interpolated: 0.0 ** -1"
+   ],
+   [
+    "error",
+    "Math expression failed: 0.0 cannot be raised to a negative power"
+   ],
+   [
+    "error",
+    "Stopping this branch: mathExpression node failed (0.0 cannot be raised to a negative power)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "mathExpression",
+     "message": "0.0 cannot be raised to a negative power"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

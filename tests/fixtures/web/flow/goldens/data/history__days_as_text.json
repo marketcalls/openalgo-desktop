@@ -1,0 +1,202 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "history",
+ "scenario": "days_as_text",
+ "note": "",
+ "parity": [
+  "N-history-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "history",
+  "data": {
+   "days": "{{n}}",
+   "interval": "15m",
+   "outputVariable": "h",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "n": 2
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "history",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "days": "{{n}}",
+     "interval": "15m",
+     "outputVariable": "h",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "history",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "timestamp": 1793247000,
+      "open": 812.0,
+      "high": 814.5,
+      "low": 803.75,
+      "close": 805.75,
+      "volume": 100000
+     },
+     {
+      "timestamp": 1793247900,
+      "open": 805.75,
+      "high": 809.25,
+      "low": 801.5,
+      "close": 804.5,
+      "volume": 107919
+     },
+     {
+      "timestamp": 1793248800,
+      "open": 804.5,
+      "high": 812.75,
+      "low": 802.5,
+      "close": 808.25,
+      "volume": 115838
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_history",
+    "endpoint": "history",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "15m",
+     "start_date": "2026-10-27",
+     "end_date": "2026-10-29",
+     "source": "api"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": [
+    {
+     "timestamp": 1793247000,
+     "open": 812.0,
+     "high": 814.5,
+     "low": 803.75,
+     "close": 805.75,
+     "volume": 100000
+    },
+    {
+     "timestamp": 1793247900,
+     "open": 805.75,
+     "high": 809.25,
+     "low": 801.5,
+     "close": 804.5,
+     "volume": 107919
+    },
+    {
+     "timestamp": 1793248800,
+     "open": 804.5,
+     "high": 812.75,
+     "low": 802.5,
+     "close": 808.25,
+     "volume": 115838
+    }
+   ]
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "n": 2,
+   "h": {
+    "status": "success",
+    "data": [
+     {
+      "timestamp": 1793247000,
+      "open": 812.0,
+      "high": 814.5,
+      "low": 803.75,
+      "close": 805.75,
+      "volume": 100000
+     },
+     {
+      "timestamp": 1793247900,
+      "open": 805.75,
+      "high": 809.25,
+      "low": 801.5,
+      "close": 804.5,
+      "volume": 107919
+     },
+     {
+      "timestamp": 1793248800,
+      "open": 804.5,
+      "high": 812.75,
+      "low": 802.5,
+      "close": 808.25,
+      "volume": 115838
+     }
+    ]
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "History range from days=2: 2026-10-27 to 2026-10-29"
+   ],
+   [
+    "info",
+    "Getting history for: SBIN (15m)"
+   ],
+   [
+    "info",
+    "History data received"
+   ],
+   [
+    "info",
+    "Stored result in variable: h"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

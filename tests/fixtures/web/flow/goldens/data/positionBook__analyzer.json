@@ -1,0 +1,167 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "positionBook",
+ "scenario": "analyzer",
+ "note": "",
+ "parity": [
+  "N-dataCommon-05"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": true,
+ "node": {
+  "type": "positionBook",
+  "data": {
+   "outputVariable": "book"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "positionBook",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "book"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "positionbook",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "product": "MIS",
+      "quantity": 10,
+      "average_price": 800.0,
+      "ltp": 812.5,
+      "pnl": 125.0
+     },
+     {
+      "symbol": "NIFTY25NOV2624000CE",
+      "exchange": "NFO",
+      "product": "NRML",
+      "quantity": -65,
+      "average_price": 110.0,
+      "ltp": 98.5,
+      "pnl": 747.5
+     }
+    ],
+    "mode": "analyze"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "positionbook",
+    "endpoint": "positionbook",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "product": "MIS",
+     "quantity": 10,
+     "average_price": 800.0,
+     "ltp": 812.5,
+     "pnl": 125.0
+    },
+    {
+     "symbol": "NIFTY25NOV2624000CE",
+     "exchange": "NFO",
+     "product": "NRML",
+     "quantity": -65,
+     "average_price": 110.0,
+     "ltp": 98.5,
+     "pnl": 747.5
+    }
+   ],
+   "mode": "analyze"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "book": {
+    "status": "success",
+    "data": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "product": "MIS",
+      "quantity": 10,
+      "average_price": 800.0,
+      "ltp": 812.5,
+      "pnl": 125.0
+     },
+     {
+      "symbol": "NIFTY25NOV2624000CE",
+      "exchange": "NFO",
+      "product": "NRML",
+      "quantity": -65,
+      "average_price": 110.0,
+      "ltp": 98.5,
+      "pnl": 747.5
+     }
+    ],
+    "mode": "analyze"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Fetching position book"
+   ],
+   [
+    "info",
+    "Position book received"
+   ],
+   [
+    "info",
+    "Stored result in variable: book"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

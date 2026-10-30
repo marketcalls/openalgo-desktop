@@ -1,0 +1,108 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "unsubscribe",
+ "scenario": "all",
+ "note": "",
+ "parity": [
+  "N-unsubscribe-01",
+  "N-unsubscribe-03",
+  "N-unsubscribe-07"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "unsubscribe",
+  "data": {
+   "streamType": "all"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "unsubscribe",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "streamType": "all"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker"
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "type": "unsubscribe",
+   "symbol": "",
+   "exchange": "NSE",
+   "stream_type": "all",
+   "message": "Unsubscribed from all stream"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Unsubscribing from all stream: all (NSE)"
+   ],
+   [
+    "info",
+    "Unsubscribed from all streams"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null,
+  "feed": [
+   {
+    "op": "unsubscribe_all"
+   }
+  ]
+ },
+ "desktop_expected": {
+  "parity": "N-unsubscribe-03",
+  "why": "decisions.md 9: `all` releases only the subscriptions this workflow holds (none here), never the instance's whole feed, so nothing is refused.",
+  "fix": [
+   "unsubscribe_all_own"
+  ],
+  "feed": null
+ }
+}

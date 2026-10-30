@@ -1,0 +1,130 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "smartOrder",
+ "scenario": "short_target",
+ "note": "",
+ "parity": [
+  "N-smartOrder-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "smartOrder",
+  "data": {
+   "action": "SELL",
+   "exchange": "NSE",
+   "outputVariable": "smart",
+   "positionSize": -10,
+   "priceType": "MARKET",
+   "quantity": 5,
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "smartOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "SELL",
+     "exchange": "NSE",
+     "outputVariable": "smart",
+     "positionSize": -10,
+     "priceType": "MARKET",
+     "quantity": 5,
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "placesmartorder",
+   "reply": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "place_smart_order",
+    "endpoint": "placesmartorder",
+    "payload": {
+     "strategy": "Golden Flow",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "SELL",
+     "quantity": 5,
+     "position_size": -10,
+     "pricetype": "MARKET",
+     "product": "MIS",
+     "price": 0.0,
+     "trigger_price": 0.0
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "orderid": "250408000123456"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "smart": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Placing smart order: SBIN SELL"
+   ],
+   [
+    "info",
+    "Smart order result: {'status': 'success', 'orderid': '250408000123456'}"
+   ],
+   [
+    "info",
+    "Stored result in variable: smart"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

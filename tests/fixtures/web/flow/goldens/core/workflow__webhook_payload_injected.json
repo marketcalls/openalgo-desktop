@@ -1,0 +1,150 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "webhook_payload_injected",
+ "note": "",
+ "parity": [
+  "E-32",
+  "E-15"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Webhook",
+  "nodes": [
+   {
+    "id": "t",
+    "type": "webhookTrigger",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {}
+   },
+   {
+    "id": "o",
+    "type": "placeOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "symbol": "{{webhook.symbol}}",
+     "exchange": "NSE",
+     "action": "{{webhook.action}}",
+     "quantity": "{{webhook.qty}}",
+     "priceType": "MARKET",
+     "outputVariable": "orderResult"
+    }
+   },
+   {
+    "id": "log",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "order {{orderResult.orderid}} {{webhook}}"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-t-o-x",
+    "source": "t",
+    "target": "o"
+   },
+   {
+    "id": "e-o-log-x",
+    "source": "o",
+    "target": "log"
+   }
+  ]
+ },
+ "webhook": {
+  "symbol": "sbin",
+  "action": "SELL",
+  "qty": 3
+ },
+ "api_key": true,
+ "env": {},
+ "script": [
+  {
+   "endpoint": "placeorder",
+   "reply": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "place_order",
+    "endpoint": "placeorder",
+    "payload": {
+     "strategy": "Webhook",
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "SELL",
+     "quantity": 3,
+     "pricetype": "MARKET",
+     "product": "MIS",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "disclosed_quantity": 0
+    }
+   }
+  ],
+  "result": {
+   "status": "success",
+   "message": "Workflow executed successfully"
+  },
+  "record": {
+   "status": "completed",
+   "error": null
+  },
+  "vars_out": {
+   "webhook": {
+    "symbol": "sbin",
+    "action": "SELL",
+    "qty": 3
+   },
+   "orderResult": {
+    "status": "success",
+    "orderid": "250408000123456"
+   }
+  },
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Webhook"
+   ],
+   [
+    "info",
+    "Webhook trigger activated"
+   ],
+   [
+    "info",
+    "Placing order: SBIN SELL qty=3"
+   ],
+   [
+    "info",
+    "Order result: {'status': 'success', 'orderid': '250408000123456'}"
+   ],
+   [
+    "info",
+    "Stored result in variable: orderResult"
+   ],
+   [
+    "info",
+    "[LOG] order 250408000123456 {'symbol': 'sbin', 'action': 'SELL', 'qty': 3}"
+   ]
+  ]
+ }
+}

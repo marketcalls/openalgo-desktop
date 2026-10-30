@@ -1,0 +1,89 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "unsubscribe",
+ "scenario": "no_connection",
+ "note": "",
+ "parity": [
+  "N-unsubscribe-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "unsubscribe",
+  "data": {
+   "streamType": "ltp",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "unsubscribe",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "streamType": "ltp",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "connect_error": "down"
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "type": "unsubscribe",
+   "message": "No active WebSocket connection"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Unsubscribing from ltp stream: SBIN (NSE)"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

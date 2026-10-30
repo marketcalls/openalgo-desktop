@@ -1,0 +1,143 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "timings",
+ "scenario": "today",
+ "note": "",
+ "parity": [
+  "N-timings-01",
+  "N-dataCommon-10"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "timings",
+  "data": {
+   "outputVariable": "tm"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "timings",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "tm"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "market/timings",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "exchange": "NSE",
+      "start_time": 1793245500000,
+      "end_time": 1793268000000
+     },
+     {
+      "exchange": "MCX",
+      "start_time": 1793245200000,
+      "end_time": 1793301000000
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "timings",
+    "endpoint": "market/timings",
+    "payload": {
+     "date": "2026-10-29"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": [
+    {
+     "exchange": "NSE",
+     "start_time": 1793245500000,
+     "end_time": 1793268000000
+    },
+    {
+     "exchange": "MCX",
+     "start_time": 1793245200000,
+     "end_time": 1793301000000
+    }
+   ]
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "tm": {
+    "status": "success",
+    "data": [
+     {
+      "exchange": "NSE",
+      "start_time": 1793245500000,
+      "end_time": 1793268000000
+     },
+     {
+      "exchange": "MCX",
+      "start_time": 1793245200000,
+      "end_time": 1793301000000
+     }
+    ]
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Fetching market timings for date: 2026-10-29"
+   ],
+   [
+    "info",
+    "Timings result: {'status': 'success', 'data': [{'exchange': 'NSE', 'start_time': 1793245500000, 'end_time': 1793268000000}, {'exchange': 'MCX', 'start_time': 1793245200000, 'end_time': 1793301000000}]}"
+   ],
+   [
+    "info",
+    "Stored result in variable: tm"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

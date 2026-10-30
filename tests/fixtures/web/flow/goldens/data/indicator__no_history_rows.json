@@ -1,0 +1,130 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "indicator",
+ "scenario": "no_history_rows",
+ "note": "",
+ "parity": [
+  "N-indicator-07"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "indicator",
+  "data": {
+   "exchange": "NSE",
+   "indicatorName": "sma",
+   "interval": "D",
+   "lookbackBars": 50,
+   "outputVariable": "ind",
+   "params": "{\"period\": 10}",
+   "symbol": "SBIN",
+   "tailBars": 5
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "indicator",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "indicatorName": "sma",
+     "interval": "D",
+     "lookbackBars": 50,
+     "outputVariable": "ind",
+     "params": "{\"period\": 10}",
+     "symbol": "SBIN",
+     "tailBars": 5
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "history",
+   "reply": {
+    "status": "success",
+    "data": []
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_history",
+    "endpoint": "history",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-08-05",
+     "end_date": "2026-10-29",
+     "source": "api"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "message": "no historical data available for this symbol/date range"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Computing sma for SBIN (D, 50 bars)"
+   ],
+   [
+    "error",
+    "Indicator error: no historical data available for this symbol/date range"
+   ],
+   [
+    "error",
+    "Stopping this branch: indicator node failed (no historical data available for this symbol/date range)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "indicator",
+     "message": "no historical data available for this symbol/date range"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

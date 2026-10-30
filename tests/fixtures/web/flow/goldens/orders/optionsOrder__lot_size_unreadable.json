@@ -1,0 +1,119 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "optionsOrder",
+ "scenario": "lot_size_unreadable",
+ "note": "",
+ "parity": [
+  "N-common-22"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "optionsOrder",
+  "data": {
+   "action": "BUY",
+   "exchange": "NSE_INDEX",
+   "expiryType": "current_week",
+   "offset": "ATM",
+   "optionType": "CE",
+   "outputVariable": "opt",
+   "price": 0,
+   "priceType": "MARKET",
+   "product": "NRML",
+   "quantity": 2,
+   "triggerPrice": 0,
+   "underlying": "NIFTY"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "optionsOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "BUY",
+     "exchange": "NSE_INDEX",
+     "expiryType": "current_week",
+     "offset": "ATM",
+     "optionType": "CE",
+     "outputVariable": "opt",
+     "price": 0,
+     "priceType": "MARKET",
+     "product": "NRML",
+     "quantity": 2,
+     "triggerPrice": 0,
+     "underlying": "NIFTY"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "master_contract": "unreadable"
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Could not read the lot size for NIFTY on NFO. Refusing to size an order on a guess."
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Placing options order: NIFTY CE ATM"
+   ],
+   [
+    "error",
+    "Options order failed: Could not read the lot size for NIFTY on NFO. Refusing to size an order on a guess."
+   ],
+   [
+    "error",
+    "Stopping this branch: optionsOrder node failed (Could not read the lot size for NIFTY on NFO. Refusing to size an order on a guess.)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "optionsOrder",
+     "message": "Could not read the lot size for NIFTY on NFO. Refusing to size an order on a guess."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

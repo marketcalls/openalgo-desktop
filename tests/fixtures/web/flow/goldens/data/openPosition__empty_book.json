@@ -1,0 +1,112 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "openPosition",
+ "scenario": "empty_book",
+ "note": "",
+ "parity": [
+  "N-openPosition-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "openPosition",
+  "data": {
+   "outputVariable": "pos",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "openPosition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "pos",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "positionbook",
+   "reply": {
+    "status": "success",
+    "data": [],
+    "mode": "analyze"
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "positionbook",
+    "endpoint": "positionbook",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "quantity": 0,
+   "pnl": 0
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "pos": {
+    "status": "success",
+    "quantity": 0,
+    "pnl": 0
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting open position for: SBIN"
+   ],
+   [
+    "info",
+    "Open position result: {'status': 'success', 'quantity': 0, 'pnl': 0}"
+   ],
+   [
+    "info",
+    "Stored result in variable: pos"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

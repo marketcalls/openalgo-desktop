@@ -1,0 +1,235 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "barOffset",
+ "scenario": "three_back",
+ "note": "",
+ "parity": [
+  "N-barOffset-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "barOffset",
+  "data": {
+   "exchange": "NSE",
+   "interval": "D",
+   "offsetBars": 3,
+   "outputVariable": "bar1",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "barOffset",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "interval": "D",
+     "offsetBars": 3,
+     "outputVariable": "bar1",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "history",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "timestamp": 1791829800,
+      "open": 800.0,
+      "high": 802.5,
+      "low": 791.75,
+      "close": 793.75,
+      "volume": 100000
+     },
+     {
+      "timestamp": 1791916200,
+      "open": 793.75,
+      "high": 797.25,
+      "low": 789.5,
+      "close": 792.5,
+      "volume": 107919
+     },
+     {
+      "timestamp": 1792002600,
+      "open": 792.5,
+      "high": 800.75,
+      "low": 790.5,
+      "close": 796.25,
+      "volume": 115838
+     },
+     {
+      "timestamp": 1792089000,
+      "open": 796.25,
+      "high": 798.75,
+      "low": 788.25,
+      "close": 791.25,
+      "volume": 123757
+     },
+     {
+      "timestamp": 1792348200,
+      "open": 791.25,
+      "high": 794.75,
+      "low": 789.25,
+      "close": 791.25,
+      "volume": 131676
+     },
+     {
+      "timestamp": 1792434600,
+      "open": 791.25,
+      "high": 800.75,
+      "low": 788.25,
+      "close": 796.25,
+      "volume": 139595
+     },
+     {
+      "timestamp": 1792521000,
+      "open": 796.25,
+      "high": 798.75,
+      "low": 790.5,
+      "close": 792.5,
+      "volume": 147514
+     },
+     {
+      "timestamp": 1792607400,
+      "open": 792.5,
+      "high": 797.25,
+      "low": 789.5,
+      "close": 793.75,
+      "volume": 105433
+     },
+     {
+      "timestamp": 1792693800,
+      "open": 793.75,
+      "high": 804.5,
+      "low": 791.75,
+      "close": 800.0,
+      "volume": 113352
+     },
+     {
+      "timestamp": 1792953000,
+      "open": 800.0,
+      "high": 802.5,
+      "low": 794.5,
+      "close": 797.5,
+      "volume": 121271
+     },
+     {
+      "timestamp": 1793039400,
+      "open": 797.5,
+      "high": 803.5,
+      "low": 795.5,
+      "close": 800.0,
+      "volume": 129190
+     },
+     {
+      "timestamp": 1793125800,
+      "open": 800.0,
+      "high": 804.5,
+      "low": 790.75,
+      "close": 793.75,
+      "volume": 137109
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_history",
+    "endpoint": "history",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "interval": "D",
+     "start_date": "2026-10-12",
+     "end_date": "2026-10-29",
+     "source": "api"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "symbol": "SBIN",
+   "exchange": "NSE",
+   "offsetBars": 3,
+   "timestamp": 1792693800,
+   "open": 793.75,
+   "high": 804.5,
+   "low": 791.75,
+   "close": 800.0,
+   "volume": 113352
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "bar1": {
+    "status": "success",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "offsetBars": 3,
+    "timestamp": 1792693800,
+    "open": 793.75,
+    "high": 804.5,
+    "low": 791.75,
+    "close": 800.0,
+    "volume": 113352
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Fetching bar offset 3 for SBIN (D)"
+   ],
+   [
+    "info",
+    "Bar offset 3 for SBIN: {'status': 'success', 'symbol': 'SBIN', 'exchange': 'NSE', 'offsetBars': 3, 'timestamp': 1792693800, 'open': 793.75, 'high': 804.5, 'low': 791.75, 'close': 800.0, 'volume': 113352}"
+   ],
+   [
+    "info",
+    "Stored result in variable: bar1"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

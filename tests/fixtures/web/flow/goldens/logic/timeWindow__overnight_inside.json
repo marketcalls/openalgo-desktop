@@ -1,0 +1,122 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "timeWindow",
+ "scenario": "overnight_inside",
+ "note": "",
+ "parity": [
+  "N-timeWindow-01",
+  "N-timeWindow-02",
+  "N-timeWindow-03",
+  "N-logic-09"
+ ],
+ "clock": "2026-10-29T23:30:00",
+ "analyzer": false,
+ "node": {
+  "type": "timeWindow",
+  "data": {
+   "endTime": "02:00",
+   "startTime": "22:00"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "timeWindow",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "endTime": "02:00",
+     "startTime": "22:00"
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "condition": true
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {
+   "n1": true
+  },
+  "logs": [
+   [
+    "info",
+    "Time window: 22:00-02:00, in_window=True, invert=False, result=True"
+   ]
+  ],
+  "next": [
+   "pass",
+   "true"
+  ],
+  "error": null
+ }
+}

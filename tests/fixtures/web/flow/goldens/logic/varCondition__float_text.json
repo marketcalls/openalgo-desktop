@@ -1,0 +1,143 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "varCondition",
+ "scenario": "float_text",
+ "note": "",
+ "parity": [
+  "N-varCondition-01",
+  "N-varCondition-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "varCondition",
+  "data": {
+   "leftValue": " 1e2 ",
+   "operator": ">=",
+   "rightValue": "{{pdh.pdh}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "rsi": {
+   "latest": {
+    "value": 27.4
+   }
+  },
+  "pdh": {
+   "pdh": 818
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "varCondition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "leftValue": " 1e2 ",
+     "operator": ">=",
+     "rightValue": "{{pdh.pdh}}"
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "condition": false,
+   "left": 100.0,
+   "operator": ">=",
+   "right": 818.0
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "rsi": {
+    "latest": {
+     "value": 27.4
+    }
+   },
+   "pdh": {
+    "pdh": 818
+   }
+  },
+  "conditions_out": {
+   "n1": false
+  },
+  "logs": [
+   [
+    "info",
+    "Var check: 100.0 >= 818.0 = False"
+   ]
+  ],
+  "next": [
+   "false",
+   "pass"
+  ],
+  "error": null
+ }
+}

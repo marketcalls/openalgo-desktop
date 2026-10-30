@@ -1,0 +1,130 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "variable",
+ "scenario": "divide_by_zero",
+ "note": "",
+ "parity": [
+  "N-variable-01",
+  "N-variable-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "variable",
+  "data": {
+   "operation": "divide",
+   "value": "0",
+   "variableName": "count"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "count": 3,
+  "label": "x",
+  "payload": {
+   "data": {
+    "ltp": 812.5,
+    "rows": [
+     {
+      "q": 1
+     },
+     {
+      "q": 2
+     }
+    ]
+   }
+  },
+  "txt": "abc"
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "variable",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "operation": "divide",
+     "value": "0",
+     "variableName": "count"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Variable operation 'divide' failed: Cannot divide by zero"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "count": 3,
+   "label": "x",
+   "payload": {
+    "data": {
+     "ltp": 812.5,
+     "rows": [
+      {
+       "q": 1
+      },
+      {
+       "q": 2
+      }
+     ]
+    }
+   },
+   "txt": "abc"
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Variable operation 'divide' failed: Cannot divide by zero"
+   ],
+   [
+    "error",
+    "Stopping this branch: variable node failed (Variable operation 'divide' failed: Cannot divide by zero)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "variable",
+     "message": "Variable operation 'divide' failed: Cannot divide by zero"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

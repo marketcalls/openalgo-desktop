@@ -1,0 +1,56 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "no_trigger_refused_by_validator",
+ "note": "",
+ "parity": [
+  "E-34",
+  "V-140"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "NoTrigger",
+  "nodes": [
+   {
+    "id": "l",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "x"
+    }
+   }
+  ],
+  "edges": []
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "result": {
+   "status": "error",
+   "message": "Workflow cannot be executed: Workflow has no trigger node, so it can never run. Add one of: orderUpdateTrigger, priceAlert, start, webhookTrigger",
+   "errors": [
+    {
+     "path": "/nodes",
+     "code": "no_trigger",
+     "message": "Workflow has no trigger node, so it can never run. Add one of: orderUpdateTrigger, priceAlert, start, webhookTrigger",
+     "expected": "exactly one trigger",
+     "received": 0
+    }
+   ]
+  },
+  "record": null,
+  "vars_out": {},
+  "logs": []
+ }
+}
