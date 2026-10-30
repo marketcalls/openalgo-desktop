@@ -1,0 +1,78 @@
+name: Lane test
+
+# A quick Linux-only check of one branch, for parallel lanes that would
+# otherwise wait for the one shared build slot on the maintainer's Mac.
+# It is not a release gate: ci-ok (ci.yml) still runs the full matrix.
+#
+#   gh workflow run lane-test.yml --ref pr/<lane> -f filter='flow::' -f clippy=true
+#
+# `filter` is a nextest filter expression; the default runs every test
+# whose name starts with flow::.
+
+on:
+  workflow_dispatch:
+    inputs:
+      filter:
+        description: nextest filter expression
+        required: false
+        default: "test(/^flow::/)"
+      clippy:
+        description: also run clippy --all-targets -D warnings
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUST_BACKTRACE: 1
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_TEST_DEBUG: line-tables-only
+
+jobs:
+  lane-test:
+    name: lane-test (ubuntu, ${{ inputs.filter }})
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/linux-tauri-deps
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: 1.99.1
+          components: clippy
+      - name: Frontend dist placeholder
+        run: mkdir -p dist && test -f dist/index.html || echo '<!doctype html><title>ci</title>' > dist/index.html
+      # Reads master's warm cache (rust-test on the same OS); saves its own
+      # per branch.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: src-tauri -> target
+          shared-key: rust-test-ubuntu-22.04
+          cache-on-failure: true
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+        with:
+          tool: cargo-nextest
+      - name: Clippy
+        if: inputs.clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Tests (nextest, filtered)
+        working-directory: src-tauri
+        env:
+          FILTER: ${{ inputs.filter }}
+        run: cargo nextest run --locked --all-targets --config-file ../.github/nextest.toml --profile ci --no-tests=fail -E "$FILTER"
