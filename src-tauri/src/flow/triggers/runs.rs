@@ -2,10 +2,16 @@
 //! update, a webhook), and the skip when it cannot run.
 //!
 //! A run trades with the trader's current API key (lead decision 3; the
-//! web stored the key at activation). While OpenAlgo is signed out or no
-//! broker is logged in, a trigger that fires does not run: the skip is one
-//! failed run in the workflow's history with the reason, and the triggers
-//! run again after the next broker login (lead decision 16).
+//! web stored the key at activation). While OpenAlgo is signed out (its
+//! keys locked: from start-up until sign-in, and after logout) a trigger
+//! that fires does not run: the key cannot be read. The skip is one failed
+//! run in the workflow's history with the reason, and the triggers run
+//! again after sign-in (lead decision 16). With OpenAlgo signed in and no
+//! broker logged in (or the broker session ended at its daily boundary)
+//! the workflow runs, as the strategy and Chartink webhooks and the web do:
+//! each broker call fails at its node with the no-broker-session sentence
+//! and stops its branch, analyzer-mode calls go to the sandbox, and nodes
+//! that need no broker run.
 
 use super::TriggerSide;
 use crate::flow::contract::node::{RunTrigger, INFO};
@@ -22,8 +28,8 @@ pub enum Fired {
     Ran(Value),
     /// Another run of it was going: this event never reached the graph.
     AlreadyRunning,
-    /// It could not run (signed out, no broker, no API key, the app
-    /// closing); the reason was recorded.
+    /// It could not run (signed out, no API key, the app closing); the
+    /// reason was recorded.
     Skipped,
 }
 
@@ -55,21 +61,14 @@ fn noun(trigger: RunTrigger) -> &'static str {
     }
 }
 
-/// Why a trigger cannot run now: signed out, or no broker logged in.
+/// Why a trigger cannot run now: OpenAlgo is signed out.
 pub fn paused(app: &AppState, trigger: RunTrigger) -> Option<String> {
-    if !app.security.is_unlocked() {
-        return Some(format!(
-            "Skipped: OpenAlgo was signed out when this {} fired, so the workflow did not run. Its triggers run again after you sign in and log in to your broker.",
+    (!app.security.is_unlocked()).then(|| {
+        format!(
+            "Skipped: OpenAlgo was signed out when this {} fired, so the workflow did not run. Its triggers run again after you sign in.",
             noun(trigger)
-        ));
-    }
-    if app.get_broker_session().is_none() {
-        return Some(format!(
-            "Skipped: no broker was logged in when this {} fired, so the workflow did not run. Its triggers run again after you log in to your broker.",
-            noun(trigger)
-        ));
-    }
-    None
+        )
+    })
 }
 
 /// Write the skip into the workflow's run history.

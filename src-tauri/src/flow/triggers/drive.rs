@@ -169,7 +169,8 @@ impl TriggerSide {
     }
 
     /// One poll over every alert (`_check_all_alerts`); `true` while it is
-    /// paused for want of a broker session (logged once per pause).
+    /// paused because OpenAlgo is signed out (logged once per pause). With
+    /// no broker logged in the quotes fail and nothing fires, as on the web.
     async fn check_prices(self: &Arc<Self>, was_paused: bool) -> bool {
         let Some(app) = self.app() else {
             return was_paused;

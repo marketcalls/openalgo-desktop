@@ -93,6 +93,19 @@ fn shaped(raw: dispatch::Raw) -> Value {
     out
 }
 
+/// A broker call answered while no broker is logged in: the web's reply is
+/// "Invalid openalgo apikey" (403), which would send a trader to check a
+/// key that is fine. A run states the real cause at the node instead
+/// (lead decision 16): the desktop's no-broker-session sentence.
+fn with_broker_cause(app: &AppState, mut out: Value) -> Value {
+    let refused = out.get("code").and_then(Value::as_u64) == Some(403)
+        && out.get("error").and_then(Value::as_str) == Some(crate::services::core::INVALID_API_KEY);
+    if refused && app.get_broker_session().is_none() {
+        out["error"] = json!(crate::strategy::dispatch::NO_BROKER_SESSION);
+    }
+    out
+}
+
 #[async_trait]
 impl FlowClient for AppFlowClient {
     async fn api(&self, call: ApiCall) -> Value {
@@ -104,7 +117,7 @@ impl FlowClient for AppFlowClient {
             Err(t) => return transport_failure(t),
         };
         match dispatch::run_as(&app, FLOW_CALLER, req, CALL_TIMEOUT).await {
-            Ok(raw) => shaped(raw),
+            Ok(raw) => with_broker_cause(&app, shaped(raw)),
             Err(t) => {
                 tracing::warn!("Flow {} got no answer: {:?}", call.method, t);
                 transport_failure(t)

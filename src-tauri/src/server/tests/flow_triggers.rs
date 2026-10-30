@@ -600,30 +600,54 @@ async fn wrong_secrets_lock_the_webhook() {
     assert_eq!(s, StatusCode::OK);
 }
 
-/// D-06, lead decision 16: signed out, the webhook answers the locked
-/// 503; with no broker logged in, the skip is recorded and answered 503.
+/// D-06, lead decision 16: with no broker logged in the webhook still
+/// runs its workflow, as the strategy and Chartink webhooks do: a node
+/// that needs no broker runs, a broker call fails at its node with the
+/// no-broker-session sentence (not the web's "Invalid openalgo apikey")
+/// and stops its branch. Signed out, the webhook answers the locked 503.
 #[tokio::test]
-async fn a_webhook_without_a_broker_session_is_skipped() {
+async fn a_webhook_without_a_broker_session_runs_and_says_why_a_node_failed() {
     let f = F::new();
-    let (id, token, secret) = f.live_webhook("Paused").await;
-    let url = format!("/flow/webhook/{}", token);
+    let mut g = webhook_graph("No broker");
+    g["nodes"][1]["data"]["message"] = json!("before the quote");
+    g["nodes"].as_array_mut().unwrap().push(
+        json!({"id": "p", "type": "priceAlert", "position": {"x": 0, "y": 200},
+            "data": {"symbol": "SBIN", "exchange": "NSE", "condition": "above", "price": 1}}),
+    );
+    g["edges"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"id": "e2", "source": "l", "target": "p"}));
+    let id = f.create(g).await;
+    f.post(&format!("/flow/api/workflows/{}/webhook/enable", id))
+        .await;
+    let (_, info) = f
+        .call(
+            Method::GET,
+            &format!("/flow/api/workflows/{}/webhook", id),
+            None,
+        )
+        .await;
+    let (s, v) = f
+        .post(&format!("/flow/api/workflows/{}/activate", id))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{}", v);
+    let url = format!("/flow/webhook/{}", info["webhook_token"].as_str().unwrap());
+    let secret = info["webhook_secret"].as_str().unwrap().to_string();
     f.h.ctx().set_broker_session(None);
     let (s, _, v) = f
         .send_hook(&url, &json!({"secret": secret}).to_string(), "127.0.0.1")
         .await;
-    assert_eq!(s, StatusCode::SERVICE_UNAVAILABLE);
-    assert!(v["error"]
-        .as_str()
-        .unwrap()
-        .starts_with("Skipped: no broker was logged in when this webhook fired"));
-    let (_, runs) = f
-        .call(
-            Method::GET,
-            &format!("/flow/api/workflows/{}/executions", id),
-            None,
-        )
-        .await;
-    assert_eq!(runs[0]["status"], "failed");
+    assert_eq!(s, StatusCode::BAD_GATEWAY, "{}", v);
+    let sentence = crate::strategy::dispatch::NO_BROKER_SESSION;
+    assert_eq!(v["errors"][0]["message"], sentence);
+    let logs = f.last_run_logs(id).await;
+    assert!(logs.contains(&"before the quote".to_string()), "{:?}", logs);
+    assert!(
+        logs.contains(&format!("priceAlert could not be evaluated ({})", sentence)),
+        "{:?}",
+        logs
+    );
     f.h.ctx().security.lock_with(|| {});
     let (s, _, v) = f
         .send_hook(&url, &json!({"secret": secret}).to_string(), "127.0.0.1")

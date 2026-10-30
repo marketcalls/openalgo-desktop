@@ -146,30 +146,33 @@ async fn standing_down_releases_the_feed_and_every_registration() {
     assert!(!active(&t.ctx, id));
 }
 
-/// Lead decision 16, D-06: with no broker logged in, or signed out, a
-/// trigger does not run; the skip is written to the workflow's history
-/// with the reason, and the workflow stays active.
+/// Lead decision 16, D-06: while OpenAlgo is signed out a trigger does
+/// not run; the skip is written to the workflow's history with the
+/// reason, and the workflow stays active. Signed in with no broker logged
+/// in, nothing pauses: the run goes on (here it stops for want of an API
+/// key, which this context has none of).
 #[tokio::test]
-async fn a_trigger_without_a_broker_session_is_skipped_and_recorded() {
+async fn a_trigger_while_signed_out_is_skipped_and_recorded() {
     let t = app();
     let s = side(&t);
     let id = save(&t.ctx, node("start", json!({})), true);
+    assert_eq!(
+        runs::paused(&t.ctx, RunTrigger::Schedule),
+        None,
+        "no broker is no pause"
+    );
+    t.ctx.security.lock_with(|| {});
     assert_eq!(s.fire(id, RunTrigger::Schedule, None).await, Fired::Skipped);
     let runs = crate::flow::store::executions::list(&t.ctx.sqlite.conn().unwrap(), id, 5).unwrap();
     assert_eq!(runs.len(), 1);
     assert_eq!(runs[0].status, "failed");
     let reason = runs[0].error.clone().unwrap();
-    assert!(
-        reason.starts_with("Skipped: no broker was logged in when this schedule fired"),
-        "{}",
-        reason
+    assert_eq!(
+        reason,
+        "Skipped: OpenAlgo was signed out when this schedule fired, so the workflow did not run. Its triggers run again after you sign in."
     );
     assert_eq!(runs[0].logs[0]["message"], json!(reason));
     assert!(active(&t.ctx, id), "a skip never deactivates");
-    t.ctx.security.lock_with(|| {});
-    assert!(runs::paused(&t.ctx, RunTrigger::PriceAlert)
-        .unwrap()
-        .starts_with("Skipped: OpenAlgo was signed out when this price alert fired"));
 }
 
 use super::runs::Fired;

@@ -13,16 +13,17 @@
 //! | `order_monitor` | order-update watches: matching, claim, follow-up |
 //! | `feed` | the market feed the subscribe nodes read |
 //! | `drive` | the scheduler driver, the 5 s price poll, the order-update subscriber |
-//! | `runs` | starting a triggered run, and the skip when no broker is logged in |
+//! | `runs` | starting a triggered run, and the skip while OpenAlgo is signed out |
 //! | `restore` | re-registering the active workflows at start-up |
 //! | `store` | the trigger side's reads and writes of `flow_workflows` |
 //!
 //! Every task here is owned ([`TriggerSide::spawn`]) and ends at app exit
 //! ([`TriggerHooks::stop`]); a schedule, alert or watch lives as long as its
-//! workflow is active. Signing out and the daily broker session end do not
-//! stand a workflow down: its triggers skip, each skip written to the
-//! workflow's run history with the reason, and run again after the next
-//! broker login (lead decision 16). A one-time trigger that has fired, an
+//! workflow is active. Signing out does not stand a workflow down: its
+//! triggers skip, each skip written to the workflow's run history with the
+//! reason, and run again after sign-in; with no broker logged in they run
+//! and each broker call fails at its node (lead decision 16, `runs`). A
+//! one-time trigger that has fired, an
 //! expired alert and a trigger that cannot be restored stand the workflow
 //! down through one path that also gives back its feed subscriptions
 //! (T-043).
