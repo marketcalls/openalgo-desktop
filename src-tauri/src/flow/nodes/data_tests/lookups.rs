@@ -3,7 +3,9 @@
 //! source as the web's test patches them; the HTTP side of all three
 //! lookups is `server/tests/flow_lookups.rs`.
 
-use crate::flow::lookups::{option_strikes_from, sorted_expiry_codes, StrikeQuery, StrikeSource};
+use crate::flow::lookups::{
+    index_symbol_rows, option_strikes_from, sorted_expiry_codes, StrikeQuery, StrikeSource,
+};
 use crate::services::core::Reply;
 use async_trait::async_trait;
 use chrono::NaiveDate;
@@ -21,6 +23,8 @@ struct Fixture {
     expiries_reply: Option<Reply>,
     /// What the chain service answers instead of the chain.
     chain_reply: Option<Reply>,
+    /// A chain answer without its `expiry_date`.
+    omit_expiry_date: bool,
 }
 
 #[async_trait]
@@ -49,7 +53,7 @@ impl StrikeSource for Fixture {
             return Err(r.clone());
         }
         let leg = |strike: i64, side: &str, label: &str| json!({"symbol": format!("GOLDM{}{}{}", expiry, strike, side), "label": label});
-        Ok(json!({
+        let mut chain = json!({
             "expiry_date": expiry,
             "atm_strike": 163000.0,
             "underlying_ltp": 163012.0,
@@ -60,7 +64,13 @@ impl StrikeSource for Fixture {
                 {"strike": 164000.0, "ce": leg(164000, "CE", "OTM1"), "pe": leg(164000, "PE", "ITM1")},
                 {"ce": leg(0, "CE", "?")}
             ],
-        }))
+        });
+        if self.omit_expiry_date {
+            if let Some(c) = chain.as_object_mut() {
+                c.remove("expiry_date");
+            }
+        }
+        Ok(chain)
     }
 
     fn today(&self) -> NaiveDate {
@@ -284,4 +294,138 @@ async fn a_failed_chain_read_passes_through() {
             json!({"status": "error", "message": "No strikes found for GOLDM expiring 28AUG26."})
         )
     );
+}
+
+/// R-59: every underlying the options nodes offer, in the editor's order:
+/// the five NSE indices on NFO, the three BSE indices on BFO, then the
+/// eleven MCX commodities on MCX; one with no usable lot size is left out.
+#[test]
+fn index_symbols_list_every_underlying_in_the_editors_order() {
+    let named = |name: &str, exchange: &str, lot: i32| {
+        let mut r = crate::agent::tools::testkit::row(
+            &format!("{}28OCT26FUT", name),
+            exchange,
+            "FUT",
+            "28-OCT-26",
+            0.0,
+            lot,
+        );
+        r.name = name.into();
+        r
+    };
+    // The master lists them out of order; the answer does not.
+    let mut rows = vec![
+        named("MCXBULLDEX", "MCX", 19),
+        named("SENSEX50", "BFO", 8),
+        named("NIFTYNXT50", "NFO", 5),
+        named("BANKEX", "BFO", 7),
+        named("ZINC", "MCX", 18),
+        named("MIDCPNIFTY", "NFO", 4),
+        named("FINNIFTY", "NFO", 3),
+        named("SENSEX", "BFO", 6),
+        named("BANKNIFTY", "NFO", 2),
+        named("NIFTY", "NFO", 1),
+    ];
+    for (i, name) in [
+        "GOLD",
+        "GOLDM",
+        "SILVER",
+        "SILVERM",
+        "CRUDEOIL",
+        "CRUDEOILM",
+        "NATURALGAS",
+        "NATGASMINI",
+        "COPPER",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        rows.push(named(name, "MCX", 9 + i as i32));
+    }
+    // Not offered: an index on the wrong segment, a lot size of zero.
+    rows.push(named("FINNIFTY", "BFO", 99));
+    rows.push(named("BANKEX", "NFO", 99));
+    let listed: Vec<(String, String, i64)> = index_symbol_rows(&rows)
+        .iter()
+        .map(|v| {
+            assert_eq!(v["value"], v["label"]);
+            (
+                v["value"].as_str().unwrap_or_default().to_string(),
+                v["exchange"].as_str().unwrap_or_default().to_string(),
+                v["lotSize"].as_i64().unwrap_or_default(),
+            )
+        })
+        .collect();
+    let want: Vec<(String, String, i64)> = [
+        ("NIFTY", "NFO"),
+        ("BANKNIFTY", "NFO"),
+        ("FINNIFTY", "NFO"),
+        ("MIDCPNIFTY", "NFO"),
+        ("NIFTYNXT50", "NFO"),
+        ("SENSEX", "BFO"),
+        ("BANKEX", "BFO"),
+        ("SENSEX50", "BFO"),
+        ("GOLD", "MCX"),
+        ("GOLDM", "MCX"),
+        ("SILVER", "MCX"),
+        ("SILVERM", "MCX"),
+        ("CRUDEOIL", "MCX"),
+        ("CRUDEOILM", "MCX"),
+        ("NATURALGAS", "MCX"),
+        ("NATGASMINI", "MCX"),
+        ("COPPER", "MCX"),
+        ("ZINC", "MCX"),
+        ("MCXBULLDEX", "MCX"),
+    ]
+    .iter()
+    .enumerate()
+    .map(|(i, (n, e))| (n.to_string(), e.to_string(), i as i64 + 1))
+    .collect();
+    assert_eq!(listed, want);
+    let mut zero = vec![named("NIFTY", "NFO", 0)];
+    zero.push(named("GOLD", "MCX", 0));
+    assert!(index_symbol_rows(&zero).is_empty());
+}
+
+/// R-63: the expiry type is read trimmed and lower-cased.
+#[tokio::test]
+async fn the_expiry_type_is_trimmed_and_lower_cased() {
+    let f = Fixture::default();
+    let (_, v) = ask(
+        &f,
+        &[("underlying", "GOLDM"), ("expiryType", " Next_Month ")],
+    )
+    .await;
+    assert_eq!(v["data"]["expiry"], "25SEP26");
+    assert_eq!(
+        f.asked.lock().last().map(|a| a.2.clone()),
+        Some("25SEP26".to_string())
+    );
+}
+
+/// R-66: each strike carries its own strike value, contract and label; the
+/// answer's expiry is the chain's `expiry_date`, else the code it was asked
+/// for.
+#[tokio::test]
+async fn strikes_carry_their_values_and_the_expiry_falls_back_to_the_code() {
+    let f = Fixture::default();
+    let (_, v) = ask(&f, &[("underlying", "GOLDM"), ("optionType", "PE")]).await;
+    assert_eq!(
+        v["data"]["strikes"],
+        json!([
+            {"strike": 162000.0, "symbol": "GOLDM28AUG26162000PE", "label": "OTM1"},
+            {"strike": 163000.0, "symbol": "GOLDM28AUG26163000PE", "label": "ATM"},
+            {"strike": 164000.0, "symbol": "GOLDM28AUG26164000PE", "label": "ITM1"}
+        ])
+    );
+    let bare = Fixture {
+        omit_expiry_date: true,
+        ..Default::default()
+    };
+    let (s, v) = ask(
+        &bare,
+        &[("underlying", "GOLDM"), ("expiryType", "next_month")],
+    )
+    .await;
+    assert_eq!((s, v["data"]["expiry"].clone()), (200, json!("25SEP26")));
 }

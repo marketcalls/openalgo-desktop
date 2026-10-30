@@ -37,19 +37,25 @@ pub const OPTION_STRIKE_WINDOW: i64 = 25;
 /// lot size; one without is left out, never listed with null.
 pub fn index_symbols(app: &AppState) -> Reply {
     let snap = app.symbols.snapshot();
-    let rows = snap.rows();
+    let data = index_symbol_rows(snap.rows());
+    Reply::new(200, json!({"status": "success", "data": data}))
+}
+
+/// The underlyings the options nodes offer, in the editor's order (the NSE
+/// indices on NFO, the BSE indices on BFO, then the MCX commodities), each
+/// with its lot size from `rows`.
+pub(crate) fn index_symbol_rows(rows: &[crate::brokers::common::symbols::SymToken]) -> Vec<Value> {
     let candidates = NSE_INDICES
         .iter()
         .map(|n| (*n, "NFO"))
         .chain(BSE_INDICES.iter().map(|n| (*n, "BFO")))
         .chain(MCX_OPTION_UNDERLYINGS.iter().map(|n| (*n, "MCX")));
-    let data: Vec<Value> = candidates
+    candidates
         .filter_map(|(name, exchange)| {
             let lot = index_lot_size(rows, name, exchange)?;
             Some(json!({"value": name, "label": name, "exchange": exchange, "lotSize": lot}))
         })
-        .collect();
-    Reply::new(200, json!({"status": "success", "data": data}))
+        .collect()
 }
 
 /// `_lot_size`: the master row named for the underlying first, else a
