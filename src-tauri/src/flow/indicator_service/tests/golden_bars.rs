@@ -144,7 +144,7 @@ fn parse_timestamp_matches_the_web() {
                 } else {
                     at.format("%Y-%m-%dT%H:%M:%S%.6f").to_string()
                 };
-                (Value::from(shown.clone()) != *want).then(|| format!("{shown} != {want}"))
+                (want.as_str() != Some(shown.as_str())).then(|| format!("{shown} != {want}"))
             }
             (Err(e), _, Some(want)) => error_diff(e, want),
             (other, _, _) => Some(format!("{other:?} vs {case}")),
