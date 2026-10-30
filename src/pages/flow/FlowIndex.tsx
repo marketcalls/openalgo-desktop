@@ -66,6 +66,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { listDate } from '@/lib/flow/listDate'
 import { cn } from '@/lib/utils'
 import { showToast } from '@/utils/toast'
 
@@ -296,7 +297,7 @@ function WorkflowCard({ workflow }: { workflow: WorkflowListItem }) {
               </span>
             </div>
             <span className="text-xs text-muted-foreground">
-              {new Date(workflow.updated_at).toLocaleDateString()}
+              {listDate(workflow.updated_at)}
             </span>
           </div>
         </CardContent>
