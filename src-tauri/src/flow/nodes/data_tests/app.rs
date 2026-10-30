@@ -436,3 +436,30 @@ async fn a_strike_count_outside_the_api_range_is_refused_not_clamped() {
         );
     }
 }
+
+/// The history cache's account (IND-011): the broker account's tag while a
+/// broker session exists, `anon` with the app and no session (the web's
+/// `anon` for a client without a key), and a run without the app is its
+/// own client's.
+#[tokio::test]
+async fn the_history_cache_is_keyed_by_the_broker_account() {
+    use crate::flow::nodes::history::{account_tag, broker_account_tag};
+    let kit = Kit::new();
+    let c = ctx(&kit);
+    let (tag, pin) = account_tag(&c);
+    assert_eq!(tag, broker_account_tag("zerodha", "AB1234"));
+    assert!(pin.is_none());
+    kit.app().set_broker_session(None);
+    let (tag, pin) = account_tag(&c);
+    assert_eq!(tag, "anon");
+    assert!(pin.is_none());
+    let bare = super::support::ctx(Arc::new(
+        crate::flow::contract::client::fake::FakeFlowClient::new(),
+    ));
+    let (tag, pin) = account_tag(&bare);
+    assert!(tag.starts_with("run:"), "{tag}");
+    assert!(
+        pin.is_some(),
+        "a run without the app keeps its client with its answers"
+    );
+}

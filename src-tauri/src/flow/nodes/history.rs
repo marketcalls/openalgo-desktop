@@ -270,7 +270,7 @@ pub fn shared_cache() -> Arc<HistoryCache> {
 /// are its client's own, named by the client's address, and the client is
 /// kept with them so the address is not reused while they live (the web's
 /// recorder clears the cache per scenario for the same reason).
-fn account_tag(ctx: &NodeCtx) -> (String, Option<Arc<dyn FlowClient>>) {
+pub(crate) fn account_tag(ctx: &NodeCtx) -> (String, Option<Arc<dyn FlowClient>>) {
     match ctx.app().and_then(|a| a.get_broker_session()) {
         Some(s) => (broker_account_tag(&s.broker_id, &s.user_id), None),
         None if ctx.app().is_some() => ("anon".into(), None),
