@@ -18,8 +18,9 @@ use crate::flow::store::workflows;
 use crate::flow::validator::{validate_workflow, ValidateOptions};
 use crate::state::testing::{build, TestCtx};
 use axum::http::StatusCode;
+use parking_lot::Mutex;
 use serde_json::{json, Value};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 /// The skill's own example: a TradingView alert to a market order.
 fn webhook_entry() -> Value {
@@ -59,7 +60,76 @@ fn legacy_schedule() -> Value {
 }
 
 fn app() -> TestCtx {
+    keep_every_log_line_reachable();
     build(crate::brokers::BrokerRegistry::new(), chrono::Utc::now())
+}
+
+/// Two quiet TRACE dispatchers that live as long as the test binary.
+///
+/// tracing-core caches, per log statement, whether any subscriber can see
+/// it. While at most one dispatcher is registered it asks only the calling
+/// thread's subscriber, so a save first run on a test thread with none
+/// caches its info line as never seen, and a capture on another thread
+/// then misses it (a parallel run did, once). With two dispatchers always
+/// registered every cache entry asks all of them, these two answer "seen",
+/// and the line reaches whichever subscriber the logging thread has. Every
+/// test here builds its app through this first, before any save runs.
+fn keep_every_log_line_reachable() {
+    static KEPT: OnceLock<[tracing::Dispatch; 2]> = OnceLock::new();
+    KEPT.get_or_init(|| {
+        let quiet = || {
+            tracing::Dispatch::new(
+                tracing_subscriber::fmt()
+                    .with_max_level(tracing::Level::TRACE)
+                    .with_writer(std::io::sink)
+                    .finish(),
+            )
+        };
+        [quiet(), quiet()]
+    });
+}
+
+/// Everything this thread logs while the capture lives.
+struct Captured {
+    text: Arc<Mutex<Vec<u8>>>,
+    _guard: tracing::subscriber::DefaultGuard,
+}
+
+impl Captured {
+    fn text(&self) -> String {
+        String::from_utf8_lossy(&self.text.lock()).into_owned()
+    }
+}
+
+struct CaptureWriter(Arc<Mutex<Vec<u8>>>);
+
+impl std::io::Write for CaptureWriter {
+    fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().extend_from_slice(b);
+        Ok(b.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// A capture of this thread's log, with every cached "never seen" from
+/// before the kept dispatchers existed recomputed.
+fn capture() -> Captured {
+    keep_every_log_line_reachable();
+    let text = Arc::new(Mutex::new(Vec::new()));
+    let sink = text.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::TRACE)
+        .with_ansi(false)
+        .with_writer(move || CaptureWriter(sink.clone()))
+        .finish();
+    let guard = tracing::subscriber::set_default(subscriber);
+    tracing::callsite::rebuild_interest_cache();
+    Captured {
+        text,
+        _guard: guard,
+    }
 }
 
 fn tool(t: &TestCtx, name: &str) -> Arc<dyn AgentTool> {
@@ -608,11 +678,14 @@ fn audit_rows(t: &TestCtx) -> Vec<Value> {
 }
 
 /// A-23: a save logs the web's line (`flow_gen.py:236`) at info, naming the
-/// stored name and the new id, and nothing of the graph.
-#[tokio::test]
+/// stored name and the new id, and nothing of the graph. The save runs on
+/// this thread (a current-thread runtime; its database work is awaited, so
+/// the line is logged here), and `capture` keeps the line from being cached
+/// as unseen by another test's thread.
+#[tokio::test(flavor = "current_thread")]
 async fn a_save_logs_the_webs_line() {
-    let logs = crate::services::tunnel::fake::capture_logs();
     let t = app();
+    let logs = capture();
     call(
         &t,
         "save_flow",
@@ -719,6 +792,7 @@ const ONLY_FLOW: &[ToolGroup] = &[GROUP];
 /// shared bounding keeps.
 #[tokio::test]
 async fn saving_pauses_for_approval_with_a_card_that_counts_the_workflow() {
+    keep_every_log_line_reachable();
     let mut wf = webhook_entry();
     for i in 0..30 {
         wf["nodes"].as_array_mut().unwrap().push(json!({
