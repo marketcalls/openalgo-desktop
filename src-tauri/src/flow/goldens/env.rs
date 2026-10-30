@@ -144,14 +144,9 @@ impl MarketFeed for Feed {
         if let Some(e) = self.spec["subscribe_error"].as_str() {
             return Err(FeedError::Subscribe(e.to_string()));
         }
-        // `accept` takes frames of the caller's lifetime (async_trait names
-        // the elided lifetime inside `dyn Fn(&Value)`), so a frame the fake
-        // owns cannot be lent to it; each scripted frame is leaked instead,
-        // a few small values per test run.
         for tick in self.spec["ticks"].as_array().into_iter().flatten() {
-            let frame: &'static Value = Box::leak(Box::new(tick.clone()));
-            if accept(frame) {
-                return Ok(Some(frame.clone()));
+            if accept(tick) {
+                return Ok(Some(tick.clone()));
             }
         }
         Ok(None)
