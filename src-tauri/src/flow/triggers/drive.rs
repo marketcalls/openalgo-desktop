@@ -9,12 +9,13 @@ use super::order_monitor::After;
 use super::price_monitor::{Alert, Observed};
 use super::runs::Fired;
 use super::scheduler::Due;
-use super::{market_hours, store, TriggerSide};
+use super::{store, TriggerSide};
 use crate::events::{Event, Lane, OrderUpdate, Subscriber, Topic};
 use crate::flow::contract::client::app::AppFlowClient;
 use crate::flow::contract::client::FlowClient;
 use crate::flow::contract::node::RunTrigger;
 use crate::flow::contract::pyfmt;
+use crate::flow::nodes::timing::{is_within_market_hours, market_hours_config, MarketHours};
 use crate::state::AppState;
 use serde_json::{json, Value};
 use std::sync::{Arc, Weak};
@@ -103,14 +104,14 @@ impl TriggerSide {
                 tracing::warn!("Skipping scheduled workflow {}: it is not active", id);
                 return;
             }
-            Ok(Some((true, nodes))) => market_hours::config(&nodes),
+            Ok(Some((true, nodes))) => market_hours_config(&nodes),
             Err(e) => {
                 tracing::error!(
                     "Could not read scheduling config for workflow {}; using the schedule's stored setting: {}",
                     id,
                     e
                 );
-                market_hours::MarketHours {
+                MarketHours {
                     enabled: stored_gate,
                     ..Default::default()
                 }
@@ -128,25 +129,19 @@ impl TriggerSide {
         );
     }
 
-    /// The gate on the desktop calendar; a calendar that cannot be read
-    /// keeps the run out (fail closed).
-    async fn within_market_hours(
-        &self,
-        app: &Arc<AppState>,
-        hours: &market_hours::MarketHours,
-    ) -> bool {
-        let now = crate::flow::contract::time::ist_now(self.clock.as_ref());
-        let date = now.date();
-        let windows = app
-            .blocking(move |c| crate::services::market_calendar_service::timings_for(c, date))
+    /// The gate on the app's trading calendar, the one copy the nodes use
+    /// too (`effective_session_window`, decision 25): a trading holiday
+    /// that does not list the exchange leaves it open, as on the web.
+    async fn within_market_hours(&self, app: &Arc<AppState>, hours: &MarketHours) -> bool {
+        let now = self.clock.now();
+        let hours = hours.clone();
+        let within = app
+            .blocking(move |c| Ok(is_within_market_hours(&*c.sqlite.conn()?, now, &hours)))
             .await;
-        match windows {
-            Ok(w) => market_hours::is_within(now, hours, |_, ex| market_hours::window_of(&w, ex)),
-            Err(e) => {
-                tracing::error!("Could not read the market calendar for a schedule: {}", e);
-                false
-            }
-        }
+        within.unwrap_or_else(|e| {
+            tracing::error!("Could not read the market calendar for a schedule: {}", e);
+            false
+        })
     }
 
     /// The price monitor's poll: every 5 s while there are alerts, idle
