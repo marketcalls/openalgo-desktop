@@ -103,7 +103,7 @@ impl IndicatorOutput {
                 "outputs": c.outputs,
                 "latest": row_value(&c.latest),
                 "previous": row_value(&c.previous),
-                "series": c.series.iter().map(|r| row_value(r)).collect::<Vec<_>>(),
+                "series": c.series.iter().map(row_value).collect::<Vec<_>>(),
                 "bars_used": c.bars_used,
             }),
             IndicatorOutput::NoValue(n) => json!({
