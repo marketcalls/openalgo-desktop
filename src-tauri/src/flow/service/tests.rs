@@ -38,7 +38,12 @@ fn bodies_read_as_flask_reads_them() {
     assert_eq!(Body::parse(b"  \n"), Body::Nothing);
     assert_eq!(Body::parse(b"{}"), Body::Nothing);
     assert_eq!(Body::parse(b"false"), Body::Nothing);
-    assert_eq!(Body::parse(b"{\"a\": NaN}"), Body::Unreadable);
+    assert_eq!(Body::parse(b"{\"a\": NaN}"), Body::NonFinite);
+    assert_eq!(Body::parse(b"[Infinity]"), Body::NonFinite);
+    // Not JSON at all is the web's "No data provided" (decision 24).
+    assert_eq!(Body::parse(b"BUY NIFTY"), Body::Nothing);
+    assert_eq!(Body::parse(b"{\"a\": 1"), Body::Nothing);
+    assert_eq!(Body::parse(&[0xff, 0xfe]), Body::Nothing);
     assert_eq!(Body::parse(b"[1]"), Body::Json(json!([1])));
 }
 
@@ -191,4 +196,46 @@ async fn a_delete_waits_for_the_feed_to_let_go() {
     }));
     assert_eq!(delete(&t.ctx, id).await.status, 200);
     assert!(load(&t.ctx, id).await.unwrap().is_none());
+}
+
+/// T-086 (decision 24): a delete tears down the workflow's registrations
+/// whatever its row says, so one a failed deactivate left behind never
+/// fires for a deleted workflow.
+#[tokio::test]
+async fn a_delete_tears_down_an_inactive_workflows_triggers() {
+    let t = app();
+    let hooks = Arc::new(Hooks {
+        feed_confirms: true,
+        ..Default::default()
+    });
+    t.ctx.flow.set_triggers(hooks.clone());
+    let w = create_workflow(&t.ctx, "A".into(), None, scheduled("09:15"), json!([]))
+        .await
+        .unwrap();
+    assert!(!w.is_active);
+    assert_eq!(delete(&t.ctx, w.id).await.status, 200);
+    assert_eq!(*hooks.calls.lock(), vec![format!("unregister {}", w.id)]);
+}
+
+/// R-19 / V-132: the fields a PUT may not change are logged as the web
+/// logs its sorted list, in Python's text.
+#[tokio::test]
+async fn ignored_fields_are_logged_as_a_python_list() {
+    let t = app();
+    let w = create_workflow(&t.ctx, "A".into(), None, scheduled("09:15"), json!([]))
+        .await
+        .unwrap();
+    let logs = crate::services::tunnel::fake::capture_logs();
+    let r = update(
+        &t.ctx,
+        w.id,
+        Body::Json(json!({"webhook_enabled": true, "name": "B", "is_active": true})),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let want = format!(
+        "Ignoring non-editable field(s) ['is_active', 'webhook_enabled'] in PUT for workflow {}",
+        w.id
+    );
+    assert!(logs.text().contains(&want), "{}", logs.text());
 }

@@ -75,7 +75,7 @@ fn failed(what: &str, e: crate::error::AppError) -> Reply {
 async fn with_credentials(app: &Arc<AppState>, id: i64) -> crate::error::Result<Option<Workflow>> {
     let ensured = app
         .blocking(move |c| {
-            workflows::ensure_webhook_credentials(&*c.sqlite.conn()?, &c.security, id)
+            workflows::ensure_webhook_credentials(&*c.sqlite.conn()?, &c.security, id, c.now())
         })
         .await?;
     if !ensured {
@@ -219,7 +219,7 @@ pub async fn set_auth_type(app: &Arc<AppState>, id: i64, body: Body) -> Reply {
     let chosen = match &body {
         Body::Json(Value::Object(m)) => m.get("auth_type").cloned().unwrap_or(json!("payload")),
         Body::Json(_) => Value::Null,
-        Body::Nothing | Body::Unreadable => json!("payload"),
+        Body::Nothing | Body::NonFinite => json!("payload"),
     };
     let Some(auth) = chosen.as_str().map(str::to_string) else {
         return Reply::new(400, json!({"error": "Invalid auth type"}));
