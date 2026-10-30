@@ -559,3 +559,34 @@ async fn the_apps_shutdown_stops_the_trigger_side() {
         (json!(false), json!(0))
     );
 }
+
+/// T-038 (WEB-DEFECT), T-037: an alert past its window is dropped and its
+/// workflow stood down (the web kept the row Active, so a restart re-armed
+/// it with a fresh window).
+#[tokio::test]
+async fn an_expired_alert_stands_its_workflow_down() {
+    let t = app();
+    crate::services::auth_service::AuthService::setup(
+        &t.ctx,
+        "trader",
+        "trader@example.com",
+        "Secret@123",
+    )
+    .unwrap();
+    let id = save(&t.ctx, node("priceAlert", json!({"symbol": "SBIN"})), true);
+    let s = side(&t);
+    s.register(
+        id,
+        "priceAlert",
+        &data(json!({"symbol": "SBIN", "price": 1, "expiration": "1h"})),
+    )
+    .await
+    .unwrap();
+    t.clock.advance(chrono::Duration::minutes(61));
+    s.check_prices(false).await;
+    assert!(s.alerts.get(id).is_none());
+    assert!(
+        !active(&t.ctx, id),
+        "stood down, so a restart does not re-arm it"
+    );
+}
