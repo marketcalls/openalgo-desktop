@@ -336,9 +336,9 @@ describe('optionsOrder (F-542)', () => {
 describe('optionsMultiOrder: strategy, action and quantity (F-543)', () => {
   const MULTI = { strategy: 'straddle', underlying: 'NIFTY', expiryType: 'current_week' }
 
-  it('offers the six strategies, Straddle when none is stored', () => {
+  it('offers the six strategies, Custom when none is stored (the run default)', () => {
     openPanel('optionsMultiOrder', { underlying: 'NIFTY' })
-    expect(triggerUnder('Strategy')).toHaveTextContent('Straddle')
+    expect(triggerUnder('Strategy')).toHaveTextContent('Custom')
     expect(offered('Strategy')).toEqual([
       'Iron Condor',
       'Straddle',

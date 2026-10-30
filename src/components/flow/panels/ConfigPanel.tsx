@@ -334,6 +334,8 @@ export function ConfigPanel() {
   const nodeData = selectedNode.data as Record<string, unknown>
   const nodeType = selectedNode.type || 'unknown'
   const orderPriceType = (nodeData.priceType as PriceType | undefined) || 'MARKET'
+  // Desktop: a multi-leg node with no strategy runs as custom (parity F-586).
+  const multiStrategy = (nodeData.strategy as string) || 'custom'
   // What the Product control shows. A product the author picked is stored on
   // the node and always wins; with none stored the node follows its exchange,
   // so a derivative segment reads NRML and cash reads MIS. Options nodes trade
@@ -1111,14 +1113,14 @@ export function ConfigPanel() {
                 <div className="space-y-2">
                   <Label className="text-xs">Strategy</Label>
                   <Select
-                    value={(nodeData.strategy as string) || 'straddle'}
+                    value={multiStrategy}
                     onValueChange={(strategy) => {
                       if (!selectedNodeId) return
                       updateNodeData(
                         selectedNodeId,
                         getOptionsMultiStrategyUpdate(
                           {
-                            strategy: (nodeData.strategy as string) || 'straddle',
+                            strategy: multiStrategy,
                             priceType: orderPriceType,
                           },
                           strategy
@@ -1183,7 +1185,7 @@ export function ConfigPanel() {
                     ))}
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    {FIXED_SIDE_STRATEGIES.has(nodeData.strategy as string)
+                    {FIXED_SIDE_STRATEGIES.has(multiStrategy)
                       ? 'This strategy places fixed sides; Action does not change them.'
                       : nodeData.action === 'BUY'
                         ? 'Long strategy'
@@ -1210,14 +1212,14 @@ export function ConfigPanel() {
                   onPriceChange={(value) => handleDataChange('price', value)}
                   onTriggerPriceChange={(value) => handleDataChange('triggerPrice', value)}
                 />
-                {nodeData.strategy === 'custom' && (
+                {multiStrategy === 'custom' && (
                   <p className="text-[10px] text-muted-foreground">
                     Custom legs inherit these common product and price fields when omitted. A
                     leg&apos;s explicit product, price type, price, or trigger price overrides the
                     common value.
                   </p>
                 )}
-                {orderPriceType === 'LIMIT' && nodeData.strategy !== 'custom' && (
+                {orderPriceType === 'LIMIT' && multiStrategy !== 'custom' && (
                   <div>
                     <p className="text-[10px] text-muted-foreground">
                       Applied to every generated leg. A LIMIT order without a positive price is
@@ -1229,7 +1231,7 @@ export function ConfigPanel() {
                 <div className="rounded-lg border bg-muted/30 p-2">
                   <p className="text-[10px] font-medium mb-1.5">Strategy Legs:</p>
                   <div className="space-y-0.5 text-[10px] font-mono">
-                    {nodeData.strategy === 'straddle' && (
+                    {multiStrategy === 'straddle' && (
                       <>
                         <div className="flex justify-between">
                           <span>ATM CE</span>
@@ -1253,7 +1255,7 @@ export function ConfigPanel() {
                         </div>
                       </>
                     )}
-                    {nodeData.strategy === 'strangle' && (
+                    {multiStrategy === 'strangle' && (
                       <>
                         <div className="flex justify-between">
                           <span>{(nodeData.strangleWidth as string) || 'OTM2'} CE</span>
@@ -1277,7 +1279,7 @@ export function ConfigPanel() {
                         </div>
                       </>
                     )}
-                    {nodeData.strategy === 'iron_condor' && (
+                    {multiStrategy === 'iron_condor' && (
                       <>
                         <div className="flex justify-between">
                           <span>OTM2 CE</span>
@@ -1297,7 +1299,7 @@ export function ConfigPanel() {
                         </div>
                       </>
                     )}
-                    {nodeData.strategy === 'bull_call_spread' && (
+                    {multiStrategy === 'bull_call_spread' && (
                       <>
                         <div className="flex justify-between">
                           <span>ATM CE</span>
@@ -1309,7 +1311,7 @@ export function ConfigPanel() {
                         </div>
                       </>
                     )}
-                    {nodeData.strategy === 'bear_put_spread' && (
+                    {multiStrategy === 'bear_put_spread' && (
                       <>
                         <div className="flex justify-between">
                           <span>ATM PE</span>
@@ -1321,12 +1323,12 @@ export function ConfigPanel() {
                         </div>
                       </>
                     )}
-                    {nodeData.strategy === 'custom' && (
+                    {multiStrategy === 'custom' && (
                       <p className="text-muted-foreground">Built below, leg by leg.</p>
                     )}
                   </div>
                 </div>
-                {nodeData.strategy === 'custom' && (
+                {multiStrategy === 'custom' && (
                   <CustomLegsFields
                     value={nodeData.legs}
                     onChange={(legs) => handleDataChange('legs', legs)}

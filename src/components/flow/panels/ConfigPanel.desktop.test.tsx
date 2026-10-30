@@ -4,6 +4,8 @@
  * must not promise what the run does not do.
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -231,5 +233,35 @@ describe('copying the webhook URL (F-512)', () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('URL copied'))
     writeText.mockRestore()
     expect(within(document.body).queryByRole('alert')).not.toBeInTheDocument()
+  })
+})
+
+describe('an exact expiry date stays editable (F-522, wave 3)', () => {
+  it('shows a stored date in the text box, not an empty picker', () => {
+    openPanel('optionsOrder', { underlying: 'NIFTY', expiryType: '28OCT25' })
+    expect(screen.getByDisplayValue('28OCT25')).toBeInTheDocument()
+  })
+
+  it('keeps the text box while a date is typed', async () => {
+    openPanel('optionsOrder', { underlying: 'NIFTY', expiryType: 'current_week' })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Take Expiry from the payload' }))
+    const box = screen.getByDisplayValue('{{webhook.expiry}}')
+    // Typed over the reference: each keystroke is not one of the relative
+    // types, so the box stays (the web switched back on the first one).
+    await user.tripleClick(box)
+    await user.keyboard('25NOV25')
+    expect(stored().expiryType).toBe('25NOV25')
+    expect(screen.getByDisplayValue('25NOV25')).toBeInTheDocument()
+  })
+})
+
+describe('a multi-leg node with no strategy shows what the run does (F-586, wave 3)', () => {
+  it('reads Custom, as the run treats it, and offers the leg editor', () => {
+    openPanel('optionsMultiOrder', { underlying: 'NIFTY' })
+    expect(screen.getByText('Custom')).toBeInTheDocument()
+    expect(screen.getByText('Built below, leg by leg.')).toBeInTheDocument()
+    const options = readFileSync(join(process.cwd(), 'src-tauri/src/flow/nodes/options.rs'), 'utf8')
+    expect(options).toMatch(/\.text\("strategy", Some\("custom"\)/)
   })
 })
