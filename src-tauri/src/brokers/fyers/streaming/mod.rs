@@ -23,6 +23,11 @@
 //!   currency. Index frames carry neither field, so they divide by 100.
 //! * HSM has no selective unsubscribe (web `unsubscribe_symbols`); an
 //!   unsubscribed topic is dropped locally and is gone after a reconnect.
+//! * Nothing Fyers does not send is published (web #2318, #2323): an update
+//!   frame is applied whole and published once; a depth message carries no
+//!   LTP of its own (the bridge gives it the quote feed's last traded price,
+//!   `feed::bridge::depth_update`, never a bid/ask midpoint); an index has
+//!   no order book, so it gets no depth message, only its real value.
 //!
 //! TBT 50-level depth (`TbtFeed`, in `tbt`): `wss://rtsocket-api.fyers.in/versova`,
 //! `authorization: app_id:access_token`, JSON subscribe, protobuf
@@ -41,7 +46,7 @@ pub use tbt::*;
 
 use crate::brokers::common::mpp::py_round;
 use crate::brokers::common::streaming::{
-    now_ms, round2, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
+    now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
     NormalizedTick, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
@@ -153,7 +158,8 @@ impl Topic {
 }
 
 /// HSM topics for one subscription (web `_convert_to_hsm_token`): an index
-/// is always `if|` (depth subscribers get synthetic depth from it); a scrip
+/// is always `if|` (a depth subscriber gets its value: an index has no
+/// order book); a scrip
 /// is `sf|`, plus `dp|` when depth is wanted (the desktop serves every mode
 /// of an instrument from one effective subscription, so a depth
 /// subscription still needs the quote topic).
@@ -520,13 +526,10 @@ impl HsmFeed {
         let now = now_ms();
         match st.kind {
             Topic::Scrip => out.push(FeedEvent::Tick(scrip_tick(sub, st, now))),
-            Topic::Index => {
-                let t = index_tick(sub, st, now);
-                if sub.mode == FeedMode::Depth && t.ltp > 0.0 {
-                    out.push(FeedEvent::Depth(synthetic_depth(&t, now)));
-                }
-                out.push(FeedEvent::Tick(t));
-            }
+            // An index has no order book: its tick serves every mode,
+            // depth included, and no levels are made up around its value
+            // (web `map_index_to_depth`, #2318).
+            Topic::Index => out.push(FeedEvent::Tick(index_tick(sub, st, now))),
             Topic::Depth => {
                 if sub.mode == FeedMode::Depth {
                     out.push(FeedEvent::Depth(depth_event(sub, st, now)));
@@ -605,8 +608,10 @@ fn index_tick(sub: &TopicSub, st: &TopicState, now: i64) -> NormalizedTick {
     t
 }
 
-/// web `map_to_openalgo_depth`: levels with a price only; LTP is the mid of
-/// the best bid and ask.
+/// web `map_to_openalgo_depth`: levels with a price only. A Fyers depth
+/// message has no LTP, so none is set (0): the bridge gives the frame the
+/// quote feed's last traded price, as the web's adapter borrows it
+/// (`get_last_ltp`), never the bid/ask midpoint it used to invent (#2318).
 fn depth_event(sub: &TopicSub, st: &TopicState, now: i64) -> NormalizedDepth {
     let p = |i| st.price(i);
     let mut buy = Vec::new();
@@ -629,38 +634,14 @@ fn depth_event(sub: &TopicSub, st: &TopicState, now: i64) -> NormalizedDepth {
             });
         }
     }
-    let ltp = match (buy.first(), sell.first()) {
-        (Some(b), Some(s)) => (b.price + s.price) / 2.0,
-        _ => 0.0,
-    };
     NormalizedDepth {
         symbol: sub.symbol.clone(),
         exchange: sub.exchange.clone(),
-        ltp,
+        ltp: 0.0,
         total_buy_quantity: buy.iter().map(|l| l.quantity).sum(),
         total_sell_quantity: sell.iter().map(|l| l.quantity).sum(),
         buy,
         sell,
-        timestamp_ms: now,
-    }
-}
-
-/// web `map_index_to_synthetic_depth`: five levels 0.05% apart around LTP.
-pub fn synthetic_depth(t: &NormalizedTick, now: i64) -> NormalizedDepth {
-    let spread = t.ltp * 5.0 / 10_000.0;
-    let level = |i: usize, sign: f64| DepthLevel {
-        price: round2(t.ltp + sign * spread * (i as f64 + 1.0)),
-        quantity: 1000 * (6 - i as i64),
-        orders: 1,
-    };
-    NormalizedDepth {
-        symbol: t.symbol.clone(),
-        exchange: t.exchange.clone(),
-        ltp: t.ltp,
-        buy: (0..5).map(|i| level(i, -1.0)).collect(),
-        sell: (0..5).map(|i| level(i, 1.0)).collect(),
-        total_buy_quantity: 0,
-        total_sell_quantity: 0,
         timestamp_ms: now,
     }
 }

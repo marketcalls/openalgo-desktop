@@ -707,6 +707,28 @@ mod tests {
         assert_eq!(u.depth.unwrap().buy.len(), 5);
     }
 
+    /// A broker whose depth message has no LTP of its own (Fyers, web
+    /// openalgo#2318) leaves it at 0, and the depth frame carries the last
+    /// traded price of the instrument's tick, as the web's adapter borrows
+    /// it from the quote feed; before any tick there is none to borrow.
+    #[test]
+    fn a_depth_without_its_own_ltp_frames_the_last_traded_price() {
+        let k = InstrumentKey::new("CRUDEOIL19OCT26FUT", "MCX");
+        let mut t = full_tick("CRUDEOIL19OCT26FUT", "MCX");
+        t.ltp = 9665.0;
+        let d = NormalizedDepth {
+            symbol: "CRUDEOIL19OCT26FUT".into(),
+            exchange: "MCX".into(),
+            ltp: 0.0,
+            buy: vec![Default::default(); 5],
+            sell: vec![Default::default(); 5],
+            timestamp_ms: 1_791_000_000_200,
+            ..Default::default()
+        };
+        assert_eq!(depth_update(k.clone(), &d, Some(&t)).ltp, 9665.0);
+        assert_eq!(depth_update(k, &d, None).ltp, 0.0);
+    }
+
     /// WS-01: a session's "cannot stream" lasts until the session ends
     /// (`reset`), and a refused broker feed reads from the manager.
     #[test]
