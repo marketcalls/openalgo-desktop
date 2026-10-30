@@ -4,7 +4,7 @@
  * dock's own functions (orderActions.ts) to the session routes, mocked here
  * at the API, so what is asserted is what would reach the server.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import type { SymbolView, TerminalContextMenu, TerminalOptions } from '@/lib/trading/terminal'
 import { act, cleanup, fireEvent, render, waitFor } from '@/test/test-utils'
 import { ChartPane } from './ChartPane'
@@ -135,10 +135,14 @@ const menu = (over: Partial<TerminalContextMenu> = {}): TerminalContextMenu => (
 
 function bridgeWith(book: { orders: DockOrder[]; positions: DockPosition[] }) {
   const bridge: ChartOrderBridge & {
-    actions: { refuse: ReturnType<typeof vi.fn>; refresh: ReturnType<typeof vi.fn> }
+    actions: { refuse: Mock<() => boolean>; refresh: Mock<() => void> }
   } = {
     book: () => book,
-    actions: { appMode: 'live', refuse: vi.fn(() => false), refresh: vi.fn() },
+    actions: {
+      appMode: 'live',
+      refuse: vi.fn<() => boolean>(() => false),
+      refresh: vi.fn<() => void>(),
+    },
     freshPositions: vi.fn(async () => book.positions),
   }
   return bridge

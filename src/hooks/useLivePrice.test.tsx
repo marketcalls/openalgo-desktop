@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook, waitFor } from '@/test/test-utils'
-import { useLivePrice } from './useLivePrice'
+import { type PriceableItem, useLivePrice } from './useLivePrice'
 
 /**
  * The closed-position branch.
@@ -57,7 +57,7 @@ describe('useLivePrice closed-position gate', () => {
   it('takes live prices for an item that carries no quantity at all', async () => {
     // A watchlist row. Not a position, so it must never be frozen.
     const { result } = renderHook(() =>
-      useLivePrice([{ symbol: 'RELIANCE', exchange: 'NSE' }], { enabled: true })
+      useLivePrice<PriceableItem>([{ symbol: 'RELIANCE', exchange: 'NSE' }], { enabled: true })
     )
 
     await waitFor(() => expect(result.current.data[0].ltp).toBe(1350))

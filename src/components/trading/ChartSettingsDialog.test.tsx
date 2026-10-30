@@ -48,7 +48,6 @@ const REQ: ChartSettingsRequest = {
           key: 'axes.timezone',
           type: 'select',
           label: 'Timezone',
-          default: 'Asia/Kolkata',
           options: [
             { label: 'Asia/Kolkata', value: 'Asia/Kolkata' },
             { label: 'America/New_York', value: 'America/New_York' },
@@ -143,7 +142,6 @@ describe('ChartSettingsDialog', () => {
               key: 'pnf.boxSize',
               type: 'number',
               label: 'Box size',
-              default: 1,
               visibleWhen: { key: 'pnf.boxMode', is: 'fixed' },
             },
           ],

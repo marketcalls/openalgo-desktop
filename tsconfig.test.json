@@ -1,7 +1,7 @@
 {
     "extends": "./tsconfig.app.json",
     "compilerOptions": {
-        "composite": true,
+        "composite": false,
         "lib": [
             "ES2022",
             "DOM",
@@ -9,13 +9,16 @@
         ],
         "types": [
             "vitest/globals",
-            "@testing-library/jest-dom"
+            "@testing-library/jest-dom",
+            "node",
+            "vite/client"
         ]
     },
     "include": [
         "src/**/*.test.tsx",
         "src/**/*.test.ts",
-        "src/test/**/*"
+        "src/test/**/*",
+        "src/**/*.d.ts"
     ],
     "exclude": []
 }

@@ -1,5 +1,6 @@
 import { DRAWING_TOOL_ICONS, registeredDrawingTools } from 'openalgo-charts/draw'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, it } from 'vitest'
 import { DRAW_GROUPS, drawToolIcon } from './drawTools'
 
 describe('trading drawing catalogue', () => {

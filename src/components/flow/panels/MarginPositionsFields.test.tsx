@@ -21,7 +21,11 @@ const getSymbolLotSizes =
 
 vi.mock('@/api/flow', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/api/flow')>()
-  return { ...actual, getSymbolLotSizes: (...args: never[]) => getSymbolLotSizes(...args) }
+  return {
+    ...actual,
+    getSymbolLotSizes: (...args: Parameters<typeof getSymbolLotSizes>) =>
+      getSymbolLotSizes(...args),
+  }
 })
 
 /**

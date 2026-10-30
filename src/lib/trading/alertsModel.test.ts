@@ -83,6 +83,7 @@ function draft(overrides: Partial<AlertDraft> = {}): AlertDraft {
     title: '',
     message: '',
     enabled: true,
+    deliver: DEFAULT_DELIVERY,
     ...overrides,
   }
 }
@@ -317,6 +318,15 @@ describe('the draft as the engine takes it', () => {
     const typed = toAlertInput(draft({ title: 'Cover the short' }), chart(), drawings, 'R')
     expect(hasAutoTitle({ ...typed, payload: typed?.payload } as never)).toBe(false)
     expect(deliveryOf(typed?.payload)).toEqual(DEFAULT_DELIVERY)
+  })
+
+  it('writes the default delivery for a draft that names none', () => {
+    // A draft built before delivery was a choice. The engine refuses a payload
+    // member holding undefined, so the default is written in its place.
+    const legacy = { ...draft({ title: 'Cover the short' }), deliver: undefined }
+    // @ts-expect-error a draft from before `deliver` existed, which is still accepted
+    const input = toAlertInput(legacy, chart(), drawings, 'R')
+    expect(deliveryOf(input?.payload)).toEqual(DEFAULT_DELIVERY)
   })
 
   it('sends no message at all rather than an empty one', () => {

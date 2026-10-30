@@ -48,12 +48,12 @@ class Terminal implements WorkspaceReplayTerminal {
   destroyListeners = new Set<() => void>()
   readonly chart: ReplayGroupChartHost
   readonly series: SeriesApi
+  readonly id: string
+  readonly interval: string
 
-  constructor(
-    readonly id: string,
-    readonly interval = '1m',
-    step = 60
-  ) {
+  constructor(id: string, interval = '1m', step = 60) {
+    this.id = id
+    this.interval = interval
     this.data = bars(step)
     this.series = {
       getData: () => this.data,

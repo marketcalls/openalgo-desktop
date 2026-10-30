@@ -36,6 +36,9 @@ interface WidgetStub {
   chartTypes: string[]
   handlers: Record<string, Array<(payload: unknown) => void>>
   ranges: Array<{ from: number; to: number }>
+  isDestroyed: boolean
+  /** The visible range the stub chart last received. */
+  __range: { from: number; to: number } | null
   symbol: () => string
   exchange: () => string
   interval: () => string
@@ -80,7 +83,7 @@ const harness = vi.hoisted(() => {
           widget.__range = r
         },
       },
-      __range: null as { from: number; to: number } | null,
+      __range: null,
       symbol: () => symbol,
       exchange: () => exchange,
       interval: () => interval,

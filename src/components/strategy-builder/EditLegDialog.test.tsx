@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+import type { ResolveLegContract } from '@/components/strategy-builder/ManualLegBuilder'
 import type { ResolvedLegMarket } from '@/lib/strategyContracts'
 import type { StrategyLeg } from '@/lib/strategyMath'
 import { EditLegDialog } from './EditLegDialog'
@@ -42,6 +43,7 @@ function market(overrides: Partial<ResolvedLegMarket> = {}): ResolvedLegMarket {
     expiryTs: 1_786_400_000,
     lotSize: 25,
     tickSize: 0.05,
+    contractValid: true,
     marketPrice: 100,
     iv: 14.2,
     forwardPrice: 24_620,
@@ -52,7 +54,7 @@ function market(overrides: Partial<ResolvedLegMarket> = {}): ResolvedLegMarket {
 }
 
 function renderDialog(
-  resolveContract = vi.fn(async () => market()),
+  resolveContract: ResolveLegContract = vi.fn(async () => market()),
   onSave = vi.fn(),
   leg: StrategyLeg = original
 ) {

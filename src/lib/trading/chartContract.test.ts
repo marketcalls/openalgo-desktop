@@ -280,7 +280,7 @@ describe('describeDrawings', () => {
 
   it('caps the anchors it reports per drawing', () => {
     const points = Array.from({ length: 50 }, (_, index) => ({ time: index, price: index }))
-    const described = describeDrawings([{ id: 'd1', tool: 'path', points, style: {} }])
+    const described = describeDrawings([{ id: 'd1', tool: 'path', points }])
     expect(described.drawings[0].points).toHaveLength(4)
   })
 })

@@ -32,7 +32,10 @@ class FakeSocket {
     this.onclose?.({ wasClean: true, code: 1000 })
   })
 
-  constructor(public url: string) {
+  url: string
+
+  constructor(url: string) {
+    this.url = url
     FakeSocket.instances.push(this)
   }
 

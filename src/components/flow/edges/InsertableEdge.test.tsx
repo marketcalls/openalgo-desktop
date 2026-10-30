@@ -23,7 +23,10 @@ import { edgeTypes } from './index'
  * this file (vitest isolates test files).
  */
 class MeasuringResizeObserver {
-  constructor(private readonly callback: ResizeObserverCallback) {}
+  private readonly callback: ResizeObserverCallback
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback
+  }
   observe(target: Element) {
     this.callback([{ target } as ResizeObserverEntry], this as unknown as ResizeObserver)
   }

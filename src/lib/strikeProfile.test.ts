@@ -45,6 +45,7 @@ describe('strike rows', () => {
   const strikes = [22800, 22900, 23000, 23100, 23200, 23300, 23400, 23500, 23600]
 
   it('keeps strikes inside the range, highest first', () => {
+    // @ts-expect-error a 1% window, narrower than any offered range, so this list gets trimmed
     const rows = visibleStrikeIndexes(strikes, 23150, 1)
     expect(rows.map((i) => strikes[i])).toEqual([23300, 23200, 23100, 23000])
   })

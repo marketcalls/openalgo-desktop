@@ -5,16 +5,22 @@ import { computePayoff, type ScenarioState, type StrategyLeg } from '@/lib/strat
 import { makeFormatCurrency } from '@/lib/utils'
 import { PayoffChart } from './PayoffChart'
 
+/** PayoffChart draws scatter traces only, so its traces are read as PlotData. */
+interface CapturedPlot {
+  data: Partial<PlotlyTypes.PlotData>[]
+  layout: Partial<PlotlyTypes.Layout>
+}
+
 const plotCapture = vi.hoisted(() => ({
-  props: null as {
-    data: PlotlyTypes.Data[]
-    layout: Partial<PlotlyTypes.Layout>
-  } | null,
+  props: null as CapturedPlot | null,
 }))
 
 vi.mock('@/lib/Plot2D', () => ({
   default: (props: { data: PlotlyTypes.Data[]; layout: Partial<PlotlyTypes.Layout> }) => {
-    plotCapture.props = props
+    plotCapture.props = {
+      data: props.data as Partial<PlotlyTypes.PlotData>[],
+      layout: props.layout,
+    }
     return <div data-testid="payoff-plot" />
   },
 }))

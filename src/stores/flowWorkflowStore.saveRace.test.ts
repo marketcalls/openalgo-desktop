@@ -23,7 +23,7 @@ describe('save race', () => {
 
   it('stays dirty when the canvas changes while the save is in flight', () => {
     const store = useFlowWorkflowStore.getState()
-    store.setWorkflow({ id: 1, name: 'wf', nodes: [node('n1', 1)], edges: [] })
+    store.setWorkflow({ id: 1, name: 'wf', description: '', nodes: [node('n1', 1)], edges: [] })
 
     // The save is issued: this is the graph the server will receive.
     const revision = useFlowWorkflowStore.getState().revision()
@@ -42,7 +42,7 @@ describe('save race', () => {
 
   it('clears the dirty flag when nothing changed while the save was in flight', () => {
     const store = useFlowWorkflowStore.getState()
-    store.setWorkflow({ id: 1, name: 'wf', nodes: [node('n1', 1)], edges: [] })
+    store.setWorkflow({ id: 1, name: 'wf', description: '', nodes: [node('n1', 1)], edges: [] })
     useFlowWorkflowStore.getState().updateNodeData('n1', { quantity: 5 })
 
     const revision = useFlowWorkflowStore.getState().revision()
@@ -53,7 +53,7 @@ describe('save race', () => {
 
   it('treats a rename during the save as an unsaved change', () => {
     const store = useFlowWorkflowStore.getState()
-    store.setWorkflow({ id: 1, name: 'wf', nodes: [node('n1', 1)], edges: [] })
+    store.setWorkflow({ id: 1, name: 'wf', description: '', nodes: [node('n1', 1)], edges: [] })
 
     const revision = useFlowWorkflowStore.getState().revision()
     useFlowWorkflowStore.getState().setName('renamed mid-flight')
@@ -64,7 +64,7 @@ describe('save race', () => {
 
   it('still supports an unconditional markSaved for callers with no revision', () => {
     const store = useFlowWorkflowStore.getState()
-    store.setWorkflow({ id: 1, name: 'wf', nodes: [node('n1', 1)], edges: [] })
+    store.setWorkflow({ id: 1, name: 'wf', description: '', nodes: [node('n1', 1)], edges: [] })
     useFlowWorkflowStore.getState().updateNodeData('n1', { quantity: 9 })
 
     useFlowWorkflowStore.getState().markSaved()
@@ -74,7 +74,7 @@ describe('save race', () => {
 
   it('gives an unchanged graph a stable revision', () => {
     const store = useFlowWorkflowStore.getState()
-    store.setWorkflow({ id: 1, name: 'wf', nodes: [node('n1', 1)], edges: [] })
+    store.setWorkflow({ id: 1, name: 'wf', description: '', nodes: [node('n1', 1)], edges: [] })
 
     const before = useFlowWorkflowStore.getState().revision()
     expect(useFlowWorkflowStore.getState().revision()).toBe(before)

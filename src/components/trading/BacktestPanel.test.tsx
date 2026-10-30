@@ -6,6 +6,7 @@
  * engine to producing these outcomes for real.
  */
 
+import type { ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BacktestOutcome } from '@/lib/trading/backtestRun'
 import { act, cleanup, render, screen } from '@/test/test-utils'
@@ -34,6 +35,8 @@ vi.mock('./BacktestChart', async (importOriginal) => ({
 }))
 
 const { BacktestPanel } = await import('./BacktestPanel')
+
+type MarkChart = NonNullable<ComponentProps<typeof BacktestPanel>['onMarkChart']>
 
 /** A run that reached bar 18 of 85 and was stopped there by a refused entry. */
 function stoppedRun(extra: Partial<BacktestOutcome> = {}): BacktestOutcome {
@@ -137,7 +140,7 @@ describe('the marks a run puts on the chart', () => {
     } as Partial<BacktestOutcome>)
   }
 
-  function openWithMarks(onMarkChart: ReturnType<typeof vi.fn>) {
+  function openWithMarks(onMarkChart: MarkChart) {
     return render(
       <BacktestPanel
         apiKey="key"
@@ -149,7 +152,7 @@ describe('the marks a run puts on the chart', () => {
 
   it('ties the marks to the strategy, and clears them from the button', async () => {
     runBacktest.mockResolvedValue(markedRun())
-    const onMarkChart = vi.fn(() => true)
+    const onMarkChart = vi.fn<MarkChart>(() => true)
     openWithMarks(onMarkChart)
 
     const clear = await screen.findByRole('button', { name: /Clear marks/ })
@@ -164,7 +167,7 @@ describe('the marks a run puts on the chart', () => {
 
   it('stops counting the marks once removing the strategy took them down', async () => {
     runBacktest.mockResolvedValue(markedRun())
-    const onMarkChart = vi.fn(() => true)
+    const onMarkChart = vi.fn<MarkChart>(() => true)
     openWithMarks(onMarkChart)
     await screen.findByRole('button', { name: /Clear marks/ })
 
@@ -175,13 +178,13 @@ describe('the marks a run puts on the chart', () => {
 
   it('shows the count on the button beside Run backtest', async () => {
     runBacktest.mockResolvedValue(markedRun())
-    openWithMarks(vi.fn(() => true))
+    openWithMarks(vi.fn<MarkChart>(() => true))
     expect(await screen.findByRole('button', { name: 'Clear marks (1)' })).toBeInTheDocument()
   })
 
   it('draws nothing on the chart with the switch off, and remembers it', async () => {
     runBacktest.mockResolvedValue(markedRun())
-    const onMarkChart = vi.fn(() => true)
+    const onMarkChart = vi.fn<MarkChart>(() => true)
     const first = openWithMarks(onMarkChart)
     await screen.findByRole('button', { name: /Clear marks/ })
 
@@ -202,7 +205,7 @@ describe('the marks a run puts on the chart', () => {
   it('puts the marks back when the switch is turned on, without running again', async () => {
     localStorage.setItem('trading.panel.backtest.marks', 'off')
     runBacktest.mockResolvedValue(markedRun())
-    const onMarkChart = vi.fn(() => true)
+    const onMarkChart = vi.fn<MarkChart>(() => true)
     openWithMarks(onMarkChart)
     await screen.findByText(/bars, /)
     const runs = runBacktest.mock.calls.length
@@ -216,7 +219,7 @@ describe('the marks a run puts on the chart', () => {
 
   it('takes its marks off the chart when the panel closes', async () => {
     runBacktest.mockResolvedValue(markedRun())
-    const onMarkChart = vi.fn(() => true)
+    const onMarkChart = vi.fn<MarkChart>(() => true)
     const view = openWithMarks(onMarkChart)
     await screen.findByRole('button', { name: /Clear marks/ })
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { needsPreviousClose, previousClose } from './previousClose'
+import { needsPreviousClose } from './previousClose'
 
 const post = vi.fn()
 vi.mock('@/api/client', () => ({

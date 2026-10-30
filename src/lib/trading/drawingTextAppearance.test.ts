@@ -1,4 +1,9 @@
-import { type DrawContext, type Drawing, getDrawingTool } from 'openalgo-charts/draw'
+import {
+  type DrawContext,
+  type Drawing,
+  type DrawingText,
+  getDrawingTool,
+} from 'openalgo-charts/draw'
 import { TradingTerminal } from './terminal'
 
 const theme = { background: 'rgb(19,23,34)', lineColor: '#2962ff' }
@@ -16,7 +21,8 @@ const textTools = [
 
 function setup(tool: string) {
   const descriptor = getDrawingTool(tool)
-  const drawing: Drawing = {
+  // Every sample carries a caption, which is what the editor works on.
+  const drawing: Drawing & { text: DrawingText } = {
     id: 'sample',
     tool,
     points: [

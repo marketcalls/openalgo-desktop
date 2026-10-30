@@ -248,6 +248,7 @@ beforeAll(() => {
   window.IntersectionObserver = class {
     readonly root = null
     readonly rootMargin = ''
+    readonly scrollMargin = ''
     readonly thresholds = []
     disconnect() {}
     observe() {}

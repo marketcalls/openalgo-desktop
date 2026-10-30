@@ -22,7 +22,11 @@ vi.mock('@/api/client', () => ({
   fetchCSRFToken: vi.fn(async () => 'test-csrf-token'),
 }))
 
-const cancelRun = vi.fn(async () => ({ status: 'success', message: 'ok', run_id: 'run-1' }))
+const cancelRun = vi.fn(async (_runId: string) => ({
+  status: 'success',
+  message: 'ok',
+  run_id: 'run-1',
+}))
 vi.mock('@/api/agent', () => ({ cancelRun: (id: string) => cancelRun(id) }))
 
 /** A rupee sign, written as an escape so this file stays ASCII on disk. */
