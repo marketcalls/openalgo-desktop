@@ -39,6 +39,7 @@ const HOOKS: &[&str] = &[
     "http_stub",
     "feed",
     "trading_calendar",
+    "validator",
 ];
 
 pub struct Golden {

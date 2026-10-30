@@ -39,13 +39,11 @@ fn registry_types() -> BTreeSet<String> {
 }
 
 #[test]
-#[ignore = "reads the editor's src/components/flow/nodes/index.ts, carried by the ui lane"]
 fn the_validator_matches_the_editor_registry() {
     assert_eq!(registry_types(), sorted(&VALID_NODE_TYPES));
 }
 
 #[test]
-#[ignore = "reads the editor's src/components/flow/nodes/*Node.tsx, carried by the ui lane"]
 fn every_node_rendering_branch_handles_is_a_branching_type() {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../src/components/flow/nodes");
     let handle = regex::Regex::new(r#"id="(true|false|yes|no)""#).unwrap();
@@ -105,7 +103,6 @@ fn seeded_legs(strategy: &str) -> Vec<(String, String, String)> {
 }
 
 #[test]
-#[ignore = "reads the editor's src/lib/flow/customLegs.ts, carried by the ui lane"]
 fn every_seeded_template_is_a_basket_the_validator_accepts() {
     for strategy in ["iron_condor", "bull_call_spread", "bear_put_spread"] {
         let legs: Vec<Value> = seeded_legs(strategy)
@@ -182,7 +179,6 @@ fn as_workflow_example(value: &Value) -> Option<Value> {
 }
 
 #[test]
-#[ignore = "reads docs/prompt/flow-import-format.md, still the 1.0.4 stub until the web's import format is carried"]
 fn every_json_example_in_the_import_format_is_a_valid_workflow() {
     let prompt = repo_file("docs/prompt/flow-import-format.md");
     let fence = regex::Regex::new(r"(?ms)^```json\s*\n(.*?)^```\s*$").unwrap();

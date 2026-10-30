@@ -71,7 +71,6 @@ fn custom_legs_ts() -> Option<String> {
 /// X-021..X-023: loading a template and saving it untouched trades what
 /// the generated strategy would have traded.
 #[test]
-#[ignore = "reads pr/flow-ui's src/lib/flow/customLegs.ts; the lead un-ignores it at restack (decisions.md 18)"]
 fn the_editor_templates_match_the_generated_legs() {
     let source = custom_legs_ts().unwrap_or_default();
     assert!(

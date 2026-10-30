@@ -10,6 +10,7 @@
 //! | `editor_parity` | the web's tests over the editor's sources and the import-format doc (ignored until carried) |
 
 mod editor_parity;
+mod editor_parity_docs;
 mod goldens;
 mod py_values;
 mod rules;

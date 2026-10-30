@@ -3,11 +3,6 @@
 //! `docs/prompt/flow-import-format.md`: the prose keeps every correction
 //! behind the examples.
 //!
-//! Written by the docs lane on pr/flow-docs, which has no validator tests
-//! module. At restack, declare it in `tests/mod.rs` (`mod editor_parity_docs;`)
-//! and drop the `#[ignore]`. Until then nothing declares it, so it is
-//! marked test-only on its own.
-#![cfg(test)]
 
 use regex::Regex;
 use serde_json::Value;
@@ -76,7 +71,6 @@ fn holds_key(v: &Value, key: &str) -> bool {
 }
 
 #[test]
-#[ignore = "needs pr/flow-validator at restack"]
 fn the_import_format_prose_documents_every_repaired_contract() {
     let doc = import_format();
     let mut failures: Vec<String> = Vec::new();
