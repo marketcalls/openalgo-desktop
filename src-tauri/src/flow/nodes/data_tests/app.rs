@@ -436,3 +436,97 @@ async fn a_strike_count_outside_the_api_range_is_refused_not_clamped() {
         );
     }
 }
+
+/// N-strategyPnl-06: Strategy P&L reads the app's strategy book: every leg
+/// tagged with the strategy, whichever user placed it (the web passes no
+/// user), and none of another strategy's.
+#[tokio::test]
+async fn strategy_pnl_reads_the_legs_the_apps_book_holds() {
+    let kit = Kit::new();
+    kit.analyzer(true);
+    let book = kit.app().strategy.book.clone();
+    let legs = [
+        ("OID-1", "trader", "Golden Flow", "SBIN"),
+        ("OID-2", "someone", "Golden Flow", "INFY"),
+        ("OID-3", "trader", "Other Flow", "TCS"),
+    ];
+    for (oid, user, strategy, symbol) in legs {
+        book.record_order_tag(oid, user, strategy, symbol, "NSE", "MIS")
+            .unwrap_or_else(|e| panic!("tag: {:?}", e));
+        book.apply_fill(oid, 10.0, 100.0, "BUY")
+            .unwrap_or_else(|e| panic!("fill: {:?}", e));
+    }
+    let symbols = |v: &Value| -> Vec<Value> {
+        v["legs"]
+            .as_array()
+            .map(|l| l.iter().map(|leg| leg["symbol"].clone()).collect())
+            .unwrap_or_default()
+    };
+    let own = run(&ctx(&kit), "strategyPnl", json!({})).await;
+    let own = own.value().cloned().unwrap_or(Value::Null);
+    assert_eq!(symbols(&own), vec![json!("SBIN"), json!("INFY")], "{}", own);
+    assert_eq!(
+        (own["strategy"].clone(), own["open_quantity"].clone()),
+        (json!("Golden Flow"), json!(20.0))
+    );
+    assert_eq!(own["legs"][0]["average_price"], json!(100.0));
+    let named = run(&ctx(&kit), "strategyPnl", json!({"strategy": "Other Flow"})).await;
+    let named = named.value().cloned().unwrap_or(Value::Null);
+    assert_eq!(symbols(&named), vec![json!("TCS")], "{}", named);
+}
+
+/// N-optionSymbol-03: an explicit expiry wins over one embedded in the
+/// underlying; without one, the embedded expiry is used.
+#[tokio::test]
+async fn an_explicit_expiry_wins_for_the_option_symbol() {
+    let kit = Kit::new();
+    kit.mock.set_quote(Quote {
+        symbol: "NIFTY".into(),
+        exchange: "NSE_INDEX".into(),
+        ltp: 24412.0,
+        ..Default::default()
+    });
+    let pick = |expiry: Option<&str>| {
+        let mut data = json!({"underlying": "NIFTY27OCT26", "exchange": "NSE_INDEX",
+                              "offset": "ATM", "optionType": "CE"});
+        if let Some(e) = expiry {
+            data["expiryDate"] = json!(e);
+        }
+        data
+    };
+    let explicit = run(&ctx(&kit), "optionSymbol", pick(Some("13OCT26"))).await;
+    assert_eq!(
+        explicit.value().map(|v| v["symbol"].clone()),
+        Some(json!("NIFTY13OCT2624400CE")),
+        "{:?}",
+        explicit
+    );
+    let embedded = run(&ctx(&kit), "optionSymbol", pick(None)).await;
+    assert_eq!(
+        embedded.value().map(|v| v["symbol"].clone()),
+        Some(json!("NIFTY27OCT2624400CE")),
+        "{:?}",
+        embedded
+    );
+}
+
+/// N-dataCommon-10, decision 1: a blank year is the IST year. At 00:30 IST
+/// on 1 January 2027 it is still 2026 in UTC.
+#[tokio::test]
+async fn a_blank_holidays_year_is_the_ist_year() {
+    let kit = Kit::new();
+    kit.t.clock.set(super::support::ist("2027-01-01T00:30:00"));
+    let c = ctx(&kit);
+    let out = run(&c, "holidays", json!({})).await;
+    assert_eq!(
+        out.value()
+            .map(|v| (v["status"].clone(), v["year"].clone())),
+        Some((json!("success"), json!(2027))),
+        "{:?}",
+        out
+    );
+    assert_eq!(
+        super::support::logs(&c)[0].1,
+        "Fetching holidays for year: current"
+    );
+}
