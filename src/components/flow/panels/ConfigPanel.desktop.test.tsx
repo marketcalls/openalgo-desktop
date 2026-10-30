@@ -94,12 +94,18 @@ describe('fallbacks match the run (F-586)', () => {
     expect(screen.getByText(/Splits into\s*10\s*orders/)).toBeInTheDocument()
   })
 
-  it('a history node with no interval shows 5 Min and no forced day range', () => {
+  it('a history node with no interval shows 5 Min, and says it needs its days (decision 20)', () => {
     openPanel('history', { symbol: 'SBIN', exchange: 'NSE' })
     expect(screen.getByText('5 Min')).toBeInTheDocument()
     const days = fieldUnder('Days')
     expect(days).toHaveValue(null)
-    expect(days).toHaveAttribute('placeholder', 'Broker default')
+    expect(days).toHaveAttribute('placeholder', '30')
+    expect(screen.queryByText(/Broker default/)).not.toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'How many days of candles to fetch. Required: with no days the node stops before asking the broker.'
+      )
+    ).toBeInTheDocument()
   })
 })
 
@@ -110,6 +116,40 @@ describe('the history interval (F-564)', () => {
     await user.click(screen.getByText('5 Min').closest('button') as HTMLElement)
     await user.click(await screen.findByRole('option', { name: 'Daily' }))
     expect(stored().interval).toBe('D')
+  })
+
+  it('offers every interval the history API accepts', async () => {
+    openPanel('history', { symbol: 'SBIN', exchange: 'NSE', interval: '5m' })
+    const user = userEvent.setup()
+    await user.click(screen.getByText('5 Min').closest('button') as HTMLElement)
+    const offered = (await screen.findAllByRole('option')).map((o) => o.textContent)
+    expect(offered).toEqual([
+      '1 Sec',
+      '5 Sec',
+      '10 Sec',
+      '15 Sec',
+      '30 Sec',
+      '45 Sec',
+      '1 Min',
+      '2 Min',
+      '3 Min',
+      '5 Min',
+      '10 Min',
+      '15 Min',
+      '20 Min',
+      '30 Min',
+      '1 Hour',
+      '2 Hours',
+      '3 Hours',
+      '4 Hours',
+      'Daily',
+      'Weekly',
+      'Monthly',
+      'Quarterly',
+      'Yearly',
+    ])
+    await user.click(screen.getByRole('option', { name: '30 Min' }))
+    expect(stored().interval).toBe('30m')
   })
 
   it('shows a web export with 1d as stored rather than blank', () => {

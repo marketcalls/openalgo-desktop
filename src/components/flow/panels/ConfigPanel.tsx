@@ -8,7 +8,7 @@ import { useParams } from 'react-router'
 import { flowQueryKeys, getIndexSymbolsLotSizes } from '@/api/flow'
 // Desktop: webhook URLs on the tunnel's address, and the note when they are local.
 import { getWebhookInfoForTrader } from '@/api/flowDesktop'
-import { FlowUnusedAlertFieldsNote } from '@/components/desktop/FlowPanelNotes'
+import { FlowHistoryDaysNote, FlowUnusedAlertFieldsNote } from '@/components/desktop/FlowPanelNotes'
 import { FlowWebhookReachability } from '@/components/desktop/FlowWebhookReachability'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -1471,9 +1471,9 @@ export function ConfigPanel() {
                     type="number"
                     min={1}
                     className="h-8"
-                    value={(nodeData.quantity as number) || 100}
+                    value={(nodeData.quantity as number) || 1}
                     onChange={(e) =>
-                      handleDataChange('quantity', parseInt(e.target.value, 10) || 100)
+                      handleDataChange('quantity', parseInt(e.target.value, 10) || 1)
                     }
                   />
                 </div>
@@ -1519,7 +1519,7 @@ export function ConfigPanel() {
                 <p className="text-[10px] text-muted-foreground">
                   Splits into{' '}
                   {Math.ceil(
-                    ((nodeData.quantity as number) || 100) / ((nodeData.splitSize as number) || 10)
+                    ((nodeData.quantity as number) || 1) / ((nodeData.splitSize as number) || 10)
                   )}{' '}
                   orders
                 </p>
@@ -1784,10 +1784,12 @@ export function ConfigPanel() {
                     min={1}
                     max={365}
                     className="h-8"
-                    placeholder="Broker default"
+                    placeholder="30"
                     value={(nodeData.days as number) || ''}
                     onChange={(e) => handleDataChange('days', parseInt(e.target.value, 10) || 0)}
                   />
+                  {/* Desktop: a History node needs a range (decision 20, parity F-586). */}
+                  <FlowHistoryDaysNote />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs">Output Variable</Label>

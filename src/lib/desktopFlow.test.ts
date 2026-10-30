@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { OPTION_STRATEGIES } from '@/lib/flow/constants'
 import {
@@ -17,14 +19,22 @@ describe('historyIntervalOptions (F-564)', () => {
     expect(historyIntervalOptions('5m').map((o) => o.value)).not.toContain('1d')
   })
 
+  it("offers exactly the history API's intervals, in its order (src-tauri services/schemas.rs)", () => {
+    const schemas = readFileSync(join(process.cwd(), 'src-tauri/src/services/schemas.rs'), 'utf8')
+    const block = schemas.slice(schemas.indexOf('pub const SUPPORTED_INTERVALS'))
+    const api = [...block.slice(0, block.indexOf('];')).matchAll(/"([^"]+)"/g)].map((m) => m[1])
+    expect(api).toHaveLength(23)
+    expect(historyIntervalOptions('5m').map((o) => o.value)).toEqual(api)
+  })
+
   it('keeps a stored value it does not list, so the field never reads blank', () => {
     const options = historyIntervalOptions('1d')
     expect(options[0]).toEqual({ value: '1d', label: '1d (stored on this node)' })
-    expect(options).toHaveLength(6)
+    expect(options).toHaveLength(24)
   })
 
   it.each(['5m', 'D', '', undefined, null, 7])('adds nothing for %s', (value) => {
-    expect(historyIntervalOptions(value)).toHaveLength(5)
+    expect(historyIntervalOptions(value)).toHaveLength(23)
   })
 })
 
