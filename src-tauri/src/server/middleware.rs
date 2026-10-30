@@ -550,9 +550,8 @@ pub async fn session_layer(
     mut req: Request,
     next: Next,
 ) -> Response {
-    let now = ctx.now();
-    let session =
-        cookie_value(req.headers(), COOKIE_NAME).and_then(|id| ctx.sessions.get(&id, now));
+    let session = cookie_value(req.headers(), COOKIE_NAME)
+        .and_then(|id| crate::session::web_session(&ctx, &id));
     let path = req.uri().path().to_string();
 
     if is_mutating(req.method()) && !csrf_exempt(&path) {
@@ -762,7 +761,7 @@ fn credential_route(path: &str) -> bool {
 /// Whether the request's session cookie names a signed-in session.
 fn signed_in_cookie(ctx: &AppState, headers: &HeaderMap) -> bool {
     cookie_value(headers, COOKIE_NAME)
-        .and_then(|id| ctx.sessions.get(&id, ctx.now()))
+        .and_then(|id| crate::session::web_session(ctx, &id))
         .is_some_and(|s| s.user.is_some())
 }
 

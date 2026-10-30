@@ -28,7 +28,13 @@ use std::sync::LazyLock;
 /// LiteLLM's `DEFAULT_ORIGINATOR`.
 pub const ORIGINATOR: &str = "codex_cli_rs";
 
-/// The LiteLLM the web pins: its version is the user agent's.
+/// The LiteLLM the plan request was recorded from: its version is the user
+/// agent's. The web pins 1.106.6 since 8a2fbf1d0, whose request is the same
+/// (its `chatgpt` provider adds only a `service_tier` the web never sends,
+/// and its default instructions are unchanged), but in the web's locked
+/// environment 1.106.6 cannot make one (its Responses path imports a module
+/// that needs `mcp` 2.2 against the web's 1.30.0), so the recording stays
+/// at 1.104.0 until it can be made again.
 pub const LITELLM_VERSION: &str = "1.104.0";
 
 /// The keys the provider lets through (its `allowed_keys`).

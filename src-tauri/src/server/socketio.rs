@@ -30,9 +30,8 @@ fn on_connect(socket: SocketRef, State(app): State<Weak<AppState>>) {
 
 /// Whether the browser session behind a connection is still signed in.
 pub fn signed_in(ctx: &AppState, socket: &SocketRef) -> bool {
-    let now = ctx.now();
     cookie_value(&socket.req_parts().headers, COOKIE_NAME)
-        .and_then(|id| ctx.sessions.get(&id, now))
+        .and_then(|id| crate::session::web_session(ctx, &id))
         .and_then(|s| s.user)
         .is_some()
 }

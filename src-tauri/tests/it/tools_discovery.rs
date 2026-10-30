@@ -186,6 +186,17 @@ impl App {
         }
     }
 
+    /// A fresh sign-in at the clock's time, for a test that moved the
+    /// clock past a daily boundary.
+    fn sign_in_again(&mut self) {
+        let s = self.ctx.sessions.create(self.ctx.now());
+        self.ctx
+            .sessions
+            .update(&s.id, |x| x.user = Some(USER.into()));
+        self.cookie = format!("session={}", s.id);
+        self.csrf = s.csrf_token;
+    }
+
     fn connect_fyers(&self) {
         BrokerAuthService::persist(
             &self.ctx,
@@ -258,7 +269,7 @@ async fn until(what: &str, mut f: impl FnMut() -> bool) {
 /// they are the live ones; every tool page sends the same request.
 #[tokio::test]
 async fn fyers_master_fills_the_option_chain_expiry_dropdown() {
-    let app = App::fyers(ist(2026, 10, 12, 10, 0)).await;
+    let mut app = App::fyers(ist(2026, 10, 12, 10, 0)).await;
 
     // Before any master is loaded the page is told so, not handed an
     // empty calendar.
@@ -366,6 +377,9 @@ async fn fyers_master_fills_the_option_chain_expiry_dropdown() {
     // T04 on the same running app: the 13th stays listed until NFO's
     // 15:30 cut-off that day, then drops out without a restart.
     app.clock.set(ist(2026, 10, 13, 15, 29));
+    // A new day: the trader signed in again after the 03:00 boundary (a
+    // login from before it is not a current one, web e2bdd061e).
+    app.sign_in_again();
     assert_eq!(
         app.listed("NFO", "NIFTY", "options").await["expiries"][0],
         "13-OCT-26"
@@ -377,6 +391,7 @@ async fn fyers_master_fills_the_option_chain_expiry_dropdown() {
     );
     // MCX lists its option until 23:30 on the 15th.
     app.clock.set(ist(2026, 10, 15, 23, 29));
+    app.sign_in_again();
     assert_eq!(
         app.listed("MCX", "CRUDEOIL", "options").await,
         ok(&["15-OCT-26"])

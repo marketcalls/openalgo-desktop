@@ -875,7 +875,7 @@ pub fn socket_user(ctx: &AppState, socket: &socketioxide::extract::SocketRef) ->
         &socket.req_parts().headers,
         crate::session::web::COOKIE_NAME,
     )
-    .and_then(|id| ctx.sessions.get(&id, ctx.now()))
+    .and_then(|id| crate::session::web_session(ctx, &id))
     .and_then(|s| s.user)
 }
 

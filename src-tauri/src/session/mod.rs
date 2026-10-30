@@ -12,6 +12,7 @@ use crate::state::AppState;
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use std::time::Duration;
+use web::WebSession;
 
 /// Poll interval of the expiry task. Short enough that a machine waking from
 /// sleep past 03:00 expires the session within a minute, and long enough to
@@ -42,6 +43,27 @@ pub async fn expire_if_crossed(ctx: &AppState, last_check: DateTime<Utc>) -> boo
     }
     ctx.sessions.end_before(boundary);
     true
+}
+
+/// The browser session `id` as a request sees it now. A sign-in from
+/// before the most recent daily boundary is not a current login (web
+/// e2bdd061e, `is_session_valid`): the session comes back signed out, so
+/// every route, the live-update socket and its pushes treat the cookie like
+/// an anonymous one, also in the seconds before the expiry poll ends it
+/// ([`EXPIRY_POLL`], and after a wake from sleep). Nothing is ended or
+/// revoked here: open tabs poll, and a stale one must not end what another
+/// device is using; [`expire_if_crossed`] does that.
+pub fn web_session(ctx: &AppState, id: &str) -> Option<WebSession> {
+    let now = ctx.now();
+    let (hour, minute) = {
+        let cfg = ctx.config.read();
+        (cfg.session_expiry_hour, cfg.session_expiry_minute)
+    };
+    let mut s = ctx.sessions.get(id, now)?;
+    if s.user.is_some() && !s.since(boundary::last_boundary(now, hour, minute)) {
+        s.user = None;
+    }
+    Some(s)
 }
 
 /// A continuous (crypto) session is not renewed at the daily boundary, so

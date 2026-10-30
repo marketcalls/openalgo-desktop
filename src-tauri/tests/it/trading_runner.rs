@@ -428,6 +428,12 @@ async fn setup() -> T {
 }
 
 impl T {
+    /// A fresh sign-in at the clock's time, for a test that moved the clock
+    /// past a daily boundary.
+    fn sign_in_again(&mut self) {
+        (self.cookie, self.csrf) = self.h.session(true);
+    }
+
     async fn call(&self, method: Method, path: &str, body: Option<Value>) -> (StatusCode, Value) {
         let token = if method == Method::GET {
             None
@@ -1637,7 +1643,7 @@ async fn refusals_read_like_the_web() {
 
 #[tokio::test]
 async fn schedules_start_and_stop_on_the_ist_clock() {
-    let t = setup().await;
+    let mut t = setup().await;
     let id = t.deploy("SBIN").await;
     let (s, v) = t
         .call(
@@ -1683,6 +1689,9 @@ async fn schedules_start_and_stop_on_the_ist_clock() {
     t.h.clock.set(ist(2026, 10, 19, 10, 5));
     runner.tick().await;
     assert!(!runner.is_running(&id));
+    // Two weeks on, the trader has signed in again: a login from before
+    // the daily boundary is not a current one (web e2bdd061e).
+    t.sign_in_again();
 
     let (s, v) = t
         .call(
