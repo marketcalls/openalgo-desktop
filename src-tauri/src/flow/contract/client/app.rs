@@ -258,4 +258,24 @@ mod tests {
             json!({"status": "error", "error": WHATSAPP_NOT_READY})
         );
     }
+
+    /// An optionchain the API refuses for a field: the node reads the field
+    /// errors (the raw dict, which the run's errors keep and its log shows
+    /// as Python's str()), not "Validation error".
+    #[tokio::test]
+    async fn an_option_chain_refused_for_a_field_reports_the_field() {
+        let t =
+            crate::state::testing::build(crate::brokers::BrokerRegistry::new(), chrono::Utc::now());
+        let client = AppFlowClient::new(std::sync::Arc::downgrade(&t.ctx), Secret::new("k"));
+        let v = client.optionchain("NIFTY", "NOWHERE", "", 10).await;
+        assert_eq!(v["status"], "error", "{}", v);
+        assert_eq!(v["code"], 400, "{}", v);
+        assert!(v["error"]["exchange"].is_array(), "{}", v);
+        let outcome = crate::flow::contract::node::NodeOutcome::result(v);
+        assert!(
+            outcome.failure_message().starts_with("{'exchange': ["),
+            "{}",
+            outcome.failure_message()
+        );
+    }
 }

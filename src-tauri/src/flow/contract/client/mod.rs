@@ -565,12 +565,22 @@ pub trait FlowClient: Send + Sync {
 /// The web's `_handle_response` over what `/api/v1` answered: success
 /// passes every field through under `"status": "success"`; failure keeps
 /// the reply's message under `error` with the HTTP status as `code`.
+///
+/// One desktop adjustment: the web's Flow calls the service directly, which
+/// reports a field problem as its message (a dict of field errors); the
+/// desktop's `/api/v1` wraps the same errors as `{"message": "Validation
+/// error", "errors": {...}}` (optionchain, optionsymbol, optionsmultiorder).
+/// The field errors are what the web's node shows, so they become the
+/// `error`, not the bare "Validation error".
 pub fn handle_response(status: u16, body: &Value) -> Value {
     let failed = !(200..300).contains(&status)
         || body.get("status").and_then(Value::as_str) == Some("error");
     if failed {
-        let message = body
-            .get("message")
+        let field_errors = body
+            .get("errors")
+            .filter(|e| e.is_object() && super::pyfmt::truthy(e));
+        let message = field_errors
+            .or_else(|| body.get("message"))
             .cloned()
             .unwrap_or_else(|| json!("Unknown error"));
         return json!({"status": "error", "error": message, "code": status});
@@ -751,6 +761,20 @@ mod tests {
             json!({"exchange": "NSE", "symbol": "SBIN", "action": "BUY", "quantity": "10",
                    "product": "MIS", "pricetype": "MARKET", "price": "0"})
         );
+    }
+
+    /// An option call refused for its fields reports the field errors, not
+    /// the bare "Validation error" of the API's envelope.
+    #[test]
+    fn a_validation_envelope_reports_its_field_errors() {
+        let refused = json!({"status": "error", "message": "Validation error",
+                             "errors": {"exchange": ["Must be one of: NSE_INDEX, NSE, NFO, BSE_INDEX, BSE, BFO, MCX, CDS."]}});
+        assert_eq!(
+            handle_response(400, &refused),
+            json!({"status": "error", "error": {"exchange": ["Must be one of: NSE_INDEX, NSE, NFO, BSE_INDEX, BSE, BFO, MCX, CDS."]}, "code": 400})
+        );
+        let plain = json!({"status": "error", "message": "Validation error", "errors": {}});
+        assert_eq!(handle_response(400, &plain)["error"], "Validation error");
     }
 
     #[test]
