@@ -44,18 +44,39 @@ export const FIXED_SIDE_STRATEGIES: ReadonlySet<string> = new Set([
 ])
 
 /**
- * The History node's intervals. Parity F-564: the web stores `1d` for Daily,
- * which the OpenAlgo history API does not accept (daily is `D`), so a daily
- * History node failed on most brokers. A stored value not in the list (a web
- * export's `1d`, or `30m`) is offered as it is, so the Select never shows
- * blank over a value the node still holds.
+ * The History node's intervals. Parity F-564: the web offered five (1m, 5m,
+ * 15m, 1h and Daily stored as `1d`, which the OpenAlgo history API does not
+ * accept: daily is `D`), so a daily History node failed on most brokers and
+ * every other interval the API takes had no choice. The desktop offers the
+ * API's whole list (`SUPPORTED_INTERVALS`, src-tauri/src/services/schemas.rs),
+ * with the web's five labels kept. A stored value not in the list (a web
+ * export's `1d`) is offered as it is, so the Select never shows blank over a
+ * value the node still holds.
  */
 const HISTORY_INTERVALS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: '1s', label: '1 Sec' },
+  { value: '5s', label: '5 Sec' },
+  { value: '10s', label: '10 Sec' },
+  { value: '15s', label: '15 Sec' },
+  { value: '30s', label: '30 Sec' },
+  { value: '45s', label: '45 Sec' },
   { value: '1m', label: '1 Min' },
+  { value: '2m', label: '2 Min' },
+  { value: '3m', label: '3 Min' },
   { value: '5m', label: '5 Min' },
+  { value: '10m', label: '10 Min' },
   { value: '15m', label: '15 Min' },
+  { value: '20m', label: '20 Min' },
+  { value: '30m', label: '30 Min' },
   { value: '1h', label: '1 Hour' },
+  { value: '2h', label: '2 Hours' },
+  { value: '3h', label: '3 Hours' },
+  { value: '4h', label: '4 Hours' },
   { value: 'D', label: 'Daily' },
+  { value: 'W', label: 'Weekly' },
+  { value: 'M', label: 'Monthly' },
+  { value: 'Q', label: 'Quarterly' },
+  { value: 'Y', label: 'Yearly' },
 ]
 
 export function historyIntervalOptions(current: unknown) {

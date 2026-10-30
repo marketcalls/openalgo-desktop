@@ -50,6 +50,13 @@ interface TemplatableFieldProps {
    * which breaks both a screen reader and `getByLabelText`.
    */
   htmlFor?: string
+  /**
+   * Desktop: which values the text box holds. A reference always does; a
+   * field whose text box also takes plain text (Expiry: an exact date) says
+   * so here, or the box would switch back to the picker on the first
+   * keystroke (parity F-522).
+   */
+  isText?: (value: unknown) => boolean
 }
 
 export function TemplatableField({
@@ -61,8 +68,9 @@ export function TemplatableField({
   children,
   hint,
   htmlFor,
+  isText = isTemplateValue,
 }: TemplatableFieldProps) {
-  const dynamic = isTemplateValue(value)
+  const dynamic = isText(value)
 
   return (
     <div className="relative space-y-2">
