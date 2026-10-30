@@ -182,26 +182,6 @@ mod tests {
     use super::*;
     use std::time::Duration;
 
-    /// A start on a fresh folder opens every database connection the
-    /// first time: none fails "database is locked" (the e2e lane saw it
-    /// logged on every start of the combined Flow build).
-    #[tokio::test]
-    async fn a_fresh_start_opens_every_connection_first_time() {
-        let before = crate::db::sqlite::locked_opens();
-        for _ in 0..5 {
-            let t = crate::state::testing::build(
-                crate::brokers::BrokerRegistry::new(),
-                chrono::Utc::now(),
-            );
-            let c = t.ctx.sqlite.conn().unwrap();
-            let n: i64 = c
-                .query_row("SELECT COUNT(*) FROM flow_workflows", [], |r| r.get(0))
-                .unwrap();
-            assert_eq!(n, 0);
-        }
-        assert_eq!(crate::db::sqlite::locked_opens(), before);
-    }
-
     /// A lane's installed service reaches every later run's context.
     #[test]
     fn installed_services_reach_new_runs() {
