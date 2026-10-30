@@ -131,7 +131,7 @@ async fn each_condition_is_tested_on_one_quote_as_the_web_does() {
     );
     assert_eq!(r.logs.len(), 1, "no outputVariable, nothing stored");
     assert_eq!(
-        r.client.calls()[0].payload,
+        Value::Object(r.client.calls()[0].payload.clone()),
         json!({"symbol": "SBIN", "exchange": "NSE"})
     );
 }

@@ -983,7 +983,7 @@ fn rss_kb() -> u64 {
 /// Descriptors less two per pooled database connection, once the pool and
 /// the count agree twice in a row (r2d2 opens connections on its own
 /// thread).
-async fn settled(ctx: &AppState) -> usize {
+async fn settled_fds(ctx: &AppState) -> usize {
     let mut last = None;
     for _ in 0..250 {
         let pool = ctx.sqlite.pool_state().0 as usize;
@@ -1050,9 +1050,9 @@ async fn triggers_do_not_leak() {
         }
     };
     cycle(5).await;
-    let (fds0, rss0, tasks0) = (settled(&ctx).await, rss_kb(), metrics.num_alive_tasks());
+    let (fds0, rss0, tasks0) = (settled_fds(&ctx).await, rss_kb(), metrics.num_alive_tasks());
     cycle(100).await;
-    let (fds1, rss1, tasks1) = (settled(&ctx).await, rss_kb(), metrics.num_alive_tasks());
+    let (fds1, rss1, tasks1) = (settled_fds(&ctx).await, rss_kb(), metrics.num_alive_tasks());
     eprintln!(
         "flow triggers, 100 x 4 activate/deactivate: descriptors {} -> {}, RSS {} -> {} KiB, tasks {} -> {}",
         fds0, fds1, rss0, rss1, tasks0, tasks1
