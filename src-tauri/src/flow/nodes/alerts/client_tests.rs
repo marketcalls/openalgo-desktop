@@ -217,12 +217,12 @@ fn report(sent: &[&str], failed: Vec<Value>) -> Report {
     }
 }
 
-/// N-whatsappAlert-03/-04, D-28: the client's answers over the service's
-/// state and report.
 fn no_send() -> Report {
     panic!("nothing may be sent")
 }
 
+/// N-whatsappAlert-03/-04, D-28: the client's answers over the service's
+/// state and report.
 #[tokio::test]
 async fn whatsapp_answers_as_the_web_client() {
     let never = |_t: Vec<String>| async { no_send() };
