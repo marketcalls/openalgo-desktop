@@ -12,6 +12,54 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import {
+  Activity,
+  BarChart3,
+  Bell,
+  Briefcase,
+  Calculator,
+  Calendar,
+  CalendarClock,
+  CalendarRange,
+  CalendarX,
+  ClipboardList,
+  Clock,
+  FileSearch,
+  FileText,
+  Globe,
+  Grid3X3,
+  Group,
+  History,
+  Hourglass,
+  Layers,
+  Layers3,
+  type LucideIcon,
+  MessageCircle,
+  Package,
+  PackageCheck,
+  Pencil,
+  Radio,
+  RadioTower,
+  Receipt,
+  Send,
+  Shield,
+  ShoppingCart,
+  Sigma,
+  SlidersHorizontal,
+  Split,
+  Square,
+  Tag,
+  Target,
+  Timer,
+  TrendingUp,
+  Variable,
+  Wallet,
+  Webhook,
+  WifiOff,
+  XCircle,
+  Zap,
+} from 'lucide-react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { nodeTypes } from '@/components/flow/nodes'
 import { NodePalette } from './NodePalette'
@@ -178,5 +226,122 @@ describe('the palette offers exactly the node types the app runs (F-697, X-261)'
 
   it('equals the types the canvas can draw', () => {
     expect([...offered].sort()).toEqual(Object.keys(nodeTypes).sort())
+  })
+})
+
+/**
+ * Each entry's tile, as the web draws it (F-632..F-637): the icon, or for the
+ * three gates a text tile (F-634), in its category colour, on a tint of it.
+ */
+const TILES: Array<[type: string, icon: LucideIcon | string, ink: string, tint: string]> = [
+  ['start', Clock, 'text-orange-500', 'bg-orange-500/10'],
+  ['priceAlert', Bell, 'text-orange-500', 'bg-orange-500/10'],
+  ['webhookTrigger', Webhook, 'text-orange-500', 'bg-orange-500/10'],
+  ['orderUpdateTrigger', PackageCheck, 'text-orange-500', 'bg-orange-500/10'],
+  ['placeOrder', ShoppingCart, 'text-blue-500', 'bg-blue-500/10'],
+  ['smartOrder', Zap, 'text-blue-500', 'bg-blue-500/10'],
+  ['optionsOrder', TrendingUp, 'text-blue-500', 'bg-blue-500/10'],
+  ['optionsMultiOrder', Layers, 'text-blue-500', 'bg-blue-500/10'],
+  ['basketOrder', Package, 'text-blue-500', 'bg-blue-500/10'],
+  ['splitOrder', Split, 'text-blue-500', 'bg-blue-500/10'],
+  ['modifyOrder', Pencil, 'text-blue-500', 'bg-blue-500/10'],
+  ['cancelOrder', XCircle, 'text-red-500', 'bg-red-500/10'],
+  ['cancelAllOrders', XCircle, 'text-red-500', 'bg-red-500/10'],
+  ['closePositions', Square, 'text-red-500', 'bg-red-500/10'],
+  ['timeCondition', Clock, 'text-purple-500', 'bg-purple-500/10'],
+  ['positionCheck', Briefcase, 'text-purple-500', 'bg-purple-500/10'],
+  ['fundCheck', Wallet, 'text-purple-500', 'bg-purple-500/10'],
+  ['priceCondition', TrendingUp, 'text-purple-500', 'bg-purple-500/10'],
+  ['timeWindow', Clock, 'text-purple-500', 'bg-purple-500/10'],
+  ['andGate', 'AND', 'text-purple-500', 'bg-purple-500/10'],
+  ['orGate', 'OR', 'text-purple-500', 'bg-purple-500/10'],
+  ['notGate', 'NOT', 'text-purple-500', 'bg-purple-500/10'],
+  ['varCondition', SlidersHorizontal, 'text-purple-500', 'bg-purple-500/10'],
+  ['getQuote', BarChart3, 'text-cyan-500', 'bg-cyan-500/10'],
+  ['getDepth', Layers3, 'text-cyan-500', 'bg-cyan-500/10'],
+  ['getOrderStatus', FileSearch, 'text-orange-500', 'bg-orange-500/10'],
+  ['history', TrendingUp, 'text-cyan-500', 'bg-cyan-500/10'],
+  ['indicator', Activity, 'text-cyan-500', 'bg-cyan-500/10'],
+  ['strategyPnl', Wallet, 'text-cyan-500', 'bg-cyan-500/10'],
+  ['priorPeriodOhlc', CalendarClock, 'text-cyan-500', 'bg-cyan-500/10'],
+  ['barOffset', History, 'text-cyan-500', 'bg-cyan-500/10'],
+  ['openPosition', Briefcase, 'text-violet-500', 'bg-violet-500/10'],
+  ['expiry', Calendar, 'text-pink-500', 'bg-pink-500/10'],
+  ['intervals', Clock, 'text-pink-500', 'bg-pink-500/10'],
+  ['calendar', CalendarRange, 'text-purple-400', 'bg-purple-400/10'],
+  ['multiQuotes', BarChart3, 'text-cyan-500', 'bg-cyan-500/10'],
+  ['symbol', Tag, 'text-teal-500', 'bg-teal-500/10'],
+  ['optionSymbol', Target, 'text-pink-500', 'bg-pink-500/10'],
+  ['orderBook', ClipboardList, 'text-orange-500', 'bg-orange-500/10'],
+  ['tradeBook', Receipt, 'text-orange-500', 'bg-orange-500/10'],
+  ['positionBook', Briefcase, 'text-violet-500', 'bg-violet-500/10'],
+  ['syntheticFuture', Calculator, 'text-pink-500', 'bg-pink-500/10'],
+  ['optionChain', Grid3X3, 'text-pink-500', 'bg-pink-500/10'],
+  ['holdings', Briefcase, 'text-amber-500', 'bg-amber-500/10'],
+  ['funds', Wallet, 'text-amber-500', 'bg-amber-500/10'],
+  ['margin', Shield, 'text-amber-500', 'bg-amber-500/10'],
+  ['subscribeLtp', Radio, 'text-green-500', 'bg-green-500/10'],
+  ['subscribeQuote', RadioTower, 'text-green-500', 'bg-green-500/10'],
+  ['subscribeDepth', Layers3, 'text-green-500', 'bg-green-500/10'],
+  ['unsubscribe', WifiOff, 'text-red-500', 'bg-red-500/10'],
+  ['variable', Variable, 'text-purple-400', 'bg-purple-400/10'],
+  ['mathExpression', Sigma, 'text-purple-500', 'bg-purple-500/10'],
+  ['log', FileText, 'text-blue-400', 'bg-blue-400/10'],
+  ['telegramAlert', Send, 'text-[#0088cc]', 'bg-[#0088cc]/10'],
+  ['whatsappAlert', MessageCircle, 'text-[#25D366]', 'bg-[#25D366]/10'],
+  ['delay', Timer, 'text-muted-foreground', 'bg-muted'],
+  ['waitUntil', Hourglass, 'text-amber-500', 'bg-amber-500/10'],
+  ['group', Group, 'text-muted-foreground', 'bg-muted'],
+  ['httpRequest', Globe, 'text-primary', 'bg-primary/10'],
+  ['holidays', CalendarX, 'text-purple-400', 'bg-purple-400/10'],
+  ['timings', Clock, 'text-purple-400', 'bg-purple-400/10'],
+]
+
+/** The markup a tile holds for an entry: the icon, or the gate's word. */
+function tileMarkup(icon: LucideIcon | string, ink: string): string {
+  if (typeof icon === 'string') {
+    return renderToStaticMarkup(<span className={`text-[9px] font-bold ${ink}`}>{icon}</span>)
+  }
+  const Icon = icon
+  return renderToStaticMarkup(<Icon className={`h-3.5 w-3.5 ${ink}`} />)
+}
+
+describe("every entry's icon and colours (F-632..F-637)", () => {
+  it('draws a tile for every palette entry, and only those', () => {
+    expect(TILES.map(([type]) => type).sort()).toEqual(
+      TABS.flatMap(([, entries]) => entries.map(([type]) => type)).sort()
+    )
+  })
+
+  it.each(TABS)("the %s tab draws each entry's own icon and colours", async (tab, entries) => {
+    renderPalette()
+    await userEvent.setup().click(screen.getByRole('tab', { name: tab }))
+    const buttons = within(screen.getByRole('tabpanel')).getAllByRole('button')
+    entries.forEach(([type], i) => {
+      const [, icon, ink, tint] = TILES.find(([t]) => t === type) ?? []
+      if (icon === undefined || ink === undefined || tint === undefined) {
+        throw new Error(`no tile for ${type}`)
+      }
+      const tile = buttons[i].firstElementChild?.firstElementChild as HTMLElement
+      expect(tile.className.split(' '), type).toContain(tint)
+      expect(tile.innerHTML, type).toBe(tileMarkup(icon, ink))
+    })
+  })
+
+  it('writes AND, OR and NOT on the gate tiles in purple (F-634)', async () => {
+    renderPalette()
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Logic' }))
+    for (const [name, text] of [
+      ['AND Gate', 'AND'],
+      ['OR Gate', 'OR'],
+      ['NOT Gate', 'NOT'],
+    ]) {
+      const tile = screen.getByRole('button', { name: `Add ${name} node` }).firstElementChild
+        ?.firstElementChild as HTMLElement
+      expect(tile.textContent).toBe(text)
+      expect(tile.querySelector('svg')).toBeNull()
+      expect(tile.firstElementChild).toHaveClass('text-purple-500', 'font-bold')
+      expect(tile).toHaveClass('bg-purple-500/10')
+    }
   })
 })

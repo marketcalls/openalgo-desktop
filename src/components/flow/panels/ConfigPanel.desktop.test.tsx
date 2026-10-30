@@ -111,6 +111,39 @@ describe('fallbacks match the run (F-586)', () => {
   })
 })
 
+describe('the history symbol, days and output (F-564)', () => {
+  it('suggests SBIN and stores the symbol typed', () => {
+    openPanel('history', { exchange: 'NSE' })
+    const symbol = fieldUnder('Symbol')
+    expect(symbol).toHaveAttribute('placeholder', 'SBIN')
+    expect(symbol).toHaveValue('')
+    fireEvent.change(symbol, { target: { value: 'RELIANCE' } })
+    expect(stored().symbol).toBe('RELIANCE')
+  })
+
+  it('takes 1 to 365 days, stores a typed number, and 0 for a cleared box', () => {
+    openPanel('history', { symbol: 'SBIN', exchange: 'NSE', days: 30 })
+    const days = fieldUnder('Days')
+    expect(days).toHaveAttribute('type', 'number')
+    expect(days).toHaveAttribute('min', '1')
+    expect(days).toHaveAttribute('max', '365')
+    expect(days).toHaveValue(30)
+    fireEvent.change(days, { target: { value: '45' } })
+    expect(stored().days).toBe(45)
+    fireEvent.change(days, { target: { value: '' } })
+    expect(stored().days).toBe(0)
+  })
+
+  it('suggests ohlcv as the output name and stores the name typed', () => {
+    openPanel('history', { symbol: 'SBIN', exchange: 'NSE' })
+    const output = fieldUnder('Output Variable')
+    expect(output).toHaveAttribute('placeholder', 'ohlcv')
+    expect(output).toHaveValue('')
+    fireEvent.change(output, { target: { value: 'candles' } })
+    expect(stored().outputVariable).toBe('candles')
+  })
+})
+
 describe('the history interval (F-564)', () => {
   it('stores D for Daily', async () => {
     openPanel('history', { symbol: 'SBIN', exchange: 'NSE', interval: '5m' })

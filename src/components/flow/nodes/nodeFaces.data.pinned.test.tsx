@@ -5,6 +5,8 @@
  * Each node is drawn on a real canvas.
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { render } from '@testing-library/react'
 import { type Node, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { describe, expect, it } from 'vitest'
@@ -166,11 +168,38 @@ describe('F-681 the data nodes', () => {
   it('History shows the interval label or the stored interval, and the days', () => {
     expect(has(face('history', { interval: '5m', days: 10 }), '5 Min')).toBe(true)
     expect(has(face('history', { interval: '5m', days: 10 }), '10 days')).toBe(true)
-    expect(has(face('history', { interval: '1h' }), '1 Hour')).toBe(true)
-    expect(has(face('history', { interval: 'D' }), 'D')).toBe(true)
+    expect(has(face('history', { interval: '1h', days: 5 }), '1 Hour')).toBe(true)
+    expect(has(face('history', { interval: '3h', days: 5 }), '3 Hours')).toBe(true)
+    expect(has(face('history', { interval: '7m', days: 5 }), '7m')).toBe(true)
+  })
+
+  // Decision 32 (the web showed 1d and 30 days): what the run uses.
+  it('History with nothing stored shows the run defaults: 5 Min, and that days are required', () => {
+    const history = readFileSync(join(process.cwd(), 'src-tauri/src/flow/nodes/history.rs'), 'utf8')
+    expect(history).toMatch(/get_str\(data, "interval", "5m"\)/)
+    expect(history).toMatch(/try_get_int\(data, "days", 0\)/)
     const blank = face('history')
-    expect(has(blank, '1d')).toBe(true)
-    expect(has(blank, '30 days')).toBe(true)
+    expect(has(blank, '5 Min')).toBe(true)
+    expect(has(blank, 'Days required')).toBe(true)
+    expect(has(blank, '1d')).toBe(false)
+    expect(has(blank, '30 days')).toBe(false)
+  })
+
+  it('History shows Daily for D and for a stored 1d, which the run sends as D', () => {
+    expect(has(face('history', { interval: 'D', days: 5 }), 'Daily')).toBe(true)
+    expect(has(face('history', { interval: '1d', days: 5 }), 'Daily')).toBe(true)
+  })
+
+  it.each([
+    [{ days: 0 }, 'Days required'],
+    [{ days: -3 }, 'Days required'],
+    [{ days: '' }, 'Days required'],
+    [{ days: '45' }, '45 days'],
+    [{ days: '{{lookback}}' }, '{{lookback}} days'],
+    [{ startDate: '2026-10-01', endDate: '2026-10-30', days: 5 }, '2026-10-01 to 2026-10-30'],
+    [{ startDate: '2026-10-01' }, 'Days required'],
+  ])('History with %j shows the range as "%s"', (data, shown) => {
+    expect(has(face('history', { interval: '5m', ...data }), shown)).toBe(true)
   })
 
   it.each([
