@@ -1,0 +1,145 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "indicator",
+ "scenario": "nested_all_nan_no_value",
+ "note": "",
+ "parity": [
+  "N-indicator-09"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "indicator",
+  "data": {
+   "indicatorName": "sma",
+   "outputVariable": "nn",
+   "params": "{\"period\": 2}",
+   "sourceSeries": "{{prices}}",
+   "tailBars": 2
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "prices": [
+   "nan",
+   "nan",
+   "nan"
+  ]
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "indicator",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "indicatorName": "sma",
+     "outputVariable": "nn",
+     "params": "{\"period\": 2}",
+     "sourceSeries": "{{prices}}",
+     "tailBars": 2
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "indicator": "sma",
+   "message": "Indicator 'sma' produced no value over 3 bars - every output was null. Increase the lookback if the indicator needs a longer warm-up, or check that this indicator is usable with the selected inputs.",
+   "inputs": [
+    "data (nested)"
+   ],
+   "params": {
+    "period": 2
+   },
+   "outputs": [
+    "value"
+   ],
+   "bars_used": 3
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "prices": [
+    "nan",
+    "nan",
+    "nan"
+   ],
+   "nn": {
+    "status": "error",
+    "indicator": "sma",
+    "message": "Indicator 'sma' produced no value over 3 bars - every output was null. Increase the lookback if the indicator needs a longer warm-up, or check that this indicator is usable with the selected inputs.",
+    "inputs": [
+     "data (nested)"
+    ],
+    "params": {
+     "period": 2
+    },
+    "outputs": [
+     "value"
+    ],
+    "bars_used": 3
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Computing nested sma over 3 upstream values"
+   ],
+   [
+    "info",
+    "sma (nested) latest: None"
+   ],
+   [
+    "info",
+    "Stored result in variable: nn"
+   ],
+   [
+    "error",
+    "Stopping this branch: indicator node failed (Indicator 'sma' produced no value over 3 bars - every output was null. Increase the lookback if the indicator needs a longer warm-up, or check that this indicator is usable with the selected inputs.)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "indicator",
+     "message": "Indicator 'sma' produced no value over 3 bars - every output was null. Increase the lookback if the indicator needs a longer warm-up, or check that this indicator is usable with the selected inputs."
+    }
+   ],
+   "abort": null
+  }
+ }
+}

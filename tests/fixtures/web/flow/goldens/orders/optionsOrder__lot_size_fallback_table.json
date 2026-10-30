@@ -1,0 +1,199 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "optionsOrder",
+ "scenario": "lot_size_fallback_table",
+ "note": "",
+ "parity": [
+  "N-common-22"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "optionsOrder",
+  "data": {
+   "action": "BUY",
+   "exchange": "NSE_INDEX",
+   "expiryType": "current_week",
+   "offset": "ATM",
+   "optionType": "CE",
+   "outputVariable": "opt",
+   "price": 0,
+   "priceType": "MARKET",
+   "product": "NRML",
+   "quantity": 2,
+   "triggerPrice": 0,
+   "underlying": "NIFTY"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "optionsOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "BUY",
+     "exchange": "NSE_INDEX",
+     "expiryType": "current_week",
+     "offset": "ATM",
+     "optionType": "CE",
+     "outputVariable": "opt",
+     "price": 0,
+     "priceType": "MARKET",
+     "product": "NRML",
+     "quantity": 2,
+     "triggerPrice": 0,
+     "underlying": "NIFTY"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "master_contract": []
+ },
+ "script": [
+  {
+   "endpoint": "expiry",
+   "reply": {
+    "status": "success",
+    "data": [
+     "04-NOV-26",
+     "11-NOV-26",
+     "18-NOV-26",
+     "25-NOV-26",
+     "30-DEC-26",
+     "30-MAR-27"
+    ],
+    "message": "Found 6 expiry dates for NIFTY options in NFO"
+   }
+  },
+  {
+   "endpoint": "optionsorder",
+   "reply": {
+    "status": "success",
+    "exchange": "NFO",
+    "offset": "ATM",
+    "option_type": "CE",
+    "orderid": "250408000223344",
+    "symbol": "NIFTY25NOV2624000CE",
+    "underlying": "NIFTY",
+    "underlying_ltp": 24012.35
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_expiry",
+    "endpoint": "expiry",
+    "payload": {
+     "symbol": "NIFTY",
+     "exchange": "NFO",
+     "instrumenttype": "options"
+    }
+   },
+   {
+    "method": "options_order",
+    "endpoint": "optionsorder",
+    "payload": {
+     "strategy": "Golden Flow",
+     "underlying": "NIFTY",
+     "exchange": "NSE_INDEX",
+     "action": "BUY",
+     "quantity": 130,
+     "expiry_date": "04NOV26",
+     "offset": "ATM",
+     "option_type": "CE",
+     "pricetype": "MARKET",
+     "product": "NRML",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "splitsize": 0
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "exchange": "NFO",
+   "offset": "ATM",
+   "option_type": "CE",
+   "orderid": "250408000223344",
+   "symbol": "NIFTY25NOV2624000CE",
+   "underlying": "NIFTY",
+   "underlying_ltp": 24012.35
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "opt": {
+    "status": "success",
+    "exchange": "NFO",
+    "offset": "ATM",
+    "option_type": "CE",
+    "orderid": "250408000223344",
+    "symbol": "NIFTY25NOV2624000CE",
+    "underlying": "NIFTY",
+    "underlying_ltp": 24012.35
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Placing options order: NIFTY CE ATM"
+   ],
+   [
+    "warning",
+    "Master contract has no NFO contracts loaded; using the built-in lot size 65 for NIFTY"
+   ],
+   [
+    "info",
+    "Lot size for NIFTY: 65 -> 2 lot(s) = 130"
+   ],
+   [
+    "info",
+    "Resolved expiry: current_week -> 04NOV26"
+   ],
+   [
+    "info",
+    "Options order result: {'status': 'success', 'exchange': 'NFO', 'offset': 'ATM', 'option_type': 'CE', 'orderid': '250408000223344', 'symbol': 'NIFTY25NOV2624000CE', 'underlying': 'NIFTY', 'underlying_ltp': 24012.35}"
+   ],
+   [
+    "info",
+    "Stored result in variable: opt"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

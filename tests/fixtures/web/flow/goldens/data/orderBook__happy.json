@@ -1,0 +1,181 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "orderBook",
+ "scenario": "happy",
+ "note": "",
+ "parity": [
+  "N-orderBook-01",
+  "CL-14",
+  "N-dataCommon-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "orderBook",
+  "data": {
+   "outputVariable": "book"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "orderBook",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "book"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "orderbook",
+   "reply": {
+    "status": "success",
+    "data": {
+     "orders": [
+      {
+       "action": "BUY",
+       "average_price": 812.5,
+       "exchange": "NSE",
+       "order_status": "complete",
+       "orderid": "250408000123456",
+       "price": 0.0,
+       "pricetype": "MARKET",
+       "product": "MIS",
+       "quantity": 10,
+       "symbol": "SBIN",
+       "timestamp": "2026-10-29 10:14:59",
+       "trigger_price": 0.0
+      }
+     ],
+     "statistics": {
+      "total_buy_orders": 1,
+      "total_completed_orders": 1,
+      "total_open_orders": 0,
+      "total_rejected_orders": 0,
+      "total_sell_orders": 0
+     }
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "orderbook",
+    "endpoint": "orderbook",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": {
+    "orders": [
+     {
+      "action": "BUY",
+      "average_price": 812.5,
+      "exchange": "NSE",
+      "order_status": "complete",
+      "orderid": "250408000123456",
+      "price": 0.0,
+      "pricetype": "MARKET",
+      "product": "MIS",
+      "quantity": 10,
+      "symbol": "SBIN",
+      "timestamp": "2026-10-29 10:14:59",
+      "trigger_price": 0.0
+     }
+    ],
+    "statistics": {
+     "total_buy_orders": 1,
+     "total_completed_orders": 1,
+     "total_open_orders": 0,
+     "total_rejected_orders": 0,
+     "total_sell_orders": 0
+    }
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "book": {
+    "status": "success",
+    "data": {
+     "orders": [
+      {
+       "action": "BUY",
+       "average_price": 812.5,
+       "exchange": "NSE",
+       "order_status": "complete",
+       "orderid": "250408000123456",
+       "price": 0.0,
+       "pricetype": "MARKET",
+       "product": "MIS",
+       "quantity": 10,
+       "symbol": "SBIN",
+       "timestamp": "2026-10-29 10:14:59",
+       "trigger_price": 0.0
+      }
+     ],
+     "statistics": {
+      "total_buy_orders": 1,
+      "total_completed_orders": 1,
+      "total_open_orders": 0,
+      "total_rejected_orders": 0,
+      "total_sell_orders": 0
+     }
+    }
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Fetching order book"
+   ],
+   [
+    "info",
+    "Order book received"
+   ],
+   [
+    "info",
+    "Stored result in variable: book"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

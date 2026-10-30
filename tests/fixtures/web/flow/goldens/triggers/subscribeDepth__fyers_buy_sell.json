@@ -1,0 +1,213 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "subscribeDepth",
+ "scenario": "fyers_buy_sell",
+ "note": "",
+ "parity": [
+  "N-subscribeDepth-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "subscribeDepth",
+  "data": {
+   "exchange": "NSE",
+   "outputVariable": "depth",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "subscribeDepth",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "outputVariable": "depth",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "ticks": [
+    {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "mode": 3,
+     "ltp": 812.5,
+     "depth": {
+      "buy": [
+       {
+        "price": 812.4,
+        "volume": 150
+       }
+      ],
+      "sell": [
+       {
+        "price": 812.6,
+        "quantity": 120
+       }
+      ]
+     }
+    }
+   ]
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "type": "depth",
+   "symbol": "SBIN",
+   "exchange": "NSE",
+   "data": {
+    "bids": [
+     {
+      "price": 812.4,
+      "quantity": 150
+     }
+    ],
+    "asks": [
+     {
+      "price": 812.6,
+      "quantity": 120
+     }
+    ],
+    "totalbuyqty": 0,
+    "totalsellqty": 0,
+    "ltp": 812.5
+   },
+   "source": "websocket"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "depth": {
+    "status": "success",
+    "type": "depth",
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "data": {
+     "bids": [
+      {
+       "price": 812.4,
+       "quantity": 150
+      }
+     ],
+     "asks": [
+      {
+       "price": 812.6,
+       "quantity": 120
+      }
+     ],
+     "totalbuyqty": 0,
+     "totalsellqty": 0,
+     "ltp": 812.5
+    },
+    "source": "websocket"
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Subscribing to Depth stream: SBIN (NSE)"
+   ],
+   [
+    "info",
+    "Depth for SBIN: Bid=812.4, Ask=812.6 (1 bids, 1 asks) via WebSocket"
+   ],
+   [
+    "info",
+    "Stored result in variable: depth"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null,
+  "feed": [
+   {
+    "op": "subscribe",
+    "symbols": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE"
+     }
+    ],
+    "mode": "Depth"
+   },
+   {
+    "op": "wait",
+    "timeout": 3.0
+   }
+  ],
+  "subscriptions": [
+   [
+    "SBIN",
+    "NSE",
+    "Depth"
+   ]
+  ]
+ },
+ "desktop_expected": {
+  "parity": "N-subscribeDepth-04",
+  "why": "WEB-DEFECT (decisions.md 9): store_output overwrites the documented value with the whole result dict; the desktop stores the documented value under the stripped outputVariable (the run log is unchanged).",
+  "fix": [
+   "stream_documented_value"
+  ],
+  "vars_out": {
+   "depth": {
+    "bids": [
+     {
+      "price": 812.4,
+      "quantity": 150
+     }
+    ],
+    "asks": [
+     {
+      "price": 812.6,
+      "quantity": 120
+     }
+    ],
+    "totalbuyqty": 0,
+    "totalsellqty": 0,
+    "ltp": 812.5
+   }
+  }
+ }
+}

@@ -1,0 +1,105 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "telegramAlert",
+ "scenario": "notifications_disabled",
+ "note": "",
+ "parity": [
+  "CL-22"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "telegramAlert",
+  "data": {
+   "message": "x"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "telegramAlert",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "x"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": {
+  "status": "error",
+  "error": "Telegram notifications are disabled"
+ },
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "error": "Telegram notifications are disabled"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Sending Telegram alert: x"
+   ],
+   [
+    "error",
+    "Telegram result: {'status': 'error', 'error': 'Telegram notifications are disabled'}"
+   ],
+   [
+    "error",
+    "Stopping this branch: telegramAlert node failed (Telegram notifications are disabled)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "telegramAlert",
+     "message": "Telegram notifications are disabled"
+    }
+   ],
+   "abort": null
+  },
+  "alerts": [
+   {
+    "channel": "telegram",
+    "message": "x",
+    "to": null
+   }
+  ]
+ }
+}

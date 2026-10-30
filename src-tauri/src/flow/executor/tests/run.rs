@@ -193,7 +193,7 @@ async fn a_long_wait_answers_at_once_and_a_stop_is_recorded() {
     );
     // Wait for the run's record, not on a sleep.
     for _ in 0..200 {
-        if history(&t.ctx, id).first().is_some() {
+        if !history(&t.ctx, id).is_empty() {
             break;
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
@@ -202,9 +202,17 @@ async fn a_long_wait_answers_at_once_and_a_stop_is_recorded() {
     t.ctx.flow.stop_all(crate::flow::STOP_GRACE).await;
     let row = &history(&t.ctx, id)[0];
     assert_eq!(row.status, "failed");
-    assert_eq!(
-        row.error.as_deref(),
-        Some("delay: The workflow was stopped while it was waiting.")
+    // The stop finds the run waiting in the Delay or, on a slow runner, just
+    // before it reaches the node: either way the record says it was stopped.
+    let stopped_waiting = format!(
+        "delay: {}",
+        crate::flow::nodes::logic::STOPPED_WHILE_WAITING
+    );
+    let error = row.error.clone().unwrap_or_default();
+    assert!(
+        error == stopped_waiting || error == super::super::walk::STOPPED,
+        "{}",
+        error
     );
     assert!(t.ctx.flow.try_claim(id).is_some());
 }

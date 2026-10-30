@@ -1,0 +1,86 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "waitUntil",
+ "scenario": "text_parts_default",
+ "note": "",
+ "parity": [
+  "N-waitUntil-01",
+  "N-waitUntil-02",
+  "N-waitUntil-03",
+  "N-waitUntil-04"
+ ],
+ "clock": "2026-10-29T09:00:00",
+ "analyzer": false,
+ "node": {
+  "type": "waitUntil",
+  "data": {
+   "targetTime": "ab:cd"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "waitUntil",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "targetTime": "ab:cd"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "success",
+   "waited": true
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Waiting until ab:cd (~1800s)"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null,
+  "sleeps": [
+   1800
+  ]
+ }
+}

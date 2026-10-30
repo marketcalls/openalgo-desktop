@@ -1,0 +1,106 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "whatsappAlert",
+ "scenario": "not_paired",
+ "note": "",
+ "parity": [
+  "N-whatsappAlert-03",
+  "CL-21"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "whatsappAlert",
+  "data": {
+   "message": "x"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "whatsappAlert",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "x"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": {
+  "status": "error",
+  "error": "WhatsApp is not paired or not connected. Pair the device from /whatsapp."
+ },
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "error": "WhatsApp is not paired or not connected. Pair the device from /whatsapp."
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Sending WhatsApp alert to self: x"
+   ],
+   [
+    "error",
+    "WhatsApp result: {'status': 'error', 'error': 'WhatsApp is not paired or not connected. Pair the device from /whatsapp.'}"
+   ],
+   [
+    "error",
+    "Stopping this branch: whatsappAlert node failed (WhatsApp is not paired or not connected. Pair the device from /whatsapp.)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "whatsappAlert",
+     "message": "WhatsApp is not paired or not connected. Pair the device from /whatsapp."
+    }
+   ],
+   "abort": null
+  },
+  "alerts": [
+   {
+    "channel": "whatsapp",
+    "message": "x",
+    "to": null
+   }
+  ]
+ }
+}

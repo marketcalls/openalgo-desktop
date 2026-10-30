@@ -1,0 +1,128 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "getQuote",
+ "scenario": "failure_stored_and_stops",
+ "note": "",
+ "parity": [
+  "N-getQuote-03",
+  "N-dataCommon-02",
+  "N-dataCommon-03"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "getQuote",
+  "data": {
+   "outputVariable": "q",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "getQuote",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "outputVariable": "q",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "quotes",
+   "reply": {
+    "status": "error",
+    "error": "Invalid openalgo apikey",
+    "code": 403
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_quotes",
+    "endpoint": "quotes",
+    "payload": {
+     "symbol": "SBIN",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "error": "Invalid openalgo apikey",
+   "code": 403
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "q": {
+    "status": "error",
+    "error": "Invalid openalgo apikey",
+    "code": 403
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting quote for: SBIN"
+   ],
+   [
+    "info",
+    "Quote result: {'status': 'error', 'error': 'Invalid openalgo apikey', 'code': 403}"
+   ],
+   [
+    "info",
+    "Stored result in variable: q"
+   ],
+   [
+    "error",
+    "Stopping this branch: getQuote node failed (Invalid openalgo apikey)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "getQuote",
+     "message": "Invalid openalgo apikey"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

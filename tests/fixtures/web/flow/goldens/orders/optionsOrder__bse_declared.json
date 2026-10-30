@@ -1,0 +1,195 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "optionsOrder",
+ "scenario": "bse_declared",
+ "note": "",
+ "parity": [
+  "N-common-19",
+  "N-common-22"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "optionsOrder",
+  "data": {
+   "action": "BUY",
+   "exchange": "BSE",
+   "expiryType": "current_week",
+   "offset": "ATM",
+   "optionType": "CE",
+   "outputVariable": "opt",
+   "price": 0,
+   "priceType": "MARKET",
+   "product": "NRML",
+   "quantity": 2,
+   "triggerPrice": 0,
+   "underlying": "BANKEX"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "optionsOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "action": "BUY",
+     "exchange": "BSE",
+     "expiryType": "current_week",
+     "offset": "ATM",
+     "optionType": "CE",
+     "outputVariable": "opt",
+     "price": 0,
+     "priceType": "MARKET",
+     "product": "NRML",
+     "quantity": 2,
+     "triggerPrice": 0,
+     "underlying": "BANKEX"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "master_contract": []
+ },
+ "script": [
+  {
+   "endpoint": "expiry",
+   "reply": {
+    "status": "success",
+    "data": [
+     "30-OCT-26",
+     "27-NOV-26"
+    ]
+   }
+  },
+  {
+   "endpoint": "optionsorder",
+   "reply": {
+    "status": "success",
+    "exchange": "NFO",
+    "offset": "ATM",
+    "option_type": "CE",
+    "orderid": "250408000223344",
+    "symbol": "NIFTY25NOV2624000CE",
+    "underlying": "NIFTY",
+    "underlying_ltp": 24012.35
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_expiry",
+    "endpoint": "expiry",
+    "payload": {
+     "symbol": "BANKEX",
+     "exchange": "BFO",
+     "instrumenttype": "options"
+    }
+   },
+   {
+    "method": "options_order",
+    "endpoint": "optionsorder",
+    "payload": {
+     "strategy": "Golden Flow",
+     "underlying": "BANKEX",
+     "exchange": "BSE_INDEX",
+     "action": "BUY",
+     "quantity": 60,
+     "expiry_date": "30OCT26",
+     "offset": "ATM",
+     "option_type": "CE",
+     "pricetype": "MARKET",
+     "product": "NRML",
+     "price": 0.0,
+     "trigger_price": 0.0,
+     "splitsize": 0
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "exchange": "NFO",
+   "offset": "ATM",
+   "option_type": "CE",
+   "orderid": "250408000223344",
+   "symbol": "NIFTY25NOV2624000CE",
+   "underlying": "NIFTY",
+   "underlying_ltp": 24012.35
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "opt": {
+    "status": "success",
+    "exchange": "NFO",
+    "offset": "ATM",
+    "option_type": "CE",
+    "orderid": "250408000223344",
+    "symbol": "NIFTY25NOV2624000CE",
+    "underlying": "NIFTY",
+    "underlying_ltp": 24012.35
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Placing options order: BANKEX CE ATM"
+   ],
+   [
+    "warning",
+    "Master contract has no BFO contracts loaded; using the built-in lot size 30 for BANKEX"
+   ],
+   [
+    "info",
+    "Lot size for BANKEX: 30 -> 2 lot(s) = 60"
+   ],
+   [
+    "info",
+    "Resolved expiry: current_week -> 30OCT26"
+   ],
+   [
+    "info",
+    "Options order result: {'status': 'success', 'exchange': 'NFO', 'offset': 'ATM', 'option_type': 'CE', 'orderid': '250408000223344', 'symbol': 'NIFTY25NOV2624000CE', 'underlying': 'NIFTY', 'underlying_ltp': 24012.35}"
+   ],
+   [
+    "info",
+    "Stored result in variable: opt"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

@@ -1,0 +1,135 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "openPosition",
+ "scenario": "happy",
+ "note": "",
+ "parity": [
+  "N-openPosition-01",
+  "N-openPosition-02",
+  "N-openPosition-03",
+  "CL-15"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "openPosition",
+  "data": {
+   "exchange": "NSE",
+   "outputVariable": "pos",
+   "symbol": "SBIN"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "openPosition",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "NSE",
+     "outputVariable": "pos",
+     "symbol": "SBIN"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "positionbook",
+   "reply": {
+    "status": "success",
+    "data": [
+     {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "product": "MIS",
+      "quantity": 10,
+      "average_price": 800.0,
+      "ltp": 812.5,
+      "pnl": 125.0
+     },
+     {
+      "symbol": "NIFTY25NOV2624000CE",
+      "exchange": "NFO",
+      "product": "NRML",
+      "quantity": -65,
+      "average_price": 110.0,
+      "ltp": 98.5,
+      "pnl": 747.5
+     }
+    ]
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "positionbook",
+    "endpoint": "positionbook",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "quantity": 10,
+   "pnl": 125.0
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "pos": {
+    "status": "success",
+    "quantity": 10,
+    "pnl": 125.0
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting open position for: SBIN"
+   ],
+   [
+    "info",
+    "Open position result: {'status': 'success', 'quantity': 10, 'pnl': 125.0}"
+   ],
+   [
+    "info",
+    "Stored result in variable: pos"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

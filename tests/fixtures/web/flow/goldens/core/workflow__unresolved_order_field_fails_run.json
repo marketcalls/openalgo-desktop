@@ -1,0 +1,99 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "unresolved_order_field_fails_run",
+ "note": "",
+ "parity": [
+  "N-common-03",
+  "E-37"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Unresolved",
+  "nodes": [
+   {
+    "id": "t",
+    "type": "webhookTrigger",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {}
+   },
+   {
+    "id": "o",
+    "type": "placeOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "symbol": "SBIN",
+     "exchange": "NSE",
+     "action": "BUY",
+     "quantity": "{{webhook.qty}}",
+     "priceType": "MARKET"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-t-o-x",
+    "source": "t",
+    "target": "o"
+   }
+  ]
+ },
+ "webhook": {
+  "symbol": "SBIN"
+ },
+ "api_key": true,
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "result": {
+   "status": "error",
+   "message": "1 node(s) failed: placeOrder: placeOrder has unresolved variable(s) in quantity='{{webhook.qty}}'. Refusing to send it with substituted values.",
+   "errors": [
+    {
+     "node": "o",
+     "type": "placeOrder",
+     "message": "placeOrder has unresolved variable(s) in quantity='{{webhook.qty}}'. Refusing to send it with substituted values."
+    }
+   ]
+  },
+  "record": {
+   "status": "failed",
+   "error": "placeOrder: placeOrder has unresolved variable(s) in quantity='{{webhook.qty}}'. Refusing to send it with substituted values."
+  },
+  "vars_out": {
+   "webhook": {
+    "symbol": "SBIN"
+   }
+  },
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Unresolved"
+   ],
+   [
+    "info",
+    "Webhook trigger activated"
+   ],
+   [
+    "error",
+    "placeOrder has unresolved variable(s) in quantity='{{webhook.qty}}'. Refusing to send it with substituted values."
+   ],
+   [
+    "error",
+    "Stopping this branch: placeOrder node failed (placeOrder has unresolved variable(s) in quantity='{{webhook.qty}}'. Refusing to send it with substituted values.)"
+   ]
+  ]
+ }
+}

@@ -1,0 +1,148 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "fundCheck",
+ "scenario": "legacy_threshold",
+ "note": "",
+ "parity": [
+  "N-fundCheck-02"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "fundCheck",
+  "data": {
+   "operator": "gte",
+   "threshold": 1000
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "fundCheck",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "operator": "gte",
+     "threshold": 1000
+    }
+   },
+   {
+    "id": "probe-true",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "true"
+    }
+   },
+   {
+    "id": "probe-false",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "false"
+    }
+   },
+   {
+    "id": "probe-pass",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "pass"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-true",
+    "source": "n1",
+    "target": "probe-true",
+    "sourceHandle": "true"
+   },
+   {
+    "id": "e-false",
+    "source": "n1",
+    "target": "probe-false",
+    "sourceHandle": "false"
+   },
+   {
+    "id": "e-pass",
+    "source": "n1",
+    "target": "probe-pass"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "funds",
+   "reply": {
+    "status": "success",
+    "data": {
+     "availablecash": 250000.5,
+     "collateral": 0.0,
+     "m2mrealized": 0.0,
+     "m2munrealized": 0.0,
+     "utiliseddebits": 12000.0
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "funds",
+    "endpoint": "funds",
+    "payload": {}
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "condition": true,
+   "available": 250000.5
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {
+   "n1": true
+  },
+  "logs": [
+   [
+    "warning",
+    "Fund Check is using its legacy threshold of 1000.0. Re-save the node to store it as Minimum Available."
+   ],
+   [
+    "info",
+    "Checking funds"
+   ],
+   [
+    "info",
+    "Fund check: available=250000.5 >= 1000.0 = True"
+   ]
+  ],
+  "next": [
+   "pass",
+   "true"
+  ],
+  "error": null
+ }
+}

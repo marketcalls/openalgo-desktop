@@ -1,0 +1,73 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "core",
+ "type": "group",
+ "scenario": "passes_through_silently",
+ "note": "",
+ "parity": [
+  "N-group-00",
+  "N-group-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "group",
+  "data": {
+   "label": "Entries"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "Entries"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": null,
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

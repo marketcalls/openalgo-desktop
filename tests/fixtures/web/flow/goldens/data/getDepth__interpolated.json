@@ -1,0 +1,230 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "getDepth",
+ "scenario": "interpolated",
+ "note": "",
+ "parity": [
+  "N-getDepth-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "getDepth",
+  "data": {
+   "exchange": "{{webhook.ex}}",
+   "outputVariable": "d",
+   "symbol": "{{webhook.symbol}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "webhook": {
+   "symbol": "INFY",
+   "ex": "NSE",
+   "n": "3",
+   "day": "2026-11-02",
+   "u": "NIFTY",
+   "exp": "25NOV26",
+   "it": "futures",
+   "qty": "50",
+   "px": "1880.5"
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "getDepth",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "exchange": "{{webhook.ex}}",
+     "outputVariable": "d",
+     "symbol": "{{webhook.symbol}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "depth",
+   "reply": {
+    "status": "success",
+    "data": {
+     "asks": [
+      {
+       "price": 812.6,
+       "quantity": 120
+      },
+      {
+       "price": 812.7,
+       "quantity": 80
+      }
+     ],
+     "bids": [
+      {
+       "price": 812.4,
+       "quantity": 150
+      },
+      {
+       "price": 812.3,
+       "quantity": 60
+      }
+     ],
+     "high": 818.0,
+     "low": 805.25,
+     "ltp": 812.5,
+     "ltq": 10,
+     "oi": 0,
+     "open": 806.0,
+     "prev_close": 800.0,
+     "totalbuyqty": 210,
+     "totalsellqty": 200,
+     "volume": 1250000
+    }
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_depth",
+    "endpoint": "depth",
+    "payload": {
+     "symbol": "INFY",
+     "exchange": "NSE"
+    }
+   }
+  ],
+  "outputs": {
+   "status": "success",
+   "data": {
+    "asks": [
+     {
+      "price": 812.6,
+      "quantity": 120
+     },
+     {
+      "price": 812.7,
+      "quantity": 80
+     }
+    ],
+    "bids": [
+     {
+      "price": 812.4,
+      "quantity": 150
+     },
+     {
+      "price": 812.3,
+      "quantity": 60
+     }
+    ],
+    "high": 818.0,
+    "low": 805.25,
+    "ltp": 812.5,
+    "ltq": 10,
+    "oi": 0,
+    "open": 806.0,
+    "prev_close": 800.0,
+    "totalbuyqty": 210,
+    "totalsellqty": 200,
+    "volume": 1250000
+   }
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "webhook": {
+    "symbol": "INFY",
+    "ex": "NSE",
+    "n": "3",
+    "day": "2026-11-02",
+    "u": "NIFTY",
+    "exp": "25NOV26",
+    "it": "futures",
+    "qty": "50",
+    "px": "1880.5"
+   },
+   "d": {
+    "status": "success",
+    "data": {
+     "asks": [
+      {
+       "price": 812.6,
+       "quantity": 120
+      },
+      {
+       "price": 812.7,
+       "quantity": 80
+      }
+     ],
+     "bids": [
+      {
+       "price": 812.4,
+       "quantity": 150
+      },
+      {
+       "price": 812.3,
+       "quantity": 60
+      }
+     ],
+     "high": 818.0,
+     "low": 805.25,
+     "ltp": 812.5,
+     "ltq": 10,
+     "oi": 0,
+     "open": 806.0,
+     "prev_close": 800.0,
+     "totalbuyqty": 210,
+     "totalsellqty": 200,
+     "volume": 1250000
+    }
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting depth for: INFY"
+   ],
+   [
+    "info",
+    "Depth result received"
+   ],
+   [
+    "info",
+    "Stored result in variable: d"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null
+ }
+}

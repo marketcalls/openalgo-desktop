@@ -1,0 +1,155 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "logic",
+ "type": "httpRequest",
+ "scenario": "object_body",
+ "note": "",
+ "parity": [
+  "N-httpRequest-11"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "httpRequest",
+  "data": {
+   "body": {
+    "symbol": "SBIN"
+   },
+   "method": "POST",
+   "outputVariable": "resp",
+   "url": "http://api.flow-golden.test/v1/signal"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "httpRequest",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "body": {
+      "symbol": "SBIN"
+     },
+     "method": "POST",
+     "outputVariable": "resp",
+     "url": "http://api.flow-golden.test/v1/signal"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "http": {
+   "resolve": {
+    "api.flow-golden.test": [
+     "93.184.216.34"
+    ]
+   },
+   "response": {
+    "status": 200,
+    "body": "{\"ok\": true, \"id\": 7}",
+    "content_type": "application/json"
+   }
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": null,
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "HTTP POST http://api.flow-golden.test/v1/signal"
+   ],
+   [
+    "error",
+    "Error: the JSON object must be str, bytes or bytearray, not dict"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [],
+   "abort": "the JSON object must be str, bytes or bytearray, not dict"
+  }
+ },
+ "desktop_expected": {
+  "parity": "N-httpRequest-11",
+  "why": "WEB-DEFECT: an object body raises TypeError and aborts the run; the desktop sends it as JSON.",
+  "fix": [
+   "http_object_body"
+  ],
+  "outputs": {
+   "status": "success",
+   "statusCode": 200,
+   "data": {
+    "ok": true,
+    "id": 7
+   }
+  },
+  "vars_out": {
+   "resp": {
+    "status": "success",
+    "statusCode": 200,
+    "data": {
+     "ok": true,
+     "id": 7
+    }
+   }
+  },
+  "logs": [
+   [
+    "info",
+    "HTTP POST http://api.flow-golden.test/v1/signal"
+   ],
+   [
+    "info",
+    "Stored result in variable: resp"
+   ]
+  ],
+  "next": [
+   "next"
+  ],
+  "error": null,
+  "http_requests": [
+   {
+    "method": "POST",
+    "path": "/v1/signal",
+    "query": "",
+    "headers": {
+     "content-type": "application/json"
+    },
+    "body": "{\"symbol\":\"SBIN\"}"
+   }
+  ]
+ }
+}

@@ -1,0 +1,101 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "indicator",
+ "scenario": "nested_not_array",
+ "note": "",
+ "parity": [
+  "N-indicator-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "indicator",
+  "data": {
+   "indicatorName": "sma",
+   "sourceSeries": "{{cfg}}"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {
+  "cfg": {
+   "a": 1
+  }
+ },
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "indicator",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "indicatorName": "sma",
+     "sourceSeries": "{{cfg}}"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "sourceSeries must resolve to an array"
+  },
+  "outputs_by": "node",
+  "vars_out": {
+   "cfg": {
+    "a": 1
+   }
+  },
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "sourceSeries must resolve to an array, got: {'a': 1}"
+   ],
+   [
+    "error",
+    "Stopping this branch: indicator node failed (sourceSeries must resolve to an array)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "indicator",
+     "message": "sourceSeries must resolve to an array"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

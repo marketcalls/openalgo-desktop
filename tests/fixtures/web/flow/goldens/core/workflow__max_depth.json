@@ -1,0 +1,2097 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "max_depth",
+ "note": "",
+ "parity": [
+  "E-01",
+  "E-38"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Deep",
+  "nodes": [
+   {
+    "id": "start",
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:15"
+    }
+   },
+   {
+    "id": "l1",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 1"
+    }
+   },
+   {
+    "id": "l2",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 2"
+    }
+   },
+   {
+    "id": "l3",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 3"
+    }
+   },
+   {
+    "id": "l4",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 4"
+    }
+   },
+   {
+    "id": "l5",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 5"
+    }
+   },
+   {
+    "id": "l6",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 6"
+    }
+   },
+   {
+    "id": "l7",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 7"
+    }
+   },
+   {
+    "id": "l8",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 8"
+    }
+   },
+   {
+    "id": "l9",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 9"
+    }
+   },
+   {
+    "id": "l10",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 10"
+    }
+   },
+   {
+    "id": "l11",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 11"
+    }
+   },
+   {
+    "id": "l12",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 12"
+    }
+   },
+   {
+    "id": "l13",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 13"
+    }
+   },
+   {
+    "id": "l14",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 14"
+    }
+   },
+   {
+    "id": "l15",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 15"
+    }
+   },
+   {
+    "id": "l16",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 16"
+    }
+   },
+   {
+    "id": "l17",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 17"
+    }
+   },
+   {
+    "id": "l18",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 18"
+    }
+   },
+   {
+    "id": "l19",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 19"
+    }
+   },
+   {
+    "id": "l20",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 20"
+    }
+   },
+   {
+    "id": "l21",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 21"
+    }
+   },
+   {
+    "id": "l22",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 22"
+    }
+   },
+   {
+    "id": "l23",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 23"
+    }
+   },
+   {
+    "id": "l24",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 24"
+    }
+   },
+   {
+    "id": "l25",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 25"
+    }
+   },
+   {
+    "id": "l26",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 26"
+    }
+   },
+   {
+    "id": "l27",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 27"
+    }
+   },
+   {
+    "id": "l28",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 28"
+    }
+   },
+   {
+    "id": "l29",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 29"
+    }
+   },
+   {
+    "id": "l30",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 30"
+    }
+   },
+   {
+    "id": "l31",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 31"
+    }
+   },
+   {
+    "id": "l32",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 32"
+    }
+   },
+   {
+    "id": "l33",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 33"
+    }
+   },
+   {
+    "id": "l34",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 34"
+    }
+   },
+   {
+    "id": "l35",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 35"
+    }
+   },
+   {
+    "id": "l36",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 36"
+    }
+   },
+   {
+    "id": "l37",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 37"
+    }
+   },
+   {
+    "id": "l38",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 38"
+    }
+   },
+   {
+    "id": "l39",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 39"
+    }
+   },
+   {
+    "id": "l40",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 40"
+    }
+   },
+   {
+    "id": "l41",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 41"
+    }
+   },
+   {
+    "id": "l42",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 42"
+    }
+   },
+   {
+    "id": "l43",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 43"
+    }
+   },
+   {
+    "id": "l44",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 44"
+    }
+   },
+   {
+    "id": "l45",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 45"
+    }
+   },
+   {
+    "id": "l46",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 46"
+    }
+   },
+   {
+    "id": "l47",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 47"
+    }
+   },
+   {
+    "id": "l48",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 48"
+    }
+   },
+   {
+    "id": "l49",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 49"
+    }
+   },
+   {
+    "id": "l50",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 50"
+    }
+   },
+   {
+    "id": "l51",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 51"
+    }
+   },
+   {
+    "id": "l52",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 52"
+    }
+   },
+   {
+    "id": "l53",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 53"
+    }
+   },
+   {
+    "id": "l54",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 54"
+    }
+   },
+   {
+    "id": "l55",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 55"
+    }
+   },
+   {
+    "id": "l56",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 56"
+    }
+   },
+   {
+    "id": "l57",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 57"
+    }
+   },
+   {
+    "id": "l58",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 58"
+    }
+   },
+   {
+    "id": "l59",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 59"
+    }
+   },
+   {
+    "id": "l60",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 60"
+    }
+   },
+   {
+    "id": "l61",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 61"
+    }
+   },
+   {
+    "id": "l62",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 62"
+    }
+   },
+   {
+    "id": "l63",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 63"
+    }
+   },
+   {
+    "id": "l64",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 64"
+    }
+   },
+   {
+    "id": "l65",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 65"
+    }
+   },
+   {
+    "id": "l66",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 66"
+    }
+   },
+   {
+    "id": "l67",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 67"
+    }
+   },
+   {
+    "id": "l68",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 68"
+    }
+   },
+   {
+    "id": "l69",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 69"
+    }
+   },
+   {
+    "id": "l70",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 70"
+    }
+   },
+   {
+    "id": "l71",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 71"
+    }
+   },
+   {
+    "id": "l72",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 72"
+    }
+   },
+   {
+    "id": "l73",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 73"
+    }
+   },
+   {
+    "id": "l74",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 74"
+    }
+   },
+   {
+    "id": "l75",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 75"
+    }
+   },
+   {
+    "id": "l76",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 76"
+    }
+   },
+   {
+    "id": "l77",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 77"
+    }
+   },
+   {
+    "id": "l78",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 78"
+    }
+   },
+   {
+    "id": "l79",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 79"
+    }
+   },
+   {
+    "id": "l80",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 80"
+    }
+   },
+   {
+    "id": "l81",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 81"
+    }
+   },
+   {
+    "id": "l82",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 82"
+    }
+   },
+   {
+    "id": "l83",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 83"
+    }
+   },
+   {
+    "id": "l84",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 84"
+    }
+   },
+   {
+    "id": "l85",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 85"
+    }
+   },
+   {
+    "id": "l86",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 86"
+    }
+   },
+   {
+    "id": "l87",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 87"
+    }
+   },
+   {
+    "id": "l88",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 88"
+    }
+   },
+   {
+    "id": "l89",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 89"
+    }
+   },
+   {
+    "id": "l90",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 90"
+    }
+   },
+   {
+    "id": "l91",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 91"
+    }
+   },
+   {
+    "id": "l92",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 92"
+    }
+   },
+   {
+    "id": "l93",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 93"
+    }
+   },
+   {
+    "id": "l94",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 94"
+    }
+   },
+   {
+    "id": "l95",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 95"
+    }
+   },
+   {
+    "id": "l96",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 96"
+    }
+   },
+   {
+    "id": "l97",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 97"
+    }
+   },
+   {
+    "id": "l98",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 98"
+    }
+   },
+   {
+    "id": "l99",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 99"
+    }
+   },
+   {
+    "id": "l100",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 100"
+    }
+   },
+   {
+    "id": "l101",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 101"
+    }
+   },
+   {
+    "id": "l102",
+    "type": "log",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "message": "step 102"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-start-l1-x",
+    "source": "start",
+    "target": "l1"
+   },
+   {
+    "id": "e-l1-l2-x",
+    "source": "l1",
+    "target": "l2"
+   },
+   {
+    "id": "e-l2-l3-x",
+    "source": "l2",
+    "target": "l3"
+   },
+   {
+    "id": "e-l3-l4-x",
+    "source": "l3",
+    "target": "l4"
+   },
+   {
+    "id": "e-l4-l5-x",
+    "source": "l4",
+    "target": "l5"
+   },
+   {
+    "id": "e-l5-l6-x",
+    "source": "l5",
+    "target": "l6"
+   },
+   {
+    "id": "e-l6-l7-x",
+    "source": "l6",
+    "target": "l7"
+   },
+   {
+    "id": "e-l7-l8-x",
+    "source": "l7",
+    "target": "l8"
+   },
+   {
+    "id": "e-l8-l9-x",
+    "source": "l8",
+    "target": "l9"
+   },
+   {
+    "id": "e-l9-l10-x",
+    "source": "l9",
+    "target": "l10"
+   },
+   {
+    "id": "e-l10-l11-x",
+    "source": "l10",
+    "target": "l11"
+   },
+   {
+    "id": "e-l11-l12-x",
+    "source": "l11",
+    "target": "l12"
+   },
+   {
+    "id": "e-l12-l13-x",
+    "source": "l12",
+    "target": "l13"
+   },
+   {
+    "id": "e-l13-l14-x",
+    "source": "l13",
+    "target": "l14"
+   },
+   {
+    "id": "e-l14-l15-x",
+    "source": "l14",
+    "target": "l15"
+   },
+   {
+    "id": "e-l15-l16-x",
+    "source": "l15",
+    "target": "l16"
+   },
+   {
+    "id": "e-l16-l17-x",
+    "source": "l16",
+    "target": "l17"
+   },
+   {
+    "id": "e-l17-l18-x",
+    "source": "l17",
+    "target": "l18"
+   },
+   {
+    "id": "e-l18-l19-x",
+    "source": "l18",
+    "target": "l19"
+   },
+   {
+    "id": "e-l19-l20-x",
+    "source": "l19",
+    "target": "l20"
+   },
+   {
+    "id": "e-l20-l21-x",
+    "source": "l20",
+    "target": "l21"
+   },
+   {
+    "id": "e-l21-l22-x",
+    "source": "l21",
+    "target": "l22"
+   },
+   {
+    "id": "e-l22-l23-x",
+    "source": "l22",
+    "target": "l23"
+   },
+   {
+    "id": "e-l23-l24-x",
+    "source": "l23",
+    "target": "l24"
+   },
+   {
+    "id": "e-l24-l25-x",
+    "source": "l24",
+    "target": "l25"
+   },
+   {
+    "id": "e-l25-l26-x",
+    "source": "l25",
+    "target": "l26"
+   },
+   {
+    "id": "e-l26-l27-x",
+    "source": "l26",
+    "target": "l27"
+   },
+   {
+    "id": "e-l27-l28-x",
+    "source": "l27",
+    "target": "l28"
+   },
+   {
+    "id": "e-l28-l29-x",
+    "source": "l28",
+    "target": "l29"
+   },
+   {
+    "id": "e-l29-l30-x",
+    "source": "l29",
+    "target": "l30"
+   },
+   {
+    "id": "e-l30-l31-x",
+    "source": "l30",
+    "target": "l31"
+   },
+   {
+    "id": "e-l31-l32-x",
+    "source": "l31",
+    "target": "l32"
+   },
+   {
+    "id": "e-l32-l33-x",
+    "source": "l32",
+    "target": "l33"
+   },
+   {
+    "id": "e-l33-l34-x",
+    "source": "l33",
+    "target": "l34"
+   },
+   {
+    "id": "e-l34-l35-x",
+    "source": "l34",
+    "target": "l35"
+   },
+   {
+    "id": "e-l35-l36-x",
+    "source": "l35",
+    "target": "l36"
+   },
+   {
+    "id": "e-l36-l37-x",
+    "source": "l36",
+    "target": "l37"
+   },
+   {
+    "id": "e-l37-l38-x",
+    "source": "l37",
+    "target": "l38"
+   },
+   {
+    "id": "e-l38-l39-x",
+    "source": "l38",
+    "target": "l39"
+   },
+   {
+    "id": "e-l39-l40-x",
+    "source": "l39",
+    "target": "l40"
+   },
+   {
+    "id": "e-l40-l41-x",
+    "source": "l40",
+    "target": "l41"
+   },
+   {
+    "id": "e-l41-l42-x",
+    "source": "l41",
+    "target": "l42"
+   },
+   {
+    "id": "e-l42-l43-x",
+    "source": "l42",
+    "target": "l43"
+   },
+   {
+    "id": "e-l43-l44-x",
+    "source": "l43",
+    "target": "l44"
+   },
+   {
+    "id": "e-l44-l45-x",
+    "source": "l44",
+    "target": "l45"
+   },
+   {
+    "id": "e-l45-l46-x",
+    "source": "l45",
+    "target": "l46"
+   },
+   {
+    "id": "e-l46-l47-x",
+    "source": "l46",
+    "target": "l47"
+   },
+   {
+    "id": "e-l47-l48-x",
+    "source": "l47",
+    "target": "l48"
+   },
+   {
+    "id": "e-l48-l49-x",
+    "source": "l48",
+    "target": "l49"
+   },
+   {
+    "id": "e-l49-l50-x",
+    "source": "l49",
+    "target": "l50"
+   },
+   {
+    "id": "e-l50-l51-x",
+    "source": "l50",
+    "target": "l51"
+   },
+   {
+    "id": "e-l51-l52-x",
+    "source": "l51",
+    "target": "l52"
+   },
+   {
+    "id": "e-l52-l53-x",
+    "source": "l52",
+    "target": "l53"
+   },
+   {
+    "id": "e-l53-l54-x",
+    "source": "l53",
+    "target": "l54"
+   },
+   {
+    "id": "e-l54-l55-x",
+    "source": "l54",
+    "target": "l55"
+   },
+   {
+    "id": "e-l55-l56-x",
+    "source": "l55",
+    "target": "l56"
+   },
+   {
+    "id": "e-l56-l57-x",
+    "source": "l56",
+    "target": "l57"
+   },
+   {
+    "id": "e-l57-l58-x",
+    "source": "l57",
+    "target": "l58"
+   },
+   {
+    "id": "e-l58-l59-x",
+    "source": "l58",
+    "target": "l59"
+   },
+   {
+    "id": "e-l59-l60-x",
+    "source": "l59",
+    "target": "l60"
+   },
+   {
+    "id": "e-l60-l61-x",
+    "source": "l60",
+    "target": "l61"
+   },
+   {
+    "id": "e-l61-l62-x",
+    "source": "l61",
+    "target": "l62"
+   },
+   {
+    "id": "e-l62-l63-x",
+    "source": "l62",
+    "target": "l63"
+   },
+   {
+    "id": "e-l63-l64-x",
+    "source": "l63",
+    "target": "l64"
+   },
+   {
+    "id": "e-l64-l65-x",
+    "source": "l64",
+    "target": "l65"
+   },
+   {
+    "id": "e-l65-l66-x",
+    "source": "l65",
+    "target": "l66"
+   },
+   {
+    "id": "e-l66-l67-x",
+    "source": "l66",
+    "target": "l67"
+   },
+   {
+    "id": "e-l67-l68-x",
+    "source": "l67",
+    "target": "l68"
+   },
+   {
+    "id": "e-l68-l69-x",
+    "source": "l68",
+    "target": "l69"
+   },
+   {
+    "id": "e-l69-l70-x",
+    "source": "l69",
+    "target": "l70"
+   },
+   {
+    "id": "e-l70-l71-x",
+    "source": "l70",
+    "target": "l71"
+   },
+   {
+    "id": "e-l71-l72-x",
+    "source": "l71",
+    "target": "l72"
+   },
+   {
+    "id": "e-l72-l73-x",
+    "source": "l72",
+    "target": "l73"
+   },
+   {
+    "id": "e-l73-l74-x",
+    "source": "l73",
+    "target": "l74"
+   },
+   {
+    "id": "e-l74-l75-x",
+    "source": "l74",
+    "target": "l75"
+   },
+   {
+    "id": "e-l75-l76-x",
+    "source": "l75",
+    "target": "l76"
+   },
+   {
+    "id": "e-l76-l77-x",
+    "source": "l76",
+    "target": "l77"
+   },
+   {
+    "id": "e-l77-l78-x",
+    "source": "l77",
+    "target": "l78"
+   },
+   {
+    "id": "e-l78-l79-x",
+    "source": "l78",
+    "target": "l79"
+   },
+   {
+    "id": "e-l79-l80-x",
+    "source": "l79",
+    "target": "l80"
+   },
+   {
+    "id": "e-l80-l81-x",
+    "source": "l80",
+    "target": "l81"
+   },
+   {
+    "id": "e-l81-l82-x",
+    "source": "l81",
+    "target": "l82"
+   },
+   {
+    "id": "e-l82-l83-x",
+    "source": "l82",
+    "target": "l83"
+   },
+   {
+    "id": "e-l83-l84-x",
+    "source": "l83",
+    "target": "l84"
+   },
+   {
+    "id": "e-l84-l85-x",
+    "source": "l84",
+    "target": "l85"
+   },
+   {
+    "id": "e-l85-l86-x",
+    "source": "l85",
+    "target": "l86"
+   },
+   {
+    "id": "e-l86-l87-x",
+    "source": "l86",
+    "target": "l87"
+   },
+   {
+    "id": "e-l87-l88-x",
+    "source": "l87",
+    "target": "l88"
+   },
+   {
+    "id": "e-l88-l89-x",
+    "source": "l88",
+    "target": "l89"
+   },
+   {
+    "id": "e-l89-l90-x",
+    "source": "l89",
+    "target": "l90"
+   },
+   {
+    "id": "e-l90-l91-x",
+    "source": "l90",
+    "target": "l91"
+   },
+   {
+    "id": "e-l91-l92-x",
+    "source": "l91",
+    "target": "l92"
+   },
+   {
+    "id": "e-l92-l93-x",
+    "source": "l92",
+    "target": "l93"
+   },
+   {
+    "id": "e-l93-l94-x",
+    "source": "l93",
+    "target": "l94"
+   },
+   {
+    "id": "e-l94-l95-x",
+    "source": "l94",
+    "target": "l95"
+   },
+   {
+    "id": "e-l95-l96-x",
+    "source": "l95",
+    "target": "l96"
+   },
+   {
+    "id": "e-l96-l97-x",
+    "source": "l96",
+    "target": "l97"
+   },
+   {
+    "id": "e-l97-l98-x",
+    "source": "l97",
+    "target": "l98"
+   },
+   {
+    "id": "e-l98-l99-x",
+    "source": "l98",
+    "target": "l99"
+   },
+   {
+    "id": "e-l99-l100-x",
+    "source": "l99",
+    "target": "l100"
+   },
+   {
+    "id": "e-l100-l101-x",
+    "source": "l100",
+    "target": "l101"
+   },
+   {
+    "id": "e-l101-l102-x",
+    "source": "l101",
+    "target": "l102"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "result": {
+   "status": "error",
+   "message": "Maximum node depth (100) exceeded"
+  },
+  "record": {
+   "status": "failed",
+   "error": "Maximum node depth (100) exceeded"
+  },
+  "vars_out": {},
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Deep"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "info",
+    "[LOG] step 1"
+   ],
+   [
+    "info",
+    "[LOG] step 2"
+   ],
+   [
+    "info",
+    "[LOG] step 3"
+   ],
+   [
+    "info",
+    "[LOG] step 4"
+   ],
+   [
+    "info",
+    "[LOG] step 5"
+   ],
+   [
+    "info",
+    "[LOG] step 6"
+   ],
+   [
+    "info",
+    "[LOG] step 7"
+   ],
+   [
+    "info",
+    "[LOG] step 8"
+   ],
+   [
+    "info",
+    "[LOG] step 9"
+   ],
+   [
+    "info",
+    "[LOG] step 10"
+   ],
+   [
+    "info",
+    "[LOG] step 11"
+   ],
+   [
+    "info",
+    "[LOG] step 12"
+   ],
+   [
+    "info",
+    "[LOG] step 13"
+   ],
+   [
+    "info",
+    "[LOG] step 14"
+   ],
+   [
+    "info",
+    "[LOG] step 15"
+   ],
+   [
+    "info",
+    "[LOG] step 16"
+   ],
+   [
+    "info",
+    "[LOG] step 17"
+   ],
+   [
+    "info",
+    "[LOG] step 18"
+   ],
+   [
+    "info",
+    "[LOG] step 19"
+   ],
+   [
+    "info",
+    "[LOG] step 20"
+   ],
+   [
+    "info",
+    "[LOG] step 21"
+   ],
+   [
+    "info",
+    "[LOG] step 22"
+   ],
+   [
+    "info",
+    "[LOG] step 23"
+   ],
+   [
+    "info",
+    "[LOG] step 24"
+   ],
+   [
+    "info",
+    "[LOG] step 25"
+   ],
+   [
+    "info",
+    "[LOG] step 26"
+   ],
+   [
+    "info",
+    "[LOG] step 27"
+   ],
+   [
+    "info",
+    "[LOG] step 28"
+   ],
+   [
+    "info",
+    "[LOG] step 29"
+   ],
+   [
+    "info",
+    "[LOG] step 30"
+   ],
+   [
+    "info",
+    "[LOG] step 31"
+   ],
+   [
+    "info",
+    "[LOG] step 32"
+   ],
+   [
+    "info",
+    "[LOG] step 33"
+   ],
+   [
+    "info",
+    "[LOG] step 34"
+   ],
+   [
+    "info",
+    "[LOG] step 35"
+   ],
+   [
+    "info",
+    "[LOG] step 36"
+   ],
+   [
+    "info",
+    "[LOG] step 37"
+   ],
+   [
+    "info",
+    "[LOG] step 38"
+   ],
+   [
+    "info",
+    "[LOG] step 39"
+   ],
+   [
+    "info",
+    "[LOG] step 40"
+   ],
+   [
+    "info",
+    "[LOG] step 41"
+   ],
+   [
+    "info",
+    "[LOG] step 42"
+   ],
+   [
+    "info",
+    "[LOG] step 43"
+   ],
+   [
+    "info",
+    "[LOG] step 44"
+   ],
+   [
+    "info",
+    "[LOG] step 45"
+   ],
+   [
+    "info",
+    "[LOG] step 46"
+   ],
+   [
+    "info",
+    "[LOG] step 47"
+   ],
+   [
+    "info",
+    "[LOG] step 48"
+   ],
+   [
+    "info",
+    "[LOG] step 49"
+   ],
+   [
+    "info",
+    "[LOG] step 50"
+   ],
+   [
+    "info",
+    "[LOG] step 51"
+   ],
+   [
+    "info",
+    "[LOG] step 52"
+   ],
+   [
+    "info",
+    "[LOG] step 53"
+   ],
+   [
+    "info",
+    "[LOG] step 54"
+   ],
+   [
+    "info",
+    "[LOG] step 55"
+   ],
+   [
+    "info",
+    "[LOG] step 56"
+   ],
+   [
+    "info",
+    "[LOG] step 57"
+   ],
+   [
+    "info",
+    "[LOG] step 58"
+   ],
+   [
+    "info",
+    "[LOG] step 59"
+   ],
+   [
+    "info",
+    "[LOG] step 60"
+   ],
+   [
+    "info",
+    "[LOG] step 61"
+   ],
+   [
+    "info",
+    "[LOG] step 62"
+   ],
+   [
+    "info",
+    "[LOG] step 63"
+   ],
+   [
+    "info",
+    "[LOG] step 64"
+   ],
+   [
+    "info",
+    "[LOG] step 65"
+   ],
+   [
+    "info",
+    "[LOG] step 66"
+   ],
+   [
+    "info",
+    "[LOG] step 67"
+   ],
+   [
+    "info",
+    "[LOG] step 68"
+   ],
+   [
+    "info",
+    "[LOG] step 69"
+   ],
+   [
+    "info",
+    "[LOG] step 70"
+   ],
+   [
+    "info",
+    "[LOG] step 71"
+   ],
+   [
+    "info",
+    "[LOG] step 72"
+   ],
+   [
+    "info",
+    "[LOG] step 73"
+   ],
+   [
+    "info",
+    "[LOG] step 74"
+   ],
+   [
+    "info",
+    "[LOG] step 75"
+   ],
+   [
+    "info",
+    "[LOG] step 76"
+   ],
+   [
+    "info",
+    "[LOG] step 77"
+   ],
+   [
+    "info",
+    "[LOG] step 78"
+   ],
+   [
+    "info",
+    "[LOG] step 79"
+   ],
+   [
+    "info",
+    "[LOG] step 80"
+   ],
+   [
+    "info",
+    "[LOG] step 81"
+   ],
+   [
+    "info",
+    "[LOG] step 82"
+   ],
+   [
+    "info",
+    "[LOG] step 83"
+   ],
+   [
+    "info",
+    "[LOG] step 84"
+   ],
+   [
+    "info",
+    "[LOG] step 85"
+   ],
+   [
+    "info",
+    "[LOG] step 86"
+   ],
+   [
+    "info",
+    "[LOG] step 87"
+   ],
+   [
+    "info",
+    "[LOG] step 88"
+   ],
+   [
+    "info",
+    "[LOG] step 89"
+   ],
+   [
+    "info",
+    "[LOG] step 90"
+   ],
+   [
+    "info",
+    "[LOG] step 91"
+   ],
+   [
+    "info",
+    "[LOG] step 92"
+   ],
+   [
+    "info",
+    "[LOG] step 93"
+   ],
+   [
+    "info",
+    "[LOG] step 94"
+   ],
+   [
+    "info",
+    "[LOG] step 95"
+   ],
+   [
+    "info",
+    "[LOG] step 96"
+   ],
+   [
+    "info",
+    "[LOG] step 97"
+   ],
+   [
+    "info",
+    "[LOG] step 98"
+   ],
+   [
+    "info",
+    "[LOG] step 99"
+   ],
+   [
+    "info",
+    "[LOG] step 100"
+   ],
+   [
+    "error",
+    "Error: Maximum node depth (100) exceeded"
+   ]
+  ]
+ }
+}

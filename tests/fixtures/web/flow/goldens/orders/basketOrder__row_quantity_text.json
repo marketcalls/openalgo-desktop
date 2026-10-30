@@ -1,0 +1,101 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "orders",
+ "type": "basketOrder",
+ "scenario": "row_quantity_text",
+ "note": "",
+ "parity": [
+  "N-basketOrder-04"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "basketOrder",
+  "data": {
+   "basketName": "morning",
+   "orders": "SBIN,NSE,BUY,ten",
+   "outputVariable": "basket",
+   "price": 0,
+   "priceType": "MARKET",
+   "triggerPrice": 0
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "basketOrder",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "basketName": "morning",
+     "orders": "SBIN,NSE,BUY,ten",
+     "outputVariable": "basket",
+     "price": 0,
+     "priceType": "MARKET",
+     "triggerPrice": 0
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "message": "Basket order row 1: quantity must be numeric, got 'ten'"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "error",
+    "Basket order failed: Basket order row 1: quantity must be numeric, got 'ten'"
+   ],
+   [
+    "error",
+    "Stopping this branch: basketOrder node failed (Basket order row 1: quantity must be numeric, got 'ten')"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "basketOrder",
+     "message": "Basket order row 1: quantity must be numeric, got 'ten'"
+    }
+   ],
+   "abort": null
+  }
+ }
+}

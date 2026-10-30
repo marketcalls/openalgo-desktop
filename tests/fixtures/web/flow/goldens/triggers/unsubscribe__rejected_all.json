@@ -1,0 +1,111 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "triggers",
+ "type": "unsubscribe",
+ "scenario": "rejected_all",
+ "note": "",
+ "parity": [
+  "N-unsubscribe-06"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "unsubscribe",
+  "data": {
+   "streamType": "all"
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "unsubscribe",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "streamType": "all"
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {
+  "feed": {
+   "username": "trader",
+   "broker": "fakebroker",
+   "unsubscribe_error": ""
+  }
+ },
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "outputs": {
+   "status": "error",
+   "type": "unsubscribe",
+   "message": "unsubscribe was rejected"
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Unsubscribing from all stream: all (NSE)"
+   ],
+   [
+    "info",
+    "Unsubscribed from all streams"
+   ],
+   [
+    "error",
+    "Unsubscribe failed: unsubscribe was rejected"
+   ],
+   [
+    "error",
+    "Stopping this branch: unsubscribe node failed (unsubscribe was rejected)"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "unsubscribe",
+     "message": "unsubscribe was rejected"
+    }
+   ],
+   "abort": null
+  },
+  "feed": [
+   {
+    "op": "unsubscribe_all"
+   }
+  ]
+ }
+}

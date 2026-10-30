@@ -1,0 +1,125 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "node",
+ "family": "data",
+ "type": "multiQuotes",
+ "scenario": "empty",
+ "note": "",
+ "parity": [
+  "N-multiQuotes-01"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "node": {
+  "type": "multiQuotes",
+  "data": {
+   "symbols": ""
+  }
+ },
+ "workflow_name": "Golden Flow",
+ "vars_in": {},
+ "conditions_in": {},
+ "graph": {
+  "nodes": [
+   {
+    "id": "n1",
+    "type": "multiQuotes",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "symbols": ""
+    }
+   },
+   {
+    "id": "probe-next",
+    "type": "goldenProbe",
+    "position": {
+     "x": 0,
+     "y": 100
+    },
+    "data": {
+     "probe": "next"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-next",
+    "source": "n1",
+    "target": "probe-next"
+   }
+  ]
+ },
+ "start": "n1",
+ "env": {},
+ "script": [
+  {
+   "endpoint": "multiquotes",
+   "reply": {
+    "status": "error",
+    "error": {
+     "symbols": [
+      "Shorter than minimum length 1."
+     ]
+    },
+    "code": 400
+   }
+  }
+ ],
+ "alert_reply": null,
+ "expected": {
+  "calls": [
+   {
+    "method": "get_multi_quotes",
+    "endpoint": "multiquotes",
+    "payload": {
+     "symbols": []
+    }
+   }
+  ],
+  "outputs": {
+   "status": "error",
+   "error": {
+    "symbols": [
+     "Shorter than minimum length 1."
+    ]
+   },
+   "code": 400
+  },
+  "outputs_by": "node",
+  "vars_out": {},
+  "conditions_out": {},
+  "logs": [
+   [
+    "info",
+    "Getting quotes for 0 symbols"
+   ],
+   [
+    "info",
+    "Multi quotes result: {'status': 'error', 'error': {'symbols': ['Shorter than minimum length 1.']}, 'code': 400}"
+   ],
+   [
+    "error",
+    "Stopping this branch: multiQuotes node failed ({'symbols': ['Shorter than minimum length 1.']})"
+   ]
+  ],
+  "next": [],
+  "error": {
+   "errors": [
+    {
+     "node": "n1",
+     "type": "multiQuotes",
+     "message": {
+      "symbols": [
+       "Shorter than minimum length 1."
+      ]
+     }
+    }
+   ],
+   "abort": null
+  }
+ }
+}

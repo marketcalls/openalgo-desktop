@@ -1,0 +1,433 @@
+{
+ "format": 1,
+ "web_commit": "96e5927e5",
+ "kind": "workflow",
+ "family": "core",
+ "type": "workflow",
+ "scenario": "max_visits",
+ "note": "",
+ "parity": [
+  "E-01",
+  "E-38"
+ ],
+ "clock": "2026-10-29T10:15:00",
+ "analyzer": false,
+ "workflow": {
+  "name": "Wide",
+  "nodes": [
+   {
+    "id": "start",
+    "type": "start",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "scheduleType": "daily",
+     "time": "09:15"
+    }
+   },
+   {
+    "id": "a1",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "a1"
+    }
+   },
+   {
+    "id": "b1",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "b1"
+    }
+   },
+   {
+    "id": "a2",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "a2"
+    }
+   },
+   {
+    "id": "b2",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "b2"
+    }
+   },
+   {
+    "id": "a3",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "a3"
+    }
+   },
+   {
+    "id": "b3",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "b3"
+    }
+   },
+   {
+    "id": "a4",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "a4"
+    }
+   },
+   {
+    "id": "b4",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "b4"
+    }
+   },
+   {
+    "id": "a5",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "a5"
+    }
+   },
+   {
+    "id": "b5",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "b5"
+    }
+   },
+   {
+    "id": "a6",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "a6"
+    }
+   },
+   {
+    "id": "b6",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "b6"
+    }
+   },
+   {
+    "id": "a7",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "a7"
+    }
+   },
+   {
+    "id": "b7",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "b7"
+    }
+   },
+   {
+    "id": "a8",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "a8"
+    }
+   },
+   {
+    "id": "b8",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "b8"
+    }
+   },
+   {
+    "id": "a9",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "a9"
+    }
+   },
+   {
+    "id": "b9",
+    "type": "group",
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "data": {
+     "label": "b9"
+    }
+   }
+  ],
+  "edges": [
+   {
+    "id": "e-start-a1",
+    "source": "start",
+    "target": "a1"
+   },
+   {
+    "id": "e-start-b1",
+    "source": "start",
+    "target": "b1"
+   },
+   {
+    "id": "e-a1-a2",
+    "source": "a1",
+    "target": "a2"
+   },
+   {
+    "id": "e-a1-b2",
+    "source": "a1",
+    "target": "b2"
+   },
+   {
+    "id": "e-b1-a2",
+    "source": "b1",
+    "target": "a2"
+   },
+   {
+    "id": "e-b1-b2",
+    "source": "b1",
+    "target": "b2"
+   },
+   {
+    "id": "e-a2-a3",
+    "source": "a2",
+    "target": "a3"
+   },
+   {
+    "id": "e-a2-b3",
+    "source": "a2",
+    "target": "b3"
+   },
+   {
+    "id": "e-b2-a3",
+    "source": "b2",
+    "target": "a3"
+   },
+   {
+    "id": "e-b2-b3",
+    "source": "b2",
+    "target": "b3"
+   },
+   {
+    "id": "e-a3-a4",
+    "source": "a3",
+    "target": "a4"
+   },
+   {
+    "id": "e-a3-b4",
+    "source": "a3",
+    "target": "b4"
+   },
+   {
+    "id": "e-b3-a4",
+    "source": "b3",
+    "target": "a4"
+   },
+   {
+    "id": "e-b3-b4",
+    "source": "b3",
+    "target": "b4"
+   },
+   {
+    "id": "e-a4-a5",
+    "source": "a4",
+    "target": "a5"
+   },
+   {
+    "id": "e-a4-b5",
+    "source": "a4",
+    "target": "b5"
+   },
+   {
+    "id": "e-b4-a5",
+    "source": "b4",
+    "target": "a5"
+   },
+   {
+    "id": "e-b4-b5",
+    "source": "b4",
+    "target": "b5"
+   },
+   {
+    "id": "e-a5-a6",
+    "source": "a5",
+    "target": "a6"
+   },
+   {
+    "id": "e-a5-b6",
+    "source": "a5",
+    "target": "b6"
+   },
+   {
+    "id": "e-b5-a6",
+    "source": "b5",
+    "target": "a6"
+   },
+   {
+    "id": "e-b5-b6",
+    "source": "b5",
+    "target": "b6"
+   },
+   {
+    "id": "e-a6-a7",
+    "source": "a6",
+    "target": "a7"
+   },
+   {
+    "id": "e-a6-b7",
+    "source": "a6",
+    "target": "b7"
+   },
+   {
+    "id": "e-b6-a7",
+    "source": "b6",
+    "target": "a7"
+   },
+   {
+    "id": "e-b6-b7",
+    "source": "b6",
+    "target": "b7"
+   },
+   {
+    "id": "e-a7-a8",
+    "source": "a7",
+    "target": "a8"
+   },
+   {
+    "id": "e-a7-b8",
+    "source": "a7",
+    "target": "b8"
+   },
+   {
+    "id": "e-b7-a8",
+    "source": "b7",
+    "target": "a8"
+   },
+   {
+    "id": "e-b7-b8",
+    "source": "b7",
+    "target": "b8"
+   },
+   {
+    "id": "e-a8-a9",
+    "source": "a8",
+    "target": "a9"
+   },
+   {
+    "id": "e-a8-b9",
+    "source": "a8",
+    "target": "b9"
+   },
+   {
+    "id": "e-b8-a9",
+    "source": "b8",
+    "target": "a9"
+   },
+   {
+    "id": "e-b8-b9",
+    "source": "b8",
+    "target": "b9"
+   }
+  ]
+ },
+ "webhook": null,
+ "api_key": true,
+ "env": {},
+ "script": [],
+ "alert_reply": null,
+ "expected": {
+  "calls": [],
+  "result": {
+   "status": "error",
+   "message": "Maximum node visits (500) exceeded"
+  },
+  "record": {
+   "status": "failed",
+   "error": "Maximum node visits (500) exceeded"
+  },
+  "vars_out": {},
+  "logs": [
+   [
+    "info",
+    "Starting workflow: Wide"
+   ],
+   [
+    "info",
+    "Workflow started"
+   ],
+   [
+    "error",
+    "Error: Maximum node visits (500) exceeded"
+   ]
+  ]
+ }
+}
