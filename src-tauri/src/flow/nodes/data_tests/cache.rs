@@ -93,10 +93,12 @@ async fn concurrent_misses_share_one_call_and_its_failure() {
     ));
     let client = Gated::new(json!({"status": "error", "error": "Too many requests", "code": 429}));
     let (c1, k1) = (cache.clone(), client.clone());
-    let first = tokio::spawn(async move { c1.fetch(k1.as_ref(), "anon", &req("SBIN")).await });
+    let first =
+        tokio::spawn(async move { c1.fetch(k1.as_ref(), "anon", &req("SBIN"), None).await });
     client.entered.notified().await;
     let (c2, k2) = (cache.clone(), client.clone());
-    let second = tokio::spawn(async move { c2.fetch(k2.as_ref(), "anon", &req("SBIN")).await });
+    let second =
+        tokio::spawn(async move { c2.fetch(k2.as_ref(), "anon", &req("SBIN"), None).await });
     for _ in 0..8 {
         tokio::task::yield_now().await;
     }
@@ -116,26 +118,26 @@ async fn answers_expire_are_bounded_and_belong_to_one_account() {
     let cache = HistoryCache::new(HISTORY_CACHE_TTL, 2, HISTORY_FLIGHT_TIMEOUT);
     let client = FakeFlowClient::new();
     client.reply("history", rows());
-    cache.fetch(&client, "anon", &req("SBIN")).await;
-    cache.fetch(&client, "anon", &req("SBIN")).await;
+    cache.fetch(&client, "anon", &req("SBIN"), None).await;
+    cache.fetch(&client, "anon", &req("SBIN"), None).await;
     assert_eq!(client.calls().len(), 1);
-    cache.fetch(&client, "other", &req("SBIN")).await;
+    cache.fetch(&client, "other", &req("SBIN"), None).await;
     assert_eq!(client.calls().len(), 2, "keyed by account");
     tokio::time::advance(Duration::from_secs(31)).await;
-    cache.fetch(&client, "anon", &req("SBIN")).await;
+    cache.fetch(&client, "anon", &req("SBIN"), None).await;
     assert_eq!(client.calls().len(), 3, "expired after 30 s");
-    cache.fetch(&client, "anon", &req("INFY")).await;
-    cache.fetch(&client, "anon", &req("TCS")).await;
+    cache.fetch(&client, "anon", &req("INFY"), None).await;
+    cache.fetch(&client, "anon", &req("TCS"), None).await;
     assert!(cache.held() <= 2, "bounded");
     let empty = FakeFlowClient::new();
     empty.reply("history", json!({"status": "success", "data": []}));
     cache.clear();
-    cache.fetch(&empty, "anon", &req("SBIN")).await;
-    cache.fetch(&empty, "anon", &req("SBIN")).await;
+    cache.fetch(&empty, "anon", &req("SBIN"), None).await;
+    cache.fetch(&empty, "anon", &req("SBIN"), None).await;
     assert_eq!(empty.calls().len(), 2, "an empty range stays retryable");
     let off = HistoryCache::new(Duration::ZERO, 2, HISTORY_FLIGHT_TIMEOUT);
-    off.fetch(&client, "anon", &req("SBIN")).await;
-    off.fetch(&client, "anon", &req("SBIN")).await;
+    off.fetch(&client, "anon", &req("SBIN"), None).await;
+    off.fetch(&client, "anon", &req("SBIN"), None).await;
     assert_eq!(client.calls().len(), 7, "a zero TTL disables the cache");
 }
 
@@ -149,11 +151,12 @@ async fn a_waiter_fetches_itself_when_the_leader_is_stuck() {
     ));
     let stuck = Gated::new(rows());
     let (c1, k1) = (cache.clone(), stuck.clone());
-    let leader = tokio::spawn(async move { c1.fetch(k1.as_ref(), "anon", &req("SBIN")).await });
+    let leader =
+        tokio::spawn(async move { c1.fetch(k1.as_ref(), "anon", &req("SBIN"), None).await });
     stuck.entered.notified().await;
     let quick = FakeFlowClient::new();
     quick.reply("history", rows());
-    let got = cache.fetch(&quick, "anon", &req("SBIN")).await;
+    let got = cache.fetch(&quick, "anon", &req("SBIN"), None).await;
     assert_eq!(got, rows());
     assert_eq!(quick.calls().len(), 1);
     leader.abort();
@@ -214,4 +217,31 @@ async fn one_d_is_sent_as_d() {
     assert!(logs(&c)
         .iter()
         .any(|(_, m)| m == "Getting history for: SBIN (1d)"));
+}
+
+/// Runs without the app (tests, golden replays) never read each other's
+/// answers: each is its own client's, as the web's recorder clears the
+/// cache per scenario. A run with the app shares by broker account.
+#[tokio::test(start_paused = true)]
+async fn runs_without_the_app_keep_their_own_answers() {
+    shared_cache().clear();
+    let ind = json!({"symbol": "SBIN", "indicatorName": "sma", "params": "{\"period\": 2}", "lookbackBars": 5});
+    for close in [10.0, 20.0] {
+        let client = Arc::new(FakeFlowClient::new());
+        let bars: Vec<Value> = (0..10)
+            .map(|i| json!({"timestamp": 1_788_000_000 + i * 86_400, "close": close}))
+            .collect();
+        client.reply("history", json!({"status": "success", "data": bars}));
+        let c = ctx(client.clone());
+        let out = run(&c, "indicator", ind.clone()).await;
+        assert_eq!(
+            client.calls_to("history").len(),
+            1,
+            "a new run fetches its own"
+        );
+        assert_eq!(
+            out.value().map(|v| v["latest"]["value"].clone()),
+            Some(json!(close))
+        );
+    }
 }

@@ -112,7 +112,10 @@ async fn analyzer_funds_are_the_sandboxs() {
         .and_then(|v| v["data"]["availablecash"].as_f64())
         .unwrap_or_default();
     assert_eq!(cash, 10_000_000.0, "{:?}", out);
-    assert_eq!(out.value().map(|v| v["mode"].clone()), Some(json!("analyze")));
+    assert_eq!(
+        out.value().map(|v| v["mode"].clone()),
+        Some(json!("analyze"))
+    );
 }
 
 /// Quotes, depth and margin have no analyzer branch: live data in both

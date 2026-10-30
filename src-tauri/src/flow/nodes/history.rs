@@ -63,9 +63,18 @@ pub struct HistoryCache {
     inner: Mutex<Inner>,
 }
 
+/// A kept answer: when, what, and the run's client when the key names it.
+struct Entry {
+    at: Instant,
+    value: Value,
+    /// Held for a key that names a client by its address, so that address
+    /// cannot be reused by another client while the answer is kept.
+    _pin: Option<Arc<dyn FlowClient>>,
+}
+
 #[derive(Default)]
 struct Inner {
-    entries: HashMap<Key, (Instant, Value)>,
+    entries: HashMap<Key, Entry>,
     /// The calls in flight; each publishes its answer once.
     flights: HashMap<Key, watch::Receiver<Option<Value>>>,
 }
@@ -112,8 +121,14 @@ impl HistoryCache {
     }
 
     /// `fetch_history_cached`: `req` through the cache for the account
-    /// `tag`.
-    pub async fn fetch(&self, client: &dyn FlowClient, tag: &str, req: &History) -> Value {
+    /// `tag`; `pin` is kept with the answer (see [`account_tag`]).
+    pub async fn fetch(
+        &self,
+        client: &dyn FlowClient,
+        tag: &str,
+        req: &History,
+        pin: Option<Arc<dyn FlowClient>>,
+    ) -> Value {
         if self.ttl.is_zero() {
             return client.get_history(req).await;
         }
@@ -150,14 +165,14 @@ impl HistoryCache {
                     req.symbol,
                     req.interval
                 );
-                self.fetch_and_keep(client, &key, req).await
+                self.fetch_and_keep(client, &key, req, pin.clone()).await
             }
             Lookup::Lead(tx) => {
                 let _retire = FlightGuard {
                     cache: self,
                     key: &key,
                 };
-                let v = self.fetch_and_keep(client, &key, req).await;
+                let v = self.fetch_and_keep(client, &key, req, pin.clone()).await;
                 let _ = tx.send(Some(v.clone()));
                 v
             }
@@ -166,9 +181,9 @@ impl HistoryCache {
 
     fn lookup(&self, key: &Key) -> Lookup {
         let mut inner = self.inner.lock();
-        if let Some((at, v)) = inner.entries.get(key) {
-            if at.elapsed() < self.ttl {
-                return Lookup::Hit(v.clone());
+        if let Some(e) = inner.entries.get(key) {
+            if e.at.elapsed() < self.ttl {
+                return Lookup::Hit(e.value.clone());
             }
             inner.entries.remove(key);
         }
@@ -182,26 +197,37 @@ impl HistoryCache {
 
     /// One call; a successful answer with rows is kept (an error or an
     /// empty range stays retryable).
-    async fn fetch_and_keep(&self, client: &dyn FlowClient, key: &Key, req: &History) -> Value {
+    async fn fetch_and_keep(
+        &self,
+        client: &dyn FlowClient,
+        key: &Key,
+        req: &History,
+        pin: Option<Arc<dyn FlowClient>>,
+    ) -> Value {
         let v = client.get_history(req).await;
         if v.get("data").is_some_and(pyfmt::truthy) {
             let mut inner = self.inner.lock();
             let ttl = self.ttl;
-            inner.entries.retain(|_, (at, _)| at.elapsed() < ttl);
+            inner.entries.retain(|_, e| e.at.elapsed() < ttl);
             while inner.entries.len() >= self.max {
                 let oldest = inner
                     .entries
                     .iter()
-                    .min_by_key(|(_, (at, _))| *at)
+                    .min_by_key(|(_, e)| e.at)
                     .map(|(k, _)| k.clone());
                 match oldest {
                     Some(k) => inner.entries.remove(&k),
                     None => break,
                 };
             }
-            inner
-                .entries
-                .insert(key.clone(), (Instant::now(), v.clone()));
+            inner.entries.insert(
+                key.clone(),
+                Entry {
+                    at: Instant::now(),
+                    value: v.clone(),
+                    _pin: pin,
+                },
+            );
         }
         v
     }
@@ -238,15 +264,23 @@ pub fn shared_cache() -> Arc<HistoryCache> {
 }
 
 /// Whose history a cached answer is (`_account_tag`): the connected broker
-/// account, never a secret, or `anon` without one. Two accounts on brokers
-/// whose bars differ never share an answer.
-fn account_tag(ctx: &NodeCtx) -> String {
+/// account, never a secret, so two accounts on brokers whose bars differ
+/// never share an answer, while back-to-back runs of one account do. A run
+/// without the app (a test, a golden replay) has no account: its answers
+/// are its client's own, named by the client's address, and the client is
+/// kept with them so the address is not reused while they live (the web's
+/// recorder clears the cache per scenario for the same reason).
+fn account_tag(ctx: &NodeCtx) -> (String, Option<Arc<dyn FlowClient>>) {
     match ctx.app().and_then(|a| a.get_broker_session()) {
         Some(s) => {
             let digest = Sha256::digest(format!("{}:{}", s.broker_id, s.user_id).as_bytes());
-            hex::encode(digest).chars().take(12).collect()
+            (hex::encode(digest).chars().take(12).collect(), None)
         }
-        None => "anon".into(),
+        None if ctx.app().is_some() => ("anon".into(), None),
+        None => (
+            format!("run:{:p}", Arc::as_ptr(&ctx.client)),
+            Some(ctx.client.clone()),
+        ),
     }
 }
 
@@ -268,8 +302,9 @@ pub(crate) async fn fetch_cached(
         end_date: Some(end),
         source: source.into(),
     };
+    let (tag, pin) = account_tag(ctx);
     shared_cache()
-        .fetch(ctx.client.as_ref(), &account_tag(ctx), &req)
+        .fetch(ctx.client.as_ref(), &tag, &req, pin)
         .await
 }
 
