@@ -29,6 +29,7 @@ const paused = createAgentMessage('assistant', '', {
         tool_name: 'cancel_all_orders',
         args: {},
         missing: [],
+        kind: 'confirmation',
       },
     ],
   },
