@@ -108,6 +108,9 @@ These behave differently from OpenAlgo web on purpose; each is tested.
 
 - The model list includes the newest ChatGPT plan, OpenAI and Anthropic
   models (LiteLLM 1.106.6 catalogue).
+- Approve and Reject on an approval card stay greyed out until the Agent's
+  reply has finished. A click a moment earlier did nothing and showed
+  nothing; OpenAlgo web has the same gap.
 
 ### Fixes
 

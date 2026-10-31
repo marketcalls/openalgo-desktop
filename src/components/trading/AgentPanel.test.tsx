@@ -201,7 +201,8 @@ describe('AgentPanel chart context', () => {
     await userEvent.type(box(), 'buy 1 share of RELIANCE{Enter}')
 
     expect(await screen.findByText('This turn is waiting for your approval.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled()
+    // Enabled once the turn has stopped running, a moment after the card.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled())
     expect(screen.getByRole('button', { name: 'Reject' })).toBeEnabled()
   })
 
@@ -230,8 +231,8 @@ describe('AgentPanel chart context', () => {
     expect(
       await screen.findByText(/details did not arrive \(exchange, symbol\)/)
     ).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Reject' })).toBeEnabled())
     expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Reject' })).toBeEnabled()
   })
 
   it('still approves a tool that takes no arguments at all', async () => {
@@ -260,7 +261,7 @@ describe('AgentPanel chart context', () => {
 
     expect(await screen.findByText('This turn is waiting for your approval.')).toBeInTheDocument()
     expect(screen.queryByText(/details did not arrive/)).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Approve' })).toBeEnabled())
   })
 
   it('sends no context when nothing is charted', async () => {

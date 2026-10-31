@@ -337,9 +337,11 @@ function Notices({ notices }: { notices: AgentMessage['notices'] }) {
 function PendingConfirm({
   pending,
   onConfirm,
+  busy,
 }: {
   pending: NonNullable<AgentMessage['pending']>
   onConfirm: (decisions: Record<string, boolean>) => void
+  busy: boolean
 }) {
   const decide = useCallback(
     (approved: boolean) => {
@@ -384,11 +386,21 @@ function PendingConfirm({
           and ask again.
         </p>
       )}
+      {/* Desktop: the card arrives on the stream's confirm frame, a moment
+          before the turn stops running, and `confirm` ignores a decision
+          while a turn runs. Both buttons wait for it, so a click is never
+          dropped with nothing to show for it. */}
       <div className="flex gap-2">
-        <Button type="button" size="sm" onClick={() => decide(true)} disabled={incomplete}>
+        <Button type="button" size="sm" onClick={() => decide(true)} disabled={incomplete || busy}>
           Approve
         </Button>
-        <Button type="button" size="sm" variant="outline" onClick={() => decide(false)}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => decide(false)}
+          disabled={busy}
+        >
           Reject
         </Button>
       </div>
@@ -511,7 +523,7 @@ export const Message = memo(function Message({
       {message.streaming && empty && <ThinkingIndicator />}
       <Notices notices={message.notices} />
       {message.pending && onConfirm && (
-        <PendingConfirm pending={message.pending} onConfirm={onConfirm} />
+        <PendingConfirm pending={message.pending} onConfirm={onConfirm} busy={busy} />
       )}
       {message.usage && <UsageBadge usage={message.usage} />}
       {/* Actions last, so they sit under the answer rather than over it. Not
