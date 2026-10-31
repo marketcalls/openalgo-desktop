@@ -112,3 +112,56 @@ pub fn env_with(book: FakeBook, calendar: FakeCalendar) -> NodeEnv {
         ..Default::default()
     }
 }
+
+/// The server log (`tracing`, INFO and above) written on this thread while
+/// it lives, read back as `(level, message)` lines. The web's server-log
+/// lines are part of parity (decision 35).
+pub struct ServerLog {
+    buf: Arc<parking_lot::Mutex<Vec<u8>>>,
+    _guard: tracing::subscriber::DefaultGuard,
+}
+
+#[derive(Clone)]
+struct LogWriter(Arc<parking_lot::Mutex<Vec<u8>>>);
+
+impl std::io::Write for LogWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl ServerLog {
+    pub fn capture() -> Self {
+        let buf = Arc::new(parking_lot::Mutex::new(Vec::new()));
+        let writer = LogWriter(buf.clone());
+        let sub = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::INFO)
+            .with_ansi(false)
+            .without_time()
+            .with_target(false)
+            .with_writer(move || writer.clone())
+            .finish();
+        Self {
+            buf,
+            _guard: tracing::subscriber::set_default(sub),
+        }
+    }
+
+    /// Every line so far as `(LEVEL, message)`.
+    pub fn lines(&self) -> Vec<(String, String)> {
+        let text = String::from_utf8(self.buf.lock().clone()).unwrap_or_default();
+        text.lines()
+            .filter_map(|l| l.trim_start().split_once(' '))
+            .map(|(level, message)| (level.to_string(), message.to_string()))
+            .collect()
+    }
+
+    /// Whether `message` was logged at `level` (`INFO`, `WARN`, `ERROR`).
+    pub fn has(&self, level: &str, message: &str) -> bool {
+        self.lines().iter().any(|(l, m)| l == level && m == message)
+    }
+}
