@@ -85,8 +85,9 @@ These behave differently from OpenAlgo web on purpose; each is tested.
 - A browser tab or login from before the daily 03:00 IST session end can no
   longer read your API key or keep receiving live updates, even in the
   seconds before the app signs it out (marketcalls/openalgo e2bdd061e).
-- follow-redirects, used by the app's web pages for HTTP calls, is updated
-  to 1.16.2 for a high-severity advisory (GHSA-mrwp-f3q8-3g9p).
+- follow-redirects is updated to 1.16.2 for a high-severity advisory
+  (GHSA-mrwp-f3q8-3g9p). The app's pages never used it: it is listed by a
+  library they use, for servers only.
 
 ### Agent
 
