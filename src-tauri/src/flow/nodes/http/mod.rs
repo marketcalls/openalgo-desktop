@@ -47,7 +47,15 @@ fn headers(ctx: &NodeCtx, raw: &Value) -> Result<Vec<(String, String)>, String> 
             if text.is_empty() {
                 Value::Object(Map::new())
             } else {
-                pyjson::loads(text).map_err(|e| format!("headers is not valid JSON: {}", e))?
+                let v =
+                    pyjson::loads(text).map_err(|e| format!("headers is not valid JSON: {}", e))?;
+                // NaN and Infinity decode as Python floats, which the run
+                // keeps as their text: named here as the web names them
+                // (decisions.md 36).
+                if v.is_string() && !text.starts_with('"') {
+                    return Err("headers must be a JSON object, got float".into());
+                }
+                v
             }
         }
         other => other.clone(),

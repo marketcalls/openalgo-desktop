@@ -323,3 +323,18 @@ fn a_float_power_overflow_reads_the_webs_linux_text() {
         Ok(f64::NEG_INFINITY)
     );
 }
+
+/// N-mathExpression-01: an explicit outputVariable is the name as written:
+/// '' stores under the empty name, a spaced name is not stripped.
+#[tokio::test]
+async fn the_output_name_is_kept_as_written() {
+    let (_, c) = ctx();
+    let d = json!({"expression": "1 + 2", "outputVariable": ""});
+    run(&MathExpression, &c, d).await;
+    assert_eq!(c.vars.get(""), Some(json!(3.0)));
+    assert!(!c.vars.contains("result"));
+    let d = json!({"expression": "2 * 2", "outputVariable": " total "});
+    run(&MathExpression, &c, d).await;
+    assert_eq!(c.vars.get(" total "), Some(json!(4.0)));
+    assert!(!c.vars.contains("total"));
+}

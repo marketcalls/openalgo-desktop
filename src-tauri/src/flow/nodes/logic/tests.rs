@@ -348,3 +348,154 @@ async fn deep_inputs() {
         .failure_message()
         .starts_with("Invalid expression syntax: "));
 }
+
+/// N-logic-01: a failed result holding both keys reports its `message`
+/// (the walk's `message or error or "node failed"`).
+#[test]
+fn a_failure_reads_message_before_error() {
+    let both = NodeOutcome::result(json!({"status": "error", "message": "m", "error": "e"}));
+    assert_eq!(both.failure_message(), "m");
+    assert_eq!(both.failure_value(), json!("m"));
+    let blank = NodeOutcome::result(json!({"status": "error", "message": "", "error": "e"}));
+    assert_eq!(blank.failure_message(), "e");
+    let neither = NodeOutcome::result(json!({"status": "error"}));
+    assert_eq!(neither.failure_message(), "node failed");
+}
+
+/// N-log-02: an `error` line is mirrored to the app log as a warning
+/// (decision 29), any other level at debug.
+#[tokio::test]
+async fn an_error_line_reaches_the_app_log_as_a_warning() {
+    let captured = crate::services::tunnel::fake::capture_logs();
+    let (_, c) = ctx();
+    run(&Log, &c, json!({"message": "Stop {{x}}", "level": "error"})).await;
+    run(&Log, &c, json!({"message": "Note", "level": "info"})).await;
+    let text = captured.text();
+    let line = |m: &str| {
+        text.lines()
+            .find(|l| l.contains(m))
+            .unwrap_or_default()
+            .to_string()
+    };
+    assert!(
+        line("Flow: [LOG] Stop {{x}}").contains(" WARN "),
+        "{}",
+        text
+    );
+    assert!(line("Flow: [LOG] Note").contains("DEBUG"), "{}", text);
+}
+
+/// N-variable-01: variableName is the name as written (not stripped, not
+/// interpolated; the legacy `name` when it is absent), a text value is
+/// interpolated once and an object kept raw, and sourceVariable and
+/// jsonPath are never interpolated.
+#[tokio::test]
+async fn variable_names_and_sources_are_read_raw() {
+    let (_, c) = ctx();
+    c.vars.set("who", json!("x"));
+    c.vars.set("src", json!("portfolio"));
+    c.vars.set("p", json!("orders"));
+    c.vars.set("portfolio", json!({"orders": [1]}));
+    variable(&c, json!({"variableName": " spaced ", "value": 1})).await;
+    assert_eq!(c.vars.get(" spaced "), Some(json!(1)));
+    assert!(!c.vars.contains("spaced"));
+    variable(&c, json!({"variableName": "{{who}}", "value": "{{who}}"})).await;
+    assert_eq!(c.vars.get("{{who}}"), Some(json!("x")));
+    assert!(!c.vars.contains("x"));
+    variable(&c, json!({"name": "legacy", "value": {"a": "{{who}}"}})).await;
+    assert_eq!(c.vars.get("legacy"), Some(json!({"a": "{{who}}"})));
+    let get = |d: Value| {
+        let mut d = d;
+        d["variableName"] = json!("t");
+        d["operation"] = json!("get");
+        d
+    };
+    let out = run(&Variable, &c, get(json!({"sourceVariable": "{{src}}"}))).await;
+    assert_eq!(
+        out.failure_message(),
+        "Variable operation 'get' failed: 'Source variable not found: {{src}}'"
+    );
+    let path = json!({"sourceVariable": "portfolio", "jsonPath": "{{p}}"});
+    let out = run(&Variable, &c, get(path)).await;
+    assert_eq!(
+        out.failure_message(),
+        "Variable operation 'get' failed: '{{p}}'"
+    );
+}
+
+/// N-variable-03: a blank or non-text sourceVariable is required, even
+/// when a variable of that text exists.
+#[tokio::test]
+async fn a_blank_or_non_text_source_is_required() {
+    for op in ["get", "stringify"] {
+        for source in [json!("  "), json!(5), Value::Null] {
+            let (_, c) = ctx();
+            c.vars.set("5", json!(1));
+            let d = json!({"variableName": "t", "operation": op, "sourceVariable": source});
+            let out = run(&Variable, &c, d.clone()).await;
+            assert_eq!(
+                out.failure_message(),
+                format!(
+                    "Variable operation '{}' failed: sourceVariable is required",
+                    op
+                ),
+                "{}",
+                d
+            );
+        }
+    }
+}
+
+/// N-variable-04: after `]` only `.` or `[` may follow.
+#[test]
+fn a_bracket_is_followed_by_a_dot_or_a_bracket() {
+    let v = json!({"a": [[{"b": 1}]]});
+    assert_eq!(walk_json_path(v.clone(), "a[0][0].b"), Ok(json!(1)));
+    assert_eq!(
+        walk_json_path(v, "a[0]b"),
+        Err("Invalid jsonPath: a[0]b".into())
+    );
+}
+
+/// N-variable-08: stringify dumps the whole source; a jsonPath is not read.
+#[tokio::test]
+async fn stringify_ignores_a_json_path() {
+    let (_, c) = ctx();
+    c.vars.set("payload", json!({"ok": true}));
+    let got = variable(
+        &c,
+        json!({"variableName": "t", "operation": "stringify",
+               "sourceVariable": "payload", "jsonPath": "ok"}),
+    )
+    .await;
+    assert_eq!(got["value"], "{\"ok\": true}");
+}
+
+/// N-variable-09: append writes Python's str() of the current value, and
+/// of a non-text value for a new name.
+#[tokio::test]
+async fn append_writes_python_text() {
+    for (current, want) in [
+        (json!(5.0), "5.0x"),
+        (json!(true), "Truex"),
+        (Value::Null, "Nonex"),
+        (json!({"a": 1}), "{'a': 1}x"),
+        (json!([1, 2]), "[1, 2]x"),
+    ] {
+        let (_, c) = ctx();
+        c.vars.set("t", current.clone());
+        let d = json!({"variableName": "t", "operation": "append", "value": "x"});
+        assert_eq!(variable(&c, d).await["value"], want, "{}", current);
+    }
+    for (value, want) in [
+        (json!(5), "5"),
+        (json!(2.5), "2.5"),
+        (json!(true), "True"),
+        (Value::Null, "None"),
+        (json!({"a": 1}), "{'a': 1}"),
+    ] {
+        let (_, c) = ctx();
+        let d = json!({"variableName": "fresh", "operation": "append", "value": value});
+        assert_eq!(variable(&c, d.clone()).await["value"], want, "{}", d);
+    }
+}

@@ -180,6 +180,7 @@ async fn held_bot_api() -> (Arc<HeldBotApi>, String, tokio::task::JoinHandle<()>
 /// X-153, N-telegramAlert-06: the alert goes to the app account's linked
 /// Telegram id with the web's text, and the run does not wait for it (the
 /// Bot API here answers only after the client has returned).
+/// N-telegramAlert-07: analyzer mode is on, and changes nothing.
 #[tokio::test]
 async fn telegram_queues_the_alert_to_the_owner_without_waiting() {
     let t = app();
@@ -187,6 +188,7 @@ async fn telegram_queues_the_alert_to_the_owner_without_waiting() {
     sign_up(&t);
     activate(&t, Some(token.clone()));
     link(&t);
+    t.ctx.sqlite.set_analyze_mode(true).unwrap();
     let (api, base, task) = held_bot_api().await;
     t.ctx.messaging.telegram.set_api_base(&base);
     let answer = tokio::time::timeout(
@@ -278,12 +280,49 @@ async fn whatsapp_answers_as_the_web_client() {
 
 /// X-342: once WhatsApp has logged the device out, the Flow client (and so
 /// the node) answers the service's own logged-out sentence.
+/// N-whatsappAlert-05: with analyzer mode on, the client still goes to the
+/// WhatsApp service (no analyzer answer of its own).
 #[tokio::test]
 async fn a_logged_out_whatsapp_answers_its_sentence() {
     let t = app();
+    t.ctx.sqlite.set_analyze_mode(true).unwrap();
     t.ctx.messaging.whatsapp.mark_logged_out();
     assert_eq!(
         client(&t).whatsapp("09:15 alert", None).await,
         json!({"status": "error", "error": LOGGED_OUT_MESSAGE})
     );
+}
+
+/// N-whatsappAlert-03: a number is 7 to 15 digits once everything else is
+/// stripped; one digit fewer or more is refused before any send.
+#[tokio::test]
+async fn a_number_is_seven_to_fifteen_digits() {
+    for (to, jid) in [
+        ("123-4567", Some("1234567@s.whatsapp.net")),
+        (
+            "+1 23456 78901 2345",
+            Some("123456789012345@s.whatsapp.net"),
+        ),
+        ("123456", None),
+        ("1234567890123456", None),
+    ] {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let sink = seen.clone();
+        let out = whatsapp_reply((true, None), Some(to), move |t| async move {
+            sink.lock().extend(t);
+            report(&["ok"], vec![])
+        })
+        .await;
+        match jid {
+            Some(jid) => {
+                assert_eq!(out["status"], "success", "{}", to);
+                assert_eq!(*seen.lock(), vec![jid.to_string()], "{}", to);
+            }
+            None => {
+                let refused = format!("Invalid WhatsApp phone number: {}", to);
+                assert_eq!(out, json!({"status": "error", "error": refused}));
+                assert!(seen.lock().is_empty(), "{}", to);
+            }
+        }
+    }
 }

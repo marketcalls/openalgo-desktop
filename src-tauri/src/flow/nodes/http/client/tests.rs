@@ -36,8 +36,13 @@ async fn server() -> (u16, Arc<Mutex<Vec<String>>>, tokio::task::JoinHandle<()>)
                 let path = text.split_whitespace().nth(1).unwrap_or("/").to_string();
                 let response: Vec<u8> = match path.as_str() {
                     "/redirect" => b"HTTP/1.1 302 Found\r\nLocation: /ok\r\nContent-Length: 0\r\n\r\n".to_vec(),
-                    "/big" => {
-                        let body = vec![b'x'; MAX_RESPONSE_BYTES + 1024];
+                    "/big" | "/at-cap" | "/over-cap" => {
+                        let size = match path.as_str() {
+                            "/at-cap" => 5 * 1024 * 1024,
+                            "/over-cap" => 5 * 1024 * 1024 + 1,
+                            _ => MAX_RESPONSE_BYTES + 1024,
+                        };
+                        let body = vec![b'x'; size];
                         let mut r = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body.len()).into_bytes();
                         r.extend_from_slice(&body);
                         r
@@ -231,5 +236,21 @@ async fn an_empty_body_states_its_length() {
     let head = seen.lock()[0].to_lowercase();
     assert_eq!(head.matches("content-length: 0\r\n").count(), 1, "{}", head);
     assert!(!head.contains("content-type"), "{}", head);
+    task.abort();
+}
+
+/// N-httpRequest-16: the cap is 5 MB to the byte (5 * 1024 * 1024): an
+/// answer of exactly that size is read whole, one byte more is refused.
+#[tokio::test]
+async fn the_cap_is_five_megabytes_to_the_byte() {
+    let (port, _, task) = server().await;
+    let http = GuardedHttp::new().unwrap();
+    let get = |path: &str| {
+        let url = format!("http://flow-check.invalid:{}{}", port, path);
+        call(url, port, Duration::from_secs(30))
+    };
+    let whole = http.send(get("/at-cap")).await.unwrap();
+    assert_eq!(whole.body.len(), 5_242_880);
+    assert_eq!(http.send(get("/over-cap")).await.unwrap_err(), TOO_LARGE);
     task.abort();
 }
