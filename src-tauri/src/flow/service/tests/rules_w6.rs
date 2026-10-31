@@ -169,7 +169,7 @@ async fn edits_and_activation_go_ahead_while_a_run_holds_the_workflow() {
     let r = update(
         &t.ctx,
         w.id,
-        Body::Json(json!({"nodes": [start(), log("after")]})),
+        Body::Json(json!({"nodes": [start(), log("after")], "edges": edges})),
     )
     .await;
     assert_eq!(r.status, 200, "{}", r.body);
