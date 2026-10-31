@@ -3,6 +3,110 @@
 All notable changes to OpenAlgo Desktop are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## 1.0.5
+
+Flow arrives: build trading workflows on a canvas at `/flow`, run them now,
+on a schedule, on a price alert, on an order update or from a TradingView or
+other webhook, and import or export the same JSON as OpenAlgo web. Every one
+of the web's 61 node types is here, checked against recordings of OpenAlgo
+web's own Flow engine, and the Agent can now build and save workflows for
+you. Also from OpenAlgo web: Fyers market depth fixes and a newer AI model
+list for the Agent. If you run 1.0.4, OpenAlgo offers this update in the
+app; choose Update when no live strategy or active workflow is running.
+
+### Flow
+
+- The Flow editor at `/flow` (Profile menu, Flow Editor): drag nodes from
+  the palette, wire them, set each node in its panel, save, and run with
+  Run Now. The run log shows every step; a failed run keeps its log.
+- 61 node types, as on OpenAlgo web: orders (Place, Smart, Split, Modify,
+  Cancel, Cancel All, Close Positions, Basket, Options, Multi-Leg Options),
+  market data and account (quotes, depth, history, indicators, option chain,
+  symbols, expiries, holidays, timings, books, funds, margin, strategy P&L),
+  conditions and logic (position, fund, price, variable and time checks,
+  AND, OR and NOT gates, variables, maths, delays, Wait Until), alerts
+  (Telegram, WhatsApp, HTTP request) and live prices (subscribe and
+  unsubscribe).
+- Triggers: schedules (interval, once, daily, weekly, in India time), price
+  alerts, order-update watches and webhooks. Active triggers come back when
+  OpenAlgo starts.
+- Webhooks reach OpenAlgo through the built-in ngrok tunnel at
+  `/flow/webhook/<token>`, and the editor shows the tunnel's address while it
+  is on. A secret is always required, repeated wrong secrets lock the
+  webhook for a while, there is a rate limit, and secrets never reach a log.
+  A plain-text TradingView alert works with the secret in the address.
+- In analyzer mode every order a workflow places goes to the sandbox.
+- Import a workflow exported from OpenAlgo web, and export one back; exports
+  never carry your API key or webhook secret.
+- The Agent can check a workflow and save it to Flow (validate_flow,
+  save_flow), always saved inactive, with the flow-builder skill and the full
+  workflow format to read.
+- Signed out, nothing runs: webhooks are refused and each schedule, price
+  alert or order watch that fires is recorded as skipped. Signed in with no
+  broker logged in, workflows run; a step that needs the broker stops with
+  "Broker session is not available or has expired".
+- Quitting or restarting for an update names the workflows that are active
+  or running.
+
+### Fixes to OpenAlgo web's Flow
+
+These behave differently from OpenAlgo web on purpose; each is tested.
+
+- Close Positions for one symbol closes only that position; the web closed
+  every open position.
+- Basket stop-loss rows keep their trigger price, and lower-case basket
+  symbols work.
+- A condition inserted on a wire continues from its true branch, so the
+  order after it runs only when the condition holds.
+- Fund Check, Position Check and Price Condition stop when they cannot read
+  a real value instead of deciding on zero.
+- Schedules: Once runs at its time and then stops, Daily keeps to its days,
+  and every time is India time on any computer.
+- Time windows, time conditions and Wait Until accept `{{variables}}` and
+  stop with a clear message when one does not resolve.
+- An AND/OR/NOT gate with fewer inputs wired than it is set for is refused
+  at import and activation.
+- Bar Offset on weekly and monthly charts skips the week or month still in
+  progress; an indicator with no value on the latest bar says so.
+- HTTP Request reaches only public addresses (Tailscale and other 100.64
+  ranges included), never follows a redirect and reads at most 5 MB.
+- Stock options declared on NFO or BFO are priced from the stock.
+- The custom-leg editor keeps a `{{variable}}`'s case so it resolves.
+- Validation errors always come in the same order.
+
+### Brokers
+
+- Fyers: market depth shows the last traded price, not a price halfway
+  between the best bid and ask, and indices in depth mode no longer show
+  made-up order book levels (marketcalls/openalgo#2318, #2323).
+
+### Security
+
+- A browser tab or login from before the daily 03:00 IST session end can no
+  longer read your API key or keep receiving live updates, even in the
+  seconds before the app signs it out (marketcalls/openalgo e2bdd061e).
+
+### Agent
+
+- The model list includes the newest ChatGPT plan, OpenAI and Anthropic
+  models (LiteLLM 1.106.6 catalogue).
+
+### Fixes
+
+- A first start on a new data folder no longer logs "database is locked".
+
+### Known limitations
+
+- Schedules run while OpenAlgo is open; a run more than 60 seconds late,
+  including one that fell due while OpenAlgo was closed, is skipped, as on
+  OpenAlgo web.
+- Python Strategies (`/python`) and the pandas backtesters stay on OpenAlgo
+  web.
+- Indicator timestamps written day-first (`11-02-2025`) or with month names
+  are refused rather than guessed.
+- The run log lists a result's fields in alphabetical order; OpenAlgo web
+  lists them in the order its code built them.
+
 ## 1.0.4
 
 The Agent arrives: ask about your account and the market in plain words, on

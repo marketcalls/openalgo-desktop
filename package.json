@@ -1,7 +1,7 @@
 {
   "name": "openalgo-desktop",
   "private": true,
-  "version": "1.0.4",
+  "version": "1.0.5",
   "type": "module",
   "engines": {
     "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
