@@ -12,6 +12,7 @@
 //! | `golden_window` | the bar and calendar ceilings |
 //! | `golden_types` | every parameter given values of every type (IND-042) |
 //! | `catalogue` | names, nesting, defaults, float binding, the editor's lists |
+//! | `timestamps` | decision 33: the timestamp forms read and the ones refused (IND-045) |
 //! | `executor` | the web executor's Indicator node, composed from this API |
 
 mod basics;
@@ -22,3 +23,4 @@ mod golden_compute;
 mod golden_types;
 mod golden_window;
 mod support;
+mod timestamps;
