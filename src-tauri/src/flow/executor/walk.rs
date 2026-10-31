@@ -272,10 +272,15 @@ impl<'a> Walk<'a> {
         }
         if let Some(declared) = declared_inputs(node_type, data).filter(|d| *d > wired.len() as i64)
         {
+            // The web's f-string writes a boolean count as `True`.
+            let shown = match data.get("inputCount") {
+                Some(b @ Value::Bool(_)) if pyfmt::to_int(b) == Some(declared) => pyfmt::str(b),
+                _ => declared.to_string(),
+            };
             let message = format!(
                 "{} is configured for {} inputs but only {} are wired. Wire the rest, or lower the input count, rather than evaluating on part of the condition.",
                 node_type,
-                declared,
+                shown,
                 wired.len()
             );
             self.ctx.error(message.clone());

@@ -74,6 +74,9 @@ pub fn prune(conn: &Connection, workflow_id: i64, now: DateTime<Utc>) -> Result<
 }
 
 /// Write how a run ended, with its whole trace (`update_execution_status`).
+/// The error is written only when there is one: `None` or empty keeps
+/// what the row holds. A row that is gone writes nothing and logs nothing,
+/// as the web returns `None` for it.
 pub fn finish(
     conn: &Connection,
     id: i64,
@@ -82,7 +85,7 @@ pub fn finish(
     logs: &[Value],
     now: DateTime<Utc>,
 ) -> Result<()> {
-    conn.execute(
+    let updated = conn.execute(
         "UPDATE flow_workflow_executions
             SET status = ?1, error = COALESCE(?2, error), logs = ?3, completed_at = ?4
           WHERE id = ?5",
@@ -94,7 +97,9 @@ pub fn finish(
             id
         ],
     )?;
-    tracing::info!("Updated execution {} status to {}", id, status.as_str());
+    if updated > 0 {
+        tracing::info!("Updated execution {} status to {}", id, status.as_str());
+    }
     Ok(())
 }
 
