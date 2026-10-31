@@ -289,3 +289,96 @@ async fn node_prices_cover_rows_and_bad_prices_refuse() {
     assert!(run.node("basketOrder", sl_row).await.is_error());
     assert!(run.calls().is_empty());
 }
+
+/// N-basketOrder-03: a CSV row is numbered by its line, blank lines
+/// counted (leading and trailing blank lines are trimmed first, as the
+/// web's `strip()`).
+#[tokio::test]
+async fn a_csv_row_is_numbered_by_its_line() {
+    for (orders, want) in [
+        (
+            "SBIN,NSE,BUY,1\n\nINFY,NSE",
+            "Basket order row 3: expected SYMBOL,EXCHANGE,ACTION,QTY",
+        ),
+        (
+            "SBIN,NSE,BUY,1\n   \n\nINFY,LSE,BUY,1",
+            "Basket order row 4: invalid exchange 'LSE'",
+        ),
+        (
+            "\n\nSBIN,NSE,BUY,1\nINFY,NSE,HOLD,1",
+            "Basket order row 2: invalid action 'HOLD'",
+        ),
+    ] {
+        let run = Run::new();
+        let o = run.node("basketOrder", json!({"orders": orders})).await;
+        assert_eq!(message(&o), want, "{orders:?}");
+        assert!(run.calls().is_empty());
+    }
+}
+
+/// N-basketOrder-04: a row with several faults reports the first in the
+/// web's order: symbol, exchange text, action text, quantity, product and
+/// price type text, then exchange, action, product, price type values,
+/// then prices.
+#[tokio::test]
+async fn a_row_with_two_faults_reports_the_first_in_the_web_order() {
+    let base = json!({"symbol": "SBIN", "exchange": "NSE", "action": "BUY", "quantity": 1});
+    let row = |changes: Value| {
+        let mut r = base.clone();
+        if let (Some(m), Value::Object(c)) = (r.as_object_mut(), changes) {
+            for (k, v) in c {
+                if v.is_null() {
+                    m.remove(&k);
+                } else {
+                    m.insert(k, v);
+                }
+            }
+        }
+        r
+    };
+    let cases = [
+        (
+            row(json!({"symbol": null, "exchange": "BAD"})),
+            "symbol is required",
+        ),
+        (
+            row(json!({"exchange": "", "action": "HOLD"})),
+            "exchange is required",
+        ),
+        (
+            row(json!({"exchange": "BAD", "quantity": 0})),
+            "quantity must be positive, got 0",
+        ),
+        (
+            row(json!({"exchange": "BAD", "action": "HOLD"})),
+            "invalid exchange 'BAD'",
+        ),
+        (
+            row(json!({"action": "HOLD", "product": "BO"})),
+            "invalid action 'HOLD'",
+        ),
+        (
+            row(json!({"product": "BO", "pricetype": "IOC"})),
+            "invalid product 'BO'",
+        ),
+        (
+            row(json!({"pricetype": "IOC", "price": "x"})),
+            "invalid pricetype 'IOC'",
+        ),
+        (
+            row(json!({"price": "x", "triggerprice": "y"})),
+            "price must be numeric, got 'x'",
+        ),
+        (
+            row(json!({"pricetype": "LIMIT", "triggerprice": "y"})),
+            "triggerprice must be numeric, got 'y'",
+        ),
+    ];
+    for (r, want) in cases {
+        let run = Run::new();
+        let o = run
+            .node("basketOrder", json!({"orders": [r.clone()]}))
+            .await;
+        assert_eq!(message(&o), format!("Basket order row 1: {want}"), "{r}");
+    }
+}
