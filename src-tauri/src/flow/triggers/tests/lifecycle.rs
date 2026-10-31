@@ -4,42 +4,9 @@
 //! the web writes (parity T-019, T-034, T-081, T-086, R-25, S-20, V-133,
 //! X-252, X-316, X-318).
 
+use super::support::*;
 use super::*;
 use std::sync::atomic::Ordering;
-
-/// Every message logged on this thread while the guard lives (a
-/// current-thread test runtime keeps its tasks on it).
-#[derive(Clone, Default)]
-struct Logged(Arc<Mutex<Vec<String>>>);
-
-impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for Logged {
-    fn on_event(&self, event: &tracing::Event<'_>, _: tracing_subscriber::layer::Context<'_, S>) {
-        struct Message(String);
-        impl tracing::field::Visit for Message {
-            fn record_debug(&mut self, f: &tracing::field::Field, v: &dyn std::fmt::Debug) {
-                if f.name() == "message" {
-                    self.0 = format!("{:?}", v);
-                }
-            }
-        }
-        let mut m = Message(String::new());
-        event.record(&mut m);
-        self.0.lock().push(m.0);
-    }
-}
-
-fn logged() -> (tracing::subscriber::DefaultGuard, Logged) {
-    use tracing_subscriber::layer::SubscriberExt;
-    let l = Logged::default();
-    let guard = tracing::subscriber::set_default(tracing_subscriber::registry().with(l.clone()));
-    (guard, l)
-}
-
-impl Logged {
-    fn has(&self, line: &str) -> bool {
-        self.0.lock().iter().any(|m| m == line)
-    }
-}
 
 fn run_count(app: &Arc<AppState>, id: i64) -> usize {
     crate::flow::store::executions::list(&app.sqlite.conn().unwrap(), id, 10)
@@ -277,17 +244,6 @@ async fn opening_the_app_restores_its_active_triggers() {
     again.shutdown().await;
 }
 
-impl Logged {
-    fn starting_with(&self, prefix: &str) -> Vec<String> {
-        self.0
-            .lock()
-            .iter()
-            .filter(|m| m.starts_with(prefix))
-            .cloned()
-            .collect()
-    }
-}
-
 /// Refuse every update of `column` on the workflows table, as a database
 /// that cannot be written answers.
 fn refuse_updates(app: &Arc<AppState>, name: &str, column: &str) {
@@ -468,29 +424,6 @@ async fn the_webhook_payload_never_reaches_the_log() {
         assert!(!m.contains("SENSITIVE-NOTE-7731"), "{}", m);
         assert!(!m.contains(&secret), "{}", m);
     }
-}
-
-/// An app with an account and its API key (made before any workflow).
-fn keyed() -> crate::state::testing::TestCtx {
-    let t = app();
-    crate::services::auth_service::AuthService::setup(
-        &t.ctx,
-        "trader",
-        "trader@example.com",
-        "Secret@123",
-    )
-    .unwrap();
-    t
-}
-
-async fn wait_for(logs: &Logged, line: &str) {
-    for _ in 0..500 {
-        if logs.has(line) {
-            return;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    }
-    panic!("never logged {:?}: {:?}", line, logs.0.lock());
 }
 
 /// T-040: each monitor run's result is logged as the web logs it,
