@@ -537,16 +537,69 @@ fn the_report_reads_as_the_webs() {
     ));
     assert!(warned.errors.is_empty(), "{:?}", warned.lines());
     assert_eq!(warned.verdict(), "PASSED with 1 warning(s). It will import, but a warned field is being ignored at run time.");
-    let refused = check(&json!({"nodes": [], "edges": []}));
-    let lines = refused.lines();
+    // No name (the one error at the import's level) and a reference nothing
+    // produces (the one warning): both counted in the verdict.
+    let refused = check(&json!({
+        "nodes": [
+            {"id": "s", "type": "start", "position": {"x": 0, "y": 0}, "data": {}},
+            {"id": "l", "type": "log", "position": {"x": 0, "y": 1}, "data": {"message": "{{nope}}"}},
+        ],
+        "edges": [{"id": "e", "source": "s", "target": "l"}],
+    }));
     assert_eq!(
-        lines[0],
-        "  ERROR    /name: Workflow needs a non-empty name"
+        refused.lines(),
+        [
+            "  ERROR    /name: Workflow needs a non-empty name",
+            "  WARNING  l (log): message references '{{nope}}' but nothing produces 'nope'. Available: webhook",
+            "",
+            "FAILED: 1 error(s), 1 warning(s). Will not import.",
+        ]
     );
-    assert!(refused.verdict().starts_with("FAILED: "));
-    assert!(refused
-        .verdict()
-        .ends_with("error(s), 0 warning(s). Will not import."));
+    let empty = check(&json!({"nodes": [], "edges": []}));
+    assert_eq!(
+        empty.verdict(),
+        format!(
+            "FAILED: {} error(s), 0 warning(s). Will not import.",
+            empty.errors.len()
+        )
+    );
+}
+
+/// `validate.py`'s universal keys (`label`, `outputVariable`, `strategyTag`,
+/// `notes`, `description`) are never warned, on any node; a key beside them
+/// that nothing reads is, with the node's own keys listed.
+#[test]
+fn the_universal_keys_are_never_warned() {
+    let nodes = json!([
+        {"id": "l", "type": "log", "position": {"x": 0, "y": 0}, "data": {
+            "message": "hi", "level": "info", "label": "Say hi", "outputVariable": "said",
+            "strategyTag": "Flow", "notes": "a note", "description": "what it does",
+            "descriptions": "a typo"
+        }},
+    ]);
+    assert_eq!(
+        unknown_keys(nodes.as_array().unwrap()),
+        ["l (log): data key 'descriptions' is read by nothing. Flow ignores it, so the node keeps its default. It reads: level, message"]
+    );
+    for key in UNIVERSAL_KEYS {
+        let one = json!([{"id": "q", "type": "getQuote", "data": {"symbol": "SBIN", "exchange": "NSE", *key: "x"}}]);
+        assert_eq!(
+            unknown_keys(one.as_array().unwrap()),
+            Vec::<String>::new(),
+            "{}",
+            key
+        );
+    }
+    assert_eq!(
+        UNIVERSAL_KEYS,
+        [
+            "label",
+            "outputVariable",
+            "strategyTag",
+            "notes",
+            "description"
+        ]
+    );
 }
 
 /// Every whole workflow the long form and the skill show imports and is

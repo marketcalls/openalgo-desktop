@@ -396,6 +396,35 @@ async fn the_trigger_lists_every_registered_field_in_the_webs_order() {
     );
 }
 
+/// V-143, decision 17: validate_flow carries none of the skill check's
+/// warnings. A data key nothing reads (the check's first warning) still
+/// validates, and the answer is the web's nine keys and nothing about it.
+#[tokio::test]
+async fn validate_flow_adds_no_warnings() {
+    let t = app();
+    let mut wf = webhook_entry();
+    wf["nodes"][1]["data"]["strikeOffset"] = json!("OTM2");
+    wf["nodes"][1]["data"]["message"] = json!("{{nothing.here}}");
+    let out = call(&t, "validate_flow", json!({"workflow_json": wf})).await;
+    let (p, raw) = block(out.text());
+    let keys: Vec<&str> = p.as_object().unwrap().keys().map(String::as_str).collect();
+    let mut expected = [
+        "ok",
+        "valid",
+        "saved",
+        "name",
+        "node_count",
+        "edge_count",
+        "trigger",
+        "migrations",
+        "next_step",
+    ];
+    expected.sort_unstable();
+    assert_eq!(keys, expected, "{}", raw);
+    assert_eq!(p["valid"], true);
+    assert!(!raw.contains("strikeOffset") && !raw.contains("nothing.here"));
+}
+
 /// A-09, A-10: strict, always; the validator's own errors in a Retry with
 /// the web's sentences.
 #[tokio::test]
@@ -431,40 +460,61 @@ async fn an_invalid_workflow_comes_back_with_the_validators_errors() {
         .is_ok());
 }
 
-/// A-10: more than 50 errors report the first 50 and say how many more.
+/// A-10, A-41, V-142: more than 50 errors report the first 50 and say how
+/// many more (`MAX_REPORTED_ERRORS = 50`, flow_gen.py:79); exactly 50 say
+/// nothing more. The 50 is written out, so a changed cap fails here.
 #[tokio::test]
 async fn fifty_errors_are_listed_and_the_rest_counted() {
+    assert_eq!(MAX_REPORTED_ERRORS, 50);
     let t = app();
-    let nodes: Vec<Value> = (0..60)
-        .map(|i| json!({"id": format!("n{}", i), "type": "bogus", "position": {"x": 0, "y": 0}, "data": {}}))
-        .collect();
-    let wf = json!({"name": "Many", "nodes": nodes, "edges": []});
-    let all = validate_workflow(
-        &wf,
-        ValidateOptions {
-            require_name: false,
-            strict: true,
-        },
-    );
-    assert!(all.len() > MAX_REPORTED_ERRORS);
-    let out = call(
-        &t,
-        "validate_flow",
-        json!({"workflow_json": wf.to_string()}),
-    )
-    .await;
-    let text = retry(&out);
-    assert!(text.starts_with(&format!(
-        "The workflow failed Flow's own validator with {} error(s), so nothing was saved. Each entry names the JSON path, a code and a reason. {} further error(s) are not listed.\n",
-        all.len(),
-        all.len() - MAX_REPORTED_ERRORS
-    )));
-    let (p, _) = block(text);
-    assert_eq!(p["error_count"], all.len());
-    assert_eq!(
-        p["errors"],
-        serde_json::to_value(&all[..MAX_REPORTED_ERRORS]).unwrap()
-    );
+    let bogus = |k: usize| {
+        let nodes: Vec<Value> = (0..k)
+            .map(|i| json!({"id": format!("n{}", i), "type": "bogus", "position": {"x": 0, "y": 0}, "data": {}}))
+            .collect();
+        json!({"name": "Many", "nodes": nodes, "edges": []})
+    };
+    let errors_of = |wf: &Value| {
+        validate_workflow(
+            wf,
+            ValidateOptions {
+                require_name: false,
+                strict: true,
+            },
+        )
+    };
+    // A graph with exactly `n` errors, one more per unknown node.
+    let with_errors = |n: usize| {
+        (1..200)
+            .map(bogus)
+            .find(|wf| errors_of(wf).len() == n)
+            .unwrap_or_else(|| panic!("no graph with {} errors", n))
+    };
+    for (total, omitted) in [(60, Some(10)), (51, Some(1)), (50, None)] {
+        let wf = with_errors(total);
+        let all = errors_of(&wf);
+        let out = call(
+            &t,
+            "validate_flow",
+            json!({"workflow_json": wf.to_string()}),
+        )
+        .await;
+        let text = retry(&out);
+        let head = match omitted {
+            Some(more) => format!(
+                "The workflow failed Flow's own validator with {} error(s), so nothing was saved. Each entry names the JSON path, a code and a reason. {} further error(s) are not listed.\n",
+                total, more
+            ),
+            None => format!(
+                "The workflow failed Flow's own validator with {} error(s), so nothing was saved. Each entry names the JSON path, a code and a reason.\n",
+                total
+            ),
+        };
+        assert!(text.starts_with(&head), "{}", text);
+        let (p, _) = block(text);
+        assert_eq!(p["error_count"], total);
+        assert_eq!(p["errors"].as_array().map(Vec::len), Some(50));
+        assert_eq!(p["errors"], serde_json::to_value(&all[..50]).unwrap());
+    }
 }
 
 // ------------------------------------------------------ argument parsing
