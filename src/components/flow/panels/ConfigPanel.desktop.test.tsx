@@ -121,6 +121,22 @@ describe('the history symbol, days and output (F-564)', () => {
     expect(stored().symbol).toBe('RELIANCE')
   })
 
+  it('shows NSE, the run default, when no exchange is stored, and stores the one picked', () => {
+    const history = readFileSync(join(process.cwd(), 'src-tauri/src/flow/nodes/history.rs'), 'utf8')
+    expect(history).toMatch(/get_str\(data, "exchange", "NSE"\)/)
+    openPanel('history', { symbol: 'SBIN' })
+    const exchange = screen
+      .getByText('Exchange', { selector: 'label' })
+      .parentElement?.querySelector('button') as HTMLElement
+    expect(exchange).toHaveAttribute('role', 'combobox')
+    expect(exchange).toHaveTextContent(/^NSE$/)
+    expect(stored().exchange).toBeUndefined()
+    fireEvent.click(exchange)
+    fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: 'MCX' }))
+    expect(stored().exchange).toBe('MCX')
+    expect(exchange).toHaveTextContent(/^MCX$/)
+  })
+
   it('takes 1 to 365 days, stores a typed number, and 0 for a cleared box', () => {
     openPanel('history', { symbol: 'SBIN', exchange: 'NSE', days: 30 })
     const days = fieldUnder('Days')
