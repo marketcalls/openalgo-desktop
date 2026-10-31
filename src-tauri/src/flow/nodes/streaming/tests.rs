@@ -501,3 +501,309 @@ async fn a_silent_refusal_reads_unsubscribe_was_rejected() {
         Some("error Unsubscribe failed: unsubscribe was rejected")
     );
 }
+
+/// A subscribe node fed `frames`, run with `data`; its result's value
+/// (`ltp`, else `data`) and the run.
+async fn first_frame_of(kind: &str, frames: Vec<Value>, data: Value) -> (Value, T) {
+    let t = t(
+        Feed {
+            frames,
+            ..Default::default()
+        },
+        Some(1),
+        Arc::new(Subscriptions::default()),
+    );
+    let out = run(&t, kind, data).await;
+    let v = out.value().unwrap();
+    assert_eq!(v["source"], "websocket", "{}", v);
+    let key = if kind == "subscribeLtp" {
+        "ltp"
+    } else {
+        "data"
+    };
+    (v[key].clone(), t)
+}
+
+/// A subscribe node whose feed is down, so its REST reply answers.
+async fn rest_of(kind: &str, endpoint: &str, reply: Value, data: Value) -> (NodeOutcome, T) {
+    let t = t(
+        Feed {
+            open: Some(FeedError::Connect("down".into())),
+            ..Default::default()
+        },
+        Some(1),
+        Arc::new(Subscriptions::default()),
+    );
+    t.client.reply(endpoint, reply);
+    let out = run(&t, kind, data).await;
+    (out, t)
+}
+
+/// parity N-subscribeLtp-01: the output variable is the name as written,
+/// never interpolated (the web's `node_data.get("outputVariable")`).
+#[tokio::test]
+async fn the_output_variable_is_the_name_as_written() {
+    let feed = Feed {
+        frames: vec![tick(1, json!({"ltp": 812.65}))],
+        ..Default::default()
+    };
+    let t = t(feed, Some(1), Arc::new(Subscriptions::default()));
+    t.ctx.vars.set("name", json!("price"));
+    run(
+        &t,
+        "subscribeLtp",
+        json!({"symbol": "SBIN", "outputVariable": "{{name}}"}),
+    )
+    .await;
+    assert_eq!(t.ctx.vars.get("{{name}}"), Some(json!(812.65)));
+    assert_eq!(t.ctx.vars.get("price"), None);
+    assert_eq!(t.ctx.vars.get("ltp"), None);
+    assert_eq!(
+        logs(&t.ctx).last().map(String::as_str),
+        Some("info Stored result in variable: {{name}}")
+    );
+}
+
+/// parity N-subscribeLtp-03: a frame with no LTP reads 0; a nested `null`
+/// LTP falls back to the top-level one (`is not None`, not `or`), while a
+/// nested 0 is kept.
+#[tokio::test]
+async fn a_frame_without_an_ltp_reads_zero() {
+    let bare = json!({"symbol": "SBIN", "exchange": "NSE", "mode": 1});
+    let (v, t) = first_frame_of("subscribeLtp", vec![bare], json!({"symbol": "SBIN"})).await;
+    assert_eq!(v, json!(0));
+    assert_eq!(t.ctx.vars.get("ltp"), Some(json!(0)));
+    assert_eq!(logs(&t.ctx)[1], "info LTP for SBIN: 0 (via WebSocket)");
+    let nested_null = json!({"symbol": "SBIN", "exchange": "NSE", "mode": 1, "ltp": 812.5, "data": {"ltp": null}});
+    let (v, _) = first_frame_of("subscribeLtp", vec![nested_null], json!({"symbol": "SBIN"})).await;
+    assert_eq!(v, json!(812.5));
+    let nested_zero =
+        json!({"symbol": "SBIN", "exchange": "NSE", "mode": 1, "ltp": 812.5, "data": {"ltp": 0}});
+    let (v, _) = first_frame_of("subscribeLtp", vec![nested_zero], json!({"symbol": "SBIN"})).await;
+    assert_eq!(v, json!(0));
+}
+
+/// parity N-subscribeQuote-01, N-subscribeDepth-01: with no outputVariable
+/// the quote is stored as `quote` and the book as `depth`, and no
+/// `Stored result` line is written.
+#[tokio::test]
+async fn the_default_output_names_are_quote_and_depth() {
+    let (quote, t) = first_frame_of(
+        "subscribeQuote",
+        vec![tick(2, json!({"ltp": 812.5, "open": 806.0}))],
+        json!({"symbol": "SBIN"}),
+    )
+    .await;
+    assert_eq!(quote["open"], 806.0);
+    assert_eq!(t.ctx.vars.get("quote"), Some(quote));
+    assert!(logs(&t.ctx).iter().all(|l| !l.contains("Stored result")));
+    let (book, t) = first_frame_of(
+        "subscribeDepth",
+        vec![tick(
+            3,
+            json!({"ltp": 812.5, "bids": [{"price": 812.4, "quantity": 150}]}),
+        )],
+        json!({"symbol": "SBIN"}),
+    )
+    .await;
+    assert_eq!(book["bids"][0]["price"], 812.4);
+    assert_eq!(t.ctx.vars.get("depth"), Some(book));
+    assert!(logs(&t.ctx).iter().all(|l| !l.contains("Stored result")));
+}
+
+/// parity N-subscribeQuote-02: a nested 0 falls through Python's `or` to
+/// the top-level field; the LTP keeps a nested 0 (`is not None`); `close`
+/// is the nested close, else the nested prev_close, else the top-level
+/// close, else the top-level prev_close.
+#[tokio::test]
+async fn a_websocket_quote_follows_pythons_or_chain() {
+    let frame = |nested: Value, top: Value| {
+        let mut f = top;
+        f["symbol"] = json!("SBIN");
+        f["exchange"] = json!("NSE");
+        f["mode"] = json!(2);
+        f["data"] = nested;
+        f
+    };
+    let quote = |f: Value| async move {
+        first_frame_of("subscribeQuote", vec![f], json!({"symbol": "SBIN"}))
+            .await
+            .0
+    };
+    let q = quote(frame(
+        json!({"ltp": 0, "open": 0, "high": 818.0, "low": 0, "close": 0, "prev_close": 0, "volume": 0}),
+        json!({"ltp": 5, "open": 806.0, "low": 805.25, "prev_close": 800.0, "volume": 1250}),
+    ))
+    .await;
+    assert_eq!(
+        q,
+        json!({"ltp": 0, "open": 806.0, "high": 818.0, "low": 805.25, "close": 800.0, "volume": 1250, "prev_close": 800.0})
+    );
+    let q = quote(frame(
+        json!({"close": 801.0, "prev_close": 799.0}),
+        json!({"close": 1}),
+    ))
+    .await;
+    assert_eq!(q["close"], 801.0, "the nested close first");
+    let q = quote(frame(
+        json!({"close": 0, "prev_close": 799.0}),
+        json!({"close": 1}),
+    ))
+    .await;
+    assert_eq!(q["close"], 799.0, "then the nested prev_close");
+    let q = quote(frame(json!({}), json!({"close": 0, "prev_close": 799.0}))).await;
+    assert_eq!(q["close"], 0, "then the top-level close, even 0");
+}
+
+/// parity N-subscribeQuote-03: the REST quote takes `close` from the reply
+/// when present, else prev_close, and every absent field reads 0; a
+/// failure that says nothing reads each stream's own default.
+#[tokio::test]
+async fn a_rest_quote_reads_close_and_its_defaults() {
+    let data = |q: Value| async move {
+        let (out, _) = rest_of(
+            "subscribeQuote",
+            "quotes",
+            json!({"status": "success", "data": q}),
+            json!({"symbol": "SBIN"}),
+        )
+        .await;
+        out.value().unwrap()["data"].clone()
+    };
+    assert_eq!(
+        data(json!({"ltp": 812.5, "close": 801.0, "prev_close": 800.0})).await["close"],
+        801.0
+    );
+    assert_eq!(
+        data(json!({"ltp": 812.5})).await,
+        json!({"ltp": 812.5, "open": 0, "high": 0, "low": 0, "close": 0, "volume": 0, "prev_close": 0})
+    );
+    for (kind, endpoint, mode, default) in [
+        ("subscribeLtp", "quotes", "LTP", "Failed to get LTP"),
+        ("subscribeQuote", "quotes", "Quote", "Failed to get quote"),
+        ("subscribeDepth", "depth", "Depth", "Failed to get depth"),
+    ] {
+        let (out, t) = rest_of(
+            kind,
+            endpoint,
+            json!({"status": "error"}),
+            json!({"symbol": "SBIN"}),
+        )
+        .await;
+        assert_eq!(out.value().unwrap()["error"], default, "{}", kind);
+        assert_eq!(
+            logs(&t.ctx).last().cloned(),
+            Some(format!("error Subscribe {} error: {}", mode, default))
+        );
+    }
+}
+
+/// parity N-stream-09, N-subscribeDepth-02: the Depth check and the book
+/// read the nested `data.depth.buy/sell` (the app feed's own frames) and
+/// top-level bids and asks with their totals, skipping an empty book of
+/// either form; a first level that is not a priced dict is kept as it came.
+#[tokio::test]
+async fn subscribe_depth_reads_each_book_form() {
+    let level = |price: f64, quantity: u32| json!({"price": price, "quantity": quantity});
+    let (book, t) = first_frame_of(
+        "subscribeDepth",
+        vec![
+            tick(3, json!({"ltp": 1, "depth": {"buy": [], "sell": []}})),
+            tick(
+                3,
+                json!({"ltp": 812.5, "totalbuyqty": 210, "totalsellqty": 200, "depth": {
+                    "buy": [{"price": 812.4, "quantity": 150, "orders": 3}],
+                    "sell": [{"price": 812.6, "quantity": 120, "orders": 2}]}}),
+            ),
+        ],
+        json!({"symbol": "SBIN"}),
+    )
+    .await;
+    assert_eq!(
+        book,
+        json!({"bids": [level(812.4, 150)], "asks": [level(812.6, 120)], "totalbuyqty": 210, "totalsellqty": 200, "ltp": 812.5})
+    );
+    assert_eq!(
+        logs(&t.ctx)[1],
+        "info Depth for SBIN: Bid=812.4, Ask=812.6 (1 bids, 1 asks) via WebSocket"
+    );
+    let top = |bids: Value, asks: Value| {
+        json!({"symbol": "SBIN", "exchange": "NSE", "mode": 3, "ltp": 812.5,
+               "bids": bids, "asks": asks, "totalbuyqty": 210, "totalsellqty": 200})
+    };
+    let (book, _) = first_frame_of(
+        "subscribeDepth",
+        vec![
+            top(json!([]), json!([])),
+            top(json!([]), json!([level(812.6, 120)])),
+        ],
+        json!({"symbol": "SBIN"}),
+    )
+    .await;
+    assert_eq!(
+        book,
+        json!({"bids": [], "asks": [level(812.6, 120)], "totalbuyqty": 210, "totalsellqty": 200, "ltp": 812.5}),
+        "a book with asks only is a book"
+    );
+    let unpriced = json!({"buy": [{"rate": 812.4, "qty": 150}], "sell": [{"rate": 812.6}]});
+    let (book, t) = first_frame_of(
+        "subscribeDepth",
+        vec![json!({"symbol": "SBIN", "exchange": "NSE", "mode": 3, "depth": unpriced})],
+        json!({"symbol": "SBIN"}),
+    )
+    .await;
+    assert_eq!(
+        (book["bids"].clone(), book["asks"].clone()),
+        (unpriced["buy"].clone(), unpriced["sell"].clone())
+    );
+    assert_eq!(
+        logs(&t.ctx)[1],
+        "info Depth for SBIN: Bid=0, Ask=0 (1 bids, 1 asks) via WebSocket"
+    );
+}
+
+/// parity N-unsubscribe-01: the stream type is matched in any case and
+/// named as written.
+#[tokio::test]
+async fn the_stream_type_is_matched_in_any_case() {
+    let subs = Arc::new(Subscriptions::default());
+    subs.record(Some(1), "SBIN", "NSE", "LTP");
+    let t1 = t(Feed::default(), Some(1), subs.clone());
+    let out = run(&t1, "unsubscribe", json!({"streamType": "ALL"})).await;
+    assert_eq!(
+        out.value().unwrap()["message"],
+        "Unsubscribed from ALL stream"
+    );
+    assert_eq!(*t1.feed.ops.lock(), vec!["unsubscribe NSE:SBIN LTP"]);
+    assert!(!subs.has(1));
+    assert_eq!(
+        logs(&t1.ctx),
+        vec![
+            "info Unsubscribing from ALL stream: all (NSE)",
+            "info Unsubscribed from all streams"
+        ]
+    );
+    for (given, mode) in [("LTP", "LTP"), ("Depth", "Depth"), ("QUOTE", "Quote")] {
+        let t = t(Feed::default(), Some(1), Arc::new(Subscriptions::default()));
+        let out = run(
+            &t,
+            "unsubscribe",
+            json!({"symbol": "SBIN", "streamType": given}),
+        )
+        .await;
+        assert_eq!(
+            out.value().unwrap()["message"],
+            format!("Unsubscribed from {} stream", given)
+        );
+        assert_eq!(
+            *t.feed.ops.lock(),
+            vec![format!("unsubscribe NSE:SBIN {}", mode)],
+            "{}",
+            given
+        );
+        assert_eq!(
+            logs(&t.ctx).last().cloned(),
+            Some(format!("info Unsubscribed from {} for SBIN", given))
+        );
+    }
+}
