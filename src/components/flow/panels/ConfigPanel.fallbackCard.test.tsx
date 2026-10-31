@@ -116,3 +116,11 @@ describe('the Node ID footer (F-620)', () => {
     expect(label.parentElement?.previousElementSibling).toHaveAttribute('data-slot', 'separator')
   })
 })
+
+describe('F-619: the card shows the info icon', () => {
+  it('draws the Info icon beside the palette label', () => {
+    openPanel('paletteOnly')
+    const card = screen.getByText('Palette Only', { selector: 'p' }).closest('.rounded-lg')
+    expect(card?.querySelector('svg')).toHaveClass('lucide-info')
+  })
+})

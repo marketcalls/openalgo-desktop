@@ -50,3 +50,52 @@ describe('wiring the same two handles twice (F-195)', () => {
     ).toEqual(['false', 'true'])
   })
 })
+
+describe('starting over (F-191)', () => {
+  it('restores the blank workflow: no description and nothing selected', () => {
+    store().setWorkflow({ id: 9, name: 'Stored', description: 'NIFTY', nodes: [], edges: [] })
+    store().selectNode('n1')
+    store().selectEdge('e1')
+    store().resetWorkflow()
+    expect(store()).toMatchObject({
+      id: null,
+      name: 'Untitled Workflow',
+      description: '',
+      nodes: [],
+      edges: [],
+      selectedNodeId: null,
+      selectedEdgeId: null,
+      isModified: false,
+    })
+  })
+})
+
+describe("updating a node's data (F-194)", () => {
+  it('merges one level deep: a nested object or list is replaced, not merged', () => {
+    store().setWorkflow({
+      id: 1,
+      name: 'w',
+      description: '',
+      nodes: [
+        {
+          id: 'n1',
+          type: 'optionsMultiOrder',
+          position: { x: 0, y: 0 },
+          data: {
+            underlying: 'NIFTY',
+            legs: [{ offset: 'ATM' }, { offset: 'OTM2' }],
+            meta: { a: 1, b: 2 },
+          },
+        },
+      ],
+      edges: [],
+    })
+    store().updateNodeData('n1', { legs: [{ offset: 'ITM1' }], meta: { a: 3 } })
+    expect(store().nodes[0].data).toEqual({
+      underlying: 'NIFTY',
+      legs: [{ offset: 'ITM1' }],
+      meta: { a: 3 },
+    })
+    expect(store().isModified).toBe(true)
+  })
+})

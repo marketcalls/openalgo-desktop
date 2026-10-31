@@ -416,6 +416,32 @@ describe('F-677 the order nodes', () => {
   })
 })
 
+describe('F-677 the order rows the pins above skip', () => {
+  /** The texts of the row holding `text`, left to right. */
+  function rowOf(el: HTMLElement, text: string): Array<string | null> {
+    return [...(leaf(el, text).parentElement?.children ?? [])].map((c) => c.textContent)
+  }
+
+  it('Smart Order shows the symbol or -, then the price type and the product', () => {
+    const el = face('smartOrder', { symbol: 'SBIN', priceType: 'SL-M', product: 'CNC' })
+    expect(row(el, 'Symbol')).toBe('SBIN')
+    expect(rowOf(el, 'SL-M')).toEqual(['SL-M', 'CNC'])
+    const blank = face('smartOrder')
+    expect(row(blank, 'Symbol')).toBe('-')
+    expect(rowOf(blank, 'MARKET')).toEqual(['MARKET', 'MIS'])
+  })
+
+  it('Split Order shows the symbol or -', () => {
+    expect(row(face('splitOrder', { symbol: 'RELIANCE' }), 'Symbol')).toBe('RELIANCE')
+    expect(row(face('splitOrder'), 'Symbol')).toBe('-')
+  })
+
+  it('Options shows a stored product and price type, product first', () => {
+    const el = face('optionsOrder', { product: 'MIS', priceType: 'LIMIT' })
+    expect(rowOf(el, 'LIMIT')).toEqual(['MIS', 'LIMIT'])
+  })
+})
+
 describe('F-678 the condition nodes', () => {
   it.each(['positionCheck', 'fundCheck', 'priceCondition', 'timeWindow', 'varCondition'])(
     'a %s branches true left, false right, captioned True and False',

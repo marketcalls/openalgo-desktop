@@ -136,6 +136,9 @@ describe('the palette and config titles cover every node (X-261, X-262)', () => 
     const block = panel.slice(start, panel.indexOf('\n}', start))
     const titled = new Set([...block.matchAll(/^\s+(\w+): '/gm)].map((m) => m[1]))
     for (const type of registered) expect(titled.has(type), type).toBe(true)
+    // And only those (F-637, F-697): a title for a type nothing registers is a
+    // stale entry the panel can never show.
+    expect([...titled].sort()).toEqual([...registered].sort())
   })
 })
 

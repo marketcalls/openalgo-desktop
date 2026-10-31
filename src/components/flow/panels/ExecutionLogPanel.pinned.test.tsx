@@ -127,6 +127,25 @@ describe('F-642 the log entries', () => {
     expect(screen.getByText('15:04:09')).toBeInTheDocument()
   })
 
+  // The web's behaviour, carried as is: formatTime's catch, which would show
+  // the raw text, never runs, because an unparseable time is an Invalid Date
+  // and toLocaleTimeString formats that as the words "Invalid Date" rather
+  // than throwing. A bare time of day is unparseable too.
+  it.each(['', 'not a time', '09:20:05'])(
+    'shows the web\'s "Invalid Date" for the unparseable time %j',
+    (time) => {
+      render(
+        <ExecutionLogPanel
+          logs={[{ time, message: 'Quote received', level: 'info' }]}
+          status="success"
+          onClose={() => {}}
+        />
+      )
+      const shown = screen.getByText('Quote received').previousElementSibling
+      expect(shown?.textContent).toBe('Invalid Date')
+    }
+  )
+
   it('counts the entries and the errors in the footer', () => {
     const logs: LogEntry[] = [
       { time: at, message: 'one', level: 'info' },

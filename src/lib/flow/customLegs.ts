@@ -57,6 +57,19 @@ export function hasVariableReference(value: string): boolean {
   return VARIABLE_PATTERN.test(value)
 }
 
+/**
+ * Desktop (decision 36, a web defect): upper-case a value's own text but not
+ * the `{{...}}` references in it. The run looks a reference up by its exact
+ * name, so the web's `{{webhook.offset}}` upper-cased to `{{WEBHOOK.OFFSET}}`
+ * never resolved. `otm{{n}}` becomes `OTM{{n}}`.
+ */
+export function upperOutsideReferences(value: string): string {
+  return value
+    .split(/(\{\{.*?\}\})/)
+    .map((part, i) => (i % 2 === 1 ? part : part.toUpperCase()))
+    .join('')
+}
+
 export const EMPTY_CUSTOM_LEG: CustomLeg = {
   strikeMode: 'OFFSET',
   offset: 'ATM',
@@ -107,7 +120,7 @@ export function parseCustomLegs(raw: unknown): CustomLeg[] {
           ? 'STRIKE'
           : 'OFFSET'
 
-      const expiry = text(leg.expiry).toUpperCase()
+      const expiry = upperOutsideReferences(text(leg.expiry))
       const expiryType = text(leg.expiryType).toLowerCase()
       const expiryMode: ExpiryMode = expiry ? 'DATE' : expiryType ? 'TYPE' : 'INHERIT'
 
@@ -116,7 +129,7 @@ export function parseCustomLegs(raw: unknown): CustomLeg[] {
 
       return {
         strikeMode,
-        offset: text(leg.offset).toUpperCase() || (strikeMode === 'OFFSET' ? 'ATM' : ''),
+        offset: upperOutsideReferences(text(leg.offset)) || (strikeMode === 'OFFSET' ? 'ATM' : ''),
         strike,
         expiryMode,
         expiryType: expiryType || 'current_week',
@@ -124,8 +137,8 @@ export function parseCustomLegs(raw: unknown): CustomLeg[] {
         optionType: optionType === 'PE' ? 'PE' : 'CE',
         action: action === 'SELL' ? 'SELL' : 'BUY',
         quantity: text(leg.quantity) || '1',
-        product: text(leg.product).toUpperCase(),
-        priceType: text(leg.priceType ?? leg.pricetype).toUpperCase(),
+        product: upperOutsideReferences(text(leg.product)),
+        priceType: upperOutsideReferences(text(leg.priceType ?? leg.pricetype)),
         price: text(leg.price),
         triggerPrice: text(leg.triggerPrice ?? leg.trigger_price),
         splitSize: text(leg.splitSize ?? leg.splitsize),
@@ -238,9 +251,9 @@ export function serializeCustomLegs(legs: CustomLeg[]): SerializedLeg[] {
     }
 
     if (leg.strikeMode === 'STRIKE') out.strike = numeric(leg.strike)
-    else out.offset = leg.offset.toUpperCase()
+    else out.offset = upperOutsideReferences(leg.offset)
 
-    if (leg.expiryMode === 'DATE') out.expiry = leg.expiry.toUpperCase()
+    if (leg.expiryMode === 'DATE') out.expiry = upperOutsideReferences(leg.expiry)
     else if (leg.expiryMode === 'TYPE') out.expiryType = leg.expiryType
 
     if (leg.product) out.product = leg.product

@@ -1,12 +1,17 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   type CustomLeg,
   describeLeg,
   EMPTY_CUSTOM_LEG,
+  hasVariableReference,
   MAX_CUSTOM_LEGS,
+  OFFSET_PATTERN,
   parseCustomLegs,
   seedLegsFromStrategy,
   serializeCustomLegs,
+  upperOutsideReferences,
   validateCustomLeg,
   validateCustomLegs,
 } from './customLegs'
@@ -284,5 +289,153 @@ describe('describeLeg', () => {
         leg({ strikeMode: 'STRIKE', strike: '24500', expiryMode: 'DATE', expiry: '28OCT25' })
       )
     ).toBe('BUY 1x 24500 28OCT25 CE')
+  })
+})
+
+const legOf = (patch: Partial<CustomLeg>): CustomLeg => ({ ...EMPTY_CUSTOM_LEG, ...patch })
+
+describe('a {{reference}} keeps its case (decision 36, a web defect)', () => {
+  it('upper-cases only the text outside references', () => {
+    expect(upperOutsideReferences('otm2')).toBe('OTM2')
+    expect(upperOutsideReferences('{{webhook.offset}}')).toBe('{{webhook.offset}}')
+    expect(upperOutsideReferences('otm{{n}}')).toBe('OTM{{n}}')
+    expect(upperOutsideReferences('{{a.b}}x{{c}}')).toBe('{{a.b}}X{{c}}')
+    // An unclosed brace is not a reference, so it is ordinary text.
+    expect(upperOutsideReferences('{{open')).toBe('{{OPEN')
+  })
+
+  it('reads a stored offset and expiry reference as written', () => {
+    const [leg] = parseCustomLegs([
+      { offset: '{{webhook.offset}}', expiry: '{{webhook.expiry}}', product: '{{p}}' },
+    ])
+    expect(leg.offset).toBe('{{webhook.offset}}')
+    expect(leg.expiry).toBe('{{webhook.expiry}}')
+    expect(leg.product).toBe('{{p}}')
+  })
+
+  it('writes a reference back as written, upper-casing the rest', () => {
+    const [out] = serializeCustomLegs([
+      legOf({ offset: '{{webhook.offset}}', expiryMode: 'DATE', expiry: '{{webhook.expiry}}' }),
+    ])
+    expect(out.offset).toBe('{{webhook.offset}}')
+    expect(out.expiry).toBe('{{webhook.expiry}}')
+  })
+})
+
+describe('what counts as a reference (V-155)', () => {
+  it('needs a closed {{...}}, not just an opening brace pair', () => {
+    expect(hasVariableReference('{{x}}')).toBe(true)
+    expect(hasVariableReference('OTM{{n}}')).toBe(true)
+    expect(hasVariableReference('{{x')).toBe(false)
+    expect(hasVariableReference('{x}')).toBe(false)
+  })
+
+  it('skips the shape check for a reference and keeps it for an unclosed one', () => {
+    expect(validateCustomLeg(legOf({ offset: '{{x' }), 'MARKET').offset).toBe(
+      'Use ATM, ITM1-ITM50 or OTM1-OTM50'
+    )
+    expect(validateCustomLeg(legOf({ offset: '{{x}}' }), 'MARKET').offset).toBeUndefined()
+    const date = (expiry: string) =>
+      validateCustomLeg(legOf({ expiryMode: 'DATE', expiry }), 'MARKET').expiry
+    expect(date('{{webhook.expiry}}')).toBeUndefined()
+    expect(date('28OCT{{yy')).toBe('Use DDMMMYY, e.g. 28OCT25')
+    expect(date('28OCT25')).toBeUndefined()
+  })
+})
+
+describe('the offset rule (F-271)', () => {
+  it.each(['ATM', 'ITM1', 'ITM9', 'ITM10', 'ITM49', 'ITM50', 'OTM1', 'OTM50'])(
+    'accepts %s',
+    (o) => {
+      expect(validateCustomLeg(legOf({ offset: o }), 'MARKET').offset).toBeUndefined()
+    }
+  )
+
+  it.each(['ITM0', 'OTM0', 'OTM51', 'ITM51', 'OTM99', 'ITM01', 'ATM1', 'OTM', 'XTM2'])(
+    'refuses %s',
+    (o) => {
+      expect(validateCustomLeg(legOf({ offset: o }), 'MARKET').offset).toBe(
+        'Use ATM, ITM1-ITM50 or OTM1-OTM50'
+      )
+    }
+  )
+
+  it("is the same rule the run's node contract checks", () => {
+    const rust = readFileSync(join(process.cwd(), 'src-tauri/src/flow/node_contracts.rs'), 'utf8')
+    const pattern = rust.match(/OPTION_OFFSET_PATTERN: Pattern = Pattern::new\(r"([^"]+)"\)/)?.[1]
+    expect(pattern).toBe(OFFSET_PATTERN.source)
+  })
+})
+
+describe('reading stored legs (F-272)', () => {
+  it('drops entries that are not objects', () => {
+    expect(parseCustomLegs([null, 'ATM', 7, { offset: 'OTM1' }]).map((l) => l.offset)).toEqual([
+      'OTM1',
+    ])
+  })
+
+  it('folds the case of what it reads', () => {
+    const [leg] = parseCustomLegs([
+      {
+        offset: 'otm3',
+        expiry: '28oct25',
+        expiryType: 'NEXT_WEEK',
+        optionType: 'pe',
+        action: 'sell',
+        product: 'nrml',
+        priceType: 'limit',
+      },
+    ])
+    expect(leg).toMatchObject({
+      offset: 'OTM3',
+      expiry: '28OCT25',
+      expiryMode: 'DATE',
+      expiryType: 'next_week',
+      optionType: 'PE',
+      action: 'SELL',
+      product: 'NRML',
+      priceType: 'LIMIT',
+    })
+    expect(parseCustomLegs([{ expiryType: 'NEXT_MONTH' }])[0]).toMatchObject({
+      expiryMode: 'TYPE',
+      expiryType: 'next_month',
+    })
+  })
+
+  it('defaults a bare leg to ATM and 1, and an offset leg with no offset to ATM', () => {
+    expect(parseCustomLegs([{}])[0]).toMatchObject({
+      strikeMode: 'OFFSET',
+      offset: 'ATM',
+      quantity: '1',
+    })
+    expect(parseCustomLegs([{ strike: 24200 }])[0]).toMatchObject({
+      strikeMode: 'STRIKE',
+      offset: '',
+      strike: '24200',
+    })
+  })
+})
+
+describe('writing the offset (F-275)', () => {
+  it('upper-cases a typed offset', () => {
+    expect(serializeCustomLegs([legOf({ offset: 'otm2' })])[0].offset).toBe('OTM2')
+    expect(serializeCustomLegs([legOf({ expiryMode: 'DATE', expiry: '28oct25' })])[0].expiry).toBe(
+      '28OCT25'
+    )
+  })
+})
+
+describe('the collapsed row line (F-276)', () => {
+  it('names the expiry type for a TYPE expiry', () => {
+    expect(describeLeg(legOf({ expiryMode: 'TYPE', expiryType: 'next_week' }))).toBe(
+      'BUY 1x ATM next_week CE'
+    )
+  })
+
+  it('marks what is missing', () => {
+    expect(describeLeg(legOf({ strikeMode: 'STRIKE', strike: '' }))).toBe('BUY 1x strike? CE')
+    expect(describeLeg(legOf({ offset: '' }))).toBe('BUY 1x offset? CE')
+    expect(describeLeg(legOf({ expiryMode: 'DATE', expiry: '' }))).toBe('BUY 1x ATM expiry? CE')
+    expect(describeLeg(legOf({}))).toBe('BUY 1x ATM CE')
   })
 })

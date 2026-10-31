@@ -131,6 +131,11 @@ describe('F-683 the utility nodes', () => {
     expect(has(el, 'Entry placed')).toBe(true)
   })
 
+  it('Log is titled "Log", with its level tag under the title', () => {
+    expect(subtitle(face('log', { level: 'warn' }), 'Log')).toBe('WARN')
+    expect(subtitle(face('log'), 'Log')).toBe('INFO')
+  })
+
   it('Log shows the first 30 characters of the message, Log message by default', () => {
     const long = 'Order placed for {{symbol}} at {{ltp}} with qty {{qty}}'
     expect(has(face('log', { message: long }), `${long.slice(0, 30)}...`)).toBe(true)

@@ -8,10 +8,10 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { WebhookInfo } from '@/api/flow'
+import { flowQueryKeys, type WebhookInfo } from '@/api/flow'
 import { useFlowWorkflowStore } from '@/stores/flowWorkflowStore'
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
@@ -538,5 +538,88 @@ describe('orderUpdateTrigger (F-537)', () => {
     expect(stored().trigger).toBe('every_time')
     choose('Trigger', 'Once, then stop watching')
     expect(stored().trigger).toBe('once')
+  })
+})
+
+describe('F-509: only a webhook trigger asks for the webhook, under flowQueryKeys.webhook(id)', () => {
+  const ORDER_NODE = { id: 'n1', type: 'placeOrder', position: { x: 0, y: 0 }, data: {} }
+  const WEBHOOK_NODE = {
+    id: 'n2',
+    type: 'webhookTrigger',
+    position: { x: 0, y: 0 },
+    data: { label: 'TV' },
+  }
+
+  /** The panel inside /flow/editor/7 on a client the test can read. */
+  function mountSaved(client: QueryClient) {
+    return render(
+      <MemoryRouter initialEntries={['/flow/editor/7']}>
+        <QueryClientProvider client={client}>
+          <Routes>
+            <Route path="/flow/editor/:id" element={<ConfigPanel />} />
+          </Routes>
+        </QueryClientProvider>
+      </MemoryRouter>
+    )
+  }
+
+  const newClient = () =>
+    new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+
+  it('asks for nothing while another node is open in a saved workflow', async () => {
+    useFlowWorkflowStore.setState({ nodes: [ORDER_NODE, WEBHOOK_NODE], selectedNodeId: 'n1' })
+    const client = newClient()
+    mountSaved(client)
+    await act(async () => {})
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Place Order')
+    expect(api.webhook).not.toHaveBeenCalled()
+    expect(client.getQueryState(flowQueryKeys.webhook(7))?.fetchStatus).toBe('idle')
+
+    act(() => useFlowWorkflowStore.getState().selectNode('n2'))
+    expect(await screen.findByDisplayValue(WEBHOOK_URL)).toBeInTheDocument()
+    expect(api.webhook).toHaveBeenCalledTimes(1)
+    expect(api.webhook).toHaveBeenCalledWith(7)
+  })
+
+  it('keeps the answer under flowQueryKeys.webhook(7), so refreshing that key shows a new URL', async () => {
+    useFlowWorkflowStore.setState({ nodes: [WEBHOOK_NODE], selectedNodeId: 'n2' })
+    const client = newClient()
+    mountSaved(client)
+    await screen.findByDisplayValue(WEBHOOK_URL)
+    expect(client.getQueryState(flowQueryKeys.webhook(7))?.status).toBe('success')
+
+    const regenerated = 'https://desk.ngrok-free.app/flow/webhook/new-token'
+    api.webhook.mockResolvedValue(webhookInfo({ webhook_url: regenerated }))
+    await act(() => client.invalidateQueries({ queryKey: flowQueryKeys.webhook(7) }))
+    expect(await screen.findByDisplayValue(regenerated)).toBeInTheDocument()
+    expect(api.webhook).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('F-530: the Seconds unit of an interval schedule', () => {
+  it.each([
+    ['seconds', 'Seconds'],
+    ['minutes', 'Minutes'],
+    ['hours', 'Hours'],
+  ])('a stored %s shows %s', (intervalUnit, shown) => {
+    openPanel('start', { scheduleType: 'interval', intervalValue: 2, intervalUnit })
+    expect(triggerUnder('Repeat Every')).toHaveTextContent(new RegExp(`^${shown}$`))
+  })
+
+  it.each([
+    ['Seconds', 'seconds', 'hours'],
+    ['Minutes', 'minutes', 'seconds'],
+  ])('picking %s stores %s', (label, value, from) => {
+    openPanel('start', { scheduleType: 'interval', intervalValue: 2, intervalUnit: from })
+    choose('Repeat Every', label)
+    expect(stored().intervalUnit).toBe(value)
+  })
+})
+
+describe('F-535: the Webhook URL label', () => {
+  it('names the URL box Webhook URL', async () => {
+    openPanel('webhookTrigger', { label: 'TV' })
+    await screen.findByDisplayValue(WEBHOOK_URL)
+    expect(fieldUnder('Webhook URL')).toHaveValue(WEBHOOK_URL)
   })
 })

@@ -13,6 +13,8 @@ import { describe, expect, it } from 'vitest'
 import {
   EMPTY_LEG,
   hasVariableReference,
+  LOT_TRADED_EXCHANGES,
+  lotKey,
   MAX_LEGS,
   type MarginLeg,
   parseLegs,
@@ -230,5 +232,46 @@ describe('lot arithmetic', () => {
     expect(roundUpToLot(1, 65)).toBe(65)
     expect(roundUpToLot(100, 65)).toBe(130)
     expect(roundUpToLot(130, 65)).toBe(130)
+  })
+})
+
+describe('a position with no product follows its exchange (F-282)', () => {
+  it.each([
+    ['NSE', 'MIS'],
+    ['BSE', 'MIS'],
+    ['NFO', 'NRML'],
+    ['BFO', 'NRML'],
+    ['MCX', 'NRML'],
+    ['CDS', 'NRML'],
+  ])('a product-less %s leg is priced as %s', (exchange, product) => {
+    const { legs } = parseLegs(JSON.stringify([{ symbol: 'X', exchange, quantity: '1' }]))
+    expect(legs[0].product).toBe(product)
+  })
+
+  it('keeps a product the leg names', () => {
+    const { legs } = parseLegs('[{"symbol": "X", "exchange": "NFO", "product": "MIS"}]')
+    expect(legs[0].product).toBe('MIS')
+  })
+})
+
+describe('lots (F-285, F-660)', () => {
+  it('rounds to the nearest whole lot, at least one', () => {
+    expect(roundUpToLot(70, 65)).toBe(65)
+    expect(roundUpToLot(97, 65)).toBe(65)
+    expect(roundUpToLot(98, 65)).toBe(130)
+    expect(roundUpToLot(10, 65)).toBe(65)
+    expect(roundUpToLot(130, 65)).toBe(130)
+  })
+
+  it('keys a contract by exchange and symbol, upper-cased', () => {
+    expect(lotKey('banknifty25aug26fut', 'nfo')).toBe('NFO:BANKNIFTY25AUG26FUT')
+    expect(lotKey('SENSEX', 'BFO')).toBe('BFO:SENSEX')
+  })
+
+  it('looks lot sizes up on NFO and BFO, the exchanges traded in lots', () => {
+    expect(LOT_TRADED_EXCHANGES.has('NFO')).toBe(true)
+    expect(LOT_TRADED_EXCHANGES.has('BFO')).toBe(true)
+    expect(LOT_TRADED_EXCHANGES.has('NSE')).toBe(false)
+    expect(LOT_TRADED_EXCHANGES.size).toBe(2)
   })
 })

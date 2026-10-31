@@ -92,3 +92,19 @@ describe('what a new node ships with', () => {
     expect(defaultProductForExchange(DEFAULT_NODE_DATA[node].exchange)).toBe('MIS')
   })
 })
+
+describe('every derivatives exchange, by name (F-242)', () => {
+  it.each(['NFO', 'BFO', 'CDS', 'BCD', 'MCX', 'NCDEX', 'NCO'])(
+    '%s defaults to NRML',
+    (exchange) => {
+      expect(defaultProductForExchange(exchange)).toBe('NRML')
+      expect(defaultProductForExchange(` ${exchange.toLowerCase()} `)).toBe('NRML')
+    }
+  )
+
+  it('names exactly those seven', () => {
+    expect([...DERIVATIVE_EXCHANGES].sort()).toEqual(
+      ['BCD', 'BFO', 'CDS', 'MCX', 'NCDEX', 'NCO', 'NFO'].sort()
+    )
+  })
+})

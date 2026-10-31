@@ -331,3 +331,128 @@ describe('group (F-618)', () => {
     expect(stored().color).toBe('purple')
   })
 })
+
+describe('F-612: the price condition fields and operators each store their own value', () => {
+  const FIELDS = [
+    ['Open', 'open'],
+    ['High', 'high'],
+    ['Low', 'low'],
+    ['Prev Close', 'prev_close'],
+  ]
+  const MORE_OPERATORS = [
+    ['<', '<'],
+    ['>=', '>='],
+    ['<=', '<='],
+    ['!=', '!='],
+  ]
+
+  it.each(FIELDS)('stores the %s field as %s', (label, value) => {
+    openPanel('priceCondition', { symbol: 'SBIN', field: 'ltp' })
+    openSelect('Field')
+    pick(label)
+    expect(stored().field).toBe(value)
+  })
+
+  it.each(FIELDS)('a stored field shows %s', (shown, value) => {
+    openPanel('priceCondition', { symbol: 'SBIN', field: value })
+    expect(shownUnder('Field')).toBe(shown)
+  })
+
+  it.each(MORE_OPERATORS)('stores the %s operator as %s', (label, value) => {
+    openPanel('priceCondition', { symbol: 'SBIN', operator: '==' })
+    openSelect('Operator')
+    pick(label)
+    expect(stored().operator).toBe(value)
+  })
+
+  it.each(MORE_OPERATORS)('a stored operator shows %s', (shown, value) => {
+    openPanel('priceCondition', { symbol: 'SBIN', operator: value })
+    expect(shownUnder('Operator')).toBe(shown)
+  })
+})
+
+describe('F-613: the variable condition operators each store their own value', () => {
+  const MORE_OPERATORS = [
+    ['<', '<'],
+    ['>=', '>='],
+    ['<=', '<='],
+  ]
+
+  it.each(MORE_OPERATORS)('stores the %s operator as %s', (label, value) => {
+    openPanel('varCondition', { leftValue: '{{rsi}}', rightValue: '30', operator: '==' })
+    openSelect('Operator')
+    pick(label)
+    expect(stored().operator).toBe(value)
+  })
+
+  it.each(MORE_OPERATORS)('a stored operator shows %s', (shown, value) => {
+    openPanel('varCondition', { leftValue: '{{rsi}}', rightValue: '30', operator: value })
+    expect(shownUnder('Operator')).toBe(shown)
+  })
+})
+
+describe('F-614: the position check conditions each store their own value', () => {
+  const CONDITIONS = [
+    ['No Position', 'not_exists'],
+    ['Qty Above', 'quantity_above'],
+    ['Qty Below', 'quantity_below'],
+    ['P&L Above', 'pnl_above'],
+  ]
+
+  it.each(CONDITIONS)('stores %s as %s', (label, value) => {
+    openPanel('positionCheck', { symbol: 'SBIN', condition: 'pnl_below' })
+    openSelect('Condition')
+    pick(label)
+    expect(stored().condition).toBe(value)
+  })
+
+  it.each(CONDITIONS)('a stored condition shows %s', (shown, value) => {
+    openPanel('positionCheck', { symbol: 'SBIN', condition: value })
+    expect(shownUnder('Condition')).toBe(shown)
+  })
+})
+
+describe('F-616: every gate input count stores its own number', () => {
+  const COUNTS: Array<[string, number]> = [
+    ['2 inputs', 2],
+    ['3 inputs', 3],
+    ['4 inputs', 4],
+    ['5 inputs', 5],
+  ]
+  const CASES = ['andGate', 'orGate'].flatMap((type) =>
+    COUNTS.map(([label, count]): [string, string, number] => [type, label, count])
+  )
+
+  it.each(CASES)('%s: %s stores %s', (type, label, count) => {
+    openPanel(type, { inputCount: count === 4 ? 3 : 4 })
+    openSelect('Number of Inputs')
+    pick(label)
+    expect(stored().inputCount).toBe(count)
+  })
+
+  it.each(CASES)('%s: a stored count shows %s', (type, label, count) => {
+    openPanel(type, { inputCount: count })
+    expect(shownUnder('Number of Inputs')).toBe(label)
+  })
+})
+
+describe('F-618: the group colours each store their own value', () => {
+  const COLOURS = [
+    ['Blue', 'blue'],
+    ['Green', 'green'],
+    ['Red', 'red'],
+    ['Orange', 'orange'],
+  ]
+
+  it.each(COLOURS)('stores %s as %s', (label, value) => {
+    openPanel('group', { color: 'purple' })
+    openSelect('Color')
+    pick(label)
+    expect(stored().color).toBe(value)
+  })
+
+  it.each(COLOURS)('a stored colour shows %s', (shown, value) => {
+    openPanel('group', { color: value })
+    expect(shownUnder('Color')).toBe(shown)
+  })
+})
