@@ -9,6 +9,9 @@ use crate::security::Unlocked;
 use async_trait::async_trait;
 use parking_lot::Mutex;
 
+// The log lines and run rules the wave-6 sweep asked to pin.
+mod rules_w6;
+
 /// R-35, one row per branch.
 #[test]
 fn run_results_map_to_the_webs_status_codes() {
