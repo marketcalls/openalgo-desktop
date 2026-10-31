@@ -205,6 +205,45 @@ impl Schedule {
         Self::build(data, now, false)
     }
 
+    /// An interval (`intervalValue or 1`, `interval_unit or "minutes"`),
+    /// aligned to the IST clock: the log names the unit given; anything but
+    /// seconds or hours runs as minutes.
+    fn interval(
+        data: &Map<String, Value>,
+        now: DateTime<Utc>,
+        invalid: impl Fn() -> String,
+    ) -> Result<Schedule, String> {
+        let value = data
+            .get("intervalValue")
+            .filter(|v| crate::flow::contract::pyfmt::truthy(v))
+            .map(|v| crate::flow::contract::pyfmt::to_int(v).filter(|n| *n > 0))
+            .unwrap_or(Some(1))
+            .ok_or_else(invalid)?;
+        let given = data
+            .get("intervalUnit")
+            .filter(|v| crate::flow::contract::pyfmt::truthy(v))
+            .map(crate::flow::contract::pyfmt::str)
+            .unwrap_or_else(|| "minutes".into());
+        let unit = match given.as_str() {
+            "seconds" => "seconds",
+            "hours" => "hours",
+            _ => "minutes",
+        };
+        let start = aligned_start(value, unit, now);
+        tracing::info!(
+            "Creating interval trigger: every {} {}, first run {}",
+            value,
+            given,
+            ist(start).format("%H:%M:%S")
+        );
+        let every = match unit {
+            "seconds" => Duration::seconds(value),
+            "hours" => Duration::hours(value),
+            _ => Duration::minutes(value),
+        };
+        Ok(Schedule::Interval { every, start })
+    }
+
     fn build(
         data: &Map<String, Value>,
         now: DateTime<Utc>,
@@ -223,39 +262,7 @@ impl Schedule {
         let invalid = || format!("Invalid schedule configuration: type={}", kind);
         let days = data.get("days").cloned().unwrap_or(Value::Null);
         let schedule = match kind.as_str() {
-            "interval" => {
-                let value = data
-                    .get("intervalValue")
-                    .filter(|v| crate::flow::contract::pyfmt::truthy(v))
-                    .map(|v| crate::flow::contract::pyfmt::to_int(v).filter(|n| *n > 0))
-                    .unwrap_or(Some(1))
-                    .ok_or_else(invalid)?;
-                // `interval_unit or "minutes"`: the log names the unit given;
-                // anything but seconds or hours runs as minutes.
-                let given = data
-                    .get("intervalUnit")
-                    .filter(|v| crate::flow::contract::pyfmt::truthy(v))
-                    .map(crate::flow::contract::pyfmt::str)
-                    .unwrap_or_else(|| "minutes".into());
-                let unit = match given.as_str() {
-                    "seconds" => "seconds",
-                    "hours" => "hours",
-                    _ => "minutes",
-                };
-                let start = aligned_start(value, unit, now);
-                tracing::info!(
-                    "Creating interval trigger: every {} {}, first run {}",
-                    value,
-                    given,
-                    ist(start).format("%H:%M:%S")
-                );
-                let every = match unit {
-                    "seconds" => Duration::seconds(value),
-                    "hours" => Duration::hours(value),
-                    _ => Duration::minutes(value),
-                };
-                Schedule::Interval { every, start }
-            }
+            "interval" => Self::interval(data, now, invalid)?,
             "once" => {
                 let at = data
                     .get("executeAt")
