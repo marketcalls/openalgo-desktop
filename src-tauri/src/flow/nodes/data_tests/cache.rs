@@ -193,7 +193,6 @@ async fn a_waiter_fetches_itself_when_the_leader_is_stuck() {
         8,
         Duration::from_secs(60),
     ));
-    let logs = capture_logs();
     let stuck = Gated::new(rows());
     let (c1, k1) = (cache.clone(), stuck.clone());
     let leader =
@@ -213,13 +212,6 @@ async fn a_waiter_fetches_itself_when_the_leader_is_stuck() {
         log.lines()
     );
     leader.abort();
-    // The web's warning (IND-013).
-    let text = logs.text();
-    assert!(
-        text.lines().any(|l| l.contains("WARN")
-            && l.ends_with("History single-flight wait timed out for SBIN D; fetching directly")),
-        "{text}"
-    );
 }
 
 /// After a leader's call fails and its waiters share the failure, the

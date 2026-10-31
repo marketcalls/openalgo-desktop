@@ -362,9 +362,18 @@ async fn a_legacy_node_is_upgraded_before_it_is_validated() {
 #[tokio::test]
 async fn the_trigger_lists_every_registered_field_in_the_webs_order() {
     let t = app();
+    // Each field's own number, except the exchange, which strict validation
+    // takes only as one of the exchange constants.
+    let value = |i: usize, field: &str| {
+        if field == "exchange" {
+            json!("NSE")
+        } else {
+            json!(i)
+        }
+    };
     let mut data = serde_json::Map::new();
     for (i, field) in TRIGGER_CONFIG_FIELDS.iter().enumerate().rev() {
-        data.insert((*field).to_string(), json!(i));
+        data.insert((*field).to_string(), value(i, field));
     }
     data.insert("label".into(), json!("not registered"));
     let wf = json!({
@@ -385,7 +394,7 @@ async fn the_trigger_lists_every_registered_field_in_the_webs_order() {
     let fields: Vec<String> = TRIGGER_CONFIG_FIELDS
         .iter()
         .enumerate()
-        .map(|(i, f)| format!("\"{f}\":{i}"))
+        .map(|(i, f)| format!("\"{f}\":{}", value(i, f)))
         .collect();
     assert!(
         text.contains(&format!(

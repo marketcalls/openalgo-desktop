@@ -692,6 +692,9 @@ async fn a_one_shot_watch_after_its_run_logs_the_webs_lines() {
 #[tokio::test]
 async fn price_alerts_and_order_updates_while_signed_out_are_skipped_with_the_reason() {
     let t = app();
+    // Only this side acts: the app's own restores these workflows at start-up
+    // and would poll and log the pause line too.
+    t.ctx.flow.triggers().stop().await;
     let s = side(&t);
     s.watches.attach();
     let alert_data = json!({"symbol": "SBIN", "condition": "above", "price": 800});
@@ -805,5 +808,13 @@ async fn the_apps_shutdown_ends_the_background_runs_in_flight() {
             id
         );
     }
-    assert!(logs.has("Flow triggers stopped"));
+    // T-017, T-045, T-060: the web's three shutdown lines (schedule_logs pins
+    // their order and that each is written once).
+    for line in [
+        "Flow Scheduler shutdown",
+        "FlowPriceMonitor shutdown",
+        "FlowOrderUpdateMonitor shutdown",
+    ] {
+        assert!(logs.has(line), "{}", line);
+    }
 }
