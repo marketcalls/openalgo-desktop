@@ -28,8 +28,16 @@ pub(crate) struct Harness {
 
 /// A signed-in trader with an API key, and the Agent pointed at a fake
 /// provider answering `script`.
+///
+/// The clock starts at 10:00 IST on a trading Friday, never at the real
+/// time of day: a session from before the 03:00 IST boundary is signed out
+/// on every route, so a test that moves the clock (an approval expiring
+/// after ten minutes) read 401 when a run started at 02:5x IST.
 pub(crate) async fn harness(script: Vec<Reply>) -> Harness {
-    let t = build(crate::brokers::BrokerRegistry::new(), chrono::Utc::now());
+    let t = build(
+        crate::brokers::BrokerRegistry::new(),
+        crate::agent::tools::testkit::friday_morning(),
+    );
     t.ctx.limiter.freeze(Some(std::time::Instant::now()));
     AuthService::setup(&t.ctx, USER, "t@example.com", "Str0ng!Passw0rd").unwrap();
     let fake = FakeProvider::start(script).await;
@@ -427,6 +435,9 @@ async fn an_approval_expires_after_ten_minutes() {
     .await;
     h.ctx().agent.set_toolkits(TEST_TOOLKITS);
     let (confirm, conv) = paused(&h).await;
+    // Far from the 03:00 IST session boundary whatever the wall clock says.
+    let ist = h.ctx().now().with_timezone(&chrono_tz::Asia::Kolkata);
+    assert_eq!(ist.format("%H:%M").to_string(), "10:00");
     h.t.clock.advance(chrono::Duration::minutes(10));
     let body =
         json!({"run_id": confirm["run_id"], "conversation_id": conv, "decisions": {"c9": true}});
