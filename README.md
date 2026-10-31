@@ -6,19 +6,19 @@ How many times the files of each [OpenAlgo Desktop](https://github.com/marketcal
 
 | | Downloads |
 | --- | ---: |
-| All time | 1,617 |
-| Last 30 days | 1,617 |
-| Windows | 1,006 |
-| macOS | 408 |
-| Linux | 203 |
+| All time | 1,646 |
+| Last 30 days | 1,646 |
+| Windows | 1,025 |
+| macOS | 416 |
+| Linux | 205 |
 
-Update checks, which are not downloads and are in no total: 4,424.
+Update checks, which are not downloads and are in no total: 4,518.
 
 ## By release
 
 | Release | Published | Windows | macOS installer | macOS update | Linux AppImage | Linux .deb | Total | Update checks |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| v1.0.4 | 2026-10-29 | 168 | 42 | 15 | 19 | 23 | 267 | 715 |
+| v1.0.4 | 2026-10-29 | 187 | 50 | 15 | 20 | 24 | 296 | 809 |
 | v1.0.3 | 2026-10-27 | 314 | 89 | 42 | 20 | 26 | 491 | 1,455 |
 | v1.0.2 | 2026-10-24 | 373 | 97 | 20 | 19 | 35 | 544 | 1,712 |
 | v1.0.1 | 2026-10-23 | 50 | 20 | 19 | 14 | 14 | 117 | 260 |
@@ -28,16 +28,16 @@ Update checks, which are not downloads and are in no total: 4,424.
 
 | Release | File | Downloaded by | Downloads |
 | --- | --- | --- | ---: |
-| v1.0.4 | `OpenAlgo.Desktop_1.0.4_aarch64.AppImage` | a person or the in-app update | 7 |
+| v1.0.4 | `OpenAlgo.Desktop_1.0.4_aarch64.AppImage` | a person or the in-app update | 8 |
 | v1.0.4 | `OpenAlgo.Desktop_1.0.4_aarch64.app.tar.gz` | the in-app update | 11 |
-| v1.0.4 | `OpenAlgo.Desktop_1.0.4_aarch64.dmg` | a person (release page) | 32 |
+| v1.0.4 | `OpenAlgo.Desktop_1.0.4_aarch64.dmg` | a person (release page) | 38 |
 | v1.0.4 | `OpenAlgo.Desktop_1.0.4_amd64.AppImage` | a person or the in-app update | 12 |
-| v1.0.4 | `OpenAlgo.Desktop_1.0.4_amd64.deb` | a person (release page) | 17 |
+| v1.0.4 | `OpenAlgo.Desktop_1.0.4_amd64.deb` | a person (release page) | 18 |
 | v1.0.4 | `OpenAlgo.Desktop_1.0.4_arm64.deb` | a person (release page) | 6 |
-| v1.0.4 | `OpenAlgo.Desktop_1.0.4_x64-setup.exe` | a person or the in-app update | 168 |
+| v1.0.4 | `OpenAlgo.Desktop_1.0.4_x64-setup.exe` | a person or the in-app update | 187 |
 | v1.0.4 | `OpenAlgo.Desktop_1.0.4_x64.app.tar.gz` | the in-app update | 4 |
-| v1.0.4 | `OpenAlgo.Desktop_1.0.4_x64.dmg` | a person (release page) | 10 |
-| v1.0.4 | `latest.json` | update checks (not a download) | 715 |
+| v1.0.4 | `OpenAlgo.Desktop_1.0.4_x64.dmg` | a person (release page) | 12 |
+| v1.0.4 | `latest.json` | update checks (not a download) | 809 |
 | v1.0.3 | `OpenAlgo.Desktop_1.0.3_aarch64.AppImage` | a person or the in-app update | 8 |
 | v1.0.3 | `OpenAlgo.Desktop_1.0.3_aarch64.app.tar.gz` | the in-app update | 35 |
 | v1.0.3 | `OpenAlgo.Desktop_1.0.3_aarch64.dmg` | a person (release page) | 68 |
