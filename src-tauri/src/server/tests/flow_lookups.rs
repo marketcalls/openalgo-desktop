@@ -387,3 +387,6 @@ async fn the_calendar_routes_answer_the_services_failure_sentences() {
         json!(["Must be greater than or equal to 2020 and less than or equal to 2050."])
     );
 }
+
+// C-11, C-12: the option-strike route's IST day and its underlying split.
+mod option_strikes;
