@@ -33,7 +33,7 @@ async fn an_entry_on_the_page_sets_the_limit_every_lookup_uses() {
     let m = M::new().await;
     m.h.analyze(true);
     let built_in = symbol_freeze(&m).await;
-    assert_eq!(built_in, json!(3510), "NSE's built-in NIFTY limit");
+    assert_eq!(built_in, json!(1800), "NSE's built-in NIFTY limit");
 
     let (s, v) = m
         .session_json(

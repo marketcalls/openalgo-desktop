@@ -74,6 +74,21 @@ These behave differently from OpenAlgo web on purpose; each is tested.
 - The custom-leg editor keeps a `{{variable}}`'s case so it resolves.
 - Validation errors always come in the same order.
 
+### Market rules
+
+- Index freeze limits from Monday 2 November 2026 (NSE circular
+  NSE/FAOP/77189): NIFTY 1,800, BANKNIFTY 900, FINNIFTY 1,800, MIDCPNIFTY
+  2,800, NIFTYNXT50 600 and NIFTYFPI 8,500, down from the October limits.
+  The symbol, search and option symbol lookups show them, and scalping exits
+  go out in whole lots within them (a NIFTY exit in orders of 1,755, 27 lots
+  of 65). A limit you set on the Freeze Quantity page still wins
+  (marketcalls/openalgo 8e4241127).
+- Diwali Muhurat trading on Sunday 8 November 2026 runs 14:20 to 15:30 IST,
+  with NFO and BFO to 15:40 and NSE commodities (NCO) included, as the
+  exchanges published it. Earlier builds held an estimate of 18:00 to 19:15
+  (MCX to 00:15); the app moves an estimate still in place to the published
+  session when it starts, and keeps a session you set on the Holidays page.
+
 ### Brokers
 
 - Fyers: market depth shows the last traded price, not a price halfway

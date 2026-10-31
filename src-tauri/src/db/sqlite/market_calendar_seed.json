@@ -538,38 +538,43 @@
    "open": [
     {
      "exchange": "NSE",
-     "start_time": 1794141000000,
-     "end_time": 1794145500000
+     "start_time": 1794127800000,
+     "end_time": 1794132000000
     },
     {
      "exchange": "BSE",
-     "start_time": 1794141000000,
-     "end_time": 1794145500000
+     "start_time": 1794127800000,
+     "end_time": 1794132000000
     },
     {
      "exchange": "NFO",
-     "start_time": 1794141000000,
-     "end_time": 1794145500000
+     "start_time": 1794127800000,
+     "end_time": 1794132600000
     },
     {
      "exchange": "BFO",
-     "start_time": 1794141000000,
-     "end_time": 1794145500000
+     "start_time": 1794127800000,
+     "end_time": 1794132600000
     },
     {
      "exchange": "CDS",
-     "start_time": 1794141000000,
-     "end_time": 1794145500000
+     "start_time": 1794127800000,
+     "end_time": 1794132000000
     },
     {
      "exchange": "BCD",
-     "start_time": 1794141000000,
-     "end_time": 1794145500000
+     "start_time": 1794127800000,
+     "end_time": 1794132000000
     },
     {
      "exchange": "MCX",
-     "start_time": 1794141000000,
-     "end_time": 1794163500000
+     "start_time": 1794127800000,
+     "end_time": 1794132000000
+    },
+    {
+     "exchange": "NCO",
+     "start_time": 1794127800000,
+     "end_time": 1794132000000
     }
    ]
   },

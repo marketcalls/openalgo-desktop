@@ -62,8 +62,8 @@ pub(crate) fn builtin_freeze_qty(key: &str) -> i64 {
 ///
 /// Index names are matched longest-prefix-first, so NIFTYNXT50 and NIFTYFPI
 /// are not shadowed by NIFTY, and SENSEX50 is not shadowed by SENSEX.
-/// NIFTYFPI's limit (53,900) is fifteen times NIFTY's, so falling through to
-/// NIFTY split its orders into far more slices than the exchange requires.
+/// NIFTYFPI's limit (8,500) is nearly five times NIFTY's, so falling through
+/// to NIFTY split its orders into far more slices than the exchange requires.
 pub(crate) fn freeze_underlying(symbol: &str) -> Option<String> {
     let up = symbol.to_ascii_uppercase();
     for idx in [
@@ -420,7 +420,7 @@ mod tests {
 
     #[test]
     fn freeze_quantities_come_from_the_nse_table() {
-        assert_eq!(freeze_qty_for_option("NIFTY06OCT2622400CE", "NFO"), 3510);
+        assert_eq!(freeze_qty_for_option("NIFTY24NOV2622400CE", "NFO"), 1800);
         assert_eq!(
             freeze_qty_for_option("NIFTYNXT5027OCT26FUT", "NFO"),
             freeze_qty("NIFTYNXT50", "NFO")
@@ -430,17 +430,17 @@ mod tests {
         assert!(freeze_qty("RELIANCE", "NFO") > 0);
     }
 
-    /// Web test/test_migrate_qty_freeze_oct_2026.py::test_the_seed_csv_carries_the_same_limits:
-    /// the NSE index limits in force from 5 October 2026 (NSE/FAOP/76693).
+    /// Web test/test_migrate_qty_freeze_nov_2026.py::test_the_seed_csv_carries_the_same_limits:
+    /// the NSE index limits in force from 2 November 2026 (NSE/FAOP/77189).
     #[test]
-    fn index_freeze_limits_from_5_october_2026() {
+    fn index_freeze_limits_from_2_november_2026() {
         for (index, limit) in [
-            ("NIFTY", 3510),
-            ("BANKNIFTY", 1440),
-            ("FINNIFTY", 3240),
-            ("MIDCPNIFTY", 5760),
-            ("NIFTYNXT50", 1125),
-            ("NIFTYFPI", 53900),
+            ("NIFTY", 1800),
+            ("BANKNIFTY", 900),
+            ("FINNIFTY", 1800),
+            ("MIDCPNIFTY", 2800),
+            ("NIFTYNXT50", 600),
+            ("NIFTYFPI", 8500),
         ] {
             assert_eq!(freeze_qty(index, "NFO"), limit, "{index}");
         }
@@ -448,16 +448,13 @@ mod tests {
         assert_eq!(freeze_qty("RELIANCE", "NFO"), 15000);
     }
 
-    /// Web test/test_migrate_qty_freeze_oct_2026.py::test_niftyfpi_options_resolve_their_own_limit:
+    /// Web test/test_migrate_qty_freeze_nov_2026.py::test_niftyfpi_options_resolve_their_own_limit:
     /// NIFTYFPI starts with NIFTY, so it must be matched before NIFTY.
     #[test]
     fn niftyfpi_options_resolve_their_own_limit() {
-        assert_eq!(
-            freeze_qty_for_option("NIFTYFPI27OCT2618000CE", "NFO"),
-            53900
-        );
-        assert_eq!(freeze_qty_for_option("NIFTYFPI27OCT26FUT", "NFO"), 53900);
-        assert_eq!(freeze_qty_for_option("NIFTY27OCT2625000CE", "NFO"), 3510);
+        assert_eq!(freeze_qty_for_option("NIFTYFPI24NOV2618000CE", "NFO"), 8500);
+        assert_eq!(freeze_qty_for_option("NIFTYFPI24NOV26FUT", "NFO"), 8500);
+        assert_eq!(freeze_qty_for_option("NIFTY24NOV2625000CE", "NFO"), 1800);
     }
 
     #[test]

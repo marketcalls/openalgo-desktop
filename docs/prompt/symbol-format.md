@@ -239,7 +239,7 @@ web. `/api/v1/symbol` returns them for one symbol:
     "lotsize": 65,
     "instrumenttype": "CE",
     "tick_size": 0.05,
-    "freeze_qty": 3510
+    "freeze_qty": 1800
   }
 }
 ```

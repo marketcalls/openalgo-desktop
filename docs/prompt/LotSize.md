@@ -50,7 +50,7 @@ sent to `http://127.0.0.1:5000/api/v1/symbol` answers, among the other fields:
     "expiry": "27-OCT-26",
     "lotsize": 65,
     "tick_size": 0.1,
-    "freeze_qty": 3510
+    "freeze_qty": 1800
   }
 }
 ```

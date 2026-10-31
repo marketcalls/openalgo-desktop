@@ -422,8 +422,8 @@ async fn close_all_flattens_only_the_scalping_list_freeze_safe() {
         .store
         .track(OPT, "NFO", "NRML", "live")
         .unwrap();
-    // 60 lots: above the NIFTY freeze from 5 October 2026 (3510 = 54 whole
-    // lots of 65; openalgo#2218).
+    // 60 lots: above the NIFTY freeze from 2 November 2026 (1800 = 27 whole
+    // lots of 65, so 1755 per order; NSE/FAOP/77189).
     *h.mock.positions.lock() = Some(Ok(vec![
         pos(OPT, "NFO", "NRML", 65 * 60),
         pos("SBIN", "NSE", "MIS", 10),
@@ -445,7 +445,11 @@ async fn close_all_flattens_only_the_scalping_list_freeze_safe() {
     assert_eq!(b["results"][0]["status"], "success");
     assert_eq!(
         placed(&h),
-        vec![("SELL".to_string(), 3510), ("SELL".to_string(), 390)],
+        vec![
+            ("SELL".to_string(), 1755),
+            ("SELL".to_string(), 1755),
+            ("SELL".to_string(), 390)
+        ],
         "split into freeze-sized whole-lot chunks; SBIN untouched"
     );
     h.shutdown().await;
@@ -2305,8 +2309,8 @@ async fn a_split_exit_records_the_chunk_the_broker_did_not_confirm() {
         "open",
     ));
     *h.mock.after_send_time.lock() = "2026-10-03 09:42:05".into();
-    // 60 lots: above the NIFTY freeze (1,800 before 5 October 2026, 3,510
-    // after), so the exit goes out in at least two freeze-sized chunks.
+    // 60 lots: above the NIFTY freeze (1,800 from 2 November 2026, 3,510
+    // from 5 October), so the exit goes out in at least two freeze-sized chunks.
     let close = || {
         req(
             Method::POST,

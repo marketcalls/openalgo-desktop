@@ -124,8 +124,8 @@ Each file: `{request:{method,path,headers,body}, response:{status_code,headers,b
 | margin | quantity_as_number_not_string | 400 | numeric quantity rejected: 400 'Not a valid string.' (schema declares quantity/price as Str) |
 | margin | single_equity_mis | 200 | quantity/price are STRINGS in request; data:{exposure_margin, span_margin, total_margin_required} numbers |
 | margin | single_option_limit | 200 |  |
-| market/holidays | no_year | 200 |  |
-| market/holidays | year_2026 | 200 | data:[{date 'YYYY-MM-DD', description, holiday_type, closed_exchanges[], open_exchanges:[{exchange,start_time,end_time ms}]}] |
+| market/holidays | no_year | 200 | 2026-11-08 edited by hand as in year_2026 |
+| market/holidays | year_2026 | 200 | data:[{date 'YYYY-MM-DD', description, holiday_type, closed_exchanges[], open_exchanges:[{exchange,start_time,end_time ms}]}]. The 2026-11-08 Muhurat entry was edited by hand on 2026-10-31 after web 8e4241127 replaced the recorded estimate (18:00-19:15, MCX to 00:15) with the published session (14:20-15:30, NFO/BFO to 15:40, NCO added last), which the web's seed and its startup migration now give |
 | market/holidays | year_out_of_range | 400 |  |
 | market/timings | bad_date | 400 |  |
 | market/timings | saturday_2026-10-03 | 200 | only CRYPTO open on Saturday; start_time/end_time epoch MILLISECONDS |
