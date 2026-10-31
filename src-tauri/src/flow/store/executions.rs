@@ -101,6 +101,17 @@ pub fn finish(
 /// A workflow's runs, newest first, at most `limit` clamped to
 /// 1..=[`QUERY_MAX`] (`get_workflow_executions`).
 pub fn list(conn: &Connection, workflow_id: i64, limit: i64) -> Result<Vec<Execution>> {
+    read(conn, workflow_id, limit).map_err(|e| {
+        tracing::error!(
+            "Error getting executions for workflow {}: {}",
+            workflow_id,
+            e
+        );
+        e.into()
+    })
+}
+
+fn read(conn: &Connection, workflow_id: i64, limit: i64) -> rusqlite::Result<Vec<Execution>> {
     let limit = limit.clamp(1, QUERY_MAX);
     let mut st = conn.prepare(
         "SELECT id, workflow_id, status, started_at, completed_at, logs, error

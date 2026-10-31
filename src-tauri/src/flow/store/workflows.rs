@@ -89,7 +89,8 @@ fn with_secret(sec: &SecurityManager, raw: Raw) -> Workflow {
     w
 }
 
-/// A workflow with its webhook secret (`get_workflow`).
+/// A workflow with its webhook secret (`get_workflow`). A failed read is
+/// logged as the web logs it and reaches the caller (a 500, decision 34).
 pub fn get(conn: &Connection, sec: &SecurityManager, id: i64) -> Result<Option<Workflow>> {
     let raw = conn
         .query_row(
@@ -97,7 +98,11 @@ pub fn get(conn: &Connection, sec: &SecurityManager, id: i64) -> Result<Option<W
             params![id],
             from_row,
         )
-        .optional()?;
+        .optional()
+        .map_err(|e| {
+            tracing::error!("Error getting workflow {}: {}", id, e);
+            e
+        })?;
     Ok(raw.map(|r| with_secret(sec, r)))
 }
 
@@ -123,6 +128,13 @@ pub fn get_by_token(
 /// Every workflow, most recently changed first, with its newest run's
 /// status (`get_all_workflows` plus one execution per workflow).
 pub fn list(conn: &Connection) -> Result<Vec<WorkflowSummary>> {
+    read_all(conn).map_err(|e| {
+        tracing::error!("Error getting all workflows: {}", e);
+        e.into()
+    })
+}
+
+fn read_all(conn: &Connection) -> rusqlite::Result<Vec<WorkflowSummary>> {
     let mut st = conn.prepare(
         "SELECT w.id, w.name, w.description, w.is_active, w.webhook_enabled, w.created_at,
                 w.updated_at,
@@ -269,6 +281,15 @@ pub fn update(
     e: &Edit,
     now: DateTime<Utc>,
 ) -> Result<Option<Workflow>> {
+    // Nothing to write (a PUT of non-editable keys only): the web's commit
+    // emits no UPDATE, so updated_at and the list order stay (R-19).
+    if e.name.is_none() && e.description.is_none() && e.nodes.is_none() && e.edges.is_none() {
+        let w = get(conn, sec, id)?;
+        if w.is_some() {
+            tracing::info!("Updated workflow {}", id);
+        }
+        return Ok(w);
+    }
     let written = conn.execute(
         "UPDATE flow_workflows SET
              name = COALESCE(?1, name),
@@ -296,7 +317,7 @@ pub fn update(
 /// What one of the writers the web's `update_workflow` backs did, logged
 /// as the web logs it: `Updated workflow {id}` when a row changed, `Error
 /// updating workflow {id}: {e}` when the write failed.
-fn changed(written: rusqlite::Result<usize>, id: i64) -> Result<bool> {
+pub(crate) fn changed(written: rusqlite::Result<usize>, id: i64) -> Result<bool> {
     match written {
         Ok(n) => {
             if n > 0 {

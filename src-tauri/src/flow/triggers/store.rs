@@ -124,11 +124,14 @@ pub fn set_next_run(conn: &Connection, id: i64, next: Option<DateTime<Utc>>) -> 
 /// Stand a workflow down: inactive, no job id, no next run. `false` when
 /// it is gone.
 pub fn deactivate(conn: &Connection, id: i64, now: DateTime<Utc>) -> Result<bool> {
-    Ok(conn.execute(
+    // The web's update_workflow(is_active=False, schedule_job_id=None): its
+    // `Updated workflow {id}` line, or its error line (S-13).
+    let written = conn.execute(
         "UPDATE flow_workflows SET is_active = 0, schedule_job_id = NULL, next_run_at = NULL,
              updated_at = ?1 WHERE id = ?2",
         params![stamp(now), id],
-    )? > 0)
+    );
+    crate::flow::store::workflows::changed(written, id)
 }
 
 /// A trigger that fired while it could not run (no broker session): one
