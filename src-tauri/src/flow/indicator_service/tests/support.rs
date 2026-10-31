@@ -124,10 +124,22 @@ pub(crate) fn numbers(value: &Value) -> Vec<f64> {
         .collect()
 }
 
-/// The first difference between a result and the web's, within tolerance.
+/// The rows the web rounds to six places (`_at`: `round(float(v), 6)`).
+const ROUNDED: [&str; 4] = ["latest", "previous", "at_offset", "series"];
+
+/// The first difference between a result and the web's. The rows the web
+/// rounds are compared exactly (IND-048), so a value left unrounded, or
+/// rounded otherwise than Python's `round(x, 6)`, differs; everything else
+/// within tolerance. The recorder writes a non-finite float as its Python
+/// text, which is how the run keeps one (`pyjson::float_value`).
 pub(crate) fn diff(got: &Value, want: &Value) -> Option<String> {
-    // The recorder writes a non-finite float as its Python text, which is
-    // how the run keeps one (`pyjson::float_value`).
+    for key in ROUNDED {
+        if let (Some(g), Some(w)) = (got.get(key), want.get(key)) {
+            if let Some(problem) = json_diff(key, g, w, 0.0, 0.0) {
+                return Some(format!("{problem} (rounded to six places: exact)"));
+            }
+        }
+    }
     json_diff("result", got, want, ABS, REL)
 }
 

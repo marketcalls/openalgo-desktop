@@ -10,6 +10,7 @@ use crate::flow::nodes::history::{
     api_interval, broker_account_tag, shared_cache, HistoryCache, HISTORY_CACHE_MAXSIZE,
     HISTORY_CACHE_TTL, HISTORY_FLIGHT_TIMEOUT,
 };
+use crate::services::tunnel::fake::capture_logs;
 use async_trait::async_trait;
 use parking_lot::Mutex;
 use serde_json::{json, Value};
@@ -189,6 +190,7 @@ async fn a_waiter_fetches_itself_when_the_leader_is_stuck() {
         8,
         Duration::from_secs(60),
     ));
+    let logs = capture_logs();
     let stuck = Gated::new(rows());
     let (c1, k1) = (cache.clone(), stuck.clone());
     let leader =
@@ -200,6 +202,113 @@ async fn a_waiter_fetches_itself_when_the_leader_is_stuck() {
     assert_eq!(got, rows());
     assert_eq!(quick.calls().len(), 1);
     leader.abort();
+    // The web's warning (IND-013).
+    let text = logs.text();
+    assert!(
+        text.lines().any(|l| l.contains("WARN")
+            && l.ends_with("History single-flight wait timed out for SBIN D; fetching directly")),
+        "{text}"
+    );
+}
+
+/// After a leader's call fails and its waiters share the failure, the
+/// flight is retired: the next identical request makes its own call
+/// rather than waiting on a call nobody makes (IND-013).
+#[tokio::test]
+async fn a_shared_failure_retires_the_flight() {
+    let cache = Arc::new(HistoryCache::new(
+        HISTORY_CACHE_TTL,
+        8,
+        HISTORY_FLIGHT_TIMEOUT,
+    ));
+    let failing = Gated::new(json!({"status": "error", "error": "Too many requests"}));
+    let (c1, k1) = (cache.clone(), failing.clone());
+    let leader =
+        tokio::spawn(async move { c1.fetch(k1.as_ref(), "anon", &req("SBIN"), None).await });
+    failing.entered.notified().await;
+    let (c2, k2) = (cache.clone(), failing.clone());
+    let waiter =
+        tokio::spawn(async move { c2.fetch(k2.as_ref(), "anon", &req("SBIN"), None).await });
+    for _ in 0..8 {
+        tokio::task::yield_now().await;
+    }
+    failing.release.notify_one();
+    let (a, b) = (leader.await.ok(), waiter.await.ok());
+    assert_eq!(a, b, "the waiter shares the failure");
+    assert_eq!(failing.calls.load(Ordering::SeqCst), 1);
+    let logs = capture_logs();
+    let next = FakeFlowClient::new();
+    next.reply("history", rows());
+    assert_eq!(cache.fetch(&next, "anon", &req("SBIN"), None).await, rows());
+    assert_eq!(next.calls().len(), 1);
+    // A flight left behind would send this caller to wait on it first.
+    assert!(
+        !logs.text().contains("History single-flight wait"),
+        "the next request waited on a retired flight: {}",
+        logs.text()
+    );
+}
+
+/// Every field of a request is part of its key (IND-011): another exchange,
+/// interval, start, end or source is a new call; the same request again is
+/// a hit, with the web's debug line `History cache hit: ...` (IND-013).
+#[tokio::test]
+async fn every_request_field_is_part_of_the_cache_key() {
+    let logs = capture_logs();
+    let cache = HistoryCache::new(HISTORY_CACHE_TTL, 16, HISTORY_FLIGHT_TIMEOUT);
+    let client = FakeFlowClient::new();
+    client.reply("history", rows());
+    let variants = [
+        req("SBIN"),
+        History {
+            exchange: "BSE".into(),
+            ..req("SBIN")
+        },
+        History {
+            interval: "5m".into(),
+            ..req("SBIN")
+        },
+        History {
+            start_date: Some("2026-09-01".into()),
+            ..req("SBIN")
+        },
+        History {
+            end_date: Some("2026-10-28".into()),
+            ..req("SBIN")
+        },
+        History {
+            source: "db".into(),
+            ..req("SBIN")
+        },
+    ];
+    for (i, variant) in variants.iter().enumerate() {
+        cache.fetch(&client, "anon", variant, None).await;
+        assert_eq!(
+            client.calls().len(),
+            i + 1,
+            "{variant:?} is its own request"
+        );
+    }
+    for variant in &variants {
+        cache.fetch(&client, "anon", variant, None).await;
+    }
+    assert_eq!(
+        client.calls().len(),
+        variants.len(),
+        "each answered from the cache"
+    );
+    let text = logs.text();
+    for line in [
+        "History cache hit: SBIN D (api)",
+        "History cache hit: SBIN 5m (api)",
+        "History cache hit: SBIN D (db)",
+    ] {
+        assert!(
+            text.lines()
+                .any(|l| l.contains("DEBUG") && l.ends_with(line)),
+            "{line} missing from {text}"
+        );
+    }
 }
 
 /// The Indicator, Bar Offset and Prior Period OHLC nodes share one fetch

@@ -9,6 +9,7 @@ use super::support::{json, Failures, WINDOW};
 use crate::flow::indicator_service::{
     calendar_days_for_bars, clamp_bars, clamp_history_range, history_window, trim_records,
 };
+use crate::services::tunnel::fake::capture_logs;
 
 fn date(text: &str) -> NaiveDate {
     NaiveDate::parse_from_str(text, "%Y-%m-%d").expect("date")
@@ -83,6 +84,54 @@ fn clamp_history_range_matches_the_web() {
         }
     }
     failures.check(cases.len());
+}
+
+/// The ceilings write the web's server log lines (decision 35): the bar
+/// clamp, the trim, the calendar cap and the range narrowing, at INFO, and
+/// nothing when no ceiling is reached (`window.json` `logged`, recorded
+/// from the web's logger).
+#[test]
+fn the_ceilings_log_the_webs_lines() {
+    let fixture = json(WINDOW);
+    let today = date(text(&fixture["today"]));
+    let cases = fixture["logged"].as_array().expect("logged");
+    for case in cases {
+        let args = &case["args"];
+        let int = |i: usize| args[i].as_i64().expect("int");
+        let logs = capture_logs();
+        match text(&case["call"]) {
+            "clamp_bars" => {
+                clamp_bars(int(0), text(&args[1]));
+            }
+            "trim_records" => {
+                let rows: Vec<Value> = (0..int(0)).map(|i| value!({ "i": i })).collect();
+                trim_records(&rows);
+            }
+            "history_window" => {
+                history_window(int(0), args[1].as_i64(), text(&args[2]), today);
+            }
+            "clamp_history_range" => {
+                clamp_history_range(text(&args[0]), text(&args[1]), text(&args[2]));
+            }
+            other => panic!("unknown call {other}"),
+        }
+        let lines: Vec<String> = logs
+            .text()
+            .lines()
+            .filter(|line| line.contains("indicator_service"))
+            .map(str::to_string)
+            .collect();
+        let want = case["lines"].as_array().expect("lines");
+        assert_eq!(lines.len(), want.len(), "{case}: {lines:?}");
+        for (line, expected) in lines.iter().zip(want) {
+            let level = text(&expected[0]);
+            let message = text(&expected[1]);
+            assert!(
+                line.contains(level) && line.ends_with(message),
+                "{line:?} vs {expected}"
+            );
+        }
+    }
 }
 
 #[test]

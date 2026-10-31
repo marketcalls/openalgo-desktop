@@ -49,6 +49,7 @@ import argparse
 import ast
 import csv
 import json
+import logging
 import math
 import os
 import re
@@ -238,11 +239,14 @@ def jsonable(value):
 
 
 def outcome(call):
-    """``{"result": ...}`` or ``{"error": {"kind", "message"}}``."""
+    """``{"result": ...}`` or ``{"error": {"kind", "message"}}``. An object's
+    address in a message (`<... object at 0x10a4...>`) is masked, so a
+    re-recording only changes what changed."""
     try:
         return {"result": jsonable(call())}
     except Exception as error:  # noqa: BLE001 - every exception is an answer
-        return {"error": {"kind": type(error).__name__, "message": str(error)}}
+        message = re.sub(r" at 0x[0-9a-f]+", " at 0x...", str(error))
+        return {"error": {"kind": type(error).__name__, "message": message}}
 
 
 def pairs(params: dict) -> list:
@@ -294,8 +298,8 @@ class Compute:
             }
         )
 
-    def stamped(self, label, stamps):
-        """``sma`` over 30 trend bars whose timestamps are ``stamps`` (the
+    def stamped(self, label, stamps, name="sma", tag="timestamps"):
+        """``name`` over 30 trend bars whose timestamps are ``stamps`` (the
         web's ``pd.to_datetime`` reads the column; ``MISSING`` drops the key)."""
         recipe = {"shape": "trend", "end": 30}
         rows = records(self.shapes, recipe)
@@ -306,16 +310,20 @@ class Compute:
                 row["timestamp"] = stamp
         self.cases.append(
             {
-                "tag": "timestamps",
+                "tag": tag,
                 "label": label,
-                "name": "sma",
-                "params": [["period", 5]],
+                "name": name,
+                "params": [["period", 5]] if name == "sma" else [],
                 "candles": recipe,
                 "timestamps": stamps,
                 "lookback_bars": 100,
                 "tail_bars": 5,
                 "offset_bars": 0,
-                **outcome(lambda: self.svc.compute_indicator(rows, "sma", params={"period": 5})),
+                **outcome(
+                    lambda: self.svc.compute_indicator(
+                        rows, name, params={"period": 5} if name == "sma" else {}
+                    )
+                ),
             }
         )
 
@@ -354,8 +362,37 @@ def compute_cases(svc, ta, shapes) -> list[dict]:
             c.candles(name, recipe={"shape": shape}, tag="sweep")
 
     # Names as a trader may type them, and names that are not indicators.
-    for name in (" RSI ", "Supertrend", "MACD\t", "nosuch", " NoSuch ", "", "TechnicalAnalysis"):
+    for name in (" RSI ", "Supertrend", "MACD\t", "nosuch", " NoSuch ", "", "TechnicalAnalysis",
+                 " CrossOver ", "VALUEWHEN", " Vi ", "Median_Bands"):
         c.candles(name, tag="names")
+    # Python attributes that are not indicators: the web reaches them through
+    # getattr; the desktop answers them as unknown (a recorded difference).
+    for name in ("__init__", "__class__", "_sma", "__dict__", " __Init__ "):
+        c.candles(name, tag="dunder")
+
+    # The name's refusals come before anything about the candles is read.
+    for name in ("crossover", " VI ", "nosuch", "__init__"):
+        c.candles(name, recipe={"shape": "trend", "end": 0}, tag="order")
+        c.candles(name, recipe={"shape": "trend", "drop": ["high", "low", "close"]}, tag="order")
+        c.stamped(f"order {name.strip()}", ["yesterday"] * 30, name=name, tag="order")
+
+    # Names the Agent's tools accept as aliases, and re-cased keys, are
+    # unknown keywords to the web's methods.
+    for name, params in (
+        ("sma", {"length": 14}),
+        ("ema", {"length": 9}),
+        ("macd", {"fast": 12}),
+        ("macd", {"slow": 26}),
+        ("macd", {"signal": 9}),
+        ("bbands", {"std": 2}),
+        ("bbands", {"stdev": 2}),
+        ("bbands", {"stddev": 2}),
+        ("bbands", {"deviation": 2}),
+        ("rsi", {"Period": 14}),
+        ("sma", {"PERIOD": 5}),
+        ("supertrend", {"Multiplier": 3}),
+    ):
+        c.candles(name, params, tag="aliases")
 
     # Lookback, tail and offset arithmetic.
     for name in ("sma", "rsi", "macd", "supertrend", "ichimoku", "bbands", "rising", "fractals"):
@@ -489,12 +526,29 @@ def compute_cases(svc, ta, shapes) -> list[dict]:
     c.nested("sma", [], tag="nested")
     c.nested("ema", [float("nan"), 50.0, 51.0, 52.5, 49.0], {"period": 2}, tag="nested")
     c.nested("ema", rsi, tail=12, offset=4, tag="nested")
+    # A nested series is used whole: no warm-up trim, no 200-bar clamp.
+    long_series = [round(100 + 10 * math.sin(i / 7) + i / 50, 4) for i in range(450)]
+    c.nested("sma", trend, {"period": 5}, tail=3, tag="nested_long")
+    c.nested("ema", long_series, {"period": 20}, tail=3, offset=400, tag="nested_long")
+    c.nested("rsi", long_series, tail=3, tag="nested_long")
+    # Values with more than six decimals, read back one by one (sma of
+    # period 1): Python's round() to 6 places, which a naive
+    # floor(x * 1e6 + 0.5) / 1e6 or no rounding at all would not give.
+    c.nested("sma", ROUNDING_VALUES, {"period": 1}, tail=len(ROUNDING_VALUES), tag="rounding")
     for name in ("atr", "hv", "vwma", "obv", "adx", "crossover", "vi", "nosuch"):
         c.nested(name, rsi, tag="nested_refused")
     return c.cases
 
 
 MISSING = {"missing": True}
+
+#: Values whose 6-place rounding is not what a naive rounding gives, plus
+#: ordinary ones with more than six decimals.
+ROUNDING_VALUES = [
+    1.0000005, 0.1234565, 1.2345675, 2.0000025, 1000.0000015, 0.0000005,
+    1.6666668, 1.66666649, 3.14159265358979, 123456.7654325, -0.0000015,
+    -2.5000005, 0.9999995, 42.4242424242,
+]
 
 
 def timestamp_columns(shapes) -> dict:
@@ -632,7 +686,7 @@ def window_cases(svc) -> dict:
                 {"lookback_bars": bars, "lookback_days": None, "interval": interval,
                  "result": list(svc.history_window(lookback_bars=bars, interval=interval))}
             )
-    for days in (5, 10, 21, 60, 0, -3, 4000):
+    for days in (5, 10, 21, 60, 0, -3, 4000, 5000, 10000):
         window.append(
             {"lookback_bars": 100, "lookback_days": days, "interval": "D",
              "result": list(svc.history_window(lookback_days=days, interval="D"))}
@@ -654,6 +708,9 @@ def window_cases(svc) -> dict:
         ("2026-10-01", "", "1m"),
         ("2000-01-01", "2026-10-30", "W"),
         ("2000-01-01", "2026-10-30", "Y"),
+        ("20261001", "20261030", "D"),
+        ("2026-10-01T09:15:00+05:30", "2026-10-30T15:30:00+05:30", "D"),
+        ("2026-10-01 garbage after", "2026-10-30 end", "D"),
     ):
         ranges.append(
             {"start": start, "end": end, "interval": interval,
@@ -664,8 +721,51 @@ def window_cases(svc) -> dict:
          "first": (svc.trim_records([{"i": i} for i in range(n)]) or [{"i": None}])[0]["i"]}
         for n in (0, 1, 199, 200, 201, 900)
     ]
-    return {"clamp_bars": clamp, "calendar_days": calendar, "history_window": window,
+    logged = logged_cases(svc)
+    return {"logged": logged, "clamp_bars": clamp, "calendar_days": calendar, "history_window": window,
             "clamp_history_range": ranges, "trim_records": trim, "today": TODAY.isoformat()}
+
+
+class Lines(logging.Handler):
+    """Every record the service logs, as (level, message)."""
+
+    def __init__(self):
+        super().__init__(level=logging.DEBUG)
+        self.lines = []
+
+    def emit(self, record):
+        self.lines.append([record.levelname, record.getMessage()])
+
+
+def logged(svc, call):
+    """The log lines one call writes."""
+    handler = Lines()
+    log = logging.getLogger(svc.__name__)
+    log.setLevel(logging.DEBUG)
+    log.addHandler(handler)
+    try:
+        outcome(call)
+    finally:
+        log.removeHandler(handler)
+    return handler.lines
+
+
+def logged_cases(svc) -> list[dict]:
+    """The server log lines the window helpers write (decision 35)."""
+    rows = lambda n: [{"i": i} for i in range(n)]
+    calls = [
+        ("clamp_bars", [500, "bars"], lambda: svc.clamp_bars(500)),
+        ("clamp_bars", [201, "offset bars"], lambda: svc.clamp_bars(201, "offset bars")),
+        ("clamp_bars", [200, "bars"], lambda: svc.clamp_bars(200)),
+        ("trim_records", [201], lambda: svc.trim_records(rows(201))),
+        ("trim_records", [200], lambda: svc.trim_records(rows(200))),
+        ("history_window", [500, None, "1m"], lambda: svc.history_window(lookback_bars=500, interval="1m")),
+        ("history_window", [200, None, "Y"], lambda: svc.history_window(lookback_bars=200, interval="Y")),
+        ("history_window", [100, 5000, "D"], lambda: svc.history_window(lookback_days=5000, interval="D")),
+        ("clamp_history_range", ["2016-01-01", "2026-10-30", "1m"], lambda: svc.clamp_history_range("2016-01-01", "2026-10-30", "1m")),
+        ("clamp_history_range", ["2026-10-01", "2026-10-30", "D"], lambda: svc.clamp_history_range("2026-10-01", "2026-10-30", "D")),
+    ]
+    return [{"call": name, "args": args, "lines": logged(svc, call)} for name, args, call in calls]
 
 
 def bars_cases(svc, shapes) -> dict:
