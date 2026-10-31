@@ -1029,10 +1029,75 @@ async fn settled_fds(ctx: &AppState) -> usize {
     panic!("descriptors never settled");
 }
 
-/// fd-audit (T-111, CLAUDE.md "Measure, do not just read"): activating and
-/// deactivating a schedule, a price alert, an order-update watch and a
-/// webhook workflow 100 times, with a feed subscription given back each
-/// time, leaves descriptors, tasks, registrations and memory flat. CI runs
+/// A workflow's finished runs.
+fn finished_runs(ctx: &AppState, id: i64) -> i64 {
+    ctx.sqlite
+        .conn()
+        .unwrap()
+        .query_row(
+            "SELECT COUNT(*) FROM flow_workflow_executions WHERE workflow_id = ?1 AND status != 'running'",
+            [id],
+            |r| r.get(0),
+        )
+        .unwrap()
+}
+
+/// Fire one run of the trigger the leak test gave workflow `kind` (0 the
+/// schedule, 1 the price alert, 2 the order watch from the bus; the
+/// webhook workflow fires nothing), and wait (bounded) until it finished,
+/// its side settled and the workflow is free again.
+async fn fire_and_settle(
+    f: &F,
+    side: &std::sync::Arc<crate::flow::triggers::TriggerSide>,
+    kind: usize,
+    id: i64,
+) {
+    use crate::flow::triggers::price_monitor::Observed;
+    let ctx = f.h.ctx();
+    let before = finished_runs(ctx, id);
+    match kind {
+        0 => side.scheduled_run(id, false).await,
+        1 => {
+            let gen = side.alerts.get(id).unwrap().gen;
+            let Observed::Fire(fired) = side.alerts.observe(id, gen, 2e9) else {
+                panic!("the alert fires above its price");
+            };
+            side.queue_price_run(*fired, 2e9);
+        }
+        2 => {
+            ctx.bus.publish(crate::events::Event::OrderUpdate(
+                crate::events::OrderUpdate {
+                    orderid: format!("leak{}", before),
+                    symbol: "SBIN".into(),
+                    exchange: "NSE".into(),
+                    order_status: "complete".into(),
+                    ..Default::default()
+                },
+            ));
+        }
+        _ => return,
+    }
+    for _ in 0..500 {
+        let done = finished_runs(ctx, id) > before
+            && side.watches.get(id).is_none_or(|w| !w.triggered)
+            && side.alerts.claim_pending(id);
+        if done {
+            side.alerts.release_pending(id);
+            if ctx.flow.try_claim(id).is_some() {
+                return;
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    panic!("the run of workflow {} never settled", id);
+}
+
+/// fd-audit (T-111, X-346, CLAUDE.md "Measure, do not just read"):
+/// activating and deactivating a schedule, a price alert, an order-update
+/// watch and a webhook workflow 100 times, with a feed subscription given
+/// back each time and, in every cycle, a run fired by each of the first
+/// three (the schedule's, the alert's, and the order update's through the
+/// bus), leaves descriptors, tasks, registrations and memory flat. CI runs
 /// it alone in its own step (decision 27, ci.yml "Flow triggers leak
 /// nothing"); by hand: `cargo test --lib flow_triggers::triggers_do_not_leak
 /// -- --ignored --nocapture --test-threads=1`.
@@ -1041,17 +1106,30 @@ async fn settled_fds(ctx: &AppState) -> usize {
 async fn triggers_do_not_leak() {
     let f = F::new();
     let ctx = f.h.ctx().clone();
+    // A side this test holds stands in for the app's own (stopped first,
+    // so its start-up restore cannot race the saves), so each kind's run
+    // can be fired: its scheduler driver and price poll run as the app's
+    // do, and it hears order updates from the bus.
+    ctx.flow.triggers().stop().await;
+    let side =
+        crate::flow::triggers::TriggerSide::new(std::sync::Arc::downgrade(&ctx), ctx.clock.clone());
+    ctx.flow.set_triggers(side.clone());
+    crate::flow::triggers::drive::subscribe_order_updates(&ctx, &side);
+    side.watches.attach();
+    side.start_drivers();
     let mut g = webhook_graph("Every minute");
     g["nodes"][0] = json!({"id": "s", "type": "start", "position": {"x": 0, "y": 0},
         "data": {"scheduleType": "interval", "intervalValue": 1, "intervalUnit": "minutes"}});
     g["edges"][0]["source"] = json!("s");
     let mut a = webhook_graph("Alert");
     a["nodes"][0] = json!({"id": "p", "type": "priceAlert", "position": {"x": 0, "y": 0},
-        "data": {"symbol": "SBIN", "exchange": "NSE", "condition": "above", "price": 1e9}});
+        "data": {"symbol": "SBIN", "exchange": "NSE", "condition": "above", "price": 1e9,
+            "trigger": "every_time"}});
     a["edges"][0]["source"] = json!("p");
+    a["edges"][0]["sourceHandle"] = json!("true");
     let mut o = webhook_graph("Fills");
     o["nodes"][0] = json!({"id": "o", "type": "orderUpdateTrigger", "position": {"x": 0, "y": 0},
-        "data": {"symbol": "SBIN", "status": "complete"}});
+        "data": {"symbol": "SBIN", "status": "complete", "trigger": "every_time"}});
     o["edges"][0]["source"] = json!("o");
     let ids = vec![
         f.create(g).await,
@@ -1064,9 +1142,10 @@ async fn triggers_do_not_leak() {
         let f = &f;
         let ids = ids.clone();
         let ctx = ctx.clone();
+        let side = side.clone();
         async move {
             for _ in 0..n {
-                for id in &ids {
+                for (kind, id) in ids.iter().enumerate() {
                     let (s, v) = f
                         .post(&format!("/flow/api/workflows/{}/activate", id))
                         .await;
@@ -1074,6 +1153,7 @@ async fn triggers_do_not_leak() {
                     ctx.flow
                         .subscriptions
                         .record(Some(*id), "SBIN", "NSE", "LTP");
+                    fire_and_settle(f, &side, kind, *id).await;
                     let (s, v) = f
                         .post(&format!("/flow/api/workflows/{}/deactivate", id))
                         .await;
@@ -1086,12 +1166,19 @@ async fn triggers_do_not_leak() {
     let (fds0, rss0, tasks0) = (settled_fds(&ctx).await, rss_kb(), metrics.num_alive_tasks());
     cycle(100).await;
     let (fds1, rss1, tasks1) = (settled_fds(&ctx).await, rss_kb(), metrics.num_alive_tasks());
+    let fired: Vec<i64> = ids[..3].iter().map(|id| finished_runs(&ctx, *id)).collect();
     eprintln!(
-        "flow triggers, 100 x 4 activate/deactivate: descriptors {} -> {}, RSS {} -> {} KiB, tasks {} -> {}",
-        fds0, fds1, rss0, rss1, tasks0, tasks1
+        "flow triggers, 100 x 4 activate/deactivate with a schedule, alert and order-update run each cycle (runs {:?}): descriptors {} -> {}, RSS {} -> {} KiB, tasks {} -> {}",
+        fired, fds0, fds1, rss0, rss1, tasks0, tasks1
     );
+    assert_eq!(fired, vec![105, 105, 105], "every cycle ran each kind once");
     assert!(fds1 <= fds0 + 2, "descriptors grew: {} -> {}", fds0, fds1);
     assert!(tasks1 <= tasks0 + 1, "tasks grew: {} -> {}", tasks0, tasks1);
+    assert_eq!(
+        side.task_count(),
+        2,
+        "only the driver and the poll are left"
+    );
     assert!(
         rss1 < rss0 + 20 * 1024,
         "RSS grew: {} -> {} KiB",
@@ -1109,6 +1196,7 @@ async fn triggers_do_not_leak() {
     for id in &ids {
         assert!(!ctx.flow.subscriptions.has(*id));
     }
+    crate::flow::contract::triggers::TriggerHooks::stop(side.as_ref()).await;
 }
 
 /// X-324 (decision 2): a webhook to a workflow that waits is answered 202
@@ -1159,3 +1247,4 @@ async fn a_webhook_to_a_waiting_workflow_is_answered_at_once() {
 mod key_rotation;
 mod monitors;
 mod public;
+mod settings;

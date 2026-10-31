@@ -677,13 +677,15 @@ mod tests {
         c.execute(
             "INSERT INTO traffic_logs (timestamp, client_ip, method, path, status_code, duration_ms)
              VALUES ('t', '1.2.3.4', 'POST', '/strategy/webhook/oaws_SECRET123', 200, 1.0),
-                    ('t', '1.2.3.4', 'POST', '/api/v1/placeorder', 200, 1.0)",
+                    ('t', '1.2.3.4', 'POST', '/api/v1/placeorder', 200, 1.0),
+                    ('t', '1.2.3.4', 'POST', '/flow/webhook/tokFLOWSECRET/SBIN', 200, 1.0)",
             [],
         )
         .unwrap();
         c.execute(
             "INSERT INTO error_404_tracker (ip_address, first_error_at, last_error_at, paths_attempted)
-             VALUES ('5.6.7.8', 't', 't', '[\"/chartink/webhook/abc-SECRET\", \"/x\", \"/flow/webhook/tokSECRET/NIFTY\"]')",
+             VALUES ('5.6.7.8', 't', 't', '[\"/chartink/webhook/abc-SECRET\", \"/x\", \"/flow/webhook/tokSECRET/NIFTY\"]'),
+                    ('5.6.7.9', 't', 't', '[\"/flow/webhook/onlyFLOWSECRET\"]')",
             [],
         )
         .unwrap();
@@ -696,14 +698,30 @@ mod tests {
             .unwrap()
             .collect::<rusqlite::Result<_>>()
             .unwrap();
+        // T-108: rows whose only secret path is a Flow one are scrubbed too
+        // (the Flow clause of the LIKE, not a Chartink path beside it).
         assert_eq!(
             paths,
-            vec!["/strategy/webhook/<redacted>", "/api/v1/placeorder"]
+            vec![
+                "/strategy/webhook/<redacted>",
+                "/api/v1/placeorder",
+                "/flow/webhook/<redacted>/SBIN"
+            ]
         );
+        let flow_only: String = c
+            .query_row(
+                "SELECT paths_attempted FROM error_404_tracker WHERE ip_address = '5.6.7.9'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(flow_only, "[\"/flow/webhook/<redacted>\"]");
         let tried: String = c
-            .query_row("SELECT paths_attempted FROM error_404_tracker", [], |r| {
-                r.get(0)
-            })
+            .query_row(
+                "SELECT paths_attempted FROM error_404_tracker WHERE ip_address = '5.6.7.8'",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         assert!(!tried.contains("SECRET"), "{}", tried);
         assert!(tried.contains("/chartink/webhook/<redacted>"));

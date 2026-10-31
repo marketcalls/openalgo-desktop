@@ -71,22 +71,39 @@ fn failed(what: &str, e: crate::error::AppError) -> Reply {
     Reply::new(500, json!({"error": format!("Failed to {}", what)}))
 }
 
-/// The workflow, after making a missing token or secret.
-async fn with_credentials(app: &Arc<AppState>, id: i64) -> crate::error::Result<Option<Workflow>> {
+/// Make a missing token or secret (`ensure_webhook_credentials`). As on
+/// the web the routes go on whatever it answers: a failure was rolled back
+/// and logged there, and the settings answer what is stored (S-20).
+async fn ensure_credentials(app: &Arc<AppState>, id: i64) {
     let ensured = app
         .blocking(move |c| {
-            workflows::ensure_webhook_credentials(&*c.sqlite.conn()?, &c.security, id, c.now())
+            let conn = c.sqlite.conn()?;
+            Ok(workflows::ensure_webhook_credentials(
+                &conn,
+                &c.security,
+                id,
+                c.now(),
+            ))
         })
-        .await?;
-    if !ensured {
-        return Ok(None);
+        .await;
+    if let Err(e) = ensured {
+        tracing::error!(
+            "Error ensuring webhook credentials for workflow {}: {}",
+            id,
+            e
+        );
     }
-    load(app, id).await
 }
 
 /// `GET /flow/api/workflows/<id>/webhook`.
 pub async fn info(app: &Arc<AppState>, id: i64) -> Reply {
-    match with_credentials(app, id).await {
+    match load(app, id).await {
+        Ok(Some(_)) => {}
+        Ok(None) => return workflow_not_found(),
+        Err(e) => return failed("read the webhook settings", e),
+    }
+    ensure_credentials(app, id).await;
+    match load(app, id).await {
         Ok(Some(w)) => Reply::new(200, Value::Object(settings(app, &w))),
         Ok(None) => workflow_not_found(),
         Err(e) => failed("read the webhook settings", e),
@@ -109,12 +126,8 @@ pub async fn enable(app: &Arc<AppState>, id: i64) -> Reply {
     if !matches!(load(app, id).await, Ok(Some(_))) {
         return workflow_not_found();
     }
-    let enabled = match with_credentials(app, id).await {
-        Ok(Some(_)) => switch(app, id, true).await,
-        Ok(None) => return workflow_not_found(),
-        Err(e) => Err(e),
-    };
-    match (enabled, load(app, id).await) {
+    ensure_credentials(app, id).await;
+    match (switch(app, id, true).await, load(app, id).await) {
         (Ok(true), Ok(Some(w))) => {
             let mut m = settings(app, &w);
             m.insert("status".into(), json!("success"));
@@ -147,10 +160,10 @@ pub async fn regenerate(app: &Arc<AppState>, id: i64) -> Reply {
     let token = app
         .blocking(move |c| workflows::regenerate_webhook_token(&*c.sqlite.conn()?, id, now))
         .await;
+    // The store writes the web's line for each rotation, and its error.
     if !matches!(token, Ok(Some(_))) {
         return Reply::new(500, json!({"error": "Failed to regenerate token"}));
     }
-    tracing::info!("Regenerated webhook token for workflow {}", id);
     if new_secret(app, id).await.is_none() {
         return Reply::new(500, json!({"error": "Failed to regenerate secret"}));
     }
@@ -183,19 +196,10 @@ async fn new_secret(app: &Arc<AppState>, id: i64) -> Option<String> {
         .await;
     match secret {
         Ok(Some(s)) => {
-            tracing::info!("Regenerated webhook secret for workflow {}", id);
             app.flow.webhook_guard.unlock(id);
             Some(s.expose().to_string())
         }
-        Ok(None) => None,
-        Err(e) => {
-            tracing::error!(
-                "Could not regenerate the webhook secret of workflow {}: {}",
-                id,
-                e
-            );
-            None
-        }
+        Ok(None) | Err(_) => None,
     }
 }
 
@@ -218,10 +222,14 @@ pub async fn set_auth_type(app: &Arc<AppState>, id: i64, body: Body) -> Reply {
     }
     let chosen = match &body {
         Body::Json(Value::Object(m)) => m.get("auth_type").cloned().unwrap_or(json!("payload")),
-        Body::Json(_) => Value::Null,
+        Body::Json(_) => return Reply::new(400, json!({"error": "Invalid auth type"})),
         Body::Nothing | Body::NonFinite => json!("payload"),
     };
     let Some(auth) = chosen.as_str().map(str::to_string) else {
+        // Text reaches the store, which logs a refused type once (as the
+        // web's `set_webhook_auth_type`); anything else is refused here
+        // with the same line.
+        tracing::error!("Invalid webhook auth type: {}", pyfmt::str(&chosen));
         return Reply::new(400, json!({"error": "Invalid auth type"}));
     };
     let now = app.now();
@@ -230,7 +238,6 @@ pub async fn set_auth_type(app: &Arc<AppState>, id: i64, body: Body) -> Reply {
         .blocking(move |c| workflows::set_webhook_auth_type(&*c.sqlite.conn()?, id, &given, now))
         .await;
     if !matches!(set, Ok(true)) {
-        tracing::error!("Invalid webhook auth type: {}", auth);
         return Reply::new(400, json!({"error": "Invalid auth type"}));
     }
     match load(app, id).await {
@@ -367,12 +374,15 @@ async fn admitted(app: &Arc<AppState>, call: &mut WebhookCall) -> Result<Workflo
     let found = app
         .blocking(move |c| workflows::get_by_token(&*c.sqlite.conn()?, &c.security, &token))
         .await;
+    // A lookup that failed is answered as an unknown token, as the web's
+    // `get_workflow_by_webhook_token` (None): the public route never tells
+    // a caller about an internal failure (decision 36, S-16).
     let w = match found {
         Ok(Some(w)) => w,
         Ok(None) => return Err(answer(404, "Invalid webhook token")),
         Err(e) => {
-            tracing::error!("Flow webhook lookup failed: {}", e);
-            return Err(answer(500, "The webhook could not be checked. Try again."));
+            tracing::error!("Error getting workflow by webhook token: {}", e);
+            return Err(answer(404, "Invalid webhook token"));
         }
     };
     if !w.webhook_enabled {
@@ -391,6 +401,21 @@ async fn admitted(app: &Arc<AppState>, call: &mut WebhookCall) -> Result<Workflo
         return Err(refused);
     }
     Ok(w)
+}
+
+/// The webhook answer's `message`: `Workflow '{name}' triggered` for a
+/// success, else the run's own message, falling back to that text when the
+/// run gave none (`result.get("message") or triggered`).
+fn answer_message(result: &Value, status: &str, name: &str) -> String {
+    let triggered = format!("Workflow '{}' triggered", name);
+    if status == "success" {
+        return triggered;
+    }
+    result
+        .get("message")
+        .filter(|m| pyfmt::truthy(m))
+        .map(pyfmt::str)
+        .unwrap_or(triggered)
 }
 
 /// `_execute_webhook`: the token, the switch, the active flag, the secret,
@@ -435,22 +460,12 @@ pub async fn trigger(app: &Arc<AppState>, mut call: WebhookCall) -> Answer {
     )
     .await;
     let status = result["status"].as_str().unwrap_or("success").to_string();
-    let triggered = format!("Workflow '{}' triggered", w.name);
-    let message = if status == "success" {
-        triggered
-    } else {
-        result
-            .get("message")
-            .filter(|m| pyfmt::truthy(m))
-            .map(pyfmt::str)
-            .unwrap_or(triggered)
-    };
     Answer {
         reply: Reply::new(
             run_status(&result),
             json!({
+                "message": answer_message(&result, &status, &w.name),
                 "status": status,
-                "message": message,
                 "errors": result.get("errors").cloned().unwrap_or(Value::Null),
                 "execution_id": result.get("execution_id").cloned().unwrap_or(Value::Null),
                 "workflow_id": w.id,

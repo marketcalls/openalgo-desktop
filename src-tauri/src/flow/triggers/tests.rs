@@ -638,5 +638,6 @@ mod monitor_runs;
 mod price_logs;
 mod restart;
 mod schedule_logs;
+mod service_logs;
 mod sign_out;
 mod support;
