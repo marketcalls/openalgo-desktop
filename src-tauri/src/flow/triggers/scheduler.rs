@@ -80,37 +80,112 @@ fn ist(t: DateTime<Utc>) -> NaiveDateTime {
     t.with_timezone(&Kolkata).naive_local()
 }
 
-/// `hour, minute = map(int, time.split(":"))`.
-fn parse_time(text: &str) -> Option<NaiveTime> {
-    let (h, m) = text.split_once(':')?;
-    let (h, m): (i64, i64) = (h.trim().parse().ok()?, m.trim().parse().ok()?);
-    NaiveTime::from_hms_opt(u32::try_from(h).ok()?, u32::try_from(m).ok()?, 0)
+/// Python's `int(part)`, with its error text.
+fn py_int(part: &str) -> Result<i64, String> {
+    part.trim().parse().map_err(|_| {
+        format!(
+            "invalid literal for int() with base 10: {}",
+            crate::flow::contract::pyfmt::quote(part)
+        )
+    })
+}
+
+/// `hour, minute = map(int, time.split(":"))`, with Python's error text:
+/// each part is read as it is unpacked, a third one included.
+fn clock_ints(text: &str) -> Result<(i64, i64), String> {
+    let mut parts = text.split(':');
+    let mut next = || parts.next().map(py_int).transpose();
+    let h = next()?.ok_or("not enough values to unpack (expected 2, got 0)")?;
+    let m = next()?.ok_or("not enough values to unpack (expected 2, got 1)")?;
+    if next()?.is_some() {
+        return Err("too many values to unpack (expected 2)".into());
+    }
+    Ok((h, m))
+}
+
+/// The CronTrigger's check of one field, with APScheduler's error text.
+fn cron_field(field: &str, v: i64, max: i64) -> Result<u32, String> {
+    if v < 0 {
+        return Err(format!(
+            "Unrecognized expression \"{}\" for field \"{}\"",
+            v, field
+        ));
+    }
+    if v > max {
+        return Err(format!(
+            "Error validating expression '{}': the last value ({}) is higher than the maximum value ({})",
+            v, v, max
+        ));
+    }
+    u32::try_from(v).map_err(|e| e.to_string())
+}
+
+/// `CronTrigger(hour=h, minute=m)`: the hour checked first.
+fn cron_time(h: i64, m: i64) -> Result<NaiveTime, String> {
+    let (h, m) = (cron_field("hour", h, 23)?, cron_field("minute", m, 59)?);
+    NaiveTime::from_hms_opt(h, m, 0).ok_or_else(|| format!("{}:{} is not a time", h, m))
+}
+
+/// A schedule's `HH:MM`, failing with the error the web logs after
+/// ` - ` (`map(int, ...)`, then the CronTrigger's checks).
+fn parse_time(text: &str) -> Result<NaiveTime, String> {
+    let (h, m) = clock_ints(text)?;
+    cron_time(h, m)
+}
+
+/// A `days` entry's index (0 = Monday .. 6 = Sunday); anything else is
+/// not one of the web's `day_names` keys.
+fn day_index(d: &Value) -> Option<usize> {
+    let f = d
+        .as_f64()
+        .filter(|f| f.fract() == 0.0 && (0.0..=6.0).contains(f))?;
+    Some(f as usize)
 }
 
 /// `days` (0 = Monday .. 6 = Sunday), unknown entries dropped as the web
 /// drops them.
 fn weekdays(days: &Value) -> Vec<Weekday> {
+    const WEEK: [Weekday; 7] = [
+        Weekday::Mon,
+        Weekday::Tue,
+        Weekday::Wed,
+        Weekday::Thu,
+        Weekday::Fri,
+        Weekday::Sat,
+        Weekday::Sun,
+    ];
     let mut out: Vec<Weekday> = days
         .as_array()
         .into_iter()
         .flatten()
-        .filter_map(|d| {
-            let f = d.as_f64().filter(|f| f.fract() == 0.0)?;
-            match f as i64 {
-                0 => Some(Weekday::Mon),
-                1 => Some(Weekday::Tue),
-                2 => Some(Weekday::Wed),
-                3 => Some(Weekday::Thu),
-                4 => Some(Weekday::Fri),
-                5 => Some(Weekday::Sat),
-                6 => Some(Weekday::Sun),
-                _ => None,
-            }
-        })
+        .filter_map(day_index)
+        .filter_map(|i| WEEK.get(i).copied())
         .collect();
     out.sort_by_key(Weekday::num_days_from_monday);
     out.dedup();
     out
+}
+
+/// The web's `day_of_week` text: the names of `days` in their given order,
+/// repeats kept, unknown entries dropped (`wed`, `mon,fri`).
+fn day_of_week(days: &Value) -> String {
+    const NAMES: [&str; 7] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+    days.as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(day_index)
+        .filter_map(|i| NAMES.get(i).copied())
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+/// The schedule type of a start node that registers a job: truthy and not
+/// `manual` (`_register_trigger`'s test before `add_workflow_job`).
+pub fn scheduled_kind(data: &Map<String, Value>) -> Option<String> {
+    data.get("scheduleType")
+        .filter(|v| crate::flow::contract::pyfmt::truthy(v))
+        .map(crate::flow::contract::pyfmt::str)
+        .filter(|kind| kind != "manual")
 }
 
 /// The first interval fire after `now`: on the clock's boundary plus the
@@ -144,15 +219,22 @@ fn aligned_start(value: i64, unit: &str, now: DateTime<Utc>) -> DateTime<Utc> {
 
 /// `executeAt` as an instant: a full ISO datetime as given (naive = IST,
 /// `Z` or an offset honoured); a date alone at the node's Time (default
-/// 09:15) in IST (T-009).
-fn once_at(execute_at: &str, time: &str) -> Option<DateTime<Utc>> {
+/// 09:15) in IST (T-009). The error is the one the web logs after ` - `
+/// (`fromisoformat`'s, or the Time field's for a date alone).
+fn once_at(execute_at: &str, time: &str) -> Result<DateTime<Utc>, String> {
     let text = execute_at.trim();
     if let Ok(d) = NaiveDate::parse_from_str(text, "%Y-%m-%d") {
-        return Some(from_ist(d.and_time(parse_time(time)?)));
+        return Ok(from_ist(d.and_time(parse_time(time)?)));
     }
+    let invalid = || {
+        format!(
+            "Invalid isoformat string: {}",
+            crate::flow::contract::pyfmt::quote(&execute_at.replace('Z', "+00:00"))
+        )
+    };
     let text = text.replace('Z', "+00:00");
     if let Ok(t) = DateTime::parse_from_rfc3339(&text) {
-        return Some(t.with_timezone(&Utc));
+        return Ok(t.with_timezone(&Utc));
     }
     [
         "%Y-%m-%dT%H:%M:%S%.f",
@@ -173,6 +255,7 @@ fn once_at(execute_at: &str, time: &str) -> Option<DateTime<Utc>> {
         .find_map(|f| DateTime::parse_from_str(&text, f).ok())
         .map(|t| t.with_timezone(&Utc))
     })
+    .ok_or_else(invalid)
 }
 
 /// A field as text: a string as is, anything else as Python prints it.
@@ -244,71 +327,90 @@ impl Schedule {
         Ok(Schedule::Interval { every, start })
     }
 
+    /// `once` at `executeAt` (a date alone at `time`); a time already past
+    /// is refused when `refuse_past`.
+    fn once(
+        data: &Map<String, Value>,
+        time: &str,
+        now: DateTime<Utc>,
+        refuse_past: bool,
+        invalid: impl Fn() -> String,
+    ) -> Result<Schedule, String> {
+        let at = data
+            .get("executeAt")
+            .filter(|v| crate::flow::contract::pyfmt::truthy(v))
+            .map(crate::flow::contract::pyfmt::str)
+            .ok_or_else(invalid)?;
+        let when = once_at(&at, time).map_err(|e| {
+            tracing::error!("Invalid execute_at datetime: {} - {}", at, e);
+            format!("Invalid datetime format: {}", at)
+        })?;
+        if refuse_past && when + Duration::seconds(MISFIRE_GRACE_SECS) < now {
+            return Err(format!(
+                "The one-time schedule is set for {} IST, which has already passed. Set a later date and time, then activate it again.",
+                ist(when).format("%Y-%m-%d %H:%M")
+            ));
+        }
+        tracing::info!("Creating one-time trigger: {}", ist(when));
+        Ok(Schedule::Once { at: when })
+    }
+
+    /// `daily` at `time`, on `days` when it has them (T-012).
+    fn daily(time: &str, days: &Value, invalid: impl Fn() -> String) -> Result<Schedule, String> {
+        let at = parse_time(time).map_err(|e| {
+            tracing::error!("Invalid time format: {} - {}", time, e);
+            format!("Invalid time format: {}", time)
+        })?;
+        let wanted = crate::flow::contract::pyfmt::truthy(days);
+        let chosen = weekdays(days);
+        if wanted && chosen.is_empty() {
+            return Err(invalid());
+        }
+        tracing::info!("Creating daily trigger: {}", time);
+        Ok(Schedule::Daily {
+            at,
+            days: wanted.then_some(chosen),
+        })
+    }
+
+    /// `weekly` on `days` at `time`: the time is read first, then the
+    /// CronTrigger checks the day list before the hour and minute.
+    fn weekly(time: &str, days: &Value) -> Result<Schedule, String> {
+        let names = day_of_week(days);
+        let at = clock_ints(time)
+            .and_then(|(h, m)| {
+                if names.is_empty() {
+                    return Err("Unrecognized expression \"\" for field \"day_of_week\"".into());
+                }
+                cron_time(h, m)
+            })
+            .map_err(|e| {
+                tracing::error!("Invalid weekly schedule config: {}", e);
+                "Invalid weekly schedule configuration".to_string()
+            })?;
+        tracing::info!("Creating weekly trigger: {} at {}", names, time);
+        Ok(Schedule::Weekly {
+            at,
+            days: weekdays(days),
+        })
+    }
+
     fn build(
         data: &Map<String, Value>,
         now: DateTime<Utc>,
         refuse_past: bool,
     ) -> Result<Option<Schedule>, String> {
-        let kind = match data.get("scheduleType") {
-            Some(v) if crate::flow::contract::pyfmt::truthy(v) => {
-                crate::flow::contract::pyfmt::str(v)
-            }
-            _ => return Ok(None),
-        };
-        if kind == "manual" {
+        let Some(kind) = scheduled_kind(data) else {
             return Ok(None);
-        }
+        };
         let time = field_text(data, "time", "09:15");
         let invalid = || format!("Invalid schedule configuration: type={}", kind);
         let days = data.get("days").cloned().unwrap_or(Value::Null);
         let schedule = match kind.as_str() {
             "interval" => Self::interval(data, now, invalid)?,
-            "once" => {
-                let at = data
-                    .get("executeAt")
-                    .filter(|v| crate::flow::contract::pyfmt::truthy(v))
-                    .map(crate::flow::contract::pyfmt::str)
-                    .ok_or_else(invalid)?;
-                let when = once_at(&at, &time).ok_or_else(|| {
-                    tracing::error!("Invalid execute_at datetime: {}", at);
-                    format!("Invalid datetime format: {}", at)
-                })?;
-                if refuse_past && when + Duration::seconds(MISFIRE_GRACE_SECS) < now {
-                    return Err(format!(
-                        "The one-time schedule is set for {} IST, which has already passed. Set a later date and time, then activate it again.",
-                        ist(when).format("%Y-%m-%d %H:%M")
-                    ));
-                }
-                tracing::info!("Creating one-time trigger: {}", ist(when));
-                Schedule::Once { at: when }
-            }
-            "daily" => {
-                let at = parse_time(&time).ok_or_else(|| {
-                    tracing::error!("Invalid time format: {}", time);
-                    format!("Invalid time format: {}", time)
-                })?;
-                let wanted = crate::flow::contract::pyfmt::truthy(&days);
-                let chosen = weekdays(&days);
-                if wanted && chosen.is_empty() {
-                    return Err(invalid());
-                }
-                tracing::info!("Creating daily trigger: {}", time);
-                Schedule::Daily {
-                    at,
-                    days: wanted.then_some(chosen),
-                }
-            }
-            "weekly" if crate::flow::contract::pyfmt::truthy(&days) => {
-                let chosen = weekdays(&days);
-                let at = parse_time(&time)
-                    .filter(|_| !chosen.is_empty())
-                    .ok_or_else(|| {
-                        tracing::error!("Invalid weekly schedule config: {} {}", time, days);
-                        "Invalid weekly schedule configuration".to_string()
-                    })?;
-                tracing::info!("Creating weekly trigger: {:?} at {}", chosen, time);
-                Schedule::Weekly { at, days: chosen }
-            }
+            "once" => Self::once(data, &time, now, refuse_past, invalid)?,
+            "daily" => Self::daily(&time, &days, invalid)?,
+            "weekly" if crate::flow::contract::pyfmt::truthy(&days) => Self::weekly(&time, &days)?,
             _ => return Err(invalid()),
         };
         Ok(Some(schedule))
@@ -478,6 +580,8 @@ impl Scheduler {
                 market_hours_only,
             },
         );
+        // `reconcile_scheduler_jobs` adds it through `add_workflow_job`.
+        tracing::info!("Added job {}", job_id(workflow_id));
         next
     }
 

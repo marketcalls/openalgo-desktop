@@ -122,16 +122,29 @@ pub fn set_next_run(conn: &Connection, id: i64, next: Option<DateTime<Utc>>) -> 
 }
 
 /// Stand a workflow down: inactive, no job id, no next run. `false` when
-/// it is gone.
+/// it is gone. Clearing a recorded job id writes the web's
+/// `set_schedule_job_id(workflow_id, None)` line (S-21).
 pub fn deactivate(conn: &Connection, id: i64, now: DateTime<Utc>) -> Result<bool> {
+    let job: Option<Option<String>> = conn
+        .query_row(
+            "SELECT schedule_job_id FROM flow_workflows WHERE id = ?1",
+            params![id],
+            |r| r.get(0),
+        )
+        .optional()?;
     // The web's update_workflow(is_active=False, schedule_job_id=None): its
-    // `Updated workflow {id}` line, or its error line (S-13).
+    // `Updated workflow {id}` line, or its error line (S-13), then its
+    // `Set schedule job ID None` line when a job was cleared (S-21).
     let written = conn.execute(
         "UPDATE flow_workflows SET is_active = 0, schedule_job_id = NULL, next_run_at = NULL,
              updated_at = ?1 WHERE id = ?2",
         params![stamp(now), id],
     );
-    crate::flow::store::workflows::changed(written, id)
+    let changed = crate::flow::store::workflows::changed(written, id)?;
+    if changed && job.flatten().is_some() {
+        tracing::info!("Set schedule job ID None for workflow {}", id);
+    }
+    Ok(changed)
 }
 
 /// A trigger that fired while it could not run (no broker session): one
