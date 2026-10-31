@@ -15,7 +15,7 @@ use crate::agent::tools::{select, spec_contract, TOOLKITS};
 use crate::flow::contract::model::Workflow;
 use crate::flow::service::{transfer, Body};
 use crate::flow::store::workflows;
-use crate::flow::validator::{validate_workflow, ValidateOptions};
+use crate::flow::validator::{validate_workflow, ValidateOptions, TRIGGER_CONFIG_FIELDS};
 use crate::state::testing::{build, TestCtx};
 use axum::http::StatusCode;
 use parking_lot::Mutex;
@@ -306,6 +306,93 @@ async fn a_valid_workflow_is_described_and_nothing_is_saved() {
     assert_eq!(
         (p["valid"].clone(), p["name"].clone()),
         (json!(true), Value::Null)
+    );
+}
+
+/// V-115: the tools upgrade legacy nodes before validating, so a workflow
+/// only its upgraded form lets through is accepted, reported with the
+/// upgrade's note, and saved upgraded. As written, the positionCheck lacks
+/// the `condition` strict validation requires.
+#[tokio::test]
+async fn a_legacy_node_is_upgraded_before_it_is_validated() {
+    let t = app();
+    let wf = json!({
+        "name": "Legacy guard",
+        "nodes": [
+            {"id": "s", "type": "start", "position": {"x": 0, "y": 0}, "data": {"scheduleType": "manual"}},
+            {"id": "p", "type": "positionCheck", "position": {"x": 0, "y": 1},
+             "data": {"symbol": "SBIN", "exchange": "NSE", "operator": "gt", "threshold": 5}}
+        ],
+        "edges": [{"id": "e", "source": "s", "target": "p"}]
+    });
+    let raw = validate_workflow(&wf, ValidateOptions::COMPLETE);
+    assert_eq!(raw[0].path, "/nodes/1/data/condition", "the raw form fails");
+    let note = "positionCheck 'p': operator 'gt' -> condition 'quantity_above' (threshold kept)";
+    let out = call(
+        &t,
+        "validate_flow",
+        json!({"workflow_json": wf.to_string()}),
+    )
+    .await;
+    let (payload, _) = block(out.text());
+    assert_eq!(payload["valid"], true, "{}", out.text());
+    assert_eq!(payload["migrations"], json!([note]));
+    let out = call(
+        &t,
+        "save_flow",
+        json!({"name": "Guard", "workflow_json": wf.to_string()}),
+    )
+    .await;
+    assert_eq!(
+        block(out.text()).0["migrations"],
+        json!([note]),
+        "{}",
+        out.text()
+    );
+    let saved = rows(&t);
+    assert_eq!(
+        saved[0].nodes[1]["data"],
+        json!({"symbol": "SBIN", "exchange": "NSE", "condition": "quantity_above", "threshold": 5})
+    );
+}
+
+/// V-120: the trigger configuration lists every field the web registers,
+/// in TRIGGER_CONFIG_FIELDS order, whatever order the node's data is
+/// written in.
+#[tokio::test]
+async fn the_trigger_lists_every_registered_field_in_the_webs_order() {
+    let t = app();
+    let mut data = serde_json::Map::new();
+    for (i, field) in TRIGGER_CONFIG_FIELDS.iter().enumerate().rev() {
+        data.insert((*field).to_string(), json!(i));
+    }
+    data.insert("label".into(), json!("not registered"));
+    let wf = json!({
+        "name": "Every field",
+        "nodes": [
+            {"id": "s", "type": "start", "position": {"x": 0, "y": 0}, "data": data},
+            {"id": "l", "type": "log", "position": {"x": 0, "y": 1}, "data": {"message": "x"}}
+        ],
+        "edges": [{"id": "e", "source": "s", "target": "l"}]
+    });
+    let out = call(
+        &t,
+        "validate_flow",
+        json!({"workflow_json": wf.to_string()}),
+    )
+    .await;
+    let (_, text) = block(out.text());
+    let fields: Vec<String> = TRIGGER_CONFIG_FIELDS
+        .iter()
+        .enumerate()
+        .map(|(i, f)| format!("\"{f}\":{i}"))
+        .collect();
+    assert!(
+        text.contains(&format!(
+            "\"trigger\":{{\"start\":{{{}}}}}",
+            fields.join(",")
+        )),
+        "{text}"
     );
 }
 

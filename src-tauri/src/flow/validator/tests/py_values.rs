@@ -176,3 +176,17 @@ fn truthiness_matches_python() {
         assert!(pyfmt::truthy(&value), "{value}");
     }
 }
+
+#[test]
+fn unicode_decimal_digits_read_as_python_reads_them() {
+    for (text, want) in [
+        ("\u{663}", "3"),
+        ("1\u{661}2", "112"),
+        ("\u{1d7ce}\u{1d7d9}\u{1d7ff}", "019"),
+        ("\u{966}\u{96f}", "09"),
+        ("\u{b2}x", "\u{b2}x"),
+        ("abc", "abc"),
+    ] {
+        assert_eq!(py::ascii_digits(text), want, "{text:?}");
+    }
+}

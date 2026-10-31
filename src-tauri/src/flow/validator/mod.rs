@@ -42,8 +42,9 @@
 //!   or object as an edge endpoint, a node type or a gate id), is reported by
 //!   the structural checks and passed over by the handle checks.
 //! - V-053: an httpRequest timeout of `"NaN"` is refused, as its own message
-//!   says it must be; the web's range comparisons let NaN through. A custom
-//!   leg's strike of `"NaN"` or `"Infinity"` is refused for the same reason.
+//!   says it must be; the web's range comparisons let NaN through. (A custom
+//!   leg's strike of `"NaN"` or `"Infinity"` text passes as on the web, lead
+//!   decision 36: the executor refuses it when it resolves the strike.)
 //! - V-059: an optionsMultiOrder node's strategy is read as the executor
 //!   reads it (`strategy`, else `strategyType`, else `custom`), not defaulted
 //!   to `straddle`, so a node with no strategy and no legs is refused.
@@ -57,9 +58,14 @@
 //!   the threshold moves by one (`>= 5` becomes `quantity_above` 4). The web
 //!   maps it onto the strict condition unchanged (lead decision 23).
 //! - A gate's `expected` slot list stops at [`MAX_EDGES`] entries (a gate can
-//!   never receive more); the web builds the whole list for any `inputCount`.
-//! - Unicode digits other than 0-9 are not read as numbers, and a JSON
-//!   object quoted in a message lists its keys sorted (`pyfmt`).
+//!   never receive more); the web builds the whole list for any
+//!   `inputCount`, however large. A recorded denial-of-service bound (lead
+//!   decision 36, V-084).
+//! - A JSON object quoted in a message lists its keys sorted (`pyfmt`).
+//!
+//! Digits in a gate slot (`input-N`) and in an `inputCount` are read as
+//! Python's `\d` and `int()` read them, Unicode decimal digits included
+//! (`py::ascii_digits`, lead decision 36).
 //!
 //! JSON written as text (httpRequest `headers`, Margin `positionsJson`) is
 //! read with `flow::nodes::pyjson`, Python's `json.loads`, so `NaN` and
