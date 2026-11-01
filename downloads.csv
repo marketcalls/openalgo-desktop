@@ -411,11 +411,11 @@ date,tag,asset,platform,kind,downloads
 2026-11-01,v1.0.4,latest.json,,update-check,1030
 2026-11-01,v1.0.5,OpenAlgo.Desktop_1.0.5_aarch64.AppImage,linux,install-or-update,5
 2026-11-01,v1.0.5,OpenAlgo.Desktop_1.0.5_aarch64.app.tar.gz,macos,update,1
-2026-11-01,v1.0.5,OpenAlgo.Desktop_1.0.5_aarch64.dmg,macos,install,18
-2026-11-01,v1.0.5,OpenAlgo.Desktop_1.0.5_amd64.AppImage,linux,install-or-update,7
-2026-11-01,v1.0.5,OpenAlgo.Desktop_1.0.5_amd64.deb,linux,install,6
+2026-11-01,v1.0.5,OpenAlgo.Desktop_1.0.5_aarch64.dmg,macos,install,22
+2026-11-01,v1.0.5,OpenAlgo.Desktop_1.0.5_amd64.AppImage,linux,install-or-update,8
+2026-11-01,v1.0.5,OpenAlgo.Desktop_1.0.5_amd64.deb,linux,install,9
 2026-11-01,v1.0.5,OpenAlgo.Desktop_1.0.5_arm64.deb,linux,install,4
-2026-11-01,v1.0.5,OpenAlgo.Desktop_1.0.5_x64-setup.exe,windows,install-or-update,86
+2026-11-01,v1.0.5,OpenAlgo.Desktop_1.0.5_x64-setup.exe,windows,install-or-update,115
 2026-11-01,v1.0.5,OpenAlgo.Desktop_1.0.5_x64.app.tar.gz,macos,update,1
-2026-11-01,v1.0.5,OpenAlgo.Desktop_1.0.5_x64.dmg,macos,install,5
-2026-11-01,v1.0.5,latest.json,,update-check,372
+2026-11-01,v1.0.5,OpenAlgo.Desktop_1.0.5_x64.dmg,macos,install,6
+2026-11-01,v1.0.5,latest.json,,update-check,530
