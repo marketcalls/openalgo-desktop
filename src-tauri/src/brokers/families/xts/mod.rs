@@ -451,7 +451,19 @@ impl Broker for XtsBroker {
             gtt: false,
             streaming: true,
             order_feed: false,
-            depth_levels: &[5],
+            depth_levels: &[5, 20],
+        }
+    }
+
+    /// Twenty levels on NSE and NFO, five elsewhere, as every member's web
+    /// capability registry lists them (`*_mapping.py` `depth_support`,
+    /// audit FB-06). XTS has one book subscription (1502) for both depths;
+    /// the frames carry the levels its events bring, never padded.
+    fn feed_depth_levels(&self, exchange: &str) -> Vec<u8> {
+        if matches!(exchange, "NSE" | "NFO") {
+            vec![5, 20]
+        } else {
+            vec![5]
         }
     }
 

@@ -6,12 +6,13 @@
 
 use super::socketio::encode_event;
 use super::streaming::{FeedSource, XtsFeed};
-use super::XtsConfig;
+use super::{XtsBroker, XtsConfig};
 use crate::brokers::common::streaming::{
     BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth, NormalizedTick,
     QuoteField,
 };
-use crate::brokers::{compositedge, ibulls};
+use crate::brokers::common::symbols::SymbolResolver;
+use crate::brokers::{compositedge, ibulls, Broker};
 use serde_json::{json, Value};
 
 fn feed(cfg: &'static XtsConfig) -> XtsFeed {
@@ -141,4 +142,16 @@ fn a_book_is_the_levels_sent_and_its_extras_only_when_sent() {
         (t[0].extras.upper_circuit, t[0].extras.lower_circuit),
         (Some(2751.0), Some(2251.0))
     );
+}
+
+/// FB-06: twenty levels on NSE and NFO, as every member's web registry
+/// offers, five elsewhere.
+#[test]
+fn twenty_levels_on_nse_and_nfo() {
+    let b = XtsBroker::new(&ibulls::CONFIG, SymbolResolver::new());
+    assert_eq!(b.feed_depth_levels("NSE"), vec![5, 20]);
+    assert_eq!(b.feed_depth_levels("NFO"), vec![5, 20]);
+    for exchange in ["BSE", "BFO", "MCX", "CDS", "NSE_INDEX"] {
+        assert_eq!(b.feed_depth_levels(exchange), vec![5], "{}", exchange);
+    }
 }
