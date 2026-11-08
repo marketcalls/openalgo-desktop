@@ -25,5 +25,6 @@ corpus_cases!(
         index_quote_and_ltp,
         future_quote_oi,
         future_depth_oi,
+        currency_quote_divisor,
     ]
 );

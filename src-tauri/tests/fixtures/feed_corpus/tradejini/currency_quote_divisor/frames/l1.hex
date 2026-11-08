@@ -1,0 +1,17 @@
+4c0000000100  # frame length 76, version 1, compression 0 (none)
+# L1: USDINR 25 Nov 2025 future (1123, CDS), prices over 1e7
+46000a  # packet length 70, type 10
+1a05  # 26 exchSeg = 5
+1b63040000  # 27 token = 1123
+1d74affa31  # 29 ltp = 838512500
+1e80ddf231  # 30 open = 838000000
+1fc01f0232  # 31 high = 839000000
+20603ceb31  # 32 low = 837500000
+21f00cef31  # 33 close = 837750000
+2228597400  # 34 chng = 7625000
+2309000000  # 35 chngPer (x100) = 9
+2410aef631  # 36 atp = 838250000
+2705000000  # 39 ltq = 5
+28a8610000  # 40 vol = 25000
+2cf0490200  # 44 OI = 150000
+2e3e110b69  # 46 ltt (epoch seconds) = 1762332990

@@ -1,0 +1,52 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "tradejini",
+  "inputs_sha256": "ad2214a669796ffc1f3af3428711882386c44283099080275853ae6881c036c4",
+  "instruments": [
+    {
+      "symbol": "USDINR25NOV25FUT",
+      "exchange": "CDS",
+      "token": "1123",
+      "brsymbol": "USDINR25NOVFUT",
+      "brexchange": "CDS",
+      "name": "USDINR",
+      "expiry": "25-NOV-25",
+      "lotsize": 1000,
+      "instrumenttype": "FUT",
+      "tick_size": 0.0025
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "CDS_USDINR25NOV25FUT_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 83.85125,
+            "ltt": "2025-11-05 14:26:30",
+            "volume": 25000,
+            "open": 83.8,
+            "high": 83.9,
+            "low": 83.75,
+            "close": 83.775,
+            "last_quantity": 5,
+            "average_price": 83.825,
+            "oi": 150000,
+            "change": 0.7625,
+            "change_percent": 0.09,
+            "percent_change": 0.09,
+            "last_trade_time": "2025-11-05 14:26:30",
+            "symbol": "USDINR25NOV25FUT",
+            "exchange": "CDS",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}
