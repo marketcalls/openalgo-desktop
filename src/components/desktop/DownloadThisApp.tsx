@@ -20,7 +20,9 @@ export function DownloadThisApp() {
       <CardHeader>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1.5">
-            <CardTitle className="text-2xl">OpenAlgo Desktop</CardTitle>
+            <CardTitle className="text-2xl" role="heading" aria-level={2}>
+              OpenAlgo Desktop
+            </CardTitle>
             <CardDescription>
               This is the app you are using. New versions come as an in-app update, so there is
               nothing to download here. To install OpenAlgo Desktop on another computer, download it
