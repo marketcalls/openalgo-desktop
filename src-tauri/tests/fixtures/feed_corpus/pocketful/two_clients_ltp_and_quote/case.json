@@ -31,82 +31,78 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The desktop puts its mode label (ltp, quote, full) in data.mode; the Pocketful web adapter's frames carry its own. Follows each broker's own web adapter (lead rule 2026-11-09): set by the per-broker dialect switch in Phase B.",
-      "ref": "feed::source::Mode::data_label; feed::dialect (per-broker switch, lane wire)"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "Pocketful sends the last trade time in epoch seconds; the web passes the seconds on as ltt (1762656900), the desktop sends epoch milliseconds (1762656900000), the unit the docs give every WebSocket time.",
-      "ref": "pocketful_adapter.py:583 and :633 (res.get('last_traded_time', 0)); docs/prompt/websockets-format.md"
+      "reason": "Pocketful sends the last trade time in epoch seconds and the web passes the seconds on as ltt; the desktop sends epoch milliseconds, the unit the docs give every WebSocket time (decisions 2026-11-09: ltt in seconds -> ms, a web defect, wrong unit).",
+      "ref": "pocketful_adapter.py:583, 631",
+      "approved": true
+    },
+    {
+      "key": "change",
+      "kind": "open",
+      "reason": "The desktop sends Pocketful's change key from LTP up (names.rs `from`), in Quote and Depth frames too; the Pocketful web adapter sends change only in its LTP (compact) frame. Open until wire's WebName.to.",
+      "ref": "pocketful_adapter.py:629-637; feed/dialect/names.rs POCKETFUL"
     },
     {
       "key": "frame",
       "kind": "web-defect",
-      "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
+      "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic and the Quote subscriber gets nothing at all (PF-03). The desktop serves both.",
+      "ref": "pocketful_adapter.py:739-747 (_find_subscription)",
+      "approved": true
     },
     {
       "key": "volume",
-      "kind": "web-defect",
-      "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries volume.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
+      "kind": "open",
+      "reason": "The web publishes the detailed packet on the LTP topic (PF-03), so its LTP client gets the whole Quote dict; the desktop's LTP frame from a Quote packet carries the LTP keys. Open until wire's C08 one-dict fold (lower-mode frames of one-dict brokers carry the richer packet's keys as the web sends them), which decides what this frame carries.",
+      "ref": "pocketful_adapter.py:575-598; audit C08"
     },
     {
       "key": "open",
-      "kind": "web-defect",
-      "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries open.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
+      "kind": "open",
+      "reason": "The web publishes the detailed packet on the LTP topic (PF-03), so its LTP client gets the whole Quote dict; the desktop's LTP frame from a Quote packet carries the LTP keys. Open until wire's C08 one-dict fold (lower-mode frames of one-dict brokers carry the richer packet's keys as the web sends them), which decides what this frame carries.",
+      "ref": "pocketful_adapter.py:575-598; audit C08"
     },
     {
       "key": "high",
-      "kind": "web-defect",
-      "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries high.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
+      "kind": "open",
+      "reason": "The web publishes the detailed packet on the LTP topic (PF-03), so its LTP client gets the whole Quote dict; the desktop's LTP frame from a Quote packet carries the LTP keys. Open until wire's C08 one-dict fold (lower-mode frames of one-dict brokers carry the richer packet's keys as the web sends them), which decides what this frame carries.",
+      "ref": "pocketful_adapter.py:575-598; audit C08"
     },
     {
       "key": "low",
-      "kind": "web-defect",
-      "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries low.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
+      "kind": "open",
+      "reason": "The web publishes the detailed packet on the LTP topic (PF-03), so its LTP client gets the whole Quote dict; the desktop's LTP frame from a Quote packet carries the LTP keys. Open until wire's C08 one-dict fold (lower-mode frames of one-dict brokers carry the richer packet's keys as the web sends them), which decides what this frame carries.",
+      "ref": "pocketful_adapter.py:575-598; audit C08"
     },
     {
       "key": "close",
-      "kind": "web-defect",
-      "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries close.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
+      "kind": "open",
+      "reason": "The web publishes the detailed packet on the LTP topic (PF-03), so its LTP client gets the whole Quote dict; the desktop's LTP frame from a Quote packet carries the LTP keys. Open until wire's C08 one-dict fold (lower-mode frames of one-dict brokers carry the richer packet's keys as the web sends them), which decides what this frame carries.",
+      "ref": "pocketful_adapter.py:575-598; audit C08"
     },
     {
       "key": "last_trade_quantity",
-      "kind": "web-defect",
-      "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries last_trade_quantity.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
+      "kind": "open",
+      "reason": "The web publishes the detailed packet on the LTP topic (PF-03), so its LTP client gets the whole Quote dict; the desktop's LTP frame from a Quote packet carries the LTP keys. Open until wire's C08 one-dict fold (lower-mode frames of one-dict brokers carry the richer packet's keys as the web sends them), which decides what this frame carries.",
+      "ref": "pocketful_adapter.py:575-598; audit C08"
     },
     {
       "key": "average_price",
-      "kind": "web-defect",
-      "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries average_price.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
+      "kind": "open",
+      "reason": "The web publishes the detailed packet on the LTP topic (PF-03), so its LTP client gets the whole Quote dict; the desktop's LTP frame from a Quote packet carries the LTP keys. Open until wire's C08 one-dict fold (lower-mode frames of one-dict brokers carry the richer packet's keys as the web sends them), which decides what this frame carries.",
+      "ref": "pocketful_adapter.py:575-598; audit C08"
     },
     {
       "key": "total_buy_quantity",
-      "kind": "web-defect",
-      "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries total_buy_quantity.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
+      "kind": "open",
+      "reason": "The web publishes the detailed packet on the LTP topic (PF-03), so its LTP client gets the whole Quote dict; the desktop's LTP frame from a Quote packet carries the LTP keys. Open until wire's C08 one-dict fold (lower-mode frames of one-dict brokers carry the richer packet's keys as the web sends them), which decides what this frame carries.",
+      "ref": "pocketful_adapter.py:575-598; audit C08"
     },
     {
       "key": "total_sell_quantity",
-      "kind": "web-defect",
-      "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries total_sell_quantity.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
-    },
-    {
-      "key": "oi",
-      "kind": "web-defect",
-      "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries oi.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
+      "kind": "open",
+      "reason": "The web publishes the detailed packet on the LTP topic (PF-03), so its LTP client gets the whole Quote dict; the desktop's LTP frame from a Quote packet carries the LTP keys. Open until wire's C08 one-dict fold (lower-mode frames of one-dict brokers carry the richer packet's keys as the web sends them), which decides what this frame carries.",
+      "ref": "pocketful_adapter.py:575-598; audit C08"
     }
   ]
 }

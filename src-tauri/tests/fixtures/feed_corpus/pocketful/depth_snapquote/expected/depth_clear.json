@@ -7,22 +7,18 @@
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "full",
+    "mode": 3,
     "ltp": 1498.8,
-    "ltt": "<receipt_ms>",
     "timestamp": "<receipt_ms>",
     "volume": 1234600,
-    "last_quantity": 0,
-    "average_price": 0.0,
     "total_buy_quantity": 0,
     "total_sell_quantity": 0,
     "open": 1490.0,
     "high": 1510.0,
     "low": 1485.0,
     "close": 1488.0,
-    "oi": 0,
-    "open_interest": 0,
-    "last_trade_quantity": 0,
+    "price_change": 10.8,
+    "price_change_percent": 0.73,
     "depth": {
       "buy": [
         {
@@ -78,6 +74,7 @@
           "orders": 0
         }
       ]
-    }
+    },
+    "change": 10.8
   }
 }

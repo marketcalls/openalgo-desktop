@@ -34,40 +34,18 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The desktop puts its mode label (ltp, quote, full) in data.mode; the Pocketful web adapter's frames carry its own. Follows each broker's own web adapter (lead rule 2026-11-09): set by the per-broker dialect switch in Phase B.",
-      "ref": "feed::source::Mode::data_label; feed::dialect (per-broker switch, lane wire)"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "Pocketful sends the last trade time in epoch seconds; the web passes the seconds on as ltt (1762656900), the desktop sends epoch milliseconds (1762656900000), the unit the docs give every WebSocket time.",
-      "ref": "pocketful_adapter.py:583 and :633 (res.get('last_traded_time', 0)); docs/prompt/websockets-format.md"
+      "reason": "Pocketful sends the last trade time in epoch seconds and the web passes the seconds on as ltt; the desktop sends epoch milliseconds, the unit the docs give every WebSocket time (decisions 2026-11-09: ltt in seconds -> ms, a web defect, wrong unit).",
+      "ref": "pocketful_adapter.py:583, 631",
+      "approved": true
     },
     {
       "key": "change",
-      "kind": "open",
-      "reason": "The web's LTP frame carries the compact packet's change; the desktop's LTP frame carries no change. The desktop decodes it as signed (-10.50 on the fall), the web unsigned (packet_decoder.py:257, '>I'), so a fall shows on the web as 42949662.46: once the desktop carries the field that push is a web defect.",
-      "ref": "audit C04, C06, RB-14; pocketful_adapter.py:634"
-    },
-    {
-      "key": "oi",
-      "kind": "open",
-      "reason": "The web's LTP frame carries the compact packet's open interest; the desktop's LTP frame carries none.",
-      "ref": "audit C05, C06; pocketful_adapter.py:635"
-    },
-    {
-      "key": "bid_price",
-      "kind": "open",
-      "reason": "The web's LTP frame carries the compact packet's best bid; the desktop's common carrier drops it.",
-      "ref": "audit C06 (dropped-fields table: pocketful compact bid_price); pocketful_adapter.py:636"
-    },
-    {
-      "key": "ask_price",
-      "kind": "open",
-      "reason": "The web's LTP frame carries the compact packet's best ask; the desktop's common carrier drops it.",
-      "ref": "audit C06 (dropped-fields table: pocketful compact ask_price); pocketful_adapter.py:637"
+      "kind": "web-defect",
+      "reason": "The compact packet's change is a signed number; the web unpacks it unsigned (packet_decoder.py:257, '>I'), so a fall of 10.50 becomes 42949662.46. The desktop reads it signed (audit RB-14; lead ruling 2026-11-09: keep the desktop's).",
+      "ref": "packet_decoder.py:252-265; pocketful/streaming.rs decode_compact",
+      "approved": true
     }
   ]
 }

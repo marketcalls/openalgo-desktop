@@ -7,9 +7,13 @@
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "ltp",
+    "mode": 1,
     "ltp": 1500.25,
     "ltt": 1762656900000,
-    "timestamp": "<receipt_ms>"
+    "timestamp": "<receipt_ms>",
+    "change": 10.25,
+    "oi": 0,
+    "bid_price": 1500.2,
+    "ask_price": 1500.3
   }
 }

@@ -23,7 +23,7 @@
 use super::mapping::{self, exchange_code, map_status, oa_pricetype, oa_product, text, text_any};
 use crate::brokers::common::streaming::{
     now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, WsRequest,
+    NormalizedTick, OrderUpdate, QuoteField, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -460,6 +460,19 @@ pub fn decode_binary(b: &[u8]) -> Option<Packet> {
     }
 }
 
+/// What a compact (LTP) packet carries beyond its mode, as the web's LTP
+/// frame publishes it (`pocketful_adapter.py:629-637`): the change, the
+/// OI (not for an index, whose packet fills it with 0) and the best bid
+/// and ask prices.
+fn compact_extras(t: &mut NormalizedTick, c: &Compact, index: bool) {
+    t.mark_carried(QuoteField::Change);
+    if !index {
+        t.mark_carried(QuoteField::OpenInterest);
+    }
+    t.extras.bid_price = Some(c.bid);
+    t.extras.ask_price = Some(c.ask);
+}
+
 /// Exchange last-trade time to epoch ms, when it looks like epoch seconds.
 fn ltt_ms(ltt: u32) -> i64 {
     // Anything before 2001 is not an epoch-seconds value; report 0.
@@ -478,7 +491,6 @@ fn ltt_ms(ltt: u32) -> i64 {
 struct SubInfo {
     symbol: String,
     exchange: String,
-    mode: FeedMode,
 }
 
 pub struct PocketfulFeed {
@@ -521,12 +533,13 @@ impl PocketfulFeed {
         let mut t = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
             timestamp_ms: now,
             ..Default::default()
         };
+        let index = sub.exchange.ends_with("_INDEX");
         match p {
             Packet::Compact(c) => {
+                t.mode = FeedMode::Ltp.code();
                 t.ltp = c.ltp;
                 t.oi = c.oi;
                 t.last_trade_time_ms = ltt_ms(c.ltt);
@@ -535,9 +548,11 @@ impl PocketfulFeed {
                 if prev > 0.0 && c.ltp > 0.0 {
                     t.change_percent = mapping_round2(c.change / prev * 100.0);
                 }
+                compact_extras(&mut t, c, index);
                 vec![FeedEvent::Tick(t)]
             }
             Packet::Detailed(d) => {
+                t.mode = FeedMode::Quote.code();
                 t.ltp = d.ltp;
                 t.open = d.open;
                 t.high = d.high;
@@ -550,10 +565,31 @@ impl PocketfulFeed {
                 t.total_sell_quantity = d.total_sell_qty;
                 t.oi = d.oi;
                 t.last_trade_time_ms = ltt_ms(d.ltt);
+                // The web's Quote frame carries the packet's OI
+                // (`pocketful_adapter.py:592`), an index's zero excepted.
+                if index {
+                    t.mark_absent(QuoteField::OpenInterest);
+                } else {
+                    t.mark_carried(QuoteField::OpenInterest);
+                }
                 t.derive_change();
                 vec![FeedEvent::Tick(t)]
             }
             Packet::Snapquote(s) => {
+                t.mode = FeedMode::Depth.code();
+                // No trade price in a snapquote: the average trade price is
+                // its `ltp` on both sides (inherited, audit limitation 1).
+                // It has no trade time, last quantity, separate average or
+                // OI, which the web's Depth frame leaves out
+                // (`pocketful_adapter.py:674-686`).
+                for f in [
+                    QuoteField::LastTradeTime,
+                    QuoteField::LastQuantity,
+                    QuoteField::AveragePrice,
+                    QuoteField::OpenInterest,
+                ] {
+                    t.mark_absent(f);
+                }
                 t.ltp = s.average_price;
                 t.open = s.open;
                 t.high = s.high;
@@ -692,7 +728,6 @@ impl BrokerFeed for PocketfulFeed {
                 SubInfo {
                     symbol: s.symbol.clone(),
                     exchange: s.exchange.clone(),
-                    mode: s.mode,
                 },
             );
             let group = (pocketful_mode(s.mode), key.0);

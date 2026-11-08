@@ -35,46 +35,22 @@
   },
   "deviations": [
     {
-      "key": "mode",
+      "key": "change",
       "kind": "open",
-      "reason": "The desktop puts its mode label (ltp, quote, full) in data.mode; the Pocketful web adapter's frames carry its own. Follows each broker's own web adapter (lead rule 2026-11-09): set by the per-broker dialect switch in Phase B.",
-      "ref": "feed::source::Mode::data_label; feed::dialect (per-broker switch, lane wire)"
+      "reason": "The desktop sends Pocketful's change key from LTP up (names.rs `from`), in Quote and Depth frames too; the Pocketful web adapter sends change only in its LTP (compact) frame. Open until wire's WebName.to.",
+      "ref": "pocketful_adapter.py:629-637; feed/dialect/names.rs POCKETFUL"
     },
     {
-      "key": "ltt",
+      "key": "price_change",
       "kind": "open",
-      "reason": "The snapquote packet carries no trade time; the web leaves ltt out of its Depth frame, the desktop sends the time it received the packet as ltt. A Depth frame must leave out what the stream does not carry (CLAUDE.md, web openalgo#2376): mark it absent in the Pocketful adapter.",
-      "ref": "PF-01 (new); pocketful_adapter.py:675-688; brokers/pocketful/streaming.rs tick_from Snapquote"
+      "reason": "The desktop sends the canonical price_change and price_change_percent on an instrument beside the web adapter's own change keys (change); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
+      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
     },
     {
-      "key": "last_quantity",
+      "key": "price_change_percent",
       "kind": "open",
-      "reason": "The snapquote packet carries no last traded quantity; the web leaves last_quantity out of its Depth frame, the desktop sends last_quantity 0. A Depth frame must leave out what the stream does not carry (CLAUDE.md, web openalgo#2376): mark it absent in the Pocketful adapter.",
-      "ref": "PF-01 (new); pocketful_adapter.py:675-688; brokers/pocketful/streaming.rs tick_from Snapquote"
-    },
-    {
-      "key": "last_trade_quantity",
-      "kind": "open",
-      "reason": "The snapquote packet carries no last traded quantity; the web leaves last_trade_quantity out of its Depth frame, the desktop sends its alias last_trade_quantity 0. A Depth frame must leave out what the stream does not carry (CLAUDE.md, web openalgo#2376): mark it absent in the Pocketful adapter.",
-      "ref": "PF-01 (new); pocketful_adapter.py:675-688; brokers/pocketful/streaming.rs tick_from Snapquote"
-    },
-    {
-      "key": "average_price",
-      "kind": "open",
-      "reason": "The snapquote packet's only price is the average trade price, which both sides publish as ltp; the web leaves average_price out, the desktop sends average_price 0.0, a wrong number. Send the average as average_price (or leave it out); never 0.",
-      "ref": "PF-01 (new); pocketful_adapter.py:675-688; brokers/pocketful/streaming.rs tick_from Snapquote"
-    },
-    {
-      "key": "oi",
-      "kind": "open",
-      "reason": "The snapquote packet carries no open interest; the web leaves oi out of its Depth frame, the desktop sends oi 0. A Depth frame must leave out what the stream does not carry (CLAUDE.md, web openalgo#2376): mark it absent in the Pocketful adapter.",
-      "ref": "PF-01 (new); pocketful_adapter.py:675-688; brokers/pocketful/streaming.rs tick_from Snapquote"
-    },
-    {
-      "key": "open_interest",
-      "kind": "open",
-      "reason": "The snapquote packet carries no open interest; the web leaves open_interest out of its Depth frame, the desktop sends open_interest 0. A Depth frame must leave out what the stream does not carry (CLAUDE.md, web openalgo#2376): mark it absent in the Pocketful adapter.",
-      "ref": "PF-01 (new); pocketful_adapter.py:675-688; brokers/pocketful/streaming.rs tick_from Snapquote"
+      "reason": "The desktop sends the canonical price_change and price_change_percent on an instrument beside the web adapter's own change keys (change); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
+      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
     }
   ]
 }

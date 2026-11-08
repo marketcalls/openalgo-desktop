@@ -31,8 +31,8 @@
     {
       "key": "frame",
       "kind": "open",
-      "reason": "The web refuses a Depth subscribe at any level but 5 (INVALID_DEPTH), so it streams nothing; the desktop acknowledges it at depth 5 and streams the book (feed::dialect lists Pocketful as Fallback). The acknowledgement and this frame follow from the same rule: refuse like the web, or keep the fallback as a decision the lead approves.",
-      "ref": "PF-02 (new); pocketful_adapter.py:256-259; feed/dialect.rs depth_ack"
+      "reason": "The web refuses a Depth subscribe at any level but 5 (INVALID_DEPTH \"Invalid depth level 20. Must be 5\", pocketful_adapter.py:256-259), so it streams nothing; the desktop acknowledges it at depth 5 and streams the book. Lane life's refusal (feed/server/refusals.rs, c08002aa) fixes it once life is merged into base; the case then expects the refusal and no frame (PF-02).",
+      "ref": "pocketful_adapter.py:256-259; feed/server/refusals.rs (lane life)"
     }
   ]
 }
