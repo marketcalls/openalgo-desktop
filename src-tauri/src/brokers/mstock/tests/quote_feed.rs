@@ -12,7 +12,6 @@
 //! value, in epoch milliseconds in every packet.
 
 use super::*;
-use crate::brokers::common::streaming::BrokerFeed;
 use crate::feed::testkit::Frames;
 use crate::feed::Mode;
 
