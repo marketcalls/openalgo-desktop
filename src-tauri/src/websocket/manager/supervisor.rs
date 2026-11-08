@@ -36,6 +36,9 @@ pub(super) enum SessionEnd {
     /// The broker ended the feed until the next sign-in for a reason other
     /// than the login (`Reconnect::Stop`), with the trader's message.
     Halted(StopKind, String),
+    /// A write failed. Inside a session only: `session` reads what the
+    /// broker sent last (its close code) and ends as the feed judges it.
+    WriteFailed,
 }
 
 /// The broker's own answers to waited releases: each release's instruments
@@ -46,6 +49,10 @@ type Later = Vec<(Vec<FeedSubscription>, ReleaseAnswer)>;
 type Sent = std::result::Result<(), SessionEnd>;
 
 const CONNECT_FAILED: SessionEnd = SessionEnd::Dropped(DropCause::ConnectFailed);
+
+/// How long a session whose write failed reads on for the broker's close
+/// frame.
+const CLOSE_AFTER_WRITE: Duration = Duration::from_millis(500);
 
 /// A socket that ended without a close frame (a read error, the stream's
 /// end): no code, no reason.
@@ -127,6 +134,10 @@ impl Supervisor {
                 }
                 SessionEnd::Dropped(cause) => {
                     self.stats.dropped(cause);
+                    None
+                }
+                SessionEnd::WriteFailed => {
+                    self.stats.dropped(DropCause::Closed);
                     None
                 }
                 SessionEnd::DroppedFor(cause, wait) => {
@@ -289,7 +300,7 @@ impl Supervisor {
             Ok::<(), WsError>(())
         };
         match tokio::time::timeout(self.config.write_timeout, send).await {
-            Ok(sent) => sent.map_err(|_| SessionEnd::Dropped(DropCause::Closed)),
+            Ok(sent) => sent.map_err(|_| SessionEnd::WriteFailed),
             Err(_) => {
                 tracing::warn!(
                     broker = self.feed.broker(),
@@ -396,12 +407,56 @@ impl Supervisor {
         None
     }
 
+    /// One socket session, to its end. A broker that closes with a code
+    /// right after the upgrade (Sahi's 4429 when too many connections hold
+    /// the login) can make a write fail before its close frame is read: the
+    /// frame is read then, so the feed judges its code (audit P-12).
     pub(super) async fn session<S, R>(
         &mut self,
         broker: &str,
         write: &mut S,
         read: &mut R,
     ) -> SessionEnd
+    where
+        S: futures_util::Sink<Message, Error = WsError> + Unpin,
+        R: futures_util::Stream<Item = std::result::Result<Message, WsError>> + Unpin,
+    {
+        match self.serve(broker, write, read).await {
+            SessionEnd::WriteFailed => self.close_after_write(read).await,
+            end => end,
+        }
+    }
+
+    /// The broker's close frame after a failed write, read for a moment,
+    /// judged by the feed; none heard is a close with no code.
+    async fn close_after_write<R>(&mut self, read: &mut R) -> SessionEnd
+    where
+        R: futures_util::Stream<Item = std::result::Result<Message, WsError>> + Unpin,
+    {
+        let heard = tokio::time::timeout(CLOSE_AFTER_WRITE, async {
+            while let Some(Ok(msg)) = read.next().await {
+                if let Message::Close(frame) = msg {
+                    return frame;
+                }
+            }
+            None
+        })
+        .await
+        .ok()
+        .flatten();
+        match &heard {
+            Some(f) => {
+                let ended = Ended::Closed {
+                    code: Some(u16::from(f.code)),
+                    reason: &f.reason,
+                };
+                self.judged(DropCause::Closed, ended)
+            }
+            None => self.judged(DropCause::Closed, CLOSED_UNHEARD),
+        }
+    }
+
+    async fn serve<S, R>(&mut self, broker: &str, write: &mut S, read: &mut R) -> SessionEnd
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
         R: futures_util::Stream<Item = std::result::Result<Message, WsError>> + Unpin,

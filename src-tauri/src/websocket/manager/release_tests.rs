@@ -158,6 +158,7 @@ async fn session(
         Ok(SessionEnd::AuthFailed(_)) => "auth_failed",
         Ok(SessionEnd::DroppedFor(..)) => "dropped_for",
         Ok(SessionEnd::Halted(..)) => "halted",
+        Ok(SessionEnd::WriteFailed) => "write_failed",
         Err(_) => "still running",
     };
     let sent = sent

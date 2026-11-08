@@ -242,6 +242,7 @@ async fn run_on(
         SessionEnd::AuthFailed(_) => "auth_failed",
         SessionEnd::DroppedFor(..) => "dropped_for",
         SessionEnd::Halted(..) => "halted",
+        SessionEnd::WriteFailed => "write_failed",
     });
     let sent = sent.lock().clone();
     Run {
