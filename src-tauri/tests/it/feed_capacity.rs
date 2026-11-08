@@ -2,7 +2,7 @@
 //! only once the managers took it. The room on the broker connection is
 //! counted across every consumer, a batch that crosses it starts what fits
 //! and refuses the rest per item, and a deep book whose socket is down or
-//! refused is refused while the main feed streams.
+//! refused streams the main feed's levels, as the web's adapters fall back.
 
 use crate::feed_support;
 
@@ -179,12 +179,23 @@ async fn refusing_broker() -> (String, tokio::task::JoinHandle<()>) {
     (url, task)
 }
 
-/// The deep book's socket is its own (Dhan 20, Fyers 50): one that did
-/// not start, or that the broker refused, refuses Depth at its levels
-/// with why, while 5-level depth and quotes on the main feed are taken
-/// (it acknowledged them and streamed nothing).
+/// Where `symbol` is held on the main feed, at Depth: its depth.
+fn main_depth(bridge: &BrokerBridge, symbol: &str) -> Option<u8> {
+    bridge
+        .applied()
+        .iter()
+        .find(|s| s.symbol == symbol && s.mode == FeedMode::Depth)
+        .map(|s| s.depth)
+}
+
+/// The deep book's socket is its own (Dhan 20, Fyers 50). One that did not
+/// start, or that the broker refused, serves Depth at its levels from the
+/// main feed's 5 levels, acknowledged as the broker's web adapter does
+/// (lead decision 2026-11-09: web Fyers falls back to the 5-level feed when
+/// its TBT socket is unavailable, web Dhan through its fallback monitor),
+/// and the main feed's quotes are untouched.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn a_deep_book_whose_socket_is_down_is_refused_while_the_main_feed_streams() {
+async fn a_deep_book_whose_socket_is_down_streams_the_main_feeds_depth() {
     let depth = Arc::new(WebSocketManager::new());
     let bridge = BrokerBridge::with_depth_manager(
         Arc::new(WebSocketManager::new()),
@@ -197,16 +208,14 @@ async fn a_deep_book_whose_socket_is_down_is_refused_while_the_main_feed_streams
     let mut c = client(&h).await;
 
     let ack = c.request(subscribe(&["SBIN"], json!("Depth"), 20)).await;
-    assert_eq!(statuses(&ack), ["error"], "{}", ack);
-    assert!(
-        ack["subscriptions"][0]["message"]
-            .as_str()
-            .is_some_and(|m| m.contains("20-level market depth feed did not start")),
-        "{}",
-        ack
-    );
-    let ack = c.request(subscribe(&["SBIN"], json!("Depth"), 5)).await;
     assert_eq!(statuses(&ack), ["success"], "{}", ack);
+    assert_eq!(ack["subscriptions"][0]["depth"], 20);
+    assert!(
+        eventually(Duration::from_secs(5), || main_depth(&bridge, "SBIN")
+            == Some(5))
+        .await
+    );
+    assert!(bridge.applied_deep().is_empty());
 
     // A depth socket the broker refused, the main feed untouched.
     bridge.reset();
@@ -229,10 +238,14 @@ async fn a_deep_book_whose_socket_is_down_is_refused_while_the_main_feed_streams
     let ack = c
         .request(subscribe(&["RELIANCE"], json!("Depth"), 20))
         .await;
-    assert_eq!(statuses(&ack), ["error"], "{}", ack);
-    assert_eq!(ack["subscriptions"][0]["message"], "denied");
+    assert_eq!(statuses(&ack), ["success"], "{}", ack);
     let ack = c.request(subscribe(&["RELIANCE"], json!("Quote"), 5)).await;
     assert_eq!(statuses(&ack), ["success"], "{}", ack);
+    assert!(
+        eventually(Duration::from_secs(5), || main_depth(&bridge, "RELIANCE")
+            == Some(5))
+        .await
+    );
     assert!(bridge.applied_deep().is_empty());
 
     h.stop().await;

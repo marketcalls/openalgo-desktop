@@ -10,7 +10,7 @@
 //! refused with nobody waiting (re-applied after a new broker session) is
 //! tried again at the next pass and stays listed as refused until then.
 
-use super::{mode_of, BrokerBridge, DesiredKey, State};
+use super::{deep, mode_of, BrokerBridge, DesiredKey, State};
 use crate::brokers::common::streaming::{FeedMode, FeedSubscription};
 use crate::feed::source::{Mode, SourceOutcome, DEFAULT_DEPTH};
 use crate::websocket::{FeedStatus, WebSocketManager};
@@ -23,15 +23,6 @@ use tokio::time::Instant;
 /// per attempt up to `RETRY_MAX`.
 const RETRY_BASE: Duration = Duration::from_secs(1);
 const RETRY_MAX: Duration = Duration::from_secs(60);
-
-/// A Depth subscribe's error when the broker's deeper-book socket (Fyers
-/// 50, Dhan 20) did not start for this session.
-pub(super) fn deep_not_started(levels: u8) -> String {
-    format!(
-        "The broker's {levels}-level market depth feed did not start for this session, so \
-{levels}-level depth cannot be streamed. Subscribe with depth 5, or log in to your broker again."
-    )
-}
 
 /// What one desired key holds on the managers.
 #[derive(Debug, Clone)]
@@ -123,6 +114,16 @@ impl Ops {
 
     pub(super) fn releasing(&self, key: &DesiredKey) -> bool {
         self.in_flight.contains(key)
+    }
+
+    /// A key's references move between the managers (a silent deep book
+    /// falling back): a release asked for meanwhile waits for it.
+    pub(super) fn start_moving(&mut self, key: &DesiredKey) {
+        self.in_flight.insert(key.clone());
+    }
+
+    pub(super) fn stop_moving(&mut self, key: &DesiredKey) {
+        self.in_flight.remove(key);
     }
 
     /// When the next release retry is due.
@@ -224,23 +225,30 @@ impl BrokerBridge {
         }
     }
 
-    /// How a desired key is applied (deep route when its levels match), or
-    /// why it cannot be.
+    /// How a desired key is applied, or why it cannot be: at the depth
+    /// socket's levels, on that socket with a quote on the main feed while
+    /// it can stream them, else on the main feed's levels (`deep`).
     fn applied_for(&self, key: &DesiredKey) -> Result<Applied, String> {
         let sub = self
             .subscription(key)
             .ok_or_else(|| format!("Token not found for {} on {}", key.0.symbol, key.0.exchange))?;
         let deep = *self.deep.lock();
-        Ok(match deep {
-            Some(levels) if key.1 == Mode::Depth && key.2 == levels => Applied::Deep {
-                quote: FeedSubscription {
-                    mode: FeedMode::Quote,
-                    depth: DEFAULT_DEPTH,
-                    ..sub.clone()
-                },
-                depth: sub,
+        let down = *self.deep_down.lock();
+        if key.1 != Mode::Depth || (deep != Some(key.2) && down != Some(key.2)) {
+            return Ok(Applied::Main(sub));
+        }
+        let refused = matches!(self.depth_manager.status(), FeedStatus::AuthFailed { .. });
+        let fell_back = self.state.lock().deep_books.fell_back.contains(key);
+        if deep != Some(key.2) || refused || fell_back {
+            return Ok(Applied::Main(deep::on_main_levels(sub)));
+        }
+        Ok(Applied::Deep {
+            quote: FeedSubscription {
+                mode: FeedMode::Quote,
+                depth: DEFAULT_DEPTH,
+                ..sub.clone()
             },
-            _ => Applied::Main(sub),
+            depth: sub,
         })
     }
 
@@ -261,6 +269,7 @@ impl BrokerBridge {
     /// Bring the managers in line with the desired set: take what is
     /// wanted, release what is not, and answer whoever waits.
     pub(super) async fn reconcile(&self) {
+        self.fall_back_silent().await;
         let (generation, add, remove) = self.plan();
         if !add.is_empty() {
             self.admit(generation, add).await;
@@ -282,6 +291,7 @@ impl BrokerBridge {
             last_tick,
             ops,
             generation,
+            deep_books,
         } = &mut *st;
         let add: Vec<DesiredKey> = desired
             .iter()
@@ -308,6 +318,7 @@ impl BrokerBridge {
         // has nothing to retry, and must not wake the loop.
         ops.retry
             .retain(|k, _| applied.contains_key(k) && !desired.contains(k));
+        deep_books.retain(|k| desired.contains(k));
         (*generation, add, remove)
     }
 
@@ -324,25 +335,6 @@ impl BrokerBridge {
         manager.admit(subs).await
     }
 
-    /// Why the deep book of `key` cannot stream now, when it cannot: the
-    /// broker's depth socket did not start for this session, or the broker
-    /// refused it, while the main feed may be fine (audit C02).
-    fn deep_refusal(&self, key: &DesiredKey) -> Option<String> {
-        if key.1 != Mode::Depth {
-            return None;
-        }
-        if *self.deep_down.lock() == Some(key.2) {
-            return Some(deep_not_started(key.2));
-        }
-        if *self.deep.lock() != Some(key.2) {
-            return None;
-        }
-        match self.depth_manager.status() {
-            FeedStatus::AuthFailed { message, .. } => Some(message),
-            _ => None,
-        }
-    }
-
     /// Take `keys` on the managers: the quote on the main feed first, then
     /// the deep book of a deep key (its quote goes again when the book is
     /// refused).
@@ -350,10 +342,7 @@ impl BrokerBridge {
         let mut answers: Vec<(DesiredKey, SourceOutcome, Option<Applied>)> = Vec::new();
         let mut routed = Vec::new();
         for k in keys {
-            match self
-                .deep_refusal(&k)
-                .map_or_else(|| self.applied_for(&k), Err)
-            {
+            match self.applied_for(&k) {
                 Ok(a) => routed.push((k, a)),
                 Err(why) => answers.push((k, Err(why), None)),
             }
@@ -403,6 +392,9 @@ impl BrokerBridge {
             match (&outcome, taken) {
                 (Ok(()), Some(a)) if current => {
                     again |= !st.desired.contains(&k);
+                    if matches!(a, Applied::Deep { .. }) {
+                        st.deep_books.watch(&k);
+                    }
                     st.applied.insert(k.clone(), a);
                     st.ops.refused.remove(&k);
                 }

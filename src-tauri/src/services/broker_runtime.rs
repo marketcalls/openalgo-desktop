@@ -312,9 +312,9 @@ async fn start_session(
 }
 
 /// The broker's deeper-book socket (Fyers 50, Dhan 20), when it streams
-/// deeper books than its market feed. One that does not start leaves those
-/// depths refused with why, rather than served the market feed's 5 levels
-/// under a 20 or 50 acknowledgement (audit C02).
+/// deeper books than its market feed. One that does not start serves those
+/// depths at the market feed's levels, acknowledged as the broker's web
+/// adapter does (`feed::bridge::deep`).
 async fn start_deep_feed(ctx: &AppState, broker: &Arc<dyn Broker>, auth: &AuthToken) {
     let id = broker.id();
     let Some(levels) = broker
@@ -340,7 +340,11 @@ async fn start_deep_feed(ctx: &AppState, broker: &Arc<dyn Broker>, auth: &AuthTo
         Err(e) => Err(e.to_string()),
     };
     match started {
-        Ok(()) => ctx.bridge.set_deep_levels(Some(levels)),
+        Ok(()) => {
+            ctx.bridge.set_deep_levels(Some(levels));
+            ctx.bridge
+                .set_deep_book_timeout(limits::deep_book_timeout(id));
+        }
         Err(e) => {
             tracing::warn!("Market depth feed for {} not started: {}", id, e);
             ctx.bridge.set_deep_unavailable(levels);

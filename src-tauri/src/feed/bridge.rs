@@ -46,10 +46,12 @@ use tokio::sync::{broadcast, Notify};
 use tokio::task::JoinSet;
 
 mod apply;
+mod deep;
 mod render;
 pub(super) mod snapshot;
 use apply::{Applied, Ops};
 pub use apply::{Operations, Refused};
+use deep::DeepBooks;
 pub(crate) use render::{depth_update, tick_update};
 use snapshot::Snapshot;
 
@@ -141,6 +143,8 @@ struct State {
     /// Moves on `reset`: what a manager answers after it forgot every
     /// reference (broker logout) changes nothing.
     generation: u64,
+    /// Deep books watched for silence, and those that fell back (`deep`).
+    deep_books: DeepBooks,
 }
 
 impl State {
@@ -156,7 +160,7 @@ pub struct BrokerBridge {
     /// Depth levels served by `depth_manager`, when it runs.
     deep: Mutex<Option<u8>>,
     /// Depth levels whose socket did not start for this session: a Depth
-    /// subscribe at them is refused, not served 5 levels (audit C02).
+    /// subscribe at them is served the main feed's levels (`deep`).
     deep_down: Mutex<Option<u8>>,
     symbols: SymbolResolver,
     tx: broadcast::Sender<Arc<MarketUpdate>>,
@@ -234,8 +238,16 @@ impl BrokerBridge {
         *self.deep.lock() = levels;
     }
 
+    /// How long a deep book may stay silent before its instrument falls
+    /// back to the main feed's levels (`None`: never; Dhan 30 s, audit
+    /// P-10). Set with `set_deep_levels`.
+    pub fn set_deep_book_timeout(&self, timeout: Option<std::time::Duration>) {
+        self.state.lock().deep_books.reset(timeout);
+    }
+
     /// The broker's socket for `levels`-level books did not start this
-    /// session: Depth subscribes at those levels say so (until `reset`).
+    /// session: Depth subscribes at those levels are served the main feed's
+    /// levels (until `reset`), as the web's adapters fall back.
     pub fn set_deep_unavailable(&self, levels: u8) {
         *self.deep_down.lock() = Some(levels);
     }
@@ -279,6 +291,7 @@ impl BrokerBridge {
             st.last_tick.clear();
             st.generation += 1;
             st.ops.forget_retries();
+            st.deep_books.reset(None);
         }
         *self.deep.lock() = None;
         *self.deep_down.lock() = None;
@@ -304,7 +317,13 @@ impl BrokerBridge {
         set.spawn(async move {
             loop {
                 me.reconcile().await;
-                let retry = me.state.lock().ops.next_retry();
+                let retry = {
+                    let st = me.state.lock();
+                    [st.ops.next_retry(), st.deep_books.next_deadline()]
+                        .into_iter()
+                        .flatten()
+                        .min()
+                };
                 match retry {
                     Some(at) => tokio::select! {
                         _ = me.changed.notified() => {}
@@ -334,6 +353,7 @@ impl BrokerBridge {
             st.desired.clear();
             st.last_tick.clear();
             st.ops.clear();
+            st.deep_books.reset(None);
             st.applied.drain().map(|(_, s)| s).collect()
         };
         self.release(held).await;
@@ -344,6 +364,9 @@ impl BrokerBridge {
         loop {
             match rx.recv().await {
                 Ok(ev) => {
+                    if std::ptr::eq(from, self.depth_manager.as_ref()) {
+                        self.note_deep_book(&ev);
+                    }
                     if let Some(u) = self.convert(&ev) {
                         let _ = self.tx.send(Arc::new(u));
                     }
