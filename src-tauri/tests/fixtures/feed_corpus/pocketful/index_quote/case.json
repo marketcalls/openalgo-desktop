@@ -32,9 +32,9 @@
   "deviations": [
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "The desktop puts its mode label (ltp, quote, full) in data.mode; the Pocketful web adapter's frames carry its own. Follows each broker's own web adapter (lead rule 2026-11-09): set by the per-broker dialect switch in Phase B.",
+      "ref": "feed::source::Mode::data_label; feed::dialect (per-broker switch, lane wire)"
     },
     {
       "key": "ltt",
@@ -44,45 +44,50 @@
     },
     {
       "key": "price_change",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends an index's change from its LTP and previous close for every broker (as the recorded Zerodha index transcript); this web adapter sends no change in a Quote frame.",
-      "ref": "feed::bridge::quote_fields; tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "The desktop sends the canonical price_change and price_change_percent for an index; price_change is not a docs key and the Pocketful web adapter sends none, so it goes (lead ruling 2026-11-09). Follows each broker's own web adapter (lead rule 2026-11-09): set by the per-broker dialect switch in Phase B.",
+      "ref": "feed::bridge::quote_fields (index change); feed::dialect (per-broker switch, lane wire)"
     },
     {
       "key": "price_change_percent",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends an index's change percent from its LTP and previous close for every broker (as the recorded Zerodha index transcript); this web adapter sends none.",
-      "ref": "feed::bridge::quote_fields; tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "The desktop sends the canonical price_change and price_change_percent for an index; price_change is not a docs key and the Pocketful web adapter sends none, so it goes (lead ruling 2026-11-09). Follows each broker's own web adapter (lead rule 2026-11-09): set by the per-broker dialect switch in Phase B.",
+      "ref": "feed::bridge::quote_fields (index change); feed::dialect (per-broker switch, lane wire)"
     },
     {
       "key": "last_trade_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries no trade quantity, average or book totals on the desktop, for every broker (the recorded Zerodha index transcript); the web passes on the index packet's zeros.",
-      "ref": "feed::protocol::market_data (index)"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, average price, book totals or open interest: Pocketful's index packet fills them with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "feed::protocol::market_data (index)",
+      "approved": true
     },
     {
       "key": "average_price",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries no trade quantity, average or book totals on the desktop, for every broker (the recorded Zerodha index transcript); the web passes on the index packet's zeros.",
-      "ref": "feed::protocol::market_data (index)"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, average price, book totals or open interest: Pocketful's index packet fills them with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "feed::protocol::market_data (index)",
+      "approved": true
     },
     {
       "key": "total_buy_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries no trade quantity, average or book totals on the desktop, for every broker (the recorded Zerodha index transcript); the web passes on the index packet's zeros.",
-      "ref": "feed::protocol::market_data (index)"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, average price, book totals or open interest: Pocketful's index packet fills them with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "feed::protocol::market_data (index)",
+      "approved": true
     },
     {
       "key": "total_sell_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries no trade quantity, average or book totals on the desktop, for every broker (the recorded Zerodha index transcript); the web passes on the index packet's zeros.",
-      "ref": "feed::protocol::market_data (index)"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, average price, book totals or open interest: Pocketful's index packet fills them with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "feed::protocol::market_data (index)",
+      "approved": true
     },
     {
       "key": "oi",
-      "kind": "desktop-decision",
-      "reason": "An index has no open interest; the desktop leaves oi out of an index frame, the web passes the packet's 0.",
-      "ref": "feed::protocol::market_data (index)"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, average price, book totals or open interest: Pocketful's index packet fills them with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "feed::protocol::market_data (index)",
+      "approved": true
     }
   ]
 }
