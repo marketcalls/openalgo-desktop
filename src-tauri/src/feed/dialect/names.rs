@@ -584,7 +584,7 @@ const UPSTOX: &[WebName] = &[
     n("ltq", S::LastQuantity, L),
     n("cp", S::Close, L),
     n("last_trade_quantity", S::LastQuantity, Q),
-    n("last_trade_time", S::TradeTime(Unit::Millis), L),
+    n("last_trade_time", S::TradeTime(Unit::Millis), Q),
 ];
 
 const ZERODHA: &[WebName] = &[n(
