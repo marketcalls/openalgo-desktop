@@ -5,6 +5,7 @@
 //! line before any socket opens.
 
 use super::http::HttpRequestExpect;
+use super::invariants::{self, Invariant};
 use super::json_text;
 use openalgo_desktop_lib::brokers::common::symbols::SymToken;
 use serde_json::{Map, Value};
@@ -39,7 +40,17 @@ pub(crate) const SCENARIOS: &[&str] = &[
 /// Why the desktop's frame may differ from the web's (README,
 /// "Deviations"): the web is wrong, a desktop security or resource rule, a
 /// desktop-wide wire decision already taken, or a desktop gap still open.
-const DEVIATION_KINDS: &[&str] = &["web-defect", "desktop-rule", "desktop-decision", "open"];
+const DEVIATION_KINDS: &[&str] = &[
+    "web-defect",
+    "desktop-rule",
+    "desktop-decision",
+    "open",
+    RANDOM_VALUES,
+];
+/// A deviation kind: the key's value is drawn at random (a synthetic
+/// feed), so the web check compares its presence and JSON type, and the
+/// case's invariants bound it.
+pub(crate) const RANDOM_VALUES: &str = "random-values";
 
 /// How the expected values were found (README, "Provenance").
 const METHODS: &[&str] = &["web-test", "web-script", "by-hand"];
@@ -206,6 +217,14 @@ pub(crate) struct HttpAnswer {
     pub(crate) record: bool,
 }
 
+/// A web publish named by its instrument and mode.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct WebFrame {
+    pub(crate) symbol: String,
+    pub(crate) exchange: String,
+    pub(crate) mode: u8,
+}
+
 /// Which web output a received frame is compared with (`web.rs`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum WebPair {
@@ -235,6 +254,9 @@ pub(crate) enum Action {
     Silence {
         client: String,
         ms: u64,
+        /// The web publish this client would get here and the desktop does
+        /// not send (a deviation names `missing-frame`).
+        web: Option<WebFrame>,
     },
     Push {
         socket: Socket,
@@ -326,9 +348,13 @@ pub(crate) struct Case {
     pub(crate) upstream_ignore: Vec<String>,
     /// The web commit the expected values were read at.
     pub(crate) web_sha: String,
-    /// The `data` keys (or `frame`) on which the desktop may differ from
-    /// the web.
+    /// The `data` keys (or `frame`, `missing-frame`) on which the desktop
+    /// may differ from the web.
     pub(crate) deviations: Vec<String>,
+    /// The deviations of kind `random-values`.
+    pub(crate) random: BTreeSet<String>,
+    /// What must hold of the random values (`invariants.rs`).
+    pub(crate) invariants: Vec<Invariant>,
     pub(crate) steps: Vec<Step>,
     /// The fake sockets the script uses; a broker's order or deep-book
     /// feed is connected only when its socket is one of them.
@@ -379,6 +405,7 @@ impl Case {
                 "http",
                 "provenance",
                 "deviations",
+                "invariants",
             ],
         );
         if o.get("broker").and_then(Value::as_str) != Some(broker) {
@@ -430,13 +457,20 @@ impl Case {
                 .collect(),
             Some(_) => bad(&at, "\"http\" is an array of answers"),
         };
+        let deviations = deviations(&at, o.get("deviations"));
         Case {
             http,
             orders,
             depth_levels: depth_levels(&at, o.get("depth_levels")),
             upstream_ignore: strings(&at, "upstream_ignore", o.get("upstream_ignore")),
             web_sha: provenance(&at, o.get("provenance")),
-            deviations: deviations(&at, o.get("deviations")),
+            deviations: deviations.iter().map(|(k, _)| k.clone()).collect(),
+            random: deviations
+                .iter()
+                .filter(|(_, kind)| kind == RANDOM_VALUES)
+                .map(|(k, _)| k.clone())
+                .collect(),
+            invariants: invariants::parse(&at, o.get("invariants")),
             id,
             dir,
             broker: broker.to_string(),
@@ -522,8 +556,9 @@ fn provenance(at: &str, v: Option<&Value>) -> String {
     sha.to_string()
 }
 
-/// The keys the deviations cover, after checking each is complete.
-fn deviations(at: &str, v: Option<&Value>) -> Vec<String> {
+/// The keys the deviations cover, with their kinds, after checking each
+/// is complete.
+fn deviations(at: &str, v: Option<&Value>) -> Vec<(String, String)> {
     let Some(v) = v else {
         return Vec::new();
     };
@@ -569,10 +604,10 @@ fn deviations(at: &str, v: Option<&Value>) -> Vec<String> {
                 format!("deviation \"{}\": approved is true or false", key),
             );
         }
-        if keys.iter().any(|k| k == key) {
+        if keys.iter().any(|(k, _)| k == key) {
             bad(at, format!("deviation \"{}\" is listed twice", key));
         }
-        keys.push(key.to_string());
+        keys.push((key.to_string(), kind.to_string()));
     }
     keys
 }
@@ -685,7 +720,7 @@ fn step(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> A
         "send" => &["client", "message", "reply"],
         "close_client" => &["client"],
         "receive" => &["client", "frame", "web", "web_mode"],
-        "silence" => &["client", "ms"],
+        "silence" => &["client", "ms", "web"],
         "push" => &["socket", "frame", "connection"],
         "upstream_receives" => &["socket", "frames", "any_order", "connection"],
         "upstream_connected" => &["socket", "connection", "path", "headers"],
@@ -747,6 +782,7 @@ fn step(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> A
             ms: o.get("ms").map_or(300, |v| {
                 v.as_u64().unwrap_or_else(|| bad(at, "\"ms\" is a number"))
             }),
+            web: o.get("web").map(|w| web_frame(at, w)),
         },
         "push" => Action::Push {
             socket: socket(),
@@ -929,6 +965,32 @@ fn http_request(at: &str, v: &Value) -> HttpRequestExpect {
             .unwrap_or_else(|| bad(at, "an expected request names its method")),
         path: http_path(at, o),
         body,
+    }
+}
+
+fn web_frame(at: &str, v: &Value) -> WebFrame {
+    let o = v.as_object().unwrap_or_else(|| {
+        bad(
+            at,
+            "\"web\" names the web's frame: {\"symbol\", \"exchange\", \"mode\"}",
+        )
+    });
+    allow_keys(at, o, &["symbol", "exchange", "mode"]);
+    let text = |k: &str| {
+        o.get(k)
+            .and_then(Value::as_str)
+            .map(String::from)
+            .unwrap_or_else(|| bad(at, format!("\"web\" names its \"{}\"", k)))
+    };
+    WebFrame {
+        symbol: text("symbol"),
+        exchange: text("exchange"),
+        mode: o
+            .get("mode")
+            .and_then(Value::as_u64)
+            .filter(|m| (1..=3).contains(m))
+            .and_then(|m| u8::try_from(m).ok())
+            .unwrap_or_else(|| bad(at, "\"web\" \"mode\" is 1, 2 or 3")),
     }
 }
 

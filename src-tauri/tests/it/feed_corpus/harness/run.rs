@@ -5,8 +5,9 @@
 //! clients leave.
 
 use super::case::{bad, Action, Case, Expect, Socket, Step};
-use super::compare::{self, Window};
+use super::compare::{self, Receipts, Window};
 use super::http::{self, HttpRequestExpect};
+use super::invariants;
 use super::json_text;
 use super::upstream::{until, Received};
 use super::web;
@@ -34,7 +35,8 @@ pub(crate) async fn run(broker: &str, name: &str, feeds: fn(&Env) -> Feeds) {
         case: &case,
         world: &world,
         clients: BTreeMap::new(),
-        pushed_at: 0,
+        pushes: Vec::new(),
+        invariants_applied: vec![0; case.invariants.len()],
     };
     for step in &case.steps {
         r.step(step).await;
@@ -94,8 +96,11 @@ struct Runner<'a> {
     case: &'a Case,
     world: &'a World,
     clients: BTreeMap<String, Client>,
-    /// Wall-clock time just before the latest push.
-    pushed_at: i64,
+    /// Each push so far (or `http_serve`): its script line, and the wall
+    /// clock just before it.
+    pushes: Vec<(usize, i64)>,
+    /// How many received frames each of the case's invariants applied to.
+    invariants_applied: Vec<usize>,
 }
 
 impl Runner<'_> {
@@ -112,7 +117,7 @@ impl Runner<'_> {
                 let _ = c.ws.close(None).await;
             }
             Action::Receive { client, frame, .. } => self.receive(&at, client, frame).await,
-            Action::Silence { client, ms } => {
+            Action::Silence { client, ms, .. } => {
                 let c = self.known(&at, client);
                 if let Some(v) = next_frame(c, Duration::from_millis(*ms)).await {
                     bad(&at, format!("client {} received {}", client, v));
@@ -123,7 +128,7 @@ impl Runner<'_> {
                 wire,
                 connection,
             } => {
-                self.pushed_at = now_ms();
+                self.pushes.push((s.line, now_ms()));
                 if let Err(e) = self.world.upstream(*socket).push(wire, *connection).await {
                     bad(&at, format!("{} socket: {}", socket.name(), e));
                 }
@@ -200,7 +205,7 @@ impl Runner<'_> {
             Action::HttpServe(answer) => {
                 // An order book the poller reads next is like a push: its
                 // update's receipt window starts here.
-                self.pushed_at = now_ms();
+                self.pushes.push((s.line, now_ms()));
                 self.world.serve(answer);
             }
             Action::HttpPolled {
@@ -328,18 +333,49 @@ impl Runner<'_> {
     }
 
     async fn receive(&mut self, at: &str, name: &str, want: &Value) {
-        let from = self.pushed_at - CLOCK_SLACK_MS;
         let c = self.known(at, name);
         let got = next_frame(c, RECV)
             .await
             .unwrap_or_else(|| bad(at, format!("client {} received nothing", name)));
-        let window = Window {
-            from_ms: from,
-            to_ms: now_ms() + CLOCK_SLACK_MS,
-        };
-        if let Err(e) = compare::exact(want, &got, Some(window)) {
+        let times = self.receipts(now_ms());
+        if let Err(e) = compare::exact(want, &got, Some(&times)) {
             bad(at, e);
         }
+        if let Some(frame) = got.as_object().filter(|f| f["type"] == "market_data") {
+            let broken =
+                invariants::broken(&self.case.invariants, frame, &mut self.invariants_applied);
+            if !broken.is_empty() {
+                bad(
+                    at,
+                    format!(
+                        "the frame breaks invariants:\n  {}\n  received {}",
+                        broken.join("\n  "),
+                        got
+                    ),
+                );
+            }
+        }
+    }
+
+    /// When each push's packets can have been stamped, as of `now`: from
+    /// just before the push to just before the next one (the latest's, to
+    /// now; before any push, any time up to now).
+    fn receipts(&self, now: i64) -> Receipts {
+        let window = |i: usize| Window {
+            from_ms: self.pushes[i].1 - CLOCK_SLACK_MS,
+            to_ms: self.pushes.get(i + 1).map_or(now, |next| next.1) + CLOCK_SLACK_MS,
+        };
+        let latest = self.pushes.len().checked_sub(1).map_or(
+            Window {
+                from_ms: -CLOCK_SLACK_MS,
+                to_ms: now + CLOCK_SLACK_MS,
+            },
+            window,
+        );
+        let by_push = (0..self.pushes.len())
+            .map(|i| (self.pushes[i].0, window(i)))
+            .collect();
+        Receipts { latest, by_push }
     }
 
     async fn upstream_receives(
@@ -432,6 +468,20 @@ impl Runner<'_> {
         }
         for (_, mut c) in std::mem::take(&mut self.clients) {
             let _ = c.ws.close(None).await;
+        }
+        let idle: Vec<&str> = self
+            .case
+            .invariants
+            .iter()
+            .zip(&self.invariants_applied)
+            .filter(|(_, n)| **n == 0)
+            .map(|(inv, _)| inv.text.as_str())
+            .collect();
+        if !idle.is_empty() {
+            bad(
+                &id,
+                format!("invariants no received frame has the key of: {:?}", idle),
+            );
         }
     }
 }

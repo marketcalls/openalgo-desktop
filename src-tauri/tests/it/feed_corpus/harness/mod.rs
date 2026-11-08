@@ -11,12 +11,15 @@
 //!   book a poller reads, REST subscriptions).
 //! * [`world`]: the production pieces, wired as a broker session wires them.
 //! * [`run`]: the steps in order, and what may not be left over.
-//! * [`compare`]: exact comparison of a frame, receipt times included.
+//! * [`compare`]: exact comparison of a frame, receipt times and random
+//!   values included.
+//! * [`invariants`]: what must hold of a value drawn at random.
 //! * [`web`]: the expected frames against the web's output (`web.json`).
 
 mod case;
 mod compare;
 mod http;
+mod invariants;
 mod json_text;
 mod run;
 mod upstream;

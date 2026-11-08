@@ -96,7 +96,7 @@ web, with the cases that show the desktop refusing it too; a broker with
   `scripts/feed_corpus/web_expected.py`) or `by-hand` (worked from the web
   file and line named in `notes`); `sources` names the web files and
   functions (`file::Class.method`) or `file:line`.
-- `deviations`: see below.
+- `deviations`: see below; `invariants` (optional): see "Expected frames".
 
 ### script.jsonl
 
@@ -107,7 +107,7 @@ One step per line. Every step may carry a `"note"` for the reader;
 | --- | --- | --- |
 | `send` | `client`, `message`, `reply` | Client `client` (connected and authenticated on first use) sends `message`; the reply must equal `reply` exactly, or, without `reply`, have `"status": "success"`. |
 | `receive` | `client`, `frame`, `web`, `web_mode` | The client's next frame must equal `frame` (a file under the case, or the frame inline). `web`/`web_mode`: see "The web's output". |
-| `silence` | `client`, `ms` | Nothing reaches the client for `ms` (default 300). |
+| `silence` | `client`, `ms`, `web` | Nothing reaches the client for `ms` (default 300); `web` names a frame the web sends here (see "The web's output"). |
 | `close_client` | `client` | The client closes its socket. |
 | `push` | `socket`, `frame`, `connection` | The fake broker sends `frame` on the open connection (of `socket`, default `main`; on connection `connection` if named). |
 | `upstream_receives` | `socket`, `frames`, `any_order`, `connection` | The feed's next frames to the broker are exactly `frames`, in order (or in any order), all on `connection` if named. |
@@ -203,11 +203,41 @@ the exact double its text names, so a value one ulp away
 (`1485.1000000000001`, the web's `148510 * (1/100)`) is a difference
 (`harness/json_text.rs`; serde_json's default float parser would read it as
 `1485.1`). A key the frame must
-not carry is simply not in the file. The one value a case cannot know is a
-time the desktop stamps on receipt; write it `"<receipt_ms>"`. It matches an
-integer epoch-millisecond time from just before the push that made the frame
-to its arrival, so it is never 0, never a trade time from the packet and
-never in seconds.
+not carry is simply not in the file. What a case cannot know is written as
+a placeholder:
+
+- `"<receipt_ms>"`: a time the desktop stamps on receipt. It matches an
+  integer epoch-millisecond time from just before the latest push to the
+  frame's arrival, so it is never 0, never a trade time from the packet and
+  never in seconds.
+- `"<receipt_ms:N>"`: the receipt time of the push on script line `N`, an
+  integer epoch-ms time from just before that push to just before the next
+  one: a frame that carries an earlier packet's time (a book built after a
+  ticker, stamped with the ticker's receipt).
+- `"<random:float>"`, `"<random:int>"`, `"<random:string>"`: a value a
+  synthetic feed draws at random (Dhan Sandbox): any value of that JSON
+  type. Declare the key a `random-values` deviation and bound it with
+  `invariants` (below).
+
+`invariants` in `case.json` (optional) say what must hold of the random
+values, on every `market_data` frame a client receives and on the web's
+publish it is compared with:
+
+```json
+"invariants": [
+  {"key": "high", "at_least": "low"},
+  {"key": "ltp", "at_least": 1477.6, "at_most": 1492.5},
+  {"key": "open", "below": {"key": "ltp", "times": 0.96}},
+  {"key": "depth.buy.*.quantity", "at_least": 10, "at_most": 500, "mode": 3}
+]
+```
+
+`key` is a path in the frame's `data` (`*` for every item of a list);
+`at_least`, `at_most`, `above` and `below` take a number, another key, or
+`{"key", "times"}`. An invariant applies to a frame that has its key (and
+is of its `mode`, if named), and one that applies to no frame of the case
+fails it, as does one the web's own publish breaks (it would not be the
+web's behaviour).
 
 ### The web's output, and deviations
 
@@ -233,8 +263,15 @@ mode for that push (or the lowest richer mode, which is what the web proxy
 delivers to a client at that mode): the `data`
 objects key by key, or the whole frame for an `order_update`. `web_mode`
 picks another mode; `"web": false` says the web sends nothing for this
-frame, which needs a deviation with key `frame`. Every key on which the
-desktop differs from the web must be declared:
+frame, which needs a deviation with key `frame`. The other way round, a
+frame the web sends and the desktop does not is a `silence` step that
+names the web's frame, `{"step": "silence", "client": "a", "web":
+{"symbol": "BTCUSD.P", "exchange": "CRYPTO", "mode": 3}}`: the web must
+publish that frame for the latest push (by instrument, then mode or the
+lowest richer one), and it needs a deviation with key `missing-frame`. A
+key of a `random-values` deviation is compared by presence and JSON type
+at every level (an object's keys, a list's length), not by value. Every
+key on which the desktop differs from the web must be declared:
 
 ```json
 {"key": "upper_circuit", "kind": "open", "reason": "...", "ref": "audit C06"}
@@ -248,6 +285,14 @@ desktop differs from the web must be declared:
 - `desktop-decision`: a desktop-wide wire decision already taken (the
   `data.mode` label, `open_interest` beside `oi`, the dialect aliases).
 - `open`: a desktop gap still to fix. 1.0.7 ships with none.
+- `random-values`: the value is drawn at random on both sides (a
+  synthetic feed), so only its presence and JSON type are compared with
+  the web, and the case's `invariants` bound it.
+
+The script replays the web adapter with `random` seeded the same for every
+case, and with the frozen clock at the script line being replayed, so the
+web's draws are the same on every run and a receipt time it stamped at an
+earlier step is written `"<receipt_ms:N>"` in `web.json`.
 
 `approved` (true or false) records the lead's decision. A deviation no
 difference shows any more fails the case, so remove it with the fix.
