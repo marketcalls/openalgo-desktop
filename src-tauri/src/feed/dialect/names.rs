@@ -15,7 +15,7 @@
 //!   mode above it (the web switches some names between Quote and Depth;
 //!   a script then never meets a KeyError on the richer frame).
 //! * A web name of a time follows its adapter's unit, type and format
-//!   (Fyers and Dhan in seconds, Tradejini's text); `ltt` and `timestamp`
+//!   (Fyers and Dhan in seconds, Tradejini's IST text); `ltt` and `timestamp`
 //!   are epoch milliseconds whatever the adapter sends under those names.
 
 use super::super::source::Mode;
@@ -28,10 +28,6 @@ use super::keys::{Key, Keys, Modes};
 pub(crate) enum Unit {
     Millis,
     Seconds,
-    /// Text, as Python's `str(datetime.fromtimestamp(s))` writes it in the
-    /// machine's local time: `2026-11-09 09:15:03`, with `.ffffff` only
-    /// when the microseconds are not 0 (Tradejini's `last_trade_time`).
-    PythonLocalText,
 }
 
 /// An optional shared field (`QuoteExtras`).
@@ -71,6 +67,10 @@ pub(crate) enum Source {
     ChangePercent,
     /// The exchange's trade time (`ltt`).
     TradeTime(Unit),
+    /// The exchange's trade time as text, `YYYY-MM-DD HH:MM:SS` in IST, only
+    /// when the broker sent one (Tradejini's `last_trade_time`: the web
+    /// writes `str(datetime.fromtimestamp(seconds))`).
+    TradeTimeText,
     Extra(Extra),
     /// The book depth the frame streams (Dhan, the Noren family:
     /// `depth_level`).

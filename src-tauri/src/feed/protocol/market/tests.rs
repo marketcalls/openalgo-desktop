@@ -652,24 +652,41 @@ fn a_lower_holder_gets_the_packet_as_the_brokers_web_adapter_sends_it() {
     assert!(render(&u, Mode::Quote, "zerodha").get("depth").is_none());
 }
 
-/// A web name of a time in Python's local text form (Tradejini's
-/// `last_trade_time`, `str(datetime.fromtimestamp(s))`).
+/// A trade time as Tradejini's web adapter writes it, in IST seconds, and
+/// only when the broker sent one (`ltt` falls back to the receive time).
 #[test]
-fn a_time_can_go_out_as_python_local_text() {
-    use chrono::TimeZone;
-    let ms = 1_791_000_000_000_i64;
-    let want = chrono::Local
-        .timestamp_millis_opt(ms)
-        .single()
-        .unwrap()
-        .format("%Y-%m-%d %H:%M:%S")
-        .to_string();
+fn a_trade_time_goes_out_as_ist_text() {
+    // 1791000000 s is 2026-10-03 04:00:00 UTC, 09:30:00 IST.
     assert_eq!(
-        super::time(ms, crate::feed::dialect::Unit::PythonLocalText),
-        Value::from(want)
+        super::time_text(1_791_000_000_250),
+        Some(Value::from("2026-10-03 09:30:00"))
     );
-    let frac = super::time(ms + 250, crate::feed::dialect::Unit::PythonLocalText);
-    assert!(frac.as_str().unwrap().ends_with(".250000"), "{}", frac);
+    let mut u = update(equity());
+    if let Some(q) = u.quote.as_mut() {
+        q.trade_time = Some(1_791_000_000_000);
+    }
+    let fr_q = u.quote.clone().unwrap();
+    let frame = super::Frame {
+        update: &u,
+        q: &fr_q,
+        mode: Mode::Quote,
+        content: Mode::Quote,
+        depth: 5,
+        broker: "tradejini",
+    };
+    let v = super::value(crate::feed::dialect::Source::TradeTimeText, &frame);
+    assert_eq!(v, Some(Value::from("2026-10-03 09:30:00")));
+    let none = update(equity());
+    let q = none.quote.clone().unwrap();
+    let frame = super::Frame {
+        q: &q,
+        update: &none,
+        ..frame
+    };
+    assert_eq!(
+        super::value(crate::feed::dialect::Source::TradeTimeText, &frame),
+        None
+    );
 }
 
 /// `index_change` (lead, 2026-11-09): Firstock, AliceBlue, Samco,

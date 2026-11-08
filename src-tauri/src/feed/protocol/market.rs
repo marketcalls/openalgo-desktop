@@ -202,20 +202,23 @@ fn extra(e: Extra, q: &QuoteFields) -> Option<Value> {
     }
 }
 
-/// An epoch-millisecond time in the unit and form a broker's web name uses.
+/// An epoch-millisecond time in the unit a broker's web name uses.
 fn time(ms: i64, unit: Unit) -> Value {
-    use chrono::TimeZone;
     match unit {
         Unit::Millis => ms.into(),
         Unit::Seconds => (ms / 1000).into(),
-        Unit::PythonLocalText => match chrono::Local.timestamp_millis_opt(ms).single() {
-            Some(t) if t.timestamp_subsec_micros() == 0 => {
-                t.format("%Y-%m-%d %H:%M:%S").to_string().into()
-            }
-            Some(t) => t.format("%Y-%m-%d %H:%M:%S%.6f").to_string().into(),
-            None => Value::Null,
-        },
     }
+}
+
+/// A trade time as text, `YYYY-MM-DD HH:MM:SS` in IST: what web Python's
+/// `str(datetime.fromtimestamp(seconds))` writes on a host on IST (the
+/// desktop keeps IST everywhere, so CI and every computer agree).
+fn time_text(ms: i64) -> Option<Value> {
+    use chrono::TimeZone;
+    let t = crate::clock::ist_offset()
+        .timestamp_opt(ms.div_euclid(1000), 0)
+        .single()?;
+    Some(t.format("%Y-%m-%d %H:%M:%S").to_string().into())
 }
 
 /// The value of `source` in this frame, if known.
@@ -238,6 +241,7 @@ fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
         Source::Change => f(q.price_change),
         Source::ChangePercent => f(q.price_change_percent),
         Source::TradeTime(unit) => fr.update.ltt.map(|ms| time(ms, unit)),
+        Source::TradeTimeText => q.trade_time.and_then(time_text),
         Source::Extra(e) => extra(e, q),
         Source::DepthLevels => {
             let book = fr.content == Mode::Depth && !fr.update.key.is_index();

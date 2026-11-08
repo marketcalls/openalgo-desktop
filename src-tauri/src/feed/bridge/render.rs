@@ -31,6 +31,7 @@ fn quote_fields(key: &InstrumentKey, t: &NormalizedTick, known: AbsentFields) ->
         oi: int(F::OpenInterest, t.oi),
         price_change: has(F::Change).then_some(t.change),
         price_change_percent: has(F::Change).then_some(t.change_percent),
+        trade_time: has(F::LastTradeTime).then_some(t.last_trade_time_ms),
         extras: t.extras,
         broker_fields: t.broker_fields.clone(),
     }
