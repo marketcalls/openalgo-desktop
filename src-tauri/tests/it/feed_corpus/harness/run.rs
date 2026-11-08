@@ -6,6 +6,7 @@
 
 use super::case::{bad, Action, Case, Expect, Socket, Step};
 use super::compare::{self, Window};
+use super::http::{self, HttpRequestExpect};
 use super::upstream::Received;
 use super::web;
 use super::world::{Env, Feeds, World};
@@ -46,6 +47,14 @@ fn now_ms() -> i64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
         .unwrap_or(0)
+}
+
+/// Requests, one per line, for a failure message.
+fn listed(items: &[impl std::fmt::Display]) -> String {
+    if items.is_empty() {
+        return "nothing".into();
+    }
+    items.iter().map(|r| format!("\n    {}", r)).collect()
 }
 
 fn list(frames: &[Received]) -> String {
@@ -150,7 +159,60 @@ impl Runner<'_> {
                     bad(&at, format!("{} socket: {}", socket.name(), e));
                 }
             }
+            Action::HttpServe(answer) => {
+                // An order book the poller reads next is like a push: its
+                // update's receipt window starts here.
+                self.pushed_at = now_ms();
+                self.world.serve(answer);
+            }
+            Action::HttpPolled {
+                method,
+                path,
+                times,
+            } => {
+                if !self
+                    .world
+                    .http()
+                    .polled(method.as_deref(), path, *times)
+                    .await
+                {
+                    bad(
+                        &at,
+                        format!("{} was not read {} times by the deadline", path, times),
+                    );
+                }
+            }
+            Action::HttpReceives { requests } => self.http_receives(&at, requests).await,
             Action::Note => {}
+        }
+    }
+
+    async fn http_receives(&self, at: &str, requests: &[HttpRequestExpect]) {
+        let got = self
+            .world
+            .http()
+            .take(requests.len())
+            .await
+            .unwrap_or_else(|got| {
+                bad(
+                    at,
+                    format!(
+                        "the broker API received {} of {} requests:{}",
+                        got.len(),
+                        requests.len(),
+                        listed(&got)
+                    ),
+                )
+            });
+        if !requests.iter().zip(&got).all(|(w, g)| http::matches(w, g)) {
+            bad(
+                at,
+                format!(
+                    "the broker API expected:{}\n  received:{}",
+                    listed(requests),
+                    listed(&got)
+                ),
+            );
         }
     }
 
@@ -290,6 +352,16 @@ impl Runner<'_> {
                     ),
                 );
             }
+        }
+        let left = self.world.http().leftover();
+        if !left.is_empty() {
+            bad(
+                &id,
+                format!(
+                    "the broker API received requests no step expects:{}",
+                    listed(&left)
+                ),
+            );
         }
         for (_, mut c) in std::mem::take(&mut self.clients) {
             let _ = c.ws.close(None).await;

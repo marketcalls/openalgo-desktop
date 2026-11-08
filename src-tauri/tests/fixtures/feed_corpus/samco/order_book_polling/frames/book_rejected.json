@@ -1,0 +1,41 @@
+{
+  "status": "Success",
+  "orderBookDetails": [
+    {
+      "orderNumber": "251109000000101",
+      "exchange": "NSE",
+      "tradingSymbol": "SBIN-EQ",
+      "transactionType": "BUY",
+      "totalQuanity": "10",
+      "filledQuantity": "10",
+      "unfilledQuantity": "0",
+      "orderPrice": "800.50",
+      "triggerPrice": "0.00",
+      "averagePrice": "800.45",
+      "fillPrice": "800.45",
+      "orderType": "L",
+      "productCode": "CNC",
+      "orderStatus": "COMPLETE",
+      "rejectionReason": "",
+      "orderTime": "09-Nov-2026 10:15:01"
+    },
+    {
+      "orderNumber": "251109000000102",
+      "exchange": "NSE",
+      "tradingSymbol": "SBIN-EQ",
+      "transactionType": "SELL",
+      "totalQuanity": "500",
+      "filledQuantity": "0",
+      "unfilledQuantity": "0",
+      "orderPrice": "801.00",
+      "triggerPrice": "0.00",
+      "averagePrice": "0.00",
+      "fillPrice": "0.00",
+      "orderType": "L",
+      "productCode": "CNC",
+      "orderStatus": "REJECTED",
+      "rejectionReason": "Insufficient funds",
+      "orderTime": "09-Nov-2026 10:15:01"
+    }
+  ]
+}

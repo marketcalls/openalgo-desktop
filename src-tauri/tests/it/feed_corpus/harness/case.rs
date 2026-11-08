@@ -4,6 +4,7 @@
 //! and checked here, so a mistake in a case is reported with its file and
 //! line before any socket opens.
 
+use super::http::HttpRequestExpect;
 use openalgo_desktop_lib::brokers::common::symbols::SymToken;
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -85,11 +86,35 @@ impl std::fmt::Display for Wire {
     }
 }
 
+/// In a JSON frame or request a case expects from the feed, a value no case
+/// can know (Upstox's random `guid`): any value at that key matches. Never
+/// where the value is deterministic.
+pub(crate) const ANY: &str = "<any>";
+
+/// `got` is `want`, `"<any>"` matching any value: the same keys, the same
+/// values with the same JSON types, arrays of the same length.
+pub(crate) fn json_matches(want: &Value, got: &Value) -> bool {
+    match (want, got) {
+        (Value::String(s), _) if s == ANY => true,
+        (Value::Object(w), Value::Object(g)) => {
+            w.len() == g.len()
+                && w.iter()
+                    .all(|(k, wv)| g.get(k).is_some_and(|gv| json_matches(wv, gv)))
+        }
+        (Value::Array(w), Value::Array(g)) => {
+            w.len() == g.len() && w.iter().zip(g).all(|(a, b)| json_matches(a, b))
+        }
+        _ => want == got,
+    }
+}
+
 /// A frame the fake broker expects from the feed.
 #[derive(Debug, Clone)]
 pub(crate) enum Expect {
     /// A text frame holding this JSON (key order and spacing free).
     Json(Value),
+    /// A binary frame holding this JSON (Upstox's subscribe frames).
+    BinaryJson(Value),
     Text(String),
     Binary(Vec<u8>),
 }
@@ -98,7 +123,10 @@ impl Expect {
     pub(crate) fn matches(&self, wire: &Wire) -> bool {
         match (self, wire) {
             (Expect::Json(v), Wire::Text(t)) => {
-                serde_json::from_str::<Value>(t).ok().as_ref() == Some(v)
+                serde_json::from_str::<Value>(t).is_ok_and(|g| json_matches(v, &g))
+            }
+            (Expect::BinaryJson(v), Wire::Binary(b)) => {
+                serde_json::from_slice::<Value>(b).is_ok_and(|g| json_matches(v, &g))
             }
             (Expect::Text(s), Wire::Text(t)) => s == t,
             (Expect::Binary(b), Wire::Binary(x)) => b == x,
@@ -111,10 +139,43 @@ impl std::fmt::Display for Expect {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expect::Json(v) => write!(f, "json {}", v),
+            Expect::BinaryJson(v) => write!(f, "binary json {}", v),
             Expect::Text(t) => write!(f, "text {}", t),
             Expect::Binary(b) => write!(f, "binary {}", hex::encode(b)),
         }
     }
+}
+
+/// A body the fake broker API answers with, or a request body a case
+/// expects.
+#[derive(Debug, Clone)]
+pub(crate) enum HttpBody {
+    Json(Value),
+    Text(String),
+}
+
+impl HttpBody {
+    /// The body as sent.
+    pub(crate) fn text(&self) -> String {
+        match self {
+            HttpBody::Json(v) => v.to_string(),
+            HttpBody::Text(t) => t.clone(),
+        }
+    }
+}
+
+/// An answer of the fake broker API: from `case.json`'s `http` or an
+/// `http_serve` step. `{ws:main}`, `{ws:depth}`, `{ws:orders}` and
+/// `{http}` in the body become the fake sockets' and API's addresses.
+#[derive(Debug, Clone)]
+pub(crate) struct HttpAnswer {
+    /// `None`: any method.
+    pub(crate) method: Option<String>,
+    pub(crate) path: String,
+    pub(crate) status: u16,
+    pub(crate) body: HttpBody,
+    /// Keep its requests for `http_receives` steps.
+    pub(crate) record: bool,
 }
 
 /// Which web output a received frame is compared with (`web.rs`).
@@ -167,6 +228,20 @@ pub(crate) enum Action {
     DropUpstream {
         socket: Socket,
     },
+    /// The fake broker API answers this from now on (an order book the
+    /// poller reads next).
+    HttpServe(HttpAnswer),
+    /// Wait until the answer for `method` and `path` has been read `times`
+    /// times since it was set.
+    HttpPolled {
+        method: Option<String>,
+        path: String,
+        times: usize,
+    },
+    /// The next requests the fake broker API kept are exactly these.
+    HttpReceives {
+        requests: Vec<HttpRequestExpect>,
+    },
     Note,
 }
 
@@ -212,8 +287,15 @@ pub(crate) struct Case {
     /// The fake sockets the script uses; a broker's order or deep-book
     /// feed is connected only when its socket is one of them.
     pub(crate) sockets: BTreeSet<Socket>,
-    /// What the web's output is computed from, in order: the script, then
-    /// each pushed frame file (`web.json` records its SHA-256).
+    /// What the fake broker API answers from the start (`case.json`
+    /// `http`).
+    pub(crate) http: Vec<HttpAnswer>,
+    /// Whether the script asks for order updates (`subscribe_orders`, or
+    /// the `orders` socket).
+    pub(crate) orders: bool,
+    /// What the web's output is computed from, in order: the script, each
+    /// file a push or an `http_serve` names, then each file `case.json`'s
+    /// `http` names (`web.json` records its SHA-256).
     pub(crate) inputs: Vec<u8>,
 }
 
@@ -248,6 +330,7 @@ impl Case {
                 "instruments",
                 "depth_levels",
                 "upstream_ignore",
+                "http",
                 "provenance",
                 "deviations",
             ],
@@ -281,8 +364,29 @@ impl Case {
             .replace("\r\n", "\n");
         let mut inputs = script.clone().into_bytes();
         let steps = read_script(&id, &dir, &script, &mut inputs);
-        let sockets = steps.iter().filter_map(|s| s.action.socket()).collect();
+        let sockets: BTreeSet<Socket> = steps.iter().filter_map(|s| s.action.socket()).collect();
+        let orders = sockets.contains(&Socket::Orders)
+            || steps.iter().any(|s| {
+                matches!(&s.action, Action::Send { message, .. }
+                    if message["action"] == "subscribe_orders")
+            });
+        let http = match o.get("http") {
+            None => Vec::new(),
+            Some(Value::Array(list)) => list
+                .iter()
+                .map(|v| {
+                    let a = v
+                        .as_object()
+                        .unwrap_or_else(|| bad(&at, "an \"http\" answer is an object"));
+                    allow_keys(&at, a, &["method", "path", "status", "body", "record"]);
+                    http_answer(&at, &dir, a, &mut inputs)
+                })
+                .collect(),
+            Some(_) => bad(&at, "\"http\" is an array of answers"),
+        };
         Case {
+            http,
+            orders,
             depth_levels: depth_levels(&at, o.get("depth_levels")),
             upstream_ignore: strings(&at, "upstream_ignore", o.get("upstream_ignore")),
             web_sha: provenance(&at, o.get("provenance")),
@@ -540,6 +644,9 @@ fn step(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> A
         "upstream_receives" => &["socket", "frames", "any_order", "connection"],
         "upstream_connected" => &["socket", "connection", "path", "headers"],
         "drop_upstream" => &["socket"],
+        "http_serve" => &["method", "path", "status", "body", "record"],
+        "http_polled" => &["method", "path", "times"],
+        "http_receives" => &["requests"],
         "note" => &["text"],
         other => bad(at, format!("unknown step \"{}\"", other)),
     };
@@ -634,7 +741,106 @@ fn step(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> A
                 .unwrap_or_default(),
         },
         "drop_upstream" => Action::DropUpstream { socket: socket() },
+        "http_serve" => Action::HttpServe(http_answer(at, dir, o, inputs)),
+        "http_polled" => Action::HttpPolled {
+            method: http_method(at, o),
+            path: http_path(at, o),
+            times: number("times").unwrap_or(1),
+        },
+        "http_receives" => Action::HttpReceives {
+            requests: need("requests")
+                .as_array()
+                .unwrap_or_else(|| bad(at, "\"requests\" is an array"))
+                .iter()
+                .map(|r| http_request(at, r))
+                .collect(),
+        },
         _ => Action::Note,
+    }
+}
+
+fn http_method(at: &str, o: &Map<String, Value>) -> Option<String> {
+    o.get("method").map(|m| {
+        m.as_str()
+            .map(str::to_ascii_uppercase)
+            .unwrap_or_else(|| bad(at, "\"method\" is a string"))
+    })
+}
+
+fn http_path(at: &str, o: &Map<String, Value>) -> String {
+    o.get("path")
+        .and_then(Value::as_str)
+        .filter(|p| p.starts_with('/'))
+        .map(String::from)
+        .unwrap_or_else(|| bad(at, "\"path\" is a path from /"))
+}
+
+/// An answer of the fake broker API: `method` (default any), `path`,
+/// `status` (default 200), `body` (a file of the case, `{"json"}` or
+/// `{"text"}`; default empty) and `record`. A body file joins `inputs`.
+fn http_answer(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> HttpAnswer {
+    let status = o.get("status").map_or(200, |s| {
+        s.as_u64()
+            .and_then(|n| u16::try_from(n).ok())
+            .filter(|n| (100..600).contains(n))
+            .unwrap_or_else(|| bad(at, "\"status\" is an HTTP status"))
+    });
+    let body = match o.get("body") {
+        None => HttpBody::Text(String::new()),
+        Some(Value::String(name)) => {
+            let (path, bytes) = case_file(at, dir, name);
+            inputs.extend_from_slice(
+                String::from_utf8_lossy(&bytes)
+                    .replace("\r\n", "\n")
+                    .as_bytes(),
+            );
+            let text = utf8(at, bytes).replace("\r\n", "\n");
+            match extension(&path) {
+                "json" => HttpBody::Json(
+                    serde_json::from_str(&text)
+                        .unwrap_or_else(|e| bad(at, format!("{}: not JSON: {}", name, e))),
+                ),
+                _ => HttpBody::Text(text),
+            }
+        }
+        Some(v) => match inline(at, v) {
+            ("json", json) => HttpBody::Json(json.clone()),
+            ("text", t) => HttpBody::Text(t.as_str().unwrap_or_default().to_string()),
+            _ => bad(at, "an HTTP body is a file, {\"json\"} or {\"text\"}"),
+        },
+    };
+    HttpAnswer {
+        method: http_method(at, o),
+        path: http_path(at, o),
+        status,
+        body,
+        record: o.get("record").and_then(Value::as_bool).unwrap_or(false),
+    }
+}
+
+/// A request an `http_receives` step expects: `method`, `path` with its
+/// query, and the body as `json` (compared as JSON, `"<any>"` allowed),
+/// `text`, or neither for an empty body.
+fn http_request(at: &str, v: &Value) -> HttpRequestExpect {
+    let o = v
+        .as_object()
+        .unwrap_or_else(|| bad(at, "an expected request is an object"));
+    allow_keys(at, o, &["method", "path", "json", "text"]);
+    let body = match (o.get("json"), o.get("text")) {
+        (Some(j), None) => Some(HttpBody::Json(j.clone())),
+        (None, Some(t)) => Some(HttpBody::Text(
+            t.as_str()
+                .map(String::from)
+                .unwrap_or_else(|| bad(at, "\"text\" is a string")),
+        )),
+        (None, None) => None,
+        _ => bad(at, "an expected request has \"json\" or \"text\", not both"),
+    };
+    HttpRequestExpect {
+        method: http_method(at, o)
+            .unwrap_or_else(|| bad(at, "an expected request names its method")),
+        path: http_path(at, o),
+        body,
     }
 }
 
@@ -711,6 +917,7 @@ fn pushed_frame(at: &str, dir: &Path, v: &Value, inputs: &mut Vec<u8>) -> Wire {
     match inline(at, v) {
         ("hex", s) => Wire::Binary(decode_hex(at, s.as_str().unwrap_or_default())),
         ("text", s) => Wire::Text(s.as_str().unwrap_or_default().to_string()),
+        ("binary_json", json) => Wire::Binary(json.to_string().into_bytes()),
         (_, json) => Wire::Text(json.to_string()),
     }
 }
@@ -737,30 +944,29 @@ fn upstream_frame(at: &str, dir: &Path, v: &Value) -> Expect {
     match inline(at, v) {
         ("hex", s) => Expect::Binary(decode_hex(at, s.as_str().unwrap_or_default())),
         ("text", s) => Expect::Text(s.as_str().unwrap_or_default().to_string()),
+        ("binary_json", json) => Expect::BinaryJson(json.clone()),
         (_, json) => Expect::Json(json.clone()),
     }
 }
 
-/// `{"hex": "..."}`, `{"text": "..."}` or `{"json": ...}`.
+/// `{"hex": "..."}`, `{"text": "..."}`, `{"json": ...}` (a text frame) or
+/// `{"binary_json": ...}` (a binary frame holding JSON).
 fn inline<'a>(at: &str, v: &'a Value) -> (&'static str, &'a Value) {
-    let o = v.as_object().filter(|o| o.len() == 1).unwrap_or_else(|| {
-        bad(
-            at,
-            "a frame is a file name, {\"hex\"}, {\"text\"} or {\"json\"}",
-        )
-    });
-    for kind in ["hex", "text", "json"] {
+    const FORMS: &str =
+        "a frame is a file name, {\"hex\"}, {\"text\"}, {\"json\"} or {\"binary_json\"}";
+    let o = v
+        .as_object()
+        .filter(|o| o.len() == 1)
+        .unwrap_or_else(|| bad(at, FORMS));
+    for kind in ["hex", "text", "json", "binary_json"] {
         if let Some(inner) = o.get(kind) {
-            if kind != "json" && !inner.is_string() {
+            if matches!(kind, "hex" | "text") && !inner.is_string() {
                 bad(at, format!("\"{}\" holds a string", kind));
             }
             return (kind, inner);
         }
     }
-    bad(
-        at,
-        "a frame is a file name, {\"hex\"}, {\"text\"} or {\"json\"}",
-    )
+    bad(at, FORMS)
 }
 
 /// A frame a client expects: a `.json` file of the case, or the frame

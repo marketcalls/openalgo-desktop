@@ -7,7 +7,7 @@ the worst result among them; what the web offers is each broker's
 `broker.json`. A result holds when the case's test passes in CI. 1.0.7 ships
 when every cell is "matches web", "approved deviation" or "not offered by the web".
 
-Cases: 17. Open gaps: 12. Deviations pending approval: 34.
+Cases: 18. Open gaps: 12. Deviations pending approval: 34.
 
 | Broker | LTP | Quote | Depth 5 | Depth 20 | Depth 30 | Depth 50 | Order updates |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -41,7 +41,7 @@ Cases: 17. Open gaps: 12. Deviations pending approval: 34.
 | rmoney | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | rupeezy | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | sahi | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
-| samco | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
+| samco | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | matches web: `order_book_polling` (by hand) |
 | shoonya | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | tradejini | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | tradesmart | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
@@ -56,6 +56,7 @@ Cases: 17. Open gaps: 12. Deviations pending approval: 34.
 | --- | --- | --- |
 | angel | first-full-packet, depth-update | partial-packet, absent-field, book-clear, index, derivative-oi, reconnect, subscription-lifecycle, mode-change, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled |
 | dhan | first-full-packet, partial-packet, absent-field, depth-update, reconnect, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | book-clear, index, derivative-oi, subscription-lifecycle, mode-change |
+| samco | order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | first-full-packet, partial-packet, absent-field, depth-update, book-clear, index, derivative-oi, reconnect, subscription-lifecycle, mode-change |
 | zerodha | first-full-packet, absent-field, depth-update, book-clear, index, derivative-oi, reconnect, subscription-lifecycle, mode-change, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | partial-packet |
 
 ## Deviations

@@ -228,7 +228,7 @@ async fn serve(
 
 /// Poll `f` every few milliseconds until it gives a value or
 /// [`DEADLINE`] passes.
-async fn until<T>(mut f: impl FnMut() -> Option<T>) -> Option<T> {
+pub(crate) async fn until<T>(mut f: impl FnMut() -> Option<T>) -> Option<T> {
     let deadline = tokio::time::Instant::now() + DEADLINE;
     loop {
         if let Some(v) = f() {

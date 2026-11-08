@@ -79,6 +79,9 @@ matrix as **no case**.
   its `Broker::feed_depth_levels` says (default 5 everywhere).
 - `upstream_ignore` (optional): text frames the fake broker does not record
   (a feed's text heartbeat). WebSocket pings are never recorded.
+- `http` (optional): what the fake broker REST API answers from the start,
+  a list of `{"method", "path", "status", "body", "record"}` (see "The fake
+  broker API").
 - `scenarios`: from this list, for the parity matrix: `first-full-packet`,
   `partial-packet`, `absent-field`, `depth-update`, `book-clear`, `index`,
   `derivative-oi`, `reconnect`, `subscription-lifecycle`, `mode-change`,
@@ -108,12 +111,19 @@ One step per line. Every step may carry a `"note"` for the reader;
 | `upstream_receives` | `socket`, `frames`, `any_order`, `connection` | The feed's next frames to the broker are exactly `frames`, in order (or in any order), all on `connection` if named. |
 | `upstream_connected` | `socket`, `connection`, `path`, `headers` | Connection `connection` (default 1) was opened, with this path and query and these headers (only the named ones are compared). |
 | `drop_upstream` | `socket` | The fake broker closes the open connection, as a broker dropping the socket does; the manager reconnects. |
+| `http_serve` | `method`, `path`, `status`, `body`, `record` | The fake broker API answers `path` with this from now on (the order book a poller reads next). Counts as a push for the receipt window and for `web.json`. |
+| `http_polled` | `method`, `path`, `times` | Wait until `path`'s current answer has been read `times` times (default 1): the poller has seen it. |
+| `http_receives` | `requests` | The next requests the API kept (from `record` routes, or to no route) are exactly these: `{"method", "path" (with its query), "json" or "text" (the body; neither for none)}`. |
 
 Frames, in `push` and `upstream_receives`: a file name in the case folder
 (`.hex` and `.bin` are binary frames, `.json` and `.txt` text frames sent as
 written; in `upstream_receives` a `.json` file is compared as JSON), or
-inline `{"hex": "..."}`, `{"text": "..."}` or `{"json": {...}}` (sent
-compact, compared as JSON). A `.hex` file takes any spacing and `#` comments,
+inline `{"hex": "..."}`, `{"text": "..."}`, `{"json": {...}}` (a text
+frame, sent compact, compared as JSON) or `{"binary_json": {...}}` (a binary
+frame holding JSON, as Upstox sends its subscriptions). In a JSON frame or
+request the feed sends, the string `"<any>"` matches any value at that key:
+only for a value no case can know (Upstox's random `guid`), never where the
+value is deterministic. A `.hex` file takes any spacing and `#` comments,
 so a packet is written field by field:
 
 ```
@@ -123,14 +133,54 @@ so a packet is written field by field:
 ```
 
 At the end of the script nothing may be unread: a frame a client received
-that no `receive` took, or a frame the broker received that no
-`upstream_receives` took, fails the case. Then every client leaves, and every
-subscription must be released at the broker.
+that no `receive` took, a frame the broker received that no
+`upstream_receives` took, or a request the API kept that no `http_receives`
+took, fails the case. Then every client leaves, and every subscription must
+be released at the broker.
 
 Sockets: `main` (the market data feed), `orders` (a dedicated order-update
-socket) and `depth` (a separate deep-book socket). A broker's order feed is
-connected only in a case whose script names the `orders` socket, so market
-data cases need not expect its login frames.
+socket) and `depth` (a separate deep-book socket). A broker's order or
+deep-book feed is connected only in a case whose script names its socket,
+so market data cases need not expect its login frames.
+
+### The fake broker API
+
+One fake REST API per case, on an ephemeral loopback port, for what a feed
+or an order poller reads over HTTP: Upstox's authorize call before every
+connect, Groww's socket token, the order book 5paisa, Samco and Groww poll
+for order updates (web `_POLLING_BROKERS`), XTS's REST subscriptions. Point
+the broker at `env.http_url()` with its `with_urls` constructor.
+
+A path answers with its current answer, as many times as it is read:
+
+- one fixed answer, registered by the broker module with
+  `env.serve_json(path, json)` (any method, 200), or listed in `case.json`
+  `http`;
+- or a scripted sequence: each `http_serve` step replaces the answer from
+  then on, and `http_polled` waits until the poller has read it.
+
+An answer's `body` is a file of the case (a `.json` file is served
+compact), `{"json": ...}` or `{"text": ...}`; `{ws:main}`, `{ws:depth}`,
+`{ws:orders}` and `{http}` in it become the fakes' addresses. `status`
+defaults to 200, `method` to any. Requests to an answered path are counted,
+not kept, since a poller reads every second; `"record": true` keeps them for
+`http_receives` (REST subscriptions to compare exactly). A request to a path
+nothing answers gets 404 and is kept, so the end of the case reports it.
+
+Order updates from an order-book poller: in the broker module, start the
+broker's poller only when the case asks for orders (`env.orders()`), with a
+short interval, and hand its stream over, keeping the broker alive:
+
+```rust
+let updates = broker.start_order_updates(&auth, Duration::from_secs(1)).expect("poller");
+feeds.with_order_feed(OrderFeed::Stream(updates)).keeping(broker)
+```
+
+The script then subscribes to orders, waits for the poller's silent first
+read (`http_polled`), and serves each next book (`http_serve`) followed by
+the `order_update` frame it makes (`receive`). `samco/order_book_polling`
+is the example. The poller reads once a second at the shortest, so a book
+takes up to a second to arrive.
 
 ### Expected frames
 
@@ -223,10 +273,15 @@ the broker's `broker.json`, and its glue in
 `scripts/feed_corpus/web_adapters/` (a `webkit.Glue` naming the web
 methods that decode and normalise its frames, and a line in that folder's
 `__init__.py`).
-Use the feed's `with_url` (or `with_urls`) constructor; credentials are fake
-values (never real ones, never anything gitleaks matches). A feed whose
-`prepare` calls the broker's REST API first (Upstox's authorize, Groww's
-socket token) needs that call pointed at a fake too.
+Use the feed's `with_url` (or the broker's `with_urls`) constructor;
+credentials are fake values (never real ones, never anything gitleaks
+matches). A feed made by `Broker::create_feed` goes in with
+`Feeds::boxed(..)`, an order feed from `Broker::create_order_feed` with
+`.with_order_feed(..)`, a deep-book socket with `.with_depth(levels, ..)`. A
+feed whose `prepare` calls the broker's REST API first (Upstox's authorize,
+Groww's socket token) reads it from the fake broker API:
+`env.serve_json("/v3/feed/market-data-feed/authorize", json!({"data":
+{"authorized_redirect_uri": env.url("main")}}))`.
 
 ## Pitfalls
 

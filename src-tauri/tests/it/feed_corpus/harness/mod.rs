@@ -7,6 +7,8 @@
 //!
 //! * [`case`]: a case as it is on disk, read and checked.
 //! * [`upstream`]: the fake broker socket a feed connects to.
+//! * [`http`]: the fake broker REST API (an authorize answer, an order
+//!   book a poller reads, REST subscriptions).
 //! * [`world`]: the production pieces, wired as a broker session wires them.
 //! * [`run`]: the steps in order, and what may not be left over.
 //! * [`compare`]: exact comparison of a frame, receipt times included.
@@ -14,6 +16,7 @@
 
 mod case;
 mod compare;
+mod http;
 mod run;
 mod upstream;
 mod web;

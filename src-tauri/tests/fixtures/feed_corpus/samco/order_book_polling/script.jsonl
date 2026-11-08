@@ -1,0 +1,12 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "http_polled", "path": "/order/orderBook", "note": "The poller has read the empty book: its silent baseline."}
+{"step": "http_serve", "path": "/order/orderBook", "body": "frames/book_open.json"}
+{"step": "receive", "client": "a", "frame": "expected/book_open.json"}
+{"step": "http_serve", "path": "/order/orderBook", "body": "frames/book_partial.json"}
+{"step": "receive", "client": "a", "frame": "expected/book_partial.json"}
+{"step": "http_serve", "path": "/order/orderBook", "body": "frames/book_complete.json"}
+{"step": "receive", "client": "a", "frame": "expected/book_complete.json"}
+{"step": "http_serve", "path": "/order/orderBook", "body": "frames/book_rejected.json"}
+{"step": "receive", "client": "a", "frame": "expected/book_rejected.json"}
+{"step": "http_serve", "path": "/order/orderBook", "body": "frames/book_cancelled.json"}
+{"step": "receive", "client": "a", "frame": "expected/book_cancelled.json"}

@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "samco",
+  "orderid": "251109000000101",
+  "symbol": "SBIN",
+  "exchange": "NSE",
+  "action": "BUY",
+  "quantity": 10,
+  "price": 800.5,
+  "trigger_price": 0.0,
+  "pricetype": "LIMIT",
+  "product": "CNC",
+  "order_status": "complete",
+  "filled_quantity": 10,
+  "pending_quantity": 0,
+  "average_price": 800.45,
+  "rejection_reason": ""
+}

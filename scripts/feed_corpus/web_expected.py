@@ -44,7 +44,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 from web_adapters import GLUES  # noqa: E402
-from webkit import read_frame  # noqa: E402
+from webkit import read_body, read_frame  # noqa: E402
 
 CORPUS = HERE.parent.parent / "src-tauri/tests/fixtures/feed_corpus"
 MODES = {"ltp": 1, "quote": 2, "depth": 3}
@@ -122,10 +122,17 @@ class Replay:
             raise SystemExit(f"{symbol} on {exchange} is not in the case's instruments")
         return row
 
-    def run(self, script: str) -> tuple[list, bytes]:
+    def run(self, script: str, answers: list) -> tuple[list, bytes]:
+        """Replay `script` with the fake broker API's first `answers`
+        (`case.json` `http`); the inputs are hashed as the harness hashes
+        them: the script, each step's file, then each answer's file."""
         inputs = bytearray(script.encode("utf-8"))
         pushes = []
+        first = [(a, read_body(self.case_dir, a.get("body"))) for a in answers]
         self.glue.start()
+        for a, (body, _) in first:
+            self.glue.serve(a.get("method"), a["path"], body)
+        self.glue.published = []
         for n, line in enumerate(script.splitlines(), 1):
             if not line.strip():
                 continue
@@ -155,6 +162,18 @@ class Replay:
                 self.glue.published = []
                 self.glue.push(step.get("socket", "main"), frame)
                 pushes.append({"line": n, "published": self.glue.published})
+            elif kind == "http_serve":
+                # A new answer (an order book the poller reads next) is the
+                # web adapter's next poll.
+                body, file_bytes = read_body(self.case_dir, step.get("body"))
+                if file_bytes is not None:
+                    inputs += file_bytes
+                self.glue.published = []
+                self.glue.serve(step.get("method"), step["path"], body)
+                pushes.append({"line": n, "published": self.glue.published})
+        for _, (_, file_bytes) in first:
+            if file_bytes is not None:
+                inputs += file_bytes
         return pushes, bytes(inputs)
 
 
@@ -164,7 +183,7 @@ def compute(case_dir: Path, web: Path, sha: str) -> dict:
     if glue_cls is None:
         raise SystemExit(f"{case_dir}: no glue for {case['broker']} in web_adapters/")
     script = (case_dir / "script.jsonl").read_text(encoding="utf-8")
-    pushes, inputs = Replay(glue_cls(web, case), case_dir).run(script)
+    pushes, inputs = Replay(glue_cls(web, case), case_dir).run(script, case.get("http", []))
     return {
         "generated_by": "scripts/feed_corpus/web_expected.py",
         "web_sha": sha,
@@ -200,7 +219,7 @@ def diff(case_dir: Path, out: dict) -> list[str]:
         if not line.strip():
             continue
         step = json.loads(line)
-        if step["step"] == "push":
+        if step["step"] in ("push", "http_serve"):
             last, orders_seen = n, 0
         elif step["step"] == "receive" and last is not None:
             frame = step["frame"]

@@ -51,7 +51,7 @@ pub(crate) fn check(case: &Case) {
     let push_lines: BTreeSet<usize> = case
         .steps
         .iter()
-        .filter(|s| matches!(s.action, Action::Push { .. }))
+        .filter(|s| matches!(s.action, Action::Push { .. } | Action::HttpServe(_)))
         .map(|s| s.line)
         .collect();
     if push_lines != pushes.keys().copied().collect::<BTreeSet<usize>>() {
@@ -65,7 +65,7 @@ pub(crate) fn check(case: &Case) {
     let mut last: Option<(usize, usize)> = None;
     for step in &case.steps {
         match &step.action {
-            Action::Push { .. } => last = Some((step.line, 0)),
+            Action::Push { .. } | Action::HttpServe(_) => last = Some((step.line, 0)),
             Action::Receive { frame, web, .. } => {
                 let Some((line, orders_seen)) = last.as_mut() else {
                     continue;

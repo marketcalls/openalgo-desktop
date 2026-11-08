@@ -299,6 +299,11 @@ class Glue:
     def reconnect(self, socket: str) -> None:
         pass
 
+    def serve(self, method: str | None, path: str, body: str) -> None:
+        """The fake broker API answers `path` with `body` from now on: for
+        a polling broker, the order book the web adapter's next poll reads
+        (`PollingOrderUpdateAdapter`: the first read seeds silently)."""
+
     # -- what a glue uses -----------------------------------------------
 
     def to_openalgo_symbol(self, broker_symbol: str, exchange: str, token=None) -> str:
@@ -370,6 +375,19 @@ def read_frame(case_dir: Path, spec: Any) -> tuple[bytes | str, bytes | None]:
     if kind == "text":
         return v, None
     return json.dumps(v, separators=(",", ":")), None
+
+
+def read_body(case_dir: Path, spec: Any) -> tuple[str, bytes | None]:
+    """An HTTP answer's body as the harness serves it (a file of the case,
+    `{"json"}`, `{"text"}`, or empty), and the file bytes that join the
+    case's inputs."""
+    if spec is None:
+        return "", None
+    if isinstance(spec, str):
+        raw = (case_dir / spec).read_bytes().replace(b"\r\n", b"\n")
+        return raw.decode("utf-8").rstrip("\r\n"), raw
+    ((kind, v),) = spec.items()
+    return (v if kind == "text" else json.dumps(v, separators=(",", ":"))), None
 
 
 def hex_bytes(text: str) -> bytes:

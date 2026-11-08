@@ -143,7 +143,10 @@ def build() -> str:
             if got:
                 worst = max(r for _, _, r in got)
                 label = ["matches web", "approved deviation", "deviation pending approval", "open gap"][worst]
-                line.append(f"{label}: " + ", ".join(f"`{n}`" for n, _, _ in got))
+                listed = ", ".join(
+                    f"`{n}`" + (" (by hand)" if res.endswith("(by hand)") else "") for n, res, _ in got
+                )
+                line.append(f"{label}: {listed}")
             elif off is False:
                 line.append("not offered by the web")
             elif off is None:
