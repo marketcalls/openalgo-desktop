@@ -18,9 +18,9 @@
     "high": 24600.0,
     "low": 24350.0,
     "close": 24380.0,
+    "oi": 12075000,
     "total_buy_quantity": 450000,
     "total_sell_quantity": 520000,
-    "oi": 12075000,
     "depth": {
       "buy": [
         {

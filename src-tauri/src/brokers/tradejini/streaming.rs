@@ -473,7 +473,9 @@ impl TradejiniFeed {
     /// The tick of a merged L1 quote. The book totals come only on L5, so
     /// they are left out until a book for the instrument has come (web
     /// openalgo#2383: L1 never carries them and they read 0), and so is
-    /// `ltt` until Tradejini has sent a trade time.
+    /// `ltt` until Tradejini has sent a trade time. L1 is a quote packet
+    /// whatever mode holds the instrument, and its OI goes in Quote frames
+    /// too, as the web's Quote dict carries it (`tradejini_adapter.py:828`).
     fn tick(&self, sub: &SubInfo, q: &L1) -> NormalizedTick {
         let totals = self
             .books
@@ -492,7 +494,7 @@ impl TradejiniFeed {
         let mut t = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
+            mode: FeedMode::Quote.code(),
             ltp: q.ltp.unwrap_or(0.0),
             open: q.open.unwrap_or(0.0),
             high: q.high.unwrap_or(0.0),
@@ -613,6 +615,7 @@ impl TradejiniFeed {
 /// fills them from `message.get(k, 0)` (`tradejini_adapter.py:820-833`,
 /// `:845-853`): an index's volume, an equity's OI and a first L1 without a
 /// price would read 0 there. A merged L1 without a price is not published.
+/// OI, beyond a quote packet's own fields, is carried when Tradejini sent it.
 fn leave_out_what_was_never_sent(t: &mut NormalizedTick, q: &L1) {
     use QuoteField as F;
     let sent = [
@@ -624,12 +627,14 @@ fn leave_out_what_was_never_sent(t: &mut NormalizedTick, q: &L1) {
         (F::Volume, q.vol.is_some()),
         (F::AveragePrice, q.atp.is_some()),
         (F::LastQuantity, q.ltq.is_some()),
-        (F::OpenInterest, q.oi.is_some()),
     ];
     for (field, carried) in sent {
         if !carried {
             t.mark_absent(field);
         }
+    }
+    if q.oi.is_some() {
+        t.mark_carried(F::OpenInterest);
     }
 }
 
