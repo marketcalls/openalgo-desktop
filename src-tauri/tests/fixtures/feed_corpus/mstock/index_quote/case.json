@@ -28,9 +28,9 @@
   "deviations": [
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "This web adapter puts the subscription mode number in data.mode (mstock_adapter.py:202); the desktop sends the label (ltp, quote, full). data.mode follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock (integer).",
+      "ref": "lead rule 2026-11-09; feed::source::Mode::data_label"
     },
     {
       "key": "exchange_timestamp",
@@ -41,56 +41,56 @@
     {
       "key": "prev_close",
       "kind": "open",
-      "reason": "The web sends the previous close twice, as close and as prev_close (mstock_adapter.py:367-368); the desktop sends close only, and its dialect table has no prev_close alias for mStock.",
+      "reason": "The web sends the previous close twice, as close and as prev_close (mstock_adapter.py:366-367); the desktop sends close only, and its dialect table has no prev_close alias for mStock.",
       "ref": "feed::dialect (mstock); lane wire per-broker aliases"
     },
     {
       "key": "oi",
       "kind": "web-defect",
-      "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:370, quote_data.get('oi', 0) with the parser's oi: 0 placeholder, mstockwebsocket.py:211), an invented zero a client reads as a real OI. The desktop leaves oi out of a frame whose packet has none, and sends the real OI from a full packet.",
+      "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:369, quote_data.get('oi', 0) with the parser's oi: 0 placeholder, mstockwebsocket.py:211), an invented zero a client reads as a real OI. The desktop leaves oi out of a frame whose packet has none, and sends the real OI from a full packet.",
       "ref": "docs/api/websocket-streaming/quote.md (a field the broker does not carry is left out); web openalgo#2376"
     },
     {
       "key": "last_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries the recorded Zerodha index shape on the desktop for every broker: no last_quantity, average_price or book totals (feed::protocol::market_data, index branch). mStock's index Quote packet carries those fields as 0, which the web passes on.",
-      "ref": "feed::protocol::market_data; tests/fixtures/web/websocket transcripts (index)"
+      "kind": "open",
+      "reason": "mStock's index Quote packet carries the trade quantity, average price and book totals (as 0) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop leaves them out of every index frame (feed::protocol::market_data, index branch). The index shape follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock.",
+      "ref": "lead rule 2026-11-09; feed::protocol::market_data"
     },
     {
       "key": "last_trade_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries the recorded Zerodha index shape on the desktop for every broker: no last_quantity, average_price or book totals (feed::protocol::market_data, index branch). mStock's index Quote packet carries those fields as 0, which the web passes on.",
-      "ref": "feed::protocol::market_data; tests/fixtures/web/websocket transcripts (index)"
+      "kind": "open",
+      "reason": "mStock's index Quote packet carries the trade quantity, average price and book totals (as 0) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop leaves them out of every index frame (feed::protocol::market_data, index branch). The index shape follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock.",
+      "ref": "lead rule 2026-11-09; feed::protocol::market_data"
     },
     {
       "key": "average_price",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries the recorded Zerodha index shape on the desktop for every broker: no last_quantity, average_price or book totals (feed::protocol::market_data, index branch). mStock's index Quote packet carries those fields as 0, which the web passes on.",
-      "ref": "feed::protocol::market_data; tests/fixtures/web/websocket transcripts (index)"
+      "kind": "open",
+      "reason": "mStock's index Quote packet carries the trade quantity, average price and book totals (as 0) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop leaves them out of every index frame (feed::protocol::market_data, index branch). The index shape follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock.",
+      "ref": "lead rule 2026-11-09; feed::protocol::market_data"
     },
     {
       "key": "total_buy_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries the recorded Zerodha index shape on the desktop for every broker: no last_quantity, average_price or book totals (feed::protocol::market_data, index branch). mStock's index Quote packet carries those fields as 0, which the web passes on.",
-      "ref": "feed::protocol::market_data; tests/fixtures/web/websocket transcripts (index)"
+      "kind": "open",
+      "reason": "mStock's index Quote packet carries the trade quantity, average price and book totals (as 0) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop leaves them out of every index frame (feed::protocol::market_data, index branch). The index shape follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock.",
+      "ref": "lead rule 2026-11-09; feed::protocol::market_data"
     },
     {
       "key": "total_sell_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries the recorded Zerodha index shape on the desktop for every broker: no last_quantity, average_price or book totals (feed::protocol::market_data, index branch). mStock's index Quote packet carries those fields as 0, which the web passes on.",
-      "ref": "feed::protocol::market_data; tests/fixtures/web/websocket transcripts (index)"
+      "kind": "open",
+      "reason": "mStock's index Quote packet carries the trade quantity, average price and book totals (as 0) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop leaves them out of every index frame (feed::protocol::market_data, index branch). The index shape follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock.",
+      "ref": "lead rule 2026-11-09; feed::protocol::market_data"
     },
     {
       "key": "price_change",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries price_change and price_change_percent on the desktop for every broker, worked out from the LTP and the previous close (100.75 and 0.42 here), as the recorded Zerodha index frames carry them; this web adapter sends no change for an index.",
-      "ref": "feed::bridge::quote_fields; NormalizedTick::derive_change"
+      "kind": "open",
+      "reason": "The desktop sends price_change and price_change_percent in an index frame, worked out from the LTP and the previous close (100.75 and 0.42 here); this web adapter sends no change for an index (mstock_adapter.py:340-433). The index change follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock (C04 decides the change fields for every instrument).",
+      "ref": "lead rule 2026-11-09; audit C04; feed::bridge::quote_fields"
     },
     {
       "key": "price_change_percent",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries price_change and price_change_percent on the desktop for every broker, worked out from the LTP and the previous close (100.75 and 0.42 here), as the recorded Zerodha index frames carry them; this web adapter sends no change for an index.",
-      "ref": "feed::bridge::quote_fields; NormalizedTick::derive_change"
+      "kind": "open",
+      "reason": "The desktop sends price_change and price_change_percent in an index frame, worked out from the LTP and the previous close (100.75 and 0.42 here); this web adapter sends no change for an index (mstock_adapter.py:340-433). The index change follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock (C04 decides the change fields for every instrument).",
+      "ref": "lead rule 2026-11-09; audit C04; feed::bridge::quote_fields"
     }
   ]
 }

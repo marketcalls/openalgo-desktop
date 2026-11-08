@@ -33,9 +33,9 @@
   "deviations": [
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "This web adapter puts the subscription mode number in data.mode (mstock_adapter.py:202); the desktop sends the label (ltp, quote, full). data.mode follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock (integer).",
+      "ref": "lead rule 2026-11-09; feed::source::Mode::data_label"
     },
     {
       "key": "exchange_timestamp",
@@ -46,7 +46,7 @@
     {
       "key": "prev_close",
       "kind": "open",
-      "reason": "The web sends the previous close twice, as close and as prev_close (mstock_adapter.py:367-368); the desktop sends close only, and its dialect table has no prev_close alias for mStock.",
+      "reason": "The web sends the previous close twice, as close and as prev_close (mstock_adapter.py:366-367); the desktop sends close only, and its dialect table has no prev_close alias for mStock.",
       "ref": "feed::dialect (mstock); lane wire per-broker aliases"
     },
     {
@@ -63,9 +63,9 @@
     },
     {
       "key": "open_interest",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
-      "ref": "feed::protocol::market_data"
+      "kind": "open",
+      "reason": "This web adapter sends OI as oi only (mstock_adapter.py:369); the desktop also sends open_interest. open_interest follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock (no open_interest).",
+      "ref": "lead rule 2026-11-09; feed::protocol::market_data"
     }
   ]
 }
