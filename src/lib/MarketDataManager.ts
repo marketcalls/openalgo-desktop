@@ -640,7 +640,7 @@ export class MarketDataManager {
             ask_size: marketDataPayload.ask_size ?? newData.ask_size,
             depth: marketDataPayload.depth ?? newData.depth,
           })
-          this.fillRefusedDepth(symbol, exchange, newData, data.data || {})
+          this.depthFallback.fill(symbol, exchange, newData, data.data || {})
 
           const updatedSymbolData: SymbolData = {
             ...existing,
@@ -723,24 +723,6 @@ export class MarketDataManager {
       return !this.subscriptions.has(`${key}:Quote`)
     })
     if (wanted.length > 0) this.sendSubscribe(wanted, 'Quote')
-  }
-
-  /**
-   * Desktop: what a Depth consumer of a symbol without a book receives: the
-   * quote, the best bid and ask from the quote's own fields, an empty book.
-   */
-  private fillRefusedDepth(
-    symbol: string,
-    exchange: string,
-    data: MarketData,
-    payload: Record<string, unknown>
-  ): void {
-    const num = (k: string) => (typeof payload[k] === 'number' ? (payload[k] as number) : undefined)
-    data.bid_size = data.bid_size ?? num('bid_qty') ?? num('bid_quantity')
-    data.ask_size = data.ask_size ?? num('ask_qty') ?? num('ask_quantity')
-    if (this.depthFallback.isUnavailable(symbol, exchange) && !payload.depth) {
-      data.depth = { buy: [], sell: [] }
-    }
   }
 
   /**

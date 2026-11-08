@@ -95,6 +95,24 @@ export class DepthFallback {
     return fresh
   }
 
+  /**
+   * What a Depth consumer of a symbol without a book receives: the quote,
+   * the best bid and ask from the quote's own fields, an empty book.
+   */
+  fill(
+    symbol: string,
+    exchange: string,
+    data: { bid_size?: number; ask_size?: number; depth?: { buy: unknown[]; sell: unknown[] } },
+    payload: Record<string, unknown>
+  ): void {
+    const num = (k: string) => (typeof payload[k] === 'number' ? (payload[k] as number) : undefined)
+    data.bid_size = data.bid_size ?? num('bid_qty') ?? num('bid_quantity')
+    data.ask_size = data.ask_size ?? num('ask_qty') ?? num('ask_quantity')
+    if (this.isUnavailable(symbol, exchange) && !payload.depth) {
+      data.depth = { buy: [], sell: [] }
+    }
+  }
+
   isUnavailable(symbol: string, exchange: string): boolean {
     return this.unavailable.has(keyOf(symbol, exchange))
   }
