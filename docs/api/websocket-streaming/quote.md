@@ -176,7 +176,11 @@ open, high, low, previous close, last quantity, average price or order book
 totals; Fyers leaves out whatever its feed did not send; Kotak's first ticks
 before a full quote have only the price, the previous close and the last
 trade. `ltt` is left out while there is no trade time (an index on Sahi or
-Fyers, an instrument not yet traded on Kotak).
+Fyers, an instrument not yet traded on Kotak). On Dhan `close` is the
+previous day's close and is left out until Dhan has sent it; Upstox and
+Groww send the last value of each field their feed has sent and leave out
+one it never sent (Groww has no last quantity, average price, totals or
+open interest, and an index only its price).
 
 ### Data Object (indices)
 
@@ -204,7 +208,7 @@ works:
 | price_change_percent | `change_percent` | Fyers, AliceBlue, Arrow, HDFC Sky, HDFC Securities, Definedge, Paytm, Rupeezy, Tradejini |
 | price_change_percent | `percent_change` | Shoonya, Flattrade, Zebu, TradeSmart, Fyers, Kotak |
 | price_change_percent | `change_percentage` | Samco |
-| ltt | `last_trade_time` | Sahi, Kotak; Fyers in epoch seconds, as its web adapter sends it. Beside `ltt` in every mode, LTP included |
+| ltt | `last_trade_time` | Sahi, Kotak, Upstox; Fyers and Dhan in epoch seconds, as their web adapters send it. Beside `ltt` in every mode, LTP included |
 
 Zerodha frames carry no extra names. A field that is left out takes its
 other names with it. The change fields, and so their other

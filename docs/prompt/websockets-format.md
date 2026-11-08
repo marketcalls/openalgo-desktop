@@ -538,6 +538,16 @@ frame that arrives before the instrument's first quote (a 50-level Fyers or
 20-level Dhan book can) carries `ltp`, `timestamp`, the totals and the book
 only.
 
+Since openalgo#2377 and #2361: `close` is the previous day's close on Dhan
+(left out until Dhan has sent it, never the day's own close after the
+market) and on Upstox (`cp`, never today's candle); Upstox and Groww send
+the last value of each field their feed has sent and leave out one it has
+never sent (Groww's feed carries no last quantity, average price, totals
+or open interest, and an index only its value); a Zerodha index frame
+carries no open interest. Groww streams NSE, BSE, NFO, BFO and indices
+only: a subscribe on any other exchange is answered with an error saying
+so (openalgo#2341).
+
 #### Field names by broker
 
 `data.mode` is `ltp`, `quote` or `depth`. On OpenAlgo web this inner label
@@ -560,7 +570,7 @@ written for either works:
 | `change_percent` | `price_change_percent` | Fyers, AliceBlue, Arrow, HDFC Securities, HDFC Sky, Definedge, Paytm, Rupeezy, Tradejini |
 | `percent_change` | `price_change_percent` | Shoonya, Flattrade, Zebu, TradeSmart, Fyers, Kotak |
 | `change_percentage` | `price_change_percent` | Samco |
-| `last_trade_time` | `ltt` | Sahi, Kotak; Fyers in epoch seconds, as its web adapter sends it |
+| `last_trade_time` | `ltt` | Sahi, Kotak, Upstox; Fyers and Dhan in epoch seconds, as their web adapters send it |
 
 The change names appear only where `price_change` does, that is, on indices.
 `last_trade_time` appears wherever `ltt` does, LTP frames included. A name
