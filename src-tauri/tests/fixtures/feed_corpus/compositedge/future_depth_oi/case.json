@@ -1,0 +1,108 @@
+{
+  "broker": "compositedge",
+  "summary": "Depth on an NFO future (segment 2): a 1502 event carrying OpenInterest and the circuit limits at its root becomes a Depth frame with the OI and the five-level book.",
+  "scenarios": [
+    "derivative-oi",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "35012",
+      "brsymbol": "NIFTY26NOVFUT",
+      "brexchange": "NSEFO",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "http": [
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/compositedge/streaming/compositedge_websocket.py::CompositedgeWebSocketClient._setup_socketio",
+      "broker/compositedge/streaming/compositedge_adapter.py::CompositedgeWebSocketAdapter._process_json_data",
+      "broker/compositedge/streaming/compositedge_adapter.py::CompositedgeWebSocketAdapter._normalize_market_data",
+      "broker/compositedge/streaming/compositedge_adapter.py::CompositedgeWebSocketAdapter._extract_depth_data"
+    ],
+    "notes": [
+      "Both read OpenInterest, UpperCircuitLimit and LowerCircuitLimit from the 1502 root; an XTS 1502 that lacks them (OI comes in its own 1510 event, which neither subscribes) gives 0 on the web.",
+      "Lot size 75: XTS quantities are already in units on both sides."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "average_price",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries every Quote field, as the recorded Zerodha transcript does; this web adapter's Depth data has no average_price (_normalize_market_data, mode 3).",
+      "ref": "feed::protocol::market_data; compositedge_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries every Quote field, as the recorded Zerodha transcript does; this web adapter's Depth data has no last_quantity (_normalize_market_data, mode 3).",
+      "ref": "feed::protocol::market_data; compositedge_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "lower_circuit",
+      "kind": "open",
+      "reason": "The 1502 event carries LowerCircuitLimit at its root and the web sends it as lower_circuit; the desktop's common carrier has no circuit fields (audit C06, lane wire).",
+      "ref": "audit C06; compositedge_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST); feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it (1794199530000).",
+      "ref": "compositedge_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming.rs xts_time_ms"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "open_interest",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
+      "ref": "feed::protocol::market_data"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries every Quote field, as the recorded Zerodha transcript does; this web adapter's Depth data has no total_buy_quantity (_normalize_market_data, mode 3).",
+      "ref": "feed::protocol::market_data; compositedge_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries every Quote field, as the recorded Zerodha transcript does; this web adapter's Depth data has no total_sell_quantity (_normalize_market_data, mode 3).",
+      "ref": "feed::protocol::market_data; compositedge_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "upper_circuit",
+      "kind": "open",
+      "reason": "The 1502 event carries UpperCircuitLimit at its root and the web sends it as upper_circuit; the desktop's common carrier has no circuit fields (audit C06, lane wire).",
+      "ref": "audit C06; compositedge_adapter.py _normalize_market_data"
+    }
+  ]
+}

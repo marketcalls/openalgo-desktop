@@ -23,6 +23,7 @@ mod inventory;
 
 mod aliceblue;
 mod angel;
+mod compositedge;
 mod dhan;
 mod firstock;
 mod flattrade;
@@ -40,6 +41,7 @@ mod zerodha;
 const BROKERS: &[(&str, &[&str])] = &[
     ("aliceblue", aliceblue::CASES),
     ("angel", angel::CASES),
+    ("compositedge", compositedge::CASES),
     ("dhan", dhan::CASES),
     ("firstock", firstock::CASES),
     ("flattrade", flattrade::CASES),

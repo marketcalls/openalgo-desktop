@@ -1,0 +1,87 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "compositedge",
+  "inputs_sha256": "2888dba3a7793543fcaf704d202d8a9b3fb88e8120deb14fdf68a83e8ec1069d",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 4,
+      "published": []
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 0,
+            "ltt": 0,
+            "volume": 0,
+            "open": 0,
+            "high": 0,
+            "low": 0,
+            "close": 0,
+            "last_quantity": 0,
+            "average_price": 0,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "published": []
+    },
+    {
+      "line": 13,
+      "published": []
+    },
+    {
+      "line": 15,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 0,
+            "ltt": 0,
+            "volume": 0,
+            "open": 0,
+            "high": 0,
+            "low": 0,
+            "close": 0,
+            "last_quantity": 0,
+            "average_price": 0,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}
