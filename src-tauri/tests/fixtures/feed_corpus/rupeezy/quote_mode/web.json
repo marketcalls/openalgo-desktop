@@ -19,6 +19,8 @@
         {
           "kind": "market",
           "topic": "NSE_SBIN_QUOTE",
+          "exchange": "NSE",
+          "symbol": "SBIN",
           "mode": 2,
           "data": {
             "symbol": "SBIN",
@@ -46,6 +48,8 @@
         {
           "kind": "market",
           "topic": "NSE_SBIN_QUOTE",
+          "exchange": "NSE",
+          "symbol": "SBIN",
           "mode": 2,
           "data": {
             "symbol": "SBIN",

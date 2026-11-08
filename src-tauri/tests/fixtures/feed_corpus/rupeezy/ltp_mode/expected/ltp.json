@@ -7,9 +7,9 @@
   "data": {
     "symbol": "SBIN",
     "exchange": "NSE",
-    "mode": "ltp",
     "ltp": 812.45,
-    "ltt": "<receipt_ms>",
-    "timestamp": "<receipt_ms>"
+    "timestamp": "<receipt_ms>",
+    "token": "3045",
+    "last_price": 812.45
   }
 }

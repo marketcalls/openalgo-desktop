@@ -28,64 +28,16 @@
   },
   "deviations": [
     {
-      "key": "mode",
+      "key": "price_change",
       "kind": "open",
-      "reason": "The desktop puts its mode label (ltp, quote, full) in data.mode; the Rupeezy web adapter sends no data.mode. Follows each broker's own web adapter (lead rule 2026-11-09): set by the per-broker dialect switch in Phase B.",
-      "ref": "feed::source::Mode::data_label; feed::dialect (per-broker switch, lane wire)"
+      "reason": "The desktop sends the canonical price_change and price_change_percent on an instrument beside the web adapter's own change keys (change, change_percent); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
+      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
     },
     {
-      "key": "token",
+      "key": "price_change_percent",
       "kind": "open",
-      "reason": "The Rupeezy web adapter adds the broker's instrument token as a string to every frame; the desktop's common carrier has no place for it. Whether the desktop carries it is the lead's decision (a broker identifier, not a market field).",
-      "ref": "rupeezy_adapter.py:219 (_normalize); audit C06 carrier"
-    },
-    {
-      "key": "last_price",
-      "kind": "open",
-      "reason": "The Rupeezy web adapter repeats ltp as last_price in every frame; the desktop sends no such alias yet.",
-      "ref": "rupeezy_adapter.py:221; audit C06 per-broker aliases (feed::dialect)"
-    },
-    {
-      "key": "prev_close",
-      "kind": "open",
-      "reason": "The Rupeezy web adapter repeats the previous close as prev_close wherever the packet carries a close; the desktop sends no such alias yet.",
-      "ref": "rupeezy_adapter.py:225-228; audit C06 per-broker aliases (feed::dialect)"
-    },
-    {
-      "key": "change",
-      "kind": "open",
-      "reason": "The web sends the change against the previous close in every frame of a packet that carries a close (ohlcv, full); the desktop sends it in index Quote and Depth frames only.",
-      "ref": "rupeezy_adapter.py:225-231; audit C04 (change on all exchanges)"
-    },
-    {
-      "key": "change_percent",
-      "kind": "open",
-      "reason": "The web sends the change against the previous close in every frame of a packet that carries a close (ohlcv, full); the desktop sends it in index Quote and Depth frames only.",
-      "ref": "rupeezy_adapter.py:225-231; audit C04 (change on all exchanges)"
-    },
-    {
-      "key": "last_quantity",
-      "kind": "open",
-      "reason": "Vortex's ohlcv packet carries no last quantity, average price or book totals, so the web's Quote frame has none; the desktop sends them as 0, which CLAUDE.md's absent-field rule forbids (web openalgo#2376): a desktop defect, fixed by marking them absent for an ohlcv packet.",
-      "ref": "rupeezy/streaming.rs::packet_events (sets them from a packet without them); rupeezy_websocket.py:70-83; BKD-02"
-    },
-    {
-      "key": "average_price",
-      "kind": "open",
-      "reason": "Vortex's ohlcv packet carries no last quantity, average price or book totals, so the web's Quote frame has none; the desktop sends them as 0, which CLAUDE.md's absent-field rule forbids (web openalgo#2376): a desktop defect, fixed by marking them absent for an ohlcv packet.",
-      "ref": "rupeezy/streaming.rs::packet_events (sets them from a packet without them); rupeezy_websocket.py:70-83; BKD-02"
-    },
-    {
-      "key": "total_buy_quantity",
-      "kind": "open",
-      "reason": "Vortex's ohlcv packet carries no last quantity, average price or book totals, so the web's Quote frame has none; the desktop sends them as 0, which CLAUDE.md's absent-field rule forbids (web openalgo#2376): a desktop defect, fixed by marking them absent for an ohlcv packet.",
-      "ref": "rupeezy/streaming.rs::packet_events (sets them from a packet without them); rupeezy_websocket.py:70-83; BKD-02"
-    },
-    {
-      "key": "total_sell_quantity",
-      "kind": "open",
-      "reason": "Vortex's ohlcv packet carries no last quantity, average price or book totals, so the web's Quote frame has none; the desktop sends them as 0, which CLAUDE.md's absent-field rule forbids (web openalgo#2376): a desktop defect, fixed by marking them absent for an ohlcv packet.",
-      "ref": "rupeezy/streaming.rs::packet_events (sets them from a packet without them); rupeezy_websocket.py:70-83; BKD-02"
+      "reason": "The desktop sends the canonical price_change and price_change_percent on an instrument beside the web adapter's own change keys (change, change_percent); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
+      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
     }
   ]
 }

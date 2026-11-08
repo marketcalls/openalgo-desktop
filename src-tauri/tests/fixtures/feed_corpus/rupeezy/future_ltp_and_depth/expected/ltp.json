@@ -7,9 +7,13 @@
   "data": {
     "symbol": "NIFTY24NOV26FUT",
     "exchange": "NFO",
-    "mode": "ltp",
     "ltp": 24607.25,
-    "ltt": "<receipt_ms>",
-    "timestamp": "<receipt_ms>"
+    "timestamp": "<receipt_ms>",
+    "token": "35001",
+    "last_price": 24607.25,
+    "close": 24520.0,
+    "prev_close": 24520.0,
+    "change": 87.25,
+    "change_percent": 0.36
   }
 }

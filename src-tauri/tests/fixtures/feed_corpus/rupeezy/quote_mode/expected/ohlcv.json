@@ -7,18 +7,20 @@
   "data": {
     "symbol": "SBIN",
     "exchange": "NSE",
-    "mode": "quote",
     "ltp": 812.45,
     "ltt": 1791000300000,
     "timestamp": 1791000300000,
     "volume": 4567890,
-    "last_quantity": 0,
-    "average_price": 0.0,
-    "total_buy_quantity": 0,
-    "total_sell_quantity": 0,
     "open": 805.1,
     "high": 815.6,
     "low": 803.25,
-    "close": 807.9
+    "close": 807.9,
+    "price_change": 4.55,
+    "price_change_percent": 0.56,
+    "token": "3045",
+    "last_price": 812.45,
+    "prev_close": 807.9,
+    "change": 4.55,
+    "change_percent": 0.56
   }
 }

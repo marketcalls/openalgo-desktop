@@ -7,7 +7,6 @@
   "data": {
     "symbol": "NIFTY24NOV26FUT",
     "exchange": "NFO",
-    "mode": "full",
     "ltp": 24605.5,
     "ltt": 1791000400000,
     "timestamp": 1791000401000,
@@ -20,6 +19,8 @@
     "high": 24640.0,
     "low": 24530.5,
     "close": 24520.0,
+    "price_change": 85.5,
+    "price_change_percent": 0.35,
     "oi": 12345600,
     "open_interest": 12345600,
     "depth": {
@@ -77,6 +78,13 @@
           "orders": 12
         }
       ]
-    }
+    },
+    "token": "35001",
+    "last_price": 24605.5,
+    "prev_close": 24520.0,
+    "change": 85.5,
+    "change_percent": 0.35,
+    "upper_circuit": 26972.0,
+    "lower_circuit": 22068.0
   }
 }

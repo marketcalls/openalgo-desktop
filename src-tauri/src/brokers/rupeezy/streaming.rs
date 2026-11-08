@@ -19,7 +19,7 @@
 use super::mapping::ticker;
 use crate::brokers::common::streaming::{
     now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, WsRequest,
+    NormalizedTick, QuoteField, WsRequest,
 };
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
@@ -175,6 +175,43 @@ pub fn split_frame(frame: &[u8]) -> Vec<&[u8]> {
     packets
 }
 
+/// The OpenAlgo mode of a packet, by its length: `ltp` LTP, `ohlcv`
+/// Quote, `full` Depth. The packet's own, not the subscription's: Vortex
+/// may still send the old mode's packets after a mode change.
+fn packet_mode(len: usize) -> u8 {
+    match len {
+        FULL_SIZE => FeedMode::Depth.code(),
+        OHLCV_SIZE => FeedMode::Quote.code(),
+        _ => FeedMode::Ltp.code(),
+    }
+}
+
+/// What a packet does not carry although its mode would, so the frame
+/// leaves it out rather than send 0 (web openalgo#2376): an `ohlcv` packet
+/// has no last quantity, average price or book totals (the web's Quote
+/// frame has none, `rupeezy_adapter.py:238-246`); a packet without a trade
+/// time has none (the web sends `ltt` null, `:222`); an index has no open
+/// interest.
+fn mark_what_the_packet_lacks(t: &mut NormalizedTick, p: &VortexPacket, exchange: &str) {
+    use QuoteField as F;
+    if p.ltt <= 0 {
+        t.mark_absent(F::LastTradeTime);
+    }
+    if p.has_ohlcv && p.depth.is_none() {
+        for f in [
+            F::LastQuantity,
+            F::AveragePrice,
+            F::TotalBuyQuantity,
+            F::TotalSellQuantity,
+        ] {
+            t.mark_absent(f);
+        }
+    }
+    if exchange.ends_with("_INDEX") {
+        t.mark_absent(F::OpenInterest);
+    }
+}
+
 #[derive(Debug, Clone)]
 struct SubInfo {
     symbol: String,
@@ -251,7 +288,7 @@ impl RupeezyFeed {
         let mut t = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
+            mode: packet_mode(packet.len()),
             ltp: p.ltp,
             close: p.close,
             last_trade_time_ms: p.ltt * 1000,
@@ -269,6 +306,11 @@ impl RupeezyFeed {
         t.total_buy_quantity = p.total_buy_quantity;
         t.total_sell_quantity = p.total_sell_quantity;
         t.oi = p.oi;
+        mark_what_the_packet_lacks(&mut t, &p, &sub.exchange);
+        if p.depth.is_some() {
+            t.extras.upper_circuit = Some(p.upper_limit);
+            t.extras.lower_circuit = Some(p.lower_limit);
+        }
         t.derive_change();
         let depth = p.depth.map(|(buy, sell)| NormalizedDepth {
             symbol: t.symbol.clone(),
