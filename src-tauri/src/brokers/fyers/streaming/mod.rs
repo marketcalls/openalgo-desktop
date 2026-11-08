@@ -708,6 +708,9 @@ fn index_tick(sub: &TopicSub, st: &TopicState, now: i64) -> NormalizedTick {
         absent: absent_from(st, &INDEX_SOURCES, NOT_IN_INDEX_RECORDS),
         ..Default::default()
     };
+    // web `map_to_openalgo_quote`: an index record's feed time goes out as
+    // `exchange_time` too.
+    t.extras.exchange_time_ms = field(st, 2).map(|s| i64::from(s) * 1000);
     t.derive_change();
     t
 }
