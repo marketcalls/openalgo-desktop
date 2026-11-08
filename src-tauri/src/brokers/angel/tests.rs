@@ -705,6 +705,9 @@ fn put_f64(p: &mut [u8], o: usize, v: f64) {
     p[o..o + 8].copy_from_slice(&v.to_le_bytes());
 }
 
+/// Web test/test_angel_quote_feed.py (openalgo#2377).
+mod quote_feed;
+
 #[test]
 fn exchange_types_and_divisors() {
     assert_eq!(exchange_type("NSE"), 1);
