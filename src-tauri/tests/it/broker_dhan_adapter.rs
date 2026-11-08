@@ -285,10 +285,27 @@ async fn consent_refusals_are_trader_facing() {
     );
 }
 
+/// Fund limits naming `account` (the recorded fixture with its client id).
+fn fundlimit_of(account: Option<&str>) -> String {
+    let mut v: Value = serde_json::from_str(&fixture("fundlimit.json")).unwrap();
+    match account {
+        Some(a) => v["dhanClientId"] = json!(a),
+        None => {
+            v.as_object_mut().unwrap().remove("dhanClientId");
+        }
+    }
+    v.to_string()
+}
+
 #[tokio::test]
 async fn pasted_access_token_is_validated_with_fundlimit() {
     let m = Mock::default();
-    m.on("GET", "/v2/fundlimit", 200, fixture("fundlimit.json"));
+    m.on(
+        "GET",
+        "/v2/fundlimit",
+        200,
+        fundlimit_of(Some("1100012345")),
+    );
     let s = serve(&m).await;
     let b = broker(&s);
     let jwt = format!("eyJ{}", "a".repeat(120));
@@ -296,6 +313,7 @@ async fn pasted_access_token_is_validated_with_fundlimit() {
     c.password = Some(jwt.clone());
     let resp = b.authenticate(c).await.unwrap();
     assert_eq!(resp.auth_token, format!("1100012345:::{}", jwt));
+    assert_eq!(resp.user_id, "1100012345");
     // No consent call for a pasted token.
     assert!(m.calls("POST", "/auth/app/consumeApp-consent").is_empty());
 
@@ -312,6 +330,67 @@ async fn pasted_access_token_is_validated_with_fundlimit() {
     c.password = Some(jwt);
     let e = broker(&s2).authenticate(c).await.unwrap_err();
     assert_eq!(e.code(), "AUTH_ERROR");
+}
+
+/// Web blueprints/brlogin.py `_dhan_account_mismatch` (marketcalls/openalgo#2337,
+/// eec700046): a token is reported as the account Dhan names for it, never
+/// as the client id saved here, so a working token for another account comes
+/// back as that account (and the sign-in refuses it as a different account),
+/// and a token whose account Dhan does not name is not stored at all.
+#[tokio::test]
+async fn a_token_is_the_account_dhan_names_for_it() {
+    let jwt = format!("eyJ{}", "a".repeat(120));
+    // A pasted token for another account than the configured 1100012345.
+    let m = Mock::default();
+    m.on(
+        "GET",
+        "/v2/fundlimit",
+        200,
+        fundlimit_of(Some("2200099999")),
+    );
+    let s = serve(&m).await;
+    let mut c = creds();
+    c.password = Some(jwt.clone());
+    let resp = broker(&s).authenticate(c).await.unwrap();
+    assert_eq!(resp.user_id, "2200099999");
+    assert_eq!(resp.auth_token, format!("2200099999:::{}", jwt));
+
+    // Fund limits that name no account: refused, nothing to store.
+    let m = Mock::default();
+    m.on("GET", "/v2/fundlimit", 200, fundlimit_of(None));
+    let s = serve(&m).await;
+    let mut c = creds();
+    c.password = Some(jwt);
+    let e = broker(&s).authenticate(c).await.unwrap_err();
+    assert_eq!(e.code(), "AUTH_ERROR");
+    assert_eq!(
+        e.client_message(),
+        "Dhan did not confirm which account this login is for, so it was not stored. Log in again."
+    );
+
+    // A consent answer without `dhanClientId` falls back to the account the
+    // fund limits name, and with neither the login is refused.
+    for (limits, expect) in [
+        (Some("2200099999"), Some("2200099999")),
+        (None, None::<&str>),
+    ] {
+        let m = Mock::default();
+        m.on(
+            "POST",
+            "/auth/app/consumeApp-consent",
+            200,
+            json!({"accessToken": "eyJ.consent.token"}).to_string(),
+        );
+        m.on("GET", "/v2/fundlimit", 200, fundlimit_of(limits));
+        let s = serve(&m).await;
+        let mut c = creds();
+        c.request_token = Some("token-id-9".into());
+        let r = broker(&s).authenticate(c).await;
+        match expect {
+            Some(id) => assert_eq!(r.unwrap().user_id, id),
+            None => assert_eq!(r.unwrap_err().code(), "AUTH_ERROR"),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
