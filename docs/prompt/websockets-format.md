@@ -528,6 +528,16 @@ asked for (see [Depth levels](#depth-levels)). `oi` and `open_interest` are
 `0` when the broker sends no open interest. An index subscribed in Depth
 mode receives the index Quote fields and no `depth`.
 
+A quote field the broker's feed does not carry is left out of Quote and
+Depth data rather than sent as `0` (as OpenAlgo web does since its
+openalgo#2376): Sahi carries no open, high, low, previous close, last
+quantity, average price or totals; Fyers sends only what its feed sent;
+Kotak's ticks before a full quote carry only the price, the previous close
+and the last trade. `ltt` is left out when there is no trade time. A Depth
+frame that arrives before the instrument's first quote (a 50-level Fyers or
+20-level Dhan book can) carries `ltp`, `timestamp`, the totals and the book
+only.
+
 #### Field names by broker
 
 `data.mode` is `ltp`, `quote` or `depth`. On OpenAlgo web this inner label
@@ -548,10 +558,13 @@ written for either works:
 | `change` | `price_change` | Fyers, Arrow, HDFC Securities, HDFC Sky, Rupeezy, Tradejini, Samco |
 | `change_absolute` | `price_change` | Paytm |
 | `change_percent` | `price_change_percent` | Fyers, AliceBlue, Arrow, HDFC Securities, HDFC Sky, Definedge, Paytm, Rupeezy, Tradejini |
-| `percent_change` | `price_change_percent` | Shoonya, Flattrade, Zebu, TradeSmart |
+| `percent_change` | `price_change_percent` | Shoonya, Flattrade, Zebu, TradeSmart, Fyers, Kotak |
 | `change_percentage` | `price_change_percent` | Samco |
+| `last_trade_time` | `ltt` | Sahi, Kotak; Fyers in epoch seconds, as its web adapter sends it |
 
 The change names appear only where `price_change` does, that is, on indices.
+`last_trade_time` appears wherever `ltt` does, LTP frames included. A name
+whose value is left out is left out too.
 
 #### What the Python SDK hands your callback
 

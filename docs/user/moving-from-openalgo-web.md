@@ -181,9 +181,12 @@ differently, it is on purpose:
   (Fyers), `change` (Fyers, Arrow, HDFC, Tradejini, Samco),
   `change_absolute` (Paytm), `change_percent` (Fyers, AliceBlue, Arrow,
   HDFC, Definedge, Paytm, Tradejini), `percent_change` (Shoonya,
-  Flattrade, Zebu, TradeSmart), `change_percentage` (Samco). A script
-  written for either name works. The change fields come with indices
-  only, as recorded from the web.
+  Flattrade, Zebu, TradeSmart, Fyers, Kotak), `change_percentage`
+  (Samco), `last_trade_time` beside `ltt` (Sahi, Kotak; Fyers in
+  seconds). A script written for either name works. The change fields
+  come with indices only, as recorded from the web. A field your
+  broker's feed does not carry is left out, as on the web, not sent as
+  0.
 - **A message budget.** A connection that sends thousands of messages a
   second, or megabytes of them, is closed (code 1008) before they are
   read. Subscribing every instrument in one message, or one per message

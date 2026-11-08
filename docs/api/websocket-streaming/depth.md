@@ -177,7 +177,7 @@ with `mode` set to `full`, and:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| oi, open_interest | number | Open interest under both names; 0 when the broker sends none |
+| oi, open_interest | number | Open interest under both names; 0 when the broker sends none, left out when its feed does not carry OI |
 | depth | object | The book: `buy` and `sell` arrays |
 
 Your broker's own names for `last_quantity`, `average_price` and the change
@@ -203,6 +203,11 @@ page.
 
 - An index has no order book: in Depth mode its frames carry the index quote
   fields and no `depth`.
+- A quote field the broker's feed does not carry is left out here too, as on
+  the [Quote](./quote.md#data-object-equities-futures-and-options) page. A
+  book that arrives before the symbol's first quote (a 50-level Fyers or
+  20-level Dhan book can) carries `ltp`, `timestamp`, the totals and the
+  levels only; the next one carries the quote.
 - With the market closed, the levels are `{"price": 0.0, "quantity": 0,
   "orders": 0}`.
 - `data.mode` is `full` for every broker, as OpenAlgo web's Zerodha frames

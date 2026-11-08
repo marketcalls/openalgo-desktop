@@ -170,6 +170,14 @@ finally:
 | close | number | Previous day's close |
 | oi, open_interest | number | Open interest, the same value under both names. Present when the symbol is also streamed in Depth mode. |
 
+A field your broker's feed does not carry is left out, never sent as 0, so
+read it as possibly missing (`data.get("open")` in Python): Sahi's feed has no
+open, high, low, previous close, last quantity, average price or order book
+totals; Fyers leaves out whatever its feed did not send; Kotak's first ticks
+before a full quote have only the price, the previous close and the last
+trade. `ltt` is left out while there is no trade time (an index on Sahi or
+Fyers, an instrument not yet traded on Kotak).
+
 ### Data Object (indices)
 
 | Field | Type | Description |
@@ -194,10 +202,12 @@ works:
 | price_change | `change` | Fyers, Arrow, HDFC Sky, HDFC Securities, Rupeezy, Tradejini, Samco |
 | price_change | `change_absolute` | Paytm |
 | price_change_percent | `change_percent` | Fyers, AliceBlue, Arrow, HDFC Sky, HDFC Securities, Definedge, Paytm, Rupeezy, Tradejini |
-| price_change_percent | `percent_change` | Shoonya, Flattrade, Zebu, TradeSmart |
+| price_change_percent | `percent_change` | Shoonya, Flattrade, Zebu, TradeSmart, Fyers, Kotak |
 | price_change_percent | `change_percentage` | Samco |
+| ltt | `last_trade_time` | Sahi, Kotak; Fyers in epoch seconds, as its web adapter sends it. Beside `ltt` in every mode, LTP included |
 
-Zerodha frames carry no extra names. The change fields, and so their other
+Zerodha frames carry no extra names. A field that is left out takes its
+other names with it. The change fields, and so their other
 names, come with indices only.
 
 ## Notes
