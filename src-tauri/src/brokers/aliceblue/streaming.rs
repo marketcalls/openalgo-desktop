@@ -676,6 +676,7 @@ impl AliceBlueFeed {
                 total_buy_quantity: snap.total_buy_qty,
                 total_sell_quantity: snap.total_sell_qty,
                 timestamp_ms: now,
+                ..Default::default()
             }));
         }
         out

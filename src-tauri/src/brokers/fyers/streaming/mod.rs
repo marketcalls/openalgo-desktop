@@ -732,6 +732,7 @@ fn depth_event(
         buy,
         sell,
         timestamp_ms: now,
+        ..Default::default()
     }
 }
 

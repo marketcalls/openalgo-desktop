@@ -109,6 +109,36 @@ describe('MarketDataManager across sessions', () => {
     expect(cached?.data.depth?.sell[0].price).toBe(101)
   })
 
+  // Audit C03: the server leaves out what the broker did not send, so a
+  // frame without a field keeps the field's value from earlier in the
+  // session, and a field sent as 0 is a real 0 (no volume yet, a close the
+  // broker sent), never mistaken for a missing one.
+  it('merges a field by its presence, a sent zero included', () => {
+    const manager = MarketDataManager.getInstance()
+    manager.subscribe(SYMBOL, 'NFO', 'Quote', () => {})
+    send(manager, authenticated)
+    const quote = (data: Record<string, unknown>) => ({
+      type: 'market_data',
+      symbol: SYMBOL,
+      exchange: 'NFO',
+      data,
+    })
+    send(manager, quote({ ltp: 118.5, open: 110, close: 105, volume: 1200 }))
+    send(manager, quote({ ltp: 119 }))
+    expect(manager.getCachedData(SYMBOL, 'NFO')?.data).toMatchObject({
+      ltp: 119,
+      open: 110,
+      close: 105,
+      volume: 1200,
+    })
+    send(manager, quote({ ltp: 119.5, volume: 0 }))
+    expect(manager.getCachedData(SYMBOL, 'NFO')?.data).toMatchObject({
+      ltp: 119.5,
+      open: 110,
+      volume: 0,
+    })
+  })
+
   it('drops the book once no Depth subscription is left', () => {
     const manager = MarketDataManager.getInstance()
     const leaveDepth = manager.subscribe(SYMBOL, 'NFO', 'Depth', () => {})

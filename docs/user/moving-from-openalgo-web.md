@@ -174,23 +174,25 @@ differently, it is on purpose:
   the frames, not from the answer.
 - **Field names.** Quote and Depth data carry the names OpenAlgo web
   sends with Zerodha (`last_quantity`, `average_price`, `price_change`,
-  `price_change_percent`) for every broker, and next to them, with the
-  same values, the names your broker's web adapter uses:
-  `last_trade_quantity` (Angel, Fyers, Upstox, 5paisa, mstock, Paytm,
-  Pocketful, Samco), `ltq` (Definedge, Motilal), `avg_trade_price`
-  (Fyers), `change` (Fyers, Arrow, HDFC, Tradejini, Samco),
-  `change_absolute` (Paytm), `change_percent` (Fyers, AliceBlue, Arrow,
-  HDFC, Definedge, Paytm, Tradejini), `percent_change` (Shoonya,
-  Flattrade, Zebu, TradeSmart, Fyers, Kotak, Definedge, Tradejini,
-  5paisa), `change_percentage` (Samco), `last_trade_time` beside `ltt`
-  (Sahi, Kotak, Upstox, mStock, Samco, 5paisa; Fyers and Dhan in
-  seconds). A script written for either name works. Definedge's and
-  Tradejini's web adapters send `last_trade_time` as text (the exchange's
-  time of day; the web server's local date and time); the desktop sends
-  that time as `ltt`, in epoch milliseconds, and no text copy. The change fields
-  come with indices only, as recorded from the web. A field your
-  broker's feed does not carry is left out, as on the web, not sent as
-  0.
+  `price_change_percent`, `oi`, `open_interest`) for every broker, and next
+  to them, with the same values, every key your broker's web adapter sends:
+  its own names (`last_trade_quantity`, `ltq`, `avg_trade_price`, `change`,
+  `change_percent`, `percent_change`, `change_absolute`,
+  `change_percentage`, `prev_close`, `last_price`, `totalbuyqty`, ...),
+  circuit limits, the 52-week range, the best bid and ask, previous OI and
+  OI change where your broker's feed carries them, and `last_trade_time`
+  beside `ltt` (Fyers and Dhan in seconds). A key your broker's web adapter
+  sends in LTP frames is in the desktop's LTP frames too. A script written
+  for either name works. `data.mode` is written as your broker's web
+  adapter writes it (`"quote"` with Zerodha, 2 with most brokers, no key
+  with Upstox, Kotak and a few others). The full list per broker is in
+  `docs/port/market-data-frames.md`.
+- **Field values.** A field your broker's feed did not send is left out,
+  not sent as 0 (the web sends some as 0), and a value from earlier in the
+  same connection is kept when a broker message does not repeat it. The
+  change since the previous close comes with equities and futures too,
+  where your broker's web adapter sends one. Times are epoch milliseconds
+  in `ltt`, where some web adapters send seconds or text.
 - **A message budget.** A connection that sends thousands of messages a
   second, or megabytes of them, is closed (code 1008) before they are
   read. Subscribing every instrument in one message, or one per message

@@ -299,6 +299,7 @@ impl SahiFeed {
                 total_buy_quantity: 0,
                 total_sell_quantity: 0,
                 timestamp_ms: now,
+                ..Default::default()
             }));
         }
         out

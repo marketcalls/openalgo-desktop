@@ -29,12 +29,10 @@
 //! Every map is bounded by what feed clients currently hold.
 
 use super::source::{
-    ClientLosses, DepthBook, DepthLevel, InstrumentKey, MarketDataSource, MarketUpdate, Mode,
-    QuoteFields, DEFAULT_DEPTH,
+    ClientLosses, InstrumentKey, MarketDataSource, MarketUpdate, Mode, DEFAULT_DEPTH,
 };
 use crate::brokers::common::streaming::{
-    AbsentFields, FeedEvent, FeedMode, FeedSubscription, MarketEvent, NormalizedDepth,
-    NormalizedTick, QuoteField,
+    FeedEvent, FeedMode, FeedSubscription, MarketEvent, QuoteField,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::websocket::{FeedStatus, Reader, WebSocketManager};
@@ -44,6 +42,11 @@ use std::sync::Arc;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, Notify};
 use tokio::task::JoinSet;
+
+mod render;
+pub(super) mod snapshot;
+pub(crate) use render::{depth_update, tick_update};
+use snapshot::Snapshot;
 
 /// Capacity of the update channel between the bridge and feed servers.
 pub const BRIDGE_UPDATE_CAP: usize = 8192;
@@ -142,9 +145,9 @@ impl Desired {
 struct State {
     desired: Desired,
     applied: HashMap<DesiredKey, Applied>,
-    /// Last tick per held instrument, for the quote fields of a separate
-    /// depth snapshot.
-    last_tick: HashMap<InstrumentKey, NormalizedTick>,
+    /// The merged quote per held instrument (`snapshot`): what a tick's
+    /// frame and a separate depth snapshot's quote fields are built on.
+    last_tick: HashMap<InstrumentKey, Snapshot>,
 }
 
 impl State {
@@ -471,144 +474,63 @@ impl BrokerBridge {
         }
     }
 
+    /// The instrument's broker token from the symbol master.
+    fn token(&self, key: &InstrumentKey) -> Option<Arc<str>> {
+        self.symbols
+            .by_symbol(&key.exchange, &key.symbol)
+            .map(|row| Arc::from(row.token.as_str()))
+    }
+
+    /// The main feed's connection count: a snapshot belongs to the
+    /// connection that made it (`snapshot`).
+    fn connection(&self) -> u64 {
+        self.manager
+            .stats()
+            .connects
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
     fn convert(&self, ev: &FeedEvent) -> Option<MarketUpdate> {
         match ev {
             FeedEvent::Tick(t) => {
                 let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
-                {
-                    let mut st = self.state.lock();
-                    if !st.holds(&key) {
-                        return None;
-                    }
-                    st.last_tick.insert(key.clone(), t.clone());
+                let epoch = self.connection();
+                let mut st = self.state.lock();
+                if !st.holds(&key) {
+                    return None;
                 }
-                Some(tick_update(key, t))
+                let mut merged = snapshot::merge(st.last_tick.get(&key), t, epoch);
+                if merged.token().is_none() {
+                    merged.set_token(self.token(&key));
+                }
+                // A packet without a trade (OI, circuits) only updates the
+                // snapshot; the next priced packet carries what it brought.
+                let update = t
+                    .knows(QuoteField::Ltp)
+                    .then(|| tick_update(key.clone(), merged.tick()))
+                    .flatten()
+                    .map(|u| MarketUpdate {
+                        token: merged.token(),
+                        ..u
+                    });
+                st.last_tick.insert(key, merged);
+                update
             }
             FeedEvent::Depth(d) => {
                 let key = InstrumentKey::new(d.symbol.clone(), d.exchange.clone());
-                let last = {
-                    let st = self.state.lock();
-                    if !st.holds(&key) {
-                        return None;
-                    }
-                    st.last_tick.get(&key).cloned()
-                };
-                Some(depth_update(key, d, last.as_ref()))
+                let epoch = self.connection();
+                let st = self.state.lock();
+                if !st.holds(&key) {
+                    return None;
+                }
+                let last = st.last_tick.get(&key).filter(|s| s.of_epoch(epoch));
+                let lacks = last.map(Snapshot::book_lacks).unwrap_or_default();
+                let token = last.and_then(Snapshot::token).or_else(|| self.token(&key));
+                let update = depth_update(key, d, last.map(Snapshot::tick), lacks);
+                Some(MarketUpdate { token, ..update })
             }
             _ => None,
         }
-    }
-}
-
-fn quote_fields(key: &InstrumentKey, t: &NormalizedTick, with_oi: bool) -> QuoteFields {
-    let index = key.is_index();
-    let opt = |v: f64| if index && v == 0.0 { None } else { Some(v) };
-    QuoteFields {
-        volume: t.volume,
-        last_quantity: t.last_quantity,
-        average_price: t.average_price,
-        total_buy_quantity: t.total_buy_quantity,
-        total_sell_quantity: t.total_sell_quantity,
-        open: opt(t.open),
-        high: opt(t.high),
-        low: opt(t.low),
-        close: opt(t.close),
-        oi: with_oi.then_some(t.oi),
-        price_change: index.then_some(t.change),
-        price_change_percent: index.then_some(t.change_percent),
-        absent: t.absent,
-    }
-}
-
-/// The exchange's trade time, else when the tick was made; none for a
-/// stream that carries no trade time (an index on Sahi), rather than a
-/// receive time passed off as one.
-fn ltt(t: &NormalizedTick) -> Option<i64> {
-    if t.absent.contains(QuoteField::LastTradeTime) {
-        return None;
-    }
-    Some(if t.last_trade_time_ms > 0 {
-        t.last_trade_time_ms
-    } else {
-        t.timestamp_ms
-    })
-}
-
-/// A tick. A non-index full tick is served at Quote: its book follows as a
-/// separate `Depth` event.
-pub(crate) fn tick_update(key: InstrumentKey, t: &NormalizedTick) -> MarketUpdate {
-    let raw = Mode::from_u8(t.mode).unwrap_or(Mode::Ltp);
-    let mode = if raw == Mode::Depth && !key.is_index() {
-        Mode::Quote
-    } else {
-        raw
-    };
-    MarketUpdate {
-        quote: (mode >= Mode::Quote).then(|| quote_fields(&key, t, raw == Mode::Depth)),
-        key,
-        mode,
-        ltp: t.ltp,
-        ltt: ltt(t),
-        timestamp: t.timestamp_ms,
-        depth: None,
-        exact_mode: false,
-    }
-}
-
-/// What a depth frame knows of the quote before its instrument's first
-/// tick: nothing. It carries the book, its totals, `ltp` and `timestamp`
-/// (all the SDK's Depth callback reads) and leaves the rest out, as web
-/// `docs/api/websocket-streaming/depth.md` allows, instead of sending 0
-/// (a deep book from its own socket, Fyers TBT or Dhan 20, often comes
-/// first).
-const NO_QUOTE_YET: AbsentFields = AbsentFields::of(&[
-    QuoteField::Open,
-    QuoteField::High,
-    QuoteField::Low,
-    QuoteField::Close,
-    QuoteField::Volume,
-    QuoteField::AveragePrice,
-    QuoteField::LastQuantity,
-    QuoteField::OpenInterest,
-    QuoteField::Change,
-    QuoteField::LastTradeTime,
-]);
-
-/// A depth snapshot for Depth holders, with the quote fields of the latest
-/// tick for the instrument (and what that tick said its stream lacks).
-pub(crate) fn depth_update(
-    key: InstrumentKey,
-    d: &NormalizedDepth,
-    last: Option<&NormalizedTick>,
-) -> MarketUpdate {
-    let base = last.cloned().unwrap_or_else(|| NormalizedTick {
-        absent: NO_QUOTE_YET,
-        ..Default::default()
-    });
-    let mut q = quote_fields(&key, &base, true);
-    q.total_buy_quantity = d.total_buy_quantity;
-    q.total_sell_quantity = d.total_sell_quantity;
-    let side = |v: &[crate::brokers::types::DepthLevel]| -> Vec<DepthLevel> {
-        v.iter()
-            .map(|l| DepthLevel {
-                price: l.price,
-                quantity: l.quantity,
-                orders: l.orders,
-            })
-            .collect()
-    };
-    MarketUpdate {
-        key,
-        mode: Mode::Depth,
-        ltp: if d.ltp > 0.0 { d.ltp } else { base.ltp },
-        ltt: ltt(&base),
-        timestamp: d.timestamp_ms,
-        quote: Some(q),
-        depth: Some(DepthBook {
-            buy: side(&d.buy),
-            sell: side(&d.sell),
-        }),
-        exact_mode: true,
     }
 }
 
@@ -668,23 +590,9 @@ impl MarketDataSource for BrokerBridge {
 
 #[cfg(test)]
 mod tests {
+    use super::render::tests::full_tick;
     use super::*;
-
-    fn full_tick(symbol: &str, exchange: &str) -> NormalizedTick {
-        NormalizedTick {
-            symbol: symbol.into(),
-            exchange: exchange.into(),
-            mode: 3,
-            ltp: 1167.7,
-            open: 1180.1,
-            close: 1187.0,
-            volume: 10,
-            oi: 0,
-            last_trade_time_ms: 1_791_000_000_000,
-            timestamp_ms: 1_791_000_000_100,
-            ..Default::default()
-        }
-    }
+    use crate::brokers::common::streaming::{NormalizedDepth, NormalizedTick};
 
     /// NEW-REL-05: what the relay to the apps' feed skipped because it fell
     /// behind is counted against the broker feed it reads (it was a log
@@ -732,55 +640,6 @@ mod tests {
         assert!(!relayed(&bridge, "TCS"));
     }
 
-    #[test]
-    fn full_equity_tick_serves_quote_and_depth_serves_depth_holders() {
-        let k = InstrumentKey::new("RELIANCE", "NSE");
-        let t = full_tick("RELIANCE", "NSE");
-        let u = tick_update(k.clone(), &t);
-        assert_eq!(u.mode, Mode::Quote);
-        assert!(!u.exact_mode);
-        assert_eq!(u.quote.as_ref().and_then(|q| q.oi), Some(0));
-        let d = NormalizedDepth {
-            symbol: "RELIANCE".into(),
-            exchange: "NSE".into(),
-            ltp: 1167.7,
-            buy: vec![Default::default(); 5],
-            sell: vec![Default::default(); 5],
-            total_buy_quantity: 7,
-            total_sell_quantity: 8,
-            timestamp_ms: 1_791_000_000_200,
-        };
-        let u = depth_update(k, &d, Some(&t));
-        assert_eq!(u.mode, Mode::Depth);
-        assert!(u.exact_mode);
-        let q = u.quote.unwrap();
-        assert_eq!((q.total_buy_quantity, q.volume), (7, 10));
-        assert_eq!(u.ltt, Some(1_791_000_000_000));
-        assert_eq!(u.depth.unwrap().buy.len(), 5);
-    }
-
-    /// A broker whose depth message has no LTP of its own (Fyers, web
-    /// openalgo#2318) leaves it at 0, and the depth frame carries the last
-    /// traded price of the instrument's tick, as the web's adapter borrows
-    /// it from the quote feed; before any tick there is none to borrow.
-    #[test]
-    fn a_depth_without_its_own_ltp_frames_the_last_traded_price() {
-        let k = InstrumentKey::new("CRUDEOIL19OCT26FUT", "MCX");
-        let mut t = full_tick("CRUDEOIL19OCT26FUT", "MCX");
-        t.ltp = 9665.0;
-        let d = NormalizedDepth {
-            symbol: "CRUDEOIL19OCT26FUT".into(),
-            exchange: "MCX".into(),
-            ltp: 0.0,
-            buy: vec![Default::default(); 5],
-            sell: vec![Default::default(); 5],
-            timestamp_ms: 1_791_000_000_200,
-            ..Default::default()
-        };
-        assert_eq!(depth_update(k.clone(), &d, Some(&t)).ltp, 9665.0);
-        assert_eq!(depth_update(k, &d, None).ltp, 0.0);
-    }
-
     /// WS-01: a session's "cannot stream" lasts until the session ends
     /// (`reset`), and a refused broker feed reads from the manager.
     #[test]
@@ -791,194 +650,6 @@ mod tests {
         assert_eq!(bridge.unavailable().as_deref(), Some(NO_LIVE_FEED));
         bridge.reset();
         assert_eq!(bridge.unavailable(), None);
-    }
-
-    #[test]
-    fn index_full_tick_reaches_every_mode_with_change_fields() {
-        let k = InstrumentKey::new("NIFTY", "NSE_INDEX");
-        let mut t = full_tick("NIFTY", "NSE_INDEX");
-        t.open = 0.0;
-        t.change = 1.5;
-        let u = tick_update(k, &t);
-        assert_eq!(u.mode, Mode::Depth);
-        let q = u.quote.unwrap();
-        assert_eq!(q.open, None);
-        assert_eq!(q.price_change, Some(1.5));
-    }
-
-    /// What a frame built from `t` (and, in Depth, a five-level book after
-    /// it) carries under `data`, for a subscriber at `mode`.
-    fn frame_data(t: &NormalizedTick, mode: Mode, broker: &str) -> serde_json::Value {
-        let key = InstrumentKey::new(t.symbol.clone(), t.exchange.clone());
-        let tick = tick_update(key.clone(), t);
-        let update = if mode == Mode::Depth && tick.mode < Mode::Depth {
-            let d = NormalizedDepth {
-                symbol: t.symbol.clone(),
-                exchange: t.exchange.clone(),
-                ltp: t.ltp,
-                buy: vec![Default::default(); 5],
-                sell: vec![Default::default(); 5],
-                timestamp_ms: t.timestamp_ms,
-                ..Default::default()
-            };
-            depth_update(key, &d, Some(t))
-        } else {
-            tick
-        };
-        let frame = crate::feed::protocol::market_data(&update, mode, 5, broker);
-        serde_json::from_str::<serde_json::Value>(&frame).unwrap()["data"].clone()
-    }
-
-    fn keys(data: &serde_json::Value) -> std::collections::BTreeSet<String> {
-        data.as_object().unwrap().keys().cloned().collect()
-    }
-
-    /// Fields Sahi's stream never carries (web `sahi_mapping.py`).
-    const NOT_ON_THE_STREAM: AbsentFields = AbsentFields::of(&[
-        QuoteField::Open,
-        QuoteField::High,
-        QuoteField::Low,
-        QuoteField::Close,
-        QuoteField::AveragePrice,
-        QuoteField::LastQuantity,
-        QuoteField::TotalBuyQuantity,
-        QuoteField::TotalSellQuantity,
-    ]);
-
-    /// Web test/test_sahi_streaming_codec.py::test_depth_tick_fans_out_to_every_mode:
-    /// a field the stream does not carry is left out of Quote and Depth
-    /// frames, never sent as 0, and so is every alias of it; what it does
-    /// carry (volume, OI) stays, a zero included.
-    #[test]
-    fn a_field_the_stream_does_not_carry_is_left_out_with_its_aliases() {
-        let mut t = full_tick("RELIANCE", "NSE");
-        t.volume = 4000;
-        t.absent = NOT_ON_THE_STREAM;
-        let gone = [
-            "open",
-            "high",
-            "low",
-            "close",
-            "last_quantity",
-            "average_price",
-            "total_buy_quantity",
-            "total_sell_quantity",
-            "last_trade_quantity",
-            "avg_trade_price",
-            "ltq",
-        ];
-        for broker in ["sahi", "fyers", "angel", "motilal"] {
-            for mode in [Mode::Quote, Mode::Depth] {
-                let d = frame_data(&t, mode, broker);
-                for k in gone {
-                    assert!(d.get(k).is_none(), "{} {:?} {}: {}", broker, mode, k, d);
-                }
-                assert_eq!(d["volume"], 4000, "{} {:?}", broker, mode);
-                assert_eq!(d["oi"], 0, "{} {:?}", broker, mode);
-                assert_eq!(d["ltt"], 1_791_000_000_000_i64);
-            }
-        }
-        let d = frame_data(&t, Mode::Depth, "sahi");
-        assert_eq!(d["depth"]["buy"].as_array().map(Vec::len), Some(5));
-    }
-
-    /// The same tick with nothing marked renders as it always did: every
-    /// quote field sent, a missing one as 0.
-    #[test]
-    fn a_tick_that_marks_nothing_still_sends_every_field() {
-        let t = full_tick("RELIANCE", "NSE");
-        let expected: std::collections::BTreeSet<String> = [
-            "symbol",
-            "exchange",
-            "mode",
-            "ltp",
-            "ltt",
-            "timestamp",
-            "volume",
-            "last_quantity",
-            "average_price",
-            "total_buy_quantity",
-            "total_sell_quantity",
-            "open",
-            "high",
-            "low",
-            "close",
-            "oi",
-            "open_interest",
-        ]
-        .map(String::from)
-        .into();
-        let d = frame_data(&t, Mode::Quote, "zerodha");
-        assert_eq!(keys(&d), expected);
-        assert_eq!(
-            (d["high"].as_f64(), d["average_price"].as_f64()),
-            (Some(0.0), Some(0.0))
-        );
-        let d = frame_data(&t, Mode::Depth, "zerodha");
-        let mut with_book = expected.clone();
-        with_book.insert("depth".into());
-        assert_eq!(keys(&d), with_book);
-    }
-
-    /// Web test/test_sahi_streaming_codec.py::test_index_ltp_without_time_and_derivative_oi:
-    /// an index tick with no trade time publishes no `ltt` in any mode,
-    /// rather than the time it was received.
-    #[test]
-    fn an_index_tick_without_a_trade_time_has_no_ltt() {
-        let mut t = full_tick("NIFTY", "NSE_INDEX");
-        t.last_trade_time_ms = 0;
-        t.absent = AbsentFields::of(&[QuoteField::LastTradeTime]);
-        for mode in [Mode::Ltp, Mode::Quote, Mode::Depth] {
-            let d = frame_data(&t, mode, "sahi");
-            assert!(d.get("ltt").is_none(), "{:?}: {}", mode, d);
-            assert_eq!(d["timestamp"], 1_791_000_000_100_i64);
-        }
-        let mut equity = full_tick("SBIN", "NSE");
-        equity.last_trade_time_ms = 0;
-        let d = frame_data(&equity, Mode::Ltp, "sahi");
-        assert_eq!(
-            d["ltt"], 1_791_000_000_100_i64,
-            "unmarked: the receive time"
-        );
-    }
-
-    /// An index whose stream carries no previous close has no change to
-    /// report: `price_change` and its aliases are left out, not 0.
-    #[test]
-    fn an_index_without_a_change_sends_none_of_its_names() {
-        let mut t = full_tick("NIFTY", "NSE_INDEX");
-        t.close = 0.0;
-        t.absent = AbsentFields::default()
-            .with(QuoteField::Close)
-            .with(QuoteField::Change);
-        for mode in [Mode::Quote, Mode::Depth] {
-            let d = frame_data(&t, mode, "fyers");
-            for k in [
-                "close",
-                "price_change",
-                "price_change_percent",
-                "change",
-                "change_percent",
-            ] {
-                assert!(d.get(k).is_none(), "{:?} {}: {}", mode, k, d);
-            }
-            assert_eq!(d["open"], 1180.1);
-        }
-    }
-
-    /// A depth frame sends OI as 0 when a tick has none, unless the stream
-    /// does not carry OI at all.
-    #[test]
-    fn a_depth_frame_leaves_out_oi_the_stream_does_not_carry() {
-        let mut t = full_tick("RELIANCE", "NSE");
-        t.absent = AbsentFields::of(&[QuoteField::OpenInterest]);
-        let d = frame_data(&t, Mode::Depth, "zerodha");
-        assert!(
-            d.get("oi").is_none() && d.get("open_interest").is_none(),
-            "{}",
-            d
-        );
-        assert_eq!(d["close"], 1187.0);
     }
 
     /// A deep book from its own socket (Dhan's 20 levels here; Fyers' TBT
@@ -1006,6 +677,7 @@ mod tests {
             total_buy_quantity: 7,
             total_sell_quantity: 8,
             timestamp_ms: 1_791_000_000_200,
+            ..Default::default()
         });
         let data = |b: &BrokerBridge| {
             let u = b.convert(&book).expect("held");
@@ -1022,7 +694,6 @@ mod tests {
             "average_price",
             "last_quantity",
             "oi",
-            "open_interest",
             "ltt",
         ];
         for k in quote_keys {
@@ -1068,8 +739,11 @@ mod tests {
             sell: vec![Default::default(); 50],
             ..Default::default()
         });
-        let open = |b: &BrokerBridge| b.convert(&book).and_then(|u| u.quote).map(|q| q.absent);
-        let quoted = |b: &BrokerBridge| open(b).is_some_and(|a| !a.contains(QuoteField::Open));
+        let quoted = |b: &BrokerBridge| {
+            b.convert(&book)
+                .and_then(|u| u.quote)
+                .is_some_and(|q| q.open.is_some())
+        };
 
         bridge.subscribe(&key, Mode::Depth, 50);
         bridge.convert(&FeedEvent::Tick(full_tick("SBIN", "NSE")));
@@ -1082,5 +756,68 @@ mod tests {
         bridge.convert(&FeedEvent::Tick(full_tick("SBIN", "NSE")));
         bridge.unsubscribe(&key, Mode::Depth, 50);
         assert!(quoted(&bridge), "the 5-level book still reads the quote");
+    }
+
+    /// Audit regression matrix, "Reconnect with first packet partial": once
+    /// the broker feed has connected again, a book is framed with no quote
+    /// until the new connection's first tick, and a partial first tick does
+    /// not bring the old connection's quote back.
+    #[test]
+    fn a_new_broker_connection_starts_every_quote_afresh() {
+        let manager = Arc::new(WebSocketManager::new());
+        let bridge = BrokerBridge::new(manager.clone(), SymbolResolver::new());
+        let key = InstrumentKey::new("SBIN", "NSE");
+        bridge.subscribe(&key, Mode::Depth, 5);
+        bridge.convert(&FeedEvent::Tick(full_tick("SBIN", "NSE")));
+        let book = FeedEvent::Depth(NormalizedDepth {
+            symbol: "SBIN".into(),
+            exchange: "NSE".into(),
+            buy: vec![Default::default(); 5],
+            sell: vec![Default::default(); 5],
+            ..Default::default()
+        });
+        let open = |b: &BrokerBridge| b.convert(&book).and_then(|u| u.quote).and_then(|q| q.open);
+        assert_eq!(open(&bridge), Some(1180.1));
+        manager
+            .stats()
+            .connects
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(open(&bridge), None, "the old connection's quote");
+        let mut partial = full_tick("SBIN", "NSE");
+        partial.mark_absent(QuoteField::Open);
+        let u = bridge.convert(&FeedEvent::Tick(partial)).expect("a price");
+        assert_eq!(u.quote.and_then(|q| q.open), None);
+    }
+
+    /// C03: a packet without a trade is not published (no LTP of 0 reaches a
+    /// client) and what it carried reaches the instrument's next frame.
+    #[test]
+    fn a_packet_without_a_trade_waits_for_the_price() {
+        let bridge = BrokerBridge::new(Arc::new(WebSocketManager::new()), SymbolResolver::new());
+        let key = InstrumentKey::new("NIFTY28NOV26FUT", "NFO");
+        bridge.subscribe(&key, Mode::Quote, 5);
+        let mut oi = NormalizedTick {
+            symbol: key.symbol.clone(),
+            exchange: key.exchange.clone(),
+            mode: 1,
+            oi: 777,
+            ..Default::default()
+        };
+        oi.mark_absent(QuoteField::Ltp);
+        oi.mark_carried(QuoteField::OpenInterest);
+        assert!(bridge.convert(&FeedEvent::Tick(oi.clone())).is_none());
+        let mut quote = full_tick("NIFTY28NOV26FUT", "NFO");
+        quote.mode = 2;
+        let u = bridge
+            .convert(&FeedEvent::Tick(quote.clone()))
+            .expect("a price");
+        assert_eq!(u.quote.and_then(|q| q.oi), Some(777));
+        oi.oi = 778;
+        assert!(
+            bridge.convert(&FeedEvent::Tick(oi)).is_none(),
+            "an OI packet after a price is not published either"
+        );
+        let u = bridge.convert(&FeedEvent::Tick(quote)).expect("a price");
+        assert_eq!(u.quote.and_then(|q| q.oi), Some(778));
     }
 }

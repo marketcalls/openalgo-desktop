@@ -212,8 +212,13 @@ impl KiteFeed {
                 }
                 if p.len() == 32 {
                     t.last_trade_time_ms = i64::from(be_u32(p, 28)) * 1000;
+                    // Web `_transform_index_tick`: `exchange_timestamp`.
+                    t.extras.exchange_time_ms = Some(t.last_trade_time_ms);
                 }
                 t.absent = NOT_IN_AN_INDEX_PACKET;
+                // The packet's own change, sent even when it is 0 (web
+                // `price_change`, as recorded).
+                t.carried = AbsentFields::of(&[QuoteField::Change]);
             }
             n if n >= 44 => {
                 t.last_quantity = qty(8);
@@ -245,6 +250,7 @@ impl KiteFeed {
                         buy,
                         sell,
                         timestamp_ms: now,
+                        ..Default::default()
                     });
                 }
             }

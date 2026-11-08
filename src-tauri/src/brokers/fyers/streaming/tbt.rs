@@ -333,6 +333,7 @@ impl TbtFeed {
             total_buy_quantity: book.tbq,
             total_sell_quantity: book.tsq,
             timestamp_ms: now_ms(),
+            ..Default::default()
         })
     }
 }

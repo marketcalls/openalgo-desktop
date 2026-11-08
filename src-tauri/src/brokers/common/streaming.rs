@@ -10,6 +10,52 @@
 //! before every (re)connect. Protocol replies (NATS `CONNECT` and `PONG`)
 //! are returned from `parse` as `FeedEvent::Reply` and written to the
 //! socket by the manager.
+//!
+//! # What a tick says it carries (WebSocket parity, audit C03-C06)
+//!
+//! A `market_data` frame leaves out a field the broker did not send; it
+//! never sends it as 0 (web openalgo#2376). A genuine zero (no volume yet,
+//! an OI of 0, a cleared book side) is sent. So every [`NormalizedTick`]
+//! says what its packet carries:
+//!
+//! * **By mode.** `mode` 1 (LTP) carries `ltp`; 2 (Quote) also open, high,
+//!   low, previous close, volume, average price, last quantity, the book
+//!   totals and the change; 3 (Depth) also open interest. The trade time
+//!   counts when `last_trade_time_ms` is above 0.
+//! * **Less:** `t.mark_absent(QuoteField::Open)` for a field this packet
+//!   lacks (a sparse or incremental packet), or `t.absent =
+//!   AbsentFields::of(&[..])` for what the whole stream lacks. A packet with
+//!   no trade price marks `QuoteField::Ltp` and leaves `ltp` at 0: the
+//!   bridge then publishes nothing for it but keeps its other fields, so no
+//!   frame ever shows an invented LTP.
+//! * **More:** `t.mark_carried(QuoteField::OpenInterest)` for OI in a Quote
+//!   packet (C05), `QuoteField::LastQuantity` for a last quantity in an LTP
+//!   packet, `QuoteField::Change` for a change the broker sent as 0 with no
+//!   previous close. A change is otherwise known when it is not 0 or a
+//!   previous close above 0 backs it (`derive_change`), for every exchange
+//!   (C04).
+//! * **Book:** [`NormalizedDepth::absent`] names what a book message lacks:
+//!   its totals (the frame takes the tick's), its own LTP, and `Orders` for
+//!   a book whose levels have no order count (Upstox).
+//! * **Optional shared fields** ([`QuoteExtras`], C06): `t.extras.
+//!   upper_circuit = Some(v)`, likewise the 52-week range, the best bid and
+//!   ask, previous OI, OI change, total OI, the day's close and the packet's
+//!   exchange time. Leave `None` what the packet did not carry.
+//! * **Broker-only fields** ([`BrokerField`]): `t.broker_fields.set(
+//!   BrokerField::IndicativeEquilibriumPrice, BrokerValue::Float(v))`. The
+//!   set of keys is fixed in `fields.rs`, so a broker field can never
+//!   overwrite an identity, mode or canonical key; add a variant there for
+//!   a new one.
+//!
+//! The bridge (`feed::bridge`) keeps each instrument's last known value of
+//! every field within one broker connection and merges each packet into it
+//! by these marks, never by a zero test, so an LTPC-only or OI-only packet
+//! keeps the quote it did not repeat. Which name each field goes out under
+//! is `feed::dialect`'s: the canonical names plus the names the broker's
+//! web adapter uses, per mode (`feed/dialect/names.rs`; a broker's web
+//! names are added there, not in the adapter). `fields.rs` lists, per
+//! broker, what its web adapter publishes and which of these the adapter
+//! fills.
 
 use crate::brokers::types::DepthLevel;
 use crate::error::Result;
@@ -19,6 +65,9 @@ use std::sync::Arc;
 use std::time::Duration;
 pub use tokio_tungstenite::tungstenite::handshake::client::Request as WsRequest;
 pub use tokio_tungstenite::tungstenite::Message;
+
+mod fields;
+pub use fields::{AbsentFields, BrokerField, BrokerFields, BrokerValue, QuoteExtras, QuoteField};
 
 /// Longest a feed waits for a required login acknowledgement
 /// (`BrokerFeed::auth_ack_deadline`).
@@ -91,63 +140,10 @@ impl FeedSubscription {
     }
 }
 
-/// A quote field a broker's stream may not carry.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u16)]
-pub enum QuoteField {
-    Open = 1 << 0,
-    High = 1 << 1,
-    Low = 1 << 2,
-    /// Previous close.
-    Close = 1 << 3,
-    Volume = 1 << 4,
-    AveragePrice = 1 << 5,
-    LastQuantity = 1 << 6,
-    TotalBuyQuantity = 1 << 7,
-    TotalSellQuantity = 1 << 8,
-    OpenInterest = 1 << 9,
-    /// The change since the previous close, absolute and in percent.
-    Change = 1 << 10,
-    /// The exchange's last trade time (an index tick may have none): `ltt`
-    /// is then left out in every mode, LTP included.
-    LastTradeTime = 1 << 11,
-}
-
-/// The quote fields a tick's stream did not carry. A `market_data` frame
-/// leaves them out instead of sending 0 (web openalgo#2376: a client
-/// computing the change against a close of 0 showed the whole LTP as the
-/// change). Empty by default: every field is sent, a zero included.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
-pub struct AbsentFields(u16);
-
-impl AbsentFields {
-    pub const fn of(fields: &[QuoteField]) -> Self {
-        let mut bits = 0;
-        let mut i = 0;
-        while i < fields.len() {
-            bits |= fields[i] as u16;
-            i += 1;
-        }
-        Self(bits)
-    }
-
-    pub const fn contains(self, field: QuoteField) -> bool {
-        self.0 & field as u16 != 0
-    }
-
-    pub const fn is_empty(&self) -> bool {
-        self.0 == 0
-    }
-
-    /// This set and `field`: an adapter that learns field by field what a
-    /// message lacks.
-    pub const fn with(self, field: QuoteField) -> Self {
-        Self(self.0 | field as u16)
-    }
-}
-
-/// A normalised tick. Fields a mode does not carry are zero; a field the
-/// broker's stream does not carry at all is also named in `absent`.
+/// A normalised tick: what one broker packet says about an instrument.
+/// Its `mode` (1 LTP, 2 Quote, 3 Depth) says which fields it carries
+/// unless it marks them (see the module doc); a field it does not carry is
+/// left at zero and never reaches a frame as one.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct NormalizedTick {
     pub symbol: String,
@@ -172,11 +168,21 @@ pub struct NormalizedTick {
     pub last_trade_time_ms: i64,
     /// When this tick was produced, epoch ms.
     pub timestamp_ms: i64,
-    /// What the stream did not carry: left out of Quote and Depth frames,
-    /// and of a depth frame built on this tick, so an adapter marks a total
-    /// only when its depth messages lack it too.
+    /// What this packet (or the whole stream) does not carry although its
+    /// mode would: left out of the frames built on it, and the bridge keeps
+    /// the instrument's last known value of each instead.
     #[serde(skip_serializing_if = "AbsentFields::is_empty")]
     pub absent: AbsentFields,
+    /// What this packet carries beyond its mode: open interest in a Quote
+    /// packet, a change the broker sent as 0 with no previous close.
+    #[serde(skip_serializing_if = "AbsentFields::is_empty")]
+    pub carried: AbsentFields,
+    /// The optional shared fields this packet carried (`None`: not sent).
+    #[serde(skip_serializing_if = "QuoteExtras::is_empty")]
+    pub extras: QuoteExtras,
+    /// The broker-only fields this packet carried.
+    #[serde(skip_serializing_if = "BrokerFields::is_empty")]
+    pub broker_fields: BrokerFields,
 }
 
 impl NormalizedTick {
@@ -187,19 +193,67 @@ impl NormalizedTick {
             self.change_percent = round2((self.ltp - self.close) / self.close * 100.0);
         }
     }
+
+    /// This packet does not carry `field`.
+    pub fn mark_absent(&mut self, field: QuoteField) {
+        self.absent = self.absent.with(field);
+        self.carried = self.carried.without(field);
+    }
+
+    /// This packet carries `field` although its mode would not.
+    pub fn mark_carried(&mut self, field: QuoteField) {
+        self.carried = self.carried.with(field);
+        self.absent = self.absent.without(field);
+    }
+
+    /// The fields this packet carries: its mode's, with what it marks
+    /// carried and without what it marks absent. A change counts when the
+    /// broker sent one (a value, or `mark_carried`) or a previous close
+    /// above 0 backs it; the trade time when it is above 0.
+    pub fn known(&self) -> AbsentFields {
+        use QuoteField as F;
+        let mut k = AbsentFields::of_mode(self.mode)
+            .union(self.carried)
+            .minus(self.absent);
+        let backed_by_close = k.contains(F::Close) && self.close > 0.0 && self.ltp > 0.0;
+        let sent = self.change != 0.0 || self.change_percent != 0.0;
+        if !self.carried.contains(F::Change) && !sent && !backed_by_close {
+            k = k.without(F::Change);
+        }
+        if self.absent.contains(F::LastTradeTime) || self.last_trade_time_ms <= 0 {
+            k = k.without(F::LastTradeTime);
+        } else {
+            k = k.with(F::LastTradeTime);
+        }
+        k.without(F::Orders)
+    }
+
+    /// Whether this packet carries `field` ([`known`](Self::known)).
+    pub fn knows(&self, field: QuoteField) -> bool {
+        self.known().contains(field)
+    }
 }
 
-/// Normalised market depth.
+/// Normalised market depth: one full snapshot of the book, each side best
+/// price first. A side with no levels is a cleared side, not a missing one.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct NormalizedDepth {
     pub symbol: String,
     pub exchange: String,
+    /// The book message's own last traded price; 0 when it has none (the
+    /// frame then takes the instrument's tick's).
     pub ltp: f64,
     pub buy: Vec<DepthLevel>,
     pub sell: Vec<DepthLevel>,
     pub total_buy_quantity: i64,
     pub total_sell_quantity: i64,
     pub timestamp_ms: i64,
+    /// What this book message does not carry: its totals
+    /// (`TotalBuyQuantity`, `TotalSellQuantity`: the frame then takes the
+    /// instrument's tick's, if any), the order count of its levels
+    /// (`Orders`), its own LTP (`Ltp`).
+    #[serde(skip_serializing_if = "AbsentFields::is_empty")]
+    pub absent: AbsentFields,
 }
 
 /// A normalised order update (web `order_update` event fields).
@@ -454,5 +508,37 @@ mod tests {
         t.derive_change();
         assert_eq!(t.change, 6.0);
         assert_eq!(t.change_percent, 0.42);
+    }
+
+    /// C03: a packet carries its mode's fields, less what it marks absent,
+    /// more what it marks carried; a change needs a value or a close above
+    /// 0; a trade time needs a value.
+    #[test]
+    fn a_packet_knows_its_modes_fields_and_its_marks() {
+        use QuoteField as F;
+        let mut t = NormalizedTick {
+            mode: 1,
+            ltp: 101.0,
+            ..Default::default()
+        };
+        assert_eq!(t.known(), AbsentFields::of(&[F::Ltp]));
+        t.mode = 2;
+        assert!(t.knows(F::Volume) && !t.knows(F::OpenInterest));
+        assert!(!t.knows(F::Change), "no close, no change");
+        t.close = 100.0;
+        assert!(t.knows(F::Change), "a close above 0 backs the change");
+        t.mark_absent(F::Close);
+        assert!(!t.knows(F::Close) && !t.knows(F::Change));
+        t.mark_carried(F::OpenInterest);
+        assert!(t.knows(F::OpenInterest));
+        t.mode = 3;
+        t.mark_absent(F::OpenInterest);
+        assert!(!t.knows(F::OpenInterest), "absent wins over the mode");
+        assert!(!t.knows(F::LastTradeTime));
+        t.last_trade_time_ms = 1;
+        assert!(t.knows(F::LastTradeTime));
+        t.mark_absent(F::LastTradeTime);
+        assert!(!t.knows(F::LastTradeTime));
+        assert!(!t.knows(F::Orders), "a tick has no book");
     }
 }

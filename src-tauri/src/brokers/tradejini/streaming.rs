@@ -509,6 +509,7 @@ impl TradejiniFeed {
             last_trade_time_ms: q.ltt.unwrap_or(0) * 1000,
             timestamp_ms: now_ms(),
             absent,
+            ..Default::default()
         };
         if q.chng.is_none() {
             t.derive_change();
@@ -601,6 +602,7 @@ impl TradejiniFeed {
             total_buy_quantity: book.tot_buy_qty,
             total_sell_quantity: book.tot_sell_qty,
             timestamp_ms: now_ms(),
+            ..Default::default()
         }
     }
 }

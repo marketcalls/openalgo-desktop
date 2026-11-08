@@ -9,7 +9,7 @@
 //! Production wires the broker streaming manager through `feed::bridge`;
 //! tests use [`FakeSource`].
 
-use crate::brokers::common::streaming::AbsentFields;
+use crate::brokers::common::streaming::{BrokerFields, QuoteExtras};
 use parking_lot::Mutex;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::AtomicU64;
@@ -94,12 +94,14 @@ impl InstrumentKey {
     }
 }
 
-/// One price level of the order book.
+/// One price level of the order book. `orders` is `None` where the
+/// broker's book has no order count (Upstox), and the frame then leaves it
+/// out.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct DepthLevel {
     pub price: f64,
     pub quantity: i64,
-    pub orders: i64,
+    pub orders: Option<i64>,
 }
 
 /// Bid and ask ladders, best price first. The server truncates each side to
@@ -110,28 +112,31 @@ pub struct DepthBook {
     pub sell: Vec<DepthLevel>,
 }
 
-/// Quote-mode fields. OHLC is optional because an index outside market
-/// hours has none; for other instruments a missing value is sent as `0.0`,
-/// unless `absent` says the broker's stream does not carry it.
+/// The quote fields an update knows, each `None` when the broker's stream
+/// has not carried it: a frame leaves out what is `None` (web openalgo#2376)
+/// and sends a known zero.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct QuoteFields {
-    pub volume: i64,
-    pub last_quantity: i64,
-    pub average_price: f64,
-    pub total_buy_quantity: i64,
-    pub total_sell_quantity: i64,
+    pub volume: Option<i64>,
+    pub last_quantity: Option<i64>,
+    pub average_price: Option<f64>,
+    pub total_buy_quantity: Option<i64>,
+    pub total_sell_quantity: Option<i64>,
     pub open: Option<f64>,
     pub high: Option<f64>,
     pub low: Option<f64>,
+    /// Previous close.
     pub close: Option<f64>,
-    /// Open interest; sent as both `oi` and `open_interest` when present.
+    /// Open interest; sent as both `oi` and `open_interest`.
     pub oi: Option<i64>,
-    /// Change since previous close (index instruments).
+    /// Change since the previous close.
     pub price_change: Option<f64>,
     pub price_change_percent: Option<f64>,
-    /// Fields the broker's stream did not carry: left out of the frame, and
-    /// their alias names with them (web openalgo#2376).
-    pub absent: AbsentFields,
+    /// The optional shared fields (circuits, 52-week range, best bid and
+    /// ask, ...), sent under the broker's web names only.
+    pub extras: QuoteExtras,
+    /// The broker-only fields of the packet.
+    pub broker_fields: BrokerFields,
 }
 
 /// A normalized update from the broker feed.
@@ -154,6 +159,9 @@ pub struct MarketUpdate {
     /// depth snapshot apart from its tick has already served the lower
     /// modes with the tick).
     pub exact_mode: bool,
+    /// The broker's instrument token, from the symbol master (the web's
+    /// Arrow, HDFC, Rupeezy, Upstox and Fyers adapters send it as `token`).
+    pub token: Option<Arc<str>>,
 }
 
 impl MarketUpdate {
@@ -168,6 +176,7 @@ impl MarketUpdate {
             quote: None,
             depth: None,
             exact_mode: false,
+            token: None,
         }
     }
 }

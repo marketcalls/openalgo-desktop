@@ -129,6 +129,7 @@ desktop counterpart.
 | Adding or changing a broker in Rust | [broker-integration-guide.md](broker-integration-guide.md) · the `broker-integration` skill ([.claude/skills/broker-integration/SKILL.md](../.claude/skills/broker-integration/SKILL.md)) |
 | Every route and Socket.IO event the frontend uses, page by page | [port/frontend-backend-contract.md](port/frontend-backend-contract.md) |
 | Order placement outcomes (accepted, refused, uncertain) per broker adapter | [port/order-outcomes.md](port/order-outcomes.md) |
+| What a `market_data` frame carries per broker and mode, and what a client holding several modes receives | [port/market-data-frames.md](port/market-data-frames.md) |
 | The key vault in `openalgo.db`, lock and unlock, caches (KEY-01) | [port/no-keychain.md](port/no-keychain.md) |
 | Data-folder upgrades: backup, restore, downgrade refusal (REL-02) | [port/data-upgrades.md](port/data-upgrades.md) |
 | Golden fixtures recorded from OpenAlgo web, and the web defects not reproduced | `tests/fixtures/web/INDEX.md` |

@@ -253,6 +253,7 @@ fn depth_book(sub: &SubInfo, frame: &Value, ltp: f64) -> NormalizedDepth {
         total_buy_quantity: num(frame, "TBidQ") as i64,
         total_sell_quantity: num(frame, "TOffQ") as i64,
         timestamp_ms: now_ms(),
+        ..Default::default()
     }
 }
 

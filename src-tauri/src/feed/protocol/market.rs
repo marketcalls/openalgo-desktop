@@ -1,0 +1,376 @@
+//! The `market_data` frame: one update rendered for a subscriber at one
+//! mode, in the web's key order, with the broker's web names beside the
+//! canonical ones (`feed::dialect`). A field the update does not know is
+//! left out, never sent as 0 (web openalgo#2376, audit C03).
+
+use super::to_json;
+use crate::feed::dialect::{dialect, DataMode, Dialect, Extra, Ltt, Source, Unit};
+use crate::feed::source::{DepthLevel, InstrumentKey, MarketUpdate, Mode, QuoteFields};
+use serde::ser::{SerializeMap, Serializer};
+use serde::Serialize;
+use serde_json::Value;
+
+#[derive(Serialize)]
+struct LevelOut {
+    price: f64,
+    quantity: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    orders: Option<i64>,
+}
+
+impl From<&DepthLevel> for LevelOut {
+    fn from(l: &DepthLevel) -> Self {
+        Self {
+            price: l.price,
+            quantity: l.quantity,
+            orders: l.orders,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct BookOut {
+    buy: Vec<LevelOut>,
+    sell: Vec<LevelOut>,
+}
+
+/// `data.mode` as the broker's web adapter writes it.
+#[derive(Serialize)]
+#[serde(untagged)]
+enum ModeOut {
+    Label(&'static str),
+    Number(u8),
+}
+
+/// The broker's own keys (`dialect::names`), each once, after the
+/// canonical ones.
+#[derive(Default)]
+struct WebKeys(Vec<(&'static str, Value)>);
+
+impl Serialize for WebKeys {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut m = s.serialize_map(Some(self.0.len()))?;
+        for (k, v) in &self.0 {
+            m.serialize_entry(k, v)?;
+        }
+        m.end()
+    }
+}
+
+/// An integer as the broker's web adapter types it: an int, or a double
+/// where its packet carries one (`Dialect::floats`).
+#[derive(Serialize)]
+#[serde(untagged)]
+enum Num {
+    Int(i64),
+    Float(f64),
+}
+
+/// `market_data.data`, in the web's key order.
+#[derive(Serialize)]
+struct DataOut<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    symbol: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    exchange: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    mode: Option<ModeOut>,
+    ltp: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ltt: Option<Num>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    timestamp: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    volume: Option<Num>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_quantity: Option<Num>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    average_price: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    total_buy_quantity: Option<Num>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    total_sell_quantity: Option<Num>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    open: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    high: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    low: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    close: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    price_change: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    price_change_percent: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    oi: Option<Num>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    open_interest: Option<Num>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    depth: Option<BookOut>,
+    #[serde(flatten)]
+    web: WebKeys,
+}
+
+impl DataOut<'_> {
+    /// Whether the canonical part already carries `key`.
+    fn has(&self, key: &str) -> bool {
+        match key {
+            "symbol" => self.symbol.is_some(),
+            "exchange" => self.exchange.is_some(),
+            "ltp" => true,
+            "timestamp" => self.timestamp.is_some(),
+            "mode" => self.mode.is_some(),
+            "ltt" => self.ltt.is_some(),
+            "volume" => self.volume.is_some(),
+            "last_quantity" => self.last_quantity.is_some(),
+            "average_price" => self.average_price.is_some(),
+            "total_buy_quantity" => self.total_buy_quantity.is_some(),
+            "total_sell_quantity" => self.total_sell_quantity.is_some(),
+            "open" => self.open.is_some(),
+            "high" => self.high.is_some(),
+            "low" => self.low.is_some(),
+            "close" => self.close.is_some(),
+            "price_change" => self.price_change.is_some(),
+            "price_change_percent" => self.price_change_percent.is_some(),
+            "oi" => self.oi.is_some(),
+            "open_interest" => self.open_interest.is_some(),
+            "depth" => self.depth.is_some(),
+            _ => false,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct MarketDataOut<'a> {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    symbol: &'a str,
+    exchange: &'a str,
+    mode: u8,
+    data: DataOut<'a>,
+    broker: &'a str,
+}
+
+/// What the frame may show, in any mode: the update's quote without an
+/// index's order-flow fields (the web's index dicts have none) and without
+/// an instrument's change where the broker's web adapter publishes none.
+fn shown_quote(update: &MarketUpdate, instrument_change: bool) -> QuoteFields {
+    let mut q = update.quote.clone().unwrap_or_default();
+    if update.key.is_index() {
+        q.last_quantity = None;
+        q.average_price = None;
+        q.total_buy_quantity = None;
+        q.total_sell_quantity = None;
+    } else if !instrument_change {
+        q.price_change = None;
+        q.price_change_percent = None;
+    }
+    q
+}
+
+/// What a frame knows besides the quote, for the broker's own keys.
+struct Frame<'a> {
+    update: &'a MarketUpdate,
+    q: &'a QuoteFields,
+    mode: Mode,
+    depth: u8,
+    broker: &'a str,
+}
+
+fn extra(e: Extra, q: &QuoteFields) -> Option<Value> {
+    let x = &q.extras;
+    let f = |v: Option<f64>| v.map(Value::from);
+    let i = |v: Option<i64>| v.map(Value::from);
+    match e {
+        Extra::UpperCircuit => f(x.upper_circuit),
+        Extra::LowerCircuit => f(x.lower_circuit),
+        Extra::High52Week => f(x.high_52_week),
+        Extra::Low52Week => f(x.low_52_week),
+        Extra::BidPrice => f(x.bid_price),
+        Extra::BidQuantity => i(x.bid_quantity),
+        Extra::AskPrice => f(x.ask_price),
+        Extra::AskQuantity => i(x.ask_quantity),
+        Extra::PreviousOi => i(x.previous_oi),
+        Extra::OiChange => i(x.oi_change),
+        Extra::TotalOi => i(x.total_oi),
+        Extra::DayClose => f(x.day_close),
+        Extra::ExchangeTime(unit) => i(x.exchange_time_ms.map(|ms| in_unit(ms, unit))),
+    }
+}
+
+fn in_unit(ms: i64, unit: Unit) -> i64 {
+    match unit {
+        Unit::Millis => ms,
+        Unit::Seconds => ms / 1000,
+    }
+}
+
+/// The value of `source` in this frame, if known.
+fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
+    let q = fr.q;
+    let f = |v: Option<f64>| v.map(Value::from);
+    let i = |v: Option<i64>| v.map(Value::from);
+    match source {
+        Source::Ltp => Some(Value::from(fr.update.ltp)),
+        Source::Open => f(q.open),
+        Source::High => f(q.high),
+        Source::Low => f(q.low),
+        Source::Close => f(q.close),
+        Source::Volume => i(q.volume),
+        Source::LastQuantity => i(q.last_quantity),
+        Source::AveragePrice => f(q.average_price),
+        Source::TotalBuyQuantity => i(q.total_buy_quantity),
+        Source::TotalSellQuantity => i(q.total_sell_quantity),
+        Source::Oi => i(q.oi),
+        Source::Change => f(q.price_change),
+        Source::ChangePercent => f(q.price_change_percent),
+        Source::TradeTime(unit) => i(fr.update.ltt.map(|ms| in_unit(ms, unit))),
+        Source::Extra(e) => extra(e, q),
+        Source::DepthLevels => {
+            let book = fr.mode == Mode::Depth && !fr.update.key.is_index();
+            book.then(|| Value::from(fr.depth))
+        }
+        Source::SubscriptionMode => Some(Value::from(fr.mode.as_u8())),
+        Source::Topic => Some(Value::from(format!(
+            "{}_{}_{}",
+            fr.update.key.exchange,
+            fr.update.key.symbol,
+            ["LTP", "QUOTE", "DEPTH"][fr.mode.index()]
+        ))),
+        Source::BrokerId => Some(Value::from(fr.broker)),
+        Source::PerMode(texts) => Some(Value::from(texts[fr.mode.index()])),
+        Source::Token => fr.update.token.as_deref().map(Value::from),
+    }
+}
+
+/// The broker's own keys for this frame: its table's names from their
+/// mode up, then the broker-only fields the packet carried, each only when
+/// known and never over a key already in the frame.
+fn web_keys(d: &DataOut<'_>, fr: &Frame<'_>) -> WebKeys {
+    let mut out: Vec<(&'static str, Value)> = Vec::new();
+    let taken =
+        |out: &[(&'static str, Value)], key: &str| d.has(key) || out.iter().any(|(k, _)| *k == key);
+    for name in dialect(fr.broker).names {
+        if fr.mode < name.from || taken(&out, name.key) {
+            continue;
+        }
+        if let Some(v) = value(name.source, fr) {
+            out.push((name.key, v));
+        }
+    }
+    for (field, v) in fr.q.broker_fields.iter() {
+        if fr.mode.as_u8() < field.from_mode().code() || taken(&out, field.name()) {
+            continue;
+        }
+        if let Ok(v) = serde_json::to_value(v) {
+            out.push((field.name(), v));
+        }
+    }
+    WebKeys(out)
+}
+
+/// Render `update` for a subscriber at `mode` (which must not exceed
+/// `update.mode`), with each depth side truncated to `depth` levels.
+pub fn market_data(update: &MarketUpdate, mode: Mode, depth: u8, broker: &str) -> String {
+    let key: &InstrumentKey = &update.key;
+    let dia = dialect(broker);
+    let q = shown_quote(update, dia.instrument_change);
+    let mut d = canonical(update, &q, mode, &dia);
+    if mode == Mode::Depth && !key.is_index() {
+        let n = depth as usize;
+        let book = update.depth.as_ref();
+        d.depth = Some(BookOut {
+            buy: book
+                .map(|b| b.buy.iter().take(n).map(LevelOut::from).collect())
+                .unwrap_or_default(),
+            sell: book
+                .map(|b| b.sell.iter().take(n).map(LevelOut::from).collect())
+                .unwrap_or_default(),
+        });
+    }
+    let frame = Frame {
+        update,
+        q: &q,
+        mode,
+        depth,
+        broker,
+    };
+    d.web = web_keys(&d, &frame);
+    to_json(&MarketDataOut {
+        kind: "market_data",
+        symbol: &key.symbol,
+        exchange: &key.exchange,
+        mode: mode.as_u8(),
+        data: d,
+        broker,
+    })
+}
+
+/// The canonical keys of `data` for a frame at `mode`, shaped as the
+/// broker's web adapter shapes them: which identity, time and OI keys it
+/// writes, how it writes `data.mode`, which integers it sends as doubles.
+fn canonical<'a>(
+    update: &'a MarketUpdate,
+    qf: &QuoteFields,
+    mode: Mode,
+    dia: &Dialect,
+) -> DataOut<'a> {
+    let key = &update.key;
+    let num = |name: &str, v: Option<i64>| {
+        v.map(|v| {
+            if dia.floats.contains(&name) {
+                Num::Float(v as f64)
+            } else {
+                Num::Int(v)
+            }
+        })
+    };
+    let ltp_copy = mode == Mode::Ltp && update.mode > Mode::Ltp;
+    let ltt = match dia.ltt {
+        Ltt::Always => update.ltt,
+        Ltt::NotOnLtpCopies if ltp_copy => None,
+        Ltt::NotOnLtpCopies => update.ltt,
+        Ltt::Never => None,
+    };
+    let quote = mode >= Mode::Quote;
+    DataOut {
+        symbol: dia.data_identity.then_some(key.symbol.as_str()),
+        exchange: dia.data_identity.then_some(key.exchange.as_str()),
+        mode: match dia.data_mode {
+            DataMode::Label => Some(ModeOut::Label(mode.data_label())),
+            DataMode::Number => Some(ModeOut::Number(mode.as_u8())),
+            DataMode::Absent => None,
+        },
+        ltp: update.ltp,
+        ltt: num("ltt", ltt),
+        timestamp: (mode >= dia.timestamp_from).then_some(update.timestamp),
+        volume: num("volume", qf.volume.filter(|_| quote)),
+        last_quantity: num("last_quantity", qf.last_quantity.filter(|_| quote)),
+        average_price: qf.average_price.filter(|_| quote),
+        total_buy_quantity: num(
+            "total_buy_quantity",
+            qf.total_buy_quantity.filter(|_| quote),
+        ),
+        total_sell_quantity: num(
+            "total_sell_quantity",
+            qf.total_sell_quantity.filter(|_| quote),
+        ),
+        open: qf.open.filter(|_| quote),
+        high: qf.high.filter(|_| quote),
+        low: qf.low.filter(|_| quote),
+        close: qf.close.filter(|_| quote),
+        price_change: qf.price_change.filter(|_| quote),
+        price_change_percent: qf.price_change_percent.filter(|_| quote),
+        oi: num("oi", qf.oi.filter(|_| quote)),
+        open_interest: num(
+            "open_interest",
+            qf.oi.filter(|_| quote && dia.open_interest),
+        ),
+        depth: None,
+        web: WebKeys::default(),
+    }
+}
+
+#[cfg(test)]
+mod tests;
