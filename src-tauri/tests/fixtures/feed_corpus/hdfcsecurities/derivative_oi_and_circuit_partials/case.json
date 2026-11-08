@@ -34,7 +34,7 @@
     ],
     "notes": [
       "Prices, the band 1350/1650 and OI 777 from the web tests; the book and OI 700 on the full packet are added, and each partial has its own packet time.",
-      "Client b's Quote subscribe beside a's Depth leaves the instrument's highest mode at Depth, so the desktop's manager does not ask the feed for any frame; the web's adapter calls subscribe_scrips on every subscribe and its client sends a second subscribe at ALL here. Matching it would take a manager hook (shared code, lane wire): not in this case's upstream_receives."
+      "desktop-decision (lead 2026-11-09): client b's Quote subscribe beside a's Depth leaves the instrument's highest mode at Depth, so the desktop sends the broker nothing; the web's adapter calls subscribe_scrips on every subscribe and unsubscribe while a mode remains, and its client sends a second subscribe at ALL here. The desktop coalesces holder changes and never sends again a subscription whose effective mode is unchanged, which is safer under brokers' subscription rate limits; the only effect is that a new client gets its first frame at the next tick rather than at once. Live check: how long a new client waits for its first frame on a quiet instrument."
     ]
   },
   "deviations": [
