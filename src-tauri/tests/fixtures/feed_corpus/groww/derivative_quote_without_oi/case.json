@@ -1,6 +1,6 @@
 {
   "broker": "groww",
-  "summary": "A future at Quote on Groww's F&O price subject: OHLC and volume come through; Groww's price message carries no open interest, so none is sent.",
+  "summary": "A future at Quote on Groww's F&O price subject: OHLC, volume and traded value come through; Groww's price message carries no open interest, so none is sent.",
   "scenarios": [
     "derivative-oi",
     "first-full-packet",
@@ -40,39 +40,15 @@
   },
   "deviations": [
     {
-      "key": "broker",
-      "kind": "open",
-      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
-      "ref": "groww_adapter.py:983-993"
-    },
-    {
       "key": "ltt",
       "kind": "open",
       "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web sends Groww's tsInMillis as the protobuf double it decodes, a float (1730790000000.0); the desktop sends the integer.",
       "ref": "groww_protobuf.py:184, :220, :288 (_read_fixed64); groww_adapter.py:1098-1101"
     },
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web's Groww adapter puts the subscription mode number in data.mode (1, 2, 3); the desktop sends its label (ltp, quote, full).",
-      "ref": "groww_adapter.py:983-993; feed::source::Mode::data_label"
-    },
-    {
-      "key": "subscription_mode",
-      "kind": "open",
-      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
-      "ref": "groww_adapter.py:983-993"
-    },
-    {
-      "key": "topic",
-      "kind": "open",
-      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
-      "ref": "groww_adapter.py:983-993"
-    },
-    {
       "key": "value",
       "kind": "open",
-      "reason": "The web forwards Groww's traded value (`value`, rupees) in Quote and Depth; the desktop decodes it (brokers/groww/proto.rs StocksLivePrice.value) but the common tick has no field for it. Carrier gap for lane wire.",
+      "reason": "Groww's traded value (`value`, rupees) the web forwards in every mode: BrokerField::TradedValue, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1115-1116, :43 (_LTP_FIELDS)"
     },
     {

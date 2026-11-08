@@ -36,9 +36,9 @@
     {
       "key": "frame",
       "kind": "web-defect",
+      "approved": true,
       "reason": "The web's Groww adapter matches a Depth subscription on an index as LTP and publishes the tick on the LTP topic, which the proxy delivers only to LTP subscribers (server.py fans a topic out to its own mode and lower ones): the Depth client was acknowledged and never receives a price. The desktop sends it the index value at Depth, without a book.",
-      "ref": "groww_adapter.py:464-469, :975; websocket_proxy/server.py:2103-2105",
-      "approved": true
+      "ref": "groww_adapter.py:464-469, :975; websocket_proxy/server.py:2103-2105"
     }
   ]
 }

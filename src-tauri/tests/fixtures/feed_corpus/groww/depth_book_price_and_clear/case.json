@@ -38,74 +38,68 @@
     {
       "key": "ask",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1020-1048"
     },
     {
       "key": "ask_price",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1020-1048"
     },
     {
       "key": "ask_qty",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1020-1048"
     },
     {
       "key": "ask_quantity",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1020-1048"
     },
     {
       "key": "ask_size",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1020-1048"
     },
     {
       "key": "bid",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1020-1048"
     },
     {
       "key": "bid_price",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1020-1048"
     },
     {
       "key": "bid_qty",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1020-1048"
     },
     {
       "key": "bid_quantity",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1020-1048"
     },
     {
       "key": "bid_size",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1020-1048"
-    },
-    {
-      "key": "broker",
-      "kind": "open",
-      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
-      "ref": "groww_adapter.py:983-993"
     },
     {
       "key": "ltp",
       "kind": "desktop-decision",
-      "reason": "A book before the first price: the web's merged entry has no ltp yet and leaves it out; the desktop's Depth frame keeps ltp and timestamp, which the SDK's Depth callback reads (1.0.6 decision, CLAUDE.md: a depth frame before its instrument's first quote). The tick the Groww feed publishes alongside it, with an LTP of 0, is a desktop defect pinned by quote_and_depth_book_first.",
-      "ref": "brokers/groww/streaming.rs:553-568; groww_adapter.py:64-73, :958-962"
+      "reason": "A book before the first price: the web's merged entry has no ltp yet and leaves it out; the desktop's Depth frame keeps ltp (0) and timestamp, which the SDK's Depth callback reads (1.0.6 decision).",
+      "ref": "CLAUDE.md (depth frame before its instrument's first tick); groww_adapter.py:64-73"
     },
     {
       "key": "ltt",
@@ -114,39 +108,21 @@
       "ref": "groww_protobuf.py:184, :220, :288 (_read_fixed64); groww_adapter.py:1098-1101"
     },
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web's Groww adapter puts the subscription mode number in data.mode (1, 2, 3); the desktop sends its label (ltp, quote, full).",
-      "ref": "groww_adapter.py:983-993; feed::source::Mode::data_label"
-    },
-    {
       "key": "offer_price",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1020-1048"
     },
     {
       "key": "offer_quantity",
       "kind": "open",
-      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty. Carrier gap for lane wire (bid/ask fields and per-broker aliases).",
+      "reason": "The web lifts the best bid and ask of a Groww Depth frame into flat fields (bid, bid_price, bid_qty, bid_size, bid_quantity; ask, ask_price, offer_price, ask_qty, ask_size, ask_quantity, offer_quantity), left out when that side is empty: QuoteExtras bid/ask, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1020-1048"
-    },
-    {
-      "key": "subscription_mode",
-      "kind": "open",
-      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
-      "ref": "groww_adapter.py:983-993"
-    },
-    {
-      "key": "topic",
-      "kind": "open",
-      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
-      "ref": "groww_adapter.py:983-993"
     },
     {
       "key": "value",
       "kind": "open",
-      "reason": "The web forwards Groww's traded value (`value`, rupees) in Quote and Depth; the desktop decodes it (brokers/groww/proto.rs StocksLivePrice.value) but the common tick has no field for it. Carrier gap for lane wire.",
+      "reason": "Groww's traded value (`value`, rupees) the web forwards in every mode: BrokerField::TradedValue, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1115-1116, :43 (_LTP_FIELDS)"
     },
     {

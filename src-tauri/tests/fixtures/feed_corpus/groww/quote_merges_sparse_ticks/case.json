@@ -1,6 +1,6 @@
 {
   "broker": "groww",
-  "summary": "A Quote subscription over the NATS price subject: the first full tick, then a tick carrying only what changed keeps the earlier OHLC, and a tick without an LTP keeps the last LTP; the trade quantity, average price, book totals and OI Groww never sends are left out.",
+  "summary": "A Quote subscription over the NATS price subject: the first full tick, then a tick carrying only what changed keeps the earlier OHLC and traded value, and a tick without an LTP keeps the last LTP; the trade quantity, average price, book totals and OI Groww never sends are left out.",
   "scenarios": [
     "first-full-packet",
     "partial-packet",
@@ -35,17 +35,11 @@
   },
   "deviations": [
     {
-      "key": "broker",
-      "kind": "open",
-      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
-      "ref": "groww_adapter.py:983-993"
-    },
-    {
       "key": "ltp",
       "kind": "web-defect",
+      "approved": true,
       "reason": "A Groww tick that leaves the LTP out (it did not change) is normalised by the web with ltp_data.get('ltp', 0), and the 0 replaces the cached LTP: the web publishes ltp 0 for a packet without a trade. The desktop keeps the last LTP (GrowwFeed merge).",
-      "ref": "groww_adapter.py:1099 (mode 2 default 0), :53-62 (update_from_ltp keeps a 0)",
-      "approved": true
+      "ref": "groww_adapter.py:1099 (mode 2 default 0), :53-62 (update_from_ltp keeps a 0)"
     },
     {
       "key": "ltt",
@@ -54,27 +48,9 @@
       "ref": "groww_protobuf.py:184, :220, :288 (_read_fixed64); groww_adapter.py:1098-1101"
     },
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web's Groww adapter puts the subscription mode number in data.mode (1, 2, 3); the desktop sends its label (ltp, quote, full).",
-      "ref": "groww_adapter.py:983-993; feed::source::Mode::data_label"
-    },
-    {
-      "key": "subscription_mode",
-      "kind": "open",
-      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
-      "ref": "groww_adapter.py:983-993"
-    },
-    {
-      "key": "topic",
-      "kind": "open",
-      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
-      "ref": "groww_adapter.py:983-993"
-    },
-    {
       "key": "value",
       "kind": "open",
-      "reason": "The web forwards Groww's traded value (`value`, rupees) in Quote and Depth; the desktop decodes it (brokers/groww/proto.rs StocksLivePrice.value) but the common tick has no field for it. Carrier gap for lane wire.",
+      "reason": "Groww's traded value (`value`, rupees) the web forwards in every mode: BrokerField::TradedValue, filled by the Groww feed in Phase B.",
       "ref": "groww_adapter.py:1115-1116, :43 (_LTP_FIELDS)"
     },
     {

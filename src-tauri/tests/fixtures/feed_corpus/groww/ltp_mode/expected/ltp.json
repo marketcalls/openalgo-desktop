@@ -6,10 +6,13 @@
   "data": {
     "symbol": "SBIN",
     "exchange": "NSE",
-    "mode": "ltp",
     "ltp": 812.5,
     "ltt": 1730790000000,
-    "timestamp": "<receipt_ms>"
+    "timestamp": "<receipt_ms>",
+    "mode": 1,
+    "broker": "groww",
+    "topic": "NSE_SBIN_LTP",
+    "subscription_mode": 1
   },
   "broker": "groww"
 }

@@ -6,7 +6,6 @@
   "data": {
     "symbol": "NIFTY25NOV25FUT",
     "exchange": "NFO",
-    "mode": "quote",
     "ltp": 24412.5,
     "ltt": 1730790000000,
     "timestamp": "<receipt_ms>",
@@ -14,7 +13,11 @@
     "open": 24380.0,
     "high": 24450.0,
     "low": 24350.5,
-    "close": 24390.25
+    "close": 24390.25,
+    "mode": 2,
+    "broker": "groww",
+    "topic": "NFO_NIFTY25NOV25FUT_QUOTE",
+    "subscription_mode": 2
   },
   "broker": "groww"
 }

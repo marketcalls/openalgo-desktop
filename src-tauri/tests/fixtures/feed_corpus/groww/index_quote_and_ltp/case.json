@@ -43,34 +43,10 @@
   },
   "deviations": [
     {
-      "key": "broker",
-      "kind": "open",
-      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
-      "ref": "groww_adapter.py:983-993"
-    },
-    {
       "key": "ltt",
       "kind": "open",
       "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web sends Groww's tsInMillis as the protobuf double it decodes, a float (1730790000000.0); the desktop sends the integer.",
       "ref": "groww_protobuf.py:184, :220, :288 (_read_fixed64); groww_adapter.py:1098-1101"
-    },
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web's Groww adapter puts the subscription mode number in data.mode (1, 2, 3); the desktop sends its label (ltp, quote, full).",
-      "ref": "groww_adapter.py:983-993; feed::source::Mode::data_label"
-    },
-    {
-      "key": "subscription_mode",
-      "kind": "open",
-      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
-      "ref": "groww_adapter.py:983-993"
-    },
-    {
-      "key": "topic",
-      "kind": "open",
-      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
-      "ref": "groww_adapter.py:983-993"
     }
   ]
 }

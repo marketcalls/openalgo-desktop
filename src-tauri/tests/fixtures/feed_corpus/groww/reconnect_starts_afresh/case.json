@@ -35,31 +35,25 @@
   },
   "deviations": [
     {
-      "key": "broker",
-      "kind": "open",
-      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
-      "ref": "groww_adapter.py:983-993"
-    },
-    {
       "key": "close",
       "kind": "web-defect",
+      "approved": true,
       "reason": "The web client reconnects on its own and resubscribes, but the adapter's merge cache is cleared only on a disconnect of the adapter, so the first tick of the new session is published with the old session's close. The desktop starts every connection afresh (GrowwFeed::on_connected; CLAUDE.md: a cached market field belongs to the session that sent it).",
-      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)",
-      "approved": true
+      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)"
     },
     {
       "key": "high",
       "kind": "web-defect",
+      "approved": true,
       "reason": "The web client reconnects on its own and resubscribes, but the adapter's merge cache is cleared only on a disconnect of the adapter, so the first tick of the new session is published with the old session's high. The desktop starts every connection afresh (GrowwFeed::on_connected; CLAUDE.md: a cached market field belongs to the session that sent it).",
-      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)",
-      "approved": true
+      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)"
     },
     {
       "key": "low",
       "kind": "web-defect",
+      "approved": true,
       "reason": "The web client reconnects on its own and resubscribes, but the adapter's merge cache is cleared only on a disconnect of the adapter, so the first tick of the new session is published with the old session's low. The desktop starts every connection afresh (GrowwFeed::on_connected; CLAUDE.md: a cached market field belongs to the session that sent it).",
-      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)",
-      "approved": true
+      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)"
     },
     {
       "key": "ltt",
@@ -68,29 +62,11 @@
       "ref": "groww_protobuf.py:184, :220, :288 (_read_fixed64); groww_adapter.py:1098-1101"
     },
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web's Groww adapter puts the subscription mode number in data.mode (1, 2, 3); the desktop sends its label (ltp, quote, full).",
-      "ref": "groww_adapter.py:983-993; feed::source::Mode::data_label"
-    },
-    {
       "key": "open",
       "kind": "web-defect",
+      "approved": true,
       "reason": "The web client reconnects on its own and resubscribes, but the adapter's merge cache is cleared only on a disconnect of the adapter, so the first tick of the new session is published with the old session's open. The desktop starts every connection afresh (GrowwFeed::on_connected; CLAUDE.md: a cached market field belongs to the session that sent it).",
-      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)",
-      "approved": true
-    },
-    {
-      "key": "subscription_mode",
-      "kind": "open",
-      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
-      "ref": "groww_adapter.py:983-993"
-    },
-    {
-      "key": "topic",
-      "kind": "open",
-      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
-      "ref": "groww_adapter.py:983-993"
+      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)"
     },
     {
       "key": "volume",

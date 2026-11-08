@@ -6,7 +6,6 @@
   "data": {
     "symbol": "SBIN",
     "exchange": "NSE",
-    "mode": "full",
     "ltp": 812.5,
     "ltt": 1730790003000,
     "timestamp": "<receipt_ms>",
@@ -18,7 +17,11 @@
     "depth": {
       "buy": [],
       "sell": []
-    }
+    },
+    "mode": 3,
+    "broker": "groww",
+    "topic": "NSE_SBIN_DEPTH",
+    "subscription_mode": 3
   },
   "broker": "groww"
 }

@@ -6,7 +6,6 @@
   "data": {
     "symbol": "SBIN",
     "exchange": "NSE",
-    "mode": "quote",
     "ltp": 812.9,
     "ltt": 1730790001000,
     "timestamp": "<receipt_ms>",
@@ -14,7 +13,11 @@
     "open": 805.0,
     "high": 815.0,
     "low": 801.0,
-    "close": 803.2
+    "close": 803.2,
+    "mode": 2,
+    "broker": "groww",
+    "topic": "NSE_SBIN_QUOTE",
+    "subscription_mode": 2
   },
   "broker": "groww"
 }
