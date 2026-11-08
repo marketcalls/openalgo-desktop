@@ -978,7 +978,8 @@ fn hsm_snapshot_and_update_frames_parse_with_scaling() {
     );
     assert_eq!(s.last_trade_time_ms, 1_790_992_800_000);
     assert_eq!(s.change, 3.45);
-    assert_eq!(s.mode, 3);
+    // A symbol-feed record is a Quote packet (carrier: the packet's mode).
+    assert_eq!(s.mode, 2);
     let n = &ticks[1];
     assert_eq!(
         (n.symbol.as_str(), n.exchange.as_str()),

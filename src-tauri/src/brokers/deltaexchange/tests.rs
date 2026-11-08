@@ -674,9 +674,11 @@ fn feed_decodes_ticker_and_book_frames_and_merges_them() {
     let FeedEvent::Tick(t) = &ev[0] else {
         panic!("{:?}", ev)
     };
+    // The ticker is a Quote packet whatever the subscription (carrier:
+    // the packet's mode), carrying OI.
     assert_eq!(
         (t.symbol.as_str(), t.exchange.as_str(), t.mode),
-        ("BTCUSDFUT", "CRYPTO", 3)
+        ("BTCUSDFUT", "CRYPTO", 2)
     );
     assert_eq!(
         (t.ltp, t.open, t.high, t.low, t.close, t.oi),
@@ -689,7 +691,7 @@ fn feed_decodes_ticker_and_book_frames_and_merges_them() {
     };
     assert_eq!(
         (t.symbol.as_str(), t.ltp, t.mode, t.close),
-        ("ETHUSDFUT", 2451.2, 1, 2450.0)
+        ("ETHUSDFUT", 2451.2, 2, 2450.0)
     );
     let ev = f.parse(&Message::Text(lines[3].into()));
     let FeedEvent::Depth(d) = &ev[0] else {
@@ -697,9 +699,9 @@ fn feed_decodes_ticker_and_book_frames_and_merges_them() {
     };
     assert_eq!(d.symbol, "BTCUSDFUT");
     assert_eq!(d.ltp, 59876.12);
-    assert_eq!((d.buy.len(), d.sell.len()), (5, 5));
+    // The top five bids and the two asks Delta sent: no padding.
+    assert_eq!((d.buy.len(), d.sell.len()), (5, 2));
     assert_eq!((d.buy[0].price, d.buy[0].quantity), (59875.5, 800));
-    assert_eq!(d.sell[2], DepthLevel::default());
     assert_eq!((d.total_buy_quantity, d.total_sell_quantity), (1775, 1300));
     // A partial ticker keeps the last LTP and OHLC; only OI moves.
     let ev = f.parse(&Message::Text(lines[4].into()));
