@@ -47,6 +47,8 @@ pub const MSG_AUTH_RESPONSE: [u64; 2] = [1117, 1119];
 pub const MSG_SUBSCRIBE_ACK: u64 = 1109;
 /// Subscribed tokens per connection (web `MAX_SUBSCRIPTIONS`).
 pub const MAX_SUBSCRIPTIONS: usize = 3000;
+/// How long the login waits for its answer (web `AUTH_TIMEOUT_SECONDS`).
+const SFEED_LOGIN_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// What a mini touch line does not carry (it has a price, the previous
 /// close, the trade time and quantity): not known until a market picture
@@ -708,6 +710,14 @@ impl BrokerFeed for KotakFeed {
 
     fn awaits_auth_ack(&self) -> bool {
         true
+    }
+
+    /// The web closes a login left unanswered for 15 s and reconnects
+    /// (`sfeed_websocket.py` `_watch_auth`, `AUTH_TIMEOUT_SECONDS`): the
+    /// socket stays open on a rejected login, which looks like a quiet
+    /// market.
+    fn auth_ack_deadline(&self) -> Option<Duration> {
+        Some(SFEED_LOGIN_TIMEOUT)
     }
 
     /// The web pings the feed every 30 s and drops a socket that has not

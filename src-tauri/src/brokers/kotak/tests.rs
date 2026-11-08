@@ -963,6 +963,9 @@ fn text_frames(frames: &[Message]) -> Vec<Value> {
 fn sfeed_handshake_subscribe_and_ticks() {
     let mut f = KotakFeed::new(DEFAULT_SFEED_URL, "sid-1", "<USER_ID>".into(), master());
     assert!(f.awaits_auth_ack());
+    // Web sfeed_websocket.py `AUTH_TIMEOUT_SECONDS`: a login unanswered
+    // for 15 s is closed and made again.
+    assert_eq!(f.auth_ack_deadline(), Some(Duration::from_secs(15)));
     let hello = text_frames(&f.on_connected());
     assert_eq!(hello[0]["user"], "<USER_ID>");
     assert_eq!(hello[0]["auth"], "sid-1");
