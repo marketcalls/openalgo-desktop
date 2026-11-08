@@ -32,12 +32,6 @@
   },
   "deviations": [
     {
-      "key": "exchange_timestamp",
-      "kind": "open",
-      "reason": "The web also sends mStock's exchange timestamp under its own name, in every mode, whenever the packet carries one (mstock_adapter.py:357-358). The desktop's renderer has the name for mStock (feed/dialect/names.rs MSTOCK, QuoteExtras::exchange_time_ms) but MstockFeed does not fill it yet: phase B sets it from the packet's exchange timestamp when it is not 0.",
-      "ref": "audit C06; brokers/common/streaming/fields.rs (mstock: exchange time)"
-    },
-    {
       "key": "upper_circuit",
       "kind": "open",
       "reason": "The web sends the full packet's upper circuit limit in Depth (mstock_adapter.py:425). The desktop decodes it (brokers/mstock/streaming.rs Packet::upper_circuit) and the renderer has the name for mStock (feed/dialect/names.rs CIRCUITS_IN_DEPTH), but MstockFeed does not fill QuoteExtras::upper_circuit yet; on a Quote frame cut from a full packet the web sends it too (the one-dict fan-out, C08), which lane wire's step 2 brings.",

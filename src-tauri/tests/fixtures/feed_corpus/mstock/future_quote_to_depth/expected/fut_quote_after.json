@@ -23,6 +23,7 @@
     "oi": 12500000,
     "last_trade_time": 1791002715000,
     "prev_close": 24395.0,
-    "last_trade_quantity": 75
+    "last_trade_quantity": 75,
+    "exchange_timestamp": 1791002715000
   }
 }

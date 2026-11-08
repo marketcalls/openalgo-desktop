@@ -27,16 +27,11 @@
   },
   "deviations": [
     {
-      "key": "exchange_timestamp",
-      "kind": "open",
-      "reason": "The web also sends mStock's exchange timestamp under its own name, in every mode, whenever the packet carries one (mstock_adapter.py:357-358). The desktop's renderer has the name for mStock (feed/dialect/names.rs MSTOCK, QuoteExtras::exchange_time_ms) but MstockFeed does not fill it yet: phase B sets it from the packet's exchange timestamp when it is not 0.",
-      "ref": "audit C06; brokers/common/streaming/fields.rs (mstock: exchange time)"
-    },
-    {
       "key": "oi",
       "kind": "web-defect",
       "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:369, quote_data.get('oi', 0) over the parser's oi: 0 placeholder, mstockwebsocket.py:211), an invented zero a client reads as a real OI. The desktop leaves oi out until a packet has carried one, and then sends the last OI the instrument's full packet carried on this connection (feed/bridge/snapshot.rs merges by presence), never a 0 it was not sent.",
-      "ref": "decisions 2026-11-09: web zeros for values the stream did not send are left out; web openalgo#2376"
+      "ref": "decisions 2026-11-09: web zeros for values the stream did not send are left out; web openalgo#2376",
+      "approved": true
     },
     {
       "key": "last_quantity",

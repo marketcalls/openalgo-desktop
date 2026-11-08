@@ -20,6 +20,7 @@
     "low": 1485.0,
     "close": 1495.0,
     "prev_close": 1495.0,
-    "last_trade_quantity": 25
+    "last_trade_quantity": 25,
+    "exchange_timestamp": 1730784000000
   }
 }

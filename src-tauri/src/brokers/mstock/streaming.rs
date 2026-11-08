@@ -202,11 +202,16 @@ pub fn parse_frame(data: &[u8]) -> Vec<Packet> {
 /// timestamp is epoch seconds as the SmartAPI layout mStock follows sends
 /// it; one already in milliseconds is kept.
 fn trade_time_ms(q: &Packet) -> Option<i64> {
-    let raw = if q.mode == 3 {
+    epoch_ms(if q.mode == 3 {
         q.last_traded_timestamp
     } else {
         q.exchange_timestamp
-    };
+    })
+}
+
+/// A packet time in epoch ms, or none for 0 (not sent). A time below
+/// 10^12 is epoch seconds and is scaled.
+fn epoch_ms(raw: u64) -> Option<i64> {
     let raw = i64::try_from(raw).ok().filter(|t| *t > 0)?;
     Some(if raw < 1_000_000_000_000 {
         raw * 1000
@@ -335,6 +340,10 @@ impl MstockFeed {
                 },
                 ..Default::default()
             };
+            // The web sends the packet's exchange time as
+            // `exchange_timestamp` in every mode, when it is not 0
+            // (mstock_adapter.py:357-358).
+            t.extras.exchange_time_ms = epoch_ms(q.exchange_timestamp);
             if q.mode >= 2 {
                 t.last_quantity = i64::try_from(q.last_traded_qty).unwrap_or(0);
                 t.average_price = q.avg_price;

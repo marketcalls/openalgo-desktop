@@ -11,6 +11,7 @@
     "ltp": 1500.5,
     "ltt": 1730784000000,
     "timestamp": "<receipt_ms>",
-    "last_trade_time": 1730784000000
+    "last_trade_time": 1730784000000,
+    "exchange_timestamp": 1730784000000
   }
 }

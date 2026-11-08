@@ -79,6 +79,7 @@
     },
     "last_trade_time": 1791002709000,
     "prev_close": 24395.0,
-    "last_trade_quantity": 150
+    "last_trade_quantity": 150,
+    "exchange_timestamp": 1791002710000
   }
 }
