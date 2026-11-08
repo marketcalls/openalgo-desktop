@@ -1,0 +1,1 @@
+{"Type": "order_alert", "Data": {"orderNo": "1125110900001", "exchange": "NSE", "segment": "E", "securityId": "2885", "symbol": "RELIANCE", "txnType": "B", "orderType": "LMT", "product": "C", "quantity": 10, "price": 1300.5, "triggerPrice": 0, "status": "Pending", "tradedQty": 0, "avgTradedPrice": 0, "reasonDescription": ""}}

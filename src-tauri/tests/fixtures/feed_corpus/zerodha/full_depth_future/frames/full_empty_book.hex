@@ -1,0 +1,29 @@
+# The next full packet: no resting orders, so every depth level is zero.
+0001                    # packets in this frame
+00b8                    # packet length 184
+00ca0202                # instrument token 13238786
+002550bc                # last price 2445500 paise
+00000096                # last traded quantity
+00254950                # average traded price 2443600 paise
+0012ebc0                # volume
+00000000                # total buy quantity
+00000000                # total sell quantity
+00253b40                # open
+00256a20                # high
+00252bd2                # low
+00253370                # close (previous day)
+6af2e328                # last trade time, epoch s
+00cd6239                # open interest
+00cdfe60                # OI day high
+00cc77c0                # OI day low
+6af2e329                # exchange timestamp, epoch s
+000000000000000000000000# bid 1: qty 0, price 0, orders 0, pad
+000000000000000000000000# bid 2: qty 0, price 0, orders 0, pad
+000000000000000000000000# bid 3: qty 0, price 0, orders 0, pad
+000000000000000000000000# bid 4: qty 0, price 0, orders 0, pad
+000000000000000000000000# bid 5: qty 0, price 0, orders 0, pad
+000000000000000000000000# ask 1: qty 0, price 0, orders 0, pad
+000000000000000000000000# ask 2: qty 0, price 0, orders 0, pad
+000000000000000000000000# ask 3: qty 0, price 0, orders 0, pad
+000000000000000000000000# ask 4: qty 0, price 0, orders 0, pad
+000000000000000000000000# ask 5: qty 0, price 0, orders 0, pad

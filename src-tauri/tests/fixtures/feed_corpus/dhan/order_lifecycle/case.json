@@ -1,0 +1,33 @@
+{
+  "broker": "dhan",
+  "summary": "The order-update socket: the login frame on connect, then an order open, partly filled and complete, one rejected with its reason, one cancelled, each as an order_update frame with OpenAlgo's constants.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE_EQ"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "by-hand",
+    "sources": [
+      "broker/dhan/streaming/dhan_order_adapter.py::DhanOrderUpdateAdapter.normalize",
+      "broker/dhan/streaming/dhan_order_adapter.py::DhanOrderUpdateAdapter.on_open_extra",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": [
+      "Worked by hand from dhan_order_adapter.py:107-162 (status, product, pricetype and action maps; symbol by security id) and the 18 keys wsproxy_subscriber.py:33-52 sends.",
+      "Live order frames are camelCase (dhan_order_adapter.py:66)."
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+# SmartStream binary tick, SNAP_QUOTE mode (379 bytes); values from web test/test_angel_quote_feed.py.
+03                      # subscription mode 3
+01                      # exchange type 1 (nse_cm)
+32383835000000000000000000000000000000000000000000# token, NUL padded to 25 bytes
+0100000000000000        # sequence number
+9067ea8f96010000        # exchange timestamp, epoch ms
+f549020000000000        # last traded price 150005 paise
+1900000000000000        # last traded quantity
+7449020000000000        # average traded price 149876 paise
+40e2010000000000        # volume
+0000000000408f40        # total buy quantity (double)
+0000000000409f40        # total sell quantity (double)
+0846020000000000        # open
+d84d020000000000        # high
+1444020000000000        # low
+4045020000000000        # close (previous day)
+a863ea8f96010000        # last traded timestamp, epoch ms
+8813000000000000        # open interest
+0000000000000000        # OI change percent
+01006400000000000000f0490200000000000300# best five 1: flag 1 (buy), qty 100, price 150000, orders 3
+01006500000000000000eb490200000000000400# best five 2: flag 1 (buy), qty 101, price 149995, orders 4
+01006600000000000000e6490200000000000500# best five 3: flag 1 (buy), qty 102, price 149990, orders 5
+01006700000000000000e1490200000000000600# best five 4: flag 1 (buy), qty 103, price 149985, orders 6
+01006800000000000000dc490200000000000700# best five 5: flag 1 (buy), qty 104, price 149980, orders 7
+0000c800000000000000fa490200000000000400# best five 6: flag 0 (sell), qty 200, price 150010, orders 4
+0000c900000000000000ff490200000000000500# best five 7: flag 0 (sell), qty 201, price 150015, orders 5
+0000ca00000000000000044a0200000000000600# best five 8: flag 0 (sell), qty 202, price 150020, orders 6
+0000cb00000000000000094a0200000000000700# best five 9: flag 0 (sell), qty 203, price 150025, orders 7
+0000cc000000000000000e4a0200000000000800# best five 10: flag 0 (sell), qty 204, price 150030, orders 8
+b09b040000000000        # upper circuit
+0a22010000000000        # lower circuit
+0000000000000000        # 52-week high
+0000000000000000        # 52-week low

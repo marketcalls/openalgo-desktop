@@ -1,0 +1,4 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"a": "subscribe", "v": [256265]}}, {"json": {"a": "mode", "v": ["full", [256265]]}}]}
+{"step": "push", "frame": "frames/index_full.hex"}
+{"step": "receive", "client": "a", "frame": "expected/index_full.json"}

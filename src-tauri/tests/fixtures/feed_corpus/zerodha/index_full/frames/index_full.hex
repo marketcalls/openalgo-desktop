@@ -1,0 +1,11 @@
+# Kite binary frame: one 32-byte index full packet, values from web test/test_zerodha_index_packets.py.
+0001                    # packets in this frame
+0020                    # packet length 32
+0003e909                # instrument token 256265 (NIFTY 50)
+0025625a                # last price 24500.10
+00258960                # high 24600.00
+00253b40                # low 24400.00
+00254ec8                # open 24450.00
+00251430                # close (previous day) 24300.00
+00004e2a                # change 200.10
+69086100                # exchange timestamp, epoch s

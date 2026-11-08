@@ -1,0 +1,8 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"a": "subscribe", "v": [408065]}}, {"json": {"a": "mode", "v": ["quote", [408065]]}}]}
+{"step": "push", "frame": "frames/quote.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"a": "unsubscribe", "v": [408065]}}]}
+{"step": "push", "frame": "frames/quote.hex", "note": "A packet Kite sent before it took the unsubscribe."}
+{"step": "silence", "client": "a"}

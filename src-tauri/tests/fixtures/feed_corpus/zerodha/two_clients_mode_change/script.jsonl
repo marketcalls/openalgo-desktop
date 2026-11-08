@@ -1,0 +1,14 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 1}}
+{"step": "upstream_receives", "frames": [{"json": {"a": "subscribe", "v": [408065]}}, {"json": {"a": "mode", "v": ["ltp", [408065]]}}]}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"a": "mode", "v": ["quote", [408065]]}}]}
+{"step": "push", "frame": "frames/quote.hex"}
+{"step": "receive", "client": "a", "frame": "expected/ltp_from_quote.json"}
+{"step": "receive", "client": "b", "frame": "expected/quote.json"}
+{"step": "send", "client": "b", "message": {"action": "unsubscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"a": "mode", "v": ["ltp", [408065]]}}]}
+{"step": "push", "frame": "frames/ltp.hex"}
+{"step": "receive", "client": "a", "frame": "expected/ltp.json"}
+{"step": "silence", "client": "b"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 1}}
+{"step": "upstream_receives", "frames": [{"json": {"a": "unsubscribe", "v": [408065]}}]}

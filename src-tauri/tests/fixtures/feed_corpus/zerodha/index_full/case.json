@@ -1,0 +1,49 @@
+{
+  "broker": "zerodha",
+  "summary": "A Depth subscription on NIFTY: the 32-byte full index packet adds the exchange time, which becomes ltt; an index has no book, so the frame has none.",
+  "scenarios": [
+    "index",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "256265",
+      "brsymbol": "NIFTY 50",
+      "brexchange": "NSE",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-test",
+    "sources": [
+      "broker/zerodha/streaming/zerodha_websocket.py::ZerodhaWebSocket._parse_packet",
+      "broker/zerodha/streaming/zerodha_adapter.py::ZerodhaWebSocketAdapter._transform_index_tick",
+      "test/test_zerodha_index_packets.py",
+      "test/test_zerodha_index_packets.py::test_index_full_packet_adds_exchange_timestamp"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "price_change_percent",
+      "kind": "web-defect",
+      "reason": "Kite's index packet carries the change but not the percent; the web sends 0 (zerodha_adapter.py:626, tick.get('price_change_percent', 0)), the desktop works it out from the change and the previous close (200.10 / 24300 = 0.82%).",
+      "ref": "zerodha_adapter.py:626"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends the exchange time in epoch seconds as ltt (zerodha_adapter.py:620); feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends it.",
+      "ref": "zerodha_adapter.py:620"
+    },
+    {
+      "key": "exchange_timestamp",
+      "kind": "open",
+      "reason": "The web also sends Kite's exchange time under its own name (epoch seconds) for an index full packet; the desktop's common carrier has no such field.",
+      "ref": "audit C06; zerodha_adapter.py:652"
+    }
+  ]
+}

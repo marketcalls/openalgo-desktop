@@ -1,0 +1,15 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 17, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}]}
+{"step": "push", "frame": "frames/prev_close.hex"}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/quote.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "drop_upstream"}
+{"step": "upstream_connected", "connection": 2, "path": "/?version=2&token=t&clientId=c&authType=2"}
+{"step": "upstream_receives", "frames": [{"json": {"RequestCode": 17, "InstrumentCount": 1, "InstrumentList": [{"ExchangeSegment": "NSE_EQ", "SecurityId": "2885"}]}}], "connection": 2}
+{"step": "push", "frame": "frames/quote.hex", "note": "The first packet on the new connection, before the previous close."}
+{"step": "receive", "client": "a", "frame": "expected/quote_no_close.json"}
+{"step": "push", "frame": "frames/prev_close.hex"}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/quote.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}

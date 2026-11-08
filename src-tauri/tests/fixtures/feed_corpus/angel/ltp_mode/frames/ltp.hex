@@ -1,0 +1,7 @@
+# SmartStream binary tick, LTP mode (51 bytes), RELIANCE (token 2885) on nse_cm.
+01                      # subscription mode 1
+01                      # exchange type 1 (nse_cm)
+32383835000000000000000000000000000000000000000000# token, NUL padded to 25 bytes
+0100000000000000        # sequence number
+9067ea8f96010000        # exchange timestamp, epoch ms
+f549020000000000        # last traded price 150005 paise

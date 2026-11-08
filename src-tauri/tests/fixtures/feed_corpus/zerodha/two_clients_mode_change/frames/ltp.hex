@@ -1,0 +1,5 @@
+# Kite binary frame: one 8-byte LTP packet for INFY.
+0001                    # packets in this frame
+0008                    # packet length 8
+00063a01                # instrument token 408065
+00024a22                # last price 150050 paise

@@ -1,0 +1,14 @@
+# The first quote packet on the new connection.
+0001                    # packets in this frame
+002c                    # packet length 44
+00063a01                # instrument token 408065
+00024aea                # last price 150250 paise
+00000014                # last traded quantity
+000249d7                # average traded price 149975 paise
+00001d4c                # volume
+00000003                # total buy quantity
+00000004                # total sell quantity
+00024608                # open
+00024dd8                # high
+00024220                # low
+000247fc                # close (previous day)

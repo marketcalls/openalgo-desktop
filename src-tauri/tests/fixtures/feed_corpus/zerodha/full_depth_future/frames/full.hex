@@ -1,0 +1,29 @@
+# Kite binary frame: one 184-byte full packet for NIFTY24NOV26FUT (token 13238786, NFO).
+0001                    # packets in this frame
+00b8                    # packet length 184
+00ca0202                # instrument token 13238786
+00254ee6                # last price 2445030 paise
+0000004b                # last traded quantity
+002548fb                # average traded price 2443515 paise
+0012d644                # volume
+0006f540                # total buy quantity
+000613aa                # total sell quantity
+00253b40                # open
+00256a20                # high
+00252bd2                # low
+00253370                # close (previous day)
+6af2e2ec                # last trade time, epoch s
+00cd5555                # open interest
+00cdfe60                # OI day high
+00cc77c0                # OI day low
+6af2e2ed                # exchange timestamp, epoch s
+0000009600254ec800030000# bid 1: qty 150, price 2445000, orders 3, pad
+0000012c00254e9600050000# bid 2: qty 300, price 2444950, orders 5, pad
+000001c200254e6400060000# bid 3: qty 450, price 2444900, orders 6, pad
+0000025800254e3200080000# bid 4: qty 600, price 2444850, orders 8, pad
+000002ee00254e0000090000# bid 5: qty 750, price 2444800, orders 9, pad
+0000004b00254efa00010000# ask 1: qty 75, price 2445050, orders 1, pad
+000000e100254f2c00020000# ask 2: qty 225, price 2445100, orders 2, pad
+0000017700254f5e00040000# ask 3: qty 375, price 2445150, orders 4, pad
+0000020d00254f9000050000# ask 4: qty 525, price 2445200, orders 5, pad
+000002a300254fc200070000# ask 5: qty 675, price 2445250, orders 7, pad

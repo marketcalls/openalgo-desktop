@@ -1,0 +1,82 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY24NOV26FUT",
+  "exchange": "NFO",
+  "mode": 3,
+  "broker": "zerodha",
+  "data": {
+    "symbol": "NIFTY24NOV26FUT",
+    "exchange": "NFO",
+    "mode": "full",
+    "ltp": 24455.0,
+    "ltt": 1794302760000,
+    "timestamp": "<receipt_ms>",
+    "volume": 1240000,
+    "last_quantity": 150,
+    "average_price": 24436.0,
+    "total_buy_quantity": 0,
+    "total_sell_quantity": 0,
+    "open": 24400.0,
+    "high": 24520.0,
+    "low": 24360.5,
+    "close": 24380.0,
+    "oi": 13460025,
+    "open_interest": 13460025,
+    "depth": {
+      "buy": [
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        }
+      ],
+      "sell": [
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        },
+        {
+          "price": 0.0,
+          "quantity": 0,
+          "orders": 0
+        }
+      ]
+    }
+  }
+}

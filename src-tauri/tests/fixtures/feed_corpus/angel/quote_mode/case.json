@@ -1,0 +1,50 @@
+{
+  "broker": "angel",
+  "summary": "A Quote subscription: SmartStream's 123-byte quote packet gives every quote field, last_quantity also under Angel's last_trade_quantity.",
+  "scenarios": [
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "ping"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-test",
+    "sources": [
+      "broker/angel/streaming/smartWebSocketV2.py::SmartWebSocketV2._parse_binary_data",
+      "broker/angel/streaming/angel_adapter.py::AngelWebSocketAdapter._on_data",
+      "broker/angel/streaming/angel_adapter.py::AngelWebSocketAdapter._normalize_market_data",
+      "test/test_angel_quote_feed.py::test_quote_publishes_last_quantity_next_to_last_trade_quantity"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "Angel sends the book totals as doubles; the web passes the double on (1000.0), the desktop sends the whole quantity (1000), as every other broker's totals and the docs' integer quantities are.",
+      "ref": "smartWebSocketV2.py:_parse_binary_data ('<d' at bytes 75 and 83)"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "Angel sends the book totals as doubles; the web passes the double on (1000.0), the desktop sends the whole quantity (1000), as every other broker's totals and the docs' integer quantities are.",
+      "ref": "smartWebSocketV2.py:_parse_binary_data ('<d' at bytes 75 and 83)"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"a": "subscribe", "v": [13238786]}}, {"json": {"a": "mode", "v": ["full", [13238786]]}}]}
+{"step": "push", "frame": "frames/full.hex"}
+{"step": "receive", "client": "a", "frame": "expected/full.json", "note": "A Depth-only subscriber gets the book frame; the tick serves Quote and LTP holders, of which there are none."}
+{"step": "push", "frame": "frames/full_empty_book.hex"}
+{"step": "receive", "client": "a", "frame": "expected/full_empty_book.json"}

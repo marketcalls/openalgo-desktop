@@ -1,0 +1,29 @@
+{
+  "broker": "zerodha",
+  "summary": "An LTP subscription: Kite's 8-byte LTP packet becomes an LTP frame.",
+  "scenarios": [
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "408065",
+      "brsymbol": "INFY",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "by-hand",
+    "sources": [
+      "broker/zerodha/streaming/zerodha_websocket.py::ZerodhaWebSocket._parse_packet",
+      "broker/zerodha/streaming/zerodha_adapter.py::ZerodhaWebSocketAdapter._handle_ticks",
+      "broker/zerodha/streaming/zerodha_adapter.py::ZerodhaWebSocketAdapter._transform_regular_tick"
+    ],
+    "notes": [
+      "Worked by hand from zerodha_websocket.py:720 (an 8-byte packet is LTP mode) and zerodha_adapter.py:669 (_transform_regular_tick, mode ltp).",
+      "The packet carries no trade time: ltt is the receive time on both sides."
+    ]
+  }
+}

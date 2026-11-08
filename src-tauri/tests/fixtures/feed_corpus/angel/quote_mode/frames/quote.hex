@@ -1,0 +1,16 @@
+# SmartStream binary tick, QUOTE mode (123 bytes); values from web test/test_angel_quote_feed.py.
+02                      # subscription mode 2
+01                      # exchange type 1 (nse_cm)
+32383835000000000000000000000000000000000000000000# token, NUL padded to 25 bytes
+0100000000000000        # sequence number
+9067ea8f96010000        # exchange timestamp, epoch ms
+f549020000000000        # last traded price 150005 paise
+1900000000000000        # last traded quantity
+7449020000000000        # average traded price 149876 paise
+40e2010000000000        # volume
+0000000000408f40        # total buy quantity (double)
+0000000000409f40        # total sell quantity (double)
+0846020000000000        # open
+d84d020000000000        # high
+1444020000000000        # low
+4045020000000000        # close (previous day)

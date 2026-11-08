@@ -1,0 +1,29 @@
+{
+  "broker": "zerodha",
+  "summary": "Kite drops the socket: the manager connects again, sends the subscription again on the new connection, and the next packet streams as before.",
+  "scenarios": [
+    "reconnect"
+  ],
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "408065",
+      "brsymbol": "INFY",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-test",
+    "sources": [
+      "broker/zerodha/streaming/zerodha_websocket.py::ZerodhaWebSocket._parse_packet",
+      "broker/zerodha/streaming/zerodha_adapter.py::ZerodhaWebSocketAdapter._handle_ticks",
+      "broker/zerodha/streaming/zerodha_adapter.py::ZerodhaWebSocketAdapter._transform_regular_tick",
+      "test/test_zerodha_index_packets.py::test_regular_quote_packet_still_uses_quote_layout"
+    ],
+    "notes": [
+      "A Kite quote packet is a full snapshot, so nothing from before the drop is merged into the packet after it."
+    ]
+  }
+}

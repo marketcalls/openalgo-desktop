@@ -1,0 +1,55 @@
+{
+  "broker": "zerodha",
+  "summary": "A Depth subscription on an NFO future: the 184-byte full packet gives a Depth frame with the trade time, OI and the five-level book; a later packet with an empty book clears every level.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "derivative-oi",
+    "book-clear"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "13238786",
+      "brsymbol": "NIFTY26NOVFUT",
+      "brexchange": "NFO",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "by-hand",
+    "sources": [
+      "broker/zerodha/streaming/zerodha_websocket.py::ZerodhaWebSocket._parse_packet",
+      "broker/zerodha/streaming/zerodha_adapter.py::ZerodhaWebSocketAdapter._handle_ticks",
+      "broker/zerodha/streaming/zerodha_adapter.py::ZerodhaWebSocketAdapter._transform_regular_tick"
+    ],
+    "notes": [
+      "Worked by hand from the Kite full packet layout (zerodha-api-docs/10-websocket.md: last trade time at byte 44, OI at 48, exchange timestamp at 60, depth from 64), which the desktop decoder follows (brokers/zerodha/streaming.rs parse_packet).",
+      "Kite sends an empty book as five zero levels per side; the web and the desktop pass them on as they come."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web reads the exchange timestamp (byte 60) as ltt and sends it in epoch seconds; the packet's last trade time is at byte 44, and feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
+      "ref": "audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md, 'Zerodha Rust corrects existing web parser defects'; zerodha_websocket.py:826"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "The web reads OI from byte 180, inside the last ask level, so it sends that level's order count and padding as OI; OI is at byte 48.",
+      "ref": "audit WEBSOCKET_AUDIT_PRIMARY_BROKERS.md; zerodha_websocket.py:827"
+    },
+    {
+      "key": "open_interest",
+      "kind": "web-defect",
+      "reason": "As oi: the web's value comes from byte 180.",
+      "ref": "zerodha_websocket.py:829"
+    }
+  ]
+}

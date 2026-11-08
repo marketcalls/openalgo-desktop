@@ -212,6 +212,7 @@ mod feed_behaviour;
 mod feed_bridge;
 mod feed_budget;
 mod feed_conformance;
+mod feed_corpus;
 mod feed_hygiene;
 mod feed_noren_outage;
 mod feed_soak;
