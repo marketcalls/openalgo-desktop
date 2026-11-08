@@ -12,8 +12,8 @@ use super::{Apply, Command, FeedConfig, FeedStatus};
 use crate::brokers::common::ratelimit::backoff_delay;
 use crate::brokers::common::redact::{url_safe_error, ws_error_kind};
 use crate::brokers::common::streaming::{
-    normalize_request, BrokerFeed, FeedEvent, FeedSubscription, MarketEvent, Message, PrepareError,
-    ReleaseAnswer,
+    normalize_request, BrokerFeed, Ended, FeedEvent, FeedSubscription, MarketEvent, Message,
+    PrepareError, Reconnect, ReleaseAnswer, StopKind,
 };
 use futures_util::{SinkExt, StreamExt};
 use parking_lot::Mutex;
@@ -29,7 +29,13 @@ pub(super) enum SessionEnd {
     /// The connection ended (or was not made) for this cause; the manager
     /// connects again after a backoff.
     Dropped(DropCause),
+    /// Dropped, and the broker said how long to wait before the next
+    /// connection (`Reconnect::After`, audit P-12).
+    DroppedFor(DropCause, Duration),
     AuthFailed(String),
+    /// The broker ended the feed until the next sign-in for a reason other
+    /// than the login (`Reconnect::Stop`), with the trader's message.
+    Halted(StopKind, String),
 }
 
 /// The broker's own answers to waited releases: each release's instruments
@@ -40,6 +46,13 @@ type Later = Vec<(Vec<FeedSubscription>, ReleaseAnswer)>;
 type Sent = std::result::Result<(), SessionEnd>;
 
 const CONNECT_FAILED: SessionEnd = SessionEnd::Dropped(DropCause::ConnectFailed);
+
+/// A socket that ended without a close frame (a read error, the stream's
+/// end): no code, no reason.
+const CLOSED_UNHEARD: Ended<'static> = Ended::Closed {
+    code: None,
+    reason: "",
+};
 
 /// What a login acknowledgement that did not come in time means.
 #[derive(Debug, Clone, Copy)]
@@ -76,7 +89,7 @@ impl Supervisor {
             });
             let started = Instant::now();
             let end = self.connect_once(&broker).await;
-            match end {
+            let asked = match end {
                 SessionEnd::Stopped => {
                     self.status.send_replace(FeedStatus::Disconnected);
                     return;
@@ -87,21 +100,32 @@ impl Supervisor {
                         broker: broker.clone(),
                         message,
                     });
-                    // Do not hammer the broker with a dead token; wait for
-                    // a stop (logout) or a new `connect`.
-                    while let Some(cmd) = self.cmd.recv().await {
-                        if matches!(cmd, Command::Stop) {
-                            break;
-                        }
-                    }
-                    return;
+                    return self.hold().await;
                 }
-                SessionEnd::Dropped(cause) => self.stats.dropped(cause),
-            }
+                SessionEnd::Halted(kind, message) => {
+                    tracing::warn!(broker = %broker, ?kind, "The broker ended the market data feed");
+                    self.status.send_replace(FeedStatus::Halted {
+                        broker: broker.clone(),
+                        kind,
+                        message,
+                    });
+                    return self.hold().await;
+                }
+                SessionEnd::Dropped(cause) => {
+                    self.stats.dropped(cause);
+                    None
+                }
+                SessionEnd::DroppedFor(cause, wait) => {
+                    self.stats.dropped(cause);
+                    Some(wait)
+                }
+            };
             if started.elapsed() >= self.config.stable_after {
                 attempt = 0;
             }
-            let delay = backoff_delay(attempt, self.config.backoff_base, self.config.backoff_max);
+            let delay = asked.unwrap_or_else(|| {
+                backoff_delay(attempt, self.config.backoff_base, self.config.backoff_max)
+            });
             attempt = attempt.saturating_add(1);
             self.status.send_replace(FeedStatus::Reconnecting {
                 broker: broker.clone(),
@@ -127,6 +151,31 @@ impl Supervisor {
                     }
                 }
             }
+        }
+    }
+
+    /// The broker will not take this session again: connect no more until
+    /// a stop (a logout, or the next sign-in replacing this connection),
+    /// so a dead token or a full connection limit is not hammered.
+    async fn hold(&mut self) {
+        while let Some(cmd) = self.cmd.recv().await {
+            if matches!(cmd, Command::Stop) {
+                break;
+            }
+        }
+    }
+
+    /// How the session ends once the feed has judged how its socket ended
+    /// (audit P-12): `cause` when it asks for the usual backoff.
+    fn judged(&mut self, cause: DropCause, ended: Ended<'_>) -> SessionEnd {
+        match self.feed.on_ended(ended) {
+            Reconnect::Backoff => SessionEnd::Dropped(cause),
+            Reconnect::After(wait) => SessionEnd::DroppedFor(cause, wait),
+            Reconnect::Stop {
+                kind: StopKind::Auth,
+                message,
+            } => SessionEnd::AuthFailed(message),
+            Reconnect::Stop { kind, message } => SessionEnd::Halted(kind, message),
         }
     }
 
@@ -176,7 +225,7 @@ impl Supervisor {
                             .into(),
                     );
                 }
-                return CONNECT_FAILED;
+                return self.judged(DropCause::ConnectFailed, Ended::Refused(code));
             }
             Ok(Err(e)) => {
                 tracing::debug!(
@@ -256,8 +305,11 @@ impl Supervisor {
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
     {
-        if let Message::Close(_) = msg {
-            return Err(SessionEnd::Dropped(DropCause::Closed));
+        if let Message::Close(frame) = &msg {
+            let (code, reason) = frame
+                .as_ref()
+                .map_or((None, ""), |f| (Some(u16::from(f.code)), &*f.reason));
+            return Err(self.judged(DropCause::Closed, Ended::Closed { code, reason }));
         }
         for ev in self.feed.parse(&msg) {
             match ev {
@@ -359,9 +411,9 @@ impl Supervisor {
                         Some(Ok(m)) => m,
                         Some(Err(e)) => {
                             tracing::debug!(broker, kind = ws_error_kind(&e), "Market data feed read error");
-                            return SessionEnd::Dropped(DropCause::Closed);
+                            return self.judged(DropCause::Closed, CLOSED_UNHEARD);
                         }
-                        None => return SessionEnd::Dropped(DropCause::Closed),
+                        None => return self.judged(DropCause::Closed, CLOSED_UNHEARD),
                     };
                     last_rx = Instant::now();
                     heartbeat.heard();

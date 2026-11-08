@@ -24,7 +24,7 @@
 //! any more is stopped. The command channels are bounded; the event channel
 //! is a bounded broadcast whose slow receivers see `Lagged` and skip ahead.
 
-use crate::brokers::common::streaming::{BrokerFeed, FeedSubscription, MarketEvent};
+use crate::brokers::common::streaming::{BrokerFeed, FeedSubscription, MarketEvent, StopKind};
 use crate::error::{AppError, Result};
 use parking_lot::Mutex;
 use serde::Serialize;
@@ -112,6 +112,27 @@ pub enum FeedStatus {
         broker: String,
         message: String,
     },
+    /// The broker ended the feed for a reason other than the login (too
+    /// many connections on one login, audit P-12): it stays down until the
+    /// next sign-in, and the message says what to do.
+    Halted {
+        broker: String,
+        kind: StopKind,
+        message: String,
+    },
+}
+
+impl FeedStatus {
+    /// Why this connection streams nothing until the next sign-in: the
+    /// broker refused the login or ended the feed.
+    pub(crate) fn refusal(&self) -> Option<&str> {
+        match self {
+            FeedStatus::AuthFailed { message, .. } | FeedStatus::Halted { message, .. } => {
+                Some(message)
+            }
+            _ => None,
+        }
+    }
 }
 
 /// A change for the socket.
@@ -477,5 +498,7 @@ mod deadline_tests;
 mod pool_tests;
 #[cfg(test)]
 mod release_tests;
+#[cfg(test)]
+mod session_tests;
 #[cfg(test)]
 mod tests;

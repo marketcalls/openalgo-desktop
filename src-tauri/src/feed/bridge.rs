@@ -37,7 +37,7 @@ use crate::brokers::common::streaming::{
     FeedEvent, FeedMode, FeedSubscription, MarketEvent, QuoteField,
 };
 use crate::brokers::common::symbols::SymbolResolver;
-use crate::websocket::{FeedStatus, Reader, WebSocketManager};
+use crate::websocket::{Reader, WebSocketManager};
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -528,8 +528,8 @@ impl MarketDataSource for BrokerBridge {
     /// which closes every authenticated feed client anyway), or this
     /// session's feed has none or did not start.
     fn unavailable(&self) -> Option<String> {
-        if let FeedStatus::AuthFailed { message, .. } = self.manager.status() {
-            return Some(message);
+        if let Some(message) = self.manager.status().refusal() {
+            return Some(message.to_string());
         }
         self.unavailable.lock().map(String::from)
     }

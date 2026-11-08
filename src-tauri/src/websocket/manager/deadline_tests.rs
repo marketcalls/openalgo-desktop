@@ -15,13 +15,13 @@ use tokio_tungstenite::tungstenite::Error as WsError;
 /// Takes `take` frames, then never takes another: `poll_ready` stays
 /// pending, as a send does once a peer stops reading and the socket
 /// buffer is full.
-struct StuckSink {
-    sent: Arc<Mutex<Vec<(Duration, String)>>>,
-    take: usize,
-    start: Instant,
+pub(super) struct StuckSink {
+    pub(super) sent: Arc<Mutex<Vec<(Duration, String)>>>,
+    pub(super) take: usize,
+    pub(super) start: Instant,
     /// The broker's side of the socket, when it answers a ping with a
     /// pong as WebSocket servers do.
-    pongs: Option<mpsc::Sender<Message>>,
+    pub(super) pongs: Option<mpsc::Sender<Message>>,
 }
 
 impl futures_util::Sink<Message> for StuckSink {
@@ -85,10 +85,10 @@ fn broker_frames() -> (mpsc::Sender<Message>, Frames) {
 /// A feed that logs in with `LOGIN`, heartbeats with `HB` every 5 s and
 /// answers `PING` with `PONG`. `HB` from the broker is a heartbeat and
 /// `OK` its login acknowledgement.
-struct ScriptedFeed {
-    awaits_ack: bool,
-    optional_ack: Option<Duration>,
-    reply_within: Option<Duration>,
+pub(super) struct ScriptedFeed {
+    pub(super) awaits_ack: bool,
+    pub(super) optional_ack: Option<Duration>,
+    pub(super) reply_within: Option<Duration>,
 }
 
 impl BrokerFeed for ScriptedFeed {
@@ -134,7 +134,7 @@ impl BrokerFeed for ScriptedFeed {
 
 /// A supervisor for `feed` holding one subscription, and the sender of
 /// its commands.
-fn supervisor(feed: Box<dyn BrokerFeed>) -> (Supervisor, mpsc::Sender<Command>) {
+pub(super) fn supervisor(feed: Box<dyn BrokerFeed>) -> (Supervisor, mpsc::Sender<Command>) {
     let (cmd_tx, cmd) = mpsc::channel(4);
     let sub = FeedSubscription {
         symbol: "SBIN".into(),
@@ -239,6 +239,8 @@ async fn run_on(
         SessionEnd::Stopped => "stopped",
         SessionEnd::Dropped(cause) => cause.name(),
         SessionEnd::AuthFailed(_) => "auth_failed",
+        SessionEnd::DroppedFor(..) => "dropped_for",
+        SessionEnd::Halted(..) => "halted",
     });
     let sent = sent.lock().clone();
     Run {

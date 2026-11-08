@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::handshake::server::{ErrorResponse, Request, Response};
 
-fn fast() -> FeedConfig {
+pub(super) fn fast() -> FeedConfig {
     FeedConfig {
         backoff_base: Duration::from_millis(5),
         backoff_max: Duration::from_millis(20),
@@ -83,7 +83,7 @@ async fn server(
     (url, seen, task)
 }
 
-async fn wait_for(mut f: impl FnMut() -> bool) {
+pub(super) async fn wait_for(mut f: impl FnMut() -> bool) {
     for _ in 0..400 {
         if f() {
             return;

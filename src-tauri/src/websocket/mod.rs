@@ -10,7 +10,7 @@ mod manager;
 
 pub use crate::brokers::common::streaming::{
     BrokerFeed, FeedEvent, FeedMode, FeedSubscription, MarketEvent, NormalizedDepth,
-    NormalizedTick, OrderUpdate,
+    NormalizedTick, OrderUpdate, StopKind,
 };
 pub use manager::{
     Connection, DropCause, FeedConfig, FeedFactory, FeedStats, FeedStatus, LastDrop, PoolLimits,

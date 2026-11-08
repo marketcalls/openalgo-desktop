@@ -331,6 +331,43 @@ pub type ReleaseRefusals = Vec<(FeedSubscription, String)>;
 /// answer (`BrokerFeed::release_frames`).
 pub type ReleaseAnswer = tokio::sync::oneshot::Receiver<ReleaseRefusals>;
 
+/// How a broker socket ended, for `BrokerFeed::on_ended` (audit P-12).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ended<'a> {
+    /// The connection closed: the broker's close code and reason, the code
+    /// `None` on a read error or the end of the stream.
+    Closed { code: Option<u16>, reason: &'a str },
+    /// The broker refused the WebSocket upgrade with this HTTP status, one
+    /// `BrokerFeed::is_auth_failure` does not claim.
+    Refused(u16),
+}
+
+/// What the manager does after a socket ended (`BrokerFeed::on_ended`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Reconnect {
+    /// Connect again after the manager's capped backoff.
+    Backoff,
+    /// Connect again after this long, as the broker asks.
+    After(Duration),
+    /// Do not connect again until the next broker sign-in; the message is
+    /// the trader's, and the kind says what the status and Health tell
+    /// them ("log in again" only for `StopKind::Auth`).
+    Stop { kind: StopKind, message: String },
+}
+
+/// Why a broker ended its feed for good (`Reconnect::Stop`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StopKind {
+    /// The login is no longer valid: the trader logs in again.
+    Auth,
+    /// Too many connections on one login (another app or session holds
+    /// them): the trader closes the others.
+    ConnectionLimit,
+    /// Any other reason the broker gave.
+    Other,
+}
+
 /// The per-broker streaming adapter.
 #[async_trait]
 pub trait BrokerFeed: Send + Sync {
@@ -454,6 +491,15 @@ pub trait BrokerFeed: Send + Sync {
     /// (stop reconnecting until the trader logs in again).
     fn is_auth_failure(&self, http_status: Option<u16>) -> bool {
         matches!(http_status, Some(401) | Some(403))
+    }
+
+    /// The socket ended (a close frame, a read error, or an upgrade refused
+    /// with a status `is_auth_failure` does not claim): what the manager
+    /// does next. A broker whose close codes mean something (Sahi's 4429
+    /// for too many connections on one token) answers by them; the
+    /// default is the capped backoff (audit P-12).
+    fn on_ended(&mut self, _ended: Ended<'_>) -> Reconnect {
+        Reconnect::Backoff
     }
 }
 

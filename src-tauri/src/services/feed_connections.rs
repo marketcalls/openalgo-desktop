@@ -9,7 +9,7 @@
 //! A trader who sees prices lag reads here whether the broker's feed keeps
 //! dropping or going quiet (the web has no such view; its feeds log it).
 
-use crate::websocket::{Connection, FeedStatus, WebSocketManager};
+use crate::websocket::{Connection, FeedStatus, StopKind, WebSocketManager};
 use serde_json::{json, Value};
 
 /// A feed state as health names it.
@@ -20,6 +20,11 @@ pub(crate) fn state(status: &FeedStatus) -> &'static str {
         FeedStatus::Connected { .. } => "connected",
         FeedStatus::Reconnecting { .. } => "reconnecting",
         FeedStatus::AuthFailed { .. } => "auth_failed",
+        FeedStatus::Halted {
+            kind: StopKind::ConnectionLimit,
+            ..
+        } => "connection_limit",
+        FeedStatus::Halted { .. } => "ended_by_broker",
     }
 }
 

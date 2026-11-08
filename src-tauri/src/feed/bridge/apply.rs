@@ -13,7 +13,7 @@
 use super::{deep, mode_of, BrokerBridge, DesiredKey, State};
 use crate::brokers::common::streaming::{FeedMode, FeedSubscription};
 use crate::feed::source::{Mode, SourceOutcome, DEFAULT_DEPTH};
-use crate::websocket::{FeedStatus, WebSocketManager};
+use crate::websocket::WebSocketManager;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tokio::sync::oneshot;
@@ -237,7 +237,7 @@ impl BrokerBridge {
         if key.1 != Mode::Depth || (deep != Some(key.2) && down != Some(key.2)) {
             return Ok(Applied::Main(sub));
         }
-        let refused = matches!(self.depth_manager.status(), FeedStatus::AuthFailed { .. });
+        let refused = self.depth_manager.status().refusal().is_some();
         let fell_back = self.state.lock().deep_books.fell_back.contains(key);
         if deep != Some(key.2) || refused || fell_back {
             return Ok(Applied::Main(deep::on_main_levels(sub)));

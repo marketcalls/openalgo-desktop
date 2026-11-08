@@ -118,7 +118,7 @@ impl WebSocketManager {
     }
 
     /// Which connections may take another instrument: those the broker has
-    /// not refused.
+    /// not refused or ended.
     pub(super) fn usable(&self) -> Vec<bool> {
         let n = self.registry.lock().limits.connections;
         let connections = self.connections.lock();
@@ -127,7 +127,7 @@ impl WebSocketManager {
                 !connections
                     .get(c)
                     .and_then(Option::as_ref)
-                    .is_some_and(|r| matches!(*r.status.borrow(), FeedStatus::AuthFailed { .. }))
+                    .is_some_and(|r| r.status.borrow().refusal().is_some())
             })
             .collect()
     }
