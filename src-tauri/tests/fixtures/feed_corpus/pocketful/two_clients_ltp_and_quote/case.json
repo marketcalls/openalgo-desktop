@@ -46,67 +46,67 @@
       "key": "frame",
       "kind": "web-defect",
       "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :571-580 (topic from the found subscription's mode)"
+      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
     },
     {
       "key": "volume",
       "kind": "web-defect",
       "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries volume.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :571-580 (topic from the found subscription's mode)"
+      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
     },
     {
       "key": "open",
       "kind": "web-defect",
       "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries open.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :571-580 (topic from the found subscription's mode)"
+      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
     },
     {
       "key": "high",
       "kind": "web-defect",
       "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries high.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :571-580 (topic from the found subscription's mode)"
+      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries low.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :571-580 (topic from the found subscription's mode)"
+      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries close.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :571-580 (topic from the found subscription's mode)"
+      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
     },
     {
       "key": "last_trade_quantity",
       "kind": "web-defect",
       "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries last_trade_quantity.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :571-580 (topic from the found subscription's mode)"
+      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
     },
     {
       "key": "average_price",
       "kind": "web-defect",
       "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries average_price.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :571-580 (topic from the found subscription's mode)"
+      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
       "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries total_buy_quantity.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :571-580 (topic from the found subscription's mode)"
+      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
       "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries total_sell_quantity.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :571-580 (topic from the found subscription's mode)"
+      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
     },
     {
       "key": "oi",
       "kind": "web-defect",
       "reason": "With an LTP and a Quote subscriber on one instrument, the web's _find_subscription returns the first subscription (the LTP one) for every packet, so the detailed packet goes out on the LTP topic with every quote field, and the Quote subscriber gets nothing at all. The LTP client's web frame therefore carries oi.",
-      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :571-580 (topic from the found subscription's mode)"
+      "ref": "PF-03 (new); pocketful_adapter.py:739-744 (_find_subscription), :568-578 (topic from the found subscription's mode)"
     }
   ]
 }

@@ -25,7 +25,7 @@
       "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._handle_detailed_data"
     ],
     "notes": [
-      "The web reconnects with login_id and access_token in the query (pocketful_adapter.py:146) and queues every subscription again (_on_open)."
+      "The web reconnects with login_id and access_token in the query (pocketful_adapter.py:156) and queues every subscription again (_on_open)."
     ]
   },
   "deviations": [
