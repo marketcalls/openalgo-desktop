@@ -47,9 +47,9 @@
     },
     {
       "key": "last_quantity",
-      "kind": "web-defect",
-      "reason": "An index has no trades: its L1 carries no ltq, and the web sends last_quantity 0 (message.get(\"ltq\", 0)); the desktop's index frame has none.",
-      "ref": "tradejini_adapter.py:826"
+      "kind": "open",
+      "reason": "The web's Tradejini adapter sends last_quantity in an index's Quote (0 here: the index L1 carries no ltq, message.get(\"ltq\", 0)); the desktop's index frame has no last_quantity for any broker. Phase B: follows the web adapter through wire's per-broker switch in the dialect table; a quantity Tradejini did not send stays absent (the zero is then a declared web defect).",
+      "ref": "tradejini_adapter.py:826; feed::protocol::market_data (index frames); lead ruling 2026-11-09"
     },
     {
       "key": "average_price",
@@ -65,15 +65,15 @@
     },
     {
       "key": "price_change",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends an index's change as price_change and price_change_percent, the names of the recorded Zerodha transcript, with the web adapter's names (change, change_percent, percent_change) beside them.",
-      "ref": "feed::dialect (WS-05)"
+      "kind": "open",
+      "reason": "The web's Tradejini adapter sends an index's change only under its own names (change, change_percent, percent_change); the desktop adds price_change, the canonical name of the recorded Zerodha transcript. Phase B: follows the web adapter through wire's per-broker switch in the dialect table (Tradejini: no price_change).",
+      "ref": "tradejini_adapter.py:829-830, :883-884; feed::dialect (WS-05); lead ruling 2026-11-09"
     },
     {
       "key": "price_change_percent",
-      "kind": "desktop-decision",
-      "reason": "As price_change.",
-      "ref": "feed::dialect (WS-05)"
+      "kind": "open",
+      "reason": "As price_change, for price_change_percent (Tradejini: none).",
+      "ref": "tradejini_adapter.py:830, :883-884; feed::dialect (WS-05); lead ruling 2026-11-09"
     }
   ]
 }
