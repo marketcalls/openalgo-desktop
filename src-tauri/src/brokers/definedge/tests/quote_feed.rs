@@ -254,16 +254,21 @@ fn moving_between_quote_and_depth_keeps_the_depth_feed() {
 }
 
 /// Web `test_a_dash_ltp_does_not_stop_the_other_modes`: no price, nothing
-/// on LTP; the Quote still carries what came.
+/// on LTP. The web's Quote then goes out without `ltp`; the desktop's
+/// frame always carries one and never sends 0 for a price it has not
+/// received (a packet without a trade price publishes nothing), so the
+/// Quote waits for the first price and then carries what came.
 #[test]
-fn a_dash_price_sends_no_ltp_and_still_a_quote() {
+fn a_dash_price_sends_nothing_until_a_price_comes() {
     let dashed = TOUCHLINE.replace(r#""lp":"1395.40""#, r#""lp":"-""#);
     assert!(feed(FeedMode::Ltp).parse_text(&dashed).is_empty());
-    let ev = feed(FeedMode::Quote).parse_text(&dashed);
-    assert_eq!(
-        last(Frames::new("definedge").at(&ev, Mode::Quote))["open"],
-        1382.6
-    );
+    let mut f = feed(FeedMode::Quote);
+    let mut frames = Frames::new("definedge");
+    assert!(frames.at(&f.parse_text(&dashed), Mode::Quote).is_empty());
+    let ev = f.parse_text(r#"{"t":"tf","e":"NSE","tk":"2885","lp":"1395.60"}"#);
+    let quote = last(frames.at(&ev, Mode::Quote));
+    assert_eq!(quote["ltp"], 1395.6);
+    assert_eq!(quote["open"], 1382.6);
 }
 
 /// Web `test_a_level_one_only_depth_message_publishes_depth`.
