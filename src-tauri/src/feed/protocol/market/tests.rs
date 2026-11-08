@@ -287,11 +287,16 @@ fn the_canonical_keys_follow_each_brokers_web_adapter() {
             broker
         );
     }
-    for broker in ["angel", "dhan", "upstox", "kotak", "fyers"] {
+    for broker in ["angel", "dhan", "kotak", "fyers"] {
         let d = data(equity(), Mode::Depth, broker);
         assert_eq!(d["oi"], 5000, "{}", broker);
         assert!(d.get("open_interest").is_none(), "{}: {}", broker, d);
     }
+    // Upstox and Delta send OI as their adapters do: Upstox's double, as
+    // a float (upstox_adapter.py `float(ff["oi"])`).
+    let upstox = data(equity(), Mode::Depth, "upstox");
+    assert_eq!(upstox["oi"], 5000.0, "{}", upstox);
+    assert!(upstox.get("open_interest").is_none(), "{}", upstox);
     let shoonya = data(equity(), Mode::Depth, "shoonya");
     assert_eq!(shoonya["open_interest"], 5000, "Shoonya's own Depth key");
 
