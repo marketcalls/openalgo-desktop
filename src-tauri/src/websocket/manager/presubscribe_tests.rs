@@ -112,3 +112,34 @@ async fn a_step_past_the_deadline_refuses_its_items() {
     assert_eq!(answers, vec![Err(PRESUBSCRIBE_LATE.to_string())]);
     assert_eq!(m.instrument_count(), 0);
 }
+
+/// IndMoney (bk-b RB-13): what the broker's web adapter refuses is refused
+/// for every consumer of the manager, Flow and the sandbox as well as the
+/// feed clients, in its words.
+#[tokio::test]
+async fn what_the_broker_refuses_is_refused_for_every_consumer() {
+    let m = WebSocketManager::with_config(fast());
+    let words = "Invalid mode 3. INDmoney supports only 1 (LTP) or 2 (Quote)";
+    m.set_refusal(Some(Arc::new(move |s: &FeedSubscription| {
+        (s.mode == FeedMode::Depth).then(|| words.to_string())
+    })));
+    let answers = m
+        .admit(vec![
+            sub("NIFTY", FeedMode::Ltp),
+            sub("NIFTY", FeedMode::Depth),
+        ])
+        .await;
+    assert_eq!(answers, vec![Ok(()), Err(words.to_string())]);
+    let refused = m.subscribe(vec![sub("SBIN", FeedMode::Depth)]).await;
+    assert!(
+        matches!(&refused, Err(AppError::Validation(why)) if why == words),
+        "{:?}",
+        refused
+    );
+    assert_eq!(m.instrument_count(), 1);
+    m.disconnect().await.unwrap();
+    assert_eq!(
+        m.admit(vec![sub("SBIN", FeedMode::Depth)]).await,
+        vec![Ok(())]
+    );
+}

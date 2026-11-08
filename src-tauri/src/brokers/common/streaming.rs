@@ -348,6 +348,11 @@ pub type Presubscribe = Arc<
         + Sync,
 >;
 
+/// Why the broker session's feed refuses a subscription outright (a mode,
+/// depth or exchange its web adapter refuses), in the web's words; `None`
+/// takes it. Every consumer of the feed hears it, not only feed clients.
+pub type FeedRefusal = Arc<dyn Fn(&FeedSubscription) -> Option<String> + Send + Sync>;
+
 /// How a broker socket ended, for `BrokerFeed::on_ended` (audit P-12).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ended<'a> {

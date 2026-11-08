@@ -22,13 +22,15 @@
 //! the adapter runs itself (Groww's poller).
 
 use crate::brokers::common::streaming::{
-    BrokerFeed, FeedEvent, MarketEvent, OrderFeed, OrderUpdate,
+    BrokerFeed, FeedEvent, FeedMode, FeedRefusal, FeedSubscription, MarketEvent, OrderFeed,
+    OrderUpdate,
 };
 use crate::brokers::types::AuthToken;
 use crate::brokers::Broker;
 use crate::error::AppError;
 use crate::events::{self, Event, EventBus};
 use crate::feed::bridge;
+use crate::feed::{InstrumentKey, Mode};
 use crate::services::master_contract_service::{self, DownloadClaims};
 use crate::state::{AppState, BrokerSession};
 use crate::websocket::{FeedFactory, WebSocketManager};
@@ -264,6 +266,7 @@ async fn start_session(
                 Arc::new(move || b.create_feed(&auth).ok())
             };
             let limits = limits::pool_limits(id);
+            ctx.websocket.set_refusal(Some(feed_refusal(&broker)));
             ctx.websocket.set_presubscribe(broker.feed_presubscribe());
             if let Err(e) = ctx.websocket.connect_pool(feed, more, limits).await {
                 tracing::error!("Market data feed for {} did not start: {}", id, e);
@@ -375,6 +378,24 @@ pub fn order_event(u: &OrderUpdate, broker: &str, generation: u64) -> Event {
         pending_quantity: u.pending_quantity,
         average_price: u.average_price,
         rejection_reason: u.rejection_reason.clone(),
+    })
+}
+
+/// What the session's broker refuses on its feed, for every consumer of it
+/// (Flow and the sandbox as well as feed clients): the mode or depth its
+/// web adapter refuses (`feed::refusals`), else the exchange
+/// (`Broker::feed_refusal`).
+fn feed_refusal(broker: &Arc<dyn Broker>) -> FeedRefusal {
+    let b = broker.clone();
+    Arc::new(move |s: &FeedSubscription| {
+        let key = InstrumentKey::new(s.symbol.clone(), s.exchange.clone());
+        let mode = match s.mode {
+            FeedMode::Ltp => Mode::Ltp,
+            FeedMode::Quote => Mode::Quote,
+            FeedMode::Depth => Mode::Depth,
+        };
+        crate::feed::refusals::refusal(b.id(), &key, mode, i64::from(s.depth))
+            .or_else(|| b.feed_refusal(&s.exchange))
     })
 }
 

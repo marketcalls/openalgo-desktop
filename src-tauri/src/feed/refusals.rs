@@ -1,6 +1,8 @@
 //! The subscribes a broker's web adapter refuses before it looks the
 //! symbol up, refused here with the same message (audit C02: never
-//! acknowledge what the broker's feed cannot do). Each comes from the
+//! acknowledge what the broker's feed cannot do), for feed clients and,
+//! through the manager (`WebSocketManager::set_refusal`), for every other
+//! consumer of the feed. Each comes from the
 //! broker's `streaming/<broker>_adapter.py` at web a1b9e3250, where the
 //! adapter answers `{"status": "error", "code": "INVALID_DEPTH", ...}` and
 //! the web proxy hands the client the message alone (`server.py:1318-1329`).
@@ -51,7 +53,7 @@ fn depths_accepted(broker: &str) -> Option<(&'static [i64], &'static str)> {
 }
 
 /// Why `broker`'s web adapter refuses this subscribe outright, if it does.
-pub(super) fn refusal(
+pub(crate) fn refusal(
     broker: &str,
     key: &InstrumentKey,
     mode: Mode,
@@ -59,6 +61,10 @@ pub(super) fn refusal(
 ) -> Option<String> {
     if mode != Mode::Depth {
         return None;
+    }
+    // indmoney_adapter.py:311-315: INVALID_MODE, before the symbol lookup.
+    if broker == "indmoney" {
+        return Some("Invalid mode 3. INDmoney supports only 1 (LTP) or 2 (Quote)".to_string());
     }
     // nubra_adapter.py:379: an index has no book on Nubra's feed.
     if broker == "nubra" && key.is_index() {
@@ -128,5 +134,10 @@ mod tests {
         );
         assert_eq!(refusal("nubra", &nse(), Mode::Depth, 5), None);
         assert_eq!(refusal("nubra", &nifty, Mode::Ltp, 5), None);
+        assert_eq!(
+            refusal("indmoney", &nse(), Mode::Depth, 5).as_deref(),
+            Some("Invalid mode 3. INDmoney supports only 1 (LTP) or 2 (Quote)")
+        );
+        assert_eq!(refusal("indmoney", &nse(), Mode::Quote, 5), None);
     }
 }

@@ -25,7 +25,7 @@
 //! is a bounded broadcast whose slow receivers see `Lagged` and skip ahead.
 
 use crate::brokers::common::streaming::{
-    BrokerFeed, FeedSubscription, MarketEvent, Presubscribe, StopKind,
+    BrokerFeed, FeedRefusal, FeedSubscription, MarketEvent, Presubscribe, StopKind,
 };
 use crate::error::{AppError, Result};
 use parking_lot::Mutex;
@@ -194,8 +194,9 @@ pub struct WebSocketManager {
     /// Moves when `disconnect` forgets every reference, so a release
     /// answered after it puts nothing back.
     epoch: AtomicU64,
-    /// The broker session's step before a new instrument is subscribed
-    /// (`presubscribe`).
+    /// The broker session's refusals and its step before a new instrument
+    /// is subscribed (`presubscribe`).
+    refusal: Mutex<Option<FeedRefusal>>,
     presubscribe: Mutex<Option<Presubscribe>>,
 }
 
@@ -224,6 +225,7 @@ impl WebSocketManager {
             config,
             stats: Arc::new(FeedStats::default()),
             epoch: AtomicU64::new(0),
+            refusal: Mutex::new(None),
             presubscribe: Mutex::new(None),
         }
     }
@@ -372,6 +374,7 @@ impl WebSocketManager {
         self.epoch.fetch_add(1, Ordering::SeqCst);
         self.registry.lock().clear();
         *self.factory.lock() = None;
+        *self.refusal.lock() = None;
         *self.presubscribe.lock() = None;
         self.status.send_replace(FeedStatus::Disconnected);
         Ok(())
@@ -431,9 +434,9 @@ impl WebSocketManager {
     /// another instrument, counted across every consumer of this manager
     /// (feed clients, the sandbox, strategies, Flow): one answer each, so
     /// a batch that crosses the limit still starts its admissible members
-    /// and refuses the rest with why (audit C02). A new instrument goes
-    /// through the broker's step first (`set_presubscribe`), and what it
-    /// refuses is refused with its words.
+    /// and refuses the rest with why (audit C02). What the broker refuses
+    /// (`set_refusal`) is refused, and a new instrument goes through the
+    /// broker's step first (`set_presubscribe`), in their words.
     pub async fn admit(&self, subs: Vec<FeedSubscription>) -> Vec<std::result::Result<(), String>> {
         let prepared = self.presubscribed(subs).await;
         let usable = self.usable();

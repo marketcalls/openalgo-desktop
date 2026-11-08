@@ -313,7 +313,7 @@ impl Session {
             return Err(reason);
         }
         let broker = self.broker.as_deref().unwrap_or_default();
-        if let Some(reason) = super::refusals::refusal(broker, key, mode, requested_depth) {
+        if let Some(reason) = crate::feed::refusals::refusal(broker, key, mode, requested_depth) {
             return Err(reason);
         }
         if !source.resolve(key) {
