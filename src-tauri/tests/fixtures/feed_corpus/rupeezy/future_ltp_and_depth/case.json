@@ -52,26 +52,30 @@
     {
       "key": "close",
       "kind": "desktop-decision",
-      "reason": "An ltp packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the LTP frame carries the close and change the full packet brought; the web's frame from an ltp packet has none (the Rupeezy adapter keeps no snapshot). Every value is the broker's.",
-      "ref": "feed/bridge/snapshot.rs merge; rupeezy_websocket.py:62-69 (the ltp packet has no close)"
+      "reason": "Market-state rule (lead 2026-11-09: the previous close overlays in the snapshot). An ltp packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the LTP frame carries the close and change the full packet brought; the web's frame from an ltp packet has none (the Rupeezy adapter keeps no snapshot). Every value is the broker's.",
+      "ref": "feed/bridge/snapshot.rs merge; rupeezy_websocket.py:62-69 (the ltp packet has no close)",
+      "approved": true
     },
     {
       "key": "prev_close",
       "kind": "desktop-decision",
-      "reason": "An ltp packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the LTP frame carries the close and change the full packet brought; the web's frame from an ltp packet has none (the Rupeezy adapter keeps no snapshot). Every value is the broker's.",
-      "ref": "feed/bridge/snapshot.rs merge; rupeezy_websocket.py:62-69 (the ltp packet has no close)"
+      "reason": "Market-state rule (lead 2026-11-09: the previous close overlays in the snapshot). An ltp packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the LTP frame carries the close and change the full packet brought; the web's frame from an ltp packet has none (the Rupeezy adapter keeps no snapshot). Every value is the broker's.",
+      "ref": "feed/bridge/snapshot.rs merge; rupeezy_websocket.py:62-69 (the ltp packet has no close)",
+      "approved": true
     },
     {
       "key": "change",
       "kind": "desktop-decision",
-      "reason": "An ltp packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the LTP frame carries the close and change the full packet brought; the web's frame from an ltp packet has none (the Rupeezy adapter keeps no snapshot). Every value is the broker's.",
-      "ref": "feed/bridge/snapshot.rs merge; rupeezy_websocket.py:62-69 (the ltp packet has no close)"
+      "reason": "Market-state rule (lead 2026-11-09: the previous close overlays in the snapshot). An ltp packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the LTP frame carries the close and change the full packet brought; the web's frame from an ltp packet has none (the Rupeezy adapter keeps no snapshot). Every value is the broker's.",
+      "ref": "feed/bridge/snapshot.rs merge; rupeezy_websocket.py:62-69 (the ltp packet has no close)",
+      "approved": true
     },
     {
       "key": "change_percent",
       "kind": "desktop-decision",
-      "reason": "An ltp packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the LTP frame carries the close and change the full packet brought; the web's frame from an ltp packet has none (the Rupeezy adapter keeps no snapshot). Every value is the broker's.",
-      "ref": "feed/bridge/snapshot.rs merge; rupeezy_websocket.py:62-69 (the ltp packet has no close)"
+      "reason": "Market-state rule (lead 2026-11-09: the previous close overlays in the snapshot). An ltp packet carries no previous close. The bridge keeps the instrument's last known close within one connection (feed/bridge/snapshot.rs, audit C03) and works the change out again from the new price, so the LTP frame carries the close and change the full packet brought; the web's frame from an ltp packet has none (the Rupeezy adapter keeps no snapshot). Every value is the broker's.",
+      "ref": "feed/bridge/snapshot.rs merge; rupeezy_websocket.py:62-69 (the ltp packet has no close)",
+      "approved": true
     },
     {
       "key": "ltt",
