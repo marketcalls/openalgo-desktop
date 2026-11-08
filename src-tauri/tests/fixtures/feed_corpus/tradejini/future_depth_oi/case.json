@@ -44,8 +44,8 @@
     {
       "key": "last_trade_time",
       "kind": "open",
-      "reason": "The web also sends the trade time as last_trade_time (the same local-time text as its ltt, a web defect); the desktop sends no last_trade_time for Tradejini. Phase B: the dialect alias in epoch ms beside ltt, as Samco, 5paisa and mStock have it (feed::dialect, lane wire); the value then stays a declared web defect.",
-      "ref": "tradejini_adapter.py:881-886 _add_reference_keys; feed::dialect"
+      "reason": "The web sends Tradejini's trade time in Quote and Depth as last_trade_time, the text str(datetime.fromtimestamp(ltt)) (\"2025-11-05 14:25:31\"); the desktop sends no last_trade_time for Tradejini. A web alias follows its adapter's unit and type (lead ruling 2026-11-09), so it is to go out as that text: waiting for the carrier's text source for a trade time (lane wire) and the lead's choice of time zone.",
+      "ref": "nxtradstream.py:34-38 datefmt, :93; tradejini_adapter.py:881-886 _add_reference_keys; feed::dialect"
     },
     {
       "key": "price_change",

@@ -4,11 +4,9 @@
 //! the real decoder and come out as the 8765 frames the bridge makes of
 //! them (`feed::testkit`).
 //!
-//! What has no counterpart: the web's `change`, `change_percent` and
-//! `percent_change` on an equity (the desktop sends the change fields for
-//! indices only, with Tradejini's names), and its `last_trade_time`, the
-//! trade time as the web server's local date text; the desktop sends that
-//! time as `ltt`, in epoch milliseconds.
+//! What has no counterpart yet: the web's `last_trade_time`, the trade
+//! time as local date text (the desktop sends that time as `ltt`, in epoch
+//! milliseconds; the text copy waits for the carrier's text source).
 
 use super::*;
 use crate::feed::testkit::Frames;
