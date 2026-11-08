@@ -40,8 +40,8 @@
     },
     {
       "key": "last_quantity",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends last_quantity, the canonical name, beside the Paytm web name last_trade_quantity with the same value (feed::dialect); the web's Quote frame sends only last_trade_quantity.",
+      "kind": "open",
+      "reason": "The desktop sends last_quantity beside last_trade_quantity; the Paytm web adapter's Quote frame names it last_trade_quantity only. Names follow each broker's own web adapter, mode by mode (lead ruling 2026-11-09): set by the per-broker dialect switch in Phase B.",
       "ref": "feed::dialect (WS-05); paytm_adapter.py:715"
     },
     {

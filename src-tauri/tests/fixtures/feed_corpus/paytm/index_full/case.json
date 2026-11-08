@@ -37,15 +37,15 @@
     },
     {
       "key": "price_change",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends the change under the canonical names (price_change, price_change_percent) beside the Paytm web names (change_absolute, change_percent), which it sends with the same values (feed::dialect); the web sends only its own names.",
-      "ref": "feed::dialect (WS-05)"
+      "kind": "open",
+      "reason": "The desktop sends the change under the canonical names price_change and price_change_percent beside the Paytm (change_absolute, change_percent) web names; price_change is not a docs key and the web adapter sends none, so it goes. Names follow each broker's own web adapter, mode by mode (lead ruling 2026-11-09): set by the per-broker dialect switch in Phase B.",
+      "ref": "feed::dialect (WS-05; per-broker switch, lane wire)"
     },
     {
       "key": "price_change_percent",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends the change under the canonical names (price_change, price_change_percent) beside the Paytm web names (change_absolute, change_percent), which it sends with the same values (feed::dialect); the web sends only its own names.",
-      "ref": "feed::dialect (WS-05)"
+      "kind": "open",
+      "reason": "The desktop sends the change under the canonical names price_change and price_change_percent beside the Paytm (change_absolute, change_percent) web names; price_change is not a docs key and the web adapter sends none, so it goes. Names follow each broker's own web adapter, mode by mode (lead ruling 2026-11-09): set by the per-broker dialect switch in Phase B.",
+      "ref": "feed::dialect (WS-05; per-broker switch, lane wire)"
     },
     {
       "key": "last_quantity",

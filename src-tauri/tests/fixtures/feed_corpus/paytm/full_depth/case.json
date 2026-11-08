@@ -41,8 +41,8 @@
     },
     {
       "key": "last_trade_quantity",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends the Paytm web name last_trade_quantity beside last_quantity in Quote and Depth alike (feed::dialect); the web's Depth frame names it last_quantity only.",
+      "kind": "open",
+      "reason": "The desktop sends last_trade_quantity beside last_quantity in Quote and Depth alike; the Paytm web adapter's Depth frame names it last_quantity only. Names follow each broker's own web adapter, mode by mode (lead ruling 2026-11-09): set by the per-broker dialect switch in Phase B.",
       "ref": "feed::dialect (WS-05); paytm_adapter.py:734"
     },
     {

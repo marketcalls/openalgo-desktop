@@ -65,17 +65,15 @@
     },
     {
       "key": "price_change",
-      "kind": "desktop-decision",
-      "reason": "The web docs define the change for Quote frames (docs/prompt/websockets-format.md, the Quote example's change and change_percent) and the desktop works it out from the previous close in IIFL's own index packet; the IIFL Capital web adapter sends none. Kept under those two conditions (lead decision 2026-11-09).",
-      "ref": "feed::bridge::quote_fields (index change); iiflcapital/streaming.rs::ticks (derive_change)",
-      "approved": true
+      "kind": "open",
+      "reason": "The desktop's index Quote frame carries price_change and price_change_percent, worked out from the previous close in IIFL's own index packet; the IIFL Capital web adapter sends no change at all, and price_change is not a docs key, so it goes (lead ruling 2026-11-09). Whether the docs' change and change_percent take its place for an index Quote (ruling 4(b): the docs define them for Quote and they come from the packet's close) is for Phase B to confirm with the lead.",
+      "ref": "feed::bridge::quote_fields (index change); feed::dialect (per-broker switch, lane wire)"
     },
     {
       "key": "price_change_percent",
-      "kind": "desktop-decision",
-      "reason": "The web docs define the change for Quote frames (docs/prompt/websockets-format.md, the Quote example's change and change_percent) and the desktop works it out from the previous close in IIFL's own index packet; the IIFL Capital web adapter sends none. Kept under those two conditions (lead decision 2026-11-09).",
-      "ref": "feed::bridge::quote_fields (index change); iiflcapital/streaming.rs::ticks (derive_change)",
-      "approved": true
+      "kind": "open",
+      "reason": "The desktop's index Quote frame carries price_change and price_change_percent, worked out from the previous close in IIFL's own index packet; the IIFL Capital web adapter sends no change at all, and price_change is not a docs key, so it goes (lead ruling 2026-11-09). Whether the docs' change and change_percent take its place for an index Quote (ruling 4(b): the docs define them for Quote and they come from the packet's close) is for Phase B to confirm with the lead.",
+      "ref": "feed::bridge::quote_fields (index change); feed::dialect (per-broker switch, lane wire)"
     },
     {
       "key": "bid",
