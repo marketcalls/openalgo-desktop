@@ -129,7 +129,8 @@ pub(crate) struct Aliases {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub change_percentage: Option<f64>,
     /// `ltt` (Sahi, Kotak; Fyers in epoch seconds), in every mode `ltt` is
-    /// sent (web openalgo#2376); Dhan in epoch seconds (openalgo#2377).
+    /// sent (web openalgo#2376); Upstox, and Dhan in epoch seconds
+    /// (openalgo#2377).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_trade_time: Option<i64>,
 }
@@ -170,7 +171,8 @@ enum PercentKey {
 /// The unit of a broker's web `last_trade_time`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TradeTime {
-    /// Epoch milliseconds, as `ltt` (Sahi, Kotak).
+    /// Epoch milliseconds, as `ltt` (Sahi, Kotak; Upstox, web
+    /// `upstox_adapter.py`).
     Millis,
     /// Epoch seconds, the feed's own unit (Fyers, web `fyers_mapping.py`;
     /// Dhan, web `dhan_adapter.py`).
@@ -197,8 +199,13 @@ fn dialect(broker: &str) -> Dialect {
             change_percent: &[P::ChangePercent, P::PercentChange],
             last_trade_time: Some(TradeTime::Seconds),
         },
-        "angel" | "upstox" | "fivepaisa" | "mstock" | "pocketful" => Dialect {
+        "angel" | "fivepaisa" | "mstock" | "pocketful" => Dialect {
             last_quantity: Some(Q::LastTradeQuantity),
+            ..CANONICAL
+        },
+        "upstox" => Dialect {
+            last_quantity: Some(Q::LastTradeQuantity),
+            last_trade_time: Some(TradeTime::Millis),
             ..CANONICAL
         },
         "paytm" => Dialect {

@@ -13,9 +13,7 @@ use super::mapping::*;
 use super::master_contract::{parse_gz, parse_json, reformat_symbol};
 use super::orders::{modify_body as order_modify_body, place_body};
 use super::proto::{self, feed::FeedUnion, full_feed::FullFeedUnion};
-use super::streaming::{
-    instrument_key, normalise_for_test, normalize_order_update, sub_frame, UpstoxFeed,
-};
+use super::streaming::{instrument_key, normalize_order_update, sub_frame, UpstoxFeed};
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Validity};
 use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
@@ -716,14 +714,14 @@ fn subscribe_sends_binary_json_per_wire_mode() {
     let q = sub("NIFTY06OCT2624500CE", "NFO", FeedMode::Quote);
     let dep = sub("NIFTY06OCT2624500CE", "NFO", FeedMode::Depth);
     assert!(f.mode_change_frames(&dep, &q).is_empty());
-    // LTP -> quote is an unsub then a sub.
+    // LTP -> quote is one sub in `full`, which moves the key.
     let ch = f.mode_change_frames(
         &sub("RELIANCE", "NSE", FeedMode::Ltp),
         &sub("RELIANCE", "NSE", FeedMode::Quote),
     );
-    assert_eq!(frame_json(&ch[0])["method"], "unsub");
-    assert!(frame_json(&ch[0])["data"].get("mode").is_none());
-    assert_eq!(frame_json(&ch[1])["data"]["mode"], "full");
+    assert_eq!(ch.len(), 1);
+    assert_eq!(frame_json(&ch[0])["method"], "sub");
+    assert_eq!(frame_json(&ch[0])["data"]["mode"], "full");
     let un = f.unsubscribe_frames(&[sub("NIFTY", "NSE_INDEX", FeedMode::Quote)]);
     assert_eq!(
         frame_json(&un[0])["data"]["instrumentKeys"],
@@ -850,6 +848,9 @@ fn market_ff() -> proto::MarketFullFeed {
     }
 }
 
+/// Web test/test_upstox_quote_feed.py (openalgo#2377).
+mod quote_feed;
+
 fn response(feeds: Vec<(&str, proto::Feed)>) -> Vec<u8> {
     proto::FeedResponse {
         r#type: proto::Type::LiveFeed as i32,
@@ -915,51 +916,74 @@ fn protobuf_full_frame_gives_quote_and_sorted_depth() {
     let FeedEvent::Depth(dp) = &ev[1] else {
         panic!("not depth")
     };
+    // The levels Upstox sent, without padding.
     let bids: Vec<f64> = dp.buy.iter().map(|l| l.price).collect();
-    assert_eq!(bids, [101.15, 101.0, 0.0, 0.0, 0.0]);
+    assert_eq!(bids, [101.15, 101.0]);
     let asks: Vec<f64> = dp.sell.iter().map(|l| l.price).collect();
-    assert_eq!(asks, [101.25, 101.4, 0.0, 0.0, 0.0]);
+    assert_eq!(asks, [101.25, 101.4]);
     assert_eq!(dp.buy[0].quantity, 300);
     assert_eq!(dp.buy[0].orders, 0);
 }
 
-#[test]
-fn ltpc_is_carried_forward_and_unknown_keys_ignored() {
-    // A depth-only frame without LTPC keeps the last price.
-    let mut ff = market_ff();
-    ff.ltpc = None;
-    let fu = FeedUnion::FullFeed(proto::FullFeed {
-        full_feed_union: Some(FullFeedUnion::MarketFf(ff)),
-    });
-    let cached = ltpc(100.0, 118.4);
-    let ev = normalise_for_test("X", "NFO", FeedMode::Quote, Some(&fu), Some(&cached));
-    let FeedEvent::Tick(t) = &ev[0] else {
-        panic!("not a tick")
-    };
-    assert_eq!(t.ltp, 100.0);
-    // No full feed at all: the cached trade fields are published.
-    let ev = normalise_for_test("X", "NFO", FeedMode::Quote, None, Some(&cached));
-    let FeedEvent::Tick(t) = &ev[0] else {
-        panic!("not a tick")
-    };
-    assert_eq!((t.ltp, t.close), (100.0, 118.4));
-    assert!(normalise_for_test("X", "NFO", FeedMode::Quote, None, None).is_empty());
-    // Index full feed: quote fields, depth padded with zeros.
-    let idx = FeedUnion::FullFeed(proto::FullFeed {
-        full_feed_union: Some(FullFeedUnion::IndexFf(proto::IndexFullFeed {
-            ltpc: Some(ltpc(24512.35, 24450.0)),
-            market_ohlc: None,
+fn full_feed(m: proto::MarketFullFeed) -> proto::Feed {
+    proto::Feed {
+        feed_union: Some(FeedUnion::FullFeed(proto::FullFeed {
+            full_feed_union: Some(FullFeedUnion::MarketFf(m)),
         })),
-    });
-    let ev = normalise_for_test("NIFTY", "NSE_INDEX", FeedMode::Depth, Some(&idx), None);
+        request_mode: proto::RequestMode::FullD5 as i32,
+    }
+}
+
+#[test]
+fn a_frame_without_a_price_keeps_the_merged_one_and_unknown_keys_are_ignored() {
+    use crate::brokers::common::streaming::BrokerFeed;
+    let mut f = feed();
+    f.subscribe_frames(&[
+        sub("NIFTY06OCT2624500CE", "NFO", FeedMode::Quote),
+        sub("NIFTY", "NSE_INDEX", FeedMode::Depth),
+    ]);
+    let on_option = |f: &mut UpstoxFeed, feed: proto::Feed| {
+        f.parse(&Message::Binary(response(vec![("NSE_FO|40551", feed)])))
+    };
+    let mut no_price = market_ff();
+    no_price.ltpc = None;
+    // Nothing goes out before Upstox has sent a price.
+    assert!(on_option(&mut f, full_feed(no_price.clone())).is_empty());
+    on_option(&mut f, full_feed(market_ff()));
+    // A book-only frame, and a feed with nothing in it, keep the price.
+    for feed in [
+        full_feed(no_price),
+        proto::Feed {
+            feed_union: None,
+            request_mode: 0,
+        },
+    ] {
+        let ev = on_option(&mut f, feed);
+        let FeedEvent::Tick(t) = &ev[0] else {
+            panic!("not a tick")
+        };
+        assert_eq!((t.ltp, t.close, t.open), (101.2, 118.4, 110.0));
+    }
+    // Index full feed: the quote, and no book levels (Upstox sends none).
+    let idx = proto::Feed {
+        feed_union: Some(FeedUnion::FullFeed(proto::FullFeed {
+            full_feed_union: Some(FullFeedUnion::IndexFf(proto::IndexFullFeed {
+                ltpc: Some(ltpc(24512.35, 24450.0)),
+                market_ohlc: None,
+            })),
+        })),
+        request_mode: 0,
+    };
+    let ev = f.parse(&Message::Binary(response(vec![(
+        "NSE_INDEX|Nifty 50",
+        idx,
+    )])));
     let FeedEvent::Depth(dp) = &ev[1] else {
         panic!("not depth")
     };
     assert_eq!(dp.ltp, 24512.35);
-    assert!(dp.buy.iter().all(|l| l.price == 0.0));
+    assert!(dp.buy.is_empty() && dp.sell.is_empty());
 
-    use crate::brokers::common::streaming::BrokerFeed;
-    let mut f = feed();
     let bytes = response(vec![(
         "NSE_EQ|UNKNOWN",
         proto::Feed {
@@ -982,6 +1006,37 @@ fn ltpc_is_carried_forward_and_unknown_keys_ignored() {
     .encode_to_vec();
     assert!(f.parse(&Message::Binary(info)).is_empty());
     assert!(f.parse(&Message::Binary(vec![0xff, 0xff])).is_empty());
+}
+
+/// Resource hygiene: an instrument's merged quote goes with its
+/// subscription, a new connection starts every quote afresh, and a frame
+/// for an instrument not subscribed allocates nothing.
+#[test]
+fn merged_quotes_go_with_their_subscriptions() {
+    use crate::brokers::common::streaming::BrokerFeed;
+    let mut f = feed();
+    let option = |i: u32| FeedSubscription {
+        token: format!("NSE_FO|{}", 900_000 + i),
+        brexchange: "NSE_FO".into(),
+        ..sub("NIFTY06OCT2624500CE", "NFO", FeedMode::Quote)
+    };
+    let tick = |i: u32| {
+        let key = format!("NSE_FO|{}", 900_000 + i);
+        Message::Binary(response(vec![(key.as_str(), full_feed(market_ff()))]))
+    };
+    for i in 0..300 {
+        f.subscribe_frames(&[option(i)]);
+        assert_eq!(f.parse(&tick(i)).len(), 1);
+        assert_eq!(f.held(), (1, 1));
+        f.unsubscribe_frames(&[option(i)]);
+    }
+    assert_eq!(f.held(), (0, 0));
+    f.subscribe_frames(&[option(0)]);
+    f.parse(&tick(0));
+    f.on_connected();
+    assert_eq!(f.held(), (1, 0));
+    assert!(f.parse(&tick(1)).is_empty());
+    assert_eq!(f.held(), (1, 0));
 }
 
 #[test]

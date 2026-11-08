@@ -12,6 +12,7 @@
 
 mod auth;
 mod data;
+mod feed_snapshot;
 mod funds;
 mod gtt;
 pub mod mapping;

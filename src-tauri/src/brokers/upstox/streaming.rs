@@ -13,22 +13,22 @@
 //!   enforced client side.
 //! * Frames: protobuf `FeedResponse` (`super::proto`); prices are rupees.
 //!   The feeds map is keyed by instrument key, matched to subscriptions
-//!   exactly or by the part after `|`. The last LTPC per instrument is kept
-//!   so a frame without one still carries a price.
+//!   exactly or by the part after `|`. Ticks are incremental, so each is
+//!   merged into the instrument's quote and published from it
+//!   (`super::feed_snapshot`, web openalgo#2377).
+//! * Upstox holds one mode per key: a mode change is one `sub` in the new
+//!   mode, which moves the key, with no unsubscribe between.
 //! * Liveness: Upstox sends no application heartbeat; the manager pings
 //!   every 30 s and the pongs reach its watchdog as heartbeats.
 
+use super::feed_snapshot::Snapshot;
 use super::mapping::{oa_symbol, order_update_status};
-use super::proto::{
-    feed::FeedUnion, full_feed::FullFeedUnion, FeedResponse, Ltpc, MarketFullFeed, MarketOhlc,
-};
+use super::proto::FeedResponse;
 use crate::brokers::common::streaming::{
-    now_ms, ping, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, PrepareError, WsRequest, WEB_ORDER_PING_INTERVAL,
-    WEB_PING_TIMEOUT,
+    now_ms, ping, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, OrderUpdate,
+    PrepareError, WsRequest, WEB_ORDER_PING_INTERVAL, WEB_PING_TIMEOUT,
 };
 use crate::brokers::common::symbols::SymbolResolver;
-use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
 use crate::security::Secret;
 use async_trait::async_trait;
@@ -202,8 +202,9 @@ pub struct UpstoxFeed {
     subs: HashMap<String, SubInfo>,
     /// Keys live on the current connection, per wire mode.
     live: HashMap<&'static str, HashSet<String>>,
-    /// Last LTPC per instrument key (removed with the subscription).
-    last_ltpc: HashMap<String, Ltpc>,
+    /// The merged quote per instrument key (removed with the subscription,
+    /// cleared on a new connection).
+    snapshots: HashMap<String, Snapshot>,
 }
 
 impl UpstoxFeed {
@@ -213,8 +214,14 @@ impl UpstoxFeed {
             socket_url: None,
             subs: HashMap::new(),
             live: HashMap::new(),
-            last_ltpc: HashMap::new(),
+            snapshots: HashMap::new(),
         }
+    }
+
+    /// Instruments registered and merged quotes held.
+    #[cfg(test)]
+    pub(crate) fn held(&self) -> (usize, usize) {
+        (self.subs.len(), self.snapshots.len())
     }
 
     /// Keys of `mode` that fit the per-mode and combined caps (web
@@ -259,6 +266,16 @@ impl UpstoxFeed {
                     new_keys.len() - room
                 );
                 new_keys.truncate(room);
+            }
+        }
+        // A key holds one mode: a `sub` in this one moves it out of any
+        // other (web `upstox_client.subscribe`), so an emptied mode no
+        // longer counts towards the combined cap.
+        for (m, held) in self.live.iter_mut() {
+            if *m != mode {
+                for k in &new_keys {
+                    held.remove(k);
+                }
             }
         }
         self.live
@@ -309,190 +326,11 @@ impl UpstoxFeed {
                 tracing::debug!("No Upstox subscription for feed key {}", key);
                 continue;
             };
-            if let Some(l) = tick_ltpc(&feed.feed_union) {
-                self.last_ltpc.insert(ik.clone(), l);
-            }
-            let cached = self.last_ltpc.get(&ik).cloned();
-            out.extend(normalise(&sub, feed.feed_union.as_ref(), cached.as_ref()));
+            let snapshot = self.snapshots.entry(ik).or_default();
+            snapshot.merge(feed.feed_union.as_ref());
+            out.extend(snapshot.events(&sub.symbol, &sub.exchange, sub.mode, now_ms()));
         }
         out
-    }
-}
-
-/// The LTPC a feed carries, whichever branch it came in.
-fn tick_ltpc(f: &Option<FeedUnion>) -> Option<Ltpc> {
-    match f.as_ref()? {
-        FeedUnion::Ltpc(l) => Some(l.clone()),
-        FeedUnion::FullFeed(ff) => match ff.full_feed_union.as_ref()? {
-            FullFeedUnion::MarketFf(m) => m.ltpc.clone(),
-            FullFeedUnion::IndexFf(i) => i.ltpc.clone(),
-        },
-        FeedUnion::FirstLevelWithGreeks(g) => g.ltpc.clone(),
-    }
-}
-
-/// The `1d` OHLC, else the first one (web `_extract_quote_data`).
-fn day_ohlc(m: Option<&MarketOhlc>) -> Option<super::proto::Ohlc> {
-    let list = &m?.ohlc;
-    list.iter()
-        .find(|o| o.interval == "1d")
-        .or_else(|| list.first())
-        .cloned()
-}
-
-fn base_tick(sub: &SubInfo) -> NormalizedTick {
-    NormalizedTick {
-        symbol: sub.symbol.clone(),
-        exchange: sub.exchange.clone(),
-        mode: sub.mode.code(),
-        timestamp_ms: now_ms(),
-        ..Default::default()
-    }
-}
-
-fn apply_ltpc(t: &mut NormalizedTick, l: &Ltpc) {
-    t.ltp = l.ltp;
-    t.last_quantity = l.ltq;
-    t.last_trade_time_ms = l.ltt;
-    // `cp` is the previous close.
-    t.close = l.cp;
-}
-
-/// Normalise one feed for one subscription (web `_extract_market_data`).
-#[cfg(test)]
-pub(crate) fn normalise_for_test(
-    symbol: &str,
-    exchange: &str,
-    mode: FeedMode,
-    feed: Option<&FeedUnion>,
-    cached: Option<&Ltpc>,
-) -> Vec<FeedEvent> {
-    let sub = SubInfo {
-        symbol: symbol.into(),
-        exchange: exchange.into(),
-        token: String::new(),
-        mode,
-    };
-    normalise(&sub, feed, cached)
-}
-
-/// The five best bids (highest first) and asks (lowest first) of a market
-/// full feed, padded with empty levels.
-fn depth_levels(market: Option<&MarketFullFeed>) -> (Vec<DepthLevel>, Vec<DepthLevel>) {
-    let mut buy: Vec<DepthLevel> = Vec::new();
-    let mut sell: Vec<DepthLevel> = Vec::new();
-    if let Some(level) = market.and_then(|m| m.market_level.as_ref()) {
-        for q in &level.bid_ask_quote {
-            if q.bid_p > 0.0 {
-                buy.push(DepthLevel {
-                    price: q.bid_p,
-                    quantity: q.bid_q,
-                    orders: 0,
-                });
-            }
-            if q.ask_p > 0.0 {
-                sell.push(DepthLevel {
-                    price: q.ask_p,
-                    quantity: q.ask_q,
-                    orders: 0,
-                });
-            }
-        }
-    }
-    buy.sort_by(|a, b| b.price.total_cmp(&a.price));
-    sell.sort_by(|a, b| a.price.total_cmp(&b.price));
-    buy.resize(5, DepthLevel::default());
-    sell.resize(5, DepthLevel::default());
-    (buy, sell)
-}
-
-fn normalise(sub: &SubInfo, feed: Option<&FeedUnion>, cached: Option<&Ltpc>) -> Vec<FeedEvent> {
-    let mut t = base_tick(sub);
-    match sub.mode {
-        FeedMode::Ltp => {
-            match feed {
-                Some(FeedUnion::Ltpc(l)) => apply_ltpc(&mut t, l),
-                _ => match cached {
-                    // web: an extractor that found nothing falls back to the
-                    // cached LTPC.
-                    Some(c) => apply_ltpc(&mut t, c),
-                    None => return Vec::new(),
-                },
-            }
-            if t.ltp == 0.0 {
-                if let Some(c) = cached {
-                    t.ltp = c.ltp;
-                }
-            }
-            t.derive_change();
-            vec![FeedEvent::Tick(t)]
-        }
-        FeedMode::Quote | FeedMode::Depth => {
-            let full = match feed {
-                Some(FeedUnion::FullFeed(ff)) => ff.full_feed_union.as_ref(),
-                _ => None,
-            };
-            let Some(full) = full else {
-                // No full feed in this frame: publish the cached trade fields.
-                let Some(c) = cached else {
-                    return Vec::new();
-                };
-                apply_ltpc(&mut t, c);
-                t.derive_change();
-                return vec![FeedEvent::Tick(t)];
-            };
-            let (ltpc, ohlc, market) = match full {
-                FullFeedUnion::MarketFf(m) => {
-                    (m.ltpc.as_ref(), day_ohlc(m.market_ohlc.as_ref()), Some(m))
-                }
-                FullFeedUnion::IndexFf(i) => {
-                    (i.ltpc.as_ref(), day_ohlc(i.market_ohlc.as_ref()), None)
-                }
-            };
-            if let Some(l) = ltpc {
-                apply_ltpc(&mut t, l);
-            }
-            if t.ltp == 0.0 {
-                if let Some(c) = cached {
-                    t.ltp = c.ltp;
-                }
-            }
-            if let Some(o) = &ohlc {
-                t.open = o.open;
-                t.high = o.high;
-                t.low = o.low;
-                t.volume = o.vol;
-                if t.close == 0.0 {
-                    t.close = o.close;
-                }
-            }
-            if let Some(m) = market {
-                t.average_price = m.atp;
-                t.total_buy_quantity = m.tbq as i64;
-                t.total_sell_quantity = m.tsq as i64;
-                t.oi = m.oi as i64;
-            }
-            t.derive_change();
-            let mut out = Vec::with_capacity(2);
-            if sub.mode == FeedMode::Depth {
-                let (buy, sell) = depth_levels(market);
-                let depth = NormalizedDepth {
-                    symbol: t.symbol.clone(),
-                    exchange: t.exchange.clone(),
-                    ltp: t.ltp,
-                    buy,
-                    sell,
-                    total_buy_quantity: t.total_buy_quantity,
-                    total_sell_quantity: t.total_sell_quantity,
-                    timestamp_ms: t.timestamp_ms,
-                };
-                out.push(FeedEvent::Tick(t));
-                out.push(FeedEvent::Depth(depth));
-            } else {
-                out.push(FeedEvent::Tick(t));
-            }
-            out
-        }
     }
 }
 
@@ -528,7 +366,10 @@ impl BrokerFeed for UpstoxFeed {
 
     fn on_connected(&mut self) -> Vec<Message> {
         // A new socket carries no subscriptions; the manager re-sends them.
+        // A quote merged on the last one is not this session's: the first
+        // ticks after a reconnect show only what they carry.
         self.live.clear();
+        self.snapshots.clear();
         Vec::new()
     }
 
@@ -574,7 +415,7 @@ impl BrokerFeed for UpstoxFeed {
         for s in subs {
             let ik = instrument_key(&s.brexchange, &s.token);
             self.subs.remove(&ik);
-            self.last_ltpc.remove(&ik);
+            self.snapshots.remove(&ik);
             for set in self.live.values_mut() {
                 set.remove(&ik);
             }
@@ -591,18 +432,18 @@ impl BrokerFeed for UpstoxFeed {
         old: &FeedSubscription,
         new: &FeedSubscription,
     ) -> Vec<Message> {
+        let ik = instrument_key(&new.brexchange, &new.token);
+        if let Some(s) = self.subs.get_mut(&ik) {
+            s.mode = new.mode;
+        }
         if wire_mode(old.mode) == wire_mode(new.mode) {
             // Quote <-> depth share the `full` stream: only the
             // normalisation changes.
-            let ik = instrument_key(&new.brexchange, &new.token);
-            if let Some(s) = self.subs.get_mut(&ik) {
-                s.mode = new.mode;
-            }
             return Vec::new();
         }
-        let mut v = self.unsubscribe_frames(std::slice::from_ref(old));
-        v.extend(self.subscribe_frames(std::slice::from_ref(new)));
-        v
+        // One `sub` in the new mode moves the key (web openalgo#2377): no
+        // unsubscribe, so its merged quote stays.
+        self.sub_frames_for(wire_mode(new.mode), vec![ik])
     }
 
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {
