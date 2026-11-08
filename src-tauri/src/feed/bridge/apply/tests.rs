@@ -56,7 +56,7 @@ async fn a_release_of_nothing_held_and_a_key_wanted_again_answer_at_once() {
         let mut st = b.state.lock();
         st.ops.wait_release(k.clone())
     };
-    let _ = b.subscribe(&sbin(), Mode::Quote, 5);
+    drop(b.subscribe(&sbin(), Mode::Quote, 5));
     assert_eq!(waiter.now_or_never(), Some(Ok(Ok(()))));
     let ops = b.operations();
     assert_eq!((ops.waiting, ops.releasing), (1, 0));

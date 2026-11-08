@@ -563,19 +563,19 @@ mod tests {
                 .is_some()
         };
         assert!(!relayed(&bridge, "SBIN"));
-        let _ = bridge.subscribe(&sbin, Mode::Ltp, 5);
-        let _ = bridge.subscribe(&sbin, Mode::Depth, 20);
-        let _ = bridge.subscribe(&tcs, Mode::Quote, 5);
-        let _ = bridge.subscribe(&tcs, Mode::Quote, 5);
+        drop(bridge.subscribe(&sbin, Mode::Ltp, 5));
+        drop(bridge.subscribe(&sbin, Mode::Depth, 20));
+        drop(bridge.subscribe(&tcs, Mode::Quote, 5));
+        drop(bridge.subscribe(&tcs, Mode::Quote, 5));
         assert!(relayed(&bridge, "SBIN") && relayed(&bridge, "TCS"));
-        let _ = bridge.unsubscribe(&sbin, Mode::Depth, 20);
+        drop(bridge.unsubscribe(&sbin, Mode::Depth, 20));
         assert!(relayed(&bridge, "SBIN"), "the LTP reference still holds it");
-        let _ = bridge.unsubscribe(&sbin, Mode::Ltp, 5);
+        drop(bridge.unsubscribe(&sbin, Mode::Ltp, 5));
         assert!(!relayed(&bridge, "SBIN"));
         // A reference added twice is one reference.
-        let _ = bridge.unsubscribe(&tcs, Mode::Quote, 5);
+        drop(bridge.unsubscribe(&tcs, Mode::Quote, 5));
         assert!(!relayed(&bridge, "TCS"));
-        let _ = bridge.subscribe(&tcs, Mode::Ltp, 5);
+        drop(bridge.subscribe(&tcs, Mode::Ltp, 5));
         bridge.stop().await;
         assert!(!relayed(&bridge, "TCS"));
     }
@@ -602,7 +602,7 @@ mod tests {
     fn a_depth_before_the_first_tick_carries_no_quote_fields() {
         let bridge = BrokerBridge::new(Arc::new(WebSocketManager::new()), SymbolResolver::new());
         let key = InstrumentKey::new("RELIANCE", "NSE");
-        let _ = bridge.subscribe(&key, Mode::Depth, 20);
+        drop(bridge.subscribe(&key, Mode::Depth, 20));
         let level = crate::brokers::types::DepthLevel {
             price: 1167.5,
             quantity: 10,
@@ -685,16 +685,16 @@ mod tests {
                 .is_some_and(|q| q.open.is_some())
         };
 
-        let _ = bridge.subscribe(&key, Mode::Depth, 50);
+        drop(bridge.subscribe(&key, Mode::Depth, 50));
         bridge.convert(&FeedEvent::Tick(full_tick("SBIN", "NSE")));
         assert!(quoted(&bridge));
-        let _ = bridge.unsubscribe(&key, Mode::Depth, 50);
-        let _ = bridge.subscribe(&key, Mode::Depth, 50);
+        drop(bridge.unsubscribe(&key, Mode::Depth, 50));
+        drop(bridge.subscribe(&key, Mode::Depth, 50));
         assert!(!quoted(&bridge), "the old quote is not merged");
 
-        let _ = bridge.subscribe(&key, Mode::Depth, 5);
+        drop(bridge.subscribe(&key, Mode::Depth, 5));
         bridge.convert(&FeedEvent::Tick(full_tick("SBIN", "NSE")));
-        let _ = bridge.unsubscribe(&key, Mode::Depth, 50);
+        drop(bridge.unsubscribe(&key, Mode::Depth, 50));
         assert!(quoted(&bridge), "the 5-level book still reads the quote");
     }
 
