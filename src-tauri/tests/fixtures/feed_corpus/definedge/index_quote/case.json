@@ -48,15 +48,15 @@
     },
     {
       "key": "price_change",
-      "kind": "desktop-decision",
-      "reason": "price_change is the desktop's canonical name for an index's change (the recorded Zerodha transcript's); this web adapter sends the percent only.",
-      "ref": "feed::dialect module docs"
+      "kind": "open",
+      "reason": "Definedge's web adapter sends an index's percent change only; the desktop adds its canonical price_change. Lead rule 2026-11-09: an index's price_change follows the broker's own web adapter, dropped in Phase B through lane wire's per-broker switch.",
+      "ref": "definedge_adapter.py:987-1003 (_QUOTE_FIELDS has no change); feed::dialect"
     },
     {
       "key": "price_change_percent",
-      "kind": "desktop-decision",
-      "reason": "price_change_percent is the desktop's canonical name for an index's percent change; the web adapter's own names change_percent and percent_change are sent beside it as aliases.",
-      "ref": "feed::dialect (Definedge change_percent, percent_change)"
+      "kind": "open",
+      "reason": "Definedge's web adapter names an index's percent change change_percent and percent_change (both sent by the desktop too, as aliases); the desktop adds its canonical price_change_percent. Lead rule 2026-11-09: dropped in Phase B through lane wire's per-broker switch.",
+      "ref": "definedge_adapter.py:987-1003, :933-934; feed::dialect"
     }
   ]
 }

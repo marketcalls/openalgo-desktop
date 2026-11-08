@@ -24,6 +24,8 @@
         {
           "kind": "market",
           "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
           "mode": 2,
           "data": {
             "ltp": 24350.5,
@@ -48,6 +50,8 @@
         {
           "kind": "market",
           "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "exchange": "NSE_INDEX",
+          "symbol": "NIFTY",
           "mode": 2,
           "data": {
             "ltp": 24360.0,
