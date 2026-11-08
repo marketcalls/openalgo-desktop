@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "hdfcsky",
-  "inputs_sha256": "7067f1527c426a4fe967a32c944b3ce1a306a7348722591fdf5d3e296fd86a84",
+  "inputs_sha256": "ead93059e16d31d6d1f73db3e1e386cbc357c885874d7219c3ce2aec05778caf",
   "instruments": [
     {
       "symbol": "NIFTY",

@@ -799,17 +799,14 @@ fn subscribe_frames_and_heartbeat() {
     let frames = f.subscribe_frames(&many);
     assert_eq!(frames.len(), 3);
     assert_eq!(text(&frames[2])["subscribe"].as_array().unwrap().len(), 50);
-    // Quote <-> Depth needs no frames; LTP -> Quote subscribes at ALL, with
-    // no unSubscribe first.
+    // Every mode change, Quote to Depth included, is a subscribe at the new
+    // mode's type with no unSubscribe first, as the web sends it.
     let q = sub("RELIANCE", "NSE", "2885", FeedMode::Quote);
-    assert!(f
-        .mode_change_frames(&q, &q.with_mode(FeedMode::Depth))
-        .is_empty());
+    let all = [json!({"heart_beat": false, "subscribe": [{"scripId": "NSE_2885", "type": "ALL"}]})];
+    let deeper = f.mode_change_frames(&q, &q.with_mode(FeedMode::Depth));
+    assert_eq!(deeper.iter().map(text).collect::<Vec<_>>(), all);
     let up = f.mode_change_frames(&q.with_mode(FeedMode::Ltp), &q);
-    assert_eq!(
-        up.iter().map(text).collect::<Vec<_>>(),
-        [json!({"heart_beat": false, "subscribe": [{"scripId": "NSE_2885", "type": "ALL"}]})]
-    );
+    assert_eq!(up.iter().map(text).collect::<Vec<_>>(), all);
 }
 
 #[test]

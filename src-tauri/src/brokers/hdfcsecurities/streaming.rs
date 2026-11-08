@@ -561,19 +561,17 @@ impl BrokerFeed for HdfcSecuritiesFeed {
     }
 
     /// The instrument stays subscribed, so it keeps its merge snapshot. A
-    /// new feed type is a subscribe at that type, with no unSubscribe
-    /// first, as the web moves a held scrip (`subscribe_scrips` at the
-    /// highest mode left, hdfcsecurities_adapter.py:211 and :255); Quote
-    /// and Depth are both `ALL`, so moving between them sends nothing.
+    /// mode change is a subscribe at the new mode's type, with no
+    /// unSubscribe first, also between Quote and Depth (both `ALL`): the web
+    /// moves a held scrip by subscribing it again at the type of its highest
+    /// mode (`subscribe_scrips`, hdfcsecurities_adapter.py:211 and :255),
+    /// and its client sends that frame even at the type it already has.
     fn mode_change_frames(
         &mut self,
-        old: &FeedSubscription,
+        _old: &FeedSubscription,
         new: &FeedSubscription,
     ) -> Vec<Message> {
         let items = self.items(std::slice::from_ref(new), true);
-        if sub_type(old.mode) == sub_type(new.mode) {
-            return Vec::new();
-        }
         subscribe_frames(&items, "subscribe")
     }
 

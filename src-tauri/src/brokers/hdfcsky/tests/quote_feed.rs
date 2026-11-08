@@ -186,10 +186,11 @@ fn a_mode_change_moves_the_tier_and_keeps_the_baseline() {
         frames_of(up),
         [json!({"heart_beat": false, "subscribe": [{"scripId": "NFO_2885", "type": "ALL"}]})]
     );
-    assert!(
-        f.mode_change_frames(&nifty_fut(FeedMode::Depth), &nifty_fut(FeedMode::Quote))
-            .is_empty(),
-        "Quote and Depth are both ALL"
+    let same = f.mode_change_frames(&nifty_fut(FeedMode::Depth), &nifty_fut(FeedMode::Quote));
+    assert_eq!(
+        frames_of(same),
+        [json!({"heart_beat": false, "subscribe": [{"scripId": "NFO_2885", "type": "ALL"}]})],
+        "Quote and Depth are both ALL, and the web subscribes again at it"
     );
     let gone = f.unsubscribe_frames(&[nifty_fut(FeedMode::Quote)]);
     assert_eq!(

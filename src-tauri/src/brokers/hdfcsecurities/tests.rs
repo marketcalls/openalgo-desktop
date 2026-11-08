@@ -1025,9 +1025,12 @@ fn a_mode_change_moves_the_tier_and_keeps_the_snapshot() {
         frames_of(up),
         [json!({"heart_beat": false, "subscribe": [{"scripId": "NFO_45001", "type": "ALL"}]})]
     );
-    assert!(f
-        .mode_change_frames(&fut(FeedMode::Quote), &fut(FeedMode::Depth))
-        .is_empty());
+    let same = f.mode_change_frames(&fut(FeedMode::Quote), &fut(FeedMode::Depth));
+    assert_eq!(
+        frames_of(same),
+        [json!({"heart_beat": false, "subscribe": [{"scripId": "NFO_45001", "type": "ALL"}]})],
+        "Quote and Depth are both ALL, and the web subscribes again at it"
+    );
     let gone = f.unsubscribe_frames(&[fut(FeedMode::Depth)]);
     assert_eq!(
         frames_of(gone),

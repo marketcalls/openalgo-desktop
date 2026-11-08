@@ -30,7 +30,7 @@
     ],
     "notes": [
       "indexData's percentChange and yearly high and low are not read by either side.",
-      "Quote to Depth is the same feed type (ALL): the desktop sends nothing; the web's adapter calls subscribe_scrips again at ALL and its client sends a second subscribe for the scrip it already holds (lead decision, bk-b phase B item 8: the same type sends nothing). An index has no book on either side: neither Depth frame has a depth key."
+      "Quote to Depth is the same feed type (ALL); the web's adapter calls subscribe_scrips again at ALL and its client sends a second subscribe, and so does the desktop (lead decision, bk-b phase B round 2 item e: the broker-facing frames are part of parity; nothing shows the second subscribe is a no-op at HDFC). An index has no book on either side: neither Depth frame has a depth key."
     ]
   },
   "deviations": [

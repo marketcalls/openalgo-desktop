@@ -552,22 +552,19 @@ impl BrokerFeed for HdfcSkyFeed {
             .collect()
     }
 
+    /// A subscribe at the new mode's type, with no unSubscribe first, also
+    /// between Quote and Depth (both `ALL`): the web moves a held scrip by
+    /// subscribing it again at the type of its highest mode
+    /// (`subscribe_scrips`, hdfcsky_adapter.py:239 and :296), and its
+    /// client sends that frame even at the type the scrip already has. The
+    /// instrument stays subscribed, so it keeps its merge baseline (web
+    /// openalgo#2396 keeps the snapshot while any mode remains).
     fn mode_change_frames(
         &mut self,
-        old: &FeedSubscription,
+        _old: &FeedSubscription,
         new: &FeedSubscription,
     ) -> Vec<Message> {
-        // The instrument stays subscribed, so it keeps its merge baseline
-        // (web openalgo#2396 keeps the snapshot while any mode remains).
         let scrips = self.scrips(std::slice::from_ref(new), true);
-        if sub_type(old.mode) == sub_type(new.mode) {
-            // Same feed type (Quote <-> Depth): only the published shape
-            // changes.
-            return Vec::new();
-        }
-        // A new type is a subscribe at that type, with no unSubscribe first:
-        // the web moves a held scrip the same way (`subscribe_scrips` at
-        // the highest mode left, hdfcsky_adapter.py:239 and :296).
         subscribe_messages(&scrips)
             .into_iter()
             .map(Message::Text)

@@ -33,7 +33,8 @@
       "test/test_hdfcsky_quote_feed.py::test_partial_packet_without_snapshot_is_not_published"
     ],
     "notes": [
-      "Prices, the band 1350/1650 and OI 777 from the web tests; the book and OI 700 on the full packet are added, and each partial has its own packet time."
+      "Prices, the band 1350/1650 and OI 777 from the web tests; the book and OI 700 on the full packet are added, and each partial has its own packet time.",
+      "Client b's Quote subscribe beside a's Depth leaves the instrument's highest mode at Depth, so the desktop's manager does not ask the feed for any frame; the web's adapter calls subscribe_scrips on every subscribe and its client sends a second subscribe at ALL here. Matching it would take a manager hook (shared code, lane wire): not in this case's upstream_receives."
     ]
   },
   "deviations": [

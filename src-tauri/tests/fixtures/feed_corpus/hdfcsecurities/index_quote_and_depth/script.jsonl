@@ -3,7 +3,7 @@
 {"step": "push", "frame": "frames/index.hex"}
 {"step": "receive", "client": "a", "frame": "expected/index_quote.json"}
 {"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 3, "depth": 5}}
-{"step": "silence", "client": "b", "note": "Quote to Depth is the same feed type (ALL): HdfcSecuritiesFeed sends nothing, so this wait lets the mode change reach the feed before the next packet."}
+{"step": "upstream_receives", "frames": [{"json": {"heart_beat": false, "subscribe": [{"scripId": "NSE_INDEX_26000", "type": "ALL"}]}}], "note": "Quote to Depth: a second subscribe at ALL, as the web's subscribe_scrips sends it."}
 {"step": "push", "frame": "frames/index_next.hex"}
 {"step": "receive", "client": "a", "frame": "expected/index_quote_next.json"}
 {"step": "receive", "client": "b", "frame": "expected/index_depth.json"}
