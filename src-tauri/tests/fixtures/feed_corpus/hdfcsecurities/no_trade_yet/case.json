@@ -1,0 +1,84 @@
+{
+  "broker": "hdfcsecurities",
+  "summary": "A full packet before the first trade (no last traded price) with a book, then the first traded packet: no Quote frame shows a zero price, while the Depth holder gets the book with ltp 0; the traded packet reaches both.",
+  "scenarios": [
+    "first-full-packet",
+    "absent-field",
+    "depth-update",
+    "mode-change"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"heart_beat\":true}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/hdfcsecurities/streaming/hdfcsecurities_websocket.py::_parse_packet",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_on_ticks",
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::_normalize"
+    ],
+    "notes": [
+      "Lead decision (bk-b phase B, round 2 item c): a full packet whose lastTradedPrice is 0 (proto3: not sent) marks the price absent, so no LTP or Quote frame goes out for it; its book still reaches Depth holders with ltp 0 (the 1.0.6 depth-before-first-quote rule).",
+      "The web publishes the Quote topic for that packet with ltp 0 and a change of -1495.0 (ltp - close with ltp 0): web defect, approved. The Quote client's silence cannot declare it yet: a frame the web sends and the desktop does not is the corpus's missing-frame deviation, not on the base; this step becomes one when it lands."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "change",
+      "kind": "web-defect",
+      "reason": "Before the first trade the packet carries no last traded price (proto3 0); the web publishes ltp 0 and a change of ltp - close from it (-1495.0, -100.0%), a price and a change no trade made. The desktop marks the price absent: no LTP or Quote frame, and the Depth frame keeps ltp 0 with no change. Lead decision (bk-b phase B round 2, item c): where the web publishes ltp 0, web defect.",
+      "ref": "hdfcsecurities_adapter.py:371-378; investright::finish",
+      "approved": true
+    },
+    {
+      "key": "change_percent",
+      "kind": "web-defect",
+      "reason": "Before the first trade the packet carries no last traded price (proto3 0); the web publishes ltp 0 and a change of ltp - close from it (-1495.0, -100.0%), a price and a change no trade made. The desktop marks the price absent: no LTP or Quote frame, and the Depth frame keeps ltp 0 with no change. Lead decision (bk-b phase B round 2, item c): where the web publishes ltp 0, web defect.",
+      "ref": "hdfcsecurities_adapter.py:371-378; investright::finish",
+      "approved": true
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "HDFC Securities sends lastTradeTime in epoch seconds (the web's own test pairs lastTradeTime 1700000000 with packetTimestamp 1700000000000); the web sends it unconverted as ltt, a docs key that is epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it to ms (investright::trade_time_ms). Lead decision: ltt in seconds -> ms, web defect (wrong unit).",
+      "ref": "hdfcsecurities_websocket.py:725-726; hdfcsecurities_adapter.py:367",
+      "approved": true
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsecurities_adapter.py:389-391; investright::mark_carriage",
+      "approved": true
+    },
+    {
+      "key": "open_interest",
+      "kind": "web-defect",
+      "reason": "A cash equity's packet carries no OI (proto3 writes oi 0); the web sends that 0 as oi and open_interest instead of leaving them out (web openalgo#2376). The desktop counts OI on the derivative segments only. Lead decision: web zeros for values the stream did not send are left out, web defect.",
+      "ref": "hdfcsecurities_adapter.py:389-391; investright::mark_carriage",
+      "approved": true
+    },
+    {
+      "key": "price_change",
+      "kind": "open",
+      "reason": "The HDFC Securities web adapter sends the change as change and change_percent only; the desktop also sends the canonical price_change and price_change_percent. Needs lane wire's canonical-change switch (per-broker key rule: canonical price_change* off for HDFC, change and change_percent kept).",
+      "ref": "hdfcsecurities_adapter.py:371-378; feed/dialect/names.rs"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "open",
+      "reason": "The HDFC Securities web adapter sends the change as change and change_percent only; the desktop also sends the canonical price_change and price_change_percent. Needs lane wire's canonical-change switch (per-broker key rule: canonical price_change* off for HDFC, change and change_percent kept).",
+      "ref": "hdfcsecurities_adapter.py:371-378; feed/dialect/names.rs"
+    }
+  ]
+}

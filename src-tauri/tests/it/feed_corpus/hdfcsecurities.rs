@@ -26,6 +26,7 @@ corpus_cases!(
         reconnect_drops_the_snapshot,
         two_clients_mode_change,
         one_token_on_two_exchanges,
+        no_trade_yet,
         in_band_auth_error,
     ]
 );

@@ -1,0 +1,31 @@
+# HDFC Sky protobuf GenericDTOList: a full packet before the first trade: no lastTradedPrice or lastTradeTime, a book
+# Written by scripts/feed_corpus/protolite.py from the web's hdfcsky_market_pb2.py.
+# packetType is absent: NSE_CM_ALL is 0, the proto3 default a sender leaves out.
+0a6e                  # genericDTOList (GenericDTO, 110 bytes)
+08c516                #   instrumentId = 2885
+1262                  #   mbpData (MBPData, 98 bytes)
+3900000000005c9740    #     closingPrice = 1495.0
+6240                  #     marketDepthDTOList (MarketDepthDTOList, 64 bytes)
+0a0f                  #       marketDepthDTO (MarketDepthDTO, 15 bytes)
+0828                  #         quantity = 40
+1100000000005a9740    #         price = 1494.5
+1802                  #         numberOfOrders = 2
+2001                  #         buyFlag = True
+0a0f                  #       marketDepthDTO (MarketDepthDTO, 15 bytes)
+084b                  #         quantity = 75
+110000000000589740    #         price = 1494.0
+1803                  #         numberOfOrders = 3
+2001                  #         buyFlag = True
+0a0d                  #       marketDepthDTO (MarketDepthDTO, 13 bytes)
+083c                  #         quantity = 60
+110000000000609740    #         price = 1496.0
+1801                  #         numberOfOrders = 1
+0a0d                  #       marketDepthDTO (MarketDepthDTO, 13 bytes)
+0819                  #         quantity = 25
+110000000000629740    #         price = 1496.5
+1801                  #         numberOfOrders = 1
+6873                  #     totalBuyQuantity = 115
+7055                  #     totalSellQuantity = 85
+79cdcccccccc079540    #     lowerCircuitLimit = 1345.95
+81013333333333b49940  #     upperCircuitLimit = 1645.05
+40f08195ffbc31        #   packetTimestamp = 1699999990000

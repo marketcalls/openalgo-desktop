@@ -916,6 +916,38 @@ fn trade_time_is_epoch_ms_or_absent() {
     assert!(t.absent.contains(QuoteField::LastTradeTime));
 }
 
+/// A full packet with lastTradedPrice 0 (proto3: none sent, no trade yet)
+/// makes no LTP or Quote frame, never a zero price, while its book still
+/// reaches a Depth holder with ltp 0, as a book before the first quote.
+#[test]
+fn a_packet_without_a_trade_sends_only_its_book() {
+    use crate::feed::testkit::Frames;
+    use crate::feed::Mode;
+    let mut f = HdfcSkyFeed::new(WS_URL, "K", "T");
+    f.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Depth)]);
+    let mut p = mbp_packet(2885, pt::NSE_CM_ALL);
+    if let Some(m) = p.mbp_data.as_mut() {
+        m.last_traded_price = 0.0;
+        m.last_trade_time = 0;
+    }
+    let ev = f.parse(&Message::Binary(frame(vec![p])));
+    let [FeedEvent::Tick(t), FeedEvent::Depth(d)] = ev.as_slice() else {
+        panic!("{:?}", ev)
+    };
+    assert!(!t.knows(QuoteField::Ltp), "no trade, no price");
+    assert_eq!((d.buy.len(), d.sell.len()), (5, 5));
+    for mode in [Mode::Ltp, Mode::Quote] {
+        let frames = Frames::new("hdfcsky").at(&ev, mode);
+        assert!(frames.is_empty(), "{:?}: {:?}", mode, frames);
+    }
+    let book = Frames::new("hdfcsky").at(&ev, Mode::Depth);
+    let [b] = book.as_slice() else {
+        panic!("{:?}", book)
+    };
+    assert_eq!(b["ltp"], 0.0, "{}", b);
+    assert_eq!(b["depth"]["buy"].as_array().map(Vec::len), Some(5), "{}", b);
+}
+
 /// An `ALL` future carries its OI (even a zero one: a derivative's packet
 /// has the field), an `ALL` index is a full packet at every mode with no
 /// volume, order flow or OI, and a packet without a band sends no circuit.

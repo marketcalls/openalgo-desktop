@@ -25,11 +25,20 @@ pub(crate) struct PacketFacts {
 /// make it: the circuit band (in `extras`, Depth frames name it as the web
 /// does, hdfcsky_adapter.py:447-452), the trade time, what the packet
 /// carries, and the change from the previous close.
+///
+/// A last traded price of 0 is one the packet did not send (proto3), an
+/// instrument not traded yet: the tick marks it absent, so no LTP or Quote
+/// frame shows a zero price (the web publishes ltp 0), while the packet's
+/// book still reaches Depth holders with ltp 0, as a book before the first
+/// quote does.
 pub(crate) fn finish(t: &mut NormalizedTick, p: PacketFacts) {
     t.extras.lower_circuit = limit(p.band.0);
     t.extras.upper_circuit = limit(p.band.1);
     set_trade_time(t, p.ltt);
     mark_carriage(t, p.subscribed, p.index);
+    if t.ltp == 0.0 {
+        t.mark_absent(QuoteField::Ltp);
+    }
     t.derive_change();
 }
 
