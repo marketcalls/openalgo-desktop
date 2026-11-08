@@ -90,7 +90,32 @@ struct Feed {
 impl Feed {
     fn new() -> Self {
         let manager = Arc::new(WebSocketManager::new());
-        let bridge = BrokerBridge::new(manager.clone(), SymbolResolver::new());
+        // The instruments are in the master: the bridge streams only what
+        // the broker connection took (audit C02).
+        let symbols = SymbolResolver::new();
+        symbols.load(
+            [
+                ("RELIANCE", "NSE", "738561"),
+                ("NIFTY", "NSE_INDEX", "256265"),
+            ]
+            .map(
+                |(symbol, exchange, token)| crate::brokers::common::symbols::SymToken {
+                    symbol: symbol.into(),
+                    brsymbol: symbol.into(),
+                    name: symbol.into(),
+                    exchange: exchange.into(),
+                    brexchange: exchange.into(),
+                    token: token.into(),
+                    expiry: String::new(),
+                    strike: 0.0,
+                    lot_size: 1,
+                    instrument_type: "EQ".into(),
+                    tick_size: 0.05,
+                },
+            )
+            .to_vec(),
+        );
+        let bridge = BrokerBridge::new(manager.clone(), symbols);
         bridge.start();
         let registry = Registry::new(bridge.clone(), 100);
         Self {
