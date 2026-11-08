@@ -1,0 +1,10 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe_orders"}}
+{"step": "upstream_receives", "frames": [{"json": {"user": "U", "auth": "s", "format": "native_batch", "source": "NEOTRADEAPI", "platform": "Web", "version": "1.2.3", "sdk_version": 2, "sdk_date": "2026-08-07T09:41:17.667Z", "conn_req_time": "<now_ms>", "sessionValidation": false}}], "note": "The market data feed logs in on its own socket and is answered, so it stays quiet."}
+{"step": "push", "frame": {"json": {"message_code": 1119, "format": "native_batch", "exchanges": {"nse_cm": {"value": 1, "divider": 100}, "nse_fo": {"value": 2, "divider": 100}, "bse_cm": {"value": 5, "divider": 100}, "bse_cd": {"value": 7, "divider": 10000000}}}}}
+{"step": "upstream_receives", "socket": "orders", "frames": [{"json": {"type": "cn", "Authorization": "t", "Sid": "s", "src": "WEB"}}], "connection": 1, "note": "The connect frame, JSON first."}
+{"step": "silence", "client": "a", "ms": 10500, "note": "Kotak holds the socket open and never acknowledges: after 10 s the attempt is dropped (audit P-06; web kotak_order_adapter.py _start_ack_watchdog)."}
+{"step": "upstream_connected", "socket": "orders", "connection": 2}
+{"step": "upstream_receives", "socket": "orders", "frames": [{"text": "{type:cn,Authorization:t,Sid:s,src:WEB}"}], "connection": 2, "note": "The attempt that went unanswered makes the next one send the raw form (on_open_extra)."}
+{"step": "push", "socket": "orders", "frame": "frames/order_open.json", "note": "No cn answer, but live order data proves the login."}
+{"step": "receive", "client": "a", "frame": "expected/order_open.json"}
+{"step": "silence", "client": "a", "ms": 10500, "note": "The order frame counted as the acknowledgement: no further drop (a third connection would send a frame no step expects)."}

@@ -1191,6 +1191,10 @@ fn order_feed_handshake_alternates_and_parses_orders() {
     // The web's keepalive: a ping every 30 s, answered within 10 s.
     assert!(matches!(f.heartbeat(), Some((d, Message::Ping(_))) if d.as_secs() == 30));
     assert_eq!(f.heartbeat_reply_timeout().map(|d| d.as_secs()), Some(10));
+    // The web's watchdog (`KOTAK_CONNECT_ACK_TIMEOUT_SECONDS`): a connect
+    // with no acknowledgement within 10 s is dropped (audit P-06).
+    assert!(f.awaits_auth_ack());
+    assert_eq!(f.auth_ack_deadline(), Some(Duration::from_secs(10)));
     let first = f.connect_frame();
     match &first {
         Message::Text(t) => assert_eq!(
@@ -1213,8 +1217,11 @@ fn order_feed_handshake_alternates_and_parses_orders() {
     // Acknowledged: the encoding sticks.
     assert!(matches!(f.connect_frame(), Message::Text(t) if t.starts_with("{type:cn")));
     let r = j(fixture!("responses.json"));
+    // This connect has no answer yet: its first order frame proves the
+    // login (web `normalize` sets `_connect_acked`); later ones do not
+    // repeat it.
     match &f.parse(&Message::Text(r["order_feed_order"].to_string()))[..] {
-        [FeedEvent::OrderUpdate(u)] => {
+        [FeedEvent::AuthOk, FeedEvent::OrderUpdate(u)] => {
             assert_eq!(
                 (u.symbol.as_str(), u.exchange.as_str()),
                 ("NIFTY27OCT2625000CE", "NFO")

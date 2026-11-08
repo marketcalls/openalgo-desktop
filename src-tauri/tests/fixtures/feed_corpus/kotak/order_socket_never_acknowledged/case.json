@@ -1,0 +1,28 @@
+{
+  "broker": "kotak",
+  "summary": "The realtime order socket's login is never acknowledged: after 10 s the connection is dropped and the next one sends the connect frame in its other encoding; an order frame on it then counts as the acknowledgement, so it is kept, and the order comes out as an order_update.",
+  "scenarios": [
+    "order-open",
+    "reconnect"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/kotak/streaming/kotak_order_adapter.py::KotakOrderUpdateAdapter._start_ack_watchdog",
+      "broker/kotak/streaming/kotak_order_adapter.py::KotakOrderUpdateAdapter.on_open_extra",
+      "broker/kotak/streaming/kotak_order_adapter.py::KotakOrderUpdateAdapter.normalize"
+    ],
+    "notes": []
+  },
+  "deviations": []
+}

@@ -37,5 +37,6 @@ corpus_cases!(
         reconnect_clears_the_book,
         bcd_currency_quote,
         order_lifecycle,
+        order_socket_never_acknowledged,
     ]
 );
