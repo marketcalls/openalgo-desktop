@@ -142,6 +142,14 @@ fn a_book_is_the_levels_sent_and_its_extras_only_when_sent() {
         (t[0].extras.upper_circuit, t[0].extras.lower_circuit),
         (Some(2751.0), Some(2251.0))
     );
+
+    // A zero level in XTS's own slots is a level it sent, kept as sent
+    // (lead rule on book levels); only padding beyond it is dropped.
+    let mut slots = depth_1502();
+    slots["Bids"] = json!([level(2500.1, 40, 2), level(0.0, 0, 0)]);
+    let (_, b) = decode(&mut f, "1502-json-full", slots);
+    assert_eq!(b[0].buy.len(), 2);
+    assert_eq!((b[0].buy[1].price, b[0].buy[1].quantity), (0.0, 0));
 }
 
 /// FB-06: twenty levels on NSE and NFO, as every member's web registry

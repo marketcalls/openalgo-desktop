@@ -14,6 +14,7 @@ corpus_cases!(
     [
         depth_five_and_clear,
         depth_twenty,
+        depth_zero_slots_kept,
         event_name_supplies_the_code,
         future_depth_oi,
         index_quote_root,

@@ -14,6 +14,7 @@ corpus_cases!(
     [
         depth_five_and_clear,
         depth_twenty,
+        depth_zero_slots_kept,
         future_depth_oi,
         index_quote_root,
         index_quote_touchline,

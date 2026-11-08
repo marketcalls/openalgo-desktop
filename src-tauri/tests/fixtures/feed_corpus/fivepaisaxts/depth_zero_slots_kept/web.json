@@ -1,0 +1,109 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "fivepaisaxts",
+  "inputs_sha256": "65587db7e5e5f7be47e0c32ee6d4fa94e5ad458ca835bbf8773640f7c65f741a",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 4,
+      "published": []
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "ltp": 2500.25,
+            "ltt": 1478686530,
+            "volume": 4500123,
+            "open": 2490.0,
+            "high": 2510.5,
+            "low": 2485.0,
+            "close": 2487.6,
+            "oi": 0,
+            "upper_circuit": 0,
+            "lower_circuit": 0,
+            "depth": {
+              "buy": [
+                {
+                  "price": 2500.1,
+                  "quantity": 120,
+                  "orders": 3
+                },
+                {
+                  "price": 2500.05,
+                  "quantity": 80,
+                  "orders": 2
+                },
+                {
+                  "price": 2500.0,
+                  "quantity": 200,
+                  "orders": 5
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0.0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 2500.4,
+                  "quantity": 95,
+                  "orders": 4
+                },
+                {
+                  "price": 2500.45,
+                  "quantity": 60,
+                  "orders": 2
+                },
+                {
+                  "price": 2500.5,
+                  "quantity": 300,
+                  "orders": 6
+                },
+                {
+                  "price": 2500.55,
+                  "quantity": 110,
+                  "orders": 3
+                },
+                {
+                  "price": 2500.6,
+                  "quantity": 75,
+                  "orders": 1
+                }
+              ]
+            },
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}
