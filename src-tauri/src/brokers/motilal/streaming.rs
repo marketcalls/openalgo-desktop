@@ -36,8 +36,8 @@
 use super::mapping::{self, token_text, vf, vi, vs};
 use super::MotilalSession;
 use crate::brokers::common::streaming::{
-    now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, WsRequest,
+    now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
+    NormalizedDepth, NormalizedTick, OrderUpdate, QuoteField, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -394,6 +394,62 @@ struct SubInfo {
     mo_exchange: String,
 }
 
+/// What `d`'s packets have delivered for `sub` so far, as one quote (the
+/// web's `last_quotes` for the scrip). Motilal sends each field group in a
+/// packet of its own, so a field is marked absent until its packet has
+/// arrived, and a frame leaves it out instead of sending 0 (audit C03, web
+/// openalgo#2376): the price until the first last-trade packet (A) or, for
+/// an index, index packet (H), with nothing published before it; the day
+/// volume, last quantity and average price until an A packet; open, high,
+/// low and the previous close until the day OHLC packet (G). Motilal sends
+/// no book totals, no trade time and no change (the web adapter publishes
+/// none), so those are never known. Open interest is the m packet's, or
+/// the A packet's own for a derivative (a cash scrip has none; its A slot
+/// is 0).
+fn quote_tick(sub: &SubInfo, d: &ScripData, now: i64) -> NormalizedTick {
+    use QuoteField as F;
+    let mut t = NormalizedTick {
+        symbol: sub.symbol.clone(),
+        exchange: sub.exchange.clone(),
+        mode: FeedMode::Quote.code(),
+        ltp: d.ltp,
+        open: d.open,
+        high: d.high,
+        low: d.low,
+        close: d.prev_close,
+        volume: d.volume,
+        average_price: d.avg_price,
+        last_quantity: d.ltq,
+        oi: d.oi,
+        timestamp_ms: now,
+        absent: AbsentFields::of(&[
+            F::TotalBuyQuantity,
+            F::TotalSellQuantity,
+            F::LastTradeTime,
+            F::Change,
+        ]),
+        ..Default::default()
+    };
+    if !d.has_ltp && d.index_rate.is_none() {
+        t.mark_absent(F::Ltp);
+    }
+    if !d.has_ltp {
+        for f in [F::Volume, F::LastQuantity, F::AveragePrice] {
+            t.mark_absent(f);
+        }
+    }
+    if !d.has_ohlc {
+        for f in [F::Open, F::High, F::Low, F::Close] {
+            t.mark_absent(f);
+        }
+    }
+    let derivative = mapping::segment(&sub.exchange) == "DERIVATIVES";
+    if d.has_oi || (derivative && d.has_ltp) {
+        t.mark_carried(F::OpenInterest);
+    }
+    t
+}
+
 /// The broadcast feed for the shared `WebSocketManager`.
 pub struct MotilalFeed {
     url: String,
@@ -464,29 +520,8 @@ impl MotilalFeed {
         let now = now_ms();
         let depth_packet = (b'B'..=b'F').contains(&kind);
         let mut out = Vec::new();
-        if !depth_packet || sub.mode == FeedMode::Depth {
-            let mut t = NormalizedTick {
-                symbol: sub.symbol.clone(),
-                exchange: sub.exchange.clone(),
-                mode: sub.mode.code(),
-                ltp: d.ltp,
-                timestamp_ms: now,
-                ..Default::default()
-            };
-            if sub.mode >= FeedMode::Quote {
-                t.open = d.open;
-                t.high = d.high;
-                t.low = d.low;
-                t.close = d.prev_close;
-                t.volume = d.volume;
-                t.average_price = d.avg_price;
-                t.last_quantity = d.ltq;
-                t.oi = d.oi;
-                t.derive_change();
-            }
-            if !depth_packet {
-                out.push(FeedEvent::Tick(t));
-            }
+        if !depth_packet {
+            out.push(FeedEvent::Tick(quote_tick(sub, d, now)));
         }
         if sub.mode == FeedMode::Depth && (depth_packet || kind == b'A') {
             out.push(FeedEvent::Depth(NormalizedDepth {

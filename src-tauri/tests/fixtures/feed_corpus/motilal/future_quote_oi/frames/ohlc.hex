@@ -1,0 +1,10 @@
+# G: day open, high, low, previous close (web _parse_ohlc_packet)
+4e                      # exchange character N (NSE and NSEFO share it)
+b9880000                # scrip 35001
+c037fd46                # packet time, read by neither the web nor the desktop
+47                      # type G
+003cc346                # open 24990.0
+00c8c346                # high 25060.0
+0028c346                # low 24980.0
+00b0c246                # previous close 24920.0
+00000000                # unused

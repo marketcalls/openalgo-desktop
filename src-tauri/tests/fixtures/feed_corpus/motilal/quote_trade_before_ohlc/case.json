@@ -1,6 +1,6 @@
 {
   "broker": "motilal",
-  "summary": "Quote mode: a last-trade packet before the day OHLC packet, then the OHLC packet; Motilal sends each field group as its own packet.",
+  "summary": "Quote mode: a last-trade packet before the day OHLC packet leaves OHLC out, then the OHLC packet fills it; Motilal sends each field group as its own packet and sends no book totals.",
   "scenarios": [
     "first-full-packet",
     "partial-packet",
@@ -30,45 +30,33 @@
   "deviations": [
     {
       "key": "last_quantity",
-      "kind": "open",
-      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web Quote dict names the last traded quantity ltq only; the desktop sends the canonical last_quantity and ltq beside it with the same value (feed::dialect, WS-05).",
-      "ref": "motilal_adapter.py _normalize_quote_data; feed::dialect (Motilal ltq)"
-    },
-    {
-      "key": "total_buy_quantity",
-      "kind": "open",
-      "reason": "Motilal's packets carry no book totals; the desktop sends 0, the web leaves the total out. Mark the totals absent.",
-      "ref": "motilal/streaming.rs MotilalFeed::events; motilal_adapter.py _normalize_quote_data"
-    },
-    {
-      "key": "total_sell_quantity",
-      "kind": "open",
-      "reason": "Motilal's packets carry no book totals; the desktop sends 0, the web leaves the total out. Mark the totals absent.",
-      "ref": "motilal/streaming.rs MotilalFeed::events; motilal_adapter.py _normalize_quote_data"
+      "kind": "desktop-decision",
+      "reason": "The desktop sends the canonical last_quantity in every broker's Quote frames, with Motilal's own name ltq beside it carrying the same value (feed/dialect/names.rs: one canonical set and each web name beside it); Motilal's web Quote dict sends ltq only.",
+      "ref": "feed/dialect/names.rs MOTILAL; motilal_adapter.py _normalize_quote_data"
     },
     {
       "key": "open",
-      "kind": "open",
-      "reason": "Before Motilal's day OHLC packet (G) the desktop sends 0.0 and the web 0 for open, high, low and the previous close: neither was received. The desktop is to leave them out until the G packet; the web's zeros are then a web defect.",
-      "ref": "motilal/streaming.rs MotilalFeed::events; motilal_adapter.py _normalize_quote_data"
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick"
     },
     {
       "key": "high",
-      "kind": "open",
-      "reason": "Before Motilal's day OHLC packet (G) the desktop sends 0.0 and the web 0 for open, high, low and the previous close: neither was received. The desktop is to leave them out until the G packet; the web's zeros are then a web defect.",
-      "ref": "motilal/streaming.rs MotilalFeed::events; motilal_adapter.py _normalize_quote_data"
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick"
     },
     {
       "key": "low",
-      "kind": "open",
-      "reason": "Before Motilal's day OHLC packet (G) the desktop sends 0.0 and the web 0 for open, high, low and the previous close: neither was received. The desktop is to leave them out until the G packet; the web's zeros are then a web defect.",
-      "ref": "motilal/streaming.rs MotilalFeed::events; motilal_adapter.py _normalize_quote_data"
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick"
     },
     {
       "key": "close",
-      "kind": "open",
-      "reason": "Before Motilal's day OHLC packet (G) the desktop sends 0.0 and the web 0 for open, high, low and the previous close: neither was received. The desktop is to leave them out until the G packet; the web's zeros are then a web defect.",
-      "ref": "motilal/streaming.rs MotilalFeed::events; motilal_adapter.py _normalize_quote_data"
+      "kind": "web-defect",
+      "reason": "Before Motilal's day OHLC packet (G) the web sends open, high, low and close as 0 (quote.get(k, 0) in _normalize_quote_data), values it never received; the desktop leaves them out until the G packet (docs/api/websocket-streaming/quote.md: a missing value is not a measured zero).",
+      "ref": "motilal_adapter.py _normalize_quote_data; motilal/streaming.rs quote_tick"
     }
   ]
 }

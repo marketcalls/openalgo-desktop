@@ -1,0 +1,9 @@
+# m: open interest (web _parse_oi_packet)
+4e                      # exchange character N (NSE and NSEFO share it)
+b9880000                # scrip 35001
+c037fd46                # packet time, read by neither the web nor the desktop
+6d                      # type m
+40060000                # open interest 1600
+72060000                # open interest day high 1650
+78050000                # open interest day low 1400
+0000000000000000        # unused

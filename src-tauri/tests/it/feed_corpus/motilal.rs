@@ -36,8 +36,9 @@ corpus_cases!(
         depth_before_the_book,
         depth_book_before_the_quote,
         derivative_depth_oi,
+        future_quote_oi,
         index_quote,
-        reconnect_keeps_the_day_ohlc,
+        reconnect_quote,
         order_lifecycle,
     ]
 );

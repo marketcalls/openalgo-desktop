@@ -1,9 +1,10 @@
 {
   "broker": "motilal",
-  "summary": "Depth mode, a last-trade packet before any book level: the desktop sends a Depth frame with five empty levels a side; the web waits for a book (audit RB-09).",
+  "summary": "Depth mode, a last-trade packet before any book level: no Depth frame until the book's first level arrives, as the web waits for a book (audit RB-09); that frame carries the one level received.",
   "scenarios": [
     "first-full-packet",
-    "partial-packet"
+    "partial-packet",
+    "depth-update"
   ],
   "instruments": [
     {

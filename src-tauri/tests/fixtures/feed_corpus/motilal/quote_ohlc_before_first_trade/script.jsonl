@@ -2,7 +2,7 @@
 {"step": "push", "frame": "frames/hello.hex", "note": "Motilal answers the login with binary frames; the first one authenticates."}
 {"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
 {"step": "upstream_receives", "frames": ["frames/register.hex"]}
-{"step": "push", "frame": "frames/ohlc.hex", "note": "The day OHLC packet before any trade packet."}
-{"step": "receive", "client": "a", "frame": "expected/quote_no_trade.json"}
-{"step": "push", "frame": "frames/ltp.hex"}
+{"step": "push", "frame": "frames/ohlc.hex", "note": "The day OHLC packet before any trade: nothing to publish without a traded price (the web publishes LTP 0)."}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/ltp.hex", "note": "The first trade: the quote carries the OHLC that came before it."}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}

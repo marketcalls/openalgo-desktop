@@ -10,7 +10,9 @@ use super::orders::*;
 use super::streaming::*;
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Product, Validity};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+};
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
 use serde_json::{json, Value};
 
@@ -898,19 +900,35 @@ fn live_feed_frames_and_events() {
     let last = ticks.last().unwrap();
     assert_eq!(
         (last.symbol.as_str(), last.exchange.as_str(), last.mode),
-        ("RELIANCE", "NSE", 3)
+        ("RELIANCE", "NSE", 2)
     );
     assert_eq!(
         (last.ltp, last.open, last.close, last.oi),
         (2410.5, 2400.0, 2398.0, 1200)
     );
-    assert_eq!(last.change, 12.5);
+    // The m packet's OI counts for a cash scrip too; Motilal sends no
+    // change, book totals or trade time.
+    assert!(last.knows(QuoteField::OpenInterest));
+    for field in [
+        QuoteField::Change,
+        QuoteField::TotalBuyQuantity,
+        QuoteField::LastTradeTime,
+    ] {
+        assert!(!last.knows(field), "{:?}", field);
+    }
     let d = depths.last().unwrap();
     assert_eq!((d.buy.len(), d.sell.len(), d.buy[0].price), (5, 5, 2410.0));
 
-    // A second frame does not announce the session again.
+    // A second frame does not announce the session again. A last trade
+    // before the day OHLC packet carries no open, high, low or close; a
+    // derivative's A packet carries its OI.
     let ev = feed.parse(&Message::Binary(pkt(b'N', 35001, b'A', &f(101.0))));
-    assert!(matches!(&ev[0], FeedEvent::Tick(t) if t.mode == 1 && t.ltp == 101.0 && t.open == 0.0));
+    let FeedEvent::Tick(t) = &ev[0] else {
+        panic!("{:?}", ev)
+    };
+    assert_eq!(t.ltp, 101.0);
+    assert!(t.knows(QuoteField::Ltp) && t.knows(QuoteField::OpenInterest));
+    assert!(!t.knows(QuoteField::Open) && !t.knows(QuoteField::Close));
 
     // Mode change is local; unsubscribe drops state.
     let old = sub("NIFTY28OCT26FUT", "NFO", "35001", FeedMode::Ltp);

@@ -1,6 +1,6 @@
 {
   "broker": "motilal",
-  "summary": "Depth mode, the book before the quote: levels 1 to 5 one packet at a time, level 1 emptied, then circuit limits, day OHLC and the first trade, which the web publishes as its first Depth frame.",
+  "summary": "Depth mode, the book before the quote: levels 1 to 5 one packet at a time, circuit limits, day OHLC, then the first trade, the first Depth frame on both sides; then level 1 empties.",
   "scenarios": [
     "depth-update",
     "book-clear",
@@ -33,50 +33,44 @@
     {
       "key": "frame",
       "kind": "open",
-      "reason": "The desktop sends each book level as a Depth frame before the instrument's first trade, with LTP 0.0 and no quote fields (feed::bridge NO_QUOTE_YET); the web publishes Depth only once a quote and at least one book level have arrived. Gate the first Depth frame on both, as for RB-09.",
+      "reason": "The desktop sends each book level as a Depth frame before the instrument's first trade, with LTP 0.0 and no quote fields; the web publishes Depth only once a quote and at least one book level have arrived. Gate the first Depth frame on both, as for RB-09.",
       "ref": "audit RB-09; motilal_adapter.py:450-455"
     },
     {
       "key": "last_quantity",
-      "kind": "open",
-      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web Quote dict names the last traded quantity ltq only; the desktop sends the canonical last_quantity and ltq beside it with the same value (feed::dialect, WS-05).",
-      "ref": "motilal_adapter.py _normalize_quote_data; feed::dialect (Motilal ltq)"
+      "kind": "web-defect",
+      "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, under last_quantity and Motilal's ltq (lead decision 2026-11-09: market data the broker sent is kept).",
+      "ref": "motilal_adapter.py _normalize_depth_data"
     },
     {
       "key": "ltq",
-      "kind": "open",
-      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web Depth dict has no last traded quantity; the desktop sends ltq beside last_quantity in Depth frames as in Quote frames (feed::dialect sends the aliases in both modes).",
-      "ref": "motilal_adapter.py _normalize_depth_data; feed::dialect"
+      "kind": "web-defect",
+      "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, under last_quantity and Motilal's ltq (lead decision 2026-11-09: market data the broker sent is kept).",
+      "ref": "motilal_adapter.py _normalize_depth_data"
     },
     {
       "key": "average_price",
-      "kind": "open",
-      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web Depth dict leaves out the average price its Quote dict sends; the desktop's Depth frame carries every quote field of the instrument's latest tick (feed::bridge::depth_update).",
-      "ref": "motilal_adapter.py _normalize_depth_data; feed::bridge::depth_update"
+      "kind": "web-defect",
+      "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, under last_quantity and Motilal's ltq (lead decision 2026-11-09: market data the broker sent is kept).",
+      "ref": "motilal_adapter.py _normalize_depth_data"
     },
     {
-      "key": "total_buy_quantity",
-      "kind": "open",
-      "reason": "Motilal's packets carry no book totals; the desktop sends 0, the web leaves the total out. Mark the totals absent.",
-      "ref": "motilal/streaming.rs MotilalFeed::events; motilal_adapter.py _normalize_quote_data"
-    },
-    {
-      "key": "total_sell_quantity",
-      "kind": "open",
-      "reason": "Motilal's packets carry no book totals; the desktop sends 0, the web leaves the total out. Mark the totals absent.",
-      "ref": "motilal/streaming.rs MotilalFeed::events; motilal_adapter.py _normalize_quote_data"
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "Motilal sent no open interest for this cash scrip (no m packet; a cash scrip has none and its last-trade packet's OI slot is 0); the web's Depth dict sends oi 0 from a default (_normalize_depth_data: result['oi'] = 0 without an m packet); the desktop leaves it out.",
+      "ref": "motilal_adapter.py _normalize_depth_data; motilal/streaming.rs quote_tick"
     },
     {
       "key": "upper_circuit",
       "kind": "open",
-      "reason": "The web's Depth dict carries the circuit limits of Motilal's W packet; the desktop decodes them (ScripData) and its common carrier drops them (audit C06).",
-      "ref": "motilal_adapter.py _normalize_depth_data; motilal/streaming.rs ScripData"
+      "reason": "The web's Depth dict carries the circuit limits of Motilal's W packet; the desktop decodes them (ScripData) and does not yet put them on the tick (audit C06).",
+      "ref": "motilal_adapter.py _normalize_depth_data"
     },
     {
       "key": "lower_circuit",
       "kind": "open",
-      "reason": "The web's Depth dict carries the circuit limits of Motilal's W packet; the desktop decodes them (ScripData) and its common carrier drops them (audit C06).",
-      "ref": "motilal_adapter.py _normalize_depth_data; motilal/streaming.rs ScripData"
+      "reason": "The web's Depth dict carries the circuit limits of Motilal's W packet; the desktop decodes them (ScripData) and does not yet put them on the tick (audit C06).",
+      "ref": "motilal_adapter.py _normalize_depth_data"
     }
   ]
 }

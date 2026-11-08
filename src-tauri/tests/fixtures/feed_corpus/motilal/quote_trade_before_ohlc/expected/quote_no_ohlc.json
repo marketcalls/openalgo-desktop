@@ -7,18 +7,12 @@
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": 2,
     "ltp": 1300.5,
     "timestamp": "<receipt_ms>",
     "volume": 40000,
     "last_quantity": 25,
     "average_price": 1298.25,
-    "total_buy_quantity": 0,
-    "total_sell_quantity": 0,
-    "open": 0.0,
-    "high": 0.0,
-    "low": 0.0,
-    "close": 0.0,
-    "ltq": 25
+    "ltq": 25,
+    "mode": 2
   }
 }

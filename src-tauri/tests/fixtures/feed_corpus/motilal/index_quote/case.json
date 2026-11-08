@@ -1,6 +1,6 @@
 {
   "broker": "motilal",
-  "summary": "NIFTY on NSE_INDEX, one client in Quote and one in LTP: an index packet, then the index's day OHLC.",
+  "summary": "NIFTY on NSE_INDEX, one client in Quote and one in LTP: an index packet carries the value only, then the index's day OHLC; no change, as the web adapter sends none.",
   "scenarios": [
     "index",
     "partial-packet"
@@ -33,50 +33,56 @@
     {
       "key": "ltq",
       "kind": "web-defect",
-      "reason": "An index has no trades: the web sends ltq 0 from a default (quote.get('ltq', 0)); the desktop sends no trade quantity for an index, as for every broker.",
-      "ref": "motilal_adapter.py _normalize_quote_data"
+      "reason": "An index has no trades: Motilal's index packet (H) carries no last quantity, and the web sends ltq 0 from a default (quote.get(..., 0)); the desktop leaves it out.",
+      "ref": "motilal_adapter.py _normalize_quote_data, _normalize_ltp_data"
     },
     {
       "key": "average_price",
       "kind": "web-defect",
-      "reason": "An index has no trades: the web sends average price 0 from a default; the desktop sends none for an index, as for every broker.",
-      "ref": "motilal_adapter.py _normalize_quote_data"
+      "reason": "An index has no trades: Motilal's index packet (H) carries no average price, and the web sends average_price 0 from a default (quote.get(..., 0)); the desktop leaves it out.",
+      "ref": "motilal_adapter.py _normalize_quote_data, _normalize_ltp_data"
+    },
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "An index has no trades: Motilal's index packet (H) carries no volume, and the web sends volume 0 from a default (quote.get(..., 0)); the desktop leaves it out.",
+      "ref": "motilal_adapter.py _normalize_quote_data, _normalize_ltp_data"
     },
     {
       "key": "open",
       "kind": "web-defect",
-      "reason": "Before the index's day OHLC packet the web sends 0 (quote.get(..., 0)); the desktop leaves out an index's OHLC it has not received (feed::bridge::quote_fields). After the G packet both send it.",
+      "reason": "Before the index's day OHLC packet (G) the web sends 0 (quote.get(k, 0)); the desktop leaves out an index's OHLC it has not received. After the G packet both send it.",
       "ref": "motilal_adapter.py _normalize_quote_data"
     },
     {
       "key": "high",
       "kind": "web-defect",
-      "reason": "Before the index's day OHLC packet the web sends 0 (quote.get(..., 0)); the desktop leaves out an index's OHLC it has not received (feed::bridge::quote_fields). After the G packet both send it.",
+      "reason": "Before the index's day OHLC packet (G) the web sends 0 (quote.get(k, 0)); the desktop leaves out an index's OHLC it has not received. After the G packet both send it.",
       "ref": "motilal_adapter.py _normalize_quote_data"
     },
     {
       "key": "low",
       "kind": "web-defect",
-      "reason": "Before the index's day OHLC packet the web sends 0 (quote.get(..., 0)); the desktop leaves out an index's OHLC it has not received (feed::bridge::quote_fields). After the G packet both send it.",
+      "reason": "Before the index's day OHLC packet (G) the web sends 0 (quote.get(k, 0)); the desktop leaves out an index's OHLC it has not received. After the G packet both send it.",
       "ref": "motilal_adapter.py _normalize_quote_data"
     },
     {
       "key": "close",
       "kind": "web-defect",
-      "reason": "Before the index's day OHLC packet the web sends 0 (quote.get(..., 0)); the desktop leaves out an index's OHLC it has not received (feed::bridge::quote_fields). After the G packet both send it.",
+      "reason": "Before the index's day OHLC packet (G) the web sends 0 (quote.get(k, 0)); the desktop leaves out an index's OHLC it has not received. After the G packet both send it.",
       "ref": "motilal_adapter.py _normalize_quote_data"
     },
     {
       "key": "price_change",
       "kind": "open",
-      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web adapter sends no change for an index (its Quote dict has none), so Phase B drops it; until then the desktop sends 0.0 before the previous close is known and the change it works out after the G packet (212.75, 0.86%).",
-      "ref": "motilal_adapter.py _normalize_quote_data; feed::bridge::quote_fields"
+      "reason": "Once the previous close is known the desktop works out an index's change for every broker (feed/bridge/snapshot.rs), and Motilal's web adapter sends none, so it is to be left out; open until lane wire's per-broker rule for the change keys is in base (lead 2026-11-09). Motilal sends no change, and its tick marks none.",
+      "ref": "feed/bridge/snapshot.rs merge; motilal_adapter.py _normalize_quote_data"
     },
     {
       "key": "price_change_percent",
       "kind": "open",
-      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web adapter sends no change for an index (its Quote dict has none), so Phase B drops it; until then the desktop sends 0.0 before the previous close is known and the change it works out after the G packet (212.75, 0.86%).",
-      "ref": "motilal_adapter.py _normalize_quote_data; feed::bridge::quote_fields"
+      "reason": "Once the previous close is known the desktop works out an index's change for every broker (feed/bridge/snapshot.rs), and Motilal's web adapter sends none, so it is to be left out; open until lane wire's per-broker rule for the change keys is in base (lead 2026-11-09). Motilal sends no change, and its tick marks none.",
+      "ref": "feed/bridge/snapshot.rs merge; motilal_adapter.py _normalize_quote_data"
     }
   ]
 }
