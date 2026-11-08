@@ -1,6 +1,6 @@
 {
   "broker": "rmoney",
-  "summary": "LTP and Quote clients on one NSE equity: the Quote client moves the subscription up (a PUT of the LTP code, a POST of 1501), and a 1105 text event (t:1_2885,110:...,119:...) becomes, on the desktop, a Quote tick that serves both.",
+  "summary": "LTP and Quote clients on one NSE equity: the Quote client moves the subscription up (a PUT of the LTP code, a POST of 1501), and a 1105 text event (t:1_2885,110:...,119:...) arrives. It is an LTP (1512) message for this member, as its web client marks it: the LTP client gets it, the Quote client nothing.",
   "scenarios": [
     "partial-packet",
     "mode-change"
@@ -14,6 +14,16 @@
       "brexchange": "NSECM"
     }
   ],
+  "depth_levels": {
+    "NSE": [
+      5,
+      20
+    ],
+    "NFO": [
+      5,
+      20
+    ]
+  },
   "http": [
     {
       "path": "/apimarketdata/instruments/subscription",
@@ -42,8 +52,8 @@
       "broker/rmoney/streaming/rmoney_websocket.py::RMoneyWebSocketClient._process_binary_format"
     ],
     "notes": [
-      "1105 carries the touchline codes 110-119 (families/xts/binary.rs parse_1105); it has no MessageCode and no trade time.",
-      "The RMoney web client marks it 1512, so its adapter publishes an LTP frame only and the Quote client gets nothing (audit FB-05).",
+      "1105 carries the touchline codes 110-119 (families/xts/binary.rs parse_1105); it has no MessageCode and no trade time, so the frames carry no ltt.",
+      "The RMoney web client marks it 1512, so its adapter publishes an LTP frame only, as the desktop does.",
       "The desktop holds one subscription per instrument at the highest mode its clients ask for (websocket::manager), so the Quote client changes the LTP subscription into a Quote one; the web adapter subscribes each mode on its own."
     ]
   },
@@ -51,26 +61,14 @@
     {
       "key": "ltq",
       "kind": "open",
-      "reason": "The web's XTS LTP data carries the last traded quantity as ltq; the desktop's LTP frames carry no last quantity (audit C06 carrier, lane wire).",
-      "ref": "rmoney_adapter.py _normalize_market_data (mode 1)"
+      "reason": "The web parses 1105 text values with float(), so in a frame from a 1105 event the quantity ltq is a double (4.0), while from a JSON event it is an integer. Number types follow the broker's web adapter (lead rule), but the dialect's floats switch is per broker, not per packet: the lead decides.",
+      "ref": "rmoney_websocket.py 1105 parser (float(value))"
     },
     {
       "key": "ltt",
-      "kind": "open",
-      "reason": "The event carries no trade time: the web sends 0, the desktop the time it received the event (feed::bridge::ltt). A receipt time is not a trade time (rules: no invented data): the XTS feed should mark the trade time absent (QuoteField::LastTradeTime) so ltt is left out.",
-      "ref": "families/xts/streaming.rs normalise_message; feed::bridge::ltt"
-    },
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "This web adapter puts the mode number (1, 2, 3) in data.mode; the desktop sends its label (ltp, quote, full). data.mode follows each broker's own web adapter (lead rule 2026-11-09): closed in phase B by the broker's entry in lane wire's per-broker dialect switch.",
-      "ref": "rmoney_adapter.py _process_json_data (market_data['mode'] = mode); feed::source::Mode::data_label"
-    },
-    {
-      "key": "frame",
-      "kind": "open",
-      "reason": "RMoney's web client marks a 1105 event 1512, so its adapter publishes it as LTP only and a Quote client gets nothing; the desktop serves the 1105 touchline (quote codes 110-119) at Quote too. Which classification is right is the lead's decision (audit FB-05).",
-      "ref": "rmoney_websocket.py _process_binary_format; families/xts/streaming.rs normalise_message"
+      "kind": "web-defect",
+      "reason": "The event carries no trade time; the web sends ltt 0 (.get('LastTradedTime', 0)), the desktop leaves ltt out (docs: a field the stream does not carry is left out; never a receipt time passed off as a trade time).",
+      "ref": "rmoney_adapter.py _normalize_market_data; families/xts/streaming/normalise.rs trade"
     }
   ]
 }

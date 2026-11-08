@@ -14,6 +14,16 @@
       "brexchange": "NSECM"
     }
   ],
+  "depth_levels": {
+    "NSE": [
+      5,
+      20
+    ],
+    "NFO": [
+      5,
+      20
+    ]
+  },
   "http": [
     {
       "path": "/apimarketdata/instruments/subscription",
@@ -47,16 +57,16 @@
   },
   "deviations": [
     {
-      "key": "ltt",
-      "kind": "web-defect",
-      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST); feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it (1794199530000).",
-      "ref": "iifl_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming.rs xts_time_ms"
+      "key": "ltq",
+      "kind": "desktop-decision",
+      "reason": "ltq is this web adapter's LTP name for the last quantity; the desktop sends a web key from the lowest mode it appears in upward (feed/dialect/names.rs rules), so Quote and Depth frames carry ltq beside last_quantity, where the web's Quote and Depth dicts name it last_quantity only.",
+      "ref": "feed/dialect/names.rs XTS; iifl_adapter.py _normalize_market_data"
     },
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "This web adapter puts the mode number (1, 2, 3) in data.mode; the desktop sends its label (ltp, quote, full). data.mode follows each broker's own web adapter (lead rule 2026-11-09): closed in phase B by the broker's entry in lane wire's per-broker dialect switch.",
-      "ref": "iifl_adapter.py _process_json_data (market_data['mode'] = mode); feed::source::Mode::data_label"
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
+      "ref": "iifl_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms"
     }
   ]
 }

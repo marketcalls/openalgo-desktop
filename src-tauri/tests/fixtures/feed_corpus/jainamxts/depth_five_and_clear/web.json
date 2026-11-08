@@ -27,6 +27,8 @@
         {
           "kind": "market",
           "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
           "mode": 3,
           "data": {
             "ltp": 2500.25,
@@ -109,6 +111,8 @@
         {
           "kind": "market",
           "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
           "mode": 3,
           "data": {
             "ltp": 2500.3,

@@ -1,0 +1,71 @@
+{
+  "broker": "iifl",
+  "summary": "Quote on an NSE equity from a 1501-json-full event with its quote at the message root, the shape the template web adapters read: the desktop sends every quote field.",
+  "scenarios": [
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "depth_levels": {
+    "NSE": [
+      5,
+      20
+    ],
+    "NFO": [
+      5,
+      20
+    ]
+  },
+  "http": [
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/iifl/streaming/iifl_websocket.py::IiflWebSocketClient._setup_socketio",
+      "broker/iifl/streaming/iifl_adapter.py::IiflWebSocketAdapter._process_json_data",
+      "broker/iifl/streaming/iifl_adapter.py::IiflWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": [
+      "The payload is the JSON string XTS puts in the event.",
+      "No recorded 1501-json-full settles where its quote sits: the desktop's XTS fixtures are built, not captured (tests/fixtures/brokers/fivepaisaxts/stream.json quote_1501), the template web adapter reads 1501 at the root ('data is at root level', ibulls_adapter.py:775), and RMoney's reads Touchline when present ('Some payloads embed quote fields under Touchline, others send flat keys', rmoney_adapter.py:901, and its 1501 fallback looks in Touchline, :841-845). The case pins both shapes; a live capture of a 1501-json-full decides which the template's zeros come from."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltq",
+      "kind": "desktop-decision",
+      "reason": "ltq is this web adapter's LTP name for the last quantity; the desktop sends a web key from the lowest mode it appears in upward (feed/dialect/names.rs rules), so Quote and Depth frames carry ltq beside last_quantity, where the web's Quote and Depth dicts name it last_quantity only.",
+      "ref": "feed/dialect/names.rs XTS; iifl_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
+      "ref": "iifl_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "broker": "ibulls",
-  "summary": "LTP and Quote clients on one NSE equity: the Quote client moves the subscription up (a PUT of the LTP code, a POST of 1501), and a 1105 text event (t:1_2885,110:...,119:...) becomes, on the desktop, a Quote tick that serves both.",
+  "summary": "LTP and Quote clients on one NSE equity: the Quote client moves the subscription up (a PUT of the LTP code, a POST of 1501), and a 1105 text event (t:1_2885,110:...,119:...) arrives. The desktop reads it as the touchline its codes 110-119 are: both clients get a frame.",
   "scenarios": [
     "partial-packet",
     "mode-change"
@@ -14,6 +14,16 @@
       "brexchange": "NSECM"
     }
   ],
+  "depth_levels": {
+    "NSE": [
+      5,
+      20
+    ],
+    "NFO": [
+      5,
+      20
+    ]
+  },
   "http": [
     {
       "path": "/apibinarymarketdata/instruments/subscription",
@@ -42,7 +52,7 @@
       "broker/ibulls/streaming/ibulls_websocket.py::IbullsWebSocketClient._process_1105_data"
     ],
     "notes": [
-      "1105 carries the touchline codes 110-119 (families/xts/binary.rs parse_1105); it has no MessageCode and no trade time.",
+      "1105 carries the touchline codes 110-119 (families/xts/binary.rs parse_1105); it has no MessageCode and no trade time, so the frames carry no ltt.",
       "The template web client drops it: its subscription filter compares the stored string instrument id with an int, and its adapter drops a message without MessageCode (audit appendix inherited item 4).",
       "The desktop holds one subscription per instrument at the highest mode its clients ask for (websocket::manager), so the Quote client changes the LTP subscription into a Quote one; the web adapter subscribes each mode on its own."
     ]
@@ -51,7 +61,7 @@
     {
       "key": "frame",
       "kind": "web-defect",
-      "reason": "The web drops a 1105 text event: its client compares the stored string instrument id with an int, so no 1105 event passes its subscription filter, and its adapter drops a message without MessageCode as an unknown code. The desktop decodes it as a touchline (audit appendix, inherited item 4).",
+      "reason": "The web drops a 1105 text event: its client compares the stored string instrument id with an int, so no 1105 event passes its subscription filter, and its adapter drops a message without MessageCode as an unknown code. The desktop decodes the touchline its codes 110-119 carry (audit appendix, inherited item 4).",
       "ref": "ibulls_websocket.py _process_1105_data; ibulls_adapter.py _process_json_data"
     }
   ]

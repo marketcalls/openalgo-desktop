@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "jainamxts",
-  "inputs_sha256": "81060768868e945a4c17ce28bc564b57b6406deb71d3b42ddcffc38b0d3de5d0",
+  "inputs_sha256": "6eeb545e73f67999aa18de8a9dc342244a22df86f7302b390b8db1977e9bf277",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -27,6 +27,8 @@
         {
           "kind": "market",
           "topic": "NSE_RELIANCE_LTP",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
           "mode": 1,
           "data": {
             "ltp": 2503.25,
@@ -41,6 +43,8 @@
         {
           "kind": "market",
           "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
           "mode": 2,
           "data": {
             "ltp": 2503.25,

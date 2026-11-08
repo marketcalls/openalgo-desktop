@@ -5,6 +5,6 @@
 {"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3}}
 {"step": "http_receives", "requests": [{"method": "POST", "path": "/apimarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 2885}], "xtsMessageCode": 1502}}]}
 {"step": "push", "frame": "frames/depth_1502_no_code.txt", "note": "FB-05: no MessageCode in the payload."}
-{"step": "silence", "client": "a"}
+{"step": "receive", "client": "a", "frame": "expected/depth_no_code.json"}
 {"step": "push", "frame": "frames/depth_1502.txt"}
 {"step": "receive", "client": "a", "frame": "expected/depth.json"}

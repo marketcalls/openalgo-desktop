@@ -1,6 +1,6 @@
 {
   "broker": "jainamxts",
-  "summary": "LTP on an NSE equity and on NIFTY (NSE_INDEX 26000 on segment 1): each subscribe is one REST call with code 1512, each 1512 event becomes an LTP frame with the trade time in Unix milliseconds, and after the unsubscribe (a PUT) a late event reaches nobody.",
+  "summary": "LTP on an NSE equity and on NIFTY (NSE_INDEX 26000 on segment 1): each subscribe is one REST call with code 1512, each 1512 event becomes an LTP frame with the trade time in Unix milliseconds and the equity's last quantity as ltq, and after the unsubscribe (a PUT) a late event reaches nobody.",
   "scenarios": [
     "first-full-packet",
     "index",
@@ -23,6 +23,16 @@
       "instrumenttype": "INDEX"
     }
   ],
+  "depth_levels": {
+    "NSE": [
+      5,
+      20
+    ],
+    "NFO": [
+      5,
+      20
+    ]
+  },
   "http": [
     {
       "path": "/apibinarymarketdata/instruments/subscription",
@@ -50,28 +60,22 @@
       "broker/jainamxts/streaming/jainamxts_adapter.py::JainamXTSWebSocketAdapter._normalize_market_data"
     ],
     "notes": [
-      "XTS LastTradedTime counts seconds from 1980-01-01 IST; the desktop sends it as Unix milliseconds (families/xts/streaming.rs xts_time_ms).",
+      "XTS LastTradedTime counts seconds from 1980-01-01 IST; the desktop sends it as Unix milliseconds (families/xts/streaming/normalise.rs xts_time_ms).",
       "One instrument per subscribe, so each REST body names one instrument (the feed batches what arrives together)."
     ]
   },
   "deviations": [
     {
-      "key": "ltq",
-      "kind": "open",
-      "reason": "The web's XTS LTP data carries the last traded quantity as ltq; the desktop's LTP frames carry no last quantity (audit C06 carrier, lane wire).",
-      "ref": "jainamxts_adapter.py _normalize_market_data (mode 1)"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST); feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it (1794199530000).",
-      "ref": "jainamxts_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming.rs xts_time_ms"
+      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST): a wrong unit, since feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in milliseconds (1794199530000).",
+      "ref": "jainamxts_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming/normalise.rs xts_time_ms"
     },
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "This web adapter puts the mode number (1, 2, 3) in data.mode; the desktop sends its label (ltp, quote, full). data.mode follows each broker's own web adapter (lead rule 2026-11-09): closed in phase B by the broker's entry in lane wire's per-broker dialect switch.",
-      "ref": "jainamxts_adapter.py _process_json_data (market_data['mode'] = mode); feed::source::Mode::data_label"
+      "key": "ltq",
+      "kind": "web-defect",
+      "reason": "An index has no ltq; the web sends XTS's 0 for it, the desktop's index frames leave the trade-size and book fields out (feed/protocol/market.rs shown_quote; lead decision, night of 9 Nov: web zeros for values an index stream does not have are left out).",
+      "ref": "jainamxts_adapter.py _normalize_market_data; feed/protocol/market.rs shown_quote"
     }
   ]
 }

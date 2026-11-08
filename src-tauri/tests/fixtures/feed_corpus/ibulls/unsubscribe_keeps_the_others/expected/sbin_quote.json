@@ -7,10 +7,10 @@
   "data": {
     "symbol": "SBIN",
     "exchange": "NSE",
-    "mode": "quote",
+    "mode": 2,
     "ltp": 812.35,
-    "ltt": 1794199530000,
     "timestamp": "<receipt_ms>",
+    "ltt": 1794199530000,
     "volume": 9876543,
     "last_quantity": 25,
     "average_price": 810.45,
@@ -19,6 +19,7 @@
     "open": 806.0,
     "high": 815.9,
     "low": 804.1,
-    "close": 805.7
+    "close": 805.7,
+    "ltq": 25
   }
 }

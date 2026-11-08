@@ -35,7 +35,7 @@
   ],
   "notes": [
     "The event name supplies a missing MessageCode, 1105 text is 1512, and every message is published to each mode the symbol's subscriptions hold; an unsubscribe disconnects the whole adapter.",
-    "Depth 20 on NSE and NFO is in the web's registry; the desktop streams 5 today (families/xts/mod.rs depth_levels [5], audit FB-06).",
+    "Depth 20 on NSE and NFO, as the web's registry lists it (XtsBroker::feed_depth_levels, audit FB-06): both depths subscribe the same 1502 code, and the frames carry the levels its events bring.",
     "The web streams no order updates for this broker (no order adapter, no polling); the desktop has none either (order_feed: false)."
   ]
 }

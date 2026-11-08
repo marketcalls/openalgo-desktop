@@ -34,6 +34,8 @@
         {
           "kind": "market",
           "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
           "mode": 2,
           "data": {
             "ltp": 2501.5,
@@ -61,6 +63,8 @@
         {
           "kind": "market",
           "topic": "NSE_SBIN_QUOTE",
+          "exchange": "NSE",
+          "symbol": "SBIN",
           "mode": 2,
           "data": {
             "ltp": 812.35,
@@ -88,6 +92,8 @@
         {
           "kind": "market",
           "topic": "NSE_SBIN_QUOTE",
+          "exchange": "NSE",
+          "symbol": "SBIN",
           "mode": 2,
           "data": {
             "ltp": 812.6,
@@ -115,6 +121,8 @@
         {
           "kind": "market",
           "topic": "NSE_RELIANCE_QUOTE",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
           "mode": 2,
           "data": {
             "ltp": 2501.5,
