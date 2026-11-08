@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Proto3 messages from a web `*_pb2.py`, without the protobuf package.
 
-A web feed that receives protobuf (HDFC Sky, HDFC Securities) parses it
-with classes protoc generated into a `*_pb2.py`. That module needs the
-`protobuf` package, which the corpus tools do not install. Its schema is a
-serialized `FileDescriptorProto` passed to `AddSerializedFile`, read here by
-AST (the module is never executed), and this file builds plain classes from
-it that decode as protobuf's Python classes do, for what a feed parser reads:
+A web feed that receives protobuf parses it with classes protoc generated
+into a `*_pb2.py`, which needs the `protobuf` package the corpus tools do
+not install. The module's schema is a serialized `FileDescriptorProto`
+passed to `AddSerializedFile`; this file reads it by AST (the web module is
+never executed) and builds plain classes that decode as protobuf's Python
+classes do, for what a feed parser reads:
 
 - `Message()`, `ParseFromString(data)`, attribute access with proto3
   defaults (a message field never set reads as an empty message), repeated
@@ -16,17 +16,24 @@ it that decode as protobuf's Python classes do, for what a feed parser reads:
   does not match the schema is skipped as an unknown field, as protobuf's
   own parser keeps it aside rather than failing.
 
-It also writes frames for the corpus: `encode` turns a message spec (field
-names and values, enum values by name) into the `.hex` text the harness
-reads, one line per field with its name and value as a comment, so a case's
-frame says field by field what it carries. Only the fields a spec names are
-written, as a proto3 sender leaves defaults out.
+Decoding, in a glue (`web_adapters/<broker>.py`): hand the stand-in to the
+web parser in place of its `*_pb2` import, under the name it imports:
+
+    pb = protolite.module(Path(web_root) / "broker/<broker>/streaming/<name>_pb2.py")
+    stubs = {"pb": pb, "DecodeError": pb.DecodeError}
+
+Encoding a corpus frame: `encode` turns a message spec (field names and
+values, enum values by name, nested messages as objects, repeated fields as
+lists) into the `.hex` text the harness reads, one line per field with its
+name and value as a comment, so a case's frame says field by field what it
+carries. Only the fields a spec names are written, as a proto3 sender
+leaves defaults out:
 
     python3 scripts/feed_corpus/protolite.py --web ../openalgo \\
-        --pb2 broker/hdfcsky/streaming/hdfcsky_market_pb2.py \\
-        --type GenericDTOList spec.json > frame.hex
+        --pb2 broker/<broker>/streaming/<name>_pb2.py \\
+        --type <Message> --comment "what the frame is" spec.json > frame.hex
 
-Standard library only.
+Standard library only. Used by the HDFC Sky and HDFC Securities glues.
 """
 
 from __future__ import annotations

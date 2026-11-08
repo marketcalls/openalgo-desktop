@@ -150,6 +150,19 @@ socket) and `depth` (a separate deep-book socket). A broker's order or
 deep-book feed is connected only in a case whose script names its socket,
 so market data cases need not expect its login frames.
 
+### Protobuf frames
+
+A broker whose feed is protobuf (HDFC Sky, HDFC Securities) gets its
+frames from `scripts/feed_corpus/protolite.py`, which reads the schema from
+the web's own `*_pb2.py` (by AST: the web module never runs, and the
+protobuf package is not needed). Write a message spec as JSON, field names
+and values as the web's `.proto` names them, and the script writes the
+`.hex` file with one commented line per field; fields left out of the spec
+are not sent, as a proto3 sender leaves its defaults out. The same module
+decodes the frames for the broker's glue, so `web.json` comes from the
+web's parser reading the very bytes the desktop reads. Its docstring has
+both uses.
+
 ### The fake broker API
 
 One fake REST API per case, on an ephemeral loopback port, for what a feed
