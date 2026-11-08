@@ -66,3 +66,52 @@ async fn server_status_shows_each_part_with_its_real_state() {
     }
     h.ctx().runtime.teardown(h.ctx()).await;
 }
+
+/// A port inside a range Windows reserved (Hyper-V, WSL, Docker, the NAT
+/// service) fails the bind with access denied (WSAEACCES, os error 10013),
+/// not "address in use". A trader on 2026-11-06 saw only "could not open
+/// port 5000" and a Zerodha login that looped back to the login page. The
+/// message names the cause and the fix; a port in use keeps its own, and
+/// any other failure the general one.
+#[test]
+fn each_bind_failure_is_told_with_its_cause_and_fix() {
+    use crate::server::{bind_failure, port_in_use_message};
+    use crate::state::ServerStatus;
+    let reserved = std::io::Error::from_raw_os_error(10013);
+    let ServerStatus::Failed { message } = bind_failure(5000, &reserved) else {
+        panic!("a reserved port is not a port in use");
+    };
+    assert!(
+        message.starts_with("OpenAlgo could not start because Windows has reserved port 5000"),
+        "{message}"
+    );
+    assert!(
+        message.contains("such as 5001, and choose Try again"),
+        "{message}"
+    );
+    assert!(
+        message.contains("http://127.0.0.1:5001/zerodha/callback"),
+        "{message}"
+    );
+    let ServerStatus::Failed { message } = bind_failure(5001, &reserved) else {
+        panic!("a reserved port is not a port in use");
+    };
+    assert!(message.contains("such as 5002"), "{message}");
+
+    let in_use = std::io::Error::from(std::io::ErrorKind::AddrInUse);
+    assert_eq!(
+        bind_failure(5000, &in_use),
+        ServerStatus::PortInUse {
+            port: 5000,
+            message: port_in_use_message(5000),
+        }
+    );
+    let other = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+    assert_eq!(
+        bind_failure(5000, &other),
+        ServerStatus::Failed {
+            message: "OpenAlgo could not open port 5000. Choose a different port and try again."
+                .into(),
+        }
+    );
+}

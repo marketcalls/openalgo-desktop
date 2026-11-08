@@ -192,6 +192,44 @@ pub fn port_in_use_message(port: u16) -> String {
     )
 }
 
+/// Windows' "access denied" for a bind (WSAEACCES): the port lies in a
+/// range Windows reserved (Hyper-V, WSL, Docker and the NAT service
+/// reserve ranges, and the ranges can change after an update or a
+/// restart), not a port another program holds.
+const WSAEACCES: i32 = 10013;
+
+/// What the trader is told when the app's port cannot be opened: the
+/// port taken by another program (with the fix), a port Windows
+/// reserved (with the fix), or anything else.
+pub(crate) fn bind_failure(port: u16, e: &std::io::Error) -> ServerStatus {
+    if e.kind() == std::io::ErrorKind::AddrInUse {
+        return ServerStatus::PortInUse {
+            port,
+            message: port_in_use_message(port),
+        };
+    }
+    if e.raw_os_error() == Some(WSAEACCES) {
+        return ServerStatus::Failed {
+            message: port_reserved_message(port),
+        };
+    }
+    ServerStatus::Failed {
+        message: format!(
+            "OpenAlgo could not open port {}. Choose a different port and try again.",
+            port
+        ),
+    }
+}
+
+/// A port Windows reserved, in a trader's words: the cause, another port,
+/// and the broker's redirect URL that must follow it.
+fn port_reserved_message(port: u16) -> String {
+    let other = if port == 5001 { 5002 } else { 5001 };
+    format!(
+        "OpenAlgo could not start because Windows has reserved port {port} for its own use (Hyper-V, WSL or Docker reserve ranges of ports, and the ranges can change after an update or a restart). Enter another port, such as {other}, and choose Try again. Then change the redirect URL in your broker's app to the new port (for example http://127.0.0.1:{other}/zerodha/callback), or the broker login will not complete."
+    )
+}
+
 pub struct ServerHandle {
     pub addr: SocketAddr,
     token: CancellationToken,
@@ -232,23 +270,9 @@ pub async fn start(ctx: Arc<AppState>) -> Result<ServerHandle, ServerStatus> {
     };
     let listener = match tokio::net::TcpListener::bind(addr).await {
         Ok(l) => l,
-        Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
-            tracing::error!("Port {} is already in use", cfg.http_port);
-            let st = ServerStatus::PortInUse {
-                port: cfg.http_port,
-                message: port_in_use_message(cfg.http_port),
-            };
-            *ctx.server_status.write() = st.clone();
-            return Err(st);
-        }
         Err(e) => {
             tracing::error!("Could not bind {}: {}", addr, e);
-            let st = ServerStatus::Failed {
-                message: format!(
-                    "OpenAlgo could not open port {}. Choose a different port and try again.",
-                    cfg.http_port
-                ),
-            };
+            let st = bind_failure(cfg.http_port, &e);
             *ctx.server_status.write() = st.clone();
             return Err(st);
         }

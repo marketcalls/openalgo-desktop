@@ -48,6 +48,22 @@ another program", with a **Port** box and a **Try again** button.
     `http://127.0.0.1:5001`;
   - the `--url` in your AI client's MCP configuration.
 
+**Windows: "Windows has reserved port 5000".** Windows keeps some ranges of
+ports for itself (Hyper-V, WSL, Docker and the Windows NAT service reserve
+them), and the ranges can change after a Windows update or a restart, so a
+port that worked yesterday can be refused today. No other program is using
+the port, so closing programs does not help; the broker login can also keep
+returning you to the login page. To check, open **Command Prompt** and run:
+
+```
+netsh interface ipv4 show excludedportrange protocol=tcp
+```
+
+If 5000 lies between a **Start Port** and an **End Port** in the list, Windows
+has reserved it. Enter a port outside every listed range (for example 5001)
+in the **Port** box, choose **Try again**, and update the redirect URL in your
+broker's developer portal and your tools as above.
+
 **Port 8765 (market data).** If another program holds it, the app still opens
 but the market data WebSocket for your SDK and trading platforms does not start
 until the port is free; OpenAlgo keeps trying in the background. Close the
