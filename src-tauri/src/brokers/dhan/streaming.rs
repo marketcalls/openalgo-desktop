@@ -639,15 +639,20 @@ impl Dhan20DepthFeed {
                     }
                     if entry.0.is_some() && entry.1.is_some() {
                         if let Some((Some(buy), Some(sell))) = self.pending.remove(&key) {
+                            // A 20-level packet has no LTP and no book totals
+                            // (web `_on_data_20depth` sends none): a sum of the
+                            // visible levels is not the exchange's total.
                             out.push(FeedEvent::Depth(NormalizedDepth {
                                 symbol,
                                 exchange,
-                                ltp: 0.0,
-                                total_buy_quantity: buy.iter().map(|l| l.quantity).sum(),
-                                total_sell_quantity: sell.iter().map(|l| l.quantity).sum(),
                                 buy,
                                 sell,
                                 timestamp_ms: now_ms(),
+                                absent: AbsentFields::of(&[
+                                    QuoteField::Ltp,
+                                    QuoteField::TotalBuyQuantity,
+                                    QuoteField::TotalSellQuantity,
+                                ]),
                                 ..Default::default()
                             }));
                         }

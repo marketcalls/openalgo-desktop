@@ -19,7 +19,9 @@ fn unread() -> crate::error::AppError {
     crate::brokers::common::book_read::unreadable("dhan", Book::Orders)
 }
 use crate::brokers::common::mapping::{Action, PriceType, Product, Validity};
-use crate::brokers::common::streaming::{FeedEvent, FeedMode, FeedSubscription, Message};
+use crate::brokers::common::streaming::{
+    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+};
 use chrono::NaiveDate;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -1111,7 +1113,9 @@ fn twenty_depth_pairs_bid_and_ask_halves() {
             assert_eq!(d.sell.len(), 20);
             assert_eq!(d.buy[0].price, 813.0);
             assert_eq!(d.sell[19].quantity, 200);
-            assert_eq!(d.total_buy_quantity, 2100);
+            // No totals in a 20-level packet: none is made up from the levels.
+            assert!(d.absent.contains(QuoteField::TotalBuyQuantity));
+            assert!(d.absent.contains(QuoteField::TotalSellQuantity));
         }
         other => panic!("unexpected {:?}", other),
     }
