@@ -307,3 +307,78 @@ fn the_change_percent_is_chgpcnt_under_its_web_name() {
     assert_eq!(d["price_change_percent"], -0.6321969, "{}", d);
     assert_eq!(d["percent_change"], -0.6321969, "{}", d);
 }
+
+/// 5paisa sends 0 for a price it does not have. With nothing held for the
+/// instrument a frame without a traded price publishes nothing (no zero
+/// LTP), and a zero OHLC or average price is left out, not sent as 0; the
+/// quantities are the frame's.
+#[test]
+fn a_price_5paisa_does_not_have_is_left_out_not_sent_as_zero() {
+    let no_trade = json!({"LastRate": 0, "LastQty": 0});
+    let mut f = feed_with(&[itc(FeedMode::Quote)]);
+    let events = send(&mut f, with(feed_frame(), no_trade));
+    assert!(matches!(events.as_slice(), [FeedEvent::Tick(_)]));
+    assert!(Frames::new("fivepaisa").at(&events, Mode::Quote).is_empty());
+
+    let unpriced = json!({"OpenRate": 0, "High": 0, "Low": 0, "PClose": 0, "AvgRate": 0});
+    let mut f = feed_with(&[itc(FeedMode::Quote)]);
+    let events = send(&mut f, with(feed_frame(), unpriced));
+    let quotes = Frames::new("fivepaisa").at(&events, Mode::Quote);
+    let [d] = quotes.as_slice() else {
+        panic!("one quote frame: {:?}", quotes)
+    };
+    assert_eq!(
+        (&d["ltp"], &d["volume"]),
+        (&json!(440.1), &json!(1200)),
+        "{}",
+        d
+    );
+    for k in ["open", "high", "low", "close", "average_price"] {
+        assert!(d.get(k).is_none(), "{}: {}", k, d);
+    }
+}
+
+/// A new connection holds nothing: the first frame after a reconnect that
+/// reports 0 for every price publishes nothing, and the next priced one
+/// carries only what the new connection has sent. The web keeps its
+/// snapshot across the reconnect and sends the pre-outage prices as
+/// current (a web defect).
+#[test]
+fn prices_held_before_a_reconnect_are_not_sent_after_it() {
+    let mut f = feed_with(&[itc(FeedMode::Quote)]);
+    let before = Frames::new("fivepaisa").at(&send(&mut f, feed_frame()), Mode::Quote);
+    assert_eq!(before.len(), 1);
+    f.on_connected();
+    let unpriced = json!({"OpenRate": 0, "High": 0, "Low": 0, "PClose": 0, "AvgRate": 0});
+    let mut frames = Frames::new("fivepaisa");
+    let zero = with(with(feed_frame(), json!({"LastRate": 0})), unpriced.clone());
+    assert!(frames.at(&send(&mut f, zero), Mode::Quote).is_empty());
+    let priced = with(with(feed_frame(), json!({"LastRate": 440.3})), unpriced);
+    let d = frames.at(&send(&mut f, priced), Mode::Quote).pop().unwrap();
+    assert_eq!(d["ltp"], 440.3, "{}", d);
+    for k in ["open", "high", "low", "close", "average_price"] {
+        assert!(d.get(k).is_none(), "{}: {}", k, d);
+    }
+}
+
+/// A MarketFeedV3 frame is a Quote packet whatever the subscription; an
+/// LTP subscriber gets the price and its trade time only.
+#[test]
+fn an_ltp_frame_is_cut_from_the_quote_packet() {
+    let mut f = feed_with(&[itc(FeedMode::Ltp)]);
+    let events = send(&mut f, feed_frame());
+    assert!(matches!(events.as_slice(), [FeedEvent::Tick(t)] if t.mode == 2));
+    let ltp = Frames::new("fivepaisa").at(&events, Mode::Ltp);
+    assert_eq!(
+        crate::feed::testkit::keys(&ltp[0]),
+        [
+            "exchange",
+            "last_trade_time",
+            "ltp",
+            "ltt",
+            "mode",
+            "symbol",
+            "timestamp"
+        ]
+    );
+}

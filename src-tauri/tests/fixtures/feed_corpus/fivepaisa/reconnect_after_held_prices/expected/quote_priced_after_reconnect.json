@@ -8,19 +8,14 @@
     "symbol": "ITC",
     "exchange": "NSE",
     "mode": 2,
-    "ltp": 0.0,
-    "ltt": 1759900115000,
+    "ltp": 440.3,
+    "ltt": 1759900116000,
     "timestamp": "<receipt_ms>",
-    "volume": 1300,
-    "last_quantity": 0,
-    "average_price": 0.0,
+    "volume": 1310,
+    "last_quantity": 10,
     "total_buy_quantity": 110,
     "total_sell_quantity": 210,
-    "open": 0.0,
-    "high": 0.0,
-    "low": 0.0,
-    "close": 0.0,
-    "last_trade_quantity": 0,
-    "last_trade_time": 1759900115000
+    "last_trade_quantity": 10,
+    "last_trade_time": 1759900116000
   }
 }

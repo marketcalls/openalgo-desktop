@@ -729,15 +729,20 @@ fn feed_decodes_quotes_with_snapshot_merge() {
     assert_eq!(f.cached(), 0);
 }
 
+/// A MarketFeedV3 frame is a Quote packet whatever the subscription; the
+/// LTP subscriber's frame is cut from it (`quote_feed`).
 #[test]
-fn feed_ltp_mode_carries_only_the_price() {
+fn feed_ltp_mode_carries_the_quote_packet() {
     let mut f = FivepaisaFeed::new("wss://x", JWT, "5000");
     f.subscribe_frames(&[sub("3045", "NSE", FeedMode::Ltp)]);
     let ev = f.parse(&Message::Text(feed_fixture("quote")));
     let FeedEvent::Tick(t) = &ev[0] else {
         panic!("{:?}", ev)
     };
-    assert_eq!((t.mode, t.ltp, t.volume, t.close), (1, 812.5, 0, 0.0));
+    assert_eq!(
+        (t.mode, t.ltp, t.volume, t.close),
+        (2, 812.5, 1520034, 808.25)
+    );
     // Depth frames are ignored outside depth mode.
     assert!(f.parse(&Message::Text(feed_fixture("depth"))).is_empty());
 }
@@ -747,7 +752,7 @@ fn feed_depth_takes_ltp_from_the_quote_stream() {
     let mut f = FivepaisaFeed::new("wss://x", JWT, "5000");
     f.subscribe_frames(&[sub("3045", "NSE", FeedMode::Depth)]);
     let ev = f.parse(&Message::Text(feed_fixture("quote")));
-    assert!(matches!(&ev[0], FeedEvent::Tick(t) if t.mode == 3));
+    assert!(matches!(&ev[0], FeedEvent::Tick(t) if t.mode == 2));
     let ev = f.parse(&Message::Text(feed_fixture("depth")));
     let FeedEvent::Depth(d) = &ev[0] else {
         panic!("{:?}", ev)

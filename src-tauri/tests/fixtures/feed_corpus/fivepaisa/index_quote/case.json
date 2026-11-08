@@ -54,9 +54,9 @@
     },
     {
       "key": "average_price",
-      "kind": "open",
-      "reason": "The 5paisa web adapter sends an index the equity quote keys, with 5paisa's zeros for the traded quantity, average price and book totals; the desktop's renderer gives an index the recorded Zerodha index shape without them. Field presence follows the broker's web adapter: in Phase B through lane wire's per-broker presence (5paisa: an index carries them).",
-      "ref": "feed/protocol.rs market_data index branch; fivepaisa_adapter.py:_normalize_market_data"
+      "kind": "web-defect",
+      "reason": "5paisa sends an index's average price as 0, a price it does not have; the web passes the 0 on (_quote_fields feed.get(\"AvgRate\", 0)), the desktop leaves out a price 0 with nothing held, as for every instrument. An invented zero on the web.",
+      "ref": "fivepaisa_adapter.py:_quote_fields; brokers/fivepaisa/streaming.rs quote_tick"
     },
     {
       "key": "total_buy_quantity",

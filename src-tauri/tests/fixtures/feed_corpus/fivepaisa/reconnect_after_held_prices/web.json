@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "fivepaisa",
-  "inputs_sha256": "1cb3131556975bca67f4b3dd02c2e0283c8e422ed5e9316d9d89a361f7383f59",
+  "inputs_sha256": "4c699146b31f98053c0745f93465109ec97b664d76df644a0c8e55daceffe04b",
   "instruments": [
     {
       "symbol": "ITC",
@@ -70,6 +70,41 @@
             "average_price": 441.3,
             "ltt": 1759900115000,
             "last_trade_time": 1759900115000,
+            "total_buy_quantity": 110,
+            "total_sell_quantity": 210,
+            "bid_price": 440.0,
+            "bid_quantity": 0,
+            "ask_price": 440.2,
+            "ask_quantity": 0,
+            "symbol": "ITC",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_ITC_QUOTE",
+          "exchange": "NSE",
+          "symbol": "ITC",
+          "mode": 2,
+          "data": {
+            "ltp": 440.3,
+            "volume": 1310,
+            "open": 445.5,
+            "high": 447.2,
+            "low": 439.5,
+            "close": 442.9,
+            "last_trade_quantity": 10,
+            "last_quantity": 10,
+            "average_price": 441.3,
+            "ltt": 1759900116000,
+            "last_trade_time": 1759900116000,
             "total_buy_quantity": 110,
             "total_sell_quantity": 210,
             "bid_price": 440.0,

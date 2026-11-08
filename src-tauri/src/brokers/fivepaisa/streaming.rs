@@ -22,7 +22,11 @@
 //!   any other frame (OI) makes nothing.
 //! * A zero `LastRate/OpenRate/High/Low/PClose/BidRate/OffRate/AvgRate`
 //!   keeps the last non-zero value seen for the instrument (snapshot merge),
-//!   kept only while it is subscribed.
+//!   kept only while it is subscribed and only on the connection that sent
+//!   it; a zero with none held is a price 5paisa does not have and is left
+//!   out (no frame at all without a traded price), never sent as 0. The
+//!   web keeps its snapshot across a reconnect, so it sends pre-outage
+//!   prices as current there: a web defect the desktop does not copy.
 //! * WebSocket ping every 10 s.
 //!
 //! The order-confirmation stream is not used: 5paisa allows one feed
@@ -183,41 +187,56 @@ fn frame_kind(frame: &Value) -> FrameKind {
     }
 }
 
-/// The tick a MarketFeedV3 frame (its prices already held) makes for `sub`.
-/// 5paisa's own `ChgPcnt` is the percent change when it is sent. OI is not
-/// on this stream, so it is left out, and so is the trade time when
-/// `TickDt` is not one: the feed sends `/Date(-62135596800000)/`
-/// (DateTime.MinValue) when it has none, and only a positive epoch is a
-/// time (web openalgo#2396, `_parse_fivepaisa_time`), never the receive
-/// time.
+/// The tick a MarketFeedV3 frame (its prices already held) makes for `sub`:
+/// a Quote packet whatever the subscription (the LTP frame is cut from
+/// it). 5paisa sends 0 for a price it does not have; with no earlier value
+/// held (a new subscription, or the first frame on a new connection) such a
+/// price is left out, not sent as 0, and without a traded price the bridge
+/// publishes nothing for the frame. 5paisa's own `ChgPcnt` is the percent
+/// change when it is sent. OI is not on this stream, so it is left out, and
+/// so is the trade time when `TickDt` is not one: the feed sends
+/// `/Date(-62135596800000)/` (DateTime.MinValue) when it has none, and only
+/// a positive epoch is a time (web openalgo#2396, `_parse_fivepaisa_time`),
+/// never the receive time.
 fn quote_tick(sub: &SubInfo, m: &Value) -> NormalizedTick {
     let mut t = NormalizedTick {
         symbol: sub.symbol.clone(),
         exchange: sub.exchange.clone(),
-        mode: sub.mode.code(),
+        mode: FeedMode::Quote.code(),
         ltp: num(m, "LastRate"),
+        open: num(m, "OpenRate"),
+        high: num(m, "High"),
+        low: num(m, "Low"),
+        close: num(m, "PClose"),
+        volume: num(m, "TotalQty") as i64,
+        last_quantity: num(m, "LastQty") as i64,
+        average_price: num(m, "AvgRate"),
+        total_buy_quantity: num(m, "TBidQ") as i64,
+        total_sell_quantity: num(m, "TOffQ") as i64,
         last_trade_time_ms: ms_date_epoch(&text(m, "TickDt")),
         timestamp_ms: now_ms(),
         absent: AbsentFields::of(&[QuoteField::OpenInterest]),
         ..Default::default()
     };
     if t.last_trade_time_ms <= 0 {
-        t.absent = t.absent.with(QuoteField::LastTradeTime);
+        t.mark_absent(QuoteField::LastTradeTime);
     }
-    if sub.mode != FeedMode::Ltp {
-        t.open = num(m, "OpenRate");
-        t.high = num(m, "High");
-        t.low = num(m, "Low");
-        t.close = num(m, "PClose");
-        t.volume = num(m, "TotalQty") as i64;
-        t.last_quantity = num(m, "LastQty") as i64;
-        t.average_price = num(m, "AvgRate");
-        t.total_buy_quantity = num(m, "TBidQ") as i64;
-        t.total_sell_quantity = num(m, "TOffQ") as i64;
-        t.derive_change();
-        if m.get("ChgPcnt").is_some_and(|v| !v.is_null()) {
-            t.change_percent = num(m, "ChgPcnt");
+    let prices = [
+        (QuoteField::Ltp, t.ltp),
+        (QuoteField::Open, t.open),
+        (QuoteField::High, t.high),
+        (QuoteField::Low, t.low),
+        (QuoteField::Close, t.close),
+        (QuoteField::AveragePrice, t.average_price),
+    ];
+    for (field, price) in prices {
+        if price == 0.0 {
+            t.mark_absent(field);
         }
+    }
+    t.derive_change();
+    if m.get("ChgPcnt").is_some_and(|v| !v.is_null()) {
+        t.change_percent = num(m, "ChgPcnt");
     }
     t
 }
