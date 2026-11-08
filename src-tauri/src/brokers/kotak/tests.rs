@@ -1024,8 +1024,11 @@ fn sfeed_handshake_subscribe_and_ticks() {
     )));
     match &ev[..] {
         [FeedEvent::Tick(t), FeedEvent::Depth(d)] => {
-            assert_eq!((t.ltp, t.close), (815.0, 812.35));
-            assert!(!t.knows(QuoteField::Open) && !t.knows(QuoteField::Volume));
+            // This mini packet has no previous close either.
+            assert_eq!(t.ltp, 815.0);
+            for f in [QuoteField::Open, QuoteField::Volume, QuoteField::Close] {
+                assert!(!t.knows(f), "{:?}: {:?}", f, t);
+            }
             assert_eq!((d.ltp, d.buy[0].price), (815.0, 814.05));
         }
         other => panic!("unexpected {:?}", other),
@@ -1136,7 +1139,7 @@ fn depth_holders_see_every_packets_price_with_the_cached_book() {
     );
     let ev = f.parse(&mini(3045, 81_700));
     match &ev[..] {
-        [FeedEvent::Tick(t)] => assert_eq!((t.ltp, t.close), (817.0, 812.35)),
+        [FeedEvent::Tick(t)] => assert_eq!(t.ltp, 817.0),
         other => panic!("unexpected {:?}", other),
     }
     // Back in depth, nothing is published as a book until one arrives.

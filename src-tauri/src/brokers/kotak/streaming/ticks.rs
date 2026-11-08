@@ -182,6 +182,11 @@ fn mini_touch_line(t: &mut NormalizedTick, pkt: &Sfeed) -> i64 {
     t.close = *close;
     t.last_quantity = *last_trade_qty;
     t.absent = NOT_IN_A_MINI_TICK;
+    if *close <= 0.0 {
+        // A partial packet without a previous close says nothing about
+        // it: the last known one stays.
+        t.mark_absent(QuoteField::Close);
+    }
     *last_trade_time
 }
 
