@@ -2,9 +2,11 @@
 //! two are one protocol: the web's `hdfcsky_market_pb2.py` and
 //! `hdfcsecurities_market_pb2.py` describe the same messages, and their
 //! `*_websocket.py` parsers and `*_adapter.py` normalisers are the same
-//! code. Both desktop feeds shape their ticks here.
+//! code. Both desktop feeds shape their ticks and read their text frames
+//! here.
 
-use crate::brokers::common::streaming::{FeedMode, NormalizedTick, QuoteField};
+use crate::brokers::common::streaming::{FeedEvent, FeedMode, NormalizedTick, QuoteField};
+use serde_json::Value;
 
 /// A band limit as sent: proto3 writes 0 for a limit the packet does not
 /// carry, and no instrument has a limit of 0.
@@ -53,4 +55,53 @@ pub(crate) fn mark_carriage(t: &mut NormalizedTick, subscribed: FeedMode, index:
     if has_open_interest(&t.exchange) {
         t.mark_carried(F::OpenInterest);
     }
+}
+
+/// The web's `_AUTH_FAILURE_INDICATORS` (both `*_websocket.py`).
+const AUTH_FAILURE: &[&str] = &[
+    "401",
+    "403",
+    "unauthorized",
+    "unauthorised",
+    "forbidden",
+    "invalid token",
+    "token expired",
+    "session expired",
+    "invalid api_key",
+];
+
+/// What a text frame says (web `_on_ws_message`: text frames are
+/// acknowledgements and errors; neither is market data). An error or
+/// failure whose text names a token or auth problem
+/// (`_is_fatal_auth_error`) ends the session: the feed stops until the
+/// trader logs in again. The web keeps the socket until it closes, then
+/// retries with the token in its database and stops when that is
+/// unchanged; the desktop's token changes only with a new login, so it
+/// stops at once. Any other notice publishes nothing.
+pub(crate) fn text_events(text: &str, broker: &str) -> Vec<FeedEvent> {
+    let Ok(v) = serde_json::from_str::<Value>(text) else {
+        tracing::debug!("{} feed sent a text frame that is not JSON", broker);
+        return Vec::new();
+    };
+    let status = match v.get("status") {
+        Some(Value::String(s)) => s.to_ascii_lowercase(),
+        _ => String::new(),
+    };
+    if status != "error" && status != "failure" {
+        tracing::debug!("{} feed notice: {} bytes", broker, text.len());
+        return Vec::new();
+    }
+    let lower = text.to_ascii_lowercase();
+    if !AUTH_FAILURE.iter().any(|k| lower.contains(k)) {
+        tracing::warn!(
+            "{} feed reported an error that is not about the login",
+            broker
+        );
+        return Vec::new();
+    }
+    tracing::warn!("{} feed refused the login session", broker);
+    vec![FeedEvent::AuthFailed(format!(
+        "{} ended the live data session. Log in to {} again.",
+        broker, broker
+    ))]
 }

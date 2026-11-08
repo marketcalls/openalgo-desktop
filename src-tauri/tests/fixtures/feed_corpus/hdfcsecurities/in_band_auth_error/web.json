@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "hdfcsecurities",
-  "inputs_sha256": "6de6239d92b747b0cb28e238ae030d06d197b9e6a66475e51e3414562c877d66",
+  "inputs_sha256": "92b974cfa9c002204447fa56dd14b1901a652925c8b4836347dd4f0a93efcd45",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -15,10 +15,6 @@
   "pushes": [
     {
       "line": 3,
-      "published": []
-    },
-    {
-      "line": 5,
       "published": [
         {
           "kind": "market",
@@ -51,6 +47,10 @@
           }
         }
       ]
+    },
+    {
+      "line": 5,
+      "published": []
     }
   ]
 }

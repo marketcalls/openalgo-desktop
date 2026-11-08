@@ -1,6 +1,6 @@
 {
   "broker": "hdfcsecurities",
-  "summary": "The broker keeps the socket open and sends an error text frame naming an expired token: today the desktop ignores it and goes on publishing (audit RB-10).",
+  "summary": "The broker keeps the socket open and sends an error text frame naming an expired token: the feed stops publishing and does not connect again until the trader logs in (audit RB-10).",
   "scenarios": [
     "first-full-packet"
   ],
@@ -27,7 +27,8 @@
       "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._normalize"
     ],
     "notes": [
-      "The web marks the session fatal on this frame (_mark_fatal_error) and, when the socket closes, retries with a fresh token from the database a bounded number of times, then stops; it keeps publishing until the close. HdfcSecuritiesFeed::parse only logs a text frame's size (streaming.rs:551-554); HdfcSkyFeed::parse_text answers the same frame with AuthFailed (hdfcsky/streaming.rs:519-538)."
+      "The web marks the session fatal on this frame (_on_ws_message, _is_fatal_auth_error, _mark_fatal_error) and, when the socket closes, retries with the token in its database a bounded number of times and stops when that token is unchanged (_run_websocket). The desktop's token changes only with a new login, so HdfcSecuritiesFeed::parse answers the frame with AuthFailed (investright::text_events, shared with HDFC Sky) and the manager stops until the next login.",
+      "web.json has no frame for the error push: text frames publish nothing on the web."
     ]
   },
   "deviations": [

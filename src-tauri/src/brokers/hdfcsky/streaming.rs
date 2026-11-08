@@ -355,18 +355,6 @@ pub fn decode_frame(bytes: &[u8]) -> Vec<RawTick> {
     packets.iter().filter_map(parse_packet).collect()
 }
 
-const AUTH_FAILURE: &[&str] = &[
-    "401",
-    "403",
-    "unauthorized",
-    "unauthorised",
-    "forbidden",
-    "invalid token",
-    "token expired",
-    "session expired",
-    "invalid api_key",
-];
-
 #[derive(Debug, Clone)]
 struct SubInfo {
     symbol: String,
@@ -521,27 +509,6 @@ impl HdfcSkyFeed {
         }
         out
     }
-
-    fn parse_text(&self, text: &str) -> Vec<FeedEvent> {
-        let Ok(v) = serde_json::from_str::<Value>(text) else {
-            return Vec::new();
-        };
-        let status = v
-            .get("status")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_ascii_lowercase();
-        if status == "error" || status == "failure" {
-            let lower = text.to_ascii_lowercase();
-            tracing::warn!("HDFC Sky feed reported an error");
-            if AUTH_FAILURE.iter().any(|k| lower.contains(k)) {
-                return vec![FeedEvent::AuthFailed(
-                    "HDFC Sky ended the live data session. Log in to HDFC Sky again.".into(),
-                )];
-            }
-        }
-        Vec::new()
-    }
 }
 
 impl BrokerFeed for HdfcSkyFeed {
@@ -607,7 +574,7 @@ impl BrokerFeed for HdfcSkyFeed {
                 .iter()
                 .flat_map(|t| self.events(t))
                 .collect(),
-            Message::Text(t) => self.parse_text(t),
+            Message::Text(t) => investright::text_events(t, "HDFC Sky"),
             _ => Vec::new(),
         }
     }

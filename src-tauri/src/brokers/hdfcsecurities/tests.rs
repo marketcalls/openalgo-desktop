@@ -844,6 +844,34 @@ fn feed_ticks_depth_and_partial_merge() {
     assert!(f.parse(&Message::Text("{}".into())).is_empty());
 }
 
+/// Audit RB-10, web `hdfcsecurities_websocket.py:507-544`: an error or
+/// failure text frame naming a token or auth problem ends the session
+/// (`_is_fatal_auth_error`); another error, an acknowledgement and a frame
+/// that is not JSON publish nothing and keep the feed going.
+#[test]
+fn an_auth_error_text_frame_stops_the_feed() {
+    let mut f = HdfcSecuritiesFeed::new("wss://x", "KEY", "TOK", master());
+    let ended = FeedEvent::AuthFailed(
+        "HDFC Securities ended the live data session. Log in to HDFC Securities again.".into(),
+    );
+    for text in [
+        r#"{"status": "error", "message": "token expired"}"#,
+        r#"{"status": "FAILURE", "message": "401 Unauthorized"}"#,
+        r#"{"status": "error", "message": "Invalid api_key"}"#,
+    ] {
+        let ev = f.parse(&Message::Text(text.into()));
+        assert_eq!(ev, vec![ended.clone()], "{}", text);
+    }
+    for text in [
+        r#"{"status": "error", "message": "scrip not found"}"#,
+        r#"{"status": "success", "message": "session expired soon"}"#,
+        r#"{"message": "subscribed"}"#,
+        "token expired",
+    ] {
+        assert!(f.parse(&Message::Text(text.into())).is_empty(), "{}", text);
+    }
+}
+
 #[test]
 fn feed_sub_types() {
     assert_eq!(sub_type(FeedMode::Ltp), "LTP");

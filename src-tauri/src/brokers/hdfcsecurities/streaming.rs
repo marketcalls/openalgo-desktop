@@ -16,6 +16,9 @@
 //! * `*_CIRC` and `*_OI` packets reuse `mbpData` for a partial refresh: every
 //!   other field is a proto3 zero. They are merged into the last full packet
 //!   for the instrument and never published on their own.
+//! * Text frames are acknowledgements and errors; an error naming a token or
+//!   auth problem ends the session (`investright::text_events`, audit
+//!   RB-10).
 
 use super::mapping::ws_scrip_id;
 use super::proto::{packet_type as pt, GenericDto, GenericDtoList};
@@ -25,6 +28,7 @@ use crate::brokers::common::streaming::{
     NormalizedTick, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
+use crate::brokers::hdfcsky::investright;
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
 use prost::Message as _;
@@ -549,10 +553,7 @@ impl BrokerFeed for HdfcSecuritiesFeed {
                 }
                 out
             }
-            Message::Text(t) => {
-                tracing::debug!("HDFC Securities feed text frame: {} bytes", t.len());
-                Vec::new()
-            }
+            Message::Text(t) => investright::text_events(t, "HDFC Securities"),
             _ => Vec::new(),
         }
     }
