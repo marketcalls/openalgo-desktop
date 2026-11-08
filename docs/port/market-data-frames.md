@@ -209,13 +209,21 @@ fix the Zerodha shape):
 - **One packet, one update.** A full tick and its book right behind it on
   the broker feed go out as one Depth update (`feed/bridge/pairing.rs`); a
   book on its own (a deep book from its own socket) reaches Depth holders
-  only, so no holder gets a packet twice. A full tick whose book does not
-  come with it still reaches Depth holders, with no `depth` key, as the web
-  publishes such a packet on its Depth topic without a book; where the web
-  adapter publishes a quote packet on its Quote topic alone (Definedge's
-  touchline, 5paisa's feed frame, from their web tests), the broker's
-  dialect says so (`Dialect::depth_needs_book`, `protocol::reaches`) and a
-  Depth holder hears nothing until the book comes.
+  only, so no holder gets a packet twice.
+- **A full tick without its book** (lead decision 2026-11-09):
+  - before the instrument's first book in the connection, a Depth holder
+    hears what the broker's web adapter publishes: a frame without `depth`
+    where the web publishes the packet on its Depth topic (HDFC and the
+    default), nothing where the web is silent (Definedge's touchline,
+    5paisa's feed frame, Tradejini's L1 tick, from their web tests:
+    `Dialect::depth_needs_book`,
+    decided by `protocol::reaches` for the registry and the feed tests);
+    nothing stale is shown either way;
+  - once a book exists, a Depth holder gets a frame on every full tick,
+    with the tick's quote and the last book (`bridge::snapshot::LastBook`,
+    `render::snapshot_update`; the Samco ruling). A web adapter that
+    freezes Depth holders then is a web defect. A new broker connection
+    forgets the book.
 - **One frame per mode the client holds, for each update**
   (`feed::registry::dispatch`): a Depth update reaches a client's Depth,
   Quote and LTP holdings, a Quote update its Quote and LTP holdings, an LTP
@@ -246,7 +254,7 @@ fix the Zerodha shape):
      the LTP topic: two LTP callbacks per tick. The desktop sends one.
   3. Where an adapter publishes nothing to Depth holders for a full packet
      without a book, its broker lane declares it with `depth_needs_book`
-     (Definedge and 5paisa so far); every other broker's Depth holder gets
+     (Definedge, 5paisa and Tradejini so far); every other broker's Depth holder gets
      the frame without `depth`.
 
 Draft for the web: *The proxy's listener folds each upstream message to the

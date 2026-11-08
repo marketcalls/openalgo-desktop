@@ -54,8 +54,9 @@ use apply::{Applied, Ops};
 pub use apply::{Operations, Refused};
 use deep::DeepBooks;
 use pairing::Next;
+pub(in crate::feed) use render::snapshot_update;
 pub(crate) use render::{depth_update, tick_update};
-use snapshot::Snapshot;
+use snapshot::{LastBook, Snapshot};
 
 /// Capacity of the update channel between the bridge and feed servers.
 pub const BRIDGE_UPDATE_CAP: usize = 8192;
@@ -481,7 +482,7 @@ impl BrokerBridge {
                 // snapshot; the next priced packet carries what it brought.
                 let update = t
                     .knows(QuoteField::Ltp)
-                    .then(|| tick_update(key.clone(), merged.tick()))
+                    .then(|| snapshot_update(key.clone(), &merged))
                     .flatten()
                     .map(|u| MarketUpdate {
                         token: merged.token(),
@@ -493,14 +494,17 @@ impl BrokerBridge {
             FeedEvent::Depth(d) => {
                 let key = InstrumentKey::new(d.symbol.clone(), d.exchange.clone());
                 let epoch = self.connection();
-                let st = self.state.lock();
+                let mut st = self.state.lock();
                 if !st.holds(&key) {
                     return None;
                 }
                 let last = st.last_tick.get(&key).filter(|s| s.of_epoch(epoch));
                 let lacks = last.map(Snapshot::book_lacks).unwrap_or_default();
                 let token = last.and_then(Snapshot::token).or_else(|| self.token(&key));
-                let update = depth_update(key, d, last.map(Snapshot::tick), lacks);
+                let update = depth_update(key.clone(), d, last.map(Snapshot::tick), lacks);
+                if let Some(book) = LastBook::of(&update) {
+                    snapshot::keep_book(&mut st.last_tick, &key, book, epoch);
+                }
                 Some(MarketUpdate { token, ..update })
             }
             _ => None,
