@@ -10,11 +10,17 @@
 //! Ticks are JSON text (sometimes double-encoded):
 //! `{"mode":"ltp","instrument":"2885","timestamp":<ms>,"data":{"ltp":1426}}`;
 //! `instrument` may be a bare token, resolved against the subscriptions and
-//! dropped when two segments share it. Zero fields keep the last non-zero
-//! value. Mode 3 (depth) is served from the quote stream's best bid/ask: the
-//! broker streams level 1 only, so a Quote <-> Depth change sends nothing,
-//! and an LTP <-> Quote change subscribes the new stream before it drops the
-//! old one. Heartbeat: a `ping` every 30 s.
+//! dropped when two segments share it. A field sent as 0 or not sent says
+//! nothing new: the web keeps its last value (`get_value`), and so does the
+//! bridge's snapshot, for one connection. Each packet is published at its
+//! own mode (an `ltp` packet as LTP, a `quote` packet as Quote, with OI,
+//! the best bid and ask and the OI change) and stamped with its own
+//! millisecond time, as `ltt` and `timestamp` (web `_on_data`). The stream
+//! has no last traded quantity and no book totals. Mode 3 (depth) is served
+//! from the quote stream's best bid/ask: the broker streams level 1 only, so
+//! a Quote <-> Depth change sends nothing, and an LTP <-> Quote change
+//! subscribes the new stream before it drops the old one. Heartbeat: a
+//! `ping` every 30 s.
 //!
 //! Orders: `wss://ws-order-updates.indstocks.com/api/v1/ws/trades`, then
 //! `{"action":"subscribe","mode":"order_update"}`. Frames carry
@@ -24,8 +30,8 @@
 use super::mapping::{map_status, num_value, ws_segment};
 use super::OrderIdMap;
 use crate::brokers::common::streaming::{
-    now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, WsRequest,
+    now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
+    NormalizedDepth, NormalizedTick, OrderUpdate, QuoteField, WsRequest,
 };
 use crate::brokers::types::DepthLevel;
 use crate::error::{AppError, Result};
@@ -92,8 +98,83 @@ impl SubInfo {
     }
 }
 
-/// Last non-zero values per instrument.
+/// Last non-zero values per instrument, for this connection: the price a
+/// packet without one is published at, and the best bid and ask of the
+/// one-level book.
 type Cache = HashMap<String, f64>;
+
+/// A field of a packet's `data` when the broker sent a value: INDstocks
+/// sends 0 for a field with nothing new, which the web reads as "keep the
+/// last value" (`get_value`, indmoney_adapter.py:651-665).
+fn sent(data: &Value, key: &str) -> Option<f64> {
+    let v = num_value(data.get(key));
+    (v != 0.0).then_some(v)
+}
+
+/// The packet's own millisecond time, which the web sends as both `ltt`
+/// and `timestamp` (indmoney_adapter.py:610-614). A packet without one has
+/// no trade time and is stamped on receipt.
+fn stamp(msg: &Value, t: &mut NormalizedTick) {
+    let packet = msg
+        .get("timestamp")
+        .map(|v| num_value(Some(v)) as i64)
+        .filter(|ms| *ms > 0);
+    match packet {
+        Some(ms) => {
+            t.last_trade_time_ms = ms;
+            t.timestamp_ms = ms;
+        }
+        None => {
+            t.timestamp_ms = now_ms();
+            t.mark_absent(QuoteField::LastTradeTime);
+        }
+    }
+}
+
+/// What a quote packet carries (web `_normalize_market_data`, quote mode):
+/// the day's prices, volume and average price, open interest beyond the
+/// Quote mode, and the best bid and ask and the OI change under the web's
+/// names. The stream has no last traded quantity and no book totals.
+fn quote_fields(data: &Value, t: &mut NormalizedTick) {
+    use QuoteField as F;
+    t.mark_absent(F::LastQuantity);
+    t.mark_absent(F::TotalBuyQuantity);
+    t.mark_absent(F::TotalSellQuantity);
+    for (key, field) in [
+        ("open", F::Open),
+        ("high", F::High),
+        ("low", F::Low),
+        ("close", F::Close),
+        ("average_price", F::AveragePrice),
+        ("volume", F::Volume),
+    ] {
+        let Some(v) = sent(data, key) else {
+            t.mark_absent(field);
+            continue;
+        };
+        match field {
+            F::Open => t.open = v,
+            F::High => t.high = v,
+            F::Low => t.low = v,
+            F::Close => t.close = v,
+            F::AveragePrice => t.average_price = v,
+            _ => t.volume = v as i64,
+        }
+    }
+    if let Some(oi) = sent(data, "oi") {
+        t.oi = oi as i64;
+        t.mark_carried(F::OpenInterest);
+    }
+    let quantity = |key: &str| sent(data, key).map(|q| q as i64);
+    t.extras.bid_price = sent(data, "bid_price");
+    t.extras.bid_quantity = quantity("bid_qty");
+    t.extras.ask_price = sent(data, "ask_price");
+    t.extras.ask_quantity = quantity("ask_qty");
+    t.extras.oi_change = quantity("oi_change");
+    // INDstocks sends no change: worked out from this packet's previous
+    // close, else by the bridge from the last one.
+    t.derive_change();
+}
 
 pub struct IndmoneyFeed {
     url: String,
@@ -203,84 +284,82 @@ impl IndmoneyFeed {
             Some(Value::Number(n)) => n.to_string(),
             _ => return Vec::new(),
         };
-        let Some(mode) = msg.get("mode").and_then(Value::as_str) else {
-            return Vec::new();
+        let packet_mode = match msg.get("mode").and_then(Value::as_str) {
+            Some("ltp") => FeedMode::Ltp,
+            Some("quote") => FeedMode::Quote,
+            _ => return Vec::new(),
         };
         let Some((key, sub)) = self.find(&instrument) else {
             return Vec::new();
         };
         let data = msg.get("data").cloned().unwrap_or(Value::Null);
-        let ts = msg
-            .get("timestamp")
-            .map(|v| num_value(Some(v)) as i64)
-            .filter(|t| *t > 0)
-            .unwrap_or_else(now_ms);
         let cache = self.cache.entry(key).or_default();
-        let mut get = |k: &str| {
-            let v = num_value(data.get(k));
-            if v != 0.0 {
+        let mut held = |k: &str| match sent(&data, k) {
+            Some(v) => {
                 cache.insert(k.to_string(), v);
-                v
-            } else {
-                cache.get(k).copied().unwrap_or(0.0)
+                Some(v)
             }
+            None => cache.get(k).copied(),
         };
         let mut t = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
-            mode: sub.mode.code(),
-            ltp: get("ltp"),
-            last_trade_time_ms: ts,
-            timestamp_ms: now_ms(),
+            mode: packet_mode.code(),
             ..Default::default()
         };
-        let (mut bid, mut bid_qty, mut ask, mut ask_qty) = (0.0, 0.0, 0.0, 0.0);
-        // A Quote or Depth holder keeps its quote fields on an `ltp` tick
-        // (both streams arrive while a mode change overlaps them).
-        if sub.mode != FeedMode::Ltp {
-            t.open = get("open");
-            t.high = get("high");
-            t.low = get("low");
-            t.close = get("close");
-            t.volume = get("volume") as i64;
-            t.average_price = get("average_price");
-            t.oi = get("oi") as i64;
-            bid = get("bid_price");
-            bid_qty = get("bid_qty");
-            ask = get("ask_price");
-            ask_qty = get("ask_qty");
-            t.total_buy_quantity = bid_qty as i64;
-            t.total_sell_quantity = ask_qty as i64;
+        // The last price is published again with a packet that has none
+        // (the web's held `ltp`); before any price, nothing is.
+        match held("ltp") {
+            Some(ltp) => t.ltp = ltp,
+            None => t.mark_absent(QuoteField::Ltp),
         }
-        t.derive_change();
+        stamp(msg, &mut t);
         let mut out = Vec::new();
-        if sub.mode == FeedMode::Depth && mode == "quote" {
-            let mut buy = vec![DepthLevel::default(); 5];
-            let mut sell = vec![DepthLevel::default(); 5];
-            buy[0] = DepthLevel {
-                price: bid,
-                quantity: bid_qty as i64,
-                orders: 0,
-            };
-            sell[0] = DepthLevel {
-                price: ask,
-                quantity: ask_qty as i64,
-                orders: 0,
-            };
-            out.push(FeedEvent::Depth(NormalizedDepth {
-                symbol: sub.symbol.clone(),
-                exchange: sub.exchange.clone(),
-                ltp: t.ltp,
-                buy,
-                sell,
-                total_buy_quantity: bid_qty as i64,
-                total_sell_quantity: ask_qty as i64,
-                timestamp_ms: t.timestamp_ms,
-                ..Default::default()
-            }));
+        if packet_mode == FeedMode::Quote {
+            quote_fields(&data, &mut t);
+            // Kept for every holder, so a Quote -> Depth change has its book.
+            let best = [
+                held("bid_price"),
+                held("bid_qty"),
+                held("ask_price"),
+                held("ask_qty"),
+            ]
+            .map(|v| v.unwrap_or(0.0));
+            if sub.mode == FeedMode::Depth {
+                out.push(FeedEvent::Depth(one_level_book(&sub, &t, best)));
+            }
         }
         out.insert(0, FeedEvent::Tick(t));
         out
+    }
+}
+
+/// The quote's best bid and ask (`[bid, bid qty, ask, ask qty]`, last
+/// non-zero values) as level 1 of a five-level book, the other four empty
+/// (audit RB-13: the web refuses Depth on INDmoney). The stream has no book
+/// totals.
+fn one_level_book(sub: &SubInfo, t: &NormalizedTick, best: [f64; 4]) -> NormalizedDepth {
+    let mut buy = vec![DepthLevel::default(); 5];
+    let mut sell = vec![DepthLevel::default(); 5];
+    buy[0] = DepthLevel {
+        price: best[0],
+        quantity: best[1] as i64,
+        orders: 0,
+    };
+    sell[0] = DepthLevel {
+        price: best[2],
+        quantity: best[3] as i64,
+        orders: 0,
+    };
+    NormalizedDepth {
+        symbol: sub.symbol.clone(),
+        exchange: sub.exchange.clone(),
+        ltp: t.ltp,
+        buy,
+        sell,
+        timestamp_ms: t.timestamp_ms,
+        absent: AbsentFields::of(&[QuoteField::TotalBuyQuantity, QuoteField::TotalSellQuantity]),
+        ..Default::default()
     }
 }
 
@@ -291,6 +370,14 @@ impl BrokerFeed for IndmoneyFeed {
 
     fn ws_request(&self) -> Result<WsRequest> {
         request(&self.url, self.token.expose(), "price")
+    }
+
+    /// A new connection starts every instrument afresh, as the bridge's
+    /// snapshot does: no price from before an outage is published as
+    /// current.
+    fn on_connected(&mut self) -> Vec<Message> {
+        self.cache.clear();
+        Vec::new()
     }
 
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {

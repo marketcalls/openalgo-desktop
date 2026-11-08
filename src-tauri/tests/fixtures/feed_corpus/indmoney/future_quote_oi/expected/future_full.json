@@ -7,18 +7,21 @@
   "data": {
     "symbol": "NIFTY24NOV26FUT",
     "exchange": "NFO",
-    "mode": "quote",
+    "mode": 2,
     "ltp": 24510.5,
     "ltt": 1794302700777,
-    "timestamp": "<receipt_ms>",
+    "timestamp": 1794302700777,
     "volume": 125000,
-    "last_quantity": 0,
     "average_price": 24470.25,
-    "total_buy_quantity": 75,
-    "total_sell_quantity": 150,
     "open": 24400.5,
     "high": 24550.25,
     "low": 24380.75,
-    "close": 24390.5
+    "close": 24390.5,
+    "oi": 13456725,
+    "bid_price": 24510.25,
+    "bid_qty": 75,
+    "ask_price": 24511.5,
+    "ask_qty": 150,
+    "oi_change": -12500
   }
 }

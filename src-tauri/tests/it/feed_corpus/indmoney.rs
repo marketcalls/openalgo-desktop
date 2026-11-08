@@ -36,7 +36,7 @@ corpus_cases!(
         index_quote,
         future_quote_oi,
         depth_from_best_bid_ask,
-        reconnect_keeps_last_values,
+        reconnect_starts_afresh,
         ltp_quote_mode_change,
         order_lifecycle,
         order_unknown_id,

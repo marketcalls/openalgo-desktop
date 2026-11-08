@@ -30,18 +30,5 @@
       "The second frame is a JSON string holding the JSON (indmoney_order_adapter.py:241 says the order socket double-encodes; the adapter decodes the price socket's twice too, indmoney_adapter.py:571)."
     ]
   },
-  "deviations": [
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "Follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The desktop sends the label (ltp, quote); INDmoney's web adapter sends the subscription's mode number (indmoney_adapter.py:611).",
-      "ref": "lead rule 2026-11-09; feed::source::Mode::data_label; indmoney_adapter.py:608-614"
-    },
-    {
-      "key": "timestamp",
-      "kind": "open",
-      "reason": "The web sends the packet's own millisecond timestamp as timestamp, the same value it sends as ltt (indmoney_adapter.py:610-614); the desktop sends that value as ltt and its receipt time as timestamp. Which time a frame's timestamp carries when the broker stamps its packets is a desktop-wide wire question (HDFC Sky has the same): lead decision.",
-      "ref": "indmoney_adapter.py:614; feed::bridge::tick_update; brokers/indmoney/streaming.rs:213-234"
-    }
-  ]
+  "deviations": []
 }

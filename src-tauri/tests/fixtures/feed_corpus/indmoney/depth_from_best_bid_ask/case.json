@@ -34,8 +34,8 @@
     {
       "key": "frame",
       "kind": "open",
-      "reason": "The web refuses Depth on INDmoney ('Invalid mode 3. INDmoney supports only 1 (LTP) or 2 (Quote)') and publishes nothing; the desktop accepts it and publishes a five-level book whose first level is the quote's best bid and ask and whose other four are empty. The broker streams level 1 only: a product decision for the lead (refuse as the web does, or a declared level-1 view).",
-      "ref": "audit RB-13; indmoney_adapter.py:311-315; brokers/indmoney/streaming.rs:257-279, :359-361"
+      "reason": "The web refuses Depth on INDmoney ('Invalid mode 3. INDmoney supports only 1 (LTP) or 2 (Quote)') and publishes nothing; the desktop still publishes a five-level book whose first level is the quote's best bid and ask. Lead decision: refuse mode 3 as the web does and remove the padded book, once lane life's refusal (feed/server/refusals.rs and the bridge's admission) and lane wire's Quote fallback for Depth consumers are on base.",
+      "ref": "audit RB-13; indmoney_adapter.py:311-315; brokers/indmoney/streaming.rs one_level_book"
     }
   ]
 }

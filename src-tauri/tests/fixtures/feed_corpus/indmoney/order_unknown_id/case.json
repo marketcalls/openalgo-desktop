@@ -33,8 +33,8 @@
     {
       "key": "orderid",
       "kind": "open",
-      "reason": "The stream names the order by its bare number; the desktop maps it to the canonical EQ- id only for orders it placed or read in a book (OrderIdMap), so an order placed outside the desktop keeps the bare id, while the web reads the REST order book on a miss (_canonical_order_id, throttled per order to one read in 5 s) and sends EQ-96057999 (desktop defect).",
-      "ref": "audit RB-11; indmoney_order_adapter.py:69-126; brokers/indmoney/streaming.rs:472, mod.rs:175-185"
+      "reason": "The stream names the order by its bare number; the desktop maps it to the canonical EQ- id only for orders it placed or read in a book (OrderIdMap), while the web reads the REST order book on a miss (_canonical_order_id, one read per order in 5 s) and sends EQ-96057999. Lead decision: IndMoney reads the book on Broker::complete_order_update, lane life's relay hook; open until that hook is on base.",
+      "ref": "audit RB-11; indmoney_order_adapter.py:69-126; brokers/indmoney/streaming.rs normalize_order"
     }
   ]
 }
