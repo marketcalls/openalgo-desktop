@@ -145,8 +145,21 @@ async fn a_close_code_waits_as_the_feed_asks_then_stops_until_a_client_signs_in(
     );
 
     // A feed client signs in: the feed is told, and connects again.
+    // (The broker keeps closing it, and the feed now asks for the backoff,
+    // so more connections follow.)
     m.resume();
-    wait_for(|| came.lock().len() == 3).await;
+    for _ in 0..400 {
+        if came.lock().len() >= 3 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert!(
+        came.lock().len() >= 3,
+        "status {:?}, heard {:?}",
+        m.status(),
+        heard.lock()
+    );
     assert_eq!(heard.lock()[2], Heard::Resumed);
     m.disconnect().await.unwrap();
 }
