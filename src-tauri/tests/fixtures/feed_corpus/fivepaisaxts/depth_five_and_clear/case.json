@@ -73,15 +73,15 @@
     },
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "This web adapter puts the mode number (1, 2, 3) in data.mode; the desktop sends its label (ltp, quote, full). data.mode follows each broker's own web adapter (lead rule 2026-11-09): closed in phase B by the broker's entry in lane wire's per-broker dialect switch.",
+      "ref": "fivepaisaxts_adapter.py _process_json_data (market_data['mode'] = mode); feed::source::Mode::data_label"
     },
     {
       "key": "open_interest",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
-      "ref": "feed::protocol::market_data"
+      "kind": "open",
+      "reason": "This web adapter sends OI as oi only; the desktop sends open_interest beside it. open_interest follows each broker's own web adapter (lead rule 2026-11-09): closed in phase B by the broker's dialect entry.",
+      "ref": "fivepaisaxts_adapter.py _normalize_market_data (mode 3); feed::protocol::market_data"
     },
     {
       "key": "total_buy_quantity",
