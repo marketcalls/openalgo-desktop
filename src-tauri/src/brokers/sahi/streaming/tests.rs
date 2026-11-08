@@ -294,9 +294,11 @@ fn depth_tick_publishes_tick_and_padded_depth_in_rupees() {
     assert_eq!(t.ltp, 1290.5);
     assert_eq!(t.volume, 4000);
     assert_eq!(t.last_trade_time_ms, 1761700000123);
-    // Not carried by the stream: zero, never derived.
+    // Not carried by the stream: never derived, and marked so the frames
+    // leave it out.
     assert_eq!((t.open, t.high, t.low, t.close), (0.0, 0.0, 0.0, 0.0));
     assert_eq!((t.change, t.change_percent), (0.0, 0.0));
+    assert_eq!(t.absent, NOT_ON_THE_STREAM);
     let FeedEvent::Depth(d) = &events[1] else {
         panic!("second event is not depth")
     };
@@ -393,6 +395,125 @@ fn index_tick_and_derivative_oi() {
         panic!("not a tick")
     };
     assert_eq!((t.oi, t.ltp), (1500, 24700.0));
+}
+
+/// The `data` of the 8765 frames the feed's events make at `mode`, as the
+/// bridge builds them (`feed::bridge`), for Sahi.
+fn frames(events: &[FeedEvent], mode: crate::feed::Mode) -> Vec<serde_json::Value> {
+    use crate::feed::bridge::{depth_update, tick_update};
+    use crate::feed::InstrumentKey;
+    let mut last = None;
+    let mut out = Vec::new();
+    for e in events {
+        let update = match e {
+            FeedEvent::Tick(t) => {
+                last = Some(t.clone());
+                tick_update(InstrumentKey::new(t.symbol.clone(), t.exchange.clone()), t)
+            }
+            FeedEvent::Depth(d) => depth_update(
+                InstrumentKey::new(d.symbol.clone(), d.exchange.clone()),
+                d,
+                last.as_ref(),
+            ),
+            _ => continue,
+        };
+        if update.mode >= mode {
+            let frame = crate::feed::protocol::market_data(&update, mode, 5, "sahi");
+            out.push(serde_json::from_str::<serde_json::Value>(&frame).unwrap()["data"].clone());
+        }
+    }
+    out
+}
+
+fn keys(v: &serde_json::Value) -> Vec<String> {
+    let mut k: Vec<String> = v.as_object().unwrap().keys().cloned().collect();
+    k.sort();
+    k
+}
+
+/// Web test/test_sahi_streaming_codec.py::test_depth_tick_fans_out_to_every_mode:
+/// a depth tick serves every mode; `last_trade_time` goes beside `ltt`,
+/// and what the stream does not carry (open, high, low, close, last
+/// quantity, average price, the book totals) is left out, never sent as 0.
+/// The desktop's frames carry no circuit limits, and LTP data no OI.
+#[test]
+fn a_depth_tick_frames_only_what_the_stream_carries() {
+    use crate::feed::Mode;
+    let mut f = feed();
+    f.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Depth)]);
+    let events = f.parse(&Message::Binary(depth_frame()));
+    let ltp = &frames(&events, Mode::Ltp)[0];
+    assert_eq!(
+        keys(ltp),
+        [
+            "exchange",
+            "last_trade_time",
+            "ltp",
+            "ltt",
+            "mode",
+            "symbol",
+            "timestamp"
+        ]
+    );
+    assert_eq!(
+        (ltp["ltp"].as_f64(), ltp["ltt"].as_i64()),
+        (Some(1290.5), Some(1761700000123))
+    );
+    assert_eq!(ltp["last_trade_time"], ltp["ltt"]);
+    let quote_keys = [
+        "exchange",
+        "last_trade_time",
+        "ltp",
+        "ltt",
+        "mode",
+        "oi",
+        "open_interest",
+        "symbol",
+        "timestamp",
+        "volume",
+    ];
+    let quote = &frames(&events, Mode::Quote)[0];
+    assert_eq!(keys(quote), quote_keys);
+    assert_eq!(
+        (quote["volume"].as_i64(), quote["oi"].as_i64()),
+        (Some(4000), Some(0))
+    );
+    let depth = frames(&events, Mode::Depth);
+    let [book] = &depth[..] else {
+        panic!("one depth frame: {:?}", depth)
+    };
+    let mut with_book: Vec<String> = quote_keys.map(String::from).to_vec();
+    with_book.push("depth".into());
+    with_book.sort();
+    assert_eq!(keys(book), with_book);
+    assert_eq!(book["depth"]["buy"][0]["price"], 1290.0);
+}
+
+/// Web test/test_sahi_streaming_codec.py::test_index_ltp_without_time_and_derivative_oi:
+/// an index carries no trade time, so its LTP, Quote and Depth frames have
+/// no `ltt` or `last_trade_time` (the desktop sent its receive time).
+#[test]
+fn an_index_tick_frames_no_trade_time() {
+    use crate::feed::Mode;
+    let mut f = feed();
+    f.subscribe_frames(&[sub("NIFTY", "NSE_INDEX", "26000", FeedMode::Depth)]);
+    let idx = [vfield(1, 26000), vfield(4, 2456735)].concat();
+    for kind in [2, 4] {
+        let events = f.parse(&Message::Binary(lfield(kind, &idx)));
+        assert!(!events.is_empty(), "kind {}", kind);
+        for mode in [Mode::Ltp, Mode::Quote, Mode::Depth] {
+            for d in frames(&events, mode) {
+                assert_eq!(d["ltp"], 24567.35);
+                assert!(
+                    d.get("ltt").is_none() && d.get("last_trade_time").is_none(),
+                    "kind {} {:?}: {}",
+                    kind,
+                    mode,
+                    d
+                );
+            }
+        }
+    }
 }
 
 #[test]

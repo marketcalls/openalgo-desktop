@@ -17,8 +17,11 @@
 //! desktop sends the canonical names always and the aliases in both modes.
 //! An alias exists only where its canonical key does: the change fields
 //! are sent for indices only, as in the recorded transcript, because most
-//! desktop feeds do not compute a change for equities. Table read from the
-//! web adapters (`broker/<name>/streaming/*_adapter.py`) at `76fb805`.
+//! desktop feeds do not compute a change for equities, and a field the
+//! broker's stream does not carry takes its aliases with it. The trade
+//! time's alias goes beside `ltt`, so in LTP frames too. Table read from the
+//! web adapters (`broker/<name>/streaming/*_adapter.py`) at `76fb805`, with
+//! the names web openalgo#2376 added (`abceace5e`).
 
 use super::source::{Mode, DEFAULT_DEPTH};
 use serde::Serialize;
@@ -124,6 +127,9 @@ pub(crate) struct Aliases {
     /// `price_change_percent` (Samco).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub change_percentage: Option<f64>,
+    /// `ltt` (Sahi), in every mode `ltt` is sent (web openalgo#2376).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_trade_time: Option<i64>,
 }
 
 /// Which web name a broker uses for each contested field (`None`: the
@@ -134,6 +140,7 @@ struct Dialect {
     avg_trade_price: bool,
     change: Option<ChangeKey>,
     change_percent: Option<PercentKey>,
+    last_trade_time: bool,
 }
 
 /// The web key for `last_quantity`.
@@ -163,6 +170,7 @@ const CANONICAL: Dialect = Dialect {
     avg_trade_price: false,
     change: None,
     change_percent: None,
+    last_trade_time: false,
 };
 
 fn dialect(broker: &str) -> Dialect {
@@ -175,6 +183,7 @@ fn dialect(broker: &str) -> Dialect {
             avg_trade_price: true,
             change: Some(C::Change),
             change_percent: Some(P::ChangePercent),
+            ..CANONICAL
         },
         "angel" | "upstox" | "fivepaisa" | "mstock" | "pocketful" => Dialect {
             last_quantity: Some(Q::LastTradeQuantity),
@@ -214,17 +223,22 @@ fn dialect(broker: &str) -> Dialect {
             change_percent: Some(P::PercentChange),
             ..CANONICAL
         },
+        "sahi" => Dialect {
+            last_trade_time: true,
+            ..CANONICAL
+        },
         _ => CANONICAL,
     }
 }
 
-/// The canonical values a Quote or Depth frame carries.
+/// The canonical values a frame carries.
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct Canonical {
     pub last_quantity: Option<i64>,
     pub average_price: Option<f64>,
     pub price_change: Option<f64>,
     pub price_change_percent: Option<f64>,
+    pub ltt: Option<i64>,
 }
 
 /// The alias keys for `broker`, each carrying its canonical value.
@@ -249,6 +263,9 @@ pub(crate) fn aliases(broker: &str, c: Canonical) -> Aliases {
         Some(PercentKey::PercentChange) => a.percent_change = c.price_change_percent,
         Some(PercentKey::ChangePercentage) => a.change_percentage = c.price_change_percent,
         None => {}
+    }
+    if d.last_trade_time {
+        a.last_trade_time = c.ltt;
     }
     a
 }
@@ -400,6 +417,30 @@ mod tests {
         assert!(d.get("price_change").is_none());
         for alias in ["change", "change_percent"] {
             assert!(d.get(alias).is_none(), "fyers equity {}: {}", alias, d);
+        }
+    }
+
+    /// Web openalgo#2376 (`sahi_mapping.py` `build_ltp_payload`): Sahi
+    /// publishes `last_trade_time` beside `ltt`, LTP included, and neither
+    /// when the tick has no trade time; Zerodha's frames have no such key.
+    #[test]
+    fn the_trade_time_alias_goes_where_ltt_goes() {
+        for mode in [Mode::Ltp, Mode::Quote, Mode::Depth] {
+            let d = data(equity(), mode, "sahi");
+            assert!(d["ltt"].is_i64(), "{:?}: {}", mode, d);
+            assert_eq!(d.get("last_trade_time"), d.get("ltt"), "{:?}", mode);
+            let d = data(equity(), mode, "zerodha");
+            assert!(d.get("last_trade_time").is_none(), "{:?}: {}", mode, d);
+            let mut no_trade = update(index());
+            no_trade.ltt = None;
+            let frame: Value =
+                serde_json::from_str(&market_data(&no_trade, mode, 5, "sahi")).unwrap();
+            let d = &frame["data"];
+            assert!(
+                d.get("ltt").is_none() && d.get("last_trade_time").is_none(),
+                "{}",
+                d
+            );
         }
     }
 

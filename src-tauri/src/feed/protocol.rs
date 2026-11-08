@@ -505,6 +505,7 @@ pub fn market_data(update: &MarketUpdate, mode: Mode, depth: u8, broker: &str) -
             average_price: d.average_price,
             price_change: d.price_change,
             price_change_percent: d.price_change_percent,
+            ltt: d.ltt,
         },
     );
     if mode == Mode::Depth && !index {

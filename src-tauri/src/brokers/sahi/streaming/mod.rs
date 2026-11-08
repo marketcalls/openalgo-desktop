@@ -8,8 +8,9 @@
 //!   `instrument_id`, the master's `token` column; a subscription names a
 //!   mode and ids, with no segment.
 //! * Prices arrive in paise. The stream carries no open, high, low, close,
-//!   last quantity, average price or total buy and sell quantity: those stay
-//!   0, as on the web, never derived.
+//!   last quantity, average price or total buy and sell quantity, and an
+//!   index tick no trade time: those are left out of the frames, never sent
+//!   as 0 or derived (web openalgo#2376).
 //! * The server pings every 30 s and closes with 4408 when no pong comes;
 //!   tungstenite answers its pings, so the feed sends no heartbeat. The
 //!   pings also keep the manager's stall watchdog quiet.
@@ -28,8 +29,8 @@ mod proto;
 mod tests;
 
 use crate::brokers::common::streaming::{
-    now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, WsRequest,
+    now_ms, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
+    NormalizedDepth, NormalizedTick, QuoteField, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -51,6 +52,20 @@ const IDS_PER_FRAME: usize = 500;
 
 /// OpenAlgo depth is 5 levels; the stream may send up to 20.
 const DEPTH_LEVELS: usize = 5;
+
+/// What the stream never carries (web `sahi_mapping.py`); with no previous
+/// close there is no change either.
+const NOT_ON_THE_STREAM: AbsentFields = AbsentFields::of(&[
+    QuoteField::Open,
+    QuoteField::High,
+    QuoteField::Low,
+    QuoteField::Close,
+    QuoteField::Change,
+    QuoteField::AveragePrice,
+    QuoteField::LastQuantity,
+    QuoteField::TotalBuyQuantity,
+    QuoteField::TotalSellQuantity,
+]);
 
 /// Close codes that mean the token no longer opens the stream.
 const CLOSE_TOKEN_EXPIRED: u16 = 4401;
@@ -252,6 +267,12 @@ impl SahiFeed {
         });
         let now = now_ms();
         let ltp = rupees(t.last_trade_price);
+        // An index tick has no trade time: none is published, rather than
+        // the time it was received.
+        let absent = match t.last_trade_time {
+            Some(_) => NOT_ON_THE_STREAM,
+            None => NOT_ON_THE_STREAM.with(QuoteField::LastTradeTime),
+        };
         let mut tick = NormalizedTick {
             symbol: sub.symbol.clone(),
             exchange: sub.exchange.clone(),
@@ -259,15 +280,13 @@ impl SahiFeed {
             ltp,
             last_trade_time_ms: t.last_trade_time.unwrap_or(0),
             timestamp_ms: now,
+            absent,
             ..Default::default()
         };
         if served >= FeedMode::Quote {
             tick.volume = t.volume_today;
             tick.oi = t.open_interest.unwrap_or(0);
         }
-        // No previous close on the stream, so this leaves change at 0
-        // rather than inventing one.
-        tick.derive_change();
         let mut out = Vec::with_capacity(2);
         out.push(FeedEvent::Tick(tick));
         if served == FeedMode::Depth {
