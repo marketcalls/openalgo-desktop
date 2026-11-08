@@ -1,0 +1,12 @@
+{"step": "push", "frame": "frames/login_ok.json", "note": "The login answer before any subscription, as the web waits for."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}}
+{"step": "upstream_receives", "frames": [{"json": {"action": "subscribe", "tokens": "NSE:2885"}}]}
+{"step": "push", "frame": "frames/ltp.json"}
+{"step": "receive", "client": "a", "frame": "expected/ltp.json"}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "push", "frame": "frames/full.json"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "receive", "client": "a", "frame": "expected/ltp_from_quote.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 1}}
+{"step": "push", "frame": "frames/ltp_after.json", "note": "An LTP-only tick merged over the snapshot: the Quote holder gets every field it has."}
+{"step": "receive", "client": "a", "frame": "expected/quote_after.json"}

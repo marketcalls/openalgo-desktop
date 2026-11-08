@@ -1,0 +1,99 @@
+{
+  "broker": "firstock",
+  "summary": "A Depth subscription on an NFO future with OI: V2 ticks with the five-level book, an update of both sides, then sides Firstock marks invalid (a sentinel level among valid ones, a side of sentinels, a side of zero levels), then a valid book again.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear",
+    "derivative-oi"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "65872",
+      "brsymbol": "NIFTY24NOV26F",
+      "brexchange": "NFO",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/firstock/streaming/firstock_websocket.py::FirstockWebSocket._on_message",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._update_market_snapshot",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._filter_depth_data",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._normalize_market_data",
+      "broker/firstock/streaming/firstock_adapter.py::FirstockWebSocketAdapter._extract_depth_data"
+    ],
+    "notes": [
+      "Depth mode's OI is i_total_open_interest on both (firstock_adapter.py:862; brokers/firstock/streaming.rs tick).",
+      "Firstock has no book-clear signal the web acts on: a level whose price, quantity or orders is 9223372036854775808, or with neither price nor quantity, is dropped, and a side left without a valid level keeps the previous side (firstock_adapter.py:683-744). Audit FB-02, still open: the desktop replaces the side with whatever array came (brokers/firstock/streaming.rs merge, levels), so a sentinel or zero level is published as a zero level and a sentinel between valid levels pushes the next valid level down."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "Firstock's i_last_trade_time is in epoch seconds and the web sends it unchanged as ltt; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends the trade time in ms.",
+      "ref": "firstock_adapter.py:828-870 (\"ltt\": data.get(\"i_last_trade_time\", 0))"
+    },
+    {
+      "key": "open_interest",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
+      "ref": "feed::protocol::market_data"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries every Quote field of the instrument's latest tick (one Depth schema for every broker, docs/api/websocket-streaming/depth.md lists the trade quantity and book totals); this web adapter's Depth dict leaves out last_quantity although Firstock's tick carries it.",
+      "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update"
+    },
+    {
+      "key": "average_price",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries every Quote field of the instrument's latest tick (one Depth schema for every broker, docs/api/websocket-streaming/depth.md lists the trade quantity and book totals); this web adapter's Depth dict leaves out average_price although Firstock's tick carries it.",
+      "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries every Quote field of the instrument's latest tick (one Depth schema for every broker, docs/api/websocket-streaming/depth.md lists the trade quantity and book totals); this web adapter's Depth dict leaves out total_buy_quantity although Firstock's tick carries it.",
+      "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop's Depth frame carries every Quote field of the instrument's latest tick (one Depth schema for every broker, docs/api/websocket-streaming/depth.md lists the trade quantity and book totals); this web adapter's Depth dict leaves out total_sell_quantity although Firstock's tick carries it.",
+      "ref": "firstock_adapter.py:854-865; feed::bridge::depth_update"
+    },
+    {
+      "key": "depth",
+      "kind": "open",
+      "reason": "Audit FB-02: the web drops levels Firstock marks invalid (the 9223372036854775808 sentinel in price, quantity or orders, or neither price nor quantity) and keeps the previous side when none is valid; the desktop publishes them as zero levels.",
+      "ref": "audit FB-02; firstock_adapter.py:683-744"
+    },
+    {
+      "key": "upper_circuit",
+      "kind": "open",
+      "reason": "The web sends Firstock's circuit limits (i_upper_circuit_limit, i_lower_circuit_limit, /100); the desktop's common carrier drops them.",
+      "ref": "audit C06; firstock_adapter.py:850-851"
+    },
+    {
+      "key": "lower_circuit",
+      "kind": "open",
+      "reason": "The web sends Firstock's circuit limits (i_upper_circuit_limit, i_lower_circuit_limit, /100); the desktop's common carrier drops them.",
+      "ref": "audit C06; firstock_adapter.py:850-851"
+    }
+  ]
+}

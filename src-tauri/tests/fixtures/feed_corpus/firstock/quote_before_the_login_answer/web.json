@@ -1,0 +1,85 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "firstock",
+  "inputs_sha256": "0ee17ebb590aa458da5fd4ffd7c2f72e95ef6f00c6090fec5a5b401c5cef106e",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": []
+    },
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 1295.5,
+            "ltt": 1794302700,
+            "volume": 4567890,
+            "open": 1288.0,
+            "high": 1301.2,
+            "low": 1285.1,
+            "close": 1280.0,
+            "last_quantity": 15,
+            "average_price": 1292.33,
+            "total_buy_quantity": 234567,
+            "total_sell_quantity": 345678,
+            "oi": 0,
+            "upper_circuit": 1408.0,
+            "lower_circuit": 1152.0,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 1296.0,
+            "ltt": 1794302705,
+            "volume": 4568100,
+            "open": 1288.0,
+            "high": 1301.2,
+            "low": 1285.1,
+            "close": 1280.0,
+            "last_quantity": 5,
+            "average_price": 1292.33,
+            "total_buy_quantity": 234567,
+            "total_sell_quantity": 345678,
+            "oi": 0,
+            "upper_circuit": 1408.0,
+            "lower_circuit": 1152.0,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "published": []
+    }
+  ]
+}

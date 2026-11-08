@@ -1,0 +1,12 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"action": "subscribe", "tokens": "NSE:2885"}}], "note": "Audit FB-01: sent as soon as the socket opens, before Firstock answers the login; the web holds it until the success below."}
+{"step": "push", "frame": "frames/login_ok.json"}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/full.json"}
+{"step": "receive", "client": "a", "frame": "expected/quote_full.json"}
+{"step": "push", "frame": "frames/partial.json", "note": "Only the changed fields; a zero open price never overwrites the snapshot."}
+{"step": "receive", "client": "a", "frame": "expected/quote_partial.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"action": "unsubscribe", "tokens": "NSE:2885"}}]}
+{"step": "push", "frame": "frames/full.json", "note": "A tick Firstock sent before it took the unsubscribe."}
+{"step": "silence", "client": "a"}

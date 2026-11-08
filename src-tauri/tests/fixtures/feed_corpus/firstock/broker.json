@@ -1,0 +1,21 @@
+{
+  "broker": "firstock",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": [
+      5
+    ],
+    "orders": false
+  },
+  "sources": [
+    "broker/firstock/streaming/firstock_adapter.py",
+    "broker/firstock/streaming/firstock_websocket.py",
+    "services/order_update_service.py:36-98"
+  ],
+  "notes": [
+    "One Firstock subscription carries every mode; the web publishes each subscribed mode from the same snapshot and answers every subscribe with five levels (firstock_adapter.py:300-307).",
+    "The web streams no Firstock order updates: Firstock is in neither the order-update adapter factories nor the polling brokers, and the adapter's order handler only logs (firstock_adapter.py:917-920).",
+    "Firstock has no book-clear signal the web acts on: a side left with no valid level keeps the previous side (firstock_adapter.py:683-744)."
+  ]
+}
