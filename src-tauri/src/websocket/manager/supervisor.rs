@@ -106,7 +106,8 @@ impl Supervisor {
                         broker: broker.clone(),
                         message,
                     });
-                    return self.hold().await;
+                    self.hold(false).await;
+                    return;
                 }
                 SessionEnd::Halted(kind, message) => {
                     tracing::warn!(broker = %broker, ?kind, "The broker ended the market data feed");
@@ -115,7 +116,14 @@ impl Supervisor {
                         kind,
                         message,
                     });
-                    return self.hold().await;
+                    if !self.hold(true).await {
+                        return;
+                    }
+                    // The trader cleared it (closed the other app): a fresh
+                    // run, as the web's rebuilt adapter starts one.
+                    self.feed.on_resume();
+                    attempt = 0;
+                    continue;
                 }
                 SessionEnd::Dropped(cause) => {
                     self.stats.dropped(cause);
@@ -162,13 +170,20 @@ impl Supervisor {
 
     /// The broker will not take this session again: connect no more until
     /// a stop (a logout, or the next sign-in replacing this connection),
-    /// so a dead token or a full connection limit is not hammered.
-    async fn hold(&mut self) {
+    /// so a dead token or a full connection limit is not hammered. A stop
+    /// the trader can clear (`resumable`: too many connections on one
+    /// login) ends at a reconnect, when a feed client signs in or the
+    /// computer wakes (`WebSocketManager::resume`, `reconnect`); whether to
+    /// connect again.
+    async fn hold(&mut self, resumable: bool) -> bool {
         while let Some(cmd) = self.cmd.recv().await {
-            if matches!(cmd, Command::Stop) {
-                break;
+            match cmd {
+                Command::Stop => return false,
+                Command::Reconnect if resumable => return true,
+                _ => {}
             }
         }
+        false
     }
 
     /// How the session ends once the feed has judged how its socket ended

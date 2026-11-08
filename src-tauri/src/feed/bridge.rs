@@ -537,6 +537,11 @@ impl MarketDataSource for BrokerBridge {
     fn client_losses(&self) -> Option<Arc<ClientLosses>> {
         Some(self.client_losses.clone())
     }
+
+    fn resume(&self) {
+        self.manager.resume();
+        self.depth_manager.resume();
+    }
 }
 
 #[cfg(test)]

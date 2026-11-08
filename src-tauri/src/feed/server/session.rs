@@ -285,6 +285,7 @@ impl Session {
                 self.shared
                     .registry
                     .set_identity(self.id, &user_id, &broker);
+                self.shared.registry.source().resume();
                 self.send(p::auth_ack(&broker, &user_id));
                 self.user_id = Some(user_id);
                 self.broker = Some(broker);

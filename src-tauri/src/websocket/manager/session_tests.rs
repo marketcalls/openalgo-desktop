@@ -24,6 +24,8 @@ use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 enum Heard {
     Closed(Option<u16>, String),
     Refused(u16),
+    /// The trader asked to connect again (`BrokerFeed::on_resume`).
+    Resumed,
 }
 
 /// The mock feed, judging each end from a script (then the backoff) and
@@ -56,6 +58,9 @@ impl BrokerFeed for JudgingFeed {
             Ended::Refused(status) => Heard::Refused(status),
         });
         self.answers.pop_front().unwrap_or(Reconnect::Backoff)
+    }
+    fn on_resume(&mut self) {
+        self.heard.lock().push(Heard::Resumed);
     }
 }
 
@@ -96,11 +101,13 @@ async fn closing_server(code: u16, reason: &'static str) -> (String, Arc<Mutex<V
 
 /// Sahi's 4429 (too many connections on one token, web
 /// `sahi_websocket.py`): the wait the feed asks for, then a stop that says
-/// so, never "log in again", and no further connection.
+/// so, never "log in again", and no further connection until a feed
+/// client signs in (the web rebuilds a disconnected adapter at a client's
+/// authentication): then a fresh run, with no logout.
 #[tokio::test]
-async fn a_close_code_waits_as_the_feed_asks_then_stops_with_its_words() {
+async fn a_close_code_waits_as_the_feed_asks_then_stops_until_a_client_signs_in() {
     let (url, came) = closing_server(4429, "limit").await;
-    let words = "Close the other Sahi apps streaming on this login, then log in again.";
+    let words = "Close other Sahi streaming apps or sessions, then reconnect.";
     let (feed, heard) = judging(
         url,
         vec![
@@ -129,13 +136,47 @@ async fn a_close_code_waits_as_the_feed_asks_then_stops_with_its_words() {
         "connection_limit"
     );
     tokio::time::sleep(Duration::from_millis(150)).await;
-    let came = came.lock().clone();
-    assert_eq!(came.len(), 2, "no connection after the stop");
-    assert!(came[1] - came[0] >= Duration::from_millis(300));
+    let first = came.lock().clone();
+    assert_eq!(first.len(), 2, "no connection after the stop");
+    assert!(first[1] - first[0] >= Duration::from_millis(300));
     assert_eq!(
         *heard.lock(),
         vec![Heard::Closed(Some(4429), "limit".into()); 2]
     );
+
+    // A feed client signs in: the feed is told, and connects again.
+    m.resume();
+    wait_for(|| came.lock().len() == 3).await;
+    assert_eq!(heard.lock()[2], Heard::Resumed);
+    m.disconnect().await.unwrap();
+}
+
+/// A resume reaches only a connection the broker ended: a client signing
+/// in never drops a feed that streams.
+#[tokio::test]
+async fn a_resume_leaves_a_streaming_feed_alone() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+    let came: Arc<Mutex<usize>> = Arc::default();
+    let seen = came.clone();
+    tokio::spawn(async move {
+        let mut open = Vec::new();
+        while let Ok((tcp, _)) = listener.accept().await {
+            *seen.lock() += 1;
+            if let Ok(ws) = tokio_tungstenite::accept_async(tcp).await {
+                open.push(ws);
+            }
+        }
+    });
+    let (feed, heard) = judging(url, Vec::new());
+    let m = WebSocketManager::with_config(fast());
+    m.connect(feed).await.unwrap();
+    wait_for(|| matches!(m.status(), FeedStatus::Connected { .. })).await;
+    m.resume();
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    assert_eq!(*came.lock(), 1);
+    assert!(heard.lock().is_empty());
+    assert!(matches!(m.status(), FeedStatus::Connected { .. }));
     m.disconnect().await.unwrap();
 }
 
@@ -159,6 +200,9 @@ async fn a_close_code_the_feed_reads_as_a_dead_login_asks_for_a_login() {
         *heard.lock(),
         vec![Heard::Closed(Some(4401), "expired".into())]
     );
+    // A dead login is not resumed by a client signing in, nor by a wake.
+    m.resume();
+    m.reconnect();
     tokio::time::sleep(Duration::from_millis(100)).await;
     assert_eq!(came.lock().len(), 1);
     m.disconnect().await.unwrap();

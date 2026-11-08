@@ -16,7 +16,7 @@ use parking_lot::Mutex;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
@@ -254,6 +254,11 @@ pub trait MarketDataSource: Send + Sync + 'static {
     fn client_losses(&self) -> Option<Arc<ClientLosses>> {
         None
     }
+
+    /// A feed client signed in: a broker feed ended for a reason the
+    /// trader can clear (too many connections on one login) connects
+    /// again (audit P-12; `WebSocketManager::resume`).
+    fn resume(&self) {}
 }
 
 /// What the feed server did not deliver to its clients since it started
@@ -307,6 +312,7 @@ pub struct FakeSource {
     record_calls: bool,
     client_losses: Arc<ClientLosses>,
     script: Mutex<Script>,
+    resumes: AtomicU64,
 }
 
 impl FakeSource {
@@ -334,7 +340,13 @@ impl FakeSource {
             record_calls,
             client_losses: Arc::new(ClientLosses::default()),
             script: Mutex::new(Script::default()),
+            resumes: AtomicU64::new(0),
         })
+    }
+
+    /// How often a feed client's sign-in asked the source to resume.
+    pub fn resumes(&self) -> u64 {
+        self.resumes.load(Ordering::Relaxed)
     }
 
     /// Refuse every subscribe of `key` with `why` (a broker that cannot
@@ -491,5 +503,9 @@ impl MarketDataSource for FakeSource {
 
     fn client_losses(&self) -> Option<Arc<ClientLosses>> {
         Some(self.client_losses.clone())
+    }
+
+    fn resume(&self) {
+        self.resumes.fetch_add(1, Ordering::Relaxed);
     }
 }

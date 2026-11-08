@@ -501,6 +501,12 @@ pub trait BrokerFeed: Send + Sync {
     fn on_ended(&mut self, _ended: Ended<'_>) -> Reconnect {
         Reconnect::Backoff
     }
+
+    /// The trader asked to connect again after this feed answered
+    /// `Reconnect::Stop` with a kind other than `Auth` (a feed client
+    /// signed in, or the computer woke): start the broker's retry budget
+    /// afresh, as the web's rebuilt adapter does.
+    fn on_resume(&mut self) {}
 }
 
 /// A handshake request whose URL has no path (`wss://ws.kite.trade?api_key=..`)

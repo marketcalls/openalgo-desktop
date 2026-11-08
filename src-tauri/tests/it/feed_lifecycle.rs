@@ -240,3 +240,21 @@ async fn a_disconnect_ends_the_kept_ownership() {
     );
     h.handle.stop().await;
 }
+
+/// Audit P-12, as the web rebuilds a disconnected adapter when a client
+/// authenticates (`websocket_proxy/server.py` 905-931): each feed client
+/// that signs in asks the source to resume a feed the broker ended for a
+/// reason the trader can clear, so closing the other app and reconnecting
+/// brings prices back without a logout.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_client_signing_in_resumes_the_feed() {
+    let h = start_default().await;
+    assert_eq!(h.source.resumes(), 0);
+    let mut a = Client::connect(&h.url).await;
+    a.auth().await;
+    assert_eq!(h.source.resumes(), 1);
+    let mut b = Client::connect(&h.url).await;
+    b.auth().await;
+    assert_eq!(h.source.resumes(), 2);
+    h.handle.stop().await;
+}

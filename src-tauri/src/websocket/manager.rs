@@ -345,6 +345,20 @@ impl WebSocketManager {
         }
     }
 
+    /// Connect again each connection the broker ended for a reason the
+    /// trader can clear (`FeedStatus::Halted`: too many connections on one
+    /// login), and only those: a feed client signed in, as the web rebuilds
+    /// a disconnected adapter when a client authenticates
+    /// (`websocket_proxy/server.py` 905-931), so closing the other app and
+    /// reconnecting brings prices back without a logout.
+    pub fn resume(&self) {
+        for r in self.connections.lock().iter().flatten() {
+            if matches!(*r.status.borrow(), FeedStatus::Halted { .. }) {
+                let _ = r.cmd.try_send(Command::Reconnect);
+            }
+        }
+    }
+
     /// Stop the feed and forget every subscription (logout, broker switch).
     pub async fn disconnect(&self) -> Result<()> {
         self.stop_all().await;
