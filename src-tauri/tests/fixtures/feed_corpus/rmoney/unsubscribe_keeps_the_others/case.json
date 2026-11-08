@@ -1,0 +1,74 @@
+{
+  "broker": "rmoney",
+  "summary": "Quote on two NSE equities: after one is unsubscribed (a PUT) the other keeps streaming, and an event for the one let go reaches nobody.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "http": [
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/rmoney/streaming/rmoney_websocket.py::RMoneyWebSocketClient._setup_socketio",
+      "broker/rmoney/streaming/rmoney_adapter.py::RMoneyWebSocketAdapter._process_json_data",
+      "broker/rmoney/streaming/rmoney_adapter.py::RMoneyWebSocketAdapter._normalize_market_data",
+      "broker/rmoney/streaming/rmoney_adapter.py::RMoneyWebSocketAdapter.unsubscribe"
+    ],
+    "notes": [
+      "Audit appendix inherited item 3: this web adapter disconnects the whole socket after any unsubscribe (self.disconnect() in unsubscribe), so every other symbol stops; the desktop removes only the instrument let go."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST); feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it (1794199530000).",
+      "ref": "rmoney_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming.rs xts_time_ms"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "frame",
+      "kind": "web-defect",
+      "reason": "This web adapter disconnects the whole socket after any unsubscribe (self.disconnect() in unsubscribe), so every other symbol stops streaming; the desktop removes only the instrument let go (audit appendix, inherited item 3).",
+      "ref": "rmoney_adapter.py unsubscribe"
+    }
+  ]
+}

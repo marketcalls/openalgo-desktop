@@ -1,0 +1,75 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "rmoney",
+  "inputs_sha256": "075067483e83c223ad190628554db3f5220f46b9c618a02ffb5dfe446b5e3b49",
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    },
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY 50_26000",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 4,
+      "published": []
+    },
+    {
+      "line": 9,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_LTP",
+          "mode": 1,
+          "data": {
+            "ltp": 2501.5,
+            "ltt": 1478686530,
+            "ltq": 7,
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 1,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 11,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_LTP",
+          "mode": 1,
+          "data": {
+            "ltp": 24350.65,
+            "ltt": 1478686530,
+            "ltq": 0,
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": 1,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 15,
+      "published": []
+    }
+  ]
+}

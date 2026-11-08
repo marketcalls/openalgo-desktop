@@ -1,0 +1,76 @@
+{
+  "broker": "rmoney",
+  "summary": "LTP and Quote clients on one NSE equity: the Quote client moves the subscription up (a PUT of the LTP code, a POST of 1501), and a 1105 text event (t:1_2885,110:...,119:...) becomes, on the desktop, a Quote tick that serves both.",
+  "scenarios": [
+    "partial-packet",
+    "mode-change"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSECM"
+    }
+  ],
+  "http": [
+    {
+      "path": "/apimarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/rmoney/streaming/rmoney_websocket.py::RMoneyWebSocketClient._setup_socketio",
+      "broker/rmoney/streaming/rmoney_adapter.py::RMoneyWebSocketAdapter._process_json_data",
+      "broker/rmoney/streaming/rmoney_adapter.py::RMoneyWebSocketAdapter._normalize_market_data",
+      "broker/rmoney/streaming/rmoney_websocket.py::RMoneyWebSocketClient._process_binary_format"
+    ],
+    "notes": [
+      "1105 carries the touchline codes 110-119 (families/xts/binary.rs parse_1105); it has no MessageCode and no trade time.",
+      "The RMoney web client marks it 1512, so its adapter publishes an LTP frame only and the Quote client gets nothing (audit FB-05).",
+      "The desktop holds one subscription per instrument at the highest mode its clients ask for (websocket::manager), so the Quote client changes the LTP subscription into a Quote one; the web adapter subscribes each mode on its own."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "ltq",
+      "kind": "open",
+      "reason": "The web's XTS LTP data carries the last traded quantity as ltq; the desktop's LTP frames carry no last quantity (audit C06 carrier, lane wire).",
+      "ref": "rmoney_adapter.py _normalize_market_data (mode 1)"
+    },
+    {
+      "key": "ltt",
+      "kind": "open",
+      "reason": "The event carries no trade time: the web sends 0, the desktop the time it received the event (feed::bridge::ltt). A receipt time is not a trade time (rules: no invented data): the XTS feed should mark the trade time absent (QuoteField::LastTradeTime) so ltt is left out.",
+      "ref": "families/xts/streaming.rs normalise_message; feed::bridge::ltt"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "frame",
+      "kind": "open",
+      "reason": "RMoney's web client marks a 1105 event 1512, so its adapter publishes it as LTP only and a Quote client gets nothing; the desktop serves the 1105 touchline (quote codes 110-119) at Quote too. Which classification is right is the lead's decision (audit FB-05).",
+      "ref": "rmoney_websocket.py _process_binary_format; families/xts/streaming.rs normalise_message"
+    }
+  ]
+}
