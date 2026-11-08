@@ -21,6 +21,8 @@
         {
           "kind": "market",
           "topic": "CRYPTO_BTCUSDFUT_QUOTE",
+          "exchange": "CRYPTO",
+          "symbol": "BTCUSDFUT",
           "mode": 2,
           "data": {
             "average_price": 0,
@@ -44,6 +46,8 @@
         {
           "kind": "market",
           "topic": "CRYPTO_BTCUSDFUT_LTP",
+          "exchange": "CRYPTO",
+          "symbol": "BTCUSDFUT",
           "mode": 1,
           "data": {
             "average_price": 0,
@@ -72,6 +76,8 @@
         {
           "kind": "market",
           "topic": "CRYPTO_BTCUSDFUT_QUOTE",
+          "exchange": "CRYPTO",
+          "symbol": "BTCUSDFUT",
           "mode": 2,
           "data": {
             "average_price": 0,
@@ -95,6 +101,8 @@
         {
           "kind": "market",
           "topic": "CRYPTO_BTCUSDFUT_LTP",
+          "exchange": "CRYPTO",
+          "symbol": "BTCUSDFUT",
           "mode": 1,
           "data": {
             "average_price": 0,

@@ -26,6 +26,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY25NOV26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV26FUT",
           "mode": 3,
           "data": {
             "symbol": "NIFTY25NOV26FUT",
@@ -115,6 +117,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY25NOV26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV26FUT",
           "mode": 3,
           "data": {
             "symbol": "NIFTY25NOV26FUT",
@@ -204,6 +208,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY25NOV26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY25NOV26FUT",
           "mode": 3,
           "data": {
             "symbol": "NIFTY25NOV26FUT",

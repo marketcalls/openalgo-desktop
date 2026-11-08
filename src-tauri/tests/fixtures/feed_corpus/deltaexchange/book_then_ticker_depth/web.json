@@ -21,6 +21,8 @@
         {
           "kind": "market",
           "topic": "CRYPTO_BTCUSDFUT_DEPTH",
+          "exchange": "CRYPTO",
+          "symbol": "BTCUSDFUT",
           "mode": 3,
           "data": {
             "depth": {
@@ -85,6 +87,8 @@
         {
           "kind": "market",
           "topic": "CRYPTO_BTCUSDFUT_DEPTH",
+          "exchange": "CRYPTO",
+          "symbol": "BTCUSDFUT",
           "mode": 3,
           "data": {
             "depth": {
