@@ -18,7 +18,8 @@
 
 use super::proto::{feed::FeedUnion, full_feed::FullFeedUnion, Ltpc, MarketFullFeed, MarketOhlc};
 use crate::brokers::common::streaming::{
-    AbsentFields, FeedEvent, FeedMode, NormalizedDepth, NormalizedTick, QuoteField,
+    AbsentFields, BrokerField, BrokerFields, BrokerValue, FeedEvent, FeedMode, NormalizedDepth,
+    NormalizedTick, QuoteField,
 };
 use crate::brokers::types::DepthLevel;
 
@@ -45,6 +46,10 @@ pub(super) struct Snapshot {
     oi: Option<f64>,
     buy: Vec<DepthLevel>,
     sell: Vec<DepthLevel>,
+    /// The closing-auction fields of the latest tick only (web
+    /// `_extract_cas_fields`: valid for the tick that carried them, never
+    /// cached).
+    auction: BrokerFields,
 }
 
 /// A value Upstox sent: proto3 leaves a default off the wire.
@@ -106,6 +111,7 @@ fn book(quotes: &[super::proto::Quote]) -> (Vec<DepthLevel>, Vec<DepthLevel>) {
 impl Snapshot {
     /// Merge one tick (web `_merge_feed`).
     pub(super) fn merge(&mut self, feed: Option<&FeedUnion>) {
+        self.auction = auction_fields(feed);
         if let Some(l) = tick_ltpc(feed) {
             keep(&mut self.ltp, sent(l.ltp));
             keep(&mut self.ltq, sent(l.ltq));
@@ -227,7 +233,71 @@ impl Snapshot {
         );
         fill(&mut t.oi, self.oi.map(|v| v as i64), F::OpenInterest, a);
         t.absent = absent;
+        // web `_build_payload`: the Quote carries OI, the LTP payload the
+        // LTPC's last quantity and previous close.
+        if self.oi.is_some() {
+            t.mark_carried(F::OpenInterest);
+        }
+        if mode == FeedMode::Ltp {
+            if self.ltq.is_some() {
+                t.mark_carried(F::LastQuantity);
+            }
+            if self.prev_close.is_some() {
+                t.mark_carried(F::Close);
+            }
+        }
+        t.broker_fields = self.auction.clone();
         t.derive_change();
         Some(t)
     }
+}
+
+/// web `_extract_cas_fields`: what a full packet carries of the closing
+/// auction. proto3 leaves a default off the wire, so a 0 is "not sent";
+/// the LTPC's `iep` is a wrapper whose explicit 0 is kept.
+fn auction_fields(f: Option<&FeedUnion>) -> BrokerFields {
+    let mut out = BrokerFields::default();
+    let Some(FeedUnion::FullFeed(ff)) = f else {
+        return out;
+    };
+    let Some(FullFeedUnion::MarketFf(m)) = ff.full_feed_union.as_ref() else {
+        return out;
+    };
+    let iep = sent(m.iep).or_else(|| {
+        m.ltpc
+            .as_ref()
+            .and_then(|l| l.iep.as_ref())
+            .map(|w| w.value)
+    });
+    if let Some(v) = iep {
+        out.set(
+            BrokerField::IndicativeEquilibriumPrice,
+            BrokerValue::Float(v),
+        );
+    }
+    if let Some(v) = sent(m.rp) {
+        out.set(BrokerField::ReferencePrice, BrokerValue::Float(v));
+    }
+    if let Some(v) = sent(m.ieq) {
+        out.set(
+            BrokerField::IndicativeEquilibriumQuantity,
+            BrokerValue::Int(v),
+        );
+    }
+    if let Some(v) = sent(m.iiq_total) {
+        out.set(
+            BrokerField::IndicativeImbalanceQuantityTotal,
+            BrokerValue::Int(v),
+        );
+    }
+    if let Some(v) = sent(m.iiq_m) {
+        out.set(
+            BrokerField::IndicativeImbalanceQuantityMarket,
+            BrokerValue::Int(v),
+        );
+    }
+    if m.cas_eligible {
+        out.set(BrokerField::CasEligible, BrokerValue::Bool(true));
+    }
+    out
 }
