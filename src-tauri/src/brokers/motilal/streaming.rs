@@ -240,6 +240,12 @@ impl ScripData {
     pub fn levels(levels: &[Option<DepthLevel>; 5]) -> Vec<DepthLevel> {
         levels.iter().map(|l| l.unwrap_or_default()).collect()
     }
+
+    /// The levels Motilal has sent, best first, without a stand-in for one
+    /// that has not arrived (web `get_market_depth` drops those too).
+    pub(crate) fn received(levels: &[Option<DepthLevel>; 5]) -> Vec<DepthLevel> {
+        levels.iter().flatten().copied().collect()
+    }
 }
 
 /// Decoded feed state for registered scrips, keyed by the full Motilal
@@ -523,16 +529,22 @@ impl MotilalFeed {
         if !depth_packet {
             out.push(FeedEvent::Tick(quote_tick(sub, d, now)));
         }
-        if sub.mode == FeedMode::Depth && (depth_packet || kind == b'A') {
+        // No book before a traded price and a first book level (audit
+        // RB-09, web `_poll_market_data`): an empty level is not sent as
+        // one, and the book has only the levels Motilal sent.
+        let book = d.has_ltp && d.bids.iter().any(Option::is_some);
+        if sub.mode == FeedMode::Depth && (depth_packet || kind == b'A') && book {
             out.push(FeedEvent::Depth(NormalizedDepth {
                 symbol: sub.symbol.clone(),
                 exchange: sub.exchange.clone(),
                 ltp: d.ltp,
-                buy: ScripData::levels(&d.bids),
-                sell: ScripData::levels(&d.asks),
-                total_buy_quantity: 0,
-                total_sell_quantity: 0,
+                buy: ScripData::received(&d.bids),
+                sell: ScripData::received(&d.asks),
                 timestamp_ms: now,
+                absent: AbsentFields::of(&[
+                    QuoteField::TotalBuyQuantity,
+                    QuoteField::TotalSellQuantity,
+                ]),
                 ..Default::default()
             }));
         }

@@ -31,12 +31,6 @@
   },
   "deviations": [
     {
-      "key": "frame",
-      "kind": "open",
-      "reason": "The desktop sends each book level as a Depth frame before the instrument's first trade, with LTP 0.0 and no quote fields; the web publishes Depth only once a quote and at least one book level have arrived. Gate the first Depth frame on both, as for RB-09.",
-      "ref": "audit RB-09; motilal_adapter.py:450-455"
-    },
-    {
       "key": "last_quantity",
       "kind": "web-defect",
       "reason": "Motilal's last-trade packet carries the last traded quantity and the average price, and the web's Quote dict sends them, but its Depth dict drops them (motilal_adapter.py _normalize_depth_data): lost data. The desktop's Depth frame keeps them, under last_quantity and Motilal's ltq (lead decision 2026-11-09: market data the broker sent is kept).",

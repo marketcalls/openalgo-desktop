@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "motilal",
-  "inputs_sha256": "ded4544a2430d57ef128cf71289dc19aed3338e149287d62f1284e5b00c57e67",
+  "inputs_sha256": "217fc10e69320ef2153adbe5ad9137ba7e920d4f049cd4ff605e4d2ea00d31bd",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -28,6 +28,89 @@
     {
       "line": 7,
       "published": []
+    },
+    {
+      "line": 9,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "ltp": 1300.5,
+            "volume": 40000,
+            "open": 1290.0,
+            "high": 1310.0,
+            "low": 1285.0,
+            "close": 1280.5,
+            "upper_circuit": 1430.5,
+            "lower_circuit": 1170.5,
+            "oi": 0,
+            "depth": {
+              "buy": [
+                {
+                  "price": 1300.0,
+                  "quantity": 10,
+                  "orders": 1
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1301.0,
+                  "quantity": 20,
+                  "orders": 2
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                },
+                {
+                  "price": 0,
+                  "quantity": 0,
+                  "orders": 0
+                }
+              ]
+            },
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
     }
   ]
 }

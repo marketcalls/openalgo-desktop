@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "motilal",
-  "inputs_sha256": "17aa0f96f237c78602e6ea9f6d25660a265026b0bc021af90ecac2fac12a0384",
+  "inputs_sha256": "4706d422edc4cd2d11c1f4353a01ce68a2b021b97ad89f4f549d64ecbeee0063",
   "instruments": [
     {
       "symbol": "NIFTY28OCT26FUT",

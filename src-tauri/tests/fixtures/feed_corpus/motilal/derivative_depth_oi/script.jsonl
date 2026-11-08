@@ -3,7 +3,7 @@
 {"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY28OCT26FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
 {"step": "upstream_receives", "frames": ["frames/register.hex"]}
 {"step": "push", "frame": "frames/level1.hex", "note": "Only book level 1 has arrived."}
-{"step": "receive", "client": "a", "frame": "expected/book_1.json", "web": false}
+{"step": "silence", "client": "a", "note": "A book level and no trade yet: no Depth frame."}
 {"step": "push", "frame": "frames/oi.hex"}
 {"step": "push", "frame": "frames/ohlc.hex"}
 {"step": "push", "frame": "frames/ltp.hex"}

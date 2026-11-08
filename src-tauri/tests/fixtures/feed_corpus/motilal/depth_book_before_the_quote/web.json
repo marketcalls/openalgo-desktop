@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "motilal",
-  "inputs_sha256": "4c2fa3c4def5d508776062f4316d8dc90189be4686c4076fd8cf263e16c9a39d",
+  "inputs_sha256": "d44ac7590b7ab0240f4330b008fb41629d8f26d7c61d760f642b9dd17bc5b0c5",
   "instruments": [
     {
       "symbol": "RELIANCE",
@@ -22,7 +22,15 @@
       "published": []
     },
     {
+      "line": 6,
+      "published": []
+    },
+    {
       "line": 7,
+      "published": []
+    },
+    {
+      "line": 8,
       "published": []
     },
     {
@@ -31,18 +39,6 @@
     },
     {
       "line": 11,
-      "published": []
-    },
-    {
-      "line": 13,
-      "published": []
-    },
-    {
-      "line": 15,
-      "published": []
-    },
-    {
-      "line": 17,
       "published": [
         {
           "kind": "market",
@@ -63,9 +59,9 @@
             "depth": {
               "buy": [
                 {
-                  "price": 0.0,
-                  "quantity": 0,
-                  "orders": 0
+                  "price": 1300.0,
+                  "quantity": 10,
+                  "orders": 1
                 },
                 {
                   "price": 1299.0,
@@ -90,9 +86,9 @@
               ],
               "sell": [
                 {
-                  "price": 0.0,
-                  "quantity": 0,
-                  "orders": 0
+                  "price": 1301.0,
+                  "quantity": 20,
+                  "orders": 2
                 },
                 {
                   "price": 1302.0,
@@ -125,7 +121,7 @@
       ]
     },
     {
-      "line": 18,
+      "line": 12,
       "published": [
         {
           "kind": "market",
@@ -146,9 +142,9 @@
             "depth": {
               "buy": [
                 {
-                  "price": 0.0,
-                  "quantity": 0,
-                  "orders": 0
+                  "price": 1300.0,
+                  "quantity": 10,
+                  "orders": 1
                 },
                 {
                   "price": 1299.0,
@@ -173,9 +169,9 @@
               ],
               "sell": [
                 {
-                  "price": 0.0,
-                  "quantity": 0,
-                  "orders": 0
+                  "price": 1301.0,
+                  "quantity": 20,
+                  "orders": 2
                 },
                 {
                   "price": 1302.0,
@@ -208,7 +204,90 @@
       ]
     },
     {
-      "line": 19,
+      "line": 13,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_RELIANCE_DEPTH",
+          "exchange": "NSE",
+          "symbol": "RELIANCE",
+          "mode": 3,
+          "data": {
+            "ltp": 1300.5,
+            "volume": 40000,
+            "open": 1290.0,
+            "high": 1310.0,
+            "low": 1285.0,
+            "close": 1280.5,
+            "upper_circuit": 1430.5,
+            "lower_circuit": 1170.5,
+            "oi": 0,
+            "depth": {
+              "buy": [
+                {
+                  "price": 1300.0,
+                  "quantity": 10,
+                  "orders": 1
+                },
+                {
+                  "price": 1299.0,
+                  "quantity": 11,
+                  "orders": 1
+                },
+                {
+                  "price": 1298.0,
+                  "quantity": 12,
+                  "orders": 1
+                },
+                {
+                  "price": 1297.0,
+                  "quantity": 13,
+                  "orders": 1
+                },
+                {
+                  "price": 1296.0,
+                  "quantity": 14,
+                  "orders": 1
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1301.0,
+                  "quantity": 20,
+                  "orders": 2
+                },
+                {
+                  "price": 1302.0,
+                  "quantity": 21,
+                  "orders": 2
+                },
+                {
+                  "price": 1303.0,
+                  "quantity": 22,
+                  "orders": 2
+                },
+                {
+                  "price": 1304.0,
+                  "quantity": 23,
+                  "orders": 2
+                },
+                {
+                  "price": 1305.0,
+                  "quantity": 24,
+                  "orders": 2
+                }
+              ]
+            },
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 15,
       "published": [
         {
           "kind": "market",

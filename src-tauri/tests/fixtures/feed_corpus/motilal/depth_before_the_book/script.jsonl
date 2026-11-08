@@ -5,4 +5,6 @@
 {"step": "push", "frame": "frames/circuit.hex", "note": "Circuit limits: no Depth frame on either side."}
 {"step": "push", "frame": "frames/ohlc.hex", "note": "Day OHLC: no Depth frame on either side."}
 {"step": "push", "frame": "frames/ltp.hex", "note": "The last trade, before any book level (audit RB-09)."}
-{"step": "receive", "client": "a", "frame": "expected/depth_no_book.json", "web": false}
+{"step": "silence", "client": "a", "note": "No book yet: no Depth frame (audit RB-09)."}
+{"step": "push", "frame": "frames/level1.hex", "note": "The first book level: now both sides publish Depth."}
+{"step": "receive", "client": "a", "frame": "expected/depth.json"}

@@ -35,16 +35,10 @@
   },
   "deviations": [
     {
-      "key": "frame",
-      "kind": "open",
-      "reason": "The desktop sends each book level as a Depth frame before the instrument's first trade, with LTP 0.0 and no quote fields; the web publishes Depth only once a quote and at least one book level have arrived. Gate the first Depth frame on both, as for RB-09.",
-      "ref": "audit RB-09; motilal_adapter.py:450-455"
-    },
-    {
       "key": "depth",
-      "kind": "open",
-      "reason": "Four book levels have not arrived and both sides pad them to five, the web with integer zeros ({\"price\": 0, ...}), the desktop with 0.0 (ScripData::levels); the desktop is to send only the levels received.",
-      "ref": "motilal_adapter.py _normalize_depth_data; motilal/streaming.rs ScripData::levels"
+      "kind": "web-defect",
+      "reason": "Motilal has sent book level 1 only; the web pads the four levels that never arrived with integer zeros ({\"price\": 0, \"quantity\": 0, \"orders\": 0}, _normalize_depth_data), invented levels; the desktop sends the level received (lead decision 2026-11-09: no invented level).",
+      "ref": "motilal_adapter.py _normalize_depth_data"
     },
     {
       "key": "last_quantity",

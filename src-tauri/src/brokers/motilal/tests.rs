@@ -11,7 +11,7 @@ use super::streaming::*;
 use super::*;
 use crate::brokers::common::mapping::{Action, PriceType, Product, Validity};
 use crate::brokers::common::streaming::{
-    FeedEvent, FeedMode, FeedSubscription, Message, QuoteField,
+    FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth, QuoteField,
 };
 use crate::brokers::common::symbols::{SymToken, SymbolResolver};
 use serde_json::{json, Value};
@@ -917,7 +917,9 @@ fn live_feed_frames_and_events() {
         assert!(!last.knows(field), "{:?}", field);
     }
     let d = depths.last().unwrap();
-    assert_eq!((d.buy.len(), d.sell.len(), d.buy[0].price), (5, 5, 2410.0));
+    // Only the level Motilal sent, and no book totals it never sends.
+    assert_eq!((d.buy.len(), d.sell.len(), d.buy[0].price), (1, 1, 2410.0));
+    assert!(d.absent.contains(QuoteField::TotalBuyQuantity));
 
     // A second frame does not announce the session again. A last trade
     // before the day OHLC packet carries no open, high, low or close; a
@@ -937,6 +939,45 @@ fn live_feed_frames_and_events() {
     let un = feed.unsubscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Depth), new]);
     assert!(matches!(&un[0], Message::Binary(b) if b[9] == 0));
     assert_eq!((feed.registered(), feed.cached()), (0, 0));
+}
+
+/// Audit RB-09: no Depth frame before a traded price and a first book
+/// level; web `motilal_adapter.py` `_poll_market_data` waits for both.
+#[test]
+fn depth_waits_for_a_trade_and_a_book() {
+    let mut feed = MotilalFeed::new("wss://example.invalid/feed", "C1");
+    feed.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Depth)]);
+    let depths = |ev: Vec<FeedEvent>| -> Vec<NormalizedDepth> {
+        ev.into_iter()
+            .filter_map(|e| match e {
+                FeedEvent::Depth(d) => Some(d),
+                _ => None,
+            })
+            .collect()
+    };
+    // Level 1: bid 2410.0 x 100 (3 orders); the ask side left at 0.
+    let mut level = Vec::new();
+    level.extend(f(2410.0));
+    level.extend(i(100));
+    level.extend(3i16.to_le_bytes());
+    let trade = pkt(
+        b'N',
+        2885,
+        b'A',
+        &[f(2410.5), i(4), i(75937), f(2405.25), i(0)].concat(),
+    );
+    assert!(depths(feed.parse(&Message::Binary(trade))).is_empty());
+    let book = depths(feed.parse(&Message::Binary(pkt(b'N', 2885, b'B', &level))));
+    assert_eq!(book.len(), 1);
+    assert_eq!((book[0].buy.len(), book[0].ltp), (1, 2410.5));
+
+    let mut cold = MotilalFeed::new("wss://example.invalid/feed", "C1");
+    cold.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Depth)]);
+    let level_first = cold.parse(&Message::Binary(pkt(b'N', 2885, b'B', &level)));
+    assert!(
+        depths(level_first).is_empty(),
+        "a book before the first trade"
+    );
 }
 
 #[test]
