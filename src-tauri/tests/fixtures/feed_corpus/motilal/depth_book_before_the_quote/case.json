@@ -38,9 +38,9 @@
     },
     {
       "key": "mode",
-      "kind": "desktop-decision",
-      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
-      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+      "kind": "open",
+      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web adapter puts the subscription mode number (1, 2, 3) in data.mode; the desktop sends its label (ltp, quote, full).",
+      "ref": "motilal_adapter.py _poll_market_data; feed::source::Mode::data_label"
     },
     {
       "key": "ltt",
@@ -50,21 +50,21 @@
     },
     {
       "key": "last_quantity",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends the canonical last_quantity in every broker's Quote and Depth frames and the web adapter's own name (ltq) beside it with the same value (feed::dialect, WS-05); this web adapter sends ltq only.",
-      "ref": "feed::dialect (Motilal ltq)"
+      "kind": "open",
+      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web Quote dict names the last traded quantity ltq only; the desktop sends the canonical last_quantity and ltq beside it with the same value (feed::dialect, WS-05).",
+      "ref": "motilal_adapter.py _normalize_quote_data; feed::dialect (Motilal ltq)"
     },
     {
       "key": "ltq",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends Motilal's ltq beside last_quantity in Depth frames as in Quote frames (feed::dialect sends the aliases in both modes); this web adapter's Depth dict has no last quantity.",
-      "ref": "feed::dialect; motilal_adapter.py _normalize_depth_data"
+      "kind": "open",
+      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web Depth dict has no last traded quantity; the desktop sends ltq beside last_quantity in Depth frames as in Quote frames (feed::dialect sends the aliases in both modes).",
+      "ref": "motilal_adapter.py _normalize_depth_data; feed::dialect"
     },
     {
       "key": "average_price",
-      "kind": "desktop-decision",
-      "reason": "The desktop's Depth frame carries every quote field of the instrument's latest tick (feed::bridge::depth_update); this web adapter's Depth dict leaves out the average price its Quote dict sends.",
-      "ref": "feed::bridge::depth_update; motilal_adapter.py _normalize_depth_data"
+      "kind": "open",
+      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web Depth dict leaves out the average price its Quote dict sends; the desktop's Depth frame carries every quote field of the instrument's latest tick (feed::bridge::depth_update).",
+      "ref": "motilal_adapter.py _normalize_depth_data; feed::bridge::depth_update"
     },
     {
       "key": "total_buy_quantity",
@@ -92,9 +92,9 @@
     },
     {
       "key": "open_interest",
-      "kind": "desktop-decision",
-      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
-      "ref": "feed::protocol::market_data"
+      "kind": "open",
+      "reason": "Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (lead rule 2026-11-09): Motilal's web Depth dict sends oi only; the desktop adds open_interest beside it.",
+      "ref": "motilal_adapter.py _normalize_depth_data; feed::protocol::market_data"
     }
   ]
 }
