@@ -4,6 +4,7 @@
 
 use super::proto::{self, ServerMessage, TickKind};
 use super::*;
+use crate::feed::testkit::keys;
 
 fn varint(n: i64) -> Vec<u8> {
     let mut n = n as u64;
@@ -397,38 +398,9 @@ fn index_tick_and_derivative_oi() {
     assert_eq!((t.oi, t.ltp), (1500, 24700.0));
 }
 
-/// The `data` of the 8765 frames the feed's events make at `mode`, as the
-/// bridge builds them (`feed::bridge`), for Sahi.
+/// The `data` of the 8765 frames Sahi's `events` make at `mode`.
 fn frames(events: &[FeedEvent], mode: crate::feed::Mode) -> Vec<serde_json::Value> {
-    use crate::feed::bridge::{depth_update, tick_update};
-    use crate::feed::InstrumentKey;
-    let mut last = None;
-    let mut out = Vec::new();
-    for e in events {
-        let update = match e {
-            FeedEvent::Tick(t) => {
-                last = Some(t.clone());
-                tick_update(InstrumentKey::new(t.symbol.clone(), t.exchange.clone()), t)
-            }
-            FeedEvent::Depth(d) => depth_update(
-                InstrumentKey::new(d.symbol.clone(), d.exchange.clone()),
-                d,
-                last.as_ref(),
-            ),
-            _ => continue,
-        };
-        if update.mode >= mode {
-            let frame = crate::feed::protocol::market_data(&update, mode, 5, "sahi");
-            out.push(serde_json::from_str::<serde_json::Value>(&frame).unwrap()["data"].clone());
-        }
-    }
-    out
-}
-
-fn keys(v: &serde_json::Value) -> Vec<String> {
-    let mut k: Vec<String> = v.as_object().unwrap().keys().cloned().collect();
-    k.sort();
-    k
+    crate::feed::testkit::Frames::new("sahi").at(events, mode)
 }
 
 /// Web test/test_sahi_streaming_codec.py::test_depth_tick_fans_out_to_every_mode:

@@ -17,6 +17,8 @@
 //! * [`orders`]: `order.update` bus topic to `order_update` frames.
 //! * [`FeedService`]: what the app starts, restarts on a port change and
 //!   stops on exit.
+//! * `testkit` (tests only): the frames a broker feed's events make, for
+//!   the brokers' own feed tests.
 
 pub mod auth;
 pub mod bridge;
@@ -27,6 +29,8 @@ pub mod protocol;
 pub mod registry;
 pub mod server;
 pub mod source;
+#[cfg(test)]
+pub(crate) mod testkit;
 
 pub use server::{start, FeedConfig, FeedDeps, FeedHandle, StartError};
 pub use source::{ClientLosses, FakeSource, InstrumentKey, MarketDataSource, MarketUpdate, Mode};
