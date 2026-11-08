@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "groww",
-  "inputs_sha256": "dd8dd4ab05e46048253b803f57ef5dd32b4532487d64ad738a3f6d69f4813da1",
+  "inputs_sha256": "c430c87a7a2568baba009cedf5254f261fe0914e9c028ee5d6df61fc3d22cbf2",
   "instruments": [
     {
       "symbol": "CRUDEOIL25NOVFUT",

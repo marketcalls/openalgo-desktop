@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "groww",
-  "inputs_sha256": "863d4e594feb289c9a495be719ff83a4a2a5609cfa1eacdf86387e3f9431c8e0",
+  "inputs_sha256": "86a19ca3dffda1487be1536609c38dab2827118b973a7b9df4e9d53ff3f165da",
   "instruments": [
     {
       "symbol": "NIFTY",

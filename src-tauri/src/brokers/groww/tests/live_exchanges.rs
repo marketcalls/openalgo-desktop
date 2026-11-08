@@ -33,9 +33,10 @@ fn indices_stream_on_the_index_topic() {
         FeedEndpoints::default(),
     );
     let frames = f.subscribe_frames(&[sub("NIFTY", "NSE_INDEX", "NIFTY", FeedMode::Ltp)]);
+    let frames: Vec<String> = frames.iter().map(text).collect();
     assert_eq!(
-        text(&frames[0]),
-        "SUB /ld/indices/nse/price.NIFTY 1\r\nPING\r\n"
+        frames,
+        ["SUB /ld/indices/nse/price.NIFTY 1\r\n", "PING\r\n"]
     );
 }
 

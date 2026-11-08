@@ -13,11 +13,10 @@ and mode (Depth on an index matched as LTP), a shadow LTP entry beside a
 Depth one, and the client's entry per NATS subject.
 
 SIDs: a NATS sid is the number the client gives a subject, and the
-server's MSG names it. The glue numbers subjects as the desktop does (per
-connection from 1, a Depth subscription's price subject before its book
-subject), so the one MSG frame a case pushes names the same subject on both
-sides. The web numbers a Depth subscription's book subject before its
-shadow price subject; only the numbers differ.
+server's MSG names it. The glue numbers subjects as both sides do (per
+connection from 1, a Depth subscription's book subject before its shadow
+price subject: nats_websocket.py:59-63, groww_adapter.py:478-538), so the
+one MSG frame a case pushes names the same subject on both sides.
 
 A dropped socket is the web client's own reconnect
 (nats_websocket.py:271-328, `_resubscribe_all`): new sids, and the adapter
@@ -151,7 +150,7 @@ class Groww(Glue):
         self.number(price_key, book_key)
 
     def number(self, price_key, book_key):
-        for key in (price_key, book_key):
+        for key in (book_key, price_key):
             if key is not None:
                 self.ws.nats_sids[key] = str(self.next_sid)
                 self.next_sid += 1

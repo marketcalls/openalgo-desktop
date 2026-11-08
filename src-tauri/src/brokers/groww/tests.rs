@@ -1363,6 +1363,18 @@ fn connect_frame_matches_web() {
     assert_eq!(v["verbose"], false);
     let plain = connect_frame("jwt1", None, None);
     assert!(!plain.contains("nkey") && !plain.contains("sig"));
+    // Byte for byte the web's json.dumps (groww_nats.py:65-97).
+    assert_eq!(
+        plain,
+        "CONNECT {\"verbose\": false, \"pedantic\": false, \"tls_required\": true, \
+         \"jwt\": \"jwt1\", \"protocol\": 1, \"version\": \"2.10.18\", \"lang\": \"python3\", \
+         \"name\": \"nats.py\", \"headers\": true, \"no_responders\": true}\r\n"
+    );
+    assert!(
+        f.ends_with(", \"nkey\": \"UKEY\", \"sig\": \"SIG\"}\r\n"),
+        "{}",
+        f
+    );
 }
 
 fn text(m: &Message) -> String {
@@ -1401,7 +1413,7 @@ fn nats_handshake_replies_through_the_feed() {
     assert!(ups[0].starts_with("CONNECT "));
     assert!(ups[0].contains(&public));
     assert!(ups[0].contains("\"sig\""));
-    assert!(ups[0].contains("\"jwt\":\"JWT\""));
+    assert!(ups[0].contains("\"jwt\": \"JWT\""));
     assert_eq!(ups[1], "PING\r\n");
     assert!(!ev.contains(&FeedEvent::AuthOk));
     // The PONG after CONNECT accepts the session; a server PING gets PONG.
@@ -1447,7 +1459,7 @@ fn subjects_follow_web_topics() {
     );
     assert_eq!(
         subjects(&sub("X", "NFO", "35001", FeedMode::Depth)),
-        ["/ld/fo/nse/price.35001", "/ld/fo/nse/book.35001"]
+        ["/ld/fo/nse/book.35001", "/ld/fo/nse/price.35001"]
     );
     assert_eq!(
         subjects(&sub("SENSEX25OCT82000CE", "BFO", "825001", FeedMode::Quote)),
@@ -1544,9 +1556,17 @@ fn feed_frames_and_ticks() {
         sub("SBIN", "NSE", "3045", FeedMode::Quote),
         sub("NIFTY28OCT2524500CE", "NFO", "35001", FeedMode::Depth),
     ]);
+    // One frame per SUB, a Depth's book before its price, then one PING, as
+    // the web sends them.
+    let frames: Vec<String> = frames.iter().map(text).collect();
     assert_eq!(
-        text(&frames[0]),
-        "SUB /ld/eq/nse/price.3045 1\r\nSUB /ld/fo/nse/price.35001 2\r\nSUB /ld/fo/nse/book.35001 3\r\nPING\r\n"
+        frames,
+        [
+            "SUB /ld/eq/nse/price.3045 1\r\n",
+            "SUB /ld/fo/nse/book.35001 2\r\n",
+            "SUB /ld/fo/nse/price.35001 3\r\n",
+            "PING\r\n"
+        ]
     );
     // Quote tick.
     let ev = f.parse(&msg_frame(1, &ltp_payload(812.35)));
@@ -1565,7 +1585,7 @@ fn feed_frames_and_ticks() {
     assert_eq!(t.change, 4.35);
     // Quote subscriptions ignore book ticks; depth subscriptions merge.
     assert!(f.parse(&msg_frame(1, &depth_payload())).is_empty());
-    let ev = f.parse(&msg_frame(3, &depth_payload()));
+    let ev = f.parse(&msg_frame(2, &depth_payload()));
     assert_eq!(ev.len(), 2);
     let FeedEvent::Depth(d) = &ev[1] else {
         panic!("{:?}", ev)
@@ -1573,7 +1593,7 @@ fn feed_frames_and_ticks() {
     assert_eq!(d.symbol, "NIFTY28OCT2524500CE");
     assert_eq!(d.buy.len(), 1); // the zero placeholder level is dropped
     assert_eq!((d.buy[0].price, d.buy[0].orders), (812.3, 3));
-    let ev = f.parse(&msg_frame(2, &ltp_payload(112.4)));
+    let ev = f.parse(&msg_frame(3, &ltp_payload(112.4)));
     let FeedEvent::Depth(d) = &ev[1] else {
         panic!("{:?}", ev)
     };
@@ -1583,9 +1603,10 @@ fn feed_frames_and_ticks() {
     assert!(f.parse(&msg_frame(1, b"\xff\xff")).is_empty());
     // Unsubscribe removes every sid of the instrument.
     let un = f.unsubscribe_frames(&[sub("NIFTY28OCT2524500CE", "NFO", "35001", FeedMode::Depth)]);
-    assert_eq!(text(&un[0]), "UNSUB 2\r\nUNSUB 3\r\n");
+    let un: Vec<String> = un.iter().map(text).collect();
+    assert_eq!(un, ["UNSUB 2\r\n", "UNSUB 3\r\n"]);
     assert_eq!(f.instrument_count(), 1);
-    assert!(f.parse(&msg_frame(3, &depth_payload())).is_empty());
+    assert!(f.parse(&msg_frame(2, &depth_payload())).is_empty());
     // A new connection forgets per-connection sids.
     f.on_connected();
     assert_eq!(f.instrument_count(), 0);
@@ -1631,7 +1652,7 @@ fn a_book_before_the_first_price_publishes_no_quote() {
         FeedEndpoints::default(),
     );
     f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Depth)]);
-    let events = f.parse(&msg_frame(2, &depth_payload()));
+    let events = f.parse(&msg_frame(1, &depth_payload()));
     assert!(Frames::new("groww").at(&events, Mode::Quote).is_empty());
     let depth = Frames::new("groww").at(&events, Mode::Depth);
     assert_eq!(depth.len(), 1, "{:?}", depth);
@@ -1717,8 +1738,8 @@ fn a_depth_frame_carries_the_best_bid_and_ask_under_the_web_names() {
     );
     f.subscribe_frames(&[sub("SBIN", "NSE", "3045", FeedMode::Depth)]);
     let mut frames = Frames::new("groww");
-    frames.at(&f.parse(&msg_frame(1, &ltp_payload(812.35))), Mode::Depth);
-    let book = frames.at(&f.parse(&msg_frame(2, &depth_payload())), Mode::Depth);
+    frames.at(&f.parse(&msg_frame(2, &ltp_payload(812.35))), Mode::Depth);
+    let book = frames.at(&f.parse(&msg_frame(1, &depth_payload())), Mode::Depth);
     let [d] = book.as_slice() else {
         panic!("one frame expected: {:?}", book)
     };

@@ -150,27 +150,22 @@ pub fn next_op(buf: &[u8]) -> Option<(Op, usize)> {
     }
 }
 
-/// Web `create_connect`.
+/// Web `create_connect` (groww_nats.py:65-97), byte for byte: the web's
+/// key order and `json.dumps`' default `", "` and `": "` separators.
 pub fn connect_frame(jwt: &str, nkey: Option<&str>, sig: Option<&str>) -> String {
-    let mut o = json!({
-        "verbose": false,
-        "pedantic": false,
-        "tls_required": true,
-        "jwt": jwt,
-        "protocol": 1,
-        "version": "2.10.18",
-        "lang": "python3",
-        "name": "nats.py",
-        "headers": true,
-        "no_responders": true,
-    });
-    if let (Some(k), Some(map)) = (nkey, o.as_object_mut()) {
-        map.insert("nkey".into(), json!(k));
+    let text = |v: &str| Value::from(v).to_string();
+    let mut o = format!(
+        "{{\"verbose\": false, \"pedantic\": false, \"tls_required\": true, \"jwt\": {}, \
+         \"protocol\": 1, \"version\": \"2.10.18\", \"lang\": \"python3\", \"name\": \"nats.py\", \
+         \"headers\": true, \"no_responders\": true",
+        text(jwt)
+    );
+    for (key, v) in [("nkey", nkey), ("sig", sig)] {
+        if let Some(v) = v.filter(|v| !v.is_empty()) {
+            o.push_str(&format!(", \"{}\": {}", key, text(v)));
+        }
     }
-    if let (Some(s), Some(map)) = (sig, o.as_object_mut()) {
-        map.insert("sig".into(), json!(s));
-    }
-    format!("CONNECT {}\r\n", o)
+    format!("CONNECT {}}}\r\n", o)
 }
 
 // ---------------------------------------------------------------------------
@@ -391,9 +386,11 @@ fn subjects_with_kind(sub: &FeedSubscription) -> Vec<(String, Kind)> {
     };
     let price = (format!("/ld/{}/{}/price.{}", seg, ex, token), Kind::Price);
     if sub.mode == FeedMode::Depth && !is_index(&sub.exchange) {
+        // The book first, then its price, in the web's order (its Depth
+        // spec, then the shadow LTP spec: groww_adapter.py:478-538).
         vec![
-            price,
             (format!("/ld/{}/{}/book.{}", seg, ex, token), Kind::Book),
+            price,
         ]
     } else {
         vec![price]
@@ -779,8 +776,10 @@ impl BrokerFeed for GrowwFeed {
         matches!(http_status, Some(401) | Some(403))
     }
 
+    /// One frame per `SUB`, then one `PING` for the batch, as the web sends
+    /// them (nats_websocket.py:861-897).
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
-        let mut text = String::new();
+        let mut frames = Vec::new();
         for s in subs {
             if refusal(&s.exchange).is_some() {
                 tracing::debug!("Groww streams no {} prices; not subscribing", s.exchange);
@@ -794,7 +793,7 @@ impl BrokerFeed for GrowwFeed {
                 self.next_sid += 1;
                 self.sids.insert(sid, (key.clone(), kind));
                 sids.push(sid);
-                text.push_str(&format!("SUB {} {}\r\n", subject, sid));
+                frames.push(Message::Text(format!("SUB {} {}\r\n", subject, sid)));
             }
             self.instruments.insert(
                 key,
@@ -805,27 +804,25 @@ impl BrokerFeed for GrowwFeed {
                 },
             );
         }
-        if text.is_empty() {
-            return Vec::new();
+        if !frames.is_empty() {
+            frames.push(Message::Text("PING\r\n".into()));
         }
-        text.push_str("PING\r\n");
-        vec![Message::Text(text)]
+        frames
     }
 
+    /// One frame per `UNSUB`, the book's before its price's, as the web
+    /// unsubscribes a Depth subscription and then its shadow LTP
+    /// (groww_adapter.py:610-622, nats_websocket.py:1015-1038).
     fn unsubscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
-        let mut text = String::new();
+        let mut frames = Vec::new();
         for s in subs {
             if let Some(inst) = self.forget(&s.instrument_key()) {
                 for sid in inst.sids {
-                    text.push_str(&format!("UNSUB {}\r\n", sid));
+                    frames.push(Message::Text(format!("UNSUB {}\r\n", sid)));
                 }
             }
         }
-        if text.is_empty() {
-            Vec::new()
-        } else {
-            vec![Message::Text(text)]
-        }
+        frames
     }
 
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {

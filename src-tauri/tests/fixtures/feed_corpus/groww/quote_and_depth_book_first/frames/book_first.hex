@@ -1,6 +1,6 @@
-# Groww NATS MSG, book subject of SBIN (sid 3: the Depth subscribe resubscribed the
-# price subject as sid 2 and added the book), before any price.
-4d5347202f6c642f65712f6e73652f626f6f6b2e333034352033203133310d0a  # "MSG /ld/eq/nse/book.3045 3 131" CRLF
+# Groww NATS MSG, book subject of SBIN (sid 2: the Depth subscribe added the book
+# and resubscribed the price subject as sid 3), before any price.
+4d5347202f6c642f65712f6e73652f626f6f6b2e333034352032203133310d0a  # "MSG /ld/eq/nse/book.3045 2 131" CRLF
                                                                   # protobuf LiveData, 131 bytes
 18 01                                                             # exchange (3) = 1 (NSE)
 2a 7f                                                             # market depth (5), 127 bytes

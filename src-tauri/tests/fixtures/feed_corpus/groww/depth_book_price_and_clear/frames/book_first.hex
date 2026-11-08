@@ -1,6 +1,6 @@
-# Groww NATS MSG, book subject of SBIN (sid 2), before any price: two bids, a
+# Groww NATS MSG, book subject of SBIN (sid 1), before any price: two bids, a
 # padded empty bid (price and quantity 0) that is no level, two asks.
-4d5347202f6c642f65712f6e73652f626f6f6b2e333034352032203133310d0a  # "MSG /ld/eq/nse/book.3045 2 131" CRLF
+4d5347202f6c642f65712f6e73652f626f6f6b2e333034352031203133310d0a  # "MSG /ld/eq/nse/book.3045 1 131" CRLF
                                                                   # protobuf LiveData, 131 bytes
 18 01                                                             # exchange (3) = 1 (NSE)
 2a 7f                                                             # market depth (5), 127 bytes

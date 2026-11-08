@@ -1,6 +1,6 @@
-# Groww NATS MSG, price subject of SBIN (sid 1): a full price tick.
+# Groww NATS MSG, price subject of SBIN (sid 2): a full price tick.
 # Values from web test/test_groww_quote_feed.py::test_quote_keeps_ohlc_volume_from_earlier_tick.
-4d5347202f6c642f65712f6e73652f70726963652e3330343520312037360d0a  # "MSG /ld/eq/nse/price.3045 1 76" CRLF
+4d5347202f6c642f65712f6e73652f70726963652e3330343520322037360d0a  # "MSG /ld/eq/nse/price.3045 2 76" CRLF
                                                                   # protobuf LiveData, 76 bytes
 18 01                                                             # exchange (3) = 1 (NSE)
 22 48                                                             # stock live price (4), 72 bytes

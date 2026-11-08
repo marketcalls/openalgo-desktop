@@ -1,5 +1,5 @@
-# The next book (sid 2): three levels a side, every level moved.
-4d5347202f6c642f65712f6e73652f626f6f6b2e333034352032203135380d0a  # "MSG /ld/eq/nse/book.3045 2 158" CRLF
+# The next book (sid 1): three levels a side, every level moved.
+4d5347202f6c642f65712f6e73652f626f6f6b2e333034352031203135380d0a  # "MSG /ld/eq/nse/book.3045 1 158" CRLF
                                                                   # protobuf LiveData, 158 bytes
 18 01                                                             # exchange (3) = 1 (NSE)
 2a 99 01                                                          # market depth (5), 153 bytes
