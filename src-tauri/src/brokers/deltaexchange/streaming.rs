@@ -149,7 +149,7 @@ impl DeltaFeed {
                     absent: NOT_IN_TICKER.union(NOT_YET_SENT),
                     ..Default::default()
                 });
-            merge_ticker(t, e, spot);
+            merge_ticker(t, e, spot, self.books.get(br));
             t.timestamp_ms = now;
             let tick = t.clone();
             out.push(FeedEvent::Tick(tick.clone()));
@@ -216,8 +216,10 @@ impl DeltaFeed {
 
 /// Fold one ticker entry into the symbol's cached values. A field Delta
 /// omits keeps its last value; a present array is authoritative (web
-/// `_put_from`). The ticker is a Quote packet that also carries OI.
-fn merge_ticker(t: &mut NormalizedTick, e: &Value, spot: Option<&Value>) {
+/// `_put_from`). The ticker is a Quote packet that also carries OI, and
+/// the totals of the symbol's last book once one came (the web's merged
+/// cache keeps `totalbuyqty` / `totalsellqty` from it).
+fn merge_ticker(t: &mut NormalizedTick, e: &Value, spot: Option<&Value>, book: Option<&Book>) {
     if let Some(ltp) = e.get("m").filter(|m| !m.is_null()).or(spot).and_then(num) {
         t.ltp = ltp;
         t.absent = t.absent.without(QuoteField::Ltp);
@@ -245,6 +247,14 @@ fn merge_ticker(t: &mut NormalizedTick, e: &Value, spot: Option<&Value>) {
         t.extras.bid_quantity = Some(at(q, 3) as i64);
         t.extras.ask_price = Some(at(q, 0));
         t.extras.ask_quantity = Some(at(q, 1) as i64);
+    }
+    if let Some((buy, sell)) = book {
+        t.total_buy_quantity = buy.iter().map(|l| l.quantity).sum();
+        t.total_sell_quantity = sell.iter().map(|l| l.quantity).sum();
+        t.absent = t
+            .absent
+            .without(QuoteField::TotalBuyQuantity)
+            .without(QuoteField::TotalSellQuantity);
     }
     t.mode = FeedMode::Quote.code();
     t.carried = AbsentFields::of(&[QuoteField::OpenInterest]);
