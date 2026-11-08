@@ -56,12 +56,6 @@
       "kind": "open",
       "reason": "The web's Kotak adapter publishes the change as percent_change only (the packet's nc); the desktop also sends the canonical price_change and price_change_percent. Kotak's entry turns them off once lane wire's per-broker key rule (decisions 9 Nov) is on the base.",
       "ref": "kotak_adapter.py::_QUOTE_EXTRA_FIELDS; feed::protocol::market (canonical change keys)"
-    },
-    {
-      "key": "last_trade_time",
-      "kind": "open",
-      "reason": "The web's Kotak LTP frame has ltt only; Kotak's dialect entry sends last_trade_time from LTP up, where the web sends it in Quote and Depth.",
-      "ref": "kotak_adapter.py:578 (mode 1 publish); feed/dialect/names.rs KOTAK"
     }
   ]
 }

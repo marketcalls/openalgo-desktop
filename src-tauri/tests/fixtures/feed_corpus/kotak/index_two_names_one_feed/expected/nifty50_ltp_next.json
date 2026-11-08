@@ -9,7 +9,6 @@
     "exchange": "NSE_INDEX",
     "ltp": 21360.0,
     "ltt": 1762666201000,
-    "timestamp": "<receipt_ms>",
-    "last_trade_time": 1762666201000
+    "timestamp": "<receipt_ms>"
   }
 }

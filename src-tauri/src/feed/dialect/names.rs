@@ -498,9 +498,12 @@ const INDMONEY: &[WebName] = &[
     n("oi_change", S::Extra(E::OiChange), Q),
 ];
 
+/// kotak_adapter.py `_on_data_received`: mode 1 publishes `ltp` and `ltt`
+/// only; Quote and Depth add `last_trade_time` and the packet's `nc` as
+/// `percent_change`.
 const KOTAK: &[WebName] = &[
     n("percent_change", S::ChangePercent, Q),
-    n("last_trade_time", S::TradeTime(Unit::Millis), L),
+    n("last_trade_time", S::TradeTime(Unit::Millis), Q),
     n("totalbuyqty", S::TotalBuyQuantity, D),
     n("totalsellqty", S::TotalSellQuantity, D),
 ];

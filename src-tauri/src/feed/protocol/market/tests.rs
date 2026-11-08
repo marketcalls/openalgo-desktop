@@ -347,7 +347,8 @@ fn the_canonical_keys_follow_each_brokers_web_adapter() {
 
 /// Web openalgo#2376 (`sahi_mapping.py` `build_ltp_payload`,
 /// `kotak_adapter.py`): Sahi and Kotak publish `last_trade_time` beside
-/// `ltt` (the desktop in LTP frames too), and neither when the tick has no
+/// `ltt` (the desktop in LTP frames too, but for Kotak, whose web mode 1
+/// publish is `ltp` and `ltt` only), and neither when the tick has no
 /// trade time; Zerodha's frames have no such key.
 #[test]
 fn the_trade_time_alias_goes_where_ltt_goes() {
@@ -355,6 +356,10 @@ fn the_trade_time_alias_goes_where_ltt_goes() {
         for broker in ["sahi", "kotak", "mstock"] {
             let d = data(equity(), mode, broker);
             assert!(d["ltt"].is_i64(), "{} {:?}: {}", broker, mode, d);
+            if broker == "kotak" && mode == Mode::Ltp {
+                assert!(d.get("last_trade_time").is_none(), "{}", d);
+                continue;
+            }
             assert_eq!(
                 d.get("last_trade_time"),
                 d.get("ltt"),

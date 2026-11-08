@@ -210,7 +210,8 @@ fn a_book_total_of_zero_is_zero() {
 }
 
 /// Web `test_ltt_is_the_exchange_last_trade_time_in_milliseconds`, with
-/// `last_trade_time` beside it.
+/// `last_trade_time` beside it in Quote and Depth (the web's mode 1 publish
+/// is `ltp` and `ltt` only).
 #[test]
 fn ltt_is_the_exchange_trade_time_in_milliseconds() {
     for (mode, level) in [
@@ -231,7 +232,11 @@ fn ltt_is_the_exchange_trade_time_in_milliseconds() {
             at,
         ));
         assert_eq!(d["ltt"], LAST_TRADE_TIME * 1000, "{:?}", mode);
-        assert_eq!(d["last_trade_time"], d["ltt"], "{:?}", mode);
+        if mode == FeedMode::Ltp {
+            assert!(d.get("last_trade_time").is_none(), "{}", d);
+        } else {
+            assert_eq!(d["last_trade_time"], d["ltt"], "{:?}", mode);
+        }
     }
 }
 

@@ -32,12 +32,5 @@
     ],
     "notes": []
   },
-  "deviations": [
-    {
-      "key": "last_trade_time",
-      "kind": "open",
-      "reason": "The web's Kotak LTP frame has ltt only; Kotak's dialect entry sends last_trade_time from LTP up, where the web sends it in Quote and Depth.",
-      "ref": "kotak_adapter.py:578 (mode 1 publish); feed/dialect/names.rs KOTAK"
-    }
-  ]
+  "deviations": []
 }
