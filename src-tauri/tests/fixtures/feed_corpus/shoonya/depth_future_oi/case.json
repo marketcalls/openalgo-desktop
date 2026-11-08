@@ -33,76 +33,34 @@
       "broker/shoonya/streaming/shoonya_adapter.py::DepthNormalizer"
     ],
     "notes": [
-      "Noren sends OI as oi and toi; the desktop takes toi for every member when present (audit FB-07). The web's Shoonya adapter sends toi as open_interest. The partial carries an oi change without toi to show which one each side reads.",
-      "Circuits, 52-week values and depth_level are web fields the desktop's carrier does not have yet (audit C06)."
+      "Noren sends OI as oi and toi, and each member reads it as its web adapter does (audit FB-07): Shoonya streams toi as open_interest. The partial carries an oi change without toi to show which one is read.",
+      "Circuits, the 52-week range and depth_level go out in Depth frames as the web sends them."
     ]
   },
   "deviations": [
     {
-      "key": "52_week_high",
-      "kind": "open",
-      "reason": "The web's Shoonya adapter sends 52_week_high in Depth frames; the desktop's common carrier has no place for it yet.",
-      "ref": "audit C06, FB-07; broker/shoonya/streaming/shoonya_adapter.py DepthNormalizer"
-    },
-    {
-      "key": "52_week_low",
-      "kind": "open",
-      "reason": "The web's Shoonya adapter sends 52_week_low in Depth frames; the desktop's common carrier has no place for it yet.",
-      "ref": "audit C06, FB-07; broker/shoonya/streaming/shoonya_adapter.py DepthNormalizer"
-    },
-    {
-      "key": "depth_level",
-      "kind": "open",
-      "reason": "The web's Shoonya adapter sends depth_level in Depth frames; the desktop's common carrier has no place for it yet.",
-      "ref": "audit C06, FB-07; broker/shoonya/streaming/shoonya_adapter.py DepthNormalizer"
-    },
-    {
       "key": "last_trade_time",
-      "kind": "open",
-      "reason": "The web's Shoonya adapter forwards Noren's trade time ltt (HH:MM:SS, null when the frame has none) as last_trade_time; the desktop's carrier has no place for it.",
-      "ref": "audit FB-07, C06; broker/shoonya/streaming/shoonya_adapter.py normalisers"
-    },
-    {
-      "key": "lower_circuit",
-      "kind": "open",
-      "reason": "The web's Shoonya adapter sends lower_circuit in Depth frames; the desktop's common carrier has no place for it yet.",
-      "ref": "audit C06, FB-07; broker/shoonya/streaming/shoonya_adapter.py DepthNormalizer"
-    },
-    {
-      "key": "ltt",
-      "kind": "open",
-      "reason": "The desktop sends Noren's feed time ft, in ms, as ltt: a packet time, not the trade time. Noren's trade time is its ltt (HH:MM:SS, IST), which the web forwards raw as last_trade_time; the web's Shoonya adapter sends no ltt key in any mode, LTP included. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
-      "ref": "audit FB-07; brokers/families/noren/streaming.rs NorenFeed::tick (ft * 1000)"
-    },
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Shoonya adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full) for every broker. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
-      "ref": "feed::source::Mode::data_label; broker/shoonya/streaming/shoonya_adapter.py Config.MODE_*"
+      "kind": "web-defect",
+      "reason": "The web's Shoonya adapter forwards Noren's ltt as text (HH:MM:SS), or null when the frame has none; feed times are epoch milliseconds (docs), and a text copy of a time is not sent (docs/port/market-data-frames.md). The Noren family sends no ltt key (feed/dialect/names.rs).",
+      "ref": "broker/shoonya/streaming/shoonya_adapter.py normalisers (last_trade_time = data.get(ltt))"
     },
     {
       "key": "oi",
       "kind": "open",
-      "reason": "The desktop sends OI as both oi and open_interest for every broker; the web's Shoonya adapter sends open_interest only. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
-      "ref": "feed::protocol::market_data; broker/shoonya/streaming/shoonya_adapter.py DepthNormalizer"
+      "reason": "The web's Shoonya adapter names OI open_interest only, in Depth; the desktop sends it as open_interest and also as the canonical oi. Lead ruling 2026-11-09: Shoonya Depth renders open_interest only, by lane wire's per-broker key rule (pending).",
+      "ref": "shoonya_adapter.py DepthNormalizer; feed/protocol/market.rs canonical"
     },
     {
-      "key": "percent_change",
+      "key": "price_change",
       "kind": "open",
-      "reason": "The web's Shoonya adapter forwards Noren's pc as percent_change for every instrument; the desktop sends the change fields for indices only.",
-      "ref": "audit C04; feed/bridge.rs quote_fields; broker/shoonya/streaming/shoonya_adapter.py normalisers"
+      "reason": "The web's Shoonya adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
+      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/shoonya/streaming/shoonya_adapter.py normalisers"
     },
     {
-      "key": "shoonya_timestamp",
+      "key": "price_change_percent",
       "kind": "open",
-      "reason": "The web forwards Noren's feed time ft (epoch seconds) as shoonya_timestamp; the desktop drops it.",
-      "ref": "audit FB-07, C06; broker/shoonya/streaming/shoonya_adapter.py normalisers"
-    },
-    {
-      "key": "upper_circuit",
-      "kind": "open",
-      "reason": "The web's Shoonya adapter sends upper_circuit in Depth frames; the desktop's common carrier has no place for it yet.",
-      "ref": "audit C06, FB-07; broker/shoonya/streaming/shoonya_adapter.py DepthNormalizer"
+      "reason": "The web's Shoonya adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
+      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/shoonya/streaming/shoonya_adapter.py normalisers"
     }
   ]
 }

@@ -69,6 +69,7 @@ pub static CONFIG: NorenConfig = NorenConfig {
     tradebook_time_only: false,
     orderbook_price_fallback: true,
     depth_oi: true,
+    feed_oi: FeedOi::TotalInDepth,
     // Web `broker/flattrade/api/rate_limit.py`: one DATA_LIMITER for
     // quotes, history, books and funds (`quote: None` shares it, BRL-06).
     rate: RateLimits {

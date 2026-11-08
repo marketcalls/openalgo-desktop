@@ -30,7 +30,7 @@
     ],
     "notes": [
       "Noren's index touchline carries no volume, average price, last quantity or totals.",
-      "The desktop derives the percent change from LTP and close and replaces Noren's own pc (audit FB-07); the web forwards pc.",
+      "Noren's own pc goes out as percent_change, as on the web; the desktop derives it only when a frame has none (audit FB-07).",
       "Upstream the desktop answers an LTP-to-Quote change with u then t for the same touchline; the web sends nothing (both modes ride one touchline subscription)."
     ]
   },
@@ -38,56 +38,38 @@
     {
       "key": "average_price",
       "kind": "web-defect",
-      "reason": "Noren's index touchline carries no average price; the web's Flattrade adapter sends 0 for it, the desktop leaves it out, as web openalgo#2376 asks (a field the feed does not carry is left out, never sent as 0).",
-      "ref": "broker/flattrade/streaming/flattrade_adapter.py normalisers (safe_float/safe_int default 0); docs/api/websocket-streaming/quote.md"
-    },
-    {
-      "key": "flattrade_timestamp",
-      "kind": "open",
-      "reason": "The web forwards Noren's feed time ft (epoch seconds) as flattrade_timestamp; the desktop drops it.",
-      "ref": "audit FB-07, C06; broker/flattrade/streaming/flattrade_adapter.py normalisers"
+      "reason": "Noren's index touchline carries no average price; the web's Flattrade adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "broker/flattrade/streaming/flattrade_adapter.py normalisers"
     },
     {
       "key": "last_quantity",
       "kind": "web-defect",
-      "reason": "Noren's index touchline carries no last quantity; the web's Flattrade adapter sends 0 for it, the desktop leaves it out, as web openalgo#2376 asks (a field the feed does not carry is left out, never sent as 0).",
-      "ref": "broker/flattrade/streaming/flattrade_adapter.py normalisers (safe_float/safe_int default 0); docs/api/websocket-streaming/quote.md"
+      "reason": "Noren's index touchline carries no last quantity; the web's Flattrade adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "broker/flattrade/streaming/flattrade_adapter.py normalisers"
     },
     {
       "key": "last_trade_time",
-      "kind": "open",
-      "reason": "The web's Flattrade adapter forwards Noren's trade time ltt (HH:MM:SS, null when the frame has none) as last_trade_time; the desktop's carrier has no place for it.",
-      "ref": "audit FB-07, C06; broker/flattrade/streaming/flattrade_adapter.py normalisers"
-    },
-    {
-      "key": "ltt",
-      "kind": "open",
-      "reason": "The desktop sends Noren's feed time ft, in ms, as ltt: a packet time, not the trade time. Noren's trade time is its ltt (HH:MM:SS, IST), which the web forwards raw as last_trade_time; the web's Flattrade adapter sends no ltt key in any mode, LTP included. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
-      "ref": "audit FB-07; brokers/families/noren/streaming.rs NorenFeed::tick (ft * 1000)"
-    },
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's Flattrade adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full) for every broker. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
-      "ref": "feed::source::Mode::data_label; broker/flattrade/streaming/flattrade_adapter.py Config.MODE_*"
-    },
-    {
-      "key": "percent_change",
-      "kind": "open",
-      "reason": "The desktop derives the percent change from LTP and close and replaces Noren's own pc with it whenever it can derive one; the web forwards pc as percent_change.",
-      "ref": "audit FB-07; brokers/families/noren/streaming.rs NorenFeed::tick (derive_change)"
+      "kind": "web-defect",
+      "reason": "The web's Flattrade adapter forwards Noren's ltt as text (HH:MM:SS), or null when the frame has none; feed times are epoch milliseconds (docs), and a text copy of a time is not sent (docs/port/market-data-frames.md). The Noren family sends no ltt key (feed/dialect/names.rs).",
+      "ref": "broker/flattrade/streaming/flattrade_adapter.py normalisers (last_trade_time = data.get(ltt))"
     },
     {
       "key": "price_change",
       "kind": "open",
-      "reason": "The desktop sends an index's change since the previous close as price_change and price_change_percent (and percent_change beside it); the web's Flattrade adapter sends Noren's pc as percent_change and no price_change keys. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
-      "ref": "feed::protocol::market_data; feed::dialect (WS-05); broker/flattrade/streaming/flattrade_adapter.py normalisers"
+      "reason": "The web's Flattrade adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
+      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/flattrade/streaming/flattrade_adapter.py normalisers"
     },
     {
       "key": "price_change_percent",
       "kind": "open",
-      "reason": "The desktop sends an index's change since the previous close as price_change and price_change_percent (and percent_change beside it); the web's Flattrade adapter sends Noren's pc as percent_change and no price_change keys. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
-      "ref": "feed::protocol::market_data; feed::dialect (WS-05); broker/flattrade/streaming/flattrade_adapter.py normalisers"
+      "reason": "The web's Flattrade adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
+      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/flattrade/streaming/flattrade_adapter.py normalisers"
+    },
+    {
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "Noren's index touchline carries no volume; the web's Flattrade adapter sends its safe_float/safe_int default (0) for a field the stream did not carry; the docs leave such a field out (web openalgo#2376, docs/api/websocket-streaming/quote.md), and so does the desktop.",
+      "ref": "broker/flattrade/streaming/flattrade_adapter.py normalisers"
     }
   ]
 }

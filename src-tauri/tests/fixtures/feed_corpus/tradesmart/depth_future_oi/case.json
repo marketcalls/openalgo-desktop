@@ -32,82 +32,28 @@
       "broker/tradesmart/streaming/tradesmart_adapter.py::MarketDataCache"
     ],
     "notes": [
-      "Noren sends OI as oi and toi; the desktop takes toi for every member when present (audit FB-07). The web's TradeSmart adapter sends the native oi, never toi. The partial carries an oi change without toi to show which one each side reads.",
-      "Circuits, 52-week values and depth_level are web fields the desktop's carrier does not have yet (audit C06)."
+      "Noren sends OI as oi and toi, and each member reads it as its web adapter does (audit FB-07): TradeSmart streams the native oi, never toi. The partial carries an oi change without toi to show which one is read.",
+      "Circuits, the 52-week range and depth_level go out in Depth frames as the web sends them."
     ]
   },
   "deviations": [
     {
-      "key": "52_week_high",
-      "kind": "open",
-      "reason": "The web's TradeSmart adapter sends 52_week_high in Depth frames; the desktop's common carrier has no place for it yet.",
-      "ref": "audit C06, FB-07; broker/tradesmart/streaming/tradesmart_adapter.py DepthNormalizer"
-    },
-    {
-      "key": "52_week_low",
-      "kind": "open",
-      "reason": "The web's TradeSmart adapter sends 52_week_low in Depth frames; the desktop's common carrier has no place for it yet.",
-      "ref": "audit C06, FB-07; broker/tradesmart/streaming/tradesmart_adapter.py DepthNormalizer"
-    },
-    {
-      "key": "depth_level",
-      "kind": "open",
-      "reason": "The web's TradeSmart adapter sends depth_level in Depth frames; the desktop's common carrier has no place for it yet.",
-      "ref": "audit C06, FB-07; broker/tradesmart/streaming/tradesmart_adapter.py DepthNormalizer"
-    },
-    {
       "key": "last_trade_time",
-      "kind": "open",
-      "reason": "The web's TradeSmart adapter forwards Noren's trade time ltt (HH:MM:SS, null when the frame has none) as last_trade_time; the desktop's carrier has no place for it.",
-      "ref": "audit FB-07, C06; broker/tradesmart/streaming/tradesmart_adapter.py normalisers"
+      "kind": "web-defect",
+      "reason": "The web's TradeSmart adapter forwards Noren's ltt as text (HH:MM:SS), or null when the frame has none; feed times are epoch milliseconds (docs), and a text copy of a time is not sent (docs/port/market-data-frames.md). The Noren family sends no ltt key (feed/dialect/names.rs).",
+      "ref": "broker/tradesmart/streaming/tradesmart_adapter.py normalisers (last_trade_time = data.get(ltt))"
     },
     {
-      "key": "lower_circuit",
+      "key": "price_change",
       "kind": "open",
-      "reason": "The web's TradeSmart adapter sends lower_circuit in Depth frames; the desktop's common carrier has no place for it yet.",
-      "ref": "audit C06, FB-07; broker/tradesmart/streaming/tradesmart_adapter.py DepthNormalizer"
+      "reason": "The web's TradeSmart adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
+      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/tradesmart/streaming/tradesmart_adapter.py normalisers"
     },
     {
-      "key": "ltt",
+      "key": "price_change_percent",
       "kind": "open",
-      "reason": "The desktop sends Noren's feed time ft, in ms, as ltt: a packet time, not the trade time. Noren's trade time is its ltt (HH:MM:SS, IST), which the web forwards raw as last_trade_time; the web's TradeSmart adapter sends no ltt key in any mode, LTP included. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
-      "ref": "audit FB-07; brokers/families/noren/streaming.rs NorenFeed::tick (ft * 1000)"
-    },
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The web's TradeSmart adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full) for every broker. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
-      "ref": "feed::source::Mode::data_label; broker/tradesmart/streaming/tradesmart_adapter.py Config.MODE_*"
-    },
-    {
-      "key": "oi",
-      "kind": "open",
-      "reason": "Noren sends OI as oi and toi; the web's TradeSmart adapter reads the native oi, the desktop takes toi for every member when the frame has it, so an oi change without toi is lost.",
-      "ref": "audit FB-07; brokers/families/noren/streaming.rs NorenFeed::tick; tradesmart_adapter.py:741"
-    },
-    {
-      "key": "open_interest",
-      "kind": "open",
-      "reason": "The desktop sends OI as both oi and open_interest for every broker; the web's TradeSmart adapter sends the native oi only. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
-      "ref": "feed::protocol::market_data; broker/tradesmart/streaming/tradesmart_adapter.py _normalize_market_data"
-    },
-    {
-      "key": "percent_change",
-      "kind": "open",
-      "reason": "The web's TradeSmart adapter forwards Noren's pc as percent_change for every instrument; the desktop sends the change fields for indices only.",
-      "ref": "audit C04; feed/bridge.rs quote_fields; broker/tradesmart/streaming/tradesmart_adapter.py normalisers"
-    },
-    {
-      "key": "tradesmart_timestamp",
-      "kind": "open",
-      "reason": "The web forwards Noren's feed time ft (epoch seconds) as tradesmart_timestamp; the desktop drops it.",
-      "ref": "audit FB-07, C06; broker/tradesmart/streaming/tradesmart_adapter.py normalisers"
-    },
-    {
-      "key": "upper_circuit",
-      "kind": "open",
-      "reason": "The web's TradeSmart adapter sends upper_circuit in Depth frames; the desktop's common carrier has no place for it yet.",
-      "ref": "audit C06, FB-07; broker/tradesmart/streaming/tradesmart_adapter.py DepthNormalizer"
+      "reason": "The web's TradeSmart adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
+      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/tradesmart/streaming/tradesmart_adapter.py normalisers"
     }
   ]
 }

@@ -7,9 +7,8 @@
   "data": {
     "symbol": "NIFTY25NOV26FUT",
     "exchange": "NFO",
-    "mode": "full",
+    "mode": 3,
     "ltp": 25480.5,
-    "ltt": 1794199544000,
     "timestamp": "<receipt_ms>",
     "volume": 2345675,
     "last_quantity": 75,
@@ -20,8 +19,9 @@
     "high": 25520.0,
     "low": 25350.5,
     "close": 25366.0,
+    "price_change": 114.5,
+    "price_change_percent": 0.45,
     "oi": 12850050,
-    "open_interest": 12850050,
     "depth": {
       "buy": [
         {
@@ -77,6 +77,14 @@
           "orders": 0
         }
       ]
-    }
+    },
+    "shoonya_timestamp": 1794199544,
+    "percent_change": 0.45,
+    "depth_level": 5,
+    "upper_circuit": 27902.6,
+    "lower_circuit": 22829.4,
+    "52_week_high": 26277.35,
+    "52_week_low": 21743.65,
+    "open_interest": 12850050
   }
 }

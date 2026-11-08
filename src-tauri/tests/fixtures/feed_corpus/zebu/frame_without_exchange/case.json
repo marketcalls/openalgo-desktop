@@ -1,6 +1,6 @@
 {
   "broker": "zebu",
-  "summary": "A touchline frame without its exchange (e): the web routes it when its token names exactly one subscribed scrip and drops it when two exchanges share the token; the desktop drops both (audit FB-08).",
+  "summary": "A touchline frame without its exchange (e) reaches the one subscribed scrip with its token, and is dropped once two subscribed exchanges share the token, as the web routes it (audit FB-08).",
   "scenarios": [
     "subscription-lifecycle",
     "first-full-packet"
@@ -36,52 +36,40 @@
       "broker/zebu/streaming/zebu_adapter.py::QuoteNormalizer"
     ],
     "notes": [
-      "Audit FB-08, open: the web publishes the first frame (web.json, the push at line 6) and the desktop sends nothing. The harness compares only frames the desktop sends, so this difference cannot be declared as a deviation; the silence pins today's behaviour.",
-      "The second token-2885 subscription (CDS) makes the token ambiguous: the web drops that frame too."
+      "Audit FB-08: web <member>_adapter.py _resolve_scrip; the desktop routes by e|tk and falls back to a unique token (families/noren/streaming.rs NorenFeed::route).",
+      "The second token-2885 subscription (CDS) makes the token ambiguous: both drop that frame."
     ]
   },
   "deviations": [
     {
       "key": "last_trade_time",
-      "kind": "open",
-      "reason": "The web's Zebu adapter forwards Noren's trade time ltt (HH:MM:SS, null when the frame has none) as last_trade_time; the desktop's carrier has no place for it.",
-      "ref": "audit FB-07, C06; broker/zebu/streaming/zebu_adapter.py normalisers"
+      "kind": "web-defect",
+      "reason": "The web's Zebu adapter forwards Noren's ltt as text (HH:MM:SS), or null when the frame has none; feed times are epoch milliseconds (docs), and a text copy of a time is not sent (docs/port/market-data-frames.md). The Noren family sends no ltt key (feed/dialect/names.rs).",
+      "ref": "broker/zebu/streaming/zebu_adapter.py normalisers (last_trade_time = data.get(ltt))"
     },
     {
-      "key": "ltt",
+      "key": "price_change",
       "kind": "open",
-      "reason": "The desktop sends Noren's feed time ft, in ms, as ltt: a packet time, not the trade time. Noren's trade time is its ltt (HH:MM:SS, IST), which the web forwards raw as last_trade_time; the web's Zebu adapter sends no ltt key in any mode, LTP included. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
-      "ref": "audit FB-07; brokers/families/noren/streaming.rs NorenFeed::tick (ft * 1000)"
+      "reason": "The web's Zebu adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
+      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/zebu/streaming/zebu_adapter.py normalisers"
     },
     {
-      "key": "mode",
+      "key": "price_change_percent",
       "kind": "open",
-      "reason": "The web's Zebu adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends the label (ltp, quote, full) for every broker. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
-      "ref": "feed::source::Mode::data_label; broker/zebu/streaming/zebu_adapter.py Config.MODE_*"
-    },
-    {
-      "key": "percent_change",
-      "kind": "open",
-      "reason": "The web's Zebu adapter forwards Noren's pc as percent_change for every instrument; the desktop sends the change fields for indices only.",
-      "ref": "audit C04; feed/bridge.rs quote_fields; broker/zebu/streaming/zebu_adapter.py normalisers"
+      "reason": "The web's Zebu adapter sends Noren's pc as percent_change only, with no price_change keys; the desktop sends the canonical price_change and price_change_percent beside percent_change. Lead ruling 2026-11-09: the Noren members turn the canonical change keys off and keep percent_change, by lane wire's per-broker key rule (pending).",
+      "ref": "feed/protocol/market.rs canonical; feed/dialect/names.rs; broker/zebu/streaming/zebu_adapter.py normalisers"
     },
     {
       "key": "total_buy_quantity",
-      "kind": "open",
-      "reason": "The web's Zebu Quote dict leaves out the book totals Noren's touchline sends (tbq, tsq); the desktop sends them in every Quote frame. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
-      "ref": "feed::protocol::market_data; broker/zebu/streaming/zebu_adapter.py QuoteNormalizer"
+      "kind": "web-defect",
+      "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Zebu Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
+      "ref": "broker/zebu/streaming/zebu_adapter.py QuoteNormalizer"
     },
     {
       "key": "total_sell_quantity",
-      "kind": "open",
-      "reason": "The web's Zebu Quote dict leaves out the book totals Noren's touchline sends (tbq, tsq); the desktop sends them in every Quote frame. Closed in phase B by the per-broker dialect switch (lane wire), set to what this adapter does (lead rule 2026-11-09).",
-      "ref": "feed::protocol::market_data; broker/zebu/streaming/zebu_adapter.py QuoteNormalizer"
-    },
-    {
-      "key": "zebu_timestamp",
-      "kind": "open",
-      "reason": "The web forwards Noren's feed time ft (epoch seconds) as zebu_timestamp; the desktop drops it.",
-      "ref": "audit FB-07, C06; broker/zebu/streaming/zebu_adapter.py normalisers"
+      "kind": "web-defect",
+      "reason": "Noren's touchline carries the book totals (tbq, tsq), and the web's Zebu Quote dict drops them: lost data. The desktop keeps them (lead decision: data a web adapter drops from a mode is kept).",
+      "ref": "broker/zebu/streaming/zebu_adapter.py QuoteNormalizer"
     }
   ]
 }
