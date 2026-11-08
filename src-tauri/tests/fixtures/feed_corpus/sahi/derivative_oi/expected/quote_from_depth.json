@@ -14,6 +14,8 @@
     "last_trade_time": 1761700003000,
     "volume": 126000,
     "oi": 1525,
-    "open_interest": 1525
+    "open_interest": 1525,
+    "upper_circuit": 27170.0,
+    "lower_circuit": 22230.0
   }
 }

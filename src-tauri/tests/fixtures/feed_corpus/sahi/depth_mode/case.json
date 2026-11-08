@@ -27,18 +27,5 @@
     ],
     "notes": []
   },
-  "deviations": [
-    {
-      "key": "upper_circuit",
-      "kind": "open",
-      "reason": "Sahi's daily price band (dpr_upper, field 7) is read past by the desktop decoder (sahi/streaming/proto.rs decode_tick) and NormalizedTick has no circuit field; the web publishes it in rupees in Quote and Depth, and 0.0 when the tick left the band out.",
-      "ref": "audit P-11, C06; sahi_mapping.py:134"
-    },
-    {
-      "key": "lower_circuit",
-      "kind": "open",
-      "reason": "Sahi's daily price band (dpr_lower, field 8), as upper_circuit.",
-      "ref": "audit P-11, C06; sahi_mapping.py:135"
-    }
-  ]
+  "deviations": []
 }

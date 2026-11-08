@@ -31,26 +31,28 @@
     {
       "key": "oi",
       "kind": "open",
-      "reason": "A Quote frame built from a Quote tick carries no oi: the bridge keeps OI only from a Depth tick (feed/bridge.rs quote_fields with_oi), so a derivative's open interest is lost in Quote mode. The web sends the tick's open_interest, and 0 when the stream left it out (sahi_mapping.py build_quote_payload). The 0 for an instrument whose stream carried no OI (an equity, an index) is a value the broker did not send: lead to decide whether the desktop matches it.",
-      "ref": "audit C05; sahi_mapping.py:131-133"
+      "reason": "A Quote tick's open interest is not marked carried, so a Quote frame from a Quote tick has no oi, or the OI of the connection's last Depth tick. The web sends the tick's open_interest (sahi_mapping.py build_quote_payload).",
+      "ref": "audit C05; sahi_mapping.py:129"
     },
     {
       "key": "open_interest",
       "kind": "open",
-      "reason": "The web's alias of oi, sent beside it with the same value; lost with oi in a Quote frame from a Quote tick (see oi).",
-      "ref": "audit C05; sahi_mapping.py:132-133"
+      "reason": "The web's alias of oi, sent beside it with the same value; follows oi (see oi).",
+      "ref": "audit C05; sahi_mapping.py:130"
     },
     {
       "key": "upper_circuit",
-      "kind": "open",
-      "reason": "Sahi's daily price band (dpr_upper, field 7) is read past by the desktop decoder (sahi/streaming/proto.rs decode_tick) and NormalizedTick has no circuit field; the web publishes it in rupees in Quote and Depth, and 0.0 when the tick left the band out.",
-      "ref": "audit P-11, C06; sahi_mapping.py:134"
+      "kind": "web-defect",
+      "reason": "The tick left the price band off (dpr_upper, a proto3 scalar, reads as 0); the web publishes upper_circuit 0.0 (sahi_mapping.py build_quote_payload), a band nobody sent. The desktop sends none for an instrument whose ticks never carried one, and keeps the band an earlier tick of the connection carried.",
+      "ref": "sahi_mapping.py:131",
+      "approved": true
     },
     {
       "key": "lower_circuit",
-      "kind": "open",
-      "reason": "Sahi's daily price band (dpr_lower, field 8), as upper_circuit.",
-      "ref": "audit P-11, C06; sahi_mapping.py:135"
+      "kind": "web-defect",
+      "reason": "The tick left the price band off (dpr_lower); the web publishes lower_circuit 0.0, as upper_circuit.",
+      "ref": "sahi_mapping.py:132",
+      "approved": true
     }
   ]
 }

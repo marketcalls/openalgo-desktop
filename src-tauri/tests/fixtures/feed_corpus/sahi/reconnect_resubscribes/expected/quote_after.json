@@ -12,6 +12,8 @@
     "ltt": 1761700005123,
     "timestamp": "<receipt_ms>",
     "last_trade_time": 1761700005123,
-    "volume": 990000
+    "volume": 990000,
+    "upper_circuit": 1419.5,
+    "lower_circuit": 1161.5
   }
 }

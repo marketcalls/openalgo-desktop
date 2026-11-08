@@ -10,6 +10,8 @@
     "mode": "quote",
     "ltp": 1291.0,
     "timestamp": "<receipt_ms>",
-    "volume": 0
+    "volume": 0,
+    "upper_circuit": 1419.5,
+    "lower_circuit": 1161.5
   }
 }

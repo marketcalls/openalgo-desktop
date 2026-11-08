@@ -52,9 +52,9 @@ pub(crate) struct Level {
 }
 
 /// `LtpTick` / `QuoteTick` / `DepthTick`: they share field numbers 1-12.
-/// Only what OpenAlgo publishes is kept; `instrument_type` (3), the daily
-/// price band (7, 8) and `prev_open_interest` (9) are read past, since no
-/// OpenAlgo tick field carries them.
+/// Only what OpenAlgo publishes is kept; `instrument_type` (3) and
+/// `prev_open_interest` (9) are read past, since the web publishes
+/// neither.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Tick {
     pub instrument_id: i64,
@@ -62,6 +62,10 @@ pub(crate) struct Tick {
     pub last_trade_price: i64,
     pub last_trade_time: Option<i64>,
     pub volume_today: i64,
+    /// The daily price band (`dpr_upper`, `dpr_lower`), in paise; 0 when
+    /// the tick left it off (a proto3 scalar).
+    pub dpr_upper: i64,
+    pub dpr_lower: i64,
     pub open_interest: Option<i64>,
     pub best_buys: Vec<Level>,
     pub best_sells: Vec<Level>,
@@ -285,6 +289,8 @@ fn decode_tick(buf: &[u8]) -> Decoded<Tick> {
                 4 => t.last_trade_price = signed,
                 5 => t.last_trade_time = Some(signed),
                 6 => t.volume_today = signed,
+                7 => t.dpr_upper = signed,
+                8 => t.dpr_lower = signed,
                 10 => t.open_interest = Some(signed),
                 _ => {}
             }

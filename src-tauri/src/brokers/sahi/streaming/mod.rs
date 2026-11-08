@@ -11,6 +11,9 @@
 //!   last quantity, average price or total buy and sell quantity, and an
 //!   index tick no trade time: those are left out of the frames, never sent
 //!   as 0 or derived (web openalgo#2376).
+//! * Quote and Depth frames carry the daily price band as `upper_circuit`
+//!   and `lower_circuit` (web `sahi_mapping.py` `build_quote_payload`,
+//!   audit P-11). A tick without a band leaves it out; the web sends 0.0.
 //! * The server pings every 30 s and closes with 4408 when no pong comes;
 //!   tungstenite answers its pings, so the feed sends no heartbeat. The
 //!   pings also keep the manager's stall watchdog quiet.
@@ -122,6 +125,13 @@ fn segment_of(exchange: &str) -> Option<u64> {
 /// Integer paise to rupees.
 pub(crate) fn rupees(paise: i64) -> f64 {
     paise as f64 / 100.0
+}
+
+/// One side of the daily price band in rupees, or none when the tick left
+/// it off: the band is a proto3 scalar, so an absent one reads as 0, and
+/// no instrument trades in a band of 0 (the web publishes 0.0 then).
+fn band(paise: i64) -> Option<f64> {
+    (paise != 0).then(|| rupees(paise))
 }
 
 /// Whether a handshake status (or, should the manager pass one, a close
@@ -286,6 +296,8 @@ impl SahiFeed {
         if served >= FeedMode::Quote {
             tick.volume = t.volume_today;
             tick.oi = t.open_interest.unwrap_or(0);
+            tick.extras.upper_circuit = band(t.dpr_upper);
+            tick.extras.lower_circuit = band(t.dpr_lower);
         }
         let mut out = Vec::with_capacity(2);
         out.push(FeedEvent::Tick(tick));
