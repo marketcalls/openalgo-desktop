@@ -5,6 +5,7 @@ here by its module and a line in GLUES."""
 from web_adapters.angel import Angel
 from web_adapters.dhan import Dhan
 from web_adapters.samco import Samco
+from web_adapters.tradejini import Tradejini
 from web_adapters.zerodha import Zerodha
 
-GLUES = {g.broker: g for g in (Angel, Dhan, Samco, Zerodha)}
+GLUES = {g.broker: g for g in (Angel, Dhan, Samco, Tradejini, Zerodha)}

@@ -1,0 +1,85 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "tradejini",
+  "inputs_sha256": "5a3472e7945c0b551129c35c0853add431819ccb72830897251e00db8c65f02a",
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 1,
+      "published": []
+    },
+    {
+      "line": 4,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 810.5,
+            "ltt": "2025-11-05 14:25:31",
+            "volume": 123456,
+            "open": 800.0,
+            "high": 815.0,
+            "low": 798.0,
+            "close": 805.0,
+            "last_quantity": 15,
+            "average_price": 808.2,
+            "oi": 0,
+            "change": 5.5,
+            "change_percent": 0.68,
+            "percent_change": 0.68,
+            "last_trade_time": "2025-11-05 14:25:31",
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 6,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_SBIN_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 811.0,
+            "ltt": "2025-11-05 14:25:32",
+            "volume": 123476,
+            "open": 800.0,
+            "high": 815.0,
+            "low": 798.0,
+            "close": 805.0,
+            "last_quantity": 20,
+            "average_price": 808.25,
+            "oi": 0,
+            "change": 6.0,
+            "change_percent": 0.75,
+            "percent_change": 0.75,
+            "last_trade_time": "2025-11-05 14:25:32",
+            "symbol": "SBIN",
+            "exchange": "NSE",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "published": []
+    }
+  ]
+}

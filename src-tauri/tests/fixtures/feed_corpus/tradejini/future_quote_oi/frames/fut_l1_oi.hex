@@ -1,0 +1,10 @@
+290000000100  # frame length 41, version 1, compression 0 (none)
+# L1: the future, a trade and an OI change
+23000a  # packet length 35, type 10
+1a03  # 26 exchSeg = 3
+1bc8cb0000  # 27 token = 52168
+1dcc772500  # 29 ltp = 2455500
+2796000000  # 39 ltq = 150
+28f6e31600  # 40 vol = 1500150
+2cf83fb800  # 44 OI = 12075000
+2e48110b69  # 46 ltt (epoch seconds) = 1762333000

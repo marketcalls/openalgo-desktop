@@ -1,0 +1,11 @@
+{"step": "push", "frame": "frames/auth_ok.hex", "note": "Tradejini's answer to the token in the URL; the feed subscribes without waiting for it, as the web does."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"type": "L1", "action": "sub", "tokens": [{"t": "3045_NSE"}]}}]}
+{"step": "push", "frame": "frames/l1_full.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "push", "frame": "frames/l1_trade.bin", "note": "A zlib-compressed frame (compression 100) with an L1 delta: a trade."}
+{"step": "receive", "client": "a", "frame": "expected/quote_trade.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"type": "L1", "action": "unsub"}}]}
+{"step": "push", "frame": "frames/l1_price.hex", "note": "A tick Tradejini sent before it took the unsubscribe."}
+{"step": "silence", "client": "a"}

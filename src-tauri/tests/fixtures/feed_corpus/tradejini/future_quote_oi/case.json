@@ -1,0 +1,81 @@
+{
+  "broker": "tradejini",
+  "summary": "A NIFTY future on NFO at Quote: a full L1 with OI, then a trade with an OI change.",
+  "scenarios": [
+    "derivative-oi",
+    "first-full-packet",
+    "partial-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV25FUT",
+      "exchange": "NFO",
+      "token": "52168",
+      "brsymbol": "NIFTY25NOVFUT",
+      "brexchange": "NFO",
+      "name": "NIFTY",
+      "expiry": "25-NOV-25",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"type\":\"PING\"}\n"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/tradejini/api/nxtradstream.py::NxtradStream.__on_message",
+      "broker/tradejini/api/nxtradstream.py::NxtradStream.__decodeL1PKT",
+      "broker/tradejini/api/nxtradstream.py::NxtradStream.__decodeL2PKT",
+      "broker/tradejini/streaming/tradejini_adapter.py::TradejiniWebSocketAdapter._on_data",
+      "broker/tradejini/streaming/tradejini_adapter.py::TradejiniWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as \"2025-11-05 14:25:31\" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or \"\" (LTP).",
+      "ref": "nxtradstream.py:34-38 datefmt, :93; tradejini_adapter.py:815, :820, :845"
+    },
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "The web sends the future's open interest (L1 OI) in Quote; the desktop's Quote frame leaves OI out unless Depth is held for the instrument.",
+      "ref": "tradejini_adapter.py:828; feed::bridge::tick_update (with_oi); audit C05 (lane wire)"
+    },
+    {
+      "key": "change",
+      "kind": "open",
+      "reason": "The web sends Tradejini's own change (chng) in Quote and Depth for every instrument; the desktop sends the change for indices only.",
+      "ref": "tradejini_adapter.py:829, :858-866; audit C04 (lane wire)"
+    },
+    {
+      "key": "change_percent",
+      "kind": "open",
+      "reason": "As change, for Tradejini's chngPer.",
+      "ref": "tradejini_adapter.py:830, :858-866; audit C04 (lane wire)"
+    },
+    {
+      "key": "percent_change",
+      "kind": "open",
+      "reason": "As change: the web's second name for chngPer (web openalgo#2383).",
+      "ref": "tradejini_adapter.py:883-884; audit C04 (lane wire)"
+    },
+    {
+      "key": "last_trade_time",
+      "kind": "open",
+      "reason": "The web also sends the trade time as last_trade_time (the same local-time text as its ltt, a web defect); the desktop sends no last_trade_time for Tradejini. Phase B: the dialect alias in epoch ms beside ltt, as Samco, 5paisa and mStock have it (feed::dialect, lane wire); the value then stays a declared web defect.",
+      "ref": "tradejini_adapter.py:881-886 _add_reference_keys; feed::dialect"
+    }
+  ]
+}

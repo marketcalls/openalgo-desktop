@@ -1,0 +1,11 @@
+2e0000000100  # frame length 46, version 1, compression 0 (none)
+# L1: INFY, the web test's L1_TICK
+28000a  # packet length 40, type 10
+1a01  # 26 exchSeg = 1
+1b3a060000  # 27 token = 1594
+1d2cc30100  # 29 ltp = 115500
+1e96d10100  # 30 open = 119190
+1f9ad20100  # 31 high = 119450
+209cc10100  # 32 low = 115100
+21e4ce0100  # 33 close = 118500
+28e0c81000  # 40 vol = 1100000

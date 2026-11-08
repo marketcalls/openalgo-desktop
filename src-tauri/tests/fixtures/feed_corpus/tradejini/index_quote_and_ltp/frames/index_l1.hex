@@ -1,0 +1,12 @@
+330000000100  # frame length 51, version 1, compression 0 (none)
+# L1: NIFTY 50 (26000, NSE): no volume, trade time or book
+2d000a  # packet length 45, type 10
+1a01  # 26 exchSeg = 1
+1b90650000  # 27 token = 26000
+1d5a622500  # 29 ltp = 2450010
+1ec84e2500  # 30 open = 2445000
+1f60892500  # 31 high = 2460000
+20403b2500  # 32 low = 2440000
+2130142500  # 33 close = 2430000
+222a4e0000  # 34 chng = 20010
+2352000000  # 35 chngPer (x100) = 82

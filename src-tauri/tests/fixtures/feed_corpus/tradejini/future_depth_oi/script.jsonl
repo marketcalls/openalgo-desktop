@@ -1,0 +1,8 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"type": "L1", "action": "sub", "tokens": [{"t": "52168_NFO"}]}}, {"json": {"type": "L5", "action": "sub", "tokens": [{"t": "52168_NFO"}]}}]}
+{"step": "push", "frame": "frames/fut_l1.hex"}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/fut_l5.hex"}
+{"step": "receive", "client": "a", "frame": "expected/depth.json"}
+{"step": "push", "frame": "frames/fut_l1_oi.hex", "note": "A price and OI tick sends the Depth view again with the cached book."}
+{"step": "receive", "client": "a", "frame": "expected/depth_oi.json"}

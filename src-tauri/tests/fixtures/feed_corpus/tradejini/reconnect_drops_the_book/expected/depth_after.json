@@ -1,0 +1,82 @@
+{
+  "type": "market_data",
+  "symbol": "SBIN",
+  "exchange": "NSE",
+  "mode": 3,
+  "broker": "tradejini",
+  "data": {
+    "symbol": "SBIN",
+    "exchange": "NSE",
+    "mode": "full",
+    "ltp": 810.5,
+    "ltt": 1762332931000,
+    "timestamp": "<receipt_ms>",
+    "volume": 123456,
+    "last_quantity": 15,
+    "average_price": 808.2,
+    "open": 800.0,
+    "high": 815.0,
+    "low": 798.0,
+    "close": 805.0,
+    "total_buy_quantity": 5200,
+    "total_sell_quantity": 6900,
+    "oi": 0,
+    "open_interest": 0,
+    "depth": {
+      "buy": [
+        {
+          "price": 810.45,
+          "quantity": 15,
+          "orders": 2
+        },
+        {
+          "price": 810.4,
+          "quantity": 10,
+          "orders": 2
+        },
+        {
+          "price": 810.35,
+          "quantity": 20,
+          "orders": 3
+        },
+        {
+          "price": 810.3,
+          "quantity": 30,
+          "orders": 4
+        },
+        {
+          "price": 810.25,
+          "quantity": 40,
+          "orders": 5
+        }
+      ],
+      "sell": [
+        {
+          "price": 810.55,
+          "quantity": 8,
+          "orders": 1
+        },
+        {
+          "price": 810.6,
+          "quantity": 12,
+          "orders": 3
+        },
+        {
+          "price": 810.65,
+          "quantity": 22,
+          "orders": 4
+        },
+        {
+          "price": 810.7,
+          "quantity": 32,
+          "orders": 5
+        },
+        {
+          "price": 810.75,
+          "quantity": 42,
+          "orders": 6
+        }
+      ]
+    }
+  }
+}

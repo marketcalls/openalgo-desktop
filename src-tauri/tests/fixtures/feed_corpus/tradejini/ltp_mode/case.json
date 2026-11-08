@@ -1,0 +1,46 @@
+{
+  "broker": "tradejini",
+  "summary": "SBIN LTP: a full L1 quote then a price-only delta; the trade time stays the last one Tradejini sent.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"type\":\"PING\"}\n"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/tradejini/api/nxtradstream.py::NxtradStream.__on_message",
+      "broker/tradejini/api/nxtradstream.py::NxtradStream.__decodeL1PKT",
+      "broker/tradejini/api/nxtradstream.py::NxtradStream.__decodeL2PKT",
+      "broker/tradejini/streaming/tradejini_adapter.py::TradejiniWebSocketAdapter._on_data",
+      "broker/tradejini/streaming/tradejini_adapter.py::TradejiniWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as \"2025-11-05 14:25:31\" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or \"\" (LTP).",
+      "ref": "nxtradstream.py:34-38 datefmt, :93; tradejini_adapter.py:815, :820, :845"
+    }
+  ]
+}

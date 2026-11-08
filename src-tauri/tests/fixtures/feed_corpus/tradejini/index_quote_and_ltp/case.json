@@ -1,0 +1,79 @@
+{
+  "broker": "tradejini",
+  "summary": "NIFTY 50 on NSE_INDEX (token 26000 on Tradejini's NSE segment), one client at Quote and one at LTP: no volume, trade time or book; the change Tradejini sends.",
+  "scenarios": [
+    "index",
+    "first-full-packet",
+    "partial-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "Nifty 50_26000_NSE",
+      "brexchange": "NSE",
+      "name": "Nifty 50"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"type\":\"PING\"}\n"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/tradejini/api/nxtradstream.py::NxtradStream.__on_message",
+      "broker/tradejini/api/nxtradstream.py::NxtradStream.__decodeL1PKT",
+      "broker/tradejini/api/nxtradstream.py::NxtradStream.__decodeL2PKT",
+      "broker/tradejini/streaming/tradejini_adapter.py::TradejiniWebSocketAdapter._on_data",
+      "broker/tradejini/streaming/tradejini_adapter.py::TradejiniWebSocketAdapter._normalize_market_data",
+      "broker/tradejini/database/master_contract_db.py (index rows: exchange NSE_INDEX, brexchange NSE)"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "Tradejini sends the trade time in epoch seconds; the web formats it with the server's local time zone into a text such as \"2025-11-05 14:25:31\" (nxtradstream.py datefmt) and sends that as ltt, where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends epoch ms, and leaves ltt out when Tradejini sent no trade time, where the web sends null (Quote, Depth) or \"\" (LTP).",
+      "ref": "nxtradstream.py:34-38 datefmt, :93; tradejini_adapter.py:815, :820, :845"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "An index has no trades: its L1 carries no ltq, and the web sends last_quantity 0 (message.get(\"ltq\", 0)); the desktop's index frame has none.",
+      "ref": "tradejini_adapter.py:826"
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "As last_quantity: an index L1 carries no atp, and the web sends average_price 0.",
+      "ref": "tradejini_adapter.py:827"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "An index's L1 carries no OI; the web sends oi 0. The desktop's index frame carries no OI.",
+      "ref": "tradejini_adapter.py:828"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends an index's change as price_change and price_change_percent, the names of the recorded Zerodha transcript, with the web adapter's names (change, change_percent, percent_change) beside them.",
+      "ref": "feed::dialect (WS-05)"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "As price_change.",
+      "ref": "feed::dialect (WS-05)"
+    }
+  ]
+}

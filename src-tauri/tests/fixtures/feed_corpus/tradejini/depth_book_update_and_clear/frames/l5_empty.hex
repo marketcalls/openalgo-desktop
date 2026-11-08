@@ -1,0 +1,8 @@
+1c0000000100  # frame length 28, version 1, compression 0 (none)
+# L5: SBIN, an empty book
+16000b  # packet length 22, type 11
+1a01  # 26 exchSeg = 1
+1be50b0000  # 27 token = 3045
+2f00000000  # 47 totBuyQty = 0
+3000000000  # 48 totSellQty = 0
+3700  # 55 nDepth (bid levels) = 0

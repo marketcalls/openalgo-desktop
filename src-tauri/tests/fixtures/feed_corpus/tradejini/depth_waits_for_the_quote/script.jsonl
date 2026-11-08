@@ -1,0 +1,8 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"type": "L1", "action": "sub", "tokens": [{"t": "1594_NSE"}]}}, {"json": {"type": "L5", "action": "sub", "tokens": [{"t": "1594_NSE"}]}}]}
+{"step": "push", "frame": "frames/l5.hex", "note": "The book before any quote: nothing to show yet (it would read LTP and OHLC as 0)."}
+{"step": "silence", "client": "a"}
+{"step": "push", "frame": "frames/l1.hex"}
+{"step": "receive", "client": "a", "frame": "expected/depth.json"}
+{"step": "push", "frame": "frames/l1_price.hex", "note": "A price tick sends the Depth view again with the cached book."}
+{"step": "receive", "client": "a", "frame": "expected/depth_price.json"}
