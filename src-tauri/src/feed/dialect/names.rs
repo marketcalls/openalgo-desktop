@@ -85,6 +85,14 @@ pub(crate) enum Source {
     PerMode([&'static str; 3]),
     /// The broker's instrument token, as text (`token`).
     Token,
+    /// The frame's `timestamp` in the unit the web name uses (Fyers 50-level
+    /// `feed_time`).
+    Timestamp(Unit),
+    /// `true` (Fyers' 50-level frames: `is_50_depth`).
+    True,
+    /// The inner source, only in a Depth frame streaming 50 levels (Fyers'
+    /// TBT book frame keys).
+    FiftyLevels(&'static Source),
 }
 
 /// One web key: its name, its value, and the modes it is sent in (`from`
@@ -144,6 +152,9 @@ pub(crate) struct Dialect {
     /// book totals, binary doubles in its packet).
     pub floats: &'static [&'static str],
     pub fold: Fold,
+    /// Whether the book carries the frame's `timestamp` inside it (Upstox:
+    /// `depth: {buy, sell, timestamp}`).
+    pub book_time: bool,
     pub names: &'static [WebName],
 }
 
@@ -204,6 +215,13 @@ impl Dialect {
 
     const fn floats(self, floats: &'static [&'static str]) -> Self {
         Self { floats, ..self }
+    }
+
+    const fn book_time(self) -> Self {
+        Self {
+            book_time: true,
+            ..self
+        }
     }
 
     const fn richer(self) -> Self {
@@ -419,6 +437,12 @@ const FYERS: &[WebName] = &[
     n("percent_change", S::ChangePercent, L),
     n("data_type", S::PerMode(["Quote", "Quote", "Depth"]), L),
     n("subscription_mode", S::SubscriptionMode, L),
+    // `fyers_mapping.py` `map_to_openalgo_50_depth`: the TBT book's keys.
+    n("total_buy_qty", S::FiftyLevels(&S::TotalBuyQuantity), D),
+    n("total_sell_qty", S::FiftyLevels(&S::TotalSellQuantity), D),
+    n("feed_time", S::FiftyLevels(&S::Timestamp(Unit::Seconds)), D),
+    n("depth_levels", S::FiftyLevels(&S::DepthLevels), D),
+    n("is_50_depth", S::FiftyLevels(&S::True), D),
 ];
 
 const GROWW: &[WebName] = &[
@@ -567,6 +591,7 @@ const fn d(data_mode: DataMode, names: &'static [WebName]) -> Dialect {
         ltt_on_ltp_copies: true,
         floats: &[],
         fold: Fold::PerMode,
+        book_time: false,
         names,
     }
 }
@@ -594,7 +619,7 @@ pub(crate) fn dialect(broker: &str) -> Dialect {
             .richer()
             .no_index_change(),
         "kotak" => d(Absent, KOTAK).no_index_change().index_book(),
-        "upstox" => d(Absent, UPSTOX),
+        "upstox" => d(Absent, UPSTOX).book_time(),
         "fyers" => d(Absent, FYERS).no_ltt(),
         "compositedge" | "fivepaisaxts" | "ibulls" | "iifl" | "jainamxts" | "rmoney" | "wisdom" => {
             d(Number, XTS).richer()

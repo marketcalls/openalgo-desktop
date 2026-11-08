@@ -93,6 +93,16 @@ as the web's `server.py` sends them):
 - A broker not in the table gets the master frame of 1.0.6 (both OI keys,
   `ltt` everywhere, a numeric `data.mode`); a broker lane changes its
   broker's entry when its corpus cases show otherwise.
+- The general rule (`feed/dialect/keys.rs`): every canonical key has the
+  modes it goes out in, for an index and for any other instrument
+  (`Dialect::key`, `instrument_key`, `index_key` with `Modes::range(from,
+  to)` or `Modes::NEVER`), apart from the values the broker's own names
+  read, so turning a canonical key off never removes a web name; a web
+  name is bounded with `nt(key, source, from, to)`. The switches above are
+  presets of it (`open_interest`, `no_ltt`, `no_ltt_on_ltp_copies`,
+  `no_index_change`, `index_book`, `bare`). No web adapter sends
+  `price_change` on an equity, so a listed broker's equity carries the
+  change under its own names only.
 
 Deliberate differences, each a web defect or a desktop rule:
 
@@ -172,32 +182,46 @@ transcripts show exactly that (`01_connect_auth_subscribe_flow.jsonl`,
 `05_auth_alias_forms_and_mode_labels.jsonl`: mode 3, then 2, then 1, each
 shaped for its mode).
 
-The desktop's policy, which the golden transcripts fix:
+The desktop's policy (lead decisions 2026-11-09; the golden transcripts
+fix the Zerodha shape):
 
-- **One frame per mode the client holds, for each update, each shaped for
-  its mode** (`feed::registry::dispatch`): a Depth update reaches a client's
-  Depth, Quote and LTP holdings, a Quote update its Quote and LTP holdings,
-  an LTP update its LTP holding. A broker's full non-index tick is a Quote
-  update and an exact Depth update, so a client holding all three modes
-  receives three frames per tick, as recorded; one holding Quote and Depth
-  receives two; one holding LTP receives one.
+- **One packet, one update.** A full tick and its book right behind it on
+  the broker feed go out as one Depth update (`feed/bridge/pairing.rs`); a
+  book on its own (a deep book from its own socket) reaches Depth holders
+  only, so no holder gets a packet twice. A full tick whose book does not
+  come with it still reaches Depth holders, with no `depth` key, as the web
+  publishes such a packet on its Depth topic without a book.
+- **One frame per mode the client holds, for each update**
+  (`feed::registry::dispatch`): a Depth update reaches a client's Depth,
+  Quote and LTP holdings, a Quote update its Quote and LTP holdings, an LTP
+  update its LTP holding. A client holding all three modes receives three
+  frames per tick, as recorded; one holding Quote and Depth two; LTP one.
+- **Each frame shaped as the broker's web adapter shapes it** (`Fold` in
+  `feed/dialect/names.rs`): trimmed to the holder's mode where the adapter
+  publishes a dict per mode (Zerodha, as recorded; Sahi, Rupeezy, Upstox,
+  ...); carrying the whole packet, its book and circuits included, with the
+  dict's own `data.mode`, where the adapter publishes one dict per packet
+  (Arrow, Paytm, mStock, the XTS family, Delta Exchange, Angel, Dhan,
+  AliceBlue, IndMoney, Pocketful), as the web sends that dict to a lower
+  holder.
 - **What the Python SDK sees.** SDK 2.0.5 (`openalgo/feed.py`) calls the LTP
   callback for a frame with `mode` 1, the Quote callback for 2 and the
   Depth callback for 3 (with a book). So each callback runs once per broker
   tick for each mode subscribed, on any broker.
 - **Where the web differs, and the desktop does not follow** (web defects):
-  1. A client that holds LTP only, while another client holds Depth of the
-     same symbol, receives on the web the Depth topic's message folded to
-     mode 1, with the whole Depth dict (OHLC, book) as its data, and on
-     Zerodha a second mode-1 frame from the LTP topic: two LTP callbacks
-     per tick, the first with keys no LTP frame has. The desktop sends one
-     LTP frame.
-  2. An adapter that publishes only its richest topic (RMoney and Wisdom
-     send a 1501 touchline to Quote alone when Quote is held; Jainam sends
-     every message to every mode) starves, on the web, an LTP holding of a
-     client that also holds Quote: the listener folds it to mode 2 and the
-     LTP callback never runs (Zerodha fixed its own case, web issue #1664).
-     The desktop sends both.
+  1. With a one-dict adapter, a client holding LTP, Quote and Depth gets
+     one frame per packet on the web (mode 3): its LTP and Quote callbacks
+     never run. RMoney and Wisdom send a 1501 touchline to Quote alone when
+     Quote is held, so an LTP holding of that client never hears it either
+     (Zerodha fixed its own case, web issue #1664). The desktop sends every
+     held mode its frame.
+  2. A client that holds LTP only, while another client holds Depth of the
+     same symbol, receives on Zerodha web the Depth topic's message folded
+     to mode 1 with the whole Depth dict, and a second mode-1 frame from
+     the LTP topic: two LTP callbacks per tick. The desktop sends one.
+  3. Where an adapter publishes nothing to Depth holders for a full packet
+     without a book, its broker lane declares it; the desktop sends the
+     Depth holder its frame without `depth`.
 
 Draft for the web: *The proxy's listener folds each upstream message to the
 highest mode a client holds at or below the message's topic, so the

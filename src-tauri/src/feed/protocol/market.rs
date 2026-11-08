@@ -32,6 +32,8 @@ impl From<&DepthLevel> for LevelOut {
 struct BookOut {
     buy: Vec<LevelOut>,
     sell: Vec<LevelOut>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    timestamp: Option<i64>,
 }
 
 /// `data.mode` as the broker's web adapter writes it.
@@ -257,6 +259,12 @@ fn value(source: Source, fr: &Frame<'_>) -> Option<Value> {
         Source::BrokerId => Some(Value::from(fr.broker)),
         Source::PerMode(texts) => Some(Value::from(texts[fr.mode.index()])),
         Source::Token => fr.update.token.as_deref().map(Value::from),
+        Source::Timestamp(unit) => Some(time(fr.update.timestamp, unit)),
+        Source::True => Some(Value::Bool(true)),
+        Source::FiftyLevels(inner) => {
+            let fifty = fr.content == Mode::Depth && fr.depth == 50;
+            fifty.then(|| value(*inner, fr)).flatten()
+        }
     }
 }
 
@@ -298,7 +306,10 @@ pub fn market_data(update: &MarketUpdate, mode: Mode, depth: u8, broker: &str) -
     };
     let mut d = canonical(update, &q, mode, content, &dia);
     if dia.keys.has(Key::Depth, key.is_index(), content) {
-        d.depth = book(update, mode, depth);
+        d.depth = book(update, mode, depth).map(|b| BookOut {
+            timestamp: dia.book_time.then_some(update.timestamp),
+            ..b
+        });
     }
     let frame = Frame {
         update,
@@ -333,10 +344,12 @@ fn book(update: &MarketUpdate, mode: Mode, depth: u8) -> Option<BookOut> {
         Some(b) => Some(BookOut {
             buy: b.buy.iter().take(n).map(LevelOut::from).collect(),
             sell: b.sell.iter().take(n).map(LevelOut::from).collect(),
+            timestamp: None,
         }),
         None if update.key.is_index() => Some(BookOut {
             buy: Vec::new(),
             sell: Vec::new(),
+            timestamp: None,
         }),
         None => None,
     }

@@ -652,6 +652,34 @@ fn a_lower_holder_gets_the_packet_as_the_brokers_web_adapter_sends_it() {
     assert!(render(&u, Mode::Quote, "zerodha").get("depth").is_none());
 }
 
+/// Fyers' 50-level frames carry the TBT book's keys; Upstox's book carries
+/// the frame's timestamp; Fyers' `update_type` goes out as the adapter
+/// names it.
+#[test]
+fn book_meta_keys_follow_the_broker() {
+    let mut u = update(equity());
+    if let Some(q) = u.quote.as_mut() {
+        q.broker_fields
+            .set(BrokerField::UpdateType, BrokerValue::Text("live"));
+    }
+    let fifty: Value = serde_json::from_str(&market_data(&u, Mode::Depth, 50, "fyers")).unwrap();
+    let d = &fifty["data"];
+    assert_eq!(
+        (d["is_50_depth"].as_bool(), d["depth_levels"].as_u64()),
+        (Some(true), Some(50))
+    );
+    assert_eq!(d["total_buy_qty"], 300);
+    assert_eq!(d["feed_time"], 1_791_000_000);
+    assert_eq!(d["update_type"], "live");
+    let five = render(&u, Mode::Depth, "fyers");
+    assert!(five.get("is_50_depth").is_none() && five.get("total_buy_qty").is_none());
+    let upstox = render(&u, Mode::Depth, "upstox");
+    assert_eq!(upstox["depth"]["timestamp"], 1_791_000_000_000_i64);
+    assert!(render(&u, Mode::Depth, "zerodha")["depth"]
+        .get("timestamp")
+        .is_none());
+}
+
 /// A trade time as Tradejini's web adapter writes it, in IST seconds, and
 /// only when the broker sent one (`ltt` falls back to the receive time).
 #[test]

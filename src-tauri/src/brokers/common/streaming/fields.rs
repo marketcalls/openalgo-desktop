@@ -241,6 +241,9 @@ pub enum BrokerField {
     OiLow,
     /// Groww: the day's traded value (`value`).
     TradedValue,
+    /// Fyers: whether the message is the first full one or an update
+    /// (`update_type`: `snapshot` or `live`).
+    UpdateType,
 }
 
 impl BrokerField {
@@ -258,19 +261,22 @@ impl BrokerField {
             BrokerField::OiHigh => "oi_high",
             BrokerField::OiLow => "oi_low",
             BrokerField::TradedValue => "value",
+            BrokerField::UpdateType => "update_type",
         }
     }
 
     /// The lowest mode whose frames carry it (and every mode above).
     pub const fn from_mode(self) -> FeedMode {
         match self {
-            BrokerField::IndicativeEquilibriumPrice | BrokerField::TradedValue => FeedMode::Ltp,
+            BrokerField::IndicativeEquilibriumPrice
+            | BrokerField::TradedValue
+            | BrokerField::UpdateType => FeedMode::Ltp,
             BrokerField::OiHigh | BrokerField::OiLow => FeedMode::Depth,
             _ => FeedMode::Quote,
         }
     }
 
-    pub const ALL: [BrokerField; 9] = [
+    pub const ALL: [BrokerField; 10] = [
         BrokerField::IndicativeEquilibriumPrice,
         BrokerField::ReferencePrice,
         BrokerField::IndicativeEquilibriumQuantity,
@@ -280,6 +286,7 @@ impl BrokerField {
         BrokerField::OiHigh,
         BrokerField::OiLow,
         BrokerField::TradedValue,
+        BrokerField::UpdateType,
     ];
 }
 
@@ -289,6 +296,8 @@ pub enum BrokerValue {
     Int(i64),
     Float(f64),
     Bool(bool),
+    /// A fixed text the adapter names (Fyers' `snapshot` / `live`).
+    Text(&'static str),
 }
 
 impl Serialize for BrokerValue {
@@ -297,6 +306,7 @@ impl Serialize for BrokerValue {
             BrokerValue::Int(v) => s.serialize_i64(v),
             BrokerValue::Float(v) => s.serialize_f64(v),
             BrokerValue::Bool(v) => s.serialize_bool(v),
+            BrokerValue::Text(v) => s.serialize_str(v),
         }
     }
 }
