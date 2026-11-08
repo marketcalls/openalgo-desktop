@@ -37,6 +37,8 @@
         {
           "kind": "market",
           "topic": "NSE_ITC_QUOTE",
+          "exchange": "NSE",
+          "symbol": "ITC",
           "mode": 2,
           "data": {
             "ltp": 440.1,
@@ -71,6 +73,8 @@
         {
           "kind": "market",
           "topic": "BSE_ITC_QUOTE",
+          "exchange": "BSE",
+          "symbol": "ITC",
           "mode": 2,
           "data": {
             "ltp": 440.35,
@@ -105,6 +109,8 @@
         {
           "kind": "market",
           "topic": "NFO_ITC25NOV26FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "ITC25NOV26FUT",
           "mode": 2,
           "data": {
             "ltp": 442.5,
@@ -143,6 +149,8 @@
         {
           "kind": "market",
           "topic": "NSE_ITC_QUOTE",
+          "exchange": "NSE",
+          "symbol": "ITC",
           "mode": 2,
           "data": {
             "ltp": 440.1,

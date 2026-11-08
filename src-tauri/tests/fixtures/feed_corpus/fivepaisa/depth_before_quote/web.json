@@ -19,6 +19,8 @@
         {
           "kind": "market",
           "topic": "NSE_ITC_DEPTH",
+          "exchange": "NSE",
+          "symbol": "ITC",
           "mode": 3,
           "data": {
             "total_buy_quantity": 86225,
@@ -57,6 +59,8 @@
         {
           "kind": "market",
           "topic": "NSE_ITC_DEPTH",
+          "exchange": "NSE",
+          "symbol": "ITC",
           "mode": 3,
           "data": {
             "ltp": 440.1,

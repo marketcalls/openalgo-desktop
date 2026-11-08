@@ -36,15 +36,15 @@
     },
     {
       "key": "price_change",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries price_change and price_change_percent (ltp less the previous close, and 5paisa's ChgPcnt), as the recorded Zerodha index transcript does; this web adapter sends ChgPcnt as percent_change only, which the desktop sends too (feed/dialect.rs).",
-      "ref": "feed/bridge.rs quote_fields; feed/protocol.rs market_data index branch"
+      "kind": "open",
+      "reason": "The desktop's renderer gives an index price_change and price_change_percent (ltp less the previous close, and 5paisa's ChgPcnt), as the recorded Zerodha index frame carries them; the 5paisa web adapter sends ChgPcnt as percent_change only, which the desktop sends too. Follows the web adapter in Phase B through lane wire's per-broker switch (5paisa: neither key on an index).",
+      "ref": "feed/bridge.rs quote_fields; feed/protocol.rs market_data index branch; fivepaisa_adapter.py:_quote_fields"
     },
     {
       "key": "price_change_percent",
-      "kind": "desktop-decision",
-      "reason": "An index frame carries price_change and price_change_percent (ltp less the previous close, and 5paisa's ChgPcnt), as the recorded Zerodha index transcript does; this web adapter sends ChgPcnt as percent_change only, which the desktop sends too (feed/dialect.rs).",
-      "ref": "feed/bridge.rs quote_fields; feed/protocol.rs market_data index branch"
+      "kind": "open",
+      "reason": "The desktop's renderer gives an index price_change and price_change_percent (ltp less the previous close, and 5paisa's ChgPcnt), as the recorded Zerodha index frame carries them; the 5paisa web adapter sends ChgPcnt as percent_change only, which the desktop sends too. Follows the web adapter in Phase B through lane wire's per-broker switch (5paisa: neither key on an index).",
+      "ref": "feed/bridge.rs quote_fields; feed/protocol.rs market_data index branch; fivepaisa_adapter.py:_quote_fields"
     },
     {
       "key": "last_quantity",

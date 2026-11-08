@@ -23,6 +23,8 @@
         {
           "kind": "market",
           "topic": "NSE_ITC_DEPTH",
+          "exchange": "NSE",
+          "symbol": "ITC",
           "mode": 3,
           "data": {
             "ltp": 440.1,
@@ -69,6 +71,8 @@
         {
           "kind": "market",
           "topic": "NSE_ITC_DEPTH",
+          "exchange": "NSE",
+          "symbol": "ITC",
           "mode": 3,
           "data": {
             "ltp": 440.1,
@@ -155,6 +159,8 @@
         {
           "kind": "market",
           "topic": "NSE_ITC_DEPTH",
+          "exchange": "NSE",
+          "symbol": "ITC",
           "mode": 3,
           "data": {
             "ltp": 440.1,

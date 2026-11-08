@@ -11,19 +11,25 @@ use openalgo_desktop_lib::brokers::fivepaisa::FivepaisaBroker;
 use openalgo_desktop_lib::brokers::types::AuthToken;
 use openalgo_desktop_lib::brokers::Broker;
 use serde_json::json;
+use std::sync::Arc;
 use std::time::Duration;
 
 fn feeds(env: &Env) -> Feeds {
-    let broker = FivepaisaBroker::with_urls(
-        env.symbols(),
-        env.http_url(),
-        format!("{}/master", env.http_url()),
-    )
-    // The production path (`feeds/api/chat`) on the fake broker's socket.
-    .with_feed_url(format!("{}/feeds/api/chat", env.url("main")));
+    // The broker wires the bridge as a session does (its depth levels and
+    // exchange refusals) and owns the order poller.
+    let broker = Arc::new(
+        FivepaisaBroker::with_urls(
+            env.symbols(),
+            env.http_url(),
+            format!("{}/master", env.http_url()),
+        )
+        // The production path (`feeds/api/chat`) on the fake broker's socket.
+        .with_feed_url(format!("{}/feeds/api/chat", env.url("main"))),
+    );
     // api key ::: client code ::: access token, fake values.
     let auth = AuthToken::new("key:::c:::t");
-    let feeds = Feeds::boxed(broker.create_feed(&auth).expect("5paisa's market feed"));
+    let feeds = Feeds::boxed(broker.create_feed(&auth).expect("5paisa's market feed"))
+        .with_broker(broker.clone());
     if !env.orders() {
         return feeds;
     }
@@ -38,9 +44,7 @@ fn feeds(env: &Env) -> Feeds {
     let updates = broker
         .start_order_updates(&auth, Duration::from_secs(1))
         .expect("5paisa's order poller");
-    feeds
-        .with_order_feed(OrderFeed::Stream(updates))
-        .keeping(broker)
+    feeds.with_order_feed(OrderFeed::Stream(updates))
 }
 
 corpus_cases!(
