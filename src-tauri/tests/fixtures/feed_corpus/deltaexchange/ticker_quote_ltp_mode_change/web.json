@@ -1,0 +1,121 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "deltaexchange",
+  "inputs_sha256": "bcf870c6b4e9ed4b9242498e2cb439d645972af94813b26790344a1d443103a0",
+  "instruments": [
+    {
+      "symbol": "BTCUSDFUT",
+      "exchange": "CRYPTO",
+      "token": "27",
+      "brsymbol": "BTCUSD",
+      "brexchange": "CRYPTO",
+      "instrumenttype": "FUT",
+      "tick_size": 0.5
+    }
+  ],
+  "pushes": [
+    {
+      "line": 5,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "CRYPTO_BTCUSDFUT_QUOTE",
+          "mode": 2,
+          "data": {
+            "average_price": 0,
+            "oi_change": 0,
+            "ltp": 63838.06,
+            "open": 64025.0,
+            "high": 64475.5,
+            "low": 63217.5,
+            "close": 63839.0,
+            "oi": 1407713.0,
+            "bid_price": 63833.0,
+            "bid_qty": 4388,
+            "ask_price": 63834.0,
+            "ask_qty": 718,
+            "symbol": "BTCUSDFUT",
+            "exchange": "CRYPTO",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        },
+        {
+          "kind": "market",
+          "topic": "CRYPTO_BTCUSDFUT_LTP",
+          "mode": 1,
+          "data": {
+            "average_price": 0,
+            "oi_change": 0,
+            "ltp": 63838.06,
+            "open": 64025.0,
+            "high": 64475.5,
+            "low": 63217.5,
+            "close": 63839.0,
+            "oi": 1407713.0,
+            "bid_price": 63833.0,
+            "bid_qty": 4388,
+            "ask_price": 63834.0,
+            "ask_qty": 718,
+            "symbol": "BTCUSDFUT",
+            "exchange": "CRYPTO",
+            "mode": 1,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "CRYPTO_BTCUSDFUT_QUOTE",
+          "mode": 2,
+          "data": {
+            "average_price": 0,
+            "oi_change": 0,
+            "ltp": 63840.5,
+            "open": 64025.0,
+            "high": 64475.5,
+            "low": 63217.5,
+            "close": 63839.0,
+            "oi": 1407713.0,
+            "bid_price": 63833.0,
+            "bid_qty": 4388,
+            "ask_price": 63834.0,
+            "ask_qty": 718,
+            "symbol": "BTCUSDFUT",
+            "exchange": "CRYPTO",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        },
+        {
+          "kind": "market",
+          "topic": "CRYPTO_BTCUSDFUT_LTP",
+          "mode": 1,
+          "data": {
+            "average_price": 0,
+            "oi_change": 0,
+            "ltp": 63840.5,
+            "open": 64025.0,
+            "high": 64475.5,
+            "low": 63217.5,
+            "close": 63839.0,
+            "oi": 1407713.0,
+            "bid_price": 63833.0,
+            "bid_qty": 4388,
+            "ask_price": 63834.0,
+            "ask_qty": 718,
+            "symbol": "BTCUSDFUT",
+            "exchange": "CRYPTO",
+            "mode": 1,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

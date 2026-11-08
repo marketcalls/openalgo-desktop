@@ -1,0 +1,76 @@
+{
+  "broker": "deltaexchange",
+  "summary": "A Depth subscription on a perpetual: the book before any ticker goes out with its levels padded to five; a ticker after it does not refresh the Depth frame on the desktop (audit P-07), while the web publishes the merged book again.",
+  "scenarios": [
+    "depth-update",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "BTCUSDFUT",
+      "exchange": "CRYPTO",
+      "token": "27",
+      "brsymbol": "BTCUSD",
+      "brexchange": "CRYPTO",
+      "instrumenttype": "FUT",
+      "tick_size": 0.5
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._on_data",
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._normalise_ticker",
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._normalise_orderbook",
+      "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._merge_into_cache"
+    ],
+    "notes": [
+      "A book after a ticker cannot be pinned yet: the desktop's frame would carry the earlier ticker's receipt time as ltt (see the ltt deviation of ticker_quote_ltp_mode_change)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7)"
+    },
+    {
+      "key": "ltp",
+      "kind": "desktop-decision",
+      "reason": "A depth frame keeps ltp, which the SDK's Depth callback reads: 0 before the symbol's first ticker; the web's merged cache has no ltp until a ticker came.",
+      "ref": "feed::bridge::depth_update"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "open",
+      "reason": "The desktop sends the sum of the visible book levels as total_buy_quantity / total_sell_quantity; the web names the same sums totalbuyqty / totalsellqty. Delta sends no totals: a sum of five levels is not the exchange's total (lane wire: decide the names; the decoder should not present a sum as the total).",
+      "ref": "delta_adapter.py:622-623; brokers/deltaexchange/streaming.rs book"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "open",
+      "reason": "As total_buy_quantity.",
+      "ref": "delta_adapter.py:622-623"
+    },
+    {
+      "key": "totalbuyqty",
+      "kind": "open",
+      "reason": "The web's name for the summed bid sizes; the desktop sends total_buy_quantity. An alias for lane wire, or a web defect if the sum is dropped.",
+      "ref": "delta_adapter.py:622"
+    },
+    {
+      "key": "totalsellqty",
+      "kind": "open",
+      "reason": "As totalbuyqty, for the asks.",
+      "ref": "delta_adapter.py:623"
+    },
+    {
+      "key": "depth",
+      "kind": "open",
+      "reason": "Delta's ob_l2 has no order counts: the web's levels carry price and quantity only, the desktop's carry orders 0 (an invented zero; the 1.0.6 known limitation). Both pad a short side to five zero levels, which lane wire should settle for every broker (no padded book).",
+      "ref": "delta_adapter.py:606-617; brokers/deltaexchange/streaming.rs book"
+    }
+  ]
+}

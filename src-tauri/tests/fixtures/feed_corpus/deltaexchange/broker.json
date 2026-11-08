@@ -1,0 +1,21 @@
+{
+  "broker": "deltaexchange",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "CRYPTO": [
+        5
+      ]
+    },
+    "orders": false
+  },
+  "sources": [
+    "broker/deltaexchange/streaming/delta_mapping.py::DeltaCapabilityRegistry",
+    "broker/deltaexchange/streaming/delta_adapter.py::DeltaWebSocketAdapter._handle_private_event",
+    "websocket_proxy/server.py:2005-2013 (_handle_order_update needs user_id)"
+  ],
+  "notes": [
+    "The web opens Delta private order, position and margin channels and publishes them as deltaexchange_orders/_positions/_margins; the proxy skips _positions and _margins and drops the order topic for want of a user_id, so no web feed client receives Delta order updates. The desktop opens no private channel (Codex BF-02)."
+  ]
+}
