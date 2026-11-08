@@ -25,22 +25,25 @@ use crate::brokers::common::streaming::{BrokerFeed, FeedSubscription, MarketEven
 use crate::error::{AppError, Result};
 use parking_lot::Mutex;
 use serde::Serialize;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{broadcast, mpsc, watch};
+use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
 
 mod heartbeat;
 mod losses;
 mod registry;
+mod release;
 mod stats;
 mod supervisor;
 pub use losses::{Reader, SinceConnect};
-pub use stats::{Connection, DropCause, FeedStats, LastDrop};
 use registry::{Delta, Registry};
-use supervisor::Supervisor;
+use release::Written;
+pub use stats::{Connection, DropCause, FeedStats, LastDrop};
 #[cfg(test)]
 use supervisor::SessionEnd;
+use supervisor::Supervisor;
 
 /// Capacity of the event fan-out channel.
 pub const TICK_CHANNEL_CAP: usize = 4096;
@@ -105,8 +108,29 @@ pub enum FeedStatus {
     },
 }
 
+/// A change for the socket.
+struct Apply {
+    deltas: Vec<Delta>,
+    /// A caller waits to hear what the socket did with it (a release,
+    /// audit C01); dropped unanswered when no socket carried it.
+    reply: Option<oneshot::Sender<Written>>,
+    /// The references the change dropped, put back in the registry when
+    /// the socket does not take it, so the next connection sends them.
+    undo: Vec<FeedSubscription>,
+}
+
+impl Apply {
+    fn plain(deltas: Vec<Delta>) -> Self {
+        Self {
+            deltas,
+            reply: None,
+            undo: Vec::new(),
+        }
+    }
+}
+
 enum Command {
-    Apply(Vec<Delta>),
+    Apply(Apply),
     /// Drop the socket and connect again (after the computer slept).
     Reconnect,
     Stop,
@@ -124,6 +148,9 @@ pub struct WebSocketManager {
     running: Mutex<Option<Running>>,
     config: FeedConfig,
     stats: Arc<FeedStats>,
+    /// Moves when `disconnect` forgets every reference, so a release
+    /// answered after it puts nothing back.
+    epoch: AtomicU64,
 }
 
 impl Default for WebSocketManager {
@@ -147,6 +174,7 @@ impl WebSocketManager {
             running: Mutex::new(None),
             config,
             stats: Arc::new(FeedStats::default()),
+            epoch: AtomicU64::new(0),
         }
     }
 
@@ -239,6 +267,7 @@ impl WebSocketManager {
     /// Stop the feed and forget every subscription (logout, broker switch).
     pub async fn disconnect(&self) -> Result<()> {
         self.stop_task().await;
+        self.epoch.fetch_add(1, Ordering::SeqCst);
         self.registry.lock().entries.clear();
         self.status.send_replace(FeedStatus::Disconnected);
         Ok(())
@@ -308,7 +337,7 @@ impl WebSocketManager {
             // Bounded: back-pressure rather than unbounded growth. If the
             // task is gone the registry still holds the state for the next
             // connection.
-            let _ = tx.send(Command::Apply(deltas)).await;
+            let _ = tx.send(Command::Apply(Apply::plain(deltas))).await;
         }
     }
 }
@@ -321,8 +350,9 @@ impl Drop for WebSocketManager {
     }
 }
 
-
 #[cfg(test)]
 mod deadline_tests;
+#[cfg(test)]
+mod release_tests;
 #[cfg(test)]
 mod tests;

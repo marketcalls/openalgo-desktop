@@ -8,10 +8,32 @@ use crate::feed::auth::{AuthOutcome, FEED_LOCKED};
 use crate::feed::dialect::subscribe_depth;
 use crate::feed::outbox::Outbox;
 use crate::feed::protocol::{self as p, code, py_str, py_truthy, py_type_name, request_id};
-use crate::feed::registry::ClientId;
-use crate::feed::source::{InstrumentKey, MarketDataSource, Mode, DEFAULT_DEPTH};
+use crate::feed::registry::{Admission, ClientId, Release};
+use crate::feed::source::{InstrumentKey, MarketDataSource, Mode, SourceOutcome, DEFAULT_DEPTH};
 use serde_json::Value;
+use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
+
+/// What a subscribe item answers when the source has not taken it in time.
+const NOT_TAKEN_IN_TIME: &str = "The live market data feed did not take this subscription in \
+time. Subscribe again in a moment.";
+
+/// What an unsubscribe item answers when the broker has not confirmed the
+/// release in time; the client keeps the subscription (audit C01).
+const NOT_RELEASED_IN_TIME: &str = "The broker has not confirmed that it stopped streaming this \
+instrument, so it stays subscribed. Unsubscribe again to retry.";
+
+/// The source's answer, or `late` once `limit` has passed.
+async fn within(
+    limit: Duration,
+    answer: impl Future<Output = SourceOutcome>,
+    late: &str,
+) -> SourceOutcome {
+    tokio::time::timeout(limit, answer)
+        .await
+        .unwrap_or_else(|_| Err(late.to_string()))
+}
 
 /// One client's protocol state.
 pub(super) struct Session {
@@ -78,16 +100,50 @@ fn subscribe_items(data: &Value) -> Result<Vec<Value>, String> {
     Ok(items)
 }
 
-/// One instrument unsubscribed, as the acknowledgement lists it.
-fn unsubscribed(sym: Value, exch: Value, mode: Mode, broker: &str) -> p::UnsubscribeItem {
+/// One instrument's unsubscribe, as the acknowledgement lists it: done, or
+/// why the broker still streams it, under its canonical mode either way
+/// (web `unsubscribe_client`).
+fn unsubscribed(
+    sym: Value,
+    exch: Value,
+    mode: Mode,
+    broker: &str,
+    outcome: SourceOutcome,
+) -> p::UnsubscribeItem {
+    let (status, message) = match outcome {
+        Ok(()) => ("success", None),
+        Err(why) => ("error", Some(why)),
+    };
     p::UnsubscribeItem {
         symbol: sym,
         exchange: exch,
         mode: Some(mode.label()),
-        status: "success",
-        message: None,
+        status,
+        message,
         broker: broker.to_string(),
     }
+}
+
+/// An unsubscribe item whose release is decided or still with the source.
+struct Unsubscribing {
+    sym: Value,
+    exch: Value,
+    key: InstrumentKey,
+    mode: Mode,
+    release: Release,
+}
+
+/// A subscribe item: decided, or waiting for the source to take it.
+enum Subscribing {
+    Answered(p::SubscribeItem),
+    Waiting {
+        sym: Value,
+        exch: Value,
+        key: InstrumentKey,
+        streamed: u8,
+        named: Option<i64>,
+        admission: Admission,
+    },
 }
 
 /// Python `a or b` on two optional JSON fields.
@@ -137,8 +193,8 @@ impl Session {
                 self.authenticate(&data).await;
                 Ok(())
             }
-            Some("subscribe") => self.subscribe(&data),
-            Some("unsubscribe") | Some("unsubscribe_all") => self.unsubscribe(&data),
+            Some("subscribe") => self.subscribe(&data).await,
+            Some("unsubscribe") | Some("unsubscribe_all") => self.unsubscribe(&data).await,
             Some("subscribe_orders") => {
                 self.orders(&data, true);
                 Ok(())
@@ -236,18 +292,18 @@ impl Session {
         }
     }
 
-    /// Subscribes one instrument: the depth its acknowledgment names (see
-    /// [`subscribe_depth`]; `None` is `null`), or why not. A feed known not
-    /// to stream, or not to stream the exchange, refuses first, as the
-    /// web's adapter does before it looks the symbol up (WS-01,
-    /// openalgo#2341).
+    /// Holds one instrument: the depth streamed, the depth its
+    /// acknowledgment names (see [`subscribe_depth`]; `None` is `null`)
+    /// and the source's answer to wait on, or why not. A feed known not to
+    /// stream, or not to stream the exchange, refuses first, as the web's
+    /// adapter does before it looks the symbol up (WS-01, openalgo#2341).
     fn subscribe_key(
         &self,
         source: &Arc<dyn MarketDataSource>,
         key: &InstrumentKey,
         mode: Mode,
         requested_depth: i64,
-    ) -> Result<Option<i64>, String> {
+    ) -> Result<(u8, Option<i64>, Admission), String> {
         if let Some(reason) = source.unavailable() {
             return Err(reason);
         }
@@ -267,7 +323,7 @@ impl Session {
                 .shared
                 .registry
                 .subscribe(self.id, key, mode, streamed)
-                .map(|_| named),
+                .map(|admission| (streamed, named, admission)),
             None => Err(format!(
                 "Depth level {} is not supported by this broker",
                 requested_depth
@@ -275,7 +331,7 @@ impl Session {
         }
     }
 
-    fn subscribe(&mut self, data: &Value) -> Result<(), String> {
+    async fn subscribe(&mut self, data: &Value) -> Result<(), String> {
         let rid = request_id(data);
         if self.user_id.is_none() {
             self.error(code::NOT_AUTHENTICATED, p::NOT_AUTHENTICATED_MSG, rid);
@@ -309,8 +365,7 @@ impl Session {
         };
 
         let source = self.shared.registry.source().clone();
-        let mut results = Vec::with_capacity(items.len());
-        let mut all_ok = true;
+        let mut pending = Vec::with_capacity(items.len());
         for item in &items {
             if !item.is_object() {
                 return Err(not_a_dict(item));
@@ -321,28 +376,30 @@ impl Session {
                 continue;
             }
             let key = InstrumentKey::new(py_str(sym), py_str(exch));
-            let outcome = self.subscribe_key(&source, &key, mode, requested_depth);
-            results.push(match outcome {
-                Ok(depth) => p::SubscribeItem::Ok {
-                    symbol: sym.clone(),
-                    exchange: exch.clone(),
-                    status: "success",
-                    mode: mode.label(),
-                    depth,
-                    broker: broker.clone(),
-                },
-                Err(message) => {
-                    all_ok = false;
-                    p::SubscribeItem::Err {
+            pending.push(
+                match self.subscribe_key(&source, &key, mode, requested_depth) {
+                    Ok((streamed, named, admission)) => Subscribing::Waiting {
+                        sym: sym.clone(),
+                        exch: exch.clone(),
+                        key,
+                        streamed,
+                        named,
+                        admission,
+                    },
+                    Err(message) => Subscribing::Answered(p::SubscribeItem::Err {
                         symbol: sym.clone(),
                         exchange: exch.clone(),
                         status: "error",
                         message,
                         broker: broker.clone(),
-                    }
-                }
-            });
+                    }),
+                },
+            );
         }
+        let results = self.admitted(pending, mode, &broker).await;
+        let all_ok = results
+            .iter()
+            .all(|r| matches!(r, p::SubscribeItem::Ok { .. }));
         self.send(p::to_json(&p::SubscribeAck {
             kind: "subscribe",
             status: if all_ok { "success" } else { "partial" },
@@ -354,6 +411,64 @@ impl Session {
         Ok(())
     }
 
+    /// Each held item once the source answered it (audit C02): taken is a
+    /// success, refused or not answered in time lets go of it and is that
+    /// item's error. The items are answered together and listed in order.
+    async fn admitted(
+        &self,
+        pending: Vec<Subscribing>,
+        mode: Mode,
+        broker: &str,
+    ) -> Vec<p::SubscribeItem> {
+        let limit = self.shared.cfg.op_timeout;
+        let answers = futures_util::future::join_all(pending.into_iter().map(|item| async move {
+            match item {
+                Subscribing::Answered(r) => (None, r),
+                Subscribing::Waiting {
+                    sym,
+                    exch,
+                    key,
+                    streamed,
+                    named,
+                    admission,
+                } => {
+                    let replacing = admission.replacing();
+                    let outcome = within(limit, admission.answer(), NOT_TAKEN_IN_TIME).await;
+                    let settle = (key, streamed, replacing, outcome.clone());
+                    let r = match outcome {
+                        Ok(()) => p::SubscribeItem::Ok {
+                            symbol: sym,
+                            exchange: exch,
+                            status: "success",
+                            mode: mode.label(),
+                            depth: named,
+                            broker: broker.to_string(),
+                        },
+                        Err(message) => p::SubscribeItem::Err {
+                            symbol: sym,
+                            exchange: exch,
+                            status: "error",
+                            message,
+                            broker: broker.to_string(),
+                        },
+                    };
+                    (Some(settle), r)
+                }
+            }
+        }))
+        .await;
+        let registry = &self.shared.registry;
+        answers
+            .into_iter()
+            .map(|(settle, r)| {
+                if let Some((key, depth, replacing, outcome)) = settle {
+                    registry.settle_subscribe(self.id, &key, mode, depth, replacing, &outcome);
+                }
+                r
+            })
+            .collect()
+    }
+
     /// Unsubscribes the listed instruments, each under its own mode or the
     /// request's: those done, and those whose mode was invalid.
     fn unsubscribe_items(
@@ -361,8 +476,8 @@ impl Session {
         items: &[Value],
         top_mode: &Value,
         broker: &str,
-    ) -> Result<(Vec<p::UnsubscribeItem>, Vec<p::UnsubscribeItem>), String> {
-        let mut ok = Vec::new();
+    ) -> Result<(Vec<Unsubscribing>, Vec<p::UnsubscribeItem>), String> {
+        let mut releasing = Vec::new();
         let mut failed = Vec::new();
         for it in items {
             let raw_mode = match it {
@@ -399,13 +514,53 @@ impl Session {
                 continue;
             }
             let key = InstrumentKey::new(py_str(&sym), py_str(&exch));
-            self.shared.registry.unsubscribe(self.id, &key, mode);
-            ok.push(unsubscribed(sym, exch, mode, broker));
+            let release = self.shared.registry.begin_unsubscribe(self.id, &key, mode);
+            releasing.push(Unsubscribing {
+                sym,
+                exch,
+                key,
+                mode,
+                release,
+            });
         }
-        Ok((ok, failed))
+        Ok((releasing, failed))
     }
 
-    fn unsubscribe(&mut self, data: &Value) -> Result<(), String> {
+    /// Each release once the broker answered it (audit C01): the client
+    /// lets go of what the broker released and keeps what it did not, and
+    /// each item says which, in order.
+    async fn released(
+        &self,
+        releasing: Vec<Unsubscribing>,
+        broker: &str,
+    ) -> (Vec<p::UnsubscribeItem>, Vec<p::UnsubscribeItem>) {
+        let limit = self.shared.cfg.op_timeout;
+        let answers = futures_util::future::join_all(releasing.into_iter().map(|u| async move {
+            let outcome = match u.release {
+                Release::Done => None,
+                Release::Waiting(op) => Some(within(limit, op, NOT_RELEASED_IN_TIME).await),
+            };
+            (u.sym, u.exch, u.key, u.mode, outcome)
+        }))
+        .await;
+        let (mut ok, mut failed) = (Vec::new(), Vec::new());
+        for (sym, exch, key, mode, outcome) in answers {
+            if let Some(outcome) = &outcome {
+                self.shared
+                    .registry
+                    .finish_unsubscribe(self.id, &key, mode, outcome);
+            }
+            let item = unsubscribed(sym, exch, mode, broker, outcome.unwrap_or(Ok(())));
+            if item.message.is_some() {
+                failed.push(item);
+            } else {
+                ok.push(item);
+            }
+        }
+        (ok, failed)
+    }
+
+    async fn unsubscribe(&mut self, data: &Value) -> Result<(), String> {
         let rid = request_id(data);
         if self.user_id.is_none() {
             self.error(code::NOT_AUTHENTICATED, p::NOT_AUTHENTICATED_MSG, rid);
@@ -448,17 +603,26 @@ impl Session {
             return Ok(());
         };
 
-        let (ok, failed) = if is_all {
-            let mut ok = Vec::new();
-            for (key, mode) in self.shared.registry.unsubscribe_all(self.id) {
-                let sym = Value::String(key.symbol.clone());
-                let exch = Value::String(key.exchange.clone());
-                ok.push(unsubscribed(sym, exch, mode, &broker));
-            }
-            (ok, Vec::new())
+        let (releasing, mut failed) = if is_all {
+            let releasing = self
+                .shared
+                .registry
+                .begin_unsubscribe_all(self.id)
+                .into_iter()
+                .map(|(key, mode, release)| Unsubscribing {
+                    sym: Value::String(key.symbol.clone()),
+                    exch: Value::String(key.exchange.clone()),
+                    key,
+                    mode,
+                    release,
+                })
+                .collect();
+            (releasing, Vec::new())
         } else {
             self.unsubscribe_items(&items, top_mode, &broker)?
         };
+        let (ok, refused) = self.released(releasing, &broker).await;
+        failed.extend(refused);
         let status = match (ok.is_empty(), failed.is_empty()) {
             (_, true) => "success",
             (false, false) => "partial",

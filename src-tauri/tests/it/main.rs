@@ -214,6 +214,7 @@ mod feed_budget;
 mod feed_conformance;
 mod feed_corpus;
 mod feed_hygiene;
+mod feed_lifecycle;
 mod feed_noren_outage;
 mod feed_soak;
 mod freeze_limits;

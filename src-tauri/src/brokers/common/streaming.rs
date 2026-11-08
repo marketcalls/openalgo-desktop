@@ -323,6 +323,14 @@ impl std::fmt::Debug for OrderFeed {
 /// Events published to subscribers of the manager (shared, cheap to clone).
 pub type MarketEvent = Arc<FeedEvent>;
 
+/// The instruments a broker refused to release, each with why, for the
+/// trader (`BrokerFeed::release_frames`).
+pub type ReleaseRefusals = Vec<(FeedSubscription, String)>;
+
+/// Where a broker that answers a release apart from the socket sends that
+/// answer (`BrokerFeed::release_frames`).
+pub type ReleaseAnswer = tokio::sync::oneshot::Receiver<ReleaseRefusals>;
+
 /// The per-broker streaming adapter.
 #[async_trait]
 pub trait BrokerFeed: Send + Sync {
@@ -387,6 +395,19 @@ pub trait BrokerFeed: Send + Sync {
     /// Frames that unsubscribe these instruments (at the mode they were
     /// subscribed with).
     fn unsubscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message>;
+
+    /// Frames that release these instruments, and, when the broker answers
+    /// a release apart from the socket (XTS releases over REST), a receiver
+    /// of the ones it refused to let go, with why. The manager asks this
+    /// for a release a caller waits on (audit C01); a sender dropped
+    /// without an answer means the release was not confirmed. Default: the
+    /// unsubscribe frames, whose writing is the whole release.
+    fn release_frames(
+        &mut self,
+        subs: &[FeedSubscription],
+    ) -> (Vec<Message>, Option<ReleaseAnswer>) {
+        (self.unsubscribe_frames(subs), None)
+    }
 
     /// Frames that move an instrument from one effective mode to another.
     /// Default: unsubscribe the old mode, subscribe the new one.

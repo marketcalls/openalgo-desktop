@@ -6,19 +6,20 @@
 
 use super::heartbeat::{Beat, Heartbeat};
 use super::registry::{Delta, Registry};
-use super::{Command, FeedConfig, FeedStatus};
+use super::release::Written;
 use super::stats::{DropCause, FeedStats};
+use super::{Apply, Command, FeedConfig, FeedStatus};
 use crate::brokers::common::ratelimit::backoff_delay;
 use crate::brokers::common::redact::{url_safe_error, ws_error_kind};
 use crate::brokers::common::streaming::{
-    normalize_request, BrokerFeed, FeedEvent, FeedSubscription, MarketEvent, Message,
-    PrepareError,
+    normalize_request, BrokerFeed, FeedEvent, FeedSubscription, MarketEvent, Message, PrepareError,
+    ReleaseAnswer,
 };
 use futures_util::{SinkExt, StreamExt};
 use parking_lot::Mutex;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{broadcast, mpsc, watch};
+use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio::time::Instant;
 use tokio_tungstenite::tungstenite::Error as WsError;
 
@@ -30,6 +31,10 @@ pub(super) enum SessionEnd {
     Dropped(DropCause),
     AuthFailed(String),
 }
+
+/// The broker's own answers to waited releases: each release's instruments
+/// and where its answer comes.
+type Later = Vec<(Vec<FeedSubscription>, ReleaseAnswer)>;
 
 /// A session goes on, or ends with the reason (`?` in its steps).
 type Sent = std::result::Result<(), SessionEnd>;
@@ -270,13 +275,14 @@ impl Supervisor {
         Ok(())
     }
 
-    /// Coalesces the commands already waiting into `deltas`, so a burst of
+    /// Takes the commands already waiting into `batch`, so a burst of
     /// subscribe calls reaches the broker as batches. The end of the session
-    /// when a stop or a reconnect was among them.
-    fn coalesce(&mut self, deltas: &mut Vec<Delta>) -> Option<SessionEnd> {
+    /// when a stop or a reconnect was among them (the changes before it are
+    /// in the registry, which the next socket is sent whole).
+    fn coalesce(&mut self, batch: &mut Vec<Apply>) -> Option<SessionEnd> {
         while let Ok(more) = self.cmd.try_recv() {
             match more {
-                Command::Apply(d) => deltas.extend(d),
+                Command::Apply(a) => batch.push(a),
                 Command::Reconnect => return Some(self.reconnecting()),
                 Command::Stop => return Some(SessionEnd::Stopped),
             }
@@ -311,7 +317,12 @@ impl Supervisor {
         None
     }
 
-    pub(super) async fn session<S, R>(&mut self, broker: &str, write: &mut S, read: &mut R) -> SessionEnd
+    pub(super) async fn session<S, R>(
+        &mut self,
+        broker: &str,
+        write: &mut S,
+        read: &mut R,
+    ) -> SessionEnd
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
         R: futures_util::Stream<Item = std::result::Result<Message, WsError>> + Unpin,
@@ -428,26 +439,76 @@ impl Supervisor {
     where
         S: futures_util::Sink<Message, Error = WsError> + Unpin,
     {
-        let mut deltas = match cmd {
-            Some(Command::Apply(d)) => d,
+        let mut batch = match cmd {
+            Some(Command::Apply(a)) => vec![a],
             Some(Command::Reconnect) => return Err(self.reconnecting()),
             None | Some(Command::Stop) => return Err(SessionEnd::Stopped),
         };
-        if let Some(end) = self.coalesce(&mut deltas) {
+        if let Some(end) = self.coalesce(&mut batch) {
             return Err(end);
         }
         if !subscribed {
+            // A waiting caller's reply goes unanswered: nothing reached a
+            // socket, and the full set follows the login acknowledgement.
             return Ok(());
         }
-        let frames = self.delta_frames(deltas);
+        let mut plain = Vec::new();
+        for apply in batch {
+            let Some(reply) = apply.reply else {
+                plain.extend(apply.deltas);
+                continue;
+            };
+            let frames = self.delta_frames(std::mem::take(&mut plain), None);
+            self.send_all(write, frames).await?;
+            self.send_waited(write, apply.deltas, apply.undo, reply)
+                .await?;
+        }
+        let frames = self.delta_frames(plain, None);
         self.send_all(write, frames).await
+    }
+
+    /// A release its caller waits on (audit C01), written apart so the
+    /// caller hears what became of its own frames. What the socket did not
+    /// take goes back into the registry before the session ends, so the
+    /// next socket subscribes it again and the caller's "still subscribed"
+    /// holds.
+    async fn send_waited<S>(
+        &mut self,
+        write: &mut S,
+        deltas: Vec<Delta>,
+        undo: Vec<FeedSubscription>,
+        reply: oneshot::Sender<Written>,
+    ) -> Sent
+    where
+        S: futures_util::Sink<Message, Error = WsError> + Unpin,
+    {
+        let mut later = Vec::new();
+        let frames = self.delta_frames(deltas, Some(&mut later));
+        match self.send_all(write, frames).await {
+            Ok(()) => {
+                let _ = reply.send(Written::Sent(later));
+                Ok(())
+            }
+            Err(end) => {
+                {
+                    let mut reg = self.registry.lock();
+                    for s in undo {
+                        reg.add(s);
+                    }
+                }
+                let _ = reply.send(Written::Failed);
+                Err(end)
+            }
+        }
     }
 
     /// Frames for a run of deltas, in order. Consecutive subscribes (and
     /// consecutive unsubscribes) go to the feed in one call, so feeds that
     /// can batch send one frame or request per run rather than one per
-    /// instrument (web #2176: Firstock, Pocketful, RMoney batching).
-    fn delta_frames(&mut self, deltas: Vec<Delta>) -> Vec<Message> {
+    /// instrument (web #2176: Firstock, Pocketful, RMoney batching). With
+    /// `later`, unsubscribes are releases a caller waits on, and the
+    /// broker's own answers to them are collected there.
+    fn delta_frames(&mut self, deltas: Vec<Delta>, mut later: Option<&mut Later>) -> Vec<Message> {
         let mut frames = Vec::new();
         let mut subs: Vec<FeedSubscription> = Vec::new();
         let mut unsubs: Vec<FeedSubscription> = Vec::new();
@@ -455,7 +516,9 @@ impl Supervisor {
             match d {
                 Delta::Subscribe(s) => {
                     if !unsubs.is_empty() {
-                        frames.extend(self.feed.unsubscribe_frames(&std::mem::take(&mut unsubs)));
+                        frames.extend(
+                            self.release_run(std::mem::take(&mut unsubs), later.as_deref_mut()),
+                        );
                     }
                     subs.push(s);
                 }
@@ -470,7 +533,9 @@ impl Supervisor {
                         frames.extend(self.feed.subscribe_frames(&std::mem::take(&mut subs)));
                     }
                     if !unsubs.is_empty() {
-                        frames.extend(self.feed.unsubscribe_frames(&std::mem::take(&mut unsubs)));
+                        frames.extend(
+                            self.release_run(std::mem::take(&mut unsubs), later.as_deref_mut()),
+                        );
                     }
                     frames.extend(self.feed.mode_change_frames(&old, &new));
                 }
@@ -480,7 +545,24 @@ impl Supervisor {
             frames.extend(self.feed.subscribe_frames(&subs));
         }
         if !unsubs.is_empty() {
-            frames.extend(self.feed.unsubscribe_frames(&unsubs));
+            frames.extend(self.release_run(unsubs, later));
+        }
+        frames
+    }
+
+    /// The frames of one run of unsubscribes; for a waited release, through
+    /// `BrokerFeed::release_frames`, keeping the broker's later answer.
+    fn release_run(
+        &mut self,
+        unsubs: Vec<FeedSubscription>,
+        later: Option<&mut Later>,
+    ) -> Vec<Message> {
+        let Some(later) = later else {
+            return self.feed.unsubscribe_frames(&unsubs);
+        };
+        let (frames, answer) = self.feed.release_frames(&unsubs);
+        if let Some(answer) = answer {
+            later.push((unsubs, answer));
         }
         frames
     }

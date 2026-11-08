@@ -4,12 +4,13 @@
 //! * Symbols resolve against the shared symbol master (`SymbolResolver`), so
 //!   an unknown symbol gets the web's "Token not found" refusal and a known
 //!   one becomes a `FeedSubscription` with the broker token and exchange.
-//! * `subscribe` / `unsubscribe` only edit the desired set and wake the
-//!   reconcile task, which diffs desired against applied and calls
-//!   `WebSocketManager::subscribe` / `unsubscribe`. The feed server already
-//!   reference counts across its clients, so the bridge holds exactly one
-//!   manager reference per `(instrument, mode, depth)`; the manager merges
-//!   modes per instrument for the broker.
+//! * `subscribe` / `unsubscribe` edit the desired set and wake the
+//!   reconcile task (`apply`), which diffs desired against applied, asks
+//!   the managers, and answers the feed client waiting on the key: taken or
+//!   refused, released or still streamed (audit C01, C02). The feed server
+//!   already reference counts across its clients, so the bridge holds
+//!   exactly one manager reference per `(instrument, mode, depth)`; the
+//!   manager merges modes per instrument for the broker.
 //! * The relay task turns the manager's `MarketEvent`s into
 //!   [`MarketUpdate`]s. A broker that sends a full tick as `Tick` plus a
 //!   separate `Depth` (Kite) is served as: the tick to Quote and LTP holders,
@@ -29,7 +30,8 @@
 //! Every map is bounded by what feed clients currently hold.
 
 use super::source::{
-    ClientLosses, InstrumentKey, MarketDataSource, MarketUpdate, Mode, DEFAULT_DEPTH,
+    answered, ClientLosses, InstrumentKey, MarketDataSource, MarketUpdate, Mode, SourceOp,
+    DEFAULT_DEPTH,
 };
 use crate::brokers::common::streaming::{
     FeedEvent, FeedMode, FeedSubscription, MarketEvent, QuoteField,
@@ -46,7 +48,7 @@ use tokio::task::JoinSet;
 mod apply;
 mod render;
 pub(super) mod snapshot;
-use apply::Applied;
+use apply::{Applied, Ops};
 pub(crate) use render::{depth_update, tick_update};
 use snapshot::Snapshot;
 
@@ -60,6 +62,9 @@ pub const NO_LIVE_FEED: &str =
 /// A subscribe item's error when the session's live feed did not start.
 pub const FEED_NOT_STARTED: &str = "The live market data feed did not start for this broker \
 session. Log in to your broker again to resume streaming.";
+/// A subscribe item's error when the feed stopped before taking it.
+pub const FEED_STOPPED: &str = "The live market data feed stopped before it could take this \
+subscription. Subscribe again once it is running.";
 
 /// One desired manager reference.
 pub type DesiredKey = (InstrumentKey, Mode, u8);
@@ -130,6 +135,11 @@ struct State {
     /// The merged quote per held instrument (`snapshot`): what a tick's
     /// frame and a separate depth snapshot's quote fields are built on.
     last_tick: HashMap<InstrumentKey, Snapshot>,
+    /// Who waits on what the managers do, and what is retried.
+    ops: Ops,
+    /// Moves on `reset`: what a manager answers after it forgot every
+    /// reference (broker logout) changes nothing.
+    generation: u64,
 }
 
 impl State {
@@ -251,6 +261,7 @@ impl BrokerBridge {
             let mut st = self.state.lock();
             st.applied.clear();
             st.last_tick.clear();
+            st.generation += 1;
         }
         *self.deep.lock() = None;
         *self.unavailable.lock() = None;
@@ -275,7 +286,14 @@ impl BrokerBridge {
         set.spawn(async move {
             loop {
                 me.reconcile().await;
-                me.changed.notified().await;
+                let retry = me.state.lock().ops.next_retry();
+                match retry {
+                    Some(at) => tokio::select! {
+                        _ = me.changed.notified() => {}
+                        _ = tokio::time::sleep_until(at) => {}
+                    },
+                    None => me.changed.notified().await,
+                }
             }
         });
         for feed in [self.manager.clone(), self.depth_manager.clone()] {
@@ -297,6 +315,7 @@ impl BrokerBridge {
             let mut st = self.state.lock();
             st.desired.clear();
             st.last_tick.clear();
+            st.ops.clear();
             st.applied.drain().map(|(_, s)| s).collect()
         };
         self.release(held).await;
@@ -386,24 +405,53 @@ impl BrokerBridge {
 }
 
 impl MarketDataSource for BrokerBridge {
-    fn subscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) {
-        if self.state.lock().desired.insert((key.clone(), mode, depth)) {
-            self.changed.notify_one();
-        }
+    /// Taken at once when the key is held already; else when the managers
+    /// answer the next pass (`apply`).
+    fn subscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) -> SourceOp {
+        let k = (key.clone(), mode, depth);
+        let taken = {
+            let mut st = self.state.lock();
+            st.desired.insert(k.clone());
+            st.ops.wanted_again(&k);
+            if st.applied.contains_key(&k) && !st.ops.releasing(&k) {
+                None
+            } else {
+                Some(st.ops.wait_admission(k))
+            }
+        };
+        let Some(taken) = taken else {
+            return answered(Ok(()));
+        };
+        self.changed.notify_one();
+        Box::pin(async move { taken.await.unwrap_or_else(|_| Err(FEED_STOPPED.into())) })
     }
 
-    fn unsubscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) {
-        let mut st = self.state.lock();
-        if st.desired.remove(&(key.clone(), mode, depth)) {
+    /// Released at once when the managers hold nothing for the key; else
+    /// when the broker answers the next pass. An answer that never comes
+    /// because the bridge stopped is a release: it let go of everything.
+    fn unsubscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) -> SourceOp {
+        let k = (key.clone(), mode, depth);
+        let released = {
+            let mut st = self.state.lock();
+            st.desired.remove(&k);
             // Once nothing names the instrument, its quote goes at once, so
             // a book subscribed again merges only a quote of its own (web
             // openalgo#2376, `forget_quote`).
             if !st.desired.holds(key) {
                 st.last_tick.remove(key);
             }
-            drop(st);
-            self.changed.notify_one();
-        }
+            st.ops.unwanted(&k, FEED_STOPPED);
+            if !st.applied.contains_key(&k) && !st.ops.releasing(&k) {
+                None
+            } else {
+                Some(st.ops.wait_release(k))
+            }
+        };
+        let Some(released) = released else {
+            return answered(Ok(()));
+        };
+        self.changed.notify_one();
+        Box::pin(async move { released.await.unwrap_or(Ok(())) })
     }
 
     fn updates(&self) -> broadcast::Receiver<Arc<MarketUpdate>> {
@@ -474,19 +522,19 @@ mod tests {
                 .is_some()
         };
         assert!(!relayed(&bridge, "SBIN"));
-        bridge.subscribe(&sbin, Mode::Ltp, 5);
-        bridge.subscribe(&sbin, Mode::Depth, 20);
-        bridge.subscribe(&tcs, Mode::Quote, 5);
-        bridge.subscribe(&tcs, Mode::Quote, 5);
+        let _ = bridge.subscribe(&sbin, Mode::Ltp, 5);
+        let _ = bridge.subscribe(&sbin, Mode::Depth, 20);
+        let _ = bridge.subscribe(&tcs, Mode::Quote, 5);
+        let _ = bridge.subscribe(&tcs, Mode::Quote, 5);
         assert!(relayed(&bridge, "SBIN") && relayed(&bridge, "TCS"));
-        bridge.unsubscribe(&sbin, Mode::Depth, 20);
+        let _ = bridge.unsubscribe(&sbin, Mode::Depth, 20);
         assert!(relayed(&bridge, "SBIN"), "the LTP reference still holds it");
-        bridge.unsubscribe(&sbin, Mode::Ltp, 5);
+        let _ = bridge.unsubscribe(&sbin, Mode::Ltp, 5);
         assert!(!relayed(&bridge, "SBIN"));
         // A reference added twice is one reference.
-        bridge.unsubscribe(&tcs, Mode::Quote, 5);
+        let _ = bridge.unsubscribe(&tcs, Mode::Quote, 5);
         assert!(!relayed(&bridge, "TCS"));
-        bridge.subscribe(&tcs, Mode::Ltp, 5);
+        let _ = bridge.subscribe(&tcs, Mode::Ltp, 5);
         bridge.stop().await;
         assert!(!relayed(&bridge, "TCS"));
     }
@@ -513,7 +561,7 @@ mod tests {
     fn a_depth_before_the_first_tick_carries_no_quote_fields() {
         let bridge = BrokerBridge::new(Arc::new(WebSocketManager::new()), SymbolResolver::new());
         let key = InstrumentKey::new("RELIANCE", "NSE");
-        bridge.subscribe(&key, Mode::Depth, 20);
+        let _ = bridge.subscribe(&key, Mode::Depth, 20);
         let level = crate::brokers::types::DepthLevel {
             price: 1167.5,
             quantity: 10,
@@ -596,16 +644,16 @@ mod tests {
                 .is_some_and(|q| q.open.is_some())
         };
 
-        bridge.subscribe(&key, Mode::Depth, 50);
+        let _ = bridge.subscribe(&key, Mode::Depth, 50);
         bridge.convert(&FeedEvent::Tick(full_tick("SBIN", "NSE")));
         assert!(quoted(&bridge));
-        bridge.unsubscribe(&key, Mode::Depth, 50);
-        bridge.subscribe(&key, Mode::Depth, 50);
+        let _ = bridge.unsubscribe(&key, Mode::Depth, 50);
+        let _ = bridge.subscribe(&key, Mode::Depth, 50);
         assert!(!quoted(&bridge), "the old quote is not merged");
 
-        bridge.subscribe(&key, Mode::Depth, 5);
+        let _ = bridge.subscribe(&key, Mode::Depth, 5);
         bridge.convert(&FeedEvent::Tick(full_tick("SBIN", "NSE")));
-        bridge.unsubscribe(&key, Mode::Depth, 50);
+        let _ = bridge.unsubscribe(&key, Mode::Depth, 50);
         assert!(quoted(&bridge), "the 5-level book still reads the quote");
     }
 

@@ -2,19 +2,36 @@
 //! told to subscribe and unsubscribe, and that broadcasts normalized updates.
 //!
 //! The server owns per-client bookkeeping and reference counting. A source
-//! sees exactly one `subscribe` per `(instrument, mode, depth)` while at least
-//! one client holds it, and exactly one matching `unsubscribe` when the last
-//! client lets go (explicitly or by disconnecting).
+//! sees one `subscribe` per `(instrument, mode, depth)` while at least one
+//! client holds it, and one matching `unsubscribe` when the last client lets
+//! go (explicitly or by disconnecting). Both answer ([`SourceOp`]): the
+//! server acknowledges a subscribe only once the source took the key, and
+//! an unsubscribe only once the broker let go of it (audit C01, C02).
 //!
 //! Production wires the broker streaming manager through `feed::bridge`;
 //! tests use [`FakeSource`].
 
 use crate::brokers::common::streaming::{BrokerFields, QuoteExtras};
 use parking_lot::Mutex;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use tokio::sync::broadcast;
+
+/// A source's answer to a subscription change: `Ok` once it took the key
+/// (subscribe) or the broker let go of it (unsubscribe), else why not, for
+/// the trader.
+pub type SourceOutcome = Result<(), String>;
+
+/// The answer to come, awaited after the server's lock is released.
+pub type SourceOp = Pin<Box<dyn Future<Output = SourceOutcome> + Send>>;
+
+/// An answer known at once.
+pub fn answered(outcome: SourceOutcome) -> SourceOp {
+    Box::pin(std::future::ready(outcome))
+}
 
 /// Subscription mode, numbered as on the wire.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -185,18 +202,22 @@ impl MarketUpdate {
 ///
 /// `subscribe` / `unsubscribe` must not block: they are called while the
 /// server holds its subscription lock, so an implementation hands the
-/// request to its own task. There is no reply: a subscribe acknowledged
-/// with success means "accepted into the desired set", applied to the
-/// broker now or as soon as its feed (re)connects. The one failure known
-/// up front is [`unavailable`](MarketDataSource::unavailable).
+/// request to its own task and returns its answer to come, which the
+/// server awaits after letting go of the lock.
 pub trait MarketDataSource: Send + Sync + 'static {
     /// Start streaming `key` at `mode`. `depth` is the order-book depth for
-    /// `Mode::Depth` and [`DEFAULT_DEPTH`] otherwise.
-    fn subscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8);
+    /// `Mode::Depth` and [`DEFAULT_DEPTH`] otherwise. The answer says
+    /// whether the source took it (room on the broker connection, its
+    /// depth socket up), not that a tick has come: applied to the broker
+    /// now, or as soon as its feed (re)connects.
+    fn subscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) -> SourceOp;
 
     /// Stop streaming a key previously passed to `subscribe` with the same
-    /// arguments.
-    fn unsubscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8);
+    /// arguments. The answer says whether the broker let go; until it has,
+    /// the server keeps its last owner (web `_unsubscribe_owned_subscription`).
+    /// A disconnect drops the answer, and the source keeps letting go on
+    /// its own.
+    fn unsubscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) -> SourceOp;
 
     /// A receiver of every normalized update (ticks and depth snapshots).
     fn updates(&self) -> broadcast::Receiver<Arc<MarketUpdate>>;
@@ -256,9 +277,26 @@ pub enum SourceCall {
 
 type ActiveKey = (InstrumentKey, Mode, u8);
 
+/// What a [`FakeSource`] answers instead of success (tests script it).
+#[derive(Default)]
+struct Script {
+    /// Subscribes of these instruments are refused with this reason.
+    refused: HashMap<InstrumentKey, String>,
+    /// The next unsubscribes of a key: `Some(why)` refuses it, `None`
+    /// never answers. Either way the key stays active.
+    releases: HashMap<(InstrumentKey, Mode), VecDeque<Option<String>>>,
+    /// Most instruments active at once (the broker connection's room).
+    capacity: Option<usize>,
+    /// Keys whose last unsubscribe was not done (an owner joining again
+    /// re-subscribes them).
+    unreleased: HashSet<ActiveKey>,
+}
+
 /// In-memory source for tests and the soak harness. Counts active
 /// subscriptions and flags a double subscribe or an unsubscribe of
-/// something not subscribed.
+/// something not subscribed. Answers success at once unless a test
+/// scripted a refusal (`refuse`, `fail_release`, `hold_release`,
+/// `set_capacity`).
 pub struct FakeSource {
     tx: broadcast::Sender<Arc<MarketUpdate>>,
     known: Option<HashSet<InstrumentKey>>,
@@ -268,6 +306,7 @@ pub struct FakeSource {
     violations: Mutex<Vec<String>>,
     record_calls: bool,
     client_losses: Arc<ClientLosses>,
+    script: Mutex<Script>,
 }
 
 impl FakeSource {
@@ -294,7 +333,53 @@ impl FakeSource {
             violations: Mutex::new(Vec::new()),
             record_calls,
             client_losses: Arc::new(ClientLosses::default()),
+            script: Mutex::new(Script::default()),
         })
+    }
+
+    /// Refuse every subscribe of `key` with `why` (a broker that cannot
+    /// take it).
+    pub fn refuse(&self, key: InstrumentKey, why: &str) {
+        self.script.lock().refused.insert(key, why.to_string());
+    }
+
+    /// Refuse the next unsubscribe of `key` at `mode` with `why`: the
+    /// broker still streams it.
+    pub fn fail_release(&self, key: InstrumentKey, mode: Mode, why: &str) {
+        self.script
+            .lock()
+            .releases
+            .entry((key, mode))
+            .or_default()
+            .push_back(Some(why.to_string()));
+    }
+
+    /// Never answer the next unsubscribe of `key` at `mode` (a broker that
+    /// does not reply); the key stays active.
+    pub fn hold_release(&self, key: InstrumentKey, mode: Mode) {
+        self.script
+            .lock()
+            .releases
+            .entry((key, mode))
+            .or_default()
+            .push_back(None);
+    }
+
+    /// Take at most `instruments` distinct instruments at once.
+    pub fn set_capacity(&self, instruments: usize) {
+        self.script.lock().capacity = Some(instruments);
+    }
+
+    /// Why a subscribe of `key` is refused now, if it is.
+    fn refusal(&self, active: &HashMap<ActiveKey, usize>, key: &InstrumentKey) -> Option<String> {
+        let script = self.script.lock();
+        if let Some(why) = script.refused.get(key) {
+            return Some(why.clone());
+        }
+        let cap = script.capacity?;
+        let held: HashSet<&InstrumentKey> = active.keys().map(|(k, _, _)| k).collect();
+        (!held.contains(key) && held.len() >= cap)
+            .then(|| format!("You can stream at most {} instruments at once.", cap))
     }
 
     /// Broadcast an update; returns the number of receivers.
@@ -324,9 +409,22 @@ impl FakeSource {
 }
 
 impl MarketDataSource for FakeSource {
-    fn subscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) {
+    fn subscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) -> SourceOp {
+        if self.record_calls {
+            self.calls
+                .lock()
+                .push(SourceCall::Subscribe(key.clone(), mode, depth));
+        }
         let mut active = self.active.lock();
-        let n = active.entry((key.clone(), mode, depth)).or_insert(0);
+        let k = (key.clone(), mode, depth);
+        if self.script.lock().unreleased.remove(&k) {
+            // Held still: an owner joined while its release was refused.
+            return answered(Ok(()));
+        }
+        if let Some(why) = self.refusal(&active, key) {
+            return answered(Err(why));
+        }
+        let n = active.entry(k).or_insert(0);
         *n += 1;
         if *n > 1 {
             self.violations.lock().push(format!(
@@ -334,31 +432,46 @@ impl MarketDataSource for FakeSource {
                 key.exchange, key.symbol, mode, depth
             ));
         }
-        if self.record_calls {
-            self.calls
-                .lock()
-                .push(SourceCall::Subscribe(key.clone(), mode, depth));
-        }
+        answered(Ok(()))
     }
 
-    fn unsubscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) {
-        let mut active = self.active.lock();
-        let k = (key.clone(), mode, depth);
-        match active.get_mut(&k) {
-            Some(n) if *n > 1 => *n -= 1,
-            Some(_) => {
-                active.remove(&k);
-            }
-            None => self.violations.lock().push(format!(
-                "unsubscribe without subscribe {}:{} {:?} {}",
-                key.exchange, key.symbol, mode, depth
-            )),
-        }
+    fn unsubscribe(&self, key: &InstrumentKey, mode: Mode, depth: u8) -> SourceOp {
         if self.record_calls {
             self.calls
                 .lock()
                 .push(SourceCall::Unsubscribe(key.clone(), mode, depth));
         }
+        let mut active = self.active.lock();
+        let k = (key.clone(), mode, depth);
+        let scripted = {
+            let mut script = self.script.lock();
+            let next = script
+                .releases
+                .get_mut(&(key.clone(), mode))
+                .and_then(VecDeque::pop_front);
+            if next.is_some() {
+                script.unreleased.insert(k.clone());
+            }
+            next
+        };
+        match scripted {
+            Some(Some(why)) => return answered(Err(why)),
+            Some(None) => return Box::pin(std::future::pending()),
+            None => {}
+        }
+        self.script.lock().unreleased.remove(&k);
+        match active.get_mut(&k) {
+            Some(n) if *n > 1 => *n -= 1,
+            Some(_) => {
+                active.remove(&k);
+            }
+            None if self.script.lock().refused.contains_key(key) => {}
+            None => self.violations.lock().push(format!(
+                "unsubscribe without subscribe {}:{} {:?} {}",
+                key.exchange, key.symbol, mode, depth
+            )),
+        }
+        answered(Ok(()))
     }
 
     fn updates(&self) -> broadcast::Receiver<Arc<MarketUpdate>> {
