@@ -76,39 +76,45 @@
     },
     {
       "key": "last_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index has no trades or book: the desktop's index Quote frame leaves out last_quantity, average_price and the book totals, as the recorded Zerodha index frames do; the web passes on the zeros Arrow's quote packet carries in their place.",
-      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades or book: Arrow's quote packet fills the last quantity, average price and book totals with zeros, which the web passes on; the desktop's index frame leaves them out, as the recorded Zerodha index frames do.",
+      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)",
+      "approved": true
     },
     {
       "key": "average_price",
-      "kind": "desktop-decision",
-      "reason": "An index has no trades or book: the desktop's index Quote frame leaves out last_quantity, average_price and the book totals, as the recorded Zerodha index frames do; the web passes on the zeros Arrow's quote packet carries in their place.",
-      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades or book: Arrow's quote packet fills the last quantity, average price and book totals with zeros, which the web passes on; the desktop's index frame leaves them out, as the recorded Zerodha index frames do.",
+      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)",
+      "approved": true
     },
     {
       "key": "total_buy_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index has no trades or book: the desktop's index Quote frame leaves out last_quantity, average_price and the book totals, as the recorded Zerodha index frames do; the web passes on the zeros Arrow's quote packet carries in their place.",
-      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades or book: Arrow's quote packet fills the last quantity, average price and book totals with zeros, which the web passes on; the desktop's index frame leaves them out, as the recorded Zerodha index frames do.",
+      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)",
+      "approved": true
     },
     {
       "key": "total_sell_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index has no trades or book: the desktop's index Quote frame leaves out last_quantity, average_price and the book totals, as the recorded Zerodha index frames do; the web passes on the zeros Arrow's quote packet carries in their place.",
-      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades or book: Arrow's quote packet fills the last quantity, average price and book totals with zeros, which the web passes on; the desktop's index frame leaves them out, as the recorded Zerodha index frames do.",
+      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)",
+      "approved": true
     },
     {
       "key": "oi",
-      "kind": "open",
-      "reason": "The web sends the index quote packet's OI (0) in the Quote frame; the desktop's Quote frame carries no OI (and an index has none).",
-      "ref": "arrow_adapter.py:223-225; audit C05"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no open interest: Arrow's index quote packet fills it with 0, which the web passes on in the Quote frame; the desktop's index frame leaves it out.",
+      "ref": "arrow_adapter.py:223-225",
+      "approved": true
     },
     {
       "key": "open_interest",
-      "kind": "open",
-      "reason": "The web sends the index quote packet's OI (0) in the Quote frame; the desktop's Quote frame carries no OI (and an index has none).",
-      "ref": "arrow_adapter.py:223-225; audit C05"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no open interest: Arrow's index quote packet fills it with 0, which the web passes on in the Quote frame; the desktop's index frame leaves it out.",
+      "ref": "arrow_adapter.py:223-225",
+      "approved": true
     },
     {
       "key": "price_change",

@@ -39,7 +39,8 @@
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web passes Paytm's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
-      "ref": "paytm_adapter.py:702, 709, 728 (raw last_traded_time); audit remaining brokers matrix (Paytm: native seconds -> ms)"
+      "ref": "paytm_adapter.py:702, 709, 728 (raw last_traded_time); audit remaining brokers matrix (Paytm: native seconds -> ms)",
+      "approved": true
     },
     {
       "key": "change_absolute",

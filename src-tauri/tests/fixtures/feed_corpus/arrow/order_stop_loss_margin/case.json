@@ -33,13 +33,15 @@
       "key": "pricetype",
       "kind": "web-defect",
       "reason": "The web places SL as Arrow's SL-LMT and reads SL-LMT back as SL in its order book, but its order stream passes SL-LMT through, which is not an OpenAlgo price type; the desktop maps it as the order book does.",
-      "ref": "arrow_order_adapter.py:42 (_PRICETYPE_MAP has no SL-LMT or SL-MKT); broker/arrow/mapping/order_data.py:12-13"
+      "ref": "arrow_order_adapter.py:42 (_PRICETYPE_MAP has no SL-LMT or SL-MKT); broker/arrow/mapping/order_data.py:12-13",
+      "approved": true
     },
     {
       "key": "product",
       "kind": "web-defect",
       "reason": "Arrow's M is NRML everywhere the web maps it for placing and for its order book (transform_data.py:28, 35); the web's order stream alone calls it MIS, so an NRML order's updates name the wrong product. The desktop keeps NRML (audit RB-14).",
-      "ref": "arrow_order_adapter.py:46 (_PRODUCT_MAP M -> MIS); transform_data.py:25-36"
+      "ref": "arrow_order_adapter.py:46 (_PRODUCT_MAP M -> MIS); transform_data.py:25-36",
+      "approved": true
     }
   ]
 }

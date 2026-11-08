@@ -58,7 +58,8 @@
       "key": "timestamp",
       "kind": "web-defect",
       "reason": "Without a trade time or update time the web sends timestamp null, a market data frame with no time (the SDK reads data.timestamp); the desktop stamps the time the packet was received.",
-      "ref": "rupeezy_adapter.py:223 ((last_update_time or ltt or 0) * 1000 or None)"
+      "ref": "rupeezy_adapter.py:223 ((last_update_time or ltt or 0) * 1000 or None)",
+      "approved": true
     }
   ]
 }

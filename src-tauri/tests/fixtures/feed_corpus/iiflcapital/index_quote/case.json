@@ -32,79 +32,92 @@
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web passes IIFL's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
-      "ref": "iiflcapital_websocket.py:171, 188 (ltt_unix); iiflcapital_adapter.py:386"
+      "ref": "iiflcapital_websocket.py:171, 188 (ltt_unix); iiflcapital_adapter.py:386",
+      "approved": true
     },
     {
       "key": "ltp",
       "kind": "web-defect",
       "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
-      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)"
+      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)",
+      "approved": true
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "The web multiplies the packet's integer price by 1/divisor, which is inexact in binary (148510 x 0.01 = 1485.1000000000001); the desktop divides by the divisor and sends the price the exchange quoted.",
-      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)"
+      "ref": "iiflcapital_websocket.py:146-186 (inv = 1.0 / divisor)",
+      "approved": true
     },
     {
       "key": "last_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index has no trades or book: the desktop's index Quote frame leaves out last_quantity, average_price and the book totals, as the recorded Zerodha index frames do; the web passes on the zeros IIFL's index packet carries in their place.",
-      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades or book: IIFL's index packet fills the last quantity, average price and book totals with zeros, which the web passes on; the desktop's index frame leaves them out, as the recorded Zerodha index frames do.",
+      "ref": "feed::protocol::market_data (index frames); iiflcapital_adapter.py:395-406",
+      "approved": true
     },
     {
       "key": "average_price",
-      "kind": "desktop-decision",
-      "reason": "An index has no trades or book: the desktop's index Quote frame leaves out last_quantity, average_price and the book totals, as the recorded Zerodha index frames do; the web passes on the zeros IIFL's index packet carries in their place.",
-      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades or book: IIFL's index packet fills the last quantity, average price and book totals with zeros, which the web passes on; the desktop's index frame leaves them out, as the recorded Zerodha index frames do.",
+      "ref": "feed::protocol::market_data (index frames); iiflcapital_adapter.py:395-406",
+      "approved": true
     },
     {
       "key": "total_buy_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index has no trades or book: the desktop's index Quote frame leaves out last_quantity, average_price and the book totals, as the recorded Zerodha index frames do; the web passes on the zeros IIFL's index packet carries in their place.",
-      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades or book: IIFL's index packet fills the last quantity, average price and book totals with zeros, which the web passes on; the desktop's index frame leaves them out, as the recorded Zerodha index frames do.",
+      "ref": "feed::protocol::market_data (index frames); iiflcapital_adapter.py:395-406",
+      "approved": true
     },
     {
       "key": "total_sell_quantity",
-      "kind": "desktop-decision",
-      "reason": "An index has no trades or book: the desktop's index Quote frame leaves out last_quantity, average_price and the book totals, as the recorded Zerodha index frames do; the web passes on the zeros IIFL's index packet carries in their place.",
-      "ref": "feed::protocol::market_data (index frames); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades or book: IIFL's index packet fills the last quantity, average price and book totals with zeros, which the web passes on; the desktop's index frame leaves them out, as the recorded Zerodha index frames do.",
+      "ref": "feed::protocol::market_data (index frames); iiflcapital_adapter.py:395-406",
+      "approved": true
     },
     {
       "key": "price_change",
       "kind": "desktop-decision",
-      "reason": "The desktop's index Quote and Depth frames carry the change worked out from the previous close, as the recorded Zerodha index frames do; the IIFL Capital web adapter sends no change.",
-      "ref": "feed::bridge::quote_fields (index change); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+      "reason": "The web docs define the change for Quote frames (docs/prompt/websockets-format.md, the Quote example's change and change_percent) and the desktop works it out from the previous close in IIFL's own index packet; the IIFL Capital web adapter sends none. Kept under those two conditions (lead decision 2026-11-09).",
+      "ref": "feed::bridge::quote_fields (index change); iiflcapital/streaming.rs::ticks (derive_change)",
+      "approved": true
     },
     {
       "key": "price_change_percent",
       "kind": "desktop-decision",
-      "reason": "The desktop's index Quote and Depth frames carry the change worked out from the previous close, as the recorded Zerodha index frames do; the IIFL Capital web adapter sends no change.",
-      "ref": "feed::bridge::quote_fields (index change); tests/fixtures/web/websocket transcripts (NIFTY Quote)"
+      "reason": "The web docs define the change for Quote frames (docs/prompt/websockets-format.md, the Quote example's change and change_percent) and the desktop works it out from the previous close in IIFL's own index packet; the IIFL Capital web adapter sends none. Kept under those two conditions (lead decision 2026-11-09).",
+      "ref": "feed::bridge::quote_fields (index change); iiflcapital/streaming.rs::ticks (derive_change)",
+      "approved": true
     },
     {
       "key": "bid",
-      "kind": "open",
-      "reason": "The web sends the index packet's best bid and ask (zeros: an index has no book); the desktop's carrier drops bid and ask for every instrument (audit C06). Whether an index frame carries them once C06 lands is the wire lane's call (an index has none).",
-      "ref": "iiflcapital_adapter.py:408-411; audit C06"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no book: IIFL's index packet fills the best bid and ask with zeros, which the web passes on as bid, ask and their quantities; the desktop's index frame leaves them out.",
+      "ref": "iiflcapital_adapter.py:408-411",
+      "approved": true
     },
     {
       "key": "ask",
-      "kind": "open",
-      "reason": "The web sends the index packet's best bid and ask (zeros: an index has no book); the desktop's carrier drops bid and ask for every instrument (audit C06). Whether an index frame carries them once C06 lands is the wire lane's call (an index has none).",
-      "ref": "iiflcapital_adapter.py:408-411; audit C06"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no book: IIFL's index packet fills the best bid and ask with zeros, which the web passes on as bid, ask and their quantities; the desktop's index frame leaves them out.",
+      "ref": "iiflcapital_adapter.py:408-411",
+      "approved": true
     },
     {
       "key": "bid_quantity",
-      "kind": "open",
-      "reason": "The web sends the index packet's best bid and ask (zeros: an index has no book); the desktop's carrier drops bid and ask for every instrument (audit C06). Whether an index frame carries them once C06 lands is the wire lane's call (an index has none).",
-      "ref": "iiflcapital_adapter.py:408-411; audit C06"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no book: IIFL's index packet fills the best bid and ask with zeros, which the web passes on as bid, ask and their quantities; the desktop's index frame leaves them out.",
+      "ref": "iiflcapital_adapter.py:408-411",
+      "approved": true
     },
     {
       "key": "ask_quantity",
-      "kind": "open",
-      "reason": "The web sends the index packet's best bid and ask (zeros: an index has no book); the desktop's carrier drops bid and ask for every instrument (audit C06). Whether an index frame carries them once C06 lands is the wire lane's call (an index has none).",
-      "ref": "iiflcapital_adapter.py:408-411; audit C06"
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no book: IIFL's index packet fills the best bid and ask with zeros, which the web passes on as bid, ask and their quantities; the desktop's index frame leaves them out.",
+      "ref": "iiflcapital_adapter.py:408-411",
+      "approved": true
     }
   ]
 }

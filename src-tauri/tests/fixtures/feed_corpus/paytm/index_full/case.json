@@ -50,44 +50,51 @@
     {
       "key": "last_quantity",
       "kind": "web-defect",
-      "reason": "Paytm's INDEX_FULL packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
-      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533"
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). Paytm's INDEX_FULL packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533",
+      "approved": true
     },
     {
       "key": "average_price",
       "kind": "web-defect",
-      "reason": "Paytm's INDEX_FULL packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
-      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533"
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). Paytm's INDEX_FULL packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533",
+      "approved": true
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
-      "reason": "Paytm's INDEX_FULL packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
-      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533"
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). Paytm's INDEX_FULL packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533",
+      "approved": true
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
-      "reason": "Paytm's INDEX_FULL packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
-      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533"
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). Paytm's INDEX_FULL packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533",
+      "approved": true
     },
     {
       "key": "52_week_high",
       "kind": "web-defect",
-      "reason": "The INDEX_FULL packet carries no 52-week range; the web sends 0 for it.",
-      "ref": "paytm_adapter.py:740-741"
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). The INDEX_FULL packet carries no 52-week range; the web sends 0 for it, the desktop leaves it out.",
+      "ref": "paytm_adapter.py:740-741",
+      "approved": true
     },
     {
       "key": "52_week_low",
       "kind": "web-defect",
-      "reason": "The INDEX_FULL packet carries no 52-week range; the web sends 0 for it.",
-      "ref": "paytm_adapter.py:740-741"
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). The INDEX_FULL packet carries no 52-week range; the web sends 0 for it, the desktop leaves it out.",
+      "ref": "paytm_adapter.py:740-741",
+      "approved": true
     },
     {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web's index-full parser stores the trade time as last_trade_time and its normaliser reads last_traded_time, so the web sends ltt 0 and loses the time; the desktop decodes it (audit: web defect fixed on desktop).",
-      "ref": "paytm_websocket.py:529; paytm_adapter.py:728"
+      "ref": "paytm_websocket.py:529; paytm_adapter.py:728",
+      "approved": true
     },
     {
       "key": "oi",

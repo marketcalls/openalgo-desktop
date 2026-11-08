@@ -36,7 +36,8 @@
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web passes IIFL's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
-      "ref": "iiflcapital_websocket.py:171, 188 (ltt_unix); iiflcapital_adapter.py:386"
+      "ref": "iiflcapital_websocket.py:171, 188 (ltt_unix); iiflcapital_adapter.py:386",
+      "approved": true
     },
     {
       "key": "bid",
