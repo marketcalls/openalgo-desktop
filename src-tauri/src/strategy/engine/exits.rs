@@ -400,7 +400,7 @@ impl StrategyModule {
                     c.error.unwrap_or_default()
                 );
             }
-            let status = self.gateway.order_status(mode, &bid).await;
+            let status = self.order_status_for_run(run_id, mode, &bid).await;
             if status.ok {
                 self.apply_order_snapshot(&bid, &status.order).await;
             }
@@ -423,7 +423,7 @@ impl StrategyModule {
             let Some(bid) = row.broker_order_id.clone().filter(|b| !b.is_empty()) else {
                 continue;
             };
-            let status = self.gateway.order_status(mode, &bid).await;
+            let status = self.order_status_for_run(run_id, mode, &bid).await;
             if status.ok {
                 self.apply_order_snapshot(&bid, &status.order).await;
             }

@@ -321,6 +321,13 @@ pub trait OrderGateway: Send + Sync {
     fn broker_placeholders(&self, _mode: RunMode) -> Vec<String> {
         Vec::new()
     }
+    /// When the session `mode` orders go through now was signed in;
+    /// `None` when there is none or it cannot be told. One broker is
+    /// logged in at a time and a sign-in moves this time, so an order
+    /// placed after it went through that session.
+    fn session_since(&self, _mode: RunMode) -> Option<chrono::DateTime<chrono::Utc>> {
+        None
+    }
     /// One account book through the run's pipe: the service's own envelope.
     async fn book(&self, mode: RunMode, book: Book) -> Result<Value, Value>;
     /// A last price for the underlying an ATM strike is measured against.
@@ -568,6 +575,17 @@ impl OrderGateway for AppGateway {
                         .map(|s| crate::services::session_account::account_of(&c, &s))
                 })
                 .unwrap_or_default(),
+        }
+    }
+
+    fn session_since(&self, mode: RunMode) -> Option<chrono::DateTime<chrono::Utc>> {
+        match mode {
+            RunMode::Sandbox => None,
+            RunMode::Live => self
+                .ctx
+                .upgrade()
+                .and_then(|c| c.get_broker_session())
+                .map(|s| s.authenticated_at),
         }
     }
 

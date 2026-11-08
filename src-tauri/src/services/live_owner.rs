@@ -97,7 +97,7 @@ impl LiveOwner {
 
     /// Whether the broker was recorded. A blank one, or the mode name a
     /// signal run writes when there was no session, says nothing.
-    fn knows_broker(&self) -> bool {
+    pub(crate) fn knows_broker(&self) -> bool {
         !self.broker.is_empty()
             && !self.broker.eq_ignore_ascii_case("live")
             && !self.broker.eq_ignore_ascii_case("sandbox")

@@ -15,6 +15,7 @@ use openalgo_desktop_lib::strategy::engine::FillOpts;
 use serde_json::{json, Value};
 use support::*;
 
+mod broker_binding;
 mod concurrency;
 mod hygiene;
 mod live_mode;

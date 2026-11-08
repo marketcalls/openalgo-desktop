@@ -425,10 +425,11 @@ async fn a_keyless_stop_with_possible_exposure_is_durable_pending_and_retryable(
             .unwrap();
     t.m.apply_fill(run, 1, Some(100.0), true, FillOpts::default())
         .await;
-    // Mark the run live after the fact so the broker session matters.
+    // Mark the run live after the fact so the broker session matters,
+    // with the broker a Live run records (the fake's Zerodha session).
     t.m.store
         .execute_raw(&format!(
-            "UPDATE sm_strategy_run SET mode = 'live' WHERE id = {}",
+            "UPDATE sm_strategy_run SET mode = 'live', broker = 'zerodha' WHERE id = {}",
             run
         ))
         .unwrap();
@@ -451,7 +452,7 @@ async fn risk_that_cannot_be_acted_on_reaches_the_audit_trail_once_per_episode()
     let run = t.start_filled(sid, 100.0).await;
     t.m.store
         .execute_raw(&format!(
-            "UPDATE sm_strategy_run SET mode = 'live' WHERE id = {}",
+            "UPDATE sm_strategy_run SET mode = 'live', broker = 'zerodha' WHERE id = {}",
             run
         ))
         .unwrap();

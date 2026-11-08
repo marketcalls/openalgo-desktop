@@ -15,7 +15,9 @@
 //! another broker (the switch itself: the old session ends only then),
 //! the web-shaped settings save that switches, forgetting the logged-in
 //! broker and new keys for it. Signing out of OpenAlgo and the daily
-//! boundary are not switches.
+//! boundary are not switches, but the automation they leave recorded on a
+//! broker still holds it: a sign-in to another broker while none is
+//! logged in is refused the same way ([`check_sign_in`]).
 
 use crate::error::Result;
 use crate::state::AppState;
@@ -111,6 +113,55 @@ pub trait SwitchGuard: Send + Sync {
     /// What still depends on `broker`'s Live session. Sandbox items are
     /// never counted.
     fn blockers(&self, state: &AppState, broker: &str) -> Result<SwitchBlockers>;
+
+    /// The brokers open Live obligations were recorded on, whatever session
+    /// is connected now ([`check_sign_in`]). Test guards that do not model
+    /// it hold none.
+    fn held_brokers(&self, _state: &AppState) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+}
+
+/// A sign-in to `broker` completing while no broker is logged in (after a
+/// sign-out, or past the daily boundary) is refused, with nothing stored,
+/// while Live automation recorded on another broker still trades through
+/// that broker's session: it is not moved, so the sign-in gets the reason
+/// a switch away from that broker gets (web `refusal_for_login`,
+/// marketcalls/openalgo#2337, its AUDIT R02). Signing back in to the
+/// broker it trades on is always allowed, and a strategy run that has not
+/// been bound to a broker yet holds none (its first order binds it).
+pub fn check_sign_in(state: &AppState, broker: &str) -> Result<()> {
+    match refusal_for_sign_in(state, broker) {
+        Some(why) => {
+            tracing::info!(
+                "Sign-in to {} refused: Live automation trades on another broker",
+                broker
+            );
+            Err(crate::error::AppError::Validation(why))
+        }
+        None => Ok(()),
+    }
+}
+
+/// Why [`check_sign_in`] refuses, or `None`.
+fn refusal_for_sign_in(state: &AppState, broker: &str) -> Option<String> {
+    let guard = state.switch_guard.read().clone();
+    match guard.held_brokers(state) {
+        Ok(held) => held
+            .iter()
+            .filter(|b| !b.eq_ignore_ascii_case(broker))
+            .find_map(|b| refusal(state, b)),
+        Err(e) => {
+            tracing::warn!(
+                "Could not check which broker Live automation trades on: {}",
+                e
+            );
+            Some(
+                "OpenAlgo could not check which broker your Live automation trades on. Nothing was changed. Try again."
+                    .into(),
+            )
+        }
+    }
 }
 
 /// The trader-facing refusal when `live_broker`'s session must not end yet.

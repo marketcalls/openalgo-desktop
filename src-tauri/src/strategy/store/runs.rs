@@ -20,6 +20,17 @@ pub fn migrate_run_account(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// What recording a stop request found ([`Store::request_run_stop`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StopRequest {
+    /// This call recorded it.
+    New,
+    /// One was already recorded on the open run (a retry, or a second stop).
+    Existing,
+    /// Nothing is recorded: the run has ended or is not there.
+    NotRecorded,
+}
+
 impl Store {
     /// A new run, with the broker session it is opened on (`owner`).
     pub fn create_run(
@@ -48,6 +59,40 @@ impl Store {
             ],
         )?;
         Ok(conn.last_insert_rowid())
+    }
+
+    /// Record the broker session of a Live run opened before any broker
+    /// was logged in (a signal run records `live` in place of a broker),
+    /// once (web `bind_run_broker`, marketcalls/openalgo#2337). Conditional,
+    /// so only the first caller binds and a run that has a broker keeps it:
+    /// two orders racing on an unbound run cannot bind it to two sessions.
+    pub fn bind_run_owner(&self, run_id: i64, owner: &LiveOwner) -> Result<bool> {
+        if !owner.knows_broker() {
+            return Ok(false);
+        }
+        let conn = self.conn()?;
+        let bound = conn.execute(
+            "UPDATE sm_strategy_run SET broker = ?1, broker_account = ?2 \
+             WHERE id = ?3 AND mode = 'live' AND stopped_at IS NULL \
+             AND LOWER(TRIM(broker)) IN ('', 'live')",
+            params![owner.broker, owner.account, run_id],
+        )?;
+        Ok(bound == 1)
+    }
+
+    /// When the run's first order reached a broker (the broker gave it an
+    /// id), or `None` if none has (web `first_dispatched_at`). A time that
+    /// cannot be read is the earliest there is, so no session can be shown
+    /// to have been in place before it.
+    pub fn first_dispatched_at(&self, run_id: i64) -> Result<Option<DateTime<Utc>>> {
+        let conn = self.conn()?;
+        let first: Option<String> = conn.query_row(
+            "SELECT MIN(placed_at) FROM sm_strategy_order WHERE run_id = ?1 \
+             AND broker_order_id IS NOT NULL AND TRIM(broker_order_id) != ''",
+            [run_id],
+            |r| r.get(0),
+        )?;
+        Ok(first.map(|t| super::parse_utc(&t).unwrap_or(DateTime::<Utc>::MIN_UTC)))
     }
 
     pub fn get_run(&self, run_id: i64) -> Result<Option<RunRow>> {
@@ -182,9 +227,11 @@ impl Store {
         )? == 1)
     }
 
-    /// Persist a stop request while leaving the run active until it is flat.
-    /// True when a request is (now or already) recorded on an open run.
-    pub fn request_run_stop(&self, run_id: i64, reason: &str) -> Result<bool> {
+    /// Persist a stop request while leaving the run active until it is flat,
+    /// and say whether this call is the one that recorded it (web
+    /// `record_run_stop_request`, marketcalls/openalgo#2337): a pending stop
+    /// is asked again every few seconds and must be announced once.
+    pub fn request_run_stop(&self, run_id: i64, reason: &str) -> Result<StopRequest> {
         let conn = self.conn()?;
         let updated = conn.execute(
             "UPDATE sm_strategy_run SET stop_requested_at = ?1, stop_requested_reason = ?2 \
@@ -193,7 +240,7 @@ impl Store {
             params![self.utcnow(), reason, run_id],
         )?;
         if updated == 1 {
-            return Ok(true);
+            return Ok(StopRequest::New);
         }
         let existing: Option<i64> = conn
             .query_row(
@@ -203,7 +250,11 @@ impl Store {
                 |r| r.get(0),
             )
             .optional()?;
-        Ok(existing.is_some())
+        Ok(if existing.is_some() {
+            StopRequest::Existing
+        } else {
+            StopRequest::NotRecorded
+        })
     }
 
     /// What earlier runs banked since `since` (a daily loss limit's session).

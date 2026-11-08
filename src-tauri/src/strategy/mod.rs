@@ -223,6 +223,11 @@ impl StrategyModule {
         self.unactionable.lock().insert(run_id)
     }
 
+    /// Whether this run's inability to act has been reported and holds.
+    pub(crate) fn is_unactionable(&self, run_id: i64) -> bool {
+        self.unactionable.lock().contains(&run_id)
+    }
+
     pub(crate) fn release_unactionable(&self, run_id: i64) -> bool {
         self.unactionable.lock().remove(&run_id)
     }

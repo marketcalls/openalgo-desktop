@@ -883,6 +883,53 @@ async fn switch_row1_a_completed_sign_in_to_another_broker_is_refused_too() {
     ctx.runtime.teardown(&ctx).await;
 }
 
+/// A guard whose Live automation is recorded on `held` (one running Live
+/// strategy there), whatever session is connected.
+struct HeldGuard(&'static str);
+
+impl SwitchGuard for HeldGuard {
+    fn blockers(&self, _: &AppState, broker: &str) -> crate::error::Result<SwitchBlockers> {
+        Ok(SwitchBlockers {
+            strategy_runs: u32::from(broker == self.0),
+            ..Default::default()
+        })
+    }
+
+    fn held_brokers(&self, _: &AppState) -> crate::error::Result<Vec<String>> {
+        Ok(vec![self.0.to_string()])
+    }
+}
+
+/// Web marketcalls/openalgo#2337 (AUDIT R02): with no broker logged in (a
+/// sign-out or the daily boundary ended the session), there is no session
+/// to ask, and a sign-in to another broker went ahead under Live
+/// automation recorded on the first. It is refused with the same reason a
+/// switch gets, nothing is stored, and signing in to that broker again
+/// goes ahead.
+#[tokio::test]
+async fn switch_row1_a_sign_in_with_no_session_is_refused_while_automation_trades_elsewhere() {
+    let (t, _angel, _samco) = two_brokers();
+    let ctx = t.ctx.clone();
+    assert!(ctx.get_broker_session().is_none());
+    *ctx.switch_guard.write() = Arc::new(HeldGuard("angel"));
+    let e = BrokerAuthService::login_with_form(&ctx, "samco", totp())
+        .await
+        .unwrap_err();
+    assert!(
+        e.client_message()
+            .starts_with("Angel One still has 1 running Live strategy."),
+        "{}",
+        e.client_message()
+    );
+    assert!(ctx.get_broker_session().is_none());
+    assert!(live_rows(&ctx).is_empty(), "nothing stored");
+    BrokerAuthService::login_with_form(&ctx, "angel", totp())
+        .await
+        .unwrap();
+    assert_eq!(ctx.get_broker_session().unwrap().broker_id, "angel");
+    ctx.runtime.teardown(&ctx).await;
+}
+
 #[tokio::test]
 async fn switch_row2_orders_with_an_unknown_outcome_refuse_the_switch() {
     let (h, cookie, csrf) = switch_harness();

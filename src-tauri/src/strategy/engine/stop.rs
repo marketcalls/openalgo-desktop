@@ -4,7 +4,7 @@
 
 use super::{ev, StopOutcome, StrategyModule, STATE_UNAVAILABLE};
 use crate::strategy::state::ExitScope;
-use crate::strategy::store::{RunRow, StrategyRow, ORDER_KINDS};
+use crate::strategy::store::{RunRow, StopRequest, StrategyRow, ORDER_KINDS};
 use futures_util::future::BoxFuture;
 use serde_json::{json, Value};
 
@@ -152,7 +152,11 @@ impl StrategyModule {
         user_id: &str,
         reason: &str,
     ) -> Result<String, StopOutcome> {
-        if !self.store.request_run_stop(run_id, reason).unwrap_or(false) {
+        let recorded = self
+            .store
+            .request_run_stop(run_id, reason)
+            .unwrap_or(StopRequest::NotRecorded);
+        if recorded == StopRequest::NotRecorded {
             return Err(StopOutcome {
                 ok: false,
                 stop_pending: false,
@@ -172,17 +176,24 @@ impl StrategyModule {
             .and_then(|r| r.stop_requested_reason)
             .unwrap_or_else(|| reason.to_string());
         self.state.mark_stopping(run_id);
-        self.emit(
-            strategy_id,
-            user_id,
-            "run_stop_requested",
-            &format!(
-                "Stop requested ({}); exit orders are being attempted",
-                reason
-            ),
-            ev(Some(run_id), None, "info"),
-        )
-        .await;
+        // Said once, when the stop is first recorded (web
+        // marketcalls/openalgo#2337): a pending stop is retried every few
+        // seconds, for hours while its session is away, and the line would
+        // be written again on every retry, untrue while its orders are
+        // refused.
+        if recorded == StopRequest::New {
+            self.emit(
+                strategy_id,
+                user_id,
+                "run_stop_requested",
+                &format!(
+                    "Stop requested ({}); exit orders are being attempted",
+                    reason
+                ),
+                ev(Some(run_id), None, "info"),
+            )
+            .await;
+        }
         Ok(reason)
     }
 

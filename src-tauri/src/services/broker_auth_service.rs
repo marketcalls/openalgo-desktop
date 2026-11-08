@@ -550,10 +550,11 @@ impl BrokerAuthService {
                 name
             )));
         }
-        if let Some(live) = state
-            .get_broker_session()
-            .filter(|s| s.broker_id != broker_id)
-        {
+        let live = state.get_broker_session();
+        if live.is_none() {
+            crate::services::broker_switch::check_sign_in(state, broker_id)?;
+        }
+        if let Some(live) = live.filter(|s| s.broker_id != broker_id) {
             // Live automation, unsettled placements or exits still filling
             // on the old broker refuse the switch: nothing is stored and
             // the old session stays (roadmap "Broker switching").

@@ -29,6 +29,7 @@ use crate::error::Result;
 use crate::scalping::monitor::{ChildState, ExitAttempt};
 use crate::scalping::store::MODE_LIVE;
 use crate::services::broker_switch::{SwitchBlockers, SwitchGuard};
+use crate::services::live_owner::LiveOwner;
 use crate::state::AppState;
 use crate::strategy::dispatch::RunMode;
 
@@ -44,6 +45,37 @@ impl SwitchGuard for OutcomesGuard {
     fn blockers(&self, state: &AppState, broker: &str) -> Result<SwitchBlockers> {
         open_live_obligations(state, broker)
     }
+
+    fn held_brokers(&self, state: &AppState) -> Result<Vec<String>> {
+        held_brokers(state)
+    }
+}
+
+/// The brokers open Live obligations were recorded on: running Live
+/// strategy runs, OpenScript runs and scalping stops (web
+/// `live_run_brokers`, marketcalls/openalgo#2337). A strategy run not yet
+/// bound to a broker (it records `live` until its first order) holds none.
+fn held_brokers(state: &AppState) -> Result<Vec<String>> {
+    let mut held = std::collections::BTreeSet::new();
+    let mut hold = |owner: &LiveOwner| {
+        if owner.knows_broker() {
+            held.insert(owner.broker.to_ascii_lowercase());
+        }
+    };
+    for run in state.strategy.store.list_open_runs()? {
+        if RunMode::parse(&run.mode) == Some(RunMode::Live) {
+            hold(&LiveOwner::new(run.broker, run.broker_account));
+        }
+    }
+    for run in state.trading.runner.running() {
+        if run.mode == RunMode::Live {
+            hold(&run.destination.owner);
+        }
+    }
+    for sl in state.scalping.store.active_sl(Some(MODE_LIVE))? {
+        hold(&sl.owner);
+    }
+    Ok(held.into_iter().collect())
 }
 
 fn n(v: usize) -> u32 {
@@ -58,15 +90,17 @@ fn working(status: &str) -> bool {
 pub fn open_live_obligations(state: &AppState, broker_id: &str) -> Result<OpenObligations> {
     let mut o = OpenObligations::default();
 
-    // Strategy runs: Live, open, opened on this broker (a run with no
-    // recorded broker counts: it can only be this one's).
+    // Strategy runs: Live, open, opened on this broker. A run with no
+    // recorded broker counts (blank, or the `live` a signal run opened
+    // before any login records): its orders can only be this one's, and
+    // its next order binds it to this session (`strategy::run_owner`).
     let store = &state.strategy.store;
     for run in store.list_open_runs()? {
         if RunMode::parse(&run.mode) != Some(RunMode::Live) {
             continue;
         }
-        let b = run.broker.trim();
-        if !b.is_empty() && !b.eq_ignore_ascii_case(broker_id.trim()) {
+        let owner = LiveOwner::new(run.broker.clone(), "");
+        if owner.knows_broker() && !owner.broker.eq_ignore_ascii_case(broker_id.trim()) {
             continue;
         }
         o.strategy_runs += 1;

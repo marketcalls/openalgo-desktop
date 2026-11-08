@@ -44,7 +44,7 @@ pub use management::{
     CHANGED_WHILE_STARTING, LIVE_NOT_ENABLED, WEBHOOK_LOCKED,
 };
 pub(crate) use orders::frame_changes;
-pub use runs::migrate_run_account;
+pub use runs::{migrate_run_account, StopRequest};
 pub use webhook_audit::WebhookEvent;
 
 pub const WEBHOOK_TOKEN_PREFIX: &str = "oaws_";

@@ -152,7 +152,36 @@ pub struct FakeGateway {
     pub place_gate: Mutex<Option<Arc<Gate>>>,
     /// The rows of the position book, whichever mode is read.
     pub position_rows: Mutex<Vec<Value>>,
+    /// The Live session reported, when a test switches it: `None` is
+    /// Zerodha with no account and no sign-in time.
+    pub live: Mutex<Option<FakeSession>>,
     n: AtomicU64,
+}
+
+/// A Live session the fake gateway reports (`FakeGateway::sign_in`).
+#[derive(Debug, Clone, Default)]
+pub struct FakeSession {
+    pub broker: String,
+    pub account: String,
+    pub since: Option<DateTime<Utc>>,
+}
+
+impl FakeGateway {
+    /// Signed in to `broker` as `account` at `since`.
+    pub fn sign_in(&self, broker: &str, account: &str, since: DateTime<Utc>) {
+        self.unauthorised.store(false, Ordering::SeqCst);
+        *self.live.lock() = Some(FakeSession {
+            broker: broker.into(),
+            account: account.into(),
+            since: Some(since),
+        });
+    }
+
+    /// No broker logged in at all.
+    pub fn sign_out(&self) {
+        self.unauthorised.store(true, Ordering::SeqCst);
+        *self.live.lock() = Some(FakeSession::default());
+    }
 }
 
 impl FakeGateway {
@@ -258,7 +287,24 @@ impl OrderGateway for FakeGateway {
     fn broker_name(&self, mode: RunMode) -> String {
         match mode {
             RunMode::Sandbox => "sandbox".into(),
-            RunMode::Live => "zerodha".into(),
+            RunMode::Live => match &*self.live.lock() {
+                Some(s) => s.broker.clone(),
+                None => "zerodha".into(),
+            },
+        }
+    }
+
+    fn broker_account(&self, mode: RunMode) -> String {
+        match (mode, &*self.live.lock()) {
+            (RunMode::Live, Some(s)) => s.account.clone(),
+            _ => String::new(),
+        }
+    }
+
+    fn session_since(&self, mode: RunMode) -> Option<DateTime<Utc>> {
+        match (mode, &*self.live.lock()) {
+            (RunMode::Live, Some(s)) => s.since,
+            _ => None,
         }
     }
 

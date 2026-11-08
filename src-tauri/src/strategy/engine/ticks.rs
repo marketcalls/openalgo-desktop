@@ -18,6 +18,16 @@ use crate::strategy::tick_feed::pending::{Decision, Event, LegExit, RunWork};
 use serde_json::{json, Value};
 use std::sync::Arc;
 
+/// The breach events a tick writes again for as long as nothing can be
+/// exited; not repeated once the run's refusal has been reported.
+const REPEATING_BREACH_EVENTS: &[&str] = &[
+    "leg_sl_hit",
+    "leg_target_hit",
+    "overall_sl_hit",
+    "overall_target_hit",
+    "lock_profit_triggered",
+];
+
 /// Each open leg on this instrument against the price (in the run's
 /// lock): the legs to exit and the events to send. A stop-driven exit
 /// trails the other open legs to entry when the strategy asks.
@@ -298,7 +308,20 @@ impl StrategyModule {
                 .push_delta(self.state.snapshot(run_id), false)
                 .await;
         }
+        let acting = !decided.leg_exits.is_empty()
+            || decided.stop_reason.is_some()
+            || !decided.after_stop.is_empty();
+        // A run that cannot act (no session, or one other than its own)
+        // keeps receiving prices and fires again on every tick. Once that
+        // has been said, the breach is not written again on each tick
+        // until the run can act (web `_REPEATING_BREACH_EVENTS`,
+        // marketcalls/openalgo#2337).
+        let repeating =
+            acting && self.is_unactionable(run_id) && self.authorised_for(run_id, mode).is_err();
         for e in decided.events {
+            if repeating && REPEATING_BREACH_EVENTS.contains(&e.kind) {
+                continue;
+            }
             self.emit(strategy.id, &strategy.user_id, e.kind, &e.message, e.fields)
                 .await;
         }
