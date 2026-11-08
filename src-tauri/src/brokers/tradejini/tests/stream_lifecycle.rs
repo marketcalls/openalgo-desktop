@@ -126,3 +126,57 @@ fn unsubscribing_drops_the_cached_quote_and_book() {
     f.unsubscribe_frames(&[infy(FeedMode::Depth)]);
     assert_eq!(f.cached(), 0);
 }
+
+// Depth cache review fixes (openalgo#2359, `a92418967`). The web's retry
+// of a failed list send has no counterpart: a send that fails ends the
+// desktop's session, and the manager replays every subscription on the
+// next socket.
+
+/// Web `test_depth_waits_for_l1_when_the_book_arrives_first`: a book alone
+/// would show LTP and OHLC as 0.
+#[test]
+fn a_depth_view_waits_for_the_quote_when_the_book_comes_first() {
+    let mut f = depth_feed();
+    let mut frames = Frames::new("tradejini");
+    let ev = parse(&mut f, l5_tick());
+    assert!(frames.at(&ev, Mode::Depth).is_empty(), "{:?}", ev);
+
+    let ev = parse(&mut f, l1_tick(115_500));
+    let depth = frames.at(&ev, Mode::Depth).pop().expect("a Depth frame");
+    assert_eq!(depth["ltp"], 1155.0);
+    assert_eq!(depth["open"], 1191.9);
+    assert_eq!(depth["depth"]["buy"][0]["price"], 1154.8);
+}
+
+/// Web `test_closed_session_drops_cached_halves`: a new connection pairs
+/// no fresh quote with a book from before the outage.
+#[test]
+fn a_new_connection_drops_the_cached_quote_and_book() {
+    let mut f = depth_feed();
+    parse(&mut f, l1_tick(115_500));
+    parse(&mut f, l5_tick());
+    f.on_connected();
+    assert_eq!(f.cached(), 0);
+    let ev = parse(&mut f, l1_tick(116_000));
+    assert!(
+        Frames::new("tradejini").at(&ev, Mode::Depth).is_empty(),
+        "{:?}",
+        ev
+    );
+}
+
+/// Web `test_dropping_depth_keeps_the_quote_but_not_the_book`: Depth
+/// dropped while LTP stays (the instrument moves down to LTP) keeps the L1
+/// quote, loses the book, and a book still in flight is not cached again.
+#[test]
+fn dropping_depth_keeps_the_quote_but_not_the_book() {
+    let mut f = depth_feed();
+    parse(&mut f, l1_tick(115_500));
+    parse(&mut f, l5_tick());
+    f.mode_change_frames(&infy(FeedMode::Depth), &infy(FeedMode::Ltp));
+    assert_eq!(f.cached(), 1, "the L1 quote stays, the book goes");
+
+    let ev = parse(&mut f, l5_tick());
+    assert!(ev.is_empty(), "{:?}", ev);
+    assert_eq!(f.cached(), 1, "a book in flight is not cached again");
+}

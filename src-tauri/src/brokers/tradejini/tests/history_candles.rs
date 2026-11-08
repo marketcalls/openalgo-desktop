@@ -65,3 +65,43 @@ fn a_negative_volume_is_zeroed_and_a_bar_missing_a_price_dropped() {
     assert_eq!(out[0].volume, 0);
     assert!(out.iter().all(valid));
 }
+
+/// Web `test_infinite_prices_are_dropped_and_infinite_volume_zeroed`
+/// (openalgo#2359, `a92418967`): an infinite price is as unplaceable as a
+/// missing one; an infinite volume is 0.
+#[test]
+fn an_infinite_price_drops_the_bar_and_an_infinite_volume_is_zero() {
+    let bars = parse_bars(&json(
+        r#"{"s":"ok","d":{"bars":[
+            {"time":1793332800,"open":"inf","high":105.0,"low":95.0,"close":101.0,"volume":3},
+            {"time":1793332860,"open":100.0,"high":105.0,"low":"-inf","close":101.0,"volume":3},
+            {"time":1793332920,"open":100.0,"high":105.0,"low":95.0,"close":101.0,"volume":"inf"}
+        ]}}"#,
+    ));
+    let out = repair(bars);
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].volume, 0);
+    assert!(out.iter().all(valid));
+}
+
+/// Web `test_bar_missing_a_price_is_not_drawn_at_zero` (openalgo#2359): a
+/// missing price stays missing so the repair drops the bar, and a bar
+/// without a time is skipped rather than placed in 1970.
+#[test]
+fn a_bar_missing_a_price_is_not_drawn_at_zero() {
+    let rows = parse_bars(&json(
+        r#"{"s":"ok","d":{"bars":[
+            {"time":1793332800,"open":100.0,"high":105.0,"low":95.0,"close":101.0},
+            {"time":1793332860,"high":106.0,"low":96.0,"close":102.0,"volume":9},
+            {"open":100.0,"high":105.0,"low":95.0,"close":101.0,"volume":1}
+        ]}}"#,
+    ));
+    assert_eq!(rows.len(), 2, "the bar without a time is skipped");
+    assert!(rows[1].open.is_nan());
+    assert_eq!(rows[0].volume, 0);
+
+    let out = repair(rows);
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].open, 100.0);
+    assert_eq!(out[0].volume, 0);
+}

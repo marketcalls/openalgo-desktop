@@ -563,27 +563,31 @@ impl TradejiniFeed {
         }
     }
 
-    /// An L5 book: cached, and a Depth instrument's view sent.
+    /// An L5 book for a Depth instrument: cached, and its view sent once
+    /// the instrument's L1 quote has come.
     fn on_book(&mut self, book: L5, out: &mut Vec<FeedEvent>) {
         let key = book.key();
         let Some(sub) = self.subs.get(&key).cloned() else {
             return;
         };
-        let first_book = self.books.insert(key.clone(), book).is_none();
+        // Only while Depth is held: a book still in flight after Depth was
+        // dropped is not cached again (web openalgo#2359).
         if sub.mode != FeedMode::Depth {
             return;
         }
+        let first_book = self.books.insert(key.clone(), book).is_none();
+        // The view waits for the L1 quote: a book alone showed LTP and
+        // OHLC as 0 (web openalgo#2359); the quote's tick sends it.
+        let (Some(q), Some(book)) = (self.l1.get(&key), self.books.get(&key)) else {
+            return;
+        };
         // The quote sent so far left the totals out; send it again with
         // them, or the book's frame (built on that quote) would leave them
         // out too.
         if first_book {
-            if let Some(q) = self.l1.get(&key) {
-                out.push(FeedEvent::Tick(self.tick(&sub, q)));
-            }
+            out.push(FeedEvent::Tick(self.tick(&sub, q)));
         }
-        if let Some(book) = self.books.get(&key) {
-            out.push(FeedEvent::Depth(self.depth(&sub, book)));
-        }
+        out.push(FeedEvent::Depth(self.depth(&sub, book)));
     }
 
     /// The Depth view of a book, priced from the instrument's L1 quote.
@@ -673,6 +677,12 @@ impl BrokerFeed for TradejiniFeed {
     ) -> Vec<Message> {
         let k = ws_key(&new.token, &new.brexchange, &new.exchange);
         let l5_changed = (old.mode == FeedMode::Depth) != (new.mode == FeedMode::Depth);
+        if new.mode != FeedMode::Depth {
+            // The book goes with Depth, so Depth held again later cannot
+            // send the old book before a fresh one comes (web
+            // openalgo#2359); the L1 quote stays.
+            self.books.remove(&k);
+        }
         self.subs.insert(
             k,
             SubInfo {
