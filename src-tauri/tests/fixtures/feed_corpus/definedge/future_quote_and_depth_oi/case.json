@@ -51,12 +51,6 @@
       "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms"
     },
     {
-      "key": "prev_oi",
-      "kind": "open",
-      "reason": "The web sends the previous day's open interest (Definedge `poi`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
-    },
-    {
       "key": "price_change",
       "kind": "open",
       "reason": "Definedge's web adapter sends the percent change only (change_percent, percent_change), never price_change, for any instrument; the desktop adds its canonical price_change. Lead rules 2026-11-09: change keys outside the docs follow the adapter; dropped in Phase B through the per-broker switch.",
@@ -67,12 +61,6 @@
       "kind": "open",
       "reason": "Definedge's web adapter names the percent change change_percent and percent_change (both sent by the desktop too); the desktop adds its canonical price_change_percent. Dropped in Phase B through the per-broker switch (lead rules 2026-11-09).",
       "ref": "definedge_adapter.py:987-1003, :933-934; feed::dialect"
-    },
-    {
-      "key": "total_oi",
-      "kind": "open",
-      "reason": "The web sends the total open interest (Definedge `toi`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
     },
     {
       "key": "lower_circuit",
