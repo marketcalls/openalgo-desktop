@@ -327,6 +327,59 @@ fn samcos_oi_reaches_quote_holders() {
     assert!(d.get("oi").is_none(), "{}", d);
 }
 
+/// Web `samcoWebSocket._normalize_market_data`: a Quote frame carries the
+/// best bid and ask (best_bid_price, best_bid_quantity, best_ask_price,
+/// best_ask_quantity): the book's first level once Samco has sent one,
+/// else the quote's bPr/bSz and aPr/aSz, and none Samco sent neither of
+/// (the web sends 0). The desktop sent none of them.
+#[test]
+fn the_best_bid_and_ask_are_published_at_quote() {
+    let best = |d: &Value| {
+        [
+            "best_bid_price",
+            "best_bid_quantity",
+            "best_ask_price",
+            "best_ask_quantity",
+        ]
+        .map(|k| d.get(k).cloned())
+    };
+    let (mut f, _) = feed();
+    f.subscribe_frames(&[quote_sub("RELIANCE", "NSE", "2885")]);
+    let d = Frames::new("samco")
+        .at(&f.parse(&quote(doc_quote())), Mode::Quote)
+        .pop()
+        .unwrap();
+    assert_eq!(
+        best(&d),
+        [json!(44554.0), json!(1), json!(44561.0), json!(1)].map(Some),
+        "{}",
+        d
+    );
+    let mut f = reliance();
+    f.parse(&depth_frame(json!({
+        "symbol": "2885_NSE",
+        "bidValues": [{"price": "44550", "qty": "7", "no": "2"}],
+        "askValues": [{"price": "44560.5", "qty": "9", "no": "3"}],
+    })));
+    let d = Frames::new("samco")
+        .at(&f.parse(&quote(doc_quote())), Mode::Quote)
+        .pop()
+        .unwrap();
+    assert_eq!(
+        best(&d),
+        [json!(44550.0), json!(7), json!(44560.5), json!(9)].map(Some),
+        "the book's first level: {}",
+        d
+    );
+    let (mut f, _) = feed();
+    f.subscribe_frames(&[quote_sub("RELIANCE", "NSE", "2885")]);
+    let d = Frames::new("samco")
+        .at(&f.parse(&tick("2885_NSE")), Mode::Quote)
+        .pop()
+        .unwrap();
+    assert_eq!(best(&d), [None, None, None, None], "{}", d);
+}
+
 /// Web test_tick_from_another_segment_is_not_routed.
 #[test]
 fn a_tick_from_another_segment_is_not_routed() {

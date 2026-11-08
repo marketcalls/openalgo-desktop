@@ -34,30 +34,6 @@
   },
   "deviations": [
     {
-      "key": "best_ask_price",
-      "kind": "open",
-      "reason": "The web's Quote frame carries Samco's best bid and ask (bPr/bSz/aPr/aSz, or the first quote2 level) as best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity; the desktop's common carrier has no field for them.",
-      "ref": "audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md, carrier table (samco); audit C06; samco_adapter.py:625-628"
-    },
-    {
-      "key": "best_ask_quantity",
-      "kind": "open",
-      "reason": "The web's Quote frame carries Samco's best bid and ask (bPr/bSz/aPr/aSz, or the first quote2 level) as best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity; the desktop's common carrier has no field for them.",
-      "ref": "audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md, carrier table (samco); audit C06; samco_adapter.py:625-628"
-    },
-    {
-      "key": "best_bid_price",
-      "kind": "open",
-      "reason": "The web's Quote frame carries Samco's best bid and ask (bPr/bSz/aPr/aSz, or the first quote2 level) as best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity; the desktop's common carrier has no field for them.",
-      "ref": "audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md, carrier table (samco); audit C06; samco_adapter.py:625-628"
-    },
-    {
-      "key": "best_bid_quantity",
-      "kind": "open",
-      "reason": "The web's Quote frame carries Samco's best bid and ask (bPr/bSz/aPr/aSz, or the first quote2 level) as best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity; the desktop's common carrier has no field for them.",
-      "ref": "audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md, carrier table (samco); audit C06; samco_adapter.py:625-628"
-    },
-    {
       "key": "price_change",
       "kind": "open",
       "reason": "The desktop sends Samco's change under the canonical name price_change beside Samco's web name change; Samco's web adapter sends change only. Open until wire's per-broker canonical-key switch.",

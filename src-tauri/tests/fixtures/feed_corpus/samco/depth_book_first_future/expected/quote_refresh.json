@@ -82,6 +82,10 @@
     "last_trade_time": 1791002701000,
     "last_trade_quantity": 75,
     "change": 30.4,
-    "change_percentage": 0.12
+    "change_percentage": 0.12,
+    "best_bid_price": 24610.0,
+    "best_bid_quantity": 75,
+    "best_ask_price": 24610.5,
+    "best_ask_quantity": 150
   }
 }

@@ -113,6 +113,30 @@
       "reason": "Before Samco's first quote the web sends the quote fields as 0 (volume, open, high, low, close, last_quantity), values the book stream never carried; the desktop leaves them out and keeps ltp and timestamp (1.0.6 decision).",
       "ref": "samcoWebSocket.py _normalize_market_data (.get(x, 0)); decisions 2026-11-09",
       "key": "last_quantity"
+    },
+    {
+      "kind": "desktop-decision",
+      "reason": "The desktop sends Samco's best bid and ask (from Samco's latest quote) in Depth frames too, as every key a web adapter sends from Quote up goes in each richer mode (feed/dialect/names.rs rules: no KeyError on the richer frame); Samco's web adapter sends best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity in Quote frames only.",
+      "ref": "feed/dialect/names.rs (module rules); samco_adapter.py _normalize_market_data (mode 2 only)",
+      "key": "best_bid_price"
+    },
+    {
+      "kind": "desktop-decision",
+      "reason": "The desktop sends Samco's best bid and ask (from Samco's latest quote) in Depth frames too, as every key a web adapter sends from Quote up goes in each richer mode (feed/dialect/names.rs rules: no KeyError on the richer frame); Samco's web adapter sends best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity in Quote frames only.",
+      "ref": "feed/dialect/names.rs (module rules); samco_adapter.py _normalize_market_data (mode 2 only)",
+      "key": "best_bid_quantity"
+    },
+    {
+      "kind": "desktop-decision",
+      "reason": "The desktop sends Samco's best bid and ask (from Samco's latest quote) in Depth frames too, as every key a web adapter sends from Quote up goes in each richer mode (feed/dialect/names.rs rules: no KeyError on the richer frame); Samco's web adapter sends best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity in Quote frames only.",
+      "ref": "feed/dialect/names.rs (module rules); samco_adapter.py _normalize_market_data (mode 2 only)",
+      "key": "best_ask_price"
+    },
+    {
+      "kind": "desktop-decision",
+      "reason": "The desktop sends Samco's best bid and ask (from Samco's latest quote) in Depth frames too, as every key a web adapter sends from Quote up goes in each richer mode (feed/dialect/names.rs rules: no KeyError on the richer frame); Samco's web adapter sends best_bid_price, best_bid_quantity, best_ask_price and best_ask_quantity in Quote frames only.",
+      "ref": "feed/dialect/names.rs (module rules); samco_adapter.py _normalize_market_data (mode 2 only)",
+      "key": "best_ask_quantity"
     }
   ]
 }

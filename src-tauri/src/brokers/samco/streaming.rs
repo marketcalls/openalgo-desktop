@@ -372,6 +372,12 @@ fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> Normalized
     if g("oI").is_some() {
         tick.mark_carried(QuoteField::OpenInterest);
     }
+    let (bid_price, bid_quantity) = best_level(merged, "bidValues", "bPr", "bSz");
+    let (ask_price, ask_quantity) = best_level(merged, "askValues", "aPr", "aSz");
+    tick.extras.bid_price = bid_price;
+    tick.extras.bid_quantity = bid_quantity;
+    tick.extras.ask_price = ask_price;
+    tick.extras.ask_quantity = ask_quantity;
     // Samco's own change, a 0 included; else the one the previous close
     // gives (none without a close).
     if g("ch").is_some() || g("chPer").is_some() {
@@ -380,6 +386,30 @@ fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> Normalized
         tick.derive_change();
     }
     tick
+}
+
+/// The best level of a book side, as the web's `best_bid_price` and
+/// `best_bid_quantity` (`samcoWebSocket._normalize_market_data`): the
+/// book's first level once Samco has sent one, else the quote's own
+/// (`bPr`/`bSz`, `aPr`/`aSz`); `None` for what Samco has sent neither of
+/// (the web sends 0).
+fn best_level(
+    merged: &Map<String, Value>,
+    side: &str,
+    price: &str,
+    quantity: &str,
+) -> (Option<f64>, Option<i64>) {
+    let top = merged
+        .get(side)
+        .and_then(Value::as_array)
+        .and_then(|levels| levels.first());
+    match top {
+        Some(l) => (Some(num(l.get("price"))), Some(int(l.get("qty")))),
+        None => (
+            merged.get(price).map(|v| num(Some(v))),
+            merged.get(quantity).map(|v| int(Some(v))),
+        ),
+    }
 }
 
 /// Whether Samco has sent the instrument's book (a quote2 frame).
