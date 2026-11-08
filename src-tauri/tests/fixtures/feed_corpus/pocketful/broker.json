@@ -1,0 +1,22 @@
+{
+  "broker": "pocketful",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": [
+      5
+    ],
+    "orders": false
+  },
+  "sources": [
+    "broker/pocketful/streaming/pocketful_adapter.py",
+    "broker/pocketful/streaming/pocketful_mapping.py",
+    "broker/pocketful/api/packet_decoder.py",
+    "services/order_update_service.py:36"
+  ],
+  "notes": [
+    "OpenAlgo LTP streams Pocketful's compact market data, Quote its detailed market data, Depth its snapquote (pocketful_adapter.py:244-249).",
+    "The web adapter refuses a Depth subscribe at any level but 5 (INVALID_DEPTH, pocketful_adapter.py:256-259); the desktop acknowledges it at 5 (feed::dialect, Fallback): case depth_20_refused_on_the_web.",
+    "The web has no Pocketful order feed (no factory in services/order_update_service.py) and its market adapter ignores the order and trade packets (modes 50 and 51) the socket carries; the desktop relays them: case order_packets."
+  ]
+}

@@ -1,0 +1,42 @@
+# Snapquote with an empty book (every level and both totals zero), the average still moving.
+04                      # mode 4: snapquote
+01                      # exchange code
+00000b45                # instrument token 2885
+00000000                # buyers[0]
+00000000                # buyers[1]
+00000000                # buyers[2]
+00000000                # buyers[3]
+00000000                # buyers[4]
+00000000                # bidPrices (paise)[0]
+00000000                # bidPrices (paise)[1]
+00000000                # bidPrices (paise)[2]
+00000000                # bidPrices (paise)[3]
+00000000                # bidPrices (paise)[4]
+00000000                # bidQtys[0]
+00000000                # bidQtys[1]
+00000000                # bidQtys[2]
+00000000                # bidQtys[3]
+00000000                # bidQtys[4]
+00000000                # sellers[0]
+00000000                # sellers[1]
+00000000                # sellers[2]
+00000000                # sellers[3]
+00000000                # sellers[4]
+00000000                # askPrices (paise)[0]
+00000000                # askPrices (paise)[1]
+00000000                # askPrices (paise)[2]
+00000000                # askPrices (paise)[3]
+00000000                # askPrices (paise)[4]
+00000000                # askQtys[0]
+00000000                # askQtys[1]
+00000000                # askQtys[2]
+00000000                # askQtys[3]
+00000000                # askQtys[4]
+00024978                # averageTradePrice paise (no LTP in this packet)
+00024608                # open paise
+00024dd8                # high paise
+00024414                # low paise
+00024540                # close paise
+0000000000000000        # totalBuyQty (u64)
+0000000000000000        # totalSellQty (u64)
+0012d6a8                # volume

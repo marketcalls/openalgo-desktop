@@ -1,0 +1,73 @@
+{
+  "broker": "pocketful",
+  "summary": "An LTP subscription on an NSE equity: Pocketful's 42-byte compact packet becomes an LTP frame; a fall decodes as a signed change; a packet cut short reaches nobody, nor does one after the unsubscribe.",
+  "scenarios": [
+    "first-full-packet",
+    "partial-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"a\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/pocketful/api/packet_decoder.py::decodeCompactMarketData",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter.subscribe",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._on_message",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._handle_compact_data",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._find_subscription"
+    ],
+    "notes": [
+      "Frames hand-built from the decoder's offsets (packet_decoder.py:252-265); the web publishes the compact packet on the subscription's LTP topic (pocketful_adapter.py:631-642)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "Pocketful sends the last trade time in epoch seconds; the web passes the seconds on as ltt (1762656900), the desktop sends epoch milliseconds (1762656900000), the unit the docs give every WebSocket time.",
+      "ref": "pocketful_adapter.py:583 and :633 (res.get('last_traded_time', 0)); docs/prompt/websockets-format.md"
+    },
+    {
+      "key": "change",
+      "kind": "open",
+      "reason": "The web's LTP frame carries the compact packet's change; the desktop's LTP frame carries no change. The desktop decodes it as signed (-10.50 on the fall), the web unsigned (packet_decoder.py:257, '>I'), so a fall shows on the web as 42949662.46: once the desktop carries the field that push is a web defect.",
+      "ref": "audit C04, C06, RB-14; pocketful_adapter.py:634"
+    },
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "The web's LTP frame carries the compact packet's open interest; the desktop's LTP frame carries none.",
+      "ref": "audit C05, C06; pocketful_adapter.py:635"
+    },
+    {
+      "key": "bid_price",
+      "kind": "open",
+      "reason": "The web's LTP frame carries the compact packet's best bid; the desktop's common carrier drops it.",
+      "ref": "audit C06 (dropped-fields table: pocketful compact bid_price); pocketful_adapter.py:636"
+    },
+    {
+      "key": "ask_price",
+      "kind": "open",
+      "reason": "The web's LTP frame carries the compact packet's best ask; the desktop's common carrier drops it.",
+      "ref": "audit C06 (dropped-fields table: pocketful compact ask_price); pocketful_adapter.py:637"
+    }
+  ]
+}

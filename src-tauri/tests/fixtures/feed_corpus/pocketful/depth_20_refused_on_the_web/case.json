@@ -1,0 +1,38 @@
+{
+  "broker": "pocketful",
+  "summary": "A Depth 20 subscribe: the desktop answers success at depth 5 and streams the five-level book; the web adapter refuses any Depth level but 5, so the web streams nothing.",
+  "scenarios": [
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"a\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter.subscribe",
+      "websocket_proxy/server.py::WebSocketProxy.subscribe_client"
+    ],
+    "notes": [
+      "Web acknowledgement worked from pocketful_adapter.py:256-259 (INVALID_DEPTH before the capability fallback, which is never reached) and server.py:1319-1336: {\"type\": \"subscribe\", \"status\": \"partial\", \"subscriptions\": [{\"symbol\": \"RELIANCE\", \"exchange\": \"NSE\", \"status\": \"error\", \"message\": \"Invalid depth level 20. Must be 5\", \"broker\": \"pocketful\"}], \"message\": \"Subscription processing complete\", \"broker\": \"pocketful\"}."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "frame",
+      "kind": "open",
+      "reason": "The web refuses a Depth subscribe at any level but 5 (INVALID_DEPTH), so it streams nothing; the desktop acknowledges it at depth 5 and streams the book (feed::dialect lists Pocketful as Fallback). The acknowledgement and this frame follow from the same rule: refuse like the web, or keep the fallback as a decision the lead approves.",
+      "ref": "PF-02 (new); pocketful_adapter.py:256-259; feed/dialect.rs depth_ack"
+    }
+  ]
+}

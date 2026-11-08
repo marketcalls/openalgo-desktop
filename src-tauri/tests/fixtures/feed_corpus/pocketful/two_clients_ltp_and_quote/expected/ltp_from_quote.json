@@ -1,0 +1,15 @@
+{
+  "type": "market_data",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "mode": 1,
+  "broker": "pocketful",
+  "data": {
+    "symbol": "RELIANCE",
+    "exchange": "NSE",
+    "mode": "ltp",
+    "ltp": 1500.25,
+    "ltt": 1762656900000,
+    "timestamp": "<receipt_ms>"
+  }
+}

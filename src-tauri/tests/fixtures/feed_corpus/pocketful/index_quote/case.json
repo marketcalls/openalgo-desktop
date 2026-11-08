@@ -1,0 +1,88 @@
+{
+  "broker": "pocketful",
+  "summary": "A Quote subscription on NIFTY (NSE_INDEX): the detailed packet of an index becomes an index Quote frame with the change worked out from the previous close.",
+  "scenarios": [
+    "first-full-packet",
+    "index"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "Nifty 50",
+      "brexchange": "NSE",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"a\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._handle_detailed_data",
+      "broker/pocketful/api/packet_decoder.py::decodeDetailedMarketData"
+    ],
+    "notes": [
+      "Whether Pocketful streams indices with the detailed layout, and with what in the trade fields, needs a live check."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "Pocketful sends the last trade time in epoch seconds; the web passes the seconds on as ltt (1762656900), the desktop sends epoch milliseconds (1762656900000), the unit the docs give every WebSocket time.",
+      "ref": "pocketful_adapter.py:583 and :633 (res.get('last_traded_time', 0)); docs/prompt/websockets-format.md"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends an index's change from its LTP and previous close for every broker (as the recorded Zerodha index transcript); this web adapter sends no change in a Quote frame.",
+      "ref": "feed::bridge::quote_fields; tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends an index's change percent from its LTP and previous close for every broker (as the recorded Zerodha index transcript); this web adapter sends none.",
+      "ref": "feed::bridge::quote_fields; tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries no trade quantity, average or book totals on the desktop, for every broker (the recorded Zerodha index transcript); the web passes on the index packet's zeros.",
+      "ref": "feed::protocol::market_data (index)"
+    },
+    {
+      "key": "average_price",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries no trade quantity, average or book totals on the desktop, for every broker (the recorded Zerodha index transcript); the web passes on the index packet's zeros.",
+      "ref": "feed::protocol::market_data (index)"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries no trade quantity, average or book totals on the desktop, for every broker (the recorded Zerodha index transcript); the web passes on the index packet's zeros.",
+      "ref": "feed::protocol::market_data (index)"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries no trade quantity, average or book totals on the desktop, for every broker (the recorded Zerodha index transcript); the web passes on the index packet's zeros.",
+      "ref": "feed::protocol::market_data (index)"
+    },
+    {
+      "key": "oi",
+      "kind": "desktop-decision",
+      "reason": "An index has no open interest; the desktop leaves oi out of an index frame, the web passes the packet's 0.",
+      "ref": "feed::protocol::market_data (index)"
+    }
+  ]
+}

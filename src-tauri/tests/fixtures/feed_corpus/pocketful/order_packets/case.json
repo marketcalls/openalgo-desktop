@@ -1,0 +1,45 @@
+{
+  "broker": "pocketful",
+  "summary": "Order (mode 50) and trade (mode 51) packets on the market data socket: the desktop relays each as an order_update with OpenAlgo's constants (open, partly filled, complete, a trade fill, rejected with its reason, cancelled); the web's market adapter ignores both modes and the web has no Pocketful order feed.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"a\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "by-hand",
+    "sources": [
+      "broker/pocketful/api/packet_decoder.py::decodeOrderUpdate",
+      "broker/pocketful/api/packet_decoder.py::decodeTradeUpdate",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._on_message",
+      "services/order_update_service.py::_BROKER_FACTORIES"
+    ],
+    "notes": [
+      "The web decodes these packets (packet_decoder.py:279-302, after a 5-byte prefix) but _on_message dispatches modes 1, 2 and 4 only (pocketful_adapter.py:546-551), and order_update_service.py:36-79 has no Pocketful factory, so no order update reaches a web client.",
+      "The JSON field names follow Pocketful's order book (oms_order_id, order_status, trading_symbol, ...), as brokers/pocketful/streaming.rs::PocketfulFeed::order_update reads them; the live packet layout is unverified."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "frame",
+      "kind": "web-defect",
+      "reason": "Pocketful sends order and trade updates on the market data socket (modes 50 and 51, which the web's own packet_decoder.py decodes) and the web drops them, so a web client never hears an order change; the desktop relays them as order_update frames (an extension the audit records, RB-14).",
+      "ref": "audit RB-14; pocketful_adapter.py:546-551; services/order_update_service.py:36-79"
+    }
+  ]
+}

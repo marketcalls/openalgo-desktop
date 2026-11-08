@@ -24,6 +24,7 @@ mod arrow;
 mod dhan;
 mod iiflcapital;
 mod paytm;
+mod pocketful;
 mod rupeezy;
 mod samco;
 mod zerodha;
@@ -35,6 +36,7 @@ const BROKERS: &[(&str, &[&str])] = &[
     ("dhan", dhan::CASES),
     ("iiflcapital", iiflcapital::CASES),
     ("paytm", paytm::CASES),
+    ("pocketful", pocketful::CASES),
     ("rupeezy", rupeezy::CASES),
     ("samco", samco::CASES),
     ("zerodha", zerodha::CASES),

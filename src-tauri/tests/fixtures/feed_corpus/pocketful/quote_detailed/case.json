@@ -1,0 +1,58 @@
+{
+  "broker": "pocketful",
+  "summary": "A Quote subscription on an NSE equity: the 102-byte detailed packet becomes a Quote frame with every quote field.",
+  "scenarios": [
+    "first-full-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"a\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/pocketful/api/packet_decoder.py::decodeDetailedMarketData",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter.subscribe",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._handle_detailed_data"
+    ],
+    "notes": [
+      "The web's detailed frame sends no change, bid/ask or 52-week fields though the packet carries them (pocketful_adapter.py:581-598); the desktop does not send them either."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "Pocketful sends the last trade time in epoch seconds; the web passes the seconds on as ltt (1762656900), the desktop sends epoch milliseconds (1762656900000), the unit the docs give every WebSocket time.",
+      "ref": "pocketful_adapter.py:583 and :633 (res.get('last_traded_time', 0)); docs/prompt/websockets-format.md"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends the canonical last_quantity for every broker and Pocketful's web name last_trade_quantity beside it with the same value; this web adapter sends last_trade_quantity only.",
+      "ref": "feed::dialect (WS-05), pocketful_adapter.py:589"
+    },
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "The detailed packet carries the open interest and the web's Quote frame sends it (0 for an equity); the desktop's Quote frame leaves OI out, which the carrier work is to fix.",
+      "ref": "audit C05; pocketful_adapter.py:593"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "pocketful",
+  "inputs_sha256": "1ccad53bc73757a12b1981698f7ec851646725842334acf0e2cb5ce60481a868",
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV25FUT",
+      "exchange": "NFO",
+      "token": "52345",
+      "brsymbol": "NIFTY25NOVFUT",
+      "brexchange": "NFO",
+      "lotsize": 75,
+      "instrumenttype": "FUT",
+      "expiry": "25-NOV-25"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV25FUT_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 24680.5,
+            "ltt": 1762656910,
+            "volume": 4567800,
+            "open": 24550.0,
+            "high": 24750.0,
+            "low": 24500.0,
+            "close": 24490.0,
+            "last_trade_quantity": 75,
+            "average_price": 24655.25,
+            "total_buy_quantity": 912000,
+            "total_sell_quantity": 845000,
+            "oi": 12345675,
+            "symbol": "NIFTY25NOV25FUT",
+            "exchange": "NFO",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

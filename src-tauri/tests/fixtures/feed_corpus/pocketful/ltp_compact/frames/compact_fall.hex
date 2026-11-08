@@ -1,0 +1,14 @@
+# Compact packet after a fall: change -10.50, 0xfffffbe6 as a signed int32
+# (4294966246 read unsigned, as the web's '>I' reads it).
+02                      # mode 2: compact market data
+01                      # exchange code
+00000b45                # instrument token 2885
+000245ef                # last traded price 148975 paise
+fffffbe6                # change -1050 paise (signed on the wire)
+691002c0                # last traded time 1762656960 (epoch seconds)
+00020bd4                # lowDPR paise
+0002803c                # highDPR paise
+00000000                # currentOpenInterest
+00000000                # initialOpenInterest
+000245ea                # bidPrice 148970 paise
+000245f4                # askPrice 148980 paise

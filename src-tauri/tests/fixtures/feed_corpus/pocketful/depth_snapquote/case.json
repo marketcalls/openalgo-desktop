@@ -1,0 +1,80 @@
+{
+  "broker": "pocketful",
+  "summary": "A Depth subscription: the 166-byte snapquote gives the best five each side and the day's figures; it has no LTP, so both sides publish its average trade price as ltp; an empty book is five zero levels each side on both.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"a\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/pocketful/api/packet_decoder.py::decodeSnapquoteData",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._handle_snapquote_data",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._extract_depth_buy",
+      "broker/pocketful/streaming/pocketful_adapter.py::PocketfulWebSocketAdapter._extract_depth_sell"
+    ],
+    "notes": [
+      "Average as LTP is inherited from the web (audit inherited limitation 1): both publish 1498.76 here, pinned as it is.",
+      "A Depth subscriber gets the book frame only; the desktop's frame takes its quote fields from the snapquote's own tick."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "open",
+      "reason": "The snapquote packet carries no trade time; the web leaves ltt out of its Depth frame, the desktop sends the time it received the packet as ltt. A Depth frame must leave out what the stream does not carry (CLAUDE.md, web openalgo#2376): mark it absent in the Pocketful adapter.",
+      "ref": "PF-01 (new); pocketful_adapter.py:675-688; brokers/pocketful/streaming.rs tick_from Snapquote"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "open",
+      "reason": "The snapquote packet carries no last traded quantity; the web leaves last_quantity out of its Depth frame, the desktop sends last_quantity 0. A Depth frame must leave out what the stream does not carry (CLAUDE.md, web openalgo#2376): mark it absent in the Pocketful adapter.",
+      "ref": "PF-01 (new); pocketful_adapter.py:675-688; brokers/pocketful/streaming.rs tick_from Snapquote"
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "open",
+      "reason": "The snapquote packet carries no last traded quantity; the web leaves last_trade_quantity out of its Depth frame, the desktop sends its alias last_trade_quantity 0. A Depth frame must leave out what the stream does not carry (CLAUDE.md, web openalgo#2376): mark it absent in the Pocketful adapter.",
+      "ref": "PF-01 (new); pocketful_adapter.py:675-688; brokers/pocketful/streaming.rs tick_from Snapquote"
+    },
+    {
+      "key": "average_price",
+      "kind": "open",
+      "reason": "The snapquote packet's only price is the average trade price, which both sides publish as ltp; the web leaves average_price out, the desktop sends average_price 0.0, a wrong number. Send the average as average_price (or leave it out); never 0.",
+      "ref": "PF-01 (new); pocketful_adapter.py:675-688; brokers/pocketful/streaming.rs tick_from Snapquote"
+    },
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "The snapquote packet carries no open interest; the web leaves oi out of its Depth frame, the desktop sends oi 0. A Depth frame must leave out what the stream does not carry (CLAUDE.md, web openalgo#2376): mark it absent in the Pocketful adapter.",
+      "ref": "PF-01 (new); pocketful_adapter.py:675-688; brokers/pocketful/streaming.rs tick_from Snapquote"
+    },
+    {
+      "key": "open_interest",
+      "kind": "open",
+      "reason": "The snapquote packet carries no open interest; the web leaves open_interest out of its Depth frame, the desktop sends open_interest 0. A Depth frame must leave out what the stream does not carry (CLAUDE.md, web openalgo#2376): mark it absent in the Pocketful adapter.",
+      "ref": "PF-01 (new); pocketful_adapter.py:675-688; brokers/pocketful/streaming.rs tick_from Snapquote"
+    }
+  ]
+}
