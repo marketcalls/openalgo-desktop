@@ -62,6 +62,18 @@
       "kind": "open",
       "reason": "The web sends Upstox's closing-auction fields, from the tick that carried them; the desktop's decoder reads them (proto.rs) and the common carrier drops them (audit P-11; lane wire must carry them, then the Upstox decoder fills them per tick, keeping the sign of the imbalance).",
       "ref": "upstox_adapter.py:957-1010"
+    },
+    {
+      "key": "cp",
+      "kind": "desktop-decision",
+      "reason": "The web's Upstox LTP payload names the previous close cp; A key the web sends from some mode up is sent in that mode and every mode above it, so a script reading it on the richer frame meets no KeyError (feed/dialect/names.rs rules, docs/port/market-data-frames.md).",
+      "ref": "upstox_adapter.py:889-892; feed/dialect/names.rs UPSTOX"
+    },
+    {
+      "key": "ltq",
+      "kind": "desktop-decision",
+      "reason": "The web's Upstox LTP payload names the last quantity ltq; A key the web sends from some mode up is sent in that mode and every mode above it, so a script reading it on the richer frame meets no KeyError (feed/dialect/names.rs rules, docs/port/market-data-frames.md).",
+      "ref": "upstox_adapter.py:889-892; feed/dialect/names.rs UPSTOX"
     }
   ]
 }

@@ -37,5 +37,84 @@
     ],
     "notes": []
   },
-  "deviations": []
+  "deviations": [
+    {
+      "key": "ask_price",
+      "kind": "desktop-decision",
+      "reason": "The web's Fyers quote carries the best bid and ask with sizes; A key the web sends from some mode up is sent in that mode and every mode above it, so a script reading it on the richer frame meets no KeyError (feed/dialect/names.rs rules, docs/port/market-data-frames.md).",
+      "ref": "fyers_mapping.py:158-161; feed/dialect/names.rs FYERS"
+    },
+    {
+      "key": "ask_size",
+      "kind": "desktop-decision",
+      "reason": "The web's Fyers quote carries the best bid and ask with sizes; A key the web sends from some mode up is sent in that mode and every mode above it, so a script reading it on the richer frame meets no KeyError (feed/dialect/names.rs rules, docs/port/market-data-frames.md).",
+      "ref": "fyers_mapping.py:158-161; feed/dialect/names.rs FYERS"
+    },
+    {
+      "key": "bid_price",
+      "kind": "desktop-decision",
+      "reason": "The web's Fyers quote carries the best bid and ask with sizes; A key the web sends from some mode up is sent in that mode and every mode above it, so a script reading it on the richer frame meets no KeyError (feed/dialect/names.rs rules, docs/port/market-data-frames.md).",
+      "ref": "fyers_mapping.py:158-161; feed/dialect/names.rs FYERS"
+    },
+    {
+      "key": "bid_size",
+      "kind": "desktop-decision",
+      "reason": "The web's Fyers quote carries the best bid and ask with sizes; A key the web sends from some mode up is sent in that mode and every mode above it, so a script reading it on the richer frame meets no KeyError (feed/dialect/names.rs rules, docs/port/market-data-frames.md).",
+      "ref": "fyers_mapping.py:158-161; feed/dialect/names.rs FYERS"
+    },
+    {
+      "key": "depth_levels",
+      "kind": "open",
+      "reason": "The web's 50-level frame carries depth_levels, feed_time, is_50_depth and the TBT totals as total_buy_qty / total_sell_qty; the carrier has none of these yet (lane wire step 2: Fyers 50-level meta keys).",
+      "ref": "fyers_mapping.py:300-312; phase-b.md"
+    },
+    {
+      "key": "feed_time",
+      "kind": "open",
+      "reason": "The web's 50-level frame carries depth_levels, feed_time, is_50_depth and the TBT totals as total_buy_qty / total_sell_qty; the carrier has none of these yet (lane wire step 2: Fyers 50-level meta keys).",
+      "ref": "fyers_mapping.py:300-312; phase-b.md"
+    },
+    {
+      "key": "is_50_depth",
+      "kind": "open",
+      "reason": "The web's 50-level frame carries depth_levels, feed_time, is_50_depth and the TBT totals as total_buy_qty / total_sell_qty; the carrier has none of these yet (lane wire step 2: Fyers 50-level meta keys).",
+      "ref": "fyers_mapping.py:300-312; phase-b.md"
+    },
+    {
+      "key": "price_change",
+      "kind": "open",
+      "reason": "The desktop also sends the canonical price_change / price_change_percent on a Fyers instrument, whose adapter names the change change / change_percent / percent_change only (lead ruling: non-docs change keys follow the adapter). The dialect has no switch that drops the canonical keys and keeps the adapter's names (instrument_change gates both): lane wire.",
+      "ref": "feed/dialect/names.rs Dialect::instrument_change"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "open",
+      "reason": "The desktop also sends the canonical price_change / price_change_percent on a Fyers instrument, whose adapter names the change change / change_percent / percent_change only (lead ruling: non-docs change keys follow the adapter). The dialect has no switch that drops the canonical keys and keeps the adapter's names (instrument_change gates both): lane wire.",
+      "ref": "feed/dialect/names.rs Dialect::instrument_change"
+    },
+    {
+      "key": "timestamp",
+      "kind": "web-defect",
+      "reason": "The web stamps the 50-level frame with int(time.time()), epoch seconds; feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md), as the desktop sends them.",
+      "ref": "fyers_mapping.py:307"
+    },
+    {
+      "key": "token",
+      "kind": "open",
+      "reason": "The web's 50-level frame names the Fyers ticker (NSE:SBIN-EQ) as token, its HSM frames the exchange token; the desktop sends the master's fytoken in both (lane wire step 2: Fyers 50-level meta keys).",
+      "ref": "fyers_mapping.py:303"
+    },
+    {
+      "key": "total_buy_qty",
+      "kind": "open",
+      "reason": "The web's 50-level frame carries depth_levels, feed_time, is_50_depth and the TBT totals as total_buy_qty / total_sell_qty; the carrier has none of these yet (lane wire step 2: Fyers 50-level meta keys).",
+      "ref": "fyers_mapping.py:300-312; phase-b.md"
+    },
+    {
+      "key": "total_sell_qty",
+      "kind": "open",
+      "reason": "The web's 50-level frame carries depth_levels, feed_time, is_50_depth and the TBT totals as total_buy_qty / total_sell_qty; the carrier has none of these yet (lane wire step 2: Fyers 50-level meta keys).",
+      "ref": "fyers_mapping.py:300-312; phase-b.md"
+    }
+  ]
 }

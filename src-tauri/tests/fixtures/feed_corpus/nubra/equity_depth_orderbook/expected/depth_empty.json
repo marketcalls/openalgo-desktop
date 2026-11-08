@@ -13,6 +13,8 @@
     "mode": "full",
     "symbol": "RELIANCE",
     "timestamp": 1740729569000,
+    "total_buy_quantity": 0,
+    "total_sell_quantity": 0,
     "volume": 50010
   },
   "exchange": "NSE",

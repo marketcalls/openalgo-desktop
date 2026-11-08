@@ -41,10 +41,14 @@
     "low": 63217.5,
     "ltp": 63838.06,
     "mode": 3,
-    "oi": 1407713,
+    "oi": 1407713.0,
     "open": 64025.0,
     "symbol": "BTCUSDFUT",
-    "timestamp": "<receipt_ms>"
+    "timestamp": "<receipt_ms>",
+    "total_buy_quantity": 4663,
+    "total_sell_quantity": 878,
+    "totalbuyqty": 4663,
+    "totalsellqty": 878
   },
   "exchange": "CRYPTO",
   "mode": 3,

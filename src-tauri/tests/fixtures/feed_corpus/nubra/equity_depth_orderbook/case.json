@@ -38,6 +38,18 @@
       "kind": "open",
       "reason": "Both pad a short side to five levels; the web's padding levels carry price 0 (an integer), the desktop's 0.0. Lead rule 2026-11-09: number types follow the web adapter; lane wire to settle padded books for every broker.",
       "ref": "nubra_adapter.py:870-875; brokers/nubra/streaming.rs levels"
+    },
+    {
+      "key": "ask",
+      "kind": "desktop-decision",
+      "reason": "The web's Nubra Quote carries the best ask; A key the web sends from some mode up is sent in that mode and every mode above it, so a script reading it on the richer frame meets no KeyError (feed/dialect/names.rs rules, docs/port/market-data-frames.md).",
+      "ref": "nubra_adapter.py:840-851; feed/dialect/names.rs NUBRA"
+    },
+    {
+      "key": "bid",
+      "kind": "desktop-decision",
+      "reason": "The web's Nubra Quote carries the best bid; A key the web sends from some mode up is sent in that mode and every mode above it, so a script reading it on the richer frame meets no KeyError (feed/dialect/names.rs rules, docs/port/market-data-frames.md).",
+      "ref": "nubra_adapter.py:840-851; feed/dialect/names.rs NUBRA"
     }
   ]
 }

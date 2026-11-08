@@ -47,22 +47,22 @@
       "ref": "delta_adapter.py:622-623"
     },
     {
-      "key": "totalbuyqty",
-      "kind": "open",
-      "reason": "The web's name for the summed bid sizes; the desktop sends total_buy_quantity. An alias for lane wire, or a web defect if the sum is dropped.",
-      "ref": "delta_adapter.py:622"
-    },
-    {
-      "key": "totalsellqty",
-      "kind": "open",
-      "reason": "As totalbuyqty, for the asks.",
-      "ref": "delta_adapter.py:623"
-    },
-    {
       "key": "depth",
       "kind": "open",
       "reason": "Delta's ob_l2 has no order counts: the web's levels carry price and quantity only, the desktop's carry orders 0 (an invented zero; the 1.0.6 known limitation). Both pad a short side to five zero levels, which lane wire should settle for every broker (no padded book).",
       "ref": "delta_adapter.py:606-617; brokers/deltaexchange/streaming.rs book"
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "Delta's ticker carries no average price; the web sends a constant 0 (_normalise_ticker's defaults). The docs say leave out a field the stream does not carry, as the desktop does.",
+      "ref": "delta_adapter.py:584"
+    },
+    {
+      "key": "oi_change",
+      "kind": "web-defect",
+      "reason": "The web sends a constant oi_change of 0 on every ticker (_normalise_ticker's defaults) whatever Delta sent; a value the desktop does not know is left out.",
+      "ref": "delta_adapter.py:584"
     }
   ]
 }

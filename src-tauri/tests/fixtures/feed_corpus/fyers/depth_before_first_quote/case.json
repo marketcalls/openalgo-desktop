@@ -50,6 +50,42 @@
       "kind": "desktop-decision",
       "reason": "A depth frame keeps ltp, which the SDK's Depth callback reads: 0 before the instrument's first quote; the web's Fyers depth before the first quote has no ltp (CLAUDE.md, the compatibility contract).",
       "ref": "feed::bridge::depth_update; fyers_adapter.py:535"
+    },
+    {
+      "key": "ask_price",
+      "kind": "desktop-decision",
+      "reason": "The web's Fyers quote carries the best bid and ask with sizes; A key the web sends from some mode up is sent in that mode and every mode above it, so a script reading it on the richer frame meets no KeyError (feed/dialect/names.rs rules, docs/port/market-data-frames.md).",
+      "ref": "fyers_mapping.py:158-161; feed/dialect/names.rs FYERS"
+    },
+    {
+      "key": "ask_size",
+      "kind": "desktop-decision",
+      "reason": "The web's Fyers quote carries the best bid and ask with sizes; A key the web sends from some mode up is sent in that mode and every mode above it, so a script reading it on the richer frame meets no KeyError (feed/dialect/names.rs rules, docs/port/market-data-frames.md).",
+      "ref": "fyers_mapping.py:158-161; feed/dialect/names.rs FYERS"
+    },
+    {
+      "key": "bid_price",
+      "kind": "desktop-decision",
+      "reason": "The web's Fyers quote carries the best bid and ask with sizes; A key the web sends from some mode up is sent in that mode and every mode above it, so a script reading it on the richer frame meets no KeyError (feed/dialect/names.rs rules, docs/port/market-data-frames.md).",
+      "ref": "fyers_mapping.py:158-161; feed/dialect/names.rs FYERS"
+    },
+    {
+      "key": "bid_size",
+      "kind": "desktop-decision",
+      "reason": "The web's Fyers quote carries the best bid and ask with sizes; A key the web sends from some mode up is sent in that mode and every mode above it, so a script reading it on the richer frame meets no KeyError (feed/dialect/names.rs rules, docs/port/market-data-frames.md).",
+      "ref": "fyers_mapping.py:158-161; feed/dialect/names.rs FYERS"
+    },
+    {
+      "key": "price_change",
+      "kind": "open",
+      "reason": "The desktop also sends the canonical price_change / price_change_percent on a Fyers instrument, whose adapter names the change change / change_percent / percent_change only (lead ruling: non-docs change keys follow the adapter). The dialect has no switch that drops the canonical keys and keeps the adapter's names (instrument_change gates both): lane wire.",
+      "ref": "feed/dialect/names.rs Dialect::instrument_change"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "open",
+      "reason": "The desktop also sends the canonical price_change / price_change_percent on a Fyers instrument, whose adapter names the change change / change_percent / percent_change only (lead ruling: non-docs change keys follow the adapter). The dialect has no switch that drops the canonical keys and keeps the adapter's names (instrument_change gates both): lane wire.",
+      "ref": "feed/dialect/names.rs Dialect::instrument_change"
     }
   ]
 }
