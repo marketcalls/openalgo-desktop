@@ -27,59 +27,29 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The desktop puts its mode label (ltp, quote, full) in data.mode; the Paytm web adapter puts the subscription mode number there (1, 2, 3). Follows each broker's own web adapter (lead rule 2026-11-09): set by the per-broker dialect switch in Phase B.",
-      "ref": "paytm_adapter.py:674; feed::dialect (per-broker switch, lane wire)"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web passes Paytm's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
-      "ref": "paytm_adapter.py:702, 709, 728 (raw last_traded_time); audit remaining brokers matrix (Paytm: native seconds -> ms)",
+      "ref": "paytm_adapter.py:702, 709, 728 (raw last_traded_time)",
       "approved": true
     },
     {
       "key": "last_trade_quantity",
       "kind": "open",
-      "reason": "The desktop sends last_trade_quantity beside last_quantity in Quote and Depth alike; the Paytm web adapter's Depth frame names it last_quantity only. Names follow each broker's own web adapter, mode by mode (lead ruling 2026-11-09): set by the per-broker dialect switch in Phase B.",
-      "ref": "feed::dialect (WS-05); paytm_adapter.py:734"
+      "reason": "The desktop sends last_trade_quantity from Quote up (names.rs `from`); the Paytm web adapter's Depth frame names the value last_quantity only (paytm_adapter.py:734). Open until wire's WebName.to; in the fan-out case the web's Quote holder also gets the Depth dict (C08).",
+      "ref": "paytm_adapter.py:715, 734; feed/dialect/names.rs PAYTM"
     },
     {
-      "key": "open_interest",
+      "key": "price_change",
       "kind": "open",
-      "reason": "The desktop sends OI as both oi and open_interest; the Paytm web adapter sends oi only. Follows each broker's own web adapter (lead rule 2026-11-09): set by the per-broker dialect switch in Phase B.",
-      "ref": "paytm_adapter.py:745-747; feed::protocol::market_data; feed::dialect (per-broker switch, lane wire)"
+      "reason": "The desktop sends the canonical price_change and price_change_percent on an instrument beside the web adapter's own change keys (change_absolute, change_percent); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
+      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
     },
     {
-      "key": "change_absolute",
+      "key": "price_change_percent",
       "kind": "open",
-      "reason": "The web sends the change Paytm's packet carries in every mode; the desktop decodes it (NormalizedTick::change) and sends it in index frames only.",
-      "ref": "paytm_adapter.py:703, 719, 738; audit C04 (change on all exchanges)"
-    },
-    {
-      "key": "change_percent",
-      "kind": "open",
-      "reason": "The web sends the change Paytm's packet carries in every mode; the desktop decodes it (NormalizedTick::change) and sends it in index frames only.",
-      "ref": "paytm_adapter.py:703, 719, 738; audit C04 (change on all exchanges)"
-    },
-    {
-      "key": "oi_change",
-      "kind": "open",
-      "reason": "The web sends the FULL packet's OI change in Depth frames; the desktop does not decode it and its common carrier has no place for it.",
-      "ref": "paytm_adapter.py:745-747; paytm_websocket.py:509-511; audit C06"
-    },
-    {
-      "key": "52_week_high",
-      "kind": "open",
-      "reason": "The web sends the packet's 52-week high and low in Quote and Depth frames; the desktop's common carrier has no place for them.",
-      "ref": "paytm_adapter.py:721-722, 740-741; audit C06 (remaining brokers: Paytm 52-week)"
-    },
-    {
-      "key": "52_week_low",
-      "kind": "open",
-      "reason": "The web sends the packet's 52-week high and low in Quote and Depth frames; the desktop's common carrier has no place for them.",
-      "ref": "paytm_adapter.py:721-722, 740-741; audit C06 (remaining brokers: Paytm 52-week)"
+      "reason": "The desktop sends the canonical price_change and price_change_percent on an instrument beside the web adapter's own change keys (change_absolute, change_percent); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
+      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
     }
   ]
 }

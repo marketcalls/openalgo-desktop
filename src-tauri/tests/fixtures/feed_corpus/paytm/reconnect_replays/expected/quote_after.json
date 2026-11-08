@@ -7,7 +7,7 @@
   "data": {
     "symbol": "RELIANCE",
     "exchange": "NSE",
-    "mode": "quote",
+    "mode": 2,
     "ltp": 1501.0,
     "ltt": 1791000500000,
     "timestamp": "<receipt_ms>",
@@ -20,6 +20,12 @@
     "high": 1510.2,
     "low": 1485.1,
     "close": 1488.3,
-    "last_trade_quantity": 40
+    "price_change": 12.7,
+    "price_change_percent": 0.85,
+    "change_absolute": 12.7,
+    "change_percent": 0.85,
+    "last_trade_quantity": 40,
+    "52_week_high": 1608.95,
+    "52_week_low": 1201.5
   }
 }

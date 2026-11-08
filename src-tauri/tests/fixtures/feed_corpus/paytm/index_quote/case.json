@@ -30,68 +30,58 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The desktop puts its mode label (ltp, quote, full) in data.mode; the Paytm web adapter puts the subscription mode number there (1, 2, 3). Follows each broker's own web adapter (lead rule 2026-11-09): set by the per-broker dialect switch in Phase B.",
-      "ref": "paytm_adapter.py:674; feed::dialect (per-broker switch, lane wire)"
-    },
-    {
-      "key": "52_week_high",
-      "kind": "open",
-      "reason": "The web sends the packet's 52-week high and low in Quote and Depth frames; the desktop's common carrier has no place for them.",
-      "ref": "paytm_adapter.py:721-722, 740-741; audit C06 (remaining brokers: Paytm 52-week)"
-    },
-    {
-      "key": "52_week_low",
-      "kind": "open",
-      "reason": "The web sends the packet's 52-week high and low in Quote and Depth frames; the desktop's common carrier has no place for them.",
-      "ref": "paytm_adapter.py:721-722, 740-741; audit C06 (remaining brokers: Paytm 52-week)"
-    },
-    {
-      "key": "price_change",
-      "kind": "open",
-      "reason": "The desktop sends the change under the canonical names price_change and price_change_percent beside the Paytm (change_absolute, change_percent) web names; price_change is not a docs key and the web adapter sends none, so it goes. Names follow each broker's own web adapter, mode by mode (lead ruling 2026-11-09): set by the per-broker dialect switch in Phase B.",
-      "ref": "feed::dialect (WS-05; per-broker switch, lane wire)"
-    },
-    {
-      "key": "price_change_percent",
-      "kind": "open",
-      "reason": "The desktop sends the change under the canonical names price_change and price_change_percent beside the Paytm (change_absolute, change_percent) web names; price_change is not a docs key and the web adapter sends none, so it goes. Names follow each broker's own web adapter, mode by mode (lead ruling 2026-11-09): set by the per-broker dialect switch in Phase B.",
-      "ref": "feed::dialect (WS-05; per-broker switch, lane wire)"
+      "key": "volume",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:707-723; paytm_websocket.py:395-414",
+      "approved": true
     },
     {
       "key": "last_trade_quantity",
       "kind": "web-defect",
-      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). Paytm's INDEX_QUOTE packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
       "ref": "paytm_adapter.py:707-723; paytm_websocket.py:395-414",
       "approved": true
     },
     {
       "key": "average_price",
       "kind": "web-defect",
-      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). Paytm's INDEX_QUOTE packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
       "ref": "paytm_adapter.py:707-723; paytm_websocket.py:395-414",
       "approved": true
     },
     {
       "key": "total_buy_quantity",
       "kind": "web-defect",
-      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). Paytm's INDEX_QUOTE packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
       "ref": "paytm_adapter.py:707-723; paytm_websocket.py:395-414",
       "approved": true
     },
     {
       "key": "total_sell_quantity",
       "kind": "web-defect",
-      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). Paytm's INDEX_QUOTE packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). An index has no trades, book or open interest: Paytm's index packet fills these with zeros, which the web passes on; the desktop's index frame leaves them out.",
       "ref": "paytm_adapter.py:707-723; paytm_websocket.py:395-414",
       "approved": true
     },
     {
       "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web sends zero; the docs say leave it out (docs/prompt/websockets-format.md, \"Field availability\": a field the stream does not carry is not invented as zero; lead decision 2026-11-09). The INDEX_QUOTE packet carries no time; the web sends ltt 0, the desktop leaves ltt out.",
+      "ref": "paytm_adapter.py:709",
+      "approved": true
+    },
+    {
+      "key": "price_change",
       "kind": "open",
-      "reason": "The INDEX_QUOTE packet carries no time. The web sends ltt 0, an invented time; the desktop sends the receipt time as the trade time, which the lead's rules forbid too. A desktop defect: mark the trade time absent for this packet, so ltt is left out.",
-      "ref": "paytm_adapter.py:709; feed::bridge::ltt; BKD-03"
+      "reason": "The desktop sends the canonical price_change and price_change_percent on an index beside the web adapter's own change keys (change_absolute, change_percent); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
+      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "open",
+      "reason": "The desktop sends the canonical price_change and price_change_percent on an index beside the web adapter's own change keys (change_absolute, change_percent); the adapter sends no price_change, which is not a docs key, so it goes. Open until wire's per-broker rule for canonical keys (each key's mode range or never, index and non-index apart; lead 2026-11-09).",
+      "ref": "feed/protocol/market.rs canonical(); feed/dialect/names.rs"
     }
   ]
 }

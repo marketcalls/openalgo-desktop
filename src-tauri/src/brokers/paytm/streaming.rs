@@ -20,7 +20,7 @@
 use super::mapping::scrip_type;
 use crate::brokers::common::streaming::{
     now_ms, round2, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, WsRequest,
+    NormalizedTick, QuoteField, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -59,7 +59,6 @@ pub fn packet_len(code: u8) -> Option<usize> {
 struct SubInfo {
     symbol: String,
     exchange: String,
-    mode: FeedMode,
     pref: Value,
 }
 
@@ -215,12 +214,63 @@ pub fn decode_packet(p: &[u8]) -> Option<Packet> {
     if t.change == 0.0 && t.change_percent == 0.0 {
         t.derive_change();
     }
+    mark_packet(code, p, &mut t);
     Some(Packet {
         code,
         security_id: id,
         tick: t,
         depth,
     })
+}
+
+/// The OpenAlgo mode a packet code carries (the web's `subscription_mode`
+/// per parser, `paytm_websocket.py:332-533`).
+fn code_mode(code: u8) -> u8 {
+    match code {
+        CODE_LTP | CODE_INDEX_LTP => FeedMode::Ltp.code(),
+        CODE_QUOTE | CODE_INDEX_QUOTE => FeedMode::Quote.code(),
+        _ => FeedMode::Depth.code(),
+    }
+}
+
+/// The packet's mode, what it carries beyond it and what it lacks
+/// (`paytm_adapter.py::_normalize_market_data`): every packet carries the
+/// broker's change, an LTP packet's included; QUOTE and FULL their 52-week
+/// range, FULL its OI change. The index packets carry no trades, average
+/// price or book totals (and INDEX_QUOTE no time, INDEX_FULL no OI), which
+/// the web fills with 0 and a frame here leaves out.
+fn mark_packet(code: u8, p: &[u8], t: &mut NormalizedTick) {
+    use QuoteField as F;
+    const NO_TRADES: [QuoteField; 5] = [
+        F::Volume,
+        F::LastQuantity,
+        F::AveragePrice,
+        F::TotalBuyQuantity,
+        F::TotalSellQuantity,
+    ];
+    let week_52 = |t: &mut NormalizedTick, at: usize| {
+        t.extras.high_52_week = Some(f32le(p, at));
+        t.extras.low_52_week = Some(f32le(p, at + 4));
+    };
+    t.mode = code_mode(code);
+    t.mark_carried(F::Change);
+    match code {
+        CODE_QUOTE => week_52(t, 59),
+        CODE_FULL => {
+            week_52(t, 159);
+            t.extras.oi_change = Some(i64::from(u32le(p, 171)));
+        }
+        CODE_INDEX_QUOTE => {
+            week_52(t, 35);
+            NO_TRADES.into_iter().for_each(|f| t.mark_absent(f));
+            t.mark_absent(F::LastTradeTime);
+        }
+        CODE_INDEX_FULL => {
+            NO_TRADES.into_iter().for_each(|f| t.mark_absent(f));
+            t.mark_absent(F::OpenInterest);
+        }
+        _ => {}
+    }
 }
 
 /// Split a binary frame into packets by their codes' sizes.
@@ -306,7 +356,6 @@ impl PaytmFeed {
             let mut t = p.tick;
             t.symbol = sub.symbol.clone();
             t.exchange = sub.exchange.clone();
-            t.mode = sub.mode.code();
             t.timestamp_ms = now;
             if let Some((buy, sell)) = p.depth {
                 out.push(FeedEvent::Tick(t.clone()));
@@ -354,7 +403,6 @@ impl BrokerFeed for PaytmFeed {
                 SubInfo {
                     symbol: s.symbol.clone(),
                     exchange: s.exchange.clone(),
-                    mode: s.mode,
                     pref: pref.clone(),
                 },
             );

@@ -30,8 +30,8 @@
     {
       "key": "frame",
       "kind": "open",
-      "reason": "The web refuses a Depth subscribe at any depth but 5 (\"Invalid depth level 20. Paytm supports only 5 levels\", paytm_adapter.py:388-391), so it streams nothing; the desktop acknowledges depth 20 and streams five levels. A desktop acknowledgement gap: feed::dialect's DepthAck::Echo for Paytm needs a refusal for depths it does not serve (a shared file: BKD-06, for lanes wire/life).",
-      "ref": "paytm_adapter.py:388-391; feed::dialect::depth_ack; BKD-06"
+      "reason": "The web refuses a Depth subscribe at any depth but 5 (\"Invalid depth level 20. Paytm supports only 5 levels\", paytm_adapter.py:388-391); the desktop acknowledges depth 20 and streams five levels. Lane life's refusal (feed/server/refusals.rs, c08002aa, same words and status partial) fixes it once life is merged into base; the case then expects the refusal and no frame.",
+      "ref": "paytm_adapter.py:388-391; feed/server/refusals.rs (lane life); BKD-06"
     }
   ]
 }
