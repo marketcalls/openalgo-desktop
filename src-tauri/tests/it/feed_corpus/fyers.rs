@@ -31,5 +31,6 @@ corpus_cases!(
         depth_before_first_quote,
         index_quote,
         order_lifecycle,
+        tbt_50_depth,
     ]
 );

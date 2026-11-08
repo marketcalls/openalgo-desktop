@@ -23,7 +23,7 @@ Cases: 43. Open gaps: 179. Deviations pending approval: 58.
 | fivepaisa | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | fivepaisaxts | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | flattrade | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
-| fyers | open gap: `quote_ltp_snapshot_update` | open gap: `index_quote`, `quote_ltp_snapshot_update` | open gap: `depth_before_first_quote` | not offered by the web | not offered by the web | **no case** | matches web: `order_lifecycle` |
+| fyers | open gap: `quote_ltp_snapshot_update` | open gap: `index_quote`, `quote_ltp_snapshot_update` | open gap: `depth_before_first_quote` | not offered by the web | not offered by the web | matches web: `tbt_50_depth` | matches web: `order_lifecycle` |
 | groww | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | hdfcsecurities | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
 | hdfcsky | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded | not recorded |
@@ -57,7 +57,7 @@ Cases: 43. Open gaps: 179. Deviations pending approval: 58.
 | angel | first-full-packet, depth-update, book-clear, index, derivative-oi, reconnect, subscription-lifecycle, mode-change, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | partial-packet, absent-field |
 | deltaexchange | first-full-packet, partial-packet, absent-field, depth-update, subscription-lifecycle, mode-change | book-clear, index, derivative-oi, reconnect, (order updates: not offered by the web) |
 | dhan | first-full-packet, partial-packet, absent-field, depth-update, book-clear, index, derivative-oi, reconnect, subscription-lifecycle, mode-change, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | - |
-| fyers | first-full-packet, partial-packet, absent-field, depth-update, index, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | book-clear, derivative-oi, reconnect, subscription-lifecycle, mode-change |
+| fyers | first-full-packet, partial-packet, absent-field, depth-update, book-clear, index, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | derivative-oi, reconnect, subscription-lifecycle, mode-change |
 | nubra | first-full-packet, partial-packet, depth-update, book-clear, index, subscription-lifecycle, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | absent-field, derivative-oi, reconnect, mode-change |
 | samco | order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | first-full-packet, partial-packet, absent-field, depth-update, book-clear, index, derivative-oi, reconnect, subscription-lifecycle, mode-change |
 | upstox | first-full-packet, partial-packet, absent-field, depth-update, index, derivative-oi, reconnect, order-open, order-partial-fill, order-complete, order-rejected, order-cancelled | book-clear, subscription-lifecycle, mode-change |

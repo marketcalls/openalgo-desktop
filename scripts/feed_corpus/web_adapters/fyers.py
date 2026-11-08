@@ -13,10 +13,18 @@ the master's fytoken (`sf|<segment>|<fytoken[10:]>`, `dp|` for depth with
 its `sf|` twin, `if|<segment>|<name>` for an index), worked here from the
 case's rows as the desktop does.
 
+A Depth 50 subscription on NSE or NFO goes to the TBT socket
+(`_subscribe_tbt_depth`): its frames are read by `fyers_tbt_proto.py` (no
+protobuf package needed) into objects like the generated ones, and go
+through `FyersTbtWebSocket._process_depth_message` and `_extract_depth`
+into the adapter's `_on_tbt_depth_update`, which borrows the latest quote
+of the symbol feed subscribed beside it.
+
 `to_openalgo_symbol` reads the database; the glue's stand-in does the same
 lookups on the case's symbol master (`Glue.to_openalgo_symbol`).
 """
 
+from web_adapters.fyers_tbt_proto import socket_message
 from webkit import Glue, Source
 
 MODES = {1: "LTP", 2: "QUOTE", 3: "DEPTH"}
@@ -46,8 +54,14 @@ class Fyers(Glue):
         Source(
             "broker/fyers/streaming/fyers_adapter.py",
             "FyersAdapter",
-            ["_on_message", "_quote_state", "_quote_fields_for_depth"],
+            ["_on_message", "_quote_state", "_quote_fields_for_depth", "get_latest_quote", "get_last_ltp"],
         ),
+        Source(
+            "broker/fyers/streaming/fyers_tbt_websocket.py",
+            "FyersTbtWebSocket",
+            ["_process_depth_message", "_extract_depth"],
+        ),
+        Source("broker/fyers/streaming/fyers_websocket_adapter.py", "FyersWebSocketAdapter", ["_on_tbt_depth_update"]),
         Source(
             "broker/fyers/streaming/fyers_order_adapter.py",
             None,
@@ -96,6 +110,14 @@ class Fyers(Glue):
             _pending_hsm_symbols=[],
         )
         self.orders = self.new("FyersOrderUpdateAdapter")
+        self.wsa = self.new(
+            "FyersWebSocketAdapter",
+            tbt_subscriptions={},
+            tbt_ticker_to_symbol={},
+            data_mapper=self.ad.data_mapper,
+            fyers_adapter=self.ad,
+        )
+        self.tbt = self.new("FyersTbtWebSocket", depth_data={}, on_depth_update=self.wsa._on_tbt_depth_update)
         # (mode, "EXCHANGE:SYMBOL") -> the subscription's data_callback.
         self.callbacks = {}
 
@@ -121,6 +143,19 @@ class Fyers(Glue):
             self.publish(f"{exch}_{sym}_{MODES[mode]}", data)
 
         self.callbacks[(mode, full)] = data_callback
+        if mode == 3 and depth == 50 and exch in ("NSE", "NFO"):
+            # TBT 50-level depth, with the symbol feed beside it for the quote
+            # (a registration no mode publishes for).
+            self.wsa.tbt_ticker_to_symbol[row["brsymbol"]] = full
+            self.wsa.tbt_subscriptions[full] = {
+                "ticker": row["brsymbol"], "exchange": exch, "symbol": sym, "actual_symbol": sym,
+                "callback": data_callback, "channel": "1",
+            }
+            self.ad.active_subscriptions[full] = {"exchange": exch, "symbol": sym, "data_type": "SymbolUpdate"}
+            topic = self.topics(row, 2)[0]
+            self.ad.hsm_to_symbol[topic] = full
+            self.hsm.symbol_mappings[topic] = row["brsymbol"]
+            return
         slot = "DepthUpdate" if mode == 3 else "SymbolUpdate"
         modes = (3,) if mode == 3 else (1, 2)
 
@@ -146,5 +181,7 @@ class Fyers(Glue):
             fields = self.orders.normalize(frame)
             if fields:
                 self.order(fields)
+        elif socket == "depth" and isinstance(frame, bytes):
+            self.tbt._process_depth_message(socket_message(frame))
         elif isinstance(frame, bytes):
             self.hsm._parse_binary_message(bytearray(frame))

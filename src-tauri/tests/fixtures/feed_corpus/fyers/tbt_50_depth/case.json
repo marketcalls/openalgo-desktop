@@ -1,0 +1,41 @@
+{
+  "broker": "fyers",
+  "summary": "A Depth 50 subscription on NSE: the book comes from the TBT socket, its quote from the HSM symbol feed; a TBT diff updates the levels it names and a level emptied leaves the book.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear",
+    "partial-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "10100000003045",
+      "brsymbol": "NSE:SBIN-EQ",
+      "brexchange": "NSE",
+      "name": "STATE BANK OF INDIA"
+    }
+  ],
+  "depth_levels": {
+    "NSE": [
+      5,
+      50
+    ]
+  },
+  "upstream_ignore": [
+    "ping"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/fyers/streaming/fyers_tbt_websocket.py::FyersTbtWebSocket._process_depth_message",
+      "broker/fyers/streaming/fyers_tbt_websocket.py::FyersTbtWebSocket._extract_depth",
+      "broker/fyers/streaming/fyers_websocket_adapter.py::FyersWebSocketAdapter._on_tbt_depth_update",
+      "broker/fyers/streaming/fyers_mapping.py::FyersDataMapper.map_tbt_depth_to_openalgo"
+    ],
+    "notes": []
+  },
+  "deviations": []
+}
