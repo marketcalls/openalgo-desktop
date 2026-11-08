@@ -96,6 +96,14 @@ export default function BrokerSelect() {
   }, [brokers, filter])
   const nameOf = (id: string) => brokers.find((b) => b.id === id)?.name ?? id
 
+  // A card error for a broker that is not listed shows at the top instead.
+  useEffect(() => {
+    if (cardError && list.data && !list.data.brokers.some((b) => b.id === cardError.broker)) {
+      setPageError(cardError.message)
+      setCardError(null)
+    }
+  }, [cardError, list.data])
+
   // Start a sign-in the way the server says this broker signs in.
   const startSignIn = async (broker: BrokerEntry) => {
     setStarting(broker.id)

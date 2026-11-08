@@ -123,6 +123,21 @@ describe('Select Broker cards', () => {
     expect((await card('zerodha')).queryByRole('button', { name: /login with/i })).toBeNull()
   })
 
+  // Web BrokerSelect.test.tsx (eec700046), the same case.
+  it('offers Edit keys on a configured broker and Broker Configuration in the header', async () => {
+    list = brokerList([saved(brokerEntry('fyers', 'Fyers', 'redirect'), {})])
+    serve()
+    renderPage()
+    expect((await card('fyers')).getByRole('link', { name: 'Edit Fyers keys' })).toHaveAttribute(
+      'href',
+      '/broker/config?broker=fyers'
+    )
+    expect(screen.getByRole('link', { name: /Broker Configuration/ })).toHaveAttribute(
+      'href',
+      '/broker/config'
+    )
+  })
+
   it('filters the cards by name', async () => {
     serve()
     renderPage()
@@ -133,6 +148,24 @@ describe('Select Broker cards', () => {
     expect(screen.getAllByTestId(/^broker-card-/).map((c) => c.dataset.testid)).toEqual([
       'broker-card-angel',
     ])
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search brokers' }), {
+      target: { value: 'nothing' },
+    })
+    expect(screen.getByText('No broker matches "nothing".')).toBeInTheDocument()
+  })
+
+  // Web BrokerSelect.test.tsx (eec700046), the same case.
+  it('shows the data subscription note on a configured Zerodha card only', async () => {
+    list = brokerList([
+      saved(brokerEntry('zerodha', 'Zerodha', 'redirect'), {}),
+      brokerEntry('dhan', 'Dhan', 'redirect'),
+    ])
+    serve()
+    renderPage()
+    expect(
+      (await card('zerodha')).getByText(/Zerodha requires an active Kite Connect/)
+    ).toBeInTheDocument()
+    expect((await card('dhan')).queryByText(/Dhan requires/)).toBeNull()
   })
 
   it("shows a failed sign-in's reason on that broker's card", async () => {
@@ -142,6 +175,17 @@ describe('Select Broker cards', () => {
     expect(
       await (await card('zerodha')).findByText('The broker did not complete the sign-in.')
     ).toBeInTheDocument()
+  })
+
+  // Web BrokerSelect.test.tsx (eec700046) 'shows it at the top when no listed
+  // broker is named': a reason for a broker without a card was never shown.
+  it('shows the reason at the top when no listed broker is named', async () => {
+    serve()
+    renderPage(
+      '/broker?error=The%20broker%20did%20not%20complete%20the%20sign-in.&broker=nosuchbroker'
+    )
+    const message = await screen.findByText('The broker did not complete the sign-in.')
+    expect(message.closest('[data-testid^="broker-card-"]')).toBeNull()
   })
 })
 

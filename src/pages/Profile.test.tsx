@@ -172,6 +172,16 @@ describe('Profile broker summary', () => {
     )
     await waitFor(() => expect(screen.getByTestId('broker-configured')).toHaveTextContent('Fyers'))
   })
+
+  // Web Profile.test.tsx (eec700046), the same case.
+  it('says when no broker is logged in and none is configured', async () => {
+    serveList(brokerList([brokerEntry('fyers', 'Fyers', 'redirect')]))
+    render(<Profile />)
+    await waitFor(() =>
+      expect(screen.getByTestId('broker-logged-in')).toHaveTextContent('No broker logged in')
+    )
+    expect(screen.getByTestId('broker-configured')).toHaveTextContent('None yet')
+  })
 })
 
 // UI-05, UI-06: the desktop server has no SMTP settings and no file-permission

@@ -302,6 +302,30 @@ describe('Broker Configuration', () => {
     expect(screen.queryByText('End your Fyers session?')).toBeNull()
   })
 
+  // Web BrokerConfig.test.tsx (eec700046) 'says the automatic redirect URL is
+  // the Host Server URL', in the desktop's words: the app's own address, or the
+  // Host Server URL while the tunnel is on.
+  it('says what the automatic redirect URL is', async () => {
+    serve()
+    renderPage('zerodha')
+    expect(
+      await screen.findByText(
+        /Automatic: the address of this app, or your Host Server URL while the tunnel is on\./
+      )
+    ).toBeInTheDocument()
+  })
+
+  // Web BrokerConfig.test.tsx (eec700046) 'says forgetting removes the keys
+  // from OpenAlgo', in the desktop's words.
+  it('says forgetting removes the keys from this computer', async () => {
+    serve()
+    renderPage('fyers')
+    fireEvent.click(await screen.findByRole('button', { name: 'Forget this broker' }))
+    expect(
+      await screen.findByText(/This removes the saved Fyers keys from this computer\./)
+    ).toBeInTheDocument()
+  })
+
   // BRL-01: the Fyers API plan decides how OpenAlgo paces its requests.
   it("saves the broker's API plan at once, without ending its session", async () => {
     const PLANS = [
