@@ -73,8 +73,8 @@
     {
       "key": "oi",
       "kind": "web-defect",
-      "reason": "An equity's L1 carries no OI; the web sends oi 0 in Quote (message.get(\"OI\", 0)). The desktop leaves out a field the stream did not carry (web openalgo#2376).",
-      "ref": "tradejini_adapter.py:828"
+      "reason": "An equity's L1 carries no OI; the web sends oi 0 in Depth, and in a Quote (message.get(\"OI\", 0)), an invented zero. The desktop leaves out a field the stream did not carry (web openalgo#2376; rules.md: no invented data).",
+      "ref": "tradejini_adapter.py:851"
     },
     {
       "key": "total_buy_quantity",

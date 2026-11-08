@@ -54,16 +54,10 @@
       "ref": "tradejini_adapter.py:853"
     },
     {
-      "key": "average_price",
-      "kind": "open",
-      "reason": "This L1 (the web test's L1_TICK) carries no atp; the web leaves average_price out of Depth, the desktop sends 0.0 (TradejiniFeed::tick unwrap_or). Phase B: mark it absent until Tradejini sends it.",
-      "ref": "tradejini_adapter.py:858-866; brokers/tradejini/streaming.rs TradejiniFeed::tick"
-    },
-    {
-      "key": "last_quantity",
-      "kind": "open",
-      "reason": "As average_price, for ltq: the desktop sends last_quantity 0.",
-      "ref": "tradejini_adapter.py:858-866; brokers/tradejini/streaming.rs TradejiniFeed::tick"
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "An equity's L1 carries no OI; the web sends oi 0 in Depth, and in a Quote (message.get(\"OI\", 0)), an invented zero. The desktop leaves out a field the stream did not carry (web openalgo#2376; rules.md: no invented data).",
+      "ref": "tradejini_adapter.py:851"
     },
     {
       "key": "depth",

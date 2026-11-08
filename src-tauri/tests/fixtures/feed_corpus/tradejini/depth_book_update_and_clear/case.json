@@ -69,6 +69,12 @@
       "kind": "open",
       "reason": "As price_change, for price_change_percent.",
       "ref": "tradejini_adapter.py:830, :883-884; feed::protocol::market canonical()"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "An equity's L1 carries no OI; the web sends oi 0 in Depth, and in a Quote (message.get(\"OI\", 0)), an invented zero. The desktop leaves out a field the stream did not carry (web openalgo#2376; rules.md: no invented data).",
+      "ref": "tradejini_adapter.py:851"
     }
   ]
 }

@@ -11,15 +11,12 @@
     "ltp": 1155.0,
     "timestamp": "<receipt_ms>",
     "volume": 1100000,
-    "last_quantity": 0,
-    "average_price": 0.0,
     "total_buy_quantity": 543853,
     "total_sell_quantity": 600000,
     "open": 1191.9,
     "high": 1194.5,
     "low": 1151.0,
     "close": 1185.0,
-    "oi": 0,
     "depth": {
       "buy": [
         {

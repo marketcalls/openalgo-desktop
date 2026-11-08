@@ -516,6 +516,7 @@ impl TradejiniFeed {
         } else {
             t.change = round2(t.change);
         }
+        leave_out_what_was_never_sent(&mut t, q);
         t
     }
 
@@ -603,6 +604,31 @@ impl TradejiniFeed {
             total_sell_quantity: book.tot_sell_qty,
             timestamp_ms: now_ms(),
             ..Default::default()
+        }
+    }
+}
+
+/// Mark absent each quote field the instrument's L1 has never carried, so
+/// a frame leaves it out rather than sending 0 (web openalgo#2376). The web
+/// fills them from `message.get(k, 0)` (`tradejini_adapter.py:820-833`,
+/// `:845-853`): an index's volume, an equity's OI and a first L1 without a
+/// price would read 0 there. A merged L1 without a price is not published.
+fn leave_out_what_was_never_sent(t: &mut NormalizedTick, q: &L1) {
+    use QuoteField as F;
+    let sent = [
+        (F::Ltp, q.ltp.is_some()),
+        (F::Open, q.open.is_some()),
+        (F::High, q.high.is_some()),
+        (F::Low, q.low.is_some()),
+        (F::Close, q.close.is_some()),
+        (F::Volume, q.vol.is_some()),
+        (F::AveragePrice, q.atp.is_some()),
+        (F::LastQuantity, q.ltq.is_some()),
+        (F::OpenInterest, q.oi.is_some()),
+    ];
+    for (field, carried) in sent {
+        if !carried {
+            t.mark_absent(field);
         }
     }
 }
