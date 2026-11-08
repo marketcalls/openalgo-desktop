@@ -103,6 +103,18 @@ describe('Broker feed connections card', () => {
     )
   })
 
+  it("says in the broker's words what to do when it ended the feed for too many connections", () => {
+    const words = 'Close other Sahi streaming apps or sessions, then reconnect.'
+    const halted = connection({ broker: 'sahi', state: 'connection_limit', message: words })
+    render(<FeedConnectionsCard read={read([feed('market_data', halted)])} now={NOW} />)
+    expect(cardOf('Broker Feed Connections').className).toMatch(/red/)
+    expect(rowValue('Broker market data')).toBe('Too many connections')
+    const note = screen.getByRole('status')
+    expect(note).toHaveTextContent(words)
+    expect(note).not.toHaveTextContent('Log in')
+    expect(note).not.toHaveTextContent('internet connection')
+  })
+
   it('warns while a feed is reconnecting', () => {
     const now = connection({
       state: 'reconnecting',

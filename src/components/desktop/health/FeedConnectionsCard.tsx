@@ -31,6 +31,15 @@ const STATES: Record<FeedConnection['state'], string> = {
   reconnecting: 'Reconnecting',
   disconnected: 'Not connected',
   auth_failed: 'Refused by the broker',
+  connection_limit: 'Too many connections',
+  ended_by_broker: 'Stopped by the broker',
+}
+
+/** The broker refused or ended the feed: it streams nothing until the trader acts. */
+function stopped(c: FeedConnection): boolean {
+  return (
+    c.state === 'auth_failed' || c.state === 'connection_limit' || c.state === 'ended_by_broker'
+  )
 }
 
 /** A reconnect this recent still explains a pause the trader just saw. */
@@ -64,7 +73,7 @@ function inSentence(f: Feed): { feed: string; paused: string } {
 }
 
 function level(feeds: Feed[], now: number): HealthLevel {
-  if (feeds.some((f) => f.connection.state === 'auth_failed')) return 'fail'
+  if (feeds.some((f) => stopped(f.connection))) return 'fail'
   const recent = (f: Feed) => {
     const at = reconnectedAt(f.connection)
     return at !== null && now - at < RECENT_RECONNECT_MS
@@ -76,6 +85,7 @@ function level(feeds: Feed[], now: number): HealthLevel {
 /** What a red or amber card means and what the trader can do. */
 function warning(feeds: Feed[], now: number): string | null {
   const notes: string[] = []
+  let network = false
   for (const f of feeds) {
     const c = f.connection
     const at = reconnectedAt(c)
@@ -84,18 +94,24 @@ function warning(feeds: Feed[], now: number): string | null {
       notes.push(
         `The broker refused its ${feed}, so it is not streaming. Log in to your broker again.`
       )
+    } else if (c.state === 'connection_limit' || c.state === 'ended_by_broker') {
+      // The broker's own words and what to do; the feed comes back when an
+      // app reconnects to OpenAlgo, without a logout.
+      notes.push(c.message ?? `The broker ended its ${feed}, so it is not streaming.`)
     } else if (c.state === 'reconnecting') {
+      network = true
       notes.push(
         `The ${feed} is reconnecting because ${reason(c)}; ${paused} pause until it is back.`
       )
     } else if (at !== null && now - at < RECENT_RECONNECT_MS) {
+      network = true
       notes.push(
         `The ${feed} reconnected at ${readTime(at, now)} because ${reason(c)}; ${paused} paused until it was back.`
       )
     }
   }
   if (notes.length === 0) return null
-  if (notes.some((n) => !n.includes('Log in'))) {
+  if (network) {
     notes.push('If this keeps happening, check your internet connection.')
   }
   return notes.join(' ')

@@ -224,7 +224,16 @@ export interface OrderUpdatesSource {
 export interface FeedConnection {
   /** The broker of the latest connection; null before the first. */
   broker: string | null
-  state: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'auth_failed'
+  state:
+    | 'disconnected'
+    | 'connecting'
+    | 'connected'
+    | 'reconnecting'
+    | 'auth_failed'
+    | 'connection_limit'
+    | 'ended_by_broker'
+  /** Why the broker refused or ended the feed, in the broker's words. */
+  message?: string | null
   connects: number
   /** Connections that ended, or attempts that failed, and were tried again. */
   disconnects: number
