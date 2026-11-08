@@ -7,7 +7,7 @@
   "data": {
     "symbol": "NIFTY25NOV26FUT",
     "exchange": "NFO",
-    "mode": "quote",
+    "mode": 2,
     "ltp": 25912.0,
     "ltt": 1759900061000,
     "timestamp": "<receipt_ms>",
@@ -21,6 +21,9 @@
     "low": 25840.25,
     "close": 25850.75,
     "last_trade_quantity": 150,
+    "price_change": 61.25,
+    "price_change_percent": 0.2369,
+    "percent_change": 0.2369,
     "last_trade_time": 1759900061000
   }
 }

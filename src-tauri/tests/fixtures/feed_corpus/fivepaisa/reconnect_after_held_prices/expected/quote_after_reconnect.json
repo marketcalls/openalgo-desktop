@@ -7,7 +7,7 @@
   "data": {
     "symbol": "ITC",
     "exchange": "NSE",
-    "mode": "quote",
+    "mode": 2,
     "ltp": 0.0,
     "ltt": 1759900115000,
     "timestamp": "<receipt_ms>",

@@ -7,7 +7,7 @@
   "data": {
     "symbol": "ITC",
     "exchange": "BSE",
-    "mode": "quote",
+    "mode": 2,
     "ltp": 440.35,
     "ltt": 1759900056000,
     "timestamp": "<receipt_ms>",
@@ -21,6 +21,9 @@
     "low": 439.6,
     "close": 442.85,
     "last_trade_quantity": 12,
+    "price_change": -2.5,
+    "price_change_percent": -0.5668,
+    "percent_change": -0.5668,
     "last_trade_time": 1759900056000
   }
 }

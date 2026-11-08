@@ -29,12 +29,5 @@
       "FEED is the web test's frame; the second frame is FEED with TickDt /Date(-62135596800000)/, as test_negative_tickdt_omits_ltt sends it."
     ]
   },
-  "deviations": [
-    {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The 5paisa web adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends its label (ltp, quote, full). Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (5paisa: the number).",
-      "ref": "fivepaisa_adapter.py:_on_data (market_data.update mode); feed/dialect.rs (lane wire)"
-    }
-  ]
+  "deviations": []
 }

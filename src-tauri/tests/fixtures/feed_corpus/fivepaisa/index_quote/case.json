@@ -29,12 +29,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The 5paisa web adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends its label (ltp, quote, full). Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (5paisa: the number).",
-      "ref": "fivepaisa_adapter.py:_on_data (market_data.update mode); feed/dialect.rs (lane wire)"
-    },
-    {
       "key": "price_change",
       "kind": "open",
       "reason": "The desktop's renderer gives an index price_change and price_change_percent (ltp less the previous close, and 5paisa's ChgPcnt), as the recorded Zerodha index frame carries them; the 5paisa web adapter sends ChgPcnt as percent_change only, which the desktop sends too. Follows the web adapter in Phase B through lane wire's per-broker switch (5paisa: neither key on an index).",

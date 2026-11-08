@@ -30,18 +30,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The 5paisa web adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends its label (ltp, quote, full). Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (5paisa: the number).",
-      "ref": "fivepaisa_adapter.py:_on_data (market_data.update mode); feed/dialect.rs (lane wire)"
-    },
-    {
-      "key": "percent_change",
-      "kind": "open",
-      "reason": "The web sends 5paisa's ChgPcnt as percent_change for every instrument; the desktop's common carrier sends the change fields for indices only, so an equity or a future loses it. Carrier gap (change fields for every exchange, audit C04, lane wire).",
-      "ref": "fivepaisa_adapter.py:_quote_fields; audit C04"
-    },
-    {
       "key": "ltp",
       "kind": "open",
       "reason": "The desktop forgets the held prices when the socket reconnects (FivepaisaFeed::on_connected clears the snapshots), so the first frame after a reconnect that reports 0 for a price goes out as 0.0, ltp included; the web keeps the snapshot across a reconnect (_on_open and _on_close leave last_snapshot) and holds the last price. A zero LTP from a frame without a trade is invented data (rules.md). Desktop defect, or lead decision if the per-connection reset is to stay with the zeros left out instead.",
@@ -100,6 +88,18 @@
       "kind": "open",
       "reason": "The web's Quote sends 5paisa's best ask quantity (OffQty); the desktop's common carrier has no best bid or ask. Carrier gap (audit C06, lane wire).",
       "ref": "fivepaisa_adapter.py:_normalize_market_data mode 2"
+    },
+    {
+      "key": "price_change",
+      "kind": "open",
+      "reason": "The desktop sends price_change on an equity or a future (ltp less the previous close: feed/dialect/names.rs gives 5paisa instrument_change); the 5paisa web adapter sends ChgPcnt as percent_change only, which the desktop sends too. Follows the web adapter in Phase B: 5paisa's dialect entry without instrument_change.",
+      "ref": "feed/dialect/names.rs (fivepaisa: instrument_change); fivepaisa_adapter.py:_quote_fields"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "open",
+      "reason": "The desktop sends price_change_percent (5paisa's ChgPcnt) on an equity or a future beside percent_change (feed/dialect/names.rs gives 5paisa instrument_change); the 5paisa web adapter sends percent_change only. Follows the web adapter in Phase B: 5paisa's dialect entry without instrument_change.",
+      "ref": "feed/dialect/names.rs (fivepaisa: instrument_change); fivepaisa_adapter.py:_quote_fields"
     }
   ]
 }

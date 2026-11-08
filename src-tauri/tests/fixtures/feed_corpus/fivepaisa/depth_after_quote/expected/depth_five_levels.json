@@ -7,7 +7,7 @@
   "data": {
     "symbol": "ITC",
     "exchange": "NSE",
-    "mode": "full",
+    "mode": 3,
     "ltp": 440.1,
     "ltt": 1759900055000,
     "timestamp": "<receipt_ms>",
@@ -77,6 +77,9 @@
       ]
     },
     "last_trade_quantity": 5,
+    "price_change": -2.8,
+    "price_change_percent": -0.6321969,
+    "percent_change": -0.6321969,
     "last_trade_time": 1759900055000
   }
 }

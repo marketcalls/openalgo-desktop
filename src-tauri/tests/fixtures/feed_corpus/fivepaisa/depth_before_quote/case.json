@@ -31,12 +31,6 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "The 5paisa web adapter puts its subscription mode number (1, 2, 3) in data.mode; the desktop sends its label (ltp, quote, full). Follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table (5paisa: the number).",
-      "ref": "fivepaisa_adapter.py:_on_data (market_data.update mode); feed/dialect.rs (lane wire)"
-    },
-    {
       "key": "ltp",
       "kind": "desktop-decision",
       "reason": "A depth frame keeps ltp and timestamp before the instrument's first quote, for every broker (1.0.6 decision: the SDK's Depth callback reads them); the 5paisa web adapter leaves ltp out of a MarketDepthService frame that comes before any MarketFeedV3 frame (audit RB-04). The other quote fields are left out on both.",
@@ -55,10 +49,16 @@
       "ref": "fivepaisa_adapter.py:_quote_fields (feed.get(\"OpenRate\", 0)); feed/dialect.rs (lane wire)"
     },
     {
-      "key": "percent_change",
+      "key": "price_change",
       "kind": "open",
-      "reason": "The web sends 5paisa's ChgPcnt as percent_change for every instrument; the desktop's common carrier sends the change fields for indices only, so an equity or a future loses it. Carrier gap (change fields for every exchange, audit C04, lane wire).",
-      "ref": "fivepaisa_adapter.py:_quote_fields; audit C04"
+      "reason": "The desktop sends price_change on an equity or a future (ltp less the previous close: feed/dialect/names.rs gives 5paisa instrument_change); the 5paisa web adapter sends ChgPcnt as percent_change only, which the desktop sends too. Follows the web adapter in Phase B: 5paisa's dialect entry without instrument_change.",
+      "ref": "feed/dialect/names.rs (fivepaisa: instrument_change); fivepaisa_adapter.py:_quote_fields"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "open",
+      "reason": "The desktop sends price_change_percent (5paisa's ChgPcnt) on an equity or a future beside percent_change (feed/dialect/names.rs gives 5paisa instrument_change); the 5paisa web adapter sends percent_change only. Follows the web adapter in Phase B: 5paisa's dialect entry without instrument_change.",
+      "ref": "feed/dialect/names.rs (fivepaisa: instrument_change); fivepaisa_adapter.py:_quote_fields"
     }
   ]
 }
