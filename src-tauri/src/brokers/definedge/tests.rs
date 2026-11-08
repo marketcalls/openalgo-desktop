@@ -22,6 +22,9 @@ macro_rules! fixture {
     };
 }
 
+/// Web test/test_definedge_quote_feed.py (openalgo#2383).
+mod quote_feed;
+
 fn v(s: &str) -> Value {
     serde_json::from_str(s).unwrap()
 }
@@ -644,7 +647,11 @@ fn feed_connect_subscribe_and_decode() {
         text_of(&frames[0]),
         json!({"t":"t","k":"NSE|3045#NSE|26000"})
     );
-    assert_eq!(text_of(&frames[1]), json!({"t":"d","k":"NFO|43001"}));
+    // Quote rides the depth feed too (web `_feed_types`, openalgo#2383).
+    assert_eq!(
+        text_of(&frames[1]),
+        json!({"t":"d","k":"NSE|3045#NFO|43001"})
+    );
     assert_eq!(
         scrip(&sub("X", "BSE_INDEX", "", "1", FeedMode::Ltp)),
         "BSE|1"
@@ -687,6 +694,7 @@ fn feed_connect_subscribe_and_decode() {
     assert_eq!(f.cached(), 2);
     let un = f.unsubscribe_frames(&subs[..1]);
     assert_eq!(text_of(&un[0]), json!({"t":"u","k":"NSE|3045"}));
+    assert_eq!(text_of(&un[1]), json!({"t":"ud","k":"NSE|3045"}));
     let un = f.unsubscribe_frames(&subs[2..]);
     assert_eq!(text_of(&un[0]), json!({"t":"ud","k":"NFO|43001"}));
     assert_eq!(f.cached(), 0);
