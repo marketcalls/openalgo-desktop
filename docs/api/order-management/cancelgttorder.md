@@ -1,6 +1,6 @@
 # CancelGTTOrder
 
-Cancel an active GTT by its `trigger_id`. Cancelling an OCO removes both legs together.
+Cancel an active GTT by its `trigger_id`. Cancelling an OCO cancels both legs; on Angel One they are two rules cancelled one after the other.
 
 ## Endpoint URL
 
@@ -113,7 +113,7 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 ## Notes
 
 - Only active GTTs can be cancelled.
-- An OCO is cancelled as a whole; there is no cancel for one leg.
+- An OCO is cancelled as a whole; there is no cancel for one leg. On Angel One its two rules are cancelled one after the other, and if the second cannot be cancelled the error names the rule already cancelled: check the [GTT order book](./gttorderbook.md) before trying again. See [Angel One](./placegttorder.md#angel-one-an-oco-is-two-separate-rules).
 - A cancelled GTT leaves the default [GTT order book](./gttorderbook.md), which lists active GTTs only. Send `"status": "all"` there to see it as `cancelled`.
 - Cancelling a GTT that is already cancelled gets your broker's own answer, a success or an error such as "Trigger not found", depending on the broker. In analyzer mode it is always the 404 above.
 - Semi-Auto does not queue a cancel; it refuses it (403) in live mode, as on the web.

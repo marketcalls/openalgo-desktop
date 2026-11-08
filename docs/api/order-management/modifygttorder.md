@@ -11,7 +11,7 @@ You can change the price levels, the quantity and the price type, but not turn a
 | Type | Use it when | Triggers | Orders placed |
 |------|-------------|----------|---------------|
 | **SINGLE** | One entry or exit at a level | 1 | 1 |
-| **OCO** (one cancels the other) | A stop-loss and a target on a position | 2 | 1 of the 2; the other is cancelled |
+| **OCO** (one cancels the other) | A stop-loss and a target on a position | 2 | 1 of the 2. Where the broker has a native OCO the other is cancelled; on Angel One it is not (see [Angel One](./placegttorder.md#angel-one-an-oco-is-two-separate-rules)) |
 
 For a SINGLE, put the trigger in `triggerprice_sl` when it sits below the last price and in `triggerprice_tg` when it sits above, and send the other as `0`. For an OCO, send both triggers and both leg limits (`stoploss`, `target`). See [PlaceGTTOrder](./placegttorder.md#choosing-triggerprice_sl-or-triggerprice_tg-single).
 
@@ -139,7 +139,7 @@ curl -X POST http://127.0.0.1:5000/api/v1/modifygttorder \
 
 | Parameter | Can change | Notes |
 |-----------|------------|-------|
-| Trigger prices (`triggerprice_sl`, `triggerprice_tg`) | Yes | An OCO's two legs change together |
+| Trigger prices (`triggerprice_sl`, `triggerprice_tg`) | Yes | Whether an OCO's two legs change in one step depends on the broker (below) |
 | Limit prices (`price`, `stoploss`, `target`) | Yes | |
 | `quantity` | Yes | A lot multiple for F&O |
 | `pricetype` | Yes | LIMIT or MARKET |
@@ -198,7 +198,7 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 
 - Only active GTTs can be changed. A GTT that fired, was cancelled or lapsed cannot.
 - You do not send the last price: OpenAlgo reads it from your broker where needed.
-- An OCO's two legs are changed together. A broker that changes legs one at a time may, in a rare failure, leave the OCO half changed: send the modify again, or cancel and place a new GTT.
+- Whether an OCO's two legs change in one step depends on the broker. Angel One changes its two rules one after the other, and a failure after the first leaves them different; Rupeezy needs your GTT book to be readable first. After an error, check both legs in the [GTT order book](./gttorderbook.md) before sending the modify again; an error does not mean the first change was undone. See [Angel One](./placegttorder.md#angel-one-an-oco-is-two-separate-rules).
 - MARKET is handled as on [PlaceGTTOrder](./placegttorder.md#notes).
 - Semi-Auto does not queue a modify; it refuses it (403) in live mode, as on the web.
 - Rate limit: 10 requests per second per caller, shared with the other order endpoints. See [Rate limiting](../rate-limiting.md).

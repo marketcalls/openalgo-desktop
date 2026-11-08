@@ -7,7 +7,7 @@ Place a GTT (Good Till Triggered) order: a price trigger that waits, for days if
 | Type | Use it when | Triggers | Orders placed |
 |------|-------------|----------|---------------|
 | **SINGLE** | You want one entry or exit at a level, for example "buy SBIN if it dips to 858.70" or "sell RELIANCE if it crosses 1450" | 1 | 1 |
-| **OCO** (one cancels the other) | You hold a position and want a stop-loss and a target, whichever comes first, for example "I hold SBIN: sell at 858.70 on the way down or 1049.50 on the way up" | 2 | 1 of the 2; the other is cancelled |
+| **OCO** (one cancels the other) | You hold a position and want a stop-loss and a target, whichever comes first, for example "I hold SBIN: sell at 858.70 on the way down or 1049.50 on the way up" | 2 | 1 of the 2. Where the broker has a native OCO the other is cancelled; on Angel One it is not (see [Angel One](#angel-one-an-oco-is-two-separate-rules)) |
 
 A SINGLE has no second leg: once its trigger fires and the order is placed, the GTT is finished.
 
@@ -236,9 +236,23 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 - Live GTT works with Zerodha, Upstox, Angel One, Fyers, Dhan and Rupeezy, as on the web. With any other broker, live GTT answers 501; analyzer mode works with every broker.
 - You do not send the last price: OpenAlgo reads it from your broker where the broker's GTT needs it.
 - Some brokers take only LIMIT orders in a GTT. There a MARKET request is sent as a LIMIT with a price protection band around the last price (SINGLE) or each trigger (OCO), so MARKET works the same everywhere.
-- A GTT's order, once placed, is an ordinary order: it appears in the [order book](../account-services/orderbook.md).
+- A GTT's order, once placed, is an ordinary order: it appears in the [order book](../account-services/orderbook.md). A trigger that fires does not mean its order fills, above all when a MARKET request was sent as a protected LIMIT.
+- In analyzer mode the trigger is checked against live prices as they arrive; it does not reproduce a broker's queue, exchange liquidity or an outage.
 - When the API key's order mode is Semi-Auto, the GTT is not placed: it waits in the Action Center and the answer is `{"status": "success", "message": "Order queued for approval in Action Center", "mode": "semi_auto", "pending_order_id": 12}`.
 - Rate limit: 10 requests per second per caller, shared with the other order endpoints. See [Rate limiting](../rate-limiting.md).
+
+### Angel One: an OCO is two separate rules
+
+Angel One has no OCO rule. OpenAlgo places an OCO as two independent rules, the stop-loss leg and then the target leg, and answers with one `trigger_id` made of both rule ids, such as `1234567-1234568`. Keep the whole id for a modify or a cancel.
+
+- When one rule fires, Angel One does not cancel the other. Cancel it yourself once the first has fired.
+- If the second rule cannot be created, OpenAlgo cancels the first, so no half OCO is left. After any error, check the [GTT order book](./gttorderbook.md): a connection that drops during that cancel can still leave the first rule active.
+- A modify or a cancel changes the two rules one after the other. If it fails after the first, the error names the leg that failed (modify) or the rule already cancelled (cancel); check both rules in the GTT order book before trying again.
+- The GTT order book shows the two rules as two SINGLE rows, because Angel One does not keep them as a pair.
+
+### Rupeezy
+
+Rupeezy triggers on its own price, so no last price is read. A modify reads your GTT book first to find the legs; when the book cannot be read, nothing is changed. With `"status": "all"` the book includes the history.
 
 ### Upstox: an OCO opens a position
 

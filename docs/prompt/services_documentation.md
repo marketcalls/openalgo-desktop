@@ -49,6 +49,7 @@ socket, so they are validated and rate-limited like an SDK client
 | Basket and split orders | `services/batch_order_service.rs` |
 | Options orders and multi-leg options orders | `services/options_order_service.rs` |
 | Option symbol, chain, synthetic future, Greeks | `services/options_service/` |
+| Sector rotation (`/api/v1/sectorrotation`) | `services/sector_rotation_service/` |
 | Order book, trade book, positions, holdings, funds, order status, open position | `services/account_service.rs` |
 | Quotes, multi-quotes, depth, history, intervals, ticker, margin | `services/market_data_service.rs` |
 | Symbol, search, expiry, instruments, freeze quantities | `services/symbol_service.rs`, `services/freeze_qty_service.rs` |
@@ -70,7 +71,17 @@ The module list in `src-tauri/src/services/mod.rs` is the current inventory.
 - **Uncertain placements.** A `Reply` also carries what a live placement did at
   the broker (`Reply.placement`), never serialised. The wire keeps the web's
   shape, while in-process callers use it to tell a placement with no definite
-  answer from a refusal.
+  answer from a refusal. A placement whose answer was lost after sending
+  answers 502 with the web's "may have been placed" sentence
+  (`order_service::placement_reply`); a basket or split carries it on the
+  order it applies to. Never resend the whole request for one such order.
+- **Busy is not empty.** A broker request refused before sending because its
+  turn would come too late (`AppError::Busy`) answers 429 with its own
+  sentence (`Reply::broker_failure`), reads included, as the web's
+  `broker_busy_result` does. Never turn it into an empty book, zero funds or
+  a success.
+- **A position read that fails is unknown, not flat.** A smart order whose
+  position read fails answers the error and places nothing.
 - **A Semi-Auto setting that cannot be read refuses the order** instead of
   sending it, as the web does (`services/order_service.rs`, `semi_auto`).
 - **Live obligations are bound to the broker account they were opened on**

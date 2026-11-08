@@ -166,7 +166,8 @@ Order-level messages in `results` include:
 |-----------|------|
 | The broker's own reason | The broker refused that order |
 | `OpenAlgo is pacing requests to stay within your broker's rate limit, and this one would have had to wait too long for its turn. Try again in a few seconds.` | That order would have waited more than 10 seconds for its turn at the broker; it was not sent |
-| `Failed to place order due to internal error` | That order was sent and no definite answer came back |
+| `The connection to the broker dropped after the order was sent, so it may have been placed. Check the order book before placing it again.` | That order was sent and the broker's answer was lost (a dropped connection or a timeout after sending) |
+| `Failed to place order due to internal error` | That order was sent and the broker's answer could not be read |
 | `Not sent: an earlier order of this split has no definite answer from the broker and may have been placed. Check the order book before sending the rest.` | An earlier order of the split has no definite answer, so this one was held back |
 
 Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wrong method, rate limit) are listed in the [API overview](../README.md#errors-common-to-every-endpoint).
@@ -174,6 +175,7 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 ## Notes
 
 - At most 100 orders per split.
+- Read every order's result, even when the request answers 200. Sending the whole split again because one order had no definite answer can place the others twice. See [Order outcomes](../README.md#order-outcomes-and-retries).
 - The last order carries the remainder (`quantity` modulo `splitsize`). When `splitsize` is larger than `quantity`, one order is placed.
 - In live mode the orders go one after another, 100 ms apart, each taking its turn in the broker pacer.
 - All orders share the same price type, price and product.

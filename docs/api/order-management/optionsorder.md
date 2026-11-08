@@ -237,7 +237,8 @@ Validation errors on this endpoint use their own shape: a fixed `message` and th
 | 429 | `OpenAlgo is pacing requests to stay within your broker's rate limit, and this one would have had to wait too long for its turn. Try again in a few seconds.` | The order would have waited more than 10 seconds for its turn at the broker; it was not sent |
 | 404 | `No strikes found for NIFTY expiring 01JAN20. Please check expiry date or update master contract.` | The expiry is not a `DDMMMYY` date the master contract lists (the dashed `06-OCT-26` that `/expiry` returns must be turned into `06OCT26` first) |
 | 404 | `Option symbol NIFTY06OCT2622450CE not found in NFO. Symbol may not exist or master contract needs update.` | The picked strike is not listed (usually with `strike_int`) |
-| 500 | `Failed to place order due to internal error` | The order was sent and no definite answer came back |
+| 502 | `The connection to the broker dropped after the order was sent, so it may have been placed. Check the order book before placing it again.` | The order was sent and the broker's answer was lost (a dropped connection or a timeout after sending). Look for it in the order book before sending it again; see [Order outcomes](../README.md#order-outcomes-and-retries) |
+| 500 | `Failed to place order due to internal error` | The order was sent and the broker's answer could not be read |
 
 In analyzer mode the sandbox refusals of [PlaceOrder](./placeorder.md#errors) apply, with `"mode": "analyze"`; for example:
 

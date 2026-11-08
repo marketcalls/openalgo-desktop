@@ -52,7 +52,7 @@ Never put broker credentials or broker tokens in these requests. The API key rea
 
 ## Endpoint Index
 
-The desktop serves **66 method/path pairs**, every one OpenAlgo web documents. A resource with both GET and POST counts twice. All paths are under `/api/v1`.
+The desktop serves **68 method/path pairs**: every one OpenAlgo web documents except the six portfolio and SIP backtester endpoints ([below](#not-in-the-desktop)). A resource with both GET and POST counts twice. All paths are under `/api/v1`.
 
 ### Order Management
 
@@ -121,6 +121,15 @@ The desktop serves **66 method/path pairs**, every one OpenAlgo web documents. A
 | POST | `/optiongreeks` | [Option Greeks](./options-services/optiongreeks.md) |
 | POST | `/multioptiongreeks` | [Batch option Greeks](./options-services/multioptiongreeks.md) |
 
+### Sector Rotation
+
+An analysis of historical closes; it places no orders. The options list needs no API key; the map needs one even when it reads Historify, and a broker login when it reads the broker's history.
+
+| Method | Path | Documentation |
+|---|---|---|
+| GET | `/sectorrotation/options` | [Sector rotation](./analytics-services/sectorrotation.md) |
+| POST | `/sectorrotation` | [Sector rotation](./analytics-services/sectorrotation.md) |
+
 ### Market Calendar
 
 | Method | Path | Documentation |
@@ -183,7 +192,7 @@ The Telegram resource counts as 11 method/path pairs. See also the [WhatsApp ove
 
 ### Not in the Desktop
 
-OpenAlgo web also registers six endpoints that its own docs do not list. The desktop does not serve them; they answer 404 `Not found`.
+OpenAlgo web also serves six portfolio and SIP endpoints, which its docs list with Sector Rotation. The desktop does not serve them; they answer 404 `Not found`.
 
 | Method | Path | Why |
 |---|---|---|
@@ -276,12 +285,24 @@ Dates and times:
 | 403 | `{"status": "error", "message": "Invalid openalgo apikey"}` | Wrong key, or no broker logged in on an endpoint that needs one |
 | 404 | `{"status": "error", "message": "Not found", "path": "/api/v1/doesnotexist"}` | Unknown path, or the wrong method (GET on a POST endpoint is 404, not 405) |
 | 413 | `{"status": "error", "message": "The request is too large."}` | A body over 1 MiB |
+| 422 | `{"status": "error", "message": "..."}` | The history cannot support the calculation asked for (Sector Rotation) |
 | 429 | `{"message": "100 per 1 second"}` | Rate limit (no `status`, no rate-limit headers). See [Rate limiting](./rate-limiting.md) |
+| 429 | `{"status": "error", "message": "OpenAlgo is pacing requests to stay within your broker's rate limit, ..."}` | The request would have waited too long for its turn at your broker, so it was not sent |
 | 500 | `{"status": "error", "message": "An unexpected error occurred"}` | The `Content-Type` is not JSON |
 | 500 | `{"message": "Internal Server Error"}` | The JSON body is not an object (for example an array) |
+| 501 | `{"status": "error", "message": "..."}` | Your broker does not offer the operation (for example a live GTT with a broker that has none) |
+| 502 | `{"status": "error", "message": "The connection to the broker dropped after the order was sent, so it may have been placed. Check the order book before placing it again."}` | An order was sent and the broker's answer was lost (see below) |
 | 503 | `{"status": "error", "message": "Sign in to OpenAlgo to use the API. ..."}` | OpenAlgo is locked: nobody has signed in since it started, or you logged out |
 
 The request body is validated before the key is checked, so a request with both a bad field and a wrong key gets the 400.
+
+### Order outcomes and retries
+
+An order id in the answer means the broker accepted the order, not that it filled: check the order book, the trade book or the [order-update stream](./websocket-streaming/order-updates.md).
+
+When the connection to the broker drops after an order was sent, the broker may have taken it. `/placeorder`, `/placesmartorder` and `/optionsorder` then answer 502 with the sentence above, as the web does. Do not send that order again on its own: look for it in the order book first. `/basketorder`, `/splitorder` and `/optionsmultiorder` give the same sentence on the order it applies to, so read every result even when the request itself answers 200; sending the whole request again can place the other orders twice.
+
+A 429 is different: an API limit or OpenAlgo's broker pacing refused the request before anything was sent, and the message says which. There is no idempotency key; the order book is the record.
 
 ## Rate Limits
 

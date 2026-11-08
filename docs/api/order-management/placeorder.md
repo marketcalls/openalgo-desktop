@@ -158,7 +158,8 @@ Validation errors on this endpoint carry `message` as a string that spells out a
 | 400 | The broker's own reason | The broker refused the order |
 | 429 | `OpenAlgo is pacing requests to stay within your broker's rate limit, and this one would have had to wait too long for its turn. Try again in a few seconds.` | The order would have waited more than 10 seconds for its turn at the broker; it was not sent (see [Rate limiting](../rate-limiting.md)) |
 | 400 | `Fractional quantities are not supported in OpenAlgo Desktop yet. Use a whole-number quantity.` | A fractional CRYPTO quantity in analyzer mode |
-| 500 | `Failed to place order due to internal error` | The order was sent and no definite answer came back (a timeout or a dropped connection) |
+| 502 | `The connection to the broker dropped after the order was sent, so it may have been placed. Check the order book before placing it again.` | The order was sent and the broker's answer was lost (a dropped connection or a timeout after sending). Look for it in the order book before sending it again; see [Order outcomes](../README.md#order-outcomes-and-retries) |
+| 500 | `Failed to place order due to internal error` | The order was sent and the broker's answer could not be read |
 | 500 | `OpenAlgo could not read whether analyzer mode is on, so nothing was sent. Restart OpenAlgo, then try again.` | The analyzer setting could not be read; nothing was sent |
 | 500 | `OpenAlgo could not read whether your orders wait for approval in the Action Center (Semi-Auto), so nothing was sent. Try again in a moment; if it keeps happening, restart OpenAlgo.` | The API key's order mode could not be read; nothing was sent |
 

@@ -13,7 +13,7 @@ Every endpoint has its own window per caller, as on the web: ten `/placeorder` a
 | Limit | Endpoints (each in its own window) |
 |-------|------------------------------------|
 | 10 per second | `/placeorder`, `/modifyorder`, `/cancelorder`, `/optionsorder`, `/optionsmultiorder`, `/placegttorder`, `/modifygttorder`, `/cancelgttorder`, `/placesmartorder` |
-| 30 per minute | `/optiongreeks`, `/whatsapp/notify`, and every `/telegram/*` endpoint except the two below |
+| 30 per minute | `/optiongreeks`, `/sectorrotation`, `/sectorrotation/options`, `/whatsapp/notify`, and every `/telegram/*` endpoint except the two below |
 | 5 per minute | `/telegram/broadcast` |
 | 100 per second | Every other `/api/v1` endpoint: market data, account books, symbols, the other options analytics, the `/strategy/*` endpoints, `/cancelallorder`, `/closeposition`, `/basketorder`, `/splitorder`, `/margin`, `/telegram/webhook` and the rest |
 
@@ -113,7 +113,7 @@ Every caller is also limited to 1000 requests a second across the whole app. Pas
 
 ## In the desktop
 
-- In the desktop, the limits cannot be changed. They are the web's sample settings (`.sample.env`); the web reads them from `.env` (`API_RATE_LIMIT`, `ORDER_RATE_LIMIT`, `SMART_ORDER_RATE_LIMIT`, `WEBHOOK_RATE_LIMIT`, `GREEKS_RATE_LIMIT`, `TELEGRAM_RATE_LIMIT`, `WHATSAPP_RATE_LIMIT`).
+- In the desktop, the limits cannot be changed. They are the web's sample settings (`.sample.env`); the web reads them from `.env` (`API_RATE_LIMIT`, `ORDER_RATE_LIMIT`, `SMART_ORDER_RATE_LIMIT`, `WEBHOOK_RATE_LIMIT`, `GREEKS_RATE_LIMIT`, `TELEGRAM_RATE_LIMIT`, `WHATSAPP_RATE_LIMIT`, `SECTOR_ROTATION_API_RATE_LIMIT`).
 - In the desktop, `/telegram/webhook` has the general limit of 100 per second; the web sets none on it.
 - In the desktop, orders are paced at the broker for every broker, including those the web does not pace (Samco, Tradejini, HDFC Sky, HDFC Securities, Pocketful, 5paisa), and a request that would wait more than 10 seconds is always refused with HTTP 429. The web bounds the wait only on a multi-threaded server (gthread) and answers 429 there.
 - In the desktop, the WebSocket feed limits the messages each client may send; the web reads messages without a limit.

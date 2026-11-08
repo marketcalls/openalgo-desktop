@@ -193,7 +193,8 @@ Leg-level messages in `results` include:
 |-----------|------|
 | The broker's own reason | The broker refused the leg |
 | `OpenAlgo is pacing requests to stay within your broker's rate limit, and this one would have had to wait too long for its turn. Try again in a few seconds.` | The leg would have waited more than 10 seconds for its turn at the broker; it was not sent |
-| `Failed to place order due to internal error` | The leg was sent and no definite answer came back |
+| `The connection to the broker dropped after the order was sent, so it may have been placed. Check the order book before placing it again.` | The leg was sent and the broker's answer was lost (a dropped connection or a timeout after sending) |
+| `Failed to place order due to internal error` | The leg was sent and the broker's answer could not be read |
 | `Fractional quantities are not supported in OpenAlgo Desktop yet. Use a whole-number quantity.` | A fractional CRYPTO quantity |
 
 Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wrong method, rate limit) are listed in the [API overview](../README.md#errors-common-to-every-endpoint).
@@ -204,6 +205,7 @@ Errors common to every endpoint (missing or invalid API key, OpenAlgo locked, wr
 - In live mode, legs go to the broker in batches of 10 at a time, with a one-second pause between batches. Each leg still takes its turn in the broker pacer.
 - Each leg is independent: some can succeed while others fail.
 - A leg sent without a definite answer is never sent again; check the order book before sending it yourself.
+- Read every leg's result, even when the request answers 200. Sending the whole basket again because one leg had no definite answer can place the other legs twice. See [Order outcomes](../README.md#order-outcomes-and-retries).
 - When the API key's order mode is Semi-Auto, the whole basket waits in the Action Center for your approval and the answer is `{"status": "success", "message": "Order queued for approval in Action Center", "mode": "semi_auto", "pending_order_id": 12}`. This applies in analyzer mode too.
 - Rate limit: 100 requests per second per caller, the general API limit. See [Rate limiting](../rate-limiting.md).
 

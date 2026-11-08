@@ -57,6 +57,7 @@ page per endpoint.
 | Symbol services (search, symbol, expiry, instruments) | [api/symbol-services/](api/symbol-services/) |
 | Market data (quotes, multi-quotes, depth, history, intervals, ticker) | [api/market-data/](api/market-data/) |
 | Options services (option symbol, chain, Greeks, multi-option Greeks, synthetic future) | [api/options-services/](api/options-services/) |
+| Analytics services (sector rotation map) | [api/analytics-services/](api/analytics-services/) |
 | Chart services (chart workspace preferences per API key) | [api/chart-services/](api/chart-services/) |
 | Market calendar (holidays, timings) | [api/market-calendar/](api/market-calendar/) |
 | WebSocket streaming (the 8765 feed: LTP, Quote, Depth, order updates) | [api/websocket-streaming/](api/websocket-streaming/) |

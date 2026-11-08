@@ -786,7 +786,12 @@ In the desktop:
   most 32 from any one network address, so they can never use up the places of
   your own programs. A network address blocked on the Security page is
   disconnected before the handshake.
-- **Every tick is forwarded.** There is no throttling of market data.
+- **No throttling.** Each tick the broker's feed sends is forwarded as it
+  arrives; there is no time throttle (a slow reader gets the latest frame, as
+  above). Which exchange ticks arrive, and how often, depends on the broker's
+  feed, and ticks missed while a client was disconnected are not replayed. A
+  subscription that succeeded means the request was taken, not that a price
+  has arrived yet.
 
 ### Security
 

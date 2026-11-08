@@ -112,11 +112,31 @@ trust.
 
 ### Rate limits
 
-The same as the web: 100 requests per second per address for most endpoints,
-10 per second for `placeorder`, `placesmartorder`, `modifyorder`,
-`cancelorder`, `optionsorder`, `optionsmultiorder`, the GTT writes and the
-strategy module calls, and 30 per minute for Telegram. Over the limit the
-answer is HTTP 429. No rate-limit headers are sent.
+The same as the web: 10 requests per second per address for `placeorder`,
+`placesmartorder`, `modifyorder`, `cancelorder`, `optionsorder`,
+`optionsmultiorder` and the GTT writes; 30 per minute for `optiongreeks`,
+Telegram, WhatsApp and Sector Rotation (5 per minute for the Telegram
+broadcast); 100 per second for everything else, the strategy module calls,
+`basketorder`, `splitorder`, `cancelallorder` and `closeposition` included.
+Over the limit the answer is HTTP 429. No rate-limit headers are sent. See
+[Rate limiting](../api/rate-limiting.md).
+
+### Order outcomes
+
+- An `orderid` in the answer means the broker accepted the order, not that it
+  filled. Check `orderstatus`, `tradebook` or the order-update stream.
+- When the connection to the broker drops after an order was sent, the order
+  may have been placed: `placeorder`, `placesmartorder` and `optionsorder`
+  answer HTTP 502 with "The connection to the broker dropped after the order
+  was sent, so it may have been placed. Check the order book before placing
+  it again." A client timeout leaves the same doubt. Look in `orderbook`
+  before sending it again.
+- `basketorder` and `splitorder` give that sentence on the order it applies
+  to: check every result, even when the call succeeds. Sending the whole call
+  again can place the other orders twice.
+- `strategy` on `cancelallorder()` and `closeposition()` is a label, not a
+  filter: every working order is cancelled and every open position closed.
+  See [order outcomes](../api/README.md#order-outcomes-and-retries).
 
 ## What works against the desktop
 
@@ -140,8 +160,8 @@ endpoint the desktop serves:
 | Indicators | `openalgo.ta` | Runs inside the SDK on your computer and never calls the server, so it works unchanged |
 
 The desktop also serves the web's endpoints that have no SDK method
-(`ticker`, `multioptiongreeks`, `pnl/symbols`, `chart`, the Telegram bot
-management calls). Call them with plain HTTP; see the API reference under
+(`ticker`, `multioptiongreeks`, `pnl/symbols`, `chart`, `sectorrotation`, the
+Telegram bot management calls). Call them with plain HTTP; see the API reference under
 [docs/api](../api/).
 
 ## What does not work against the desktop
@@ -554,7 +574,7 @@ There are two shapes:
 | Type | Use when | Triggers | Orders fired |
 |------|----------|----------|--------------|
 | `SINGLE` | One entry or exit at a level | 1 | 1 |
-| `OCO` | You hold a position and want both a stoploss and a target, whichever hits first | 2 | 1 of 2, the other is auto-cancelled |
+| `OCO` | You hold a position and want both a stoploss and a target, whichever hits first | 2 | 1 of 2. Where the broker has a native OCO the other is cancelled; Angel One keeps two separate rules, and on Upstox an OCO opens a position first ([PlaceGTTOrder](../api/order-management/placegttorder.md#angel-one-an-oco-is-two-separate-rules)) |
 
 For a **SINGLE**, exactly one of `triggerprice_sl` / `triggerprice_tg` carries
 your level and the other stays `0`. Use `triggerprice_sl` for a level **below**
@@ -606,7 +626,7 @@ response = client.placegttorder(
 ```
 
 ```python
-# OCO - "I am short 5 INFY. Stop me out at 1480, take profit at 1620"
+# OCO - "I hold 5 INFY. Stop me out at 1480, take profit at 1620"
 # price is 0: OCO prices each leg separately through stoploss and target
 response = client.placegttorder(
     strategy="Bracket OCO",
@@ -680,7 +700,9 @@ CancelGTTOrder Response:
 {"status": "success", "trigger_id": "23132604291205"}
 ```
 
-Cancelling an OCO removes both legs; there is no per-leg cancel.
+Cancelling an OCO cancels both legs; there is no per-leg cancel. On Angel One
+the two rules are cancelled one after the other, and a failure can leave one
+active: check `gttorderbook()` before trying again.
 
 ### GTTOrderBook Example
 
@@ -1462,6 +1484,9 @@ never your broker's trading symbols, so the same script works with any broker.
 
 ### TradeBook Example
 
+A trade row is a fill, so one order can have several rows. How the time is
+written and the order of the rows depend on the broker.
+
 ```python
 response = client.tradebook()
 print(response)
@@ -1479,7 +1504,7 @@ TradeBook Response
       "exchange": "NSE",
       "orderid": "250408000989443",
       "product": "MIS",
-      "quantity": 0.0,
+      "quantity": 1.0,
       "average_price": 1180.1,
       "timestamp": "13:58:03",
       "trade_value": 1180.1

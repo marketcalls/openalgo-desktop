@@ -169,7 +169,8 @@ Validation errors carry `message` as a string that spells out a Python dictionar
 | 400 | `Fractional quantities are not supported in OpenAlgo Desktop yet. Use a whole-number quantity.` | A fractional CRYPTO quantity, live or in analyzer mode |
 | 400 | The broker's own reason | The broker refused the order, or the position could not be read |
 | 429 | `OpenAlgo is pacing requests to stay within your broker's rate limit, and this one would have had to wait too long for its turn. Try again in a few seconds.` | The order would have waited more than 10 seconds for its turn at the broker; it was not sent |
-| 500 | `Failed to place order due to internal error` | The order was sent and no definite answer came back |
+| 502 | `The connection to the broker dropped after the order was sent, so it may have been placed. Check the order book before placing it again.` | The order was sent and the broker's answer was lost (a dropped connection or a timeout after sending). Look for it in the order book before sending it again; see [Order outcomes](../README.md#order-outcomes-and-retries) |
+| 500 | `Failed to place order due to internal error` | The order was sent and the broker's answer could not be read |
 | 500 | `Failed to place smart order due to internal error` | The current position could not be read from the broker |
 
 In analyzer mode the sandbox refuses an order for the same reasons as [PlaceOrder](./placeorder.md#errors), for example:
