@@ -23,7 +23,7 @@ corpus_cases!(
         depth_update_and_book_clear,
         derivative_oi_and_circuit_partials,
         index_quote_and_depth,
-        reconnect_keeps_the_snapshot,
+        reconnect_drops_the_snapshot,
         two_clients_mode_change,
         one_token_on_two_exchanges,
         in_band_auth_error,

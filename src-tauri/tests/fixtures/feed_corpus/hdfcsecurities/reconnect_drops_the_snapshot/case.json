@@ -1,6 +1,6 @@
 {
   "broker": "hdfcsecurities",
-  "summary": "The broker drops the socket: the manager connects again with the same query and headers and subscribes again; an OI packet before the new socket's first full packet is merged into the previous socket's packet.",
+  "summary": "The broker drops the socket: the manager connects again with the same query and headers and subscribes again; an OI packet before the new socket's first full packet publishes nothing.",
   "scenarios": [
     "reconnect",
     "partial-packet",
@@ -28,10 +28,12 @@
       "broker/hdfcsecurities/streaming/hdfcsecurities_websocket.py::HDFCSecuritiesWebSocket._parse_packet",
       "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._on_ticks",
       "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._merge_partial",
-      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._normalize"
+      "broker/hdfcsecurities/streaming/hdfcsecurities_adapter.py::HDFCSecuritiesWebSocketAdapter._normalize",
+      "test/test_hdfcsky_quote_feed.py::test_reconnect_drops_snapshots_before_partial_packets"
     ],
     "notes": [
-      "The web's _on_ws_connect and _on_ws_disconnect change only `connected` (hdfcsecurities_adapter.py:113-117), and HdfcSecuritiesFeed has no on_connected: both keep the previous socket's packet (audit inherited limitation 6)."
+      "Web defect, approved (decisions.md: restarting a broker's merge after a reconnect is a desktop improvement, the web's stale snapshot a web defect): the web's _on_ws_connect and _on_ws_disconnect change only `connected` (hdfcsecurities_adapter.py:113-117), so the OI packet on the new socket is merged into the previous socket's packet and that pre-outage quote is published as current (web.json, line 8). HDFC Sky's adapter drops its snapshots on both (openalgo#2397, _drop_snapshots), and HdfcSecuritiesFeed::on_connected now does the same.",
+      "The silence step cannot declare it: a frame the web sends and the desktop does not is the corpus's missing-frame deviation, not on the base yet; this step becomes one when it lands."
     ]
   },
   "deviations": [

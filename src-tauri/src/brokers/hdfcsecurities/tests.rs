@@ -844,6 +844,38 @@ fn feed_ticks_depth_and_partial_merge() {
     assert!(f.parse(&Message::Text("{}".into())).is_empty());
 }
 
+/// Web test/test_hdfcsky_quote_feed.py::test_reconnect_drops_snapshots_before_partial_packets,
+/// on HDFC Sky's sibling feed: a new socket waits for its own first full
+/// quote, so an OI packet before it republishes nothing from the old socket.
+/// The web's InvestRight adapter keeps the old snapshot (a web defect).
+#[test]
+fn a_reconnect_drops_the_snapshot_before_partial_packets() {
+    let mut f = HdfcSecuritiesFeed::new("wss://x", "KEY", "TOK", master());
+    f.subscribe_frames(&[sub("NIFTY25AUG2624500CE", "NFO", "45001", FeedMode::Quote)]);
+    let full = mbp_packet(packet_type::NSE_FO_ALL, 45001, 100.5, 900).encode_to_vec();
+    let oi = GenericDto {
+        instrument_id: 45001,
+        packet_type: packet_type::NSE_FO_OI,
+        mbp_data: Some(MbpData {
+            oi: 1500,
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
+    .encode_to_vec();
+    assert_eq!(f.parse(&Message::Binary(full.clone())).len(), 1);
+    assert!(f.on_connected().is_empty());
+    assert_eq!(
+        f.tracked(),
+        (1, 0),
+        "the subscription stays, its packet goes"
+    );
+    let ev = f.parse(&Message::Binary(oi));
+    assert!(ev.is_empty(), "{:?}", ev);
+    let ev = f.parse(&Message::Binary(full));
+    assert_eq!(ev.len(), 1, "the next full quote is published");
+}
+
 /// Audit RB-10, web `hdfcsecurities_websocket.py:507-544`: an error or
 /// failure text frame naming a token or auth problem ends the session
 /// (`_is_fatal_auth_error`); another error, an acknowledgement and a frame

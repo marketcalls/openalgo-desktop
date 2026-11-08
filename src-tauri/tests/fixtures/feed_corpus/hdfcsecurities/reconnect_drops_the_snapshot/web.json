@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "hdfcsecurities",
-  "inputs_sha256": "6f0f0878267319fe0ba4b7f2740932216eeeed4fd080cca20510a7f2028ff99e",
+  "inputs_sha256": "8da0a680e6836c20062e791854ef17824136cebc769b9bc5ab352c3a3089d311",
   "instruments": [
     {
       "symbol": "NIFTY25NOV26FUT",

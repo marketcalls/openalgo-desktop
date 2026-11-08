@@ -15,7 +15,8 @@
 //!   `(exchange, token)`.
 //! * `*_CIRC` and `*_OI` packets reuse `mbpData` for a partial refresh: every
 //!   other field is a proto3 zero. They are merged into the last full packet
-//!   for the instrument and never published on their own.
+//!   for the instrument and never published on their own; that packet lives
+//!   as long as the subscription and the socket.
 //! * Text frames are acknowledgements and errors; an error naming a token or
 //!   auth problem ends the session (`investright::text_events`, audit
 //!   RB-10).
@@ -380,7 +381,8 @@ pub struct HdfcSecuritiesFeed {
     /// `(OpenAlgo exchange, token)` -> subscription.
     subs: HashMap<(String, i64), SubInfo>,
     /// Last full packet per subscribed instrument, for partial merges.
-    /// Entries are removed with their subscription.
+    /// Entries are removed with their subscription and on every new
+    /// connection.
     last: HashMap<(String, i64), Packet>,
 }
 
@@ -532,6 +534,18 @@ impl BrokerFeed for HdfcSecuritiesFeed {
 
     fn ws_request(&self) -> Result<WsRequest> {
         feed_request(&self.url, &self.token)
+    }
+
+    /// A new socket starts from its own first full quote: nothing on it
+    /// vouches for a price from the last one, so a circuit or OI packet
+    /// that comes first publishes nothing. The web's InvestRight adapter
+    /// keeps its snapshots across a reconnect (`_on_ws_connect` changes
+    /// only `connected`) and republishes the pre-outage quote; its HDFC Sky
+    /// sibling drops them (openalgo#2397, `_drop_snapshots`). The
+    /// subscriptions stay; the manager replays them.
+    fn on_connected(&mut self) -> Vec<Message> {
+        self.last.clear();
+        Vec::new()
     }
 
     fn subscribe_frames(&mut self, subs: &[FeedSubscription]) -> Vec<Message> {
