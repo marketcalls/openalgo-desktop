@@ -47,7 +47,7 @@ const OPTION_GROUPS: [&str; 4] = [
 enum Layout {
     Security,
     Future,
-    Option,
+    OptionContract,
 }
 
 fn layout(group: &str) -> Option<Layout> {
@@ -56,7 +56,7 @@ fn layout(group: &str) -> Option<Layout> {
     } else if FUTURE_GROUPS.contains(&group) {
         Some(Layout::Future)
     } else if OPTION_GROUPS.contains(&group) {
-        Some(Layout::Option)
+        Some(Layout::OptionContract)
     } else {
         None
     }
@@ -377,7 +377,7 @@ fn parse_row(r: &HashMap<&str, &str>, group: &Group) -> Option<SymbolData> {
                 tick_size: tick(r),
             })
         }
-        Layout::Option => {
+        Layout::OptionContract => {
             let base = comp("symbol", "symbol", 1);
             let exchange = comp("exchange", "", 2);
             let expiry = parse_expiry(&comp("expiry", "expiry", 3))?;
