@@ -36,18 +36,6 @@
   },
   "deviations": [
     {
-      "key": "52w_high",
-      "kind": "open",
-      "reason": "The web sends the 52-week high (Definedge `52h`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
-    },
-    {
-      "key": "52w_low",
-      "kind": "open",
-      "reason": "The web sends the 52-week low (Definedge `52l`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
       "reason": "The web forwards Definedge's raw time as ltt: the feed time `ft` in epoch seconds (or the depth feed's clock text HH:MM:SS), a wrong value where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md); it is a JSON string as well. The desktop sends the epoch ms value.",

@@ -88,6 +88,8 @@
     "ask": 1395.55,
     "ask_qty": 9,
     "lower_circuit": 1251.9,
-    "upper_circuit": 1530.1
+    "upper_circuit": 1530.1,
+    "52w_high": 1608.8,
+    "52w_low": 1114.85
   }
 }

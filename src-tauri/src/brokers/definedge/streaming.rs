@@ -123,6 +123,8 @@ fn extras(d: &Map<String, Value>, v: &Value) -> QuoteExtras {
         total_oi: qty_of(d, v, "toi"),
         upper_circuit: price_of(d, v, "uc"),
         lower_circuit: price_of(d, v, "lc"),
+        high_52_week: price_of(d, v, "52h"),
+        low_52_week: price_of(d, v, "52l"),
         ..Default::default()
     }
 }

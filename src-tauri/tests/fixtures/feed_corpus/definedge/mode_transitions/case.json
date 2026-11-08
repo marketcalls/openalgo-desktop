@@ -58,18 +58,6 @@
       "kind": "open",
       "reason": "Definedge's web adapter names the percent change change_percent and percent_change (both sent by the desktop too); the desktop adds its canonical price_change_percent. Dropped in Phase B through the per-broker switch (lead rules 2026-11-09).",
       "ref": "definedge_adapter.py:987-1003, :933-934; feed::dialect"
-    },
-    {
-      "key": "52w_high",
-      "kind": "open",
-      "reason": "The web sends the 52-week high (Definedge `52h`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
-    },
-    {
-      "key": "52w_low",
-      "kind": "open",
-      "reason": "The web sends the 52-week low (Definedge `52l`); the desktop's common carrier drops it.",
-      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
     }
   ]
 }
