@@ -1,0 +1,13 @@
+{"step": "upstream_receives", "frames": [{"json": {"t": "c", "uid": "u", "actid": "u", "source": "TRTP", "susertoken": "t"}}]}
+{"step": "push", "frame": "frames/ck.json"}
+{"step": "send", "client": "q", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "t", "k": "NFO|52345"}}, {"json": {"t": "d", "k": "NFO|52345"}}]}
+{"step": "send", "client": "d", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "u", "k": "NFO|52345"}}], "note": "Depth now effective: the depth feed alone carries everything."}
+{"step": "push", "frame": "frames/depth_ack.json"}
+{"step": "receive", "client": "q", "frame": "expected/quote_with_depth_held.json"}
+{"step": "receive", "client": "d", "frame": "expected/depth.json"}
+{"step": "send", "client": "d", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY25NOV25FUT", "exchange": "NFO"}], "mode": 3}}
+{"step": "upstream_receives", "frames": [{"json": {"t": "t", "k": "NFO|52345"}}], "note": "Quote effective again: the touchline comes back."}
+{"step": "push", "frame": "frames/depth_update.json"}
+{"step": "receive", "client": "q", "frame": "expected/quote_alone.json"}

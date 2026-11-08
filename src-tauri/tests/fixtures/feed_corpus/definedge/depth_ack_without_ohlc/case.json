@@ -1,0 +1,77 @@
+{
+  "broker": "definedge",
+  "summary": "A depth acknowledgement with a book but no open, high, low or close (no trade yet): the desktop frames the book with the quote fields it lacks left out; the web drops the acknowledgement uncached, so its next Depth frame has only that update's fields and a book of zeros around them.",
+  "scenarios": [
+    "absent-field",
+    "depth-update"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/definedge/streaming/definedge_websocket.py::DefinedGeWebSocket._on_message",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._on_depth_data",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._normalize_raw_depth_data"
+    ],
+    "notes": [
+      "The web returns before caching a dk that carries none of o, h, l, c (definedge_adapter.py:809-821).",
+      "No frame carries the depth feed's `ltt` (an IST HH:MM:SS): the desktop reads it on the IST day the tick arrives (streaming.rs clock_on_day_of), so its epoch-ms value depends on the day the case runs and cannot be pinned here; brokers::definedge::tests::quote_feed::a_depth_message_carries_the_full_quote_and_the_trade_time pins it. Without it both sides take the feed time `ft` (epoch seconds) as the trade time."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web forwards Definedge's raw feed time as ltt: the string of epoch seconds `ft` (or the depth feed's text HH:MM:SS), where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends ltt as epoch ms.",
+      "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms"
+    },
+    {
+      "key": "bid_qty",
+      "kind": "open",
+      "reason": "The web sends the best bid quantity (Definedge `bq1`); the desktop's common carrier drops it.",
+      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
+    },
+    {
+      "key": "total_buy_qty",
+      "kind": "open",
+      "reason": "The web's Depth payload names the book total total_buy_qty beside total_buy_quantity; the desktop sends total_buy_quantity only.",
+      "ref": "definedge_adapter.py:1004-1007; lane wire (per-broker aliases)"
+    },
+    {
+      "key": "frame",
+      "kind": "web-defect",
+      "reason": "The web drops a depth acknowledgement without OHLC before caching it (definedge_adapter.py:809-821), so a Depth subscriber gets nothing for the book Definedge sent; the desktop frames it.",
+      "ref": "definedge_adapter.py:809-821"
+    },
+    {
+      "key": "depth",
+      "kind": "web-defect",
+      "reason": "Having dropped the acknowledgement, the web builds the next Depth frame from the update alone: every level but the one updated quantity reads 0 (price 0.0 at level one). The desktop keeps the acknowledged book and applies the update to it.",
+      "ref": "definedge_adapter.py:809-821, :1148-1193"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "The web lost the acknowledged sell total with the dropped acknowledgement; the desktop keeps it.",
+      "ref": "definedge_adapter.py:809-821"
+    }
+  ]
+}

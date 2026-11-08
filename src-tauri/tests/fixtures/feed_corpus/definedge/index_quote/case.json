@@ -1,0 +1,62 @@
+{
+  "broker": "definedge",
+  "summary": "An index on its cash exchange's scrip key (NSE|26000): Quote with OHLC and the change, which the desktop works out from the close and sends under its canonical names with the web's aliases.",
+  "scenarios": [
+    "index",
+    "first-full-packet",
+    "partial-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "Nifty 50",
+      "brexchange": "NSE",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/definedge/streaming/definedge_websocket.py::DefinedGeWebSocket._on_message",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._on_data",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._normalize_raw_data",
+      "broker/definedge/streaming/definedge_mapping.py::DefinedgeExchangeMapper"
+    ],
+    "notes": [
+      "Definedge sends no volume, average price or book totals for an index; both sides leave them out.",
+      "The percent change is chosen to agree with the close to two places, which the desktop recomputes."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web forwards Definedge's raw feed time as ltt: the string of epoch seconds `ft` (or the depth feed's text HH:MM:SS), where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends ltt as epoch ms.",
+      "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "price_change is the desktop's canonical name for an index's change (the recorded Zerodha transcript's); this web adapter sends the percent only.",
+      "ref": "feed::dialect module docs"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "price_change_percent is the desktop's canonical name for an index's percent change; the web adapter's own names change_percent and percent_change are sent beside it as aliases.",
+      "ref": "feed::dialect (Definedge change_percent, percent_change)"
+    }
+  ]
+}

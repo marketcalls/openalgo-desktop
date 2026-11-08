@@ -1,0 +1,20 @@
+{
+  "type": "order_update",
+  "user_id": "<USER_ID>",
+  "mode": "live",
+  "broker": "definedge",
+  "orderid": "25110900000124",
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "action": "BUY",
+  "quantity": 500,
+  "price": 1395.0,
+  "trigger_price": 0.0,
+  "pricetype": "LIMIT",
+  "product": "CNC",
+  "order_status": "rejected",
+  "filled_quantity": 0,
+  "pending_quantity": 500,
+  "average_price": 0.0,
+  "rejection_reason": "RED:Margin Shortfall:INR 1,23,456.00 Available:INR 10,000.00 for C-u [RELIANCE-EQ]"
+}

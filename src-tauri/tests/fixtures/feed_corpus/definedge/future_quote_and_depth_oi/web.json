@@ -1,0 +1,189 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "definedge",
+  "inputs_sha256": "c9f499f6d754541963b3f5e05625a53770eed3e9990fcf659aa4192670281d19",
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV25FUT",
+      "exchange": "NFO",
+      "token": "52345",
+      "brsymbol": "NIFTY25NOV25F",
+      "brexchange": "NFO",
+      "instrumenttype": "FUT",
+      "lotsize": 75,
+      "expiry": "25-NOV-25",
+      "name": "NIFTY"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV25FUT_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 24410.0,
+            "volume": 2450000,
+            "open": 24320.0,
+            "high": 24450.0,
+            "low": 24300.0,
+            "close": 24312.7,
+            "change_percent": 0.4,
+            "average_price": 24390.15,
+            "oi": 14250000,
+            "prev_oi": 14100000,
+            "total_oi": 14250000,
+            "bid": 24409.0,
+            "bid_qty": 150,
+            "ask": 24411.0,
+            "ask_qty": 225,
+            "ltt": "1730784000",
+            "percent_change": 0.4,
+            "last_quantity": 75,
+            "total_buy_quantity": 312000,
+            "total_sell_quantity": 298500,
+            "symbol": "NIFTY25NOV25FUT",
+            "exchange": "NFO",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        },
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV25FUT_DEPTH",
+          "mode": 3,
+          "data": {
+            "ltp": 24410.0,
+            "volume": 2450000,
+            "open": 24320.0,
+            "high": 24450.0,
+            "low": 24300.0,
+            "close": 24312.7,
+            "change_percent": 0.4,
+            "average_price": 24390.15,
+            "oi": 14250000,
+            "prev_oi": 14100000,
+            "total_oi": 14250000,
+            "bid": 24409.0,
+            "bid_qty": 150,
+            "ask": 24411.0,
+            "ask_qty": 225,
+            "ltq": 75,
+            "total_buy_qty": 312000,
+            "total_sell_qty": 298500,
+            "lower_circuit": 21881.45,
+            "upper_circuit": 26743.95,
+            "ltt": "1730784000",
+            "percent_change": 0.4,
+            "last_quantity": 75,
+            "total_buy_quantity": 312000,
+            "total_sell_quantity": 298500,
+            "depth": {
+              "buy": [
+                {
+                  "price": 24409.0,
+                  "quantity": 150,
+                  "orders": 2
+                },
+                {
+                  "price": 24408.5,
+                  "quantity": 300,
+                  "orders": 3
+                },
+                {
+                  "price": 24408.0,
+                  "quantity": 450,
+                  "orders": 4
+                },
+                {
+                  "price": 24407.5,
+                  "quantity": 600,
+                  "orders": 5
+                },
+                {
+                  "price": 24407.0,
+                  "quantity": 750,
+                  "orders": 6
+                }
+              ],
+              "sell": [
+                {
+                  "price": 24411.0,
+                  "quantity": 225,
+                  "orders": 2
+                },
+                {
+                  "price": 24411.5,
+                  "quantity": 375,
+                  "orders": 3
+                },
+                {
+                  "price": 24412.0,
+                  "quantity": 525,
+                  "orders": 4
+                },
+                {
+                  "price": 24412.5,
+                  "quantity": 675,
+                  "orders": 5
+                },
+                {
+                  "price": 24413.0,
+                  "quantity": 825,
+                  "orders": 6
+                }
+              ]
+            },
+            "symbol": "NIFTY25NOV25FUT",
+            "exchange": "NFO",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 12,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV25FUT_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 24415.0,
+            "volume": 2450750,
+            "open": 24320.0,
+            "high": 24450.0,
+            "low": 24300.0,
+            "close": 24312.7,
+            "change_percent": 0.4,
+            "average_price": 24390.15,
+            "oi": 14262000,
+            "prev_oi": 14100000,
+            "total_oi": 14250000,
+            "bid": 24409.0,
+            "bid_qty": 150,
+            "ask": 24411.0,
+            "ask_qty": 225,
+            "ltt": "1730784005",
+            "percent_change": 0.4,
+            "last_quantity": 150,
+            "total_buy_quantity": 312000,
+            "total_sell_quantity": 298500,
+            "symbol": "NIFTY25NOV25FUT",
+            "exchange": "NFO",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}

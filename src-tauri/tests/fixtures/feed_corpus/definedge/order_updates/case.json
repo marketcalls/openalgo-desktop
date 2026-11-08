@@ -1,0 +1,37 @@
+{
+  "broker": "definedge",
+  "summary": "The order-update connection: connect and the order subscription t=o, the ck acknowledgement, then an order open, partly filled, complete, one rejected with Definedge's full RMS text and one cancelled, each an order_update frame with OpenAlgo's constants.",
+  "scenarios": [
+    "order-open",
+    "order-partial-fill",
+    "order-complete",
+    "order-rejected",
+    "order-cancelled"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/definedge/streaming/definedge_order_adapter.py::DefinedgeOrderUpdateAdapter.normalize",
+      "broker/definedge/streaming/definedge_order_adapter.py::DefinedgeOrderUpdateAdapter.on_open_extra",
+      "subscribers/wsproxy_subscriber.py::on_order_update"
+    ],
+    "notes": [
+      "RB-12: the desktop sends t=o with the connect frame, before ck; the web sends it only once ck says Ok (definedge_order_adapter.py:98-105). The frames sent upstream are not part of the web output, so the case pins the desktop's order here.",
+      "The market data socket connects too and gets its connect frame and ck."
+    ]
+  },
+  "deviations": []
+}

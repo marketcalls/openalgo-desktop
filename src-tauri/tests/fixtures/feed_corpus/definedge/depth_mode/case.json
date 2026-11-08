@@ -1,0 +1,123 @@
+{
+  "broker": "definedge",
+  "summary": "Depth on the depth feed alone: the depth ack's full book with the quote fields, an update that changes level one, and a book that empties to zeros.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear",
+    "partial-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"t\":\"h\"}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/definedge/streaming/definedge_websocket.py::DefinedGeWebSocket._on_message",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._on_depth_data",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._publish_to_subscribers",
+      "broker/definedge/streaming/definedge_adapter.py::DefinedgeWebSocketAdapter._normalize_raw_depth_data"
+    ],
+    "notes": [
+      "The depth ack carries Definedge's circuit limits and 52-week range (lc, uc, 52h, 52l), which the web's Depth payload forwards.",
+      "No frame carries the depth feed's `ltt` (an IST HH:MM:SS): the desktop reads it on the IST day the tick arrives (streaming.rs clock_on_day_of), so its epoch-ms value depends on the day the case runs and cannot be pinned here; brokers::definedge::tests::quote_feed::a_depth_message_carries_the_full_quote_and_the_trade_time pins it. Without it both sides take the feed time `ft` (epoch seconds) as the trade time."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web forwards Definedge's raw feed time as ltt: the string of epoch seconds `ft` (or the depth feed's text HH:MM:SS), where feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends ltt as epoch ms.",
+      "ref": "definedge_adapter.py:923-929 (_last_trade_time); streaming.rs trade_time_ms"
+    },
+    {
+      "key": "change_percent",
+      "kind": "open",
+      "reason": "The web sends Definedge's percent change (`pc`) for every instrument; the desktop sends the change fields for indices only.",
+      "ref": "audit C04 (change on all exchanges), lane wire"
+    },
+    {
+      "key": "percent_change",
+      "kind": "open",
+      "reason": "The web's reference key for `pc` (openalgo#2383), sent for every instrument; the desktop sends the change fields for indices only.",
+      "ref": "audit C04 (change on all exchanges), lane wire"
+    },
+    {
+      "key": "bid",
+      "kind": "open",
+      "reason": "The web sends the best bid price (Definedge `bp1`); the desktop's common carrier drops it.",
+      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
+    },
+    {
+      "key": "bid_qty",
+      "kind": "open",
+      "reason": "The web sends the best bid quantity (Definedge `bq1`); the desktop's common carrier drops it.",
+      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
+    },
+    {
+      "key": "ask",
+      "kind": "open",
+      "reason": "The web sends the best ask price (Definedge `sp1`); the desktop's common carrier drops it.",
+      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
+    },
+    {
+      "key": "ask_qty",
+      "kind": "open",
+      "reason": "The web sends the best ask quantity (Definedge `sq1`); the desktop's common carrier drops it.",
+      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
+    },
+    {
+      "key": "total_buy_qty",
+      "kind": "open",
+      "reason": "The web's Depth payload names the book total total_buy_qty beside total_buy_quantity; the desktop sends total_buy_quantity only.",
+      "ref": "definedge_adapter.py:1004-1007; lane wire (per-broker aliases)"
+    },
+    {
+      "key": "total_sell_qty",
+      "kind": "open",
+      "reason": "The web's Depth payload names the book total total_sell_qty beside total_sell_quantity; the desktop sends total_sell_quantity only.",
+      "ref": "definedge_adapter.py:1004-1007; lane wire (per-broker aliases)"
+    },
+    {
+      "key": "lower_circuit",
+      "kind": "open",
+      "reason": "The web sends the lower circuit (Definedge `lc`); the desktop's common carrier drops it.",
+      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
+    },
+    {
+      "key": "upper_circuit",
+      "kind": "open",
+      "reason": "The web sends the upper circuit (Definedge `uc`); the desktop's common carrier drops it.",
+      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
+    },
+    {
+      "key": "52w_high",
+      "kind": "open",
+      "reason": "The web sends the 52-week high (Definedge `52h`); the desktop's common carrier drops it.",
+      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
+    },
+    {
+      "key": "52w_low",
+      "kind": "open",
+      "reason": "The web sends the 52-week low (Definedge `52l`); the desktop's common carrier drops it.",
+      "ref": "audit REMAINING_BROKERS 'Verified broker fields dropped by the common carrier' (definedge), definedge_adapter.py:987-1012; lane wire"
+    }
+  ]
+}
