@@ -39,9 +39,9 @@
 
 use super::mapping::data_segment;
 use crate::brokers::common::streaming::{
-    now_ms, ping, AbsentFields, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message,
-    NormalizedDepth, NormalizedTick, OrderUpdate, QuoteField, WsRequest, WEB_ORDER_PING_INTERVAL,
-    WEB_PING_INTERVAL, WEB_PING_TIMEOUT,
+    now_ms, ping, AbsentFields, BrokerFeed, BrokerField, BrokerValue, FeedEvent, FeedMode,
+    FeedSubscription, Message, NormalizedDepth, NormalizedTick, OrderUpdate, QuoteField, WsRequest,
+    WEB_ORDER_PING_INTERVAL, WEB_PING_INTERVAL, WEB_PING_TIMEOUT,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -138,6 +138,8 @@ struct SubInfo {
     /// The previous day's close from the previous-close packet; `None`
     /// until it has come on this connection.
     prev_close: Option<f64>,
+    /// The previous day's OI from the same packet (web `prev_oi`).
+    prev_oi: Option<i64>,
 }
 
 impl SubInfo {
@@ -147,6 +149,7 @@ impl SubInfo {
             exchange: s.exchange.clone(),
             oi: 0,
             prev_close: None,
+            prev_oi: None,
         }
     }
 }
@@ -303,6 +306,7 @@ impl DhanFeed {
                 6 if p.len() >= 8 => {
                     if let Some(s) = self.find(segment, token) {
                         s.prev_close = Some(le_f32(p, 0));
+                        s.prev_oi = Some(i64::from(le_u32(p, 4)));
                     }
                 }
                 50 => {
@@ -377,10 +381,27 @@ impl DhanFeed {
                     sub.oi = t.oi;
                     38
                 };
-                // The packet's close (`base + 4`) is today's: not used.
                 t.open = le_f32(p, base);
                 t.high = le_f32(p, base + 8);
                 t.low = le_f32(p, base + 12);
+                // The packet's close (`base + 4`) is today's, which Dhan
+                // fills only after the market closes: it goes out as
+                // `day_close` (web `_normalize_5depth_data`), never as close.
+                let day_close = le_f32(p, base + 4);
+                if day_close != 0.0 {
+                    t.extras.day_close = Some(day_close);
+                }
+                if code == 8 {
+                    t.broker_fields.set(
+                        BrokerField::OiHigh,
+                        BrokerValue::Int(i64::from(le_u32(p, 30))),
+                    );
+                    t.broker_fields.set(
+                        BrokerField::OiLow,
+                        BrokerValue::Int(i64::from(le_u32(p, 34))),
+                    );
+                    t.extras.previous_oi = sub.prev_oi;
+                }
             }
         }
         match sub.prev_close {
@@ -460,6 +481,7 @@ impl BrokerFeed for DhanFeed {
     fn on_connected(&mut self) -> Vec<Message> {
         for s in self.subs.values_mut() {
             s.prev_close = None;
+            s.prev_oi = None;
             s.oi = 0;
         }
         Vec::new()
