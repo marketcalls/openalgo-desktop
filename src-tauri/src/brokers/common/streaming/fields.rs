@@ -188,7 +188,10 @@ pub struct QuoteExtras {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub day_close: Option<f64>,
     /// The packet's own exchange or feed time, epoch milliseconds (Zerodha
-    /// `exchange_timestamp`, the Noren family's `<broker>_timestamp`).
+    /// `exchange_timestamp`, the Noren family's `<broker>_timestamp`). It
+    /// belongs to this packet alone: the next packet's frames carry the
+    /// next packet's time or none, never this one sent again as current
+    /// (web mStock sends no `exchange_timestamp` for a packet without one).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exchange_time_ms: Option<i64>,
     /// What this packet says is gone (`clear`): not kept from earlier
@@ -213,7 +216,6 @@ pub enum ExtraField {
     OiChange = 1 << 9,
     TotalOi = 1 << 10,
     DayClose = 1 << 11,
-    ExchangeTime = 1 << 12,
 }
 
 /// The [`ExtraField`]s a packet clears.
@@ -253,7 +255,6 @@ impl QuoteExtras {
             X::OiChange => self.oi_change = None,
             X::TotalOi => self.total_oi = None,
             X::DayClose => self.day_close = None,
-            X::ExchangeTime => self.exchange_time_ms = None,
         }
         self.cleared.0 |= field as u16;
     }
@@ -271,7 +272,8 @@ impl QuoteExtras {
     }
 
     /// These fields, each replaced by `newer`'s where it carries one and
-    /// dropped where `newer` clears it.
+    /// dropped where `newer` clears it; the packet's own time is `newer`'s,
+    /// none included.
     pub fn overlay(self, newer: Self) -> Self {
         use ExtraField as X;
         let gone = newer.cleared;
@@ -323,11 +325,7 @@ impl QuoteExtras {
             oi_change: pick(gone.contains(X::OiChange), newer.oi_change, self.oi_change),
             total_oi: pick(gone.contains(X::TotalOi), newer.total_oi, self.total_oi),
             day_close: pick(gone.contains(X::DayClose), newer.day_close, self.day_close),
-            exchange_time_ms: pick(
-                gone.contains(X::ExchangeTime),
-                newer.exchange_time_ms,
-                self.exchange_time_ms,
-            ),
+            exchange_time_ms: newer.exchange_time_ms,
             cleared: ClearedExtras::default(),
         }
     }

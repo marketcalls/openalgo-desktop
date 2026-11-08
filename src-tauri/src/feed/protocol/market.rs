@@ -4,7 +4,7 @@
 //! left out, never sent as 0 (web openalgo#2376, audit C03).
 
 use super::to_json;
-use crate::brokers::common::streaming::QuoteField;
+use crate::brokers::common::streaming::{Number, NumberForm};
 use crate::feed::dialect::{dialect, DataMode, Dialect, Extra, Fold, Key, Source, Unit};
 use crate::feed::source::{DepthLevel, InstrumentKey, MarketUpdate, Mode, QuoteFields};
 use serde::ser::{SerializeMap, Serializer};
@@ -60,15 +60,6 @@ impl Serialize for WebKeys {
     }
 }
 
-/// An integer as the broker's web adapter types it: an int, or a double
-/// where its packet carries one (`Dialect::floats`).
-#[derive(Serialize)]
-#[serde(untagged)]
-enum Num {
-    Int(i64),
-    Float(f64),
-}
-
 /// `market_data.data`, in the web's key order.
 #[derive(Serialize)]
 struct DataOut<'a> {
@@ -78,37 +69,37 @@ struct DataOut<'a> {
     exchange: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     mode: Option<ModeOut>,
-    ltp: f64,
+    ltp: Value,
     #[serde(skip_serializing_if = "Option::is_none")]
-    ltt: Option<Num>,
+    ltt: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     timestamp: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    volume: Option<Num>,
+    volume: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    last_quantity: Option<Num>,
+    last_quantity: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    average_price: Option<f64>,
+    average_price: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    total_buy_quantity: Option<Num>,
+    total_buy_quantity: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    total_sell_quantity: Option<Num>,
+    total_sell_quantity: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    open: Option<f64>,
+    open: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    high: Option<f64>,
+    high: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    low: Option<f64>,
+    low: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    close: Option<f64>,
+    close: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    price_change: Option<f64>,
+    price_change: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    price_change_percent: Option<f64>,
+    price_change_percent: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    oi: Option<Num>,
+    oi: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    open_interest: Option<Num>,
+    open_interest: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     depth: Option<BookOut>,
     #[serde(flatten)]
@@ -224,37 +215,70 @@ fn time_text(ms: i64) -> Option<Value> {
     Some(t.format("%Y-%m-%d %H:%M:%S").to_string().into())
 }
 
-/// The quote field whose value `source` reads, for the packet's doubles.
-fn field_of(source: Source) -> Option<QuoteField> {
+/// The packet value `source` reads, for the number form the packet marked.
+fn number_of(source: Source) -> Option<Number> {
+    use Number as N;
     Some(match source {
-        Source::Volume => QuoteField::Volume,
-        Source::LastQuantity => QuoteField::LastQuantity,
-        Source::TotalBuyQuantity => QuoteField::TotalBuyQuantity,
-        Source::TotalSellQuantity => QuoteField::TotalSellQuantity,
-        Source::Oi => QuoteField::OpenInterest,
-        Source::TradeTime(_) => QuoteField::LastTradeTime,
+        Source::Ltp => N::Ltp,
+        Source::Open => N::Open,
+        Source::High => N::High,
+        Source::Low => N::Low,
+        Source::Close => N::Close,
+        Source::Volume => N::Volume,
+        Source::LastQuantity => N::LastQuantity,
+        Source::AveragePrice => N::AveragePrice,
+        Source::TotalBuyQuantity => N::TotalBuyQuantity,
+        Source::TotalSellQuantity => N::TotalSellQuantity,
+        Source::Oi => N::OpenInterest,
+        Source::Change => N::Change,
+        Source::ChangePercent => N::ChangePercent,
+        Source::TradeTime(_) => N::LastTradeTime,
+        Source::Extra(e) => match e {
+            Extra::UpperCircuit => N::UpperCircuit,
+            Extra::LowerCircuit => N::LowerCircuit,
+            Extra::High52Week => N::High52Week,
+            Extra::Low52Week => N::Low52Week,
+            Extra::BidPrice => N::BidPrice,
+            Extra::BidQuantity => N::BidQuantity,
+            Extra::AskPrice => N::AskPrice,
+            Extra::AskQuantity => N::AskQuantity,
+            Extra::PreviousOi => N::PreviousOi,
+            Extra::OiChange => N::OiChange,
+            Extra::TotalOi => N::TotalOi,
+            Extra::DayClose => N::DayClose,
+            Extra::ExchangeTime(_) => return None,
+        },
+        Source::FiftyLevels(inner) => return number_of(*inner),
         _ => return None,
     })
 }
 
-/// The quote field a canonical integer key carries.
-fn field_named(key: &str) -> Option<QuoteField> {
-    Some(match key {
-        "volume" => QuoteField::Volume,
-        "last_quantity" => QuoteField::LastQuantity,
-        "total_buy_quantity" => QuoteField::TotalBuyQuantity,
-        "total_sell_quantity" => QuoteField::TotalSellQuantity,
-        "oi" | "open_interest" => QuoteField::OpenInterest,
-        "ltt" => QuoteField::LastTradeTime,
-        _ => return None,
-    })
+/// `v` in the JSON number form the packet marked for its value, else in
+/// the broker's (`Dialect::floats` names the keys its web adapter writes
+/// as doubles), else as it is: an integer for a count, a double for a
+/// price.
+fn shaped(v: Value, number: Option<Number>, key: &str, q: &QuoteFields, dia: &Dialect) -> Value {
+    match number.and_then(|n| q.numbers.form(n)) {
+        Some(NumberForm::Integer) => as_integer(v),
+        Some(NumberForm::Double) => as_double(v),
+        None if dia.floats.contains(&key) => as_double(v),
+        None => v,
+    }
 }
 
-/// An integer as a double, for a key the broker's web form writes as one.
+/// An integer as a double (`4.0`).
 fn as_double(v: Value) -> Value {
     match v.as_i64() {
         Some(i) => Value::from(i as f64),
         None => v,
+    }
+}
+
+/// A whole double as an integer (445); a fraction stays a double.
+fn as_integer(v: Value) -> Value {
+    match v.as_f64() {
+        Some(x) if v.is_f64() && x.fract() == 0.0 && x.abs() < 9.0e15 => Value::from(x as i64),
+        _ => v,
     }
 }
 
@@ -316,9 +340,8 @@ fn web_keys(d: &DataOut<'_>, fr: &Frame<'_>) -> WebKeys {
             continue;
         }
         if let Some(v) = value(name.source, fr) {
-            let double = dia.floats.contains(&name.key)
-                || field_of(name.source).is_some_and(|f| fr.q.floats.contains(f));
-            out.push((name.key, if double { as_double(v) } else { v }));
+            let v = shaped(v, number_of(name.source), name.key, fr.q, &dia);
+            out.push((name.key, v));
         }
     }
     for (field, v) in fr.q.broker_fields.iter() {
@@ -405,18 +428,12 @@ fn canonical<'a>(
     content: Mode,
     dia: &Dialect,
 ) -> DataOut<'a> {
+    use Number as N;
     let key = &update.key;
-    let num = |name: &str, v: Option<i64>| {
-        let double =
-            dia.floats.contains(&name) || field_named(name).is_some_and(|f| qf.floats.contains(f));
-        v.map(|v| {
-            if double {
-                Num::Float(v as f64)
-            } else {
-                Num::Int(v)
-            }
-        })
-    };
+    let num =
+        |name: &str, n: Number, v: Option<Value>| v.map(|v| shaped(v, Some(n), name, qf, dia));
+    let i = |v: Option<i64>| v.map(Value::from);
+    let f = |v: Option<f64>| v.map(Value::from);
     let ltp_copy = mode == Mode::Ltp && update.mode > Mode::Ltp;
     let on = |k: Key| dia.keys.has(k, key.is_index(), content);
     let ltt = update
@@ -432,34 +449,56 @@ fn canonical<'a>(
                 DataMode::Absent => None,
             })
             .flatten(),
-        ltp: update.ltp,
-        ltt: num("ltt", ltt),
+        ltp: shaped(Value::from(update.ltp), Some(N::Ltp), "ltp", qf, dia),
+        ltt: num("ltt", N::LastTradeTime, i(ltt)),
         timestamp: on(Key::Timestamp).then_some(update.timestamp),
-        volume: num("volume", qf.volume.filter(|_| on(Key::Volume))),
+        volume: num(
+            "volume",
+            N::Volume,
+            i(qf.volume.filter(|_| on(Key::Volume))),
+        ),
         last_quantity: num(
             "last_quantity",
-            qf.last_quantity.filter(|_| on(Key::LastQuantity)),
+            N::LastQuantity,
+            i(qf.last_quantity.filter(|_| on(Key::LastQuantity))),
         ),
-        average_price: qf.average_price.filter(|_| on(Key::AveragePrice)),
+        average_price: num(
+            "average_price",
+            N::AveragePrice,
+            f(qf.average_price.filter(|_| on(Key::AveragePrice))),
+        ),
         total_buy_quantity: num(
             "total_buy_quantity",
-            qf.total_buy_quantity.filter(|_| on(Key::TotalBuyQuantity)),
+            N::TotalBuyQuantity,
+            i(qf.total_buy_quantity.filter(|_| on(Key::TotalBuyQuantity))),
         ),
         total_sell_quantity: num(
             "total_sell_quantity",
-            qf.total_sell_quantity
-                .filter(|_| on(Key::TotalSellQuantity)),
+            N::TotalSellQuantity,
+            i(qf.total_sell_quantity
+                .filter(|_| on(Key::TotalSellQuantity))),
         ),
-        open: qf.open.filter(|_| on(Key::Open)),
-        high: qf.high.filter(|_| on(Key::High)),
-        low: qf.low.filter(|_| on(Key::Low)),
-        close: qf.close.filter(|_| on(Key::Close)),
-        price_change: qf.price_change.filter(|_| on(Key::PriceChange)),
-        price_change_percent: qf
-            .price_change_percent
-            .filter(|_| on(Key::PriceChangePercent)),
-        oi: num("oi", qf.oi.filter(|_| on(Key::Oi))),
-        open_interest: num("open_interest", qf.oi.filter(|_| on(Key::OpenInterest))),
+        open: num("open", N::Open, f(qf.open.filter(|_| on(Key::Open)))),
+        high: num("high", N::High, f(qf.high.filter(|_| on(Key::High)))),
+        low: num("low", N::Low, f(qf.low.filter(|_| on(Key::Low)))),
+        close: num("close", N::Close, f(qf.close.filter(|_| on(Key::Close)))),
+        price_change: num(
+            "price_change",
+            N::Change,
+            f(qf.price_change.filter(|_| on(Key::PriceChange))),
+        ),
+        price_change_percent: num(
+            "price_change_percent",
+            N::ChangePercent,
+            f(qf.price_change_percent
+                .filter(|_| on(Key::PriceChangePercent))),
+        ),
+        oi: num("oi", N::OpenInterest, i(qf.oi.filter(|_| on(Key::Oi)))),
+        open_interest: num(
+            "open_interest",
+            N::OpenInterest,
+            i(qf.oi.filter(|_| on(Key::OpenInterest))),
+        ),
         depth: None,
         web: WebKeys::default(),
     }

@@ -3,7 +3,9 @@
 //! on every exchange where the broker's web adapter sends one (C04).
 
 use super::market_data;
-use crate::brokers::common::streaming::{BrokerField, BrokerValue, QuoteExtras, QuoteField};
+use crate::brokers::common::streaming::{
+    BrokerField, BrokerValue, Number, NumberForm, QuoteExtras, QuoteField,
+};
 use crate::feed::dialect::names::BROKERS;
 use crate::feed::source::{DepthBook, DepthLevel, QuoteFields};
 use crate::feed::{InstrumentKey, MarketUpdate, Mode};
@@ -594,6 +596,47 @@ fn a_depth_frame_never_invents_oi() {
     );
 }
 
+/// A book goes out level for level as the broker sent it: its fixed empty
+/// slots (price 0, quantity 0, as the Zerodha golden fixtures carry five a
+/// side) are neither dropped nor added to (lead 2026-11-09).
+#[test]
+fn a_book_goes_out_as_the_broker_sent_it_empty_slots_included() {
+    let mut u = update(equity());
+    let empty = DepthLevel {
+        price: 0.0,
+        quantity: 0,
+        orders: Some(0),
+    };
+    if let Some(b) = u.depth.as_mut() {
+        b.buy.truncate(2);
+        b.buy.extend([empty; 3]);
+        b.sell = vec![empty; 5];
+    }
+    let d = render(&u, Mode::Depth, "zerodha");
+    let (buy, sell) = (&d["depth"]["buy"], &d["depth"]["sell"]);
+    assert_eq!(buy.as_array().map(Vec::len), Some(5), "{}", d);
+    assert_eq!(sell.as_array().map(Vec::len), Some(5), "{}", d);
+    assert_eq!(
+        (buy[4]["price"].as_f64(), buy[4]["quantity"].as_i64()),
+        (Some(0.0), Some(0))
+    );
+    if let Some(b) = u.depth.as_mut() {
+        b.buy.truncate(1);
+        b.sell.clear();
+    }
+    let d = render(&u, Mode::Depth, "zerodha");
+    assert_eq!(
+        d["depth"]["buy"].as_array().map(Vec::len),
+        Some(1),
+        "never padded"
+    );
+    assert_eq!(
+        d["depth"]["sell"].as_array().map(Vec::len),
+        Some(0),
+        "never padded"
+    );
+}
+
 /// C03: a quote field the update does not know is left out of Quote and
 /// Depth frames; a known 0 is sent.
 #[test]
@@ -668,7 +711,7 @@ fn doubles_go_where_the_web_writes_them() {
     );
     let mut text_event = update(equity());
     if let Some(q) = text_event.quote.as_mut() {
-        q.floats = crate::brokers::common::streaming::AbsentFields::of(&[QuoteField::LastQuantity]);
+        q.numbers.set(Number::LastQuantity, NumberForm::Double);
     }
     let mut at_ltp = text_event.clone();
     at_ltp.mode = Mode::Ltp;
@@ -676,6 +719,30 @@ fn doubles_go_where_the_web_writes_them() {
     assert!(render(&at_ltp, Mode::Ltp, "jainamxts")["ltq"].is_f64());
     assert!(render(&update(equity()), Mode::Ltp, "jainamxts")["ltq"].is_i64());
     assert!(render(&text_event, Mode::Quote, "jainamxts")["last_quantity"].is_f64());
+}
+
+/// A packet can write a whole value as an integer where the broker's JSON
+/// does (5paisa: 445, but 445.5), for canonical keys and the broker's names
+/// alike; an unmarked value keeps its usual form.
+#[test]
+fn a_whole_value_goes_out_as_an_integer_where_the_packet_says() {
+    let mut u = update(equity());
+    if let Some(q) = u.quote.as_mut() {
+        q.open = Some(445.0);
+        q.high = Some(445.5);
+        q.extras.bid_price = Some(101.0);
+        for n in [Number::Ltp, Number::Open, Number::High, Number::BidPrice] {
+            q.numbers.set(n, NumberForm::Integer);
+        }
+    }
+    u.ltp = 445.0;
+    let d = render(&u, Mode::Quote, "fivepaisa");
+    assert!(d["ltp"].is_i64() && d["open"].is_i64(), "{}", d);
+    assert_eq!(d["open"], 445);
+    assert!(d["high"].is_f64(), "a fraction stays a double");
+    assert!(d["low"].is_f64(), "unmarked: as usual");
+    assert!(d["bid_price"].is_i64(), "the broker's name too: {}", d);
+    assert!(render(&update(equity()), Mode::Quote, "fivepaisa")["open"].is_f64());
 }
 
 /// Fyers' 50-level frames carry the TBT book's keys; Upstox's book carries
@@ -703,6 +770,25 @@ fn book_meta_keys_follow_the_broker() {
     assert_eq!(upstox["depth"]["timestamp"], 1_791_000_000_000_i64);
     assert!(render(&u, Mode::Depth, "zerodha")["depth"]
         .get("timestamp")
+        .is_none());
+}
+
+/// Tradejini's Quote and Depth frames carry `last_trade_time` as that
+/// text; its LTP frame does not (web `_add_reference_keys`, Quote and Depth).
+#[test]
+fn tradejini_names_the_trade_time_as_text() {
+    let mut u = update(equity());
+    if let Some(q) = u.quote.as_mut() {
+        q.trade_time = Some(1_791_000_000_000);
+    }
+    for mode in [Mode::Quote, Mode::Depth] {
+        let d = render(&u, mode, "tradejini");
+        assert_eq!(d["last_trade_time"], "2026-10-03 09:30:00", "{:?}", mode);
+    }
+    let mut ltp = u.clone();
+    ltp.mode = Mode::Ltp;
+    assert!(render(&ltp, Mode::Ltp, "tradejini")
+        .get("last_trade_time")
         .is_none());
 }
 

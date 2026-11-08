@@ -554,6 +554,9 @@ const SAMCO: &[WebName] = &[
 ];
 
 const TRADEJINI: &[WebName] = &[
+    // web `_add_reference_keys`: the broker's trade time as text, only when
+    // it sent one.
+    n("last_trade_time", S::TradeTimeText, Q),
     n("change", S::Change, Q),
     n("change_percent", S::ChangePercent, Q),
     n("percent_change", S::ChangePercent, Q),

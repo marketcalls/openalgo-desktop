@@ -158,12 +158,14 @@ fn the_trade_time_goes_with_its_price() {
 }
 
 /// The optional shared fields stay until a packet sends a new value; the
-/// broker-only fields last one packet (Upstox's auction price).
+/// packet's own exchange time and the broker-only fields last one packet
+/// (bk-c's mstock/quote_mode, Upstox's auction price).
 #[test]
 fn extras_stay_and_broker_fields_last_one_packet() {
     use crate::brokers::common::streaming::{BrokerField, BrokerValue};
     let mut first = quote_packet();
     first.extras.upper_circuit = Some(540.0);
+    first.extras.exchange_time_ms = Some(1_740_729_550_050);
     first.broker_fields.set(
         BrokerField::IndicativeEquilibriumPrice,
         BrokerValue::Float(0.0),
@@ -184,6 +186,7 @@ fn extras_stay_and_broker_fields_last_one_packet() {
         (x.upper_circuit, x.lower_circuit),
         (Some(540.0), Some(440.0))
     );
+    assert_eq!(x.exchange_time_ms, None, "a packet's own time is not kept");
     assert!(s.tick().broker_fields.is_empty());
 }
 
@@ -212,6 +215,28 @@ fn a_cleared_extra_is_gone_where_a_missing_one_stays() {
     assert!(
         s.tick().extras.cleared == Default::default(),
         "the mark is per packet"
+    );
+}
+
+/// A field a packet clears is dropped from the snapshot until a packet
+/// carries it again (web Tradejini and Samco prune the book's totals when
+/// the Depth holder leaves); one it only lacks is kept.
+#[test]
+fn a_cleared_field_is_gone_where_an_absent_one_stays() {
+    let s = merge(None, &quote_packet(), 1);
+    let mut gone = quote_packet();
+    gone.mark_cleared(QuoteField::TotalBuyQuantity);
+    gone.mark_absent(QuoteField::TotalSellQuantity);
+    let s = merge(Some(&s), &gone, 1);
+    assert!(!s.tick().knows(QuoteField::TotalBuyQuantity));
+    assert!(s.tick().knows(QuoteField::TotalSellQuantity));
+    assert_eq!(s.tick().total_sell_quantity, 800);
+    let s = merge(Some(&s), &ltpc_packet(221.0), 1);
+    assert!(!s.tick().knows(QuoteField::TotalBuyQuantity), "stays gone");
+    let s = merge(Some(&s), &quote_packet(), 1);
+    assert!(
+        s.tick().knows(QuoteField::TotalBuyQuantity),
+        "back when sent"
     );
 }
 

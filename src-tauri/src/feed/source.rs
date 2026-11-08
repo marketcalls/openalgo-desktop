@@ -9,7 +9,7 @@
 //! Production wires the broker streaming manager through `feed::bridge`;
 //! tests use [`FakeSource`].
 
-use crate::brokers::common::streaming::{AbsentFields, BrokerFields, QuoteExtras};
+use crate::brokers::common::streaming::{BrokerFields, NumberForms, QuoteExtras};
 use parking_lot::Mutex;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::AtomicU64;
@@ -140,8 +140,8 @@ pub struct QuoteFields {
     pub extras: QuoteExtras,
     /// The broker-only fields of the packet.
     pub broker_fields: BrokerFields,
-    /// The fields the packet writes as doubles (`NormalizedTick::floats`).
-    pub floats: AbsentFields,
+    /// The number forms the packet marked (`NormalizedTick::numbers`).
+    pub numbers: NumberForms,
 }
 
 /// A normalized update from the broker feed.
