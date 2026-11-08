@@ -1,6 +1,6 @@
 {
   "broker": "groww",
-  "summary": "Groww drops the socket: the feed mints a new socket token, reconnects, sends CONNECT again and resubscribes with sid 1; the first tick of the new session carries only what it says, never the old session's OHLC or volume.",
+  "summary": "Groww drops the socket: the feed mints a new socket token, reconnects, sends CONNECT again and resubscribes with sid 1; the first tick of the new session (an LTP and a fresh volume) carries only what it says, never the old session's OHLC.",
   "scenarios": [
     "reconnect",
     "first-full-packet",
@@ -37,26 +37,29 @@
     {
       "key": "broker",
       "kind": "open",
-      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
       "ref": "groww_adapter.py:983-993"
     },
     {
       "key": "close",
       "kind": "web-defect",
       "reason": "The web client reconnects on its own and resubscribes, but the adapter's merge cache is cleared only on a disconnect of the adapter, so the first tick of the new session is published with the old session's close. The desktop starts every connection afresh (GrowwFeed::on_connected; CLAUDE.md: a cached market field belongs to the session that sent it).",
-      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)"
+      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)",
+      "approved": true
     },
     {
       "key": "high",
       "kind": "web-defect",
       "reason": "The web client reconnects on its own and resubscribes, but the adapter's merge cache is cleared only on a disconnect of the adapter, so the first tick of the new session is published with the old session's high. The desktop starts every connection afresh (GrowwFeed::on_connected; CLAUDE.md: a cached market field belongs to the session that sent it).",
-      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)"
+      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)",
+      "approved": true
     },
     {
       "key": "low",
       "kind": "web-defect",
       "reason": "The web client reconnects on its own and resubscribes, but the adapter's merge cache is cleared only on a disconnect of the adapter, so the first tick of the new session is published with the old session's low. The desktop starts every connection afresh (GrowwFeed::on_connected; CLAUDE.md: a cached market field belongs to the session that sent it).",
-      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)"
+      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)",
+      "approved": true
     },
     {
       "key": "ltt",
@@ -74,31 +77,26 @@
       "key": "open",
       "kind": "web-defect",
       "reason": "The web client reconnects on its own and resubscribes, but the adapter's merge cache is cleared only on a disconnect of the adapter, so the first tick of the new session is published with the old session's open. The desktop starts every connection afresh (GrowwFeed::on_connected; CLAUDE.md: a cached market field belongs to the session that sent it).",
-      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)"
+      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)",
+      "approved": true
     },
     {
       "key": "subscription_mode",
       "kind": "open",
-      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
       "ref": "groww_adapter.py:983-993"
     },
     {
       "key": "topic",
       "kind": "open",
-      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
       "ref": "groww_adapter.py:983-993"
     },
     {
-      "key": "value",
-      "kind": "open",
-      "reason": "The web forwards Groww's traded value (`value`, rupees) in Quote and Depth; the desktop decodes it (brokers/groww/proto.rs StocksLivePrice.value) but the common tick has no field for it. Carrier gap for lane wire. After the reconnect the web also sends the old session's value.",
-      "ref": "groww_adapter.py:1115-1116, :43 (_LTP_FIELDS)"
-    },
-    {
       "key": "volume",
-      "kind": "web-defect",
-      "reason": "The web client reconnects on its own and resubscribes, but the adapter's merge cache is cleared only on a disconnect of the adapter, so the first tick of the new session is published with the old session's volume. The desktop starts every connection afresh (GrowwFeed::on_connected; CLAUDE.md: a cached market field belongs to the session that sent it). In the first session volume differs only as a float, which follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B.",
-      "ref": "nats_websocket.py:271-328; groww_adapter.py:337 (cleared on disconnect only)"
+      "kind": "open",
+      "reason": "follows the broker's web adapter; set in the per-broker dialect entry (lane wire) in Phase B. The web sends Groww's volume as the protobuf double it decodes, a float (1200000.0); the desktop sends the integer.",
+      "ref": "groww_protobuf.py:194 (_read_fixed64); groww_adapter.py:1113-1114"
     }
   ]
 }

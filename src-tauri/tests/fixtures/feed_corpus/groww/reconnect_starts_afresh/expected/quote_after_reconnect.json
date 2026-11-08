@@ -9,7 +9,8 @@
     "mode": "quote",
     "ltp": 813.0,
     "ltt": 1730800000000,
-    "timestamp": "<receipt_ms>"
+    "timestamp": "<receipt_ms>",
+    "volume": 1210000
   },
   "broker": "groww"
 }

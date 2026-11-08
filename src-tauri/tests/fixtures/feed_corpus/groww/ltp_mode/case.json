@@ -35,25 +35,25 @@
     {
       "key": "broker",
       "kind": "open",
-      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
       "ref": "groww_adapter.py:983-993"
     },
     {
       "key": "close",
       "kind": "open",
-      "reason": "A real value the web carries and the desktop lacks: the web's Groww adapter forwards its Quote normalisation of the tick (OHLC, volume, value) to LTP subscribers, where the documented LTP frame is the last price and its time (docs/prompt/websockets-format.md:64). Set in the Groww dialect entry (lane wire) in Phase B, or ruled a desktop decision by the lead.",
+      "reason": "follow the Groww adapter (lead 2026-11-09): it sends LTP subscribers its Quote normalisation of the tick (OHLC, volume, value).",
       "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
     },
     {
       "key": "high",
       "kind": "open",
-      "reason": "A real value the web carries and the desktop lacks: the web's Groww adapter forwards its Quote normalisation of the tick (OHLC, volume, value) to LTP subscribers, where the documented LTP frame is the last price and its time (docs/prompt/websockets-format.md:64). Set in the Groww dialect entry (lane wire) in Phase B, or ruled a desktop decision by the lead.",
+      "reason": "follow the Groww adapter (lead 2026-11-09): it sends LTP subscribers its Quote normalisation of the tick (OHLC, volume, value).",
       "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
     },
     {
       "key": "low",
       "kind": "open",
-      "reason": "A real value the web carries and the desktop lacks: the web's Groww adapter forwards its Quote normalisation of the tick (OHLC, volume, value) to LTP subscribers, where the documented LTP frame is the last price and its time (docs/prompt/websockets-format.md:64). Set in the Groww dialect entry (lane wire) in Phase B, or ruled a desktop decision by the lead.",
+      "reason": "follow the Groww adapter (lead 2026-11-09): it sends LTP subscribers its Quote normalisation of the tick (OHLC, volume, value).",
       "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
     },
     {
@@ -71,31 +71,31 @@
     {
       "key": "open",
       "kind": "open",
-      "reason": "A real value the web carries and the desktop lacks: the web's Groww adapter forwards its Quote normalisation of the tick (OHLC, volume, value) to LTP subscribers, where the documented LTP frame is the last price and its time (docs/prompt/websockets-format.md:64). Set in the Groww dialect entry (lane wire) in Phase B, or ruled a desktop decision by the lead.",
+      "reason": "follow the Groww adapter (lead 2026-11-09): it sends LTP subscribers its Quote normalisation of the tick (OHLC, volume, value).",
       "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
     },
     {
       "key": "subscription_mode",
       "kind": "open",
-      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
       "ref": "groww_adapter.py:983-993"
     },
     {
       "key": "topic",
       "kind": "open",
-      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
       "ref": "groww_adapter.py:983-993"
     },
     {
       "key": "value",
       "kind": "open",
-      "reason": "A real value the web carries and the desktop lacks: the web's Groww adapter forwards its Quote normalisation of the tick (OHLC, volume, value) to LTP subscribers, where the documented LTP frame is the last price and its time (docs/prompt/websockets-format.md:64). Set in the Groww dialect entry (lane wire) in Phase B, or ruled a desktop decision by the lead.",
+      "reason": "follow the Groww adapter (lead 2026-11-09): it sends LTP subscribers its Quote normalisation of the tick (OHLC, volume, value).",
       "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
     },
     {
       "key": "volume",
       "kind": "open",
-      "reason": "A real value the web carries and the desktop lacks: the web's Groww adapter forwards its Quote normalisation of the tick (OHLC, volume, value) to LTP subscribers, where the documented LTP frame is the last price and its time (docs/prompt/websockets-format.md:64). Set in the Groww dialect entry (lane wire) in Phase B, or ruled a desktop decision by the lead.",
+      "reason": "follow the Groww adapter (lead 2026-11-09): it sends LTP subscribers its Quote normalisation of the tick (OHLC, volume, value).",
       "ref": "groww_adapter.py:918-919 (normalised with mode 2), :975"
     }
   ]

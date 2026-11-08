@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "groww",
-  "inputs_sha256": "af61dfe261c53bfeb1c61a676b40a5ac61ff6b7f1f9f53d5ec0ee182433cbb59",
+  "inputs_sha256": "510c611ed4cda68bf88ce7222a1f3528fb2bebd38ff46c0b0ee1e6fc825b8bf7",
   "instruments": [
     {
       "symbol": "SBIN",
@@ -36,7 +36,6 @@
             "low": 801.0,
             "close": 803.2,
             "volume": 1200000.0,
-            "value": 974250000.0,
             "ltt": 1730790000000.0,
             "symbol": "SBIN",
             "exchange": "NSE",
@@ -72,8 +71,7 @@
             "high": 815.0,
             "low": 801.0,
             "close": 803.2,
-            "volume": 1200000.0,
-            "value": 974250000.0,
+            "volume": 1210000.0,
             "ltt": 1730800000000.0,
             "symbol": "SBIN",
             "exchange": "NSE",

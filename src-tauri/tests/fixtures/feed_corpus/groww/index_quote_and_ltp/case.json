@@ -45,7 +45,7 @@
     {
       "key": "broker",
       "kind": "open",
-      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
       "ref": "groww_adapter.py:983-993"
     },
     {
@@ -63,13 +63,13 @@
     {
       "key": "subscription_mode",
       "kind": "open",
-      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
       "ref": "groww_adapter.py:983-993"
     },
     {
       "key": "topic",
       "kind": "open",
-      "reason": "The web's Groww adapter writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode) and the proxy forwards it. Lead decision: carry it as a Groww alias, or declare it a desktop decision (the frame's top-level broker already names the broker).",
+      "reason": "carried as the Groww adapter emits them (lead 2026-11-09): the web writes its publish bookkeeping into data (broker, its ZeroMQ topic, subscription_mode), never over a canonical key.",
       "ref": "groww_adapter.py:983-993"
     }
   ]
