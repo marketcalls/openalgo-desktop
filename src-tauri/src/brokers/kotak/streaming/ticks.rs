@@ -103,80 +103,9 @@ pub(super) fn packet_tick(sub: &SubInfo, pkt: &Sfeed, now: i64) -> Option<Normal
         ..Default::default()
     };
     let traded_at = match pkt {
-        Sfeed::Scrip {
-            ltp,
-            open,
-            high,
-            low,
-            close,
-            average_price,
-            last_trade_time,
-            last_trade_qty,
-            total_buy,
-            total_sell,
-            volume,
-            oi,
-            change,
-            change_percent,
-            ..
-        } => {
-            t.mode = FeedMode::Quote.code();
-            (t.change, t.change_percent) = (*change, *change_percent);
-            t.ltp = *ltp;
-            t.open = *open;
-            t.high = *high;
-            t.low = *low;
-            t.close = *close;
-            t.average_price = *average_price;
-            t.last_quantity = *last_trade_qty;
-            t.total_buy_quantity = *total_buy;
-            t.total_sell_quantity = *total_sell;
-            t.volume = *volume;
-            t.oi = *oi;
-            // A market picture carries OI, and the web's Quote frame
-            // sends it (`_quote_extras`).
-            t.mark_carried(QuoteField::OpenInterest);
-            *last_trade_time
-        }
-        Sfeed::Lite {
-            ltp,
-            close,
-            last_trade_time,
-            last_trade_qty,
-            change,
-            change_percent,
-            ..
-        } => {
-            t.mode = FeedMode::Quote.code();
-            (t.change, t.change_percent) = (*change, *change_percent);
-            t.ltp = *ltp;
-            t.close = *close;
-            t.last_quantity = *last_trade_qty;
-            t.absent = NOT_IN_A_MINI_TICK;
-            *last_trade_time
-        }
-        Sfeed::Index {
-            value,
-            open,
-            high,
-            low,
-            close,
-            last_trade_time,
-            change,
-            change_percent,
-            ..
-        } => {
-            // An index's packet is all it has: Depth holders read it too.
-            t.mode = FeedMode::Depth.code();
-            (t.change, t.change_percent) = (*change, *change_percent);
-            t.ltp = *value;
-            t.open = *open;
-            t.high = *high;
-            t.low = *low;
-            t.close = *close;
-            t.absent = NOT_IN_AN_INDEX_PACKET;
-            *last_trade_time
-        }
+        Sfeed::Scrip { .. } => market_picture(&mut t, pkt),
+        Sfeed::Lite { .. } => mini_touch_line(&mut t, pkt),
+        Sfeed::Index { .. } => index(&mut t, pkt),
         Sfeed::MarketStatus { .. } | Sfeed::Cas { .. } => return None,
     };
     t.mark_carried(QuoteField::Change);
@@ -190,6 +119,98 @@ pub(super) fn packet_tick(sub: &SubInfo, pkt: &Sfeed, now: i64) -> Option<Normal
         t.mark_absent(QuoteField::Ltp);
     }
     Some(t)
+}
+
+/// A market picture's fields into `t`; its trade time.
+fn market_picture(t: &mut NormalizedTick, pkt: &Sfeed) -> i64 {
+    let Sfeed::Scrip {
+        ltp,
+        open,
+        high,
+        low,
+        close,
+        average_price,
+        last_trade_time,
+        last_trade_qty,
+        total_buy,
+        total_sell,
+        volume,
+        oi,
+        change,
+        change_percent,
+        ..
+    } = pkt
+    else {
+        return 0;
+    };
+    t.mode = FeedMode::Quote.code();
+    (t.change, t.change_percent) = (*change, *change_percent);
+    t.ltp = *ltp;
+    t.open = *open;
+    t.high = *high;
+    t.low = *low;
+    t.close = *close;
+    t.average_price = *average_price;
+    t.last_quantity = *last_trade_qty;
+    t.total_buy_quantity = *total_buy;
+    t.total_sell_quantity = *total_sell;
+    t.volume = *volume;
+    t.oi = *oi;
+    // A market picture carries OI, and the web's Quote frame sends it
+    // (`_quote_extras`).
+    t.mark_carried(QuoteField::OpenInterest);
+    *last_trade_time
+}
+
+/// A mini touch line's fields into `t`; its trade time.
+fn mini_touch_line(t: &mut NormalizedTick, pkt: &Sfeed) -> i64 {
+    let Sfeed::Lite {
+        ltp,
+        close,
+        last_trade_time,
+        last_trade_qty,
+        change,
+        change_percent,
+        ..
+    } = pkt
+    else {
+        return 0;
+    };
+    t.mode = FeedMode::Quote.code();
+    (t.change, t.change_percent) = (*change, *change_percent);
+    t.ltp = *ltp;
+    t.close = *close;
+    t.last_quantity = *last_trade_qty;
+    t.absent = NOT_IN_A_MINI_TICK;
+    *last_trade_time
+}
+
+/// An index packet's fields into `t`; its trade time.
+fn index(t: &mut NormalizedTick, pkt: &Sfeed) -> i64 {
+    let Sfeed::Index {
+        value,
+        open,
+        high,
+        low,
+        close,
+        last_trade_time,
+        change,
+        change_percent,
+        ..
+    } = pkt
+    else {
+        return 0;
+    };
+    // An index's packet is all it has: Depth holders read it too.
+    t.mode = FeedMode::Depth.code();
+    (t.change, t.change_percent) = (*change, *change_percent);
+    t.ltp = *value;
+    t.open = *open;
+    t.high = *high;
+    t.low = *low;
+    t.close = *close;
+    t.absent = NOT_IN_AN_INDEX_PACKET;
+    *last_trade_time
 }
 
 /// The Depth event a packet makes for `sub` over its `book`: the packet's
