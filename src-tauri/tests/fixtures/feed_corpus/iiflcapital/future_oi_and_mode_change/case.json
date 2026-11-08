@@ -1,6 +1,6 @@
 {
   "broker": "iiflcapital",
-  "summary": "A NIFTY future at Quote takes the market and OI topics; its OI packet is held for the next market packet. A Depth 20 subscribe (acknowledged as 5) moves it to Depth by unsubscribing and subscribing both topics again, which forgets the held OI on the desktop until the next OI packet; the Depth holder leaving does the same.",
+  "summary": "A NIFTY future at Quote takes the market and OI topics; its OI packet is held for the next market packet. A Depth 20 subscribe (acknowledged as 5) moves it to Depth by subscribing both topics again, keeping the OI it holds; the Depth holder leaving does the same.",
   "scenarios": [
     "derivative-oi",
     "mode-change",
@@ -41,42 +41,6 @@
       "reason": "The web passes IIFL's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
       "ref": "iiflcapital_websocket.py:171, 188 (ltt_unix); iiflcapital_adapter.py:386",
       "approved": true
-    },
-    {
-      "key": "bid",
-      "kind": "open",
-      "reason": "The web sends the packet's best bid and ask with their quantities in Quote and Depth frames; the desktop decodes them (MarketPacket::best_bid_price and the rest) and its common carrier drops them.",
-      "ref": "iiflcapital_adapter.py:408-411; audit C06 (remaining brokers: IIFL Capital bid/ask)"
-    },
-    {
-      "key": "ask",
-      "kind": "open",
-      "reason": "The web sends the packet's best bid and ask with their quantities in Quote and Depth frames; the desktop decodes them (MarketPacket::best_bid_price and the rest) and its common carrier drops them.",
-      "ref": "iiflcapital_adapter.py:408-411; audit C06 (remaining brokers: IIFL Capital bid/ask)"
-    },
-    {
-      "key": "bid_quantity",
-      "kind": "open",
-      "reason": "The web sends the packet's best bid and ask with their quantities in Quote and Depth frames; the desktop decodes them (MarketPacket::best_bid_price and the rest) and its common carrier drops them.",
-      "ref": "iiflcapital_adapter.py:408-411; audit C06 (remaining brokers: IIFL Capital bid/ask)"
-    },
-    {
-      "key": "ask_quantity",
-      "kind": "open",
-      "reason": "The web sends the packet's best bid and ask with their quantities in Quote and Depth frames; the desktop decodes them (MarketPacket::best_bid_price and the rest) and its common carrier drops them.",
-      "ref": "iiflcapital_adapter.py:408-411; audit C06 (remaining brokers: IIFL Capital bid/ask)"
-    },
-    {
-      "key": "oi",
-      "kind": "open",
-      "reason": "Three gaps in one key: the web merges the held OI into Quote frames, which the desktop's Quote frame does not carry (audit C05); a mode change unsubscribes and subscribes the topics again and the desktop forgets the held OI (unsubscribe_frames removes it), sending OI 0 until the next OI packet where the web keeps 12345600 (BKD-08); and 0 is sent for an OI the desktop does not know (BKD-09).",
-      "ref": "iiflcapital_websocket.py:576-584; iiflcapital/streaming.rs::unsubscribe_frames, ticks; audit C05; BKD-08; BKD-09"
-    },
-    {
-      "key": "open_interest",
-      "kind": "open",
-      "reason": "Three gaps in one key: the web merges the held OI into Quote frames, which the desktop's Quote frame does not carry (audit C05); a mode change unsubscribes and subscribes the topics again and the desktop forgets the held OI (unsubscribe_frames removes it), sending OI 0 until the next OI packet where the web keeps 12345600 (BKD-08); and 0 is sent for an OI the desktop does not know (BKD-09).",
-      "ref": "iiflcapital_websocket.py:576-584; iiflcapital/streaming.rs::unsubscribe_frames, ticks; audit C05; BKD-08; BKD-09"
     }
   ]
 }

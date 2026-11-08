@@ -20,8 +20,6 @@
     "high": 1510.2,
     "low": 1485.1,
     "close": 1488.3,
-    "oi": 0,
-    "open_interest": 0,
     "depth": {
       "buy": [
         {
@@ -77,6 +75,10 @@
           "orders": 8
         }
       ]
-    }
+    },
+    "bid": 1500.0,
+    "ask": 1500.1,
+    "bid_quantity": 100,
+    "ask_quantity": 200
   }
 }

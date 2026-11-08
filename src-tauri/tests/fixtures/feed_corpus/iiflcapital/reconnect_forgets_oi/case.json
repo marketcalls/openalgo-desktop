@@ -40,40 +40,18 @@
       "approved": true
     },
     {
-      "key": "bid",
-      "kind": "open",
-      "reason": "The web sends the packet's best bid and ask with their quantities in Quote and Depth frames; the desktop decodes them (MarketPacket::best_bid_price and the rest) and its common carrier drops them.",
-      "ref": "iiflcapital_adapter.py:408-411; audit C06 (remaining brokers: IIFL Capital bid/ask)"
-    },
-    {
-      "key": "ask",
-      "kind": "open",
-      "reason": "The web sends the packet's best bid and ask with their quantities in Quote and Depth frames; the desktop decodes them (MarketPacket::best_bid_price and the rest) and its common carrier drops them.",
-      "ref": "iiflcapital_adapter.py:408-411; audit C06 (remaining brokers: IIFL Capital bid/ask)"
-    },
-    {
-      "key": "bid_quantity",
-      "kind": "open",
-      "reason": "The web sends the packet's best bid and ask with their quantities in Quote and Depth frames; the desktop decodes them (MarketPacket::best_bid_price and the rest) and its common carrier drops them.",
-      "ref": "iiflcapital_adapter.py:408-411; audit C06 (remaining brokers: IIFL Capital bid/ask)"
-    },
-    {
-      "key": "ask_quantity",
-      "kind": "open",
-      "reason": "The web sends the packet's best bid and ask with their quantities in Quote and Depth frames; the desktop decodes them (MarketPacket::best_bid_price and the rest) and its common carrier drops them.",
-      "ref": "iiflcapital_adapter.py:408-411; audit C06 (remaining brokers: IIFL Capital bid/ask)"
-    },
-    {
       "key": "oi",
-      "kind": "open",
-      "reason": "After a reconnect the desktop has forgotten the OI (the new session's OI has not come yet) and sends 0, an invented value (BKD-09); the web merges the OI held from the session before the drop, a stale value from another session (a web defect too: its OI cache survives the reconnect, iiflcapital_websocket.py:282, 467). The right frame leaves OI out until the new session's OI packet.",
-      "ref": "iiflcapital_websocket.py:576-584; iiflcapital/streaming.rs::on_connected, ticks; BKD-07; BKD-09"
+      "kind": "web-defect",
+      "reason": "After a reconnect the web merges the OI its client held from the session before the drop (its OI cache survives the reconnect, iiflcapital_websocket.py:282, 467), a value from another session; the desktop leaves OI out until the new session's OI packet.",
+      "ref": "iiflcapital_websocket.py:576-584; iiflcapital/streaming.rs::on_connected",
+      "approved": true
     },
     {
       "key": "open_interest",
-      "kind": "open",
-      "reason": "After a reconnect the desktop has forgotten the OI (the new session's OI has not come yet) and sends 0, an invented value (BKD-09); the web merges the OI held from the session before the drop, a stale value from another session (a web defect too: its OI cache survives the reconnect, iiflcapital_websocket.py:282, 467). The right frame leaves OI out until the new session's OI packet.",
-      "ref": "iiflcapital_websocket.py:576-584; iiflcapital/streaming.rs::on_connected, ticks; BKD-07; BKD-09"
+      "kind": "web-defect",
+      "reason": "After a reconnect the web merges the OI its client held from the session before the drop (its OI cache survives the reconnect, iiflcapital_websocket.py:282, 467), a value from another session; the desktop leaves OI out until the new session's OI packet.",
+      "ref": "iiflcapital_websocket.py:576-584; iiflcapital/streaming.rs::on_connected",
+      "approved": true
     }
   ]
 }

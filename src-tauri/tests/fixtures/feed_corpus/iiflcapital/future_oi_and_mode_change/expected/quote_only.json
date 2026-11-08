@@ -19,6 +19,12 @@
     "open": 24550.0,
     "high": 24640.0,
     "low": 24530.5,
-    "close": 24520.0
+    "close": 24520.0,
+    "oi": 12346350,
+    "open_interest": 12346350,
+    "bid": 24605.0,
+    "ask": 24606.0,
+    "bid_quantity": 750,
+    "ask_quantity": 600
   }
 }

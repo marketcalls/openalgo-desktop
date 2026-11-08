@@ -19,6 +19,10 @@
     "open": 1492.5,
     "high": 1510.2,
     "low": 1485.1,
-    "close": 1488.3
+    "close": 1488.3,
+    "bid": 1500.0,
+    "ask": 1500.1,
+    "bid_quantity": 100,
+    "ask_quantity": 200
   }
 }

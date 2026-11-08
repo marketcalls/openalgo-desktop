@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "iiflcapital",
-  "inputs_sha256": "30edf5a8acc525cc8ea3e9104e06757cd3faa20c4f85828703726343068a38d8",
+  "inputs_sha256": "7b16e287ea2e35cb470597d26965f438fd6544239883253a290f3a2616beca7f",
   "instruments": [
     {
       "symbol": "NIFTY24NOV26FUT",
@@ -31,6 +31,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY24NOV26FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY24NOV26FUT",
           "mode": 2,
           "data": {
             "symbol": "NIFTY24NOV26FUT",
@@ -64,6 +66,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY24NOV26FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY24NOV26FUT",
           "mode": 2,
           "data": {
             "symbol": "NIFTY24NOV26FUT",
@@ -92,6 +96,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY24NOV26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY24NOV26FUT",
           "mode": 3,
           "data": {
             "symbol": "NIFTY24NOV26FUT",
@@ -185,6 +191,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY24NOV26FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY24NOV26FUT",
           "mode": 2,
           "data": {
             "symbol": "NIFTY24NOV26FUT",
@@ -213,6 +221,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY24NOV26FUT_DEPTH",
+          "exchange": "NFO",
+          "symbol": "NIFTY24NOV26FUT",
           "mode": 3,
           "data": {
             "symbol": "NIFTY24NOV26FUT",
@@ -302,6 +312,8 @@
         {
           "kind": "market",
           "topic": "NFO_NIFTY24NOV26FUT_QUOTE",
+          "exchange": "NFO",
+          "symbol": "NIFTY24NOV26FUT",
           "mode": 2,
           "data": {
             "symbol": "NIFTY24NOV26FUT",

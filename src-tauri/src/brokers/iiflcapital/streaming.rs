@@ -23,7 +23,7 @@ use super::mqtt_relay::{self, MqttEndpoint, MqttRelay, MqttUpstream, Prepare, Pr
 use crate::brokers::common::relay;
 use crate::brokers::common::streaming::{
     now_ms, BrokerFeed, FeedEvent, FeedMode, FeedSubscription, Message, NormalizedDepth,
-    NormalizedTick, OrderUpdate, WsRequest,
+    NormalizedTick, OrderUpdate, QuoteField, WsRequest,
 };
 use crate::brokers::common::symbols::SymbolResolver;
 use crate::brokers::types::DepthLevel;
@@ -340,6 +340,30 @@ impl IiflFeed {
     }
 }
 
+/// What a Quote or Depth tick carries beyond the packet's quote, as the
+/// web's `_handle_ticks` publishes it (`iiflcapital_adapter.py:395-421`):
+/// the best bid and ask with their quantities, and the open interest the
+/// OI topic last sent, in Quote frames too. An OI not known yet (none
+/// since the subscription or the connection began, or an instrument with
+/// no OI stream) is left out, never sent as 0; an index has no book and
+/// no OI, whose zeros the web passes on and the docs leave out.
+fn quote_extras(t: &mut NormalizedTick, sub: &FeedSubscription, p: &MarketPacket, oi: Option<i64>) {
+    let index = is_index(&sub.exchange);
+    match oi.filter(|_| !index) {
+        Some(v) => {
+            t.oi = v;
+            t.mark_carried(QuoteField::OpenInterest);
+        }
+        None => t.mark_absent(QuoteField::OpenInterest),
+    }
+    if !index {
+        t.extras.bid_price = Some(p.best_bid_price);
+        t.extras.bid_quantity = Some(p.best_bid_quantity);
+        t.extras.ask_price = Some(p.best_ask_price);
+        t.extras.ask_quantity = Some(p.best_ask_quantity);
+    }
+}
+
 /// Slice one packet into the subscription's mode (web `_handle_ticks`).
 pub fn ticks(sub: &FeedSubscription, p: &MarketPacket, oi: Option<i64>) -> Vec<FeedEvent> {
     let now = now_ms();
@@ -362,7 +386,7 @@ pub fn ticks(sub: &FeedSubscription, p: &MarketPacket, oi: Option<i64>) -> Vec<F
         t.average_price = p.average_price;
         t.total_buy_quantity = p.total_buy_quantity;
         t.total_sell_quantity = p.total_sell_quantity;
-        t.oi = oi.unwrap_or(0);
+        quote_extras(&mut t, sub, p, oi);
         t.derive_change();
     }
     let mut out = vec![FeedEvent::Tick(t)];
@@ -459,6 +483,35 @@ impl BrokerFeed for IiflFeed {
         } else {
             vec![mqtt_relay::unsub_frame(&topics)]
         }
+    }
+
+    /// The same instrument at another mode keeps its streams and the OI
+    /// they last sent, as the web's adapter does: it subscribes the new
+    /// mode's topics again and keeps its OI cache (`iiflcapital_adapter.py:
+    /// 279-292`, `iiflcapital_websocket.py:428-438`). A topic the new mode
+    /// drops (Quote to LTP drops OI) is unsubscribed first, and its OI goes
+    /// with it.
+    fn mode_change_frames(
+        &mut self,
+        old: &FeedSubscription,
+        new: &FeedSubscription,
+    ) -> Vec<Message> {
+        let key = topic_key(new);
+        let after = topics_for(new);
+        if !after.iter().any(|t| t.starts_with(TOPIC_OPEN_INTEREST)) {
+            self.oi.remove(&key);
+        }
+        self.subs.insert(key, new.clone());
+        let dropped: Vec<String> = topics_for(old)
+            .into_iter()
+            .filter(|t| !after.contains(t))
+            .collect();
+        let mut frames = Vec::new();
+        if !dropped.is_empty() {
+            frames.push(mqtt_relay::unsub_frame(&dropped));
+        }
+        frames.push(mqtt_relay::sub_frame(&after));
+        frames
     }
 
     fn parse(&mut self, msg: &Message) -> Vec<FeedEvent> {

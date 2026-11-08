@@ -77,6 +77,10 @@
           "orders": 12
         }
       ]
-    }
+    },
+    "bid": 24605.0,
+    "ask": 24606.0,
+    "bid_quantity": 750,
+    "ask_quantity": 600
   }
 }

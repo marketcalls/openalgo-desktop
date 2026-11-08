@@ -5,7 +5,7 @@
 {"step": "push", "frame": "frames/mw.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote.json"}
 {"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 3, "depth": 20}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO", "status": "success", "mode": "Depth", "depth": 5, "broker": "iiflcapital"}], "message": "Subscription processing complete", "broker": "iiflcapital"}}
-{"step": "upstream_receives", "frames": [{"json": {"op": "unsub", "topics": ["prod/marketfeed/mw/v1/nsefo/35001", "prod/marketfeed/oi/v1/nsefo/35001"]}}, {"json": {"op": "sub", "topics": ["prod/marketfeed/mw/v1/nsefo/35001", "prod/marketfeed/oi/v1/nsefo/35001"]}}]}
+{"step": "upstream_receives", "frames": [{"json": {"op": "sub", "topics": ["prod/marketfeed/mw/v1/nsefo/35001", "prod/marketfeed/oi/v1/nsefo/35001"]}}], "note": "A mode change subscribes the new mode's topics again and keeps the held OI, as the web does."}
 {"step": "push", "frame": "frames/mw_after_depth.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote_after_depth.json"}
 {"step": "receive", "client": "b", "frame": "expected/full_after_depth.json"}
@@ -14,7 +14,7 @@
 {"step": "receive", "client": "a", "frame": "expected/quote_next.json"}
 {"step": "receive", "client": "b", "frame": "expected/full_next.json"}
 {"step": "send", "client": "b", "message": {"action": "unsubscribe", "symbols": [{"symbol": "NIFTY24NOV26FUT", "exchange": "NFO"}], "mode": 3}}
-{"step": "upstream_receives", "frames": [{"json": {"op": "unsub", "topics": ["prod/marketfeed/mw/v1/nsefo/35001", "prod/marketfeed/oi/v1/nsefo/35001"]}}, {"json": {"op": "sub", "topics": ["prod/marketfeed/mw/v1/nsefo/35001", "prod/marketfeed/oi/v1/nsefo/35001"]}}]}
+{"step": "upstream_receives", "frames": [{"json": {"op": "sub", "topics": ["prod/marketfeed/mw/v1/nsefo/35001", "prod/marketfeed/oi/v1/nsefo/35001"]}}], "note": "A mode change subscribes the new mode's topics again and keeps the held OI, as the web does."}
 {"step": "push", "frame": "frames/mw_quote_only.hex"}
 {"step": "receive", "client": "a", "frame": "expected/quote_only.json"}
 {"step": "silence", "client": "b"}
