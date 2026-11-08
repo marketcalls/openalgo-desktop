@@ -13,6 +13,7 @@
 //! aborted when it is dropped.
 
 use super::case::{json_matches, HttpBody};
+use super::json_text;
 use super::upstream::until;
 use axum::body::Bytes;
 use axum::extract::State;
@@ -20,7 +21,6 @@ use axum::http::{header, Method, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use axum::Router;
 use parking_lot::Mutex;
-use serde_json::Value;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 
@@ -229,7 +229,7 @@ pub(crate) fn matches(want: &HttpRequestExpect, got: &Request) -> bool {
             None => got.body.is_empty(),
             Some(HttpBody::Text(t)) => *t == got.body,
             Some(HttpBody::Json(v)) => {
-                serde_json::from_str::<Value>(&got.body).is_ok_and(|g| json_matches(v, &g))
+                json_text::parse(&got.body).is_ok_and(|g| json_matches(v, &g))
             }
         }
 }

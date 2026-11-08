@@ -5,6 +5,7 @@
 //! line before any socket opens.
 
 use super::http::HttpRequestExpect;
+use super::json_text;
 use openalgo_desktop_lib::brokers::common::symbols::SymToken;
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -123,10 +124,10 @@ impl Expect {
     pub(crate) fn matches(&self, wire: &Wire) -> bool {
         match (self, wire) {
             (Expect::Json(v), Wire::Text(t)) => {
-                serde_json::from_str::<Value>(t).is_ok_and(|g| json_matches(v, &g))
+                json_text::parse(t).is_ok_and(|g| json_matches(v, &g))
             }
             (Expect::BinaryJson(v), Wire::Binary(b)) => {
-                serde_json::from_slice::<Value>(b).is_ok_and(|g| json_matches(v, &g))
+                json_text::parse_slice(b).is_ok_and(|g| json_matches(v, &g))
             }
             (Expect::Text(s), Wire::Text(t)) => s == t,
             (Expect::Binary(b), Wire::Binary(x)) => b == x,
@@ -307,7 +308,7 @@ pub(crate) fn bad(at: &str, msg: impl std::fmt::Display) -> ! {
 pub(crate) fn read_json(path: &Path) -> Value {
     let at = path.display().to_string();
     let text = std::fs::read_to_string(path).unwrap_or_else(|e| bad(&at, e));
-    serde_json::from_str(&text).unwrap_or_else(|e| bad(&at, format!("not JSON: {}", e)))
+    json_text::parse(&text).unwrap_or_else(|e| bad(&at, format!("not JSON: {}", e)))
 }
 
 impl Case {
@@ -614,7 +615,7 @@ fn read_script(id: &str, dir: &Path, text: &str, inputs: &mut Vec<u8>) -> Vec<St
         }
         let at = format!("{} script.jsonl:{}", id, i + 1);
         let v: Value =
-            serde_json::from_str(line).unwrap_or_else(|e| bad(&at, format!("not JSON: {}", e)));
+            json_text::parse(line).unwrap_or_else(|e| bad(&at, format!("not JSON: {}", e)));
         let o = v
             .as_object()
             .unwrap_or_else(|| bad(&at, "a step is a JSON object"));
@@ -797,7 +798,7 @@ fn http_answer(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8
             let text = utf8(at, bytes).replace("\r\n", "\n");
             match extension(&path) {
                 "json" => HttpBody::Json(
-                    serde_json::from_str(&text)
+                    json_text::parse(&text)
                         .unwrap_or_else(|e| bad(at, format!("{}: not JSON: {}", name, e))),
                 ),
                 _ => HttpBody::Text(text),
@@ -931,7 +932,7 @@ fn upstream_frame(at: &str, dir: &Path, v: &Value) -> Expect {
             "hex" => Expect::Binary(decode_hex(at, &utf8(at, bytes))),
             "bin" => Expect::Binary(bytes),
             "json" => Expect::Json(
-                serde_json::from_slice(&bytes)
+                json_text::parse_slice(&bytes)
                     .unwrap_or_else(|e| bad(at, format!("{}: not JSON: {}", name, e))),
             ),
             "txt" => Expect::Text(utf8(at, bytes)),
@@ -975,7 +976,7 @@ fn expected_frame(at: &str, dir: &Path, v: &Value) -> Value {
     match v.as_str() {
         Some(name) => {
             let (_, bytes) = case_file(at, dir, name);
-            serde_json::from_slice(&bytes)
+            json_text::parse_slice(&bytes)
                 .unwrap_or_else(|e| bad(at, format!("{}: not JSON: {}", name, e)))
         }
         None if v.is_object() => v.clone(),

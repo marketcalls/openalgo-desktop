@@ -7,13 +7,16 @@
 use super::case::{bad, Action, Case, Expect, Socket, Step};
 use super::compare::{self, Window};
 use super::http::{self, HttpRequestExpect};
+use super::json_text;
 use super::upstream::Received;
 use super::web;
 use super::world::{Env, Feeds, World};
 use crate::feed_support::Client;
+use futures_util::StreamExt;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tokio_tungstenite::tungstenite::Message;
 
 /// How long a client waits for a frame it expects.
 const RECV: Duration = Duration::from_secs(5);
@@ -47,6 +50,26 @@ fn now_ms() -> i64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
         .unwrap_or(0)
+}
+
+/// The client's next text frame, its numbers read exactly (`json_text`);
+/// `None` once the socket closes or nothing comes within `d`.
+async fn next_frame(c: &mut Client, d: Duration) -> Option<Value> {
+    loop {
+        let msg = tokio::time::timeout(d, c.ws.next()).await.ok()??.ok()?;
+        match msg {
+            Message::Text(t) => {
+                return Some(json_text::parse(&t).unwrap_or_else(|e| {
+                    panic!(
+                        "the feed server sent a frame that is not JSON ({}): {}",
+                        e, t
+                    )
+                }))
+            }
+            Message::Close(_) => return None,
+            _ => continue,
+        }
+    }
 }
 
 /// Requests, one per line, for a failure message.
@@ -91,7 +114,7 @@ impl Runner<'_> {
             Action::Receive { client, frame, .. } => self.receive(&at, client, frame).await,
             Action::Silence { client, ms } => {
                 let c = self.known(&at, client);
-                if let Some(v) = c.recv_within(Duration::from_millis(*ms)).await {
+                if let Some(v) = next_frame(c, Duration::from_millis(*ms)).await {
                     bad(&at, format!("client {} received {}", client, v));
                 }
             }
@@ -244,8 +267,7 @@ impl Runner<'_> {
     async fn send(&mut self, at: &str, name: &str, message: &Value, reply: Option<&Value>) {
         let c = self.client(name).await;
         c.send(message).await;
-        let got = c
-            .recv_within(RECV)
+        let got = next_frame(c, RECV)
             .await
             .unwrap_or_else(|| bad(at, format!("client {} got no reply", name)));
         match reply {
@@ -262,8 +284,7 @@ impl Runner<'_> {
     async fn receive(&mut self, at: &str, name: &str, want: &Value) {
         let from = self.pushed_at - CLOCK_SLACK_MS;
         let c = self.known(at, name);
-        let got = c
-            .recv_within(RECV)
+        let got = next_frame(c, RECV)
             .await
             .unwrap_or_else(|| bad(at, format!("client {} received nothing", name)));
         let window = Window {
@@ -333,7 +354,7 @@ impl Runner<'_> {
     async fn finish(&mut self) {
         let id = self.case.id.clone();
         for (name, c) in self.clients.iter_mut() {
-            if let Some(v) = c.recv_within(SETTLE).await {
+            if let Some(v) = next_frame(c, SETTLE).await {
                 bad(
                     &id,
                     format!("client {} received a frame no step expects: {}", name, v),

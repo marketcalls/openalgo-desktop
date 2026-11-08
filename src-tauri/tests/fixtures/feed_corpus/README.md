@@ -191,7 +191,12 @@ takes up to a second to arrive.
 ### Expected frames
 
 The frame exactly as the desktop must send it, in its JSON types: prices are
-floats (`1490.0`, never `1490`), quantities integers. A key the frame must
+floats (`1490.0`, never `1490`), quantities integers. Every number the
+harness compares (frames, expected files, `web.json`, answers) is read as
+the exact double its text names, so a value one ulp away
+(`1485.1000000000001`, the web's `148510 * (1/100)`) is a difference
+(`harness/json_text.rs`; serde_json's default float parser would read it as
+`1485.1`). A key the frame must
 not carry is simply not in the file. The one value a case cannot know is a
 time the desktop stamps on receipt; write it `"<receipt_ms>"`. It matches an
 integer epoch-millisecond time from just before the push that made the frame

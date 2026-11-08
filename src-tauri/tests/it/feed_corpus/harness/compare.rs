@@ -113,6 +113,21 @@ mod tests {
         assert!(exact(&json!({"q": 7}), &json!({"q": 7.0}), W).is_err());
     }
 
+    /// A price one ulp away is another price: the web's 148510 * (1/100)
+    /// against the desktop's 1485.1, read as the harness reads every frame.
+    #[test]
+    fn a_price_one_ulp_away_is_a_difference() {
+        use crate::feed_corpus::harness::json_text::parse;
+        let want = parse(r#"{"ltp": 1485.1}"#).unwrap();
+        let e = exact(&want, &parse(r#"{"ltp": 1485.1000000000001}"#).unwrap(), W).unwrap_err();
+        assert!(
+            e.contains("ltp: expected 1485.1, received 1485.1000000000001"),
+            "{}",
+            e
+        );
+        assert!(exact(&want, &parse(r#"{"ltp": 1485.10}"#).unwrap(), W).is_ok());
+    }
+
     #[test]
     fn an_absent_field_must_be_absent_and_a_present_one_present() {
         let e = exact(&json!({"a": 1}), &json!({"a": 1, "close": 0.0}), W).unwrap_err();

@@ -17,6 +17,7 @@
 mod case;
 mod compare;
 mod http;
+mod json_text;
 mod run;
 mod upstream;
 mod web;
