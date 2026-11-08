@@ -32,52 +32,34 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "This web adapter puts the subscription mode number in data.mode (mstock_adapter.py:202); the desktop sends the label (ltp, quote, full). data.mode follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock (integer).",
-      "ref": "lead rule 2026-11-09; feed::source::Mode::data_label"
-    },
-    {
       "key": "exchange_timestamp",
       "kind": "open",
-      "reason": "The web also sends mStock's exchange timestamp under its own name whenever the packet carries one (mstock_adapter.py:357-358); the desktop's common carrier has no such field, so it is lost.",
-      "ref": "audit C06; WEBSOCKET_AUDIT_REMAINING_BROKERS.md 'Verified broker fields dropped' (mstock)"
-    },
-    {
-      "key": "prev_close",
-      "kind": "open",
-      "reason": "The web sends the previous close twice, as close and as prev_close (mstock_adapter.py:366-367); the desktop sends close only, and its dialect table has no prev_close alias for mStock.",
-      "ref": "feed::dialect (mstock); lane wire per-broker aliases"
+      "reason": "The web also sends mStock's exchange timestamp under its own name, in every mode, whenever the packet carries one (mstock_adapter.py:357-358). The desktop's renderer has the name for mStock (feed/dialect/names.rs MSTOCK, QuoteExtras::exchange_time_ms) but MstockFeed does not fill it yet: phase B sets it from the packet's exchange timestamp when it is not 0.",
+      "ref": "audit C06; brokers/common/streaming/fields.rs (mstock: exchange time)"
     },
     {
       "key": "oi",
       "kind": "web-defect",
-      "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:369, quote_data.get('oi', 0) with the parser's oi: 0 placeholder, mstockwebsocket.py:211), an invented zero a client reads as a real OI. The desktop leaves oi out of a frame whose packet has none, and sends the real OI from a full packet.",
-      "ref": "docs/api/websocket-streaming/quote.md (a field the broker does not carry is left out); web openalgo#2376"
-    },
-    {
-      "key": "open_interest",
-      "kind": "open",
-      "reason": "This web adapter sends OI as oi only (mstock_adapter.py:369); the desktop also sends open_interest. open_interest follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock (no open_interest).",
-      "ref": "lead rule 2026-11-09; feed::protocol::market_data"
+      "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:369, quote_data.get('oi', 0) over the parser's oi: 0 placeholder, mstockwebsocket.py:211), an invented zero a client reads as a real OI. The desktop leaves oi out until a packet has carried one, and then sends the last OI the instrument's full packet carried on this connection (feed/bridge/snapshot.rs merges by presence), never a 0 it was not sent.",
+      "ref": "decisions 2026-11-09: web zeros for values the stream did not send are left out; web openalgo#2376"
     },
     {
       "key": "upper_circuit",
       "kind": "open",
-      "reason": "Mixed-mode fan-out, as depth: the web's Quote topic for a full packet carries the circuit limits too; the desktop's carrier has no circuit field (C06) and its Quote frame no Depth-only key (C08).",
-      "ref": "audit C06, C08"
+      "reason": "The web sends the full packet's upper circuit limit in Depth (mstock_adapter.py:425). The desktop decodes it (brokers/mstock/streaming.rs Packet::upper_circuit) and the renderer has the name for mStock (feed/dialect/names.rs CIRCUITS_IN_DEPTH), but MstockFeed does not fill QuoteExtras::upper_circuit yet; on a Quote frame cut from a full packet the web sends it too (the one-dict fan-out, C08), which lane wire's step 2 brings.",
+      "ref": "audit C06, C08; brokers/common/streaming/fields.rs (mstock: circuits)"
     },
     {
       "key": "lower_circuit",
       "kind": "open",
-      "reason": "Mixed-mode fan-out, as depth: the web's Quote topic for a full packet carries the circuit limits too; the desktop's carrier has no circuit field (C06) and its Quote frame no Depth-only key (C08).",
+      "reason": "As upper_circuit, for the lower circuit limit (mstock_adapter.py:426; Packet::lower_circuit).",
       "ref": "audit C06, C08"
     },
     {
       "key": "depth",
       "kind": "open",
-      "reason": "Mixed-mode fan-out: with Depth open on the instrument mStock sends full packets, and the web's Quote topic carries the full packet's normalised dict, book included (mstock_adapter.py:186, normalised by the packet's mode); the desktop's Quote frame is the Quote schema. Whether a Quote frame carries what the packet had is the lead's C08 decision.",
-      "ref": "audit C08 (mixed-mode fan-out policy)"
+      "reason": "With Depth open on the instrument mStock sends full packets, and the web's Quote topic carries the full packet's normalised dict, its book included (mstock_adapter.py:186-210, normalised by the packet's own mode). Lead decision (C08): lower-mode frames of a one-dict broker carry the richer packet's keys as the web sends them; lane wire's step 2 (the one-dict fold) brings it.",
+      "ref": "audit C08; decisions 2026-11-09 02:40"
     }
   ]
 }

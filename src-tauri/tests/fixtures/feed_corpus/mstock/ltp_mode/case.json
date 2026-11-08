@@ -30,16 +30,10 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "This web adapter puts the subscription mode number in data.mode (mstock_adapter.py:202); the desktop sends the label (ltp, quote, full). data.mode follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock (integer).",
-      "ref": "lead rule 2026-11-09; feed::source::Mode::data_label"
-    },
-    {
       "key": "exchange_timestamp",
       "kind": "open",
-      "reason": "The web also sends mStock's exchange timestamp under its own name whenever the packet carries one (mstock_adapter.py:357-358); the desktop's common carrier has no such field, so it is lost.",
-      "ref": "audit C06; WEBSOCKET_AUDIT_REMAINING_BROKERS.md 'Verified broker fields dropped' (mstock)"
+      "reason": "The web also sends mStock's exchange timestamp under its own name, in every mode, whenever the packet carries one (mstock_adapter.py:357-358). The desktop's renderer has the name for mStock (feed/dialect/names.rs MSTOCK, QuoteExtras::exchange_time_ms) but MstockFeed does not fill it yet: phase B sets it from the packet's exchange timestamp when it is not 0.",
+      "ref": "audit C06; brokers/common/streaming/fields.rs (mstock: exchange time)"
     }
   ]
 }

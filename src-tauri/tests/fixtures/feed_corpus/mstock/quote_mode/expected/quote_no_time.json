@@ -7,7 +7,7 @@
   "data": {
     "symbol": "INFY",
     "exchange": "NSE",
-    "mode": "quote",
+    "mode": 2,
     "ltp": 1500.5,
     "timestamp": "<receipt_ms>",
     "volume": 1000,
@@ -19,6 +19,7 @@
     "high": 1505.0,
     "low": 1485.0,
     "close": 1495.0,
+    "prev_close": 1495.0,
     "last_trade_quantity": 25
   }
 }

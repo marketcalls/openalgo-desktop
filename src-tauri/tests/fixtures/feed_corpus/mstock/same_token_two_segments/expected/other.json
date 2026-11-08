@@ -7,7 +7,7 @@
   "data": {
     "symbol": "OTHER",
     "exchange": "BSE",
-    "mode": "quote",
+    "mode": 2,
     "ltp": 1499.0,
     "ltt": 1730784000000,
     "timestamp": "<receipt_ms>",
@@ -20,7 +20,8 @@
     "high": 1505.0,
     "low": 1485.0,
     "close": 1495.0,
-    "last_trade_quantity": 10,
-    "last_trade_time": 1730784000000
+    "last_trade_time": 1730784000000,
+    "prev_close": 1495.0,
+    "last_trade_quantity": 10
   }
 }

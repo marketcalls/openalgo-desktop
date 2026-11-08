@@ -7,7 +7,7 @@
   "data": {
     "symbol": "INFY",
     "exchange": "NSE",
-    "mode": "full",
+    "mode": 3,
     "ltp": 1500.5,
     "ltt": 1730783990000,
     "timestamp": "<receipt_ms>",
@@ -21,7 +21,6 @@
     "low": 1485.0,
     "close": 1495.0,
     "oi": 0,
-    "open_interest": 0,
     "depth": {
       "buy": [
         {
@@ -78,7 +77,8 @@
         }
       ]
     },
-    "last_trade_quantity": 25,
-    "last_trade_time": 1730783990000
+    "last_trade_time": 1730783990000,
+    "prev_close": 1495.0,
+    "last_trade_quantity": 25
   }
 }

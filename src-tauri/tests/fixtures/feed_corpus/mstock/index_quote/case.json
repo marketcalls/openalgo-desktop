@@ -27,70 +27,58 @@
   },
   "deviations": [
     {
-      "key": "mode",
-      "kind": "open",
-      "reason": "This web adapter puts the subscription mode number in data.mode (mstock_adapter.py:202); the desktop sends the label (ltp, quote, full). data.mode follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock (integer).",
-      "ref": "lead rule 2026-11-09; feed::source::Mode::data_label"
-    },
-    {
       "key": "exchange_timestamp",
       "kind": "open",
-      "reason": "The web also sends mStock's exchange timestamp under its own name whenever the packet carries one (mstock_adapter.py:357-358); the desktop's common carrier has no such field, so it is lost.",
-      "ref": "audit C06; WEBSOCKET_AUDIT_REMAINING_BROKERS.md 'Verified broker fields dropped' (mstock)"
-    },
-    {
-      "key": "prev_close",
-      "kind": "open",
-      "reason": "The web sends the previous close twice, as close and as prev_close (mstock_adapter.py:366-367); the desktop sends close only, and its dialect table has no prev_close alias for mStock.",
-      "ref": "feed::dialect (mstock); lane wire per-broker aliases"
+      "reason": "The web also sends mStock's exchange timestamp under its own name, in every mode, whenever the packet carries one (mstock_adapter.py:357-358). The desktop's renderer has the name for mStock (feed/dialect/names.rs MSTOCK, QuoteExtras::exchange_time_ms) but MstockFeed does not fill it yet: phase B sets it from the packet's exchange timestamp when it is not 0.",
+      "ref": "audit C06; brokers/common/streaming/fields.rs (mstock: exchange time)"
     },
     {
       "key": "oi",
       "kind": "web-defect",
-      "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:369, quote_data.get('oi', 0) with the parser's oi: 0 placeholder, mstockwebsocket.py:211), an invented zero a client reads as a real OI. The desktop leaves oi out of a frame whose packet has none, and sends the real OI from a full packet.",
-      "ref": "docs/api/websocket-streaming/quote.md (a field the broker does not carry is left out); web openalgo#2376"
+      "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:369, quote_data.get('oi', 0) over the parser's oi: 0 placeholder, mstockwebsocket.py:211), an invented zero a client reads as a real OI. The desktop leaves oi out until a packet has carried one, and then sends the last OI the instrument's full packet carried on this connection (feed/bridge/snapshot.rs merges by presence), never a 0 it was not sent.",
+      "ref": "decisions 2026-11-09: web zeros for values the stream did not send are left out; web openalgo#2376"
     },
     {
       "key": "last_quantity",
       "kind": "open",
-      "reason": "mStock's index Quote packet carries the trade quantity, average price and book totals (as 0) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop leaves them out of every index frame (feed::protocol::market_data, index branch). The index shape follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock.",
-      "ref": "lead rule 2026-11-09; feed::protocol::market_data"
+      "reason": "mStock's index Quote packet carries the last quantity, average price and book totals (as 0, in the fixed 123-byte layout) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop's renderer leaves an index's order-flow fields out for every broker (feed/protocol/market.rs shown_quote). Phase B: sent when the packet carries them, under the adapter's names, through the per-broker switch.",
+      "ref": "lead rule 2026-11-09 (index: broker sent a value, desktop drops it -> open)"
     },
     {
       "key": "last_trade_quantity",
       "kind": "open",
-      "reason": "mStock's index Quote packet carries the trade quantity, average price and book totals (as 0) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop leaves them out of every index frame (feed::protocol::market_data, index branch). The index shape follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock.",
-      "ref": "lead rule 2026-11-09; feed::protocol::market_data"
+      "reason": "mStock's index Quote packet carries the last quantity, average price and book totals (as 0, in the fixed 123-byte layout) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop's renderer leaves an index's order-flow fields out for every broker (feed/protocol/market.rs shown_quote). Phase B: sent when the packet carries them, under the adapter's names, through the per-broker switch.",
+      "ref": "lead rule 2026-11-09 (index: broker sent a value, desktop drops it -> open)"
     },
     {
       "key": "average_price",
       "kind": "open",
-      "reason": "mStock's index Quote packet carries the trade quantity, average price and book totals (as 0) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop leaves them out of every index frame (feed::protocol::market_data, index branch). The index shape follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock.",
-      "ref": "lead rule 2026-11-09; feed::protocol::market_data"
+      "reason": "mStock's index Quote packet carries the last quantity, average price and book totals (as 0, in the fixed 123-byte layout) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop's renderer leaves an index's order-flow fields out for every broker (feed/protocol/market.rs shown_quote). Phase B: sent when the packet carries them, under the adapter's names, through the per-broker switch.",
+      "ref": "lead rule 2026-11-09 (index: broker sent a value, desktop drops it -> open)"
     },
     {
       "key": "total_buy_quantity",
       "kind": "open",
-      "reason": "mStock's index Quote packet carries the trade quantity, average price and book totals (as 0) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop leaves them out of every index frame (feed::protocol::market_data, index branch). The index shape follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock.",
-      "ref": "lead rule 2026-11-09; feed::protocol::market_data"
+      "reason": "mStock's index Quote packet carries the last quantity, average price and book totals (as 0, in the fixed 123-byte layout) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop's renderer leaves an index's order-flow fields out for every broker (feed/protocol/market.rs shown_quote). Phase B: sent when the packet carries them, under the adapter's names, through the per-broker switch.",
+      "ref": "lead rule 2026-11-09 (index: broker sent a value, desktop drops it -> open)"
     },
     {
       "key": "total_sell_quantity",
       "kind": "open",
-      "reason": "mStock's index Quote packet carries the trade quantity, average price and book totals (as 0) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop leaves them out of every index frame (feed::protocol::market_data, index branch). The index shape follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock.",
-      "ref": "lead rule 2026-11-09; feed::protocol::market_data"
+      "reason": "mStock's index Quote packet carries the last quantity, average price and book totals (as 0, in the fixed 123-byte layout) and this web adapter sends them for an index as for any instrument (mstock_adapter.py:362-375); the desktop's renderer leaves an index's order-flow fields out for every broker (feed/protocol/market.rs shown_quote). Phase B: sent when the packet carries them, under the adapter's names, through the per-broker switch.",
+      "ref": "lead rule 2026-11-09 (index: broker sent a value, desktop drops it -> open)"
     },
     {
       "key": "price_change",
       "kind": "open",
-      "reason": "The desktop sends price_change and price_change_percent in an index frame, worked out from the LTP and the previous close (100.75 and 0.42 here); this web adapter sends no change for an index (mstock_adapter.py:340-433). The index change follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock (C04 decides the change fields for every instrument).",
-      "ref": "lead rule 2026-11-09; audit C04; feed::bridge::quote_fields"
+      "reason": "The desktop sends price_change and price_change_percent in an index frame, worked out from the LTP and the previous close (100.75 and 0.42 here); mStock's web adapter sends no change for any instrument (mstock_adapter.py:340-433). Phase B drops them for mStock through the per-broker switch.",
+      "ref": "lead rule 2026-11-09 (index price_change per adapter); audit C04"
     },
     {
       "key": "price_change_percent",
       "kind": "open",
-      "reason": "The desktop sends price_change and price_change_percent in an index frame, worked out from the LTP and the previous close (100.75 and 0.42 here); this web adapter sends no change for an index (mstock_adapter.py:340-433). The index change follows the web adapter in Phase B through lane wire's per-broker switch in the dialect table, set for mStock (C04 decides the change fields for every instrument).",
-      "ref": "lead rule 2026-11-09; audit C04; feed::bridge::quote_fields"
+      "reason": "The desktop sends price_change and price_change_percent in an index frame, worked out from the LTP and the previous close (100.75 and 0.42 here); mStock's web adapter sends no change for any instrument (mstock_adapter.py:340-433). Phase B drops them for mStock through the per-broker switch.",
+      "ref": "lead rule 2026-11-09 (index price_change per adapter); audit C04"
     }
   ]
 }
