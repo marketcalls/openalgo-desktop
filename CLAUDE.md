@@ -128,8 +128,15 @@ Observed quirks that are part of the contract and must be reproduced, not
   limit by its endpoint), moving window, no rate-limit headers, at the web's
   `.sample.env` values: 100 per second, 10 per second for place, modify and
   cancel (options orders and GTT writes included) and smart orders, 30 per
-  minute for `optiongreeks`, Telegram and WhatsApp, 5 per minute for the
-  Telegram broadcast (`server::ratelimit::api_limits`).
+  minute for `optiongreeks`, `sectorrotation`, Telegram and WhatsApp, 5 per
+  minute for the Telegram broadcast (`server::ratelimit::api_limits`).
+- A `market_data` frame leaves out a quote field the broker's feed does not
+  carry, never sends it as 0 (web openalgo#2376, `docs/api/websocket-streaming/quote.md`).
+  An adapter marks such fields in `NormalizedTick::absent`
+  (`brokers::common::streaming::AbsentFields`); one that marks nothing
+  renders every field, as before. A depth frame before its instrument's
+  first tick leaves out the quote fields but keeps `ltp` and `timestamp`,
+  which the SDK's Depth callback reads (the web leaves `ltp` out too).
 
 ## Ports
 
@@ -1327,8 +1334,11 @@ and add each new one here.
   module to its own `tests.rs` (`foo.rs` declares `#[cfg(test)] mod tests;`,
   the body goes in `foo/tests.rs`), which `.github/codeql/codeql-config.yml`
   excludes by path; dismiss as "used in tests" only where it cannot move,
-  after checking the line really sits in the test module. A variable named
-  `iv` that means interval trips the hard-coded-crypto rule; rename it.
+  after checking the line really sits in the test module. Test files named
+  `foo_tests.rs` or `foo_tests/` are excluded too, and the code-health gate
+  (`codeql_hidden`) fails CI if any glob in that config would leave out
+  production code. A variable named `iv` trips the hard-coded-crypto rule,
+  whether it means an interval or CPython's `float_pow` operand; rename it.
 - Read a CodeQL taint alert's path (the SARIF's code flow, `gh api
   .../code-scanning/analyses/<id>` with `Accept: application/sarif+json`)
   before changing the sink. CodeQL resolves a call on `Box<dyn BrokerFeed>`
@@ -1518,3 +1528,9 @@ and add each new one here.
 - If GitHub rejects pushes with server errors, a merge through
   `gh api repos/<owner>/<repo>/merges` works; confirm the resulting tree SHA
   matches the tested one.
+- Several agents each running `gh run watch` at its default 3-second interval
+  put the account on GitHub's secondary rate limit (2026-11-08): every
+  `gh run view` and job-log call answered 403 for a while. Poll with
+  `--interval 120` (or `gh run view --json status` and a 120 s sleep), one
+  poller per run, fetch a job's log once after the run completes, and wait
+  5 minutes after a 403.
