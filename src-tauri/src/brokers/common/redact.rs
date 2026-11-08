@@ -124,6 +124,29 @@ pub fn ws_error_kind(err: &WsError) -> &'static str {
 mod tests {
     use super::*;
 
+    /// Web test/test_logging_redaction.py::test_the_oauth_state_is_masked_like_a_code
+    /// (marketcalls/openalgo#2337): the state completes the pending broker
+    /// login it was issued for, so a logged sign-in address must not carry
+    /// it, and Zerodha carries it inside `redirect_params`. The desktop drops
+    /// a URL's whole query (stricter than the web, which keeps `api_key`),
+    /// and text that is not a URL is left as it is.
+    #[test]
+    fn the_oauth_state_is_dropped_with_the_query() {
+        let secret = ["st", "SENTINEL", "7e949f"].concat();
+        let sign_in = format!(
+            "https://kite.zerodha.com/connect/login?v=3&api_key=public&redirect_params=state%3D{}",
+            secret
+        );
+        let callback = format!(
+            "http://127.0.0.1:5000/fyers/callback?auth_code={}&state={}",
+            secret, secret
+        );
+        for url in [sign_in, callback] {
+            assert!(!url_safe(&url).contains(&secret), "{}", url_safe(&url));
+        }
+        assert_eq!(url_safe("order state=complete"), "order state=complete");
+    }
+
     #[test]
     fn queries_and_userinfo_are_dropped() {
         assert_eq!(
