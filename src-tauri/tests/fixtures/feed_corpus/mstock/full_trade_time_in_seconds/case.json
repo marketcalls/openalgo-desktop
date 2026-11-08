@@ -1,0 +1,78 @@
+{
+  "broker": "mstock",
+  "summary": "A full packet whose last traded timestamp is in epoch seconds: the desktop sends ltt and last_trade_time in epoch ms, the web passes the seconds on.",
+  "scenarios": [
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "1594",
+      "brsymbol": "INFY-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_message",
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_packet",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._on_data",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._normalize_market_data",
+      "test/test_mstock_quote_feed.py::test_full_packet_prefers_last_traded_timestamp"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "mStock's full packet carries the last traded time in epoch seconds (web test/test_mstock_quote_feed.py: last_traded_timestamp=1730783990 beside an exchange timestamp in ms); the web sends it as ltt unconverted, in seconds, while feed timestamps are epoch milliseconds (docs/prompt/websockets-format.md). The desktop sends it in ms (brokers/mstock/streaming.rs trade_time_ms).",
+      "ref": "mstock_adapter.py:351-356"
+    },
+    {
+      "key": "last_trade_time",
+      "kind": "web-defect",
+      "reason": "As ltt: the web's last_trade_time for a full packet is the raw epoch seconds; the desktop's mStock last_trade_time alias carries ltt's value in epoch ms.",
+      "ref": "mstock_adapter.py:355; feed::dialect (mStock last_trade_time in ms, openalgo#2383)"
+    },
+    {
+      "key": "exchange_timestamp",
+      "kind": "open",
+      "reason": "The web also sends mStock's exchange timestamp under its own name whenever the packet carries one (mstock_adapter.py:357-358); the desktop's common carrier has no such field, so it is lost.",
+      "ref": "audit C06; WEBSOCKET_AUDIT_REMAINING_BROKERS.md 'Verified broker fields dropped' (mstock)"
+    },
+    {
+      "key": "prev_close",
+      "kind": "open",
+      "reason": "The web sends the previous close twice, as close and as prev_close (mstock_adapter.py:367-368); the desktop sends close only, and its dialect table has no prev_close alias for mStock.",
+      "ref": "feed::dialect (mstock); lane wire per-broker aliases"
+    },
+    {
+      "key": "upper_circuit",
+      "kind": "open",
+      "reason": "The web sends the full packet's upper circuit limit in Depth (mstock_adapter.py:425); the desktop decodes it (brokers/mstock/streaming.rs:151) but the common carrier drops it.",
+      "ref": "audit C06; RB matrix 'Verified broker fields dropped' (mstock)"
+    },
+    {
+      "key": "lower_circuit",
+      "kind": "open",
+      "reason": "The web sends the full packet's lower circuit limit in Depth (mstock_adapter.py:426); the desktop decodes it (brokers/mstock/streaming.rs:152) but the common carrier drops it.",
+      "ref": "audit C06; RB matrix 'Verified broker fields dropped' (mstock)"
+    },
+    {
+      "key": "open_interest",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
+      "ref": "feed::protocol::market_data"
+    }
+  ]
+}

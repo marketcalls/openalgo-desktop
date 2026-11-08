@@ -1,0 +1,8 @@
+# mStock LTP packet (51 bytes), INFY on NSE (exchange type 1).
+# Values from web test/test_mstock_quote_feed.py::_quote_packet.
+01                      # subscription mode 1
+01                      # exchange type 1
+31353934000000000000000000000000000000000000000000 # token "1594", NUL-padded to 25 bytes
+0100000000000000        # sequence number
+00f8c3fa92010000        # exchange timestamp 1730784000000
+224a020000000000        # ltp 1500.50 in paise

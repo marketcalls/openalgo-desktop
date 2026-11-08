@@ -1,0 +1,9 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 1}}
+{"step": "upstream_connected", "connection": 1, "path": "/?API_KEY=key&ACCESS_TOKEN=jwt"}
+{"step": "upstream_receives", "frames": [{"text": "LOGIN:jwt"}, {"json": {"action": 1, "params": {"mode": 1, "tokenList": [{"exchangeType": 1, "tokens": ["1594"]}]}}}]}
+{"step": "push", "frame": "frames/ltp.hex"}
+{"step": "receive", "client": "a", "frame": "expected/ltp.json"}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 1}}
+{"step": "upstream_receives", "frames": [{"json": {"action": 0, "params": {"mode": 1, "tokenList": [{"exchangeType": 1, "tokens": ["1594"]}]}}}]}
+{"step": "push", "frame": "frames/ltp.hex", "note": "A packet mStock sent before it took the unsubscribe."}
+{"step": "silence", "client": "a"}

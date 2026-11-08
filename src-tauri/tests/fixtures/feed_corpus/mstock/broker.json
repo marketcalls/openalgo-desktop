@@ -1,0 +1,37 @@
+{
+  "broker": "mstock",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [
+        5
+      ],
+      "BSE": [
+        5
+      ],
+      "NFO": [
+        5
+      ],
+      "BFO": [
+        5
+      ],
+      "MCX": [
+        5
+      ],
+      "CDS": [
+        5
+      ]
+    },
+    "orders": false
+  },
+  "sources": [
+    "broker/mstock/streaming/mstock_mapping.py::MstockCapabilityRegistry",
+    "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter.subscribe",
+    "services/order_update_service.py:36"
+  ],
+  "notes": [
+    "mStock streams five levels on every exchange; the web adapter refuses a Depth subscribe at any other level (INVALID_DEPTH, mstock_adapter.py:239-242).",
+    "The web has no order-update adapter for mStock (not in services/order_update_service.py _BROKER_FACTORIES or _POLLING_BROKERS), and neither has the desktop."
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "broker": "mstock",
+  "summary": "A Depth subscription: a full packet's ltt is its last trade time, not its exchange time (audit RB-07); a later full packet clears the book and has no trade, so it carries five empty levels and no ltt.",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear",
+    "absent-field"
+  ],
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "1594",
+      "brsymbol": "INFY-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_message",
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_packet",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._on_data",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._normalize_market_data",
+      "test/test_mstock_quote_feed.py::test_full_packet_without_a_trade_publishes_no_trade_time"
+    ],
+    "notes": [
+      "Times from audit WEBSOCKET_AUDIT_REMAINING_BROKERS.md RB-07 (exchange 1791002705000, trade 1791002699000)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "exchange_timestamp",
+      "kind": "open",
+      "reason": "The web also sends mStock's exchange timestamp under its own name whenever the packet carries one (mstock_adapter.py:357-358); the desktop's common carrier has no such field, so it is lost.",
+      "ref": "audit C06; WEBSOCKET_AUDIT_REMAINING_BROKERS.md 'Verified broker fields dropped' (mstock)"
+    },
+    {
+      "key": "prev_close",
+      "kind": "open",
+      "reason": "The web sends the previous close twice, as close and as prev_close (mstock_adapter.py:367-368); the desktop sends close only, and its dialect table has no prev_close alias for mStock.",
+      "ref": "feed::dialect (mstock); lane wire per-broker aliases"
+    },
+    {
+      "key": "upper_circuit",
+      "kind": "open",
+      "reason": "The web sends the full packet's upper circuit limit in Depth (mstock_adapter.py:425); the desktop decodes it (brokers/mstock/streaming.rs:151) but the common carrier drops it.",
+      "ref": "audit C06; RB matrix 'Verified broker fields dropped' (mstock)"
+    },
+    {
+      "key": "lower_circuit",
+      "kind": "open",
+      "reason": "The web sends the full packet's lower circuit limit in Depth (mstock_adapter.py:426); the desktop decodes it (brokers/mstock/streaming.rs:152) but the common carrier drops it.",
+      "ref": "audit C06; RB matrix 'Verified broker fields dropped' (mstock)"
+    },
+    {
+      "key": "open_interest",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
+      "ref": "feed::protocol::market_data"
+    }
+  ]
+}

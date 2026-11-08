@@ -1,0 +1,34 @@
+# mStock full packet with an empty book and no trade yet (last traded
+# timestamp 0): every level 0, no trade time (audit RB-07).
+03                      # subscription mode 3
+01                      # exchange type 1
+31353934000000000000000000000000000000000000000000 # token "1594", NUL-padded to 25 bytes
+0300000000000000        # sequence number
+f08f1400a1010000        # exchange timestamp 1791002710000
+224a020000000000        # ltp 1500.50 in paise
+1900000000000000        # last traded quantity 25
+2849020000000000        # average price 1498.00 in paise
+e803000000000000        # volume 1000
+0000000000000000        # total buy quantity 0.0 (double)
+0000000000000000        # total sell quantity 0.0 (double)
+0846020000000000        # open 1490.00 in paise
+e44b020000000000        # high 1505.00 in paise
+1444020000000000        # low 1485.00 in paise
+fc47020000000000        # close 1495.00 in paise
+0000000000000000        # last traded timestamp 0
+0000000000000000        # open interest 0
+0000000000000000        # OI change percent x100 0
+0000000000000000000000000000000000000000 # bid 1: flag, qty 0, price 0.00, orders 0
+0000000000000000000000000000000000000000 # bid 2: flag, qty 0, price 0.00, orders 0
+0000000000000000000000000000000000000000 # bid 3: flag, qty 0, price 0.00, orders 0
+0000000000000000000000000000000000000000 # bid 4: flag, qty 0, price 0.00, orders 0
+0000000000000000000000000000000000000000 # bid 5: flag, qty 0, price 0.00, orders 0
+0000000000000000000000000000000000000000 # ask 1: flag, qty 0, price 0.00, orders 0
+0000000000000000000000000000000000000000 # ask 2: flag, qty 0, price 0.00, orders 0
+0000000000000000000000000000000000000000 # ask 3: flag, qty 0, price 0.00, orders 0
+0000000000000000000000000000000000000000 # ask 4: flag, qty 0, price 0.00, orders 0
+0000000000000000000000000000000000000000 # ask 5: flag, qty 0, price 0.00, orders 0
+b584020000000000        # upper circuit 1650.45 in paise
+850f020000000000        # lower circuit 1350.45 in paise
+20bf020000000000        # 52-week high 1800.00 in paise
+d0fb010000000000        # 52-week low 1300.00 in paise

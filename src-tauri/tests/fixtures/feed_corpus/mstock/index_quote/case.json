@@ -1,0 +1,96 @@
+{
+  "broker": "mstock",
+  "summary": "An NSE index in Quote mode: the index frame carries LTP, OHLC, the previous close and the change worked out from them.",
+  "scenarios": [
+    "index"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "Nifty 50",
+      "brexchange": "NSE",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_message",
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_packet",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._on_data",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "exchange_timestamp",
+      "kind": "open",
+      "reason": "The web also sends mStock's exchange timestamp under its own name whenever the packet carries one (mstock_adapter.py:357-358); the desktop's common carrier has no such field, so it is lost.",
+      "ref": "audit C06; WEBSOCKET_AUDIT_REMAINING_BROKERS.md 'Verified broker fields dropped' (mstock)"
+    },
+    {
+      "key": "prev_close",
+      "kind": "open",
+      "reason": "The web sends the previous close twice, as close and as prev_close (mstock_adapter.py:367-368); the desktop sends close only, and its dialect table has no prev_close alias for mStock.",
+      "ref": "feed::dialect (mstock); lane wire per-broker aliases"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:370, quote_data.get('oi', 0) with the parser's oi: 0 placeholder, mstockwebsocket.py:211), an invented zero a client reads as a real OI. The desktop leaves oi out of a frame whose packet has none, and sends the real OI from a full packet.",
+      "ref": "docs/api/websocket-streaming/quote.md (a field the broker does not carry is left out); web openalgo#2376"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries the recorded Zerodha index shape on the desktop for every broker: no last_quantity, average_price or book totals (feed::protocol::market_data, index branch). mStock's index Quote packet carries those fields as 0, which the web passes on.",
+      "ref": "feed::protocol::market_data; tests/fixtures/web/websocket transcripts (index)"
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries the recorded Zerodha index shape on the desktop for every broker: no last_quantity, average_price or book totals (feed::protocol::market_data, index branch). mStock's index Quote packet carries those fields as 0, which the web passes on.",
+      "ref": "feed::protocol::market_data; tests/fixtures/web/websocket transcripts (index)"
+    },
+    {
+      "key": "average_price",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries the recorded Zerodha index shape on the desktop for every broker: no last_quantity, average_price or book totals (feed::protocol::market_data, index branch). mStock's index Quote packet carries those fields as 0, which the web passes on.",
+      "ref": "feed::protocol::market_data; tests/fixtures/web/websocket transcripts (index)"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries the recorded Zerodha index shape on the desktop for every broker: no last_quantity, average_price or book totals (feed::protocol::market_data, index branch). mStock's index Quote packet carries those fields as 0, which the web passes on.",
+      "ref": "feed::protocol::market_data; tests/fixtures/web/websocket transcripts (index)"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries the recorded Zerodha index shape on the desktop for every broker: no last_quantity, average_price or book totals (feed::protocol::market_data, index branch). mStock's index Quote packet carries those fields as 0, which the web passes on.",
+      "ref": "feed::protocol::market_data; tests/fixtures/web/websocket transcripts (index)"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries price_change and price_change_percent on the desktop for every broker, worked out from the LTP and the previous close (100.75 and 0.42 here), as the recorded Zerodha index frames carry them; this web adapter sends no change for an index.",
+      "ref": "feed::bridge::quote_fields; NormalizedTick::derive_change"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "An index frame carries price_change and price_change_percent on the desktop for every broker, worked out from the LTP and the previous close (100.75 and 0.42 here), as the recorded Zerodha index frames carry them; this web adapter sends no change for an index.",
+      "ref": "feed::bridge::quote_fields; NormalizedTick::derive_change"
+    }
+  ]
+}

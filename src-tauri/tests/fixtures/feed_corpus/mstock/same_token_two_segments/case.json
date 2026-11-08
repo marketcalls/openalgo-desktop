@@ -1,0 +1,66 @@
+{
+  "broker": "mstock",
+  "summary": "Token 1594 on NSE and on BSE are two instruments: each is subscribed under its own exchange type, a packet reaches only the instrument of its exchange type and token, and a header-prefixed frame is split into its packets.",
+  "scenarios": [
+    "first-full-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "1594",
+      "brsymbol": "INFY-EQ",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "OTHER",
+      "exchange": "BSE",
+      "token": "1594",
+      "brsymbol": "OTHER",
+      "brexchange": "BSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_message",
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_packet",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._on_data",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._normalize_market_data",
+      "test/test_mstock_quote_feed.py::test_tick_routes_on_exchange_type_and_token",
+      "test/test_mstock_quote_feed.py::test_same_token_on_two_exchanges_is_subscribed_for_both",
+      "test/test_mstock_websocket.py::test_multi_packet_frame_keeps_every_token"
+    ],
+    "notes": [
+      "One symbol per subscribe, so each subscribe is one frame whatever the bridge's batching."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "exchange_timestamp",
+      "kind": "open",
+      "reason": "The web also sends mStock's exchange timestamp under its own name whenever the packet carries one (mstock_adapter.py:357-358); the desktop's common carrier has no such field, so it is lost.",
+      "ref": "audit C06; WEBSOCKET_AUDIT_REMAINING_BROKERS.md 'Verified broker fields dropped' (mstock)"
+    },
+    {
+      "key": "prev_close",
+      "kind": "open",
+      "reason": "The web sends the previous close twice, as close and as prev_close (mstock_adapter.py:367-368); the desktop sends close only, and its dialect table has no prev_close alias for mStock.",
+      "ref": "feed::dialect (mstock); lane wire per-broker aliases"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:370, quote_data.get('oi', 0) with the parser's oi: 0 placeholder, mstockwebsocket.py:211), an invented zero a client reads as a real OI. The desktop leaves oi out of a frame whose packet has none, and sends the real OI from a full packet.",
+      "ref": "docs/api/websocket-streaming/quote.md (a field the broker does not carry is left out); web openalgo#2376"
+    }
+  ]
+}

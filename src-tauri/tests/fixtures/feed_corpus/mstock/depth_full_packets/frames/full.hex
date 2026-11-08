@@ -1,0 +1,34 @@
+# mStock full packet (379 bytes), INFY on NSE: the exchange time and the
+# last trade time differ (audit RB-07 scenario), a five-level book, circuits.
+03                      # subscription mode 3
+01                      # exchange type 1
+31353934000000000000000000000000000000000000000000 # token "1594", NUL-padded to 25 bytes
+0200000000000000        # sequence number
+687c1400a1010000        # exchange timestamp 1791002705000
+224a020000000000        # ltp 1500.50 in paise
+1900000000000000        # last traded quantity 25
+2849020000000000        # average price 1498.00 in paise
+e803000000000000        # volume 1000
+0000000000709740        # total buy quantity 1500.0 (double)
+000000000068a040        # total sell quantity 2100.0 (double)
+0846020000000000        # open 1490.00 in paise
+e44b020000000000        # high 1505.00 in paise
+1444020000000000        # low 1485.00 in paise
+fc47020000000000        # close 1495.00 in paise
+f8641400a1010000        # last traded timestamp 1791002699000
+0000000000000000        # open interest 0
+0000000000000000        # OI change percent x100 0
+000064000000000000001d4a0200000000000300 # bid 1: flag, qty 100, price 1500.45, orders 3
+0000c800000000000000184a0200000000000500 # bid 2: flag, qty 200, price 1500.40, orders 5
+00002c01000000000000134a0200000000000700 # bid 3: flag, qty 300, price 1500.35, orders 7
+000090010000000000000e4a0200000000000900 # bid 4: flag, qty 400, price 1500.30, orders 9
+0000f401000000000000094a0200000000000b00 # bid 5: flag, qty 500, price 1500.25, orders 11
+00009600000000000000274a0200000000000400 # ask 1: flag, qty 150, price 1500.55, orders 4
+0000fa000000000000002c4a0200000000000600 # ask 2: flag, qty 250, price 1500.60, orders 6
+00005e01000000000000314a0200000000000800 # ask 3: flag, qty 350, price 1500.65, orders 8
+0000c201000000000000364a0200000000000a00 # ask 4: flag, qty 450, price 1500.70, orders 10
+000026020000000000003b4a0200000000000c00 # ask 5: flag, qty 550, price 1500.75, orders 12
+b584020000000000        # upper circuit 1650.45 in paise
+850f020000000000        # lower circuit 1350.45 in paise
+20bf020000000000        # 52-week high 1800.00 in paise
+d0fb010000000000        # 52-week low 1300.00 in paise

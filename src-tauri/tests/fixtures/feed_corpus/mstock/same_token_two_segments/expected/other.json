@@ -1,0 +1,26 @@
+{
+  "type": "market_data",
+  "symbol": "OTHER",
+  "exchange": "BSE",
+  "mode": 2,
+  "broker": "mstock",
+  "data": {
+    "symbol": "OTHER",
+    "exchange": "BSE",
+    "mode": "quote",
+    "ltp": 1499.0,
+    "ltt": 1730784000000,
+    "timestamp": "<receipt_ms>",
+    "volume": 400,
+    "last_quantity": 10,
+    "average_price": 1497.5,
+    "total_buy_quantity": 10,
+    "total_sell_quantity": 20,
+    "open": 1490.0,
+    "high": 1505.0,
+    "low": 1485.0,
+    "close": 1495.0,
+    "last_trade_quantity": 10,
+    "last_trade_time": 1730784000000
+  }
+}

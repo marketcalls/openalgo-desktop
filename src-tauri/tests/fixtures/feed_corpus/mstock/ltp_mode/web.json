@@ -1,0 +1,41 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "mstock",
+  "inputs_sha256": "6ebc41e39cbd4c0bc9d33223ea92fe2eff80aaebde4f11feccef31d9c35e60f5",
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "1594",
+      "brsymbol": "INFY-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 4,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INFY_LTP",
+          "mode": 1,
+          "data": {
+            "ltp": 1500.5,
+            "last_trade_time": 1730784000000,
+            "ltt": 1730784000000,
+            "exchange_timestamp": 1730784000000,
+            "symbol": "INFY",
+            "exchange": "NSE",
+            "mode": 1,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": []
+    }
+  ]
+}

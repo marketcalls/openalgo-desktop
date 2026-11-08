@@ -1,0 +1,16 @@
+# mStock Quote packet, INFY, on the new connection.
+02                      # subscription mode 2
+01                      # exchange type 1
+31353934000000000000000000000000000000000000000000 # token "1594", NUL-padded to 25 bytes
+2800000000000000        # sequence number
+60e2c4fa92010000        # exchange timestamp 1730784060000
+d14a020000000000        # ltp 1502.25 in paise
+0500000000000000        # last traded quantity 5
+5049020000000000        # average price 1498.40 in paise
+b004000000000000        # volume 1200
+0000000000002840        # total buy quantity 12.0 (double)
+0000000000003240        # total sell quantity 18.0 (double)
+0846020000000000        # open 1490.00 in paise
+e44b020000000000        # high 1505.00 in paise
+1444020000000000        # low 1485.00 in paise
+fc47020000000000        # close 1495.00 in paise

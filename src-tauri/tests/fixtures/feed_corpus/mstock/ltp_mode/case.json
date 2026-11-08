@@ -1,0 +1,45 @@
+{
+  "broker": "mstock",
+  "summary": "An LTP subscription: the LOGIN frame on connect, the subscribe, a 51-byte LTP packet with the exchange time as the trade time, and nothing after the unsubscribe.",
+  "scenarios": [
+    "first-full-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "INFY",
+      "exchange": "NSE",
+      "token": "1594",
+      "brsymbol": "INFY-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_message",
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_packet",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._on_data",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._normalize_market_data",
+      "test/test_mstock_quote_feed.py::_quote_packet"
+    ],
+    "notes": [
+      "The feed's address carries API_KEY and ACCESS_TOKEN (brokers/mstock/streaming.rs feed_url; web mstockwebsocket.py _build_ws_url)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "exchange_timestamp",
+      "kind": "open",
+      "reason": "The web also sends mStock's exchange timestamp under its own name whenever the packet carries one (mstock_adapter.py:357-358); the desktop's common carrier has no such field, so it is lost.",
+      "ref": "audit C06; WEBSOCKET_AUDIT_REMAINING_BROKERS.md 'Verified broker fields dropped' (mstock)"
+    }
+  ]
+}

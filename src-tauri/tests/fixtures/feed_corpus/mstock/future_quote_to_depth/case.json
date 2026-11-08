@@ -1,0 +1,83 @@
+{
+  "broker": "mstock",
+  "summary": "A future in Quote mode, then Depth on top: the feed moves the instrument from mode 2 to mode 3 at mStock and back; a full packet gives the Quote frame its OI and the Depth frame its book; a Quote packet has no OI to send.",
+  "scenarios": [
+    "derivative-oi",
+    "mode-change",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "35001",
+      "brsymbol": "NIFTY25NOV26FUT",
+      "brexchange": "NFO",
+      "name": "NIFTY",
+      "expiry": "25-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUTIDX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_message",
+      "broker/mstock/api/mstockwebsocket.py::MstockWebSocket.parse_binary_packet",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._on_data",
+      "broker/mstock/streaming/mstock_adapter.py::MstockWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "exchange_timestamp",
+      "kind": "open",
+      "reason": "The web also sends mStock's exchange timestamp under its own name whenever the packet carries one (mstock_adapter.py:357-358); the desktop's common carrier has no such field, so it is lost.",
+      "ref": "audit C06; WEBSOCKET_AUDIT_REMAINING_BROKERS.md 'Verified broker fields dropped' (mstock)"
+    },
+    {
+      "key": "prev_close",
+      "kind": "open",
+      "reason": "The web sends the previous close twice, as close and as prev_close (mstock_adapter.py:367-368); the desktop sends close only, and its dialect table has no prev_close alias for mStock.",
+      "ref": "feed::dialect (mstock); lane wire per-broker aliases"
+    },
+    {
+      "key": "oi",
+      "kind": "web-defect",
+      "reason": "mStock's Quote packet (123 bytes) carries no open interest; the web sends oi 0 for it (mstock_adapter.py:370, quote_data.get('oi', 0) with the parser's oi: 0 placeholder, mstockwebsocket.py:211), an invented zero a client reads as a real OI. The desktop leaves oi out of a frame whose packet has none, and sends the real OI from a full packet.",
+      "ref": "docs/api/websocket-streaming/quote.md (a field the broker does not carry is left out); web openalgo#2376"
+    },
+    {
+      "key": "open_interest",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
+      "ref": "feed::protocol::market_data"
+    },
+    {
+      "key": "upper_circuit",
+      "kind": "open",
+      "reason": "Mixed-mode fan-out, as depth: the web's Quote topic for a full packet carries the circuit limits too; the desktop's carrier has no circuit field (C06) and its Quote frame no Depth-only key (C08).",
+      "ref": "audit C06, C08"
+    },
+    {
+      "key": "lower_circuit",
+      "kind": "open",
+      "reason": "Mixed-mode fan-out, as depth: the web's Quote topic for a full packet carries the circuit limits too; the desktop's carrier has no circuit field (C06) and its Quote frame no Depth-only key (C08).",
+      "ref": "audit C06, C08"
+    },
+    {
+      "key": "depth",
+      "kind": "open",
+      "reason": "Mixed-mode fan-out: with Depth open on the instrument mStock sends full packets, and the web's Quote topic carries the full packet's normalised dict, book included (mstock_adapter.py:186, normalised by the packet's mode); the desktop's Quote frame is the Quote schema. Whether a Quote frame carries what the packet had is the lead's C08 decision.",
+      "ref": "audit C08 (mixed-mode fan-out policy)"
+    }
+  ]
+}

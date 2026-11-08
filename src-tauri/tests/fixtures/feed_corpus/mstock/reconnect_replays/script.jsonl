@@ -1,0 +1,9 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "INFY", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"text": "LOGIN:jwt"}, {"json": {"action": 1, "params": {"mode": 2, "tokenList": [{"exchangeType": 1, "tokens": ["1594"]}]}}}], "connection": 1}
+{"step": "push", "frame": "frames/quote.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote.json"}
+{"step": "drop_upstream"}
+{"step": "upstream_connected", "connection": 2, "path": "/?API_KEY=key&ACCESS_TOKEN=jwt"}
+{"step": "upstream_receives", "frames": [{"text": "LOGIN:jwt"}, {"json": {"action": 1, "params": {"mode": 2, "tokenList": [{"exchangeType": 1, "tokens": ["1594"]}]}}}], "connection": 2}
+{"step": "push", "frame": "frames/quote_after.hex"}
+{"step": "receive", "client": "a", "frame": "expected/quote_after.json"}
