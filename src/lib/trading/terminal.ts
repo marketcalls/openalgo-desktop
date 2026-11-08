@@ -22,6 +22,7 @@ import type {
   SeriesMarker,
   SeriesMarkers,
   SeriesTransformSpec,
+  WsControlMessage,
 } from 'openalgo-charts'
 import {
   AlertController,
@@ -105,6 +106,7 @@ import {
   isComparisonScale,
   storedComparisonMode,
 } from './comparisonScale'
+import { DEPTH_UNAVAILABLE, DepthRefusals } from './depthRefusal'
 import { ExpressionFeed, isChartExpression, resolveLeg } from './expressionFeed'
 import {
   type IndicatorTemplateMode,
@@ -1216,6 +1218,8 @@ export class TradingTerminal {
   private offDepth: (() => void) | null = null
   private offWsState: (() => void) | null = null
   private offWsControl: (() => void) | null = null
+  // Desktop: symbols whose Depth the broker refused (depthRefusal.ts).
+  private readonly depthRefusals = new DepthRefusals()
   private offOrderUpdate: (() => void) | null = null
   private offLegendActions: (() => void) | null = null
   private offReplayPointer: (() => void) | null = null
@@ -1694,6 +1698,20 @@ export class TradingTerminal {
       .replace(/^\/api\/v1\/[\w/]+\s+failed\s+\(\d+\)(:\s*)?/i, '')
     return m.trim() || 'request failed'
   }
+  /**
+   * Desktop: a broker without market depth refused this symbol's Depth
+   * subscription; follow it at Quote (its LTP events carry the price) and
+   * say why the book stays empty (depthRefusal.ts).
+   */
+  private followQuoteIfDepthRefused(m: WsControlMessage) {
+    const sym = this.sym
+    if (!this.ws || !sym || sym.quoteOnly || sym.synthetic) return
+    if (!this.depthRefusals.takeRefusal(m, sym.symbol, sym.exchange)) return
+    this.ws.unsubscribe('Depth', sym.symbol, sym.exchange)
+    this.ws.subscribe('Quote', sym.symbol, sym.exchange)
+    this.toast(DEPTH_UNAVAILABLE)
+  }
+
   private toast(msg: string, kind: ToastKind = '') {
     this.cb.onToast(msg, kind)
   }
@@ -6619,6 +6637,8 @@ export class TradingTerminal {
     // have no order book (LTP), tradeables get Depth which embeds ltp.
     if (this.sym.quoteOnly) {
       this.ws.subscribe('LTP', this.sym.symbol, this.sym.exchange)
+    } else if (this.depthRefusals.modeFor(this.sym.symbol, this.sym.exchange) === 'Quote') {
+      this.ws.subscribe('Quote', this.sym.symbol, this.sym.exchange)
     } else {
       this.ws.subscribe('Depth', this.sym.symbol, this.sym.exchange, 5)
     }
@@ -7017,7 +7037,8 @@ export class TradingTerminal {
         } else if (this.sym.quoteOnly) {
           this.ws.unsubscribe('LTP', this.sym.symbol, this.sym.exchange)
         } else {
-          this.ws.unsubscribe('Depth', this.sym.symbol, this.sym.exchange)
+          const mode = this.depthRefusals.modeFor(this.sym.symbol, this.sym.exchange)
+          this.ws.unsubscribe(mode, this.sym.symbol, this.sym.exchange)
         }
       } catch {
         /* not subscribed */
@@ -7952,6 +7973,7 @@ export class TradingTerminal {
 
     // one WebSocket for ticks + the account-level order stream.
     this.ws = new OpenAlgoWsFeed({ url: this.wsUrl, apiKey: this.apiKey })
+    this.depthRefusals.clear()
     this.offWsState = this.ws.onState((s) => {
       if (this.destroyed) return
       this.cb.onWsState(s)
@@ -7969,6 +7991,7 @@ export class TradingTerminal {
     })
     this.offWsControl = this.ws.onControl((m) => {
       if (m.type === 'auth' && m.status !== 'success') this.cb.onWsState('auth failed')
+      this.followQuoteIfDepthRefused(m)
     })
     this.offOrderUpdate = this.ws.onOrderUpdate((e) => {
       if (!this.sym || e.symbol !== this.sym.symbol || !this.chart) return
