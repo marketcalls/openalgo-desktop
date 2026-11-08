@@ -946,6 +946,29 @@ fn live_feed_frames_and_events() {
     assert_eq!((feed.registered(), feed.cached()), (0, 0));
 }
 
+/// A new connection keeps the registrations and forgets the scrip data
+/// the old one delivered (the Upstox ruling; the web keeps
+/// `last_quotes` across `on_close`).
+#[test]
+fn a_new_connection_reports_nothing_from_before_it() {
+    let mut feed = MotilalFeed::new("wss://example.invalid/feed", "C1");
+    feed.subscribe_frames(&[sub("RELIANCE", "NSE", "2885", FeedMode::Quote)]);
+    let ohlc = [f(2400.0), f(2420.0), f(2390.0), f(2398.0)].concat();
+    feed.parse(&Message::Binary(pkt(b'N', 2885, b'G', &ohlc)));
+    let trade = pkt(b'N', 2885, b'A', &f(2410.5));
+    let before = feed.parse(&Message::Binary(trade.clone()));
+    assert!(matches!(&before[0], FeedEvent::Tick(t) if t.knows(QuoteField::Open)));
+
+    feed.on_connected();
+    assert_eq!((feed.registered(), feed.cached()), (1, 0));
+    let after = feed.parse(&Message::Binary(trade));
+    let Some(FeedEvent::Tick(t)) = after.iter().find(|e| matches!(e, FeedEvent::Tick(_))) else {
+        panic!("{:?}", after)
+    };
+    assert_eq!(t.ltp, 2410.5);
+    assert!(!t.knows(QuoteField::Open) && !t.knows(QuoteField::Close));
+}
+
 /// Audit RB-09: no Depth frame before a traded price and a first book
 /// level; web `motilal_adapter.py` `_poll_market_data` waits for both.
 #[test]

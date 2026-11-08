@@ -296,6 +296,12 @@ impl FeedState {
         }
     }
 
+    /// Drop every scrip's data and keep the registrations (a new
+    /// connection registers them again).
+    pub(crate) fn forget_data(&mut self) {
+        self.data.clear();
+    }
+
     pub fn unregister(&mut self, exchange: &str, scrip: i32) {
         let ex = exchange.to_ascii_uppercase();
         let key = (exchange_char(&ex), scrip);
@@ -587,8 +593,11 @@ impl BrokerFeed for MotilalFeed {
 
     fn on_connected(&mut self) -> Vec<Message> {
         // A new socket: nothing is registered on it yet and the login has
-        // not been answered.
+        // not been answered. What the old one delivered is not current, so
+        // no pre-outage OHLC, book or circuit is reported as today's (the
+        // web keeps it; the desktop starts afresh, as for Upstox).
         self.announced = false;
+        self.state.forget_data();
         vec![Message::Binary(login_packet(&self.client_code))]
     }
 
