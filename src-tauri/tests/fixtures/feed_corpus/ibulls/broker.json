@@ -1,0 +1,41 @@
+{
+  "broker": "ibulls",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [
+        5,
+        20
+      ],
+      "NFO": [
+        5,
+        20
+      ],
+      "CDS": [
+        5
+      ],
+      "BSE": [
+        5
+      ],
+      "BFO": [
+        5
+      ],
+      "MCX": [
+        5
+      ]
+    },
+    "orders": false
+  },
+  "sources": [
+    "broker/ibulls/streaming/ibulls_mapping.py::IbullsCapabilityRegistry",
+    "broker/ibulls/streaming/ibulls_adapter.py",
+    "broker/ibulls/streaming/ibulls_websocket.py",
+    "services/order_update_service.py:36 (no XTS order adapter) and :98 (_POLLING_BROKERS: groww, fivepaisa, samco)"
+  ],
+  "notes": [
+    "The standard XTS template: the topic comes from the message code (1512 LTP, 1501 Quote, 1502 Depth), the quote from Touchline for 1502 only, and any unsubscribe disconnects the whole adapter.",
+    "Depth 20 on NSE and NFO is in the web's registry; the desktop streams 5 today (families/xts/mod.rs depth_levels [5], audit FB-06).",
+    "The web streams no order updates for this broker (no order adapter, no polling); the desktop has none either (order_feed: false)."
+  ]
+}

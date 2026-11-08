@@ -12,6 +12,8 @@
 //!   sockets, and its case list. Adding a case to a broker is a folder in
 //!   `tests/fixtures/feed_corpus/<broker>/` and its name in that list;
 //!   adding a broker is a module like these and a line in [`BROKERS`].
+//! * [`xts`]: the XTS family's feed, which the seven members' modules
+//!   build with their own configuration.
 //! * [`inventory`]: the folders and the lists agree, and every case reads.
 //!
 //! The case format and how to add one: `tests/fixtures/feed_corpus/README.md`.
@@ -24,9 +26,11 @@ mod angel;
 mod dhan;
 mod firstock;
 mod flattrade;
+mod ibulls;
 mod samco;
 mod shoonya;
 mod tradesmart;
+mod xts;
 mod zebu;
 mod zerodha;
 
@@ -37,6 +41,7 @@ const BROKERS: &[(&str, &[&str])] = &[
     ("dhan", dhan::CASES),
     ("firstock", firstock::CASES),
     ("flattrade", flattrade::CASES),
+    ("ibulls", ibulls::CASES),
     ("samco", samco::CASES),
     ("shoonya", shoonya::CASES),
     ("tradesmart", tradesmart::CASES),

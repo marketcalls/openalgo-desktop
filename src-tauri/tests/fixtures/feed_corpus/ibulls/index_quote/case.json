@@ -1,0 +1,129 @@
+{
+  "broker": "ibulls",
+  "summary": "Quote on NIFTY (NSE_INDEX, instrument 26000 on segment 1): the 1501 Touchline event becomes an index Quote frame with open, high, low, the previous close and the change derived from it.",
+  "scenarios": [
+    "index",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "26000",
+      "brsymbol": "NIFTY 50_26000",
+      "brexchange": "NSE_INDEX",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "http": [
+    {
+      "path": "/apibinarymarketdata/instruments/subscription",
+      "body": {
+        "json": {
+          "type": "success",
+          "code": "s-session-0001",
+          "description": "Instruments subscribed successfully",
+          "result": {
+            "mdp": 1501,
+            "quotesList": [],
+            "listQuotes": []
+          }
+        }
+      },
+      "record": true
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/ibulls/streaming/ibulls_websocket.py::IbullsWebSocketClient._setup_socketio",
+      "broker/ibulls/streaming/ibulls_adapter.py::IbullsWebSocketAdapter._process_json_data",
+      "broker/ibulls/streaming/ibulls_adapter.py::IbullsWebSocketAdapter._normalize_market_data",
+      "broker/ibulls/streaming/ibulls_adapter.py::IbullsWebSocketAdapter._is_index_token"
+    ],
+    "notes": [
+      "The desktop's index frames carry the change and no book or trade-size fields, as the recorded Zerodha index transcript (feed::protocol::market_data)."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "average_price",
+      "kind": "desktop-decision",
+      "reason": "An index Quote frame on the desktop carries no trade-size or book fields, as the recorded Zerodha index transcript; XTS has none for an index and the web sends average_price 0.",
+      "ref": "feed::protocol::market_data (index)"
+    },
+    {
+      "key": "close",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends close as 0. The desktop reads Touchline for every code.",
+      "ref": "ibulls_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "high",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends high as 0. The desktop reads Touchline for every code.",
+      "ref": "ibulls_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index Quote frame on the desktop carries no trade-size or book fields, as the recorded Zerodha index transcript; XTS has none for an index and the web sends last_quantity 0.",
+      "ref": "feed::protocol::market_data (index)"
+    },
+    {
+      "key": "low",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends low as 0. The desktop reads Touchline for every code.",
+      "ref": "ibulls_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "ltp",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends ltp as 0. The desktop reads Touchline for every code.",
+      "ref": "ibulls_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote, its LastTradedTime included, in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, so it sends ltt 0. The desktop reads Touchline for every code and sends the trade time in Unix milliseconds.",
+      "ref": "ibulls_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "open",
+      "kind": "web-defect",
+      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends open as 0. The desktop reads Touchline for every code.",
+      "ref": "ibulls_adapter.py _normalize_market_data"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends an index's change from the previous close, as the recorded Zerodha index transcript does; the XTS web adapters send none (lane wire, audit C04, extends the change to every instrument).",
+      "ref": "feed::protocol::market_data (index); families/xts/streaming.rs derive_change"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends an index's change from the previous close, as the recorded Zerodha index transcript does; the XTS web adapters send none (lane wire, audit C04, extends the change to every instrument).",
+      "ref": "feed::protocol::market_data (index); families/xts/streaming.rs derive_change"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index Quote frame on the desktop carries no trade-size or book fields, as the recorded Zerodha index transcript; XTS has none for an index and the web sends total_buy_quantity 0.",
+      "ref": "feed::protocol::market_data (index)"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "desktop-decision",
+      "reason": "An index Quote frame on the desktop carries no trade-size or book fields, as the recorded Zerodha index transcript; XTS has none for an index and the web sends total_sell_quantity 0.",
+      "ref": "feed::protocol::market_data (index)"
+    }
+  ]
+}

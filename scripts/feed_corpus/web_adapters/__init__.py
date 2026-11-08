@@ -7,6 +7,7 @@ from web_adapters.angel import Angel
 from web_adapters.dhan import Dhan
 from web_adapters.firstock import Firstock
 from web_adapters.flattrade import Flattrade
+from web_adapters.ibulls import Ibulls
 from web_adapters.shoonya import Shoonya
 from web_adapters.tradesmart import TradeSmart
 from web_adapters.zebu import Zebu
@@ -20,6 +21,7 @@ GLUES = {
         Dhan,
         Firstock,
         Flattrade,
+        Ibulls,
         Shoonya,
         TradeSmart,
         Zebu,

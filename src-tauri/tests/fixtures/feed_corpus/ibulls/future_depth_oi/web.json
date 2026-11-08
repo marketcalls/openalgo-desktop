@@ -1,0 +1,110 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "ibulls",
+  "inputs_sha256": "1ebed70cf8e87ff828ab8855c2c63f45fca2f8f3ad273bf165389e4bc4e5ef7a",
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "35012",
+      "brsymbol": "NIFTY26NOVFUT",
+      "brexchange": "NSEFO",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 2,
+      "published": []
+    },
+    {
+      "line": 4,
+      "published": []
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY24NOV26FUT_DEPTH",
+          "mode": 3,
+          "data": {
+            "ltp": 24412.5,
+            "ltt": 1478686531,
+            "volume": 1234500,
+            "open": 24380.0,
+            "high": 24450.0,
+            "low": 24355.5,
+            "close": 24370.0,
+            "oi": 12345675,
+            "upper_circuit": 26853.75,
+            "lower_circuit": 21971.25,
+            "depth": {
+              "buy": [
+                {
+                  "price": 24412.0,
+                  "quantity": 150,
+                  "orders": 2
+                },
+                {
+                  "price": 24411.5,
+                  "quantity": 300,
+                  "orders": 4
+                },
+                {
+                  "price": 24411.0,
+                  "quantity": 450,
+                  "orders": 6
+                },
+                {
+                  "price": 24410.5,
+                  "quantity": 600,
+                  "orders": 7
+                },
+                {
+                  "price": 24410.0,
+                  "quantity": 750,
+                  "orders": 9
+                }
+              ],
+              "sell": [
+                {
+                  "price": 24412.5,
+                  "quantity": 75,
+                  "orders": 1
+                },
+                {
+                  "price": 24413.0,
+                  "quantity": 225,
+                  "orders": 3
+                },
+                {
+                  "price": 24413.5,
+                  "quantity": 375,
+                  "orders": 5
+                },
+                {
+                  "price": 24414.0,
+                  "quantity": 525,
+                  "orders": 6
+                },
+                {
+                  "price": 24414.5,
+                  "quantity": 675,
+                  "orders": 8
+                }
+              ]
+            },
+            "symbol": "NIFTY24NOV26FUT",
+            "exchange": "NFO",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    }
+  ]
+}
