@@ -51,6 +51,61 @@ struct Fake {
     /// Path leaves answered 200 with this body instead (an empty or
     /// header-only master file).
     bodies: Mutex<Vec<(&'static str, &'static str)>>,
+    /// TPSeries answered from these bars by the requested range.
+    series: Mutex<Option<Series>>,
+}
+
+/// Bars as `(epoch seconds, open, high, low, close, volume)`.
+type Bars = Vec<(i64, f64, f64, f64, f64, i64)>;
+
+/// Bars from `(IST "YYYY-MM-DD HH:MM", open, high, low, close, volume)`.
+fn bars_at(rows: &[(&str, f64, f64, f64, f64, i64)]) -> Bars {
+    rows.iter()
+        .map(|&(t, o, h, l, c, v)| (ist_ts(t), o, h, l, c, v))
+        .collect()
+}
+
+/// TPSeries as Shoonya answers it (web test_shoonya_history_aggregation.py
+/// `_FakeTPSeries`): data only inside the bars it holds, 1m bars for
+/// `intrv` 1 and the native interval otherwise, "no data" for an empty
+/// window, and a failure for the 1m chunk starting at `fail_st`.
+#[derive(Clone, Default)]
+struct Series {
+    native: Bars,
+    minute: Bars,
+    fail_st: Option<i64>,
+}
+
+fn ist_ts(text: &str) -> i64 {
+    use chrono::TimeZone;
+    let naive = chrono::NaiveDateTime::parse_from_str(text, "%Y-%m-%d %H:%M").unwrap();
+    chrono_tz::Asia::Kolkata
+        .from_local_datetime(&naive)
+        .unwrap()
+        .timestamp()
+}
+
+fn series_answer(s: &Series, body: &Value) -> Response {
+    let num = |k: &str| body[k].as_str().unwrap().parse::<i64>().unwrap();
+    let (st, et) = (num("st"), num("et"));
+    let minute = body["intrv"] == "1";
+    if minute && s.fail_st == Some(st) {
+        return ok(json!({"stat":"Not_Ok","emsg":"Server busy, try again"}));
+    }
+    let rows = if minute { &s.minute } else { &s.native };
+    let hit: Vec<Value> = rows
+        .iter()
+        .filter(|r| (st..=et).contains(&r.0))
+        .map(|r| {
+            json!({"stat":"Ok","ssboe": r.0.to_string(), "into": r.1.to_string(),
+                   "inth": r.2.to_string(), "intl": r.3.to_string(), "intc": r.4.to_string(),
+                   "intv": r.5.to_string(), "oi": "0"})
+        })
+        .collect();
+    if hit.is_empty() {
+        return ok(json!({"stat":"Not_Ok","emsg":"Error Occurred : 5 \"no data\""}));
+    }
+    ok(Value::Array(hit))
 }
 
 impl Fake {
@@ -96,6 +151,11 @@ fn route(fake: &Fake, path: &str, body: &Value) -> Response {
     }
     if let Some((_, text)) = fake.bodies.lock().iter().find(|(l, _)| *l == leaf) {
         return (StatusCode::OK, text.to_string()).into_response();
+    }
+    if leaf == "TPSeries" {
+        if let Some(s) = fake.series.lock().clone() {
+            return series_answer(&s, body);
+        }
     }
     match leaf {
         "GenAcsTok" => {
@@ -467,6 +527,219 @@ async fn shoonya_history_drops_bars_without_a_price() {
     assert_eq!(c.len(), 1);
     assert_eq!(c[0].timestamp, 1790826300);
     assert_eq!((c[0].low, c[0].high, c[0].volume), (808.0, 809.5, 0));
+}
+
+// Web test/test_shoonya_history_aggregation.py (marketcalls/openalgo#2343,
+// #2360, 0e4a488cc): Shoonya folds the next trading day's first 1m bar into
+// each day's last intraday bar when one TPSeries request spans several
+// days; each day's last bar is rebuilt from 1m bars, fetched only for the
+// span the repair reads.
+
+/// Shoonya's 5m SBIN reply for 30-10 to 02-11 (last bars contaminated).
+fn sbin_5m() -> Bars {
+    bars_at(&[
+        ("2026-10-30 15:20", 960.05, 960.05, 960.05, 960.05, 0),
+        ("2026-10-30 15:25", 960.05, 965.0, 960.05, 965.0, 6971359),
+        ("2026-11-02 09:15", 968.75, 976.4, 964.65, 976.35, 453904),
+        ("2026-11-02 15:25", 985.0, 992.7, 985.0, 992.7, 9608879),
+    ])
+}
+
+fn sbin_1m() -> Bars {
+    bars_at(&[
+        ("2026-10-30 15:24", 960.05, 960.05, 960.05, 960.05, 2653),
+        ("2026-10-30 15:25", 960.05, 960.05, 960.05, 960.05, 495),
+        ("2026-10-30 15:26", 960.05, 960.05, 960.05, 960.05, 1201),
+        ("2026-10-30 15:27", 960.05, 960.05, 960.05, 960.05, 10506),
+        ("2026-10-30 15:28", 961.85, 961.85, 961.85, 961.85, 6959157),
+        ("2026-10-30 15:29", 961.85, 961.85, 961.85, 961.85, 0),
+        ("2026-11-02 09:14", 965.0, 965.0, 965.0, 965.0, 0),
+        ("2026-11-02 09:15", 968.75, 973.75, 964.65, 973.7, 102611),
+        ("2026-11-02 15:25", 985.0, 985.0, 985.0, 985.0, 3184),
+        ("2026-11-02 15:26", 985.0, 985.0, 985.0, 985.0, 531),
+        ("2026-11-02 15:27", 985.0, 985.0, 985.0, 985.0, 0),
+        ("2026-11-02 15:28", 985.0, 985.0, 985.0, 985.0, 2357),
+        ("2026-11-02 15:29", 987.0, 987.0, 987.0, 987.0, 9602870),
+        ("2026-11-03 09:14", 992.7, 992.7, 992.7, 992.7, 0),
+    ])
+}
+
+/// 5m SBIN history from `start` to `end` against `series`: the bars, and
+/// the 1m TPSeries calls made.
+async fn shoonya_5m(
+    series: Series,
+    start: (i32, u32, u32),
+    end: (i32, u32, u32),
+) -> (Vec<Candle>, Vec<Value>) {
+    let (b, fake, auth) = noren(shoonya::config()).await;
+    *fake.series.lock() = Some(series);
+    let day = |(y, m, d): (i32, u32, u32)| NaiveDate::from_ymd_opt(y, m, d).unwrap();
+    let req = HistoryRequest {
+        key: QuoteKey::new("NSE", "SBIN"),
+        interval: "5m".into(),
+        start: day(start),
+        end: day(end),
+    };
+    let out = b.get_history(&auth, &req).await.unwrap();
+    let minute = fake
+        .calls("/TPSeries")
+        .into_iter()
+        .map(|c| c.jdata)
+        .filter(|j| j["intrv"] == "1")
+        .collect();
+    (out, minute)
+}
+
+fn bar_at(out: &[Candle], t: &str) -> Candle {
+    *out.iter()
+        .find(|c| c.timestamp == ist_ts(t))
+        .unwrap_or_else(|| panic!("no bar at {}", t))
+}
+
+/// `test_long_request_fetches_1m_only_where_bars_exist`: five years asked,
+/// bars on two days: one 1m call, for the span between them.
+#[tokio::test]
+async fn shoonya_history_fetches_1m_only_where_bars_exist() {
+    let series = Series {
+        native: sbin_5m(),
+        minute: sbin_1m(),
+        fail_st: None,
+    };
+    let (out, minute) = shoonya_5m(series, (2021, 11, 1), (2026, 11, 3)).await;
+    assert_eq!(minute.len(), 1, "{:?}", minute);
+    assert_eq!(minute[0]["st"], ist_ts("2026-10-30 15:25").to_string());
+    assert_eq!(
+        minute[0]["et"],
+        (ist_ts("2026-11-02 09:15") - 1).to_string()
+    );
+    let last = bar_at(&out, "2026-10-30 15:25");
+    assert_eq!((last.high, last.close), (961.85, 961.85));
+}
+
+/// `test_single_day_request_makes_no_1m_call`
+#[tokio::test]
+async fn shoonya_history_of_one_day_makes_no_1m_call() {
+    let series = Series {
+        native: sbin_5m(),
+        minute: sbin_1m(),
+        fail_st: None,
+    };
+    let (out, minute) = shoonya_5m(series, (2026, 10, 30), (2026, 10, 30)).await;
+    assert!(minute.is_empty(), "{:?}", minute);
+    assert_eq!(out.len(), 2);
+}
+
+/// Five trading days whose repair span is longer than one 5-day 1m chunk:
+/// the first chunk ends at 02-11 15:25:00 and the second starts inside the
+/// last bar of 02-11. Each day's last 5m bar carries the next day's 09:14
+/// price folded in, as TPSeries sends it.
+fn boundary_series(fail_st: Option<i64>) -> Series {
+    const DAYS: [(&str, f64); 5] = [
+        ("2026-10-28", 100.0),
+        ("2026-10-29", 110.0),
+        ("2026-10-30", 120.0),
+        ("2026-11-02", 130.0),
+        ("2026-11-03", 140.0),
+    ];
+    let at = |day: &str, hm: &str| ist_ts(&format!("{} {}", day, hm));
+    let (mut native, mut minute) = (Vec::new(), Vec::new());
+    for (i, (day, base)) in DAYS.iter().enumerate() {
+        let next = DAYS.get(i + 1).map(|(_, b)| b + 5.0);
+        native.push((at(day, "09:15"), *base, base + 1.0, base - 1.0, *base, 10));
+        let top = next.map_or(base + 2.0, |n| (base + 2.0).max(n));
+        native.push((
+            at(day, "15:25"),
+            *base,
+            top,
+            base - 1.0,
+            next.unwrap_or(base + 2.0),
+            50,
+        ));
+        minute.push((
+            at(day, "09:14"),
+            base - 3.0,
+            base - 3.0,
+            base - 3.0,
+            base - 3.0,
+            0,
+        ));
+        minute.push((at(day, "09:15"), *base, base + 1.0, base - 1.0, *base, 10));
+        for (m, close) in [
+            (25, *base),
+            (26, base + 1.0),
+            (27, base - 1.0),
+            (28, base + 2.0),
+            (29, base + 2.0),
+        ] {
+            minute.push((
+                at(day, &format!("15:{}", m)),
+                close,
+                close,
+                close,
+                close,
+                10,
+            ));
+        }
+    }
+    Series {
+        native,
+        minute,
+        fail_st,
+    }
+}
+
+/// `test_a_failed_1m_chunk_keeps_the_affected_day_end_bar`: the second 1m
+/// chunk fails at the boundary, so 02-11's last bar is kept exactly as
+/// Shoonya sent it rather than rebuilt from the 15:25 minute alone (close
+/// 130); the days the first chunk covered in full are still repaired.
+#[tokio::test]
+async fn shoonya_history_keeps_a_day_end_bar_whose_1m_chunk_failed() {
+    let fail = ist_ts("2026-11-02 15:25") + 1;
+    let (out, minute) =
+        shoonya_5m(boundary_series(Some(fail)), (2026, 10, 28), (2026, 11, 3)).await;
+    assert_eq!(minute.len(), 2, "{:?}", minute);
+    let kept = bar_at(&out, "2026-11-02 15:25");
+    assert_eq!((kept.high, kept.close, kept.volume), (145.0, 145.0, 50));
+    for (day, base) in [
+        ("2026-10-28", 100.0),
+        ("2026-10-29", 110.0),
+        ("2026-10-30", 120.0),
+    ] {
+        let bar = bar_at(&out, &format!("{} 15:25", day));
+        assert_eq!((bar.high, bar.close), (base + 2.0, base + 2.0), "{}", day);
+    }
+}
+
+/// `test_without_a_failure_every_day_end_bar_is_repaired`
+#[tokio::test]
+async fn shoonya_history_repairs_every_day_end_bar_without_a_failure() {
+    let (out, _) = shoonya_5m(boundary_series(None), (2026, 10, 28), (2026, 11, 3)).await;
+    let last = bar_at(&out, "2026-11-02 15:25");
+    assert_eq!((last.high, last.close, last.volume), (132.0, 132.0, 50));
+}
+
+/// The repair is Shoonya's (`NorenConfig::day_end_repair`): the web
+/// repairs no other Noren member, so Zebu's bars stay as sent.
+#[tokio::test]
+async fn other_noren_members_keep_their_day_end_bars() {
+    let (b, fake, auth) = noren(zebu::config()).await;
+    *fake.series.lock() = Some(Series {
+        native: sbin_5m(),
+        minute: sbin_1m(),
+        fail_st: None,
+    });
+    let req = HistoryRequest {
+        key: QuoteKey::new("NSE", "SBIN"),
+        interval: "5m".into(),
+        start: NaiveDate::from_ymd_opt(2026, 10, 30).unwrap(),
+        end: NaiveDate::from_ymd_opt(2026, 11, 3).unwrap(),
+    };
+    let out = b.get_history(&auth, &req).await.unwrap();
+    assert!(fake
+        .calls("/TPSeries")
+        .iter()
+        .all(|c| c.jdata["intrv"] != "1"));
+    assert_eq!(bar_at(&out, "2026-10-30 15:25").close, 965.0);
 }
 
 #[tokio::test]

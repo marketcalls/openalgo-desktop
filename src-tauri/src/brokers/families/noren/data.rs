@@ -13,6 +13,8 @@ use chrono::{NaiveDate, NaiveDateTime, TimeZone};
 use chrono_tz::Asia::Kolkata;
 use serde_json::{json, Value};
 
+mod day_end;
+
 fn lookup(b: &NorenBroker, key: &QuoteKey) -> Result<SymToken> {
     b.resolver().by_symbol(&key.exchange, &key.symbol).ok_or_else(|| {
         AppError::Validation(format!(
@@ -414,7 +416,9 @@ pub async fn get_history(
         eod_symbol: &eod_symbol,
         intrv,
     };
-    let raw = fetch_chart(b, &s, &chart, &req.interval, (start_ts, end_ts)).await?;
+    let raw = fetch_chart(b, &s, &chart, &req.interval, (start_ts, end_ts))
+        .await?
+        .rows;
     let mut candles = parse_history(b.cfg, &raw, daily, &exch);
     if daily {
         let today_ts = today_bar_ts(b.cfg);
@@ -435,6 +439,9 @@ pub async fn get_history(
         }
     }
     let mut out = sort_dedupe_last(candles);
+    if b.cfg.day_end_repair && !daily && req.interval != "1m" {
+        day_end::repair(b, &s, &chart, &req.key, &mut out).await;
+    }
     if b.cfg.history_repair {
         repair_bars(b.cfg, &mut out);
     }
@@ -450,18 +457,26 @@ struct Chart<'a> {
     intrv: &'a str,
 }
 
+/// What [`fetch_chart`] read: the raw rows, unparsed, and the epoch range
+/// of each chunk that failed, so a caller can tell which part is missing.
+struct ChartRows {
+    rows: Vec<Value>,
+    failed: Vec<(i64, i64)>,
+}
+
 /// `[start_ts, end_ts]` of `chart` in the broker's per-request windows for
-/// `interval` (web shoonya `_fetch_chart_frame`): the raw rows, unparsed.
-/// A dead session refuses at once; a chunk answering "no data" is an empty
-/// success, and one failed chunk inside a long range is tolerated, but
-/// every chunk failing is an error, never an empty history.
+/// `interval` (web shoonya `_fetch_chart_frame`). A dead session refuses at
+/// once; a chunk answering "no data" is an empty success, and one failed
+/// chunk inside a long range is tolerated (and reported in
+/// [`ChartRows::failed`]), but every chunk failing is an error, never an
+/// empty history.
 async fn fetch_chart(
     b: &NorenBroker,
     s: &Session,
     chart: &Chart<'_>,
     interval: &str,
     (start_ts, end_ts): (i64, i64),
-) -> Result<Vec<Value>> {
+) -> Result<ChartRows> {
     let daily = chart.intrv == "D";
     let window = b
         .cfg
@@ -470,6 +485,7 @@ async fn fetch_chart(
         .unwrap_or(i64::MAX / 4);
     let endpoint = if daily { "/EODChartData" } else { "/TPSeries" };
     let mut raw = Vec::new();
+    let mut failed_ranges = Vec::new();
     let (mut attempted, mut failed, mut last_err) = (0usize, 0usize, String::new());
     let mut cur = start_ts;
     while cur <= end_ts {
@@ -489,6 +505,7 @@ async fn fetch_chart(
                 }
                 if !is_no_data(&e) && !other.is_null() {
                     failed += 1;
+                    failed_ranges.push((cur, chunk_end));
                     last_err = e;
                 }
             }
@@ -497,6 +514,7 @@ async fn fetch_chart(
                     return Err(e);
                 }
                 failed += 1;
+                failed_ranges.push((cur, chunk_end));
                 last_err = e.client_message();
             }
         }
@@ -506,7 +524,10 @@ async fn fetch_chart(
         tracing::warn!(broker = b.cfg.id, "History failed: {}", last_err);
         return Err(noren_error(b.cfg.name, &last_err));
     }
-    Ok(raw)
+    Ok(ChartRows {
+        rows: raw,
+        failed: failed_ranges,
+    })
 }
 
 /// The history rows as candles: strictly parsed where the broker's rows
