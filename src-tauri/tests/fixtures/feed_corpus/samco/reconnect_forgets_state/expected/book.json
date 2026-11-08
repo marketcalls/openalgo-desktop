@@ -10,15 +10,8 @@
     "mode": 3,
     "ltp": 0.0,
     "timestamp": "<receipt_ms>",
-    "volume": 0,
-    "last_quantity": 0,
     "total_buy_quantity": 1778050,
     "total_sell_quantity": 5471990,
-    "open": 0.0,
-    "high": 0.0,
-    "low": 0.0,
-    "close": 0.0,
-    "oi": 0,
     "depth": {
       "buy": [
         {
@@ -74,7 +67,6 @@
           "orders": 5
         }
       ]
-    },
-    "last_trade_quantity": 0
+    }
   }
 }

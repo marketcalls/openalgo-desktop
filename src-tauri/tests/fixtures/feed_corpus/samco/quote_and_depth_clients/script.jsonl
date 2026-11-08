@@ -3,8 +3,8 @@
 {"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 5}}
 {"step": "upstream_receives", "frames": [{"json": {"request": {"streaming_type": "quote2", "data": {"symbols": [{"symbol": "2885_NSE"}]}, "request_type": "subscribe", "response_format": "json"}}}, {"json": {"request": {"streaming_type": "quote", "data": {"symbols": [{"symbol": "2885_NSE"}]}, "request_type": "subscribe", "response_format": "json"}}}]}
 {"step": "push", "frame": "frames/book.json"}
-{"step": "receive", "client": "a", "frame": "expected/quote_from_book.json", "web": false}
 {"step": "receive", "client": "b", "frame": "expected/book.json"}
+{"step": "silence", "client": "a", "note": "A book frame reaches Depth holders only, as on the web."}
 {"step": "send", "client": "b", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3}}
 {"step": "upstream_receives", "frames": [{"json": {"request": {"streaming_type": "quote2", "data": {"symbols": [{"symbol": "2885_NSE"}]}, "request_type": "unsubscribe", "response_format": "json"}}}, {"json": {"request": {"streaming_type": "quote", "data": {"symbols": [{"symbol": "2885_NSE"}]}, "request_type": "subscribe", "response_format": "json"}}}]}
 {"step": "push", "frame": "frames/quote.json"}

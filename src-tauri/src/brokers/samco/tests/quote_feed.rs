@@ -203,12 +203,39 @@ fn a_zero_depth_total_is_kept_not_replaced_by_the_quote_total() {
     let d = Frames::new("samco").at(&events, Mode::Depth).pop().unwrap();
     assert_eq!(d["total_buy_quantity"], 0, "{}", d);
     assert_eq!(d["total_sell_quantity"], 0, "{}", d);
+    // A Quote holder hears of them with Samco's next quote, as on the web
+    // (the book frame itself reaches Depth holders only).
+    events.extend(f.parse(&tick("2885_NSE")));
     let d = Frames::new("samco").at(&events, Mode::Quote).pop().unwrap();
     assert_eq!(
         d["total_buy_quantity"], 0,
         "the quote reads the same: {}",
         d
     );
+}
+
+/// Web `samco_adapter._on_data`: a book (quote2) frame reaches Depth
+/// subscribers only. One that comes before Samco's first quote made a
+/// tick of its own, and a Quote holder of the same instrument was shown an
+/// LTP of 0 and an OHLC of zeros Samco never sent.
+#[test]
+fn a_book_frame_reaches_only_the_depth_holders() {
+    let mut f = reliance();
+    let events = f.parse(&depth_frame(json!({
+        "symbol": "2885_NSE", "tbq": "5", "taq": "6",
+        "bidValues": [{"price": "44554", "qty": "1", "no": "1"}], "askValues": [],
+    })));
+    assert!(
+        events.iter().all(|e| matches!(e, FeedEvent::Depth(_))),
+        "{:?}",
+        events
+    );
+    assert!(Frames::new("samco").at(&events, Mode::Quote).is_empty());
+    let d = Frames::new("samco").at(&events, Mode::Depth).pop().unwrap();
+    assert_eq!(d["ltp"], 0.0, "no quote yet: {}", d);
+    for k in ["open", "volume", "last_quantity", "oi", "ltt"] {
+        assert!(d.get(k).is_none(), "{}: {}", k, d);
+    }
 }
 
 /// Web test_tick_from_another_segment_is_not_routed.

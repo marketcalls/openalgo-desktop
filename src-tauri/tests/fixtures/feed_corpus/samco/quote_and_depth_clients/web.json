@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "samco",
-  "inputs_sha256": "6c027ec12bca4d5fa83b8cc054792935cb57c2dc7894f4a7baef1afb3afabbb3",
+  "inputs_sha256": "c74334ae05a180bb7fb12eb6ddf5471dd4d12b704105a9987741018b94c1a950",
   "instruments": [
     {
       "symbol": "RELIANCE",

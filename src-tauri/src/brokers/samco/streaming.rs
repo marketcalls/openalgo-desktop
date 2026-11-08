@@ -41,6 +41,15 @@ use std::time::Duration;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 
+/// Samco's two streams on the socket: `quote` (price, OHLC, volume, OI,
+/// best bid and ask) and `quote2` / `marketDepth` (the book and its
+/// totals).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Stream {
+    Quote,
+    Book,
+}
+
 #[derive(Debug, Clone)]
 struct SubInfo {
     symbol: String,
@@ -153,7 +162,14 @@ impl SamcoFeed {
         out
     }
 
-    fn event(&mut self, data: &Map<String, Value>) -> Vec<FeedEvent> {
+    /// What one frame of `stream` makes. As the web routes them
+    /// (`samco_adapter._on_data`), a quote frame is a tick for the LTP and
+    /// Quote holders and a book (quote2) frame reaches Depth holders only,
+    /// so a book that comes before Samco's first quote never shows a Quote
+    /// holder an LTP of 0. A Depth holder's book is also sent again on a
+    /// quote frame, with the new price (an approved difference: the web
+    /// leaves it as it was until the next book).
+    fn event(&mut self, stream: Stream, data: &Map<String, Value>) -> Vec<FeedEvent> {
         let symbol = {
             let k = text(data.get("symbol"));
             if k.is_empty() {
@@ -166,10 +182,13 @@ impl SamcoFeed {
             return Vec::new();
         };
         let merged = self.merge(key, data);
-        let tick = quote_tick(&sub, &merged, now_ms());
-        let mut out = vec![FeedEvent::Tick(tick.clone())];
+        let now = now_ms();
+        let mut out = Vec::new();
+        if stream == Stream::Quote {
+            out.push(FeedEvent::Tick(quote_tick(&sub, &merged, now)));
+        }
         if sub.mode == FeedMode::Depth {
-            out.push(FeedEvent::Depth(book(&sub, &merged, &tick)));
+            out.push(FeedEvent::Depth(book(&sub, &merged, now)));
         }
         out
     }
@@ -230,10 +249,13 @@ impl SamcoFeed {
                 ),
                 None => (text(v.get("streaming_type")), v.as_object().cloned()),
             };
-            if matches!(stype.as_str(), "quote" | "quote2" | "marketDepth") {
-                if let Some(p) = payload {
-                    out.extend(self.event(&p));
-                }
+            let stream = match stype.as_str() {
+                "quote" => Stream::Quote,
+                "quote2" | "marketDepth" => Stream::Book,
+                _ => continue,
+            };
+            if let Some(p) = payload {
+                out.extend(self.event(stream, &p));
             }
         }
         out
@@ -340,7 +362,7 @@ fn quote_tick(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> Normalized
 }
 
 /// The five-level book for a depth subscriber, from the merged ladder.
-fn book(sub: &SubInfo, merged: &Map<String, Value>, tick: &NormalizedTick) -> NormalizedDepth {
+fn book(sub: &SubInfo, merged: &Map<String, Value>, ts: i64) -> NormalizedDepth {
     let levels = |k: &str| -> Vec<DepthLevel> {
         let mut v: Vec<DepthLevel> = merged
             .get(k)
@@ -362,12 +384,12 @@ fn book(sub: &SubInfo, merged: &Map<String, Value>, tick: &NormalizedTick) -> No
     NormalizedDepth {
         symbol: sub.symbol.clone(),
         exchange: sub.exchange.clone(),
-        ltp: tick.ltp,
+        ltp: num(merged.get("ltp")),
         buy: levels("bidValues"),
         sell: levels("askValues"),
-        total_buy_quantity: tick.total_buy_quantity,
-        total_sell_quantity: tick.total_sell_quantity,
-        timestamp_ms: tick.timestamp_ms,
+        total_buy_quantity: int(first_present(merged, &["tbq", "tBQ"])),
+        total_sell_quantity: int(first_present(merged, &["taq", "tSQ"])),
+        timestamp_ms: ts,
         ..Default::default()
     }
 }

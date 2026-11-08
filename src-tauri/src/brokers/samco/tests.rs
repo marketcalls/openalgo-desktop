@@ -761,7 +761,8 @@ fn quote_frames_decode_and_merge_with_depth() {
         (t.total_buy_quantity, t.total_sell_quantity),
         (120000, 95000)
     );
-    // Wrapped quote2 frame merges the ladder over the cached quote fields.
+    // Wrapped quote2 frame merges the ladder over the cached quote fields;
+    // it is a book for the Depth holder only (web `_on_data`).
     let ev = f.parse(&Message::Text(format!(
         "{}\n",
         json!({"response":{"streaming_type":"quote2","data":{
@@ -770,13 +771,12 @@ fn quote_frames_decode_and_merge_with_depth() {
             "askValues":[{"price":"812.45","qty":"300","no":"2"}],
             "tbq":"121000","taq":"96000"}}})
     )));
-    assert_eq!(ev.len(), 2);
-    let FeedEvent::Tick(t) = &ev[0] else { panic!() };
-    assert_eq!(t.ltp, 812.4, "ltp survives from the quote stream");
-    assert_eq!(t.total_buy_quantity, 121000);
-    let FeedEvent::Depth(d) = &ev[1] else {
+    assert_eq!(ev.len(), 1);
+    let FeedEvent::Depth(d) = &ev[0] else {
         panic!()
     };
+    assert_eq!(d.ltp, 812.4, "ltp survives from the quote stream");
+    assert_eq!(d.total_buy_quantity, 121000);
     assert_eq!((d.buy.len(), d.sell.len()), (5, 5));
     assert_eq!(
         (d.buy[0].price, d.buy[0].quantity, d.buy[0].orders),
