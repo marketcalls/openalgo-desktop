@@ -1,0 +1,13 @@
+{"step": "push", "frame": {"text": "INFO {\"server_id\":\"corpus\",\"version\":\"2.10.18\",\"headers\":true,\"max_payload\":1048576}\r\n"}, "connection": 2, "note": "The NATS server's INFO opens the session."}
+{"step": "upstream_receives", "frames": [{"text": "CONNECT {\"headers\":true,\"jwt\":\"socket-jwt\",\"lang\":\"python3\",\"name\":\"nats.py\",\"no_responders\":true,\"pedantic\":false,\"protocol\":1,\"tls_required\":true,\"verbose\":false,\"version\":\"2.10.18\"}\r\n"}], "connection": 2, "note": "CONNECT once per connection, with the socket token (its PING is a heartbeat, ignored)."}
+{"step": "push", "frame": {"text": "+OK\r\n"}, "connection": 2, "note": "+OK accepts the session; subscriptions follow."}
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 2}}
+{"step": "upstream_receives", "frames": [{"text": "SUB /ld/eq/nse/price.3045 1\r\nPING\r\n"}], "connection": 2}
+{"step": "send", "client": "b", "message": {"action": "subscribe", "symbols": [{"symbol": "SBIN", "exchange": "NSE"}], "mode": 3, "depth": 5}}
+{"step": "upstream_receives", "connection": 2, "frames": [{"text": "UNSUB 1\r\n"}, {"text": "SUB /ld/eq/nse/price.3045 2\r\nSUB /ld/eq/nse/book.3045 3\r\nPING\r\n"}], "note": "The mode change: the price subject again, with a new sid, and the book."}
+{"step": "push", "frame": "frames/book_first.hex", "connection": 2}
+{"step": "receive", "client": "a", "frame": "expected/quote_zero_ltp.json", "web": false}
+{"step": "receive", "client": "b", "frame": "expected/depth_book_only.json"}
+{"step": "push", "frame": "frames/price_full.hex", "connection": 2}
+{"step": "receive", "client": "a", "frame": "expected/quote_full.json"}
+{"step": "receive", "client": "b", "frame": "expected/depth_with_price.json"}

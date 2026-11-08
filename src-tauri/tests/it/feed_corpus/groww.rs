@@ -45,6 +45,7 @@ corpus_cases!(
         quote_merges_sparse_ticks,
         ltp_mode,
         depth_book_price_and_clear,
+        quote_and_depth_book_first,
         index_quote_and_ltp,
         index_depth_falls_back_to_price,
         derivative_quote_without_oi,
