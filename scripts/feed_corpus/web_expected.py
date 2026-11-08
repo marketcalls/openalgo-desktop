@@ -44,7 +44,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 from web_adapters import GLUES  # noqa: E402
-from webkit import read_body, read_frame  # noqa: E402
+from webkit import read_body, read_frame, set_step  # noqa: E402
 
 CORPUS = HERE.parent.parent / "src-tauri/tests/fixtures/feed_corpus"
 MODES = {"ltp": 1, "quote": 2, "depth": 3}
@@ -129,6 +129,7 @@ class Replay:
         inputs = bytearray(script.encode("utf-8"))
         pushes = []
         first = [(a, read_body(self.case_dir, a.get("body"))) for a in answers]
+        set_step(0)
         self.glue.start()
         for a, (body, _) in first:
             self.glue.serve(a.get("method"), a["path"], body)
@@ -136,6 +137,8 @@ class Replay:
         for n, line in enumerate(script.splitlines(), 1):
             if not line.strip():
                 continue
+            # The frozen clock reads this step's time while it runs.
+            set_step(n)
             step = json.loads(line)
             kind = step["step"]
             client = step.get("client", "")
@@ -212,9 +215,29 @@ def shown(obj: dict, key: str) -> str:
     return json.dumps(obj[key], sort_keys=True) if key in obj else "absent"
 
 
+def shape(v):
+    """A value's JSON types at every level (harness/web.rs `shape`); a
+    `<random:..>` placeholder is the type it names."""
+    if isinstance(v, dict):
+        return {k: shape(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [shape(x) for x in v]
+    if isinstance(v, str):
+        return v[len("<random:"):-1] if v.startswith("<random:") and v.endswith(">") else "string"
+    if isinstance(v, bool):
+        return "bool"
+    if isinstance(v, float):
+        return "float"
+    if isinstance(v, int):
+        return "int"
+    return None
+
+
 def diff(case_dir: Path, out: dict) -> list[str]:
     """What the harness's web check would find (harness/web.rs)."""
     pushes = {p["line"]: p["published"] for p in out["pushes"]}
+    case = json.loads((case_dir / "case.json").read_text())
+    random_keys = {d["key"] for d in case.get("deviations", []) if d.get("kind") == "random-values"}
     lines = []
     last = None
     orders_seen = 0
@@ -225,6 +248,13 @@ def diff(case_dir: Path, out: dict) -> list[str]:
         step = json.loads(line)
         if step["step"] in ("push", "http_serve"):
             last, orders_seen = n, 0
+        elif step["step"] == "silence" and "web" in step and last is not None:
+            w = step["web"]
+            p = mode_pair(pushes[last], w["mode"], w)
+            if p is None:
+                lines.append(f"(line {n}: the web publishes no such frame either)")
+            else:
+                lines.append(f"missing-frame: line {n}: web {json.dumps(p['data'], sort_keys=True)}, desktop nothing")
         elif step["step"] == "receive" and last is not None:
             frame = step["frame"]
             frame = json.loads((case_dir / frame).read_text()) if isinstance(frame, str) else frame
@@ -243,7 +273,10 @@ def diff(case_dir: Path, out: dict) -> list[str]:
                 continue
             for k in sorted(set(mine) | set(theirs)):
                 w, d = shown(theirs, k), shown(mine, k)
-                if w != d:
+                if k in random_keys:
+                    same = k in mine and k in theirs and shape(mine[k]) == shape(theirs[k])
+                    lines.append(f"{k}{'' if same else ' (type)'}: line {n}: web {w}, desktop {d}")
+                elif w != d:
                     lines.append(f"{k}: line {n}: web {w}, desktop {d}")
     return lines
 

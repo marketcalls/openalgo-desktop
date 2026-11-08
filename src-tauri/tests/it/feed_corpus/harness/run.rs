@@ -2,11 +2,15 @@
 //! feed server, frames pushed from the fake broker, and every frame either
 //! side receives compared exactly. At the end nothing may be left unread
 //! on either side, and every subscription must be released once the
-//! clients leave.
+//! clients leave. A client frame that is not the expected one does not
+//! stop the case: it fails at the end with all of them, and every frame a
+//! client received is on the test's output (`CORPUS-RECORD`), so one run
+//! is enough to pin a case again.
 
 use super::case::{bad, Action, Case, Expect, Socket, Step};
-use super::compare::{self, Window};
+use super::compare::{self, Receipts, Window};
 use super::http::{self, HttpRequestExpect};
+use super::invariants;
 use super::json_text;
 use super::upstream::{until, Received};
 use super::web;
@@ -22,6 +26,8 @@ use tokio_tungstenite::tungstenite::Message;
 const RECV: Duration = Duration::from_secs(5);
 /// How long the end of a case waits for frames nobody expected.
 const SETTLE: Duration = Duration::from_millis(200);
+/// How many frames nobody expected the end of a case reports per client.
+const LEFTOVER_FRAMES: usize = 20;
 /// Room for the wall clock either side of a receipt-time window.
 const CLOCK_SLACK_MS: i64 = 5;
 
@@ -34,7 +40,9 @@ pub(crate) async fn run(broker: &str, name: &str, feeds: fn(&Env) -> Feeds) {
         case: &case,
         world: &world,
         clients: BTreeMap::new(),
-        pushed_at: 0,
+        pushes: Vec::new(),
+        invariants_applied: vec![0; case.invariants.len()],
+        mismatches: Vec::new(),
     };
     for step in &case.steps {
         r.step(step).await;
@@ -94,8 +102,13 @@ struct Runner<'a> {
     case: &'a Case,
     world: &'a World,
     clients: BTreeMap<String, Client>,
-    /// Wall-clock time just before the latest push.
-    pushed_at: i64,
+    /// Each push so far (or `http_serve`): its script line, and the wall
+    /// clock just before it.
+    pushes: Vec<(usize, i64)>,
+    /// How many received frames each of the case's invariants applied to.
+    invariants_applied: Vec<usize>,
+    /// Received frames that were not the expected ones, by step.
+    mismatches: Vec<String>,
 }
 
 impl Runner<'_> {
@@ -112,10 +125,11 @@ impl Runner<'_> {
                 let _ = c.ws.close(None).await;
             }
             Action::Receive { client, frame, .. } => self.receive(&at, client, frame).await,
-            Action::Silence { client, ms } => {
+            Action::Silence { client, ms, .. } => {
                 let c = self.known(&at, client);
                 if let Some(v) = next_frame(c, Duration::from_millis(*ms)).await {
-                    bad(&at, format!("client {} received {}", client, v));
+                    self.record(&at, &v);
+                    self.mismatch(&at, format!("client {} received {}", client, v));
                 }
             }
             Action::Push {
@@ -123,7 +137,7 @@ impl Runner<'_> {
                 wire,
                 connection,
             } => {
-                self.pushed_at = now_ms();
+                self.pushes.push((s.line, now_ms()));
                 if let Err(e) = self.world.upstream(*socket).push(wire, *connection).await {
                     bad(&at, format!("{} socket: {}", socket.name(), e));
                 }
@@ -200,7 +214,7 @@ impl Runner<'_> {
             Action::HttpServe(answer) => {
                 // An order book the poller reads next is like a push: its
                 // update's receipt window starts here.
-                self.pushed_at = now_ms();
+                self.pushes.push((s.line, now_ms()));
                 self.world.serve(answer);
             }
             Action::HttpPolled {
@@ -328,18 +342,68 @@ impl Runner<'_> {
     }
 
     async fn receive(&mut self, at: &str, name: &str, want: &Value) {
-        let from = self.pushed_at - CLOCK_SLACK_MS;
         let c = self.known(at, name);
-        let got = next_frame(c, RECV)
-            .await
-            .unwrap_or_else(|| bad(at, format!("client {} received nothing", name)));
-        let window = Window {
-            from_ms: from,
-            to_ms: now_ms() + CLOCK_SLACK_MS,
+        let Some(got) = next_frame(c, RECV).await else {
+            return self.mismatch(at, format!("client {} received nothing", name));
         };
-        if let Err(e) = compare::exact(want, &got, Some(window)) {
-            bad(at, e);
+        self.record(at, &got);
+        let times = self.receipts(now_ms());
+        if let Err(e) = compare::exact(want, &got, Some(&times)) {
+            self.mismatch(at, e);
         }
+        if let Some(frame) = got.as_object().filter(|f| f["type"] == "market_data") {
+            let broken =
+                invariants::broken(&self.case.invariants, frame, &mut self.invariants_applied);
+            if !broken.is_empty() {
+                self.mismatch(
+                    at,
+                    format!(
+                        "the frame breaks invariants:\n  {}\n  received {}",
+                        broken.join("\n  "),
+                        got
+                    ),
+                );
+            }
+        }
+    }
+
+    /// A frame a client received, on the test's output as an expected
+    /// frame would write it (`compare::as_expected`), so a case whose
+    /// frames changed shape is pinned again from one run: nextest shows
+    /// the output of a failed test.
+    fn record(&self, at: &str, got: &Value) {
+        let times = self.receipts(now_ms());
+        eprintln!("CORPUS-RECORD {} {}", at, compare::as_expected(got, &times));
+    }
+
+    /// A received frame that is not the expected one, or a frame where
+    /// none was expected: reported at once, the case goes on, and it fails
+    /// at the end with every one of them, so one run shows every frame.
+    fn mismatch(&mut self, at: &str, msg: impl std::fmt::Display) {
+        let msg = format!("{}: {}", at, msg);
+        eprintln!("CORPUS-MISMATCH {}", msg);
+        self.mismatches.push(msg);
+    }
+
+    /// When each push's packets can have been stamped, as of `now`: from
+    /// just before the push to just before the next one (the latest's, to
+    /// now; before any push, any time up to now).
+    fn receipts(&self, now: i64) -> Receipts {
+        let window = |i: usize| Window {
+            from_ms: self.pushes[i].1 - CLOCK_SLACK_MS,
+            to_ms: self.pushes.get(i + 1).map_or(now, |next| next.1) + CLOCK_SLACK_MS,
+        };
+        let latest = self.pushes.len().checked_sub(1).map_or(
+            Window {
+                from_ms: -CLOCK_SLACK_MS,
+                to_ms: now + CLOCK_SLACK_MS,
+            },
+            window,
+        );
+        let by_push = (0..self.pushes.len())
+            .map(|i| (self.pushes[i].0, window(i)))
+            .collect();
+        Receipts { latest, by_push }
     }
 
     async fn upstream_receives(
@@ -399,13 +463,30 @@ impl Runner<'_> {
     /// Nothing unread on either side, then every client leaves.
     async fn finish(&mut self) {
         let id = self.case.id.clone();
+        let mut unexpected = Vec::new();
         for (name, c) in self.clients.iter_mut() {
-            if let Some(v) = next_frame(c, SETTLE).await {
-                bad(
-                    &id,
-                    format!("client {} received a frame no step expects: {}", name, v),
-                );
+            // Every frame left, up to a bound: a synthetic feed never stops.
+            for _ in 0..LEFTOVER_FRAMES {
+                let Some(v) = next_frame(c, SETTLE).await else {
+                    break;
+                };
+                unexpected.push((name.clone(), v));
             }
+        }
+        for (name, v) in unexpected {
+            let at = format!("{} (after the last step, client {})", id, name);
+            self.record(&at, &v);
+            self.mismatch(&at, format!("a frame no step expects: {}", v));
+        }
+        if !self.mismatches.is_empty() {
+            bad(
+                &id,
+                format!(
+                    "{} frames are not the expected ones (CORPUS-RECORD lines above give every frame received):\n  {}",
+                    self.mismatches.len(),
+                    self.mismatches.join("\n  ")
+                ),
+            );
         }
         for s in Socket::ALL {
             let left = self.world.upstream(s).leftover();
@@ -432,6 +513,20 @@ impl Runner<'_> {
         }
         for (_, mut c) in std::mem::take(&mut self.clients) {
             let _ = c.ws.close(None).await;
+        }
+        let idle: Vec<&str> = self
+            .case
+            .invariants
+            .iter()
+            .zip(&self.invariants_applied)
+            .filter(|(_, n)| **n == 0)
+            .map(|(inv, _)| inv.text.as_str())
+            .collect();
+        if !idle.is_empty() {
+            bad(
+                &id,
+                format!("invariants no received frame has the key of: {:?}", idle),
+            );
         }
     }
 }

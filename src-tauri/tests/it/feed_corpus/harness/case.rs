@@ -5,6 +5,7 @@
 //! line before any socket opens.
 
 use super::http::HttpRequestExpect;
+use super::invariants::{self, Invariant};
 use super::json_text;
 use openalgo_desktop_lib::brokers::common::symbols::SymToken;
 use serde_json::{Map, Value};
@@ -39,7 +40,17 @@ pub(crate) const SCENARIOS: &[&str] = &[
 /// Why the desktop's frame may differ from the web's (README,
 /// "Deviations"): the web is wrong, a desktop security or resource rule, a
 /// desktop-wide wire decision already taken, or a desktop gap still open.
-const DEVIATION_KINDS: &[&str] = &["web-defect", "desktop-rule", "desktop-decision", "open"];
+const DEVIATION_KINDS: &[&str] = &[
+    "web-defect",
+    "desktop-rule",
+    "desktop-decision",
+    "open",
+    RANDOM_VALUES,
+];
+/// A deviation kind: the key's value is drawn at random (a synthetic
+/// feed), so the web check compares its presence and JSON type, and the
+/// case's invariants bound it.
+pub(crate) const RANDOM_VALUES: &str = "random-values";
 
 /// How the expected values were found (README, "Provenance").
 const METHODS: &[&str] = &["web-test", "web-script", "by-hand"];
@@ -206,6 +217,14 @@ pub(crate) struct HttpAnswer {
     pub(crate) record: bool,
 }
 
+/// A web publish named by its instrument and mode.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct WebFrame {
+    pub(crate) symbol: String,
+    pub(crate) exchange: String,
+    pub(crate) mode: u8,
+}
+
 /// Which web output a received frame is compared with (`web.rs`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum WebPair {
@@ -235,6 +254,9 @@ pub(crate) enum Action {
     Silence {
         client: String,
         ms: u64,
+        /// The web publish this client would get here and the desktop does
+        /// not send (a deviation names `missing-frame`).
+        web: Option<WebFrame>,
     },
     Push {
         socket: Socket,
@@ -326,9 +348,13 @@ pub(crate) struct Case {
     pub(crate) upstream_ignore: Vec<String>,
     /// The web commit the expected values were read at.
     pub(crate) web_sha: String,
-    /// The `data` keys (or `frame`) on which the desktop may differ from
-    /// the web.
+    /// The `data` keys (or `frame`, `missing-frame`) on which the desktop
+    /// may differ from the web.
     pub(crate) deviations: Vec<String>,
+    /// The deviations of kind `random-values`.
+    pub(crate) random: BTreeSet<String>,
+    /// What must hold of the random values (`invariants.rs`).
+    pub(crate) invariants: Vec<Invariant>,
     pub(crate) steps: Vec<Step>,
     /// The fake sockets the script uses; a broker's order or deep-book
     /// feed is connected only when its socket is one of them.
@@ -379,6 +405,7 @@ impl Case {
                 "http",
                 "provenance",
                 "deviations",
+                "invariants",
             ],
         );
         if o.get("broker").and_then(Value::as_str) != Some(broker) {
@@ -430,13 +457,20 @@ impl Case {
                 .collect(),
             Some(_) => bad(&at, "\"http\" is an array of answers"),
         };
+        let deviations = deviations(&at, o.get("deviations"));
         Case {
             http,
             orders,
             depth_levels: depth_levels(&at, o.get("depth_levels")),
             upstream_ignore: strings(&at, "upstream_ignore", o.get("upstream_ignore")),
             web_sha: provenance(&at, o.get("provenance")),
-            deviations: deviations(&at, o.get("deviations")),
+            deviations: deviations.iter().map(|(k, _)| k.clone()).collect(),
+            random: deviations
+                .iter()
+                .filter(|(_, kind)| kind == RANDOM_VALUES)
+                .map(|(k, _)| k.clone())
+                .collect(),
+            invariants: invariants::parse(&at, o.get("invariants")),
             id,
             dir,
             broker: broker.to_string(),
@@ -522,59 +556,82 @@ fn provenance(at: &str, v: Option<&Value>) -> String {
     sha.to_string()
 }
 
-/// The keys the deviations cover, after checking each is complete.
-fn deviations(at: &str, v: Option<&Value>) -> Vec<String> {
+/// The keys the deviations cover, with their kinds, after checking each
+/// is complete (`deviation_problems`).
+fn deviations(at: &str, v: Option<&Value>) -> Vec<(String, String)> {
+    let problems = deviation_problems(v);
+    if !problems.is_empty() {
+        bad(at, problems.join("\n  "));
+    }
+    v.and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|d| {
+            let text = |k: &str| d[k].as_str().unwrap_or_default().to_string();
+            (text("key"), text("kind"))
+        })
+        .collect()
+}
+
+/// The fields a deviation may have.
+const DEVIATION_FIELDS: &[&str] = &["key", "kind", "reason", "ref", "approved", "web", "desktop"];
+
+/// Every way a `case.json`'s `deviations` fall short (none when each names
+/// its key once, a kind of `DEVIATION_KINDS`, a reason, and `approved` as
+/// true or false): what the parity matrix counts can be trusted only when
+/// every case has none.
+pub(crate) fn deviation_problems(v: Option<&Value>) -> Vec<String> {
     let Some(v) = v else {
         return Vec::new();
     };
-    let list = v
-        .as_array()
-        .unwrap_or_else(|| bad(at, "\"deviations\" is an array"));
-    let mut keys = Vec::new();
-    for d in list {
-        let o = d
-            .as_object()
-            .unwrap_or_else(|| bad(at, "a deviation is an object"));
-        allow_keys(
-            at,
-            o,
-            &["key", "kind", "reason", "ref", "approved", "web", "desktop"],
-        );
+    let Some(list) = v.as_array() else {
+        return vec!["\"deviations\" is not an array".into()];
+    };
+    let mut out = Vec::new();
+    let mut seen = BTreeSet::new();
+    for (i, d) in list.iter().enumerate() {
+        let Some(o) = d.as_object() else {
+            out.push(format!("deviation {} is not an object", i + 1));
+            continue;
+        };
         let key = o
             .get("key")
             .and_then(Value::as_str)
-            .filter(|k| !k.is_empty())
-            .unwrap_or_else(|| bad(at, "a deviation names its \"key\""));
+            .filter(|k| !k.is_empty());
+        let name = key.map_or_else(
+            || format!("deviation {}", i + 1),
+            |k| format!("deviation \"{}\"", k),
+        );
+        if key.is_none() {
+            out.push(format!("{} names no \"key\"", name));
+        }
+        for k in o.keys().filter(|k| !DEVIATION_FIELDS.contains(&k.as_str())) {
+            out.push(format!("{}: \"{}\" is not a field of a deviation", name, k));
+        }
         let kind = o.get("kind").and_then(Value::as_str).unwrap_or_default();
         if !DEVIATION_KINDS.contains(&kind) {
-            bad(
-                at,
-                format!(
-                    "deviation \"{}\": kind is one of {}",
-                    key,
-                    DEVIATION_KINDS.join(", ")
-                ),
-            );
+            out.push(format!(
+                "{}: kind \"{}\" is not one of {}",
+                name,
+                kind,
+                DEVIATION_KINDS.join(", ")
+            ));
         }
         if !o
             .get("reason")
             .and_then(Value::as_str)
             .is_some_and(|r| !r.trim().is_empty())
         {
-            bad(at, format!("deviation \"{}\" gives no reason", key));
+            out.push(format!("{} gives no reason", name));
         }
         if o.get("approved").is_some_and(|a| !a.is_boolean()) {
-            bad(
-                at,
-                format!("deviation \"{}\": approved is true or false", key),
-            );
+            out.push(format!("{}: approved is true or false", name));
         }
-        if keys.iter().any(|k| k == key) {
-            bad(at, format!("deviation \"{}\" is listed twice", key));
+        if key.is_some_and(|k| !seen.insert(k)) {
+            out.push(format!("{} is listed twice", name));
         }
-        keys.push(key.to_string());
     }
-    keys
+    out
 }
 
 fn depth_levels(at: &str, v: Option<&Value>) -> BTreeMap<String, Vec<u8>> {
@@ -685,7 +742,7 @@ fn step(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> A
         "send" => &["client", "message", "reply"],
         "close_client" => &["client"],
         "receive" => &["client", "frame", "web", "web_mode"],
-        "silence" => &["client", "ms"],
+        "silence" => &["client", "ms", "web"],
         "push" => &["socket", "frame", "connection"],
         "upstream_receives" => &["socket", "frames", "any_order", "connection"],
         "upstream_connected" => &["socket", "connection", "path", "headers"],
@@ -747,6 +804,7 @@ fn step(at: &str, dir: &Path, o: &Map<String, Value>, inputs: &mut Vec<u8>) -> A
             ms: o.get("ms").map_or(300, |v| {
                 v.as_u64().unwrap_or_else(|| bad(at, "\"ms\" is a number"))
             }),
+            web: o.get("web").map(|w| web_frame(at, w)),
         },
         "push" => Action::Push {
             socket: socket(),
@@ -929,6 +987,32 @@ fn http_request(at: &str, v: &Value) -> HttpRequestExpect {
             .unwrap_or_else(|| bad(at, "an expected request names its method")),
         path: http_path(at, o),
         body,
+    }
+}
+
+fn web_frame(at: &str, v: &Value) -> WebFrame {
+    let o = v.as_object().unwrap_or_else(|| {
+        bad(
+            at,
+            "\"web\" names the web's frame: {\"symbol\", \"exchange\", \"mode\"}",
+        )
+    });
+    allow_keys(at, o, &["symbol", "exchange", "mode"]);
+    let text = |k: &str| {
+        o.get(k)
+            .and_then(Value::as_str)
+            .map(String::from)
+            .unwrap_or_else(|| bad(at, format!("\"web\" names its \"{}\"", k)))
+    };
+    WebFrame {
+        symbol: text("symbol"),
+        exchange: text("exchange"),
+        mode: o
+            .get("mode")
+            .and_then(Value::as_u64)
+            .filter(|m| (1..=3).contains(m))
+            .and_then(|m| u8::try_from(m).ok())
+            .unwrap_or_else(|| bad(at, "\"web\" \"mode\" is 1, 2 or 3")),
     }
 }
 
