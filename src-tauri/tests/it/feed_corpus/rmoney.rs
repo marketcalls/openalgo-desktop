@@ -20,7 +20,7 @@ corpus_cases!(
         ltp_equity_and_index,
         payload_variants,
         quote_partial_zeros,
-        quote_touchline,
+        quote_touchline_and_root,
         reconnect_replays,
         text_1105,
         unsubscribe_keeps_the_others,

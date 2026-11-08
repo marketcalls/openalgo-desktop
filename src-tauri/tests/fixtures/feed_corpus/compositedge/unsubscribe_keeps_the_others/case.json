@@ -53,76 +53,16 @@
   },
   "deviations": [
     {
-      "key": "average_price",
-      "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends average_price as 0. The desktop reads Touchline for every code.",
-      "ref": "compositedge_adapter.py _normalize_market_data"
-    },
-    {
-      "key": "close",
-      "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends close as 0. The desktop reads Touchline for every code.",
-      "ref": "compositedge_adapter.py _normalize_market_data"
-    },
-    {
-      "key": "high",
-      "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends high as 0. The desktop reads Touchline for every code.",
-      "ref": "compositedge_adapter.py _normalize_market_data"
-    },
-    {
-      "key": "last_quantity",
-      "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends last_quantity as 0. The desktop reads Touchline for every code.",
-      "ref": "compositedge_adapter.py _normalize_market_data"
-    },
-    {
-      "key": "low",
-      "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends low as 0. The desktop reads Touchline for every code.",
-      "ref": "compositedge_adapter.py _normalize_market_data"
-    },
-    {
-      "key": "ltp",
-      "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends ltp as 0. The desktop reads Touchline for every code.",
-      "ref": "compositedge_adapter.py _normalize_market_data"
-    },
-    {
       "key": "ltt",
       "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote, its LastTradedTime included, in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, so it sends ltt 0. The desktop reads Touchline for every code and sends the trade time in Unix milliseconds.",
-      "ref": "compositedge_adapter.py _normalize_market_data"
+      "reason": "The web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST (1478686530 is 2026-11-09 10:15:30 IST); feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md). The desktop converts it (1794199530000).",
+      "ref": "compositedge_adapter.py _normalize_market_data (ltt = LastTradedTime); families/xts/streaming.rs xts_time_ms"
     },
     {
       "key": "mode",
       "kind": "open",
       "reason": "This web adapter puts the mode number (1, 2, 3) in data.mode; the desktop sends its label (ltp, quote, full). data.mode follows each broker's own web adapter (lead rule 2026-11-09): closed in phase B by the broker's entry in lane wire's per-broker dialect switch.",
       "ref": "compositedge_adapter.py _process_json_data (market_data['mode'] = mode); feed::source::Mode::data_label"
-    },
-    {
-      "key": "open",
-      "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends open as 0. The desktop reads Touchline for every code.",
-      "ref": "compositedge_adapter.py _normalize_market_data"
-    },
-    {
-      "key": "total_buy_quantity",
-      "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends total_buy_quantity as 0. The desktop reads Touchline for every code.",
-      "ref": "compositedge_adapter.py _normalize_market_data"
-    },
-    {
-      "key": "total_sell_quantity",
-      "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends total_sell_quantity as 0. The desktop reads Touchline for every code.",
-      "ref": "compositedge_adapter.py _normalize_market_data"
-    },
-    {
-      "key": "volume",
-      "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends volume as 0. The desktop reads Touchline for every code.",
-      "ref": "compositedge_adapter.py _normalize_market_data"
     },
     {
       "key": "frame",

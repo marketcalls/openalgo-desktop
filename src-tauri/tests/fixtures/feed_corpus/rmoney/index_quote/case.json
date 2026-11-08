@@ -43,7 +43,8 @@
       "broker/rmoney/streaming/rmoney_adapter.py::RMoneyWebSocketAdapter._is_index_token"
     ],
     "notes": [
-      "The desktop's index frames carry the change and no book or trade-size fields, as the recorded Zerodha index transcript (feed::protocol::market_data)."
+      "The desktop's index frames carry the change and no book or trade-size fields, as the recorded Zerodha index transcript (feed::protocol::market_data).",
+      "No recorded 1501-json-full settles where its quote sits: the desktop's XTS fixtures are built, not captured (tests/fixtures/brokers/fivepaisaxts/stream.json quote_1501), the template web adapter reads 1501 at the root ('data is at root level', ibulls_adapter.py:775), and RMoney's reads Touchline when present ('Some payloads embed quote fields under Touchline, others send flat keys', rmoney_adapter.py:901, and its 1501 fallback looks in Touchline, :841-845). The case pins both shapes; a live capture of a 1501-json-full decides which the template's zeros come from."
     ]
   },
   "deviations": [

@@ -43,7 +43,8 @@
       "broker/fivepaisaxts/streaming/fivepaisaxts_adapter.py::FivepaisaXTSWebSocketAdapter._is_index_token"
     ],
     "notes": [
-      "The desktop's index frames carry the change and no book or trade-size fields, as the recorded Zerodha index transcript (feed::protocol::market_data)."
+      "The desktop's index frames carry the change and no book or trade-size fields, as the recorded Zerodha index transcript (feed::protocol::market_data).",
+      "No recorded 1501-json-full settles where its quote sits: the desktop's XTS fixtures are built, not captured (tests/fixtures/brokers/fivepaisaxts/stream.json quote_1501), the template web adapter reads 1501 at the root ('data is at root level', ibulls_adapter.py:775), and RMoney's reads Touchline when present ('Some payloads embed quote fields under Touchline, others send flat keys', rmoney_adapter.py:901, and its 1501 fallback looks in Touchline, :841-845). The case pins both shapes; a live capture of a 1501-json-full decides which the template's zeros come from."
     ]
   },
   "deviations": [
@@ -55,15 +56,15 @@
     },
     {
       "key": "close",
-      "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends close as 0. The desktop reads Touchline for every code.",
-      "ref": "fivepaisaxts_adapter.py _normalize_market_data"
+      "kind": "open",
+      "reason": "With the 1501 quote nested in Touchline this web adapter reads 1501 at the message root ('data is at root level') and sends close 0; the desktop reads Touchline when present, else the root. No capture shows which shape a real 1501-json-full has: a live capture decides between a web defect (the web loses the quote) and a shape that never occurs. The root-shape push in the same case matches.",
+      "ref": "fivepaisaxts_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901"
     },
     {
       "key": "high",
-      "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends high as 0. The desktop reads Touchline for every code.",
-      "ref": "fivepaisaxts_adapter.py _normalize_market_data"
+      "kind": "open",
+      "reason": "With the 1501 quote nested in Touchline this web adapter reads 1501 at the message root ('data is at root level') and sends high 0; the desktop reads Touchline when present, else the root. No capture shows which shape a real 1501-json-full has: a live capture decides between a web defect (the web loses the quote) and a shape that never occurs. The root-shape push in the same case matches.",
+      "ref": "fivepaisaxts_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901"
     },
     {
       "key": "last_quantity",
@@ -73,21 +74,21 @@
     },
     {
       "key": "low",
-      "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends low as 0. The desktop reads Touchline for every code.",
-      "ref": "fivepaisaxts_adapter.py _normalize_market_data"
+      "kind": "open",
+      "reason": "With the 1501 quote nested in Touchline this web adapter reads 1501 at the message root ('data is at root level') and sends low 0; the desktop reads Touchline when present, else the root. No capture shows which shape a real 1501-json-full has: a live capture decides between a web defect (the web loses the quote) and a shape that never occurs. The root-shape push in the same case matches.",
+      "ref": "fivepaisaxts_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901"
     },
     {
       "key": "ltp",
-      "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends ltp as 0. The desktop reads Touchline for every code.",
-      "ref": "fivepaisaxts_adapter.py _normalize_market_data"
+      "kind": "open",
+      "reason": "With the 1501 quote nested in Touchline this web adapter reads 1501 at the message root ('data is at root level') and sends ltp 0; the desktop reads Touchline when present, else the root. No capture shows which shape a real 1501-json-full has: a live capture decides between a web defect (the web loses the quote) and a shape that never occurs. The root-shape push in the same case matches.",
+      "ref": "fivepaisaxts_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901"
     },
     {
       "key": "ltt",
-      "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote, its LastTradedTime included, in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, so it sends ltt 0. The desktop reads Touchline for every code and sends the trade time in Unix milliseconds.",
-      "ref": "fivepaisaxts_adapter.py _normalize_market_data"
+      "kind": "open",
+      "reason": "Two shapes of 1501 here. With the quote nested in Touchline this web adapter reads ltt at the message root and sends 0; whether a real 1501-json-full nests it (then the web loses the trade time) or not needs a live capture. With the quote at the root the web sends XTS's LastTradedTime as it comes, seconds since 1980-01-01 IST, a wrong unit: feed timestamps are Unix epoch milliseconds (docs/prompt/websockets-format.md), which the desktop sends.",
+      "ref": "fivepaisaxts_adapter.py _normalize_market_data (1501 read at the root, :775); families/xts/streaming.rs xts_time_ms"
     },
     {
       "key": "mode",
@@ -97,9 +98,9 @@
     },
     {
       "key": "open",
-      "kind": "web-defect",
-      "reason": "XTS nests the 1501 quote in Touchline; this web adapter reads Touchline for 1502 only and reads 1501 from the message root, where XTS has no quote, so it sends open as 0. The desktop reads Touchline for every code.",
-      "ref": "fivepaisaxts_adapter.py _normalize_market_data"
+      "kind": "open",
+      "reason": "With the 1501 quote nested in Touchline this web adapter reads 1501 at the message root ('data is at root level') and sends open 0; the desktop reads Touchline when present, else the root. No capture shows which shape a real 1501-json-full has: a live capture decides between a web defect (the web loses the quote) and a shape that never occurs. The root-shape push in the same case matches.",
+      "ref": "fivepaisaxts_adapter.py _normalize_market_data (:775); rmoney_adapter.py:901"
     },
     {
       "key": "price_change",

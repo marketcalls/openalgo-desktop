@@ -52,15 +52,15 @@
   "deviations": [
     {
       "key": "average_price",
-      "kind": "desktop-decision",
-      "reason": "The desktop's Depth frame carries every Quote field, as the recorded Zerodha transcript does; this web adapter's Depth data has no average_price (_normalize_market_data, mode 3).",
-      "ref": "feed::protocol::market_data; compositedge_adapter.py _normalize_market_data"
+      "kind": "web-defect",
+      "reason": "XTS sent average_price in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode.",
+      "ref": "compositedge_adapter.py _normalize_market_data (mode 3)"
     },
     {
       "key": "last_quantity",
-      "kind": "desktop-decision",
-      "reason": "The desktop's Depth frame carries every Quote field, as the recorded Zerodha transcript does; this web adapter's Depth data has no last_quantity (_normalize_market_data, mode 3).",
-      "ref": "feed::protocol::market_data; compositedge_adapter.py _normalize_market_data"
+      "kind": "web-defect",
+      "reason": "XTS sent last_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode.",
+      "ref": "compositedge_adapter.py _normalize_market_data (mode 3)"
     },
     {
       "key": "lower_circuit",
@@ -88,15 +88,15 @@
     },
     {
       "key": "total_buy_quantity",
-      "kind": "desktop-decision",
-      "reason": "The desktop's Depth frame carries every Quote field, as the recorded Zerodha transcript does; this web adapter's Depth data has no total_buy_quantity (_normalize_market_data, mode 3).",
-      "ref": "feed::protocol::market_data; compositedge_adapter.py _normalize_market_data"
+      "kind": "web-defect",
+      "reason": "XTS sent total_buy_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode.",
+      "ref": "compositedge_adapter.py _normalize_market_data (mode 3)"
     },
     {
       "key": "total_sell_quantity",
-      "kind": "desktop-decision",
-      "reason": "The desktop's Depth frame carries every Quote field, as the recorded Zerodha transcript does; this web adapter's Depth data has no total_sell_quantity (_normalize_market_data, mode 3).",
-      "ref": "feed::protocol::market_data; compositedge_adapter.py _normalize_market_data"
+      "kind": "web-defect",
+      "reason": "XTS sent total_sell_quantity in the 1502 event's Touchline; this web adapter's Depth data drops it (mode 3 keeps ltp, ltt, volume, OHLC, oi, the circuits and the book), the desktop's Depth frame keeps it: data the broker sent, lost from a mode.",
+      "ref": "compositedge_adapter.py _normalize_market_data (mode 3)"
     },
     {
       "key": "upper_circuit",

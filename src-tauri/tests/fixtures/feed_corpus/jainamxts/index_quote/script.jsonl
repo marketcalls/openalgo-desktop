@@ -4,5 +4,7 @@
 {"step": "push", "frame": {"text": "40{\"sid\":\"n1\"}"}, "note": "The Socket.IO connect ack accepts the session; the feed subscribes its book over REST."}
 {"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "NIFTY", "exchange": "NSE_INDEX"}], "mode": 2}}
 {"step": "http_receives", "requests": [{"method": "POST", "path": "/apibinarymarketdata/instruments/subscription", "json": {"instruments": [{"exchangeSegment": 1, "exchangeInstrumentID": 26000}], "xtsMessageCode": 1501}}]}
-{"step": "push", "frame": "frames/nifty_1501.txt"}
+{"step": "push", "frame": "frames/nifty_1501.txt", "note": "The quote nested in Touchline."}
 {"step": "receive", "client": "a", "frame": "expected/nifty_quote.json"}
+{"step": "push", "frame": "frames/nifty_1501_root.txt", "note": "The quote at the message root."}
+{"step": "receive", "client": "a", "frame": "expected/nifty_quote_root.json"}

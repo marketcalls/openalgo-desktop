@@ -2,7 +2,7 @@
   "generated_by": "scripts/feed_corpus/web_expected.py",
   "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
   "adapter": "ibulls",
-  "inputs_sha256": "f20c1658fa0683e446ae54f50425c24112d7a6e216f328010abc4c85dff2f68c",
+  "inputs_sha256": "df850da25745502fc7de239a45ffc8c1ee3e0123c6d8ceb3c6bd7ed3e4d13e78",
   "instruments": [
     {
       "symbol": "NIFTY",
@@ -39,6 +39,33 @@
             "close": 0,
             "last_quantity": 0,
             "average_price": 0,
+            "total_buy_quantity": 0,
+            "total_sell_quantity": 0,
+            "symbol": "NIFTY",
+            "exchange": "NSE_INDEX",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 9,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NSE_INDEX_NIFTY_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 24362.4,
+            "ltt": 1478686562,
+            "volume": 0,
+            "open": 24301.2,
+            "high": 24390.0,
+            "low": 24275.35,
+            "close": 24280.1,
+            "last_quantity": 0,
+            "average_price": 0.0,
             "total_buy_quantity": 0,
             "total_sell_quantity": 0,
             "symbol": "NIFTY",
