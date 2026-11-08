@@ -1,0 +1,27 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY24NOV26FUT",
+  "exchange": "NFO",
+  "mode": 2,
+  "broker": "paytm",
+  "data": {
+    "symbol": "NIFTY24NOV26FUT",
+    "exchange": "NFO",
+    "mode": "quote",
+    "ltp": 24606.0,
+    "ltt": 1791000405000,
+    "timestamp": "<receipt_ms>",
+    "volume": 1875150,
+    "last_quantity": 150,
+    "average_price": 24590.25,
+    "total_buy_quantity": 450000,
+    "total_sell_quantity": 375000,
+    "open": 24550.0,
+    "high": 24640.0,
+    "low": 24530.5,
+    "close": 24520.0,
+    "oi": 12346350,
+    "open_interest": 12346350,
+    "last_trade_quantity": 150
+  }
+}

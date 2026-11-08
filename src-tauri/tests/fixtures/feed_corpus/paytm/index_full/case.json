@@ -1,0 +1,105 @@
+{
+  "broker": "paytm",
+  "summary": "NIFTY 50 at Depth: the INDEX_FULL packet carries OHLC, the change and the trade time at byte 35, and no book, OI or 52-week range.",
+  "scenarios": [
+    "index",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "13",
+      "brsymbol": "NIFTY 50",
+      "brexchange": "NSE",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/paytm/streaming/paytm_websocket.py::PaytmWebSocket._parse_binary_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._on_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": [
+      "No live index packet was recorded.",
+      "Layout: paytm_websocket.py:515-533."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the Paytm web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends the change under the canonical names (price_change, price_change_percent) beside the Paytm web names (change_absolute, change_percent), which it sends with the same values (feed::dialect); the web sends only its own names.",
+      "ref": "feed::dialect (WS-05)"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends the change under the canonical names (price_change, price_change_percent) beside the Paytm web names (change_absolute, change_percent), which it sends with the same values (feed::dialect); the web sends only its own names.",
+      "ref": "feed::dialect (WS-05)"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "web-defect",
+      "reason": "Paytm's INDEX_FULL packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533"
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "Paytm's INDEX_FULL packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "Paytm's INDEX_FULL packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "Paytm's INDEX_FULL packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:726-742; paytm_websocket.py:515-533"
+    },
+    {
+      "key": "52_week_high",
+      "kind": "web-defect",
+      "reason": "The INDEX_FULL packet carries no 52-week range; the web sends 0 for it.",
+      "ref": "paytm_adapter.py:740-741"
+    },
+    {
+      "key": "52_week_low",
+      "kind": "web-defect",
+      "reason": "The INDEX_FULL packet carries no 52-week range; the web sends 0 for it.",
+      "ref": "paytm_adapter.py:740-741"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web's index-full parser stores the trade time as last_trade_time and its normaliser reads last_traded_time, so the web sends ltt 0 and loses the time; the desktop decodes it (audit: web defect fixed on desktop).",
+      "ref": "paytm_websocket.py:529; paytm_adapter.py:728"
+    },
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "An index has no open interest and the INDEX_FULL packet carries none; the web sends no oi, the desktop sends 0 (a Depth tick's OI is always rendered). A desktop defect: mark OI absent for index packets.",
+      "ref": "paytm/streaming.rs::decode_packet (CODE_INDEX_FULL); feed::bridge::quote_fields; BKD-05"
+    },
+    {
+      "key": "open_interest",
+      "kind": "open",
+      "reason": "An index has no open interest and the INDEX_FULL packet carries none; the web sends no oi, the desktop sends 0 (a Depth tick's OI is always rendered). A desktop defect: mark OI absent for index packets.",
+      "ref": "paytm/streaming.rs::decode_packet (CODE_INDEX_FULL); feed::bridge::quote_fields; BKD-05"
+    }
+  ]
+}

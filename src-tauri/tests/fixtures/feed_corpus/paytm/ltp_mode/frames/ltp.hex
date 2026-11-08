@@ -1,0 +1,10 @@
+# Paytm Money binary frame: one LTP packet for RELIANCE (security id 2885).
+# -- LTP (23 bytes)
+3d                      # packet code 61
+9a81bb44                # ltp 1500.05
+ec7ec06a                # last trade time 1791000300, epoch s
+450b0000                # security id 2885
+01                      # tradable
+01                      # mode
+00003c41                # change 11.75
+713d4a3f                # change percent 0.79

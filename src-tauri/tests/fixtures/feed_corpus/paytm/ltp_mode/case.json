@@ -1,0 +1,69 @@
+{
+  "broker": "paytm",
+  "summary": "LTP subscriptions on two equities: an LTP packet becomes an LTP frame with its trade time in epoch ms; a binary frame carrying two packets back to back serves both instruments, where the web decodes only the first.",
+  "scenarios": [
+    "first-full-packet",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    },
+    {
+      "symbol": "SBIN",
+      "exchange": "NSE",
+      "token": "3045",
+      "brsymbol": "SBIN",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/paytm/streaming/paytm_websocket.py::PaytmWebSocket._parse_binary_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._on_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._normalize_market_data",
+      "broker/paytm/streaming/paytm_websocket.py::PaytmWebSocket._on_message"
+    ],
+    "notes": [
+      "The query carries x_jwt_token (paytm_websocket.py:232); subscriptions are JSON arrays of preferences."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the Paytm web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web passes Paytm's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
+      "ref": "paytm_adapter.py:702, 709, 728 (raw last_traded_time); audit remaining brokers matrix (Paytm: native seconds -> ms)"
+    },
+    {
+      "key": "frame",
+      "kind": "web-defect",
+      "reason": "The web's client decodes only the first packet of a binary frame (paytm_websocket.py:101-108, _parse_binary_data reads byte 0's packet), so a second packet in the same frame is lost; the desktop cuts every packet by its code's size. Whether Paytm sends packets back to back is not verified live (audit RB-14): the lead decides whether this stays a web defect or the case goes.",
+      "ref": "paytm_websocket.py:289-326; audit RB-14"
+    },
+    {
+      "key": "change_absolute",
+      "kind": "open",
+      "reason": "The web's LTP frame carries the change the LTP packet has; the desktop's LTP frame carries ltp and the times only.",
+      "ref": "paytm_adapter.py:700-705; audit C03"
+    },
+    {
+      "key": "change_percent",
+      "kind": "open",
+      "reason": "The web's LTP frame carries the change the LTP packet has; the desktop's LTP frame carries ltp and the times only.",
+      "ref": "paytm_adapter.py:700-705; audit C03"
+    }
+  ]
+}

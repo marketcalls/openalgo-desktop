@@ -1,0 +1,93 @@
+{
+  "broker": "paytm",
+  "summary": "NIFTY 50 at Quote: the INDEX_QUOTE packet carries OHLC, the change and the 52-week range, and no time, volume, trades or book totals.",
+  "scenarios": [
+    "index",
+    "first-full-packet"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY",
+      "exchange": "NSE_INDEX",
+      "token": "13",
+      "brsymbol": "NIFTY 50",
+      "brexchange": "NSE",
+      "instrumenttype": "INDEX"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/paytm/streaming/paytm_websocket.py::PaytmWebSocket._parse_binary_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._on_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._normalize_market_data"
+    ],
+    "notes": [
+      "No live index packet was recorded.",
+      "Layout: paytm_websocket.py:395-414."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the Paytm web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "52_week_high",
+      "kind": "open",
+      "reason": "The web sends the packet's 52-week high and low in Quote and Depth frames; the desktop's common carrier has no place for them.",
+      "ref": "paytm_adapter.py:721-722, 740-741; audit C06 (remaining brokers: Paytm 52-week)"
+    },
+    {
+      "key": "52_week_low",
+      "kind": "open",
+      "reason": "The web sends the packet's 52-week high and low in Quote and Depth frames; the desktop's common carrier has no place for them.",
+      "ref": "paytm_adapter.py:721-722, 740-741; audit C06 (remaining brokers: Paytm 52-week)"
+    },
+    {
+      "key": "price_change",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends the change under the canonical names (price_change, price_change_percent) beside the Paytm web names (change_absolute, change_percent), which it sends with the same values (feed::dialect); the web sends only its own names.",
+      "ref": "feed::dialect (WS-05)"
+    },
+    {
+      "key": "price_change_percent",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends the change under the canonical names (price_change, price_change_percent) beside the Paytm web names (change_absolute, change_percent), which it sends with the same values (feed::dialect); the web sends only its own names.",
+      "ref": "feed::dialect (WS-05)"
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "web-defect",
+      "reason": "Paytm's INDEX_QUOTE packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:707-723; paytm_websocket.py:395-414"
+    },
+    {
+      "key": "average_price",
+      "kind": "web-defect",
+      "reason": "Paytm's INDEX_QUOTE packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:707-723; paytm_websocket.py:395-414"
+    },
+    {
+      "key": "total_buy_quantity",
+      "kind": "web-defect",
+      "reason": "Paytm's INDEX_QUOTE packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:707-723; paytm_websocket.py:395-414"
+    },
+    {
+      "key": "total_sell_quantity",
+      "kind": "web-defect",
+      "reason": "Paytm's INDEX_QUOTE packet carries no trades, average price or book totals; the web sends 0 for each (message.get(..., 0)), the desktop's index frame leaves them out.",
+      "ref": "paytm_adapter.py:707-723; paytm_websocket.py:395-414"
+    },
+    {
+      "key": "ltt",
+      "kind": "open",
+      "reason": "The INDEX_QUOTE packet carries no time. The web sends ltt 0, an invented time; the desktop sends the receipt time as the trade time, which the lead's rules forbid too. A desktop defect: mark the trade time absent for this packet, so ltt is left out.",
+      "ref": "paytm_adapter.py:709; feed::bridge::ltt; BKD-03"
+    }
+  ]
+}

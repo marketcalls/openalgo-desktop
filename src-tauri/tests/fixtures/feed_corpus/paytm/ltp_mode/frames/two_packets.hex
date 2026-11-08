@@ -1,0 +1,20 @@
+# Paytm Money binary frame carrying two LTP packets back to back: RELIANCE, then SBIN
+# (security id 3045). Each is cut by its code's size.
+# -- LTP (23 bytes)
+3d                      # packet code 61
+3383bb44                # ltp 1500.1
+f17ec06a                # last trade time 1791000305, epoch s
+450b0000                # security id 2885
+01                      # tradable
+01                      # mode
+cdcc3c41                # change 11.8
+713d4a3f                # change percent 0.79
+# -- LTP (23 bytes)
+3d                      # packet code 61
+cd1c4b44                # ltp 812.45
+f27ec06a                # last trade time 1791000306, epoch s
+e50b0000                # security id 3045
+01                      # tradable
+01                      # mode
+9a999140                # change 4.55
+295c0f3f                # change percent 0.56

@@ -1,0 +1,10 @@
+# Paytm Money binary frame: one INDEX_LTP packet for NIFTY 50 (security id 13).
+# -- INDEX_LTP (23 bytes)
+40                      # packet code 64
+b380bf46                # ltp 24512.35
+ee7ec06a                # last update time 1791000302, epoch s
+0d000000                # security id 13
+01                      # tradable
+01                      # mode
+0080e042                # change 112.25
+1f85eb3e                # change percent 0.46

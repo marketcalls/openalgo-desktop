@@ -1,0 +1,26 @@
+{
+  "type": "market_data",
+  "symbol": "NIFTY",
+  "exchange": "NSE_INDEX",
+  "mode": 3,
+  "broker": "paytm",
+  "data": {
+    "symbol": "NIFTY",
+    "exchange": "NSE_INDEX",
+    "mode": "full",
+    "ltp": 24515.6,
+    "ltt": 1791000303000,
+    "timestamp": "<receipt_ms>",
+    "volume": 0,
+    "open": 24450.0,
+    "high": 24560.4,
+    "low": 24380.25,
+    "close": 24400.1,
+    "price_change": 115.5,
+    "price_change_percent": 0.47,
+    "oi": 0,
+    "open_interest": 0,
+    "change_absolute": 115.5,
+    "change_percent": 0.47
+  }
+}

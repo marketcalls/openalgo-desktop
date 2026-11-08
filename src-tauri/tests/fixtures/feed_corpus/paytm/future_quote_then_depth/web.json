@@ -1,0 +1,145 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "paytm",
+  "inputs_sha256": "bd82a24d782fe93700e6c1e552822f710b394f081d270140a258d9e7541adbab",
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "35001",
+      "brsymbol": "NIFTY24NOV26FUT",
+      "brexchange": "NFO",
+      "name": "NIFTY",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY24NOV26FUT_QUOTE",
+          "mode": 2,
+          "data": {
+            "ltp": 24605.5,
+            "ltt": 1791000400,
+            "volume": 1875000,
+            "open": 24550.0,
+            "high": 24640.0,
+            "low": 24530.5,
+            "close": 24520.0,
+            "last_trade_quantity": 75,
+            "average_price": 24590.25,
+            "total_buy_quantity": 450000,
+            "total_sell_quantity": 375000,
+            "change_absolute": 85.5,
+            "change_percent": 0.35,
+            "52_week_high": 26500.0,
+            "52_week_low": 21900.0,
+            "symbol": "NIFTY24NOV26FUT",
+            "exchange": "NFO",
+            "mode": 2,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY24NOV26FUT_DEPTH",
+          "mode": 3,
+          "data": {
+            "ltp": 24606.0,
+            "ltt": 1791000405,
+            "volume": 1875150,
+            "open": 24550.0,
+            "high": 24640.0,
+            "low": 24530.5,
+            "close": 24520.0,
+            "last_quantity": 150,
+            "average_price": 24590.25,
+            "total_buy_quantity": 450000,
+            "total_sell_quantity": 375000,
+            "change_absolute": 86.0,
+            "change_percent": 0.35,
+            "52_week_high": 26500.0,
+            "52_week_low": 21900.0,
+            "oi": 12346350,
+            "oi_change": 45000,
+            "depth": {
+              "buy": [
+                {
+                  "price": 24605.0,
+                  "quantity": 750,
+                  "orders": 5
+                },
+                {
+                  "price": 24604.5,
+                  "quantity": 1500,
+                  "orders": 9
+                },
+                {
+                  "price": 24604.0,
+                  "quantity": 2250,
+                  "orders": 11
+                },
+                {
+                  "price": 24603.5,
+                  "quantity": 300,
+                  "orders": 2
+                },
+                {
+                  "price": 24603.0,
+                  "quantity": 825,
+                  "orders": 6
+                }
+              ],
+              "sell": [
+                {
+                  "price": 24606.0,
+                  "quantity": 600,
+                  "orders": 4
+                },
+                {
+                  "price": 24606.5,
+                  "quantity": 1200,
+                  "orders": 8
+                },
+                {
+                  "price": 24607.0,
+                  "quantity": 975,
+                  "orders": 7
+                },
+                {
+                  "price": 24607.5,
+                  "quantity": 150,
+                  "orders": 1
+                },
+                {
+                  "price": 24608.0,
+                  "quantity": 2100,
+                  "orders": 12
+                }
+              ]
+            },
+            "symbol": "NIFTY24NOV26FUT",
+            "exchange": "NFO",
+            "mode": 3,
+            "timestamp": "<receipt_ms>"
+          }
+        }
+      ]
+    },
+    {
+      "line": 12,
+      "published": []
+    }
+  ]
+}

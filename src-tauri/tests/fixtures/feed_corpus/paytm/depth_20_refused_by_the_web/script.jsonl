@@ -1,0 +1,6 @@
+{"step": "send", "client": "a", "message": {"action": "subscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3, "depth": 20}, "reply": {"type": "subscribe", "status": "success", "subscriptions": [{"symbol": "RELIANCE", "exchange": "NSE", "status": "success", "mode": "Depth", "depth": 20, "broker": "paytm"}], "message": "Subscription processing complete", "broker": "paytm"}}
+{"step": "upstream_receives", "frames": [{"json": [{"actionType": "ADD", "modeType": "FULL", "scripType": "EQUITY", "exchangeType": "NSE", "scripId": "2885"}]}]}
+{"step": "push", "frame": "frames/full.hex"}
+{"step": "receive", "client": "a", "frame": "expected/full.json", "web": false}
+{"step": "send", "client": "a", "message": {"action": "unsubscribe", "symbols": [{"symbol": "RELIANCE", "exchange": "NSE"}], "mode": 3}}
+{"step": "upstream_receives", "frames": [{"json": [{"actionType": "REMOVE", "modeType": "FULL", "scripType": "EQUITY", "exchangeType": "NSE", "scripId": "2885"}]}]}

@@ -1,0 +1,20 @@
+{
+  "broker": "paytm",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": [
+      5
+    ],
+    "orders": false
+  },
+  "sources": [
+    "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter.subscribe",
+    "broker/paytm/streaming/paytm_websocket.py",
+    "services/order_update_service.py:36-76"
+  ],
+  "notes": [
+    "The web refuses a Depth subscribe at any depth but 5 (paytm_adapter.py:388-391); outside Depth mode it acknowledges the depth asked for.",
+    "The web has no Paytm order-update stream (no factory in services/order_update_service.py)."
+  ]
+}

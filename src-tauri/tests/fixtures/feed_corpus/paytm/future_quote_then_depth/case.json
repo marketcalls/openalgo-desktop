@@ -1,0 +1,110 @@
+{
+  "broker": "paytm",
+  "summary": "Two clients on a NIFTY future: a Quote holder, then a Depth holder moves the preference from QUOTE to FULL in one frame; one FULL packet serves both, with its OI; the Depth holder leaving moves it back to QUOTE and the Quote holder keeps streaming.",
+  "scenarios": [
+    "derivative-oi",
+    "mode-change",
+    "subscription-lifecycle"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY24NOV26FUT",
+      "exchange": "NFO",
+      "token": "35001",
+      "brsymbol": "NIFTY24NOV26FUT",
+      "brexchange": "NFO",
+      "name": "NIFTY",
+      "expiry": "24-NOV-26",
+      "lotsize": 75,
+      "instrumenttype": "FUT"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/paytm/streaming/paytm_websocket.py::PaytmWebSocket._parse_binary_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._on_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._normalize_market_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter.subscribe",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter.unsubscribe"
+    ],
+    "notes": [
+      "The web adds a second preference (FULL beside QUOTE) and keys token_map by the security id with the mode subscribed last; the Depth holder leaving deletes that key (paytm_adapter.py:500-501), so the web's Quote holder receives nothing more."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the Paytm web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web passes Paytm's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
+      "ref": "paytm_adapter.py:702, 709, 728 (raw last_traded_time); audit remaining brokers matrix (Paytm: native seconds -> ms)"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends last_quantity, the canonical name, beside the Paytm web name last_trade_quantity with the same value (feed::dialect); the web's Quote frame sends only last_trade_quantity.",
+      "ref": "feed::dialect (WS-05); paytm_adapter.py:715"
+    },
+    {
+      "key": "last_trade_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends the Paytm web name last_trade_quantity beside last_quantity in Quote and Depth alike (feed::dialect); the web's Depth frame names it last_quantity only.",
+      "ref": "feed::dialect (WS-05); paytm_adapter.py:734"
+    },
+    {
+      "key": "open_interest",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends OI as both oi and open_interest for every broker, as the recorded Zerodha transcript does; this web adapter sends oi only.",
+      "ref": "feed::protocol::market_data"
+    },
+    {
+      "key": "change_absolute",
+      "kind": "open",
+      "reason": "The web sends the change Paytm's packet carries in every mode; the desktop decodes it (NormalizedTick::change) and sends it in index frames only.",
+      "ref": "paytm_adapter.py:703, 719, 738; audit C04 (change on all exchanges)"
+    },
+    {
+      "key": "change_percent",
+      "kind": "open",
+      "reason": "The web sends the change Paytm's packet carries in every mode; the desktop decodes it (NormalizedTick::change) and sends it in index frames only.",
+      "ref": "paytm_adapter.py:703, 719, 738; audit C04 (change on all exchanges)"
+    },
+    {
+      "key": "oi_change",
+      "kind": "open",
+      "reason": "The web sends the FULL packet's OI change in Depth frames; the desktop does not decode it and its common carrier has no place for it.",
+      "ref": "paytm_adapter.py:745-747; paytm_websocket.py:509-511; audit C06"
+    },
+    {
+      "key": "depth",
+      "kind": "open",
+      "reason": "The web forwards the FULL packet's DEPTH publish unchanged to a Quote holder (server.py fan-out to lower modes), book included; the desktop renders the Quote holder's frame at Quote.",
+      "ref": "websocket_proxy/server.py (all_client_modes fan-out); audit C08"
+    },
+    {
+      "key": "frame",
+      "kind": "web-defect",
+      "reason": "When the Depth holder leaves, the web adapter deletes the security id from token_map (paytm_adapter.py:500-501) although the Quote holder's preference is still on the wire, so every later packet is dropped as untracked and the web's Quote holder receives nothing more. The desktop moves the preference back to QUOTE and keeps streaming to it.",
+      "ref": "paytm_adapter.py:463-501, 649-657"
+    },
+    {
+      "key": "52_week_high",
+      "kind": "open",
+      "reason": "The web sends the packet's 52-week high and low in Quote and Depth frames; the desktop's common carrier has no place for them.",
+      "ref": "paytm_adapter.py:721-722, 740-741; audit C06 (remaining brokers: Paytm 52-week)"
+    },
+    {
+      "key": "52_week_low",
+      "kind": "open",
+      "reason": "The web sends the packet's 52-week high and low in Quote and Depth frames; the desktop's common carrier has no place for them.",
+      "ref": "paytm_adapter.py:721-722, 740-741; audit C06 (remaining brokers: Paytm 52-week)"
+    }
+  ]
+}

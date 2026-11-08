@@ -1,0 +1,21 @@
+# Paytm Money binary frame: a QUOTE packet on the new connection.
+# -- QUOTE (67 bytes)
+3e                      # packet code 62
+00a0bb44                # ltp 1501.0
+b47fc06a                # last trade time 1791000500, epoch s
+450b0000                # security id 2885
+01                      # tradable
+02                      # mode
+28000000                # last traded quantity 40
+0058bb44                # average price 1498.75
+e8bf3400                # volume 3457000
+c0d40100                # total buy quantity 120000
+d07e0100                # total sell quantity 98000
+0090ba44                # open 1492.5
+9a09ba44                # previous close 1488.3
+66c6bc44                # high 1510.2
+33a3b944                # low 1485.1
+9a99593f                # change percent 0.85
+33334b41                # change 12.7
+661ec944                # 52-week high 1608.95
+00309644                # 52-week low 1201.5

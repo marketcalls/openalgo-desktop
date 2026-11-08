@@ -1,0 +1,71 @@
+{
+  "broker": "paytm",
+  "summary": "Paytm Money drops the socket: the manager reconnects with the same query, sends the QUOTE preference again on the new connection, and its packets reach the client.",
+  "scenarios": [
+    "reconnect"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE",
+      "brexchange": "NSE"
+    }
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/paytm/streaming/paytm_websocket.py::PaytmWebSocket._parse_binary_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._on_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._normalize_market_data",
+      "broker/paytm/streaming/paytm_adapter.py::PaytmWebSocketAdapter._on_open"
+    ],
+    "notes": []
+  },
+  "deviations": [
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; the Paytm web adapter puts its subscription mode number there.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "ltt",
+      "kind": "web-defect",
+      "reason": "The web passes Paytm's trade time on in epoch seconds; WebSocket times are epoch milliseconds (docs/prompt/websockets-format.md, CLAUDE.md), so a client reading ltt as ms on the web lands in January 1970. The desktop sends milliseconds.",
+      "ref": "paytm_adapter.py:702, 709, 728 (raw last_traded_time); audit remaining brokers matrix (Paytm: native seconds -> ms)"
+    },
+    {
+      "key": "last_quantity",
+      "kind": "desktop-decision",
+      "reason": "The desktop sends last_quantity, the canonical name, beside the Paytm web name last_trade_quantity with the same value (feed::dialect); the web's Quote frame sends only last_trade_quantity.",
+      "ref": "feed::dialect (WS-05); paytm_adapter.py:715"
+    },
+    {
+      "key": "change_absolute",
+      "kind": "open",
+      "reason": "The web sends the change Paytm's packet carries in every mode; the desktop decodes it (NormalizedTick::change) and sends it in index frames only.",
+      "ref": "paytm_adapter.py:703, 719, 738; audit C04 (change on all exchanges)"
+    },
+    {
+      "key": "change_percent",
+      "kind": "open",
+      "reason": "The web sends the change Paytm's packet carries in every mode; the desktop decodes it (NormalizedTick::change) and sends it in index frames only.",
+      "ref": "paytm_adapter.py:703, 719, 738; audit C04 (change on all exchanges)"
+    },
+    {
+      "key": "52_week_high",
+      "kind": "open",
+      "reason": "The web sends the packet's 52-week high and low in Quote and Depth frames; the desktop's common carrier has no place for them.",
+      "ref": "paytm_adapter.py:721-722, 740-741; audit C06 (remaining brokers: Paytm 52-week)"
+    },
+    {
+      "key": "52_week_low",
+      "kind": "open",
+      "reason": "The web sends the packet's 52-week high and low in Quote and Depth frames; the desktop's common carrier has no place for them.",
+      "ref": "paytm_adapter.py:721-722, 740-741; audit C06 (remaining brokers: Paytm 52-week)"
+    }
+  ]
+}
