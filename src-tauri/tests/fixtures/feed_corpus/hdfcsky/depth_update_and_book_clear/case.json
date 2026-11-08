@@ -1,0 +1,89 @@
+{
+  "broker": "hdfcsky",
+  "summary": "A Depth subscription: a five-level book, then a book of three bids and two asks, then a full packet with no book at all (every level gone).",
+  "scenarios": [
+    "first-full-packet",
+    "depth-update",
+    "book-clear"
+  ],
+  "instruments": [
+    {
+      "symbol": "RELIANCE",
+      "exchange": "NSE",
+      "token": "2885",
+      "brsymbol": "RELIANCE-EQ",
+      "brexchange": "NSE"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"heart_beat\":true}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/hdfcsky/streaming/hdfcsky_websocket.py::HDFCSkyWebSocket._parse_packet",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter._on_ticks",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter._normalize"
+    ],
+    "notes": [
+      "The web publishes the third packet on the Depth topic with no depth key (_parse_packet adds depth only when a side has a level; _normalize copies it only when present); the desktop publishes nothing for it."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "change",
+      "kind": "open",
+      "reason": "The web sends the change since the previous close for every instrument (in LTP frames too); the desktop's common carrier sends it for indices only (audit C04, lane wire).",
+      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize; feed::bridge::quote_fields"
+    },
+    {
+      "key": "change_percent",
+      "kind": "open",
+      "reason": "The web sends the change since the previous close for every instrument (in LTP frames too); the desktop's common carrier sends it for indices only (audit C04, lane wire).",
+      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize; feed::bridge::quote_fields"
+    },
+    {
+      "key": "last_price",
+      "kind": "open",
+      "reason": "The HDFC Sky web adapter repeats ltp as last_price in every frame; the desktop's common carrier sends ltp only (a per-broker alias for lane wire).",
+      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize"
+    },
+    {
+      "key": "lower_circuit",
+      "kind": "open",
+      "reason": "The web sends the circuit band (from the full packet, refreshed by the *_CIRC packet) in Depth frames; the desktop decodes and merges it but its common carrier drops it (audit C06, P-11, lane wire).",
+      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts no mode in its data.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "prev_close",
+      "kind": "open",
+      "reason": "The HDFC Sky web adapter repeats close as prev_close in every mode, LTP included; the desktop's common carrier sends close only, and in Quote and Depth only (a per-broker alias for lane wire). In an LTP frame built from an LTP-type packet the web's value is a proto3 0.0 (a web defect, see ltp_mode).",
+      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize"
+    },
+    {
+      "key": "timestamp",
+      "kind": "open",
+      "reason": "The web sends the packet's own time (packetTimestamp, or the index's packetTimeStamp) as timestamp; HdfcSkyFeed::events stamps the receipt time instead and uses the packet time only as the trade-time fallback (HDFC Securities' feed sends the packet time). A desktop defect.",
+      "ref": "brokers/hdfcsky/streaming.rs::HdfcSkyFeed::events; hdfcsky_websocket.py:685"
+    },
+    {
+      "key": "token",
+      "kind": "open",
+      "reason": "The HDFC Sky web adapter sends the broker token as a string in every frame; the desktop's common carrier has no such field. Lead decision: carry it as a per-broker extra, or record it as a desktop decision.",
+      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize"
+    },
+    {
+      "key": "upper_circuit",
+      "kind": "open",
+      "reason": "The web sends the circuit band (from the full packet, refreshed by the *_CIRC packet) in Depth frames; the desktop decodes and merges it but its common carrier drops it (audit C06, P-11, lane wire).",
+      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize"
+    }
+  ]
+}

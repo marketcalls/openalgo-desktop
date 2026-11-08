@@ -1,0 +1,9 @@
+# HDFC Sky protobuf GenericDTOList: an LTP-type packet after the feed went back to LTP
+# Written by scripts/feed_corpus/protolite.py from the web's hdfcsky_market_pb2.py.
+# packetType is absent: NSE_CM_ALL is 0, the proto3 default a sender leaves out.
+0a1b                # genericDTOList (GenericDTO, 27 bytes)
+08c516              #   instrumentId = 2885
+120f                #   mbpData (MBPData, 15 bytes)
+090000000000749740  #     lastTradedPrice = 1501.0
+1083e2cfaa06        #     lastTradeTime = 1700000003
+40b8e795ffbc31      #   packetTimestamp = 1700000003000

@@ -1,0 +1,43 @@
+{
+  "broker": "hdfcsky",
+  "web": {
+    "ltp": true,
+    "quote": true,
+    "depth": {
+      "NSE": [
+        5
+      ],
+      "BSE": [
+        5
+      ],
+      "NFO": [
+        5
+      ],
+      "BFO": [
+        5
+      ],
+      "CDS": [
+        5
+      ],
+      "MCX": [
+        5
+      ],
+      "NSE_INDEX": [
+        5
+      ],
+      "BSE_INDEX": [
+        5
+      ]
+    },
+    "orders": false
+  },
+  "sources": [
+    "broker/hdfcsky/streaming/hdfcsky_mapping.py::HDFCSkyCapabilityRegistry",
+    "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter.subscribe",
+    "services/order_update_service.py:36"
+  ],
+  "notes": [
+    "One socket for every mode: LTP subscribes type LTP, Quote and Depth type ALL; the book is five levels on every exchange (SUPPORTED_DEPTH_LEVELS = [5]).",
+    "No order-update stream: hdfcsky is in neither the web's order adapter registry nor its polling brokers (services/order_update_service.py:36-69)."
+  ]
+}

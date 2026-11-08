@@ -1,0 +1,18 @@
+# HDFC Sky protobuf GenericDTOList: a full MBP packet for token 2885 on NSE_CD_ALL
+# Written by scripts/feed_corpus/protolite.py from the web's hdfcsky_market_pb2.py.
+0a58                # genericDTOList (GenericDTO, 88 bytes)
+08c516              #   instrumentId = 2885
+124a                #   mbpData (MBPData, 74 bytes)
+09295c8fc2f51c5640  #     lastTradedPrice = 88.4525
+1080e2cfaa06        #     lastTradeTime = 1700000000
+299a99999999195640  #     openPrice = 88.4
+310000000000205640  #     highPrice = 88.5
+39295c8fc2f5185640  #     closingPrice = 88.39
+416666666666165640  #     lowPrice = 88.35
+48f09309            #     volumeTradedToday = 150000
+500a                #     lastTradeQuantity = 10
+595c8fc2f5281c5640  #     averageTradePrice = 88.44
+6890c802            #     totalBuyQuantity = 42000
+70d8b002            #     totalSellQuantity = 39000
+4080d095ffbc31      #   packetTimestamp = 1700000000000
+4801                #   packetType = NSE_CD_ALL

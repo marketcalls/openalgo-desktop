@@ -1,0 +1,381 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "hdfcsky",
+  "inputs_sha256": "c57502e06cc664404bb24ae38887eb590f506460b05ac91dfb82601fe4bf3581",
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "35001",
+      "brsymbol": "NIFTY25NOV26FUT",
+      "brexchange": "NFO",
+      "instrumenttype": "FUTIDX",
+      "lotsize": 75,
+      "expiry": "25-NOV-26"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 4,
+      "published": []
+    },
+    {
+      "line": 7,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV26FUT_DEPTH",
+          "mode": 3,
+          "data": {
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "token": "35001",
+            "ltp": 1500.5,
+            "last_price": 1500.5,
+            "ltt": 1700000000,
+            "timestamp": 1700000000000,
+            "close": 1495.0,
+            "prev_close": 1495.0,
+            "change": 5.5,
+            "change_percent": 0.37,
+            "volume": 12345,
+            "last_quantity": 3,
+            "average_price": 1499.0,
+            "total_buy_quantity": 5400,
+            "total_sell_quantity": 6100,
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1480.0,
+            "oi": 700,
+            "open_interest": 700,
+            "depth": {
+              "buy": [
+                {
+                  "price": 1500.45,
+                  "quantity": 120,
+                  "orders": 4
+                },
+                {
+                  "price": 1500.4,
+                  "quantity": 200,
+                  "orders": 6
+                },
+                {
+                  "price": 1500.35,
+                  "quantity": 75,
+                  "orders": 2
+                },
+                {
+                  "price": 1500.3,
+                  "quantity": 310,
+                  "orders": 9
+                },
+                {
+                  "price": 1500.25,
+                  "quantity": 50,
+                  "orders": 1
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1500.55,
+                  "quantity": 90,
+                  "orders": 3
+                },
+                {
+                  "price": 1500.6,
+                  "quantity": 180,
+                  "orders": 5
+                },
+                {
+                  "price": 1500.65,
+                  "quantity": 60,
+                  "orders": 2
+                },
+                {
+                  "price": 1500.7,
+                  "quantity": 400,
+                  "orders": 11
+                },
+                {
+                  "price": 1500.75,
+                  "quantity": 25,
+                  "orders": 1
+                }
+              ]
+            },
+            "upper_circuit": 1645.05,
+            "lower_circuit": 1345.95
+          }
+        },
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV26FUT_QUOTE",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "token": "35001",
+            "ltp": 1500.5,
+            "last_price": 1500.5,
+            "ltt": 1700000000,
+            "timestamp": 1700000000000,
+            "close": 1495.0,
+            "prev_close": 1495.0,
+            "change": 5.5,
+            "change_percent": 0.37,
+            "volume": 12345,
+            "last_quantity": 3,
+            "average_price": 1499.0,
+            "total_buy_quantity": 5400,
+            "total_sell_quantity": 6100,
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1480.0,
+            "oi": 700,
+            "open_interest": 700
+          }
+        }
+      ]
+    },
+    {
+      "line": 10,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV26FUT_DEPTH",
+          "mode": 3,
+          "data": {
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "token": "35001",
+            "ltp": 1500.5,
+            "last_price": 1500.5,
+            "ltt": 1700000000,
+            "timestamp": 1700000000100,
+            "close": 1495.0,
+            "prev_close": 1495.0,
+            "change": 5.5,
+            "change_percent": 0.37,
+            "volume": 12345,
+            "last_quantity": 3,
+            "average_price": 1499.0,
+            "total_buy_quantity": 5400,
+            "total_sell_quantity": 6100,
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1480.0,
+            "oi": 700,
+            "open_interest": 700,
+            "depth": {
+              "buy": [
+                {
+                  "price": 1500.45,
+                  "quantity": 120,
+                  "orders": 4
+                },
+                {
+                  "price": 1500.4,
+                  "quantity": 200,
+                  "orders": 6
+                },
+                {
+                  "price": 1500.35,
+                  "quantity": 75,
+                  "orders": 2
+                },
+                {
+                  "price": 1500.3,
+                  "quantity": 310,
+                  "orders": 9
+                },
+                {
+                  "price": 1500.25,
+                  "quantity": 50,
+                  "orders": 1
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1500.55,
+                  "quantity": 90,
+                  "orders": 3
+                },
+                {
+                  "price": 1500.6,
+                  "quantity": 180,
+                  "orders": 5
+                },
+                {
+                  "price": 1500.65,
+                  "quantity": 60,
+                  "orders": 2
+                },
+                {
+                  "price": 1500.7,
+                  "quantity": 400,
+                  "orders": 11
+                },
+                {
+                  "price": 1500.75,
+                  "quantity": 25,
+                  "orders": 1
+                }
+              ]
+            },
+            "upper_circuit": 1650.0,
+            "lower_circuit": 1350.0
+          }
+        },
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV26FUT_QUOTE",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "token": "35001",
+            "ltp": 1500.5,
+            "last_price": 1500.5,
+            "ltt": 1700000000,
+            "timestamp": 1700000000100,
+            "close": 1495.0,
+            "prev_close": 1495.0,
+            "change": 5.5,
+            "change_percent": 0.37,
+            "volume": 12345,
+            "last_quantity": 3,
+            "average_price": 1499.0,
+            "total_buy_quantity": 5400,
+            "total_sell_quantity": 6100,
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1480.0,
+            "oi": 700,
+            "open_interest": 700
+          }
+        }
+      ]
+    },
+    {
+      "line": 13,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV26FUT_DEPTH",
+          "mode": 3,
+          "data": {
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "token": "35001",
+            "ltp": 1500.5,
+            "last_price": 1500.5,
+            "ltt": 1700000000,
+            "timestamp": 1700000000200,
+            "close": 1495.0,
+            "prev_close": 1495.0,
+            "change": 5.5,
+            "change_percent": 0.37,
+            "volume": 12345,
+            "last_quantity": 3,
+            "average_price": 1499.0,
+            "total_buy_quantity": 5400,
+            "total_sell_quantity": 6100,
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1480.0,
+            "oi": 777,
+            "open_interest": 777,
+            "depth": {
+              "buy": [
+                {
+                  "price": 1500.45,
+                  "quantity": 120,
+                  "orders": 4
+                },
+                {
+                  "price": 1500.4,
+                  "quantity": 200,
+                  "orders": 6
+                },
+                {
+                  "price": 1500.35,
+                  "quantity": 75,
+                  "orders": 2
+                },
+                {
+                  "price": 1500.3,
+                  "quantity": 310,
+                  "orders": 9
+                },
+                {
+                  "price": 1500.25,
+                  "quantity": 50,
+                  "orders": 1
+                }
+              ],
+              "sell": [
+                {
+                  "price": 1500.55,
+                  "quantity": 90,
+                  "orders": 3
+                },
+                {
+                  "price": 1500.6,
+                  "quantity": 180,
+                  "orders": 5
+                },
+                {
+                  "price": 1500.65,
+                  "quantity": 60,
+                  "orders": 2
+                },
+                {
+                  "price": 1500.7,
+                  "quantity": 400,
+                  "orders": 11
+                },
+                {
+                  "price": 1500.75,
+                  "quantity": 25,
+                  "orders": 1
+                }
+              ]
+            },
+            "upper_circuit": 1650.0,
+            "lower_circuit": 1350.0
+          }
+        },
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV26FUT_QUOTE",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "token": "35001",
+            "ltp": 1500.5,
+            "last_price": 1500.5,
+            "ltt": 1700000000,
+            "timestamp": 1700000000200,
+            "close": 1495.0,
+            "prev_close": 1495.0,
+            "change": 5.5,
+            "change_percent": 0.37,
+            "volume": 12345,
+            "last_quantity": 3,
+            "average_price": 1499.0,
+            "total_buy_quantity": 5400,
+            "total_sell_quantity": 6100,
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1480.0,
+            "oi": 777,
+            "open_interest": 777
+          }
+        }
+      ]
+    }
+  ]
+}

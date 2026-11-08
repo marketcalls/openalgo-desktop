@@ -1,0 +1,90 @@
+{
+  "generated_by": "scripts/feed_corpus/web_expected.py",
+  "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+  "adapter": "hdfcsky",
+  "inputs_sha256": "c0af238fe9a84abfacaca3f17e3834455a8f766f63d909d64f40235b22d31d8d",
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "35001",
+      "brsymbol": "NIFTY25NOV26FUT",
+      "brexchange": "NFO",
+      "instrumenttype": "FUTIDX",
+      "lotsize": 75,
+      "expiry": "25-NOV-26"
+    }
+  ],
+  "pushes": [
+    {
+      "line": 3,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV26FUT_QUOTE",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "token": "35001",
+            "ltp": 1500.5,
+            "last_price": 1500.5,
+            "ltt": 1700000000,
+            "timestamp": 1700000000000,
+            "close": 1495.0,
+            "prev_close": 1495.0,
+            "change": 5.5,
+            "change_percent": 0.37,
+            "volume": 12345,
+            "last_quantity": 3,
+            "average_price": 1499.0,
+            "total_buy_quantity": 5400,
+            "total_sell_quantity": 6100,
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1480.0,
+            "oi": 700,
+            "open_interest": 700
+          }
+        }
+      ]
+    },
+    {
+      "line": 8,
+      "published": []
+    },
+    {
+      "line": 10,
+      "published": [
+        {
+          "kind": "market",
+          "topic": "NFO_NIFTY25NOV26FUT_QUOTE",
+          "mode": 2,
+          "data": {
+            "symbol": "NIFTY25NOV26FUT",
+            "exchange": "NFO",
+            "token": "35001",
+            "ltp": 1502.0,
+            "last_price": 1502.0,
+            "ltt": 1700000005,
+            "timestamp": 1700000005000,
+            "close": 1495.0,
+            "prev_close": 1495.0,
+            "change": 7.0,
+            "change_percent": 0.47,
+            "volume": 12500,
+            "last_quantity": 4,
+            "average_price": 1499.4,
+            "total_buy_quantity": 5300,
+            "total_sell_quantity": 6000,
+            "open": 1490.0,
+            "high": 1510.0,
+            "low": 1480.0,
+            "oi": 777,
+            "open_interest": 777
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "broker": "hdfcsky",
+  "summary": "The broker drops the socket: the manager connects again with the same query and headers and subscribes again; an OI packet before the new socket's first full packet publishes nothing.",
+  "scenarios": [
+    "reconnect",
+    "partial-packet",
+    "derivative-oi"
+  ],
+  "instruments": [
+    {
+      "symbol": "NIFTY25NOV26FUT",
+      "exchange": "NFO",
+      "token": "35001",
+      "brsymbol": "NIFTY25NOV26FUT",
+      "brexchange": "NFO",
+      "instrumenttype": "FUTIDX",
+      "lotsize": 75,
+      "expiry": "25-NOV-26"
+    }
+  ],
+  "upstream_ignore": [
+    "{\"heart_beat\":true}"
+  ],
+  "provenance": {
+    "web_sha": "a1b9e32506bce21403a8614dddeed0ab61fd519a",
+    "method": "web-script",
+    "sources": [
+      "broker/hdfcsky/streaming/hdfcsky_websocket.py::HDFCSkyWebSocket._parse_packet",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter._on_ticks",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter._merge_partial",
+      "broker/hdfcsky/streaming/hdfcsky_adapter.py::HDFCSkyWebSocketAdapter._normalize",
+      "test/test_hdfcsky_quote_feed.py::test_reconnect_drops_snapshots_before_partial_packets"
+    ],
+    "notes": [
+      "HdfcSkyFeed::on_connected clears the merge baselines, as the web's _on_ws_connect does."
+    ]
+  },
+  "deviations": [
+    {
+      "key": "change",
+      "kind": "open",
+      "reason": "The web sends the change since the previous close for every instrument (in LTP frames too); the desktop's common carrier sends it for indices only (audit C04, lane wire).",
+      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize; feed::bridge::quote_fields"
+    },
+    {
+      "key": "change_percent",
+      "kind": "open",
+      "reason": "The web sends the change since the previous close for every instrument (in LTP frames too); the desktop's common carrier sends it for indices only (audit C04, lane wire).",
+      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize; feed::bridge::quote_fields"
+    },
+    {
+      "key": "last_price",
+      "kind": "open",
+      "reason": "The HDFC Sky web adapter repeats ltp as last_price in every frame; the desktop's common carrier sends ltp only (a per-broker alias for lane wire).",
+      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize"
+    },
+    {
+      "key": "mode",
+      "kind": "desktop-decision",
+      "reason": "data.mode is the label every broker's frames carry on the desktop (ltp, quote, full), as the recorded Zerodha transcripts carry it; this web adapter puts no mode in its data.",
+      "ref": "feed::source::Mode::data_label (docs-7); tests/fixtures/web/websocket transcripts"
+    },
+    {
+      "key": "oi",
+      "kind": "open",
+      "reason": "The web sends OI in Quote frames; the desktop's Quote frame carries OI only when a Depth client holds the instrument (audit C05, lane wire).",
+      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize; feed::bridge::tick_update"
+    },
+    {
+      "key": "open_interest",
+      "kind": "open",
+      "reason": "The web sends OI in Quote frames; the desktop's Quote frame carries OI only when a Depth client holds the instrument (audit C05, lane wire).",
+      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize; feed::bridge::tick_update"
+    },
+    {
+      "key": "prev_close",
+      "kind": "open",
+      "reason": "The HDFC Sky web adapter repeats close as prev_close in every mode, LTP included; the desktop's common carrier sends close only, and in Quote and Depth only (a per-broker alias for lane wire). In an LTP frame built from an LTP-type packet the web's value is a proto3 0.0 (a web defect, see ltp_mode).",
+      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize"
+    },
+    {
+      "key": "timestamp",
+      "kind": "open",
+      "reason": "The web sends the packet's own time (packetTimestamp, or the index's packetTimeStamp) as timestamp; HdfcSkyFeed::events stamps the receipt time instead and uses the packet time only as the trade-time fallback (HDFC Securities' feed sends the packet time). A desktop defect.",
+      "ref": "brokers/hdfcsky/streaming.rs::HdfcSkyFeed::events; hdfcsky_websocket.py:685"
+    },
+    {
+      "key": "token",
+      "kind": "open",
+      "reason": "The HDFC Sky web adapter sends the broker token as a string in every frame; the desktop's common carrier has no such field. Lead decision: carry it as a per-broker extra, or record it as a desktop decision.",
+      "ref": "broker/hdfcsky/streaming/hdfcsky_adapter.py::_normalize"
+    }
+  ]
+}
